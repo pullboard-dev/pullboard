@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** @pullboard-test-input source-tree */
 /** Cockpit fixture checks, using the shared real-board fixtures [N26]. */
@@ -16,17 +17,16 @@ import { addItem, closeBoard } from '../../src/board.js';
 import { openBoard } from '../../apps/lib/index.js';
 import { exportBoard, importBoard } from '../../packages/store/index.js';
 import { projectState } from '../../apps/cli/src/shell/cli/view-state.js';
-import { testsNeedBrowser } from '../../src/browser-admission.js';
+import { testsNeedBrowser } from '../../packages/gate/index.js';
 import { copyPackageFiles } from '../../packages/runners/index.js';
 import { scratch, machine, project, build, fetchView, fetchLive, startView, styleOf, openPage, boardId, boardOf, assertObservationsEqual, chromeExecutable, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome } from './fixture.js';
 
-test('the view fixture refuses to launch Chrome outside a browser slot [C7,O5]', async t => {
+test('the view fixture refuses to launch Chrome from an undeclared test file [C7,O5]', async t => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-view-browser-slot-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const name of ['bin', 'machine']) mkdirSync(join(root, name));
   copyPackageFiles(resolve(import.meta.dirname, '../..'), root);
   cpSync(resolve(import.meta.dirname, '..'), join(root, 'test'), { recursive: true });
-  writeFileSync(join(root, 'machine/settings.json'), JSON.stringify({ gate: { browserByLaunch: true } }));
 
   /** Exercise the actual view launcher and always stop any stand-in it owns, including a failing baseline. */
   const body = (name, binding) => `
@@ -46,7 +46,7 @@ test('${name} view launch', async () => {
   } finally { await stop?.(); }
 });
 `;
-  writeFileSync(join(root, 'test/classified-view.test.js'), body('held', "import { startSnapshotChrome } from './cockpit/fixture.js';"));
+  writeFileSync(join(root, 'test/classified-view.test.js'), `// pullboard: browser${body('held', "import { startSnapshotChrome } from './cockpit/fixture.js';")}`);
   writeFileSync(join(root, 'test/hidden-view.test.js'), body('none', ''));
   const browser = join(root, 'view-browser-stand-in');
   writeFileSync(browser, `#!/usr/bin/env node
@@ -66,19 +66,21 @@ setInterval(() => {}, 1000); // Protocol lifetime: the owner terminates this sta
   for (const key of ['NODE_TEST_CONTEXT', 'NODE_OPTIONS', 'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_TEST_FILE', 'PULLBOARD_CHROME']) delete env[key];
   Object.assign(env, { PULLBOARD_HOME: join(root, 'home'), PULLBOARD_MACHINE_HOME: join(root, 'machine'),
     FIXTURE_BROWSER: browser, FIXTURE_MARKERS: join(root, 'markers'), FIXTURE_LAUNCHES: join(root, 'launches') });
-  const initialized = spawnSync('git', ['init', '-q'], { cwd: root, env, encoding: 'utf8' });
-  assert.equal(initialized.status, 0, initialized.stderr);
-  assert.equal(await testsNeedBrowser(root, ['test/classified-view.test.js'], { byLaunch: true }), true);
-  assert.equal(await testsNeedBrowser(root, ['test/hidden-view.test.js'], { byLaunch: true }), false,
-    'the computed import genuinely hides the view launch from the classifier');
+  // A committed main, so the runner can read its accepted main for test file budgets.
+  for (const args of [['init', '-q', '-b', 'main'], ['add', '-A'], ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '-m', 'fixture']]) {
+    const result = spawnSync('git', args, { cwd: root, env, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+  }
+  assert.equal(await testsNeedBrowser(root, ['test/classified-view.test.js']), true, 'the first line declares the browser');
+  assert.equal(await testsNeedBrowser(root, ['test/hidden-view.test.js']), false, 'no first-line marker, no browser');
   const run = spawnSync(process.execPath, ['bin/run-tests.js', 'test/classified-view.test.js', 'test/hidden-view.test.js'],
     { cwd: root, env, encoding: 'utf8' });
   const output = `${run.stdout}\n${run.stderr}`;
   assert.notEqual(run.status, 0, output);
-  assert.match(output, /\[BROWSER_SLOT_REQUIRED\] test\/hidden-view\.test\.js launched Chrome/u);
+  assert.match(output, /\[BROWSER_UNDECLARED\] test\/hidden-view\.test\.js launched Chrome/u);
   assert.deepEqual(readFileSync(join(root, 'markers'), 'utf8').trim().split('\n').sort(), ['held=held', 'none=none']);
   assert.deepEqual(readFileSync(join(root, 'launches'), 'utf8').trim().split('\n'), ['held-profile'],
-    'only the classified worker starts the stand-in; the unclassified worker never spawns it');
+    'only the declared worker starts the stand-in; the undeclared worker never spawns it');
 });
 
 
