@@ -55,6 +55,20 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - I1 [approved, must] One command sets up config, spec, agent instructions, hooks and board. | gate: test/e2e.test.js
 - I2 [approved, must] Init is idempotent and never overwrites a file it did not write. | gate: test/e2e.test.js
 
+## N · Next commands
+- N1 [draft, must] `pullboard decide`: the person's queue of everything waiting on them.
+- N2 [draft, must] `pullboard next` claims my lane's next item; with --verify, the oldest work I did not build.
+- N3 [draft, must] `pullboard context <id>`: frozen bar, cited rows, gates, lane, verdicts, what still blocks it.
+- N4 [draft, must] `pullboard ask add` stores the client's documents in ask/, hashed; rows can cite them.
+- N5 [draft, must] `pullboard spec approve` and `spec answer` record who changed a row's status, and when.
+- N6 [draft, must] `pullboard prompt <role>` prints the role prompt, overridable per repo.
+- N7 [draft, must] `pullboard plan` proposes lanes and items from the spec and the repo; --apply writes them.
+- N8 [draft, must] `pullboard run` starts configured agent commands per lane and role, under budgets and stops.
+- N9 [draft, aim] `pullboard report` renders spec coverage, verified items and receipts as one page.
+- N10 [draft, aim] `pullboard tour` shows a reject and its rework with scripted agents in thirty seconds.
+- N11 [draft, aim] A git-pullboard bin, so `git pullboard <command>` works.
+- N12 [draft, aim] `pullboard mcp` serves the same commands as MCP tools.
+
 ## H · Hosted
 - H1 [pending, aim] `pullboard sync` mirrors the local board to pullboard.dev for teams across machines.
 - H2 [pending, aim] Hosted issues an identity per agent, so a verdict binds who gave it, not a path.
