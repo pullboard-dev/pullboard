@@ -1,0 +1,60 @@
+# Pullboard local
+
+The local-first core of Pullboard: a work board, lanes, a spec and git hooks that live in the repo. No account, no network. This file is the spec, in the format `pullboard spec check` lints.
+
+Statuses: approved = decided · draft = proposed · pending = open question · fact = true today · retired = spent, never reused. Tiers: must · aim.
+
+## P · Principles
+- P1 [approved, must] Nothing ships until a second agent verifies it. | gate: test/board.test.js
+- P2 [approved, must] Works offline in any git repo. No account, no network. | gate: test/e2e.test.js
+- P3 [approved, must] Zero runtime dependencies. Node 22.13 or newer. | gate: test/package.test.js
+- P4 [approved, must] Every refusal names its rule and the next step. | gate: review
+
+## B · Board
+- B1 [approved, must] One SQLite file in the git common dir. Every worktree sees it; nothing is committed. | gate: test/e2e.test.js
+- B2 [approved, must] Every move is one immediate transaction. Two agents never hold one item. | gate: test/e2e.test.js | serves: P1
+- B3 [approved, must] An agent is its worktree. The main checkout is the coordinator. | gate: test/e2e.test.js
+- B4 [approved, must] A claim is a lease, 2h by default. Claiming again renews it. | gate: test/board.test.js
+- B5 [approved, must] One live top-level claim per agent. Child items are free. | gate: test/board.test.js
+- B6 [approved, must] Items cite spec ids that exist. | gate: test/e2e.test.js | serves: S1
+- B7 [approved, must] Shouts reach a lane, an agent or all. Inbox marks them read. | gate: test/board.test.js
+
+## V · Verification
+- V1 [approved, must] The builder never verifies its own work. | gate: test/board.test.js | serves: P1
+- V2 [approved, must] The criterion freezes at first claim: title, criterion and cited spec rows. | gate: test/board.test.js | serves: P1
+- V3 [approved, must] Verify refuses when the frozen criterion has changed. | gate: test/e2e.test.js | serves: V2
+- V4 [approved, must] Submit needs a clean tree and the gate green at HEAD. | gate: test/e2e.test.js
+- V5 [approved, must] ACCEPT needs CRITERION_MET. REJECT needs a reason code and a note. | gate: test/board.test.js
+- V6 [approved, must] REJECT reopens the item. Resubmitting needs a new head. | gate: test/board.test.js
+- V7 [approved, must] The verifier's checkout contains the submitted commit. | gate: test/e2e.test.js
+- V8 [approved, must] Every verdict binds the submitted commit and the frozen digest. | gate: test/board.test.js
+
+## L · Lanes
+- L1 [approved, must] Lanes live in pullboard.json: folders owned, spec prefixes, when it starts. | gate: test/lanes.test.js
+- L2 [approved, must] The longest owned prefix decides a path's lane. Unowned paths are the coordinator's. | gate: test/lanes.test.js
+- L3 [approved, must] In a lane's worktree, pre-commit refuses changes outside the lane, moves included. | gate: test/e2e.test.js
+- L4 [approved, must] A worktree that has not joined a lane cannot commit. | gate: test/e2e.test.js
+
+## S · Spec
+- S1 [approved, must] SPEC.md holds one row per line: id, status, text, gate, what it serves. | gate: test/spec.test.js
+- S2 [approved, must] Ids are unique forever. Retired rows stay, so no id is reused. | gate: test/spec.test.js
+- S3 [approved, must] Serves links name real ids and never cycle. | gate: test/spec.test.js
+- S4 [approved, must] Approved must-rows name their gate. | gate: test/spec.test.js
+- S5 [approved, must] A sign-off keeps the text it approved. Changing the row makes it stale. | gate: test/spec.test.js
+
+## C · Commits
+- C1 [approved, must] Header: type(scope): subject [ids], 72 characters at most. | gate: test/hooks.test.js
+- C2 [approved, must] Cited ids exist. feat and fix commits cite at least one. | gate: test/hooks.test.js | serves: S1
+- C3 [approved, must] Pre-push runs the gate, unless this exact tree already passed it. | gate: test/e2e.test.js | serves: V4
+
+## R · Receipts
+- R1 [approved, must] The ledger lists built items: lane, spec, builder, verifier, verdict, commit. | gate: test/board.test.js
+- R2 [approved, must] Every move lands in an append-only event log. | gate: test/board.test.js
+
+## I · Init
+- I1 [approved, must] One command sets up config, spec, agent instructions, hooks and board. | gate: test/e2e.test.js
+- I2 [approved, must] Init is idempotent and never overwrites a file it did not write. | gate: test/e2e.test.js
+
+## H · Hosted
+- H1 [pending, aim] `pullboard sync` mirrors the local board to pullboard.dev for teams across machines.
+- H2 [pending, aim] Hosted issues an identity per agent, so a verdict binds who gave it, not a path.

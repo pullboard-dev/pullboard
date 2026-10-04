@@ -1,0 +1,4 @@
+#!/bin/sh
+# This repo is pullboard itself, so its hooks run the source in this checkout.
+root=$(git rev-parse --show-toplevel)
+exec node "$root/bin/pullboard.js" hook commit-msg "$1"

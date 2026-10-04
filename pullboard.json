@@ -1,0 +1,13 @@
+{
+  "gate": "npm run gate",
+  "spec": "SPEC.md",
+  "verify": "any",
+  "lease": "2h",
+  "lanes": {
+    "core": { "owns": ["src/", "bin/"], "specs": ["B", "V", "L", "S", "C", "R", "I"], "starts": "now" },
+    "tests": { "owns": ["test/"], "specs": ["P"], "starts": "now" },
+    "docs": { "owns": ["docs/", "README.md", "ROADMAP.md"], "specs": ["H"], "starts": "now" }
+  },
+  "shared": [],
+  "commits": { "requireIds": ["feat", "fix"], "noEmoji": true }
+}
