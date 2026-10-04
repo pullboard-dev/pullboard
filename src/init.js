@@ -31,6 +31,20 @@ export function detectGate(root) {
 }
 
 /**
+ * The gate the repo's config sets now, whoever wrote it, or empty when unreadable.
+ *
+ * @param {string} root
+ * @returns {string}
+ */
+function configuredGate(root) {
+  try {
+    return String(JSON.parse(readFileSync(join(root, CONFIG_FILE), 'utf8')).gate ?? '').trim();
+  } catch {
+    return '';
+  }
+}
+
+/**
  * Write a file only when it does not exist yet.
  *
  * @param {string} file
@@ -97,6 +111,8 @@ export function initRepo({ info, openBoardHere, register, closeBoard }) {
     closeBoard(board);
   }
   notes.push('opened the board in the git dir; this checkout is the coordinator');
-  if (!gate) notes.push('no gate yet: set "gate" in pullboard.json to the command that proves the build');
+  if (!configuredGate(root)) {
+    notes.push('no gate yet: set "gate" in pullboard.json to the command that proves the build');
+  }
   return notes;
 }

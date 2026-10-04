@@ -115,6 +115,7 @@ test('init writes config, spec, agent docs and hooks once, and never clobbers [I
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: 'mine' }));
   const second = box.run(repo, 'init');
   assert.match(second.out, /kept pullboard.json/);
+  assert.doesNotMatch(second.out, /no gate yet/, 'the config already names a gate');
   assert.equal(JSON.parse(readFileSync(join(repo, 'pullboard.json'), 'utf8')).gate, 'mine');
   const agents = readFileSync(join(repo, 'AGENTS.md'), 'utf8');
   assert.ok(agents.startsWith('# Mine\n\nkeep me\n'));
