@@ -6,6 +6,25 @@ What exists, what comes next, and why. Each step keeps the core rule: nothing sh
 
 A board in `.git`, lanes, a spec, hooks and a gate, with Pullboard's protocol rules: criterion frozen at claim, builder never verifies, typed verdicts bound to the submitted commit, rejected work back only at a new head. One machine, no account, no dependencies.
 
+## Soon: 0.5.x, hardening from real builds
+
+Lessons from an eight-lane build and from running hosted Pullboard, each small on its own:
+
+- **Hooks rerun over history.** The gate re-checks every commit's message and added lines, cached per commit, so `--no-verify` hides nothing.
+- **Lanes enforced in the agent too.** Join writes the agent's own permission rules (for example Claude Code's local settings), so a lane holds before anything reaches a commit.
+- **Each worktree runs its own install,** or its tests quietly run another checkout's code.
+- **A quick gate** that runs only the checks a change can reach; merges still run the full gate.
+- **A fresh-clone check** before handoff: it installs, starts and passes from nothing.
+- **A sensitive-data pack:** data files, file-share links and salted identifier tripwires blocked at commit.
+- **Spec coverage at the end of the gate:** every approved row with the checks that cite it, pass or fail. Plus lint for glossary synonyms, near-duplicate rows and one track per prefix, and a one-page view of the spec for people.
+- **Unverifiable is not rejected.** A verifier can say the check could not run (a flake, a broken environment) without blaming the work.
+- **A pending row blocks the items that cite it** until the person settles it.
+- **Stranded work flagged:** committed but unsubmitted work is called out before its lease lapses.
+- **`pullboard worktrees`** lists and prunes agent worktrees without losing unmerged work.
+- **Gate canaries:** every gate proves it can fail before anyone trusts it passing.
+- **Held-out checks:** acceptance checks the builders never see, hashed before the work starts.
+- **Blueprints:** `pullboard blueprint apply saas` drafts the rows a kind of product needs, for the person to approve.
+
 ## Next: 0.6, sync over git
 
 Today the board lives in one clone's `.git`. Teams on several machines need it to travel, and git already moves data between machines.
