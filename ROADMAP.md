@@ -1,0 +1,60 @@
+# Roadmap
+
+What exists, what comes next, and why. Each step keeps the core rule: nothing ships until a second agent verifies it.
+
+## Now: 0.5, the local core
+
+A board in `.git`, lanes, a spec, hooks and a gate, with Pullboard's protocol rules: criterion frozen at claim, builder never verifies, typed verdicts bound to the submitted commit, rejected work back only at a new head. One machine, no account, no dependencies.
+
+## Next: 0.6, sync over git
+
+Today the board lives in one clone's `.git`. Teams on several machines need it to travel, and git already moves data between machines.
+
+- **Board events on a ref.** Every move becomes an empty commit on `refs/pullboard/events`, synced with plain `git push` and `git fetch`. Git is the source of truth; the SQLite file becomes a cache rebuilt from the ref, with a test that a full rebuild equals the incremental one.
+- **Claims as compare-and-swap.** One ref per claim (`refs/pullboard/claims/<id>`), pushed with `--force-with-lease=<ref>:<expected>`, so the remote decides who holds an item atomically, like the local transaction does today.
+- **Signed verdicts.** Each agent signs its verdict commits with its own key, so "the builder never verifies" holds across machines, not only by worktree path.
+- **No clocks in the rules.** Order comes from the ref, never from a timestamp a writer controls.
+
+## Then: 0.7, pushes drive the board
+
+Agents stop calling submit by hand: the board moves when the code moves.
+
+- **The change as a first-class object.** Item, branch, base and head commits, preview, verdicts, promoted or not: one record, the unit a reviewer looks for.
+- **Push triggers submit and verification.** A push to an item's branch submits it (gate green) and queues it for a verifier. Locally a hook; hosted, a webhook.
+- **Re-verify when the main line moves, instead of racing.** If trunk moved after a verdict, the change is rebased and verified again before it lands (STALE_HEAD). A rebase that conflicts goes back to its builder with the reason.
+- **Code by pointer.** Shouts and verdicts reference `{repo, branch, sha, path, lines}`; the snippet is rendered where the code lives, and a reference to a commit that does not exist is refused.
+- **Notes ship with the code.** The agent's notes for a change live on its branch, so the why stays in the repo, next to what it explains.
+
+## Then: 0.8, verify before deploy
+
+- **Every branch gets a preview,** and the submission records its URL (Cloudflare Workers Previews, Vercel, Netlify, or a local server). The verifier checks the running app, not only the tests.
+- **ACCEPT promotes.** The verified commit merges to the production branch and the host deploys it: Built, Verified, Deployed, in that order.
+- **Deploy receipts.** A criterion can name a target, and the receipt binds commit, host, service and boot time, so "merged" is never mistaken for "running".
+
+## Hosted Pullboard (pullboard.dev)
+
+The paid layer, for teams across machines and organizations:
+
+- `pullboard sync` mirrors a local board, both ways.
+- **Issued identities per agent:** a verdict binds who gave it, not a path. Independent verification is only as good as the identity behind it.
+- The spec register in a UI, dashboards, and a neutral record a third party can trust.
+- Free for three boards; unlimited on paid plans.
+
+## A Cloudflare track
+
+Cloudflare's agent-era Git platform (Artifacts, Workers, Previews) supplies the Git side; Pullboard stays the coordinator and never holds source.
+
+- Artifacts is the Git host; a push event runs a Worker that submits the change to the board.
+- Each branch's Workers Preview is the verification target; ACCEPT promotes and Workers Builds deploys.
+- Diffs render on demand in the Worker; none are stored by the board.
+
+## Also planned
+
+- **Item kinds.** `work | mutex | condition`, declared and immutable, so a lock or a monitor's signal is never held to work's obligations.
+- **Context pack.** `pullboard context <id>`: one deterministic view of an item (frozen criterion, submitted head, verdict trail, binding rules, and the named gates still blocking it), so no agent rebuilds it from chat.
+- **Rules that fail builds.** A spec or doctrine row names the check that enforces it, and the gate asserts that check exists.
+
+## Not planned
+
+- **Several agents racing the same task.** Exclusive claims are the point: at many agents, wasted work is the main cost. Spend a second attempt only where the first was rejected.
+- **A diff or merge UI.** Git and the host already do that well.
