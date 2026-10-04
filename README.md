@@ -134,4 +134,4 @@ This package is complete on one machine and free. [Pullboard](https://pullboard.
 
 ## License
 
-MIT
+Apache-2.0. See LICENSE and NOTICE.

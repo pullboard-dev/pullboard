@@ -3,13 +3,35 @@
   "version": "0.5.0",
   "private": true,
   "description": "Pullboard, local-first: a work board, lanes, a spec and git hooks that live in your repo. Nothing ships until a second agent verifies it.",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "type": "module",
-  "bin": { "pullboard": "./bin/pullboard.js" },
-  "exports": { ".": "./src/index.js" },
-  "files": ["bin", "src", "docs", "README.md", "LICENSE"],
-  "engines": { "node": ">=22.13" },
-  "keywords": ["pullboard", "ai-agents", "coding-agents", "multi-agent", "verification", "git-hooks", "local-first", "spec"],
+  "bin": {
+    "pullboard": "./bin/pullboard.js"
+  },
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "docs",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "keywords": [
+    "pullboard",
+    "ai-agents",
+    "coding-agents",
+    "multi-agent",
+    "verification",
+    "git-hooks",
+    "local-first",
+    "spec"
+  ],
   "homepage": "https://pullboard.dev",
   "scripts": {
     "test": "node --disable-warning=ExperimentalWarning --test",
