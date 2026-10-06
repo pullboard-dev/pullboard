@@ -123,6 +123,24 @@ test('init writes config, spec, agent docs and hooks once, and never clobbers [I
   assert.equal(readFileSync(join(repo, 'CLAUDE.md'), 'utf8'), '@AGENTS.md\n');
   assert.equal(box.git(repo, 'config', '--get', 'core.hooksPath'), '.githooks');
   for (const hook of ['pre-commit', 'commit-msg', 'pre-push']) assert.ok(existsSync(join(repo, '.githooks', hook)));
+  assert.ok(readFileSync(join(repo, 'PRACTICE.md'), 'utf8').startsWith('# Practice'));
+  assert.ok(existsSync(join(repo, '.claude', 'skills', 'pullboard-decompose', 'SKILL.md')));
+  assert.match(second.out, /kept PRACTICE.md/);
+  assert.match(second.out, /kept the Claude Code skills/);
+});
+
+test('spec check lints both files; spec view writes one page into the git dir [S6, S7]', () => {
+  const box = project();
+  writeFileSync(join(box.repo, 'PRACTICE.md'), '# Practice\n\n## C · Code\n- C1 [approved, must] Functions under 60 lines.\n');
+  const check = box.run(box.repo, 'spec', 'check');
+  assert.equal(check.code, 1);
+  assert.match(check.out, /PRACTICE.md:4 C1 error: an approved must-row names its gate/);
+  assert.match(check.out, /SPEC.md: 2 rows, 0 errors/);
+  const view = box.run(box.repo, 'spec', 'view');
+  assert.equal(view.code, 0, view.err);
+  const file = join(box.repo, '.git', 'pullboard', 'spec.html');
+  assert.ok(readFileSync(file, 'utf8').includes('The page renders.'));
+  assert.match(view.out, /open: file:\/\//);
 });
 
 test('the board lives in the git common dir; every worktree sees it; nothing is committed [B1, B3]', () => {
