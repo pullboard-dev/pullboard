@@ -654,8 +654,9 @@ async function nextHere(io, values) {
 }
 
 /**
- * `pullboard sweep` (N15): run a checker, then file one routed item per file it flags, each with
- * the problems in its brief and the checker on that file as its check.
+ * `pullboard sweep` (N15, N17): run a checker, then file one routed item per file it flags, each
+ * with the problems in its brief and the checker on that file as its check. Each check runs once
+ * first, on the file as it is: it must fail there, or it could never prove a fix.
  *
  * @param {any} ctx
  * @param {any} board
@@ -686,7 +687,13 @@ function sweepHere(ctx, board, me, values) {
     route: values.route ?? 'light',
     max,
   });
+  const blind = [];
   for (const item of items) {
+    const canary = spawnSync(item.check, { cwd: ctx.info.root, shell: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    if (canary.status === 0) {
+      blind.push(item.file);
+      continue;
+    }
     if (values['dry-run']) {
       ctx.io.say(`would file: ${item.title} (${item.lane} lane, ${item.route})`);
       continue;
@@ -695,8 +702,12 @@ function sweepHere(ctx, board, me, values) {
     ctx.io.say(`#${id} ${item.title} (${item.lane} lane, ${item.route})`);
   }
   if (skipped.length) ctx.io.say(`already open: ${skipped.join(', ')}`);
-  ctx.io.say(`${problems.length} problems in ${new Set(problems.map((problem) => problem.file)).size} files; ${values['dry-run'] ? 'would file' : 'filed'} ${items.length}`);
-  return 0;
+  if (blind.length) {
+    ctx.io.err(`pullboard: [CHECK_CANNOT_FAIL] the check passes on ${blind.join(', ')} although the checker flags problems there, so it could never prove a fix; not filed. A check ending in a pipe takes its exit status from the last command`);
+  }
+  const filed = items.length - blind.length;
+  ctx.io.say(`${problems.length} problems in ${new Set(problems.map((problem) => problem.file)).size} files; ${values['dry-run'] ? 'would file' : 'filed'} ${filed}`);
+  return blind.length ? 1 : 0;
 }
 
 /**
