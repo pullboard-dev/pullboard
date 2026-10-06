@@ -390,7 +390,7 @@ test('run builds routed items unattended: the failure feeds the next attempt; re
     '  if [ "$PULLBOARD_ATTEMPT" = "1" ]; then echo "export const title = \'Hello\';" > web/page.js; echo stray > api/stray.js;',
     '  elif grep -q "The check" "$PULLBOARD_PACK"; then echo "export const title = \'Hi\';" > web/page.js; fi',
     'else',
-    '  echo "export const footer = \'nope\';" > web/footer.js',
+    '  echo "export const footer = \'nope\'; // $PULLBOARD_CHECK" | tr B b > web/footer.js',
     'fi',
     '',
   ].join('\n'));
@@ -416,7 +416,7 @@ test('run builds routed items unattended: the failure feeds the next attempt; re
   assert.equal(box.git(light, 'log', '-1', '--format=%s', 'refs/pullboard/items/1/' + box.git(light, 'rev-parse', '--short=12', 'HEAD')), 'feat(web): greet on the page [G1]');
   assert.equal(box.git(light, 'status', '--porcelain'), '');
   const pinned = box.git(light, 'for-each-ref', '--format=%(refname)', 'refs/pullboard/attempts/2/');
-  assert.match(box.git(light, 'show', `${pinned}:web/footer.js`), /nope/);
+  assert.match(box.git(light, 'show', `${pinned}:web/footer.js`), /nope'; \/\/ grep -q bye web\/footer.js/);
   const shown = box.run(box.repo, 'show', '2').out;
   assert.match(shown, /#2 {2}open {2}web {2}Say bye {2}mid/);
   assert.match(shown, /unattended attempts: red, red/);
