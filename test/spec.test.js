@@ -155,3 +155,11 @@ test('an id once committed or cited never leaves the spec [S8]', () => {
     { id: 'X4', message: 'commit 89abcde cites it, but it was never committed to the spec; add it as a retired row saying what it meant' },
   ]);
 });
+
+test('the check command is part of the frozen bar; items without one keep their old digest [B14]', () => {
+  const item = { item_title: 'Load twice', item_criterion: 'second load adds nothing', item_spec_ids: 'G1' };
+  const before = frozenCriterion(parseSpec(SPEC), item).digest;
+  assert.equal(frozenCriterion(parseSpec(SPEC), { ...item, item_check: '' }).digest, before);
+  assert.notEqual(frozenCriterion(parseSpec(SPEC), { ...item, item_check: 'npm test' }).digest, before);
+});
+

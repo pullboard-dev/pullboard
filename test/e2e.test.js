@@ -353,24 +353,103 @@ test('a deleted spec row is refused at commit; spec check finds any id gone from
   assert.match(cited.stderr, /G2 is marked won't build/);
 });
 
-test('an item carries a brief to whoever claims it; a light agent sees only light work [B10, B11]', () => {
+const LIGHT_BRIEF = 'Files:\n- web/page.js\nChange:\n- copy the header from the api\nTest:\n- the page test asserts the header\nOut of scope: anything else\n';
+
+test('an item carries a brief to whoever claims it; a light agent sees only its tier [B10, B13, B14]', () => {
   const box = project();
-  writeFileSync(join(box.dir, 'brief.md'), 'Edit web/page.js only.\nCopy the header from api/server.js.\n');
+  writeFileSync(join(box.dir, 'brief.md'), LIGHT_BRIEF);
   assert.equal(box.run(box.repo, 'add', 'web', 'Design', 'the', 'page', '--specs', 'G1').code, 0);
-  assert.match(box.run(box.repo, 'add', 'web', 'Rename', '--route', 'light').err, /NO_BRIEF/);
-  assert.match(box.run(box.repo, 'add', 'web', 'Rename', '--brief', 'x', '--brief-file', 'y').err, /USAGE.*give the brief once/);
-  const added = box.run(box.repo, 'add', 'web', 'Copy', 'the', 'header', '--route', 'light', '--brief-file', join(box.dir, 'brief.md'));
+  assert.match(box.run(box.repo, 'add', 'web', 'Copy', '--route', 'light', '--brief-file', join(box.dir, 'brief.md')).err, /NO_BRIEF.*--criterion.*--check/);
+  assert.match(box.run(box.repo, 'add', 'web', 'Copy', '--brief', 'x', '--brief-file', 'y').err, /USAGE.*give the brief once/);
+  const foreign = box.run(box.repo, 'add', 'web', 'Copy', '--route', 'light', '--criterion', 'c', '--check', 'true', '--brief', LIGHT_BRIEF.replace('web/page.js', 'api/server.js'));
+  assert.match(foreign.err, /BRIEF_LANE.*api\/server.js \(api's\)/);
+  const added = box.run(box.repo, 'add', 'web', 'Copy', 'the', 'header', '--route', 'light', '--criterion', 'the page shows the header', '--check', 'test -f web/page.js', '--brief-file', join(box.dir, 'brief.md'));
   assert.equal(added.out.trim(), '#2', added.err);
   assert.match(box.run(box.repo, 'list').out, /#2 {2}open {2}web {2}Copy the header {2}light/);
+  assert.doesNotMatch(box.run(box.repo, 'list', '--route', 'light').out, /Design the page/);
   const made = box.run(box.repo, 'worktree', 'web', '--route', 'light');
   assert.match(made.out, /joined as web-2 in the web lane, on the light route/);
   const light = made.out.match(/^made (\S+) /)[1];
   assert.match(box.run(light, 'whoami').out, /^web-2 \(web lane, light route\)/);
   const next = box.run(light, 'next');
-  assert.match(next.out, /claimed #2: Copy the header\nbrief:\n {2}Edit web\/page.js only.\n {2}Copy the header from api\/server.js./);
+  assert.match(next.out, /claimed #2: Copy the header\ncriterion: the page shows the header\ncheck: test -f web\/page.js {3}\(run it before you submit\)\nbrief:\n {2}Files:\n {2}- web\/page.js/);
   assert.match(box.run(light, 'claim', '1').err, /ROUTE/);
   assert.match(box.run(box.web, 'next').out, /claimed #1: Design the page/);
   assert.equal(box.run(box.repo, 'edit', '1', '--brief', 'Start from the sketch in docs/page.md.').code, 0);
   assert.match(box.run(box.web, 'show', '1').out, /brief:\n {2}Start from the sketch in docs\/page.md./);
   assert.match(box.run(box.web, 'edit', '2', '--brief', 'mine').err, /NOT_YOURS/);
+});
+
+test('run builds routed items unattended: the failure feeds the next attempt; red work escalates, pinned [N14, B15]', () => {
+  const box = project();
+  const agent = join(box.dir, 'agent.sh');
+  writeFileSync(agent, [
+    '#!/bin/sh',
+    'mkdir -p web api',
+    'if [ "$PULLBOARD_ITEM" = "1" ]; then',
+    '  if [ "$PULLBOARD_ATTEMPT" = "1" ]; then echo "export const title = \'Hello\';" > web/page.js; echo stray > api/stray.js;',
+    '  elif grep -q "The check" "$PULLBOARD_PACK"; then echo "export const title = \'Hi\';" > web/page.js; fi',
+    'else',
+    '  echo "export const footer = \'nope\';" > web/footer.js',
+    'fi',
+    '',
+  ].join('\n'));
+  const brief = (file) => LIGHT_BRIEF.replace('web/page.js', file);
+  const has = (file, text) => `grep -q ${text} ${file}`;
+  assert.equal(box.run(box.repo, 'add', 'web', 'Greet', 'on', 'the', 'page', '--specs', 'G1', '--route', 'light', '--criterion', 'the page says Hi', '--check', has('web/page.js', 'Hi'), '--brief', brief('web/page.js')).code, 0);
+  assert.equal(box.run(box.repo, 'add', 'web', 'Say', 'bye', '--route', 'light', '--criterion', 'the footer says Bye', '--check', has('web/footer.js', 'Bye'), '--brief', brief('web/footer.js')).code, 0);
+  const made = box.run(box.repo, 'worktree', 'web', '--route', 'light');
+  const light = made.out.match(/^made (\S+) /)[1];
+  assert.match(box.run(box.repo, 'run', '--agent', `sh ${agent}`).err, /MAIN_IS_COORDINATOR/);
+  const ran = box.run(light, 'run', '--agent', `sh ${agent}`, '--attempts', '2', '--minutes', '2');
+  assert.equal(ran.code, 0, ran.err);
+  assert.match(ran.out, /#1 attempt 1: red[\s\S]*#1 attempt 2: green \(agent \d+s, check \d+s\)\nsubmitted #1/);
+  assert.match(ran.out, /nothing left to run: no open light runnable items in the web lane/);
+  assert.match(ran.out, /#2 attempt 2: red[\s\S]*#2 escalated light -> mid; the attempt is pinned at refs\/pullboard\/attempts\/2\//);
+  assert.match(ran.out, /runner done: 1 submitted, 1 escalated/);
+  const packs = join(box.dir, 'repo', '.git', 'worktrees', light.split('/').at(-1), 'pullboard', 'packs');
+  const second = readFileSync(join(packs, '1-2.md'), 'utf8');
+  assert.match(second, /reverted your changes outside the brief's files: api\/stray.js/);
+  assert.match(second, /### web\/page.js\n```\nexport const title = 'Hello';/);
+  assert.equal(existsSync(join(light, 'api', 'stray.js')), false);
+  assert.equal(box.git(light, 'log', '-1', '--format=%s', 'refs/pullboard/items/1/' + box.git(light, 'rev-parse', '--short=12', 'HEAD')), 'feat(web): greet on the page [G1]');
+  assert.equal(box.git(light, 'status', '--porcelain'), '');
+  const pinned = box.git(light, 'for-each-ref', '--format=%(refname)', 'refs/pullboard/attempts/2/');
+  assert.match(box.git(light, 'show', `${pinned}:web/footer.js`), /nope/);
+  const shown = box.run(box.repo, 'show', '2').out;
+  assert.match(shown, /#2 {2}open {2}web {2}Say bye {2}mid/);
+  assert.match(shown, /unattended attempts: red, red/);
+  assert.match(shown, /escalated light -> mid by web-2, pinned at refs\/pullboard\/attempts\/2\/[0-9a-f]{12}: 2 attempts stayed red/);
+  assert.match(box.run(box.repo, 'inbox').out, /web-2 -> coordinator: #2 escalated light -> mid after 2 red attempts/);
+});
+
+test('pre-commit runs the fixers on fully staged files and restages them; partly staged files are left alone [C5]', () => {
+  const box = project();
+  const fixer = join(box.dir, 'trim.mjs');
+  writeFileSync(fixer, "import fs from 'node:fs';\nfor (const f of process.argv.slice(2)) fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace(/[ \\t]+$/gm, ''));\n");
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, fix: [{ run: `node ${fixer}`, files: ['*.js'] }] }, null, 2));
+  box.git(box.repo, 'commit', '-qam', 'chore: trim trailing spaces at commit');
+  mkdirSync(join(box.repo, 'docs'), { recursive: true });
+  writeFileSync(join(box.repo, 'docs', 'a.js'), 'const a = 1;   \n');
+  writeFileSync(join(box.repo, 'docs', 'b.md'), 'text   \n');
+  writeFileSync(join(box.repo, 'docs', 'c.js'), 'const c = 1;   \n');
+  box.git(box.repo, 'add', 'docs');
+  writeFileSync(join(box.repo, 'docs', 'c.js'), 'const c = 1;   \nconst d = 2;\n');
+  const committed = box.tryGit(box.repo, 'commit', '-q', '-m', 'docs: three files');
+  assert.equal(committed.status, 0, committed.stderr);
+  const committedText = (path) => box.tryGit(box.repo, 'show', `HEAD:${path}`).stdout;
+  assert.equal(committedText('docs/a.js'), 'const a = 1;\n');
+  assert.equal(readFileSync(join(box.repo, 'docs', 'a.js'), 'utf8'), 'const a = 1;\n');
+  assert.equal(committedText('docs/b.md'), 'text   \n');
+  assert.equal(committedText('docs/c.js'), 'const c = 1;   \n');
+  assert.match(committed.stderr, /not fixed, because they are partly staged: docs\/c.js/);
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, fix: [{ run: 'false', files: ['*.js'] }] }, null, 2));
+  box.git(box.repo, 'commit', '-qam', 'chore: a fixer that fails');
+  writeFileSync(join(box.repo, 'docs', 'e.js'), 'const e = 1;   \n');
+  box.git(box.repo, 'add', 'docs/e.js');
+  const failed = box.tryGit(box.repo, 'commit', '-q', '-m', 'docs: one more');
+  assert.equal(failed.status, 0, failed.stderr);
+  assert.match(failed.stderr, /fixer "false" failed \(1\); staged nothing from it/);
+  assert.equal(committedText('docs/e.js'), 'const e = 1;   \n');
 });
