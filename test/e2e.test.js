@@ -470,7 +470,7 @@ test('a ladder climbs within a tier; routing history skips a rung that keeps fai
   const ran = box.run(tree, 'run', '--agent-light', weak, '--agent-light', strong, '--attempts', '1', '--items', '3', '--history', history, '--minutes', '2');
   assert.equal(ran.code, 0, ran.err);
   assert.match(ran.out, /#1 attempt 1: red[\s\S]*#1 attempt 1\/1: running the light agent \(rung 2\)\n#1 attempt 1: green/);
-  assert.match(ran.out, /#3 skips rung 1: it failed rename 2 times and never fixed it\n#3 attempt 1\/1: running the light agent \(rung 2\)/);
+  assert.match(ran.out, /#3 skips rung 1: it fixed 0 of 2 items with rename\n#3 attempt 1\/1: running the light agent \(rung 2\)/);
   assert.match(ran.out, /runner done: 3 submitted, 0 escalated/);
   const records = readFileSync(history, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
   assert.deepEqual(records.map((record) => `${record.command === weak ? 'weak' : 'strong'}:${record.result}`), ['weak:red', 'strong:green', 'weak:red', 'strong:green', 'strong:green']);
@@ -478,7 +478,7 @@ test('a ladder climbs within a tier; routing history skips a rung that keeps fai
   const attempt = JSON.parse(box.run(box.repo, 'log', '1').out.split('\n').filter((line) => line.includes(' attempt ')).at(-1).replace(/^.*?(\{.*\})$/, '$1'));
   assert.equal(attempt.rung, 2);
   const only = box.run(tree, 'run', '--agent-light', weak, '--attempts', '1', '--history', history, '--minutes', '2');
-  assert.match(only.out, /#4 skips rung 1: it failed rename 2 times and never fixed it\n#4 escalated light -> mid, without spending an attempt/);
+  assert.match(only.out, /#4 skips rung 1: it fixed 0 of 2 items with rename\n#4 escalated light -> mid, without spending an attempt/);
 });
 
 test('sweep files one light item per flagged file, in its lane; a second sweep skips what is open [N15]', () => {

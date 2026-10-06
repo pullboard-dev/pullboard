@@ -12,15 +12,18 @@ test('an item is the kind its brief names, or the rules its sweep listed [N18]',
   assert.deepEqual(featuresOf({ item_brief: 'Files:\n- a.js' }), ['unlabelled']);
 });
 
-test('a rung is skipped only after failing a feature twice without ever fixing it, per tier [N18]', () => {
+test('a rung is skipped when it fixed fewer than half of at least two items sharing a feature, per tier [N18]', () => {
   const red = (features, command = 'small', tier = 'light') => ({ tier, command, features, result: 'red' });
   const green = (features, command = 'small', tier = 'light') => ({ tier, command, features, result: 'green' });
   const ladder = ['small', 'large'];
-  assert.deepEqual(routePlan(ladder, ['camelcase'], 'light', []).map((step) => step.skip), ['', '']);
-  assert.deepEqual(routePlan(ladder, ['camelcase'], 'light', [red(['camelcase'])]).map((step) => step.skip), ['', '']);
+  const skips = (features, tier, records) => routePlan(ladder, features, tier, records).map((step) => step.skip);
+  assert.deepEqual(skips(['camelcase'], 'light', []), ['', '']);
+  assert.deepEqual(skips(['camelcase'], 'light', [red(['camelcase'])]), ['', '']);
   const twice = [red(['camelcase', 'no-var']), red(['camelcase'])];
-  assert.deepEqual(routePlan(ladder, ['camelcase', 'no-var'], 'light', twice).map((step) => step.skip), ['it failed camelcase 2 times and never fixed it', '']);
-  assert.deepEqual(routePlan(ladder, ['no-var'], 'light', twice).map((step) => step.skip), ['', '']);
-  assert.deepEqual(routePlan(ladder, ['camelcase'], 'light', [...twice, green(['camelcase'])]).map((step) => step.skip), ['', '']);
-  assert.deepEqual(routePlan(ladder, ['camelcase'], 'mid', twice).map((step) => step.skip), ['', '']);
+  assert.deepEqual(skips(['camelcase', 'no-var'], 'light', twice), ['it fixed 0 of 2 items with camelcase', '']);
+  assert.deepEqual(skips(['no-var'], 'light', twice), ['', '']);
+  assert.deepEqual(skips(['camelcase'], 'light', [...twice, green(['camelcase'])]), ['it fixed 1 of 3 items with camelcase', '']);
+  assert.deepEqual(skips(['camelcase'], 'light', [...twice, green(['camelcase']), green(['camelcase'])]), ['', '']);
+  assert.deepEqual(skips(['camelcase'], 'mid', twice), ['', '']);
+  assert.deepEqual(skips(['camelcase'], 'light', [red(['camelcase'], 'large'), red(['camelcase'], 'large')]), ['', 'it fixed 0 of 2 items with camelcase']);
 });
