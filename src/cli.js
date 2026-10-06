@@ -65,10 +65,8 @@ Work
   pullboard run --agent "<command>" [--attempts 3] [--minutes 15] [--items N] [--wait M]
                                         build routed items unattended in this worktree: the agent command reads
                                         the context pack at $PULLBOARD_PACK (and $PULLBOARD_CHECK, $PULLBOARD_ITEM,
-                                        $PULLBOARD_ATTEMPT); green work is submitted, red escalated
-                [--agent-light "..."] [--agent-mid "..."] [--agent-strong "..."]   a command per tier; repeat a
-                                        flag for a ladder, cheapest first; --history <file> keeps what each
-                                        rung did, and a rung that keeps failing a kind of item is skipped
+                                        $PULLBOARD_ATTEMPT, $PULLBOARD_TIER); green work is submitted, red escalated
+                [--agent-light "..."] [--agent-mid "..."] [--agent-strong "..."]   a command per tier
   pullboard list [lane] [--all] [--route light|mid|strong]   open and active items; --all adds closed ones
   pullboard show <id>                   an item, the criterion frozen at claim, its verdicts
   pullboard next [--wait <minutes>]     claim the next item in your lane that is free to start
@@ -122,10 +120,9 @@ const OPTIONS = {
   as: { type: 'string' },
   check: { type: 'string' },
   agent: { type: 'string' },
-  'agent-light': { type: 'string', multiple: true },
-  'agent-mid': { type: 'string', multiple: true },
-  'agent-strong': { type: 'string', multiple: true },
-  history: { type: 'string' },
+  'agent-light': { type: 'string' },
+  'agent-mid': { type: 'string' },
+  'agent-strong': { type: 'string' },
   attempts: { type: 'string' },
   minutes: { type: 'string' },
   items: { type: 'string' },

@@ -11,7 +11,7 @@
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { join } from 'node:path';
 import * as store from './board.js';
 import { briefFiles } from './brief.js';
 import { COORDINATOR } from './config.js';
@@ -263,83 +263,19 @@ function mergeDependencies(ctx, item, deps) {
 }
 
 /**
- * What kind of item this is, as features a routing history can learn from: the `Kind:` line of its
- * brief when the planner wrote one, or else the rules a sweep listed (`- line 12:3 camelcase: ...`).
- *
- * @param {any} item
- * @returns {string[]}
- */
-export function featuresOf(item) {
-  const brief = item.item_brief ?? '';
-  const named = /^kind:\s*(.+)$/im.exec(brief);
-  if (named) return [...new Set(named[1].split(/[\s,+]+/).filter(Boolean))].sort();
-  const rules = [...brief.matchAll(/^\s*- line \d+(?::\d+)?:? ([a-z@][\w@/-]*)[:\s]/gm)].map((match) => match[1]);
-  return rules.length ? [...new Set(rules)].sort() : ['unlabelled'];
-}
-
-/**
- * Which rungs of a tier's ladder to try for an item (N18): every rung, except one that fixed fewer
- * than half of at least two items sharing a feature with this one. The history is what this
- * machine's models did before; routing learns from it instead of from a guess.
- *
- * @param {string[]} ladder - The tier's commands, cheapest first.
- * @param {string[]} features
- * @param {string} tier
- * @param {{ tier: string, command: string, features: string[], result: string }[]} records
- * @returns {{ rung: number, command: string, skip: string }[]}
- */
-export function routePlan(ladder, features, tier, records) {
-  return ladder.map((command, index) => {
-    const mine = records.filter((record) => record.tier === tier && record.command === command);
-    const record = (feature) => {
-      const seen = mine.filter((entry) => entry.features.includes(feature));
-      return { feature, tries: seen.length, fixed: seen.filter((entry) => entry.result === 'green').length };
-    };
-    const weak = features.map(record).find((entry) => entry.tries >= 2 && entry.fixed * 2 < entry.tries);
-    return { rung: index + 1, command, skip: weak ? `it fixed ${weak.fixed} of ${weak.tries} items with ${weak.feature}` : '' };
-  });
-}
-
-/**
- * The routing history kept on this machine: one JSON line per rung tried on an item.
- *
- * @param {string} file
- * @returns {{ records: any[], add: (record: any) => void }}
- */
-function routingHistory(file) {
-  const records = existsSync(file)
-    ? readFileSync(file, 'utf8').split('\n').filter(Boolean).flatMap((line) => {
-        try {
-          return [JSON.parse(line)];
-        } catch {
-          return [];
-        }
-      })
-    : [];
-  return {
-    records,
-    add: (record) => {
-      mkdirSync(dirname(file), { recursive: true });
-      appendFileSync(file, `${JSON.stringify(record)}\n`);
-      records.push(record);
-    },
-  };
-}
-
-/**
- * Try one rung of the ladder on an item: up to `attempts` runs of its command, each followed by the
- * check, and on green a commit, the gate and a submit.
+ * Try an item with the tier's command: up to `attempts` runs of it, each followed by the check, and
+ * on green a commit, the gate and a submit.
  *
  * @param {any} ctx
  * @param {any} item
  * @param {any} options
  * @returns {Promise<{ green: boolean, digest: string, tries: number, seconds: number }>}
  */
-async function tryRung(ctx, item, { command, rung, attempts, minutes, deps, me, start, inScope, packs, earlier, carried }) {
+async function tryItem(ctx, item, { command, attempts, minutes, deps, me, start, inScope, packs, earlier }) {
   const { root } = ctx.info;
   const id = item.item_id;
-  const tag = rung === 1 ? item.item_route : `${item.item_route}${rung}`;
-  let digest = carried;
+  const tag = item.item_route;
+  let digest = '';
   let seconds = 0;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     const fresh = deps.withBoard(ctx, (board) => {
@@ -348,8 +284,8 @@ async function tryRung(ctx, item, { command, rung, attempts, minutes, deps, me, 
     });
     const pack = join(packs, `${id}-${tag}-${attempt}.md`);
     writeFileSync(pack, packText(root, fresh, { attempt, attempts, digest, earlier }));
-    ctx.io.say(`#${id} attempt ${attempt}/${attempts}: running the ${item.item_route} agent${rung > 1 ? ` (rung ${rung})` : ''}`);
-    const env = { ...process.env, PULLBOARD_PACK: pack, PULLBOARD_CHECK: item.item_check, PULLBOARD_ITEM: String(id), PULLBOARD_ATTEMPT: String(attempt) };
+    ctx.io.say(`#${id} attempt ${attempt}/${attempts}: running the ${item.item_route} agent`);
+    const env = { ...process.env, PULLBOARD_PACK: pack, PULLBOARD_CHECK: item.item_check, PULLBOARD_ITEM: String(id), PULLBOARD_ATTEMPT: String(attempt), PULLBOARD_TIER: item.item_route };
     const built = await runCommand(command, { cwd: root, env, timeoutMs: minutes * 60_000, log: join(packs, `${id}-${tag}-${attempt}.log`) });
     const outside = changedSince(root, start).filter((path) => !inScope(path));
     restore(root, start, outside);
@@ -381,22 +317,21 @@ async function tryRung(ctx, item, { command, rung, attempts, minutes, deps, me, 
         ctx.io.say(`#${id} attempt ${attempt}: ${result}: ${error.message}`);
       }
     }
-    deps.withBoard(ctx, (board) => store.recordAttempt(board, id, { agentId: me.id, n: attempt, seconds: built.seconds + checked.seconds, result, rung }));
+    deps.withBoard(ctx, (board) => store.recordAttempt(board, id, { agentId: me.id, n: attempt, seconds: built.seconds + checked.seconds, result }));
     if (result === 'green') return { green: true, digest, tries: attempt, seconds };
   }
   return { green: false, digest, tries: attempts, seconds };
 }
 
 /**
- * Build one claimed item: climb its tier's ladder, cheapest rung first, skipping rungs the routing
- * history says cannot do this kind of item; submit on green, or pin, reset and escalate.
+ * Build one claimed item with its tier's command: submit on green, or pin, reset and escalate.
  *
  * @param {any} ctx
  * @param {any} item
  * @param {any} options
  * @returns {Promise<'submitted' | 'escalated'>}
  */
-async function buildItem(ctx, item, { agents, attempts, minutes, deps, me, history }) {
+async function buildItem(ctx, item, { agents, attempts, minutes, deps, me }) {
   const { root } = ctx.info;
   const id = item.item_id;
   mergeDependencies(ctx, item, deps);
@@ -408,44 +343,18 @@ async function buildItem(ctx, item, { agents, attempts, minutes, deps, me, histo
   const inScope = (path) => (!listed.size || listed.has(path)) && !outOfLane(ctx.config, item.item_lane, [path]).length;
   const packs = join(ctx.info.gitDir, 'pullboard', 'packs');
   mkdirSync(packs, { recursive: true });
-  const features = featuresOf(item);
-  const plan = routePlan(agents[item.item_route], features, item.item_route, history.records);
-  for (const step of plan.filter((entry) => entry.skip)) ctx.io.say(`#${id} skips rung ${step.rung}: ${step.skip}`);
-  let digest = '';
-  let spent = 0;
-  for (const step of plan.filter((entry) => !entry.skip)) {
-    const tried = await tryRung(ctx, item, { command: step.command, rung: step.rung, attempts, minutes, deps, me, start, inScope, packs, earlier, carried: digest });
-    history.add({ at: new Date().toISOString(), features, tier: item.item_route, command: step.command, result: tried.green ? 'green' : 'red', tries: tried.tries, seconds: tried.seconds });
-    if (tried.green) return 'submitted';
-    spent += tried.tries;
-    digest = tried.digest;
-    pinAttempt(root, id);
-    git(root, ['reset', '-q', '--hard', start]);
-    git(root, ['clean', '-q', '-fd']);
-  }
-  const ref = plan.some((entry) => !entry.skip) ? latestPin(root, id) : '';
-  const why = plan.every((entry) => entry.skip)
-    ? `this tier's models failed items like this before (${features.join(', ')}), so it skipped them`
-    : `every rung stayed red. Last failure:\n${digest}`;
+  const tried = await tryItem(ctx, item, { command: agents[item.item_route], attempts, minutes, deps, me, start, inScope, packs, earlier });
+  if (tried.green) return 'submitted';
+  const ref = pinAttempt(root, id);
+  git(root, ['reset', '-q', '--hard', start]);
+  git(root, ['clean', '-q', '-fd']);
   const moved = deps.withBoard(ctx, (board) => {
-    const result = store.escalate(board, id, { agentId: me.id, note: `${why}`.slice(0, 2000), attempt: ref });
-    const how = spent ? ` after ${spent} red attempts; the work is pinned at ${ref}` : ' without an attempt: this tier failed items like it before';
-    store.shout(board, { from: me.id, to: COORDINATOR, text: `#${id} escalated ${result.from} -> ${result.to}${how}`, lanes: laneNames(ctx.config) });
+    const result = store.escalate(board, id, { agentId: me.id, note: `${attempts} attempts stayed red. Last failure:\n${tried.digest}`.slice(0, 2000), attempt: ref });
+    store.shout(board, { from: me.id, to: COORDINATOR, text: `#${id} escalated ${result.from} -> ${result.to} after ${attempts} red attempts; the work is pinned at ${ref}`, lanes: laneNames(ctx.config) });
     return result;
   });
-  ctx.io.say(`#${id} escalated ${moved.from} -> ${moved.to}${ref ? `; the attempt is pinned at ${ref}` : ', without spending an attempt'}`);
+  ctx.io.say(`#${id} escalated ${moved.from} -> ${moved.to}; the attempt is pinned at ${ref}`);
   return 'escalated';
-}
-
-/**
- * The newest attempt pinned for an item, or empty when none was.
- *
- * @param {string} root
- * @param {number} id
- * @returns {string}
- */
-function latestPin(root, id) {
-  return git(root, ['for-each-ref', '--sort=-creatordate', '--count=1', '--format=%(refname)', `refs/pullboard/attempts/${id}/`]);
 }
 
 /**
@@ -461,8 +370,9 @@ export async function runItems(io, values, deps) {
   if (ctx.info.isMain) {
     throw new Refused('MAIN_IS_COORDINATOR', 'the runner builds lane items, so it runs in a lane worktree: pullboard worktree <lane> --route light, then run it there');
   }
-  const ladderFor = (route) => [values[`agent-${route}`] ?? values.agent ?? []].flat().map((command) => String(command).trim()).filter(Boolean);
-  const agents = Object.fromEntries(store.ROUTES.map((route) => [route, ladderFor(route)]).filter(([, ladder]) => ladder.length));
+  const agents = Object.fromEntries(
+    store.ROUTES.map((route) => [route, String(values[`agent-${route}`] ?? values.agent ?? '').trim()]).filter(([, command]) => command),
+  );
   if (!Object.keys(agents).length) {
     throw new Refused('USAGE', 'pullboard run --agent "<command>", or --agent-light, --agent-mid, --agent-strong: the command that builds one item from the pack in $PULLBOARD_PACK, such as: opencode run "$(cat "$PULLBOARD_PACK")"');
   }
@@ -475,12 +385,11 @@ export async function runItems(io, values, deps) {
     throw new Refused('DIRTY', 'the runner starts from a clean worktree; commit or remove your changes first');
   }
   const me = deps.withBoard(ctx, (board) => deps.whoAmI(ctx, board));
-  const above = Object.keys(agents).filter((route) => !store.canTake(me.route, route) && [values[`agent-${route}`] ?? []].flat().length);
+  const above = Object.keys(agents).filter((route) => !store.canTake(me.route, route) && values[`agent-${route}`]);
   if (above.length) {
     throw new Refused('ROUTE', `this worktree joined on the ${me.route} route, so it cannot take ${above.join(' or ')} items; make one that can: pullboard worktree ${me.lane} --route ${above.at(-1)}`);
   }
   const routes = Object.keys(agents).filter((route) => store.canTake(me.route, route));
-  const history = routingHistory(values.history ? resolve(io.cwd, values.history) : join(ctx.info.commonDir, 'pullboard', 'routing.jsonl'));
   const totals = { submitted: 0, escalated: 0 };
   const deadline = Date.now() + waitMinutes * 60_000;
   while (totals.submitted + totals.escalated < limit) {
@@ -494,7 +403,7 @@ export async function runItems(io, values, deps) {
       await new Promise((done) => setTimeout(done, 5000));
       continue;
     }
-    totals[await buildItem(ctx, found.item, { agents, attempts, minutes, deps, me, history })] += 1;
+    totals[await buildItem(ctx, found.item, { agents, attempts, minutes, deps, me })] += 1;
   }
   io.say(`runner done: ${totals.submitted} submitted, ${totals.escalated} escalated`);
   return 0;

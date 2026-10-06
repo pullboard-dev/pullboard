@@ -17,7 +17,7 @@ export const ACCEPT_REASON = 'CRITERION_MET';
 
 /**
  * Who can take an item (B13), as tiers in order of the model an item needs: `light` is work a small
- * or local model can build from its brief, `mid` needs a capable model such as Haiku or Sonnet, and
+ * or local model can build from its brief, `mid` needs a capable general model, and
  * `strong` needs a frontier model's judgment. An agent's route is set when it joins; it takes items
  * at its tier and below.
  */
@@ -511,10 +511,10 @@ export function escalate(board, id, { agentId, note, attempt = '' }) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, n: number, seconds: number, result: string, rung?: number }} attempt
+ * @param {{ agentId: string, n: number, seconds: number, result: string }} attempt
  */
-export function recordAttempt(board, id, { agentId, n, seconds, result, rung = 1 }) {
-  logEvent(board, agentId, 'attempt', id, { n, seconds, result, ...(rung > 1 ? { rung } : {}) });
+export function recordAttempt(board, id, { agentId, n, seconds, result }) {
+  logEvent(board, agentId, 'attempt', id, { n, seconds, result });
 }
 
 /**
