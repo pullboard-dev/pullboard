@@ -340,15 +340,15 @@ const freezer = (ctx) => (item) => frozenCriterion(loadSpec(ctx.info.root, ctx.c
 const NOTE_LINE = 120;
 
 /**
- * A note's first line, cut to NOTE_LINE characters with … marking the cut. A line ends at any line
- * break, CRLF included, and characters are counted as a reader sees them, so a cut never splits an
- * emoji or an accented letter.
+ * A note's first line, cut to NOTE_LINE characters with … marking the cut. A line ends at any break
+ * Unicode makes mandatory (UAX #14): LF, VT, FF, CR, CRLF, NEL, LS and PS. Characters are counted
+ * as a reader sees them, so a cut never splits an emoji or an accented letter.
  *
  * @param {string} note
  * @returns {string}
  */
 function firstLineOf(note) {
-  const line = note.split(/\r\n|[\n\r\u2028\u2029]/)[0];
+  const line = note.split(/[\n\v\f\r\x85\u2028\u2029]/)[0];
   const characters = [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(line)];
   return characters.length > NOTE_LINE ? `${characters.slice(0, NOTE_LINE).map((part) => part.segment).join('')}…` : line;
 }

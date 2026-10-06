@@ -33,6 +33,18 @@ const NOTES = [
 /** An earlier note of exactly 120 characters on one line: printed whole, with nothing to hint at. */
 const EXACT = `Too slow: ${'x'.repeat(110)}`;
 
+/** Every break Unicode makes mandatory (UAX #14); each one ends a note's first line. */
+const BREAKS = {
+  LF: '\n',
+  CR: '\r',
+  CRLF: '\r\n',
+  VT: String.fromCharCode(0x0b),
+  FF: String.fromCharCode(0x0c),
+  NEL: String.fromCharCode(0x85),
+  LS: String.fromCharCode(0x2028),
+  PS: String.fromCharCode(0x2029),
+};
+
 test('show prints the latest verdict in full and earlier ones as one line; --history and --json print every note [N30]', () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-show-')));
   dirs.push(dir);
@@ -80,6 +92,8 @@ test('show prints the latest verdict in full and earlier ones as one line; --his
     };
     rounds('Greet', NOTES, ['a', 'b', 'c']);
     rounds('Greet fast', [EXACT, 'Accept: fast now.'], ['d', 'e']);
+    const broken = Object.entries(BREAKS).map(([name, end]) => `Break ${name} first.${end}hidden after ${name}`);
+    rounds('Greet on every break', [...broken, 'Accept: every break ends a line.'], ['1', '2', '3', '4', '5', '6', '7', '8', '9']);
   } finally {
     store.closeBoard(board);
   }
@@ -111,4 +125,11 @@ test('show prints the latest verdict in full and earlier ones as one line; --his
   assert.equal(whole.status, 0, whole.stderr);
   assert.ok(whole.stdout.includes(`REJECT TEST_FAILURE by web-2 at dddddddddddd: ${EXACT}\n`), 'a first line of exactly 120 characters is printed whole');
   assert.doesNotMatch(whole.stdout, /earlier verdicts shortened/, 'no hint when no earlier note was shortened');
+
+  const breaks = run('show', '3');
+  assert.equal(breaks.status, 0, breaks.stderr);
+  Object.keys(BREAKS).forEach((name, round) => {
+    assert.ok(breaks.stdout.includes(`REJECT TEST_FAILURE by web-2 at ${String(round + 1).repeat(12)}: Break ${name} first.\n`), `${name} ends the first line`);
+  });
+  assert.doesNotMatch(breaks.stdout, /hidden after/, 'nothing after any break is printed');
 });
