@@ -75,3 +75,8 @@ test('secrets are named by kind and place, never echoed', () => {
   assert.deepEqual(found, ['Anthropic key at config/settings.js:2', 'env-style secret at config/settings.js:3']);
   assert.ok(found.every((entry) => !entry.includes('abcdefghij')));
 });
+
+test('a refused merge message points to the message git writes, which is exempt [C4]', () => {
+  assert.match(check('merge: include store date validation')[0], /For a merge, keep the message git writes, which is exempt: git merge --no-edit/);
+  assert.deepEqual(check("Merge branch 'store/1'"), []);
+});
