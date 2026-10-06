@@ -119,7 +119,7 @@ main { padding: 16px 18px 28px; }
   main { padding: 12px 10px 24px; }
   .two, .two.narrow { grid-template-columns: minmax(0, 1fr); }
 }
-@media (max-width: 480px) {
+@media (width < 480px) {
   .tabs { flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; }
   .tab { display: grid; grid-template-rows: auto 13px; justify-items: center; align-content: center; padding: 7px 2px 5px; font-size: 13.5px; }
   .tab b { margin: 0; line-height: 13px; }

@@ -355,13 +355,14 @@ test('the tabs fit one row on a phone [N26]', async () => {
   try {
     const html = await (await fetch(view.link)).text();
     const style = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
-    const phone = /@media \(max-width: 480px\) \{\n([^@]*?)\n\}/.exec(style)?.[1] ?? '';
+    const phone = /@media \(width < 480px\) \{\n([^@]*?)\n\}/.exec(style)?.[1] ?? '';
+    assert.doesNotMatch(style, /max-width: 480px/, 'at 480px itself the tabs keep their row');
     assert.match(phone, /\.tabs \{ flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: minmax\(0, 1fr\);/, 'under 480px the tabs share the bar in equal columns');
     assert.match(phone, /\.tab \{ display: grid; grid-template-rows: auto 13px; justify-items: center;/, 'each tab stacks its label over its count');
     assert.match(phone, /\.tab b \{ margin: 0;/);
     assert.match(style, /\n\.tabs \{ display: flex; flex-wrap: wrap; gap: 2px; \}\n/, 'wider, the tabs keep the row they have');
-    const tabs = [...html.matchAll(/<button class="tab" data-tab="([a-z]+)" type="button">([A-Za-z]+)(<b id="count-[a-z]+"><\/b>)?<\/button>/g)];
-    assert.deepEqual(tabs.map((match) => match[2]), ['Items', 'Shouts', 'Spec', 'Doctrine', 'Activity'], 'five tabs, each a label and then its count');
+    const tabs = [...html.matchAll(/<button class="tab" data-tab="([a-z]+)" type="button">([A-Za-z]+)(<b id="count-([a-z]+)"><\/b>)?<\/button>/g)];
+    assert.deepEqual(tabs.map((match) => [match[2], match[4] === match[1]]), [['Items', true], ['Shouts', true], ['Spec', true], ['Doctrine', true], ['Activity', false]], 'five tabs: a label, then its count where it has one');
   } finally {
     await view.stop();
   }
