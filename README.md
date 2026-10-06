@@ -49,6 +49,23 @@ The parts of the method that need a person are written as role guides:
 
 Init installs them as Claude Code skills. Any other agent reads them with `pullboard prompt <role>`. A repo can replace any guide with its own `.pullboard/prompts/<role>.md`.
 
+## Any agent, any model
+
+Pullboard never calls a model. `pullboard run` drives any command that can read a file and edit files: a coding agent's CLI, your own script, a local model behind a small loop. The contract:
+
+- **In:** a context pack for one item, at `$PULLBOARD_PACK`. It says what done means, names the check (also in `$PULLBOARD_CHECK`), and carries the brief, the rules and the files as they are now.
+- **Out:** changed files in the worktree. The runner runs the check itself, reverts changes outside the brief's files, commits, runs the gate and submits; a second agent verifies.
+- **On failure:** the next attempt's pack carries the failure, and after the last attempt the item moves one tier up, its work pinned.
+
+Give each tier its own command:
+
+```bash
+pullboard run --agent-light 'opencode run --auto -m ollama/qwen3:8b "$(cat "$PULLBOARD_PACK")"' \
+              --agent-mid 'claude -p --model haiku --permission-mode acceptEdits < "$PULLBOARD_PACK"'
+```
+
+Use whatever you run today: Claude Code, Codex, OpenCode, Aider, or a model server and a loop of your own.
+
 ## The method
 
 1. **Client ask.** Start from what the person paying for it needs.
