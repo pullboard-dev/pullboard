@@ -278,9 +278,9 @@ export function featuresOf(item) {
 }
 
 /**
- * Which rungs of a tier's ladder to try for an item (N18): every rung, except one that has failed a
- * feature of this item at least twice and never fixed it. The history is what this machine's models
- * did before; routing learns from it instead of from a guess.
+ * Which rungs of a tier's ladder to try for an item (N18): every rung, except one that fixed fewer
+ * than half of at least two items sharing a feature with this one. The history is what this
+ * machine's models did before; routing learns from it instead of from a guess.
  *
  * @param {string[]} ladder - The tier's commands, cheapest first.
  * @param {string[]} features
@@ -291,12 +291,12 @@ export function featuresOf(item) {
 export function routePlan(ladder, features, tier, records) {
   return ladder.map((command, index) => {
     const mine = records.filter((record) => record.tier === tier && record.command === command);
-    const hopeless = features.find((feature) => {
-      const seen = mine.filter((record) => record.features.includes(feature));
-      return seen.filter((record) => record.result === 'red').length >= 2 && !seen.some((record) => record.result === 'green');
-    });
-    const failed = hopeless ? mine.filter((record) => record.features.includes(hopeless)).length : 0;
-    return { rung: index + 1, command, skip: hopeless ? `it failed ${hopeless} ${failed} times and never fixed it` : '' };
+    const record = (feature) => {
+      const seen = mine.filter((entry) => entry.features.includes(feature));
+      return { feature, tries: seen.length, fixed: seen.filter((entry) => entry.result === 'green').length };
+    };
+    const weak = features.map(record).find((entry) => entry.tries >= 2 && entry.fixed * 2 < entry.tries);
+    return { rung: index + 1, command, skip: weak ? `it fixed ${weak.fixed} of ${weak.tries} items with ${weak.feature}` : '' };
   });
 }
 
