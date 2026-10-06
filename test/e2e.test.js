@@ -478,6 +478,11 @@ test('sweep files one light item per flagged file, in its lane; a second sweep s
   assert.match(shown, new RegExp(`check: node ${join(box.dir, 'novar.mjs')} web/a.js`));
   assert.match(shown, /- line 2:1 no-var: Unexpected var, use let or const\./);
   assert.match(box.run(box.repo, ...sweep).out, /already open: web\/a.js, api\/b.js\n3 problems in 2 files; filed 0/);
+  commitFile(box, box.repo, 'docs/c.js', 'var d = 4;\n', 'chore: one more var');
+  const blind = box.run(box.repo, 'sweep', '--run', `node ${join(box.dir, 'novar.mjs')} .`, '--check', `node ${join(box.dir, 'novar.mjs')} {file} | tail -5`);
+  assert.equal(blind.code, 1);
+  assert.match(blind.err, /CHECK_CANNOT_FAIL\] the check passes on docs\/c.js although the checker flags problems there/);
+  assert.match(blind.out, /filed 0/);
 });
 
 test('pre-commit runs the fixers on fully staged files and restages them; partly staged files are left alone [C5]', () => {
