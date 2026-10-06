@@ -73,9 +73,10 @@ export function tour(io) {
   mkdirSync(shims);
   writeFileSync(join(shims, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`);
   chmodSync(join(shims, 'pullboard'), 0o755);
-  // The person's git config stays out of it: no signing prompts, no global hooks.
-  const env = { ...process.env, PATH: `${shims}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
-  delete env.NODE_TEST_CONTEXT;
+  // Nothing of the person's git setup reaches the tour: no config files, and no GIT_ variable, such
+  // as GIT_DIR from a hook or GIT_CONFIG_COUNT pairs, which git reads as config too.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_') && name !== 'NODE_TEST_CONTEXT'));
+  Object.assign(env, { PATH: `${shims}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' });
   const repo = join(dir, 'greeter');
   const app = `${repo}-app-1`;
   const review = `${repo}-review-1`;

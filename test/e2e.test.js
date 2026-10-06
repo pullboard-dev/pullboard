@@ -628,6 +628,13 @@ test('the tour runs a reject and its rework on a throwaway repo, in under thirty
   assert.match(shown.stdout, /\| 1 \| app \| Greeting \| G1 \| app-1 \| review-1 \|/);
   const repo = /Look around: cd (\S+) && pullboard log/.exec(shown.stdout)[1];
   assert.match(box.git(repo, 'log', '--format=%an %s', '-1'), /^app-1 fix\(app\): a blank name greets the world \[G1\]$/);
+  const hooks = join(box.dir, 'ambient-hooks');
+  mkdirSync(hooks);
+  writeFileSync(join(hooks, 'pre-commit'), '#!/bin/sh\necho ambient hook ran >&2\nexit 1\n');
+  chmodSync(join(hooks, 'pre-commit'), 0o755);
+  const ambient = { ...box.env, TMPDIR: box.dir, GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.hooksPath', GIT_CONFIG_VALUE_0: hooks, GIT_DIR: join(box.dir, 'elsewhere.git') };
+  const isolated = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: ambient, encoding: 'utf8' });
+  assert.equal(isolated.status, 0, `git settings from the environment stay out: ${isolated.stdout}`);
   const empty = join(box.dir, 'empty');
   mkdirSync(empty);
   const stopped = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: { ...box.env, TMPDIR: box.dir, PATH: empty }, encoding: 'utf8' });
