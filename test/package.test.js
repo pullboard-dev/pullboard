@@ -3,6 +3,7 @@
  * trust, and every import is a Node built-in or a file of its own.
  */
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -10,154 +11,116 @@ import { test } from 'node:test';
 const ROOT = resolve(import.meta.dirname, '..');
 const PACKAGE = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 
-/** Words after which a slash starts a regular expression rather than a division. */
-const BEFORE_REGEX = new Set(['return', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete', 'void', 'throw', 'case', 'do', 'else', 'yield', 'await']);
-
-/** Words whose parenthesis heads a statement, so a slash after its closing parenthesis starts a regular expression. */
-const CONTROL = new Set(['if', 'while', 'for', 'with']);
-
-/** Words after which a brace opens a block of statements, not an object. */
-const BLOCK_WORDS = new Set(['else', 'do', 'try', 'finally']);
+/** A child Node that reports which of the sources on its stdin compile as ES modules. */
+const PARSER = [
+  "import vm from 'node:vm';",
+  "import { readFileSync } from 'node:fs';",
+  "const sources = JSON.parse(readFileSync(0, 'utf8'));",
+  'const compiles = (source) => { try { new vm.SourceTextModule(source); return true; } catch { return false; } };',
+  'process.stdout.write(JSON.stringify(sources.map(compiles)));',
+].join('\n');
 
 /**
- * True when a brace after this token opens a block of statements; false when it opens an object.
+ * Which sources compile as ES modules, as V8 itself decides, all in one child process.
  *
- * @param {string} token - The token before the brace, '' at the start of the file.
- * @returns {boolean}
+ * @param {string[]} sources
+ * @returns {boolean[]}
  */
-function opensBlock(token) {
-  if (['', ')', '=>', ';', '{', '}'].includes(token) || BLOCK_WORDS.has(token)) return true;
-  return /^[\w$]+$/.test(token) && !BEFORE_REGEX.has(token);
+function compiles(sources) {
+  const child = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', '--input-type=module', '-e', PARSER], {
+    input: JSON.stringify(sources),
+    encoding: 'utf8',
+    maxBuffer: 2 ** 26,
+  });
+  assert.equal(child.status, 0, child.stderr);
+  return JSON.parse(child.stdout);
 }
 
+/** Every place the word import or export appears, in code or not. */
+const KEYWORD = /(?<![\w$.#])(import|export)(?![\w$])/g;
+
 /**
- * The source with every comment, and the inside of every string, template and regular expression,
- * blanked character for character: line breaks and quotes stay, and a string's inside becomes x's.
- * So an import found in the masked text is code, and sits where the source has it.
- *
- * Whether a slash divides or starts a regular expression depends on what came before it, so the
- * masker tracks each open brace (a block, an object, or a template's expression) and each open
- * parenthesis (an if, while, for or with head, or anything else).
+ * The tokens of a source from one place on: words, strings, templates and single punctuation, with
+ * whitespace and comments skipped. Enough to read an import or export declaration.
  *
  * @param {string} source
- * @returns {string}
+ * @param {number} at
+ * @returns {Generator<{ type: 'word' | 'string' | 'template' | 'punct', text: string }>}
  */
-function maskLiterals(source) {
-  const out = source.split('');
-  const fill = (from, to, char) => {
-    for (let index = from; index < to; index += 1) if (out[index] !== '\n') out[index] = char;
-  };
-  const braces = [];
-  const parens = [];
-  let regexOK = true;
-  let last = '';
-  let before = '';
-  const took = (token, allowsRegex) => {
-    before = last;
-    last = token;
-    regexOK = allowsRegex;
-  };
-  let at = source.startsWith('#!') ? source.indexOf('\n') : 0;
-  if (at === -1) at = source.length;
-  fill(0, at, ' ');
-  const readTemplate = () => {
-    const start = at;
-    while (at < source.length && source[at] !== '`' && !(source[at] === '$' && source[at + 1] === '{')) at += source[at] === '\\' ? 2 : 1;
-    fill(start, at, ' ');
-    if (source[at] === '$') {
-      braces.push('template');
-      at += 2;
-      took('${', true);
-    } else {
-      at += 1;
-      took('`', false);
-    }
-  };
+function* tokensFrom(source, at) {
   while (at < source.length) {
-    const char = source[at];
-    const next = source[at + 1];
-    if (char === '/' && (next === '/' || next === '*')) {
-      const end = next === '/' ? source.indexOf('\n', at) : source.indexOf('*/', at + 2) + 2;
-      const stop = end < at ? source.length : end;
-      fill(at, stop, ' ');
-      at = stop;
-    } else if (char === "'" || char === '"') {
-      let end = at + 1;
-      while (end < source.length && source[end] !== char && source[end] !== '\n') end += source[end] === '\\' ? 2 : 1;
-      fill(at + 1, end, 'x');
-      at = end + 1;
-      took('"', false);
-    } else if (char === '`') {
-      at += 1;
-      readTemplate();
-    } else if (char === '/' && regexOK) {
-      let end = at + 1;
-      let inClass = false;
-      while (end < source.length && source[end] !== '\n' && (inClass || source[end] !== '/')) {
-        if (source[end] === '[') inClass = true;
-        if (source[end] === ']') inClass = false;
-        end += source[end] === '\\' ? 2 : 1;
-      }
-      fill(at + 1, end, ' ');
-      at = end + 1;
-      took('/', false);
-    } else if (/[\w$]/.test(char)) {
-      const word = /^[\w$]+/.exec(source.slice(at, at + 64))[0];
-      at += word.length;
-      took(word, BEFORE_REGEX.has(word));
-    } else if (/\s/.test(char)) {
-      at += 1;
-    } else if (char === '(') {
-      parens.push(CONTROL.has(last) || (last === 'await' && before === 'for'));
-      at += 1;
-      took('(', true);
-    } else if (char === ')') {
-      const control = parens.pop() ?? false;
-      at += 1;
-      took(')', control);
-    } else if (char === '{') {
-      braces.push(opensBlock(last) ? 'block' : 'object');
-      at += 1;
-      took('{', true);
-    } else if (char === '}') {
-      const kind = braces.pop();
-      at += 1;
-      if (kind === 'template') readTemplate();
-      else took('}', kind !== 'object');
-    } else if ((char === '+' || char === '-') && next === char) {
-      const postfix = !regexOK;
-      at += 2;
-      took(char + char, !postfix);
-    } else if (char === '=' && next === '>') {
-      at += 2;
-      took('=>', true);
+    const rest = source.slice(at, at + 4096);
+    const space = /^(?:\s+|\/\/[^\n]*|\/\*[\s\S]*?\*\/)/.exec(rest);
+    if (space) {
+      at += space[0].length;
+      continue;
+    }
+    const token = /^(?:(['"])(?:\\[\s\S]|(?!\1)[^\\\n])*\1|`(?:\\[\s\S]|[^\\`])*`|[\p{ID_Continue}$]+)/u.exec(rest);
+    if (token) {
+      at += token[0].length;
+      const type = token[1] ? 'string' : token[0][0] === '`' ? 'template' : 'word';
+      yield { type, text: type === 'string' ? token[0].slice(1, -1) : token[0] };
     } else {
       at += 1;
-      took(char, char !== ']');
+      yield { type: 'punct', text: rest[0] };
     }
   }
-  return out.join('');
 }
 
 /**
- * Every module a source file imports: import and export-from statements, braces and line breaks
- * included, side-effect imports, and dynamic import(), with either quote. Text inside a comment, a
- * string, a template or a regular expression is not code, so it is never read as an import.
+ * The module an import or export written in code names: import 'x', import('x'), import ... from
+ * 'x', or export ... from 'x'. Null when it names none: import.meta, export const, export default,
+ * or a dynamic import of a computed name.
  *
  * @param {string} source
- * @returns {string[]}
+ * @param {number} at - Where the keyword starts.
+ * @param {'import' | 'export'} keyword
+ * @returns {string | null}
  */
-function importsIn(source) {
-  const masked = maskLiterals(source);
-  const patterns = [
-    /^[ \t]*(?:import|export)\b[^;'"`]*?\bfrom\s*(['"])([^'"]*)\1/dgm,
-    /^[ \t]*import\s*(['"])([^'"]*)\1/dgm,
-    /\bimport\s*\(\s*(['"])([^'"]*)\1\s*\)/dg,
-  ];
-  return patterns
-    .flatMap((pattern) => [...masked.matchAll(pattern)])
-    .sort((a, b) => a.index - b.index)
-    .map((match) => source.slice(...match.indices[2]));
+function specifierAt(source, at, keyword) {
+  const tokens = tokensFrom(source, at + keyword.length);
+  const first = tokens.next().value;
+  if (!first) return null;
+  if (keyword === 'import' && first.type === 'string') return first.text;
+  if (keyword === 'import' && first.text === '(') {
+    const argument = tokens.next().value;
+    return argument?.type === 'string' ? argument.text : null;
+  }
+  if (keyword === 'export' && first.text !== '*' && first.text !== '{') return null;
+  let depth = 0;
+  for (let token = first; token; token = tokens.next().value) {
+    if (token.text === '{') depth += 1;
+    else if (token.text === '}') depth -= 1;
+    else if (depth > 0) continue;
+    else if (token.type === 'word' && token.text === 'from') {
+      const name = tokens.next().value;
+      return name?.type === 'string' ? name.text : null;
+    } else if (token.type === 'word' ? ['import', 'export'].includes(token.text) : !['*', ','].includes(token.text)) {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Every module each source imports, in source order: import and export-from statements, side-effect
+ * imports, and dynamic import() with either quote. V8 decides what is code: a NUL put before an
+ * import or export keeps a module compiling when the word sits in a string, template, comment or
+ * regular expression, and breaks it when the word is code.
+ *
+ * @param {string[]} sources - Each one a module that compiles.
+ * @returns {string[][]}
+ */
+function importsIn(sources) {
+  const found = sources.map((source) => [...source.matchAll(KEYWORD)].map((match) => ({ at: match.index, keyword: match[1] })));
+  const marked = sources.flatMap((source, index) => found[index].map(({ at }) => `${source.slice(0, at)}\u0000${source.slice(at)}`));
+  const results = compiles([...sources, ...marked]);
+  let next = sources.length;
+  return sources.map((source, index) => {
+    assert.ok(results[index], `does not compile as a module: ${source.slice(0, 80)}`);
+    const inCode = found[index].filter(() => !results[next++]);
+    return inCode.map(({ at, keyword }) => specifierAt(source, at, keyword)).filter((name) => name !== null);
+  });
 }
 
 test('no dependencies of any kind, and Node 22.13 or newer [P3]', () => {
@@ -194,8 +157,22 @@ test('the import scan finds a package however it is imported, and nothing that i
     "const half = count++ / 2; const pad = await import('left-pad');": ['left-pad'],
     "function f() {} /'/.test(x); const pad = await import('left-pad');": ['left-pad'],
     "const wrap = (a) => ({ b: a }) / 2; const pad = await import('left-pad');": ['left-pad'],
+    'import "node:fs"; import "left-pad";': ['node:fs', 'left-pad'],
+    'import fs from "node:fs"; import pad from "left-pad";': ['node:fs', 'left-pad'],
+    'const f = function () {} / await import("left-pad");': ['left-pad'],
+    'const C = class {} / await import("left-pad");': ['left-pad'],
+    "import { \"a-b\" as ab } from 'left-pad';": ['left-pad'],
+    "import data from './data.json' with { type: 'json' };": ['./data.json'],
+    'const pad = await import /* why */ ("left-pad");': ['left-pad'],
+    'const where = import.meta.url;': [],
+    "const pattern = /import('left-pad')/u;": [],
+    'export const b = 1;\nexport * from "left-pad";': ['left-pad'],
+    'export { a } from "left-pad"; export const b = 1;': ['left-pad'],
+    'function later() { return import("left-pad"); }': ['left-pad'],
+    "function later() { return \"import('left-pad')\"; }": [],
   };
-  for (const [source, expected] of Object.entries(forms)) assert.deepEqual(importsIn(source), expected, source);
+  const found = importsIn(Object.keys(forms));
+  Object.entries(forms).forEach(([source, expected], index) => assert.deepEqual(found[index], expected, source));
 });
 
 test('every import is a node: built-in or a relative file [P3]', () => {
@@ -203,12 +180,10 @@ test('every import is a node: built-in or a relative file [P3]', () => {
     ...readdirSync(join(ROOT, 'src')).map((name) => join(ROOT, 'src', name)),
     join(ROOT, 'bin', 'pullboard.js'),
   ];
-  let seen = 0;
-  for (const file of files) {
-    for (const target of importsIn(readFileSync(file, 'utf8'))) {
-      seen += 1;
-      assert.ok(target.startsWith('node:') || target.startsWith('.'), `${file} imports ${target}`);
-    }
-  }
+  const found = importsIn(files.map((file) => readFileSync(file, 'utf8')));
+  files.forEach((file, index) => {
+    for (const target of found[index]) assert.ok(target.startsWith('node:') || target.startsWith('.'), `${file} imports ${target}`);
+  });
+  const seen = found.flat().length;
   assert.ok(seen > 50, `the scan found ${seen} imports in src/ and bin/; expected every file's`);
 });
