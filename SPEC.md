@@ -39,6 +39,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - V8 [approved, must] Every verdict binds the submitted commit and the frozen digest. | gate: test/board.test.js
 - V9 [approved, must] In the main checkout, verifying needs --as coordinator, so no agent's verdict is filed as the coordinator's. | gate: test/e2e.test.js | serves: V1
 - V10 [draft, must] Agents see a gate digest: one line when green, the failures when red; the full log stays in .git. | gate: test/e2e.test.js | serves: V4
+- V11 [draft, must] Submit refuses when the cited rows changed since claim, before a verifier spends a run on it. | gate: test/e2e.test.js | serves: V3
 
 ## L · Lanes
 - L1 [approved, must] Lanes live in pullboard.json: folders owned, spec prefixes, when it starts. | gate: test/lanes.test.js

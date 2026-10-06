@@ -677,6 +677,11 @@ function submitHere(ctx, id) {
     if (item.item_status !== 'claimed' || item.item_owner !== who.id) {
       throw new Refused('NOT_YOURS', `item #${id} is not claimed by you; claim it first`);
     }
+    // A bar that moved since claim can get no verdict (V3), so say so now, not after a verifier's run (V11).
+    if (item.item_frozen_digest && freezer(ctx)(item).digest !== item.item_frozen_digest) {
+      const refreeze = who.id === COORDINATOR ? `pullboard refreeze ${id}` : `shout the coordinator to run pullboard refreeze ${id}`;
+      throw new Refused('CRITERIA_CHANGED', `the spec rows #${id} cites changed after it was claimed, so no verifier could judge it; ${refreeze}, then claim it and submit again`);
+    }
     return { me: who, claimHead: item.item_claim_head };
   });
   if (!isClean(root)) throw new Refused('DIRTY', 'commit your changes first; the gate must check what you submit');

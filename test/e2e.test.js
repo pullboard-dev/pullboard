@@ -715,3 +715,20 @@ test('the gate reaches the agent as a digest: one line when green, the failure w
   box.run(box.repo, 'claim', '1');
   assert.match(box.run(box.repo, 'submit', '1').err, /GATE_RED[\s\S]*not ok 401 - the page renders a heading/);
 });
+
+test('submit refuses a bar that moved since the claim, before any verifier runs; a refreeze and a fresh claim recover [V11]', () => {
+  const box = project();
+  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--criterion', 'renders');
+  box.run(box.web, 'claim', '1');
+  writeFileSync(join(box.repo, 'SPEC.md'), SPEC.replace('The page renders.', 'The page renders a heading.'));
+  box.git(box.repo, 'commit', '-qam', 'docs: tighten G1');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  commitFile(box, box.web, 'web/a.html', '<h1>Hi</h1>', 'feat(web): page [G1]');
+  const refused = box.run(box.web, 'submit', '1');
+  assert.equal(refused.code, 1);
+  assert.match(refused.err, /CRITERIA_CHANGED\] the spec rows #1 cites changed after it was claimed.*shout the coordinator to run pullboard refreeze 1, then claim it and submit again/);
+  assert.equal(JSON.parse(box.run(box.repo, 'show', '1', '--json').out).item_status, 'claimed');
+  assert.match(box.run(box.repo, 'refreeze', '1').out, /refrozen/);
+  box.run(box.web, 'claim', '1');
+  assert.match(box.run(box.web, 'submit', '1').out, /submitted #1/);
+});
