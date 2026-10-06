@@ -437,3 +437,97 @@ export function storeTriggers(machine = MACHINE) {
   }
   return triggers;
 }
+
+/**
+ * A guard as the lifecycle page shows it: its id, with the code it raises, or the move's own code
+ * for the state check.
+ *
+ * @param {Machine} machine
+ * @param {Move} move
+ * @param {string} id
+ * @returns {string}
+ */
+function guardLabel(machine, move, id) {
+  const code = id === IN_STATE ? move.refuse : machine.guards.find((guard) => guard.id === id)?.refuse;
+  return code ? `${id} (${code})` : id;
+}
+
+/**
+ * The lifecycle as a markdown page: a Mermaid state diagram, every move with its guards in the
+ * order they are checked (exit guards included), each final state's exit guards, and every refusal
+ * with the rule behind it and the next step (M1, P4). docs/lifecycle.md is this page, written by
+ * `pullboard lifecycle`, and a test fails when the two differ, so the page cannot drift from the code.
+ *
+ * @param {Machine} [machine]
+ * @returns {string}
+ */
+export function lifecycleMarkdown(machine = MACHINE) {
+  const cell = (text) => String(text).replaceAll('|', '\\|');
+  const finals = machine.states.filter((state) => state.final);
+  const edges = machine.moves.flatMap((move) => move.from.map((from) => `  ${from} --> ${move.to}: ${move.verb}${move.by.includes('clock') ? ' (clock)' : ''}`));
+  const moves = machine.moves.map((move) => {
+    const who = move.when ? `${move.by.join(', ')}, when ${move.when}` : move.by.join(', ');
+    const guards = effectiveGuards(move, machine).map((id) => guardLabel(machine, move, id)).join(', ') || 'none';
+    return `| ${move.verb} | ${move.from.join(', ')} | ${move.to} | ${cell(who)} | ${cell(guards)} |`;
+  });
+  const wrongState = machine.moves.filter((move) => move.refuse).map((move) => `| ${move.refuse} | ${move.verb}: the item is in ${move.from.join(', ')} | pullboard show <id> |`);
+  const refusals = machine.guards.filter((guard) => guard.id !== IN_STATE).map((guard) => `| ${guard.refuse} | ${cell(guard.rule)} | ${cell(guard.next)} |`);
+  const unknown = `| ${machine.unknownMove.refuse} | ${cell(machine.unknownMove.rule)} | ${cell(machine.unknownMove.next)} |`;
+  return [
+    '# The item lifecycle',
+    '',
+    'Generated from src/machine.js by `pullboard lifecycle`. Do not edit it by hand: change the declaration, then run `pullboard lifecycle > docs/lifecycle.md`.',
+    '',
+    `An item starts ${machine.initial}. Its final states, ${finals.map((state) => state.id).join(' and ')}, cannot be left, and every way into them passes the same exit guards, whatever command gets there. The board file itself refuses any move not declared here.`,
+    '',
+    '```mermaid',
+    'stateDiagram-v2',
+    `  [*] --> ${machine.initial}`,
+    ...[...new Set(edges)],
+    ...finals.map((state) => `  ${state.id} --> [*]`),
+    '```',
+    '',
+    '## States',
+    '',
+    '| State | Means | Fields it needs |',
+    '| --- | --- | --- |',
+    ...machine.states.map((state) => `| ${state.id}${state.final ? ' (final)' : ''} | ${cell(state.means)} | ${state.requires.join(', ') || 'none'} |`),
+    '',
+    '## Moves',
+    '',
+    'Each move checks its guards in this order and refuses with the first one that does not hold.',
+    '',
+    '| Move | From | To | Who | Guards, in order |',
+    '| --- | --- | --- | --- | --- |',
+    ...moves,
+    '',
+    '## Exit guards',
+    '',
+    '| Final state | Every move into it passes |',
+    '| --- | --- |',
+    ...finals.map((state) => `| ${state.id} | ${(machine.exitGuards[state.id] ?? []).join(', ')} |`),
+    '',
+    '## Refusals',
+    '',
+    '| Code | Raised when this does not hold | Next step |',
+    '| --- | --- | --- |',
+    ...[...new Set([...wrongState, ...refusals, unknown])],
+    '',
+  ].join('\n');
+}
+
+/**
+ * The help screen's lifecycle section: who may make which moves, read from the declaration.
+ *
+ * @param {Machine} [machine]
+ * @returns {string}
+ */
+export function lifecycleHelp(machine = MACHINE) {
+  const lines = machine.roles.map((role) => {
+    const moves = machine.moves.filter((move) => move.by.includes(role));
+    const when = moves.filter((move) => move.when).map((move) => `${move.verb} (when ${move.when})`);
+    const plain = moves.filter((move) => !move.when).map((move) => move.verb);
+    return `  ${role.padEnd(13)} ${[...plain, ...when].join(', ')}`;
+  });
+  return ['Lifecycle, read from src/machine.js', '  pullboard lifecycle         the states, moves, guards and refusals as a markdown page, with a diagram', ...lines].join('\n');
+}

@@ -20,6 +20,7 @@ import {
   prePushProblems,
 } from './hooks.js';
 import { initRepo } from './init.js';
+import { lifecycleHelp, lifecycleMarkdown } from './machine.js';
 import { productLine, productProblems, productSummaries } from './products.js';
 import { isLane, laneNames, laneOf, outOfLane } from './lanes.js';
 import { Refused } from './refused.js';
@@ -114,6 +115,8 @@ Role guides
 Gate and hooks
   pullboard gate                        run the configured gate
   pullboard hook pre-commit|commit-msg|pre-push   git runs these
+
+${lifecycleHelp()}
 
 Reject reasons: TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD, OTHER.
 --json prints list, show and status as JSON.`;
@@ -1275,6 +1278,10 @@ export async function main(argv, streams) {
   const args = { first, second, rest, values };
   try {
     if (command === 'tour') return tour(io);
+    if (command === 'lifecycle') {
+      io.say(lifecycleMarkdown().trimEnd());
+      return 0;
+    }
     if (command === 'view') return await viewHere(io, values);
     if (command === 'spec') return specCommand(io, args);
     if (command === 'prompt') {
