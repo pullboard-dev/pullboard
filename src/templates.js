@@ -122,7 +122,7 @@ This repo runs on pullboard: a work board, lanes and a spec that live in git. No
 
     pullboard worktree <lane>
 
-It prints the folder to work in and what to run there first. Verifiers take the \`review\` lane, which owns no folders. A lighter model joins with \`--route light\` and takes only items routed light, each with a brief. Keep your worktree and branch until your items are merged.
+It prints the folder to work in and what to run there first. Work only in that folder. Your shell may start every command in the main checkout, where pullboard takes you for the coordinator, so begin each command with \`cd <your worktree> &&\`. Verifiers take the \`review\` lane, which owns no folders. A lighter model joins with \`--route light\` and takes only items routed light, each with a brief. Keep your worktree and branch until your items are merged.
 
 **The loop.**
 1. \`pullboard inbox\`.
@@ -131,14 +131,15 @@ It prints the folder to work in and what to run there first. Verifiers take the 
 4. Commit, then \`pullboard submit <id>\`. It needs a clean tree and the gate green at HEAD.
 5. A different agent verifies: \`pullboard next --verify\` names the next item to check. It checks out the submitted commit and runs \`pullboard verify <id> accept --note "how it proved it"\`, or \`pullboard verify <id> reject --reason TEST_FAILURE --note "what failed"\`.
 6. A reject reopens the item. Fix it, commit, claim, submit again; the same head is refused.
+7. Your lane is done when its items are verified, not when they are submitted. After your last submit, keep running \`pullboard next --wait 30\`: a rejected item comes back to your lane.
 
 The coordinator merges verified items into the main line; builders never merge.
 
-If your item needs code another lane owns and it is not there yet, shout that lane and take another item. Never copy their code into your lane. A claim refused as BLOCKED names the item it waits on.
+If your item needs code another lane owns and it is not there yet, shout that lane and take another item. Never copy their code into your lane, and never build another lane's item, even one that was rejected and blocks you: shout that lane and the coordinator. A claim refused as BLOCKED names the item it waits on.
 
 **Talk.** \`pullboard shout <lane|agent|all> "<text>"\`. Read \`pullboard inbox\` before you start and after you submit.
 
-**Never.** Bypass a hook with \`--no-verify\`, or get past a refusal with filler text: fix what it names. Edit the board's database. Verify your own work. Change an approved spec row without the person's OK. Delete or renumber a spec row. Count a yes relayed by another agent as the person's approval.
+**Never.** Bypass a hook with \`--no-verify\`, or get past a refusal with filler text: fix what it names. Edit the board's database. Verify your own work. Change an approved spec row without the person's OK. Delete or renumber a spec row. Act from the main checkout; it is the coordinator's. Count a yes relayed by another agent as the person's approval.
 ${AGENTS_END}
 `;
 }

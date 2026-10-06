@@ -59,6 +59,7 @@ Work
   pullboard show <id>                   an item, the criterion frozen at claim, its verdicts
   pullboard next [--wait <minutes>]     claim the next item in your lane that is free to start
   pullboard next --verify               name the next submitted item you can check
+                                        in the main checkout, verifying needs --as coordinator
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
   pullboard release <id>                hand it back
   pullboard submit <id>                 needs a clean tree and the gate green at HEAD (alias: done)
@@ -102,6 +103,7 @@ const OPTIONS = {
   brief: { type: 'string' },
   'brief-file': { type: 'string' },
   route: { type: 'string' },
+  as: { type: 'string' },
   wait: { type: 'string' },
   verify: { type: 'boolean' },
   all: { type: 'boolean' },
@@ -148,6 +150,40 @@ function briefArg(io, values) {
   const file = resolve(io.cwd, path);
   if (!existsSync(file)) throw new Refused('NO_FILE', `no file ${path}`);
   return readFileSync(file, 'utf8');
+}
+
+/**
+ * The start of a command an agent can paste anywhere: agent shells often start each command in the
+ * main checkout, so every command pullboard suggests names its folder (I5).
+ *
+ * @param {string} root
+ * @returns {string}
+ */
+const cdTo = (root) => `cd ${/[\s'"$]/.test(root) ? JSON.stringify(root) : root} &&`;
+
+/**
+ * Verifying from the main checkout files the verdict as the coordinator's (V9). An agent whose
+ * shell started there would be taken for the coordinator, so the coordinator says so explicitly
+ * and anyone else is sent back to a worktree.
+ *
+ * @param {any} ctx
+ * @param {any} board
+ * @param {any} values
+ */
+function checkMainVerifier(ctx, board, values) {
+  if (values.as !== undefined && values.as !== COORDINATOR) throw new Refused('USAGE', '--as takes one value: coordinator');
+  if (!ctx.info.isMain) {
+    if (values.as) throw new Refused('USAGE', '--as coordinator works only in the main checkout; here you are the agent this worktree joined as');
+    return;
+  }
+  if (values.as === COORDINATOR) return;
+  const agents = store.listAgents(board).filter((agent) => agent.agent_id !== COORDINATOR);
+  const listed = agents.length ? ` Agent worktrees: ${agents.slice(0, 6).map((agent) => `${agent.agent_id} at ${agent.agent_path}`).join('; ')}.` : '';
+  const detached = tryGit(ctx.info.root, ['symbolic-ref', '-q', 'HEAD']).status !== 0 ? ' The main checkout is not on its branch; whoever switched it puts it back.' : '';
+  throw new Refused(
+    'MAIN_IS_COORDINATOR',
+    `this is the main checkout, so this verdict would be the coordinator's. An agent verifies from its own worktree, starting every command with cd <worktree> &&.${listed}${detached} The coordinator adds --as coordinator`,
+  );
 }
 
 /**
@@ -299,10 +335,10 @@ function worktreeFor(io, lane, route) {
   const root = git(pathFor(n), ['rev-parse', '--show-toplevel']);
   const id = withBoard(ctx, (board) => store.register(board, { lane, path: root, route }));
   io.say(`made ${root} on branch ${lane}/${n}, joined as ${id} in the ${lane} lane${route === 'light' ? ', on the light route' : ''}`);
-  io.say('next, from that folder:');
-  io.say(`  cd ${root}`);
-  if (existsSync(join(root, 'package.json'))) io.say('  npm install    (its own install, so its tests run its own code)');
-  io.say(`  pullboard inbox, then pullboard list ${lane}`);
+  io.say(`Work only in that folder. A shell that starts each command in the main checkout acts as the coordinator there, so start every command with: ${cdTo(root)}`);
+  if (existsSync(join(root, 'package.json'))) io.say(`  ${cdTo(root)} npm install    (its own install, so its tests run its own code)`);
+  io.say(`  ${cdTo(root)} pullboard inbox`);
+  io.say(`  ${cdTo(root)} pullboard next`);
   return 0;
 }
 
@@ -465,6 +501,7 @@ function verifyHere(ctx, id, { second, values }) {
   if (!decision) throw new Refused('USAGE', 'pullboard verify <id> accept, or reject --reason CODE --note "..."');
   const { root } = ctx.info;
   const result = withBoard(ctx, (board) => {
+    checkMainVerifier(ctx, board, values);
     const me = whoAmI(ctx, board);
     const item = store.getItem(board, id);
     if (item.item_status !== 'submitted') {
@@ -473,7 +510,7 @@ function verifyHere(ctx, id, { second, values }) {
     const head = headCommit(root) ?? '';
     const commit = resolveCommit(root, item.item_commit);
     if (!commit || !contains(root, commit, head)) {
-      throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: git switch --detach ${item.item_commit.slice(0, 12)}`);
+      throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
     }
     let digest = 'missing';
     try {
@@ -505,6 +542,7 @@ function verifyHere(ctx, id, { second, values }) {
  */
 function nextOnce(ctx, values) {
   return withBoard(ctx, (board) => {
+    if (values.verify) checkMainVerifier(ctx, board, values);
     const me = whoAmI(ctx, board);
     const { item, reasons } = store.nextFor(board, { agentId: me.id, lane: me.lane, verify: values.verify });
     if (!item) return { reasons };
@@ -539,16 +577,18 @@ async function nextHere(io, values) {
     const found = nextOnce(ctx, values);
     if (found.item) {
       const item = found.item;
+      const here = cdTo(ctx.info.root);
+      const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (values.verify) {
         io.say(`next to verify: #${item.item_id} ${item.item_title}, built by ${item.item_built_by} at ${item.item_commit.slice(0, 12)}`);
-        io.say(`check out exactly that commit: git switch --detach ${item.item_commit}`);
-        io.say(`then: pullboard verify ${item.item_id} accept --note "how you proved it", or reject --reason CODE --note "what failed"`);
+        io.say(`check out exactly that commit, here: ${here} git switch --detach ${item.item_commit}`);
+        io.say(`then: ${here} pullboard verify ${item.item_id} accept${as} --note "how you proved it", or reject${as} --reason CODE --note "what failed"`);
       } else {
         io.say(`${found.held ? 'you hold' : 'claimed'} #${item.item_id}: ${item.item_title}`);
         if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
         for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${row.text}`);
         sayBrief(io, item.item_brief);
-        io.say(`when it is built and committed: pullboard submit ${item.item_id}`);
+        io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id}`);
       }
       return 0;
     }

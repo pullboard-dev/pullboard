@@ -444,11 +444,13 @@ export function editItem(board, id, { agentId, brief, route }) {
 }
 
 /**
- * Claim an item, or renew your own claim (B4, B5, V2).
+ * Claim an item, or renew your own claim (B4, B5, B12, V2).
  *
  * One live top-level claim per agent, so nobody hoards; child items are free, which is how
- * sub-agents share a lane. A lapsed claim can be taken. The first claim freezes the criterion:
- * `freeze` returns the text and digest the verdict will later be held to.
+ * sub-agents share a lane. A lapsed claim can be taken. Every item is built in its own lane, the
+ * coordinator's included, so no agent can build another lane's work from the main checkout. The
+ * first claim freezes the criterion: `freeze` returns the text and digest the verdict will later be
+ * held to.
  *
  * @param {any} board
  * @param {number} id
@@ -461,8 +463,13 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze }) {
     if (['submitted', 'verified', 'withdrawn'].includes(item.item_status)) {
       throw new Refused('NOT_CLAIMABLE', `item #${id} is ${item.item_status}`);
     }
-    if (lane !== COORDINATOR && item.item_lane !== lane) {
-      throw new Refused('WRONG_LANE', `item #${id} is in the ${item.item_lane} lane; you are in ${lane}`);
+    if (item.item_lane !== lane) {
+      throw new Refused(
+        'WRONG_LANE',
+        lane === COORDINATOR
+          ? `item #${id} is in the ${item.item_lane} lane, and lane items are built from that lane's worktree, never the main checkout. An agent runs: cd <its own worktree> && pullboard claim ${id}`
+          : `item #${id} is in the ${item.item_lane} lane; you are in ${lane}`,
+      );
     }
     if (item.item_route !== 'light' && routeOf(board, agentId) === 'light') {
       throw new Refused('ROUTE', `item #${id} needs a strong model; you joined on the light route. Take the next light item: pullboard next`);
@@ -887,7 +894,7 @@ export function nextFor(board, { agentId, lane, verify = false }) {
   }
   const held = items.find((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null);
   if (held) return { item: held, reasons: [] };
-  const open = items.filter((entry) => entry.item_status === 'open' && (lane === COORDINATOR || entry.item_lane === lane));
+  const open = items.filter((entry) => entry.item_status === 'open' && entry.item_lane === lane);
   const mine = [...open.filter((entry) => entry.item_route !== 'light'), ...open.filter((entry) => entry.item_route === 'light')];
   const reasons = [];
   for (const entry of mine) {
@@ -895,10 +902,39 @@ export function nextFor(board, { agentId, lane, verify = false }) {
       .map((id) => current(board, itemById(board, id)))
       .filter((before) => before.item_status !== 'verified');
     if (!waiting.length) return { item: entry, reasons: [] };
-    reasons.push(`#${entry.item_id} waits on ${waiting.map((before) => `#${before.item_id} (${before.item_status})`).join(', ')}`);
+    reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
   }
-  if (!mine.length) reasons.push(`no open ${routed}items in the ${lane} lane`);
+  if (!mine.length) reasons.push(idleReason(items, lane, routed));
   return { item: null, reasons };
+}
+
+/**
+ * An item something waits on, as the waiting agent needs it: its state, whether a verifier sent it
+ * back, and the lane to shout.
+ *
+ * @param {any} item
+ * @returns {string}
+ */
+function waitingOn(item) {
+  const rejected = item.item_status === 'open' && item.item_verdict === 'REJECT' ? ', rejected' : '';
+  return `#${item.item_id} (${item.item_status}${rejected}, ${item.item_lane} lane)`;
+}
+
+/**
+ * Why a lane has nothing to claim (N13): a lane whose items still await verdicts is not done, since
+ * a rejected item comes back to it; the coordinator builds only its own lane's items.
+ *
+ * @param {any[]} items - Items not yet verified or withdrawn, as the agent may see them.
+ * @param {string} lane
+ * @param {string} routed
+ * @returns {string}
+ */
+function idleReason(items, lane, routed) {
+  const reason = `no open ${routed}items in the ${lane} lane`;
+  if (lane === COORDINATOR) return `${reason}; lane items are built from each lane's own worktree`;
+  const awaiting = items.filter((entry) => entry.item_lane === lane && entry.item_status === 'submitted').map((entry) => `#${entry.item_id}`);
+  if (!awaiting.length) return reason;
+  return `${reason}; ${awaiting.join(', ')} still await${awaiting.length === 1 ? 's' : ''} a verdict, and a rejected item comes back to this lane. A lane is done when its items are verified`;
 }
 
 /**

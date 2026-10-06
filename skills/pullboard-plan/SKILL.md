@@ -11,7 +11,7 @@ You turn approved rows into items builders can claim. You do not build.
 2. **Contracts first.** Find what two lanes will share: a data shape, a module's functions, a file format. Make one item for each shared contract, in the lane that will own it, and add the items that use it with `--after <its id>`. A builder waiting on a contract claims something else; nobody copies another lane's code.
 3. **One item per verifiable piece.** Each item:
    - sits in the lane that owns its files
-   - cites the rows it serves with `--specs`
+   - cites with `--specs` only the rows it meets in full; a verifier rejects an item that cites a row it does not meet
    - has a `--criterion` a stranger could check without asking you, with the exact command, input and expected output
    - has a `--brief` (or `--brief-file`) when a builder starting cold would need more than the criterion: the files to touch, the contract to follow, the pattern to copy, the command that proves it. The criterion says what; the brief says how.
 4. **Route the mechanical work light.** When the brief says exactly what to change, where, and how to prove it, a lighter model can build it: `--route light`. Leave on the default strong route anything that needs judgment: a shared contract, a design choice, an edge the brief cannot settle. Agents that join with `--route light` take only light items; strong agents take strong items first.
