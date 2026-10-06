@@ -564,7 +564,7 @@ test('next takes work near your recent files; submit records them; show names re
   box.git(box.web, 'add', '-A');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): header [G1]');
   commitFile(box, box.web, 'web/nav.html', '<nav>', 'feat(web): nav in the header [G1]');
-  box.git(box.repo, 'commit', '-q', '--allow-empty', '-m', 'chore: main moves on');
+  commitFile(box, box.repo, 'docs/notes.md', 'main moves on', 'docs: notes on main');
   box.git(box.web, 'merge', '-q', '--no-edit', 'main');
   assert.equal(box.run(box.web, 'submit', '2').code, 0);
   assert.equal(JSON.parse(box.run(box.web, 'show', '2', '--json').out).item_files, 'web/header.html\nweb/nav.html', 'only the item\'s own commits, not the merge');
@@ -573,6 +573,9 @@ test('next takes work near your recent files; submit records them; show names re
   box.git(box.repo, 'switch', '-q', 'main');
   box.run(box.repo, 'add', 'web', 'Menu', '--specs', 'G1', '--brief', 'Files: web/nav.html, web/menu.html');
   assert.match(box.run(box.repo, 'show', '3').out, /related: #2 Header: web\/nav\.html \(git log -p -1 [0-9a-f]{12} -- web\/nav\.html\)/);
+  const warm = box.run(box.web, 'next');
+  assert.match(warm.out, /claimed #3: Menu/, 'a clean tree: the files of the items it built last are what is warm');
+  assert.match(warm.out, /it touches a file you worked in recently: web\/nav\.html/);
 });
 
 test('hold pauses a lane: next names who held it and why; --off lets it go [N22]', () => {
@@ -630,4 +633,24 @@ test('the tour runs a reject and its rework on a throwaway repo, in under thirty
   const stopped = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: { ...box.env, TMPDIR: box.dir, PATH: empty }, encoding: 'utf8' });
   assert.equal(stopped.status, 1);
   assert.match(stopped.stdout, /The tour stopped: git init -q -b main exited null/);
+});
+
+test('the run pack names verified items that touched the same files, so a cold agent follows them [N21]', () => {
+  const box = project();
+  const script = (name, lines) => {
+    writeFileSync(join(box.dir, name), ['#!/bin/sh', 'mkdir -p web', ...lines, ''].join('\n'));
+    return `sh ${join(box.dir, name)}`;
+  };
+  const greet = script('greet.sh', ["echo \"export const title = 'Hi';\" > web/page.js"]);
+  const follow = script('follow.sh', ['grep -q "^- #1 Greet: web/page.js$" "$PULLBOARD_PACK" && echo "export const bye = \'Bye\';" >> web/page.js']);
+  box.run(box.repo, 'add', 'web', 'Greet', '--route', 'light', '--criterion', 'says Hi', '--check', 'grep -q Hi web/page.js', '--brief', LIGHT_BRIEF);
+  const runner = box.run(box.repo, 'worktree', 'web', '--route', 'light').out.match(/^made (\S+) /)[1];
+  assert.match(box.run(runner, 'run', '--agent-light', greet, '--attempts', '1').out, /submitted #1/);
+  box.git(box.web, 'merge', '-q', '--ff-only', JSON.parse(box.run(box.repo, 'show', '1', '--json').out).item_commit);
+  assert.match(box.run(box.web, 'verify', '1', 'accept', '--note', 'emptied the page; the check failed').out, /verified #1/);
+  box.run(box.repo, 'add', 'web', 'Say', 'bye', '--route', 'light', '--criterion', 'says Bye', '--check', 'grep -q Bye web/page.js', '--brief', LIGHT_BRIEF);
+  const ran = box.run(runner, 'run', '--agent-light', follow, '--attempts', '1');
+  assert.match(ran.out, /submitted #2/, ran.out);
+  const packs = join(box.dir, 'repo', '.git', 'worktrees', runner.split('/').at(-1), 'pullboard', 'packs');
+  assert.match(readFileSync(join(packs, '2-light-1.md'), 'utf8'), /## Finished items that touched the same files\n- #1 Greet: web\/page.js\nFollow the patterns/);
 });
