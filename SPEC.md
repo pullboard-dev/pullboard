@@ -103,6 +103,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - N21 [draft, must] Submit records the files an item changed; show and the run pack name verified items that share them. | gate: test/board.test.js, test/e2e.test.js
 - N22 [draft, must] `pullboard hold <lane>` pauses a lane: nothing new is claimed there, and next says who held it and why. | gate: test/board.test.js, test/e2e.test.js
 - N23 [draft, must] `pullboard check [id]` runs an item's check command, yours by default, and prints a digest. | gate: test/e2e.test.js
+- N24 [draft, must] Output piped into a reader that stops early, such as head, ends quietly, with no stack trace. | gate: test/e2e.test.js
 
 ## H · Hosted
 - H1 [pending, aim] `pullboard sync` mirrors the local board to pullboard.dev for teams across machines.
