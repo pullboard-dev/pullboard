@@ -22,15 +22,19 @@ test('a clean header citing a live id passes [C1, C2]', () => {
 });
 
 test('feat and fix cite ids; cited ids exist and are not retired [C2]', () => {
-  assert.match(check('feat(web): add the page')[0], /cite the spec ids/);
+  assert.match(check('feat(web): add the page')[0], /end the header with the spec rows this feat serves, like \[G1,G2\]/);
   assert.match(check('fix: patch [G9]')[0], /G9 is not in SPEC.md/);
   assert.match(check('fix: patch [G2]')[0], /G2 is retired/);
 });
 
 test('header format, length, case and period [C1]', () => {
   assert.match(check('Added the page')[0], /type\(scope\): subject/);
-  assert.match(check(`docs: ${'x'.repeat(80)}`)[0], /characters; at most 72/);
-  assert.deepEqual(check('docs: Explain lanes.'), ['the subject starts lowercase', 'the subject has no trailing period']);
+  assert.match(check(`docs: ${'x'.repeat(80)}`)[0], /shorten the header to 72 characters or fewer \(it has 86\)/);
+  assert.deepEqual(check('docs: Explain lanes.'), [
+    'start the subject with a lowercase letter (saw "Explain lanes.")',
+    'remove the period at the end of the subject',
+  ]);
+  assert.match(check('feat: x [G K P D]')[0], /cite only rows that exist, separated by commas like \[G1,G2\]/);
   assert.deepEqual(check('docs: explain lanes\nsecond line'), ['leave a blank line after the header']);
 });
 
@@ -43,7 +47,7 @@ test('comments are dropped; merges, reverts and fixups are exempt', () => {
 test('opt-in rules: filler words, emoji, co-author trailers', () => {
   const strict = { ...RULES, banned: ['basically', 'seamless'], noEmoji: true, noCoAuthor: true };
   const problems = check('docs: basically seamless lanes \u{1F680}\n\nCo-Authored-By: Bot <b@x>', strict);
-  assert.deepEqual(problems, ['filler word: "basically"', 'filler word: "seamless"', 'no emojis', 'no Co-Authored-By trailer']);
+  assert.deepEqual(problems, ['drop the filler word "basically"', 'drop the filler word "seamless"', 'remove the emoji', 'remove the Co-Authored-By trailer']);
   assert.deepEqual(check('docs: basically fine'), []);
 });
 

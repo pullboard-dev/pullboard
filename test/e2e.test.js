@@ -195,6 +195,19 @@ test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [
   const submitted = box.run(box.web, 'submit', '1');
   assert.equal(submitted.code, 0, submitted.err);
   assert.match(submitted.out, /submitted #1 at [0-9a-f]{12}; gate green/);
+  const head = box.git(box.web, 'rev-parse', 'HEAD');
+  assert.equal(box.git(box.repo, 'rev-parse', `refs/pullboard/items/1/${head.slice(0, 12)}`), head, 'submit pins the commit');
+});
+
+test('pullboard worktree makes a joined worktree for a lane in one command [I4]', () => {
+  const box = project();
+  const made = box.run(box.repo, 'worktree', 'api');
+  assert.equal(made.code, 0, made.err);
+  const path = join(box.dir, 'repo-api-1');
+  assert.match(made.out, /on branch api\/1, joined as api-1 in the api lane/);
+  assert.match(box.run(path, 'whoami').out, /^api-1 \(api lane\)/);
+  assert.match(box.run(box.repo, 'worktree', 'api').out, /repo-api-2 on branch api\/2, joined as api-2/);
+  assert.match(box.run(box.repo, 'worktree', 'nope').err, /NO_LANE/);
 });
 
 test('a red gate refuses submit', () => {

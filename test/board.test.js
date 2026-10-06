@@ -3,6 +3,9 @@
  * R2). The git-facing rules (V3, V4, V7) run against real repos in e2e.test.js.
  */
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { beforeEach, test } from 'node:test';
 import * as store from '../src/board.js';
 
@@ -192,4 +195,34 @@ test('every move lands in the event log; stats count items and verdicts [R1, R2]
   const stats = store.stats(board);
   assert.equal(stats.items.open, 1);
   assert.equal(stats.rejected, 1);
+});
+
+test('an item can wait on others: claiming it is refused until they are verified', () => {
+  const contract = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Store module' });
+  const user = store.addItem(board, { by: 'coordinator', lane: 'api', title: 'Uses the store', after: [contract] });
+  assert.throws(() => claimAs(user, 'api-1', 'api'), /BLOCKED.*#2 waits on #1 \(open, web lane\)/);
+  claimAs(contract, 'web-1', 'web');
+  store.submit(board, contract, { agentId: 'web-1', commit: SHA_A, tree: 't' });
+  assert.throws(() => claimAs(user, 'api-1', 'api'), /BLOCKED.*\(submitted/);
+  store.verify(board, contract, { agentId: 'web-2', decision: 'ACCEPT', head: SHA_A, digest: 'digest:Store module', policy: 'any' });
+  assert.equal(claimAs(user, 'api-1', 'api').renewed, false);
+  const dropped = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Dropped' });
+  store.withdraw(board, dropped, { agentId: 'coordinator', reason: 'not needed' });
+  assert.throws(() => store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Late', after: [dropped] }), /WITHDRAWN/);
+});
+
+test('a board made before dependencies existed is migrated on open', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pullboard-migrate-'));
+  try {
+    const file = join(dir, 'board.sqlite');
+    const old = store.openBoard(file, clock);
+    old.db.exec('ALTER TABLE item DROP COLUMN item_after');
+    store.closeBoard(old);
+    const reopened = store.openBoard(file, clock);
+    const columns = reopened.db.prepare('PRAGMA table_info(item)').all().map((column) => column.name);
+    store.closeBoard(reopened);
+    assert.ok(columns.includes('item_after'));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
