@@ -22,6 +22,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - B9 [approved, must] Submit pins the commit under refs/pullboard/items, so submitted work is never lost. | gate: test/e2e.test.js
 - B10 [approved, must] An item carries a brief: how to build it. Next and show print it; edit changes it until verified. | gate: test/board.test.js, test/e2e.test.js
 - B11 [approved, must] Items route strong or light. A light agent claims and verifies light items only; light needs a brief. | gate: test/board.test.js, test/e2e.test.js
+- B12 [approved, must] Every item is built in its own lane; the coordinator claims only coordinator-lane items. | gate: test/board.test.js | serves: L3
 
 ## V · Verification
 - V1 [approved, must] The builder never verifies its own work. | gate: test/board.test.js | serves: P1
@@ -32,6 +33,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - V6 [approved, must] REJECT reopens the item. Resubmitting needs a new head. | gate: test/board.test.js
 - V7 [approved, must] The verifier's checkout contains the submitted commit. | gate: test/e2e.test.js
 - V8 [approved, must] Every verdict binds the submitted commit and the frozen digest. | gate: test/board.test.js
+- V9 [approved, must] In the main checkout, verifying needs --as coordinator, so no agent's verdict is filed as the coordinator's. | gate: test/e2e.test.js | serves: V1
 
 ## L · Lanes
 - L1 [approved, must] Lanes live in pullboard.json: folders owned, spec prefixes, when it starts. | gate: test/lanes.test.js
@@ -65,6 +67,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - I2 [approved, must] Init is idempotent and never overwrites a file it did not write. | gate: test/e2e.test.js
 - I3 [approved, must] Init writes the standard PRACTICE.md and the role guides as Claude Code skills. | gate: test/e2e.test.js
 - I4 [approved, must] `pullboard worktree <lane>` makes a joined worktree and says what to run next. | gate: test/e2e.test.js
+- I5 [approved, must] Every command pullboard suggests to an agent starts with cd to its worktree. | gate: test/e2e.test.js | serves: I4
 
 ## N · Next commands
 - N1 [draft, must] `pullboard decide`: the person's queue of everything waiting on them.
@@ -79,6 +82,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - N10 [draft, aim] `pullboard tour` shows a reject and its rework with scripted agents in thirty seconds.
 - N11 [draft, aim] A git-pullboard bin, so `git pullboard <command>` works.
 - N12 [draft, aim] `pullboard mcp` serves the same commands as MCP tools.
+- N13 [approved, must] `next` names items still awaiting a verdict; a lane is done when its items are verified. | gate: test/board.test.js | serves: N2
 
 ## H · Hosted
 - H1 [pending, aim] `pullboard sync` mirrors the local board to pullboard.dev for teams across machines.
