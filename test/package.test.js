@@ -11,22 +11,32 @@ import { test } from 'node:test';
 const ROOT = resolve(import.meta.dirname, '..');
 const PACKAGE = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 
-/** A child Node that reports which of the sources on its stdin compile as ES modules. */
+/**
+ * A child Node that compiles each source on its stdin as an ES module and reports, for each, whether
+ * it compiles and the modules it imports statically, as V8 lists them.
+ */
 const PARSER = [
   "import vm from 'node:vm';",
   "import { readFileSync } from 'node:fs';",
   "const sources = JSON.parse(readFileSync(0, 'utf8'));",
-  'const compiles = (source) => { try { new vm.SourceTextModule(source); return true; } catch { return false; } };',
-  'process.stdout.write(JSON.stringify(sources.map(compiles)));',
+  'const look = (source) => {',
+  '  try {',
+  '    const module = new vm.SourceTextModule(source);',
+  '    return { compiles: true, imports: module.moduleRequests ? module.moduleRequests.map((request) => request.specifier) : module.dependencySpecifiers };',
+  '  } catch {',
+  '    return { compiles: false, imports: [] };',
+  '  }',
+  '};',
+  'process.stdout.write(JSON.stringify(sources.map(look)));',
 ].join('\n');
 
 /**
- * Which sources compile as ES modules, as V8 itself decides, all in one child process.
+ * What V8 makes of each source, all in one child process.
  *
  * @param {string[]} sources
- * @returns {boolean[]}
+ * @returns {{ compiles: boolean, imports: string[] }[]}
  */
-function compiles(sources) {
+function look(sources) {
   const child = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', '--input-type=module', '-e', PARSER], {
     input: JSON.stringify(sources),
     encoding: 'utf8',
@@ -36,90 +46,54 @@ function compiles(sources) {
   return JSON.parse(child.stdout);
 }
 
-/** Every place the word import or export appears, in code or not. */
-const KEYWORD = /(?<![\w$.#])(import|export)(?![\w$])/g;
+/** Every place the word import appears, in code or not. */
+const IMPORT = /(?<![\w$.#])import(?![\w$])/g;
+
+/** Whitespace and comments, which may sit between import, its parenthesis and its argument. A line comment ends at any line terminator. */
+const GAP = /^(?:\s|\/\/[^\n\r\u2028\u2029]*|\/\*[\s\S]*?\*\/)*/;
+
+/** What a dynamic import of anything but a plain string loads: unknown, so never node: or relative. */
+const COMPUTED = '(computed)';
 
 /**
- * The tokens of a source from one place on: words, strings, templates and single punctuation, with
- * whitespace and comments skipped. Enough to read an import or export declaration.
+ * What an import(...) call at `at` loads: its argument when that is one plain string,
+ * decoded, or COMPUTED for anything else. Null when the word is not followed by a parenthesis: a
+ * declaration, which V8 lists, or import.meta.
  *
  * @param {string} source
  * @param {number} at
- * @returns {Generator<{ type: 'word' | 'string' | 'template' | 'punct', text: string }>}
- */
-function* tokensFrom(source, at) {
-  while (at < source.length) {
-    const rest = source.slice(at, at + 4096);
-    const space = /^(?:\s+|\/\/[^\n]*|\/\*[\s\S]*?\*\/)/.exec(rest);
-    if (space) {
-      at += space[0].length;
-      continue;
-    }
-    const token = /^(?:(['"])(?:\\[\s\S]|(?!\1)[^\\\n])*\1|`(?:\\[\s\S]|[^\\`])*`|[\p{ID_Continue}$]+)/u.exec(rest);
-    if (token) {
-      at += token[0].length;
-      const type = token[1] ? 'string' : token[0][0] === '`' ? 'template' : 'word';
-      yield { type, text: type === 'string' ? token[0].slice(1, -1) : token[0] };
-    } else {
-      at += 1;
-      yield { type: 'punct', text: rest[0] };
-    }
-  }
-}
-
-/**
- * The module an import or export written in code names: import 'x', import('x'), import ... from
- * 'x', or export ... from 'x'. Null when it names none: import.meta, export const, export default,
- * or a dynamic import of a computed name.
- *
- * @param {string} source
- * @param {number} at - Where the keyword starts.
- * @param {'import' | 'export'} keyword
  * @returns {string | null}
  */
-function specifierAt(source, at, keyword) {
-  const tokens = tokensFrom(source, at + keyword.length);
-  const first = tokens.next().value;
-  if (!first) return null;
-  if (keyword === 'import' && first.type === 'string') return first.text;
-  if (keyword === 'import' && first.text === '(') {
-    const argument = tokens.next().value;
-    return argument?.type === 'string' ? argument.text : null;
-  }
-  if (keyword === 'export' && first.text !== '*' && first.text !== '{') return null;
-  let depth = 0;
-  for (let token = first; token; token = tokens.next().value) {
-    if (token.text === '{') depth += 1;
-    else if (token.text === '}') depth -= 1;
-    else if (depth > 0) continue;
-    else if (token.type === 'word' && token.text === 'from') {
-      const name = tokens.next().value;
-      return name?.type === 'string' ? name.text : null;
-    } else if (token.type === 'word' ? ['import', 'export'].includes(token.text) : !['*', ','].includes(token.text)) {
-      return null;
-    }
-  }
-  return null;
+function dynamicAt(source, at) {
+  const skip = (text) => text.slice(GAP.exec(text)[0].length);
+  const call = skip(source.slice(at + 'import'.length));
+  if (call[0] !== '(') return null;
+  const argument = skip(call.slice(1));
+  const literal = /^(['"])(?:\\[\s\S]|(?!\1)[^\\\n\r])*\1/.exec(argument);
+  if (!literal) return COMPUTED;
+  const after = skip(argument.slice(literal[0].length))[0];
+  return after === ')' || after === ',' ? new Function(`return ${literal[0]};`)() : COMPUTED;
 }
 
 /**
- * Every module each source imports, in source order: import and export-from statements, side-effect
- * imports, and dynamic import() with either quote. V8 decides what is code: a NUL put before an
- * import or export keeps a module compiling when the word sits in a string, template, comment or
- * regular expression, and breaks it when the word is code.
+ * Every module each source imports. V8 lists the static ones: import and export-from statements and
+ * side-effect imports. For import() calls V8 decides what is code: a NUL put before the word keeps
+ * the module compiling when the word sits in a string, template, comment or regular expression,
+ * and breaks it when the word is code. A call's argument must be one plain string, or the scan
+ * reports it as COMPUTED, which no rule allows.
  *
  * @param {string[]} sources - Each one a module that compiles.
  * @returns {string[][]}
  */
 function importsIn(sources) {
-  const found = sources.map((source) => [...source.matchAll(KEYWORD)].map((match) => ({ at: match.index, keyword: match[1] })));
-  const marked = sources.flatMap((source, index) => found[index].map(({ at }) => `${source.slice(0, at)}\u0000${source.slice(at)}`));
-  const results = compiles([...sources, ...marked]);
+  const calls = sources.map((source) => [...source.matchAll(IMPORT)].map((match) => match.index).filter((at) => dynamicAt(source, at) !== null));
+  const marked = sources.flatMap((source, index) => calls[index].map((at) => `${source.slice(0, at)}\u0000${source.slice(at)}`));
+  const looks = look([...sources, ...marked]);
   let next = sources.length;
   return sources.map((source, index) => {
-    assert.ok(results[index], `does not compile as a module: ${source.slice(0, 80)}`);
-    const inCode = found[index].filter(() => !results[next++]);
-    return inCode.map(({ at, keyword }) => specifierAt(source, at, keyword)).filter((name) => name !== null);
+    assert.ok(looks[index].compiles, `does not compile as a module: ${source.slice(0, 80)}`);
+    const dynamic = calls[index].filter(() => !looks[next++].compiles).map((at) => dynamicAt(source, at));
+    return [...looks[index].imports, ...dynamic];
   });
 }
 
@@ -168,11 +142,19 @@ test('the import scan finds a package however it is imported, and nothing that i
     "const pattern = /import('left-pad')/u;": [],
     'export const b = 1;\nexport * from "left-pad";': ['left-pad'],
     'export { a } from "left-pad"; export const b = 1;': ['left-pad'],
+    'import { "{" as brace } from "left-pad";': ['left-pad'],
+    'import pad // note\u2028from "left-pad";': ['left-pad'],
+    'import "node:fs"; import "node:fs";': ['node:fs'],
+    'const pad = await import(("left-pad"));': ['(computed)'],
+    'const pad = await import("left" + "-pad");': ['(computed)'],
+    'const pad = await import("left\\u002dpad");': ['left-pad'],
+    "const pad = await import(/* why */ 'left-pad' /* still */, { with: {} });": ['left-pad'],
     'function later() { return import("left-pad"); }': ['left-pad'],
     "function later() { return \"import('left-pad')\"; }": [],
   };
   const found = importsIn(Object.keys(forms));
-  Object.entries(forms).forEach(([source, expected], index) => assert.deepEqual(found[index], expected, source));
+  const set = (names) => [...new Set(names)].sort();
+  Object.entries(forms).forEach(([source, expected], index) => assert.deepEqual(set(found[index]), set(expected), source));
 });
 
 test('every import is a node: built-in or a relative file [P3]', () => {
