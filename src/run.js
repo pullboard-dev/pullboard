@@ -10,7 +10,7 @@
  * OpenCode on a local model or Claude Code headless on a smaller one.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from './board.js';
 import { briefFiles } from './brief.js';
@@ -43,19 +43,22 @@ function boundedInt(text, low, high, flag) {
 }
 
 /**
- * Run a shell command in its own process group, so a timeout stops everything it started.
+ * Run a shell command in its own process group, so a timeout stops everything it started. With a
+ * log file, its output streams there as it comes, so an attempt can be watched while it runs.
  *
  * @param {string} command
- * @param {{ cwd: string, env?: NodeJS.ProcessEnv, timeoutMs: number }} options
+ * @param {{ cwd: string, env?: NodeJS.ProcessEnv, timeoutMs: number, log?: string }} options
  * @returns {Promise<{ status: number | null, output: string, timedOut: boolean, seconds: number }>}
  */
-function runCommand(command, { cwd, env = process.env, timeoutMs }) {
+function runCommand(command, { cwd, env = process.env, timeoutMs, log }) {
   const started = Date.now();
   return new Promise((done) => {
     const child = spawn(command, { cwd, env, shell: true, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
+    if (log) writeFileSync(log, '');
     const keep = (chunk) => {
       output = (output + chunk.toString()).slice(-200_000);
+      if (log) appendFileSync(log, chunk);
     };
     child.stdout.on('data', keep);
     child.stderr.on('data', keep);
@@ -291,8 +294,7 @@ async function buildItem(ctx, item, { agents, attempts, minutes, deps, me }) {
     writeFileSync(pack, packText(root, fresh, { attempt, attempts, digest, earlier }));
     ctx.io.say(`#${id} attempt ${attempt}/${attempts}: running the ${item.item_route} agent`);
     const env = { ...process.env, PULLBOARD_PACK: pack, PULLBOARD_CHECK: item.item_check, PULLBOARD_ITEM: String(id), PULLBOARD_ATTEMPT: String(attempt) };
-    const built = await runCommand(agent, { cwd: root, env, timeoutMs: minutes * 60_000 });
-    writeFileSync(join(packs, `${id}-${item.item_route}-${attempt}.log`), built.output);
+    const built = await runCommand(agent, { cwd: root, env, timeoutMs: minutes * 60_000, log: join(packs, `${id}-${item.item_route}-${attempt}.log`) });
     const outside = changedSince(root, start).filter((path) => !inScope(path));
     restore(root, start, outside);
     const reverted = outside.length ? `The runner reverted your changes outside the brief's files: ${outside.join(', ')}.\n` : '';
