@@ -10,6 +10,7 @@ const TSC_RE = /^(.+?)\((\d+),(\d+)\): (?:error|warning) (TS\d+): (.+)$/;
 const LINE_RE = /^([^\s:][^:]*?):(\d+)(?::(\d+))?:?\s+(.+)$/;
 const SEVERITY_RE = /^(?:error|warning|note|info)\s*:?\s*/i;
 const RULE_FIRST_RE = /^\[?([A-Z]{1,4}\d{2,5}|[a-z@][\w-]*\/[\w-]+|[a-z][a-z0-9]*(?:-[a-z0-9]+)+)\]?:?\s+(.+)$/;
+const WORD_RULE_RE = /^([a-z][a-z0-9]*)\s+([A-Z].*)$/;
 const RULE_LAST_RE = /^(.*?)\s+\[(?:(?:error|warning)\/)?([A-Za-z@][\w/-]*)\]$/i;
 const MAX_LISTED = 30;
 
@@ -42,14 +43,15 @@ function fromEslint(text) {
 
 /**
  * A problem's rule and message, in the shapes checkers print: a code or rule name first (`F401 ...`,
- * `no-var ...`), or a rule in brackets last (`... [return]`, `... [Error/no-var]`).
+ * `no-var ...`, or one lowercase word before a capitalized message, `camelcase Name ...`), or a rule
+ * in brackets last (`... [return]`, `... [Error/no-var]`).
  *
  * @param {string} text
  * @returns {{ rule: string, message: string }}
  */
 function ruleAndMessage(text) {
   const rest = text.replace(SEVERITY_RE, '').trim();
-  const first = RULE_FIRST_RE.exec(rest);
+  const first = RULE_FIRST_RE.exec(rest) ?? WORD_RULE_RE.exec(rest);
   if (first) return { rule: first[1], message: first[2].trim() };
   const last = RULE_LAST_RE.exec(rest);
   if (last) return { rule: last[2], message: last[1].trim() };

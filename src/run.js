@@ -273,7 +273,7 @@ export function featuresOf(item) {
   const brief = item.item_brief ?? '';
   const named = /^kind:\s*(.+)$/im.exec(brief);
   if (named) return [...new Set(named[1].split(/[\s,+]+/).filter(Boolean))].sort();
-  const rules = [...brief.matchAll(/^\s*- line \d+(?::\d+)? ([\w@/-]+):/gm)].map((match) => match[1]);
+  const rules = [...brief.matchAll(/^\s*- line \d+(?::\d+)?:? ([a-z@][\w@/-]*)[:\s]/gm)].map((match) => match[1]);
   return rules.length ? [...new Set(rules)].sort() : ['unlabelled'];
 }
 
