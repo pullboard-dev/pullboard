@@ -306,3 +306,83 @@ test('the sidebar lists every project and what needs the person [N26]', async ()
     await view.stop();
   }
 });
+
+/**
+ * The coordinator accepts an item from a checkout of its submitted commit.
+ */
+function accept(box, p, id) {
+  box.git(p.repo, 'switch', '-q', '--detach', p.branch);
+  box.run(p.repo, 'verify', String(id), 'accept', '--note', 'the page shows it', '--as', 'coordinator');
+  box.git(p.repo, 'switch', '-q', 'main');
+}
+
+/**
+ * One item's row in the list, or '' when the list does not show it.
+ */
+function itemRow(html, id) {
+  return html.split('<li').find((row) => row.includes(`data-item="${id}"`)) ?? '';
+}
+
+/**
+ * The board as the view serves it for one project.
+ */
+async function boardOf(view, root) {
+  const res = await fetch(`${view.base}/api/state?root=${encodeURIComponent(root)}`, { headers: { 'x-pullboard-key': view.key } });
+  return (await res.json()).project;
+}
+
+test('a sent-back item shows why first [N26]', async () => {
+  const box = machine();
+  const p = project(box, 'shop');
+  box.run(p.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets by name', '--brief', 'Files: web/greeting.html');
+  box.run(p.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye', '--brief', 'Files: web/farewell.html');
+  box.run(p.repo, 'add', 'web', 'Heading', '--specs', 'G1', '--criterion', 'has a heading', '--brief', 'Files: web/heading.html');
+  build(box, p, 1, 'greeting.html');
+  sendBack(box, p, 1, 'no <b>greeting</b> on the page\nsecond line of the note');
+  build(box, p, 2, 'farewell.html');
+  sendBack(box, p, 2, 'the farewell is missing');
+  build(box, p, 2, 'farewell-again.html');
+  build(box, p, 3, 'heading.html');
+  sendBack(box, p, 3, 'no heading yet');
+  build(box, p, 3, 'heading-again.html');
+  accept(box, p, 3);
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    const needs = page.show('needs');
+    assert.match(needs, /<code>#1<\/code><span>Greeting<\/span><em>sent back: BEHAVIOR_MISMATCH →<\/em>/);
+    assert.match(needs, /<code>#2<\/code><span>Farewell<\/span><em>resubmitted after BEHAVIOR_MISMATCH, \w+ →<\/em>/);
+    const row = itemRow(page.show('chain'), 1);
+    assert.ok(row.includes('BEHAVIOR_MISMATCH: no &lt;b&gt;greeting&lt;/b&gt; on the page'), row);
+    assert.ok(!row.includes('second line'), 'the row shows the first line of the note only');
+    assert.ok(itemRow(page.show('chain'), 2).includes('BEHAVIOR_MISMATCH: the farewell is missing'));
+
+    await page.click({ item: '1', classes: 'row' });
+    const detail = page.show('detail');
+    const verdict = (await boardOf(view, p.repo)).items.find((item) => item.id === 1).verdict;
+    const time = new Date(verdict.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    const top = detail.slice(0, detail.indexOf('<h3>Criterion</h3>'));
+    assert.ok(detail.indexOf('<h3>Criterion</h3>') > 0, 'the criterion is shown');
+    assert.match(top, /<h3>Sent back<\/h3>/);
+    assert.match(top, /<b>REJECT BEHAVIOR_MISMATCH<\/b>/);
+    assert.match(top, new RegExp(`coordinator · (\\w+ \\d+ )?${time} · at ${verdict.commit.slice(0, 12)}`), 'who sent it back, when, and at which commit');
+    assert.ok(top.includes('no &lt;b&gt;greeting&lt;/b&gt; on the page\nsecond line of the note'), 'the full note, escaped, before the criterion');
+    assert.ok(!detail.includes('<b>greeting</b>'), 'the note cannot inject markup');
+    assert.ok(detail.indexOf('<h3>Criterion</h3>') < detail.indexOf('<h3>Spec rows it serves</h3>'));
+    assert.ok(detail.indexOf('<h3>Spec rows it serves</h3>') < detail.indexOf('<h3>Brief</h3>'));
+    assert.equal(detail.split('second line of the note').length, 2, 'the note is shown once');
+
+    await page.click({ item: '2', classes: 'row' });
+    assert.match(page.show('detail').slice(0, page.show('detail').indexOf('<h3>Criterion</h3>')), /<h3>Sent back, resubmitted<\/h3>[^]*the farewell is missing/);
+
+    await page.click({ item: '3', classes: 'row' });
+    const verified = page.show('detail');
+    assert.doesNotMatch(verified, /Sent back/);
+    assert.ok(verified.indexOf('<h3>Criterion</h3>') < verified.indexOf('<h3>Brief</h3>'));
+    assert.ok(verified.indexOf('<h3>Brief</h3>') < verified.indexOf('<h3>Verdicts</h3>'), 'a verified item keeps its verdicts after the brief');
+    assert.ok(verified.indexOf('<h3>Verdicts</h3>') < verified.indexOf('no heading yet'));
+    assert.ok(verified.indexOf('no heading yet') < verified.indexOf('the page shows it'), 'every verdict, oldest first');
+  } finally {
+    await view.stop();
+  }
+});
