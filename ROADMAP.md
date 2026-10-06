@@ -21,6 +21,13 @@ A board in `.git`, lanes, a spec, hooks and a gate, with Pullboard's protocol ru
 - **A `review` lane by default,** for verifiers.
 - **Two new standard practice rows:** one implementation per concern; tests never write outside a temporary directory.
 
+## Done in 0.5: what the second micro-build taught
+
+- **An ACCEPT carries its proof.** A Haiku verifier accepted a test that could not fail, on "the tests pass"; now accept needs a note saying what was broken or which edge was tried.
+- **`pullboard next`.** Builders blocked on other work were hand-writing polling loops; `next --wait` waits, and `next --verify` finds work to check.
+- **A must-row has to be testable without a guess.** A vague row ("overdue tasks are flagged") let a time-zone bug through; the decompose guide now asks for the exact comparison, word or format.
+- **Verifiers try the edges:** today, zero, empty, the limit.
+
 ## Soon: 0.5.x, hardening from real builds
 
 Lessons from an eight-lane build and from running hosted Pullboard, each small on its own:

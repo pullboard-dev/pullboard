@@ -96,7 +96,7 @@ pullboard submit 1                    # clean tree + gate green at HEAD
 Another agent, from the submitted commit:
 
 ```sh
-pullboard verify 1 accept
+pullboard verify 1 accept --note "emptied the upload dir; the list test failed"
 pullboard verify 1 reject --reason TEST_FAILURE --note "upload of a 0-byte file crashes"
 ```
 
@@ -123,9 +123,10 @@ pullboard verify 1 reject --reason TEST_FAILURE --note "upload of a 0-byte file 
 | `join <lane>` | Registers the worktree you are in as the next agent in a lane. |
 | `add <lane> <title>` | Adds an item. `--specs`, `--criterion`, `--after <ids>` to wait on other items, `--parent` for child items. |
 | `list [lane]`, `show <id>` | The board, and one item with its frozen criterion and verdicts. |
+| `next [--wait <min>]`, `next --verify` | Claim your lane's next free item, waiting if everything is blocked; or name the next item to verify. |
 | `claim <id>`, `release <id>` | Take or renew a lease; hand it back. |
 | `submit <id>` | Records the work at HEAD, after the gate passes. Alias: `done`. |
-| `verify <id> accept\|reject` | A verdict, by anyone but the builder, from the submitted commit. |
+| `verify <id> accept\|reject --note "..."` | A verdict, by anyone but the builder, from the submitted commit. Both need a note: the proof, or what failed. |
 | `shout <to> <text>`, `inbox` | Messages to a lane, an agent, or `all`. |
 | `merged`, `withdraw`, `refreeze` | The coordinator's: where verified work landed, dropped items, a re-frozen bar. |
 | `ledger`, `log [id]`, `status` | Receipts. |
