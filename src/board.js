@@ -956,18 +956,19 @@ export function events(board, { itemId } = {}) {
  * while there is heavier work to do (B13). When nothing is free, the reasons say what everything
  * is waiting on.
  *
- * With `runnable`, only items that carry a check command, which an unattended runner needs.
+ * With `runnable`, only items that carry a check command, which an unattended runner needs; with
+ * `routes`, only items on those routes, the ones a runner has an agent command for.
  *
  * @param {any} board
- * @param {{ agentId: string, lane: string, verify?: boolean, runnable?: boolean }} who
+ * @param {{ agentId: string, lane: string, verify?: boolean, runnable?: boolean, routes?: string[] }} who
  * @returns {{ item: any | null, reasons: string[] }}
  */
-export function nextFor(board, { agentId, lane, verify = false, runnable = false }) {
+export function nextFor(board, { agentId, lane, verify = false, runnable = false, routes = ROUTES }) {
   const route = routeOf(board, agentId);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
   const items = listItems(board)
     .reverse()
-    .filter((entry) => canTake(route, entry.item_route) && (!runnable || entry.item_check))
+    .filter((entry) => canTake(route, entry.item_route) && routes.includes(entry.item_route) && (!runnable || entry.item_check))
     .sort((first, second) => tier(second) - tier(first));
   const tiers = route === 'strong' ? '' : `${ROUTES.slice(0, ROUTES.indexOf(route) + 1).reverse().join(' or ')} `;
   const routed = `${tiers}${runnable ? 'runnable ' : ''}`;

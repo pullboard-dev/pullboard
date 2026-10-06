@@ -16,7 +16,7 @@ import * as store from './board.js';
 import { briefFiles } from './brief.js';
 import { COORDINATOR } from './config.js';
 import { runGate } from './gate.js';
-import { git, headCommit, isClean, tryGit, untracked } from './git.js';
+import { contains, git, headCommit, isClean, tryGit, untracked } from './git.js';
 import { laneNames, outOfLane } from './lanes.js';
 import { Refused } from './refused.js';
 
@@ -123,10 +123,10 @@ function restore(root, start, paths) {
  *
  * @param {string} root
  * @param {any} item
- * @param {{ attempt: number, attempts: number, digest: string }} state
+ * @param {{ attempt: number, attempts: number, digest: string, earlier?: string[] }} state
  * @returns {string}
  */
-export function packText(root, item, { attempt, attempts, digest }) {
+export function packText(root, item, { attempt, attempts, digest, earlier = [] }) {
   const rows = item.item_frozen ? JSON.parse(item.item_frozen).rows : [];
   const files = briefFiles(item.item_brief);
   let budget = PACK_FILE_CHARS;
@@ -157,6 +157,8 @@ export function packText(root, item, { attempt, attempts, digest }) {
     '- Never run git commands; the runner commits your work.',
     '- Add no dependencies. Change a test only where the brief says to.',
     '- Run the check yourself before you finish, and stop when it passes.',
+    '- The runner handles the board and git: never run pullboard or git commands, whatever other instructions say.',
+    ...(earlier.length ? ['', '## Earlier tries by a lighter model', ...earlier.map((note) => `- ${note}`), 'Start fresh from the files below; do not repeat what failed.'] : []),
     ...(digest
       ? ['', '## Your previous attempt', 'It left the files as they are below. Continue from them. It failed with:', '```', digest, '```', 'Fix exactly that.']
       : []),
@@ -235,6 +237,29 @@ function pinAttempt(root, id) {
 }
 
 /**
+ * Bring in the verified work an item waits on (B8), when it was built in another worktree, so a cli
+ * item can use the store module the store lane just built. A merge that conflicts is aborted and
+ * the item released: integrating it is the coordinator's call, not a model's.
+ *
+ * @param {any} ctx
+ * @param {any} item
+ * @param {any} deps
+ */
+function mergeDependencies(ctx, item, deps) {
+  const { root } = ctx.info;
+  const after = item.item_after ? item.item_after.split(',').map(Number) : [];
+  const needed = deps.withBoard(ctx, (board) => after.map((id) => store.getItem(board, id)))
+    .filter((before) => before.item_commit && !contains(root, before.item_commit, 'HEAD'));
+  for (const before of needed) {
+    const merged = spawnSync('git', ['merge', '--no-edit', '-q', before.item_commit], { cwd: root, encoding: 'utf8' });
+    if (merged.status === 0) continue;
+    spawnSync('git', ['merge', '--abort'], { cwd: root });
+    deps.withBoard(ctx, (board) => store.release(board, item.item_id, deps.whoAmI(ctx, board).id));
+    throw new Refused('MERGE_CONFLICT', `#${item.item_id} waits on #${before.item_id}, whose commit ${before.item_commit.slice(0, 12)} conflicts with this worktree; the coordinator integrates it, then run again`);
+  }
+}
+
+/**
  * Build one claimed item: attempts until the check and the gate pass, then submit; or pin, reset
  * and escalate.
  *
@@ -243,10 +268,15 @@ function pinAttempt(root, id) {
  * @param {any} options
  * @returns {Promise<'submitted' | 'escalated'>}
  */
-async function buildItem(ctx, item, { agent, attempts, minutes, deps, me }) {
+async function buildItem(ctx, item, { agents, attempts, minutes, deps, me }) {
   const { root } = ctx.info;
   const id = item.item_id;
+  const agent = agents[item.item_route];
+  mergeDependencies(ctx, item, deps);
   const start = headCommit(root) ?? '';
+  const earlier = deps.withBoard(ctx, (board) => store.events(board, { itemId: id }))
+    .filter((event) => event.event_kind === 'escalate')
+    .map((event) => JSON.parse(event.event_detail).note.replace(/\s+/g, ' ').slice(0, 600));
   const listed = new Set(briefFiles(item.item_brief));
   const inScope = (path) => (!listed.size || listed.has(path)) && !outOfLane(ctx.config, item.item_lane, [path]).length;
   const packs = join(ctx.info.gitDir, 'pullboard', 'packs');
@@ -257,12 +287,12 @@ async function buildItem(ctx, item, { agent, attempts, minutes, deps, me }) {
       store.claim(board, id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: deps.freezer(ctx) });
       return store.getItem(board, id);
     });
-    const pack = join(packs, `${id}-${attempt}.md`);
-    writeFileSync(pack, packText(root, fresh, { attempt, attempts, digest }));
-    ctx.io.say(`#${id} attempt ${attempt}/${attempts}: running the agent`);
+    const pack = join(packs, `${id}-${item.item_route}-${attempt}.md`);
+    writeFileSync(pack, packText(root, fresh, { attempt, attempts, digest, earlier }));
+    ctx.io.say(`#${id} attempt ${attempt}/${attempts}: running the ${item.item_route} agent`);
     const env = { ...process.env, PULLBOARD_PACK: pack, PULLBOARD_ITEM: String(id), PULLBOARD_ATTEMPT: String(attempt) };
     const built = await runCommand(agent, { cwd: root, env, timeoutMs: minutes * 60_000 });
-    writeFileSync(join(packs, `${id}-${attempt}.log`), built.output);
+    writeFileSync(join(packs, `${id}-${item.item_route}-${attempt}.log`), built.output);
     const outside = changedSince(root, start).filter((path) => !inScope(path));
     restore(root, start, outside);
     const reverted = outside.length ? `The runner reverted your changes outside the brief's files: ${outside.join(', ')}.\n` : '';
@@ -320,9 +350,11 @@ export async function runItems(io, values, deps) {
   if (ctx.info.isMain) {
     throw new Refused('MAIN_IS_COORDINATOR', 'the runner builds lane items, so it runs in a lane worktree: pullboard worktree <lane> --route light, then run it there');
   }
-  const agent = String(values.agent ?? '').trim();
-  if (!agent) {
-    throw new Refused('USAGE', 'pullboard run --agent "<command>": the command that builds one item from the pack in $PULLBOARD_PACK, such as: opencode run "$(cat "$PULLBOARD_PACK")"');
+  const agents = Object.fromEntries(
+    store.ROUTES.map((route) => [route, String(values[`agent-${route}`] ?? values.agent ?? '').trim()]).filter(([, command]) => command),
+  );
+  if (!Object.keys(agents).length) {
+    throw new Refused('USAGE', 'pullboard run --agent "<command>", or --agent-light, --agent-mid, --agent-strong: the command that builds one item from the pack in $PULLBOARD_PACK, such as: opencode run "$(cat "$PULLBOARD_PACK")"');
   }
   const attempts = boundedInt(values.attempts ?? '3', 1, 10, '--attempts');
   const minutes = boundedInt(values.minutes ?? '15', 1, 240, '--minutes');
@@ -333,10 +365,15 @@ export async function runItems(io, values, deps) {
     throw new Refused('DIRTY', 'the runner starts from a clean worktree; commit or remove your changes first');
   }
   const me = deps.withBoard(ctx, (board) => deps.whoAmI(ctx, board));
+  const above = Object.keys(agents).filter((route) => !store.canTake(me.route, route) && values[`agent-${route}`]);
+  if (above.length) {
+    throw new Refused('ROUTE', `this worktree joined on the ${me.route} route, so it cannot take ${above.join(' or ')} items; make one that can: pullboard worktree ${me.lane} --route ${above.at(-1)}`);
+  }
+  const routes = Object.keys(agents).filter((route) => store.canTake(me.route, route));
   const totals = { submitted: 0, escalated: 0 };
   const deadline = Date.now() + waitMinutes * 60_000;
   while (totals.submitted + totals.escalated < limit) {
-    const found = deps.nextOnce(ctx, { runnable: true });
+    const found = deps.nextOnce(ctx, { runnable: true, routes });
     if (found.retry) continue;
     if (!found.item) {
       if (Date.now() >= deadline) {
@@ -346,7 +383,7 @@ export async function runItems(io, values, deps) {
       await new Promise((done) => setTimeout(done, 5000));
       continue;
     }
-    totals[await buildItem(ctx, found.item, { agent, attempts, minutes, deps, me })] += 1;
+    totals[await buildItem(ctx, found.item, { agents, attempts, minutes, deps, me })] += 1;
   }
   io.say(`runner done: ${totals.submitted} submitted, ${totals.escalated} escalated`);
   return 0;

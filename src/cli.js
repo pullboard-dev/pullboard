@@ -2,6 +2,7 @@
  * The pullboard command line: every command, bound to who is asking (B3). The main checkout is the
  * coordinator; every other worktree is the agent that joined from it.
  */
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -19,7 +20,7 @@ import {
   prePushProblems,
 } from './hooks.js';
 import { initRepo } from './init.js';
-import { isLane, laneNames, outOfLane } from './lanes.js';
+import { isLane, laneNames, laneOf, outOfLane } from './lanes.js';
 import { Refused } from './refused.js';
 import { commitCitations, committedIds } from './history.js';
 import { promptFor } from './skills.js';
@@ -36,6 +37,7 @@ import {
 } from './spec.js';
 import { briefFiles } from './brief.js';
 import { runItems } from './run.js';
+import { parseProblems, sweepItems } from './sweep.js';
 import { renderSpecView } from './view.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -63,6 +65,7 @@ Work
   pullboard run --agent "<command>" [--attempts 3] [--minutes 15] [--items N] [--wait M]
                                         build routed items unattended in this worktree: the agent command reads
                                         the context pack at $PULLBOARD_PACK; green work is submitted, red escalated
+                [--agent-light "..."] [--agent-mid "..."] [--agent-strong "..."]   a command per tier
   pullboard list [lane] [--all] [--route light|mid|strong]   open and active items; --all adds closed ones
   pullboard show <id>                   an item, the criterion frozen at claim, its verdicts
   pullboard next [--wait <minutes>]     claim the next item in your lane that is free to start
@@ -76,6 +79,8 @@ Work
   pullboard shout <lane|agent|all> <text>       pullboard inbox
 
 Coordinator
+  pullboard sweep --run "<checker>" --check "<checker on {file}>" [--route light] [--max 20] [--dry-run]
+                                        file one item per file a linter, type checker or test reporter flags
   pullboard merged <id> <commit>        record where verified work landed
   pullboard withdraw <id> <reason>      drop an item nobody should build
   pullboard refreeze <id>               re-freeze a criterion after its spec rows changed
@@ -114,9 +119,15 @@ const OPTIONS = {
   as: { type: 'string' },
   check: { type: 'string' },
   agent: { type: 'string' },
+  'agent-light': { type: 'string' },
+  'agent-mid': { type: 'string' },
+  'agent-strong': { type: 'string' },
   attempts: { type: 'string' },
   minutes: { type: 'string' },
   items: { type: 'string' },
+  run: { type: 'string' },
+  max: { type: 'string' },
+  'dry-run': { type: 'boolean' },
   wait: { type: 'string' },
   verify: { type: 'boolean' },
   all: { type: 'boolean' },
@@ -583,7 +594,7 @@ function nextOnce(ctx, values) {
   return withBoard(ctx, (board) => {
     if (values.verify) checkMainVerifier(ctx, board, values);
     const me = whoAmI(ctx, board);
-    const { item, reasons } = store.nextFor(board, { agentId: me.id, lane: me.lane, verify: values.verify, runnable: values.runnable });
+    const { item, reasons } = store.nextFor(board, { agentId: me.id, lane: me.lane, verify: values.verify, runnable: values.runnable, routes: values.routes });
     if (!item) return { reasons };
     if (values.verify) return { item };
     if (item.item_status === 'claimed') return { item, held: true };
@@ -639,6 +650,52 @@ async function nextHere(io, values) {
     }
     if (!found.retry) await new Promise((done) => setTimeout(done, 5000));
   }
+}
+
+/**
+ * `pullboard sweep` (N15): run a checker, then file one routed item per file it flags, each with
+ * the problems in its brief and the checker on that file as its check.
+ *
+ * @param {any} ctx
+ * @param {any} board
+ * @param {{ id: string }} me
+ * @param {any} values
+ * @returns {number}
+ */
+function sweepHere(ctx, board, me, values) {
+  if (me.id !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'the coordinator files sweep items, from the main checkout');
+  const report = String(values.run ?? '').trim();
+  const check = String(values.check ?? '').trim();
+  if (!report || !check.includes('{file}')) {
+    throw new Refused('USAGE', 'pullboard sweep --run "<checker over the repo>" --check "<the checker on one file, with {file} where its path goes>"');
+  }
+  const max = values.max === undefined ? 20 : idArg(values.max, 'a number after --max');
+  const ran = spawnSync(report, { cwd: ctx.info.root, shell: true, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  const problems = parseProblems(`${ran.stdout ?? ''}\n${ran.stderr ?? ''}`, ctx.info.root);
+  if (!problems.length) {
+    ctx.io.say(`the checker reported no problems I can read (exit ${ran.status}); nothing to file`);
+    return 0;
+  }
+  const covered = new Set(store.listItems(board).filter((item) => item.item_title.startsWith('fix ')).flatMap((item) => briefFiles(item.item_brief)));
+  const { items, skipped } = sweepItems(problems, {
+    laneOf: (path) => laneOf(ctx.config, path),
+    covered,
+    check,
+    report,
+    route: values.route ?? 'light',
+    max,
+  });
+  for (const item of items) {
+    if (values['dry-run']) {
+      ctx.io.say(`would file: ${item.title} (${item.lane} lane, ${item.route})`);
+      continue;
+    }
+    const id = store.addItem(board, { by: me.id, lane: item.lane, title: item.title, criterion: item.criterion, brief: item.brief, route: item.route, check: item.check });
+    ctx.io.say(`#${id} ${item.title} (${item.lane} lane, ${item.route})`);
+  }
+  if (skipped.length) ctx.io.say(`already open: ${skipped.join(', ')}`);
+  ctx.io.say(`${problems.length} problems in ${new Set(problems.map((problem) => problem.file)).size} files; ${values['dry-run'] ? 'would file' : 'filed'} ${items.length}`);
+  return 0;
 }
 
 /**
@@ -701,6 +758,7 @@ function workCommands(io, args) {
       return 0;
     }),
     run: () => runItems(io, values, { context, withBoard, whoAmI, nextOnce, submitHere, freezer }),
+    sweep: () => act((ctx, board, me) => sweepHere(ctx, board, me, values)),
     next: () => nextHere(io, values),
     claim: () => act((ctx, board, me) => {
       const result = store.claim(board, idArg(first), { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx) });
