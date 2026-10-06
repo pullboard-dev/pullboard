@@ -39,6 +39,7 @@ export function defaults() {
     lease: '2h',
     verify: 'any',
     lanes: {},
+    products: {},
     shared: [],
     fix: [],
     commits: {
@@ -140,6 +141,14 @@ export function configProblems(config) {
     problems.push('"lanes" maps lane names to { owns, specs, starts }');
   } else {
     for (const [name, lane] of Object.entries(config.lanes)) problems.push(...laneProblems(name, lane));
+  }
+  const products = config.products;
+  if (typeof products !== 'object' || products === null || Array.isArray(products)) {
+    problems.push('"products" maps product names to lists of spec ids or section letters, like { "CLI": ["B", "N26"] }');
+  } else {
+    for (const [name, entries] of Object.entries(products)) {
+      if (!name.trim() || !isStringList(entries) || !entries.length) problems.push(`product "${name}": a list of spec ids or section letters, like ["B", "N26"]`);
+    }
   }
   if (!isStringList(config.commits.types)) problems.push('"commits.types" is a list of words');
   if (!isStringList(config.commits.requireIds)) problems.push('"commits.requireIds" is a list of types');

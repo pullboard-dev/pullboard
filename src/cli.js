@@ -20,6 +20,7 @@ import {
   prePushProblems,
 } from './hooks.js';
 import { initRepo } from './init.js';
+import { productLine, productProblems, productSummaries } from './products.js';
 import { isLane, laneNames, laneOf, outOfLane } from './lanes.js';
 import { Refused } from './refused.js';
 import { commitCitations, committedIds } from './history.js';
@@ -697,6 +698,10 @@ function readCommands(io, { first, values }) {
       io.say(`${summary.me.id}: ${summary.unread} unread shouts; holding ${summary.mine.map((item) => `#${item.item_id}`).join(', ') || 'nothing'}`);
       io.say(`board: ${items.open} open, ${items.claimed} claimed, ${items.submitted} awaiting verification, ${items.verified} verified, ${items.withdrawn} withdrawn`);
       io.say(`verdicts: ${accepted} accepted, ${rejected} rejected`);
+      if (Object.keys(ctx.config.products).length) {
+        const all = withBoard(ctx, (board) => store.listItems(board, { all: true }));
+        productSummaries(ctx.config, loadSpec(ctx.info.root, ctx.config), all).forEach((product) => io.say(productLine(product)));
+      }
       return 0;
     },
     inbox: () => {
@@ -1138,6 +1143,9 @@ function specCommand(io, { first, second, rest, values }) {
       errors += fileErrors;
       io.say(`${name}: ${parsed.rows.length} rows, ${fileErrors} errors, ${findings.length + lost.length - fileErrors} warnings`);
     }
+    const unnamed = productProblems(ctx.config, spec);
+    unnamed.forEach((problem) => io.say(`${ctx.config.spec}: error: ${problem}`));
+    errors += unnamed.length;
     return errors ? 1 : 0;
   }
   const signoffs = readSignoffs(ctx.info.root);
