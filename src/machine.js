@@ -18,6 +18,7 @@
  * @property {string} rule - What must hold, in words.
  * @property {string} next - The step that gets past it.
  * @property {'board' | 'cli'} source - Where its fact comes from: the board file, or the CLI's look at git and the worktree.
+ * @property {string} [when] - For a guard that applies only in some cases: when it is checked.
  */
 
 /**
@@ -101,9 +102,9 @@ export const GUARDS = [
   { id: 'routeAllows', refuse: 'ROUTE', rule: "the caller's route covers the item's: light, then mid, then strong", next: 'pullboard next, which offers only items your route covers', source: 'board' },
   { id: 'dependenciesVerified', refuse: 'BLOCKED', rule: 'every item it waits on is verified', next: 'claim another item, or shout the lane it waits on', source: 'board' },
   { id: 'notHeldByAnother', refuse: 'HELD', rule: 'no other agent holds it under a live lease', next: 'pullboard next', source: 'board' },
-  { id: 'laneOpen', refuse: 'LANE_HELD', rule: 'nobody holds its lane', next: 'pullboard next --wait 9 (minutes)', source: 'board' },
+  { id: 'laneOpen', refuse: 'LANE_HELD', rule: 'nobody holds its lane', next: 'pullboard next --wait 9 (minutes)', source: 'board', when: 'unless the caller is renewing its own live claim' },
   { id: 'oneLiveClaim', refuse: 'ONE_CLAIM', rule: 'the caller holds no other live top-level claim, reworks of its own rejected items aside', next: 'submit or release the other item first; child items are free', source: 'board' },
-  { id: 'rowsInForce', refuse: 'UNKNOWN_SPEC', rule: 'every row the item cites exists and is in force', next: 'fix the spec, or the coordinator withdraws the item', source: 'board' },
+  { id: 'rowsInForce', refuse: 'UNKNOWN_SPEC', rule: 'every row the item cites exists and is in force', next: 'fix the spec, or the coordinator withdraws the item', source: 'board', when: 'only where the criterion freezes: claiming an item with no frozen criterion, and refreeze' },
   { id: 'criterionUnchanged', refuse: 'CRITERIA_CHANGED', rule: 'the criterion and the rows it cites read as they did at claim', next: 'the coordinator runs pullboard refreeze <id>', source: 'cli' },
   { id: 'treeClean', refuse: 'DIRTY', rule: 'the worktree has no uncommitted changes', next: 'commit your changes, then submit', source: 'cli' },
   { id: 'nothingUntracked', refuse: 'UNTRACKED', rule: 'the worktree has no untracked files', next: 'commit or ignore them, then submit', source: 'cli' },
@@ -471,7 +472,7 @@ export function lifecycleMarkdown(machine = MACHINE) {
     return `| ${move.verb} | ${move.from.join(', ')} | ${move.to} | ${cell(who)} | ${cell(guards)} |`;
   });
   const wrongState = machine.moves.filter((move) => move.refuse).map((move) => `| ${move.refuse} | ${move.verb}: the item is in ${move.from.join(', ')} | pullboard show <id> |`);
-  const refusals = machine.guards.filter((guard) => guard.id !== IN_STATE).map((guard) => `| ${guard.refuse} | ${cell(guard.rule)} | ${cell(guard.next)} |`);
+  const refusals = machine.guards.filter((guard) => guard.id !== IN_STATE).map((guard) => `| ${guard.refuse} | ${cell(guard.when ? `${guard.rule}, ${guard.when}` : guard.rule)} | ${cell(guard.next)} |`);
   const unknown = `| ${machine.unknownMove.refuse} | ${cell(machine.unknownMove.rule)} | ${cell(machine.unknownMove.next)} |`;
   return [
     '# The item lifecycle',

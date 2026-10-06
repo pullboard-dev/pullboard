@@ -11,7 +11,7 @@ import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { briefFiles, briefSections } from './brief.js';
 import { COORDINATOR } from './config.js';
-import { storeTriggers } from './machine.js';
+import { GUARDS, IN_STATE, MOVES, STATES, UNKNOWN_MOVE, effectiveGuards, storeTriggers } from './machine.js';
 import { Refused } from './refused.js';
 
 export const ACCEPT_REASON = 'CRITERION_MET';
@@ -523,6 +523,75 @@ export function editItem(board, id, { agentId, brief, route, criterion, check })
 }
 
 /**
+ * The refusal code src/machine.js declares for a guard of a move: the guard's own, or for the
+ * state check, the move's.
+ *
+ * @param {any} move
+ * @param {string} id
+ * @returns {string}
+ */
+function declaredCode(move, id) {
+  return id === IN_STATE ? move.refuse : GUARDS.find((guard) => guard.id === id).refuse;
+}
+
+/**
+ * Apply one declared move to an item (M1, M2). This is the only code that writes an item's status.
+ *
+ * It checks the move's guards, then any exit guard of its target the move does not name, in the
+ * order src/machine.js declares them, and refuses with the first that does not hold. `checks` has
+ * one entry per guard: a function given the item that returns null when the guard holds or the
+ * refusal when it does not, or null for a guard the caller has already checked, such as the CLI's
+ * look at git and the gate. The item's state is checked against the move's declared starting
+ * states; its entry supplies only the refusal. Each refusal must carry the code the declaration
+ * gives that guard, so the code here and the declaration cannot drift apart. Once every guard
+ * holds, `before` runs, for what must exist before the write, such as the verdict that proves an
+ * accept; then the target state's fields are checked and the status written with `set`.
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {string} verb
+ * @param {{ checks: Record<string, ((item: any) => Refused | null) | null>, set?: (item: any) => object, before?: (item: any) => void }} how
+ * @returns {any} The item as it was before the move.
+ */
+function moveItem(board, id, verb, { checks, set = () => ({}), before = () => {} }) {
+  const move = MOVES.find((entry) => entry.verb === verb);
+  if (!move) throw new Refused(UNKNOWN_MOVE.refuse, `${UNKNOWN_MOVE.rule}: ${UNKNOWN_MOVE.next}`);
+  let item = null;
+  for (const guard of effectiveGuards(move)) {
+    if (guard === 'itemExists') {
+      item = itemById(board, id);
+      continue;
+    }
+    if (!(guard in checks)) throw new Error(`move ${verb}: guard ${guard} has no check`);
+    const check = checks[guard];
+    if (check === null) continue;
+    if (guard === IN_STATE && move.from.includes(item.item_status)) continue;
+    const refusal = check(item);
+    if (refusal === null) continue;
+    if (refusal.code !== declaredCode(move, guard)) {
+      throw new Error(`move ${verb}: guard ${guard} refused with ${refusal.code}; the declaration says ${declaredCode(move, guard)}`);
+    }
+    throw refusal;
+  }
+  before(item);
+  const fields = { ...set(item), item_status: move.to };
+  const requires = STATES.find((state) => state.id === move.to).requires;
+  const missing = requires.filter((field) => !String({ ...item, ...fields }[field] ?? '').trim());
+  if (missing.length) throw new Error(`move ${verb}: ${move.to} needs ${missing.join(', ')}`);
+  setItem(board, id, fields);
+  return item;
+}
+
+/**
+ * The refusal when the caller is not the coordinator, or null when it is.
+ *
+ * @param {string} agentId
+ * @param {string} what
+ * @returns {Refused | null}
+ */
+const onlyCoordinator = (agentId, what) => (agentId === COORDINATOR ? null : new Refused('COORDINATOR_ONLY', `only the coordinator ${what}`));
+
+/**
  * Hand an item one tier up (B15): its builder could not get it green, so it goes back open, routed
  * to the next stronger model, with what was tried pinned and why it failed in the log. A strong
  * item stays strong and goes back to the coordinator's attention.
@@ -533,19 +602,23 @@ export function editItem(board, id, { agentId, brief, route, criterion, check })
  * @returns {{ from: string, to: string }}
  */
 export function escalate(board, id, { agentId, note, attempt = '' }) {
-  if (!note.trim()) throw new Refused('NOTE_REQUIRED', 'say what was tried and how it failed: --note "..."');
   return atomic(board, () => {
-    const item = current(board, itemById(board, id));
-    const isHolder = item.item_status === 'claimed' && item.item_owner === agentId;
-    if (!isHolder && agentId !== COORDINATOR) {
-      throw new Refused('NOT_YOURS', `item #${id} is not claimed by you; only its holder or the coordinator escalates it`);
-    }
-    if (!['open', 'claimed'].includes(item.item_status)) {
-      throw new Refused('CLOSED', `item #${id} is ${item.item_status}; escalate open or claimed work only`);
-    }
+    const nextRoute = (route) => ROUTES[Math.min(ROUTES.indexOf(route) + 1, ROUTES.length - 1)];
+    const item = moveItem(board, id, 'escalate', {
+      checks: {
+        joined: null,
+        noteGiven: () => (note.trim() ? null : new Refused('NOTE_REQUIRED', 'say what was tried and how it failed: --note "..."')),
+        holderOrCoordinator: (found) => {
+          const live = current(board, found);
+          const isHolder = live.item_status === 'claimed' && live.item_owner === agentId;
+          return isHolder || agentId === COORDINATOR ? null : new Refused('NOT_YOURS', `item #${id} is not claimed by you; only its holder or the coordinator escalates it`);
+        },
+        [IN_STATE]: (found) => new Refused('CLOSED', `item #${id} is ${current(board, found).item_status}; escalate open or claimed work only`),
+      },
+      set: (found) => ({ item_route: nextRoute(found.item_route), item_owner: null, item_lease_until: null }),
+    });
     const from = item.item_route;
-    const to = ROUTES[Math.min(ROUTES.indexOf(from) + 1, ROUTES.length - 1)];
-    setItem(board, id, { item_route: to, item_status: 'open', item_owner: null, item_lease_until: null });
+    const to = nextRoute(from);
     logEvent(board, agentId, 'escalate', id, { from, to, note: note.trim(), ...(attempt ? { attempt } : {}) });
     return { from, to };
   });
@@ -580,73 +653,81 @@ export function recordAttempt(board, id, { agentId, n, seconds, result }) {
  */
 export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null }) {
   return atomic(board, () => {
-    const item = itemById(board, id);
-    if (['submitted', 'verified', 'withdrawn'].includes(item.item_status)) {
-      throw new Refused('NOT_CLAIMABLE', `item #${id} is ${item.item_status}`);
-    }
-    if (item.item_lane !== lane) {
-      throw new Refused(
-        'WRONG_LANE',
-        lane === COORDINATOR
-          ? `item #${id} is in the ${item.item_lane} lane, and lane items are built from that lane's worktree, never the main checkout. An agent runs: cd <its own worktree> && pullboard claim ${id}`
-          : `item #${id} is in the ${item.item_lane} lane; you are in ${lane}`,
-      );
-    }
-    const route = routeOf(board, agentId);
-    if (!canTake(route, item.item_route)) {
-      throw new Refused('ROUTE', `item #${id} needs a ${item.item_route} model; you joined on the ${route} route. Take your next item: pullboard next`);
-    }
-    for (const dependency of item.item_after ? item.item_after.split(',').map(Number) : []) {
-      const before = itemById(board, dependency);
-      if (before.item_status !== 'verified') {
-        throw new Refused(
-          'BLOCKED',
-          `#${id} waits on #${dependency} (${current(board, before).item_status}, ${before.item_lane} lane); claim another item, or shout ${before.item_lane} if it is stuck`,
-        );
-      }
-    }
-    const isMine = item.item_owner === agentId;
-    if (isHeld(board, item) && !isMine) {
-      throw new Refused('HELD', `item #${id} is held by ${item.item_owner} until ${item.item_lease_until}`);
-    }
-    const paused = laneHold(board, item.item_lane);
-    if (paused && !(isMine && isHeld(board, item))) {
-      throw new Refused('LANE_HELD', `${paused.hold_by} holds the ${item.item_lane} lane: ${paused.hold_reason}. Wait for it: pullboard next --wait 9 (minutes)`);
-    }
+    const leaseUntil = new Date(board.clock.now().getTime() + leaseMs).toISOString();
+    const isRenewal = (item) => item.item_owner === agentId && isHeld(board, item);
     // Reworking your own rejected item is a claim of its own, beside the one live claim (B5): the
     // builder fixing what a verifier found need not drop its other work to do it.
-    const isRework = (entry) => entry.item_verdict === 'REJECT' && entry.item_built_by === agentId;
-    if (item.item_parent_id === null && !isRework(item)) {
-      const other = board.db
-        .prepare(
-          `SELECT item_id FROM item WHERE item_owner = ? AND item_status = 'claimed'
-             AND item_lease_until > ? AND item_id != ? AND item_parent_id IS NULL
-             AND NOT (COALESCE(item_verdict, '') = 'REJECT' AND COALESCE(item_built_by, '') = ?)`,
-        )
-        .get(agentId, now(board), id, agentId);
-      if (other) {
-        throw new Refused(
-          'ONE_CLAIM',
-          `you already hold #${other.item_id}; submit or release it first (child items are free)`,
-        );
-      }
-    }
-    const fields = {};
-    let digest = item.item_frozen_digest;
-    if (digest === null) {
-      const frozen = freeze(item);
-      digest = frozen.digest;
-      Object.assign(fields, { item_frozen: frozen.text, item_frozen_digest: frozen.digest });
-    }
-    const leaseUntil = new Date(board.clock.now().getTime() + leaseMs).toISOString();
-    const renewed = isMine && isHeld(board, item);
-    if (!renewed && head) fields.item_claim_head = head;
-    setItem(board, id, {
-      ...fields,
-      item_status: 'claimed',
-      item_owner: agentId,
-      item_lease_until: leaseUntil,
+    const isRework = (item) => item.item_verdict === 'REJECT' && item.item_built_by === agentId;
+    let frozen = null;
+    const item = moveItem(board, id, 'claim', {
+      checks: {
+        joined: null,
+        [IN_STATE]: (found) => new Refused('NOT_CLAIMABLE', `item #${id} is ${found.item_status}`),
+        inLane: (found) => {
+          if (found.item_lane === lane) return null;
+          return new Refused(
+            'WRONG_LANE',
+            lane === COORDINATOR
+              ? `item #${id} is in the ${found.item_lane} lane, and lane items are built from that lane's worktree, never the main checkout. An agent runs: cd <its own worktree> && pullboard claim ${id}`
+              : `item #${id} is in the ${found.item_lane} lane; you are in ${lane}`,
+          );
+        },
+        routeAllows: (found) => {
+          const route = routeOf(board, agentId);
+          return canTake(route, found.item_route) ? null : new Refused('ROUTE', `item #${id} needs a ${found.item_route} model; you joined on the ${route} route. Take your next item: pullboard next`);
+        },
+        dependenciesVerified: (found) => {
+          for (const dependency of found.item_after ? found.item_after.split(',').map(Number) : []) {
+            const before = itemById(board, dependency);
+            if (before.item_status !== 'verified') {
+              return new Refused(
+                'BLOCKED',
+                `#${id} waits on #${dependency} (${current(board, before).item_status}, ${before.item_lane} lane); claim another item, or shout ${before.item_lane} if it is stuck`,
+              );
+            }
+          }
+          return null;
+        },
+        notHeldByAnother: (found) => (isHeld(board, found) && found.item_owner !== agentId ? new Refused('HELD', `item #${id} is held by ${found.item_owner} until ${found.item_lease_until}`) : null),
+        laneOpen: (found) => {
+          // Declared: not checked when the caller renews its own live claim.
+          const paused = laneHold(board, found.item_lane);
+          return paused && !isRenewal(found)
+            ? new Refused('LANE_HELD', `${paused.hold_by} holds the ${found.item_lane} lane: ${paused.hold_reason}. Wait for it: pullboard next --wait 9 (minutes)`)
+            : null;
+        },
+        oneLiveClaim: (found) => {
+          if (found.item_parent_id !== null || isRework(found)) return null;
+          const other = board.db
+            .prepare(
+              `SELECT item_id FROM item WHERE item_owner = ? AND item_status = 'claimed'
+                 AND item_lease_until > ? AND item_id != ? AND item_parent_id IS NULL
+                 AND NOT (COALESCE(item_verdict, '') = 'REJECT' AND COALESCE(item_built_by, '') = ?)`,
+            )
+            .get(agentId, now(board), id, agentId);
+          return other ? new Refused('ONE_CLAIM', `you already hold #${other.item_id}; submit or release it first (child items are free)`) : null;
+        },
+        rowsInForce: (found) => {
+          // Declared: checked only where the criterion freezes, so a renewal or a reclaim keeps its bar.
+          if (found.item_frozen_digest !== null) return null;
+          try {
+            frozen = freeze(found);
+            return null;
+          } catch (error) {
+            if (error instanceof Refused) return error;
+            throw error;
+          }
+        },
+      },
+      set: (found) => ({
+        ...(frozen ? { item_frozen: frozen.text, item_frozen_digest: frozen.digest } : {}),
+        ...(!isRenewal(found) && head ? { item_claim_head: head } : {}),
+        item_owner: agentId,
+        item_lease_until: leaseUntil,
+      }),
     });
+    const renewed = isRenewal(item);
+    const digest = frozen ? frozen.digest : item.item_frozen_digest;
     logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest });
     return { leaseUntil, digest, renewed };
   });
@@ -661,11 +742,14 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null }
  */
 export function release(board, id, agentId) {
   atomic(board, () => {
-    const item = itemById(board, id);
-    if (item.item_owner !== agentId || item.item_status !== 'claimed') {
-      throw new Refused('NOT_YOURS', `item #${id} is not claimed by you`);
-    }
-    setItem(board, id, { item_status: 'open', item_owner: null, item_lease_until: null });
+    moveItem(board, id, 'release', {
+      checks: {
+        joined: null,
+        [IN_STATE]: () => new Refused('NOT_YOURS', `item #${id} is not claimed by you`),
+        isHolder: (found) => (found.item_owner === agentId ? null : new Refused('NOT_YOURS', `item #${id} is not claimed by you`)),
+      },
+      set: () => ({ item_owner: null, item_lease_until: null }),
+    });
     logEvent(board, agentId, 'release', id);
   });
 }
@@ -684,94 +768,51 @@ export function release(board, id, agentId) {
  */
 export function submit(board, id, { agentId, commit, tree, files = [] }) {
   atomic(board, () => {
-    const item = itemById(board, id);
-    if (item.item_status !== 'claimed' || item.item_owner !== agentId) {
-      throw new Refused('NOT_YOURS', `item #${id} is not claimed by you; claim it first`);
-    }
-    const { total } = board.db
-      .prepare(
-        "SELECT COUNT(*) AS total FROM item WHERE item_parent_id = ? AND item_status IN ('open', 'claimed', 'submitted')",
-      )
-      .get(id);
-    if (total) throw new Refused('CHILDREN_OPEN', `item #${id} has ${total} unfinished child items`);
-    const wasRejected = board.db
-      .prepare("SELECT 1 FROM verdict WHERE item_id = ? AND verdict_decision = 'REJECT' AND verdict_commit = ?")
-      .get(id, commit);
-    if (wasRejected) {
-      throw new Refused('HEAD_NOT_NEW', `#${id} was rejected at ${commit.slice(0, 12)}; commit the rework first`);
-    }
-    setItem(board, id, {
-      item_status: 'submitted',
-      item_built_by: agentId,
-      item_commit: commit,
-      item_tree: tree,
-      item_lease_until: null,
-      item_files: [...new Set([...(item.item_files ?? '').split('\n').filter(Boolean), ...files])].join('\n'),
+    const notYours = () => new Refused('NOT_YOURS', `item #${id} is not claimed by you; claim it first`);
+    moveItem(board, id, 'submit', {
+      checks: {
+        joined: null,
+        [IN_STATE]: notYours,
+        isHolder: (found) => (found.item_owner === agentId ? null : notYours()),
+        criterionUnchanged: null,
+        treeClean: null,
+        nothingUntracked: null,
+        hasCommit: null,
+        gateConfigured: null,
+        gateGreen: null,
+        childrenDone: () => {
+          const { total } = board.db
+            .prepare("SELECT COUNT(*) AS total FROM item WHERE item_parent_id = ? AND item_status IN ('open', 'claimed', 'submitted')")
+            .get(id);
+          return total ? new Refused('CHILDREN_OPEN', `item #${id} has ${total} unfinished child items`) : null;
+        },
+        headIsNew: () => {
+          const wasRejected = board.db.prepare("SELECT 1 FROM verdict WHERE item_id = ? AND verdict_decision = 'REJECT' AND verdict_commit = ?").get(id, commit);
+          return wasRejected ? new Refused('HEAD_NOT_NEW', `#${id} was rejected at ${commit.slice(0, 12)}; commit the rework first`) : null;
+        },
+      },
+      set: (found) => ({
+        item_built_by: agentId,
+        item_commit: commit,
+        item_tree: tree,
+        item_lease_until: null,
+        item_files: [...new Set([...(found.item_files ?? '').split('\n').filter(Boolean), ...files])].join('\n'),
+      }),
     });
     logEvent(board, agentId, 'submit', id, { commit, tree });
   });
 }
 
 /**
- * Who may verify an item, as a refusal when `agentId` may not (V1).
- *
- * The builder never may. Under `verify: "coordinator"`, lane work is the coordinator's to verify,
- * and the coordinator's own work is any other agent's. An agent verifies items at its tier or below.
- *
- * @param {any} board
- * @param {any} item
- * @param {string} agentId
- * @param {string} policy
- */
-function checkVerifier(board, item, agentId, policy) {
-  if (item.item_built_by === agentId) {
-    throw new Refused('SELF_VERIFY', 'the builder never verifies its own work; another agent must');
-  }
-  const route = routeOf(board, agentId);
-  if (!canTake(route, item.item_route)) {
-    throw new Refused('ROUTE', `item #${item.item_id} needs a ${item.item_route} verifier; you joined on the ${route} route`);
-  }
-  if (policy === COORDINATOR && item.item_lane !== COORDINATOR && agentId !== COORDINATOR) {
-    throw new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work');
-  }
-}
-
-/**
- * The reason a verdict must carry (V5): ACCEPT only for a met criterion; REJECT names what failed
- * and leaves a note the builder can act on.
- *
- * @param {string} decision
- * @param {string | undefined} reason
- * @param {string} note
- * @returns {string}
- */
-function verdictReason(decision, reason, note) {
-  if (decision === 'ACCEPT') {
-    if (reason && reason !== ACCEPT_REASON) {
-      throw new Refused('BAD_REASON', `accept means ${ACCEPT_REASON}; a failed criterion is a reject`);
-    }
-    if (!note.trim()) {
-      throw new Refused(
-        'PROOF_REQUIRED',
-        'an accept says how you proved it: --note "what you broke or which edge you tried, and what happened"; passing tests alone are not proof',
-      );
-    }
-    return ACCEPT_REASON;
-  }
-  if (decision !== 'REJECT') throw new Refused('BAD_DECISION', 'the decision is accept or reject');
-  if (!reason || !REJECT_REASONS.includes(reason)) {
-    throw new Refused('BAD_REASON', `a reject names one of: ${REJECT_REASONS.join(', ')}`);
-  }
-  if (!note.trim()) throw new Refused('NOTE_REQUIRED', 'a reject says what failed: --note "..."');
-  return reason;
-}
-
-/**
- * Record a verdict on a submitted item (V1, V3, V5, V6, V8).
+ * Record a verdict on a submitted item (V1, V3, V5, V6, V8): an accept verifies it, a reject
+ * reopens it for rework.
  *
  * The verdict binds the submitted commit and the digest frozen at claim. If the criterion's text
  * has moved since, there is no verdict to give: the coordinator refreezes it and the work is
- * claimed again. ACCEPT verifies the item; REJECT reopens it for rework.
+ * claimed again. The builder never verifies; under `verify: "coordinator"`, lane work is the
+ * coordinator's to verify; an agent verifies items at its tier or below. An accept means
+ * CRITERION_MET and says how it was proved; a reject names one of the reject reasons and says what
+ * failed.
  *
  * @param {any} board
  * @param {number} id
@@ -779,37 +820,48 @@ function verdictReason(decision, reason, note) {
  * @returns {{ decision: string, reason: string }}
  */
 export function verify(board, id, { agentId, decision, reason, note = '', head, digest, policy }) {
+  const verb = { ACCEPT: 'accept', REJECT: 'reject' }[decision];
+  if (!verb) throw new Refused('BAD_DECISION', 'the decision is accept or reject');
+  const isAccept = verb === 'accept';
+  const code = isAccept ? ACCEPT_REASON : reason;
   return atomic(board, () => {
-    const item = itemById(board, id);
-    if (item.item_status !== 'submitted') {
-      throw new Refused('NOT_SUBMITTED', `item #${id} is ${current(board, item).item_status}, not submitted`);
-    }
-    checkVerifier(board, item, agentId, policy);
-    if (digest !== item.item_frozen_digest) {
-      throw new Refused(
-        'CRITERIA_CHANGED',
-        `the criterion for #${id} changed after it was claimed; the coordinator runs: pullboard refreeze ${id}`,
-      );
-    }
-    const code = verdictReason(decision, reason, note);
-    board.db
-      .prepare(
-        `INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_note,
-           verdict_commit, verdict_digest, verdict_head, verdict_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(id, agentId, decision, code, note.trim(), item.item_commit, digest, head, now(board));
-    const isAccept = decision === 'ACCEPT';
-    setItem(board, id, {
-      item_status: isAccept ? 'verified' : 'open',
-      item_verdict: decision,
-      item_verified_by: isAccept ? agentId : null,
-      item_owner: isAccept ? item.item_owner : null,
+    const item = moveItem(board, id, verb, {
+      checks: {
+        coordinatorSaysAs: null,
+        joined: null,
+        [IN_STATE]: (found) => new Refused('NOT_SUBMITTED', `item #${id} is ${current(board, found).item_status}, not submitted`),
+        atSubmittedCommit: null,
+        notBuilder: (found) => (found.item_built_by === agentId ? new Refused('SELF_VERIFY', 'the builder never verifies its own work; another agent must') : null),
+        routeAllows: (found) => {
+          const route = routeOf(board, agentId);
+          return canTake(route, found.item_route) ? null : new Refused('ROUTE', `item #${found.item_id} needs a ${found.item_route} verifier; you joined on the ${route} route`);
+        },
+        policyAllows: (found) =>
+          policy === COORDINATOR && found.item_lane !== COORDINATOR && agentId !== COORDINATOR ? new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work') : null,
+        criterionUnchanged: (found) =>
+          digest === found.item_frozen_digest
+            ? null
+            : new Refused('CRITERIA_CHANGED', `the criterion for #${id} changed after it was claimed; the coordinator runs: pullboard refreeze ${id}`),
+        reasonIsMet: () => (reason && reason !== ACCEPT_REASON ? new Refused('BAD_REASON', `accept means ${ACCEPT_REASON}; a failed criterion is a reject`) : null),
+        proofNoted: () =>
+          note.trim()
+            ? null
+            : new Refused('PROOF_REQUIRED', 'an accept says how you proved it: --note "what you broke or which edge you tried, and what happened"; passing tests alone are not proof'),
+        reasonCoded: () => (reason && REJECT_REASONS.includes(reason) ? null : new Refused('BAD_REASON', `a reject names one of: ${REJECT_REASONS.join(', ')}`)),
+        noteGiven: () => (note.trim() ? null : new Refused('NOTE_REQUIRED', 'a reject says what failed: --note "..."')),
+      },
+      before: (found) => {
+        board.db
+          .prepare(
+            `INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_note,
+               verdict_commit, verdict_digest, verdict_head, verdict_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .run(id, agentId, decision, code, note.trim(), found.item_commit, digest, head, now(board));
+      },
+      set: (found) => ({ item_verdict: decision, item_verified_by: isAccept ? agentId : null, item_owner: isAccept ? found.item_owner : null }),
     });
-    logEvent(board, agentId, isAccept ? 'accept' : 'reject', id, {
-      reason: code,
-      commit: item.item_commit,
-    });
+    logEvent(board, agentId, verb, id, { reason: code, commit: item.item_commit });
     return { decision, reason: code };
   });
 }
@@ -821,7 +873,8 @@ export function verify(board, id, { agentId, decision, reason, note = '', head, 
  * @param {string} what
  */
 function coordinatorOnly(agentId, what) {
-  if (agentId !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', `only the coordinator ${what}`);
+  const refusal = onlyCoordinator(agentId, what);
+  if (refusal) throw refusal;
 }
 
 /**
@@ -851,18 +904,15 @@ export function merged(board, id, { agentId, commit }) {
  * @param {{ agentId: string, reason: string }} why
  */
 export function withdraw(board, id, { agentId, reason }) {
-  coordinatorOnly(agentId, 'withdraws items');
-  if (!reason.trim()) throw new Refused('NOTE_REQUIRED', 'say why it is withdrawn');
   atomic(board, () => {
-    const item = itemById(board, id);
-    if (['verified', 'withdrawn'].includes(item.item_status)) {
-      throw new Refused('CLOSED', `item #${id} is ${item.item_status}`);
-    }
-    setItem(board, id, {
-      item_status: 'withdrawn',
-      item_withdrawn_reason: reason.trim(),
-      item_owner: null,
-      item_lease_until: null,
+    moveItem(board, id, 'withdraw', {
+      checks: {
+        joined: null,
+        coordinatorOnly: () => onlyCoordinator(agentId, 'withdraws items'),
+        noteGiven: () => (reason.trim() ? null : new Refused('NOTE_REQUIRED', 'say why it is withdrawn')),
+        [IN_STATE]: (found) => new Refused('CLOSED', `item #${id} is ${found.item_status}`),
+      },
+      set: () => ({ item_withdrawn_reason: reason.trim(), item_owner: null, item_lease_until: null }),
     });
     logEvent(board, agentId, 'withdraw', id, { reason: reason.trim() });
   });
@@ -879,19 +929,24 @@ export function withdraw(board, id, { agentId, reason }) {
  * @returns {{ before: string | null, after: string }}
  */
 export function refreeze(board, id, { agentId, freeze }) {
-  coordinatorOnly(agentId, 'refreezes a criterion');
   return atomic(board, () => {
-    const item = itemById(board, id);
-    if (['verified', 'withdrawn'].includes(item.item_status)) {
-      throw new Refused('CLOSED', `item #${id} is ${item.item_status}`);
-    }
-    const frozen = freeze(item);
-    setItem(board, id, {
-      item_frozen: frozen.text,
-      item_frozen_digest: frozen.digest,
-      item_status: 'open',
-      item_owner: null,
-      item_lease_until: null,
+    let frozen = null;
+    const item = moveItem(board, id, 'refreeze', {
+      checks: {
+        joined: null,
+        coordinatorOnly: () => onlyCoordinator(agentId, 'refreezes a criterion'),
+        [IN_STATE]: (found) => new Refused('CLOSED', `item #${id} is ${found.item_status}`),
+        rowsInForce: (found) => {
+          try {
+            frozen = freeze(found);
+            return null;
+          } catch (error) {
+            if (error instanceof Refused) return error;
+            throw error;
+          }
+        },
+      },
+      set: () => ({ item_frozen: frozen.text, item_frozen_digest: frozen.digest, item_owner: null, item_lease_until: null }),
     });
     logEvent(board, agentId, 'refreeze', id, { before: item.item_frozen_digest, after: frozen.digest });
     return { before: item.item_frozen_digest, after: frozen.digest };

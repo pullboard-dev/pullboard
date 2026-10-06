@@ -3,13 +3,14 @@
  * failing on a broken copy, and in step with the refusals board.js and cli.js raise today.
  */
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { HELP } from '../src/cli.js';
+import { Refused } from '../src/refused.js';
 import { BLANKS, IN_STATE, MACHINE, effectiveGuards, lifecycleHelp, lifecycleMarkdown, machineProblems, storeTriggers } from '../src/machine.js';
 import { spawnSync } from 'node:child_process';
 
@@ -736,4 +737,199 @@ test('pullboard help lists each role\'s moves from the declaration, and pullboar
   const printed = spawnSync(process.execPath, [BIN, 'lifecycle'], { encoding: 'utf8' });
   assert.equal(printed.status, 0, printed.stderr);
   assert.equal(printed.stdout, lifecycleMarkdown());
+});
+
+/** Guards the CLI checks before it asks the board: the board's own order starts after them. */
+const CLI_CHECKED = {
+  claim: ['joined'],
+  submit: ['joined', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'gateConfigured', 'gateGreen'],
+  accept: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit'],
+  reject: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit'],
+};
+
+/**
+ * The refusal codes a move's board-checked guards raise, in the order the declaration checks them.
+ *
+ * @param {string} verb
+ * @returns {string[]}
+ */
+function declaredBoardOrder(verb) {
+  const move = moveOf(MACHINE, verb);
+  return effectiveGuards(move)
+    .filter((id) => !CLI_CHECKED[verb].includes(id))
+    .map((id) => (id === IN_STATE ? move.refuse : MACHINE.guards.find((guard) => guard.id === id).refuse));
+}
+
+/**
+ * The refusal code a call raises, or 'ok'.
+ *
+ * @param {() => unknown} run
+ * @returns {string}
+ */
+function outcome(run) {
+  try {
+    run();
+    return 'ok';
+  } catch (error) {
+    if (!error.code) throw error;
+    return error.code;
+  }
+}
+
+/** A freeze for an item whose cited row has been retired. */
+const retiredFreeze = () => {
+  throw new Refused('UNKNOWN_SPEC', 'G1 is retired; fix the spec, or the coordinator withdraws the item');
+};
+
+/**
+ * Set an item claimed by hand, with every field a claim carries, the way a test sets up a holder
+ * the board's own guards would not let it reach directly.
+ *
+ * @param {DatabaseSync} db
+ * @param {number} id
+ * @param {string} owner
+ */
+function holdByHand(db, id, owner) {
+  db.prepare("UPDATE item SET item_status = 'claimed', item_owner = ?, item_lease_until = ?, item_frozen_digest = 'digest:Page' WHERE item_id = ?")
+    .run(owner, new Date(Date.now() + 3_600_000).toISOString(), id);
+}
+
+test('claim refuses in the declared order, one failure peeled at a time, on a real board [M1, M2]', () => {
+  const lab = boardOnDisk();
+  try {
+    const { board } = lab;
+    const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
+    const strong = store.register(board, { lane: 'web', path: '/repo-web-strong' });
+    const claimAs = (id, agentId, lane, freezer = retiredFreeze) => outcome(() => store.claim(board, id, { agentId, lane, leaseMs: 7_200_000, freeze: freezer }));
+    const done = submittedItem(board);
+    const dependency = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+    const target = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page', after: [dependency] });
+    const spare = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+    const raw = lab.raw();
+    holdByHand(raw, target, 'web-2');
+    store.claim(board, spare, { agentId: strong, lane: 'web', leaseMs: 7_200_000, freeze });
+    store.claim(board, dependency, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
+    store.submit(board, dependency, { agentId: 'web-1', commit: SHA_A, tree: 'tree' });
+    store.holdLane(board, 'web', { agentId: 'coordinator', reason: 'pause' });
+    const fired = [claimAs(999, light, 'api'), claimAs(done, light, 'api'), claimAs(target, light, 'api'), claimAs(target, light, 'web'), claimAs(target, strong, 'web')];
+    verdictOn(board, dependency, 'web-2', 'ACCEPT');
+    fired.push(claimAs(target, strong, 'web'));
+    store.release(board, target, 'web-2');
+    store.editItem(board, target, { agentId: 'coordinator', criterion: 'A new bar, so the next claim freezes it.' });
+    fired.push(claimAs(target, strong, 'web'));
+    store.releaseLane(board, 'web', { agentId: 'coordinator' });
+    fired.push(claimAs(target, strong, 'web'));
+    store.release(board, spare, strong);
+    fired.push(claimAs(target, strong, 'web'), claimAs(target, strong, 'web', freeze));
+    assert.deepEqual(fired, [...declaredBoardOrder('claim'), 'ok']);
+    assert.deepEqual(fired, ['NO_ITEM', 'NOT_CLAIMABLE', 'WRONG_LANE', 'ROUTE', 'BLOCKED', 'HELD', 'LANE_HELD', 'ONE_CLAIM', 'UNKNOWN_SPEC', 'ok']);
+  } finally {
+    lab.done();
+  }
+});
+
+test('submit, accept and reject refuse in the declared order, one failure peeled at a time [M1, M2]', () => {
+  const lab = boardOnDisk();
+  try {
+    const { board } = lab;
+    const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
+    const submitAs = (id, agentId, commit) => outcome(() => store.submit(board, id, { agentId, commit, tree: 'tree' }));
+    const piece = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+    const submits = [submitAs(999, 'web-1', SHA_A), submitAs(piece, 'web-1', SHA_A)];
+    store.claim(board, piece, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
+    submits.push(submitAs(piece, 'web-2', SHA_A));
+    store.submit(board, piece, { agentId: 'web-1', commit: SHA_A, tree: 'tree' });
+    verdictOn(board, piece, 'web-2', 'REJECT');
+    store.claim(board, piece, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
+    const child = store.addItem(board, { by: 'web-1', lane: 'web', title: 'Part', parentId: piece });
+    submits.push(submitAs(piece, 'web-1', SHA_A));
+    store.withdraw(board, child, { agentId: 'coordinator', reason: 'folded into the parent' });
+    submits.push(submitAs(piece, 'web-1', SHA_A), submitAs(piece, 'web-1', SHA_B));
+    assert.deepEqual(submits, [...declaredBoardOrder('submit'), 'ok']);
+
+    for (const verb of ['accept', 'reject']) {
+      const decision = verb === 'accept' ? 'ACCEPT' : 'REJECT';
+      const built = submittedItem(board);
+      const open = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+      const judge = (id, agentId, fields) =>
+        outcome(() => store.verify(board, id, { agentId, decision, head: SHA_A, digest: 'wrong', policy: 'coordinator', note: '', ...fields }));
+      const bad = verb === 'accept' ? 'TEST_FAILURE' : 'NOPE';
+      const good = verb === 'accept' ? undefined : 'TEST_FAILURE';
+      const fired = [
+        judge(999, 'web-2', { reason: bad }),
+        judge(open, 'web-2', { reason: bad }),
+        judge(built, 'web-1', { reason: bad }),
+        judge(built, light, { reason: bad }),
+        judge(built, 'web-2', { reason: bad }),
+        judge(built, 'web-2', { reason: bad, policy: 'any' }),
+        judge(built, 'web-2', { reason: bad, policy: 'any', digest: 'digest:Page' }),
+        judge(built, 'web-2', { reason: good, policy: 'any', digest: 'digest:Page' }),
+        judge(built, 'web-2', { reason: good, policy: 'any', digest: 'digest:Page', note: 'reverted the fix; its test went red' }),
+      ];
+      assert.deepEqual(fired, [...declaredBoardOrder(verb), 'ok'], verb);
+    }
+  } finally {
+    lab.done();
+  }
+});
+
+test('the two conditional guards behave as declared: a renewal passes a held lane, and only a freeze checks the rows [M1, M2]', () => {
+  const lab = boardOnDisk();
+  try {
+    const { board } = lab;
+    const claimAs = (id, agentId, freezer) => outcome(() => store.claim(board, id, { agentId, lane: 'web', leaseMs: 7_200_000, freeze: freezer }));
+    assert.match(MACHINE.guards.find((guard) => guard.id === 'laneOpen').when, /renewing its own live claim/);
+    assert.match(MACHINE.guards.find((guard) => guard.id === 'rowsInForce').when, /where the criterion freezes/);
+
+    const mine = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+    const theirs = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+    assert.equal(claimAs(mine, 'web-1', freeze), 'ok');
+    store.holdLane(board, 'web', { agentId: 'coordinator', reason: 'pause' });
+    assert.equal(claimAs(mine, 'web-1', freeze), 'ok', 'its holder renews a live claim in a held lane');
+    assert.equal(claimAs(theirs, 'web-2', freeze), 'LANE_HELD', 'a fresh claim in the held lane is refused');
+    store.releaseLane(board, 'web', { agentId: 'coordinator' });
+
+    assert.equal(claimAs(mine, 'web-1', retiredFreeze), 'ok', 'a renewal keeps the frozen bar and checks no rows');
+    store.release(board, mine, 'web-1');
+    assert.equal(claimAs(mine, 'web-1', retiredFreeze), 'ok', 'a reclaim keeps the frozen bar too');
+    assert.equal(claimAs(theirs, 'web-2', retiredFreeze), 'UNKNOWN_SPEC', 'a first claim freezes, so it checks the rows');
+    store.release(board, mine, 'web-1');
+    store.editItem(board, mine, { agentId: 'coordinator', criterion: 'A changed bar.' });
+    assert.equal(claimAs(mine, 'web-1', retiredFreeze), 'UNKNOWN_SPEC', 'after an edit drops the bar, the next claim freezes and checks');
+    assert.equal(outcome(() => store.refreeze(board, mine, { agentId: 'coordinator', freeze: retiredFreeze })), 'UNKNOWN_SPEC', 'refreeze freezes, so it checks');
+  } finally {
+    lab.done();
+  }
+});
+
+/**
+ * Every place outside moveItem that writes an item's status: an item_status key in an object, or
+ * an SQL SET of it. current() is allowed: it builds the reader's view of a lapsed claim and
+ * never writes.
+ *
+ * @param {(file: string) => string} read
+ * @returns {string[]}
+ */
+function statusWriters(read) {
+  const writers = [];
+  for (const file of readdirSync(new URL('../src/', import.meta.url)).filter((name) => name.endsWith('.js'))) {
+    const source = read(file);
+    const allowed = file === 'board.js' ? ['moveItem', 'current'].map((name) => functionsIn(source).get(name)) : [];
+    const spans = allowed.filter(Boolean).map((body) => [source.indexOf(body), source.indexOf(body) + body.length]);
+    for (const match of source.matchAll(/\bitem_status\s*:|\bSET\b[^;`]*\bitem_status\s*=/g)) {
+      if (!spans.some(([start, end]) => match.index >= start && match.index < end)) {
+        const before = source.slice(0, match.index);
+        const owner = [...functionsIn(source).entries()].find(([, body]) => source.indexOf(body) <= match.index && match.index < source.indexOf(body) + body.length);
+        writers.push(`${file}#${owner ? owner[0] : `line ${before.split('\n').length}`}`);
+      }
+    }
+  }
+  return writers;
+}
+
+test('only moveItem writes an item\'s status, and a write anywhere else fails the check [M1]', () => {
+  assert.deepEqual(statusWriters(fromDisk), []);
+  assert.match(functionsIn(fromDisk('board.js')).get('moveItem'), /item_status: move\.to/, 'moveItem is the writer');
+  const planted = editedSource('board.js', /set: \(found\) => \(\{ item_route: nextRoute\(found\.item_route\), item_owner: null, item_lease_until: null \}\),/, "set: (found) => ({ item_route: nextRoute(found.item_route), item_status: 'open', item_owner: null, item_lease_until: null }),");
+  assert.deepEqual(statusWriters(planted), ['board.js#escalate']);
 });
