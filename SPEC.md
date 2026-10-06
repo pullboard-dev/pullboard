@@ -26,7 +26,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - V2 [approved, must] The criterion freezes at first claim: title, criterion and cited spec rows. | gate: test/board.test.js | serves: P1
 - V3 [approved, must] Verify refuses when the frozen criterion has changed. | gate: test/e2e.test.js | serves: V2
 - V4 [approved, must] Submit needs a clean tree and the gate green at HEAD. | gate: test/e2e.test.js
-- V5 [approved, must] ACCEPT needs CRITERION_MET. REJECT needs a reason code and a note. | gate: test/board.test.js
+- V5 [approved, must] ACCEPT needs CRITERION_MET and a note of the proof. REJECT needs a reason code and a note. | gate: test/board.test.js
 - V6 [approved, must] REJECT reopens the item. Resubmitting needs a new head. | gate: test/board.test.js
 - V7 [approved, must] The verifier's checkout contains the submitted commit. | gate: test/e2e.test.js
 - V8 [approved, must] Every verdict binds the submitted commit and the frozen digest. | gate: test/board.test.js
@@ -64,7 +64,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 
 ## N · Next commands
 - N1 [draft, must] `pullboard decide`: the person's queue of everything waiting on them.
-- N2 [draft, must] `pullboard next` claims my lane's next item; with --verify, the oldest work I did not build.
+- N2 [approved, must] `pullboard next` claims my lane's next free item; --verify names work I did not build. | gate: test/e2e.test.js
 - N3 [draft, must] `pullboard context <id>`: frozen bar, cited rows, gates, lane, verdicts, what still blocks it.
 - N4 [draft, must] `pullboard ask add` stores the client's documents in ask/, hashed; rows can cite them.
 - N5 [draft, must] `pullboard spec approve` and `spec answer` record who changed a row's status, and when.
