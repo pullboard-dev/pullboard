@@ -207,6 +207,15 @@ async function settle(inflight) {
 }
 
 /**
+ * A browser's local storage for the page. The test keeps it, so a second load of the page finds
+ * what the first one left, as after a reload.
+ */
+function storage() {
+  const items = new Map();
+  return { getItem: (key) => (items.has(key) ? items.get(key) : null), setItem: (key, value) => { items.set(key, String(value)); } };
+}
+
+/**
  * The browser's Date with its clock moved some days on, as the page would read it then.
  */
 function daysOn(days) {
@@ -224,10 +233,10 @@ function daysOn(days) {
 
 /**
  * Open the page a view serves, at a window width, and wait for its first board; `later` moves the
- * page's clock that many days on. show(id) is what that region holds; click() and type() act as
- * the person would.
+ * page's clock that many days on, and `store` is its local storage, if it has one. show(id) is
+ * what that region holds; click() and type() act as the person would.
  */
-async function openPage(view, { width = 1280, later = 0 } = {}) {
+async function openPage(view, { width = 1280, later = 0, store = null } = {}) {
   const html = await (await fetch(view.link)).text();
   const script = html.slice(html.indexOf('<script>') + '<script>'.length, html.lastIndexOf('</script>'));
   const known = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
@@ -254,6 +263,7 @@ async function openPage(view, { width = 1280, later = 0 } = {}) {
     matchMedia: (query) => ({ matches: width <= Number(/max-width:\s*(\d+)px/.exec(query)?.[1] ?? Infinity) }),
     setInterval: () => 0,
     ...(later ? { Date: daysOn(later) } : {}),
+    ...(store ? { localStorage: store } : {}),
     setTimeout,
     clearTimeout,
     fetch: (path, init) => {
@@ -851,6 +861,38 @@ test('shout ids, search and narrow windows reach the item [N26]', async () => {
   }
 });
 
+test('the shouts tab counts shouts you have not seen [N26]', async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  box.run(alpha.repo, 'shout', 'web', 'first');
+  box.run(alpha.repo, 'shout', 'web', 'second');
+  const view = await startView(box);
+  try {
+    const store = storage();
+    const count = (page) => page.element('count-shouts').textContent;
+    const page = await openPage(view, { store });
+    assert.equal(count(page), '', 'the shouts there before the first look count as seen, not as 2');
+
+    box.run(alpha.web, 'shout', 'coordinator', 'web-1 is on it');
+    await page.run('refresh()');
+    assert.equal(count(page), '1', 'a shout since then counts');
+    await page.click({ tab: 'shouts' });
+    assert.equal(count(page), '', 'opening Shouts sees it');
+    box.run(alpha.web, 'shout', 'coordinator', 'and done');
+    await page.run('refresh()');
+    assert.equal(count(page), '', 'a shout that arrives while Shouts is open is seen');
+    await page.click({ tab: 'items' });
+
+    // A shout lands while the page is closed: the reload counts it, and only it.
+    box.run(alpha.web, 'shout', 'coordinator', 'while you were away');
+    const reloaded = await openPage(view, { store });
+    assert.equal(count(reloaded), '1', 'what was seen is remembered across a reload');
+    await reloaded.click({ tab: 'shouts' });
+    assert.equal(count(reloaded), '');
+  } finally {
+    await view.stop();
+  }
+});
 test('the detail opens on the top item, not a blank form [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');

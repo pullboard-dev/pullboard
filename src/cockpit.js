@@ -324,7 +324,7 @@ input, select, textarea { border: 1px solid var(--line-strong); background: var(
 <script>
 const key = new URLSearchParams(location.search).get('k') || '';
 const keep = (name, value) => { try { if (value === undefined) return localStorage.getItem(name); localStorage.setItem(name, value); } catch { return null; } return value; };
-const view = { root: keep('pb.project'), tab: keep('pb.tab') || 'items', item: null, adding: false, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null } };
+const view = { root: keep('pb.project'), tab: keep('pb.tab') || 'items', seen: {}, item: null, adding: false, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null } };
 let data = null;
 let seen = '';
 const $ = (id) => document.getElementById(id);
@@ -576,7 +576,6 @@ function render() {
   const by = (s) => items.filter((i) => stateOf(i) === s);
   const active = items.filter((i) => stateOf(i) !== 'verified');
   $('count-items').textContent = active.length || '';
-  $('count-shouts').textContent = p.shouts.length || '';
   $('count-spec').textContent = p.spec.filter((r) => ['pending', 'draft'].includes(r.status)).length || '';
   $('count-doctrine').textContent = p.practice.filter((r) => ['pending', 'draft'].includes(r.status)).length || '';
 
@@ -692,6 +691,24 @@ function render() {
 function showTab() {
   document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = pane.dataset.pane !== view.tab; });
   document.querySelectorAll('.tab').forEach((button) => button.classList.toggle('on', button.dataset.tab === view.tab));
+  countUnseen();
+}
+
+/**
+ * Count on the Shouts tab the shouts that came after the newest one the person has seen in this
+ * project. Seeing means having the Shouts tab open with the board drawn; a project shown for the
+ * first time has seen everything so far. The mark is kept in this browser, so a reload counts
+ * nothing old, and the count is never just how many shouts were loaded.
+ */
+function countUnseen() {
+  const p = data && data.project;
+  if (!p) return;
+  const key = 'pb.seen.' + view.root;
+  const kept = view.seen[key] ?? keep(key);
+  const newest = p.shouts.length ? p.shouts[0].shout_id : 0;
+  const seen = view.tab === 'shouts' || kept === null || kept === undefined ? newest : Number(kept);
+  if (String(seen) !== String(kept)) { view.seen[key] = seen; keep(key, String(seen)); }
+  $('count-shouts').textContent = p.shouts.filter((x) => x.shout_id > seen).length || '';
 }
 
 function go(target) {
