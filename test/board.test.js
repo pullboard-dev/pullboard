@@ -421,7 +421,8 @@ test('with only work above its tier open in its lane, next names it and the rero
   const light = store.register(board, { lane: 'web', path: '/repo-web-3', route: 'light' });
   const strong = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Design the cache' });
   assert.deepEqual(store.nextFor(board, { agentId: light, lane: 'web' }).reasons, [
-    `#${strong} (strong) is open in the web lane, above the light route you joined on: the coordinator reroutes it with pullboard edit ${strong} --route light, or a stronger agent takes it`,
+    'no open light items in the web lane',
+    `#${strong} (strong) is open in the web lane, above your light route: a strong agent takes it, or, if light can build it, the coordinator reroutes it: pullboard edit ${strong} --route light`,
   ]);
   assert.deepEqual(store.nextFor(board, { agentId: 'api-1', lane: 'api' }).reasons, ['no open items in the api lane']);
 });

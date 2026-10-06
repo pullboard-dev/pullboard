@@ -1012,12 +1012,11 @@ export function nextFor(board, { agentId, lane, verify = false, runnable = false
     reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
   }
   if (!mine.length) {
-    // Work the agent's tier cannot take is not "nothing": name it and the way to unblock it (B16).
-    const above = listItems(board).filter((entry) => entry.item_status === 'open' && entry.item_lane === lane && !canTake(route, entry.item_route));
-    for (const entry of above) {
-      reasons.push(`#${entry.item_id} (${entry.item_route}) is open in the ${lane} lane, above the ${route} route you joined on: the coordinator reroutes it with pullboard edit ${entry.item_id} --route ${route}, or a stronger agent takes it`);
+    reasons.push(idleReason(items, lane, routed));
+    // Work above the agent's tier is not nothing: name it and the ways through (B16).
+    for (const entry of listItems(board).filter((open) => open.item_status === 'open' && open.item_lane === lane && !canTake(route, open.item_route))) {
+      reasons.push(`#${entry.item_id} (${entry.item_route}) is open in the ${lane} lane, above your ${route} route: a ${entry.item_route} agent takes it, or, if ${route} can build it, the coordinator reroutes it: pullboard edit ${entry.item_id} --route ${route}`);
     }
-    if (!above.length) reasons.push(idleReason(items, lane, routed));
   }
   return { item: null, reasons };
 }
