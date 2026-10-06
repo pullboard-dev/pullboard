@@ -81,8 +81,8 @@ export const STATES = [
   {
     id: 'verified', final: true, means: 'another agent accepted it at the submitted commit', requires: ['item_verified_by', 'item_commit'],
     proof: {
-      says: 'an ACCEPT at the submitted commit, on the frozen criterion, by an agent that did not build it',
-      sql: "EXISTS (SELECT 1 FROM verdict v WHERE v.item_id = NEW.item_id AND v.verdict_decision = 'ACCEPT' AND v.verdict_commit = NEW.item_commit AND v.verdict_digest = NEW.item_frozen_digest AND v.verdict_by <> NEW.item_built_by)",
+      says: 'an ACCEPT at the submitted commit, on the frozen criterion, by the agent it names as verifier, who did not build it',
+      sql: "EXISTS (SELECT 1 FROM verdict v WHERE v.item_id = NEW.item_id AND v.verdict_decision = 'ACCEPT' AND v.verdict_commit = NEW.item_commit AND v.verdict_digest = NEW.item_frozen_digest AND v.verdict_by = NEW.item_verified_by AND v.verdict_by <> NEW.item_built_by)",
     },
   },
   { id: 'withdrawn', final: true, means: 'nobody should build it; the reason stays on it', requires: ['item_withdrawn_reason'] },
@@ -379,11 +379,18 @@ export function machineProblems(machine = MACHINE) {
 const sqlText = (text) => `'${text.replaceAll("'", "''")}'`;
 
 /**
+ * The characters JavaScript's trim removes, as code points. A field made only of them is blank in
+ * the board file, exactly as it is to the commands that trim what an agent typed.
+ */
+export const BLANKS = [9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279];
+
+/**
  * The SQLite triggers that make the board file itself refuse what the declaration does not allow
- * (M3): an item that starts anywhere but the start, a state or a move nobody declared, a state
- * entered without its fields, a final state entered without its proof, and an edit to a record the
- * board keeps for good. All of it comes from the declaration, so the board reinstalls any trigger
- * that differs when the declaration changes.
+ * (M3): an item that starts anywhere but the start, a state or a move nobody declared, an item left
+ * in a state without that state's fields or proof, and an edit to a record the board keeps for good.
+ * A state's fields and proof are checked on every write that leaves an item in it, a move in or an
+ * edit while it stays, so no field that makes the proof can be rewritten after it. All of it comes
+ * from the declaration, so the board reinstalls any trigger that differs when the declaration changes.
  *
  * The triggers stop a status written by hand. They cannot stop an agent that forges a verdict row
  * under some name and then moves the item; that forgery stays in the ledger under the name it used.
@@ -397,11 +404,13 @@ export function storeTriggers(machine = MACHINE) {
   const states = machine.states.map((state) => state.id);
   const moves = [...new Set(machine.moves.flatMap((move) => move.from.filter((from) => from !== move.to).map((from) => `${from}>${move.to}`)))];
   const declared = `OLD.item_status || '>' || NEW.item_status IN (${moves.map(sqlText).join(', ')})`;
-  const entering = (state) => `NEW.item_status = ${sqlText(state)} AND OLD.item_status <> NEW.item_status AND ${declared}`;
+  const holds = (state) => `NEW.item_status = ${sqlText(state)} AND (OLD.item_status = NEW.item_status OR ${declared})`;
+  const onWrite = 'BEFORE UPDATE ON item';
   const trigger = (name, on, body) => ({ name, sql: `CREATE TRIGGER ${name} ${on}\n${body}` });
   // Each write meets at most one trigger: an unknown state, else an undeclared move, else missing
   // fields, else a missing proof. SQLite fires triggers in no promised order, so their conditions
-  // exclude each other and the refusal never depends on which one ran first.
+  // exclude each other and the refusal never depends on which one ran first. A blank field is one
+  // that BLANKS trims to nothing.
   const triggers = [
     trigger('machine_item_start', 'BEFORE INSERT ON item', `WHEN NEW.item_status <> ${sqlText(machine.initial)}\n${refuse('UNDECLARED_MOVE', `an item starts ${machine.initial}`)}`),
     trigger('machine_item_state', onStatus, `WHEN NEW.item_status NOT IN (${states.map(sqlText).join(', ')})\n${refuse('UNDECLARED_STATE', `an item is ${states.join(', ')}`)}`),
@@ -411,13 +420,14 @@ export function storeTriggers(machine = MACHINE) {
       `WHEN NEW.item_status IN (${states.map(sqlText).join(', ')}) AND OLD.item_status <> NEW.item_status AND NOT ${declared}\n${refuse('UNDECLARED_MOVE', `the moves are ${moves.join(', ')}`)}`,
     ),
   ];
-  const missingOf = (state) => state.requires.map((field) => `coalesce(NEW.${field}, '') = ''`).join(' OR ');
+  const blank = `char(${BLANKS.join(', ')})`;
+  const missingOf = (state) => state.requires.map((field) => `trim(coalesce(NEW.${field}, ''), ${blank}) = ''`).join(' OR ');
   for (const state of machine.states.filter((entry) => entry.requires.length)) {
-    triggers.push(trigger(`machine_fields_${state.id}`, onStatus, `WHEN ${entering(state.id)} AND (${missingOf(state)})\n${refuse('MISSING_FIELD', `${state.id} needs ${state.requires.join(', ')}`)}`));
+    triggers.push(trigger(`machine_fields_${state.id}`, onWrite, `WHEN ${holds(state.id)} AND (${missingOf(state)})\n${refuse('MISSING_FIELD', `${state.id} needs ${state.requires.join(', ')}`)}`));
   }
   for (const state of machine.states.filter((entry) => entry.proof)) {
     const complete = state.requires.length ? ` AND NOT (${missingOf(state)})` : '';
-    triggers.push(trigger(`machine_proof_${state.id}`, onStatus, `WHEN ${entering(state.id)}${complete} AND NOT ${state.proof.sql}\n${refuse('NOT_PROVEN', `${state.id} needs ${state.proof.says}`)}`));
+    triggers.push(trigger(`machine_proof_${state.id}`, onWrite, `WHEN ${holds(state.id)}${complete} AND NOT ${state.proof.sql}\n${refuse('NOT_PROVEN', `${state.id} needs ${state.proof.says}`)}`));
   }
   for (const [table, kept] of Object.entries(machine.records)) {
     for (const change of kept === 'append' ? ['update', 'delete'] : ['delete']) {

@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { IN_STATE, MACHINE, effectiveGuards, machineProblems, storeTriggers } from '../src/machine.js';
+import { BLANKS, IN_STATE, MACHINE, effectiveGuards, machineProblems, storeTriggers } from '../src/machine.js';
 
 /**
  * Refusals that are not about an item's lifecycle, so no move declares them: how a command was
@@ -638,4 +638,57 @@ test('the triggers come from the declaration, so a changed declaration changes t
   const names = storeTriggers().map(({ name }) => name);
   for (const state of MACHINE.states.filter((entry) => entry.requires.length)) assert.ok(names.includes(`machine_fields_${state.id}`), `${state.id} has a fields trigger`);
   assert.ok(names.includes('machine_proof_verified'));
+});
+
+test("a verified item's proof cannot be rewritten afterwards: its commit, builder, verifier or criterion [M3]", () => {
+  const lab = boardOnDisk();
+  try {
+    const id = submittedItem(lab.board);
+    verdictOn(lab.board, id, 'web-2', 'ACCEPT');
+    const raw = lab.raw();
+    const refused = (sql) => assert.throws(() => raw.prepare(sql).run(id), /NOT_PROVEN/, sql);
+    refused(`UPDATE item SET item_commit = '${SHA_B}' WHERE item_id = ?`);
+    refused("UPDATE item SET item_built_by = 'web-2' WHERE item_id = ?");
+    refused("UPDATE item SET item_verified_by = 'web-1' WHERE item_id = ?");
+    refused("UPDATE item SET item_frozen_digest = 'digest:Another criterion' WHERE item_id = ?");
+    refused(`UPDATE item SET item_status = 'verified', item_commit = '${SHA_B}' WHERE item_id = ?`);
+    raw.prepare(`UPDATE item SET item_merged_commit = '${SHA_A}' WHERE item_id = ?`).run(id);
+    assert.deepEqual([store.getItem(lab.board, id).item_commit, store.getItem(lab.board, id).item_merged_commit], [SHA_A, SHA_A]);
+  } finally {
+    lab.done();
+  }
+});
+
+test('a field a state needs cannot be blanked, on the way in or while the item stays, with any whitespace [M3]', () => {
+  const lab = boardOnDisk();
+  try {
+    const { board } = lab;
+    const withdrawn = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Old idea' });
+    store.withdraw(board, withdrawn, { agentId: 'coordinator', reason: 'superseded' });
+    const fresh = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Another' });
+    const claimed = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+    store.claim(board, claimed, { agentId: 'web-2', lane: 'web', leaseMs: 7_200_000, freeze });
+    const built = submittedItem(board);
+    const raw = lab.raw();
+    const refused = (sql, args) => assert.throws(() => raw.prepare(sql).run(...args), /MISSING_FIELD/, `${sql} ${JSON.stringify(args)}`);
+    refused("UPDATE item SET item_withdrawn_reason = '' WHERE item_id = ?", [withdrawn]);
+    refused('UPDATE item SET item_withdrawn_reason = NULL WHERE item_id = ?', [withdrawn]);
+    refused("UPDATE item SET item_status = 'withdrawn', item_withdrawn_reason = '' WHERE item_id = ?", [withdrawn]);
+    for (const blank of [' ', '\t\n', ' ', ' ', '﻿', '　 ']) {
+      refused("UPDATE item SET item_status = 'withdrawn', item_withdrawn_reason = ? WHERE item_id = ?", [blank, fresh]);
+    }
+    refused('UPDATE item SET item_owner = NULL WHERE item_id = ?', [claimed]);
+    refused("UPDATE item SET item_commit = '' WHERE item_id = ?", [built]);
+    assert.equal(store.getItem(board, withdrawn).item_withdrawn_reason, 'superseded');
+    assert.equal(store.getItem(board, fresh).item_status, 'open');
+    assert.throws(() => store.withdraw(board, fresh, { agentId: 'coordinator', reason: ' ' }), /NOTE_REQUIRED/, 'the command trims the same way');
+  } finally {
+    lab.done();
+  }
+});
+
+test("a blank field in the board file is exactly what JavaScript's trim removes [M3]", () => {
+  const trimmed = [];
+  for (let code = 0; code <= 0xffff; code += 1) if (String.fromCharCode(code).trim() === '') trimmed.push(code);
+  assert.deepEqual(BLANKS, trimmed);
 });
