@@ -2,7 +2,7 @@
 
 The local-first core of Pullboard: a work board, lanes, a spec and git hooks that live in the repo. No account, no network. This file is the spec, in the format `pullboard spec check` lints.
 
-Statuses: approved = decided · draft = proposed · pending = open question · fact = true today · retired = spent, never reused. Tiers: must · aim.
+Statuses: approved = decided · draft = proposed · pending = open question · fact = true today · wont = won't build, decided and kept · retired = no longer applies, kept. Ids are permanent: never delete or renumber a row. Tiers: must · aim.
 
 ## P · Principles
 - P1 [approved, must] Nothing ships until a second agent verifies it. | gate: test/board.test.js
@@ -20,6 +20,8 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - B7 [approved, must] Shouts reach a lane, an agent or all. Inbox marks them read. | gate: test/board.test.js
 - B8 [approved, must] An item can wait on others; claiming it is refused until they are verified. | gate: test/board.test.js
 - B9 [approved, must] Submit pins the commit under refs/pullboard/items, so submitted work is never lost. | gate: test/e2e.test.js
+- B10 [approved, must] An item carries a brief: how to build it. Next and show print it; edit changes it until verified. | gate: test/board.test.js, test/e2e.test.js
+- B11 [approved, must] Items route strong or light. A light agent claims and verifies light items only; light needs a brief. | gate: test/board.test.js, test/e2e.test.js
 
 ## V · Verification
 - V1 [approved, must] The builder never verifies its own work. | gate: test/board.test.js | serves: P1
@@ -45,6 +47,8 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - S5 [approved, must] A sign-off keeps the text it approved. Changing the row makes it stale. | gate: test/spec.test.js
 - S6 [approved, must] PRACTICE.md holds the house rules in the same row format; spec check lints both. | gate: test/practice.test.js
 - S7 [approved, must] `pullboard spec view` renders spec, questions, sign-offs and practice as one offline page. | gate: test/view.test.js
+- S8 [approved, must] Ids are permanent. Commit refuses a deleted row; spec check finds ids once committed or cited, now gone. | gate: test/e2e.test.js, test/spec.test.js
+- S9 [approved, must] A wont row stays with its id, out of the counts; nothing new may cite it. | gate: test/spec.test.js
 
 ## C · Commits
 - C1 [approved, must] Header: type(scope): subject [ids], 72 characters at most. | gate: test/hooks.test.js

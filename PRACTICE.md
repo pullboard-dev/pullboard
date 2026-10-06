@@ -2,7 +2,7 @@
 
 How pullboard itself is built: the house rules, as rows. SPEC.md says what to build; this file says how. A row whose gate names a check fails the build when broken; a row gated by review guides agents and reviewers.
 
-Statuses: approved = in force · draft = proposed · retired = dropped, id kept. Tiers: must · aim.
+Statuses: approved = in force · draft = proposed · wont = considered and declined, id kept · retired = dropped, id kept. Ids are permanent: never delete or renumber a row. Tiers: must · aim.
 
 ## W · Writing
 - W1 [approved, must] Numbers over adjectives. No hedges, no filler. | gate: review
