@@ -22,6 +22,7 @@ Statuses: approved = in force · draft = proposed · wont = considered and decli
 - T1 [approved, must] Tests use node:test against real git repos and a real SQLite file, not mocks. | gate: review
 - T2 [approved, must] Every test name cites the spec rows it proves. | gate: review
 - T3 [approved, must] The suite passes on Node 22, 24 and 26 before a release. | gate: release check
+- T4 [draft, must] A check that guards a rule is shown failing on a broken copy before anyone trusts it. | gate: review
 
 ## G · Git and the gate
 - G1 [approved, must] `npm run gate` (spec check and tests) passes before every push. | gate: pre-push hook
