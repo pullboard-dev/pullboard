@@ -2,13 +2,13 @@
  * The pullboard command line: every command, bound to who is asking (B3). The main checkout is the
  * coordinator; every other worktree is the agent that joined from it.
  */
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import * as store from './board.js';
-import { COORDINATOR, loadConfig } from './config.js';
+import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
 import { digestOf, gateReport, runGate, runShell } from './gate.js';
 import { contains, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
@@ -40,6 +40,8 @@ import { runItems } from './run.js';
 import { parseProblems, sweepItems } from './sweep.js';
 import { renderSpecView } from './view.js';
 import { tour } from './tour.js';
+import { registerProject } from './projects.js';
+import { serveView } from './serve.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
@@ -54,6 +56,8 @@ Set up
   pullboard join <lane> [--route light] register the worktree you are in as an agent in a lane
                                         --route light: a lighter model that takes only items routed light
   pullboard whoami | lanes | status     who you are, the lanes, the board at a glance
+  pullboard view [--port N] [--no-open] every project on this machine in your browser: items, shouts, doctrine,
+                                        agents and activity, live; add items, shout and hold lanes from it
   pullboard resume                      where you are: your claim, branch, uncommitted work, what came back,
                                         unread shouts, what to do next; run it to start any session
   pullboard hooks                       reinstall the git hooks (e.g. after a fresh clone)
@@ -119,6 +123,8 @@ const OPTIONS = {
   parent: { type: 'string' },
   reason: { type: 'string' },
   off: { type: 'boolean' },
+  port: { type: 'string' },
+  'no-open': { type: 'boolean' },
   note: { type: 'string' },
   'note-file': { type: 'string' },
   by: { type: 'string' },
@@ -494,6 +500,38 @@ function resumeHere(io) {
 }
 
 /**
+ * \`pullboard view\` (N26): serve the micro site for every project on this machine until stopped,
+ * registering the repo it starts in, and open it in the browser unless asked not to.
+ *
+ * @param {any} io
+ * @param {any} values
+ * @returns {Promise<number>}
+ */
+async function viewHere(io, values) {
+  try {
+    const info = repoInfo(io.cwd);
+    if (info.isMain && existsSync(join(info.root, CONFIG_FILE))) registerProject(info.root);
+  } catch (error) {
+    if (!(error instanceof Refused)) throw error;
+  }
+  const port = values.port === undefined ? 0 : Number(values.port);
+  if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Refused('USAGE', '--port is a number from 0 to 65535; 0 picks a free one');
+  const view = await serveView({ port });
+  io.say(`Pullboard view: ${view.url}`);
+  io.say('Only this machine can reach it, and only with that link. Ctrl-C stops it.');
+  if (!values['no-open']) {
+    const opener = process.platform === 'darwin' ? ['open', [view.url]] : process.platform === 'win32' ? ['cmd', ['/c', 'start', '', view.url]] : ['xdg-open', [view.url]];
+    spawn(opener[0], opener[1], { detached: true, stdio: 'ignore' }).on('error', () => {}).unref();
+  }
+  await new Promise((stop) => {
+    process.once('SIGINT', stop);
+    process.once('SIGTERM', stop);
+  });
+  await view.close();
+  return 0;
+}
+
+/**
  * The commands that set a repo or a worktree up.
  *
  * @param {any} io
@@ -511,6 +549,7 @@ function setupCommands(io, { first, values }) {
         closeBoard: store.closeBoard,
       });
       notes.forEach((note) => io.say(note));
+      if (registerProject(info.root)) io.say('registered this project on this machine, so pullboard view lists it');
       io.say('next: write SPEC.md rows, declare lanes in pullboard.json, then: pullboard add <lane> <title>');
       return 0;
     },
@@ -1228,6 +1267,7 @@ export async function main(argv, streams) {
   const args = { first, second, rest, values };
   try {
     if (command === 'tour') return tour(io);
+    if (command === 'view') return await viewHere(io, values);
     if (command === 'spec') return specCommand(io, args);
     if (command === 'prompt') {
       let root = io.cwd;

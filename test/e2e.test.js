@@ -15,6 +15,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { request } from 'node:http';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 
@@ -45,6 +46,7 @@ function sandbox() {
     GIT_AUTHOR_EMAIL: 'agent@example.com',
     GIT_COMMITTER_NAME: 'Test Agent',
     GIT_COMMITTER_EMAIL: 'agent@example.com',
+    PULLBOARD_HOME: join(dir, 'pullboard-home'),
   };
   const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
   const tryGit = (cwd, ...args) => spawnSync('git', args, { cwd, env, encoding: 'utf8' });
@@ -871,4 +873,84 @@ test('worktree prints the opening lines of a subagent\'s prompt, with its folder
   const cdLine = /start every command with (cd .+ &&)\n/.exec(made)[1];
   const entered = spawnSync('sh', ['-c', `${cdLine} pwd`], { env: { ...box.env, PULLBOARD_PATH_PROBE: 'elsewhere' }, encoding: 'utf8' });
   assert.equal(entered.stdout.trim(), folder);
+});
+
+/**
+ * Start `pullboard view` in a folder and read the link it prints; stop() ends it.
+ */
+async function startView(box, cwd) {
+  const child = spawn(process.execPath, [BIN, 'view', '--no-open'], { cwd, env: box.env });
+  const link = await new Promise((found, fail) => {
+    let out = '';
+    child.stdout.on('data', (chunk) => {
+      out += chunk;
+      const match = /Pullboard view: (http:\/\/127\.0\.0\.1:\d+\/\?k=\S+)/.exec(out);
+      if (match) found(new URL(match[1]));
+    });
+    child.on('exit', (code) => fail(new Error(`view exited ${code}: ${out}`)));
+  });
+  const key = link.searchParams.get('k');
+  const base = `http://127.0.0.1:${link.port}`;
+  const state = (root) => fetch(`${base}/api/state${root ? `?root=${encodeURIComponent(root)}` : ''}`, { headers: { 'x-pullboard-key': key } }).then((res) => res.json());
+  const act = (body) => fetch(`${base}/api/act`, { method: 'POST', headers: { 'x-pullboard-key': key, 'content-type': 'application/json' }, body: JSON.stringify(body) }).then((res) => res.json());
+  const stop = () => new Promise((done) => { child.once('exit', done); child.kill('SIGTERM'); });
+  return { link, key, base, state, act, stop };
+}
+
+test('view serves every project on this machine, on loopback, behind its secret and its own Host [N26, I8]', async () => {
+  const box = project();
+  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--criterion', 'renders');
+  box.run(box.repo, 'shout', 'web-1', 'the heading is in G1');
+  const registry = JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'projects.json'), 'utf8'));
+  assert.deepEqual(registry.projects.map((entry) => entry.root), [box.repo]);
+  const view = await startView(box, box.repo);
+  try {
+    assert.equal((await fetch(`${view.base}/`)).status, 403, 'no secret');
+    assert.equal((await fetch(`${view.base}/api/state`, { headers: { 'x-pullboard-key': 'guess' } })).status, 403, 'a wrong secret');
+    const page = await fetch(view.link);
+    assert.equal(page.status, 200);
+    assert.match(await page.text(), /<title>Pullboard<\/title>/);
+    const { projects, project: shown } = await view.state(box.repo);
+    assert.deepEqual(projects.map((entry) => [entry.name, entry.ok, entry.open]), [['repo', true, 1]]);
+    assert.deepEqual(shown.items.map((item) => [item.id, item.title, item.status, item.specs]), [[1, 'Page', 'open', ['G1']]]);
+    assert.equal(shown.shouts[0].shout_text, 'the heading is in G1');
+    assert.deepEqual(shown.spec.map((row) => [row.id, row.status]), [['G1', 'approved'], ['G2', 'approved']]);
+    assert.ok(shown.agents.some((agent) => agent.agent_id === 'web-1'));
+    const rebound = await new Promise((done) => {
+      request({ host: '127.0.0.1', port: view.link.port, path: '/api/state', headers: { host: `evil.example:${view.link.port}`, 'x-pullboard-key': view.key } }, (res) => done(res.statusCode)).end();
+    });
+    assert.equal(rebound, 403, 'the right secret from another Host, as DNS rebinding would send it');
+  } finally {
+    await view.stop();
+  }
+});
+
+test('from the view the person adds items, shouts, holds lanes and starts a board, through the CLI and its refusals [N27]', async () => {
+  const box = project();
+  const view = await startView(box, box.repo);
+  try {
+    const act = (body) => view.act({ root: box.repo, ...body });
+    const added = await act({ command: 'add', args: { lane: 'web', title: 'From the view', specs: 'G1' } });
+    assert.equal(added.code, 0, added.err);
+    assert.equal(added.command, 'pullboard add web From the view --specs G1');
+    assert.equal(JSON.parse(box.run(box.repo, 'show', '1', '--json').out).item_title, 'From the view');
+    const refused = await act({ command: 'add', args: { lane: 'web', title: 'Ghost', specs: 'Z9' } });
+    assert.equal(refused.code, 1);
+    assert.match(refused.err, /UNKNOWN_SPEC/);
+    assert.equal((await act({ command: 'shout', args: { to: 'web', text: 'from the person' } })).code, 0);
+    assert.match(box.run(box.web, 'inbox').out, /coordinator -> web: from the person/);
+    assert.equal((await act({ command: 'hold', args: { lane: 'web', reason: 'G1 is changing' } })).code, 0);
+    assert.match(box.run(box.web, 'next').err, /coordinator holds the web lane: G1 is changing/);
+    assert.equal((await act({ command: 'release', args: { lane: 'web' } })).code, 0);
+    assert.match((await act({ root: box.dir, command: 'shout', args: { to: 'all', text: 'x' } })).error, /not a project on this machine/);
+    const stranger = await fetch(`${view.base}/api/act`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ root: box.repo, command: 'shout', args: { to: 'all', text: 'x' } }) });
+    assert.equal(stranger.status, 403);
+    const other = join(box.dir, 'other');
+    mkdirSync(other);
+    box.git(other, 'init', '-q', '-b', 'main');
+    assert.equal((await view.act({ command: 'init', args: { path: other } })).code, 0);
+    assert.deepEqual((await view.state()).projects.map((entry) => entry.name).sort(), ['other', 'repo']);
+  } finally {
+    await view.stop();
+  }
 });

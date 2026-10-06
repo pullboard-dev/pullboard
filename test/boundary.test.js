@@ -34,9 +34,16 @@ test('the core names no model, engine or vendor; secret patterns may name the ke
   assert.deepEqual(found, []);
 });
 
-test('the core opens no network connection [P5]', () => {
+test('the core opens no outbound connection; only the view listens, on loopback, and its page calls only it [P5, N26]', () => {
+  const allowed = (file, line) =>
+    (file === 'src/serve.js' && line.trim() === "import { createServer } from 'node:http';") ||
+    (file === 'src/cockpit.js' && /^\s*const res = await fetch\(path, /.test(line));
   const found = sources().flatMap(({ file, lines }) =>
-    lines.flatMap((line, index) => (NETWORK.test(line) ? [`${file}:${index + 1}: ${line.trim()}`] : [])),
+    lines.flatMap((line, index) => (NETWORK.test(line) && !allowed(file, line) ? [`${file}:${index + 1}: ${line.trim()}`] : [])),
   );
   assert.deepEqual(found, []);
+  const serve = readFileSync(join(ROOT, 'src', 'serve.js'), 'utf8');
+  assert.match(serve, /export const LOOPBACK = '127\.0\.0\.1';/);
+  assert.match(serve, /server\.listen\(port, LOOPBACK, /);
+  assert.match(serve, /connect-src 'self'/, "the page may call nothing but its own server");
 });

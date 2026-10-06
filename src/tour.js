@@ -76,7 +76,7 @@ export function tour(io) {
   // Nothing of the person's git setup reaches the tour: no config files, and no GIT_ variable, such
   // as GIT_DIR from a hook or GIT_CONFIG_COUNT pairs, which git reads as config too.
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_') && name !== 'NODE_TEST_CONTEXT'));
-  Object.assign(env, { PATH: `${shims}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' });
+  Object.assign(env, { PATH: `${shims}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', PULLBOARD_HOME: join(dir, '.pullboard') });
   const repo = join(dir, 'greeter');
   const app = `${repo}-app-1`;
   const review = `${repo}-review-1`;

@@ -1163,6 +1163,17 @@ export function peekShouts(board, agentId, limit = 2) {
 }
 
 /**
+ * The newest shouts on the board, newest first, read without marking anything read (N26).
+ *
+ * @param {any} board
+ * @param {number} [limit]
+ * @returns {any[]}
+ */
+export function recentShouts(board, limit = 40) {
+  return board.db.prepare('SELECT * FROM shout ORDER BY shout_id DESC LIMIT ?').all(limit);
+}
+
+/**
  * Counts for the status line and the ledger's summary: items by status, verdicts by decision.
  *
  * @param {any} board
