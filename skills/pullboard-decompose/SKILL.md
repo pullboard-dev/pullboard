@@ -34,7 +34,11 @@ One requirement per line:
    - **A sensible default exists and a wrong guess is cheap:** write a draft row that states the assumption, such as "Reminders go by text; email can come later." The person can flip it.
    - **It changes scope, money, safety or a must-row:** write a pending row phrased as a question.
 
-   Ask only what blocks a must-row; a spec with forty questions is a spec nobody answers. For an optional (aim) feature, ask one question at most: is it in scope now? If the ask shows an example, such as a date or a command, the example answers the format question.
+   Ask only what blocks a must-row; a spec with forty questions is a spec nobody answers.
+   - **Ask at most five questions.** If you have more, keep the five with the most at stake (money, data loss, safety, what the client will see) and turn the rest into draft rows that state your assumption.
+   - **A question must change something the client sees.** If either answer would suit them, decide, and state it in a draft row. How the product stores or numbers things internally is yours to decide.
+   - **Optional (aim) features get one question at most:** is it in scope now?
+   - **If the ask shows an example,** such as a date or a command, the example answers the format question.
 4. Look hard for what clients leave out:
    - two statements that cannot both be true
    - a number the system needs that nobody gave
