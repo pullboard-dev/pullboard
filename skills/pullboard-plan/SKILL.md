@@ -7,7 +7,7 @@ description: Turn a project's approved spec rows into work items on the board, i
 
 You turn approved rows into items builders can claim. You do not build.
 
-1. Read SPEC.md (approved rows only; rows marked `wont` or `retired` are never built or cited), PRACTICE.md and `pullboard lanes`. If the lanes do not fit the work, propose a change to `pullboard.json` to the person rather than forcing items into the wrong lane.
+1. Read SPEC.md (approved rows only; rows marked `wont` or `retired` are never built or cited), PRACTICE.md and `pullboard lanes`. If the lanes do not fit the work, propose a change to `pullboard.json` to the person rather than forcing items into the wrong lane. Read the repo's conventions too, and write every brief in them: the module system (`"type"` in package.json), the test runner, where tests live.
 2. **Contracts first.** Find what two lanes will share: a data shape, a module's functions, a file format. Make one item for each shared contract, in the lane that will own it, and add the items that use it with `--after <its id>`. A builder waiting on a contract claims something else; nobody copies another lane's code.
 3. **One item per verifiable piece.** Each item:
    - sits in the lane that owns its files
@@ -23,13 +23,16 @@ You turn approved rows into items builders can claim. You do not build.
      - add(text) returns the new task's number; numbers start at 1 and are never reused
      Test:
      - in test/store.test.js, two adds return 1 and 2, and a remove then an add returns 3
-     Out of scope: every other file; no git commands; no new dependencies
+     Out of scope: every other file; no new dependencies
      ```
+
+     Builders commit and submit their own work, so a brief never forbids git. Only the packs `pullboard run` writes say so, because there the runner commits.
    - has a `--check` when it can: the one command that proves it, such as `node --test test/store.test.js`.
 4. **Route each item to the cheapest model that can build it.** Every item an expensive model builds that a cheaper one could have is waste.
    - `--route light`: a small or local model can build it from the brief alone. Mechanical work: wiring, a field through three files, a test for a stated case, a rename.
    - `--route mid`: a capable model such as Haiku or Sonnet: a small feature, a bug with a known cause.
    - Leave on the default strong route what needs judgment: a shared contract, a design choice, an edge the brief cannot settle.
+   - Route for the builders who will join. An item routed above every builder's tier is never built: make it lighter with a full brief, or tell the person the fleet needs a stronger builder.
    - Below strong, an item needs `--criterion`, `--check`, and a brief whose Files sit in the item's lane and whose Test says what it asserts; `add` refuses it otherwise. Agents take their own tier first, then lighter ones; a builder that cannot get an item green escalates it one tier up.
 5. **Order with `--after`.** An item that needs another's result waits for it. Keep the chains short; parallel lanes are the point.
 6. **Simplest version first.** Plan the smallest thing that meets the rows. Every addition needs a row that asks for it.

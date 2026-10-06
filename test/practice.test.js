@@ -57,3 +57,16 @@ test('skills install once and are never overwritten [I2]', () => {
   }
   assert.equal(withoutFrontMatter('---\nname: x\n---\n\n# Body\n'), '# Body\n');
 });
+
+test('the plan guide keeps git with the builder, routes for the fleet, and reads the conventions [N6]', () => {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-prompt-'));
+  try {
+    const plan = promptFor(root, 'plan');
+    assert.doesNotMatch(plan, /no git commands/);
+    assert.match(plan, /Builders commit and submit their own work, so a brief never forbids git/);
+    assert.match(plan, /Route for the builders who will join\. An item routed above every builder's tier is never built/);
+    assert.match(plan, /the module system \(`"type"` in package\.json\), the test runner/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
