@@ -820,3 +820,25 @@ test('times say which day they were [N26]', async () => {
     await view.stop();
   }
 });
+
+test('spec rows read across a phone [N26]', async () => {
+  const box = machine();
+  project(box, 'alpha');
+  const view = await startView(box);
+  try {
+    const page = await openPage(view, { width: 375 });
+    const style = page.html.slice(page.html.indexOf('<style>'), page.html.indexOf('</style>'));
+    assert.match(style, /\n\.srow \{ display: grid; grid-template-columns: 4\.4em 6\.2em minmax\(0, 1fr\);/, 'wider, a row keeps its three columns');
+    assert.match(style, /\n@media \(max-width: 480px\) \{ \.srow \{ grid-template-columns: auto minmax\(0, 1fr\); \} \.srow > span:last-child \{ grid-column: 1 \/ -1; \} \}\n/, 'under 480px, the text takes the full width below the id and status');
+
+    // The rule holds because every row is the id, then the status, then the text.
+    await page.click({ rows: 'spec:all' });
+    const rows = (html) => html.split('<div class="srow').slice(1);
+    const shape = /^[^>]*><code>[^<]+<\/code><span><span class="chip[^"]*">[^<]+<\/span><\/span><span>[^<]+<\/span><\/div>/;
+    assert.deepEqual(rows(page.show('spec-list')).map((row) => /data-row="spec:([^"]+)"/.exec(row)[1]), ['G1', 'G2']);
+    for (const row of [...rows(page.show('spec-list')), ...rows(page.show('doctrine-list'))]) assert.match(row, shape);
+    assert.ok(rows(page.show('doctrine-list')).length > 0, 'doctrine rows are drawn the same way');
+  } finally {
+    await view.stop();
+  }
+});
