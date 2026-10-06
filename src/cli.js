@@ -9,7 +9,7 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import * as store from './board.js';
 import { COORDINATOR, loadConfig } from './config.js';
-import { gateReport, runGate } from './gate.js';
+import { digestOf, gateReport, runGate, runShell } from './gate.js';
 import { contains, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
   FIX_NOTE,
@@ -75,6 +75,7 @@ Work
   pullboard show <id>                   an item, the criterion frozen at claim, its verdicts
   pullboard next [--wait <minutes>]     claim the next item in your lane that is free to start
   pullboard next --verify               name the next submitted item you can check
+  pullboard check [id]                  run your item's check, the command that proves it (the project gate is pullboard gate)
                                         in the main checkout, verifying needs --as coordinator
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
   pullboard release <id>                hand it back
@@ -936,6 +937,21 @@ function workCommands(io, args) {
     run: () => runItems(io, values, { context, withBoard, whoAmI, nextOnce, submitHere, freezer }),
     sweep: () => act((ctx, board, me) => sweepHere(ctx, board, me, values)),
     next: () => nextHere(io, values),
+    check: () => {
+      const ctx = context(io);
+      const item = withBoard(ctx, (board) => {
+        if (first) return store.getItem(board, idArg(first));
+        const me = whoAmI(ctx, board);
+        const held = store.listItems(board).find((entry) => entry.item_status === 'claimed' && entry.item_owner === me.id && entry.item_parent_id === null);
+        if (!held) throw new Refused('NOT_HOLDING', 'you hold no item; name one, pullboard check <id>, or run the project gate: pullboard gate');
+        return held;
+      });
+      if (!item.item_check) throw new Refused('NO_CHECK', `#${item.item_id} has no check command; its proof is the project gate: pullboard gate`);
+      const run = runShell(ctx.info.root, item.item_check);
+      io.say(`check ${run.isGreen ? 'green' : 'red'} in ${run.seconds}s: ${item.item_check}`);
+      if (!run.isGreen) io.say(digestOf(run.output).replace(/^/gm, '  '));
+      return run.isGreen ? 0 : 1;
+    },
     claim: () => act((ctx, board, me) => {
       const result = store.claim(board, idArg(first), { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx), head: headCommit(ctx.info.root) });
       io.say(`${result.renewed ? 'renewed' : 'claimed'} #${first} until ${result.leaseUntil}; criterion frozen as ${result.digest.slice(0, 12)}`);

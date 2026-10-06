@@ -747,3 +747,24 @@ test('spec check at an older commit skips ids that items cite from a later commi
   assert.match(ghost.out, /SPEC.md: G4 error: item #2 cites it, but it was never committed/);
   assert.doesNotMatch(ghost.out, /G3 error/);
 });
+
+test('check runs the item\'s own check command, yours by default, and prints a digest [N23]', () => {
+  const box = project();
+  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--check', 'test -f web/a.html || { echo "not ok 1 - web/a.html is missing"; exit 1; }');
+  box.run(box.repo, 'add', 'web', 'Loose', '--specs', 'G1');
+  assert.match(box.run(box.web, 'check').err, /NOT_HOLDING.*pullboard gate/);
+  box.run(box.web, 'claim', '1');
+  const red = box.run(box.web, 'check');
+  assert.equal(red.code, 1);
+  assert.match(red.out, /^check red in \d+s: test -f web\/a.html/);
+  assert.match(red.out, /\n {2}not ok 1 - web\/a.html is missing\n/);
+  mkdirSync(join(box.web, 'web'));
+  writeFileSync(join(box.web, 'web', 'a.html'), '<h1>Hi</h1>');
+  const green = box.run(box.web, 'check');
+  assert.equal(green.code, 0, green.out);
+  assert.match(green.out, /^check green in \d+s: test -f web\/a.html/);
+  assert.equal(green.out.split('\n').filter(Boolean).length, 1);
+  assert.equal(box.run(box.repo, 'check', '1').code, 1, 'named, from another checkout: there the file is missing');
+  assert.match(box.run(box.web, 'check', '2').err, /NO_CHECK.*#2 has no check command/);
+  assert.match(box.run(box.repo, 'help').out, /pullboard check \[id\]/);
+});

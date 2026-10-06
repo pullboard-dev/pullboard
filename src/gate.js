@@ -54,6 +54,21 @@ export function isStampedGreen(root) {
 }
 
 /**
+ * Run a shell command in a checkout for a digest: both streams in one pipe, in order, read whole
+ * however long, stdin closed so nothing waits on a person.
+ *
+ * @param {string} root
+ * @param {string} command
+ * @returns {{ isGreen: boolean, output: string, seconds: number }}
+ */
+export function runShell(root, command) {
+  const started = Date.now();
+  // Newlines, not spaces, around the command, so a trailing comment in it cannot swallow the `)`.
+  const result = spawnSync(`(\n${command}\n) 2>&1`, { cwd: root, shell: true, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', maxBuffer: 2 ** 30 });
+  return { isGreen: result.status === 0, output: `${result.stdout ?? ''}${result.stderr ?? ''}`, seconds: Math.round((Date.now() - started) / 1000) };
+}
+
+/**
  * Run the configured gate in the repo, unless this exact tree already passed. Its output, both
  * streams in order, is kept whole in the git dir and returned for a digest.
  *
@@ -67,17 +82,13 @@ export function runGate(root, config) {
   }
   if (isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
   const before = committedTree(root);
-  const started = Date.now();
-  // Newlines, not spaces, around the command, so a trailing comment in it cannot swallow the `)`.
-  const result = spawnSync(`(\n${config.gate}\n) 2>&1`, { cwd: root, shell: true, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', maxBuffer: 2 ** 30 });
-  const isGreen = result.status === 0;
-  const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+  const { isGreen, output, seconds } = runShell(root, config.gate);
   const log = gitPath(root, LOG);
   writeFileSync(log, output);
   if (isGreen && before !== null && committedTree(root) === before) {
     writeFileSync(gitPath(root, STAMP), `${before}\n`);
   }
-  return { isGreen, isCached: false, output, seconds: Math.round((Date.now() - started) / 1000), log };
+  return { isGreen, isCached: false, output, seconds, log };
 }
 
 /**
