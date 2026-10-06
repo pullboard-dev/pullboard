@@ -29,6 +29,12 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - B15 [approved, must] Escalate frees an item one tier up, its attempt pinned and its failure attached. | gate: test/board.test.js, test/e2e.test.js | serves: B13
 - B16 [draft, must] When only work above an agent's tier is open in its lane, next names it and the ways through. | gate: test/board.test.js | serves: B13
 
+## M · Machine
+- M1 [draft, must] One declaration holds every item state, move, guard and refusal; code, help and docs derive from it. | gate: test/machine.test.js
+- M2 [draft, must] Every way into a final state passes that state's exit guards, whatever command gets there. | gate: test/machine.test.js | serves: P1
+- M3 [draft, must] The board file refuses an undeclared move, and verified without an ACCEPT at the submitted commit. | gate: test/machine.test.js | serves: P1
+- M4 [draft, must] A property check proves the declaration: every state reachable, none a trap, every refusal naming a next step. | gate: test/machine.test.js | serves: M1
+
 ## V · Verification
 - V1 [approved, must] The builder never verifies its own work. | gate: test/board.test.js | serves: P1
 - V2 [approved, must] The criterion freezes at first claim: title, criterion and cited spec rows. | gate: test/board.test.js | serves: P1
@@ -42,6 +48,14 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - V10 [draft, must] Agents see a gate digest: one line when green, the failures when red; the full log stays in .git. | gate: test/e2e.test.js | serves: V4
 - V11 [draft, must] Submit refuses when the cited rows changed since claim, before a verifier spends a run on it. | gate: test/e2e.test.js | serves: V3
 - V12 [draft, must] Verify and escalate take --note-file, so a note reaches the board exactly as written. | gate: test/e2e.test.js | serves: V5
+- V13 [draft, must] Every verdict records the verifier's HEAD; show and the ledger flag a review made past the submitted commit. | gate: test/board.test.js | serves: V8
+- V14 [draft, must] The bar is the frozen criterion alone. The brief can change, so it guides building, never the verdict. | gate: test/practice.test.js | serves: V2
+
+## O · Options
+- O1 [draft, must] pullboard.json options switch declared guards on or off per repo; show and the view list them. | gate: test/machine.test.js | serves: M1
+- O2 [draft, aim] verify.family: off, prefer or require a verifier from a model family that built none of it. | gate: test/board.test.js | serves: V1
+- O3 [draft, aim] Agents declare their model family on joining; submissions and verdicts record it. | gate: test/board.test.js | serves: O2
+- O4 [draft, aim] verify.at: contains, today's rule, or exact, which refuses a verdict unless HEAD is the submitted commit. | gate: test/e2e.test.js | serves: V7
 
 ## L · Lanes
 - L1 [approved, must] Lanes live in pullboard.json: folders owned, spec prefixes, when it starts. | gate: test/lanes.test.js
@@ -60,6 +74,13 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - S8 [approved, must] Ids are permanent. Commit refuses a deleted row; spec check finds ids once committed or cited, now gone. | gate: test/e2e.test.js, test/spec.test.js
 - S9 [approved, must] A wont row stays with its id, out of the counts; nothing new may cite it. | gate: test/spec.test.js
 - S10 [draft, must] At an older commit, spec check skips ids that items cite and a later commit added. | gate: test/e2e.test.js | serves: S8
+- S11 [draft, must] A spec may hold products: a `# Product · Name` heading groups the sections under it. | gate: test/spec.test.js
+- S12 [draft, must] Lanes and items belong to the product of their spec prefixes and cited rows; nothing restates it. | gate: test/spec.test.js | serves: S11
+
+## D · Doctrine
+- D1 [draft, must] Doctrine has three scopes: system (every repo here), repo and lane; a narrower scope adds or overrides. | gate: test/practice.test.js | serves: S6
+- D2 [draft, must] A repo declines a system rule only with a wont row naming it; no rule drops silently. | gate: test/practice.test.js | serves: D1
+- D3 [draft, must] Agents, the context pack and the view see the merged doctrine, each rule labelled with its scope. | gate: test/e2e.test.js | serves: D1
 
 ## C · Commits
 - C1 [approved, must] Header: type(scope): subject [ids], 72 characters at most. | gate: test/hooks.test.js
@@ -110,6 +131,8 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - N25 [draft, must] Every wait pullboard suggests names its unit and fits one ten-minute tool call. | gate: test/e2e.test.js | serves: N13
 - N26 [draft, must] `pullboard view` serves every project's board on localhost, behind a per-session secret. | gate: test/e2e.test.js
 - N27 [draft, must] From the view, the person adds items, shouts and holds lanes; each runs the CLI command. | gate: test/e2e.test.js | serves: N26
+- N28 [draft, must] The view shows each product's progress: rows met, and items open, building and verified. | gate: test/e2e.test.js | serves: S11
+- N29 [draft, must] `pullboard why <path|id>`: the rows, doctrine and verified items behind it, rejections included. | gate: test/e2e.test.js
 
 ## H · Hosted
 - H1 [pending, aim] `pullboard sync` mirrors the local board to pullboard.dev for teams across machines.
