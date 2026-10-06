@@ -9,7 +9,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - P2 [approved, must] Works offline in any git repo. No account, no network. | gate: test/e2e.test.js
 - P3 [approved, must] Zero runtime dependencies. Node 22.13 or newer. | gate: test/package.test.js
 - P4 [approved, must] Every refusal names its rule and the next step. | gate: review
-- P5 [approved, must] The core names no model, inference engine or vendor and opens no network connection; agents meet it only through the agent contract. | gate: test/boundary.test.js
+- P5 [approved, must] The core names no model, inference engine or model vendor, and opens no network connection. | gate: test/boundary.test.js
 
 ## B · Board
 - B1 [approved, must] One SQLite file in the git common dir. Every worktree sees it; nothing is committed. | gate: test/e2e.test.js
