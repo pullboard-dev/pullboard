@@ -74,8 +74,8 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - S8 [approved, must] Ids are permanent. Commit refuses a deleted row; spec check finds ids once committed or cited, now gone. | gate: test/e2e.test.js, test/spec.test.js
 - S9 [approved, must] A wont row stays with its id, out of the counts; nothing new may cite it. | gate: test/spec.test.js
 - S10 [approved, must] At an older commit, spec check skips ids that items cite and a later commit added. | gate: test/e2e.test.js | serves: S8
-- S11 [draft, must] A spec may hold products: a `# Product · Name` heading groups the sections under it. | gate: test/spec.test.js
-- S12 [draft, must] Lanes and items belong to the product of their spec prefixes and cited rows; nothing restates it. | gate: test/spec.test.js | serves: S11
+- S11 [draft, must] pullboard.json names products, each a list of spec ids or section letters, as lanes list theirs. | gate: test/products.test.js
+- S12 [draft, must] Lanes and items belong to the product of their spec prefixes and cited rows; nothing restates it. | gate: test/products.test.js | serves: S11
 
 ## D · Doctrine
 - D1 [draft, must] Doctrine has three scopes: system (every repo here), repo and lane; a narrower scope adds or overrides. | gate: test/practice.test.js | serves: S6
