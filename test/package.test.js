@@ -13,10 +13,31 @@ const PACKAGE = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 /** Words after which a slash starts a regular expression rather than a division. */
 const BEFORE_REGEX = new Set(['return', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete', 'void', 'throw', 'case', 'do', 'else', 'yield', 'await']);
 
+/** Words whose parenthesis heads a statement, so a slash after its closing parenthesis starts a regular expression. */
+const CONTROL = new Set(['if', 'while', 'for', 'with']);
+
+/** Words after which a brace opens a block of statements, not an object. */
+const BLOCK_WORDS = new Set(['else', 'do', 'try', 'finally']);
+
+/**
+ * True when a brace after this token opens a block of statements; false when it opens an object.
+ *
+ * @param {string} token - The token before the brace, '' at the start of the file.
+ * @returns {boolean}
+ */
+function opensBlock(token) {
+  if (['', ')', '=>', ';', '{', '}'].includes(token) || BLOCK_WORDS.has(token)) return true;
+  return /^[\w$]+$/.test(token) && !BEFORE_REGEX.has(token);
+}
+
 /**
  * The source with every comment, and the inside of every string, template and regular expression,
  * blanked character for character: line breaks and quotes stay, and a string's inside becomes x's.
  * So an import found in the masked text is code, and sits where the source has it.
+ *
+ * Whether a slash divides or starts a regular expression depends on what came before it, so the
+ * masker tracks each open brace (a block, an object, or a template's expression) and each open
+ * parenthesis (an if, while, for or with head, or anything else).
  *
  * @param {string} source
  * @returns {string}
@@ -26,29 +47,30 @@ function maskLiterals(source) {
   const fill = (from, to, char) => {
     for (let index = from; index < to; index += 1) if (out[index] !== '\n') out[index] = char;
   };
-  const templates = [];
-  let depth = 0;
-  let previous = '';
+  const braces = [];
+  const parens = [];
+  let regexOK = true;
+  let last = '';
+  let before = '';
+  const took = (token, allowsRegex) => {
+    before = last;
+    last = token;
+    regexOK = allowsRegex;
+  };
   let at = source.startsWith('#!') ? source.indexOf('\n') : 0;
   if (at === -1) at = source.length;
   fill(0, at, ' ');
   const readTemplate = () => {
     const start = at;
-    while (at < source.length) {
-      if (source[at] === '\\') at += 2;
-      else if (source[at] === '`') break;
-      else if (source[at] === '$' && source[at + 1] === '{') break;
-      else at += 1;
-    }
+    while (at < source.length && source[at] !== '`' && !(source[at] === '$' && source[at + 1] === '{')) at += source[at] === '\\' ? 2 : 1;
     fill(start, at, ' ');
     if (source[at] === '$') {
-      templates.push(depth);
-      depth += 1;
-      previous = '{';
+      braces.push('template');
       at += 2;
+      took('${', true);
     } else {
-      previous = 'x';
       at += 1;
+      took('`', false);
     }
   };
   while (at < source.length) {
@@ -64,11 +86,11 @@ function maskLiterals(source) {
       while (end < source.length && source[end] !== char && source[end] !== '\n') end += source[end] === '\\' ? 2 : 1;
       fill(at + 1, end, 'x');
       at = end + 1;
-      previous = 'x';
+      took('"', false);
     } else if (char === '`') {
       at += 1;
       readTemplate();
-    } else if (char === '/' && (previous === '' || /[(,=:[!&|?{};+\-*%<>~^]/.test(previous) || BEFORE_REGEX.has(previous))) {
+    } else if (char === '/' && regexOK) {
       let end = at + 1;
       let inClass = false;
       while (end < source.length && source[end] !== '\n' && (inClass || source[end] !== '/')) {
@@ -78,21 +100,40 @@ function maskLiterals(source) {
       }
       fill(at + 1, end, ' ');
       at = end + 1;
-      previous = 'x';
-    } else if (char === '}' && templates.at(-1) === depth - 1) {
-      templates.pop();
-      depth -= 1;
-      at += 1;
-      readTemplate();
+      took('/', false);
     } else if (/[\w$]/.test(char)) {
       const word = /^[\w$]+/.exec(source.slice(at, at + 64))[0];
-      previous = word;
       at += word.length;
-    } else {
-      if (char === '{') depth += 1;
-      if (char === '}') depth -= 1;
-      if (!/\s/.test(char)) previous = char;
+      took(word, BEFORE_REGEX.has(word));
+    } else if (/\s/.test(char)) {
       at += 1;
+    } else if (char === '(') {
+      parens.push(CONTROL.has(last) || (last === 'await' && before === 'for'));
+      at += 1;
+      took('(', true);
+    } else if (char === ')') {
+      const control = parens.pop() ?? false;
+      at += 1;
+      took(')', control);
+    } else if (char === '{') {
+      braces.push(opensBlock(last) ? 'block' : 'object');
+      at += 1;
+      took('{', true);
+    } else if (char === '}') {
+      const kind = braces.pop();
+      at += 1;
+      if (kind === 'template') readTemplate();
+      else took('}', kind !== 'object');
+    } else if ((char === '+' || char === '-') && next === char) {
+      const postfix = !regexOK;
+      at += 2;
+      took(char + char, !postfix);
+    } else if (char === '=' && next === '>') {
+      at += 2;
+      took('=>', true);
+    } else {
+      at += 1;
+      took(char, char !== ']');
     }
   }
   return out.join('');
@@ -147,6 +188,12 @@ test('the import scan finds a package however it is imported, and nothing that i
     "const code = \"await import('left-pad')\";": [],
     "const quote = /'/g; const text = \"import fake from 'left-pad'\";": [],
     "export const FROM = 'from';": [],
+    "const x = {a:1} / await import('left-pad') / 2;": ['left-pad'],
+    'if (false) /import("left-pad")/.test("x");': [],
+    "for (const key of keys) /'/.test(key); const text = \"import('left-pad')\";": [],
+    "const half = count++ / 2; const pad = await import('left-pad');": ['left-pad'],
+    "function f() {} /'/.test(x); const pad = await import('left-pad');": ['left-pad'],
+    "const wrap = (a) => ({ b: a }) / 2; const pad = await import('left-pad');": ['left-pad'],
   };
   for (const [source, expected] of Object.entries(forms)) assert.deepEqual(importsIn(source), expected, source);
 });
