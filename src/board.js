@@ -1011,7 +1011,14 @@ export function nextFor(board, { agentId, lane, verify = false, runnable = false
     if (!waiting.length) return { item: entry, reasons: [], shared };
     reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
   }
-  if (!mine.length) reasons.push(idleReason(items, lane, routed));
+  if (!mine.length) {
+    // Work the agent's tier cannot take is not "nothing": name it and the way to unblock it (B16).
+    const above = listItems(board).filter((entry) => entry.item_status === 'open' && entry.item_lane === lane && !canTake(route, entry.item_route));
+    for (const entry of above) {
+      reasons.push(`#${entry.item_id} (${entry.item_route}) is open in the ${lane} lane, above the ${route} route you joined on: the coordinator reroutes it with pullboard edit ${entry.item_id} --route ${route}, or a stronger agent takes it`);
+    }
+    if (!above.length) reasons.push(idleReason(items, lane, routed));
+  }
   return { item: null, reasons };
 }
 

@@ -416,3 +416,12 @@ test('peeking shows the newest unread shouts and leaves them unread [N19]', () =
   store.inbox(board, 'web-1');
   assert.deepEqual(store.peekShouts(board, 'web-1'), []);
 });
+
+test('with only work above its tier open in its lane, next names it and the reroute [B16]', () => {
+  const light = store.register(board, { lane: 'web', path: '/repo-web-3', route: 'light' });
+  const strong = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Design the cache' });
+  assert.deepEqual(store.nextFor(board, { agentId: light, lane: 'web' }).reasons, [
+    `#${strong} (strong) is open in the web lane, above the light route you joined on: the coordinator reroutes it with pullboard edit ${strong} --route light, or a stronger agent takes it`,
+  ]);
+  assert.deepEqual(store.nextFor(board, { agentId: 'api-1', lane: 'api' }).reasons, ['no open items in the api lane']);
+});
