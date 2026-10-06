@@ -28,6 +28,11 @@ A board in `.git`, lanes, a spec, hooks and a gate, with Pullboard's protocol ru
 - **A must-row has to be testable without a guess.** A vague row ("overdue tasks are flagged") let a time-zone bug through; the decompose guide now asks for the exact comparison, word or format.
 - **Verifiers try the edges:** today, zero, empty, the limit.
 
+## Done in 0.5: from a real coordinator's week
+
+- **Ids are permanent.** A cut row had been deleted, and every commit that cited it lost its meaning. Now the commit refuses a deleted row, `spec check` finds ids once committed or cited and now gone, and a cut row is marked `wont` (won't build): kept, out of the counts, never cited again.
+- **A brief on every item, and a route.** A coordinator wanted local and cheaper models to take mechanical items cold. Items carry a brief (the files, the contract, the pattern, the proof), and `--route light` sends one to agents that joined on the light route; they cannot claim or verify anything else.
+
 ## Soon: 0.5.x, hardening from real builds
 
 Lessons from an eight-lane build and from running hosted Pullboard, each small on its own:

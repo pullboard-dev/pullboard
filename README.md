@@ -21,6 +21,8 @@ Pullboard makes "done" mean something:
 - **Rejected work comes back changed.** Resubmitting a rejected commit is refused.
 - **Agents stay in their lanes.** Pre-commit refuses changes outside a lane's folders, moves and deletes included.
 - **Every commit traces to the spec.** `feat` and `fix` commits cite the spec ids they serve, and the ids must exist.
+- **Ids are permanent.** A commit that deletes a spec row is refused, and `spec check` finds any id that history or the board cites and the spec has lost. A row the client cuts stays, marked `wont`, so every old reference keeps its meaning.
+- **Cheaper models get the work they can do.** The planner writes a brief for each item and routes mechanical items `light`. An agent that joins with `--route light` takes and verifies only those.
 
 ## Two specs: what, and how
 
