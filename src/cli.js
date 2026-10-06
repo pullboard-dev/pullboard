@@ -350,16 +350,19 @@ function dirtyFiles(root) {
 
 /**
  * The files an item's own commits changed since its claim (N21). First parents only, so main merged
- * into a lane branch is not counted as the item's work.
+ * into a lane branch is not counted as the item's work; and nothing another item submitted, such as
+ * a verified dependency fast-forwarded in, which merges no commit to skip.
  *
  * @param {string} root
+ * @param {number} id
  * @param {string | null} from
  * @param {string} to
  * @returns {string[]}
  */
-function filesSince(root, from, to) {
+function filesSince(root, id, from, to) {
   if (!from) return [];
-  const result = tryGit(root, ['log', '--first-parent', '--no-merges', '--format=', '--name-only', `${from}..${to}`]);
+  const others = [`--exclude=refs/pullboard/items/${id}/*`, '--glob=refs/pullboard/items/*'];
+  const result = tryGit(root, ['log', '--first-parent', '--no-merges', '--format=', '--name-only', to, '--not', from, ...others]);
   return result.status === 0 ? [...new Set(result.stdout.split('\n').filter(Boolean))].sort() : [];
 }
 
@@ -692,7 +695,7 @@ function submitHere(ctx, id) {
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
   const gate = runGate(root, ctx.config);
   if (!gate.isGreen) throw new Refused('GATE_RED', `the gate is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${gateReport(gate)}`);
-  withBoard(ctx, (board) => store.submit(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, claimHead, commit) }));
+  withBoard(ctx, (board) => store.submit(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit) }));
   const pin = `refs/pullboard/items/${id}/${commit.slice(0, 12)}`;
   git(root, ['update-ref', pin, commit]);
   ctx.io.say(`submitted #${id} at ${commit.slice(0, 12)}; ${gateReport(gate)}`);

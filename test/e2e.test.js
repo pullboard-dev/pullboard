@@ -768,3 +768,21 @@ test('check runs the item\'s own check command, yours by default, and prints a d
   assert.match(box.run(box.web, 'check', '2').err, /NO_CHECK.*#2 has no check command/);
   assert.match(box.run(box.repo, 'help').out, /pullboard check \[id\]/);
 });
+
+test('submit leaves a dependency fast-forwarded in out of the files it records [N21]', () => {
+  const box = project();
+  box.run(box.repo, 'add', 'web', 'Dependency', '--specs', 'G1');
+  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--after', '1');
+  const second = box.run(box.repo, 'worktree', 'web').out.match(/^made (\S+) /)[1];
+  box.run(box.web, 'claim', '1');
+  commitFile(box, box.web, 'web/dep.html', 'dep', 'feat(web): the dependency [G1]');
+  assert.equal(box.run(box.web, 'submit', '1').code, 0);
+  box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
+  assert.match(box.run(box.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'removed dep.html; the page broke').out, /verified #1/);
+  box.git(box.repo, 'switch', '-q', 'main');
+  box.run(second, 'claim', '2');
+  box.git(second, 'merge', '-q', '--ff-only', 'web/one');
+  commitFile(box, second, 'web/page.html', 'page', 'feat(web): the page [G1]');
+  assert.equal(box.run(second, 'submit', '2').code, 0);
+  assert.equal(JSON.parse(box.run(box.repo, 'show', '2', '--json').out).item_files, 'web/page.html');
+});
