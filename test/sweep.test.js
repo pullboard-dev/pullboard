@@ -24,6 +24,8 @@ test('reads TypeScript and file:line:col reports [N15]', () => {
     './api/server.py:4:1: F401 os imported but unused',
     'lib/util.py:9: error: Missing return statement  [return]',
     'web/a.js:2:1: no-var Unexpected var, use let or const.',
+    'src/a.js:3:1: camelcase Name variables in camelCase.',
+    'src/a.js:4:9: unexpected token here',
     '/repo/web/b.js:7:3: Expected === and instead saw ==. [Error/eqeqeq]',
     'Found 3 errors.',
     'warning: something without a place',
@@ -33,6 +35,8 @@ test('reads TypeScript and file:line:col reports [N15]', () => {
     { file: 'api/server.py', line: 4, col: 1, rule: 'F401', message: 'os imported but unused' },
     { file: 'lib/util.py', line: 9, col: 0, rule: 'return', message: 'Missing return statement' },
     { file: 'web/a.js', line: 2, col: 1, rule: 'no-var', message: 'Unexpected var, use let or const.' },
+    { file: 'src/a.js', line: 3, col: 1, rule: 'camelcase', message: 'Name variables in camelCase.' },
+    { file: 'src/a.js', line: 4, col: 9, rule: '', message: 'unexpected token here' },
     { file: 'web/b.js', line: 7, col: 3, rule: 'eqeqeq', message: 'Expected === and instead saw ==.' },
   ]);
 });

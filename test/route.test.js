@@ -8,6 +8,7 @@ import { featuresOf, routePlan } from '../src/run.js';
 test('an item is the kind its brief names, or the rules its sweep listed [N18]', () => {
   assert.deepEqual(featuresOf({ item_brief: 'Kind: wiring, test\nFiles:\n- a.js' }), ['test', 'wiring']);
   assert.deepEqual(featuresOf({ item_brief: 'Files:\n- a.js\nChange:\n- line 3:1 no-var: x\n- line 9 camelcase: y\n- line 12:2 no-var: z' }), ['camelcase', 'no-var']);
+  assert.deepEqual(featuresOf({ item_brief: 'Files:\n- a.js\nChange:\n- line 17:3: camelcase Name variables in camelCase.\n- line 9: Missing a semicolon' }), ['camelcase']);
   assert.deepEqual(featuresOf({ item_brief: 'Files:\n- a.js' }), ['unlabelled']);
 });
 
