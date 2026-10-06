@@ -12,13 +12,14 @@ import { runGate } from './gate.js';
 import { contains, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
   FIX_NOTE,
+  applyFixers,
   commitMsgProblems,
   installHooks,
   preCommitProblems,
   prePushProblems,
 } from './hooks.js';
 import { initRepo } from './init.js';
-import { isLane, laneNames } from './lanes.js';
+import { isLane, laneNames, outOfLane } from './lanes.js';
 import { Refused } from './refused.js';
 import { commitCitations, committedIds } from './history.js';
 import { promptFor } from './skills.js';
@@ -33,6 +34,8 @@ import {
   standings,
   unmetRows,
 } from './spec.js';
+import { briefFiles } from './brief.js';
+import { runItems } from './run.js';
 import { renderSpecView } from './view.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -51,11 +54,16 @@ Set up
 
 Work
   pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--parent <id>]
-                [--brief "..." | --brief-file <file>] [--route light]
+                [--brief "..." | --brief-file <file>] [--route light|mid]
                                         --after: claiming waits until those items are verified
                                         --brief: what a cold agent needs; --route light: any model can build it
-  pullboard edit <id> [--brief "..." | --brief-file <file>] [--route strong|light]
-  pullboard list [lane] [--all]         open and active items; --all adds verified and withdrawn
+                [--check "<command>"]  the command that proves it; with --criterion and a brief, needed below strong
+  pullboard edit <id> [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."]
+  pullboard escalate <id> --note "what was tried and how it failed"   hand it one tier up
+  pullboard run --agent "<command>" [--attempts 3] [--minutes 15] [--items N] [--wait M]
+                                        build routed items unattended in this worktree: the agent command reads
+                                        the context pack at $PULLBOARD_PACK; green work is submitted, red escalated
+  pullboard list [lane] [--all] [--route light|mid|strong]   open and active items; --all adds closed ones
   pullboard show <id>                   an item, the criterion frozen at claim, its verdicts
   pullboard next [--wait <minutes>]     claim the next item in your lane that is free to start
   pullboard next --verify               name the next submitted item you can check
@@ -104,6 +112,11 @@ const OPTIONS = {
   'brief-file': { type: 'string' },
   route: { type: 'string' },
   as: { type: 'string' },
+  check: { type: 'string' },
+  agent: { type: 'string' },
+  attempts: { type: 'string' },
+  minutes: { type: 'string' },
+  items: { type: 'string' },
   wait: { type: 'string' },
   verify: { type: 'boolean' },
   all: { type: 'boolean' },
@@ -187,6 +200,23 @@ function checkMainVerifier(ctx, board, values) {
 }
 
 /**
+ * A brief whose Files section stays inside the item's lane (B14), so a builder working from it
+ * never runs into the lane check: an item's files sit in its lane.
+ *
+ * @param {any} ctx
+ * @param {string} lane
+ * @param {string} brief
+ * @returns {string}
+ */
+function briefInLane(ctx, lane, brief) {
+  const foreign = outOfLane(ctx.config, lane, briefFiles(brief));
+  if (foreign.length) {
+    throw new Refused('BRIEF_LANE', `the brief names files outside the ${lane} lane: ${foreign.join(', ')}; split the item by lane, or wait on the other lane's item with --after`);
+  }
+  return brief;
+}
+
+/**
  * Print an item's brief, indented under a heading, when it has one.
  *
  * @param {any} io
@@ -265,7 +295,7 @@ function itemLine(item) {
   const parent = item.item_parent_id ? `  under #${item.item_parent_id}` : '';
   const after = item.item_after ? `  after ${item.item_after.split(',').map((id) => `#${id}`).join(',')}` : '';
   const rejected = item.item_status === 'open' && item.item_verdict === 'REJECT' ? ' (rejected)' : '';
-  const light = item.item_route === 'light' ? '  light' : '';
+  const light = item.item_route === 'strong' ? '' : `  ${item.item_route}`;
   return `#${item.item_id}  ${item.item_status}${holder}${verifier}${rejected}  ${item.item_lane}  ${item.item_title}${specs}${parent}${after}${light}`;
 }
 
@@ -370,7 +400,8 @@ function readCommands(io, { first, values }) {
     },
     list: () => {
       const ctx = context(io);
-      const items = withBoard(ctx, (board) => store.listItems(board, { lane: first, all: values.all }));
+      const items = withBoard(ctx, (board) => store.listItems(board, { lane: first, all: values.all }))
+        .filter((item) => !values.route || item.item_route === values.route);
       if (values.json) io.say(JSON.stringify(items, null, 2));
       else if (!items.length) io.say(values.all ? 'no items yet' : 'nothing open; --all shows closed items');
       else items.forEach((item) => io.say(itemLine(item)));
@@ -379,9 +410,10 @@ function readCommands(io, { first, values }) {
     show: () => {
       const ctx = context(io);
       const id = idArg(first);
-      const { item, verdicts } = withBoard(ctx, (board) => ({
+      const { item, verdicts, moves } = withBoard(ctx, (board) => ({
         item: store.getItem(board, id),
         verdicts: store.verdictsFor(board, id),
+        moves: store.events(board, { itemId: id }).filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
       }));
       if (values.json) {
         io.say(JSON.stringify({ ...item, verdicts }, null, 2));
@@ -389,7 +421,14 @@ function readCommands(io, { first, values }) {
       }
       io.say(itemLine(item));
       if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
+      if (item.item_check) io.say(`check: ${item.item_check}`);
       sayBrief(io, item.item_brief);
+      const attempts = moves.filter((event) => event.event_kind === 'attempt').map((event) => JSON.parse(event.event_detail).result);
+      if (attempts.length) io.say(`unattended attempts: ${attempts.join(', ')}`);
+      for (const event of moves.filter((entry) => entry.event_kind === 'escalate')) {
+        const detail = JSON.parse(event.event_detail);
+        io.say(`escalated ${detail.from} -> ${detail.to} by ${event.event_by}${detail.attempt ? `, pinned at ${detail.attempt}` : ''}: ${detail.note.split('\n')[0]}`);
+      }
       if (item.item_frozen) {
         const frozen = JSON.parse(item.item_frozen);
         io.say(`frozen at claim (${item.item_frozen_digest.slice(0, 12)}):`);
@@ -544,7 +583,7 @@ function nextOnce(ctx, values) {
   return withBoard(ctx, (board) => {
     if (values.verify) checkMainVerifier(ctx, board, values);
     const me = whoAmI(ctx, board);
-    const { item, reasons } = store.nextFor(board, { agentId: me.id, lane: me.lane, verify: values.verify });
+    const { item, reasons } = store.nextFor(board, { agentId: me.id, lane: me.lane, verify: values.verify, runnable: values.runnable });
     if (!item) return { reasons };
     if (values.verify) return { item };
     if (item.item_status === 'claimed') return { item, held: true };
@@ -586,6 +625,7 @@ async function nextHere(io, values) {
       } else {
         io.say(`${found.held ? 'you hold' : 'claimed'} #${item.item_id}: ${item.item_title}`);
         if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
+        if (item.item_check) io.say(`check: ${item.item_check}   (run it before you submit)`);
         for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${row.text}`);
         sayBrief(io, item.item_brief);
         io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id}`);
@@ -631,18 +671,36 @@ function workCommands(io, args) {
         specIds,
         parentId,
         after,
-        brief: briefArg(io, values) ?? '',
+        brief: briefInLane(ctx, first, briefArg(io, values) ?? ''),
         route: values.route ?? 'strong',
+        check: values.check ?? '',
       });
       io.say(`#${id}`);
       return 0;
     }),
     edit: () => act((ctx, board, me) => {
       const id = idArg(first);
-      store.editItem(board, id, { agentId: me.id, brief: briefArg(io, values), route: values.route });
+      const brief = briefArg(io, values);
+      store.editItem(board, id, {
+        agentId: me.id,
+        brief: brief === undefined ? undefined : briefInLane(ctx, store.getItem(board, id).item_lane, brief),
+        route: values.route,
+        criterion: values.criterion,
+        check: values.check,
+      });
       io.say(`edited #${id}`);
       return 0;
     }),
+    escalate: () => act((ctx, board, me) => {
+      const id = idArg(first);
+      const moved = store.escalate(board, id, { agentId: me.id, note: values.note ?? '' });
+      if (me.id !== COORDINATOR) {
+        store.shout(board, { from: me.id, to: COORDINATOR, text: `#${id} escalated ${moved.from} -> ${moved.to}: ${values.note}`, lanes: laneNames(ctx.config) });
+      }
+      io.say(`#${id} escalated ${moved.from} -> ${moved.to}; it is open for a ${moved.to} agent`);
+      return 0;
+    }),
+    run: () => runItems(io, values, { context, withBoard, whoAmI, nextOnce, submitHere, freezer }),
     next: () => nextHere(io, values),
     claim: () => act((ctx, board, me) => {
       const result = store.claim(board, idArg(first), { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx) });
@@ -802,6 +860,7 @@ async function hookCommand(io, { first, second }) {
   }
   let problems = [];
   if (first === 'pre-commit') {
+    applyFixers(info.root, ctx.config.fix).forEach((note) => io.err(`pullboard pre-commit: ${note}`));
     const agent = info.isMain ? null : withBoard(ctx, (board) => store.agentAt(board, info.root));
     problems = preCommitProblems({ root: info.root, isMain: info.isMain, config: ctx.config, agent });
   } else if (first === 'commit-msg') {

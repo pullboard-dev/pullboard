@@ -7,14 +7,16 @@ export const AGENTS_START = '<!-- pullboard:start -->';
 export const AGENTS_END = '<!-- pullboard:end -->';
 
 /**
- * The starting pullboard.json: the gate init detected, the spec, and no lanes yet.
+ * The starting pullboard.json: the gate and the fixers init detected, the spec, and no lanes yet.
  *
  * @param {string} gate
+ * @param {{ run: string, files: string[] }[]} [fix]
  * @returns {string}
  */
-export function configTemplate(gate) {
+export function configTemplate(gate, fix = []) {
   const config = {
     gate,
+    ...(fix.length ? { fix } : {}),
     spec: 'SPEC.md',
     practice: 'PRACTICE.md',
     verify: 'any',
@@ -122,7 +124,7 @@ This repo runs on pullboard: a work board, lanes and a spec that live in git. No
 
     pullboard worktree <lane>
 
-It prints the folder to work in and what to run there first. Work only in that folder. Your shell may start every command in the main checkout, where pullboard takes you for the coordinator, so begin each command with \`cd <your worktree> &&\`. Verifiers take the \`review\` lane, which owns no folders. A lighter model joins with \`--route light\` and takes only items routed light, each with a brief. Keep your worktree and branch until your items are merged.
+It prints the folder to work in and what to run there first. A smaller model joins with \`--route light\` or \`--route mid\` and takes items at its tier and below. Work only in that folder. Your shell may start every command in the main checkout, where pullboard takes you for the coordinator, so begin each command with \`cd <your worktree> &&\`. Verifiers take the \`review\` lane, which owns no folders. Keep your worktree and branch until your items are merged.
 
 **The loop.**
 1. \`pullboard inbox\`.
@@ -130,7 +132,7 @@ It prints the folder to work in and what to run there first. Work only in that f
 3. Build inside your lane's folders (\`pullboard lanes\`). Pre-commit refuses anything else; shout the owner instead.
 4. Commit, then \`pullboard submit <id>\`. It needs a clean tree and the gate green at HEAD.
 5. A different agent verifies: \`pullboard next --verify\` names the next item to check. It checks out the submitted commit and runs \`pullboard verify <id> accept --note "how it proved it"\`, or \`pullboard verify <id> reject --reason TEST_FAILURE --note "what failed"\`.
-6. A reject reopens the item. Fix it, commit, claim, submit again; the same head is refused.
+6. A reject reopens the item. Fix it, commit, claim, submit again; the same head is refused. If you cannot get an item green, do not force it: \`pullboard escalate <id> --note "what you tried and how it failed"\` hands it one tier up.
 7. Your lane is done when its items are verified, not when they are submitted. After your last submit, keep running \`pullboard next --wait 30\`: a rejected item comes back to your lane.
 
 The coordinator merges verified items into the main line; builders never merge.

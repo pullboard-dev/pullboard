@@ -32,6 +32,25 @@ export function detectGate(root) {
 }
 
 /**
+ * The fixers to start with (C5): prettier, when the repo already depends on it, on every file it
+ * understands. Only fast, deterministic fixers belong at commit time; slow ones stay in the gate.
+ *
+ * @param {string} root
+ * @returns {{ run: string, files: string[] }[]}
+ */
+export function detectFixers(root) {
+  const file = join(root, 'package.json');
+  if (!existsSync(file)) return [];
+  try {
+    const pkg = JSON.parse(readFileSync(file, 'utf8'));
+    const hasPrettier = Boolean(pkg?.devDependencies?.prettier ?? pkg?.dependencies?.prettier);
+    return hasPrettier ? [{ run: 'npx --no-install prettier --write --ignore-unknown', files: ['*'] }] : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * The gate the repo's config sets now, whoever wrote it, or empty when unreadable.
  *
  * @param {string} root
@@ -100,7 +119,7 @@ export function initRepo({ info, openBoardHere, register, closeBoard }) {
   const { root } = info;
   const gate = detectGate(root);
   const notes = [
-    writeNew(join(root, CONFIG_FILE), configTemplate(gate), CONFIG_FILE),
+    writeNew(join(root, CONFIG_FILE), configTemplate(gate, detectFixers(root)), CONFIG_FILE),
     writeNew(join(root, 'SPEC.md'), specTemplate(basename(root)), 'SPEC.md'),
     writeNew(join(root, 'PRACTICE.md'), practiceTemplate(), 'PRACTICE.md'),
     ...writeAgentDocs(root),

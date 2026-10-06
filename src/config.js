@@ -40,6 +40,7 @@ export function defaults() {
     verify: 'any',
     lanes: {},
     shared: [],
+    fix: [],
     commits: {
       types: [...COMMIT_TYPES],
       maxHeader: 72,
@@ -131,6 +132,10 @@ export function configProblems(config) {
     problems.push('"verify" is "any" (any other agent) or "coordinator"');
   }
   if (!isStringList(config.shared)) problems.push('"shared" is a list of path prefixes');
+  const isFixer = (fixer) => typeof fixer?.run === 'string' && fixer.run.trim() && (fixer.files === undefined || isStringList(fixer.files));
+  if (!Array.isArray(config.fix) || !config.fix.every(isFixer)) {
+    problems.push('"fix" is a list of { "run": "<command that fixes the files it is given>", "files": ["*.ts"] }');
+  }
   if (typeof config.lanes !== 'object' || config.lanes === null || Array.isArray(config.lanes)) {
     problems.push('"lanes" maps lane names to { owns, specs, starts }');
   } else {

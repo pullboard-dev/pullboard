@@ -3,6 +3,7 @@
  * its folders, no secret or env file is committed, and a push sends exactly what the gate checked.
  * Each check returns its problems; an empty list lets git go on.
  */
+import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { git, tryGit } from './git.js';
@@ -215,6 +216,48 @@ export function preCommitProblems({ root, isMain, config, agent }) {
     ...foreign.map((path) => `outside the ${agent.agent_lane} lane: ${path}; shout its owner instead`),
   );
   return problems;
+}
+
+/**
+ * A path quoted for the shell, whatever characters it holds.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+const shellQuote = (text) => `'${text.replace(/'/g, `'\\''`)}'`;
+
+/**
+ * Run the repo's fixers on the staged files they cover, and stage what they fixed (C5): a formatter
+ * is a deterministic tool, so no agent should spend a turn running it, and none should fail a gate
+ * on what a tool could have fixed. Only fully staged files are touched; fixing a partly staged one
+ * would stage the hunks its author left out. A fixer that fails stages nothing, and the gate reports
+ * what it could not fix.
+ *
+ * @param {string} root
+ * @param {{ run: string, files?: string[] }[]} fixers
+ * @returns {string[]} Notes for the person committing.
+ */
+export function applyFixers(root, fixers) {
+  if (!fixers.length) return [];
+  const { written } = stagedPaths(root);
+  const unstaged = new Set(git(root, ['diff', '--name-only', '-z']).split('\0').filter(Boolean));
+  const covers = (fixer, path) => (fixer.files ?? ['*']).some((pattern) => matchesPattern(pattern, path));
+  const notes = [];
+  for (const fixer of fixers) {
+    const files = written.filter((path) => covers(fixer, path) && !unstaged.has(path) && existsSync(join(root, path)));
+    if (!files.length) continue;
+    const result = spawnSync(`${fixer.run} ${files.map(shellQuote).join(' ')}`, {
+      cwd: root,
+      shell: true,
+      encoding: 'utf8',
+      timeout: 120_000,
+    });
+    if (result.status === 0) git(root, ['add', '--', ...files]);
+    else notes.push(`fixer "${fixer.run}" failed (${result.status ?? 'timed out'}); staged nothing from it, so the gate will name what it could not fix`);
+  }
+  const partly = written.filter((path) => unstaged.has(path) && fixers.some((fixer) => covers(fixer, path)));
+  if (partly.length) notes.push(`not fixed, because they are partly staged: ${partly.join(', ')}`);
+  return notes;
 }
 
 /**

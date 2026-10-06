@@ -201,11 +201,12 @@ export function idProblems(spec, ids) {
 }
 
 /**
- * The text an item is held to, and its digest (V2): its title, its criterion, and the current text
- * of every spec row it cites. Frozen at first claim; a verdict must match it.
+ * The text an item is held to, and its digest (V2): its title, its criterion, its check command when
+ * it has one, and the current text of every spec row it cites. Frozen at first claim; a verdict must
+ * match it.
  *
  * @param {ReturnType<typeof parseSpec>} spec
- * @param {{ item_title: string, item_criterion: string, item_spec_ids: string }} item
+ * @param {{ item_title: string, item_criterion: string, item_spec_ids: string, item_check?: string }} item
  * @returns {{ text: string, digest: string }}
  */
 export function frozenCriterion(spec, item) {
@@ -216,7 +217,8 @@ export function frozenCriterion(spec, item) {
     const row = spec.rows.find((entry) => entry.id === id);
     return { id, text: row.text, gate: row.gate };
   });
-  const text = JSON.stringify({ title: item.item_title, criterion: item.item_criterion, rows });
+  const check = item.item_check ? { check: item.item_check } : {};
+  const text = JSON.stringify({ title: item.item_title, criterion: item.item_criterion, ...check, rows });
   return { text, digest: createHash('sha256').update(text).digest('hex') };
 }
 

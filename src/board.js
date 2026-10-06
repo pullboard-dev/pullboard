@@ -9,17 +9,29 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { briefFiles, briefSections } from './brief.js';
 import { COORDINATOR } from './config.js';
 import { Refused } from './refused.js';
 
 export const ACCEPT_REASON = 'CRITERION_MET';
 
 /**
- * Who can take an item (B11): `strong` needs a frontier model's judgment; `light` is work any model
- * can build from its brief. An agent's route is set when it joins.
+ * Who can take an item (B13), as tiers in order of the model an item needs: `light` is work a small
+ * or local model can build from its brief, `mid` needs a capable model such as Haiku or Sonnet, and
+ * `strong` needs a frontier model's judgment. An agent's route is set when it joins; it takes items
+ * at its tier and below.
  */
-export const ROUTES = ['strong', 'light'];
+export const ROUTES = ['light', 'mid', 'strong'];
 const BRIEF_LIMIT = 8000;
+
+/**
+ * True when an agent on `agentRoute` may build or verify an item routed `itemRoute`.
+ *
+ * @param {string} agentRoute
+ * @param {string} itemRoute
+ * @returns {boolean}
+ */
+export const canTake = (agentRoute, itemRoute) => ROUTES.indexOf(itemRoute) <= ROUTES.indexOf(agentRoute);
 export const REJECT_REASONS = [
   'TEST_FAILURE',
   'BEHAVIOR_MISMATCH',
@@ -52,6 +64,7 @@ const SCHEMA = `
     item_after TEXT NOT NULL DEFAULT '',
     item_brief TEXT NOT NULL DEFAULT '',
     item_route TEXT NOT NULL DEFAULT 'strong',
+    item_check TEXT NOT NULL DEFAULT '',
     item_status TEXT NOT NULL DEFAULT 'open',
     item_owner TEXT,
     item_lease_until TEXT,
@@ -129,6 +142,7 @@ function migrate(db) {
     ['item', 'item_after', "TEXT NOT NULL DEFAULT ''"],
     ['item', 'item_brief', "TEXT NOT NULL DEFAULT ''"],
     ['item', 'item_route', "TEXT NOT NULL DEFAULT 'strong'"],
+    ['item', 'item_check', "TEXT NOT NULL DEFAULT ''"],
     ['agent', 'agent_route', "TEXT NOT NULL DEFAULT 'strong'"],
   ];
   for (const [table, column, type] of added) {
@@ -256,8 +270,8 @@ export function agentAt(board, path) {
 
 /**
  * Register a worktree as an agent (B3): the main checkout as the one coordinator, any other
- * worktree as the next agent in its lane (`web-1`, `web-2`, ...), on a route: strong, or light for
- * a model that takes only items routed light (B11). Registering again is a no-op.
+ * worktree as the next agent in its lane (`web-1`, `web-2`, ...), on a route: the tier of model
+ * behind it, which decides the items it may take (B13). Registering again is a no-op.
  *
  * @param {any} board
  * @param {{ lane: string, path: string, route?: string }} who
@@ -333,23 +347,31 @@ export function listAgents(board) {
  */
 function checkRoute(route) {
   if (!ROUTES.includes(route)) {
-    throw new Refused('BAD_ROUTE', `route "${route}" is strong (needs a frontier model) or light (any model can build it from the brief)`);
+    throw new Refused('BAD_ROUTE', `route "${route}" is light (a small or local model can build it from the brief), mid (a capable model) or strong (a frontier model)`);
   }
 }
 
 /**
- * Refuse a brief that cannot do its job (B10): too long to read cold, or missing on an item routed
- * light, where the brief is all a light model has to go on.
+ * Refuse an item a lighter model could not build cold (B10, B14). Any brief stays short enough to
+ * read. Below the strong route the item needs all of it: a criterion, a check command that proves
+ * it, and a brief naming the files and the test.
  *
- * @param {string} brief
- * @param {string} route
+ * @param {{ brief: string, route: string, criterion: string, check: string }} item
  */
-function checkBrief(brief, route) {
+function checkRouted({ brief, route, criterion, check }) {
   if (brief.length > BRIEF_LIMIT) {
     throw new Refused('BRIEF_TOO_LONG', `the brief is ${brief.length} characters; keep it under ${BRIEF_LIMIT} and point to longer docs by path`);
   }
-  if (route === 'light' && !brief.trim()) {
-    throw new Refused('NO_BRIEF', 'an item routed light carries a brief: the files, the contract, the pattern to copy and the command that proves it (--brief or --brief-file)');
+  if (route === 'strong') return;
+  const sections = briefSections(brief);
+  const missing = [
+    ...(briefFiles(brief).length ? [] : ['a brief with a Files: section naming the paths to touch']),
+    ...(sections.test?.length ? [] : ['a Test: section saying what the test asserts']),
+    ...(criterion.trim() ? [] : ['--criterion, saying when it is done']),
+    ...(check.trim() ? [] : ['--check, the command that proves it']),
+  ];
+  if (missing.length) {
+    throw new Refused('NO_BRIEF', `an item routed ${route} must be buildable cold; it needs ${missing.join(', ')}`);
   }
 }
 
@@ -373,11 +395,11 @@ function routeOf(board, agentId) {
  * @param {{ by: string, lane: string, title: string, criterion?: string, specIds?: string[], parentId?: number | null, after?: number[], brief?: string, route?: string }} item
  * @returns {number} The new item's id.
  */
-export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong' }) {
+export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong', check = '' }) {
   const cleanTitle = title.trim();
   if (!cleanTitle) throw new Refused('NO_TITLE', 'an item needs a title');
   checkRoute(route);
-  checkBrief(brief.trim(), route);
+  checkRouted({ brief: brief.trim(), route, criterion, check });
   return atomic(board, () => {
     if (parentId !== null) {
       const parent = itemById(board, parentId);
@@ -397,10 +419,10 @@ export function addItem(board, { by, lane, title, criterion = '', specIds = [], 
     const result = board.db
       .prepare(
         `INSERT INTO item (item_parent_id, item_lane, item_title, item_criterion, item_spec_ids,
-           item_after, item_brief, item_route, item_created_by, item_created_at, item_updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           item_after, item_brief, item_route, item_check, item_created_by, item_created_at, item_updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(parentId, lane, cleanTitle, criterion.trim(), specIds.join(','), after.join(','), brief.trim(), route, by, at, at);
+      .run(parentId, lane, cleanTitle, criterion.trim(), specIds.join(','), after.join(','), brief.trim(), route, check.trim(), by, at, at);
     const id = Number(result.lastInsertRowid);
     logEvent(board, by, 'add', id, { lane, specIds, after, route });
     return id;
@@ -408,17 +430,19 @@ export function addItem(board, { by, lane, title, criterion = '', specIds = [], 
 }
 
 /**
- * Change an item's brief or route (B10, B11): how to build it and who can, never what it must do;
- * the criterion moves only by refreeze. The coordinator or the agent that added it may edit, until
- * it is verified or withdrawn; the route only while nobody holds it.
+ * Change an item's brief, route, criterion or check (B10, B13, B14). The brief says how to build it
+ * and may change until the item is verified or withdrawn. The route, the criterion and the check
+ * change only while nobody holds the item; changing the criterion or the check drops the frozen
+ * bar, so the next claim freezes the new one, in the log for anyone to see. The coordinator or the
+ * agent that added the item may edit it.
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, brief?: string, route?: string }} change
+ * @param {{ agentId: string, brief?: string, route?: string, criterion?: string, check?: string }} change
  */
-export function editItem(board, id, { agentId, brief, route }) {
-  if (brief === undefined && route === undefined) {
-    throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file> or --route strong|light');
+export function editItem(board, id, { agentId, brief, route, criterion, check }) {
+  if ([brief, route, criterion, check].every((value) => value === undefined)) {
+    throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "..." or --check "<command>"');
   }
   atomic(board, () => {
     const item = current(board, itemById(board, id));
@@ -428,19 +452,69 @@ export function editItem(board, id, { agentId, brief, route }) {
     if (['verified', 'withdrawn'].includes(item.item_status)) {
       throw new Refused('CLOSED', `item #${id} is ${item.item_status}`);
     }
-    const nextRoute = route ?? item.item_route;
-    const nextBrief = brief === undefined ? item.item_brief : brief.trim();
-    checkRoute(nextRoute);
-    if (nextRoute !== item.item_route && item.item_status !== 'open') {
-      throw new Refused('HELD', `item #${id} is ${item.item_status}; change its route only while it is open`);
+    const next = {
+      item_brief: brief === undefined ? item.item_brief : brief.trim(),
+      item_route: route ?? item.item_route,
+      item_criterion: criterion === undefined ? item.item_criterion : criterion.trim(),
+      item_check: check === undefined ? item.item_check : check.trim(),
+    };
+    checkRoute(next.item_route);
+    const moved = ['item_route', 'item_criterion', 'item_check'].filter((key) => next[key] !== item[key]);
+    if (moved.length && item.item_status !== 'open') {
+      throw new Refused('HELD', `item #${id} is ${item.item_status}; change its route, criterion or check only while it is open`);
     }
-    checkBrief(nextBrief, nextRoute);
-    setItem(board, id, { item_brief: nextBrief, item_route: nextRoute });
+    checkRouted({ brief: next.item_brief, route: next.item_route, criterion: next.item_criterion, check: next.item_check });
+    const unfreeze = next.item_criterion !== item.item_criterion || next.item_check !== item.item_check;
+    setItem(board, id, { ...next, ...(unfreeze ? { item_frozen: null, item_frozen_digest: null } : {}) });
     logEvent(board, agentId, 'edit', id, {
-      ...(nextBrief !== item.item_brief ? { brief: `${nextBrief.length} characters` } : {}),
-      ...(nextRoute !== item.item_route ? { route: nextRoute } : {}),
+      ...(next.item_brief !== item.item_brief ? { brief: `${next.item_brief.length} characters` } : {}),
+      ...(next.item_route !== item.item_route ? { route: next.item_route } : {}),
+      ...(next.item_criterion !== item.item_criterion ? { criterion: next.item_criterion } : {}),
+      ...(next.item_check !== item.item_check ? { check: next.item_check } : {}),
+      ...(unfreeze && item.item_frozen_digest ? { unfrozen: item.item_frozen_digest } : {}),
     });
   });
+}
+
+/**
+ * Hand an item one tier up (B15): its builder could not get it green, so it goes back open, routed
+ * to the next stronger model, with what was tried pinned and why it failed in the log. A strong
+ * item stays strong and goes back to the coordinator's attention.
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {{ agentId: string, note: string, attempt?: string }} why
+ * @returns {{ from: string, to: string }}
+ */
+export function escalate(board, id, { agentId, note, attempt = '' }) {
+  if (!note.trim()) throw new Refused('NOTE_REQUIRED', 'say what was tried and how it failed: --note "..."');
+  return atomic(board, () => {
+    const item = current(board, itemById(board, id));
+    const isHolder = item.item_status === 'claimed' && item.item_owner === agentId;
+    if (!isHolder && agentId !== COORDINATOR) {
+      throw new Refused('NOT_YOURS', `item #${id} is not claimed by you; only its holder or the coordinator escalates it`);
+    }
+    if (!['open', 'claimed'].includes(item.item_status)) {
+      throw new Refused('CLOSED', `item #${id} is ${item.item_status}; escalate open or claimed work only`);
+    }
+    const from = item.item_route;
+    const to = ROUTES[Math.min(ROUTES.indexOf(from) + 1, ROUTES.length - 1)];
+    setItem(board, id, { item_route: to, item_status: 'open', item_owner: null, item_lease_until: null });
+    logEvent(board, agentId, 'escalate', id, { from, to, note: note.trim(), ...(attempt ? { attempt } : {}) });
+    return { from, to };
+  });
+}
+
+/**
+ * Record one unattended attempt at an item (A11): which try, how long, and how it ended, so each
+ * route's record shows whether its tier pays.
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {{ agentId: string, n: number, seconds: number, result: string }} attempt
+ */
+export function recordAttempt(board, id, { agentId, n, seconds, result }) {
+  logEvent(board, agentId, 'attempt', id, { n, seconds, result });
 }
 
 /**
@@ -471,8 +545,9 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze }) {
           : `item #${id} is in the ${item.item_lane} lane; you are in ${lane}`,
       );
     }
-    if (item.item_route !== 'light' && routeOf(board, agentId) === 'light') {
-      throw new Refused('ROUTE', `item #${id} needs a strong model; you joined on the light route. Take the next light item: pullboard next`);
+    const route = routeOf(board, agentId);
+    if (!canTake(route, item.item_route)) {
+      throw new Refused('ROUTE', `item #${id} needs a ${item.item_route} model; you joined on the ${route} route. Take your next item: pullboard next`);
     }
     for (const dependency of item.item_after ? item.item_after.split(',').map(Number) : []) {
       const before = itemById(board, dependency);
@@ -583,7 +658,7 @@ export function submit(board, id, { agentId, commit, tree }) {
  * Who may verify an item, as a refusal when `agentId` may not (V1).
  *
  * The builder never may. Under `verify: "coordinator"`, lane work is the coordinator's to verify,
- * and the coordinator's own work is any other agent's. A light agent verifies light items only.
+ * and the coordinator's own work is any other agent's. An agent verifies items at its tier or below.
  *
  * @param {any} board
  * @param {any} item
@@ -594,8 +669,9 @@ function checkVerifier(board, item, agentId, policy) {
   if (item.item_built_by === agentId) {
     throw new Refused('SELF_VERIFY', 'the builder never verifies its own work; another agent must');
   }
-  if (item.item_route !== 'light' && routeOf(board, agentId) === 'light') {
-    throw new Refused('ROUTE', `item #${item.item_id} needs a strong verifier; you joined on the light route`);
+  const route = routeOf(board, agentId);
+  if (!canTake(route, item.item_route)) {
+    throw new Refused('ROUTE', `item #${item.item_id} needs a ${item.item_route} verifier; you joined on the ${route} route`);
   }
   if (policy === COORDINATOR && item.item_lane !== COORDINATOR && agentId !== COORDINATOR) {
     throw new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work');
@@ -875,27 +951,33 @@ export function events(board, { itemId } = {}) {
 
 /**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
- * dependencies are verified; for a verifier, the oldest submitted item it did not build. A light
- * agent sees only items routed light; a strong one takes strong items first, leaving light work for
- * light models while there is any (B11). When nothing is free, the reasons say what everything is
- * waiting on.
+ * dependencies are verified; for a verifier, the oldest submitted item it did not build. An agent
+ * sees items at its tier and below, its own tier first, so lighter work waits for lighter models
+ * while there is heavier work to do (B13). When nothing is free, the reasons say what everything
+ * is waiting on.
+ *
+ * With `runnable`, only items that carry a check command, which an unattended runner needs.
  *
  * @param {any} board
- * @param {{ agentId: string, lane: string, verify?: boolean }} who
+ * @param {{ agentId: string, lane: string, verify?: boolean, runnable?: boolean }} who
  * @returns {{ item: any | null, reasons: string[] }}
  */
-export function nextFor(board, { agentId, lane, verify = false }) {
-  const isLight = routeOf(board, agentId) === 'light';
-  const items = listItems(board).reverse().filter((entry) => !isLight || entry.item_route === 'light');
-  const routed = isLight ? 'light ' : '';
+export function nextFor(board, { agentId, lane, verify = false, runnable = false }) {
+  const route = routeOf(board, agentId);
+  const tier = (entry) => ROUTES.indexOf(entry.item_route);
+  const items = listItems(board)
+    .reverse()
+    .filter((entry) => canTake(route, entry.item_route) && (!runnable || entry.item_check))
+    .sort((first, second) => tier(second) - tier(first));
+  const tiers = route === 'strong' ? '' : `${ROUTES.slice(0, ROUTES.indexOf(route) + 1).reverse().join(' or ')} `;
+  const routed = `${tiers}${runnable ? 'runnable ' : ''}`;
   if (verify) {
     const item = items.find((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId) ?? null;
     return { item, reasons: item ? [] : [`nothing ${routed}submitted that you did not build`] };
   }
   const held = items.find((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null);
   if (held) return { item: held, reasons: [] };
-  const open = items.filter((entry) => entry.item_status === 'open' && entry.item_lane === lane);
-  const mine = [...open.filter((entry) => entry.item_route !== 'light'), ...open.filter((entry) => entry.item_route === 'light')];
+  const mine = items.filter((entry) => entry.item_status === 'open' && entry.item_lane === lane);
   const reasons = [];
   for (const entry of mine) {
     const waiting = (entry.item_after ? entry.item_after.split(',').map(Number) : [])

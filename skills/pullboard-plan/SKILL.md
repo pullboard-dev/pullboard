@@ -13,8 +13,24 @@ You turn approved rows into items builders can claim. You do not build.
    - sits in the lane that owns its files
    - cites with `--specs` only the rows it meets in full; a verifier rejects an item that cites a row it does not meet
    - has a `--criterion` a stranger could check without asking you, with the exact command, input and expected output
-   - has a `--brief` (or `--brief-file`) when a builder starting cold would need more than the criterion: the files to touch, the contract to follow, the pattern to copy, the command that proves it. The criterion says what; the brief says how.
-4. **Route the mechanical work light.** When the brief says exactly what to change, where, and how to prove it, a lighter model can build it: `--route light`. Leave on the default strong route anything that needs judgment: a shared contract, a design choice, an edge the brief cannot settle. Agents that join with `--route light` take only light items; strong agents take strong items first.
+   - has a `--brief` (or `--brief-file`) when a builder starting cold would need more than the criterion. The criterion says what; the brief says how. Write it in four labelled parts:
+
+     ```
+     Files:
+     - src/store.js
+     - test/store.test.js
+     Change:
+     - add(text) returns the new task's number; numbers start at 1 and are never reused
+     Test:
+     - in test/store.test.js, two adds return 1 and 2, and a remove then an add returns 3
+     Out of scope: every other file; no git commands; no new dependencies
+     ```
+   - has a `--check` when it can: the one command that proves it, such as `node --test test/store.test.js`.
+4. **Route each item to the cheapest model that can build it.** Every item an expensive model builds that a cheaper one could have is waste.
+   - `--route light`: a small or local model can build it from the brief alone. Mechanical work: wiring, a field through three files, a test for a stated case, a rename.
+   - `--route mid`: a capable model such as Haiku or Sonnet: a small feature, a bug with a known cause.
+   - Leave on the default strong route what needs judgment: a shared contract, a design choice, an edge the brief cannot settle.
+   - Below strong, an item needs `--criterion`, `--check`, and a brief whose Files sit in the item's lane and whose Test says what it asserts; `add` refuses it otherwise. Agents take their own tier first, then lighter ones; a builder that cannot get an item green escalates it one tier up.
 5. **Order with `--after`.** An item that needs another's result waits for it. Keep the chains short; parallel lanes are the point.
 6. **Simplest version first.** Plan the smallest thing that meets the rows. Every addition needs a row that asks for it.
 7. **Real inputs early.** If the project has real inputs (files, an API, data), plan an early item that runs on them, so surprises surface before everything else is built.
