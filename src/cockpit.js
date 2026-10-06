@@ -349,11 +349,12 @@ function render() {
   }
   const q = $('q').value.trim().toLowerCase();
   const lane = $('lane-filter').value;
-  // Each chip counts what it would show under the lane and the search.
-  const matching = items
+  // Each chip counts what it would show under the lane and the search. A search looks through every
+  // state, withdrawn items included; browsing leaves those out.
+  const matching = (q ? p.items : items)
     .filter((i) => !lane || i.lane === lane)
     .filter((i) => !q || ('#' + i.id + ' ' + i.title + ' ' + i.specs.join(' ') + ' ' + (i.criterion || '')).toLowerCase().includes(q));
-  const inState = (s) => (i) => s === 'all' || (s === 'active' ? stateOf(i) !== 'verified' : stateOf(i) === s);
+  const inState = (s) => (i) => s === 'all' || (s === 'active' ? !['verified', 'withdrawn'].includes(stateOf(i)) : stateOf(i) === s);
   const names = { active: 'Active', open: 'Open', building: 'Building', verify: 'To verify', back: 'Sent back', verified: 'Verified', all: 'All' };
   $('state-chips').innerHTML = Object.keys(names).map((s) => '<button data-state="' + s + '" class="' + (view.state === s ? 'on' : '') + '" type="button">' + names[s] + '<b>' + matching.filter(inState(s)).length + '</b></button>').join('');
   const shown = matching.filter(inState(view.state)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -383,10 +384,14 @@ function render() {
       + '<div class="links"><button data-shout="' + esc(item.lane) + '" data-about="' + item.id + '" type="button">Shout the ' + esc(item.lane) + ' lane about #' + item.id + '</button><button data-new type="button">New item</button></div></div>';
   }
 
-  // A #id in a shout opens that item. The text is escaped first, so the match skips the '#' that
-  // starts an entity such as &#39;, and a number that names no item stays text.
+  // Every #id in a shout that names an item opens it, whatever stands next to it. The ids are found in
+  // the raw text and each piece is escaped on its own, so an apostrophe's &#39; is never read as one;
+  // a number that names no item stays text.
   const titles = new Map(p.items.map((i) => [String(i.id), i.title]));
-  const linked = (text) => esc(text).replace(/(^|[^&\\w])#(\\d+)\\b/g, (whole, before, id) => titles.has(id) ? before + '<button class="ref" data-go="item:' + id + '" title="' + esc(titles.get(id)) + '" type="button">#' + id + '</button>' : whole);
+  const linked = (text) => String(text ?? '').split(/(#\\d+)/).map((part) => {
+    const id = /^#\\d+$/.test(part) ? String(Number(part.slice(1))) : '';
+    return titles.has(id) ? '<button class="ref" data-go="item:' + id + '" title="' + esc(titles.get(id)) + '" type="button">' + esc(part) + '</button>' : esc(part);
+  }).join('');
   $('feed').innerHTML = p.shouts.length ? p.shouts.map((x) => '<div><time>' + clock(x.shout_at) + '</time><div><b>' + esc(x.shout_from) + ' → ' + esc(x.shout_to) + '</b> ' + linked(x.shout_text) + '</div></div>').join('') : '<div class="empty">No shouts yet.</div>';
   $('shout-targets').innerHTML = ['all', ...lanes, ...p.agents.map((a) => a.agent_id)].map((t) => '<option value="' + esc(t) + '">').join('');
   $('agents').innerHTML = p.agents.length ? p.agents.map((a) => '<div class="agent"><b>' + esc(a.agent_id) + '</b><span class="muted">' + esc(a.agent_lane) + ' lane · ' + esc(a.agent_route) + '</span><small>' + esc(a.agent_path) + '</small></div>').join('') : '<div class="empty">No agents yet.</div>';

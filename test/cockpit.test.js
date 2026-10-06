@@ -418,7 +418,10 @@ test('shout ids, search and narrow windows reach the item [N26]', async () => {
   accept(box, p, 2);
   // Item 39 exists, so an escaped apostrophe (&#39;) read as an id would turn into a link.
   for (let id = 3; id <= 39; id += 1) box.run(p.repo, 'add', 'web', `Filler ${id}`, '--specs', 'G1', '--criterion', 'fills');
+  box.run(p.repo, 'add', 'web', 'Retired widget', '--specs', 'G1', '--criterion', 'retires');
+  box.run(p.repo, 'withdraw', '40', 'nobody needs the widget');
   box.run(p.web, 'shout', 'coordinator', "#1 is next; #2 shipped (#99 is not an item) and it's done");
+  box.run(p.web, 'shout', 'coordinator', "#7, see#7 and #7#8: it's 5 o'clock");
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -432,12 +435,22 @@ test('shout ids, search and narrow windows reach the item [N26]', async () => {
     await page.type('q', '');
     assert.equal(page.run('view.state'), 'active', 'clearing the search brings the chip back');
     assert.doesNotMatch(page.show('chain'), /Farewell banner/);
+    assert.doesNotMatch(page.show('chain'), /Retired widget/, 'browsing leaves withdrawn items out');
+    await page.type('q', 'retired widget');
+    const found = itemRow(page.show('chain'), 40);
+    assert.match(found, /Retired widget/, 'a search finds the withdrawn item too');
+    assert.match(found, /<span class="chip ">withdrawn<\/span>/);
+    assert.match(page.show('state-chips'), /All<b>1<\/b>/);
+    assert.match(page.show('state-chips'), /Active<b>0<\/b>/, 'a withdrawn item is not active');
+    await page.type('q', '');
 
     const feed = page.show('feed');
     assert.ok(feed.includes('<button class="ref" data-go="item:1" title="Greeting" type="button">#1</button> is next;'), feed);
     assert.ok(feed.includes('<button class="ref" data-go="item:2" title="Farewell banner" type="button">#2</button> shipped'));
     assert.ok(feed.includes('(#99 is not an item) and it&#39;s done'), 'no link for a missing item, and the apostrophe stays intact');
-    assert.equal(feed.match(/class="ref"/g).length, 2);
+    const ref = (id, title) => `<button class="ref" data-go="item:${id}" title="${title}" type="button">#${id}</button>`;
+    assert.ok(feed.includes(`${ref(7, 'Filler 7')}, see${ref(7, 'Filler 7')} and ${ref(7, 'Filler 7')}${ref(8, 'Filler 8')}: it&#39;s 5 o&#39;clock`), 'every #id links, whatever stands next to it');
+    assert.equal(feed.match(/class="ref"/g).length, 6);
     await page.click({ go: 'item:2', classes: 'ref' });
     assert.equal(page.run('view.tab'), 'items', 'the link opens the Items tab');
     assert.match(page.show('detail'), /<h2><span>#2<\/span>Farewell banner<\/h2>/, 'on that item');
