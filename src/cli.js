@@ -2,8 +2,9 @@
  * The pullboard command line: every command, bound to who is asking (B3). The main checkout is the
  * coordinator; every other worktree is the agent that joined from it.
  */
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import * as store from './board.js';
 import { COORDINATOR, loadConfig } from './config.js';
@@ -18,6 +19,7 @@ import {
 import { initRepo } from './init.js';
 import { isLane, laneNames } from './lanes.js';
 import { Refused } from './refused.js';
+import { promptFor } from './skills.js';
 import {
   frozenCriterion,
   idProblems,
@@ -28,6 +30,7 @@ import {
   standings,
   unmetRows,
 } from './spec.js';
+import { renderSpecView } from './view.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
@@ -62,7 +65,12 @@ Receipts
   pullboard log [id]                    every move, in order
 
 Spec
-  pullboard spec check | show <id> | unmet [--must] | signoff <ids> --by <initials>
+  pullboard spec check                  lint SPEC.md and PRACTICE.md
+  pullboard spec view [--out file]      the spec, open questions, sign-offs and practice as one page
+  pullboard spec show <id> | unmet [--must] | signoff <ids> --by <initials>
+
+Role guides
+  pullboard prompt decompose|signoff|review|verify   how to do each role; Claude Code gets them as skills
 
 Gate and hooks
   pullboard gate                        run the configured gate
@@ -78,6 +86,7 @@ const OPTIONS = {
   reason: { type: 'string' },
   note: { type: 'string' },
   by: { type: 'string' },
+  out: { type: 'string' },
   all: { type: 'boolean' },
   must: { type: 'boolean' },
   json: { type: 'boolean' },
@@ -472,14 +481,36 @@ function specCommand(io, { first, second, rest, values }) {
   const ctx = context(io);
   const spec = loadSpec(ctx.info.root, ctx.config);
   if (!spec.exists) throw new Refused('NO_SPEC', `no ${ctx.config.spec}; run: pullboard init`);
+  const practice = loadSpec(ctx.info.root, { ...ctx.config, spec: ctx.config.practice });
   if (first === 'check' || first === undefined) {
-    const findings = lintSpec(spec);
-    findings.forEach((finding) => io.say(`${ctx.config.spec}:${finding.line} ${finding.id ?? ''} ${finding.level}: ${finding.message}`.replace('  ', ' ')));
-    const errors = findings.filter((finding) => finding.level === 'error').length;
-    io.say(`${spec.rows.length} rows, ${errors} errors, ${findings.length - errors} warnings`);
+    const files = [[ctx.config.spec, spec], ...(practice.exists ? [[ctx.config.practice, practice]] : [])];
+    let errors = 0;
+    for (const [name, parsed] of files) {
+      const findings = lintSpec(parsed);
+      findings.forEach((finding) => io.say(`${name}:${finding.line} ${finding.id ?? ''} ${finding.level}: ${finding.message}`.replace('  ', ' ')));
+      const fileErrors = findings.filter((finding) => finding.level === 'error').length;
+      errors += fileErrors;
+      io.say(`${name}: ${parsed.rows.length} rows, ${fileErrors} errors, ${findings.length - fileErrors} warnings`);
+    }
     return errors ? 1 : 0;
   }
   const signoffs = readSignoffs(ctx.info.root);
+  if (first === 'view') {
+    const out = values.out ? resolve(ctx.io.cwd, values.out) : join(ctx.info.gitDir, 'pullboard', 'spec.html');
+    const html = renderSpecView({
+      title: spec.title,
+      spec,
+      practice,
+      signoffs,
+      generatedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
+      files: { spec: ctx.config.spec, practice: ctx.config.practice },
+    });
+    mkdirSync(dirname(out), { recursive: true });
+    writeFileSync(out, html);
+    io.say(`wrote ${out}`);
+    io.say(`open: ${pathToFileURL(out).href}`);
+    return 0;
+  }
   if (first === 'show') {
     const row = spec.rows.find((entry) => entry.id === second);
     if (!row) throw new Refused('NO_ROW', `no row ${second ?? ''} in ${ctx.config.spec}`);
@@ -502,7 +533,7 @@ function specCommand(io, { first, second, rest, values }) {
     io.say(`signed ${count} rows as ${values.by}; commit .pullboard/signoffs.jsonl`);
     return 0;
   }
-  throw new Refused('USAGE', 'pullboard spec check | show <id> | unmet [--must] | signoff <ids> --by <initials>');
+  throw new Refused('USAGE', 'pullboard spec check | view | show <id> | unmet [--must] | signoff <ids> --by <initials>');
 }
 
 /**
@@ -589,6 +620,16 @@ export async function main(argv, streams) {
   const args = { first, second, rest, values };
   try {
     if (command === 'spec') return specCommand(io, args);
+    if (command === 'prompt') {
+      let root = io.cwd;
+      try {
+        root = repoInfo(io.cwd).root;
+      } catch (error) {
+        if (!(error instanceof Refused)) throw error;
+      }
+      io.say(promptFor(root, first ?? '').trimEnd());
+      return 0;
+    }
     if (command === 'hook') return await hookCommand(io, args);
     if (command === 'gate') {
       const ctx = context(io);

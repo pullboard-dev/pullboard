@@ -16,6 +16,7 @@ export function configTemplate(gate) {
   const config = {
     gate,
     spec: 'SPEC.md',
+    practice: 'PRACTICE.md',
     verify: 'any',
     lease: '2h',
     lanes: {},
@@ -47,6 +48,58 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 }
 
 /**
+ * A starter PRACTICE.md: the house rules as rows, in the spec's own format. A standard to edit, not
+ * a law: the project keeps, changes or retires each row, and approves what it keeps. A row whose gate
+ * names a check is enforced by that check; a row gated by review guides agents and reviewers.
+ *
+ * @returns {string}
+ */
+export function practiceTemplate() {
+  return `# Practice
+
+How this project is built: the house rules, as rows. SPEC.md says what to build; this file says how. Edit it for your project: keep, change or retire each row, and approve what you keep. A row whose gate names a check fails the build when broken; a row gated by review guides agents and reviewers.
+
+Statuses: approved = in force · draft = proposed · retired = dropped, id kept. Tiers: must · aim.
+
+## W · Writing
+- W1 [approved, must] Numbers over adjectives. No hedges, no filler. | gate: review
+- W2 [approved, must] Commit headers are type(scope): subject [ids], 72 characters at most. | gate: commit-msg hook
+- W3 [draft, aim] Ban the filler words basically, simply, just, very, robust, seamless, leverage. | gate: commit-msg hook, commits.banned
+- W4 [approved, must] Spec ids go in commits and code headers, never in words meant for people. | gate: review
+- W5 [draft, aim] One record per decision, at most 100 words, citing rows and naming who decided. | gate: review
+
+## C · Code
+- C1 [draft, must] Files under 1,000 lines; functions under 60; complexity 10; nesting 3; parameters 3. | gate: linter
+- C2 [draft, must] Every exported function has a doc comment saying why, not restating its name. | gate: linter
+- C3 [draft, must] Comments explain why and sit above the code; no commented-out code in the main line. | gate: linter, review
+- C4 [draft, must] Errors and logs never echo input values. | gate: review
+- C5 [draft, aim] Plain over clever: early returns, named intermediate values, one idea per line. | gate: review
+- C6 [draft, must] No inline ignore comments; exceptions live in config, each with its reason. | gate: linter
+
+## T · Tests
+- T1 [approved, must] Every feature and fix cites the spec rows it serves, and a test proves each one. | gate: commit-msg hook, review
+- T2 [draft, must] A test fails when the code is wrong: break the code once and watch it go red. | gate: mutation testing on critical code
+- T3 [draft, must] No test marked as expected to fail without an open item. | gate: review
+- T4 [draft, aim] Tests use real dependencies where practical, not mocks of them. | gate: review
+
+## G · Git and the gate
+- G1 [approved, must] The gate passes on a clean tree before every push. | gate: pre-push hook
+- G2 [approved, must] Never bypass a hook. Never rewrite the main line, except to remove a secret. | gate: review
+- G3 [approved, must] Work stays in its lane; changes elsewhere go through the lane's owner. | gate: pre-commit lane check
+- G4 [approved, must] The builder never verifies its own work. | gate: pullboard verify
+
+## D · Dependencies
+- D1 [draft, must] A new dependency states its need, the built-in it replaces, and what it pulls in. | gate: review
+- D2 [draft, aim] Install scripts only from native drivers. | gate: package manager allowlist
+
+## S · Security and data
+- S1 [approved, must] No secrets and no env files in git. | gate: pre-commit secret scan
+- S2 [draft, must] Real customer data never enters the repo or an agent's context; test data is synthetic. | gate: review
+- S3 [draft, must] Every entry point declares who may use it; anything undeclared is denied. | gate: review
+`;
+}
+
+/**
  * The agent instructions, between markers so init can find its own block and never touch the rest.
  *
  * @returns {string}
@@ -58,6 +111,10 @@ export function agentsBlock() {
 This repo runs on pullboard: a work board, lanes and a spec that live in git. Nothing ships until a second agent verifies it.
 
 **Source of truth.** \`SPEC.md\` holds every requirement as a row with an id, like \`G1.2\`. Code follows the spec. Commits cite the ids they serve: \`feat(scope): subject [G1.2]\`. Only a person approves or changes an approved row.
+
+**House rules.** \`PRACTICE.md\` holds how this project is built, in the same row format. Its approved rows are in force; follow them as you would the spec.
+
+**Role guides.** \`pullboard prompt decompose\`, \`signoff\`, \`review\` and \`verify\` print the guide for each role. Claude Code also has them as skills.
 
 **Who you are.** An agent is its worktree. The main checkout is the coordinator. Every other agent works in its own worktree and joins one lane:
 

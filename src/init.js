@@ -9,7 +9,8 @@ import { basename, join } from 'node:path';
 import { CONFIG_FILE, COORDINATOR } from './config.js';
 import { installHooks } from './hooks.js';
 import { Refused } from './refused.js';
-import { AGENTS_START, agentsBlock, configTemplate, specTemplate } from './templates.js';
+import { installSkills } from './skills.js';
+import { AGENTS_START, agentsBlock, configTemplate, practiceTemplate, specTemplate } from './templates.js';
 
 const NPM_DEFAULT_TEST = 'echo "Error: no test specified" && exit 1';
 
@@ -101,8 +102,10 @@ export function initRepo({ info, openBoardHere, register, closeBoard }) {
   const notes = [
     writeNew(join(root, CONFIG_FILE), configTemplate(gate), CONFIG_FILE),
     writeNew(join(root, 'SPEC.md'), specTemplate(basename(root)), 'SPEC.md'),
+    writeNew(join(root, 'PRACTICE.md'), practiceTemplate(), 'PRACTICE.md'),
     ...writeAgentDocs(root),
     ...installHooks(root),
+    ...installSkills(root),
   ];
   const board = openBoardHere();
   try {

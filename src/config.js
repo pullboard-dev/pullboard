@@ -34,6 +34,7 @@ const COMMIT_TYPES = [
 export function defaults() {
   return {
     spec: 'SPEC.md',
+    practice: 'PRACTICE.md',
     gate: '',
     lease: '2h',
     verify: 'any',
@@ -124,6 +125,7 @@ function laneProblems(name, lane) {
 export function configProblems(config) {
   const problems = [];
   if (typeof config.spec !== 'string' || !config.spec) problems.push('"spec" names a file');
+  if (typeof config.practice !== 'string' || !config.practice) problems.push('"practice" names a file');
   if (typeof config.gate !== 'string') problems.push('"gate" is a shell command, like "npm test"');
   if (!['any', COORDINATOR].includes(config.verify)) {
     problems.push('"verify" is "any" (any other agent) or "coordinator"');

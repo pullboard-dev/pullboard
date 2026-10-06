@@ -1,0 +1,20 @@
+---
+name: pullboard-verify
+description: Verify another agent's submitted item at its exact commit, against the criterion frozen when it was claimed, and record a typed verdict. Use when an item awaits verification, or when asked to verify, check or review a submitted item.
+---
+
+# Verify a submitted item
+
+You never verify your own work. You judge the frozen criterion as written, at the commit that was submitted.
+
+1. Pick a submitted item you did not build: `pullboard list --all`. Then `pullboard show <id>` gives the criterion as frozen at claim, and the submitted commit.
+2. Check out exactly that commit: `git switch --detach <commit>`.
+3. Run the gate. Then test the criterion itself, with the strongest proof you can get:
+   - **Break it and watch it fail.** Revert or break the change, show the check fails, restore it, show it passes.
+   - **Use the method the criterion names.** If it says "two real processes" or "after a restart", use exactly that; a weaker stand-in is not proof.
+   - **Run the behavior** and read the output.
+   - **Read the code** only when the criterion is about the code itself. It is the weakest proof.
+4. Decide:
+   - `pullboard verify <id> accept`, only when the criterion is met as written.
+   - `pullboard verify <id> reject --reason <CODE> --note "<what failed, and the proof that would settle it>"`. The codes are TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD and OTHER.
+5. If the check could not run for reasons that are not the work's fault, such as a broken environment or a flaky run under load, do not reject. Shout the coordinator what happened.
