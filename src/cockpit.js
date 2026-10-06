@@ -142,6 +142,10 @@ input, select { border: 1px solid var(--line-strong); background: var(--surface)
 .verdict.yes { border-left-color: var(--accent); } .verdict.no { border-left-color: var(--reject); }
 .verdict .by { font-size: 12px; color: var(--ink-faint); }
 .verdict .note { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+.sentback { border: 1px solid color-mix(in srgb, var(--reject) 40%, var(--line)); background: color-mix(in srgb, var(--reject) 6%, var(--surface)); border-radius: 10px; padding: 10px 12px; }
+.sentback h3 { color: var(--reject); }
+.sentback .verdict { border-left: 0; padding: 0; margin: 0; }
+.meta .why { flex-basis: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--reject); }
 .hist { display: grid; gap: 2px; font-size: 12.5px; }
 .hist div { display: grid; grid-template-columns: 4.2em minmax(0, 1fr); gap: 8px; }
 .hist time, .feed time { color: var(--ink-faint); font: 12px var(--mono); }
@@ -259,6 +263,12 @@ const $ = (id) => document.getElementById(id);
 const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const ago = (iso) => { const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 1 ? 'now' : m < 60 ? m + 'm' : m < 2880 ? Math.round(m / 60) + 'h' : Math.round(m / 1440) + 'd'; };
 const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const when = (iso) => (new Date(iso).toDateString() === new Date().toDateString() ? '' : new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ') + clock(iso);
+const firstLine = (text) => String(text ?? '').split('\\n').map((line) => line.trim()).find(Boolean) || '';
+// The latest verdict is a reject and no accept followed: open again, being reworked, resubmitted, or
+// withdrawn after it.
+const rejected = (i) => i.status !== 'verified' && !!i.verdict && i.verdict.decision === 'REJECT';
+const verdictHtml = (v) => '<div class="verdict ' + (v.decision === 'ACCEPT' ? 'yes' : 'no') + '"><b>' + esc(v.decision) + ' ' + esc(v.reason) + '</b><span class="by">' + esc(v.by) + ' · ' + when(v.at) + ' · at ' + esc(String(v.commit || '').slice(0, 12)) + '</span><div class="note">' + esc(v.note) + '</div></div>';
 const stateOf = (i) => i.status === 'claimed' ? 'building' : i.status === 'submitted' ? 'verify' : i.status === 'verified' ? 'verified' : i.status === 'withdrawn' ? 'withdrawn' : i.verdict && i.verdict.decision === 'REJECT' ? 'back' : 'open';
 const STATES = { building: ['building', 'busy'], verify: ['to verify', 'warn'], back: ['sent back', 'no'], verified: ['verified', 'ok'], open: ['open', ''], withdrawn: ['withdrawn', ''] };
 const chip = (s) => '<span class="chip ' + STATES[s][1] + '">' + STATES[s][0] + '</span>';
@@ -319,8 +329,8 @@ function render() {
   // What needs the person, first: questions, work sent back, work waiting for a verdict, held lanes.
   const needs = [
     ...p.spec.filter((r) => r.status === 'pending').map((r) => ['spec:' + r.id, r.id, r.text, 'answer in SPEC.md']),
-    ...by('back').map((i) => ['item:' + i.id, '#' + i.id, i.title, 'sent back']),
-    ...by('verify').map((i) => ['item:' + i.id, '#' + i.id, i.title, 'to verify, ' + ago(i.updatedAt)]),
+    ...by('back').map((i) => ['item:' + i.id, '#' + i.id, i.title, 'sent back: ' + i.verdict.reason]),
+    ...by('verify').map((i) => ['item:' + i.id, '#' + i.id, i.title, (rejected(i) ? 'resubmitted after ' + i.verdict.reason : 'to verify') + ', ' + ago(i.updatedAt)]),
     ...p.holds.map((h) => ['tab:shouts', h.hold_lane, h.hold_reason, 'lane held']),
   ];
   const drafts = p.spec.filter((r) => r.status === 'draft').length;
@@ -350,7 +360,7 @@ function render() {
   $('chain').innerHTML = shown.length ? shown.map((i) => {
     const s = stateOf(i);
     const who = s === 'building' ? i.owner : [i.builtBy, i.verifiedBy].filter(Boolean).join(' → ');
-    return '<li class="row' + (view.item === i.id ? ' on' : '') + '" data-item="' + i.id + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + esc(i.title) + '</div><div class="meta"><span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span>' + esc(i.specs.join(', ')) + '</span>' : '') + (who ? '<span>' + esc(who) + '</span>' : '') + (i.blockedBy.length && s === 'open' ? '<span>waits on #' + i.blockedBy.join(', #') + '</span>' : '') + '<span>' + ago(i.updatedAt) + '</span></div></div>' + chip(s) + '</li>';
+    return '<li class="row' + (view.item === i.id ? ' on' : '') + '" data-item="' + i.id + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + esc(i.title) + '</div><div class="meta"><span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span>' + esc(i.specs.join(', ')) + '</span>' : '') + (who ? '<span>' + esc(who) + '</span>' : '') + (i.blockedBy.length && s === 'open' ? '<span>waits on #' + i.blockedBy.join(', #') + '</span>' : '') + '<span>' + ago(i.updatedAt) + '</span>' + (rejected(i) ? '<span class="why">' + esc(i.verdict.reason + ': ' + firstLine(i.verdict.note)) + '</span>' : '') + '</div></div>' + chip(s) + '</li>';
   }).join('') : '<li class="empty">' + (items.length ? 'No items match.' : 'No items yet. Add the first one with New item.') + '</li>';
 
   const item = p.items.find((i) => i.id === view.item);
@@ -359,12 +369,16 @@ function render() {
   if (item && !view.adding) {
     const s = stateOf(item);
     const cited = item.specs.map((id) => p.spec.find((r) => r.id === id) || { id, status: 'missing', text: '(not in SPEC.md)' });
+    // Why it came back is the first thing the person reads; the verdicts before it stay below.
+    const back = rejected(item);
+    const earlier = back ? item.verdicts.slice(0, -1) : item.verdicts;
     $('detail').innerHTML = '<div style="display:grid;gap:14px"><div><h2><span>#' + item.id + '</span>' + esc(item.title) + '</h2><div class="meta" style="margin-top:6px">' + chip(s) + '<span class="chip">' + esc(item.lane) + '</span><span class="chip">' + esc(item.route) + '</span></div></div>'
+      + (back ? '<div class="sentback"><h3>Sent back' + (s === 'building' ? ', being reworked' : s === 'verify' ? ', resubmitted' : s === 'withdrawn' ? ', then withdrawn' : '') + '</h3>' + verdictHtml(item.verdict) + '</div>' : '')
       + (item.criterion ? '<div><h3>Criterion</h3><div class="text">' + esc(item.criterion) + '</div></div>' : '')
       + (cited.length ? '<div><h3>Spec rows it serves</h3>' + cited.map((r) => '<div class="rowref"><code>' + esc(r.id) + '</code><div>' + esc(r.text) + ' <span class="chip ' + tone(r.status) + '">' + esc(r.status) + '</span></div></div>').join('') + '</div>' : '')
       + (item.brief ? '<div><h3>Brief</h3><div class="text muted">' + esc(item.brief) + '</div></div>' : '')
       + '<div><h3>People and commits</h3><dl class="kv">' + (item.owner && s === 'building' ? '<dt>holding</dt><dd>' + esc(item.owner) + '</dd>' : '') + (item.builtBy ? '<dt>built by</dt><dd>' + esc(item.builtBy) + '</dd>' : '') + (item.verifiedBy ? '<dt>verified by</dt><dd>' + esc(item.verifiedBy) + '</dd>' : '') + (item.commit ? '<dt>commit</dt><dd><code>' + esc(item.commit.slice(0, 12)) + '</code></dd>' : '') + (item.merged ? '<dt>merged</dt><dd><code>' + esc(item.merged.slice(0, 12)) + '</code></dd>' : '') + (item.blockedBy.length ? '<dt>waits on</dt><dd>' + item.blockedBy.map((id) => '#' + id).join(', ') + '</dd>' : '') + '</dl></div>'
-      + '<div><h3>Verdicts</h3>' + (item.verdicts.length ? item.verdicts.map((v) => '<div class="verdict ' + (v.decision === 'ACCEPT' ? 'yes' : 'no') + '"><b>' + esc(v.decision) + ' ' + esc(v.reason) + '</b><span class="by">' + esc(v.by) + ' · ' + clock(v.at) + ' · at ' + esc(String(v.commit || '').slice(0, 12)) + '</span><div class="note">' + esc(v.note) + '</div></div>').join('') : '<div class="muted">None yet.</div>') + '</div>'
+      + (back && !earlier.length ? '' : '<div><h3>' + (back ? 'Earlier verdicts' : 'Verdicts') + '</h3>' + (earlier.length ? earlier.map(verdictHtml).join('') : '<div class="muted">None yet.</div>') + '</div>')
       + '<div><h3>History</h3><div class="hist">' + item.history.map((e) => '<div><time>' + clock(e.at) + '</time><span>' + esc(e.by) + ' ' + esc(e.kind) + '</span></div>').join('') + '</div></div>'
       + '<div class="links"><button data-shout="' + esc(item.lane) + '" data-about="' + item.id + '" type="button">Shout the ' + esc(item.lane) + ' lane about #' + item.id + '</button><button data-new type="button">New item</button></div></div>';
   }
