@@ -119,6 +119,11 @@ main { padding: 16px 18px 28px; }
   main { padding: 12px 10px 24px; }
   .two, .two.narrow { grid-template-columns: minmax(0, 1fr); }
 }
+@media (max-width: 480px) {
+  .tabs { flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; }
+  .tab { display: grid; grid-template-rows: auto 13px; justify-items: center; align-content: center; padding: 7px 2px 5px; font-size: 13.5px; }
+  .tab b { margin: 0; line-height: 13px; }
+}
 .primary { display: grid; gap: 12px; min-width: 0; }
 .card-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); min-width: 0; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; }

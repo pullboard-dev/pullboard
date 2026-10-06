@@ -350,6 +350,22 @@ test('the sidebar lists every project and what needs the person [N26]', async ()
   }
 });
 
+test('the tabs fit one row on a phone [N26]', async () => {
+  const view = await startView(machine());
+  try {
+    const html = await (await fetch(view.link)).text();
+    const style = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+    const phone = /@media \(max-width: 480px\) \{\n([^@]*?)\n\}/.exec(style)?.[1] ?? '';
+    assert.match(phone, /\.tabs \{ flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: minmax\(0, 1fr\);/, 'under 480px the tabs share the bar in equal columns');
+    assert.match(phone, /\.tab \{ display: grid; grid-template-rows: auto 13px; justify-items: center;/, 'each tab stacks its label over its count');
+    assert.match(phone, /\.tab b \{ margin: 0;/);
+    assert.match(style, /\n\.tabs \{ display: flex; flex-wrap: wrap; gap: 2px; \}\n/, 'wider, the tabs keep the row they have');
+    const tabs = [...html.matchAll(/<button class="tab" data-tab="([a-z]+)" type="button">([A-Za-z]+)(<b id="count-[a-z]+"><\/b>)?<\/button>/g)];
+    assert.deepEqual(tabs.map((match) => match[2]), ['Items', 'Shouts', 'Spec', 'Doctrine', 'Activity'], 'five tabs, each a label and then its count');
+  } finally {
+    await view.stop();
+  }
+});
 /**
  * The products the sidebar shows: name, rows met, how full the bar is, and the item counts with the
  * state each dot is coloured for.
