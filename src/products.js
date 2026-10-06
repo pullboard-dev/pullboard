@@ -80,7 +80,9 @@ export function productsOfLane(config, spec, lane) {
 
 /**
  * Each product's standing: its rows in force, how many are approved, how many an accepted item
- * cites, and its items by state. Withdrawn items are left out.
+ * cites, and its items by state. Only the row counts leave out rows decided against or retired; an
+ * item belongs to a product exactly as productsOfItem says, whatever became of its rows. Withdrawn
+ * items are left out of the item counts.
  *
  * @param {any} config
  * @param {{ rows: { id: string, status: string }[] }} spec
@@ -90,8 +92,7 @@ export function productsOfLane(config, spec, lane) {
 export function productSummaries(config, spec, items) {
   return Object.entries(config.products ?? {}).map(([name, entries]) => {
     const rows = spec.rows.filter((row) => !OUT_OF_FORCE.includes(row.status) && entries.some((entry) => names(entry, row.id)));
-    const ids = new Set(rows.map((row) => row.id));
-    const mine = items.filter((item) => citedBy(item).some((id) => ids.has(id)));
+    const mine = items.filter((item) => productsOfItem(config, item).includes(name));
     const accepted = items.filter((item) => item.item_status === 'verified');
     const count = (state) => mine.filter((item) => item.item_status === state).length;
     return {

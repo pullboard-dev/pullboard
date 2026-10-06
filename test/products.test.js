@@ -145,18 +145,29 @@ test('in a real repo, status prints each product, and spec check fails on an ent
   assert.equal(typo.status, 1);
   assert.match(typo.stdout, /error: product "View": "Q9" names no row in the spec/);
 
+  writeConfig(PRODUCTS);
+  writeFileSync(join(repo, 'SPEC.md'), SPEC.replace('- B1 [approved, must] Claims are leases. | gate: test', '- B1 [retired] Claims are leases.'));
+  const retired = run('status');
+  assert.match(retired.stdout, /^product Core: 2 rows, 1 approved, 0 cited by accepted items; items 1 open, 1 building, 0 awaiting verification, 1 verified$/m, 'a retired row leaves the row counts, but its accepted item stays Core\'s');
+
   writeConfig({});
   assert.doesNotMatch(run('status').stdout, /^product /m, 'no products, no product lines');
 });
 
-test('a product counts rows in force only, and items by the state the board reads [S12]', () => {
+test('a product counts only rows in force, but its items by the one membership rule [S12]', () => {
   const spec = parseSpec(SPEC);
   const items = [
     { item_spec_ids: 'B1', item_status: 'verified' },
     { item_spec_ids: 'B3', item_status: 'open' },
     { item_spec_ids: 'N26', item_status: 'withdrawn' },
+    { item_spec_ids: 'N26.1,B2', item_status: 'claimed' },
   ];
   const [core, view] = productSummaries(CONFIG, spec, items);
-  assert.deepEqual(core, { name: 'Core', rows: 3, approved: 2, proven: 1, items: { open: 0, claimed: 0, submitted: 0, verified: 1 } }, 'B3 is wont: out of the rows, and the item citing only it is out too');
-  assert.deepEqual(view.items, { open: 0, claimed: 0, submitted: 0, verified: 0 }, 'withdrawn items are left out');
+  assert.deepEqual(core, { name: 'Core', rows: 3, approved: 2, proven: 1, items: { open: 1, claimed: 1, submitted: 0, verified: 1 } }, 'B3 is wont, so it is out of the rows, but the item citing it is still Core\'s');
+  assert.deepEqual(view.items, { open: 0, claimed: 1, submitted: 0, verified: 0 }, 'withdrawn items are left out');
+  for (const product of [core, view]) {
+    const counted = Object.values(product.items).reduce((sum, count) => sum + count, 0);
+    const members = items.filter((item) => item.item_status !== 'withdrawn' && productsOfItem(CONFIG, item).includes(product.name)).length;
+    assert.equal(counted, members, `${product.name} counts exactly the items productsOfItem gives it`);
+  }
 });
