@@ -981,10 +981,40 @@ test('the view answers a request line no URL parser accepts with 403, and keeps 
 test('nothing a person types on the view sits inside what the refresh rewrites [N27]', () => {
   const page = cockpitSource();
   const rewritten = [...page.matchAll(/\$\('([a-z-]+)'\)\.innerHTML = /g)].map((match) => match[1]);
-  assert.ok(rewritten.includes('lanes') && rewritten.includes('columns'), 'the refresh rewrites these');
+  assert.ok(['lanes', 'chain', 'detail', 'needs'].every((id) => rewritten.includes(id)), 'the refresh rewrites these');
   for (const id of rewritten) {
     const opening = new RegExp(`id="${id}"[^>]*>([^]*?)</`).exec(page);
     assert.doesNotMatch(opening ? opening[1] : '', /<(input|textarea|form)/, `#${id} starts with no form`);
   }
   assert.doesNotMatch(page.slice(page.indexOf('<script>')), /<input|<textarea|createElement\('(form|input|textarea)'\)/, 'the script never builds a field a refresh could erase');
+});
+
+test('the view keeps the board layout people know: switcher, tabs, a list and its detail, every verdict and the history [N26, N27]', async () => {
+  const box = project();
+  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
+  box.run(box.web, 'claim', '1');
+  commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
+  box.run(box.web, 'submit', '1');
+  box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
+  box.run(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--note', 'no heading', '--as', 'coordinator');
+  box.git(box.repo, 'switch', '-q', 'main');
+  const view = await startView(box, box.repo);
+  try {
+    const page = await (await fetch(view.link)).text();
+    for (const region of ['id="proj-switch"', 'data-tab="items"', 'data-tab="shouts"', 'data-tab="spec"', 'data-tab="doctrine"', 'data-tab="activity"', 'id="chain"', 'id="detail"', 'id="add-form"', 'id="hold-form"']) {
+      assert.ok(page.includes(region), region);
+    }
+    assert.match(page, /\$\('add-lane'\)\.innerHTML = \[\.\.\.working, 'coordinator'\]/, 'new items default to a working lane, not the coordinator');
+    const item = (await view.state(box.repo)).project.items[0];
+    assert.deepEqual(item.verdicts.map((verdict) => [verdict.decision, verdict.reason, verdict.note]), [['REJECT', 'TEST_FAILURE', 'no heading']]);
+    assert.deepEqual(item.history.map((event) => event.kind), ['add', 'claim', 'submit', 'reject']);
+    assert.equal(item.criterion, 'renders a heading');
+  } finally {
+    await view.stop();
+  }
+});
+
+test('the view rebuilds the page only when the board changed, so a refresh cannot swallow a click [N26]', () => {
+  const page = cockpitSource();
+  assert.match(page, /if \(text !== seen\) \{\s*seen = text;\s*data = next;\s*render\(\);\s*\}/);
 });

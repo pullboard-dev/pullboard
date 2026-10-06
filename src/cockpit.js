@@ -1,7 +1,9 @@
 /**
  * The page `pullboard view` serves (N26): one self-contained file, no assets from anywhere, that
- * reads the board through the server's JSON and refreshes itself. Forms post actions that the server
- * runs as CLI commands (N27), so the page never decides a rule itself.
+ * reads the board through the server's JSON and refreshes itself. It keeps the hosted board's layout:
+ * a top bar with the project switcher and tabs, and two panes, a list and the selected thing's
+ * detail. Forms post actions that the server runs as CLI commands (N27), so the page never decides a
+ * rule itself, and every field a person types in sits outside what the refresh rebuilds.
  *
  * @returns {string}
  */
@@ -19,8 +21,10 @@ export function cockpitPage() {
   --accent: #08915f; --accent-strong: #067049; --accent-soft: #dcefe6; --on-accent: #f4fbf7;
   --warn: #a2660f; --warn-soft: #f2e6cf; --reject: #bd4437; --reject-soft: #f4e0dc;
   --blue: #3f6f9e; --blue-soft: #e1eaf3;
+  --shadow: 0 1px 2px rgba(18,26,23,.05), 0 12px 34px -18px rgba(18,26,23,.28);
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --top: 56px; --detail-w: 424px; --agents-w: 306px;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) { :root {
@@ -28,201 +32,344 @@ export function cockpitPage() {
   --ink: #e7ece9; --ink-muted: #9caba3; --ink-faint: #6a776f;
   --accent: #34d89e; --accent-strong: #4ee3ac; --accent-soft: #10231c; --on-accent: #05201a;
   --warn: #e4b25a; --warn-soft: #241d10; --reject: #f0776b; --reject-soft: #271613;
-  --blue: #6ba7d6; --blue-soft: #142231; color-scheme: dark; } }
+  --blue: #6ba7d6; --blue-soft: #142231;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 16px 40px -18px rgba(0,0,0,.7); color-scheme: dark; } }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--ground); color: var(--ink); font: 14px/1.5 var(--sans); }
 button, input, select, textarea { font: inherit; color: inherit; }
-.app { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100vh; }
-@media (max-width: 760px) { .app { grid-template-columns: minmax(0, 1fr); } }
-aside { background: var(--surface); border-right: 1px solid var(--line); padding: 16px; display: grid; gap: 14px; align-content: start; }
-.brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 16px; }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.top { position: sticky; top: 0; z-index: 10; height: var(--top); display: flex; align-items: center; gap: 18px; padding: 0 18px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; white-space: nowrap; }
 .brand svg { width: 22px; height: 22px; }
-.label { font: 600 11px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
-.projects { display: grid; gap: 4px; }
-.project { text-align: left; border: 1px solid transparent; background: none; border-radius: 8px; padding: 8px 10px; cursor: pointer; display: grid; gap: 3px; }
-.project:hover { background: var(--surface-2); }
-.project.on { background: var(--accent-soft); border-color: var(--accent); }
-.project b { font-size: 14px; overflow-wrap: anywhere; }
-.project small { color: var(--ink-faint); font-size: 12px; }
-.project .bad { color: var(--reject); }
-main { padding: 18px clamp(14px, 3vw, 28px) 40px; min-width: 0; display: grid; gap: 16px; align-content: start; }
-header.head { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; }
-header.head h1 { margin: 0; font-size: 22px; letter-spacing: -.01em; }
-header.head code { color: var(--ink-faint); font: 12px var(--mono); overflow-wrap: anywhere; }
-header.head .live { margin-left: auto; font-size: 12px; color: var(--ink-faint); }
-.tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
-.tab { border: 0; background: none; padding: 8px 12px; cursor: pointer; color: var(--ink-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.switch { position: relative; }
+.switch-btn { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-weight: 600; max-width: 260px; }
+.switch-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.switch-btn small { color: var(--ink-faint); font-weight: 400; }
+.menu { position: absolute; top: calc(100% + 6px); left: 0; width: 340px; max-width: calc(100vw - 24px); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: var(--shadow); padding: 10px; display: grid; gap: 8px; }
+.label { font: 600 11px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); padding: 4px 6px; }
+.proj { text-align: left; border: 1px solid transparent; background: none; border-radius: 8px; padding: 7px 9px; cursor: pointer; display: grid; gap: 2px; width: 100%; }
+.proj:hover { background: var(--surface-2); }
+.proj.on { background: var(--accent-soft); border-color: var(--accent); }
+.proj small { color: var(--ink-faint); font-size: 12px; }
+.proj .bad { color: var(--reject); }
+.tabs { display: flex; gap: 2px; height: 100%; overflow-x: auto; }
+.tab { border: 0; background: none; padding: 0 12px; cursor: pointer; color: var(--ink-muted); border-bottom: 2px solid transparent; white-space: nowrap; }
 .tab.on { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
-.needs { display: flex; flex-wrap: wrap; gap: 8px; }
-.need { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
-.need b { margin-right: 4px; }
-.need.hot { border-color: var(--warn); background: var(--warn-soft); }
-.columns { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: start; }
-@media (max-width: 1100px) { .columns { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 560px) { .columns { grid-template-columns: minmax(0, 1fr); } }
-.col { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px; display: grid; gap: 8px; align-content: start; min-width: 0; }
-.col h3 { margin: 2px 4px; font: 600 11.5px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); display: flex; justify-content: space-between; }
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; display: grid; gap: 5px; cursor: pointer; min-width: 0; }
-.card:hover { border-color: var(--line-strong); }
-.card .t { font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
-.card .t span { color: var(--ink-faint); font: 500 12px var(--mono); margin-right: 4px; }
-.meta { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; color: var(--ink-muted); font-size: 12px; }
-.chip { font: 600 10.5px/1 var(--mono); letter-spacing: .03em; padding: 3px 5px; border-radius: 4px; background: var(--surface-2); color: var(--ink-muted); white-space: nowrap; }
+.tab b { font: 600 11px var(--mono); color: var(--ink-faint); margin-left: 4px; }
+.live { margin-left: auto; font-size: 12px; color: var(--ink-faint); white-space: nowrap; }
+@media (max-width: 760px) { .live { display: none; } .top { gap: 10px; padding: 0 10px; } .brand span { display: none; } }
+
+main { padding: 16px 18px 28px; }
+.two { display: grid; grid-template-columns: minmax(0, 1fr) var(--detail-w); gap: 16px; align-items: start; }
+.two.narrow { grid-template-columns: minmax(0, 1fr) var(--agents-w); }
+@media (max-width: 1040px) { .two, .two.narrow { grid-template-columns: minmax(0, 1fr); } }
+.primary { display: grid; gap: 12px; min-width: 0; }
+.card-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); min-width: 0; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; }
+.toolbar input { flex: 1 1 200px; }
+input, select { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 8px; padding: 7px 9px; min-width: 0; }
+.go { border: 0; background: var(--ink); color: var(--surface); border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 600; white-space: nowrap; }
+.go:hover { background: var(--accent-strong); color: var(--on-accent); }
+.ghost { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+
+.needs-you { background: color-mix(in srgb, var(--warn) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 38%, var(--line)); border-radius: 14px; box-shadow: var(--shadow); padding: 10px 12px; display: grid; gap: 4px; }
+.needs-you .head { font-weight: 700; display: flex; gap: 8px; align-items: center; }
+.needs-you .head i { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); display: inline-block; }
+.ny { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: baseline; text-align: left; border: 0; background: none; padding: 6px 4px; border-radius: 8px; cursor: pointer; width: 100%; }
+.ny:hover { background: color-mix(in srgb, var(--warn) 10%, var(--surface)); }
+.ny code { font: 600 12px var(--mono); }
+.ny span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); }
+.ny em { font-style: normal; color: var(--warn); font-size: 12px; white-space: nowrap; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 2px; }
+.chips button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 11px; cursor: pointer; }
+.chips button.on { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.chips button b { font: 600 11px var(--mono); color: var(--ink-faint); margin-left: 4px; }
+
+.chain { list-style: none; margin: 0; padding: 6px; display: grid; gap: 2px; }
+.row { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 9px; border-radius: 10px; border: 1px solid transparent; cursor: pointer; }
+.row:hover { background: var(--surface-2); }
+.row.on { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line-strong); }
+.dot.building { background: var(--blue); } .dot.verify { background: var(--warn); } .dot.back { background: var(--reject); } .dot.verified { background: var(--accent); }
+.row .t { font-weight: 600; overflow-wrap: anywhere; }
+.row .t span { color: var(--ink-faint); font: 500 12px var(--mono); margin-right: 5px; }
+.meta { display: flex; flex-wrap: wrap; gap: 4px 8px; color: var(--ink-muted); font-size: 12px; margin-top: 2px; }
+.chip { font: 600 10.5px/1 var(--mono); letter-spacing: .03em; padding: 4px 6px; border-radius: 5px; background: var(--surface-2); color: var(--ink-muted); white-space: nowrap; }
 .chip.ok { background: var(--accent-soft); color: var(--accent-strong); }
 .chip.warn { background: var(--warn-soft); color: var(--warn); }
 .chip.no { background: var(--reject-soft); color: var(--reject); }
 .chip.busy { background: var(--blue-soft); color: var(--blue); }
-.more { display: none; border-top: 1px dashed var(--line); padding-top: 6px; color: var(--ink-muted); font-size: 12.5px; overflow-wrap: anywhere; white-space: pre-wrap; }
-.card.open .more { display: grid; gap: 6px; }
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0; }
-.list { display: grid; gap: 0; }
-.list .row { display: grid; grid-template-columns: 7.5em minmax(0, 1fr); gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
-.list .row:first-child { border-top: 0; }
-.list time { color: var(--ink-faint); font: 12px var(--mono); }
-.rows h4 { margin: 14px 0 6px; font-size: 13px; color: var(--ink-muted); }
-.rows .r { display: grid; grid-template-columns: 4.5em 5.5em minmax(0, 1fr); gap: 8px; padding: 5px 0; border-top: 1px solid var(--line); align-items: baseline; }
-.rows .r code { font: 600 12px var(--mono); }
-.rows .r small { display: block; color: var(--ink-faint); font: 11.5px var(--mono); }
-.filters { display: flex; gap: 6px; flex-wrap: wrap; }
-.filters button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
-.filters button.on { border-color: var(--accent); background: var(--accent-soft); }
-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
-form label { display: grid; gap: 3px; font-size: 12px; color: var(--ink-muted); flex: 1 1 140px; min-width: 0; }
-input, select { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 7px; padding: 7px 9px; min-width: 0; width: 100%; }
-.go { border: 0; background: var(--ink); color: var(--surface); border-radius: 7px; padding: 8px 14px; cursor: pointer; font-weight: 600; }
-.go:hover { background: var(--accent-strong); color: var(--on-accent); }
-.small { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 7px; padding: 4px 9px; cursor: pointer; }
-table { border-collapse: collapse; width: 100%; font-size: 13px; }
-td, th { text-align: left; padding: 7px 8px; border-top: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
-th { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint); border-top: 0; }
-.scroll { overflow-x: auto; }
-.console { position: sticky; bottom: 0; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 10px; padding: 10px 12px; font: 12px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 30vh; overflow: auto; }
-.console.ok { border-color: var(--accent); }
-.console.no { border-color: var(--reject); }
-.empty { color: var(--ink-faint); padding: 8px 4px; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.empty { color: var(--ink-faint); padding: 14px 10px; }
+
+.detail { position: sticky; top: calc(var(--top) + 16px); max-height: calc(100vh - var(--top) - 32px); overflow-y: auto; padding: 16px; display: grid; gap: 14px; align-content: start; }
+@media (max-width: 1040px) { .detail { position: static; max-height: none; } }
+.detail h2 { margin: 0; font-size: 18px; line-height: 1.3; overflow-wrap: anywhere; }
+.detail h2 span { color: var(--ink-faint); font: 600 13px var(--mono); margin-right: 6px; }
+.detail h3 { margin: 0 0 6px; font: 600 11px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
+.detail .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.detail .muted, .muted { color: var(--ink-muted); }
+.kv { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); gap: 4px 10px; font-size: 13px; margin: 0; }
+.kv dt { color: var(--ink-faint); } .kv dd { margin: 0; overflow-wrap: anywhere; }
+.kv code, .detail code { font: 12px var(--mono); }
+.verdict { border-left: 3px solid var(--line-strong); padding: 2px 0 2px 10px; display: grid; gap: 3px; margin-bottom: 8px; }
+.verdict.yes { border-left-color: var(--accent); } .verdict.no { border-left-color: var(--reject); }
+.verdict .by { font-size: 12px; color: var(--ink-faint); }
+.verdict .note { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+.hist { display: grid; gap: 2px; font-size: 12.5px; }
+.hist div { display: grid; grid-template-columns: 4.2em minmax(0, 1fr); gap: 8px; }
+.hist time, .feed time { color: var(--ink-faint); font: 12px var(--mono); }
+.rowref { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; font-size: 13px; padding: 3px 0; }
+.rowref code { font-weight: 600; }
+.links { display: flex; flex-wrap: wrap; gap: 6px; }
+.links button { border: 1px solid var(--line); background: var(--surface-2); border-radius: 6px; padding: 3px 9px; cursor: pointer; font-size: 12.5px; }
+
+.panel-form { display: grid; gap: 10px; }
+.panel-form label, .inline label { display: grid; gap: 4px; font-size: 12px; color: var(--ink-muted); }
+.panel-form input, .panel-form select, .inline input, .inline select { width: 100%; }
+.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; padding: 10px; }
+.inline label { flex: 1 1 150px; min-width: 0; }
+.feed { padding: 6px 10px 10px; display: grid; }
+.feed > div { display: grid; grid-template-columns: 4.6em minmax(0, 1fr); gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.feed > div:first-child { border-top: 0; }
+.feed button.ref { border: 0; background: none; padding: 0; color: var(--accent-strong); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.agent { display: grid; gap: 2px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.agent:first-child { border-top: 0; }
+.agent small { color: var(--ink-faint); font: 11.5px var(--mono); overflow-wrap: anywhere; }
+.lane { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.lane:first-child { border-top: 0; }
+.rows { padding: 4px 10px 10px; }
+.rows h4 { margin: 12px 0 4px; font-size: 12.5px; color: var(--ink-muted); }
+.srow { display: grid; grid-template-columns: 4.4em 6.2em minmax(0, 1fr); gap: 8px; padding: 6px 4px; border-top: 1px solid var(--line); align-items: baseline; cursor: pointer; border-radius: 6px; }
+.srow:hover { background: var(--surface-2); }
+.srow.on { background: var(--accent-soft); }
+.srow code { font: 600 12px var(--mono); }
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.metric { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.metric b { display: block; font: 800 24px/1.1 var(--sans); font-variant-numeric: tabular-nums; }
+.metric span { color: var(--ink-muted); font-size: 12.5px; }
+.console { position: fixed; right: 16px; bottom: 16px; width: min(560px, calc(100vw - 32px)); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: var(--shadow); padding: 10px 12px; font: 12px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 38vh; overflow: auto; z-index: 20; cursor: pointer; }
+.console.ok { border-color: var(--accent); } .console.no { border-color: var(--reject); }
 </style>
 </head>
 <body>
-<div class="app">
-  <aside>
-    <div class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg>Pullboard</div>
-    <div class="label">Projects on this machine</div>
-    <div class="projects" id="projects"><div class="empty">Loading…</div></div>
-    <div class="label">Start a board</div>
-    <form id="init-form"><label>Folder of a git repo<input id="init-path" placeholder="/path/to/repo" required></label><button class="go" type="submit">Init</button></form>
-  </aside>
-  <main>
-    <header class="head"><h1 id="name">Pullboard</h1><code id="root"></code><span class="live" id="live"></span></header>
-    <div class="needs" id="needs"></div>
-    <nav class="tabs" id="tabs">
-      <button class="tab" data-tab="board">Board</button><button class="tab" data-tab="doctrine">Doctrine</button><button class="tab" data-tab="shouts">Shouts</button><button class="tab" data-tab="fleet">Agents</button><button class="tab" data-tab="activity">Activity</button>
-    </nav>
-    <section data-pane="board">
-      <div class="panel"><form id="add-form"><label>Lane<select id="add-lane"></select></label><label style="flex:3 1 220px">Title<input id="add-title" required placeholder="What to build"></label><label style="flex:3 1 220px">Criterion<input id="add-criterion" placeholder="How a verifier knows it's done"></label><label>Spec rows<input id="add-specs" placeholder="G1,G2"></label><button class="go" type="submit">Add item</button></form></div>
-      <div class="columns" id="columns" style="margin-top:12px"></div>
-    </section>
-    <section data-pane="doctrine" class="panel"><div class="filters" id="row-filters"><button data-f="all">All rows</button><button data-f="decide">Needs your decision</button><button data-f="approved">Approved</button></div><div class="rows" id="rows"></div></section>
-    <section data-pane="shouts" class="panel"><form id="shout-form"><label>To<input id="shout-to" list="shout-targets" required placeholder="all, a lane or an agent"></label><datalist id="shout-targets"></datalist><label style="flex:4 1 280px">Message<input id="shout-text" required></label><button class="go" type="submit">Shout</button></form><div class="list" id="shouts" style="margin-top:10px"></div></section>
-    <section data-pane="fleet" class="panel"><form id="hold-form"><label>Lane<select id="hold-lane"></select></label><label style="flex:4 1 260px">Why hold it<input id="hold-reason" required placeholder="What the agents in it should wait for"></label><button class="go" type="submit">Hold lane</button></form><div class="scroll" style="margin-top:12px"><table><thead><tr><th>Lane</th><th>State</th><th></th></tr></thead><tbody id="lanes"></tbody></table></div><div class="scroll" style="margin-top:14px"><table><thead><tr><th>Agent</th><th>Lane</th><th>Route</th><th>Worktree</th></tr></thead><tbody id="agents"></tbody></table></div></section>
-    <section data-pane="activity" class="panel"><div class="list" id="events"></div></section>
-    <div class="console" id="console" hidden></div>
-  </main>
-</div>
+<header class="top">
+  <div class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg><span>Pullboard</span></div>
+  <div class="switch">
+    <button class="switch-btn" id="proj-switch" type="button" aria-haspopup="true"><span id="proj-name">Projects</span><small>▾</small></button>
+    <div class="menu" id="proj-menu" hidden>
+      <div class="label">Projects on this machine</div>
+      <div id="proj-list"></div>
+      <div class="label">Start a board</div>
+      <form id="init-form" class="inline" style="padding:0 4px 4px"><label>Folder of a git repo<input id="init-path" required placeholder="/path/to/repo"></label><button class="go" type="submit">Init</button></form>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs" aria-label="Board">
+    <button class="tab" data-tab="items" type="button">Items<b id="count-items"></b></button>
+    <button class="tab" data-tab="shouts" type="button">Shouts<b id="count-shouts"></b></button>
+    <button class="tab" data-tab="spec" type="button">Spec<b id="count-spec"></b></button>
+    <button class="tab" data-tab="doctrine" type="button">Doctrine<b id="count-doctrine"></b></button>
+    <button class="tab" data-tab="activity" type="button">Activity</button>
+  </nav>
+  <span class="live" id="live"></span>
+</header>
+<main>
+  <section data-pane="items" class="two">
+    <div class="primary">
+      <div class="card-panel toolbar"><input id="q" type="search" placeholder="Search items, ids or spec rows" aria-label="Search items"><select id="lane-filter" aria-label="Lane"><option value="">All lanes</option></select><button class="go" id="new-item" type="button">New item</button></div>
+      <section class="needs-you" id="needs" aria-label="What needs you" hidden></section>
+      <div class="chips" id="state-chips" aria-label="Filter by state"></div>
+      <ol class="card-panel chain" id="chain" aria-label="Items"></ol>
+    </div>
+    <aside class="card-panel detail" aria-label="Item detail">
+      <div id="detail"></div>
+      <form id="add-form" class="panel-form" hidden>
+        <h3>New item</h3>
+        <label>Lane<select id="add-lane"></select></label>
+        <label>Title<input id="add-title" required placeholder="What to build"></label>
+        <label>Criterion<input id="add-criterion" placeholder="How a verifier knows it is done"></label>
+        <label>Spec rows<input id="add-specs" placeholder="G1,G2"></label>
+        <button class="go" type="submit">Add item</button>
+      </form>
+    </aside>
+  </section>
+  <section data-pane="shouts" class="two narrow">
+    <div class="primary">
+      <form id="shout-form" class="card-panel inline"><label>To<input id="shout-to" list="shout-targets" required placeholder="all, a lane or an agent"></label><datalist id="shout-targets"></datalist><label style="flex:4 1 260px">Message<input id="shout-text" required></label><button class="go" type="submit">Shout</button></form>
+      <div class="card-panel feed" id="feed"></div>
+    </div>
+    <aside class="card-panel detail" aria-label="Agents and lanes">
+      <div><h3>Agents</h3><div id="agents"></div></div>
+      <div><h3>Lanes</h3><div id="lanes"></div></div>
+      <form id="hold-form" class="panel-form"><label>Hold a lane<select id="hold-lane"></select></label><label>Why<input id="hold-reason" required placeholder="What its agents should wait for"></label><button class="go" type="submit">Hold lane</button></form>
+    </aside>
+  </section>
+  <section data-pane="spec" class="two">
+    <div class="primary"><div class="chips" id="spec-chips"></div><div class="card-panel rows" id="spec-list"></div></div>
+    <aside class="card-panel detail" aria-label="Spec row"><div id="spec-detail"></div></aside>
+  </section>
+  <section data-pane="doctrine" class="two">
+    <div class="primary"><div class="chips" id="doctrine-chips"></div><div class="card-panel rows" id="doctrine-list"></div></div>
+    <aside class="card-panel detail" aria-label="Practice row"><div id="doctrine-detail"></div></aside>
+  </section>
+  <section data-pane="activity">
+    <div class="metrics" id="metrics"></div>
+    <div class="card-panel feed" id="activity"></div>
+  </section>
+</main>
+<div class="console" id="console" title="Click to close" hidden></div>
 <script>
 const key = new URLSearchParams(location.search).get('k') || '';
 const keep = (name, value) => { try { if (value === undefined) return localStorage.getItem(name); localStorage.setItem(name, value); } catch { return null; } return value; };
-let selected = keep('pb.project');
-let tab = keep('pb.tab') || 'board';
-let rowFilter = 'decide';
-let state = null;
-const opened = new Set();
+const view = { root: keep('pb.project'), tab: keep('pb.tab') || 'items', item: null, adding: false, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null } };
+let data = null;
+let seen = '';
 const $ = (id) => document.getElementById(id);
 const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const ago = (iso) => { const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 1 ? 'now' : m < 60 ? m + 'm' : m < 2880 ? Math.round(m / 60) + 'h' : Math.round(m / 1440) + 'd'; };
-const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const stateOf = (i) => i.status === 'claimed' ? 'building' : i.status === 'submitted' ? 'verify' : i.status === 'verified' ? 'verified' : i.status === 'withdrawn' ? 'withdrawn' : i.verdict && i.verdict.decision === 'REJECT' ? 'back' : 'open';
+const STATES = { building: ['building', 'busy'], verify: ['to verify', 'warn'], back: ['sent back', 'no'], verified: ['verified', 'ok'], open: ['open', ''], withdrawn: ['withdrawn', ''] };
+const chip = (s) => '<span class="chip ' + STATES[s][1] + '">' + STATES[s][0] + '</span>';
+const tone = (s) => s === 'approved' ? 'ok' : s === 'pending' ? 'no' : s === 'draft' ? 'warn' : '';
 
 async function api(path, body) {
   const res = await fetch(path, { method: body ? 'POST' : 'GET', headers: { 'x-pullboard-key': key, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || res.status);
-  return data;
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || res.status);
+  return json;
 }
 
 async function refresh() {
-  const data = await api('/api/state' + (selected ? '?root=' + encodeURIComponent(selected) : ''));
-  if ((!selected || !data.project) && data.projects.some((p) => p.ok)) {
-    const first = data.projects.find((p) => p.ok && (!selected || p.root === selected)) || data.projects.find((p) => p.ok);
-    if (first.root !== selected || !data.project) { selected = first.root; keep('pb.project', selected); return refresh(); }
+  const next = await api('/api/state' + (view.root ? '?root=' + encodeURIComponent(view.root) : ''));
+  if (!next.project && next.projects.some((p) => p.ok)) {
+    view.root = next.projects.find((p) => p.ok).root;
+    keep('pb.project', view.root);
+    return refresh();
   }
-  state = data;
-  render();
-  $('live').textContent = 'live · updated ' + new Date().toLocaleTimeString();
+  // Rebuild only when the board changed: a list rebuilt under the pointer can swallow a click.
+  const text = JSON.stringify(next);
+  if (text !== seen) {
+    seen = text;
+    data = next;
+    render();
+  }
+  $('live').textContent = 'live · ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
 }
 
 function render() {
-  $('projects').innerHTML = state.projects.length ? state.projects.map((p) => '<button class="project' + (p.root === selected ? ' on' : '') + '" data-root="' + esc(p.root) + '"><b>' + esc(p.name) + '</b>' + (p.ok
-    ? '<small>' + p.building + ' building · ' + p.awaiting + ' to verify · ' + p.verified + ' verified' + (p.pending ? ' · ' + p.pending + ' questions' : '') + '</small>'
-    : '<small class="bad">' + esc(p.error) + '</small>') + '</button>').join('') : '<div class="empty">No projects yet. Run pullboard init in a repo, or start one below.</div>';
-  const project = state.project;
-  if (!project) { $('name').textContent = 'Pullboard'; return; }
-  $('name').textContent = project.root.split('/').pop();
-  $('root').textContent = project.root;
-  const items = project.items;
-  const sentBack = items.filter((i) => i.status === 'open' && i.verdict && i.verdict.decision === 'REJECT');
-  const awaiting = items.filter((i) => i.status === 'submitted');
-  const questions = project.spec.filter((r) => r.status === 'pending');
-  const drafts = project.spec.filter((r) => r.status === 'draft');
-  $('needs').innerHTML = [
-    questions.length ? '<button class="need hot" data-go="doctrine"><b>' + questions.length + '</b>questions for you</button>' : '',
-    drafts.length ? '<button class="need" data-go="doctrine"><b>' + drafts.length + '</b>draft rows to approve</button>' : '',
-    awaiting.length ? '<button class="need" data-go="board"><b>' + awaiting.length + '</b>awaiting a verdict</button>' : '',
-    sentBack.length ? '<button class="need" data-go="board"><b>' + sentBack.length + '</b>sent back for rework</button>' : '',
-    project.holds.length ? '<button class="need hot" data-go="fleet"><b>' + project.holds.length + '</b>lanes held</button>' : '',
-  ].join('');
-  const lanes = project.lanes;
-  if ($('add-lane').dataset.lanes !== lanes.join()) {
-    $('add-lane').innerHTML = lanes.map((l) => '<option>' + esc(l) + '</option>').join('');
-    $('add-lane').dataset.lanes = lanes.join();
+  const p = data.project;
+  $('proj-list').innerHTML = data.projects.length ? data.projects.map((x) => '<button class="proj' + (x.root === view.root ? ' on' : '') + '" data-root="' + esc(x.root) + '" type="button"><b>' + esc(x.name) + '</b>' + (x.ok ? '<small>' + x.building + ' building · ' + x.awaiting + ' to verify · ' + x.verified + ' verified' + (x.pending ? ' · ' + x.pending + ' questions' : '') + '</small>' : '<small class="bad">' + esc(x.error) + '</small>') + '</button>').join('') : '<div class="empty">No projects yet: run pullboard init in a repo, or start one below.</div>';
+  if (!p) { $('proj-name').textContent = 'No project'; return; }
+  $('proj-name').textContent = p.root.split('/').pop();
+  const items = p.items.filter((i) => i.status !== 'withdrawn');
+  const by = (s) => items.filter((i) => stateOf(i) === s);
+  const active = items.filter((i) => stateOf(i) !== 'verified');
+  $('count-items').textContent = active.length || '';
+  $('count-shouts').textContent = p.shouts.length || '';
+  $('count-spec').textContent = p.spec.filter((r) => ['pending', 'draft'].includes(r.status)).length || '';
+  $('count-doctrine').textContent = p.practice.filter((r) => ['pending', 'draft'].includes(r.status)).length || '';
+
+  // What needs the person, first: questions, work sent back, work waiting for a verdict, held lanes.
+  const needs = [
+    ...p.spec.filter((r) => r.status === 'pending').map((r) => ['spec:' + r.id, r.id, r.text, 'answer in SPEC.md']),
+    ...by('back').map((i) => ['item:' + i.id, '#' + i.id, i.title, 'sent back']),
+    ...by('verify').map((i) => ['item:' + i.id, '#' + i.id, i.title, 'to verify, ' + ago(i.updatedAt)]),
+    ...p.holds.map((h) => ['tab:shouts', h.hold_lane, h.hold_reason, 'lane held']),
+  ];
+  const drafts = p.spec.filter((r) => r.status === 'draft').length;
+  $('needs').hidden = !needs.length && !drafts;
+  $('needs').innerHTML = '<div class="head"><i></i>Needs you</div>' + needs.slice(0, 6).map(([target, ref, text, what]) => '<button class="ny" data-go="' + esc(target) + '" type="button"><code>' + esc(ref) + '</code><span>' + esc(text) + '</span><em>' + esc(what) + ' →</em></button>').join('') + (needs.length > 6 ? '<div class="muted" style="padding:2px 4px">and ' + (needs.length - 6) + ' more</div>' : '') + (drafts ? '<button class="ny" data-go="tab:spec" type="button"><code>' + drafts + '</code><span>draft spec rows to approve or drop</span><em>review →</em></button>' : '');
+
+  const lanes = p.lanes;
+  const working = lanes.filter((l) => l !== 'coordinator');
+  if ($('lane-filter').dataset.lanes !== lanes.join()) {
+    const current = $('lane-filter').value;
+    $('lane-filter').innerHTML = '<option value="">All lanes</option>' + lanes.map((l) => '<option>' + esc(l) + '</option>').join('');
+    $('lane-filter').value = lanes.includes(current) ? current : '';
+    $('lane-filter').dataset.lanes = lanes.join();
+    $('add-lane').innerHTML = [...working, 'coordinator'].map((l) => '<option>' + esc(l) + '</option>').join('');
+    $('hold-lane').innerHTML = working.map((l) => '<option>' + esc(l) + '</option>').join('');
   }
-  $('shout-targets').innerHTML = ['all', ...lanes, ...project.agents.map((a) => a.agent_id)].map((t) => '<option value="' + esc(t) + '">').join('');
-  const holdable = lanes.filter((l) => l !== 'coordinator');
-  if ($('hold-lane').dataset.lanes !== holdable.join()) {
-    $('hold-lane').innerHTML = holdable.map((l) => '<option>' + esc(l) + '</option>').join('');
-    $('hold-lane').dataset.lanes = holdable.join();
+  const counts = { active: active.length, open: by('open').length, building: by('building').length, verify: by('verify').length, back: by('back').length, verified: by('verified').length, all: items.length };
+  const names = { active: 'Active', open: 'Open', building: 'Building', verify: 'To verify', back: 'Sent back', verified: 'Verified', all: 'All' };
+  $('state-chips').innerHTML = Object.keys(names).map((s) => '<button data-state="' + s + '" class="' + (view.state === s ? 'on' : '') + '" type="button">' + names[s] + '<b>' + counts[s] + '</b></button>').join('');
+  const q = $('q').value.trim().toLowerCase();
+  const lane = $('lane-filter').value;
+  const shown = items
+    .filter((i) => view.state === 'all' || (view.state === 'active' ? stateOf(i) !== 'verified' : stateOf(i) === view.state))
+    .filter((i) => !lane || i.lane === lane)
+    .filter((i) => !q || ('#' + i.id + ' ' + i.title + ' ' + i.specs.join(' ') + ' ' + (i.criterion || '')).toLowerCase().includes(q))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  $('chain').innerHTML = shown.length ? shown.map((i) => {
+    const s = stateOf(i);
+    const who = s === 'building' ? i.owner : [i.builtBy, i.verifiedBy].filter(Boolean).join(' → ');
+    return '<li class="row' + (view.item === i.id ? ' on' : '') + '" data-item="' + i.id + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + esc(i.title) + '</div><div class="meta"><span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span>' + esc(i.specs.join(', ')) + '</span>' : '') + (who ? '<span>' + esc(who) + '</span>' : '') + (i.blockedBy.length && s === 'open' ? '<span>waits on #' + i.blockedBy.join(', #') + '</span>' : '') + '<span>' + ago(i.updatedAt) + '</span></div></div>' + chip(s) + '</li>';
+  }).join('') : '<li class="empty">' + (items.length ? 'No items match.' : 'No items yet. Add the first one with New item.') + '</li>';
+
+  const item = p.items.find((i) => i.id === view.item);
+  $('add-form').hidden = !(view.adding || !item);
+  $('detail').hidden = !item || view.adding;
+  if (item && !view.adding) {
+    const s = stateOf(item);
+    const cited = item.specs.map((id) => p.spec.find((r) => r.id === id) || { id, status: 'missing', text: '(not in SPEC.md)' });
+    $('detail').innerHTML = '<div style="display:grid;gap:14px"><div><h2><span>#' + item.id + '</span>' + esc(item.title) + '</h2><div class="meta" style="margin-top:6px">' + chip(s) + '<span class="chip">' + esc(item.lane) + '</span><span class="chip">' + esc(item.route) + '</span></div></div>'
+      + (item.criterion ? '<div><h3>Criterion</h3><div class="text">' + esc(item.criterion) + '</div></div>' : '')
+      + (cited.length ? '<div><h3>Spec rows it serves</h3>' + cited.map((r) => '<div class="rowref"><code>' + esc(r.id) + '</code><div>' + esc(r.text) + ' <span class="chip ' + tone(r.status) + '">' + esc(r.status) + '</span></div></div>').join('') + '</div>' : '')
+      + (item.brief ? '<div><h3>Brief</h3><div class="text muted">' + esc(item.brief) + '</div></div>' : '')
+      + '<div><h3>People and commits</h3><dl class="kv">' + (item.owner && s === 'building' ? '<dt>holding</dt><dd>' + esc(item.owner) + '</dd>' : '') + (item.builtBy ? '<dt>built by</dt><dd>' + esc(item.builtBy) + '</dd>' : '') + (item.verifiedBy ? '<dt>verified by</dt><dd>' + esc(item.verifiedBy) + '</dd>' : '') + (item.commit ? '<dt>commit</dt><dd><code>' + esc(item.commit.slice(0, 12)) + '</code></dd>' : '') + (item.merged ? '<dt>merged</dt><dd><code>' + esc(item.merged.slice(0, 12)) + '</code></dd>' : '') + (item.blockedBy.length ? '<dt>waits on</dt><dd>' + item.blockedBy.map((id) => '#' + id).join(', ') + '</dd>' : '') + '</dl></div>'
+      + '<div><h3>Verdicts</h3>' + (item.verdicts.length ? item.verdicts.map((v) => '<div class="verdict ' + (v.decision === 'ACCEPT' ? 'yes' : 'no') + '"><b>' + esc(v.decision) + ' ' + esc(v.reason) + '</b><span class="by">' + esc(v.by) + ' · ' + clock(v.at) + ' · at ' + esc(String(v.commit || '').slice(0, 12)) + '</span><div class="note">' + esc(v.note) + '</div></div>').join('') : '<div class="muted">None yet.</div>') + '</div>'
+      + '<div><h3>History</h3><div class="hist">' + item.history.map((e) => '<div><time>' + clock(e.at) + '</time><span>' + esc(e.by) + ' ' + esc(e.kind) + '</span></div>').join('') + '</div></div>'
+      + '<div class="links"><button data-shout="' + esc(item.lane) + '" data-about="' + item.id + '" type="button">Shout the ' + esc(item.lane) + ' lane about #' + item.id + '</button><button data-new type="button">New item</button></div></div>';
   }
-  const card = (i) => {
-    const v = i.verdict;
-    const chip = i.status === 'verified' ? '<span class="chip ok">verified</span>' : i.status === 'submitted' ? '<span class="chip warn">to verify</span>' : i.status === 'claimed' ? '<span class="chip busy">building</span>' : v && v.decision === 'REJECT' ? '<span class="chip no">sent back</span>' : i.blockedBy.length ? '<span class="chip">waits on #' + i.blockedBy.join(', #') + '</span>' : '<span class="chip">ready</span>';
-    const who = i.status === 'claimed' ? i.owner : [i.builtBy, i.verifiedBy].filter(Boolean).join(' → ');
-    return '<div class="card' + (opened.has(i.id) ? ' open' : '') + '" data-item="' + i.id + '"><div class="t"><span>#' + i.id + '</span>' + esc(i.title) + '</div><div class="meta">' + chip + '<span class="chip">' + esc(i.lane) + '</span>' + i.specs.map((s) => '<span class="chip">' + esc(s) + '</span>').join('') + (who ? '<span>' + esc(who) + '</span>' : '') + '<span>' + ago(i.updatedAt) + '</span></div><div class="more">' + (i.criterion ? '<div><b>Criterion.</b> ' + esc(i.criterion) + '</div>' : '') + (v ? '<div><b>' + esc(v.decision) + ' ' + esc(v.reason) + '</b> by ' + esc(v.by) + ', ' + clock(v.at) + ': ' + esc(v.note) + '</div>' : '') + (i.commit ? '<div>commit ' + esc(i.commit.slice(0, 12)) + (i.merged ? ' · merged ' + esc(i.merged.slice(0, 12)) : '') + '</div>' : '') + '</div></div>';
-  };
-  const col = (title, list) => '<div class="col"><h3><span>' + title + '</span><span>' + list.length + '</span></h3>' + (list.length ? list.map(card).join('') : '<div class="empty">Nothing here.</div>') + '</div>';
-  const open = items.filter((i) => i.status === 'open' && !(i.verdict && i.verdict.decision === 'REJECT'));
-  const verified = items.filter((i) => i.status === 'verified').sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 15);
-  $('columns').innerHTML = col('Open', open) + col('Building', items.filter((i) => i.status === 'claimed')) + col('To verify', awaiting) + col('Sent back', sentBack) + col('Verified', verified);
-  const rowList = (title, rows) => {
-    const shown = rows.filter((r) => rowFilter === 'all' || (rowFilter === 'decide' ? ['pending', 'draft'].includes(r.status) : r.status === 'approved'));
-    if (!shown.length) return '<h4>' + title + '</h4><div class="empty">No rows match.</div>';
-    const tone = (s) => s === 'approved' ? 'ok' : s === 'pending' ? 'no' : s === 'draft' ? 'warn' : '';
-    return '<h4>' + title + '</h4>' + shown.map((r) => '<div class="r"><code>' + esc(r.id) + '</code><span><span class="chip ' + tone(r.status) + '">' + esc(r.status) + '</span></span><div>' + esc(r.text) + '<small>' + esc(r.section) + (r.gate ? ' · gate: ' + esc(r.gate) : '') + '</small></div></div>').join('');
-  };
-  $('rows').innerHTML = rowList('Spec: what to build', project.spec) + rowList('Practice: how it is built', project.practice);
-  $('shouts').innerHTML = project.shouts.length ? project.shouts.map((s) => '<div class="row"><time>' + clock(s.shout_at) + '</time><div><b>' + esc(s.shout_from) + ' → ' + esc(s.shout_to) + '</b> ' + esc(s.shout_text) + '</div></div>').join('') : '<div class="empty">No shouts yet.</div>';
-  const held = new Map(project.holds.map((h) => [h.hold_lane, h]));
-  $('lanes').innerHTML = lanes.filter((l) => l !== 'coordinator').map((l) => '<tr><td><b>' + esc(l) + '</b></td><td>' + (held.has(l) ? '<span class="chip no">held</span> ' + esc(held.get(l).hold_reason) : '<span class="chip ok">open</span>') + '</td><td>' + (held.has(l) ? '<button class="small" data-release="' + esc(l) + '">Release</button>' : '') + '</td></tr>').join('');
-  $('agents').innerHTML = project.agents.map((a) => '<tr><td><b>' + esc(a.agent_id) + '</b></td><td>' + esc(a.agent_lane) + '</td><td>' + esc(a.agent_route) + '</td><td><code>' + esc(a.agent_path) + '</code></td></tr>').join('');
-  $('events').innerHTML = project.events.map((e) => '<div class="row"><time>' + clock(e.event_at) + '</time><div><b>' + esc(e.event_by) + '</b> ' + esc(e.event_kind) + (e.item_id ? ' #' + e.item_id : '') + '</div></div>').join('') || '<div class="empty">No activity yet.</div>';
+
+  $('feed').innerHTML = p.shouts.length ? p.shouts.map((x) => '<div><time>' + clock(x.shout_at) + '</time><div><b>' + esc(x.shout_from) + ' → ' + esc(x.shout_to) + '</b> ' + esc(x.shout_text) + '</div></div>').join('') : '<div class="empty">No shouts yet.</div>';
+  $('shout-targets').innerHTML = ['all', ...lanes, ...p.agents.map((a) => a.agent_id)].map((t) => '<option value="' + esc(t) + '">').join('');
+  $('agents').innerHTML = p.agents.length ? p.agents.map((a) => '<div class="agent"><b>' + esc(a.agent_id) + '</b><span class="muted">' + esc(a.agent_lane) + ' lane · ' + esc(a.agent_route) + '</span><small>' + esc(a.agent_path) + '</small></div>').join('') : '<div class="empty">No agents yet.</div>';
+  const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
+  $('lanes').innerHTML = working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no">held</span> <span class="muted">' + esc(held.get(l).hold_reason) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join('');
+
+  for (const kind of ['spec', 'doctrine']) {
+    const rows = kind === 'spec' ? p.spec : p.practice;
+    const filter = view.rows[kind];
+    const labels = { decide: 'Needs your decision', all: 'All rows', approved: 'Approved' };
+    const n = { decide: rows.filter((r) => ['pending', 'draft'].includes(r.status)).length, all: rows.length, approved: rows.filter((r) => r.status === 'approved').length };
+    $(kind + '-chips').innerHTML = Object.keys(labels).map((f) => '<button data-rows="' + kind + ':' + f + '" class="' + (filter === f ? 'on' : '') + '" type="button">' + labels[f] + '<b>' + n[f] + '</b></button>').join('');
+    const shownRows = rows.filter((r) => filter === 'all' || (filter === 'decide' ? ['pending', 'draft'].includes(r.status) : r.status === 'approved'));
+    let section = null;
+    $(kind + '-list').innerHTML = shownRows.length ? shownRows.map((r) => {
+      const head = r.section !== section ? '<h4>' + esc(r.section) + '</h4>' : '';
+      section = r.section;
+      return head + '<div class="srow' + (view.row[kind] === r.id ? ' on' : '') + '" data-row="' + kind + ':' + esc(r.id) + '"><code>' + esc(r.id) + '</code><span><span class="chip ' + tone(r.status) + '">' + esc(r.status) + '</span></span><span>' + esc(r.text) + '</span></div>';
+    }).join('') : '<div class="empty">No rows match.</div>';
+    const row = rows.find((r) => r.id === view.row[kind]);
+    const citing = row ? p.items.filter((i) => i.specs.includes(row.id)) : [];
+    $(kind + '-detail').innerHTML = row ? '<div style="display:grid;gap:12px"><h2><span>' + esc(row.id) + '</span>' + esc(row.text) + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(row.status) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + '</div><dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<button data-go="item:' + i.id + '" type="button">#' + i.id + ' ' + esc(i.title) + '</button>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div><div class="muted">Rows change in ' + (kind === 'spec' ? 'SPEC.md' : 'PRACTICE.md') + ', and only you approve them.</div></div>' : '<div class="empty">Pick a row to see it, and the items that cite it.</div>';
+  }
+
+  const verdicts = p.items.flatMap((i) => i.verdicts);
+  $('metrics').innerHTML = [['verified by a second agent', by('verified').length], ['to verify', by('verify').length], ['building', by('building').length], ['rejections recorded', verdicts.filter((v) => v.decision === 'REJECT').length], ['agents', p.agents.length]].map(([label, value]) => '<div class="metric"><b>' + value + '</b><span>' + label + '</span></div>').join('');
+  $('activity').innerHTML = p.events.length ? p.events.map((e) => '<div><time>' + clock(e.event_at) + '</time><div><b>' + esc(e.event_by) + '</b> ' + esc(e.event_kind) + (e.item_id ? ' <button class="ref" data-go="item:' + e.item_id + '" type="button">#' + e.item_id + '</button>' : '') + '</div></div>').join('') : '<div class="empty">No activity yet.</div>';
   showTab();
 }
 
 function showTab() {
-  document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = pane.dataset.pane !== tab; });
-  document.querySelectorAll('.tab').forEach((button) => button.classList.toggle('on', button.dataset.tab === tab));
-  document.querySelectorAll('#row-filters button').forEach((button) => button.classList.toggle('on', button.dataset.f === rowFilter));
+  document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = pane.dataset.pane !== view.tab; });
+  document.querySelectorAll('.tab').forEach((button) => button.classList.toggle('on', button.dataset.tab === view.tab));
 }
 
-async function act(command, args, root = selected) {
+function go(target) {
+  const [kind, id] = target.split(':');
+  if (kind === 'item') { view.tab = 'items'; view.item = Number(id); view.adding = false; view.state = 'all'; }
+  else if (kind === 'spec') { view.tab = 'spec'; view.row.spec = id; view.rows.spec = 'all'; }
+  else if (kind === 'tab') view.tab = id;
+  keep('pb.tab', view.tab);
+  render();
+}
+
+async function act(command, args, root = view.root) {
   const out = $('console');
   out.hidden = false;
   out.className = 'console';
@@ -241,17 +388,31 @@ async function act(command, args, root = selected) {
 }
 
 document.addEventListener('click', (event) => {
-  const target = event.target.closest('[data-root],[data-tab],[data-go],[data-item],[data-f],[data-release]');
-  if (!target) return;
-  if (target.dataset.root) { selected = target.dataset.root; keep('pb.project', selected); refresh(); }
-  else if (target.dataset.tab || target.dataset.go) { tab = target.dataset.tab || target.dataset.go; keep('pb.tab', tab); showTab(); }
-  else if (target.dataset.item) { const id = Number(target.dataset.item); opened.has(id) ? opened.delete(id) : opened.add(id); target.classList.toggle('open'); }
-  else if (target.dataset.f) { rowFilter = target.dataset.f; render(); }
-  else if (target.dataset.release) act('release', { lane: target.dataset.release });
+  const t = event.target.closest('[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-release],[data-shout],[data-new],#proj-switch,#console');
+  if (!t) { if (!event.target.closest('.switch')) $('proj-menu').hidden = true; return; }
+  if (t.id === 'proj-switch') { $('proj-menu').hidden = !$('proj-menu').hidden; return; }
+  if (t.id === 'console') { t.hidden = true; return; }
+  if (t.dataset.root) { view.root = t.dataset.root; view.item = null; keep('pb.project', view.root); $('proj-menu').hidden = true; refresh(); }
+  else if (t.dataset.tab) { view.tab = t.dataset.tab; keep('pb.tab', view.tab); showTab(); }
+  else if (t.dataset.go) go(t.dataset.go);
+  else if (t.dataset.item) { view.item = Number(t.dataset.item); view.adding = false; render(); }
+  else if (t.dataset.state) { view.state = t.dataset.state; render(); }
+  else if (t.dataset.rows) { const [kind, f] = t.dataset.rows.split(':'); view.rows[kind] = f; render(); }
+  else if (t.dataset.row) { const [kind, id] = t.dataset.row.split(':'); view.row[kind] = id; render(); }
+  else if (t.dataset.release) act('release', { lane: t.dataset.release });
+  else if (t.dataset.shout) { $('shout-to').value = t.dataset.shout; $('shout-text').value = '#' + t.dataset.about + ': '; view.tab = 'shouts'; showTab(); $('shout-text').focus(); }
+  else if (t.dataset.new !== undefined) { view.adding = true; render(); $('add-title').focus(); }
 });
+$('new-item').addEventListener('click', () => { view.adding = true; view.item = null; render(); $('add-title').focus(); });
+$('q').addEventListener('input', () => render());
+$('lane-filter').addEventListener('change', () => render());
 $('add-form').addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (await act('add', { lane: $('add-lane').value, title: $('add-title').value, criterion: $('add-criterion').value, specs: $('add-specs').value })) { $('add-title').value = ''; $('add-criterion').value = ''; }
+  if (await act('add', { lane: $('add-lane').value, title: $('add-title').value, criterion: $('add-criterion').value, specs: $('add-specs').value })) {
+    $('add-title').value = '';
+    $('add-criterion').value = '';
+    $('add-specs').value = '';
+  }
 });
 $('shout-form').addEventListener('submit', async (event) => {
   event.preventDefault();

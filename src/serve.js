@@ -81,12 +81,13 @@ export function projectState(root) {
   return withProject(root, (board, info, config) => {
     const all = store.listItems(board, { all: true });
     const status = new Map(all.map((item) => [item.item_id, item.item_status]));
-    const rows = (file) => loadSpec(info.root, { ...config, spec: file }).rows.map(({ id, status: state, tier, text, gate, section }) => ({ id, status: state, tier, text, gate, section }));
+    const rows = (file) => loadSpec(info.root, { ...config, spec: file }).rows.map(({ id, status: state, tier, text, gate, serves, section }) => ({ id, status: state, tier, text, gate, serves, section }));
+    const verdict = (row) => ({ decision: row.verdict_decision, reason: row.verdict_reason, note: row.verdict_note, by: row.verdict_by, at: row.verdict_at, commit: row.verdict_commit });
     return {
       root: info.root,
       lanes: [COORDINATOR, ...Object.keys(config.lanes)],
       items: all.map((item) => {
-        const verdict = store.verdictsFor(board, item.item_id).at(-1);
+        const verdicts = store.verdictsFor(board, item.item_id).map(verdict);
         const after = item.item_after ? item.item_after.split(',').map(Number) : [];
         return {
           id: item.item_id,
@@ -99,11 +100,14 @@ export function projectState(root) {
           verifiedBy: item.item_verified_by,
           specs: item.item_spec_ids ? item.item_spec_ids.split(',') : [],
           criterion: item.item_criterion,
+          brief: item.item_brief,
           commit: item.item_commit,
           merged: item.item_merged_commit,
           blockedBy: after.filter((id) => status.get(id) !== 'verified'),
           updatedAt: item.item_updated_at,
-          verdict: verdict ? { decision: verdict.verdict_decision, reason: verdict.verdict_reason, note: verdict.verdict_note, by: verdict.verdict_by, at: verdict.verdict_at } : null,
+          verdict: verdicts.at(-1) ?? null,
+          verdicts,
+          history: store.events(board, { itemId: item.item_id }).map((event) => ({ kind: event.event_kind, by: event.event_by, at: event.event_at })),
         };
       }),
       shouts: store.recentShouts(board, 40),
