@@ -575,13 +575,17 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null }
     if (paused && !(isMine && isHeld(board, item))) {
       throw new Refused('LANE_HELD', `${paused.hold_by} holds the ${item.item_lane} lane: ${paused.hold_reason}. Wait for it: pullboard next --wait 9 (minutes)`);
     }
-    if (item.item_parent_id === null) {
+    // Reworking your own rejected item is a claim of its own, beside the one live claim (B5): the
+    // builder fixing what a verifier found need not drop its other work to do it.
+    const isRework = (entry) => entry.item_verdict === 'REJECT' && entry.item_built_by === agentId;
+    if (item.item_parent_id === null && !isRework(item)) {
       const other = board.db
         .prepare(
           `SELECT item_id FROM item WHERE item_owner = ? AND item_status = 'claimed'
-             AND item_lease_until > ? AND item_id != ? AND item_parent_id IS NULL`,
+             AND item_lease_until > ? AND item_id != ? AND item_parent_id IS NULL
+             AND NOT (COALESCE(item_verdict, '') = 'REJECT' AND COALESCE(item_built_by, '') = ?)`,
         )
-        .get(agentId, now(board), id);
+        .get(agentId, now(board), id, agentId);
       if (other) {
         throw new Refused(
           'ONE_CLAIM',

@@ -432,3 +432,26 @@ test('with only work above its tier open in its lane, next names it and the rero
     `#${strong} (strong) is open in the web lane, above your light route: a strong agent takes it, or, if light can build it, the coordinator reroutes it: pullboard edit ${strong} --route light`,
   ], 'a blocked item of your own tier does not hide the work above it');
 });
+
+test('a builder reworks its own rejected item beside its one claim; nothing else doubles up [B5]', () => {
+  const rejected = (title) => {
+    const id = store.addItem(board, { by: 'coordinator', lane: 'web', title });
+    claimAs(id, 'web-1', 'web');
+    store.submit(board, id, { agentId: 'web-1', commit: SHA_A, tree: 't' });
+    verdict(id, { agentId: 'web-2', decision: 'REJECT', reason: 'TEST_FAILURE', note: 'fails', digest: `digest:${title}` });
+    return id;
+  };
+  const page = rejected('Page');
+  const footer = rejected('Footer');
+  const aside = rejected('Aside');
+  const header = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Header' });
+  const nav = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Nav' });
+  claimAs(page, 'web-1', 'web');
+  assert.equal(claimAs(header, 'web-1', 'web').renewed, false, 'holding only a rework, one new claim is still free');
+  assert.equal(claimAs(footer, 'web-1', 'web').renewed, false, 'a second rework of its own, beside its claim');
+  assert.throws(() => claimAs(nav, 'web-1', 'web'), new RegExp(`ONE_CLAIM.*you already hold #${header}`));
+  store.submit(board, page, { agentId: 'web-1', commit: SHA_B, tree: 't2' });
+  assert.equal(store.getItem(board, page).item_status, 'submitted');
+  claimAs(nav, 'web-2', 'web');
+  assert.throws(() => claimAs(aside, 'web-2', 'web'), /ONE_CLAIM/, "another agent's rejected item is no rework of web-2's");
+});
