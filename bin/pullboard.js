@@ -9,6 +9,13 @@ process.emitWarning = (warning, ...rest) => {
   emitWarning.call(process, warning, ...rest);
 };
 
+// A reader that stops early, like head, closes the pipe, and the rest of the output has nowhere to
+// go: end quietly, as other command-line tools do, rather than print a stack trace (N24).
+process.stdout.on('error', (error) => {
+  if (error.code !== 'EPIPE') throw error;
+  process.exit(process.exitCode ?? 0);
+});
+
 const { main } = await import('../src/cli.js');
 process.exitCode = await main(process.argv.slice(2), {
   cwd: process.cwd(),

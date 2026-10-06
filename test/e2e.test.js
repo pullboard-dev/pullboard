@@ -808,3 +808,15 @@ test('verify and escalate take a note from a file, exactly as written [V12]', ()
   assert.match(box.run(box.repo, 'show', '2').out, /ran `npm test` with \$HOME unset: "it failed"/);
   assert.match(box.run(box.repo, 'help').out, /--note-file <file>/);
 });
+
+test('output into a reader that stops early ends quietly [N24]', async () => {
+  const box = project();
+  for (let n = 0; n < 40; n++) box.run(box.repo, 'add', 'web', `Item ${n}`, '--specs', 'G1');
+  const child = spawn(process.execPath, [BIN, 'list', '--all'], { cwd: box.repo, env: box.env });
+  child.stdout.destroy();
+  let stderr = '';
+  child.stderr.on('data', (chunk) => { stderr += chunk; });
+  const code = await new Promise((done) => child.on('close', done));
+  assert.equal(stderr, '');
+  assert.equal(code, 0);
+});
