@@ -238,7 +238,8 @@ test('verify runs at the submitted commit, against the criterion frozen at claim
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.run(box.web, 'claim', '1');
   assert.equal(box.run(box.web, 'submit', '1').code, 0);
-  assert.match(box.run(box.repo, 'verify', '1', 'accept').out, /verified #1: CRITERION_MET/);
+  assert.match(box.run(box.repo, 'verify', '1', 'accept').err, /PROOF_REQUIRED/);
+  assert.match(box.run(box.repo, 'verify', '1', 'accept', '--note', 'removed the heading; the page test failed').out, /verified #1: CRITERION_MET/);
   const show = box.run(box.repo, 'show', '1').out;
   assert.match(show, /G1: The page renders a heading\./);
   assert.match(show, /ACCEPT CRITERION_MET by coordinator/);
@@ -294,4 +295,22 @@ test('two agents racing for one item: exactly one wins, every time [B2]', async 
     assert.match(losers[0].err, /HELD/);
     assert.equal(box.run(winners[0].cwd, 'release', String(round)).code, 0);
   }
+});
+
+test('next claims the next free item; --verify names the next to check [N2]', () => {
+  const box = project();
+  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');
+  box.run(box.repo, 'add', 'web', 'Second page', '--specs', 'G1', '--after', '1');
+  const first = box.run(box.web, 'next');
+  assert.equal(first.code, 0, first.err);
+  assert.match(first.out, /claimed #1: Page/);
+  assert.match(first.out, /G1: The page renders\./);
+  assert.match(box.run(box.web, 'next').out, /you hold #1: Page/);
+  commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
+  box.run(box.web, 'submit', '1');
+  const blocked = box.run(box.web, 'next');
+  assert.equal(blocked.code, 1);
+  assert.match(blocked.err, /NOTHING_FREE\] #2 waits on #1 \(submitted\)/);
+  assert.match(box.run(box.repo, 'next', '--verify').out, /next to verify: #1 Page, built by web-1/);
+  assert.match(box.run(box.web, 'next', '--verify').err, /NOTHING_FREE/);
 });

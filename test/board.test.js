@@ -108,7 +108,7 @@ function submitted() {
  * A verdict with the defaults a correct verifier would pass.
  */
 const verdict = (id, fields) =>
-  store.verify(board, id, { head: SHA_A, digest: 'digest:Page', policy: 'any', ...fields });
+  store.verify(board, id, { head: SHA_A, digest: 'digest:Page', policy: 'any', note: 'broke the fix; its test failed; restored it', ...fields });
 
 test('the builder never verifies its own work [V1]', () => {
   const id = submitted();
@@ -138,7 +138,8 @@ test('ACCEPT needs CRITERION_MET; REJECT needs a reason code and a note [V5]', (
   const id = submitted();
   assert.throws(() => verdict(id, { agentId: 'web-2', decision: 'ACCEPT', reason: 'OTHER' }), /BAD_REASON/);
   assert.throws(() => verdict(id, { agentId: 'web-2', decision: 'REJECT' }), /BAD_REASON/);
-  assert.throws(() => verdict(id, { agentId: 'web-2', decision: 'REJECT', reason: 'TEST_FAILURE' }), /NOTE_REQUIRED/);
+  assert.throws(() => verdict(id, { agentId: 'web-2', decision: 'REJECT', reason: 'TEST_FAILURE', note: '' }), /NOTE_REQUIRED/);
+  assert.throws(() => verdict(id, { agentId: 'web-2', decision: 'ACCEPT', note: ' ' }), /PROOF_REQUIRED/);
   assert.throws(() => verdict(id, { agentId: 'web-2', decision: 'MAYBE' }), /BAD_DECISION/);
 });
 
@@ -204,7 +205,7 @@ test('an item can wait on others: claiming it is refused until they are verified
   claimAs(contract, 'web-1', 'web');
   store.submit(board, contract, { agentId: 'web-1', commit: SHA_A, tree: 't' });
   assert.throws(() => claimAs(user, 'api-1', 'api'), /BLOCKED.*\(submitted/);
-  store.verify(board, contract, { agentId: 'web-2', decision: 'ACCEPT', head: SHA_A, digest: 'digest:Store module', policy: 'any' });
+  store.verify(board, contract, { agentId: 'web-2', decision: 'ACCEPT', head: SHA_A, digest: 'digest:Store module', policy: 'any', note: 'reverted the module; its test failed' });
   assert.equal(claimAs(user, 'api-1', 'api').renewed, false);
   const dropped = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Dropped' });
   store.withdraw(board, dropped, { agentId: 'coordinator', reason: 'not needed' });
@@ -225,4 +226,16 @@ test('a board made before dependencies existed is migrated on open', () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('next finds the oldest free item in your lane, or says what everything waits on [N2]', () => {
+  const contract = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Contract' });
+  const later = store.addItem(board, { by: 'coordinator', lane: 'api', title: 'Uses it', after: [contract] });
+  assert.deepEqual(store.nextFor(board, { agentId: 'api-1', lane: 'api' }), { item: null, reasons: [`#${later} waits on #${contract} (open)`] });
+  assert.equal(store.nextFor(board, { agentId: 'web-1', lane: 'web' }).item.item_id, contract);
+  claimAs(contract, 'web-1', 'web');
+  assert.equal(store.nextFor(board, { agentId: 'web-1', lane: 'web' }).item.item_status, 'claimed');
+  store.submit(board, contract, { agentId: 'web-1', commit: SHA_A, tree: 't' });
+  assert.equal(store.nextFor(board, { agentId: 'web-1', lane: 'web', verify: true }).item, null);
+  assert.equal(store.nextFor(board, { agentId: 'web-2', lane: 'web', verify: true }).item.item_id, contract);
 });
