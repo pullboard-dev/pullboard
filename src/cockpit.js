@@ -176,8 +176,8 @@ input, select { border: 1px solid var(--line-strong); background: var(--surface)
 .sentback h3 { color: var(--reject); }
 .sentback .verdict { border-left: 0; padding: 0; margin: 0; }
 .meta .why { flex-basis: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--reject); }
-.hist { display: grid; gap: 2px; font-size: 12.5px; }
-.hist div { display: grid; grid-template-columns: 4.2em minmax(0, 1fr); gap: 8px; }
+.hist { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; font-size: 12.5px; }
+.hist div { display: contents; }
 .hist time, .feed time { color: var(--ink-faint); font: 12px var(--mono); }
 .rowref { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; font-size: 13px; padding: 3px 0; }
 .rowref code { font-weight: 600; }
@@ -192,7 +192,9 @@ input, select { border: 1px solid var(--line-strong); background: var(--surface)
 .inline label { flex: 1 1 150px; min-width: 0; }
 .feed { padding: 6px 10px 10px; display: grid; }
 .feed > div { display: grid; grid-template-columns: 4.6em minmax(0, 1fr); gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
-.feed > div:first-child { border-top: 0; }
+.feed > div:first-child, .feed > .day + div { border-top: 0; }
+.feed .day { margin: 0; padding: 12px 0 4px; font: 600 11px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
+.feed .day:first-child { padding-top: 6px; }
 .feed button.ref { border: 0; background: none; padding: 0; color: var(--accent-strong); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .agent { display: grid; gap: 2px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; }
 .agent:first-child { border-top: 0; }
@@ -313,6 +315,15 @@ const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&am
 const ago = (iso) => { const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 1 ? 'now' : m < 60 ? m + 'm' : m < 2880 ? Math.round(m / 60) + 'h' : Math.round(m / 1440) + 'd'; };
 const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 const when = (iso) => (new Date(iso).toDateString() === new Date().toDateString() ? '' : new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ') + clock(iso);
+// A day as a feed names it: Today, Yesterday, or its weekday and date.
+const dayName = (iso) => {
+  const then = new Date(iso).toDateString(), today = new Date();
+  if (then === today.toDateString()) return 'Today';
+  today.setDate(today.getDate() - 1);
+  return then === today.toDateString() ? 'Yesterday' : new Date(iso).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+};
+// A feed's rows, newest first, with the day named above each run of rows from the same day.
+const byDay = (rows, at, row) => rows.map((x, i) => (i && new Date(at(x)).toDateString() === new Date(at(rows[i - 1])).toDateString() ? '' : '<h4 class="day">' + dayName(at(x)) + '</h4>') + row(x)).join('');
 const firstLine = (text) => String(text ?? '').split('\\n').map((line) => line.trim()).find(Boolean) || '';
 // The latest verdict is a reject and no accept followed: open again, being reworked, resubmitted, or
 // withdrawn after it.
@@ -564,7 +575,7 @@ function render() {
       + (item.brief ? '<div><h3>Brief</h3><div class="text muted">' + esc(item.brief) + '</div></div>' : '')
       + '<div><h3>People and commits</h3><dl class="kv">' + (item.owner && s === 'building' ? '<dt>holding</dt><dd>' + esc(item.owner) + '</dd>' : '') + (item.builtBy ? '<dt>built by</dt><dd>' + esc(item.builtBy) + '</dd>' : '') + (item.verifiedBy ? '<dt>verified by</dt><dd>' + esc(item.verifiedBy) + '</dd>' : '') + (item.commit ? '<dt>commit</dt><dd><code>' + esc(item.commit.slice(0, 12)) + '</code></dd>' : '') + (item.merged ? '<dt>merged</dt><dd><code>' + esc(item.merged.slice(0, 12)) + '</code></dd>' : '') + (item.blockedBy.length ? '<dt>waits on</dt><dd>' + item.blockedBy.map((id) => '#' + id).join(', ') + '</dd>' : '') + '</dl></div>'
       + (back && !earlier.length ? '' : '<div><h3>' + (back ? 'Earlier verdicts' : 'Verdicts') + '</h3>' + (earlier.length ? earlier.map(verdictHtml).join('') : '<div class="muted">None yet.</div>') + '</div>')
-      + '<div><h3>History</h3><div class="hist">' + item.history.map((e) => '<div><time>' + clock(e.at) + '</time><span>' + esc(e.by) + ' ' + esc(e.kind) + '</span></div>').join('') + '</div></div>'
+      + '<div><h3>History</h3><div class="hist">' + item.history.map((e) => '<div><time>' + when(e.at) + '</time><span>' + esc(e.by) + ' ' + esc(e.kind) + '</span></div>').join('') + '</div></div>'
       + '<div class="links"><button data-shout="' + esc(item.lane) + '" data-about="' + item.id + '" type="button">Shout the ' + esc(item.lane) + ' lane about #' + item.id + '</button><button data-new type="button">New item</button></div></div>';
   }
 
@@ -576,7 +587,7 @@ function render() {
     const id = /^#\\d+$/.test(part) ? String(Number(part.slice(1))) : '';
     return titles.has(id) ? '<button class="ref" data-go="item:' + id + '" title="' + esc(titles.get(id)) + '" type="button">' + esc(part) + '</button>' : esc(part);
   }).join('');
-  $('feed').innerHTML = p.shouts.length ? p.shouts.map((x) => '<div><time>' + clock(x.shout_at) + '</time><div><b>' + esc(x.shout_from) + ' → ' + esc(x.shout_to) + '</b> ' + linked(x.shout_text) + '</div></div>').join('') : '<div class="empty">No shouts yet.</div>';
+  $('feed').innerHTML = p.shouts.length ? byDay(p.shouts, (x) => x.shout_at, (x) => '<div><time>' + clock(x.shout_at) + '</time><div><b>' + esc(x.shout_from) + ' → ' + esc(x.shout_to) + '</b> ' + linked(x.shout_text) + '</div></div>') : '<div class="empty">No shouts yet.</div>';
   $('shout-targets').innerHTML = ['all', ...lanes, ...p.agents.map((a) => a.agent_id)].map((t) => '<option value="' + esc(t) + '">').join('');
   // Each agent with what it holds: its claim, then its work sent back, then its work waiting for a
   // verdict. The worktree path is there on hover; what the person reads is who is doing what.
@@ -609,7 +620,7 @@ function render() {
   }
 
   $('flow').innerHTML = flowSvg(p);
-  $('activity').innerHTML = p.events.length ? p.events.map((e) => '<div><time>' + clock(e.event_at) + '</time><div><b>' + esc(e.event_by) + '</b> ' + esc(e.event_kind) + (e.item_id ? ' <button class="ref" data-go="item:' + e.item_id + '" type="button">#' + e.item_id + '</button>' : '') + '</div></div>').join('') : '<div class="empty">No activity yet.</div>';
+  $('activity').innerHTML = p.events.length ? byDay(p.events, (e) => e.event_at, (e) => '<div><time>' + clock(e.event_at) + '</time><div><b>' + esc(e.event_by) + '</b> ' + esc(e.event_kind) + (e.item_id ? ' <button class="ref" data-go="item:' + e.item_id + '" type="button">#' + e.item_id + '</button>' : '') + '</div></div>') : '<div class="empty">No activity yet.</div>';
   showTab();
 }
 
