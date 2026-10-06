@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import vm from 'node:vm';
+import { MACHINE } from '../src/machine.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const scratch = [];
@@ -236,6 +237,7 @@ async function openPage(view, { width = 1280 } = {}) {
     html,
     show: (id) => node(id).innerHTML,
     element: node,
+    run: (code) => vm.runInContext(code, context),
     async click(on) {
       const event = { target: target(on) };
       for (const listener of clicks) listener(event);
@@ -362,6 +364,71 @@ test('the agents panel says what each agent holds [N26]', async () => {
   }
 });
 
+/**
+ * The lifecycle drawing: each box's state, count and title; each arrow's title and label.
+ */
+function drawing(svg) {
+  return {
+    boxes: [...svg.matchAll(/<g class="s-([^"]+)"><title>([^<]*)<\/title>[^]*?<text class="n"[^>]*>(\d+)<\/text>/g)].map((match) => ({ state: match[1], title: match[2], count: Number(match[3]) })),
+    arrows: [...svg.matchAll(/<g><title>([^<]*)<\/title><path class="edge[^"]*"/g)].map((match) => match[1]),
+    labels: [...svg.matchAll(/<text class="tag([^"]*)"[^>]*>([^<]*)<\/text>/g)].map((match) => match[2] + (match[1].includes('idle') ? ' (none yet)' : '')),
+    sentBack: /<text class="sub"[^>]*>([^<]*)<\/text>/.exec(svg)?.[1],
+  };
+}
+
+test('the activity tab draws the lifecycle from the declaration, with live counts [N26]', async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  for (const title of ['Greeting', 'Farewell', 'Header', 'Footer', 'Sidebar']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
+  build(box, alpha, 1, 'greeting.html');
+  accept(box, alpha, 1);
+  build(box, alpha, 2, 'farewell.html');
+  sendBack(box, alpha, 2, 'no farewell');
+  box.run(alpha.web, 'claim', '3');
+  box.run(alpha.web, 'claim', '3');
+  box.run(alpha.repo, 'withdraw', '4', 'the footer moved to the next release');
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    assert.doesNotMatch(page.html, /id="metrics"/, 'the drawing replaces the metric cards');
+    assert.ok(!page.html.includes('pullboard claim <id>'), 'the declaration is embedded with < escaped');
+    const { boxes, arrows, labels, sentBack } = drawing(page.show('flow'));
+
+    const esc = (text) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+    assert.deepEqual(boxes.map((entry) => entry.state), MACHINE.states.map((state) => state.id), 'a box for every declared state');
+    for (const state of MACHINE.states) assert.ok(boxes.find((entry) => entry.state === state.id).title.startsWith(esc(`${state.id}: ${state.means}`)), `${state.id} says what it means`);
+    assert.match(boxes.find((entry) => entry.state === 'verified').title, /Every way in checks:\n {2}the caller&#39;s checkout contains the submitted commit\n {2}the caller did not build it/);
+    assert.deepEqual(Object.fromEntries(boxes.map((entry) => [entry.state, entry.count])), { open: 2, claimed: 1, submitted: 0, verified: 1, withdrawn: 1 });
+    assert.equal(sentBack, '1 sent back');
+
+    const pairs = new Set(MACHINE.moves.flatMap((move) => move.from.map((from) => `${from}>${move.to}`)));
+    assert.equal(arrows.length, pairs.size, 'one arrow per pair of states a move joins');
+    for (const move of MACHINE.moves) {
+      for (const from of move.from) assert.ok(arrows.some((title) => title.includes(`${move.verb}, ${from} to ${move.to}, by the ${move.by.join(' or ')}: `)), `${move.verb} from ${from} is on an arrow`);
+    }
+    assert.ok(arrows.some((title) => title.includes('claim, open to claimed, by the agent or coordinator: pullboard claim &lt;id&gt;. Made 3 times.\nChecks, in order:\n  the caller is the main checkout, or a worktree that joined a lane (NOT_JOINED)\n  the item exists (NO_ITEM)\n  the item is open or claimed (NOT_CLAIMABLE)')), 'each check in order, escaped');
+    assert.deepEqual(labels, [
+      'claim 3',
+      'claim 1',
+      'release · lapse · escalate · refreeze (none yet)',
+      'submit 2',
+      'accept 1',
+      'reject 1',
+      'escalate · refreeze (none yet)',
+      'withdraw 1',
+    ]);
+
+    // The clock's lapse is never logged: an item that reads open after its claim, and a claim logged
+    // on an item the replay holds claimed, each mean the clock moved first.
+    const counts = JSON.parse(page.run(`JSON.stringify([...moveCounts([
+      { status: 'open', history: [{ kind: 'add' }, { kind: 'claim' }] },
+      { status: 'claimed', history: [{ kind: 'add' }, { kind: 'claim' }, { kind: 'renew' }, { kind: 'claim' }] },
+    ])])`));
+    assert.deepEqual(counts, [['open>claimed:claim', 3], ['claimed>open:lapse', 2], ['claimed>claimed:claim', 1]]);
+  } finally {
+    await view.stop();
+  }
+});
 /**
  * The coordinator accepts an item from a checkout of its submitted commit.
  */
