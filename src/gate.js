@@ -12,21 +12,41 @@ import { Refused } from './refused.js';
 const STAMP = 'pullboard-gate-green';
 const LOG = 'pullboard-gate.log';
 const DIGEST_CHARS = 3000;
+const TAIL_CHARS = 1000;
+const LINE_CHARS = 300;
 const FAILURE_RE = /fail|error|expected|received|assert|not ok|✗|×|cannot|undefined|exception/i;
 
 /**
- * The lines of a failure worth an agent's attention: those that look like failures first, then the
- * end of the output, capped, so a refusal or a retry carries the reason and not the whole log.
+ * The lines of a failure worth an agent's attention: those that look like failures, then the end of
+ * the output, within one cap, so a refusal or a retry carries the reason and not the whole log. The
+ * end has its own share of the cap and every line is cut short, so no single long line can push the
+ * summary out.
  *
  * @param {string} output
  * @returns {string}
  */
 export function digestOf(output) {
-  const lines = output.split('\n').map((line) => line.trimEnd()).filter(Boolean);
-  const failing = lines.filter((line) => FAILURE_RE.test(line)).slice(0, 25);
-  const tail = lines.slice(-15);
-  const kept = [...new Set([...failing, ...tail])].join('\n');
-  return kept.length > DIGEST_CHARS ? `${kept.slice(0, DIGEST_CHARS)}\n...` : kept;
+  const lines = output
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter(Boolean)
+    .map((line) => (line.length > LINE_CHARS ? `${line.slice(0, LINE_CHARS)}…` : line));
+  const tail = [];
+  let room = TAIL_CHARS;
+  for (let at = lines.length - 1; at >= 0 && tail.length < 15 && lines[at].length < room; at -= 1) {
+    tail.unshift(lines[at]);
+    room -= lines[at].length + 1;
+  }
+  room = DIGEST_CHARS - (TAIL_CHARS - room);
+  const failing = [];
+  for (const line of lines.slice(0, lines.length - tail.length)) {
+    if (failing.length === 25) break;
+    if (FAILURE_RE.test(line) && line.length < room) {
+      failing.push(line);
+      room -= line.length + 1;
+    }
+  }
+  return [...failing, ...tail].join('\n');
 }
 
 /**
