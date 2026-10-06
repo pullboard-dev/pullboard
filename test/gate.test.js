@@ -19,3 +19,33 @@ test('a digest of many failures stays within its cap and still ends with the sum
   assert.match(digest, /^not ok 0 - /);
   assert.match(digest, /# tests 200\n# fail 200$/);
 });
+
+test('a digest keeps the lines that say why a test failed, and skips passing tests however named [V10]', () => {
+  const tap = [
+    '# Subtest: a lane cannot commit outside its folders',
+    'ok 1 - a lane cannot commit outside its folders',
+    '# Subtest: an error in the store is reported',
+    'ok 2 - an error in the store is reported',
+    '# Subtest: add returns the new number',
+    'not ok 3 - add returns the new number',
+    '  ---',
+    "  location: '/repo/test/store.test.js:12:1'",
+    "  failureType: 'testCodeFailure'",
+    '  error: |-',
+    '    Expected values to be strictly equal:',
+    '    2 !== 1',
+    '  expected: 1',
+    '  actual: 2',
+    '  ...',
+    ...Array.from({ length: 30 }, (_, n) => `ok ${n + 4} - filler ${n}`),
+    '# tests 33',
+    '# pass 32',
+    '# fail 1',
+  ].join('\n');
+  const digest = digestOf(tap);
+  assert.doesNotMatch(digest, /cannot commit|error in the store/, 'passing tests are not failures');
+  assert.match(digest, /^not ok 3 - add returns the new number\n/);
+  assert.match(digest, /store\.test\.js:12:1/);
+  assert.match(digest, / {4}2 !== 1\n {2}expected: 1\n {2}actual: 2/);
+  assert.match(digest, /# fail 1$/);
+});

@@ -15,10 +15,15 @@ const DIGEST_CHARS = 3000;
 const TAIL_CHARS = 1000;
 const LINE_CHARS = 300;
 const FAILURE_RE = /fail|error|expected|received|assert|not ok|✗|×|cannot|undefined|exception/i;
+// A passing test's own lines, whatever its name says: TAP's `ok N` and the `# Subtest:` before it.
+const PASSING_RE = /^\s*(ok \d+\b|# Subtest:)/;
+// Lines kept under a failure, where test runners say why: the message, expected and actual.
+const CONTEXT_LINES = 10;
 
 /**
- * The lines of a failure worth an agent's attention: those that look like failures, then the end of
- * the output, within one cap, so a refusal or a retry carries the reason and not the whole log. The
+ * The lines of a failure worth an agent's attention: each line that looks like a failure with the
+ * lines under it that say why, then the end of the output, within one cap, so a refusal or a retry
+ * carries the reason and not the whole log. Passing tests are skipped however they are named. The
  * end has its own share of the cap and every line is cut short, so no single long line can push the
  * summary out.
  *
@@ -38,13 +43,18 @@ export function digestOf(output) {
     room -= lines[at].length + 1;
   }
   room = DIGEST_CHARS - (TAIL_CHARS - room);
+  const body = lines.slice(0, lines.length - tail.length);
   const failing = [];
-  for (const line of lines.slice(0, lines.length - tail.length)) {
-    if (failing.length === 25) break;
-    if (FAILURE_RE.test(line) && line.length < room) {
+  for (let at = 0; at < body.length && failing.length < 40; at += 1) {
+    if (PASSING_RE.test(body[at]) || !FAILURE_RE.test(body[at])) continue;
+    const block = body.slice(at, at + CONTEXT_LINES + 1);
+    const end = block.findIndex((line, n) => n > 0 && (PASSING_RE.test(line) || /^\s*(not ok \d+|\.\.\.)\s*$|^\s*not ok \d+/.test(line)));
+    for (const line of end === -1 ? block : block.slice(0, end)) {
+      if (line.length >= room) break;
       failing.push(line);
       room -= line.length + 1;
     }
+    at += (end === -1 ? block.length : end) - 1;
   }
   return [...failing, ...tail].join('\n');
 }
