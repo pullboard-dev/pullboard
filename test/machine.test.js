@@ -19,118 +19,169 @@ const NOT_MOVES = {
   ONE_COORDINATOR: 'registering who is asking, before any move',
 };
 
-/** Where each move starts in the code: the board's functions, and the CLI's submit and verify. */
+/**
+ * Where each move starts in the code. Accept and reject share the board's verify and the CLI's, so
+ * they answer for its refusals together.
+ */
 const ENTRY_POINTS = [
-  ['board.js', 'claim'],
-  ['board.js', 'release'],
-  ['board.js', 'submit'],
-  ['board.js', 'verify'],
-  ['board.js', 'escalate'],
-  ['board.js', 'withdraw'],
-  ['board.js', 'refreeze'],
-  ['cli.js', 'submitHere'],
-  ['cli.js', 'verifyHere'],
+  { verbs: ['claim'], at: ['board.js#claim'] },
+  { verbs: ['release'], at: ['board.js#release'] },
+  { verbs: ['submit'], at: ['board.js#submit', 'cli.js#submitHere'] },
+  { verbs: ['accept', 'reject'], at: ['board.js#verify', 'cli.js#verifyHere'] },
+  { verbs: ['escalate'], at: ['board.js#escalate'] },
+  { verbs: ['withdraw'], at: ['board.js#withdraw'] },
+  { verbs: ['refreeze'], at: ['board.js#refreeze'] },
 ];
 
-const parsed = new Map();
+/** Board functions handed a function to call, and the one the CLI and the runner hand them. */
+const CALLBACKS = { 'board.js': { freeze: 'cli.js#freezer' } };
 
 /**
- * A source file's top-level functions by name, and what it imports from this package.
- *
- * @param {string} file - A file in src/.
- * @returns {{ bodies: Map<string, string>, named: Map<string, [string, string]>, spaces: Map<string, string> }}
+ * Calls whose refusals an entry point catches and reports as another: submit and verify read a
+ * cited row taken out of force as a changed criterion, CRITERIA_CHANGED.
  */
-function parse(file) {
-  if (parsed.has(file)) return parsed.get(file);
-  const source = readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
+const CAUGHT = { 'cli.js#submitHere': ['cli.js#freezer'], 'cli.js#verifyHere': ['cli.js#freezer'] };
+
+/** A top-level function, or a top-level arrow function bound to a const. */
+const START = /^(?:export )?(?:(?:async )?function (\w+)\(|const (\w+) = (?:async )?(?:\([^)]*\)|\w+) =>)/;
+
+/**
+ * Each top-level function's source by name, arrow functions included. A function declaration ends
+ * at its closing brace; an arrow function ends where its statement does.
+ *
+ * @param {string} source
+ * @returns {Map<string, string>}
+ */
+function functionsIn(source) {
   const bodies = new Map();
-  let name = null;
-  let lines = [];
+  let open = null;
   for (const line of source.split('\n')) {
-    const start = /^(?:export )?(?:async )?function (\w+)\(/.exec(line);
-    if (start) {
-      if (name !== null) bodies.set(name, lines.join('\n'));
-      [name, lines] = [start[1], []];
+    if (open) {
+      open.lines.push(line);
+      if (open.ends(line)) {
+        bodies.set(open.name, open.lines.join('\n'));
+        open = null;
+      }
+      continue;
     }
-    if (name === null) continue;
-    lines.push(line);
-    if (line === '}') {
-      bodies.set(name, lines.join('\n'));
-      name = null;
-    }
+    const start = START.exec(line);
+    if (!start) continue;
+    const end = line.trimEnd();
+    if (start[1]) open = { name: start[1], lines: [line], ends: (next) => next === '}' };
+    else if (end.endsWith(';')) bodies.set(start[2], line);
+    else if (end.endsWith('{')) open = { name: start[2], lines: [line], ends: (next) => next === '};' };
+    else open = { name: start[2], lines: [line], ends: (next) => next.trimEnd().endsWith(';') };
   }
-  const named = new Map();
-  for (const [, names, from] of source.matchAll(/import\s*\{([^}]*)\}\s*from\s*'\.\/([\w-]+\.js)'/g)) {
-    for (const part of names.split(',').map((text) => text.trim()).filter(Boolean)) {
-      const [original, local = original] = part.split(/\s+as\s+/);
-      named.set(local, [from, original]);
-    }
-  }
-  const spaces = new Map([...source.matchAll(/import \* as (\w+) from '\.\/([\w-]+\.js)'/g)].map(([, space, from]) => [space, from]));
-  const result = { bodies, named, spaces };
-  parsed.set(file, result);
-  return result;
+  return bodies;
 }
 
 /**
- * Every refusal code a function raises, itself or through the functions of this package it calls.
+ * A walk over this package's source: the refusal codes a function raises, itself or through the
+ * functions it calls, followed across imports and into the functions the CLI hands the board.
+ *
+ * @param {(file: string) => string} read - The source of a file in src/.
+ * @returns {{ functions: (file: string) => string[], refusalsOf: (key: string, skip?: Set<string>) => Set<string> }}
+ */
+function codeWalk(read) {
+  const files = new Map();
+  const load = (file) => {
+    if (!files.has(file)) {
+      const source = read(file);
+      const named = new Map();
+      for (const [, names, from] of source.matchAll(/import\s*\{([^}]*)\}\s*from\s*'\.\/([\w-]+\.js)'/g)) {
+        for (const part of names.split(',').map((text) => text.trim()).filter(Boolean)) {
+          const [original, local = original] = part.split(/\s+as\s+/);
+          named.set(local, `${from}#${original}`);
+        }
+      }
+      const spaces = new Map([...source.matchAll(/import \* as (\w+) from '\.\/([\w-]+\.js)'/g)].map(([, space, from]) => [space, from]));
+      files.set(file, { bodies: functionsIn(source), named, spaces });
+    }
+    return files.get(file);
+  };
+  const refusalsOf = (key, skip = new Set(), seen = new Set()) => {
+    if (seen.has(key) || skip.has(key)) return new Set();
+    seen.add(key);
+    const [file, name] = key.split('#');
+    const { bodies, named, spaces } = load(file);
+    const body = bodies.get(name) ?? '';
+    const codes = new Set([...body.matchAll(/new Refused\(\s*(['"])([A-Z_]+)\1/g)].map((match) => match[2]));
+    const callees = [
+      ...[...body.matchAll(/(?<![.\w])(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? CALLBACKS[file]?.[callee])),
+      ...[...body.matchAll(/\b(\w+)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : undefined)),
+    ];
+    for (const callee of callees.filter(Boolean)) for (const code of refusalsOf(callee, skip, seen)) codes.add(code);
+    return codes;
+  };
+  return { functions: (file) => [...load(file).bodies.keys()], refusalsOf };
+}
+
+/**
+ * A file in src/ as it is on disk.
  *
  * @param {string} file
- * @param {string} name
- * @param {Set<string>} [seen]
- * @returns {Set<string>}
+ * @returns {string}
  */
-function refusalsOf(file, name, seen = new Set()) {
-  const key = `${file}#${name}`;
-  if (seen.has(key)) return new Set();
-  seen.add(key);
-  const { bodies, named, spaces } = parse(file);
-  const body = bodies.get(name) ?? '';
-  const codes = new Set([...body.matchAll(/new Refused\(\s*'([A-Z_]+)'/g)].map((match) => match[1]));
-  for (const [, callee] of body.matchAll(/(?<![.\w])(\w+)\(/g)) {
-    const target = bodies.has(callee) ? [file, callee] : named.get(callee);
-    if (target) for (const code of refusalsOf(target[0], target[1], seen)) codes.add(code);
-  }
-  for (const [, space, callee] of body.matchAll(/\b(\w+)\.(\w+)\(/g)) {
-    if (spaces.has(space)) for (const code of refusalsOf(spaces.get(space), callee, seen)) codes.add(code);
-  }
-  return codes;
-}
+const fromDisk = (file) => readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
 
 /**
- * Every refusal code a declaration names: its guards', its moves' wrong-state codes, and the
- * unknown move's.
+ * The refusal codes the named moves declare, or the whole declaration's when none is named: their
+ * guards' codes, exit guards included, their wrong-state codes, and the unknown move's.
  *
  * @param {any} machine
+ * @param {string[]} [verbs]
  * @returns {Set<string>}
  */
-function declaredCodes(machine) {
+function declaredCodes(machine, verbs) {
+  const moves = verbs ? machine.moves.filter((move) => verbs.includes(move.verb)) : machine.moves;
+  const used = new Set(moves.flatMap((move) => effectiveGuards(move, machine)));
   return new Set([
-    ...machine.guards.map((guard) => guard.refuse),
-    ...machine.moves.map((move) => move.refuse),
+    ...machine.guards.filter((guard) => !verbs || used.has(guard.id)).map((guard) => guard.refuse),
+    ...moves.map((move) => move.refuse),
     machine.unknownMove.refuse,
   ].filter(Boolean));
 }
 
-/** Every code board.js and cli.js raise, directly or through the functions they call. */
-const raisedAnywhere = new Set(['board.js', 'cli.js'].flatMap((file) => [...parse(file).bodies.keys()].flatMap((name) => [...refusalsOf(file, name)])));
-
-/** Every code the lifecycle's moves raise, starting where each move starts in the code. */
-const raisedByMoves = new Set(ENTRY_POINTS.flatMap(([file, name]) => [...refusalsOf(file, name)]));
-
 /**
- * Where a declaration and the code disagree: a code the moves raise that it does not declare,
- * or a code it declares that the code never raises.
+ * Where a declaration and the code disagree: a refusal a move raises today that the move does not
+ * declare, or a code the declaration names that board.js and cli.js never raise.
  *
  * @param {any} machine
+ * @param {(file: string) => string} [read]
  * @returns {string[]}
  */
-function codeProblems(machine) {
-  const declared = declaredCodes(machine);
-  return [
-    ...[...raisedByMoves].filter((code) => !declared.has(code) && !(code in NOT_MOVES)).map((code) => `${code} is raised by a move but not declared`),
-    ...[...declared].filter((code) => !raisedAnywhere.has(code)).map((code) => `${code} is declared but board.js and cli.js never raise it`),
-  ];
+function codeProblems(machine, read = fromDisk) {
+  const walk = codeWalk(read);
+  const problems = new Set();
+  for (const { verbs, at } of ENTRY_POINTS) {
+    const declared = declaredCodes(machine, verbs);
+    for (const entry of at) {
+      for (const code of walk.refusalsOf(entry, new Set(CAUGHT[entry] ?? []))) {
+        if (!declared.has(code) && !(code in NOT_MOVES)) problems.add(`${code} is raised by ${verbs.join(' and ')} but not declared there`);
+      }
+    }
+  }
+  const raised = new Set(['board.js', 'cli.js'].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
+  for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but board.js and cli.js never raise it`);
+  return [...problems];
+}
+
+/**
+ * The source of src/ with one line of one file rewritten, for a broken copy of the code. Refuses if
+ * the line is not there, so a refactor cannot quietly turn the broken copy into the real one.
+ *
+ * @param {string} file
+ * @param {RegExp} line
+ * @param {string} replacement
+ * @returns {(name: string) => string}
+ */
+function editedSource(file, line, replacement) {
+  return (name) => {
+    const source = fromDisk(name);
+    if (name !== file) return source;
+    assert.match(source, line, `${file} still has the line this broken copy rewrites`);
+    return source.replace(line, replacement);
+  };
 }
 
 /**
@@ -148,6 +199,38 @@ const copy = () => structuredClone(MACHINE);
  * @returns {any}
  */
 const moveOf = (machine, verb) => machine.moves.find((move) => move.verb === verb);
+
+/**
+ * Accept and reject hold a verifier to the same checks, in the same order, until the verdict's own
+ * rules, so the bar does not depend on which way the verifier decides.
+ *
+ * @param {any} machine
+ * @returns {string[]}
+ */
+function verdictsDiverge(machine) {
+  const [accept, reject] = ['accept', 'reject'].map((verb) => moveOf(machine, verb).guards);
+  const shared = Math.max(accept.indexOf('criterionUnchanged'), reject.indexOf('criterionUnchanged')) + 1;
+  const same = shared > 0 && accept.slice(0, shared).join() === reject.slice(0, shared).join();
+  return same ? [] : [`accept checks ${accept.slice(0, shared).join(', ')} before its verdict, but reject checks ${reject.slice(0, shared).join(', ')}`];
+}
+
+/** The exit guards each final state needs, and the rule each one stands for. */
+const PINNED = {
+  verified: { notBuilder: 'V1', criterionUnchanged: 'V3', proofNoted: 'V5', atSubmittedCommit: 'V7' },
+  withdrawn: { coordinatorOnly: 'only the coordinator withdraws', noteGiven: 'the reason stays on the item' },
+};
+
+/**
+ * Exit guards a final state has lost, each named with the rule it stands for.
+ *
+ * @param {any} machine
+ * @returns {string[]}
+ */
+function unpinned(machine) {
+  return Object.entries(PINNED).flatMap(([state, guards]) => Object.entries(guards)
+    .filter(([id]) => !(machine.exitGuards[state] ?? []).includes(id))
+    .map(([id, rule]) => `${state} no longer requires ${id} (${rule}) of every move into it`));
+}
 
 /** Each property, broken the way a real board could break, and what the check must then say. */
 const BROKEN = [
@@ -274,22 +357,76 @@ test('a door declared without its exit guards still passes them [M2]', () => {
   assert.deepEqual(effectiveGuards(moveOf(MACHINE, 'accept')), moveOf(MACHINE, 'accept').guards, 'accept names them all already, so nothing is added');
 });
 
-test('the declaration names every refusal the moves raise today, and only codes the code raises [M1]', () => {
-  assert.deepEqual(codeProblems(MACHINE), []);
-  for (const code of ['NOT_CLAIMABLE', 'LANE_HELD', 'GATE_RED', 'NO_GATE', 'NOT_AT_COMMIT', 'SELF_VERIFY', 'BAD_DECISION']) {
-    assert.ok(raisedByMoves.has(code), `the code walk finds ${code}`);
-  }
-  for (const code of Object.keys(NOT_MOVES)) assert.ok(raisedByMoves.has(code), `${code} is listed as not a move because a move's code path raises it`);
+test('verified and withdrawn keep the exit guards their rules need, and a copy that drops one fails [V1, V3, V5, V7, M2, M4]', () => {
+  assert.deepEqual(unpinned(MACHINE), []);
+  const broken = copy();
+  broken.exitGuards.verified = broken.exitGuards.verified.filter((id) => id !== 'notBuilder');
+  assert.deepEqual(unpinned(broken), ['verified no longer requires notBuilder (V1) of every move into it']);
 });
 
-test('a broken copy fails the check against the code, both ways [M1, M4]', () => {
-  const missing = copy();
-  missing.guards = missing.guards.filter((guard) => guard.id !== 'laneOpen');
-  for (const move of missing.moves) move.guards = move.guards.filter((id) => id !== 'laneOpen');
-  assert.deepEqual(codeProblems(missing), ['LANE_HELD is raised by a move but not declared']);
+test('accept and reject hold a verifier to the same checks until the verdict, and a copy that splits them fails [M1, M4]', () => {
+  assert.deepEqual(verdictsDiverge(MACHINE), []);
+  const broken = copy();
+  const accept = moveOf(broken, 'accept');
+  accept.guards = accept.guards.filter((id) => id !== 'routeAllows');
+  assert.equal(verdictsDiverge(broken).length, 1);
+});
+
+test('every refusal a move raises today is declared on that move, and every declared code is raised [M1]', () => {
+  assert.deepEqual(codeProblems(MACHINE), []);
+  const walk = codeWalk(fromDisk);
+  assert.ok(walk.refusalsOf('board.js#claim').has('UNKNOWN_SPEC'), 'the walk follows claim into the freezer the CLI hands it');
+  assert.ok(walk.refusalsOf('board.js#refreeze').has('UNKNOWN_SPEC'), 'and refreeze too');
+  assert.ok(walk.refusalsOf('cli.js#submitHere').has('UNKNOWN_SPEC'), 'submit calls the freezer too');
+  assert.ok(!walk.refusalsOf('cli.js#submitHere', new Set(CAUGHT['cli.js#submitHere'])).has('UNKNOWN_SPEC'), 'and catches what it raises');
+  for (const code of ['NOT_CLAIMABLE', 'LANE_HELD', 'GATE_RED', 'NO_GATE', 'NOT_AT_COMMIT', 'SELF_VERIFY', 'BAD_DECISION']) {
+    assert.ok(ENTRY_POINTS.some(({ at }) => at.some((entry) => walk.refusalsOf(entry).has(code))), `the walk finds ${code}`);
+  }
+  for (const code of Object.keys(NOT_MOVES)) {
+    assert.ok(ENTRY_POINTS.some(({ at }) => at.some((entry) => walk.refusalsOf(entry).has(code))), `${code} is listed as not a move because a move's code path raises it`);
+  }
+});
+
+test('a broken copy of the declaration fails the check against the code, both ways [M1, M4]', () => {
+  const noLaneHold = copy();
+  noLaneHold.guards = noLaneHold.guards.filter((guard) => guard.id !== 'laneOpen');
+  for (const move of noLaneHold.moves) move.guards = move.guards.filter((id) => id !== 'laneOpen');
+  assert.deepEqual(codeProblems(noLaneHold), ['LANE_HELD is raised by claim but not declared there']);
+
+  const noRows = copy();
+  noRows.guards = noRows.guards.filter((guard) => guard.id !== 'rowsInForce');
+  for (const move of noRows.moves) move.guards = move.guards.filter((id) => id !== 'rowsInForce');
+  assert.deepEqual(codeProblems(noRows).sort(), [
+    'UNKNOWN_SPEC is raised by claim but not declared there',
+    'UNKNOWN_SPEC is raised by refreeze but not declared there',
+  ]);
+
+  const noRouteOnVerdicts = copy();
+  for (const verb of ['accept', 'reject']) {
+    const move = moveOf(noRouteOnVerdicts, verb);
+    move.guards = move.guards.filter((id) => id !== 'routeAllows');
+  }
+  assert.deepEqual(codeProblems(noRouteOnVerdicts), ['ROUTE is raised by accept and reject but not declared there']);
 
   const invented = copy();
   invented.guards.push({ id: 'moonPhase', refuse: 'WRONG_MOON', rule: 'the moon is full', next: 'wait', source: 'board' });
   moveOf(invented, 'claim').guards.push('moonPhase');
   assert.deepEqual(codeProblems(invented), ['WRONG_MOON is declared but board.js and cli.js never raise it']);
+});
+
+test('a broken copy of the code fails the check: a refusal added wherever a move reaches [M1, M4]', () => {
+  const inFreeze = editedSource('spec.js', /^export function frozenCriterion\(spec, item\) \{$/m, "$&\n  if (item.item_title === 'moon') throw new Refused('MOON_PHASE', 'wait for the full moon');");
+  assert.deepEqual(codeProblems(MACHINE, inFreeze).sort(), [
+    'MOON_PHASE is raised by claim but not declared there',
+    'MOON_PHASE is raised by refreeze but not declared there',
+  ], 'claim and refreeze let a freeze refusal through; submit and verify catch it');
+
+  const inArrow = editedSource('board.js', /^export const canTake = .*$/m, "export const canTake = (agentRoute, itemRoute) => { if (!agentRoute) throw new Refused('NO_ROUTE', 'no route'); return ROUTES.indexOf(itemRoute) <= ROUTES.indexOf(agentRoute); };");
+  assert.deepEqual(codeProblems(MACHINE, inArrow).sort(), [
+    'NO_ROUTE is raised by accept and reject but not declared there',
+    'NO_ROUTE is raised by claim but not declared there',
+  ]);
+
+  const doubleQuoted = editedSource('cli.js', /^const cdTo = .*$/m, "const cdTo = (root) => { if (!root) throw new Refused(\"NO_ROOT\", 'no root'); return 'cd ' + root + ' &&'; };");
+  assert.deepEqual(codeProblems(MACHINE, doubleQuoted), ['NO_ROOT is raised by accept and reject but not declared there']);
 });
