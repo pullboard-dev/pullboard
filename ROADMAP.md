@@ -6,6 +6,12 @@ What exists, what comes next, and why. Each step keeps the core rule: nothing sh
 
 A board in `.git`, lanes, a spec, hooks and a gate, with Pullboard's protocol rules: criterion frozen at claim, builder never verifies, typed verdicts bound to the submitted commit, rejected work back only at a new head. One machine, no account, no dependencies.
 
+## Done in 0.5: two specs and the guides
+
+- **`PRACTICE.md`:** the house rules as rows, shipped as a standard each project edits. Linted alongside the spec.
+- **`pullboard spec view`:** the spec, the open questions, sign-offs and the practice as one offline page.
+- **Role guides for decompose, sign-off, review and verify.** Installed as Claude Code skills; printed for any agent by `pullboard prompt <role>`.
+
 ## Soon: 0.5.x, hardening from real builds
 
 Lessons from an eight-lane build and from running hosted Pullboard, each small on its own:

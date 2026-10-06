@@ -22,6 +22,28 @@ Pullboard makes "done" mean something:
 - **Agents stay in their lanes.** Pre-commit refuses changes outside a lane's folders, moves and deletes included.
 - **Every commit traces to the spec.** `feat` and `fix` commits cite the spec ids they serve, and the ids must exist.
 
+## Two specs: what, and how
+
+- **`SPEC.md` says what to build:** the client's requirements as rows. Approved rows are the contract.
+- **`PRACTICE.md` says how:** the house rules in the same format. Init writes a standard set to start from: writing rules, code limits, test discipline, the gate, dependencies, security.
+
+  Each project keeps, edits or retires each row and approves what it keeps. A row whose gate names a check (a hook, a linter, a test) fails the build when broken. A row gated by review guides agents and reviewers.
+
+`pullboard spec check` lints both. `pullboard spec view` renders both as one offline page, with the open questions and where each sign-off stands: signed, stale or not yet.
+
+## Agents that walk you through it
+
+The parts of the method that need a person are written as role guides:
+
+| Guide | What it does |
+| --- | --- |
+| `decompose` | Turns the client's ask into rows with you, one question at a time. It asks only what blocks a must-row and states other guesses as draft rows. |
+| `signoff` | Walks you through approved rows in batches: where to see each, the test that proves it, its honest read. You sign; it records your word. |
+| `review` | Reads the spec and the running product as the client will, and reports what they would notice first. |
+| `verify` | Checks another agent's work at the submitted commit, with the strongest proof available. |
+
+Init installs them as Claude Code skills. Any other agent reads them with `pullboard prompt <role>`. A repo can replace any guide with its own `.pullboard/prompts/<role>.md`.
+
 ## The method
 
 1. **Client ask.** Start from what the person paying for it needs.
@@ -106,7 +128,8 @@ pullboard verify 1 reject --reason TEST_FAILURE --note "upload of a 0-byte file 
 | `shout <to> <text>`, `inbox` | Messages to a lane, an agent, or `all`. |
 | `merged`, `withdraw`, `refreeze` | The coordinator's: where verified work landed, dropped items, a re-frozen bar. |
 | `ledger`, `log [id]`, `status` | Receipts. |
-| `spec check\|show\|unmet\|signoff` | Lints SPEC.md; a person signs off rows with the text they read. |
+| `spec check\|view\|show\|unmet\|signoff` | Lints SPEC.md and PRACTICE.md; renders them as a page; a person signs off rows with the text they read. |
+| `prompt <role>` | Prints a role guide: decompose, signoff, review, verify. |
 | `gate`, `hooks` | Runs the gate; reinstalls hooks after a fresh clone. |
 
 Add `"prepare": "pullboard hooks"` to `package.json` so every clone gets the hooks on `npm install`.
@@ -117,6 +140,8 @@ Add `"prepare": "pullboard hooks"` to `package.json` so every clone gets the hoo
 | --- | --- | --- |
 | `pullboard.json` | Gate, lanes, commit rules | yes |
 | `SPEC.md` | The requirements, one row per id | yes |
+| `PRACTICE.md` | The house rules, in the same format | yes |
+| `.claude/skills/pullboard-*` | The role guides, as Claude Code skills | yes |
 | `AGENTS.md`, `CLAUDE.md` | How agents work here; init adds its section | yes |
 | `.githooks/` | pre-commit, commit-msg, pre-push | yes |
 | `.pullboard/signoffs.jsonl` | A person's sign-offs, with the text they approved | yes |
