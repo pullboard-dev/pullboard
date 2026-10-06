@@ -124,7 +124,7 @@ th { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .05e
     </section>
     <section data-pane="doctrine" class="panel"><div class="filters" id="row-filters"><button data-f="all">All rows</button><button data-f="decide">Needs your decision</button><button data-f="approved">Approved</button></div><div class="rows" id="rows"></div></section>
     <section data-pane="shouts" class="panel"><form id="shout-form"><label>To<input id="shout-to" list="shout-targets" required placeholder="all, a lane or an agent"></label><datalist id="shout-targets"></datalist><label style="flex:4 1 280px">Message<input id="shout-text" required></label><button class="go" type="submit">Shout</button></form><div class="list" id="shouts" style="margin-top:10px"></div></section>
-    <section data-pane="fleet" class="panel"><div class="scroll"><table><thead><tr><th>Lane</th><th>State</th><th></th></tr></thead><tbody id="lanes"></tbody></table></div><div class="scroll" style="margin-top:14px"><table><thead><tr><th>Agent</th><th>Lane</th><th>Route</th><th>Worktree</th></tr></thead><tbody id="agents"></tbody></table></div></section>
+    <section data-pane="fleet" class="panel"><form id="hold-form"><label>Lane<select id="hold-lane"></select></label><label style="flex:4 1 260px">Why hold it<input id="hold-reason" required placeholder="What the agents in it should wait for"></label><button class="go" type="submit">Hold lane</button></form><div class="scroll" style="margin-top:12px"><table><thead><tr><th>Lane</th><th>State</th><th></th></tr></thead><tbody id="lanes"></tbody></table></div><div class="scroll" style="margin-top:14px"><table><thead><tr><th>Agent</th><th>Lane</th><th>Route</th><th>Worktree</th></tr></thead><tbody id="agents"></tbody></table></div></section>
     <section data-pane="activity" class="panel"><div class="list" id="events"></div></section>
     <div class="console" id="console" hidden></div>
   </main>
@@ -186,6 +186,11 @@ function render() {
     $('add-lane').dataset.lanes = lanes.join();
   }
   $('shout-targets').innerHTML = ['all', ...lanes, ...project.agents.map((a) => a.agent_id)].map((t) => '<option value="' + esc(t) + '">').join('');
+  const holdable = lanes.filter((l) => l !== 'coordinator');
+  if ($('hold-lane').dataset.lanes !== holdable.join()) {
+    $('hold-lane').innerHTML = holdable.map((l) => '<option>' + esc(l) + '</option>').join('');
+    $('hold-lane').dataset.lanes = holdable.join();
+  }
   const card = (i) => {
     const v = i.verdict;
     const chip = i.status === 'verified' ? '<span class="chip ok">verified</span>' : i.status === 'submitted' ? '<span class="chip warn">to verify</span>' : i.status === 'claimed' ? '<span class="chip busy">building</span>' : v && v.decision === 'REJECT' ? '<span class="chip no">sent back</span>' : i.blockedBy.length ? '<span class="chip">waits on #' + i.blockedBy.join(', #') + '</span>' : '<span class="chip">ready</span>';
@@ -205,7 +210,7 @@ function render() {
   $('rows').innerHTML = rowList('Spec: what to build', project.spec) + rowList('Practice: how it is built', project.practice);
   $('shouts').innerHTML = project.shouts.length ? project.shouts.map((s) => '<div class="row"><time>' + clock(s.shout_at) + '</time><div><b>' + esc(s.shout_from) + ' → ' + esc(s.shout_to) + '</b> ' + esc(s.shout_text) + '</div></div>').join('') : '<div class="empty">No shouts yet.</div>';
   const held = new Map(project.holds.map((h) => [h.hold_lane, h]));
-  $('lanes').innerHTML = lanes.filter((l) => l !== 'coordinator').map((l) => '<tr><td><b>' + esc(l) + '</b></td><td>' + (held.has(l) ? '<span class="chip no">held</span> ' + esc(held.get(l).hold_reason) : '<span class="chip ok">open</span>') + '</td><td>' + (held.has(l) ? '<button class="small" data-release="' + esc(l) + '">Release</button>' : '<button class="small" data-hold="' + esc(l) + '">Hold</button>') + '</td></tr>').join('');
+  $('lanes').innerHTML = lanes.filter((l) => l !== 'coordinator').map((l) => '<tr><td><b>' + esc(l) + '</b></td><td>' + (held.has(l) ? '<span class="chip no">held</span> ' + esc(held.get(l).hold_reason) : '<span class="chip ok">open</span>') + '</td><td>' + (held.has(l) ? '<button class="small" data-release="' + esc(l) + '">Release</button>' : '') + '</td></tr>').join('');
   $('agents').innerHTML = project.agents.map((a) => '<tr><td><b>' + esc(a.agent_id) + '</b></td><td>' + esc(a.agent_lane) + '</td><td>' + esc(a.agent_route) + '</td><td><code>' + esc(a.agent_path) + '</code></td></tr>').join('');
   $('events').innerHTML = project.events.map((e) => '<div class="row"><time>' + clock(e.event_at) + '</time><div><b>' + esc(e.event_by) + '</b> ' + esc(e.event_kind) + (e.item_id ? ' #' + e.item_id : '') + '</div></div>').join('') || '<div class="empty">No activity yet.</div>';
   showTab();
@@ -236,20 +241,12 @@ async function act(command, args, root = selected) {
 }
 
 document.addEventListener('click', (event) => {
-  const target = event.target.closest('[data-root],[data-tab],[data-go],[data-item],[data-f],[data-hold],[data-release]');
+  const target = event.target.closest('[data-root],[data-tab],[data-go],[data-item],[data-f],[data-release]');
   if (!target) return;
   if (target.dataset.root) { selected = target.dataset.root; keep('pb.project', selected); refresh(); }
   else if (target.dataset.tab || target.dataset.go) { tab = target.dataset.tab || target.dataset.go; keep('pb.tab', tab); showTab(); }
   else if (target.dataset.item) { const id = Number(target.dataset.item); opened.has(id) ? opened.delete(id) : opened.add(id); target.classList.toggle('open'); }
   else if (target.dataset.f) { rowFilter = target.dataset.f; render(); }
-  else if (target.dataset.hold) {
-    const lane = target.dataset.hold;
-    const box = document.createElement('form');
-    box.innerHTML = '<label>Why hold ' + esc(lane) + '?<input required></label><button class="go">Hold</button>';
-    box.onsubmit = (e) => { e.preventDefault(); act('hold', { lane, reason: box.querySelector('input').value }); };
-    target.replaceWith(box);
-    box.querySelector('input').focus();
-  }
   else if (target.dataset.release) act('release', { lane: target.dataset.release });
 });
 $('add-form').addEventListener('submit', async (event) => {
@@ -259,6 +256,10 @@ $('add-form').addEventListener('submit', async (event) => {
 $('shout-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   if (await act('shout', { to: $('shout-to').value, text: $('shout-text').value })) $('shout-text').value = '';
+});
+$('hold-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (await act('hold', { lane: $('hold-lane').value, reason: $('hold-reason').value })) $('hold-reason').value = '';
 });
 $('init-form').addEventListener('submit', async (event) => {
   event.preventDefault();

@@ -178,7 +178,14 @@ export function serveView({ port = 0, secret = randomBytes(18).toString('base64u
   };
   const json = (res, code, value) => reply(res, code, 'application/json; charset=utf-8', JSON.stringify(value));
   const server = createServer(async (req, res) => {
-    const url = new URL(req.url ?? '/', `http://${LOOPBACK}`);
+    // A request line no URL parser accepts cannot carry the secret, so it gets the same 403, and it
+    // must not be able to stop the server.
+    let url;
+    try {
+      url = new URL(req.url ?? '/', `http://${LOOPBACK}`);
+    } catch {
+      return json(res, 403, { error: 'this view needs its own address and secret: open the link pullboard view printed' });
+    }
     const given = Buffer.from(String(req.headers['x-pullboard-key'] ?? url.searchParams.get('k') ?? ''));
     const isOwnHost = req.headers.host === `${LOOPBACK}:${bound}` || req.headers.host === `localhost:${bound}`;
     if (!isOwnHost || given.length !== key.length || !timingSafeEqual(given, key)) return json(res, 403, { error: 'this view needs its own address and secret: open the link pullboard view printed' });

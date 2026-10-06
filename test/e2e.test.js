@@ -16,10 +16,12 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { request } from 'node:http';
+import { connect } from 'node:net';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
+const cockpitSource = () => readFileSync(resolve(import.meta.dirname, '../src/cockpit.js'), 'utf8');
 const sandboxes = [];
 
 after(() => {
@@ -893,7 +895,11 @@ async function startView(box, cwd) {
   const base = `http://127.0.0.1:${link.port}`;
   const state = (root) => fetch(`${base}/api/state${root ? `?root=${encodeURIComponent(root)}` : ''}`, { headers: { 'x-pullboard-key': key } }).then((res) => res.json());
   const act = (body) => fetch(`${base}/api/act`, { method: 'POST', headers: { 'x-pullboard-key': key, 'content-type': 'application/json' }, body: JSON.stringify(body) }).then((res) => res.json());
-  const stop = () => new Promise((done) => { child.once('exit', done); child.kill('SIGTERM'); });
+  const stop = () => new Promise((done) => {
+    if (child.exitCode !== null || child.signalCode !== null) return done();
+    child.once('exit', done);
+    child.kill('SIGTERM');
+  });
   return { link, key, base, state, act, stop };
 }
 
@@ -953,4 +959,32 @@ test('from the view the person adds items, shouts, holds lanes and starts a boar
   } finally {
     await view.stop();
   }
+});
+
+test('the view answers a request line no URL parser accepts with 403, and keeps serving [N26]', async () => {
+  const box = project();
+  const view = await startView(box, box.repo);
+  try {
+    const reply = await new Promise((done) => {
+      const socket = connect(Number(view.link.port), '127.0.0.1', () => socket.write(`GET http://[ HTTP/1.1\r\nHost: 127.0.0.1:${view.link.port}\r\nConnection: close\r\n\r\n`));
+      let text = '';
+      socket.on('data', (chunk) => { text += chunk; });
+      socket.on('close', () => done(text));
+    });
+    assert.match(reply, /^HTTP\/1\.1 403/);
+    assert.equal((await fetch(view.link)).status, 200, 'still serving');
+  } finally {
+    await view.stop();
+  }
+});
+
+test('nothing a person types on the view sits inside what the refresh rewrites [N27]', () => {
+  const page = cockpitSource();
+  const rewritten = [...page.matchAll(/\$\('([a-z-]+)'\)\.innerHTML = /g)].map((match) => match[1]);
+  assert.ok(rewritten.includes('lanes') && rewritten.includes('columns'), 'the refresh rewrites these');
+  for (const id of rewritten) {
+    const opening = new RegExp(`id="${id}"[^>]*>([^]*?)</`).exec(page);
+    assert.doesNotMatch(opening ? opening[1] : '', /<(input|textarea|form)/, `#${id} starts with no form`);
+  }
+  assert.doesNotMatch(page.slice(page.indexOf('<script>')), /<input|<textarea|createElement\('(form|input|textarea)'\)/, 'the script never builds a field a refresh could erase');
 });
