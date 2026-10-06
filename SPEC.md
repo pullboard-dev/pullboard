@@ -50,6 +50,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - V12 [approved, must] Verify and escalate take --note-file, so a note reaches the board exactly as written. | gate: test/e2e.test.js | serves: V5
 - V13 [draft, must] Every verdict records the verifier's HEAD; show and the ledger flag a review made past the submitted commit. | gate: test/board.test.js | serves: V8
 - V14 [draft, must] The bar is the frozen criterion alone. The brief can change, so it guides building, never the verdict. | gate: test/practice.test.js | serves: V2
+- V15 [draft, must] `next --verify` reserves the review under a lease; another verdict on it is refused while the lease lives. | gate: test/machine.test.js | serves: V1
 
 ## O · Options
 - O1 [draft, must] pullboard.json options switch declared guards on or off per repo; show and the view list them. | gate: test/machine.test.js | serves: M1
@@ -133,6 +134,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - N27 [approved, must] From the view, the person adds items, shouts and holds lanes; each runs the CLI command. | gate: test/e2e.test.js | serves: N26
 - N28 [draft, must] The view shows each product's progress: rows met, and items open, building and verified. | gate: test/e2e.test.js | serves: S11
 - N29 [draft, must] `pullboard why <path|id>`: the rows, doctrine and verified items behind it, rejections included. | gate: test/e2e.test.js
+- N30 [draft, must] `show` prints the latest verdict in full and earlier ones as one line each; --history prints them all. | gate: test/show.test.js
 
 ## H · Hosted
 - H1 [pending, aim] `pullboard sync` mirrors the local board to pullboard.dev for teams across machines.
