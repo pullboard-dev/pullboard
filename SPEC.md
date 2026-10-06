@@ -88,6 +88,8 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - N12 [draft, aim] `pullboard mcp` serves the same commands as MCP tools.
 - N13 [approved, must] `next` names items still awaiting a verdict; a lane is done when its items are verified. | gate: test/board.test.js | serves: N2
 - N14 [approved, must] `pullboard run` builds routed items unattended: pack, agent command, check, retry, then submit or escalate. | gate: test/e2e.test.js | serves: N8
+- N15 [approved, must] `pullboard sweep` files a checker's problems as light items, one per file, each checked by that checker. | gate: test/sweep.test.js, test/e2e.test.js
+- N16 [approved, must] The runner takes a command per tier and merges an item's verified dependencies before building it. | gate: test/e2e.test.js | serves: N14
 
 ## H · Hosted
 - H1 [pending, aim] `pullboard sync` mirrors the local board to pullboard.dev for teams across machines.
