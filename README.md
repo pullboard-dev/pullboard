@@ -1,192 +1,181 @@
-# pullboard
+# Pullboard
 
-**Nothing ships until a second agent verifies it.**
+**Vibe code a real product.** Your agents build from a spec you approved, in lanes that keep them out of each other's way, and nothing they build counts until a second agent verifies it.
 
-A work board, lanes, a spec and git hooks that live in your repo, for teams of coding agents. Local-first: no account, no server, no network. One SQLite file inside `.git`, zero dependencies, Node 22.13 or newer.
+Pullboard is a work board that lives in your git repo. Every requirement is a one-line row in `SPEC.md`. Agents claim work, build it in their own worktrees, and submit it at a commit with your tests passing. A different agent, from a different model family if you like, checks it against the bar that was frozen when the work started. You decide what to build, answer the questions, and watch it all on one page.
 
-```sh
-npx @pullboard/local tour   # thirty seconds: two scripted agents, a reject and its rework
-npm i -D @pullboard/local
-npx pullboard init
-```
+It runs locally: no account, nothing hosted, no dependencies. The board is one SQLite file inside `.git`. It works with Claude Code, Codex and any agent you can run from a shell, and it never calls a model.
 
 ## Why
 
-Coding agents write code faster than anyone can review it, and left alone they grade their own homework. An agent says "done, tests pass," and it isn't: the test got weaker, the commit was never made, or the bar moved after the work started. Two agents build the same thing; a third edits the files both depend on.
+Coding agents are fast, and on day one it feels like magic. Past a demo, the same things go wrong on every project:
 
-Pullboard makes "done" mean something:
+- **It said done. It wasn't.** The test got weaker, the commit was never made, or the work skipped the hard case.
+- **The agent forgot what you decided.** The plan lived in a chat that ended.
+- **A fix broke something that worked.** Nobody ran the tests that would have caught it.
+- **Two agents edited the same file.** Running more agents made it worse.
 
-- **The bar is frozen before the work starts.** The first claim freezes the item's criterion and the text of every spec row it cites. A verdict is checked against that text, never a newer one.
-- **The gate is green at the exact commit.** Submit needs a clean tree, nothing untracked, and your gate passing at HEAD.
-- **A different agent checks it.** The builder can never verify its own work. The verifier must have the submitted commit checked out, and records ACCEPT or REJECT with a reason code.
-- **Rejected work comes back changed.** Resubmitting a rejected commit is refused.
-- **Agents stay in their lanes.** Pre-commit refuses changes outside a lane's folders, moves and deletes included, and no agent can build another lane's item from the main checkout.
-- **Every commit traces to the spec.** `feat` and `fix` commits cite the spec ids they serve, and the ids must exist.
-- **Ids are permanent.** A commit that deletes a spec row is refused, and `spec check` finds any id that history or the board cites and the spec has lost. A row the client cuts stays, marked `wont`, so every old reference keeps its meaning.
-- **Cheaper models get the work they can do.** Items route by the model they need: `light` (a small or local model), `mid` (a capable general model) or `strong` (a frontier model). Below strong, an item must be buildable cold: a brief naming its files and its test, a criterion, and a check command. An agent that joins on a route takes its own tier first, then lighter ones.
-- **Routine work runs unattended.** `pullboard run --agent "<command>"` builds routed items with any agent you can call from a shell, such as OpenCode on a local model. Each attempt gets a context pack holding the bar, the brief and the files themselves. A failed check feeds the next attempt. Green work is submitted for a second agent to verify; work still red is pinned and escalated one tier up.
-- **Rigor runs itself.** `pullboard sweep` turns a linter's, type checker's or test reporter's problems into light items, one per file, each proven by the same tool, and `pullboard run` works through them on a local model.
-- **No agent spends a turn on what a tool can fix.** Pre-commit runs your fast fixers, such as prettier, on fully staged files and restages them.
+Pullboard gives your agents what a good team has: a shared plan, house rules, their own lanes, and someone who checks the work.
 
-## Two specs: what, and how
-
-- **`SPEC.md` says what to build:** the client's requirements as rows. Approved rows are the contract.
-- **`PRACTICE.md` says how:** the house rules in the same format. Init writes a standard set to start from: writing rules, code limits, test discipline, the gate, dependencies, security.
-
-  Each project keeps, edits or retires each row and approves what it keeps. A row whose gate names a check (a hook, a linter, a test) fails the build when broken. A row gated by review guides agents and reviewers.
-
-`pullboard spec check` lints both. `pullboard spec view` renders both as one offline page, with the open questions and where each sign-off stands: signed, stale or not yet.
-
-## Agents that walk you through it
-
-The parts of the method that need a person are written as role guides:
-
-| Guide | What it does |
+| | |
 | --- | --- |
-| `decompose` | Turns the client's ask into rows with you, one question at a time. It asks only what blocks a must-row and states other guesses as draft rows. |
-| `signoff` | Walks you through approved rows in batches: where to see each, the test that proves it, its honest read. You sign; it records your word. |
-| `review` | Reads the spec and the running product as the client will, and reports what they would notice first. |
-| `verify` | Checks another agent's work at the submitted commit, with the strongest proof available. |
+| **A spec they build against** | One row per requirement, with an id and a status. Only rows you approve are the contract; a guess stays a draft and a question waits for you. When an agent claims an item, its criterion and the rows it cites are frozen for that work. Commits cite the rows they serve. |
+| **Rigor that runs itself** | Your house rules live in `PRACTICE.md`. Git hooks enforce them on every commit: commit messages cite real spec rows, nothing lands outside an agent's lane, and a deleted requirement is refused. Submit needs a clean tree and your test gate green at that commit. |
+| **A team, not one agent** | Each agent works in its own worktree and lane. Claims are atomic, so two agents never take the same item, and an item can wait on another. Cheaper models take the simple items. |
+| **Proof before it counts** | The builder can never verify its own work. A different agent checks out a tree that contains the submitted commit and records ACCEPT, with the proof it tried, or REJECT, with a reason. The verdict is bound to the submitted commit, and rejected work must come back changed. `pullboard ledger` prints the receipts. |
 
-Init installs them as Claude Code skills. Any other agent reads them with `pullboard prompt <role>`. A repo can replace any guide with its own `.pullboard/prompts/<role>.md`.
+## Built with itself
 
-## Any agent, any model
+Pullboard is built with Pullboard. On 6 October 2026, one Claude agent made 17 changes to this CLI in 23 submissions. A Codex agent verified each one from its own worktree. It recorded 5 rejections, each with a counterexample anyone could rerun, and caught a sixth problem while that item's bar was being refrozen:
 
-Pullboard never calls a model. `pullboard run` drives any command that can read a file and edit files: a coding agent's CLI, your own script, a local model behind a small loop. The contract:
+- a suggested `cd` line sent agents to the wrong folder when a path held a `$`;
+- the test-log digest lost its summary line when one failure line was very long;
+- git settings from the environment leaked into the tour;
+- a feature had no test that could fail;
+- two messages that tell an agent what to do next were wrong in edge cases.
 
-- **In:** a context pack for one item, at `$PULLBOARD_PACK`. It says what done means, names the check (also in `$PULLBOARD_CHECK`), and carries the brief, the rules and the files as they are now. `$PULLBOARD_ITEM`, `$PULLBOARD_ATTEMPT` and `$PULLBOARD_TIER` say which item, which try and which tier.
-- **Out:** changed files in the worktree. The runner runs the check itself, reverts changes outside the brief's files, commits, runs the gate and submits; a second agent verifies.
-- **On failure:** the next attempt's pack carries the failure, and after the last attempt the item moves one tier up, its work pinned.
+All six were fixed before they merged. Before accepting each code change, the verifier tried to break it, usually by reverting the fix and watching its test fail. Here is one receipt from that day, with the board's agent ids (the builder, `coordinator`, was the Claude agent; the verifier, `tests-2`, a Codex agent) and the verifier's own words, abridged:
 
-Give each tier its own command:
+```
+#13  worktree prints a subagent's opening lines
+     criterion 5349dc84b0ab, frozen at claim             built by coordinator, submitted 12f3640f8630
 
-```bash
-pullboard run --agent-light 'opencode run --auto "$(cat "$PULLBOARD_PACK")"' \
-              --agent-mid 'claude -p --permission-mode acceptEdits < "$PULLBOARD_PACK"'
+     REJECT  BEHAVIOR_MISMATCH  by tests-2
+             "...the generated prompt cd line double-quoted the token without shell
+             escaping it. With PULLBOARD_PATH_PROBE unset, copying the printed cd line
+             expanded the token away and exited 1 with no such directory."
+
+     resubmitted 85f0f5d839c5
+     ACCEPT  CRITERION_MET  by tests-2
+             "...executes the printed cd line with a conflicting environment value, and
+             confirms it reaches the real target. Removing shell quoting and removing
+             apostrophe escaping each made the focused test fail."
 ```
 
-Use whatever you run today: Claude Code, Codex, OpenCode, Aider, or a model server and a loop of your own.
+## Try it
 
-## The method
+You need git and Node 22.13 or newer.
 
-1. **Client ask.** Start from what the person paying for it needs.
-2. **Spec as lettered points.** Every requirement becomes one row with an id: `G1.2`, `K3`. Approved rows are the contract.
-3. **Agents build against the spec,** one item at a time, each item citing its rows.
-4. **Split the work into lanes.** Each lane owns folders; agents never collide on files.
-5. **A second agent verifies,** against the criterion frozen at claim, at the submitted commit.
-6. **A person drives.** They write and approve the spec, settle the open questions, sign off rows, and read the ledger.
-
-The full guide is in [docs/method.md](docs/method.md).
+```sh
+npm i -g @pullboard/local      # from the first npm release; until then, run npm i -g . in a clone of this repo
+pullboard tour                 # thirty seconds on a throwaway repo: a reject, the fix, the ledger
+```
 
 ## Quick start
 
+In your repo:
+
 ```sh
-npx pullboard init            # pullboard.json, SPEC.md, AGENTS.md, git hooks, the board
+pullboard init                 # pullboard.json, SPEC.md, PRACTICE.md, AGENTS.md, git hooks, the board
+git add -A && git commit -m "chore: set up pullboard"
 ```
 
-Write requirements in `SPEC.md`, one row per line:
+Write requirements in `SPEC.md`, one row per line, and set your test command as the gate in `pullboard.json`:
 
 ```markdown
 ## G · Goals
-- G1 [approved, must] Same file twice is a no-op. | gate: idempotency test
+- G1 [approved, must] An upload of the same file twice is a no-op. | gate: test/upload.test.js
 - G2 [draft, aim] Show a diff when a month is restated. | serves: G1
 ```
-
-Declare lanes and the gate in `pullboard.json`:
 
 ```json
 {
   "gate": "npm test",
   "lanes": {
-    "web": { "owns": ["apps/web/"], "specs": ["G0"], "starts": "now" },
-    "pipeline": { "owns": ["apps/pipeline/", "packages/ingest/"], "specs": ["G1", "G2"] }
-  },
-  "shared": ["test/attacks/"]
+    "web": { "owns": ["apps/web/"], "specs": ["G"] },
+    "review": { "owns": [] }
+  }
 }
 ```
 
-The main checkout is the coordinator. Every other agent works in its own worktree and joins a lane:
+Commit those, then file work from the main checkout, which is the coordinator:
 
 ```sh
-pullboard add web "Build the upload page" --specs G1 --criterion "drop a file, see it listed"
-pullboard worktree web                # makes ../app-web-1, joined as web-1
-cd ../app-web-1 && npm install
-pullboard claim 1                     # 2-hour lease; criterion frozen
-# ... build, commit "feat(web): upload page [G1]" ...
-pullboard submit 1                    # clean tree + gate green at HEAD
+pullboard add web "Upload page" --specs G1 --criterion "the same file uploaded twice is listed once"
 ```
 
-Another agent, from the submitted commit:
+A builder gets its own worktree and claims the next item. The criterion freezes now:
 
 ```sh
-pullboard verify 1 accept --note "emptied the upload dir; the list test failed"
-pullboard verify 1 reject --reason TEST_FAILURE --note "upload of a 0-byte file crashes"
+pullboard worktree web               # makes ../<repo>-web-1, joined as web-1
+cd ../<repo>-web-1 && pullboard next
+# build, then commit "feat(web): upload page [G1]"
+pullboard submit 1                   # clean tree, gate green at HEAD
 ```
 
-## Receipts
+A different agent verifies it. `next --verify` names the item and prints the command that checks out its commit:
 
-`pullboard ledger` prints what was built, by whom, verified by whom, at which commit:
-
-```
-1 verified by a second agent · 0 awaiting verification · 1 rejections along the way
-
-| # | Lane | Item | Spec | Built by | Verified by | Commit | Merged |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | web | Build the upload page | G1 | web-1 | coordinator | d0cba867b919 | d0cba867b919 |
+```sh
+pullboard worktree review && cd ../<repo>-review-1
+pullboard next --verify
+git switch --detach <the commit it names>
 ```
 
-`pullboard log` shows every move in order: claims, submissions, rejections, refreezes, merges. Commit the ledger at the end of a build and the history is the proof.
+Then one of:
+
+```sh
+pullboard verify 1 accept --note "uploaded twice: one row. Removed the dedupe: the test failed"
+pullboard verify 1 reject --reason TEST_FAILURE --note "a 0-byte upload crashes the list"
+```
+
+A reject reopens the item: the builder fixes it, commits, claims it again and submits the new commit.
+
+## See every project at once
+
+```sh
+pullboard view
+```
+
+`view` opens one page in your browser with every project on this machine. It shows items by state, what needs you, shouts between agents, your spec and practice rows, the agents, and recent activity, and it refreshes itself. From it you can add items, shout, hold a lane, and start a board on another repo. It runs on 127.0.0.1 behind a secret link; nothing leaves your machine.
+
+## Working with agents
+
+- **Claude Code.** Init installs the role guides as skills, and a session hook that runs `pullboard resume` whenever a session starts or compacts, so an agent picks up from the board.
+- **Codex and every other agent.** The rules live in `AGENTS.md`. `pullboard prompt <role>` prints any role guide: decompose, plan, signoff, review, verify.
+- **Teams of subagents.** `pullboard worktree` prints the opening lines for a subagent's prompt: its identity, its folder, and that the folder's rules govern.
+- **Cheaper models.** Items route `light`, `mid` or `strong`. `pullboard run --agent-light "<any command>"` builds light items unattended, feeds each failure into the next attempt, submits what goes green for a second agent to verify, and escalates what stays red.
 
 ## Commands
 
 | Command | What it does |
 | --- | --- |
-| `tour` | Thirty seconds on a throwaway repo: two scripted agents, a reject and its rework, the ledger. No model, no network. |
-| `init` | Sets up config, spec, agent instructions, hooks and the board, and has Claude Code run `resume` at every session start. Safe to rerun. |
-| `worktree <lane>` | From the main checkout: makes a worktree for a new agent, joins it to the lane, prints what to run next. |
-| `join <lane>` | Registers the worktree you are in as the next agent in a lane. |
-| `add <lane> <title>` | Adds an item. `--specs`, `--criterion`, `--after <ids>` to wait on other items, `--parent` for child items. |
-| `resume` | Where you are, from the board: your claim, your branch against main, what came back, unread shouts, the next step. Run it to start any session. |
-| `list [lane]`, `show <id>` | The board, and one item with its frozen criterion, its verdicts and the verified items that touched the same files. |
-| `next [--wait <min>]`, `next --verify` | Claim your lane's next free item, the one nearest the files you worked in lately, waiting if everything is blocked; or name the next item to verify. |
-| `claim <id>`, `release <id>` | Take or renew a lease; hand it back. |
-| `check [id]` | Runs your item's check command: one line when it passes, the failures when it fails. |
-| `submit <id>` | Records the work at HEAD and the files it changed, after the gate passes. Refuses if the item's spec rows moved since the claim. Alias: `done`. |
-| `verify <id> accept\|reject --note "..."` | A verdict, by anyone but the builder, from the submitted commit. Both need a note: the proof, or what failed. |
-| `shout <to> <text>`, `inbox` | Messages to a lane, an agent, or `all`. |
-| `merged`, `withdraw`, `refreeze`, `hold <lane>` | The coordinator's: where verified work landed, dropped items, a re-frozen bar, a paused lane (`--off` releases it). |
-| `ledger`, `log [id]`, `status` | Receipts. |
-| `spec check\|view\|show\|unmet\|signoff` | Lints SPEC.md and PRACTICE.md; renders them as a page; a person signs off rows with the text they read. |
-| `prompt <role>` | Prints a role guide: decompose, signoff, review, verify. |
-| `gate`, `hooks` | Runs the gate, printing one line when green and the failures when red; reinstalls hooks after a fresh clone. |
-
-Add `"prepare": "pullboard hooks"` to `package.json` so every clone gets the hooks on `npm install`.
+| `tour` | A reject and its rework on a throwaway repo. |
+| `init`, `worktree <lane>`, `join <lane>` | Set up the repo; give an agent its own worktree in a lane. |
+| `view` | Every project on this machine in your browser, live. |
+| `resume` | Where you are: your claim, your branch against main, what came back, the next step. |
+| `add`, `edit`, `list`, `show <id>` | File and read work. `show` names verified items that touched the same files. |
+| `next [--wait <minutes>]`, `next --verify` | Claim the next free item nearest your recent files, or name the next one to verify. |
+| `check [id]`, `submit <id>` | Run your item's check; submit at HEAD after the gate passes. |
+| `verify <id> accept\|reject --note "..."` | A verdict from a tree that contains the submitted commit, by anyone but the builder. `--note-file` keeps quotes intact. |
+| `shout`, `inbox` | Messages to a lane, an agent or everyone. |
+| `hold <lane>`, `merged`, `withdraw`, `refreeze` | The coordinator's: pause a lane, record a merge, drop an item, re-freeze a bar. |
+| `ledger`, `log` | Receipts. |
+| `spec check\|view\|signoff` | Lint the spec, render it as one page, record a person's sign-off. |
+| `run`, `sweep`, `escalate` | Unattended building for cheaper models; turn a linter's findings into items. |
 
 ## What lives where
 
 | Path | What | In git? |
 | --- | --- | --- |
-| `pullboard.json` | Gate, lanes, commit rules | yes |
-| `SPEC.md` | The requirements, one row per id | yes |
-| `PRACTICE.md` | The house rules, in the same format | yes |
-| `.claude/skills/pullboard-*` | The role guides, as Claude Code skills | yes |
-| `AGENTS.md`, `CLAUDE.md` | How agents work here; init adds its section | yes |
-| `.githooks/` | pre-commit, commit-msg, pre-push. They run the checkout's pullboard, else the main checkout's, else the PATH's | yes |
-| `.claude/settings.json` | A Claude Code session hook that runs `pullboard resume` | yes |
-| `.pullboard/signoffs.jsonl` | A person's sign-offs, with the text they approved | yes |
-| `.git/pullboard/board.sqlite` | The board: items, claims, verdicts, shouts, events | never |
-| `.git/pullboard-gate.log` | The whole output of the last gate run, per worktree | never |
+| `SPEC.md`, `PRACTICE.md` | What to build, and the house rules for how, one row per id | yes |
+| `pullboard.json` | The gate, lanes and commit rules | yes |
+| `AGENTS.md`, `.claude/` | How agents work here: rules, role guides, the session hook | yes |
+| `.githooks/` | pre-commit, commit-msg and pre-push | yes |
+| `.git/pullboard/board.sqlite` | The board: items, claims, verdicts, shouts, events | no, it lives inside `.git` |
+| `~/.pullboard/projects.json` | The projects `view` shows | no |
+
+Submitted commits are pinned under `refs/pullboard/items`, so the work survives a deleted worktree. Verdicts live on the board; commit the output of `pullboard ledger` to keep the receipts in history.
 
 ## Limits, stated
 
-- **Identity is the worktree.** On one machine that keeps honest agents honest; an agent could still edit the SQLite file. Hosted Pullboard issues each agent its own identity.
+- **Identity is the worktree.** On one machine that keeps honest agents honest; it is not a security boundary.
 - **Hooks can be skipped** with `--no-verify`. Pre-push and the verifier are the backstop.
-- **Conflicts are avoided, not resolved.** One holder per item and lanes by folder keep agents apart; a rebase that conflicts goes back to its builder.
+- **Verification costs a second agent's time.** The trade is a defect caught before merge instead of after it.
 
 ## Local and hosted
 
-This package is complete on one machine and free. [Pullboard](https://pullboard.dev) is the hosted layer for teams across machines: issued identities, a neutral record, dashboards and the deploy axis. See [ROADMAP.md](ROADMAP.md).
+This package is complete on one machine and free. [Pullboard](https://pullboard.dev) is the hosted layer for teams working across machines.
 
 ## License
 
-Apache-2.0. See LICENSE and NOTICE.
+Apache-2.0.
