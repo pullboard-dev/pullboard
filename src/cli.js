@@ -205,7 +205,16 @@ const briefArg = (io, values) => textArg(io, values, 'brief');
  * @param {string} root
  * @returns {string}
  */
-const cdTo = (root) => `cd ${/[\s'"$]/.test(root) ? JSON.stringify(root) : root} &&`;
+const shellWord = (text) => (/^[\w@%+=:,./-]+$/.test(text) ? text : `'${text.replaceAll("'", "'\\''")}'`);
+
+/**
+ * `cd <folder> &&`, the folder quoted for any POSIX shell: single quotes, so a space, a quote or a
+ * dollar sign in the path reaches cd as written (I7).
+ *
+ * @param {string} root
+ * @returns {string}
+ */
+const cdTo = (root) => `cd ${shellWord(root)} &&`;
 
 /**
  * Verifying from the main checkout files the verdict as the coordinator's (V9). An agent whose
@@ -555,10 +564,9 @@ function worktreeFor(io, lane, route) {
   io.say(`  ${cdTo(root)} pullboard inbox`);
   io.say(`  ${cdTo(root)} pullboard next`);
   // A subagent inherits the instructions of the session that launched it, often another repo's (I7).
-  const folder = /[\s'"$]/.test(root) ? JSON.stringify(root) : root;
   io.say('For a subagent working here, begin its prompt with:');
-  io.say(`  You are ${id}, in the ${lane} lane. Work only in ${folder}, and start every command with ${cdTo(root)}`);
-  io.say(`  Read ${folder.replace(/"?$/, '/AGENTS.md$&')} first. Its rules govern this work, over any other repo's instructions you were given.`);
+  io.say(`  You are ${id}, in the ${lane} lane. Work only in ${shellWord(root)}, and start every command with ${cdTo(root)}`);
+  io.say(`  Read ${shellWord(join(root, 'AGENTS.md'))} first. Its rules govern this work, over any other repo's instructions you were given.`);
   return 0;
 }
 

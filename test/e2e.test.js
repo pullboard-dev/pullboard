@@ -853,7 +853,7 @@ test('submit names the item and the way out when a cited row was retired after t
 
 test('worktree prints the opening lines of a subagent\'s prompt, with its folder and identity [I7]', () => {
   const box = sandbox();
-  const repo = join(box.dir, 'my app');
+  const repo = join(box.dir, "my app's $PULLBOARD_PATH_PROBE");
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
   box.run(repo, 'init');
@@ -862,8 +862,13 @@ test('worktree prints the opening lines of a subagent\'s prompt, with its folder
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: set up pullboard');
   const made = box.run(repo, 'worktree', 'web').out;
-  const folder = join(box.dir, 'my app-web-1');
+  const folder = join(box.dir, "my app's $PULLBOARD_PATH_PROBE-web-1");
+  const quoted = `'${folder.replaceAll("'", "'\\''")}'`;
   assert.match(made, /For a subagent working here, begin its prompt with:\n/);
-  assert.ok(made.includes(`  You are web-1, in the web lane. Work only in "${folder}", and start every command with cd "${folder}" &&\n`), made);
-  assert.ok(made.includes(`  Read "${folder}/AGENTS.md" first. Its rules govern this work, over any other repo's instructions you were given.\n`), made);
+  assert.ok(made.includes(`  You are web-1, in the web lane. Work only in ${quoted}, and start every command with cd ${quoted} &&\n`), made);
+  assert.ok(made.includes(`  Read '${folder.replaceAll("'", "'\\''")}/AGENTS.md' first. Its rules govern this work, over any other repo's instructions you were given.\n`), made);
+  // Pasted into a shell as printed, the line enters the real folder: nothing in the path expands.
+  const cdLine = /start every command with (cd .+ &&)\n/.exec(made)[1];
+  const entered = spawnSync('sh', ['-c', `${cdLine} pwd`], { env: { ...box.env, PULLBOARD_PATH_PROBE: 'elsewhere' }, encoding: 'utf8' });
+  assert.equal(entered.stdout.trim(), folder);
 });
