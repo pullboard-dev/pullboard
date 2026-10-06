@@ -445,11 +445,18 @@ function pick(id) {
   if (matchMedia('(max-width: 900px)').matches) $('detail').scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
-/** A search looks through every state: All while the box has text, the chip from before once it is empty. */
+/**
+ * A search looks through every state. Each keystroke with text in the box selects All, even after a
+ * chip was clicked mid-search; emptying the box brings back the chip from before the search began.
+ */
 function search() {
-  const typed = Boolean($('q').value.trim());
-  if (typed && view.before == null) { view.before = view.state; view.state = 'all'; }
-  else if (!typed && view.before != null) { view.state = view.before; view.before = null; }
+  if ($('q').value.trim()) {
+    if (view.before == null) view.before = view.state;
+    view.state = 'all';
+  } else if (view.before != null) {
+    view.state = view.before;
+    view.before = null;
+  }
   render();
 }
 

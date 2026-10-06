@@ -435,6 +435,17 @@ test('shout ids, search and narrow windows reach the item [N26]', async () => {
     await page.type('q', '');
     assert.equal(page.run('view.state'), 'active', 'clearing the search brings the chip back');
     assert.doesNotMatch(page.show('chain'), /Farewell banner/);
+
+    // Type, click Active with the query still there, then edit the query to the verified title.
+    await page.type('q', 'filler');
+    assert.equal(page.run('view.state'), 'all');
+    await page.click({ state: 'active' });
+    assert.equal(page.run('view.state'), 'active', 'a chip clicked mid-search narrows the list');
+    await page.type('q', 'farewell banner');
+    assert.equal(page.run('view.state'), 'all', 'typing again searches every state');
+    assert.match(page.show('chain'), /Farewell banner/, 'and finds the verified item');
+    await page.type('q', '');
+    assert.equal(page.run('view.state'), 'active', 'emptying the box brings back the chip from before the search');
     assert.doesNotMatch(page.show('chain'), /Retired widget/, 'browsing leaves withdrawn items out');
     await page.type('q', 'retired widget');
     const found = itemRow(page.show('chain'), 40);
