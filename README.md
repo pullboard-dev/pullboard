@@ -141,21 +141,24 @@ pullboard verify 1 reject --reason TEST_FAILURE --note "upload of a 0-byte file 
 
 | Command | What it does |
 | --- | --- |
-| `init` | Sets up config, spec, agent instructions, hooks and the board. Safe to rerun. |
+| `tour` | Thirty seconds on a throwaway repo: two scripted agents, a reject and its rework, the ledger. No model, no network. |
+| `init` | Sets up config, spec, agent instructions, hooks and the board, and has Claude Code run `resume` at every session start. Safe to rerun. |
 | `worktree <lane>` | From the main checkout: makes a worktree for a new agent, joins it to the lane, prints what to run next. |
 | `join <lane>` | Registers the worktree you are in as the next agent in a lane. |
 | `add <lane> <title>` | Adds an item. `--specs`, `--criterion`, `--after <ids>` to wait on other items, `--parent` for child items. |
-| `list [lane]`, `show <id>` | The board, and one item with its frozen criterion and verdicts. |
-| `next [--wait <min>]`, `next --verify` | Claim your lane's next free item, waiting if everything is blocked; or name the next item to verify. |
+| `resume` | Where you are, from the board: your claim, your branch against main, what came back, unread shouts, the next step. Run it to start any session. |
+| `list [lane]`, `show <id>` | The board, and one item with its frozen criterion, its verdicts and the verified items that touched the same files. |
+| `next [--wait <min>]`, `next --verify` | Claim your lane's next free item, the one nearest the files you worked in lately, waiting if everything is blocked; or name the next item to verify. |
 | `claim <id>`, `release <id>` | Take or renew a lease; hand it back. |
-| `submit <id>` | Records the work at HEAD, after the gate passes. Alias: `done`. |
+| `check [id]` | Runs your item's check command: one line when it passes, the failures when it fails. |
+| `submit <id>` | Records the work at HEAD and the files it changed, after the gate passes. Refuses if the item's spec rows moved since the claim. Alias: `done`. |
 | `verify <id> accept\|reject --note "..."` | A verdict, by anyone but the builder, from the submitted commit. Both need a note: the proof, or what failed. |
 | `shout <to> <text>`, `inbox` | Messages to a lane, an agent, or `all`. |
-| `merged`, `withdraw`, `refreeze` | The coordinator's: where verified work landed, dropped items, a re-frozen bar. |
+| `merged`, `withdraw`, `refreeze`, `hold <lane>` | The coordinator's: where verified work landed, dropped items, a re-frozen bar, a paused lane (`--off` releases it). |
 | `ledger`, `log [id]`, `status` | Receipts. |
 | `spec check\|view\|show\|unmet\|signoff` | Lints SPEC.md and PRACTICE.md; renders them as a page; a person signs off rows with the text they read. |
 | `prompt <role>` | Prints a role guide: decompose, signoff, review, verify. |
-| `gate`, `hooks` | Runs the gate; reinstalls hooks after a fresh clone. |
+| `gate`, `hooks` | Runs the gate, printing one line when green and the failures when red; reinstalls hooks after a fresh clone. |
 
 Add `"prepare": "pullboard hooks"` to `package.json` so every clone gets the hooks on `npm install`.
 
@@ -168,9 +171,11 @@ Add `"prepare": "pullboard hooks"` to `package.json` so every clone gets the hoo
 | `PRACTICE.md` | The house rules, in the same format | yes |
 | `.claude/skills/pullboard-*` | The role guides, as Claude Code skills | yes |
 | `AGENTS.md`, `CLAUDE.md` | How agents work here; init adds its section | yes |
-| `.githooks/` | pre-commit, commit-msg, pre-push | yes |
+| `.githooks/` | pre-commit, commit-msg, pre-push. They run the checkout's pullboard, else the main checkout's, else the PATH's | yes |
+| `.claude/settings.json` | A Claude Code session hook that runs `pullboard resume` | yes |
 | `.pullboard/signoffs.jsonl` | A person's sign-offs, with the text they approved | yes |
 | `.git/pullboard/board.sqlite` | The board: items, claims, verdicts, shouts, events | never |
+| `.git/pullboard-gate.log` | The whole output of the last gate run, per worktree | never |
 
 ## Limits, stated
 

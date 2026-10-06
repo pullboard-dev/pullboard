@@ -53,6 +53,21 @@ The hidden suite passed 10 of 10, and the verifier caught a real bug by trying c
 - **Ids are permanent.** A cut row had been deleted, and every commit that cited it lost its meaning. Now the commit refuses a deleted row, `spec check` finds ids once committed or cited and now gone, and a cut row is marked `wont` (won't build): kept, out of the counts, never cited again.
 - **A brief on every item, and a route.** A coordinator wanted local and cheaper models to take mechanical items cold. Items carry a brief (the files, the contract, the pattern, the proof), and `--route light` sends one to agents that joined on the light route; they cannot claim or verify anything else.
 
+## Done in 0.5.x: what the first bake-off day taught (6 Oct)
+
+Codex and Claude fleets built the same to-do job on this CLI while Codex verified every CLI change. Its rejects and its builders' friction made most of this list.
+
+- **`pullboard resume`.** A session after a compaction rebuilt its context from a summary. Now one card from the board says where the agent is, and init has Claude Code run it at every session start.
+- **Work near warm files.** In one real build an item shared a source file with one of the three before it in its lane 56% of the time, so `next` now takes the item nearest the agent's recent files, and `show` and the run pack name verified items that touched them.
+- **`pullboard hold <lane>`.** A pause lived in messages that agents missed. Now it lives on the board, and claims there are refused with who held it and why.
+- **The gate as a digest.** Every submit printed the whole test log into the agent's context. Now green is one line, red is the failures, and the log stays in `.git`.
+- **`pullboard check`.** Two builders tried a `check` command that did not exist. Now it runs the item's check.
+- **Hooks in a fresh worktree.** A new worktree could not commit until its own `npm install`. The hooks now fall back to the main checkout's install.
+- **A moved bar is refused at submit.** A verifier ran the whole gate before verify said the cited rows had changed. Submit now says so first.
+- **Old commits stay verifiable.** Spec check faulted ids that later items cite, so the gate failed at earlier commits. It now counts an id any ref committed.
+- **Files from a dependency are not the item's.** A fast-forwarded dependency's files were recorded as the item's own; commits another item submitted are left out.
+- **`pullboard tour`.** Launch needs a thirty-second demo: a reject and its rework, with scripted agents. Its verifier found inherited `GIT_` variables reaching it; the tour now drops them.
+
 ## Soon: 0.5.x, hardening from real builds
 
 Lessons from an eight-lane build and from running hosted Pullboard, each small on its own:
