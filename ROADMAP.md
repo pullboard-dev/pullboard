@@ -37,6 +37,8 @@ Nine Opus lanes spent two days mostly re-reading context (13.2B cache-read token
 - **`pullboard run`.** It drives any agent command over routed items: a context pack per attempt, the check, the failure fed back, then submit or escalate. Pullboard still calls no model; the command is yours.
 - **`pullboard escalate`.** It hands an item one tier up, the attempt pinned under `refs/pullboard/attempts`.
 - **Fixers at commit.** Formatting is a deterministic tool's job, not a model turn.
+- **`pullboard sweep`.** A checker's report becomes light items, one per file, each checked by that checker. Fixing violations is the archetype of work a small model can do: the tool that found the problem proves the fix.
+- **One runner, every tier.** `--agent-light`, `--agent-mid` and `--agent-strong`: escalations climb within one run, and an item's verified dependencies merge in before it is built.
 
 ## Done in 0.5: what the third micro-build taught
 
