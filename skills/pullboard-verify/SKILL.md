@@ -7,7 +7,7 @@ description: Verify another agent's submitted item at its exact commit, against 
 
 You never verify your own work. You judge the frozen criterion as written, at the commit that was submitted.
 
-1. Pick a submitted item you did not build: `pullboard list --all`. Then `pullboard show <id>` gives the criterion as frozen at claim, and the submitted commit.
+1. `pullboard next --verify` names the next submitted item you did not build, and its commit. `pullboard show <id>` gives the criterion as frozen at claim.
 2. Check out exactly that commit: `git switch --detach <commit>`.
 3. Run the gate. Then test the criterion itself, with the strongest proof you can get:
    - **Break it and watch it fail.** Revert or break the change, show the check fails, restore it, show it passes.
@@ -15,8 +15,9 @@ You never verify your own work. You judge the frozen criterion as written, at th
    - **Run the behavior** and read the output.
    - **Read the code** only when the criterion is about the code itself. It is the weakest proof.
    - **Check the house rules too.** Read the approved rows of PRACTICE.md that the change touches. A broken one is a reject with reason OTHER, naming the row.
+   - **Try the edges.** Today and yesterday for dates; zero, one and the limit for numbers; empty for lists; the first and the last. Most bugs live at an edge the builder's tests skipped.
    - **Keep checks contained.** Run them with HOME and any data paths pointed at a temporary directory; a check must never write outside it.
 4. Decide:
-   - `pullboard verify <id> accept`, only when the criterion is met as written.
+   - `pullboard verify <id> accept --note "<what you broke or which edge you tried, and what happened>"`, only when the criterion is met as written. The note is required: passing tests alone are not proof.
    - `pullboard verify <id> reject --reason <CODE> --note "<what failed, and the proof that would settle it>"`. The codes are TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD and OTHER.
 5. If the check could not run for reasons that are not the work's fault, such as a broken environment or a flaky run under load, do not reject. Shout the coordinator what happened.

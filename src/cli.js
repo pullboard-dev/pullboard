@@ -51,10 +51,12 @@ Work
                                         --after: claiming waits until those items are verified
   pullboard list [lane] [--all]         open and active items; --all adds verified and withdrawn
   pullboard show <id>                   an item, the criterion frozen at claim, its verdicts
+  pullboard next [--wait <minutes>]     claim the next item in your lane that is free to start
+  pullboard next --verify               name the next submitted item you can check
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
   pullboard release <id>                hand it back
   pullboard submit <id>                 needs a clean tree and the gate green at HEAD (alias: done)
-  pullboard verify <id> accept          from the submitted commit, by anyone but the builder
+  pullboard verify <id> accept --note "what you broke or which edge you tried, and what happened"
   pullboard verify <id> reject --reason TEST_FAILURE --note "what failed"
   pullboard shout <lane|agent|all> <text>       pullboard inbox
 
@@ -91,6 +93,8 @@ const OPTIONS = {
   by: { type: 'string' },
   out: { type: 'string' },
   after: { type: 'string' },
+  wait: { type: 'string' },
+  verify: { type: 'boolean' },
   all: { type: 'boolean' },
   must: { type: 'boolean' },
   json: { type: 'boolean' },
@@ -446,6 +450,71 @@ function verifyHere(ctx, id, { second, values }) {
 }
 
 /**
+ * One loop of `next`: claim the next free item, or name the next one to verify. A claim that loses a
+ * race to another agent is not an error; the caller looks again.
+ *
+ * @param {any} ctx
+ * @param {any} values
+ * @returns {{ item?: any, held?: boolean, retry?: boolean, reasons?: string[] }}
+ */
+function nextOnce(ctx, values) {
+  return withBoard(ctx, (board) => {
+    const me = whoAmI(ctx, board);
+    const { item, reasons } = store.nextFor(board, { agentId: me.id, lane: me.lane, verify: values.verify });
+    if (!item) return { reasons };
+    if (values.verify) return { item };
+    if (item.item_status === 'claimed') return { item, held: true };
+    try {
+      store.claim(board, item.item_id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx) });
+    } catch (error) {
+      if (error instanceof Refused && ['HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true };
+      throw error;
+    }
+    return { item: store.getItem(board, item.item_id) };
+  });
+}
+
+/**
+ * `pullboard next` (N2): the whole start of an agent's loop in one command. With --wait, it keeps
+ * looking until something is free, so an agent blocked on other work needs no polling of its own.
+ *
+ * @param {any} io
+ * @param {any} values
+ * @returns {Promise<number>}
+ */
+async function nextHere(io, values) {
+  const ctx = context(io);
+  const minutes = values.wait === undefined ? 0 : Number(values.wait);
+  if (!Number.isFinite(minutes) || minutes < 0 || minutes > 240) {
+    throw new Refused('USAGE', '--wait is a number of minutes from 0 to 240');
+  }
+  const deadline = Date.now() + minutes * 60_000;
+  for (;;) {
+    const found = nextOnce(ctx, values);
+    if (found.item) {
+      const item = found.item;
+      if (values.verify) {
+        io.say(`next to verify: #${item.item_id} ${item.item_title}, built by ${item.item_built_by} at ${item.item_commit.slice(0, 12)}`);
+        io.say(`check out exactly that commit: git switch --detach ${item.item_commit}`);
+        io.say(`then: pullboard verify ${item.item_id} accept --note "how you proved it", or reject --reason CODE --note "what failed"`);
+      } else {
+        io.say(`${found.held ? 'you hold' : 'claimed'} #${item.item_id}: ${item.item_title}`);
+        if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
+        for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${row.text}`);
+        io.say(`when it is built and committed: pullboard submit ${item.item_id}`);
+      }
+      return 0;
+    }
+    if (!found.retry && Date.now() >= deadline) {
+      const waited = minutes ? ` after ${minutes} minutes` : '';
+      io.err(`pullboard: [NOTHING_FREE] ${found.reasons.join('; ')}${waited}. To keep looking: pullboard next --wait 30${values.verify ? ' --verify' : ''}`);
+      return 1;
+    }
+    if (!found.retry) await new Promise((done) => setTimeout(done, 5000));
+  }
+}
+
+/**
  * The commands that change the board.
  *
  * @param {any} io
@@ -471,6 +540,7 @@ function workCommands(io, args) {
       io.say(`#${id}`);
       return 0;
     }),
+    next: () => nextHere(io, values),
     claim: () => act((ctx, board, me) => {
       const result = store.claim(board, idArg(first), { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx) });
       io.say(`${result.renewed ? 'renewed' : 'claimed'} #${first} until ${result.leaseUntil}; criterion frozen as ${result.digest.slice(0, 12)}`);
@@ -682,7 +752,7 @@ export async function main(argv, streams) {
       io.err(`pullboard: no command "${command}"\n\n${HELP}`);
       return 2;
     }
-    return run();
+    return await run();
   } catch (error) {
     if (error instanceof Refused) {
       io.err(`pullboard: ${error.message}`);

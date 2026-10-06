@@ -504,6 +504,12 @@ function verdictReason(decision, reason, note) {
     if (reason && reason !== ACCEPT_REASON) {
       throw new Refused('BAD_REASON', `accept means ${ACCEPT_REASON}; a failed criterion is a reject`);
     }
+    if (!note.trim()) {
+      throw new Refused(
+        'PROOF_REQUIRED',
+        'an accept says how you proved it: --note "what you broke or which edge you tried, and what happened"; passing tests alone are not proof',
+      );
+    }
     return ACCEPT_REASON;
   }
   if (decision !== 'REJECT') throw new Refused('BAD_DECISION', 'the decision is accept or reject');
@@ -753,6 +759,36 @@ export function events(board, { itemId } = {}) {
   return board.db
     .prepare('SELECT * FROM event WHERE (? IS NULL OR item_id = ?) ORDER BY event_id')
     .all(itemId ?? null, itemId ?? null);
+}
+
+/**
+ * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
+ * dependencies are verified; for a verifier, the oldest submitted item it did not build. When
+ * nothing is free, the reasons say what everything is waiting on.
+ *
+ * @param {any} board
+ * @param {{ agentId: string, lane: string, verify?: boolean }} who
+ * @returns {{ item: any | null, reasons: string[] }}
+ */
+export function nextFor(board, { agentId, lane, verify = false }) {
+  const items = listItems(board).reverse();
+  if (verify) {
+    const item = items.find((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId) ?? null;
+    return { item, reasons: item ? [] : ['nothing submitted that you did not build'] };
+  }
+  const held = items.find((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null);
+  if (held) return { item: held, reasons: [] };
+  const mine = items.filter((entry) => entry.item_status === 'open' && (lane === COORDINATOR || entry.item_lane === lane));
+  const reasons = [];
+  for (const entry of mine) {
+    const waiting = (entry.item_after ? entry.item_after.split(',').map(Number) : [])
+      .map((id) => current(board, itemById(board, id)))
+      .filter((before) => before.item_status !== 'verified');
+    if (!waiting.length) return { item: entry, reasons: [] };
+    reasons.push(`#${entry.item_id} waits on ${waiting.map((before) => `#${before.item_id} (${before.item_status})`).join(', ')}`);
+  }
+  if (!mine.length) reasons.push(`no open items in the ${lane} lane`);
+  return { item: null, reasons };
 }
 
 /**

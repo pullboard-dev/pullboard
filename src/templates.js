@@ -125,12 +125,14 @@ This repo runs on pullboard: a work board, lanes and a spec that live in git. No
 It prints the folder to work in and what to run there first. Verifiers take the \`review\` lane, which owns no folders. Keep your worktree and branch until your items are merged.
 
 **The loop.**
-1. \`pullboard inbox\`, then \`pullboard list <lane>\`.
-2. \`pullboard claim <id>\`. A claim is a 2-hour lease; claim again to renew. The criterion freezes now: \`pullboard show <id>\` is the bar your work is judged against.
+1. \`pullboard inbox\`.
+2. \`pullboard next\` claims the next item in your lane that is free to start. When everything is waiting on other work, \`pullboard next --wait 30\` keeps looking for up to 30 minutes. A claim is a 2-hour lease; claim again to renew. The criterion freezes now: \`pullboard show <id>\` is the bar your work is judged against.
 3. Build inside your lane's folders (\`pullboard lanes\`). Pre-commit refuses anything else; shout the owner instead.
 4. Commit, then \`pullboard submit <id>\`. It needs a clean tree and the gate green at HEAD.
-5. A different agent verifies: it checks out the submitted commit and runs \`pullboard verify <id> accept\`, or \`pullboard verify <id> reject --reason TEST_FAILURE --note "what failed"\`.
+5. A different agent verifies: \`pullboard next --verify\` names the next item to check. It checks out the submitted commit and runs \`pullboard verify <id> accept --note "how it proved it"\`, or \`pullboard verify <id> reject --reason TEST_FAILURE --note "what failed"\`.
 6. A reject reopens the item. Fix it, commit, claim, submit again; the same head is refused.
+
+The coordinator merges verified items into the main line; builders never merge.
 
 If your item needs code another lane owns and it is not there yet, shout that lane and take another item. Never copy their code into your lane. A claim refused as BLOCKED names the item it waits on.
 
