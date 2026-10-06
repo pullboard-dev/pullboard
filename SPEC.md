@@ -21,8 +21,11 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - B8 [approved, must] An item can wait on others; claiming it is refused until they are verified. | gate: test/board.test.js
 - B9 [approved, must] Submit pins the commit under refs/pullboard/items, so submitted work is never lost. | gate: test/e2e.test.js
 - B10 [approved, must] An item carries a brief: how to build it. Next and show print it; edit changes it until verified. | gate: test/board.test.js, test/e2e.test.js
-- B11 [approved, must] Items route strong or light. A light agent claims and verifies light items only; light needs a brief. | gate: test/board.test.js, test/e2e.test.js
+- B11 [retired] Items route strong or light; B13 replaced the two routes with three tiers.
 - B12 [approved, must] Every item is built in its own lane; the coordinator claims only coordinator-lane items. | gate: test/board.test.js | serves: L3
+- B13 [approved, must] Routes are tiers: light, mid, strong. An agent claims and verifies its tier and below, its own first. | gate: test/board.test.js | serves: B10
+- B14 [approved, must] Below strong, an item needs a criterion, a check command, and a brief naming its test and in-lane files. | gate: test/board.test.js, test/e2e.test.js | serves: B10
+- B15 [approved, must] Escalate frees an item one tier up, its attempt pinned and its failure attached. | gate: test/board.test.js, test/e2e.test.js | serves: B13
 
 ## V · Verification
 - V1 [approved, must] The builder never verifies its own work. | gate: test/board.test.js | serves: P1
@@ -57,6 +60,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - C2 [approved, must] Cited ids exist. feat and fix commits cite at least one. | gate: test/hooks.test.js | serves: S1
 - C3 [approved, must] Pre-push runs the gate, unless this exact tree already passed it. | gate: test/e2e.test.js | serves: V4
 - C4 [approved, must] Every refusal says what to do and shows what it saw. | gate: test/hooks.test.js | serves: P4
+- C5 [approved, must] Pre-commit runs the configured fixers on fully staged files and restages what they fix. | gate: test/e2e.test.js
 
 ## R · Receipts
 - R1 [approved, must] The ledger lists built items: lane, spec, builder, verifier, verdict, commit. | gate: test/board.test.js
@@ -83,6 +87,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - N11 [draft, aim] A git-pullboard bin, so `git pullboard <command>` works.
 - N12 [draft, aim] `pullboard mcp` serves the same commands as MCP tools.
 - N13 [approved, must] `next` names items still awaiting a verdict; a lane is done when its items are verified. | gate: test/board.test.js | serves: N2
+- N14 [approved, must] `pullboard run` builds routed items unattended: pack, agent command, check, retry, then submit or escalate. | gate: test/e2e.test.js | serves: N8
 
 ## H · Hosted
 - H1 [pending, aim] `pullboard sync` mirrors the local board to pullboard.dev for teams across machines.
