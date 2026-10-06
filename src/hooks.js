@@ -46,9 +46,10 @@ function headerProblems(header, rules) {
   const typeRe = new RegExp(`^(${rules.types.join('|')})(\\([a-z0-9._/-]+\\))?(!)?: (.+)$`);
   const match = typeRe.exec(header);
   if (!match) {
+    const merge = /^merge\b/i.test(header) ? '. For a merge, keep the message git writes, which is exempt: git merge --no-edit' : '';
     return {
       problems: [
-        `write the header as type(scope): subject [ids], like "feat(store): save tasks to a file [G7]" (saw "${header.slice(0, 60)}"); types: ${rules.types.join(', ')}`,
+        `write the header as type(scope): subject [ids], like "feat(store): save tasks to a file [G7]" (saw "${header.slice(0, 60)}"); types: ${rules.types.join(', ')}${merge}`,
       ],
       type: '',
     };
