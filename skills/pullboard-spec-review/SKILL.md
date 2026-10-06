@@ -15,6 +15,7 @@ Verification checks the work against the spec. This checks the spec, and what wa
 ## Look for
 
 - Asks with no row, and rows nobody asked for.
+- Rows deleted or renumbered. Every id ever committed must still be there (`pullboard spec check` lists any that are gone); a cut row is marked `wont`, never removed.
 - Rows met to the letter that miss what the client meant.
 - A number the client cares about shown blank or zero because an input is missing. Demonstrate the mechanism with a labelled assumption instead.
 - Test or demo data that borrows real names from the client's world.

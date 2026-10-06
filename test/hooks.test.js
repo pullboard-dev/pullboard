@@ -34,7 +34,7 @@ test('header format, length, case and period [C1]', () => {
     'start the subject with a lowercase letter (saw "Explain lanes.")',
     'remove the period at the end of the subject',
   ]);
-  assert.match(check('feat: x [G K P D]')[0], /cite only rows that exist, separated by commas like \[G1,G2\]/);
+  assert.match(check('feat: x [G K P D]')[0], /cite only rows that exist and are live, separated by commas like \[G1,G2\]/);
   assert.deepEqual(check('docs: explain lanes\nsecond line'), ['leave a blank line after the header']);
 });
 

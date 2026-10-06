@@ -7,7 +7,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'n
 import { join } from 'node:path';
 import { git, tryGit } from './git.js';
 import { outOfLane } from './lanes.js';
-import { citedIds, idProblems } from './spec.js';
+import { citedIds, deletedIds, idProblems } from './spec.js';
 
 export const HOOKS = ['pre-commit', 'commit-msg', 'pre-push'];
 export const HOOKS_DIR = '.githooks';
@@ -81,7 +81,7 @@ export function commitMsgProblems(raw, { rules, spec }) {
   const ids = citedIds(header);
   problems.push(
     ...idProblems(spec, ids).map(
-      (problem) => `cite only rows that exist, separated by commas like [G1,G2] (${problem})`,
+      (problem) => `cite only rows that exist and are live, separated by commas like [G1,G2] (${problem})`,
     ),
   );
   if (type && rules.requireIds.includes(type) && !ids.length) {
@@ -203,6 +203,7 @@ export function preCommitProblems({ root, isMain, config, agent }) {
     const diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0']);
     problems.push(...secretsIn(addedLines(diff)).map((where) => `possible secret: ${where}`));
   }
+  problems.push(...deletedRowProblems(root, [config.spec, config.practice]));
   if (isMain) return problems;
   if (!agent) {
     problems.push('this worktree has not joined a lane: pullboard join <lane>');
@@ -213,6 +214,27 @@ export function preCommitProblems({ root, isMain, config, agent }) {
     ...foreign.map((path) => `outside the ${agent.agent_lane} lane: ${path}; shout its owner instead`),
   );
   return problems;
+}
+
+/**
+ * Rows the staged change deletes from the spec or the practice (S8). Nobody is exempt, the
+ * coordinator included: a commit or an item may cite any row, so a row that is cut stays, marked
+ * wont (won't build) or retired.
+ *
+ * @param {string} root
+ * @param {string[]} paths
+ * @returns {string[]}
+ */
+export function deletedRowProblems(root, paths) {
+  return paths.flatMap((path) => {
+    const before = tryGit(root, ['show', `HEAD:${path}`]);
+    if (before.status !== 0) return [];
+    const staged = tryGit(root, ['show', `:${path}`]);
+    if (staged.status !== 0) return [`${path} is deleted; ids are permanent: restore it`];
+    return deletedIds(before.stdout, staged.stdout).map(
+      (id) => `${path}: ${id} is gone; ids are permanent: keep the row and mark it wont (won't build) or retired`,
+    );
+  });
 }
 
 /**

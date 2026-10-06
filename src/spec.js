@@ -12,7 +12,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { Refused } from './refused.js';
 
-export const STATUSES = ['approved', 'draft', 'pending', 'fact', 'retired'];
+export const STATUSES = ['approved', 'draft', 'pending', 'fact', 'wont', 'retired'];
 export const TIERS = ['must', 'aim'];
 export const SIGNOFFS_FILE = '.pullboard/signoffs.jsonl';
 
@@ -183,7 +183,7 @@ export function lintSpec(spec, { maxWords = 20 } = {}) {
 
 /**
  * The spec ids an item or a commit cites, checked against the spec: every one must exist, and a
- * retired row cannot be built against.
+ * retired row or one marked wont (won't build) cannot be built against.
  *
  * @param {ReturnType<typeof parseSpec>} spec
  * @param {string[]} ids
@@ -195,6 +195,7 @@ export function idProblems(spec, ids) {
     const row = byId.get(id);
     if (!row) return [`${id} is not in ${spec.name ?? 'the spec'}`];
     if (row.status === 'retired') return [`${id} is retired`];
+    if (row.status === 'wont') return [`${id} is marked won't build; the person reopens it first`];
     return [];
   });
 }
@@ -210,7 +211,7 @@ export function idProblems(spec, ids) {
 export function frozenCriterion(spec, item) {
   const ids = item.item_spec_ids ? item.item_spec_ids.split(',') : [];
   const problems = idProblems(spec, ids);
-  if (problems.length) throw new Refused('UNKNOWN_SPEC', `${problems.join('; ')}; fix the spec or the item`);
+  if (problems.length) throw new Refused('UNKNOWN_SPEC', `${problems.join('; ')}; fix the spec, or the coordinator withdraws the item`);
   const rows = ids.map((id) => {
     const row = spec.rows.find((entry) => entry.id === id);
     return { id, text: row.text, gate: row.gate };
@@ -315,4 +316,42 @@ export function citedIds(header) {
   const match = /\[([A-Za-z0-9.,\s]+)\]\s*$/.exec(header);
   if (!match) return [];
   return match[1].split(',').map((id) => id.trim()).filter(Boolean);
+}
+
+/**
+ * Ids that left the spec though something still points at them (S8). Ids are permanent: a row that
+ * is cut stays, marked wont (won't build) or retired, so every commit and item that cites it keeps
+ * its meaning.
+ *
+ * @param {ReturnType<typeof parseSpec>} spec
+ * @param {{ committed: Map<string, string>, cited: Map<string, string> }} references - each id ever
+ *   committed to the spec with the commit that first had it, and each cited id with who cites it.
+ * @returns {{ id: string, message: string }[]}
+ */
+export function permanenceProblems(spec, { committed, cited }) {
+  const present = new Set(spec.rows.map((row) => row.id));
+  const problems = [...committed]
+    .filter(([id]) => !present.has(id))
+    .map(([id, commit]) => ({
+      id,
+      message: `was committed in ${commit.slice(0, 12)} and is gone; ids are permanent: restore the row and mark it wont or retired`,
+    }));
+  for (const [id, where] of cited) {
+    if (!present.has(id) && !committed.has(id)) {
+      problems.push({ id, message: `${where} cites it, but it was never committed to the spec; add it as a retired row saying what it meant` });
+    }
+  }
+  return problems;
+}
+
+/**
+ * Rows in `before` that `after` no longer has: what a change to a spec file deletes (S8).
+ *
+ * @param {string} before
+ * @param {string} after
+ * @returns {string[]} The deleted ids.
+ */
+export function deletedIds(before, after) {
+  const kept = new Set(parseSpec(after).rows.map((row) => row.id));
+  return parseSpec(before).rows.map((row) => row.id).filter((id) => !kept.has(id));
 }

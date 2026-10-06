@@ -20,12 +20,14 @@ import {
 import { initRepo } from './init.js';
 import { isLane, laneNames } from './lanes.js';
 import { Refused } from './refused.js';
+import { commitCitations, committedIds } from './history.js';
 import { promptFor } from './skills.js';
 import {
   frozenCriterion,
   idProblems,
   lintSpec,
   loadSpec,
+  permanenceProblems,
   readSignoffs,
   signOff,
   standings,
@@ -41,14 +43,18 @@ Nothing ships until a second agent verifies it.
 
 Set up
   pullboard init                        config, SPEC.md, agent instructions, git hooks, board
-  pullboard worktree <lane>             make a worktree for a new agent in a lane, joined, and say what to run next
-  pullboard join <lane>                 register the worktree you are in as an agent in a lane
+  pullboard worktree <lane> [--route light]   make a worktree for a new agent in a lane, joined, and say what to run next
+  pullboard join <lane> [--route light] register the worktree you are in as an agent in a lane
+                                        --route light: a lighter model that takes only items routed light
   pullboard whoami | lanes | status     who you are, the lanes, the board at a glance
   pullboard hooks                       reinstall the git hooks (e.g. after a fresh clone)
 
 Work
   pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--parent <id>]
+                [--brief "..." | --brief-file <file>] [--route light]
                                         --after: claiming waits until those items are verified
+                                        --brief: what a cold agent needs; --route light: any model can build it
+  pullboard edit <id> [--brief "..." | --brief-file <file>] [--route strong|light]
   pullboard list [lane] [--all]         open and active items; --all adds verified and withdrawn
   pullboard show <id>                   an item, the criterion frozen at claim, its verdicts
   pullboard next [--wait <minutes>]     claim the next item in your lane that is free to start
@@ -93,6 +99,9 @@ const OPTIONS = {
   by: { type: 'string' },
   out: { type: 'string' },
   after: { type: 'string' },
+  brief: { type: 'string' },
+  'brief-file': { type: 'string' },
+  route: { type: 'string' },
   wait: { type: 'string' },
   verify: { type: 'boolean' },
   all: { type: 'boolean' },
@@ -122,6 +131,36 @@ function idArg(text, what = 'an item id') {
  * @returns {string[]}
  */
 const idList = (text) => (text ?? '').split(',').map((id) => id.trim()).filter(Boolean);
+
+/**
+ * The brief a command was given, from --brief or --brief-file, or undefined when neither.
+ *
+ * @param {any} io
+ * @param {any} values
+ * @returns {string | undefined}
+ */
+function briefArg(io, values) {
+  const path = values['brief-file'];
+  if (values.brief !== undefined && path !== undefined) {
+    throw new Refused('USAGE', 'give the brief once: --brief "..." or --brief-file <file>');
+  }
+  if (path === undefined) return values.brief;
+  const file = resolve(io.cwd, path);
+  if (!existsSync(file)) throw new Refused('NO_FILE', `no file ${path}`);
+  return readFileSync(file, 'utf8');
+}
+
+/**
+ * Print an item's brief, indented under a heading, when it has one.
+ *
+ * @param {any} io
+ * @param {string} brief
+ */
+function sayBrief(io, brief) {
+  if (!brief) return;
+  io.say('brief:');
+  brief.split('\n').forEach((line) => io.say(`  ${line}`.trimEnd()));
+}
 
 /**
  * Everything a command needs: the repo, its config, the board's file, and where output goes.
@@ -166,7 +205,7 @@ function whoAmI(ctx, board) {
   if (!agent) {
     throw new Refused('NOT_JOINED', 'this worktree has not joined a lane: pullboard join <lane> (see: pullboard lanes)');
   }
-  return { id: agent.agent_id, lane: agent.agent_lane };
+  return { id: agent.agent_id, lane: agent.agent_lane, route: agent.agent_route };
 }
 
 /**
@@ -190,7 +229,8 @@ function itemLine(item) {
   const parent = item.item_parent_id ? `  under #${item.item_parent_id}` : '';
   const after = item.item_after ? `  after ${item.item_after.split(',').map((id) => `#${id}`).join(',')}` : '';
   const rejected = item.item_status === 'open' && item.item_verdict === 'REJECT' ? ' (rejected)' : '';
-  return `#${item.item_id}  ${item.item_status}${holder}${verifier}${rejected}  ${item.item_lane}  ${item.item_title}${specs}${parent}${after}`;
+  const light = item.item_route === 'light' ? '  light' : '';
+  return `#${item.item_id}  ${item.item_status}${holder}${verifier}${rejected}  ${item.item_lane}  ${item.item_title}${specs}${parent}${after}${light}`;
 }
 
 /**
@@ -200,7 +240,7 @@ function itemLine(item) {
  * @param {{ first?: string }} args
  * @returns {Record<string, () => number>}
  */
-function setupCommands(io, { first }) {
+function setupCommands(io, { first, values }) {
   return {
     init: () => {
       const info = repoInfo(io.cwd);
@@ -224,11 +264,12 @@ function setupCommands(io, { first }) {
       if (!first || first === COORDINATOR || !isLane(ctx.config, first)) {
         throw new Refused('NO_LANE', `no lane "${first ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
       }
-      const id = withBoard(ctx, (board) => store.register(board, { lane: first, path: ctx.info.root }));
-      io.say(`joined as ${id} in the ${first} lane`);
+      const route = values.route ?? 'strong';
+      const id = withBoard(ctx, (board) => store.register(board, { lane: first, path: ctx.info.root, route }));
+      io.say(`joined as ${id} in the ${first} lane${route === 'light' ? ', on the light route' : ''}`);
       return 0;
     },
-    worktree: () => worktreeFor(io, first),
+    worktree: () => worktreeFor(io, first, values.route ?? 'strong'),
   };
 }
 
@@ -238,12 +279,16 @@ function setupCommands(io, { first }) {
  *
  * @param {any} io
  * @param {string | undefined} lane
+ * @param {string} route
  * @returns {number}
  */
-function worktreeFor(io, lane) {
+function worktreeFor(io, lane, route) {
   const ctx = context(io);
   if (!lane || lane === COORDINATOR || !isLane(ctx.config, lane)) {
     throw new Refused('NO_LANE', `no lane "${lane ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
+  }
+  if (!store.ROUTES.includes(route)) {
+    throw new Refused('BAD_ROUTE', `route "${route}" is strong (needs a frontier model) or light (any model can build it from the brief)`);
   }
   const mainRoot = resolve(ctx.info.commonDir, '..');
   const pathFor = (n) => join(dirname(mainRoot), `${basename(mainRoot)}-${lane}-${n}`);
@@ -252,8 +297,8 @@ function worktreeFor(io, lane) {
   while (isTaken(n)) n += 1;
   git(mainRoot, ['worktree', 'add', '-q', '-b', `${lane}/${n}`, pathFor(n), git(mainRoot, ['rev-parse', 'HEAD'])]);
   const root = git(pathFor(n), ['rev-parse', '--show-toplevel']);
-  const id = withBoard(ctx, (board) => store.register(board, { lane, path: root }));
-  io.say(`made ${root} on branch ${lane}/${n}, joined as ${id} in the ${lane} lane`);
+  const id = withBoard(ctx, (board) => store.register(board, { lane, path: root, route }));
+  io.say(`made ${root} on branch ${lane}/${n}, joined as ${id} in the ${lane} lane${route === 'light' ? ', on the light route' : ''}`);
   io.say('next, from that folder:');
   io.say(`  cd ${root}`);
   if (existsSync(join(root, 'package.json'))) io.say('  npm install    (its own install, so its tests run its own code)');
@@ -273,7 +318,7 @@ function readCommands(io, { first, values }) {
     whoami: () => {
       const ctx = context(io);
       const me = withBoard(ctx, (board) => whoAmI(ctx, board));
-      io.say(`${me.id} (${me.lane} lane) at ${ctx.info.root}`);
+      io.say(`${me.id} (${me.lane} lane${me.route === 'light' ? ', light route' : ''}) at ${ctx.info.root}`);
       return 0;
     },
     lanes: () => {
@@ -308,6 +353,7 @@ function readCommands(io, { first, values }) {
       }
       io.say(itemLine(item));
       if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
+      sayBrief(io, item.item_brief);
       if (item.item_frozen) {
         const frozen = JSON.parse(item.item_frozen);
         io.say(`frozen at claim (${item.item_frozen_digest.slice(0, 12)}):`);
@@ -501,6 +547,7 @@ async function nextHere(io, values) {
         io.say(`${found.held ? 'you hold' : 'claimed'} #${item.item_id}: ${item.item_title}`);
         if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
         for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${row.text}`);
+        sayBrief(io, item.item_brief);
         io.say(`when it is built and committed: pullboard submit ${item.item_id}`);
       }
       return 0;
@@ -536,8 +583,24 @@ function workCommands(io, args) {
       const parentId = values.parent ? idArg(values.parent, 'a parent item id') : null;
       const after = idList(values.after).map((text) => idArg(text, 'an item id after --after'));
       const title = [second, ...rest].filter(Boolean).join(' ');
-      const id = store.addItem(board, { by: me.id, lane: first, title, criterion: values.criterion ?? '', specIds, parentId, after });
+      const id = store.addItem(board, {
+        by: me.id,
+        lane: first,
+        title,
+        criterion: values.criterion ?? '',
+        specIds,
+        parentId,
+        after,
+        brief: briefArg(io, values) ?? '',
+        route: values.route ?? 'strong',
+      });
       io.say(`#${id}`);
+      return 0;
+    }),
+    edit: () => act((ctx, board, me) => {
+      const id = idArg(first);
+      store.editItem(board, id, { agentId: me.id, brief: briefArg(io, values), route: values.route });
+      io.say(`edited #${id}`);
       return 0;
     }),
     next: () => nextHere(io, values),
@@ -580,6 +643,25 @@ function workCommands(io, args) {
 }
 
 /**
+ * Every spec id something cites (S8): commit headers since the spec's first commit, and every item
+ * on the board, open or closed. Each must still be in the spec.
+ *
+ * @param {any} ctx
+ * @param {string | null} since
+ * @returns {Map<string, string>} Each id, with who cites it.
+ */
+function citations(ctx, since) {
+  const cited = since ? commitCitations(ctx.info.root, since) : new Map();
+  if (!existsSync(ctx.file)) return cited;
+  for (const item of withBoard(ctx, (board) => store.listItems(board, { all: true }))) {
+    for (const id of item.item_spec_ids ? item.item_spec_ids.split(',') : []) {
+      if (!cited.has(id)) cited.set(id, `item #${item.item_id}`);
+    }
+  }
+  return cited;
+}
+
+/**
  * The spec commands: check, show, unmet, signoff.
  *
  * @param {any} io
@@ -597,9 +679,13 @@ function specCommand(io, { first, second, rest, values }) {
     for (const [name, parsed] of files) {
       const findings = lintSpec(parsed);
       findings.forEach((finding) => io.say(`${name}:${finding.line} ${finding.id ?? ''} ${finding.level}: ${finding.message}`.replace('  ', ' ')));
-      const fileErrors = findings.filter((finding) => finding.level === 'error').length;
+      const history = committedIds(ctx.info.root, name);
+      const cited = name === ctx.config.spec ? citations(ctx, history.since) : new Map();
+      const lost = permanenceProblems(parsed, { committed: history.ids, cited });
+      lost.forEach((problem) => io.say(`${name}: ${problem.id} error: ${problem.message}`));
+      const fileErrors = findings.filter((finding) => finding.level === 'error').length + lost.length;
       errors += fileErrors;
-      io.say(`${name}: ${parsed.rows.length} rows, ${fileErrors} errors, ${findings.length - fileErrors} warnings`);
+      io.say(`${name}: ${parsed.rows.length} rows, ${fileErrors} errors, ${findings.length + lost.length - fileErrors} warnings`);
     }
     return errors ? 1 : 0;
   }

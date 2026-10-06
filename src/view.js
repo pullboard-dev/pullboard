@@ -46,9 +46,10 @@ function signoffCell(row, by) {
 function rowHtml(row, by, withSignoff) {
   const tier = row.tier ? ` <span class="tier">${esc(row.tier)}</span>` : '';
   const serves = row.serves.length ? esc(row.serves.join(', ')) : '';
-  const search = esc(`${row.id} ${row.status} ${row.tier} ${row.text} ${row.gate}`.toLowerCase());
+  const label = row.status === 'wont' ? "won't build" : row.status;
+  const search = esc(`${row.id} ${row.status} ${label} ${row.tier} ${row.text} ${row.gate}`.toLowerCase());
   const signoff = withSignoff ? `<td>${signoffCell(row, by).html}</td>` : '';
-  return `<tr data-text="${search}"><td class="id">${esc(row.id)}</td><td><span class="st st-${esc(row.status)}">${esc(row.status)}</span>${tier}</td><td>${esc(row.text)}</td><td class="gate">${esc(row.gate)}</td><td class="id">${serves}</td>${signoff}</tr>`;
+  return `<tr data-text="${search}"><td class="id">${esc(row.id)}</td><td><span class="st st-${esc(row.status)}">${esc(label)}</span>${tier}</td><td>${esc(row.text)}</td><td class="gate">${esc(row.gate)}</td><td class="id">${serves}</td>${signoff}</tr>`;
 }
 
 /**
@@ -99,15 +100,16 @@ function summaryHtml(spec, by) {
     [count('pending'), 'open questions'],
     [`${tally('met')}/${musts.length}`, 'approved must-rows signed'],
     [tally('stale'), 'sign-offs gone stale'],
+    ...(count('wont') ? [[count('wont'), "won't build"]] : []),
   ];
   return `<div class="summary">${items.map(([value, label]) => `<div><b>${esc(value)}</b><span>${esc(label)}</span></div>`).join('')}</div>`;
 }
 
 const STYLE = `
 :root { --bg: #f4f6f3; --card: #fff; --ink: #17211b; --muted: #5a665f; --rule: #d7ddd8;
-  --approved: #1d7748; --draft: #5a665f; --pending: #8a5b0c; --fact: #2b55a3; --retired: #9aa39e; --stale: #a1453a; }
+  --approved: #1d7748; --draft: #5a665f; --pending: #8a5b0c; --fact: #2b55a3; --wont: #7d5f4b; --retired: #9aa39e; --stale: #a1453a; }
 @media (prefers-color-scheme: dark) { :root { --bg: #101512; --card: #161d19; --ink: #e5ebe7; --muted: #9aa69f;
-  --rule: #29322d; --approved: #57c48d; --draft: #9aa69f; --pending: #e0b25a; --fact: #86a9ee; --retired: #6f7a74; --stale: #e08a7e; color-scheme: dark; } }
+  --rule: #29322d; --approved: #57c48d; --draft: #9aa69f; --pending: #e0b25a; --fact: #86a9ee; --wont: #c49f86; --retired: #6f7a74; --stale: #e08a7e; color-scheme: dark; } }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 48px; }
@@ -134,7 +136,7 @@ td.id { font-family: ui-monospace, Menlo, Consolas, monospace; white-space: nowr
 td.gate { color: var(--muted); }
 .st { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .78rem; font-weight: 600; }
 .st-approved { color: var(--approved); } .st-draft { color: var(--draft); } .st-pending { color: var(--pending); }
-.st-fact { color: var(--fact); } .st-retired { color: var(--retired); text-decoration: line-through; }
+.st-fact { color: var(--fact); } .st-wont { color: var(--wont); font-style: italic; } .st-retired { color: var(--retired); text-decoration: line-through; }
 .tier { color: var(--muted); font-size: .78rem; }
 .so { font-size: .82rem; white-space: nowrap; } .so-met { color: var(--approved); } .so-stale { color: var(--stale); } .so-open { color: var(--muted); }
 .empty { color: var(--muted); }

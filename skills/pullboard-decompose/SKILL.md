@@ -20,8 +20,8 @@ One requirement per line:
 - G1.2 [draft, must] Same file twice is a no-op. | gate: idempotency test | serves: G1
 ```
 
-- **id:** a track letter and a number. Never reuse one, even after a row is retired.
-- **status:** `approved` only on the person's word. Your rows are `draft`. An open question is `pending`, with its text phrased as the question; a pending row has no gate.
+- **id:** a track letter and a number. Ids are permanent: once a row is committed, commits and items may cite it, so it is never deleted, renumbered or reused.
+- **status:** `approved` only on the person's word. Your rows are `draft`. An open question is `pending`, with its text phrased as the question; a pending row has no gate. `wont` is a row the person cut: it stays, with its id and text, and nothing builds it. `retired` is a row that no longer applies.
 - **tier:** `must` or `aim`.
 - **text:** one requirement, under 20 words.
 - **gate:** the test or check that would prove it.
@@ -56,7 +56,7 @@ One requirement per line:
    Every must-row must be testable without a guess. Name the exact word, format, number or comparison it means: not "overdue tasks are flagged" but "a task due before today's local date shows the word overdue". If the client did not say, write your assumption into the draft row; the person will flip it if it is wrong.
 5. Show the person one track at a time. Ask the pending questions one at a time, the most consequential first, each with your recommended answer.
 6. After each answer, update the row and keep its id: pending becomes approved with the answer as its text, or draft becomes approved. Run `pullboard spec check`.
-7. Never mark a row approved without the person saying so. Never delete a row; retire it.
+7. Never mark a row approved without the person saying so. Never delete or renumber a row, even to tidy the numbering. When the person cuts one, mark it `wont`; when one stops applying, mark it `retired`. The commit refuses a deleted row.
 
 ## Done
 

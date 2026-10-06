@@ -13,6 +13,13 @@ import { COORDINATOR } from './config.js';
 import { Refused } from './refused.js';
 
 export const ACCEPT_REASON = 'CRITERION_MET';
+
+/**
+ * Who can take an item (B11): `strong` needs a frontier model's judgment; `light` is work any model
+ * can build from its brief. An agent's route is set when it joins.
+ */
+export const ROUTES = ['strong', 'light'];
+const BRIEF_LIMIT = 8000;
 export const REJECT_REASONS = [
   'TEST_FAILURE',
   'BEHAVIOR_MISMATCH',
@@ -32,6 +39,7 @@ const SCHEMA = `
     agent_lane TEXT NOT NULL,
     agent_path TEXT NOT NULL UNIQUE,
     agent_last_shout_id INTEGER NOT NULL DEFAULT 0,
+    agent_route TEXT NOT NULL DEFAULT 'strong',
     agent_created_at TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS item (
@@ -42,6 +50,8 @@ const SCHEMA = `
     item_criterion TEXT NOT NULL DEFAULT '',
     item_spec_ids TEXT NOT NULL DEFAULT '',
     item_after TEXT NOT NULL DEFAULT '',
+    item_brief TEXT NOT NULL DEFAULT '',
+    item_route TEXT NOT NULL DEFAULT 'strong',
     item_status TEXT NOT NULL DEFAULT 'open',
     item_owner TEXT,
     item_lease_until TEXT,
@@ -115,9 +125,15 @@ export function openBoard(file, clock = systemClock) {
  * @param {DatabaseSync} db
  */
 function migrate(db) {
-  const columns = db.prepare('PRAGMA table_info(item)').all().map((column) => column.name);
-  if (!columns.includes('item_after')) {
-    db.exec("ALTER TABLE item ADD COLUMN item_after TEXT NOT NULL DEFAULT ''");
+  const added = [
+    ['item', 'item_after', "TEXT NOT NULL DEFAULT ''"],
+    ['item', 'item_brief', "TEXT NOT NULL DEFAULT ''"],
+    ['item', 'item_route', "TEXT NOT NULL DEFAULT 'strong'"],
+    ['agent', 'agent_route', "TEXT NOT NULL DEFAULT 'strong'"],
+  ];
+  for (const [table, column, type] of added) {
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all().map((entry) => entry.name);
+    if (!columns.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
   }
 }
 
@@ -240,20 +256,25 @@ export function agentAt(board, path) {
 
 /**
  * Register a worktree as an agent (B3): the main checkout as the one coordinator, any other
- * worktree as the next agent in its lane (`web-1`, `web-2`, ...). Registering again is a no-op.
+ * worktree as the next agent in its lane (`web-1`, `web-2`, ...), on a route: strong, or light for
+ * a model that takes only items routed light (B11). Registering again is a no-op.
  *
  * @param {any} board
- * @param {{ lane: string, path: string }} who
+ * @param {{ lane: string, path: string, route?: string }} who
  * @returns {string} The agent's id.
  */
-export function register(board, { lane, path }) {
+export function register(board, { lane, path, route = 'strong' }) {
+  checkRoute(route);
+  if (lane === COORDINATOR && route !== 'strong') {
+    throw new Refused('BAD_ROUTE', 'the coordinator plans, merges and verifies; it is always strong');
+  }
   return atomic(board, () => {
     const existing = agentAt(board, path);
     if (existing) {
-      if (existing.agent_lane !== lane) {
+      if (existing.agent_lane !== lane || existing.agent_route !== route) {
         throw new Refused(
           'ALREADY_JOINED',
-          `this worktree is ${existing.agent_id} in the ${existing.agent_lane} lane; use another worktree for ${lane}`,
+          `this worktree is ${existing.agent_id} in the ${existing.agent_lane} lane, routed ${existing.agent_route}; use another worktree for ${lane} routed ${route}`,
         );
       }
       return existing.agent_id;
@@ -267,10 +288,10 @@ export function register(board, { lane, path }) {
     const id = lane === COORDINATOR ? COORDINATOR : `${lane}-${total + 1}`;
     board.db
       .prepare(
-        'INSERT INTO agent (agent_id, agent_lane, agent_path, agent_created_at) VALUES (?, ?, ?, ?)',
+        'INSERT INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_created_at) VALUES (?, ?, ?, ?, ?)',
       )
-      .run(id, lane, path, now(board));
-    logEvent(board, id, 'join', null, { lane });
+      .run(id, lane, path, route, now(board));
+    logEvent(board, id, 'join', null, route === 'strong' ? { lane } : { lane, route });
     return id;
   });
 }
@@ -306,16 +327,57 @@ export function listAgents(board) {
 }
 
 /**
- * Add an item to a lane, optionally under a parent in the same lane. The caller has checked the
- * lane and the spec ids (B6).
+ * Refuse a route that is not one of ROUTES.
+ *
+ * @param {string} route
+ */
+function checkRoute(route) {
+  if (!ROUTES.includes(route)) {
+    throw new Refused('BAD_ROUTE', `route "${route}" is strong (needs a frontier model) or light (any model can build it from the brief)`);
+  }
+}
+
+/**
+ * Refuse a brief that cannot do its job (B10): too long to read cold, or missing on an item routed
+ * light, where the brief is all a light model has to go on.
+ *
+ * @param {string} brief
+ * @param {string} route
+ */
+function checkBrief(brief, route) {
+  if (brief.length > BRIEF_LIMIT) {
+    throw new Refused('BRIEF_TOO_LONG', `the brief is ${brief.length} characters; keep it under ${BRIEF_LIMIT} and point to longer docs by path`);
+  }
+  if (route === 'light' && !brief.trim()) {
+    throw new Refused('NO_BRIEF', 'an item routed light carries a brief: the files, the contract, the pattern to copy and the command that proves it (--brief or --brief-file)');
+  }
+}
+
+/**
+ * The route an agent joined on; strong for the coordinator and for ids the board does not know.
  *
  * @param {any} board
- * @param {{ by: string, lane: string, title: string, criterion?: string, specIds?: string[], parentId?: number | null, after?: number[] }} item
+ * @param {string} agentId
+ * @returns {string}
+ */
+function routeOf(board, agentId) {
+  return board.db.prepare('SELECT agent_route FROM agent WHERE agent_id = ?').get(agentId)?.agent_route ?? 'strong';
+}
+
+/**
+ * Add an item to a lane, optionally under a parent in the same lane, with a brief for whoever
+ * builds it and a route saying who can (B10, B11). The caller has checked the lane and the spec
+ * ids (B6).
+ *
+ * @param {any} board
+ * @param {{ by: string, lane: string, title: string, criterion?: string, specIds?: string[], parentId?: number | null, after?: number[], brief?: string, route?: string }} item
  * @returns {number} The new item's id.
  */
-export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [] }) {
+export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong' }) {
   const cleanTitle = title.trim();
   if (!cleanTitle) throw new Refused('NO_TITLE', 'an item needs a title');
+  checkRoute(route);
+  checkBrief(brief.trim(), route);
   return atomic(board, () => {
     if (parentId !== null) {
       const parent = itemById(board, parentId);
@@ -335,13 +397,49 @@ export function addItem(board, { by, lane, title, criterion = '', specIds = [], 
     const result = board.db
       .prepare(
         `INSERT INTO item (item_parent_id, item_lane, item_title, item_criterion, item_spec_ids,
-           item_after, item_created_by, item_created_at, item_updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           item_after, item_brief, item_route, item_created_by, item_created_at, item_updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(parentId, lane, cleanTitle, criterion.trim(), specIds.join(','), after.join(','), by, at, at);
+      .run(parentId, lane, cleanTitle, criterion.trim(), specIds.join(','), after.join(','), brief.trim(), route, by, at, at);
     const id = Number(result.lastInsertRowid);
-    logEvent(board, by, 'add', id, { lane, specIds, after });
+    logEvent(board, by, 'add', id, { lane, specIds, after, route });
     return id;
+  });
+}
+
+/**
+ * Change an item's brief or route (B10, B11): how to build it and who can, never what it must do;
+ * the criterion moves only by refreeze. The coordinator or the agent that added it may edit, until
+ * it is verified or withdrawn; the route only while nobody holds it.
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {{ agentId: string, brief?: string, route?: string }} change
+ */
+export function editItem(board, id, { agentId, brief, route }) {
+  if (brief === undefined && route === undefined) {
+    throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file> or --route strong|light');
+  }
+  atomic(board, () => {
+    const item = current(board, itemById(board, id));
+    if (agentId !== COORDINATOR && agentId !== item.item_created_by) {
+      throw new Refused('NOT_YOURS', `only the coordinator or ${item.item_created_by}, who added #${id}, edits it; shout them instead`);
+    }
+    if (['verified', 'withdrawn'].includes(item.item_status)) {
+      throw new Refused('CLOSED', `item #${id} is ${item.item_status}`);
+    }
+    const nextRoute = route ?? item.item_route;
+    const nextBrief = brief === undefined ? item.item_brief : brief.trim();
+    checkRoute(nextRoute);
+    if (nextRoute !== item.item_route && item.item_status !== 'open') {
+      throw new Refused('HELD', `item #${id} is ${item.item_status}; change its route only while it is open`);
+    }
+    checkBrief(nextBrief, nextRoute);
+    setItem(board, id, { item_brief: nextBrief, item_route: nextRoute });
+    logEvent(board, agentId, 'edit', id, {
+      ...(nextBrief !== item.item_brief ? { brief: `${nextBrief.length} characters` } : {}),
+      ...(nextRoute !== item.item_route ? { route: nextRoute } : {}),
+    });
   });
 }
 
@@ -365,6 +463,9 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze }) {
     }
     if (lane !== COORDINATOR && item.item_lane !== lane) {
       throw new Refused('WRONG_LANE', `item #${id} is in the ${item.item_lane} lane; you are in ${lane}`);
+    }
+    if (item.item_route !== 'light' && routeOf(board, agentId) === 'light') {
+      throw new Refused('ROUTE', `item #${id} needs a strong model; you joined on the light route. Take the next light item: pullboard next`);
     }
     for (const dependency of item.item_after ? item.item_after.split(',').map(Number) : []) {
       const before = itemById(board, dependency);
@@ -475,15 +576,19 @@ export function submit(board, id, { agentId, commit, tree }) {
  * Who may verify an item, as a refusal when `agentId` may not (V1).
  *
  * The builder never may. Under `verify: "coordinator"`, lane work is the coordinator's to verify,
- * and the coordinator's own work is any other agent's.
+ * and the coordinator's own work is any other agent's. A light agent verifies light items only.
  *
+ * @param {any} board
  * @param {any} item
  * @param {string} agentId
  * @param {string} policy
  */
-function checkVerifier(item, agentId, policy) {
+function checkVerifier(board, item, agentId, policy) {
   if (item.item_built_by === agentId) {
     throw new Refused('SELF_VERIFY', 'the builder never verifies its own work; another agent must');
+  }
+  if (item.item_route !== 'light' && routeOf(board, agentId) === 'light') {
+    throw new Refused('ROUTE', `item #${item.item_id} needs a strong verifier; you joined on the light route`);
   }
   if (policy === COORDINATOR && item.item_lane !== COORDINATOR && agentId !== COORDINATOR) {
     throw new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work');
@@ -538,7 +643,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', head, 
     if (item.item_status !== 'submitted') {
       throw new Refused('NOT_SUBMITTED', `item #${id} is ${current(board, item).item_status}, not submitted`);
     }
-    checkVerifier(item, agentId, policy);
+    checkVerifier(board, item, agentId, policy);
     if (digest !== item.item_frozen_digest) {
       throw new Refused(
         'CRITERIA_CHANGED',
@@ -763,22 +868,27 @@ export function events(board, { itemId } = {}) {
 
 /**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
- * dependencies are verified; for a verifier, the oldest submitted item it did not build. When
- * nothing is free, the reasons say what everything is waiting on.
+ * dependencies are verified; for a verifier, the oldest submitted item it did not build. A light
+ * agent sees only items routed light; a strong one takes strong items first, leaving light work for
+ * light models while there is any (B11). When nothing is free, the reasons say what everything is
+ * waiting on.
  *
  * @param {any} board
  * @param {{ agentId: string, lane: string, verify?: boolean }} who
  * @returns {{ item: any | null, reasons: string[] }}
  */
 export function nextFor(board, { agentId, lane, verify = false }) {
-  const items = listItems(board).reverse();
+  const isLight = routeOf(board, agentId) === 'light';
+  const items = listItems(board).reverse().filter((entry) => !isLight || entry.item_route === 'light');
+  const routed = isLight ? 'light ' : '';
   if (verify) {
     const item = items.find((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId) ?? null;
-    return { item, reasons: item ? [] : ['nothing submitted that you did not build'] };
+    return { item, reasons: item ? [] : [`nothing ${routed}submitted that you did not build`] };
   }
   const held = items.find((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null);
   if (held) return { item: held, reasons: [] };
-  const mine = items.filter((entry) => entry.item_status === 'open' && (lane === COORDINATOR || entry.item_lane === lane));
+  const open = items.filter((entry) => entry.item_status === 'open' && (lane === COORDINATOR || entry.item_lane === lane));
+  const mine = [...open.filter((entry) => entry.item_route !== 'light'), ...open.filter((entry) => entry.item_route === 'light')];
   const reasons = [];
   for (const entry of mine) {
     const waiting = (entry.item_after ? entry.item_after.split(',').map(Number) : [])
@@ -787,7 +897,7 @@ export function nextFor(board, { agentId, lane, verify = false }) {
     if (!waiting.length) return { item: entry, reasons: [] };
     reasons.push(`#${entry.item_id} waits on ${waiting.map((before) => `#${before.item_id} (${before.item_status})`).join(', ')}`);
   }
-  if (!mine.length) reasons.push(`no open items in the ${lane} lane`);
+  if (!mine.length) reasons.push(`no open ${routed}items in the ${lane} lane`);
   return { item: null, reasons };
 }
 

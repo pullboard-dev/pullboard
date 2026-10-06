@@ -37,7 +37,7 @@ export function specTemplate(project) {
 
 Every requirement is a row with an id. Agents build against approved rows; commits cite the ids they serve. \`pullboard spec check\` lints this file.
 
-Statuses: approved = decided · draft = proposed · pending = open question · fact = true today · retired = spent, never reused. Tiers: must · aim.
+Statuses: approved = decided · draft = proposed · pending = open question · fact = true today · wont = won't build, decided and kept · retired = no longer applies, kept. Ids are permanent: never delete or renumber a row. Tiers: must · aim.
 
 ## G · Goals: what the client asked for
 - G1 [draft, must] Replace with the first thing the client needs, in one line. | gate: the test that proves it
@@ -59,7 +59,7 @@ export function practiceTemplate() {
 
 How this project is built: the house rules, as rows. SPEC.md says what to build; this file says how. Edit it for your project: keep, change or retire each row, and approve what you keep. A row whose gate names a check fails the build when broken; a row gated by review guides agents and reviewers.
 
-Statuses: approved = in force · draft = proposed · retired = dropped, id kept. Tiers: must · aim.
+Statuses: approved = in force · draft = proposed · wont = considered and declined, id kept · retired = dropped, id kept. Ids are permanent: never delete or renumber a row. Tiers: must · aim.
 
 ## W · Writing
 - W1 [approved, must] Numbers over adjectives. No hedges, no filler. | gate: review
@@ -112,7 +112,7 @@ export function agentsBlock() {
 
 This repo runs on pullboard: a work board, lanes and a spec that live in git. Nothing ships until a second agent verifies it.
 
-**Source of truth.** \`SPEC.md\` holds every requirement as a row with an id, like \`G1.2\`. Code follows the spec. Commits cite the ids they serve: \`feat(scope): subject [G1.2]\`. Only a person approves or changes an approved row.
+**Source of truth.** \`SPEC.md\` holds every requirement as a row with an id, like \`G1.2\`. Code follows the spec. Commits cite the ids they serve: \`feat(scope): subject [G1.2]\`. Only a person approves or changes an approved row. Ids are permanent: a row the person cuts stays, marked \`wont\` (won't build), so every commit that cites it keeps its meaning.
 
 **House rules.** \`PRACTICE.md\` holds how this project is built, in the same row format. Its approved rows are in force; follow them as you would the spec.
 
@@ -122,11 +122,11 @@ This repo runs on pullboard: a work board, lanes and a spec that live in git. No
 
     pullboard worktree <lane>
 
-It prints the folder to work in and what to run there first. Verifiers take the \`review\` lane, which owns no folders. Keep your worktree and branch until your items are merged.
+It prints the folder to work in and what to run there first. Verifiers take the \`review\` lane, which owns no folders. A lighter model joins with \`--route light\` and takes only items routed light, each with a brief. Keep your worktree and branch until your items are merged.
 
 **The loop.**
 1. \`pullboard inbox\`.
-2. \`pullboard next\` claims the next item in your lane that is free to start. When everything is waiting on other work, \`pullboard next --wait 30\` keeps looking for up to 30 minutes. A claim is a 2-hour lease; claim again to renew. The criterion freezes now: \`pullboard show <id>\` is the bar your work is judged against.
+2. \`pullboard next\` claims the next item in your lane that is free to start. When everything is waiting on other work, \`pullboard next --wait 30\` keeps looking for up to 30 minutes. A claim is a 2-hour lease; claim again to renew. The criterion freezes now: \`pullboard show <id>\` is the bar your work is judged against, and its brief says how to start.
 3. Build inside your lane's folders (\`pullboard lanes\`). Pre-commit refuses anything else; shout the owner instead.
 4. Commit, then \`pullboard submit <id>\`. It needs a clean tree and the gate green at HEAD.
 5. A different agent verifies: \`pullboard next --verify\` names the next item to check. It checks out the submitted commit and runs \`pullboard verify <id> accept --note "how it proved it"\`, or \`pullboard verify <id> reject --reason TEST_FAILURE --note "what failed"\`.
@@ -138,7 +138,7 @@ If your item needs code another lane owns and it is not there yet, shout that la
 
 **Talk.** \`pullboard shout <lane|agent|all> "<text>"\`. Read \`pullboard inbox\` before you start and after you submit.
 
-**Never.** Bypass a hook with \`--no-verify\`, or get past a refusal with filler text: fix what it names. Edit the board's database. Verify your own work. Change an approved spec row without the person's OK. Count a yes relayed by another agent as the person's approval.
+**Never.** Bypass a hook with \`--no-verify\`, or get past a refusal with filler text: fix what it names. Edit the board's database. Verify your own work. Change an approved spec row without the person's OK. Delete or renumber a spec row. Count a yes relayed by another agent as the person's approval.
 ${AGENTS_END}
 `;
 }
