@@ -426,6 +426,9 @@ test('the detail opens on the top item, not a blank form [N26]', async () => {
   box.run(done.repo, 'add', 'web', 'Shipped page', '--specs', 'G1', '--criterion', 'renders');
   build(box, done, 1, 'shipped.html');
   accept(box, done, 1);
+  const gone = project(box, 'gone');
+  box.run(gone.repo, 'add', 'web', 'Dropped page', '--specs', 'G1', '--criterion', 'renders');
+  box.run(gone.repo, 'withdraw', '1', 'nobody needs it');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -462,6 +465,11 @@ test('the detail opens on the top item, not a blank form [N26]', async () => {
     await page.click({ root: done.repo, classes: 'proj side' });
     assert.deepEqual(rows(), [], 'Active shows nothing: the only item is verified');
     assert.deepEqual(form(), [true, false]);
+    assert.match(page.show('detail'), /Pick an item to see its criterion, verdicts and history\./);
+
+    await page.click({ root: gone.repo, classes: 'proj side' });
+    assert.deepEqual(rows(), [], 'no chip lists the only item: it is withdrawn');
+    assert.deepEqual(form(), [true, false], 'but an item exists, so no form');
     assert.match(page.show('detail'), /Pick an item to see its criterion, verdicts and history\./);
   } finally {
     await view.stop();

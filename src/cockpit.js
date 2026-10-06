@@ -377,10 +377,10 @@ function render() {
   }).join('') : '<li class="empty">' + (items.length ? 'No items match.' : 'No items yet. Add the first one with New item.') + '</li>';
 
   const item = p.items.find((i) => i.id === view.item);
-  // The form shows when asked for, or when the project has nothing yet to show instead.
-  const adding = view.adding || !items.length;
+  // The form shows when asked for, or when the project has no item at all, withdrawn ones included.
+  const adding = view.adding || !p.items.length;
   $('add-form').hidden = !adding;
-  $('add-cancel').hidden = !items.length;
+  $('add-cancel').hidden = !p.items.length;
   $('detail').hidden = adding;
   if (!item) $('detail').innerHTML = '<div class="empty">Pick an item to see its criterion, verdicts and history.</div>';
   if (item && !view.adding) {
