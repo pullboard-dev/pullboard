@@ -16,7 +16,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - B2 [approved, must] Every move is one immediate transaction. Two agents never hold one item. | gate: test/e2e.test.js | serves: P1
 - B3 [approved, must] An agent is its worktree. The main checkout is the coordinator. | gate: test/e2e.test.js
 - B4 [approved, must] A claim is a lease, 2h by default. Claiming again renews it. | gate: test/board.test.js
-- B5 [approved, must] One live top-level claim per agent. Child items are free. | gate: test/board.test.js
+- B5 [approved, must] One live top-level claim per agent, plus reworks of its own rejected items. Child items are free. | gate: test/board.test.js
 - B6 [approved, must] Items cite spec ids that exist. | gate: test/e2e.test.js | serves: S1
 - B7 [approved, must] Shouts reach a lane, an agent or all. Inbox marks them read. | gate: test/board.test.js
 - B8 [approved, must] An item can wait on others; claiming it is refused until they are verified. | gate: test/board.test.js
