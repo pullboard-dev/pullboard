@@ -346,9 +346,19 @@ test('a sent-back item shows why first [N26]', async () => {
   sendBack(box, p, 3, 'no heading yet');
   build(box, p, 3, 'heading-again.html');
   accept(box, p, 3);
+  // Two more ways to be sent back and not verified: withdrawn after the reject, and being reworked.
+  box.run(p.repo, 'add', 'web', 'Banner', '--specs', 'G1', '--criterion', 'shows a banner', '--brief', 'Files: web/banner.html');
+  box.run(p.repo, 'add', 'web', 'Footer', '--specs', 'G1', '--criterion', 'shows a footer', '--brief', 'Files: web/footer.html');
+  build(box, p, 4, 'banner.html');
+  sendBack(box, p, 4, 'the banner covers the heading');
+  box.run(p.repo, 'withdraw', '4', 'the banner is dropped');
+  build(box, p, 5, 'footer.html');
+  sendBack(box, p, 5, 'the footer is empty');
+  box.run(p.web, 'claim', '5');
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    const beforeCriterion = () => page.show('detail').slice(0, Math.max(0, page.show('detail').indexOf('<h3>Criterion</h3>')));
     const needs = page.show('needs');
     assert.match(needs, /<code>#1<\/code><span>Greeting<\/span><em>sent back: BEHAVIOR_MISMATCH →<\/em>/);
     assert.match(needs, /<code>#2<\/code><span>Farewell<\/span><em>resubmitted after BEHAVIOR_MISMATCH, \w+ →<\/em>/);
@@ -373,7 +383,18 @@ test('a sent-back item shows why first [N26]', async () => {
     assert.equal(detail.split('second line of the note').length, 2, 'the note is shown once');
 
     await page.click({ item: '2', classes: 'row' });
-    assert.match(page.show('detail').slice(0, page.show('detail').indexOf('<h3>Criterion</h3>')), /<h3>Sent back, resubmitted<\/h3>[^]*the farewell is missing/);
+    assert.match(beforeCriterion(), /<h3>Sent back, resubmitted<\/h3>[^]*the farewell is missing/);
+
+    assert.ok(itemRow(page.show('chain'), 5).includes('BEHAVIOR_MISMATCH: the footer is empty'), 'a row being reworked still says why');
+    await page.click({ item: '5', classes: 'row' });
+    assert.match(beforeCriterion(), /<h3>Sent back, being reworked<\/h3>[^]*<b>REJECT BEHAVIOR_MISMATCH<\/b>[^]*the footer is empty/);
+
+    // A withdrawn item has no row; the person reaches it from a spec row or the activity feed.
+    assert.equal(itemRow(page.show('chain'), 4), '');
+    await page.click({ go: 'item:4' });
+    assert.match(page.show('detail'), /<h2><span>#4<\/span>Banner<\/h2>/);
+    assert.match(beforeCriterion(), /<h3>Sent back, then withdrawn<\/h3>[^]*<b>REJECT BEHAVIOR_MISMATCH<\/b>[^]*the banner covers the heading/, 'withdrawn after a reject, it still opens with why');
+    assert.ok(page.show('detail').indexOf('<h3>Criterion</h3>') < page.show('detail').indexOf('<h3>Brief</h3>'));
 
     await page.click({ item: '3', classes: 'row' });
     const verified = page.show('detail');
