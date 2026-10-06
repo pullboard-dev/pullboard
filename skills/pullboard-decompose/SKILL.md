@@ -21,7 +21,7 @@ One requirement per line:
 ```
 
 - **id:** a track letter and a number. Never reuse one, even after a row is retired.
-- **status:** `approved` only on the person's word. Your rows are `draft`. An open question is `pending`, with its text phrased as the question.
+- **status:** `approved` only on the person's word. Your rows are `draft`. An open question is `pending`, with its text phrased as the question; a pending row has no gate.
 - **tier:** `must` or `aim`.
 - **text:** one requirement, under 20 words.
 - **gate:** the test or check that would prove it.
@@ -34,13 +34,18 @@ One requirement per line:
    - **A sensible default exists and a wrong guess is cheap:** write a draft row that states the assumption, such as "Reminders go by text; email can come later." The person can flip it.
    - **It changes scope, money, safety or a must-row:** write a pending row phrased as a question.
 
-   Ask only what blocks a must-row; a spec with forty questions is a spec nobody answers.
+   Ask only what blocks a must-row; a spec with forty questions is a spec nobody answers. For an optional (aim) feature, ask one question at most: is it in scope now? If the ask shows an example, such as a date or a command, the example answers the format question.
 4. Look hard for what clients leave out:
    - two statements that cannot both be true
    - a number the system needs that nobody gave
    - a need nobody mentioned: refunds, privacy, what happens when something runs out
    - an outside party nobody chose: payments, an existing system
    - a nice-to-have phrased as a must, or the reverse
+   - what happens on bad input: an unknown id, a malformed value
+   - whether ids or numbers are ever reused
+   - what an empty list or first run shows
+
+   When you restate a constraint, quote the client's words; a paraphrase can change its meaning.
 5. Show the person one track at a time. Ask the pending questions one at a time, the most consequential first, each with your recommended answer.
 6. After each answer, update the row and keep its id: pending becomes approved with the answer as its text, or draft becomes approved. Run `pullboard spec check`.
 7. Never mark a row approved without the person saying so. Never delete a row; retire it.
@@ -50,4 +55,4 @@ One requirement per line:
 - Every part of the ask is covered by a row, or by a stated reason it is out of scope.
 - Every approved must-row names its gate.
 - What remains pending is only the questions the person has not answered yet.
-- `pullboard spec check` passes, and the spec is committed with a `docs(spec): ...` message.
+- `pullboard spec check` passes, and the spec is committed with a `docs(spec): ...` message. Docs commits need not cite row ids.

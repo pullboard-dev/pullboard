@@ -14,6 +14,8 @@ You never verify your own work. You judge the frozen criterion as written, at th
    - **Use the method the criterion names.** If it says "two real processes" or "after a restart", use exactly that; a weaker stand-in is not proof.
    - **Run the behavior** and read the output.
    - **Read the code** only when the criterion is about the code itself. It is the weakest proof.
+   - **Check the house rules too.** Read the approved rows of PRACTICE.md that the change touches. A broken one is a reject with reason OTHER, naming the row.
+   - **Keep checks contained.** Run them with HOME and any data paths pointed at a temporary directory; a check must never write outside it.
 4. Decide:
    - `pullboard verify <id> accept`, only when the criterion is met as written.
    - `pullboard verify <id> reject --reason <CODE> --note "<what failed, and the proof that would settle it>"`. The codes are TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD and OTHER.

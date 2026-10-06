@@ -41,6 +41,7 @@ const SCHEMA = `
     item_title TEXT NOT NULL,
     item_criterion TEXT NOT NULL DEFAULT '',
     item_spec_ids TEXT NOT NULL DEFAULT '',
+    item_after TEXT NOT NULL DEFAULT '',
     item_status TEXT NOT NULL DEFAULT 'open',
     item_owner TEXT,
     item_lease_until TEXT,
@@ -103,7 +104,21 @@ export function openBoard(file, clock = systemClock) {
   db.exec('PRAGMA busy_timeout = 10000');
   if (file !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
   db.exec(SCHEMA);
+  migrate(db);
   return { db, clock };
+}
+
+/**
+ * Bring a board made by an older version up to the current schema, one added column at a time, so
+ * an upgrade never needs a fresh board.
+ *
+ * @param {DatabaseSync} db
+ */
+function migrate(db) {
+  const columns = db.prepare('PRAGMA table_info(item)').all().map((column) => column.name);
+  if (!columns.includes('item_after')) {
+    db.exec("ALTER TABLE item ADD COLUMN item_after TEXT NOT NULL DEFAULT ''");
+  }
 }
 
 /**
@@ -295,10 +310,10 @@ export function listAgents(board) {
  * lane and the spec ids (B6).
  *
  * @param {any} board
- * @param {{ by: string, lane: string, title: string, criterion?: string, specIds?: string[], parentId?: number | null }} item
+ * @param {{ by: string, lane: string, title: string, criterion?: string, specIds?: string[], parentId?: number | null, after?: number[] }} item
  * @returns {number} The new item's id.
  */
-export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null }) {
+export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [] }) {
   const cleanTitle = title.trim();
   if (!cleanTitle) throw new Refused('NO_TITLE', 'an item needs a title');
   return atomic(board, () => {
@@ -311,16 +326,21 @@ export function addItem(board, { by, lane, title, criterion = '', specIds = [], 
         throw new Refused('PARENT_CLOSED', `item #${parentId} is ${parent.item_status}`);
       }
     }
+    for (const dependency of after) {
+      if (itemById(board, dependency).item_status === 'withdrawn') {
+        throw new Refused('WITHDRAWN', `item #${dependency} is withdrawn; nothing can wait on it`);
+      }
+    }
     const at = now(board);
     const result = board.db
       .prepare(
         `INSERT INTO item (item_parent_id, item_lane, item_title, item_criterion, item_spec_ids,
-           item_created_by, item_created_at, item_updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+           item_after, item_created_by, item_created_at, item_updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(parentId, lane, cleanTitle, criterion.trim(), specIds.join(','), by, at, at);
+      .run(parentId, lane, cleanTitle, criterion.trim(), specIds.join(','), after.join(','), by, at, at);
     const id = Number(result.lastInsertRowid);
-    logEvent(board, by, 'add', id, { lane, specIds });
+    logEvent(board, by, 'add', id, { lane, specIds, after });
     return id;
   });
 }
@@ -345,6 +365,15 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze }) {
     }
     if (lane !== COORDINATOR && item.item_lane !== lane) {
       throw new Refused('WRONG_LANE', `item #${id} is in the ${item.item_lane} lane; you are in ${lane}`);
+    }
+    for (const dependency of item.item_after ? item.item_after.split(',').map(Number) : []) {
+      const before = itemById(board, dependency);
+      if (before.item_status !== 'verified') {
+        throw new Refused(
+          'BLOCKED',
+          `#${id} waits on #${dependency} (${current(board, before).item_status}, ${before.item_lane} lane); claim another item, or shout ${before.item_lane} if it is stuck`,
+        );
+      }
     }
     const isMine = item.item_owner === agentId;
     if (isHeld(board, item) && !isMine) {

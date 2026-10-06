@@ -12,6 +12,7 @@ import { citedIds, idProblems } from './spec.js';
 export const HOOKS = ['pre-commit', 'commit-msg', 'pre-push'];
 export const HOOKS_DIR = '.githooks';
 export const HOOK_MARK = 'Installed by pullboard';
+export const FIX_NOTE = 'Fix what each line names. Never work around a refusal with filler text.';
 
 const EMOJI_RE = /\p{Extended_Pictographic}|\p{Regional_Indicator}|⃣|️/u;
 const EXEMPT_RE = /^(Merge |Revert "|fixup! |squash! |amend! )/;
@@ -46,17 +47,21 @@ function headerProblems(header, rules) {
   const match = typeRe.exec(header);
   if (!match) {
     return {
-      problems: [`header is "type(scope): subject [ids]"; types: ${rules.types.join(', ')}`],
+      problems: [
+        `write the header as type(scope): subject [ids], like "feat(store): save tasks to a file [G7]" (saw "${header.slice(0, 60)}"); types: ${rules.types.join(', ')}`,
+      ],
       type: '',
     };
   }
   const subject = match[4].replace(/\s*\[[^\]]*\]\s*$/, '');
   const problems = [];
   if (header.length > rules.maxHeader) {
-    problems.push(`header is ${header.length} characters; at most ${rules.maxHeader}`);
+    problems.push(`shorten the header to ${rules.maxHeader} characters or fewer (it has ${header.length})`);
   }
-  if (/^[A-Z]/.test(subject)) problems.push('the subject starts lowercase');
-  if (subject.endsWith('.')) problems.push('the subject has no trailing period');
+  if (/^[A-Z]/.test(subject)) {
+    problems.push(`start the subject with a lowercase letter (saw "${subject.slice(0, 30)}")`);
+  }
+  if (subject.endsWith('.')) problems.push('remove the period at the end of the subject');
   return { problems, type: match[1] };
 }
 
@@ -74,18 +79,24 @@ export function commitMsgProblems(raw, { rules, spec }) {
   if (EXEMPT_RE.test(header)) return [];
   const { problems, type } = headerProblems(header, rules);
   const ids = citedIds(header);
-  problems.push(...idProblems(spec, ids).map((problem) => `cited id: ${problem}`));
+  problems.push(
+    ...idProblems(spec, ids).map(
+      (problem) => `cite only rows that exist, separated by commas like [G1,G2] (${problem})`,
+    ),
+  );
   if (type && rules.requireIds.includes(type) && !ids.length) {
-    problems.push(`${type} commits cite the spec ids they serve: end the header with [ID,...]`);
+    problems.push(
+      `end the header with the spec rows this ${type} serves, like [G1,G2]; docs, test and chore commits may cite none`,
+    );
   }
   if (second !== undefined && second.trim()) problems.push('leave a blank line after the header');
   const all = [header, ...body].join('\n');
   const words = new Set(all.toLowerCase().match(/[a-z]+/g) ?? []);
   for (const word of rules.banned) {
-    if (words.has(word.toLowerCase())) problems.push(`filler word: "${word}"`);
+    if (words.has(word.toLowerCase())) problems.push(`drop the filler word "${word}"`);
   }
-  if (rules.noEmoji && EMOJI_RE.test(all)) problems.push('no emojis');
-  if (rules.noCoAuthor && /^\s*co-authored-by\s*:/im.test(all)) problems.push('no Co-Authored-By trailer');
+  if (rules.noEmoji && EMOJI_RE.test(all)) problems.push('remove the emoji');
+  if (rules.noCoAuthor && /^\s*co-authored-by\s*:/im.test(all)) problems.push('remove the Co-Authored-By trailer');
   return problems;
 }
 

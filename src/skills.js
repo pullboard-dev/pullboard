@@ -16,6 +16,7 @@ const SKILLS_DIR = fileURLToPath(new URL('../skills/', import.meta.url));
  */
 export const ROLES = {
   decompose: 'pullboard-decompose',
+  plan: 'pullboard-plan',
   signoff: 'pullboard-signoff',
   review: 'pullboard-spec-review',
   verify: 'pullboard-verify',

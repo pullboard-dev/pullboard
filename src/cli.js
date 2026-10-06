@@ -2,15 +2,16 @@
  * The pullboard command line: every command, bound to who is asking (B3). The main checkout is the
  * coordinator; every other worktree is the agent that joined from it.
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import * as store from './board.js';
 import { COORDINATOR, loadConfig } from './config.js';
 import { runGate } from './gate.js';
-import { contains, headCommit, headTree, isClean, repoInfo, resolveCommit, untracked } from './git.js';
+import { contains, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
+  FIX_NOTE,
   commitMsgProblems,
   installHooks,
   preCommitProblems,
@@ -40,12 +41,14 @@ Nothing ships until a second agent verifies it.
 
 Set up
   pullboard init                        config, SPEC.md, agent instructions, git hooks, board
-  pullboard join <lane>                 register this worktree as an agent in a lane
+  pullboard worktree <lane>             make a worktree for a new agent in a lane, joined, and say what to run next
+  pullboard join <lane>                 register the worktree you are in as an agent in a lane
   pullboard whoami | lanes | status     who you are, the lanes, the board at a glance
   pullboard hooks                       reinstall the git hooks (e.g. after a fresh clone)
 
 Work
-  pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--parent <id>]
+  pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--parent <id>]
+                                        --after: claiming waits until those items are verified
   pullboard list [lane] [--all]         open and active items; --all adds verified and withdrawn
   pullboard show <id>                   an item, the criterion frozen at claim, its verdicts
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
@@ -70,7 +73,7 @@ Spec
   pullboard spec show <id> | unmet [--must] | signoff <ids> --by <initials>
 
 Role guides
-  pullboard prompt decompose|signoff|review|verify   how to do each role; Claude Code gets them as skills
+  pullboard prompt decompose|plan|signoff|review|verify   how to do each role; Claude Code gets them as skills
 
 Gate and hooks
   pullboard gate                        run the configured gate
@@ -87,6 +90,7 @@ const OPTIONS = {
   note: { type: 'string' },
   by: { type: 'string' },
   out: { type: 'string' },
+  after: { type: 'string' },
   all: { type: 'boolean' },
   must: { type: 'boolean' },
   json: { type: 'boolean' },
@@ -180,8 +184,9 @@ function itemLine(item) {
   const verifier = item.item_status === 'verified' ? ` by ${item.item_verified_by}` : '';
   const specs = item.item_spec_ids ? `  [${item.item_spec_ids}]` : '';
   const parent = item.item_parent_id ? `  under #${item.item_parent_id}` : '';
+  const after = item.item_after ? `  after ${item.item_after.split(',').map((id) => `#${id}`).join(',')}` : '';
   const rejected = item.item_status === 'open' && item.item_verdict === 'REJECT' ? ' (rejected)' : '';
-  return `#${item.item_id}  ${item.item_status}${holder}${verifier}${rejected}  ${item.item_lane}  ${item.item_title}${specs}${parent}`;
+  return `#${item.item_id}  ${item.item_status}${holder}${verifier}${rejected}  ${item.item_lane}  ${item.item_title}${specs}${parent}${after}`;
 }
 
 /**
@@ -219,7 +224,37 @@ function setupCommands(io, { first }) {
       io.say(`joined as ${id} in the ${first} lane`);
       return 0;
     },
+    worktree: () => worktreeFor(io, first),
   };
+}
+
+/**
+ * Make a worktree for a new agent in a lane, beside the main checkout, on its own branch, already
+ * joined: one command where a new agent would otherwise copy three with placeholders in them.
+ *
+ * @param {any} io
+ * @param {string | undefined} lane
+ * @returns {number}
+ */
+function worktreeFor(io, lane) {
+  const ctx = context(io);
+  if (!lane || lane === COORDINATOR || !isLane(ctx.config, lane)) {
+    throw new Refused('NO_LANE', `no lane "${lane ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
+  }
+  const mainRoot = resolve(ctx.info.commonDir, '..');
+  const pathFor = (n) => join(dirname(mainRoot), `${basename(mainRoot)}-${lane}-${n}`);
+  const isTaken = (n) => existsSync(pathFor(n)) || tryGit(mainRoot, ['rev-parse', '--verify', '--quiet', `refs/heads/${lane}/${n}`]).status === 0;
+  let n = 1;
+  while (isTaken(n)) n += 1;
+  git(mainRoot, ['worktree', 'add', '-q', '-b', `${lane}/${n}`, pathFor(n), git(mainRoot, ['rev-parse', 'HEAD'])]);
+  const root = git(pathFor(n), ['rev-parse', '--show-toplevel']);
+  const id = withBoard(ctx, (board) => store.register(board, { lane, path: root }));
+  io.say(`made ${root} on branch ${lane}/${n}, joined as ${id} in the ${lane} lane`);
+  io.say('next, from that folder:');
+  io.say(`  cd ${root}`);
+  if (existsSync(join(root, 'package.json'))) io.say('  npm install    (its own install, so its tests run its own code)');
+  io.say(`  pullboard inbox, then pullboard list ${lane}`);
+  return 0;
 }
 
 /**
@@ -243,7 +278,7 @@ function readCommands(io, { first, values }) {
       for (const [name, lane] of Object.entries(config.lanes)) {
         const specs = lane.specs?.length ? `  [${lane.specs.join(', ')}]` : '';
         const starts = lane.starts ? `  starts: ${lane.starts}` : '';
-        io.say(`${name.padEnd(14)} ${lane.owns.join(' ')}${specs}${starts}`);
+        io.say(`${name.padEnd(14)} ${lane.owns.length ? lane.owns.join(' ') : '(owns no folders)'}${specs}${starts}`);
       }
       if (config.shared.length) io.say(`${'shared'.padEnd(14)} ${config.shared.join(' ')} (any lane)`);
       return 0;
@@ -358,7 +393,10 @@ function submitHere(ctx, id) {
   const gate = runGate(root, ctx.config);
   if (!gate.isGreen) throw new Refused('GATE_RED', `the gate is red at ${commit.slice(0, 12)}; fix it, commit, submit again`);
   withBoard(ctx, (board) => store.submit(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '' }));
+  const pin = `refs/pullboard/items/${id}/${commit.slice(0, 12)}`;
+  git(root, ['update-ref', pin, commit]);
   ctx.io.say(`submitted #${id} at ${commit.slice(0, 12)}; gate green${gate.isCached ? ' (this tree already passed)' : ''}`);
+  ctx.io.say(`pinned as ${pin}, so this work can't be lost; keep your worktree until it is merged`);
   ctx.io.say(`next: another agent checks out ${commit.slice(0, 12)} and runs: pullboard verify ${id} accept|reject`);
   return 0;
 }
@@ -427,8 +465,9 @@ function workCommands(io, args) {
       const problems = idProblems(loadSpec(ctx.info.root, ctx.config), specIds);
       if (problems.length) throw new Refused('UNKNOWN_SPEC', `${problems.join('; ')}`);
       const parentId = values.parent ? idArg(values.parent, 'a parent item id') : null;
+      const after = idList(values.after).map((text) => idArg(text, 'an item id after --after'));
       const title = [second, ...rest].filter(Boolean).join(' ');
-      const id = store.addItem(board, { by: me.id, lane: first, title, criterion: values.criterion ?? '', specIds, parentId });
+      const id = store.addItem(board, { by: me.id, lane: first, title, criterion: values.criterion ?? '', specIds, parentId, after });
       io.say(`#${id}`);
       return 0;
     }),
@@ -583,7 +622,7 @@ async function hookCommand(io, { first, second }) {
     throw new Refused('USAGE', 'pullboard hook pre-commit | commit-msg <file> | pre-push');
   }
   if (!problems.length) return 0;
-  io.err(`pullboard ${first}: blocked\n${problems.map((problem) => `  - ${problem}`).join('\n')}`);
+  io.err(`pullboard ${first}: blocked\n${problems.map((problem) => `  - ${problem}`).join('\n')}\n${FIX_NOTE}`);
   return 1;
 }
 

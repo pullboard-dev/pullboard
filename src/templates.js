@@ -19,7 +19,7 @@ export function configTemplate(gate) {
     practice: 'PRACTICE.md',
     verify: 'any',
     lease: '2h',
-    lanes: {},
+    lanes: { review: { owns: [], starts: 'any time: verifiers check submitted work and own no folders' } },
     shared: [],
     commits: { requireIds: ['feat', 'fix'] },
   };
@@ -75,12 +75,14 @@ Statuses: approved = in force · draft = proposed · retired = dropped, id kept.
 - C4 [draft, must] Errors and logs never echo input values. | gate: review
 - C5 [draft, aim] Plain over clever: early returns, named intermediate values, one idea per line. | gate: review
 - C6 [draft, must] No inline ignore comments; exceptions live in config, each with its reason. | gate: linter
+- C7 [approved, must] One implementation per concern: use another lane's module, never a copy of it. | gate: review
 
 ## T · Tests
 - T1 [approved, must] Every feature and fix cites the spec rows it serves, and a test proves each one. | gate: commit-msg hook, review
 - T2 [draft, must] A test fails when the code is wrong: break the code once and watch it go red. | gate: mutation testing on critical code
 - T3 [draft, must] No test marked as expected to fail without an open item. | gate: review
 - T4 [draft, aim] Tests use real dependencies where practical, not mocks of them. | gate: review
+- T5 [approved, must] Tests and checks never write outside a temporary directory. | gate: review
 
 ## G · Git and the gate
 - G1 [approved, must] The gate passes on a clean tree before every push. | gate: pre-push hook
@@ -116,10 +118,11 @@ This repo runs on pullboard: a work board, lanes and a spec that live in git. No
 
 **Role guides.** \`pullboard prompt decompose\`, \`signoff\`, \`review\` and \`verify\` print the guide for each role. Claude Code also has them as skills.
 
-**Who you are.** An agent is its worktree. The main checkout is the coordinator. Every other agent works in its own worktree and joins one lane:
+**Who you are.** An agent is its worktree. The main checkout is the coordinator. Every other agent gets its own worktree, already joined to one lane, from the main checkout:
 
-    git worktree add ../<repo>-<lane> -b <lane>/<slug>
-    cd ../<repo>-<lane> && pullboard join <lane>
+    pullboard worktree <lane>
+
+It prints the folder to work in and what to run there first. Verifiers take the \`review\` lane, which owns no folders. Keep your worktree and branch until your items are merged.
 
 **The loop.**
 1. \`pullboard inbox\`, then \`pullboard list <lane>\`.
@@ -129,9 +132,11 @@ This repo runs on pullboard: a work board, lanes and a spec that live in git. No
 5. A different agent verifies: it checks out the submitted commit and runs \`pullboard verify <id> accept\`, or \`pullboard verify <id> reject --reason TEST_FAILURE --note "what failed"\`.
 6. A reject reopens the item. Fix it, commit, claim, submit again; the same head is refused.
 
+If your item needs code another lane owns and it is not there yet, shout that lane and take another item. Never copy their code into your lane. A claim refused as BLOCKED names the item it waits on.
+
 **Talk.** \`pullboard shout <lane|agent|all> "<text>"\`. Read \`pullboard inbox\` before you start and after you submit.
 
-**Never.** Bypass a hook with \`--no-verify\`. Edit the board's database. Verify your own work. Change an approved spec row without the person's OK.
+**Never.** Bypass a hook with \`--no-verify\`, or get past a refusal with filler text: fix what it names. Edit the board's database. Verify your own work. Change an approved spec row without the person's OK. Count a yes relayed by another agent as the person's approval.
 ${AGENTS_END}
 `;
 }
