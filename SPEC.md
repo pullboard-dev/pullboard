@@ -78,6 +78,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - I4 [approved, must] `pullboard worktree <lane>` makes a joined worktree and says what to run next. | gate: test/e2e.test.js
 - I5 [approved, must] Every command pullboard suggests to an agent starts with cd to its worktree. | gate: test/e2e.test.js | serves: I4
 - I6 [draft, must] Init adds a Claude Code SessionStart hook that runs `pullboard resume`, keeping every other setting. | gate: test/e2e.test.js | serves: N19
+- I7 [draft, must] `pullboard worktree` prints the opening of a subagent's prompt: its folder, identity, and that AGENTS.md governs. | gate: test/e2e.test.js | serves: I4
 
 ## N · Next commands
 - N1 [draft, must] `pullboard decide`: the person's queue of everything waiting on them.
