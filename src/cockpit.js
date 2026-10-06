@@ -1,11 +1,31 @@
+import { effectiveGuards, IN_STATE, MACHINE } from './machine.js';
+
+/**
+ * The item lifecycle as the page draws it (M1): each state with what it means and, for a final
+ * state, what every way in checks; each move with who makes it, its command or the clock's
+ * condition, and the rules it checks in order, each with the code it refuses with. The page lays
+ * this out itself, so the drawing is the declaration and cannot go stale.
+ *
+ * @returns {{ initial: string, states: object[], moves: object[] }}
+ */
+function lifecycle() {
+  const guards = new Map(MACHINE.guards.map((guard) => [guard.id, guard]));
+  const rule = (move, id) => (id === IN_STATE ? `the item is ${move.from.join(' or ')} (${move.refuse})` : `${guards.get(id).rule} (${guards.get(id).refuse})`);
+  return {
+    initial: MACHINE.initial,
+    states: MACHINE.states.map((state) => ({ id: state.id, means: state.means, final: Boolean(state.final), entry: (MACHINE.exitGuards[state.id] ?? []).map((id) => guards.get(id).rule) })),
+    moves: MACHINE.moves.map((move) => ({ verb: move.verb, from: move.from, to: move.to, by: move.by, how: move.command ?? `when ${move.when}`, checks: effectiveGuards(move).map((id) => rule(move, id)) })),
+  };
+}
+
 /**
  * The page `pullboard view` serves (N26): one self-contained file, no assets from anywhere, that
  * reads the board through the server's JSON and refreshes itself. The layout is the one the person
  * asked for: a sidebar listing every project on the machine with what needs them there, and a main
- * column with the tabs over two panes, a list and the selected thing's detail. Under 900px wide the
- * sidebar folds into a top bar. Forms post actions that the server runs as CLI commands (N27), so the
- * page never decides a rule itself, and every field a person types in sits outside what the refresh
- * rebuilds.
+ * column with the tabs over two panes, a list and the selected thing's detail. Activity draws the
+ * item lifecycle from src/machine.js with this board's counts. Under 900px wide the sidebar folds
+ * into a top bar. Forms post actions that the server runs as CLI commands (N27), so the page never
+ * decides a rule itself, and every field a person types in sits outside what the refresh rebuilds.
  *
  * @returns {string}
  */
@@ -191,10 +211,21 @@ input, select { border: 1px solid var(--line-strong); background: var(--surface)
 .srow:hover { background: var(--surface-2); }
 .srow.on { background: var(--accent-soft); }
 .srow code { font: 600 12px var(--mono); }
-.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
-.metric { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
-.metric b { display: block; font: 800 24px/1.1 var(--sans); font-variant-numeric: tabular-nums; }
-.metric span { color: var(--ink-muted); font-size: 12.5px; }
+.flow { margin: 0 0 12px; padding: 10px 12px 8px; overflow-x: auto; }
+.flow svg { display: block; width: 100%; min-width: 680px; max-width: 900px; height: auto; margin: 0 auto; }
+.flow figcaption { color: var(--ink-faint); font-size: 12px; padding: 2px 2px 0; }
+.flow .box { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.3; }
+.flow .s-claimed .box { stroke: var(--blue); } .flow .s-submitted .box { stroke: var(--warn); }
+.flow .s-verified .box { stroke: var(--accent); fill: var(--accent-soft); } .flow .s-withdrawn .box { stroke-dasharray: 4 3; }
+.flow .name { font: 600 11px var(--mono); letter-spacing: .06em; fill: var(--ink-faint); }
+.flow .n { font: 800 22px var(--sans); fill: var(--ink); }
+.flow .sub { font: 12px var(--sans); fill: var(--reject); }
+.flow .edge { fill: none; stroke: var(--line-strong); stroke-width: 1.4; }
+.flow .edge.no { stroke: var(--reject); }
+.flow marker path { fill: var(--line-strong); } .flow marker.no path { fill: var(--reject); }
+.flow .tag { font: 12px var(--sans); fill: var(--ink-muted); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.flow .tag.idle { fill: var(--ink-faint); } .flow .tag.no { fill: var(--reject); }
+.flow g:hover .box, .flow g:hover .edge { stroke-width: 2.4; }
 .console { position: fixed; right: 16px; bottom: 16px; width: min(560px, calc(100vw - 32px)); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: var(--shadow); padding: 10px 12px; font: 12px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 38vh; overflow: auto; z-index: 20; cursor: pointer; }
 .console.ok { border-color: var(--accent); } .console.no { border-color: var(--reject); }
 </style>
@@ -264,7 +295,7 @@ input, select { border: 1px solid var(--line-strong); background: var(--surface)
     <aside class="card-panel detail" aria-label="Practice row"><div id="doctrine-detail"></div></aside>
   </section>
   <section data-pane="activity">
-    <div class="metrics" id="metrics"></div>
+    <figure class="card-panel flow"><div id="flow"></div><figcaption>The lifecycle every item follows, as pullboard declares it. Boxes count the items in each state now, arrows the moves made so far; hover over one for what it means and checks.</figcaption></figure>
     <div class="card-panel feed" id="activity"></div>
   </section>
 </main>
@@ -296,6 +327,118 @@ const count = (n, one, many = one) => n + ' ' + (n === 1 ? one : many);
 // verdict, open questions, held lanes.
 const needCount = (x) => x.ok ? x.sentBack + x.awaiting + x.pending + x.holds : 0;
 const doing = (x) => [x.sentBack && count(x.sentBack, 'sent back'), x.awaiting && count(x.awaiting, 'to verify'), x.pending && count(x.pending, 'question', 'questions'), x.holds && count(x.holds, 'lane held', 'lanes held'), x.building && count(x.building, 'building')].filter(Boolean).join(' · ') || (x.open ? count(x.open, 'item open', 'items open') : 'nothing open');
+// The item lifecycle as pullboard declares it in src/machine.js, embedded when the page is served.
+const FLOW = ${JSON.stringify(lifecycle()).replaceAll('<', '\\u003c')};
+
+/**
+ * How often each move was made on this board, keyed from>to:verb, by replaying every item's history
+ * through the lifecycle. The board logs a move under its verb, and a claim on a claimed item as
+ * renew, but never the clock's lapse: an event that cannot start where the replay stands, or an item
+ * that reads otherwise than where its history leaves it, means the clock moved first.
+ */
+function moveCounts(items) {
+  const counts = new Map();
+  const bump = (from, move) => counts.set(from + '>' + move.to + ':' + move.verb, (counts.get(from + '>' + move.to + ':' + move.verb) || 0) + 1);
+  const clock = FLOW.moves.filter((m) => m.by.includes('clock'));
+  for (const item of items) {
+    let at = FLOW.initial;
+    for (const e of item.history) {
+      const verb = e.kind === 'renew' ? 'claim' : e.kind;
+      // A renew is the claim that stays claimed; a claim logged as such is the one that arrives.
+      const fits = (s) => FLOW.moves.find((m) => m.verb === verb && m.from.includes(s) && (verb !== 'claim' || (e.kind === 'renew') === (m.to === s)));
+      const lapse = fits(at) ? null : clock.find((m) => m.from.includes(at) && fits(m.to));
+      if (lapse) { bump(at, lapse); at = lapse.to; }
+      const move = fits(at);
+      if (move) { bump(at, move); at = move.to; }
+    }
+    const lapse = at === item.status ? null : clock.find((m) => m.from.includes(at) && m.to === item.status);
+    if (lapse) bump(at, lapse);
+  }
+  return counts;
+}
+
+/**
+ * The lifecycle drawn as SVG with this board's counts. The longest way from the start to a final
+ * state runs along a row, the first-declared final winning a tie, and any other state sits below,
+ * under the states that lead to it. One arrow joins each pair of states some move joins: forward
+ * along the row, arcing above it back to an earlier state, down to a state below, or looping at the
+ * corner of a box it stays in. Boxes count the items there now; arrows count the moves made along them.
+ */
+function flowSvg(p) {
+  const counts = moveCounts(p.items);
+  const finals = FLOW.states.filter((s) => s.final).map((s) => s.id);
+  const leads = (s) => FLOW.moves.filter((m) => m.from.includes(s) && m.to !== s).map((m) => m.to);
+  let row = [];
+  const walk = (trail) => {
+    const at = trail[trail.length - 1];
+    if (finals.includes(at)) {
+      if (trail.length > row.length || (trail.length === row.length && finals.indexOf(at) < finals.indexOf(row[row.length - 1]))) row = trail;
+      return;
+    }
+    for (const next of new Set(leads(at))) if (!trail.includes(next)) walk([...trail, next]);
+  };
+  walk([FLOW.initial]);
+  const W = 800, L = 44, BW = 116, BH = 56, Y = 136;
+  const step = (W - 2 * L - BW) / Math.max(row.length - 1, 1);
+  const pos = new Map(row.map((s, i) => [s, { x: L + BW / 2 + i * step, y: Y }]));
+  for (const s of FLOW.states.filter((s) => !pos.has(s.id))) {
+    const from = row.filter((r) => leads(r).includes(s.id));
+    pos.set(s.id, { x: from.length ? from.reduce((n, r) => n + pos.get(r).x, 0) / from.length : W / 2, y: Y + 150 });
+  }
+  const H = Math.max(...[...pos.values()].map((q) => q.y)) + BH / 2 + 20;
+  const f = (v) => String(Math.round(v * 10) / 10);
+  const col = (s) => row.indexOf(s);
+  const pairs = [];
+  for (const m of FLOW.moves) for (const from of m.from) {
+    let pair = pairs.find((e) => e.from === from && e.to === m.to);
+    if (!pair) pairs.push((pair = { from, to: m.to, moves: [] }));
+    pair.moves.push(m);
+  }
+  const made = (pair, m) => counts.get(pair.from + '>' + pair.to + ':' + m.verb) || 0;
+  const says = (pair) => pair.moves.map((m) => m.verb + ', ' + pair.from + ' to ' + pair.to + ', by the ' + m.by.join(' or ') + ': ' + m.how + '. Made ' + count(made(pair, m), 'time', 'times') + (m.checks.length ? '.\\nChecks, in order:\\n' + m.checks.map((c) => '  ' + c).join('\\n') : '.')).join('\\n\\n');
+  const text = (x, y, words, cls, anchor = 'middle') => '<text class="' + cls + '" x="' + f(x) + '" y="' + f(y) + '" text-anchor="' + anchor + '">' + esc(words) + '</text>';
+  const arrows = pairs.map((pair) => {
+    const a = pos.get(pair.from), b = pos.get(pair.to);
+    const done = pair.moves.filter((m) => made(pair, m));
+    const words = (done.length ? done.map((m) => m.verb + ' ' + made(pair, m)) : pair.moves.map((m) => m.verb)).join(' · ');
+    const tone = pair.moves.some((m) => m.verb === 'reject') ? ' no' : '';
+    const cls = 'tag' + (done.length ? '' : ' idle') + tone;
+    let d, label = '';
+    if (pair.from === pair.to) {
+      // A move that stays: a loop out of the box's bottom edge and back into its left side.
+      const sx = a.x - BW / 2 + 26, sy = a.y + BH / 2, ex = a.x - BW / 2, ey = a.y + BH / 2 - 16;
+      d = 'M' + f(sx) + ' ' + f(sy) + 'C' + f(sx) + ' ' + f(sy + 28) + ' ' + f(ex - 28) + ' ' + f(ey) + ' ' + f(ex) + ' ' + f(ey);
+      label = text(a.x - BW / 2 - 18, a.y + BH / 2 + 34, words, cls, 'start');
+    } else if (col(pair.from) >= 0 && col(pair.to) > col(pair.from)) {
+      d = 'M' + f(a.x + BW / 2) + ' ' + f(a.y) + 'L' + f(b.x - BW / 2) + ' ' + f(b.y);
+      label = text((a.x + b.x) / 2, a.y - 9, words, cls);
+    } else if (col(pair.from) >= 0 && col(pair.to) >= 0) {
+      // Back along the row: an arc above it, higher the further back it goes.
+      const span = col(pair.from) - col(pair.to), sx = a.x - 16 * span, ex = b.x + 16 * span, top = a.y - BH / 2, cy = top - 36 * span - 8;
+      d = 'M' + f(sx) + ' ' + f(top) + 'C' + f(sx) + ' ' + f(cy) + ' ' + f(ex) + ' ' + f(cy) + ' ' + f(ex) + ' ' + f(top);
+      label = text((sx + ex) / 2, (top + 3 * cy) / 4 - 7, words, cls);
+    } else {
+      // Down to a state off the row: the arrows spread across its top, each labelled along its way,
+      // on the side away from the others.
+      const sy = a.y + BH / 2, ex = b.x + (a.x - b.x) * 0.3, ey = b.y - BH / 2;
+      d = 'M' + f(a.x) + ' ' + f(sy) + 'L' + f(ex) + ' ' + f(ey);
+      const lx = a.x + (ex - a.x) * 0.6, ly = sy + (ey - sy) * 0.6 + 4;
+      // A straight drop, its ends equal but for rounding, keeps its label on the right.
+      label = a.x < b.x - 0.5 ? text(lx - 6, ly, words, cls, 'end') : text(lx + 6, ly, words, cls, 'start');
+    }
+    return '<g><title>' + esc(says(pair)) + '</title><path class="edge' + tone + '" d="' + d + '" marker-end="url(#pb-head' + (tone ? '-no' : '') + ')"/>' + label + '</g>';
+  });
+  const back = p.items.filter((i) => stateOf(i) === 'back').length;
+  const boxes = FLOW.states.map((s) => {
+    const { x, y } = pos.get(s.id);
+    const tip = s.id + ': ' + s.means + (s.entry.length ? '.\\nEvery way in checks:\\n' + s.entry.map((r) => '  ' + r).join('\\n') : '.');
+    return '<g class="s-' + esc(s.id) + '"><title>' + esc(tip) + '</title><rect class="box" x="' + f(x - BW / 2) + '" y="' + f(y - BH / 2) + '" width="' + BW + '" height="' + BH + '" rx="10"/>'
+      + text(x - BW / 2 + 12, y - 9, s.id, 'name', 'start') + text(x - BW / 2 + 12, y + 18, String(p.items.filter((i) => i.status === s.id).length), 'n', 'start')
+      + (s.id === FLOW.initial && back ? text(x + BW / 2 - 10, y + 17, back + ' sent back', 'sub', 'end') : '') + '</g>';
+  });
+  const head = (id, cls) => '<marker id="' + id + '" class="' + cls + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker>';
+  return '<svg viewBox="0 0 ' + W + ' ' + f(H) + '" role="img" aria-label="The item lifecycle, with counts from this board"><defs>' + head('pb-head', '') + head('pb-head-no', 'no') + '</defs>' + arrows.join('') + boxes.join('') + '</svg>';
+}
 
 async function api(path, body) {
   const res = await fetch(path, { method: body ? 'POST' : 'GET', headers: { 'x-pullboard-key': key, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
@@ -465,8 +608,7 @@ function render() {
     $(kind + '-detail').innerHTML = row ? '<div style="display:grid;gap:12px"><h2><span>' + esc(row.id) + '</span>' + esc(row.text) + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(row.status) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + '</div><dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<button data-go="item:' + i.id + '" type="button">#' + i.id + ' ' + esc(i.title) + '</button>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div><div class="muted">Rows change in ' + (kind === 'spec' ? 'SPEC.md' : 'PRACTICE.md') + ', and only you approve them.</div></div>' : '<div class="empty">Pick a row to see it, and the items that cite it.</div>';
   }
 
-  const verdicts = p.items.flatMap((i) => i.verdicts);
-  $('metrics').innerHTML = [['verified by a second agent', by('verified').length], ['to verify', by('verify').length], ['building', by('building').length], ['rejections recorded', verdicts.filter((v) => v.decision === 'REJECT').length], ['agents', p.agents.length]].map(([label, value]) => '<div class="metric"><b>' + value + '</b><span>' + label + '</span></div>').join('');
+  $('flow').innerHTML = flowSvg(p);
   $('activity').innerHTML = p.events.length ? p.events.map((e) => '<div><time>' + clock(e.event_at) + '</time><div><b>' + esc(e.event_by) + '</b> ' + esc(e.event_kind) + (e.item_id ? ' <button class="ref" data-go="item:' + e.item_id + '" type="button">#' + e.item_id + '</button>' : '') + '</div></div>').join('') : '<div class="empty">No activity yet.</div>';
   showTab();
 }
