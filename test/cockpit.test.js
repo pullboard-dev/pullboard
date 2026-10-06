@@ -58,14 +58,14 @@ function machine() {
 
 /**
  * A project registered on the machine: a repo set up by `pullboard init`, one web lane, and a
- * worktree joined to it as web-1.
+ * worktree joined to it as web-1. `extra` adds to its pullboard.json, such as products.
  */
-function project(box, name, spec = SPEC) {
+function project(box, name, spec = SPEC, extra = {}) {
   const repo = join(box.dir, name);
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
   box.run(repo, 'init');
-  const config = { gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G'] } }, shared: [] };
+  const config = { gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G'] } }, shared: [], ...extra };
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(config, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), spec);
   box.git(repo, 'add', '-A');
@@ -313,6 +313,52 @@ test('the sidebar lists every project and what needs the person [N26]', async ()
   }
 });
 
+/**
+ * The products the sidebar shows: name, rows met, how full the bar is, and the item counts with the
+ * state each dot is coloured for.
+ */
+function productEntries(html) {
+  return html.split('<div class="prod"').slice(1).map((entry) => ({
+    name: /<b>([^<]*)<\/b>/.exec(entry)?.[1],
+    met: /<span>([^<]*) rows met<\/span>/.exec(entry)?.[1],
+    bar: Number(/<i style="width:(\d+)%">/.exec(entry)?.[1]),
+    items: [...entry.matchAll(/<span><i class="dot ([a-z]*)"><\/i>(\d+) ([a-z ]+)<\/span>/g)].map((match) => `${match[2]} ${match[3]} (${match[1] || 'grey'})`),
+  }));
+}
+
+test("the sidebar shows each product's progress [N28]", async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha', `${SPEC}- G3 [draft, must] The page has a footer. | gate: web test\n`, { products: { 'Pages <b>': ['G1', 'G3'], Goodbyes: ['G2'] } });
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  box.run(alpha.repo, 'add', 'web', 'Footer', '--specs', 'G3', '--criterion', 'has a footer');
+  box.run(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
+  box.run(alpha.repo, 'add', 'web', 'Header', '--specs', 'G1', '--criterion', 'has a header');
+  build(box, alpha, 1, 'greeting.html');
+  accept(box, alpha, 1);
+  build(box, alpha, 2, 'footer.html');
+  box.run(alpha.web, 'claim', '3');
+  const beta = project(box, 'beta');
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    assert.equal(page.element('products').hidden, false);
+    assert.deepEqual(productEntries(page.show('prod-list')), [
+      { name: 'Pages &lt;b&gt;', met: '1/2', bar: 50, items: ['1 open (grey)', '1 to verify (verify)', '1 verified (verified)'] },
+      { name: 'Goodbyes', met: '0/1', bar: 0, items: ['1 building (building)'] },
+    ]);
+    // The same numbers pullboard status prints.
+    assert.deepEqual(box.run(alpha.repo, 'status').split('\n').filter((line) => line.startsWith('product ')), [
+      'product Pages <b>: 2 rows, 1 approved, 1 cited by accepted items; items 1 open, 0 building, 1 awaiting verification, 1 verified',
+      'product Goodbyes: 1 rows, 1 approved, 0 cited by accepted items; items 0 open, 1 building, 0 awaiting verification, 0 verified',
+    ]);
+    assert.match(page.show('prod-list'), /title="2 rows in force, 1 approved, 1 cited by accepted items"/);
+
+    await page.click({ root: beta.repo, classes: 'proj side' });
+    assert.equal(page.element('products').hidden, true, 'a project that names no products shows none');
+  } finally {
+    await view.stop();
+  }
+});
 /**
  * The agents the panel shows: id, the path on hover, its last move, what it holds and whether it
  * reads idle, and its entry's text with the tags taken out.
