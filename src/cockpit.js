@@ -213,7 +213,7 @@ input, select { border: 1px solid var(--line-strong); background: var(--surface)
 .srow:hover { background: var(--surface-2); }
 .srow.on { background: var(--accent-soft); }
 .srow code { font: 600 12px var(--mono); }
-@media (max-width: 480px) { .srow { grid-template-columns: auto minmax(0, 1fr); } .srow > span:last-child { grid-column: 1 / -1; } }
+@media (width < 480px) { .srow { grid-template-columns: auto minmax(0, 1fr); } .srow > span:last-child { grid-column: 1 / -1; } }
 .flow { margin: 0 0 12px; padding: 10px 12px 8px; overflow-x: auto; }
 .flow svg { display: block; width: 100%; min-width: 680px; max-width: 900px; height: auto; margin: 0 auto; }
 .flow figcaption { color: var(--ink-faint); font-size: 12px; padding: 2px 2px 0; }
