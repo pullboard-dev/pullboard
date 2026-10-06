@@ -314,3 +314,53 @@ test('next claims the next free item; --verify names the next to check [N2]', ()
   assert.match(box.run(box.repo, 'next', '--verify').out, /next to verify: #1 Page, built by web-1/);
   assert.match(box.run(box.web, 'next', '--verify').err, /NOTHING_FREE/);
 });
+
+test('a deleted spec row is refused at commit; spec check finds any id gone from history or cited [S8, S9]', () => {
+  const box = project();
+  const spec = join(box.repo, 'SPEC.md');
+  writeFileSync(spec, SPEC.replace(/- G2 .*\n/, ''));
+  box.git(box.repo, 'add', 'SPEC.md');
+  const refused = box.tryGit(box.repo, 'commit', '-q', '-m', 'docs(spec): drop the api row');
+  assert.notEqual(refused.status, 0);
+  assert.match(refused.stderr, /SPEC.md: G2 is gone; ids are permanent: keep the row and mark it wont/);
+  box.git(box.repo, 'commit', '-q', '--no-verify', '-m', 'docs(spec): drop the api row');
+  box.git(box.repo, 'commit', '-q', '--no-verify', '--allow-empty', '-m', 'feat(web): ghost [G7]');
+  writeFileSync(spec, `${SPEC.replace(/- G2 .*\n/, '')}- G3 [draft, must] Not committed yet.\n`);
+  assert.equal(box.run(box.repo, 'add', 'web', 'Uses G3', '--specs', 'G3').code, 0);
+  writeFileSync(spec, SPEC.replace(/- G2 .*\n/, ''));
+  const check = box.run(box.repo, 'spec', 'check');
+  assert.equal(check.code, 1);
+  assert.match(check.out, /SPEC.md: G2 error: was committed in [0-9a-f]{12} and is gone/);
+  assert.match(check.out, /SPEC.md: G7 error: commit [0-9a-f]{7,} cites it, but it was never committed/);
+  assert.match(check.out, /SPEC.md: G3 error: item #1 cites it, but it was never committed/);
+  writeFileSync(spec, `${SPEC.replace('- G2 [approved, must]', '- G2 [wont, must]')}- G3 [retired] Planned before the spec settled.\n- G7 [retired] Cited by mistake.\n`);
+  const fixed = box.run(box.repo, 'spec', 'check');
+  assert.equal(fixed.code, 0, fixed.out);
+  box.git(box.repo, 'add', 'SPEC.md');
+  assert.equal(box.tryGit(box.repo, 'commit', '-q', '-m', 'docs(spec): keep every id').status, 0);
+  const cited = commitFile(box, box.repo, 'docs/api.md', 'x', 'feat(api): call the api [G2]');
+  assert.notEqual(cited.status, 0);
+  assert.match(cited.stderr, /G2 is marked won't build/);
+});
+
+test('an item carries a brief to whoever claims it; a light agent sees only light work [B10, B11]', () => {
+  const box = project();
+  writeFileSync(join(box.dir, 'brief.md'), 'Edit web/page.js only.\nCopy the header from api/server.js.\n');
+  assert.equal(box.run(box.repo, 'add', 'web', 'Design', 'the', 'page', '--specs', 'G1').code, 0);
+  assert.match(box.run(box.repo, 'add', 'web', 'Rename', '--route', 'light').err, /NO_BRIEF/);
+  assert.match(box.run(box.repo, 'add', 'web', 'Rename', '--brief', 'x', '--brief-file', 'y').err, /USAGE.*give the brief once/);
+  const added = box.run(box.repo, 'add', 'web', 'Copy', 'the', 'header', '--route', 'light', '--brief-file', join(box.dir, 'brief.md'));
+  assert.equal(added.out.trim(), '#2', added.err);
+  assert.match(box.run(box.repo, 'list').out, /#2 {2}open {2}web {2}Copy the header {2}light/);
+  const made = box.run(box.repo, 'worktree', 'web', '--route', 'light');
+  assert.match(made.out, /joined as web-2 in the web lane, on the light route/);
+  const light = made.out.match(/^made (\S+) /)[1];
+  assert.match(box.run(light, 'whoami').out, /^web-2 \(web lane, light route\)/);
+  const next = box.run(light, 'next');
+  assert.match(next.out, /claimed #2: Copy the header\nbrief:\n {2}Edit web\/page.js only.\n {2}Copy the header from api\/server.js./);
+  assert.match(box.run(light, 'claim', '1').err, /ROUTE/);
+  assert.match(box.run(box.web, 'next').out, /claimed #1: Design the page/);
+  assert.equal(box.run(box.repo, 'edit', '1', '--brief', 'Start from the sketch in docs/page.md.').code, 0);
+  assert.match(box.run(box.web, 'show', '1').out, /brief:\n {2}Start from the sketch in docs\/page.md./);
+  assert.match(box.run(box.web, 'edit', '2', '--brief', 'mine').err, /NOT_YOURS/);
+});

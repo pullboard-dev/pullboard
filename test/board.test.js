@@ -212,17 +212,20 @@ test('an item can wait on others: claiming it is refused until they are verified
   assert.throws(() => store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Late', after: [dropped] }), /WITHDRAWN/);
 });
 
-test('a board made before dependencies existed is migrated on open', () => {
+test('a board made by an older version is migrated on open', () => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-migrate-'));
   try {
     const file = join(dir, 'board.sqlite');
     const old = store.openBoard(file, clock);
-    old.db.exec('ALTER TABLE item DROP COLUMN item_after');
+    for (const column of ['item_after', 'item_brief', 'item_route']) old.db.exec(`ALTER TABLE item DROP COLUMN ${column}`);
+    old.db.exec('ALTER TABLE agent DROP COLUMN agent_route');
     store.closeBoard(old);
     const reopened = store.openBoard(file, clock);
-    const columns = reopened.db.prepare('PRAGMA table_info(item)').all().map((column) => column.name);
+    const columns = (table) => reopened.db.prepare(`PRAGMA table_info(${table})`).all().map((column) => column.name);
+    const [items, agents] = [columns('item'), columns('agent')];
     store.closeBoard(reopened);
-    assert.ok(columns.includes('item_after'));
+    for (const column of ['item_after', 'item_brief', 'item_route']) assert.ok(items.includes(column), column);
+    assert.ok(agents.includes('agent_route'));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -238,4 +241,43 @@ test('next finds the oldest free item in your lane, or says what everything wait
   store.submit(board, contract, { agentId: 'web-1', commit: SHA_A, tree: 't' });
   assert.equal(store.nextFor(board, { agentId: 'web-1', lane: 'web', verify: true }).item, null);
   assert.equal(store.nextFor(board, { agentId: 'web-2', lane: 'web', verify: true }).item.item_id, contract);
+});
+
+test('an item carries a brief; editing it changes how to build, never what [B10]', () => {
+  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Help text', brief: '  Copy how add prints.  ' });
+  assert.equal(store.getItem(board, id).item_brief, 'Copy how add prints.');
+  claimAs(id, 'web-1', 'web');
+  const digest = store.getItem(board, id).item_frozen_digest;
+  store.editItem(board, id, { agentId: 'coordinator', brief: 'Copy how add prints; test it like add.' });
+  assert.equal(store.getItem(board, id).item_brief, 'Copy how add prints; test it like add.');
+  assert.equal(store.getItem(board, id).item_frozen_digest, digest);
+  assert.throws(() => store.editItem(board, id, { agentId: 'api-1', brief: 'mine now' }), /NOT_YOURS.*coordinator/);
+  assert.throws(() => store.editItem(board, id, { agentId: 'coordinator' }), /USAGE/);
+  assert.throws(() => store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Huge', brief: 'x'.repeat(8001) }), /BRIEF_TOO_LONG/);
+  assert.deepEqual(JSON.parse(store.events(board, { itemId: id }).find((event) => event.event_kind === 'edit').event_detail), { brief: '38 characters' });
+  store.submit(board, id, { agentId: 'web-1', commit: SHA_A, tree: 't' });
+  store.verify(board, id, { agentId: 'web-2', decision: 'ACCEPT', head: SHA_A, digest, policy: 'any', note: 'removed the help case; its test failed' });
+  assert.throws(() => store.editItem(board, id, { agentId: 'coordinator', brief: 'late' }), /CLOSED/);
+});
+
+test('a light agent claims and verifies only light items, each with a brief; strong agents take strong work first [B11]', () => {
+  store.register(board, { lane: 'web', path: '/repo-web-3', route: 'light' });
+  assert.throws(() => store.register(board, { lane: 'web', path: '/repo-web-3' }), /ALREADY_JOINED.*routed light/);
+  assert.throws(() => store.register(board, { lane: 'web', path: '/repo-web-9', route: 'cheap' }), /BAD_ROUTE/);
+  assert.throws(() => store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Rename', route: 'light' }), /NO_BRIEF/);
+  const light = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Rename', route: 'light', brief: 'Rename x to y in web/a.js.' });
+  const strong = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Design the cache' });
+  assert.throws(() => claimAs(strong, 'web-3', 'web'), /ROUTE.*light route/);
+  assert.equal(store.nextFor(board, { agentId: 'web-3', lane: 'web' }).item.item_id, light);
+  assert.equal(store.nextFor(board, { agentId: 'web-1', lane: 'web' }).item.item_id, strong);
+  claimAs(strong, 'web-1', 'web');
+  assert.deepEqual(store.nextFor(board, { agentId: 'web-3', lane: 'web' }).item.item_id, light);
+  assert.throws(() => store.editItem(board, strong, { agentId: 'coordinator', route: 'light', brief: 'now light' }), /HELD.*only while it is open/);
+  assert.throws(() => store.editItem(board, light, { agentId: 'coordinator', brief: '' }), /NO_BRIEF/);
+  store.submit(board, strong, { agentId: 'web-1', commit: SHA_A, tree: 't' });
+  assert.equal(store.nextFor(board, { agentId: 'web-3', lane: 'web', verify: true }).item, null);
+  const verdict = { agentId: 'web-3', decision: 'ACCEPT', head: SHA_A, digest: 'digest:Design the cache', policy: 'any', note: 'tried it' };
+  assert.throws(() => store.verify(board, strong, verdict), /ROUTE.*strong verifier/);
+  store.verify(board, strong, { ...verdict, agentId: 'web-2' });
+  assert.equal(claimAs(light, 'web-3', 'web').renewed, false);
 });

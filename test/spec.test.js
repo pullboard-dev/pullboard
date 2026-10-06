@@ -8,10 +8,12 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import {
   citedIds,
+  deletedIds,
   frozenCriterion,
   idProblems,
   lintSpec,
   parseSpec,
+  permanenceProblems,
   readSignoffs,
   signOff,
   standings,
@@ -128,4 +130,28 @@ test('commit headers cite ids in a trailing bracket [C2]', () => {
   assert.deepEqual(citedIds('feat(web): add the page [G1, K1.2]'), ['G1', 'K1.2']);
   assert.deepEqual(citedIds('feat(web): add the page'), []);
   assert.deepEqual(citedIds('fix: handle [x] in the middle of text'), []);
+});
+
+test('a row marked wont stays with its id, drops out of the counts, and cannot be cited [S9]', () => {
+  const spec = { ...parseSpec(`# Demo\n\n## G · Goals\n- G1 [approved, must] Kept. | gate: test\n- G2 [wont, must] Cut by the client on 6 Oct.\n`), name: 'SPEC.md' };
+  assert.deepEqual(lintSpec(spec), []);
+  assert.deepEqual(unmetRows(spec.rows, []).map((row) => row.id), ['G1']);
+  assert.deepEqual(idProblems(spec, ['G2']), ["G2 is marked won't build; the person reopens it first"]);
+  const item = { item_title: 'Build it', item_criterion: '', item_spec_ids: 'G2' };
+  assert.throws(() => frozenCriterion(spec, item), /UNKNOWN_SPEC.*won't build.*withdraws the item/);
+});
+
+test('an id once committed or cited never leaves the spec [S8]', () => {
+  const before = '# Demo\n\n## G · Goals\n- G1 [approved, must] One. | gate: t\n- G2 [draft, must] Two.\n```\n- G9 [draft] An example in a fence.\n```\n';
+  assert.deepEqual(deletedIds(before, '# Demo\n\n## G · Goals\n- G1 [approved, must] One. | gate: t\n'), ['G2']);
+  assert.deepEqual(deletedIds(before, before.replace('[draft, must] Two.', '[wont, must] Two.')), []);
+  const spec = parseSpec('# Demo\n\n## G · Goals\n- G1 [approved, must] One. | gate: t\n');
+  const problems = permanenceProblems(spec, {
+    committed: new Map([['G1', 'a'.repeat(40)], ['G2', 'b'.repeat(40)]]),
+    cited: new Map([['G1', 'commit 1234567'], ['G2', 'item #3'], ['X4', 'commit 89abcde']]),
+  });
+  assert.deepEqual(problems, [
+    { id: 'G2', message: 'was committed in bbbbbbbbbbbb and is gone; ids are permanent: restore the row and mark it wont or retired' },
+    { id: 'X4', message: 'commit 89abcde cites it, but it was never committed to the spec; add it as a retired row saying what it meant' },
+  ]);
 });
