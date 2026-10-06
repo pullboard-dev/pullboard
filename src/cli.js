@@ -82,6 +82,7 @@ Work
   pullboard submit <id>                 needs a clean tree and the gate green at HEAD (alias: done)
   pullboard verify <id> accept --note "what you broke or which edge you tried, and what happened"
   pullboard verify <id> reject --reason TEST_FAILURE --note "what failed"
+                                        any --note can be --note-file <file>, which keeps quotes, $ and backticks intact
   pullboard shout <lane|agent|all> <text>       pullboard inbox
 
 Coordinator
@@ -119,6 +120,7 @@ const OPTIONS = {
   reason: { type: 'string' },
   off: { type: 'boolean' },
   note: { type: 'string' },
+  'note-file': { type: 'string' },
   by: { type: 'string' },
   out: { type: 'string' },
   after: { type: 'string' },
@@ -168,22 +170,33 @@ function idArg(text, what = 'an item id') {
 const idList = (text) => (text ?? '').split(',').map((id) => id.trim()).filter(Boolean);
 
 /**
- * The brief a command was given, from --brief or --brief-file, or undefined when neither.
+ * Text a command was given as --<name> "..." or as --<name>-file <file>, or undefined when neither.
+ * A file carries text past the shell exactly: backticks, dollar signs and quotes included.
+ *
+ * @param {any} io
+ * @param {any} values
+ * @param {string} name
+ * @returns {string | undefined}
+ */
+function textArg(io, values, name) {
+  const path = values[`${name}-file`];
+  if (values[name] !== undefined && path !== undefined) {
+    throw new Refused('USAGE', `give the ${name} once: --${name} "..." or --${name}-file <file>`);
+  }
+  if (path === undefined) return values[name];
+  const file = resolve(io.cwd, path);
+  if (!existsSync(file)) throw new Refused('NO_FILE', `no file ${path}`);
+  return readFileSync(file, 'utf8');
+}
+
+/**
+ * The brief a command was given, from --brief or --brief-file.
  *
  * @param {any} io
  * @param {any} values
  * @returns {string | undefined}
  */
-function briefArg(io, values) {
-  const path = values['brief-file'];
-  if (values.brief !== undefined && path !== undefined) {
-    throw new Refused('USAGE', 'give the brief once: --brief "..." or --brief-file <file>');
-  }
-  if (path === undefined) return values.brief;
-  const file = resolve(io.cwd, path);
-  if (!existsSync(file)) throw new Refused('NO_FILE', `no file ${path}`);
-  return readFileSync(file, 'utf8');
-}
+const briefArg = (io, values) => textArg(io, values, 'brief');
 
 /**
  * The start of a command an agent can paste anywhere: agent shells often start each command in the
@@ -739,7 +752,7 @@ function verifyHere(ctx, id, { second, values }) {
       agentId: me.id,
       decision,
       reason: values.reason,
-      note: values.note ?? '',
+      note: textArg(ctx.io, values, 'note') ?? '',
       head,
       digest,
       policy: ctx.config.verify,
@@ -930,9 +943,10 @@ function workCommands(io, args) {
     }),
     escalate: () => act((ctx, board, me) => {
       const id = idArg(first);
-      const moved = store.escalate(board, id, { agentId: me.id, note: values.note ?? '' });
+      const note = textArg(io, values, 'note') ?? '';
+      const moved = store.escalate(board, id, { agentId: me.id, note });
       if (me.id !== COORDINATOR) {
-        store.shout(board, { from: me.id, to: COORDINATOR, text: `#${id} escalated ${moved.from} -> ${moved.to}: ${values.note}`, lanes: laneNames(ctx.config) });
+        store.shout(board, { from: me.id, to: COORDINATOR, text: `#${id} escalated ${moved.from} -> ${moved.to}: ${note}`, lanes: laneNames(ctx.config) });
       }
       io.say(`#${id} escalated ${moved.from} -> ${moved.to}; it is open for a ${moved.to} agent`);
       return 0;

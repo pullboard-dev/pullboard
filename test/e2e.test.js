@@ -786,3 +786,25 @@ test('submit leaves a dependency fast-forwarded in out of the files it records [
   assert.equal(box.run(second, 'submit', '2').code, 0);
   assert.equal(JSON.parse(box.run(box.repo, 'show', '2', '--json').out).item_files, 'web/page.html');
 });
+
+test('verify and escalate take a note from a file, exactly as written [V12]', () => {
+  const box = project();
+  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');
+  box.run(box.web, 'claim', '1');
+  commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
+  box.run(box.web, 'submit', '1');
+  const note = 'ran `npm test` with $HOME unset: "it failed"\nthen restored it';
+  writeFileSync(join(box.dir, 'note.txt'), `${note}\n`);
+  box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
+  assert.match(box.run(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--note', 'x', '--note-file', join(box.dir, 'note.txt'), '--as', 'coordinator').err, /USAGE\] give the note once/);
+  assert.match(box.run(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--note-file', join(box.dir, 'nope.txt'), '--as', 'coordinator').err, /NO_FILE/);
+  assert.match(box.run(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--note-file', join(box.dir, 'note.txt'), '--as', 'coordinator').out, /rejected #1/);
+  assert.equal(JSON.parse(box.run(box.repo, 'show', '1', '--json').out).verdicts[0].verdict_note, note);
+  box.git(box.repo, 'switch', '-q', 'main');
+  box.run(box.repo, 'add', 'web', 'Light', '--route', 'light', '--criterion', 'says hi', '--check', 'true', '--brief', LIGHT_BRIEF);
+  const light = box.run(box.repo, 'worktree', 'web', '--route', 'light').out.match(/^made (\S+) /)[1];
+  box.run(light, 'claim', '2');
+  assert.match(box.run(light, 'escalate', '2', '--note-file', join(box.dir, 'note.txt')).out, /#2 escalated light -> mid/);
+  assert.match(box.run(box.repo, 'show', '2').out, /ran `npm test` with \$HOME unset: "it failed"/);
+  assert.match(box.run(box.repo, 'help').out, /--note-file <file>/);
+});
