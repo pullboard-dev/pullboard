@@ -137,7 +137,28 @@ export function openBoard(file, clock = systemClock) {
   migrate(db);
   const board = { db, clock };
   guardStore(board);
+  guardMoves(board);
   return board;
+}
+
+/**
+ * Make this connection refuse any change to an item's status that does not come through moveItem
+ * (M1). A TEMP trigger, which lives only in this process's connection, lets the status column
+ * change only while moveItem holds a token in a TEMP table, so a status written anywhere else in
+ * this code, however it is spelled, is refused by SQLite itself. Recursive triggers stay on, so a
+ * REPLACE INTO, which deletes the old row first, meets the board file's own delete trigger. An
+ * agent's own connection never sees these TEMP objects; the board file's triggers (M3) govern it.
+ *
+ * @param {any} board
+ */
+function guardMoves(board) {
+  board.db.exec(`
+    PRAGMA recursive_triggers = ON;
+    CREATE TEMP TABLE IF NOT EXISTS moving (token INTEGER);
+    CREATE TEMP TRIGGER IF NOT EXISTS status_through_moves BEFORE UPDATE OF item_status ON main.item
+    WHEN NOT EXISTS (SELECT 1 FROM temp.moving)
+    BEGIN SELECT RAISE(ABORT, 'STATUS_OUTSIDE_MOVE: only moveItem in src/board.js changes an item''s status'); END;
+  `);
 }
 
 /** The board's PRAGMA user_version once its triggers are in: losing one after that is news. */
@@ -578,7 +599,12 @@ function moveItem(board, id, verb, { checks, set = () => ({}), before = () => {}
   const requires = STATES.find((state) => state.id === move.to).requires;
   const missing = requires.filter((field) => !String({ ...item, ...fields }[field] ?? '').trim());
   if (missing.length) throw new Error(`move ${verb}: ${move.to} needs ${missing.join(', ')}`);
-  setItem(board, id, fields);
+  board.db.exec('INSERT INTO temp.moving (token) VALUES (1)');
+  try {
+    setItem(board, id, fields);
+  } finally {
+    board.db.exec('DELETE FROM temp.moving');
+  }
   return item;
 }
 

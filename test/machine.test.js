@@ -3,9 +3,10 @@
  * failing on a broken copy, and in step with the refusals board.js and cli.js raise today.
  */
 import assert from 'node:assert/strict';
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
@@ -903,9 +904,12 @@ test('the two conditional guards behave as declared: a renewal passes a held lan
 });
 
 /**
- * Every place outside moveItem that writes an item's status: an item_status key in an object, or
- * an SQL SET of it. current() is allowed: it builds the reader's view of a lapsed claim and
- * never writes.
+ * Every place in src/ that could write an item's status outside moveItem, found in the source: an
+ * item_status key, quoted or computed from a literal, or any statement that updates or replaces
+ * item rows, in either case. This backs up the runtime guard, which refuses such a write on every
+ * path a test runs, for the paths no test reaches. Allowed: moveItem; setItem, the generic update
+ * moveItem writes through, which the guard watches; and current(), which builds the reader's view
+ * of a lapsed claim and never writes.
  *
  * @param {(file: string) => string} read
  * @returns {string[]}
@@ -914,9 +918,9 @@ function statusWriters(read) {
   const writers = [];
   for (const file of readdirSync(new URL('../src/', import.meta.url)).filter((name) => name.endsWith('.js'))) {
     const source = read(file);
-    const allowed = file === 'board.js' ? ['moveItem', 'current'].map((name) => functionsIn(source).get(name)) : [];
+    const allowed = file === 'board.js' ? ['moveItem', 'setItem', 'current'].map((name) => functionsIn(source).get(name)) : [];
     const spans = allowed.filter(Boolean).map((body) => [source.indexOf(body), source.indexOf(body) + body.length]);
-    for (const match of source.matchAll(/\bitem_status\s*:|\bSET\b[^;`]*\bitem_status\s*=/g)) {
+    for (const match of source.matchAll(/(?:\[\s*)?(['"`]?)item_status\1(?:\s*\])?\s*:|\b(?:update|replace\s+into|insert\s+or\s+replace\s+into)\s+(?:main\.)?item\b/gi)) {
       if (!spans.some(([start, end]) => match.index >= start && match.index < end)) {
         const before = source.slice(0, match.index);
         const owner = [...functionsIn(source).entries()].find(([, body]) => source.indexOf(body) <= match.index && match.index < source.indexOf(body) + body.length);
@@ -932,4 +936,52 @@ test('only moveItem writes an item\'s status, and a write anywhere else fails th
   assert.match(functionsIn(fromDisk('board.js')).get('moveItem'), /item_status: move\.to/, 'moveItem is the writer');
   const planted = editedSource('board.js', /set: \(found\) => \(\{ item_route: nextRoute\(found\.item_route\), item_owner: null, item_lease_until: null \}\),/, "set: (found) => ({ item_route: nextRoute(found.item_route), item_status: 'open', item_owner: null, item_lease_until: null }),");
   assert.deepEqual(statusWriters(planted), ['board.js#escalate']);
+  const lowercase = editedSource('board.js', /^export function recordAttempt/m, "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function recordAttempt");
+  assert.deepEqual(statusWriters(lowercase), ['board.js#reopenByHand']);
+  const computed = editedSource('board.js', /^export function recordAttempt/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport function recordAttempt");
+  assert.deepEqual(statusWriters(computed), ['board.js#reopenByKey']);
+});
+
+test('the board refuses a status written outside moveItem at run time, however it is spelled [M1]', () => {
+  const lab = boardOnDisk();
+  try {
+    const { board } = lab;
+    const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+    store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
+    const column = ['item', 'status'].join('_');
+    for (const sql of ["update item set item_status = 'open' where item_id = ?", `UPDATE item SET ${column} = 'claimed' WHERE item_id = ?`]) {
+      assert.throws(() => board.db.prepare(sql).run(id), /STATUS_OUTSIDE_MOVE/, sql);
+    }
+    assert.throws(
+      () => board.db.prepare("REPLACE INTO item (item_id, item_lane, item_title, item_created_by, item_created_at, item_updated_at) VALUES (?, 'web', 'Page', 'x', 'now', 'now')").run(id),
+      /KEPT/,
+      'a replace deletes the old row first, and the board keeps items',
+    );
+    assert.equal(store.getItem(board, id).item_status, 'claimed');
+    store.release(board, id, 'web-1');
+    assert.equal(store.getItem(board, id).item_status, 'open', 'a move through moveItem still writes');
+  } finally {
+    lab.done();
+  }
+});
+
+test('a helper added to the board that changes a status outside moveItem is refused when it runs [M1]', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pullboard-planted-'));
+  try {
+    for (const file of readdirSync(new URL('../src/', import.meta.url)).filter((name) => name.endsWith('.js'))) {
+      const source = fromDisk(file);
+      writeFileSync(join(dir, file), file === 'board.js' ? `${source}\nexport function reopenByHand(board, id) {\n  board.db.prepare("update item set item_status = 'open', item_owner = null, item_lease_until = null where item_id = ?").run(id);\n}\n` : source);
+    }
+    const copy = await import(pathToFileURL(join(dir, 'board.js')).href);
+    const board = copy.openBoard(':memory:');
+    copy.register(board, { lane: 'coordinator', path: '/repo' });
+    copy.register(board, { lane: 'web', path: '/repo-web-1' });
+    const id = copy.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+    copy.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
+    assert.throws(() => copy.reopenByHand(board, id), /STATUS_OUTSIDE_MOVE/);
+    assert.equal(copy.getItem(board, id).item_status, 'claimed');
+    copy.closeBoard(board);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
