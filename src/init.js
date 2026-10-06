@@ -4,7 +4,7 @@
  * the main checkout as the coordinator. It runs again safely and never overwrites a file it did not
  * write.
  */
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { CONFIG_FILE, COORDINATOR } from './config.js';
 import { installHooks } from './hooks.js';
@@ -107,6 +107,42 @@ function writeAgentDocs(root) {
 }
 
 /**
+ * The session hook's command: pullboard from the repo's own install when there is one, else from the
+ * PATH, and silence when neither is there, so a session never fails to start over it.
+ */
+export const RESUME_HOOK =
+  '[ -x node_modules/.bin/pullboard ] && exec node_modules/.bin/pullboard resume; command -v pullboard >/dev/null && exec pullboard resume; true';
+
+/**
+ * Have Claude Code run `pullboard resume` whenever a session starts, resumes or is compacted (I6), so
+ * an agent picks its work up from the board rather than from a summary of it. The hook is merged
+ * into .claude/settings.json; every other setting stays as it was.
+ *
+ * @param {string} root
+ * @returns {string} What happened.
+ */
+function writeSessionHook(root) {
+  const file = join(root, '.claude', 'settings.json');
+  let settings = {};
+  if (existsSync(file)) {
+    try {
+      settings = JSON.parse(readFileSync(file, 'utf8'));
+    } catch {
+      settings = null;
+    }
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+      return 'kept .claude/settings.json, which is not a JSON object; add a SessionStart hook that runs pullboard resume';
+    }
+  }
+  const starts = settings.hooks?.SessionStart ?? [];
+  if (JSON.stringify(starts).includes('pullboard resume')) return 'kept the Claude Code session hook';
+  settings.hooks = { ...settings.hooks, SessionStart: [...starts, { hooks: [{ type: 'command', command: RESUME_HOOK, timeout: 30 }] }] };
+  mkdirSync(join(root, '.claude'), { recursive: true });
+  writeFileSync(file, `${JSON.stringify(settings, null, 2)}\n`);
+  return 'added a Claude Code session hook: pullboard resume at every start and compaction';
+}
+
+/**
  * Set the repo up. Must run in the main checkout, which becomes the coordinator.
  *
  * @param {{ info: { root: string, isMain: boolean }, openBoardHere: () => any, register: Function, closeBoard: Function }} context
@@ -125,6 +161,7 @@ export function initRepo({ info, openBoardHere, register, closeBoard }) {
     ...writeAgentDocs(root),
     ...installHooks(root),
     ...installSkills(root),
+    writeSessionHook(root),
   ];
   const board = openBoardHere();
   try {

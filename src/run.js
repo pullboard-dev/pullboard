@@ -129,7 +129,7 @@ function restore(root, start, paths) {
  * @param {{ attempt: number, attempts: number, digest: string, earlier?: string[] }} state
  * @returns {string}
  */
-export function packText(root, item, { attempt, attempts, digest, earlier = [] }) {
+export function packText(root, item, { attempt, attempts, digest, earlier = [], related = [] }) {
   const rows = item.item_frozen ? JSON.parse(item.item_frozen).rows : [];
   const files = briefFiles(item.item_brief);
   let budget = PACK_FILE_CHARS;
@@ -164,6 +164,9 @@ export function packText(root, item, { attempt, attempts, digest, earlier = [] }
     ...(earlier.length ? ['', '## Earlier tries by a lighter model', ...earlier.map((note) => `- ${note}`), 'Start fresh from the files below; do not repeat what failed.'] : []),
     ...(digest
       ? ['', '## Your previous attempt', 'It left the files as they are below. Continue from them. It failed with:', '```', digest, '```', 'Fix exactly that.']
+      : []),
+    ...(related.length
+      ? ['', '## Finished items that touched the same files', ...related.map(({ item: other, shared }) => `- #${other.item_id} ${other.item_title}: ${shared.join(', ')}`), 'Follow the patterns they set where your change is similar.']
       : []),
     ...(contents.length ? ['', '## The files, as they are now', ...contents] : []),
     '',
@@ -278,12 +281,13 @@ async function tryItem(ctx, item, { command, attempts, minutes, deps, me, start,
   let digest = '';
   let seconds = 0;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    const fresh = deps.withBoard(ctx, (board) => {
+    const { fresh, related } = deps.withBoard(ctx, (board) => {
       store.claim(board, id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: deps.freezer(ctx) });
-      return store.getItem(board, id);
+      const claimed = store.getItem(board, id);
+      return { fresh: claimed, related: store.relatedItems(board, claimed) };
     });
     const pack = join(packs, `${id}-${tag}-${attempt}.md`);
-    writeFileSync(pack, packText(root, fresh, { attempt, attempts, digest, earlier }));
+    writeFileSync(pack, packText(root, fresh, { attempt, attempts, digest, earlier, related }));
     ctx.io.say(`#${id} attempt ${attempt}/${attempts}: running the ${item.item_route} agent`);
     const env = { ...process.env, PULLBOARD_PACK: pack, PULLBOARD_CHECK: item.item_check, PULLBOARD_ITEM: String(id), PULLBOARD_ATTEMPT: String(attempt), PULLBOARD_TIER: item.item_route };
     const built = await runCommand(command, { cwd: root, env, timeoutMs: minutes * 60_000, log: join(packs, `${id}-${tag}-${attempt}.log`) });

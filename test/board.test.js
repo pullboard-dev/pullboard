@@ -219,14 +219,16 @@ test('a board made by an older version is migrated on open', () => {
   try {
     const file = join(dir, 'board.sqlite');
     const old = store.openBoard(file, clock);
-    for (const column of ['item_after', 'item_brief', 'item_route', 'item_check']) old.db.exec(`ALTER TABLE item DROP COLUMN ${column}`);
+    for (const column of ['item_after', 'item_brief', 'item_route', 'item_check', 'item_claim_head', 'item_files']) old.db.exec(`ALTER TABLE item DROP COLUMN ${column}`);
     old.db.exec('ALTER TABLE agent DROP COLUMN agent_route');
+    old.db.exec('DROP TABLE hold');
     store.closeBoard(old);
     const reopened = store.openBoard(file, clock);
     const columns = (table) => reopened.db.prepare(`PRAGMA table_info(${table})`).all().map((column) => column.name);
-    const [items, agents] = [columns('item'), columns('agent')];
+    const [items, agents, holds] = [columns('item'), columns('agent'), columns('hold')];
     store.closeBoard(reopened);
-    for (const column of ['item_after', 'item_brief', 'item_route', 'item_check']) assert.ok(items.includes(column), column);
+    for (const column of ['item_after', 'item_brief', 'item_route', 'item_check', 'item_claim_head', 'item_files']) assert.ok(items.includes(column), column);
+    assert.ok(holds.includes('hold_reason'));
     assert.ok(agents.includes('agent_route'));
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -338,4 +340,79 @@ test('escalate frees an item one tier up, with what was tried attached [B15]', (
   assert.deepEqual(store.escalate(board, id, { agentId: 'coordinator', note: 'still stuck' }), { from: 'strong', to: 'strong' });
   const moves = store.events(board, { itemId: id }).map((event) => event.event_kind).filter((kind) => ['attempt', 'escalate'].includes(kind));
   assert.deepEqual(moves, ['attempt', 'escalate', 'escalate', 'escalate']);
+});
+
+test('a fresh claim records where the work started; submit records what it changed, reworks included [N21]', () => {
+  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+  const claimAt = (head) => store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 2 * HOUR, freeze, head });
+  claimAt(SHA_A);
+  claimAt(SHA_B);
+  assert.equal(store.getItem(board, id).item_claim_head, SHA_A, 'a renewal keeps the first head');
+  store.submit(board, id, { agentId: 'web-1', commit: SHA_B, tree: 't', files: ['web/page.js', 'web/page.test.js'] });
+  verdict(id, { agentId: 'web-2', decision: 'REJECT', reason: 'TEST_FAILURE', note: 'an empty page throws' });
+  claimAt(SHA_B);
+  assert.equal(store.getItem(board, id).item_claim_head, SHA_B, 'the rework starts from the rejected head');
+  store.submit(board, id, { agentId: 'web-1', commit: 'c'.repeat(40), tree: 't2', files: ['web/page.js', 'web/empty.js'] });
+  assert.deepEqual(store.itemFiles(store.getItem(board, id)), ['web/page.js', 'web/page.test.js', 'web/empty.js']);
+});
+
+test('related items: verified work that touched the same files, the most shared first [N21]', () => {
+  const build = (title, files) => {
+    const id = store.addItem(board, { by: 'coordinator', lane: 'web', title });
+    claimAs(id, 'web-1', 'web');
+    store.submit(board, id, { agentId: 'web-1', commit: SHA_A, tree: 't', files });
+    return id;
+  };
+  const header = build('Header', ['web/layout.js', 'web/header.js']);
+  const footer = build('Footer', ['web/layout.js']);
+  const api = build('Route', ['api/route.js']);
+  build('Pending', ['web/layout.js', 'web/header.js']);
+  for (const [id, title] of [[header, 'Header'], [footer, 'Footer'], [api, 'Route']]) verdict(id, { agentId: 'web-2', decision: 'ACCEPT', digest: `digest:${title}` });
+  const nav = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Nav', brief: 'Files: web/header.js, web/layout.js' });
+  assert.deepEqual(
+    store.relatedItems(board, store.getItem(board, nav)).map(({ item, shared }) => [item.item_id, shared]),
+    [[header, ['web/layout.js', 'web/header.js']], [footer, ['web/layout.js']]],
+  );
+  const loose = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Copy' });
+  assert.deepEqual(store.relatedItems(board, store.getItem(board, loose)), []);
+});
+
+test('within a tier, next takes the item nearest your recent work and names the shared files [N20]', () => {
+  const footer = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Footer', brief: 'Files: web/footer.js' });
+  const nav = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Nav', brief: 'Files: web/header.js, web/nav.js' });
+  assert.equal(store.nextFor(board, { agentId: 'web-1', lane: 'web' }).item.item_id, footer, 'with nothing warm, the oldest');
+  const warm = store.nextFor(board, { agentId: 'web-1', lane: 'web', warm: ['web/header.js', 'web/layout.js'] });
+  assert.equal(warm.item.item_id, nav);
+  assert.deepEqual(warm.shared, ['web/header.js']);
+  const mid = routed('Rename', 'mid', { brief: BRIEF.replace('web/a.js', 'web/header.js') });
+  const midAgent = store.register(board, { lane: 'web', path: '/repo-web-3', route: 'mid' });
+  assert.equal(store.nextFor(board, { agentId: 'web-1', lane: 'web', warm: ['web/header.js'] }).item.item_id, nav, 'a strong agent takes strong work first');
+  assert.equal(store.nextFor(board, { agentId: midAgent, lane: 'web', warm: ['web/footer.js'] }).item.item_id, mid, 'a mid agent never gets strong work');
+});
+
+test('a held lane takes no new claims and says who held it and why; claimed work goes on [N22]', () => {
+  const page = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+  const nav = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Nav' });
+  claimAs(page, 'web-1', 'web');
+  assert.throws(() => store.holdLane(board, 'web', { agentId: 'web-1', reason: 'mine' }), /COORDINATOR_ONLY/);
+  assert.throws(() => store.holdLane(board, 'web', { agentId: 'coordinator', reason: ' ' }), /USAGE/);
+  store.holdLane(board, 'web', { agentId: 'coordinator', reason: 'the spec rows are changing' });
+  assert.deepEqual(store.nextFor(board, { agentId: 'web-2', lane: 'web' }), { item: null, reasons: ['coordinator holds the web lane: the spec rows are changing'] });
+  assert.throws(() => claimAs(nav, 'web-2', 'web'), /LANE_HELD.*the spec rows are changing/);
+  assert.equal(store.nextFor(board, { agentId: 'web-1', lane: 'web' }).item.item_id, page, 'claimed work goes on');
+  assert.equal(claimAs(page, 'web-1', 'web').renewed, true);
+  assert.equal(store.nextFor(board, { agentId: 'api-1', lane: 'api' }).reasons[0], 'no open items in the api lane');
+  store.releaseLane(board, 'web', { agentId: 'coordinator' });
+  assert.equal(store.nextFor(board, { agentId: 'web-2', lane: 'web' }).item.item_id, nav);
+  assert.throws(() => store.releaseLane(board, 'web', { agentId: 'coordinator' }), /NOT_HELD/);
+  assert.deepEqual(store.events(board).map((event) => event.event_kind).filter((kind) => kind.endsWith('hold')), ['hold', 'unhold']);
+});
+
+test('peeking shows the newest unread shouts and leaves them unread [N19]', () => {
+  const lanes = ['coordinator', 'web', 'api'];
+  for (const text of ['one', 'two', 'three']) store.shout(board, { from: 'coordinator', to: 'web-1', text, lanes });
+  assert.deepEqual(store.peekShouts(board, 'web-1').map((shout) => shout.shout_text), ['two', 'three']);
+  assert.equal(store.unreadCount(board, 'web-1'), 3);
+  store.inbox(board, 'web-1');
+  assert.deepEqual(store.peekShouts(board, 'web-1'), []);
 });

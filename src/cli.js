@@ -52,6 +52,8 @@ Set up
   pullboard join <lane> [--route light] register the worktree you are in as an agent in a lane
                                         --route light: a lighter model that takes only items routed light
   pullboard whoami | lanes | status     who you are, the lanes, the board at a glance
+  pullboard resume                      where you are: your claim, branch, uncommitted work, what came back,
+                                        unread shouts, what to do next; run it to start any session
   pullboard hooks                       reinstall the git hooks (e.g. after a fresh clone)
 
 Work
@@ -85,6 +87,8 @@ Coordinator
   pullboard merged <id> <commit>        record where verified work landed
   pullboard withdraw <id> <reason>      drop an item nobody should build
   pullboard refreeze <id>               re-freeze a criterion after its spec rows changed
+  pullboard hold <lane> --reason "..."   pause a lane: next there claims nothing and names the reason
+  pullboard hold <lane> --off           release it
 
 Receipts
   pullboard ledger                      markdown: what was built, by whom, verified by whom
@@ -110,6 +114,7 @@ const OPTIONS = {
   specs: { type: 'string' },
   parent: { type: 'string' },
   reason: { type: 'string' },
+  off: { type: 'boolean' },
   note: { type: 'string' },
   by: { type: 'string' },
   out: { type: 'string' },
@@ -312,6 +317,151 @@ function itemLine(item) {
 }
 
 /**
+ * The files an agent has been working in (N20): what its latest three items touched, and what is
+ * uncommitted in its worktree now.
+ *
+ * @param {any} ctx
+ * @param {any} board
+ * @param {{ id: string }} me
+ * @returns {string[]}
+ */
+function warmFiles(ctx, board, me) {
+  const recent = store
+    .listItems(board, { all: true })
+    .filter((item) => item.item_built_by === me.id)
+    .sort((first, second) => second.item_updated_at.localeCompare(first.item_updated_at))
+    .slice(0, 3)
+    .flatMap((item) => store.itemFiles(item));
+  return [...new Set([...recent, ...dirtyFiles(ctx.info.root)])];
+}
+
+/**
+ * The paths with uncommitted changes in a worktree, untracked files included.
+ *
+ * @param {string} root
+ * @returns {string[]}
+ */
+function dirtyFiles(root) {
+  return tryGit(root, ['status', '--porcelain', '--untracked-files=all']).stdout.split('\n').filter(Boolean).map((line) => line.slice(3));
+}
+
+/**
+ * The files an item's own commits changed since its claim (N21). First parents only, so main merged
+ * into a lane branch is not counted as the item's work.
+ *
+ * @param {string} root
+ * @param {string | null} from
+ * @param {string} to
+ * @returns {string[]}
+ */
+function filesSince(root, from, to) {
+  if (!from) return [];
+  const result = tryGit(root, ['log', '--first-parent', '--no-merges', '--format=', '--name-only', `${from}..${to}`]);
+  return result.status === 0 ? [...new Set(result.stdout.split('\n').filter(Boolean))].sort() : [];
+}
+
+/**
+ * How long ago an ISO time was, or how long until it, in the board's clock: 45m, 3h, 2d.
+ *
+ * @param {any} ctx
+ * @param {string} iso
+ * @returns {string}
+ */
+function span(ctx, iso) {
+  const minutes = Math.round(Math.abs(ctx.clock.now().getTime() - Date.parse(iso)) / 60_000);
+  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 48 * 60) return `${Math.round(minutes / 60)}h`;
+  return `${Math.round(minutes / 1440)}d`;
+}
+
+/**
+ * A shout's text cut to one short line.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+const firstLine = (text) => {
+  const line = String(text).split('\n')[0];
+  return line.length > 100 ? `${line.slice(0, 99)}…` : line;
+};
+
+/**
+ * `pullboard resume` (N19): one short card that puts an agent back to work after a fresh start,
+ * a restart or a compaction, from the board rather than from a summary.
+ *
+ * @param {any} io
+ * @returns {number}
+ */
+function resumeHere(io) {
+  const ctx = context(io);
+  const { root, isMain } = ctx.info;
+  const card = withBoard(ctx, (board) => {
+    const me = whoAmI(ctx, board);
+    const all = store.listItems(board, { all: true });
+    return {
+      me,
+      holding: all.filter((item) => item.item_status === 'claimed' && item.item_owner === me.id),
+      sentBack: all
+        .filter((item) => item.item_status === 'open' && item.item_verdict === 'REJECT' && item.item_built_by === me.id)
+        .map((item) => ({ item, verdict: store.verdictsFor(board, item.item_id).at(-1) })),
+      awaiting: all.filter((item) => item.item_status === 'submitted' && item.item_built_by === me.id),
+      toVerify: all.filter((item) => item.item_status === 'submitted' && item.item_built_by !== me.id),
+      toMerge: all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit),
+      open: all.filter((item) => item.item_status === 'open'),
+      hold: store.laneHold(board, me.lane),
+      holds: store.laneHolds(board),
+      unread: store.unreadCount(board, me.id),
+      newest: store.peekShouts(board, me.id, 1),
+    };
+  });
+  const { me } = card;
+  const say = (line) => io.say(line);
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  say(`resume: ${me.id}, ${me.lane} lane${isMain ? ', the main checkout' : ''}, at ${root}`);
+  const dirty = dirtyFiles(root).length;
+  if (!isMain) {
+    const branch = tryGit(root, ['rev-parse', '--abbrev-ref', 'HEAD']).stdout || 'HEAD';
+    // Against the main checkout's branch, not its HEAD, which is detached while the coordinator verifies.
+    const mainRef = /^branch (.+)$/m.exec(tryGit(root, ['worktree', 'list', '--porcelain']).stdout.split('\n\n')[0])?.[1];
+    const [behind = 0, ahead = 0] = mainRef ? tryGit(root, ['rev-list', '--left-right', '--count', `${mainRef}...HEAD`]).stdout.split(/\s+/).map(Number) : [];
+    const against = mainRef ? `${ahead} ahead of main, ${behind} behind${behind ? ' (merge main before you submit)' : ''}` : 'main is detached for a verification, so ahead and behind are unknown';
+    say(`branch ${branch}: ${against}${dirty ? `; ${plural(dirty, 'file')} uncommitted` : ''}`);
+  } else if (dirty) {
+    say(`${plural(dirty, 'file')} uncommitted in the main checkout`);
+  }
+  for (const item of card.holding) {
+    say(`holding #${item.item_id} ${item.item_title}, lease ${span(ctx, item.item_lease_until)} left${item.item_check ? `; check: ${item.item_check}` : ''}`);
+    const files = briefFiles(item.item_brief);
+    if (files.length) say(`  files: ${files.join(', ')}`);
+  }
+  for (const { item, verdict } of card.sentBack) {
+    say(`sent back: #${item.item_id} ${verdict ? `${verdict.verdict_reason} by ${verdict.verdict_by}: ${firstLine(verdict.verdict_note)}` : 'rejected'}`);
+  }
+  if (card.awaiting.length) say(`awaiting a verdict: ${card.awaiting.map((item) => `#${item.item_id} (${span(ctx, item.item_updated_at)})`).join(', ')}`);
+  if (isMain) {
+    if (card.toVerify.length) say(`to verify: ${card.toVerify.map((item) => `#${item.item_id} ${item.item_lane} (${span(ctx, item.item_updated_at)})`).join(', ')}`);
+    if (card.toMerge.length) say(`verified, not merged: ${card.toMerge.map((item) => `#${item.item_id} at ${item.item_commit.slice(0, 12)}`).join(', ')}; pullboard merged <id> <commit> records each`);
+    for (const hold of card.holds) say(`held: the ${hold.hold_lane} lane, ${hold.hold_reason}`);
+    const byLane = Object.entries(Map.groupBy(card.open, (item) => item.item_lane)).map(([lane, items]) => `${lane} ${items.length}`);
+    say(`open: ${card.open.length}${byLane.length ? ` (${byLane.join(', ')})` : ''}`);
+  } else if (card.hold) {
+    say(`the ${me.lane} lane is held by ${card.hold.hold_by}: ${card.hold.hold_reason}`);
+  }
+  if (card.unread) say(`${plural(card.unread, 'unread shout')}; newest from ${card.newest[0].shout_from}: ${firstLine(card.newest[0].shout_text)} (pullboard inbox reads them)`);
+  const mineOpen = card.open.filter((item) => item.item_lane === me.lane).length;
+  let next;
+  if (card.holding.length) next = `build #${card.holding[0].item_id}, commit, then pullboard submit ${card.holding[0].item_id}`;
+  else if (card.sentBack.length) next = `pullboard claim ${card.sentBack[0].item.item_id}, fix what the verifier found, and submit again`;
+  else if (isMain) next = card.toVerify.length ? 'pullboard next --verify --as coordinator' : 'curate the queue: pullboard add, edit, hold';
+  else if (card.hold) next = 'wait for the hold to lift: pullboard next --wait 30';
+  else if (mineOpen) next = `pullboard next (${mineOpen} open in your lane)`;
+  else if (card.awaiting.length) next = 'pullboard next --wait 30; a rejected item comes back to your lane';
+  else next = 'nothing open in your lane; pullboard next --verify names work you can check';
+  say(`next: ${next}`);
+  return 0;
+}
+
+/**
  * The commands that set a repo or a worktree up.
  *
  * @param {any} io
@@ -393,6 +543,7 @@ function worktreeFor(io, lane, route) {
  */
 function readCommands(io, { first, values }) {
   return {
+    resume: () => resumeHere(io),
     whoami: () => {
       const ctx = context(io);
       const me = withBoard(ctx, (board) => whoAmI(ctx, board));
@@ -422,10 +573,11 @@ function readCommands(io, { first, values }) {
     show: () => {
       const ctx = context(io);
       const id = idArg(first);
-      const { item, verdicts, moves } = withBoard(ctx, (board) => ({
+      const { item, verdicts, moves, related } = withBoard(ctx, (board) => ({
         item: store.getItem(board, id),
         verdicts: store.verdictsFor(board, id),
         moves: store.events(board, { itemId: id }).filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
+        related: store.relatedItems(board, store.getItem(board, id)),
       }));
       if (values.json) {
         io.say(JSON.stringify({ ...item, verdicts }, null, 2));
@@ -435,6 +587,9 @@ function readCommands(io, { first, values }) {
       if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
       if (item.item_check) io.say(`check: ${item.item_check}`);
       sayBrief(io, item.item_brief);
+      for (const { item: other, shared } of related) {
+        io.say(`related: #${other.item_id} ${other.item_title}: ${shared.slice(0, 4).join(', ')}${shared.length > 4 ? ', ...' : ''} (git log -p -1 ${other.item_commit.slice(0, 12)} -- ${shared[0]})`);
+      }
       const attempts = moves.filter((event) => event.event_kind === 'attempt').map((event) => JSON.parse(event.event_detail).result);
       if (attempts.length) io.say(`unattended attempts: ${attempts.join(', ')}`);
       for (const event of moves.filter((entry) => entry.event_kind === 'escalate')) {
@@ -514,13 +669,13 @@ function readCommands(io, { first, values }) {
  */
 function submitHere(ctx, id) {
   const { root } = ctx.info;
-  const me = withBoard(ctx, (board) => {
+  const { me, claimHead } = withBoard(ctx, (board) => {
     const who = whoAmI(ctx, board);
     const item = store.getItem(board, id);
     if (item.item_status !== 'claimed' || item.item_owner !== who.id) {
       throw new Refused('NOT_YOURS', `item #${id} is not claimed by you; claim it first`);
     }
-    return who;
+    return { me: who, claimHead: item.item_claim_head };
   });
   if (!isClean(root)) throw new Refused('DIRTY', 'commit your changes first; the gate must check what you submit');
   const stray = untracked(root);
@@ -529,7 +684,7 @@ function submitHere(ctx, id) {
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
   const gate = runGate(root, ctx.config);
   if (!gate.isGreen) throw new Refused('GATE_RED', `the gate is red at ${commit.slice(0, 12)}; fix it, commit, submit again`);
-  withBoard(ctx, (board) => store.submit(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '' }));
+  withBoard(ctx, (board) => store.submit(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, claimHead, commit) }));
   const pin = `refs/pullboard/items/${id}/${commit.slice(0, 12)}`;
   git(root, ['update-ref', pin, commit]);
   ctx.io.say(`submitted #${id} at ${commit.slice(0, 12)}; gate green${gate.isCached ? ' (this tree already passed)' : ''}`);
@@ -595,17 +750,18 @@ function nextOnce(ctx, values) {
   return withBoard(ctx, (board) => {
     if (values.verify) checkMainVerifier(ctx, board, values);
     const me = whoAmI(ctx, board);
-    const { item, reasons } = store.nextFor(board, { agentId: me.id, lane: me.lane, verify: values.verify, runnable: values.runnable, routes: values.routes });
+    const warm = values.verify ? [] : warmFiles(ctx, board, me);
+    const { item, reasons, shared } = store.nextFor(board, { agentId: me.id, lane: me.lane, verify: values.verify, runnable: values.runnable, routes: values.routes, warm });
     if (!item) return { reasons };
     if (values.verify) return { item };
     if (item.item_status === 'claimed') return { item, held: true };
     try {
-      store.claim(board, item.item_id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx) });
+      store.claim(board, item.item_id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx), head: headCommit(ctx.info.root) });
     } catch (error) {
       if (error instanceof Refused && ['HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true };
       throw error;
     }
-    return { item: store.getItem(board, item.item_id) };
+    return { item: store.getItem(board, item.item_id), shared };
   });
 }
 
@@ -636,6 +792,7 @@ async function nextHere(io, values) {
         io.say(`then: ${here} pullboard verify ${item.item_id} accept${as} --note "how you proved it", or reject${as} --reason CODE --note "what failed"`);
       } else {
         io.say(`${found.held ? 'you hold' : 'claimed'} #${item.item_id}: ${item.item_title}`);
+        if (found.shared?.length) io.say(`it touches ${found.shared.length === 1 ? 'a file' : `${found.shared.length} files`} you worked in recently: ${found.shared.slice(0, 4).join(', ')}`);
         if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
         if (item.item_check) io.say(`check: ${item.item_check}   (run it before you submit)`);
         for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${row.text}`);
@@ -773,8 +930,19 @@ function workCommands(io, args) {
     sweep: () => act((ctx, board, me) => sweepHere(ctx, board, me, values)),
     next: () => nextHere(io, values),
     claim: () => act((ctx, board, me) => {
-      const result = store.claim(board, idArg(first), { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx) });
+      const result = store.claim(board, idArg(first), { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx), head: headCommit(ctx.info.root) });
       io.say(`${result.renewed ? 'renewed' : 'claimed'} #${first} until ${result.leaseUntil}; criterion frozen as ${result.digest.slice(0, 12)}`);
+      return 0;
+    }),
+    hold: () => act((ctx, board, me) => {
+      if (!first || !isLane(ctx.config, first)) throw new Refused('NO_LANE', `no lane "${first ?? ''}"; see: pullboard lanes`);
+      if (values.off) {
+        store.releaseLane(board, first, { agentId: me.id });
+        io.say(`released the ${first} lane`);
+      } else {
+        store.holdLane(board, first, { agentId: me.id, reason: values.reason ?? '' });
+        io.say(`holding the ${first} lane: ${values.reason}. Release it with: pullboard hold ${first} --off`);
+      }
       return 0;
     }),
     release: () => act((ctx, board, me) => {

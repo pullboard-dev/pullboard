@@ -109,6 +109,12 @@ const SCHEMA = `
     item_id INTEGER,
     event_detail TEXT NOT NULL DEFAULT '{}'
   );
+  CREATE TABLE IF NOT EXISTS hold (
+    hold_lane TEXT PRIMARY KEY,
+    hold_reason TEXT NOT NULL,
+    hold_by TEXT NOT NULL,
+    hold_at TEXT NOT NULL
+  );
 `;
 
 /**
@@ -144,6 +150,8 @@ function migrate(db) {
     ['item', 'item_route', "TEXT NOT NULL DEFAULT 'strong'"],
     ['item', 'item_check', "TEXT NOT NULL DEFAULT ''"],
     ['agent', 'agent_route', "TEXT NOT NULL DEFAULT 'strong'"],
+    ['item', 'item_claim_head', 'TEXT'],
+    ['item', 'item_files', "TEXT NOT NULL DEFAULT ''"],
   ];
   for (const [table, column, type] of added) {
     const columns = db.prepare(`PRAGMA table_info(${table})`).all().map((entry) => entry.name);
@@ -524,14 +532,15 @@ export function recordAttempt(board, id, { agentId, n, seconds, result }) {
  * sub-agents share a lane. A lapsed claim can be taken. Every item is built in its own lane, the
  * coordinator's included, so no agent can build another lane's work from the main checkout. The
  * first claim freezes the criterion: `freeze` returns the text and digest the verdict will later be
- * held to.
+ * held to. A fresh claim also records `head`, the commit the work starts from, so submit can name
+ * the files the item changed (N21). A held lane takes no new claims (N22); renewals go on.
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, lane: string, leaseMs: number, freeze: (item: any) => { text: string, digest: string } }} who
+ * @param {{ agentId: string, lane: string, leaseMs: number, freeze: (item: any) => { text: string, digest: string }, head?: string | null }} who
  * @returns {{ leaseUntil: string, digest: string, renewed: boolean }}
  */
-export function claim(board, id, { agentId, lane, leaseMs, freeze }) {
+export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null }) {
   return atomic(board, () => {
     const item = itemById(board, id);
     if (['submitted', 'verified', 'withdrawn'].includes(item.item_status)) {
@@ -562,6 +571,10 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze }) {
     if (isHeld(board, item) && !isMine) {
       throw new Refused('HELD', `item #${id} is held by ${item.item_owner} until ${item.item_lease_until}`);
     }
+    const paused = laneHold(board, item.item_lane);
+    if (paused && !(isMine && isHeld(board, item))) {
+      throw new Refused('LANE_HELD', `${paused.hold_by} holds the ${item.item_lane} lane: ${paused.hold_reason}. Wait for it: pullboard next --wait 30`);
+    }
     if (item.item_parent_id === null) {
       const other = board.db
         .prepare(
@@ -584,13 +597,14 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze }) {
       Object.assign(fields, { item_frozen: frozen.text, item_frozen_digest: frozen.digest });
     }
     const leaseUntil = new Date(board.clock.now().getTime() + leaseMs).toISOString();
+    const renewed = isMine && isHeld(board, item);
+    if (!renewed && head) fields.item_claim_head = head;
     setItem(board, id, {
       ...fields,
       item_status: 'claimed',
       item_owner: agentId,
       item_lease_until: leaseUntil,
     });
-    const renewed = isMine && isHeld(board, item);
     logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest });
     return { leaseUntil, digest, renewed };
   });
@@ -623,9 +637,10 @@ export function release(board, id, agentId) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, commit: string, tree: string }} at
+ * @param {{ agentId: string, commit: string, tree: string, files?: string[] }} at - `files`: what the
+ *   item's own commits changed since its claim; a rework adds to what the first attempt changed.
  */
-export function submit(board, id, { agentId, commit, tree }) {
+export function submit(board, id, { agentId, commit, tree, files = [] }) {
   atomic(board, () => {
     const item = itemById(board, id);
     if (item.item_status !== 'claimed' || item.item_owner !== agentId) {
@@ -649,6 +664,7 @@ export function submit(board, id, { agentId, commit, tree }) {
       item_commit: commit,
       item_tree: tree,
       item_lease_until: null,
+      item_files: [...new Set([...(item.item_files ?? '').split('\n').filter(Boolean), ...files])].join('\n'),
     });
     logEvent(board, agentId, 'submit', id, { commit, tree });
   });
@@ -957,13 +973,15 @@ export function events(board, { itemId } = {}) {
  * is waiting on.
  *
  * With `runnable`, only items that carry a check command, which an unattended runner needs; with
- * `routes`, only items on those routes, the ones a runner has an agent command for.
+ * `routes`, only items on those routes, the ones a runner has an agent command for. With `warm`, the
+ * files the agent worked in lately, an item that shares more of them comes first within its tier,
+ * and `shared` names them (N20). A held lane offers nothing new (N22).
  *
  * @param {any} board
- * @param {{ agentId: string, lane: string, verify?: boolean, runnable?: boolean, routes?: string[] }} who
- * @returns {{ item: any | null, reasons: string[] }}
+ * @param {{ agentId: string, lane: string, verify?: boolean, runnable?: boolean, routes?: string[], warm?: string[] }} who
+ * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
-export function nextFor(board, { agentId, lane, verify = false, runnable = false, routes = ROUTES }) {
+export function nextFor(board, { agentId, lane, verify = false, runnable = false, routes = ROUTES, warm = [] }) {
   const route = routeOf(board, agentId);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
   const items = listItems(board)
@@ -978,13 +996,19 @@ export function nextFor(board, { agentId, lane, verify = false, runnable = false
   }
   const held = items.find((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null);
   if (held) return { item: held, reasons: [] };
-  const mine = items.filter((entry) => entry.item_status === 'open' && entry.item_lane === lane);
+  const paused = laneHold(board, lane);
+  if (paused) return { item: null, reasons: [`${paused.hold_by} holds the ${lane} lane: ${paused.hold_reason}`] };
+  const recent = new Set(warm);
+  const mine = items
+    .filter((entry) => entry.item_status === 'open' && entry.item_lane === lane)
+    .map((entry, order) => ({ entry, order, shared: itemFiles(entry).filter((path) => recent.has(path)) }))
+    .sort((first, second) => tier(second.entry) - tier(first.entry) || second.shared.length - first.shared.length || first.order - second.order);
   const reasons = [];
-  for (const entry of mine) {
+  for (const { entry, shared } of mine) {
     const waiting = (entry.item_after ? entry.item_after.split(',').map(Number) : [])
       .map((id) => current(board, itemById(board, id)))
       .filter((before) => before.item_status !== 'verified');
-    if (!waiting.length) return { item: entry, reasons: [] };
+    if (!waiting.length) return { item: entry, reasons: [], shared };
     reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
   }
   if (!mine.length) reasons.push(idleReason(items, lane, routed));
@@ -1018,6 +1042,116 @@ function idleReason(items, lane, routed) {
   const awaiting = items.filter((entry) => entry.item_lane === lane && entry.item_status === 'submitted').map((entry) => `#${entry.item_id}`);
   if (!awaiting.length) return reason;
   return `${reason}; ${awaiting.join(', ')} still await${awaiting.length === 1 ? 's' : ''} a verdict, and a rejected item comes back to this lane. A lane is done when its items are verified`;
+}
+
+/**
+ * The files an item touches, as far as the board knows: the files its submission changed, else the
+ * files its brief names.
+ *
+ * @param {any} item
+ * @returns {string[]}
+ */
+export function itemFiles(item) {
+  const changed = (item.item_files ?? '').split('\n').filter(Boolean);
+  return [...new Set([...changed, ...briefFiles(item.item_brief ?? '')])];
+}
+
+/**
+ * Finished items that touched the same files as this one, most shared first (N21). A builder
+ * starting cold reads how its neighbours were done instead of rediscovering it. File overlap, not
+ * word similarity: in one real build, an item shared a source file with one of the three before it
+ * in its lane 56% of the time.
+ *
+ * @param {any} board
+ * @param {any} item
+ * @param {number} [limit]
+ * @returns {{ item: any, shared: string[] }[]}
+ */
+export function relatedItems(board, item, limit = 3) {
+  const mine = new Set(itemFiles(item));
+  if (!mine.size) return [];
+  return listItems(board, { all: true })
+    .filter((other) => other.item_id !== item.item_id && other.item_status === 'verified')
+    .map((other) => ({ item: other, shared: itemFiles(other).filter((path) => mine.has(path)) }))
+    .filter((entry) => entry.shared.length)
+    .sort((first, second) => second.shared.length - first.shared.length || second.item.item_id - first.item.item_id)
+    .slice(0, limit);
+}
+
+/**
+ * Hold a lane (N22): `next` there claims nothing and names the reason, so a pause lives on the board
+ * and not in a message. Work already claimed goes on. Only the coordinator holds and releases.
+ *
+ * @param {any} board
+ * @param {string} lane
+ * @param {{ agentId: string, reason: string }} hold
+ */
+export function holdLane(board, lane, { agentId, reason }) {
+  coordinatorOnly(agentId, 'holds a lane');
+  if (!String(reason ?? '').trim()) throw new Refused('USAGE', `a hold needs a reason: pullboard hold ${lane} --reason "why"`);
+  atomic(board, () => {
+    board.db
+      .prepare(
+        `INSERT INTO hold (hold_lane, hold_reason, hold_by, hold_at) VALUES (?, ?, ?, ?)
+           ON CONFLICT (hold_lane) DO UPDATE SET hold_reason = excluded.hold_reason, hold_by = excluded.hold_by, hold_at = excluded.hold_at`,
+      )
+      .run(lane, reason.trim(), agentId, now(board));
+    logEvent(board, agentId, 'hold', null, { lane, reason: reason.trim() });
+  });
+}
+
+/**
+ * Release a held lane.
+ *
+ * @param {any} board
+ * @param {string} lane
+ * @param {{ agentId: string }} who
+ */
+export function releaseLane(board, lane, { agentId }) {
+  coordinatorOnly(agentId, 'releases a lane');
+  atomic(board, () => {
+    const { changes } = board.db.prepare('DELETE FROM hold WHERE hold_lane = ?').run(lane);
+    if (!changes) throw new Refused('NOT_HELD', `the ${lane} lane is not held`);
+    logEvent(board, agentId, 'unhold', null, { lane });
+  });
+}
+
+/**
+ * The hold on a lane, or null.
+ *
+ * @param {any} board
+ * @param {string} lane
+ * @returns {any | null}
+ */
+export function laneHold(board, lane) {
+  return board.db.prepare('SELECT * FROM hold WHERE hold_lane = ?').get(lane) ?? null;
+}
+
+/**
+ * Every held lane.
+ *
+ * @param {any} board
+ * @returns {any[]}
+ */
+export function laneHolds(board) {
+  return board.db.prepare('SELECT * FROM hold ORDER BY hold_lane').all();
+}
+
+/**
+ * The newest unread shouts, without marking them read: `resume` shows them, `inbox` reads them.
+ *
+ * @param {any} board
+ * @param {string} agentId
+ * @param {number} [limit]
+ * @returns {any[]}
+ */
+export function peekShouts(board, agentId, limit = 2) {
+  const agent = board.db.prepare('SELECT * FROM agent WHERE agent_id = ?').get(agentId);
+  if (!agent) return [];
+  return board.db
+    .prepare(`SELECT * ${UNREAD_SQL} ORDER BY shout_id DESC LIMIT ?`)
+    .all(agent.agent_last_shout_id, agentId, agent.agent_lane, agentId, limit)
+    .reverse();
 }
 
 /**

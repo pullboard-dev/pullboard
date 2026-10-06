@@ -127,7 +127,7 @@ This repo runs on pullboard: a work board, lanes and a spec that live in git. No
 It prints the folder to work in and what to run there first. A smaller model joins with \`--route light\` or \`--route mid\` and takes items at its tier and below. Work only in that folder. Your shell may start every command in the main checkout, where pullboard takes you for the coordinator, so begin each command with \`cd <your worktree> &&\`. Verifiers take the \`review\` lane, which owns no folders. Keep your worktree and branch until your items are merged.
 
 **The loop.**
-1. \`pullboard inbox\`.
+1. \`pullboard resume\` at the start of every session and after your context is compacted: your claim, what came back, unread shouts and the next step. Then \`pullboard inbox\`.
 2. \`pullboard next\` claims the next item in your lane that is free to start. When everything is waiting on other work, \`pullboard next --wait 30\` keeps looking for up to 30 minutes. A claim is a 2-hour lease; claim again to renew. The criterion freezes now: \`pullboard show <id>\` is the bar your work is judged against, and its brief says how to start.
 3. Build inside your lane's folders (\`pullboard lanes\`). Pre-commit refuses anything else; shout the owner instead.
 4. Commit, then \`pullboard submit <id>\`. It needs a clean tree and the gate green at HEAD.

@@ -73,6 +73,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - I3 [approved, must] Init writes the standard PRACTICE.md and the role guides as Claude Code skills. | gate: test/e2e.test.js
 - I4 [approved, must] `pullboard worktree <lane>` makes a joined worktree and says what to run next. | gate: test/e2e.test.js
 - I5 [approved, must] Every command pullboard suggests to an agent starts with cd to its worktree. | gate: test/e2e.test.js | serves: I4
+- I6 [draft, must] Init adds a Claude Code SessionStart hook that runs `pullboard resume`, keeping every other setting. | gate: test/e2e.test.js | serves: N19
 
 ## N · Next commands
 - N1 [draft, must] `pullboard decide`: the person's queue of everything waiting on them.
@@ -93,6 +94,10 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - N16 [approved, must] The runner takes a command per tier and merges an item's verified dependencies before building it. | gate: test/e2e.test.js | serves: N14
 - N17 [approved, must] Sweep runs each item's check once before filing; a check that passes on a flagged file is refused. | gate: test/e2e.test.js | serves: N15
 - N18 [retired] Model ladders and routing by history left the core for a separate project; the core keeps tiers and escalation.
+- N19 [draft, must] `pullboard resume` prints one short card: the claim, the branch against main, what came back, unread shouts, the next step. | gate: test/e2e.test.js
+- N20 [draft, must] Within a tier, `next` takes the item sharing most files with the agent's recent work, and names them. | gate: test/board.test.js, test/e2e.test.js | serves: N2
+- N21 [draft, must] Submit records the files an item changed; show and the run pack name verified items that share them. | gate: test/board.test.js, test/e2e.test.js
+- N22 [draft, must] `pullboard hold <lane>` pauses a lane: nothing new is claimed there, and next says who held it and why. | gate: test/board.test.js, test/e2e.test.js
 
 ## H · Hosted
 - H1 [pending, aim] `pullboard sync` mirrors the local board to pullboard.dev for teams across machines.

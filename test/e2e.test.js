@@ -516,3 +516,98 @@ test('pre-commit runs the fixers on fully staged files and restages them; partly
   assert.match(failed.stderr, /fixer "false" failed \(1\); staged nothing from it/);
   assert.equal(committedText('docs/e.js'), 'const e = 1;   \n');
 });
+
+test('resume puts an agent back to work from the board: its claim, its branch, what came back, the next step [N19]', () => {
+  const box = project();
+  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--brief', 'Files: web/page.html');
+  const fresh = box.run(box.web, 'resume');
+  assert.equal(fresh.code, 0, fresh.err);
+  assert.match(fresh.out, /^resume: web-1, web lane, at /);
+  assert.match(fresh.out, /branch web\/one: 0 ahead of main, 0 behind/);
+  assert.match(fresh.out, /next: pullboard next \(1 open in your lane\)/);
+  box.run(box.web, 'next');
+  mkdirSync(join(box.web, 'web'));
+  writeFileSync(join(box.web, 'web', 'page.html'), '<h1>Hi</h1>');
+  box.run(box.repo, 'shout', 'web-1', 'the heading text is in G1');
+  const building = box.run(box.web, 'resume').out;
+  assert.match(building, /1 file uncommitted/);
+  assert.match(building, /holding #1 Page, lease \d+[mh] left/);
+  assert.match(building, /files: web\/page\.html/);
+  assert.match(building, /1 unread shout; newest from coordinator: the heading text is in G1/);
+  assert.match(building, /next: build #1, commit, then pullboard submit 1/);
+  box.git(box.web, 'add', '-A');
+  box.git(box.web, 'commit', '-q', '-m', 'feat(web): page [G1]');
+  assert.equal(box.run(box.web, 'submit', '1').code, 0);
+  const coordinator = box.run(box.repo, 'resume').out;
+  assert.match(coordinator, /^resume: coordinator, coordinator lane, the main checkout/);
+  assert.match(coordinator, /to verify: #1 web \(\d+[mhd]\)/);
+  assert.match(coordinator, /next: pullboard next --verify --as coordinator/);
+  box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
+  box.run(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--note', 'no test proves the heading\nthe rest is fine', '--as', 'coordinator');
+  const back = box.run(box.web, 'resume').out;
+  assert.match(back, /branch web\/one: main is detached for a verification/);
+  box.git(box.repo, 'switch', '-q', 'main');
+  assert.match(box.run(box.web, 'resume').out, /branch web\/one: 1 ahead of main, 0 behind/);
+  assert.match(back, /sent back: #1 TEST_FAILURE by coordinator: no test proves the heading$/m);
+  assert.match(back, /next: pullboard claim 1, fix what the verifier found, and submit again/);
+});
+
+test('next takes work near your recent files; submit records them; show names related verified work [N20, N21]', () => {
+  const box = project();
+  box.run(box.repo, 'add', 'web', 'Footer', '--specs', 'G1', '--brief', 'Files: web/footer.html');
+  box.run(box.repo, 'add', 'web', 'Header', '--specs', 'G1', '--brief', 'Files: web/header.html');
+  mkdirSync(join(box.web, 'web'));
+  writeFileSync(join(box.web, 'web', 'header.html'), '<header>');
+  const next = box.run(box.web, 'next');
+  assert.match(next.out, /claimed #2: Header/);
+  assert.match(next.out, /it touches a file you worked in recently: web\/header\.html/);
+  box.git(box.web, 'add', '-A');
+  box.git(box.web, 'commit', '-q', '-m', 'feat(web): header [G1]');
+  commitFile(box, box.web, 'web/nav.html', '<nav>', 'feat(web): nav in the header [G1]');
+  box.git(box.repo, 'commit', '-q', '--allow-empty', '-m', 'chore: main moves on');
+  box.git(box.web, 'merge', '-q', '--no-edit', 'main');
+  assert.equal(box.run(box.web, 'submit', '2').code, 0);
+  assert.equal(JSON.parse(box.run(box.web, 'show', '2', '--json').out).item_files, 'web/header.html\nweb/nav.html', 'only the item\'s own commits, not the merge');
+  box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
+  box.run(box.repo, 'verify', '2', 'accept', '--note', 'emptied the header; the page lost it', '--as', 'coordinator');
+  box.git(box.repo, 'switch', '-q', 'main');
+  box.run(box.repo, 'add', 'web', 'Menu', '--specs', 'G1', '--brief', 'Files: web/nav.html, web/menu.html');
+  assert.match(box.run(box.repo, 'show', '3').out, /related: #2 Header: web\/nav\.html \(git log -p -1 [0-9a-f]{12} -- web\/nav\.html\)/);
+});
+
+test('hold pauses a lane: next names who held it and why; --off lets it go [N22]', () => {
+  const box = project();
+  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');
+  assert.match(box.run(box.web, 'hold', 'web', '--reason', 'mine').err, /COORDINATOR_ONLY/);
+  assert.match(box.run(box.repo, 'hold', 'nowhere', '--reason', 'x').err, /NO_LANE/);
+  assert.match(box.run(box.repo, 'hold', 'web', '--reason', 'G1 is being rewritten').out, /holding the web lane: G1 is being rewritten/);
+  const held = box.run(box.web, 'next');
+  assert.equal(held.code, 1);
+  assert.match(held.err, /coordinator holds the web lane: G1 is being rewritten/);
+  assert.match(box.run(box.web, 'claim', '1').err, /LANE_HELD/);
+  assert.match(box.run(box.web, 'resume').out, /the web lane is held by coordinator: G1 is being rewritten/);
+  assert.match(box.run(box.repo, 'hold', 'web', '--off').out, /released the web lane/);
+  assert.match(box.run(box.web, 'next').out, /claimed #1: Page/);
+});
+
+test('init adds a Claude Code session hook that runs resume, and keeps every other setting [I6]', () => {
+  const box = sandbox();
+  const repo = join(box.dir, 'repo');
+  mkdirSync(join(repo, '.claude'), { recursive: true });
+  box.git(repo, 'init', '-q', '-b', 'main');
+  const mine = { permissions: { allow: ['Bash(npm test)'] }, hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo done' }] }] } };
+  writeFileSync(join(repo, '.claude', 'settings.json'), JSON.stringify(mine));
+  assert.match(box.run(repo, 'init').out, /added a Claude Code session hook/);
+  assert.match(box.run(repo, 'init').out, /kept the Claude Code session hook/);
+  const settings = JSON.parse(readFileSync(join(repo, '.claude', 'settings.json'), 'utf8'));
+  assert.deepEqual(settings.permissions, mine.permissions);
+  assert.deepEqual(settings.hooks.Stop, mine.hooks.Stop);
+  assert.equal(settings.hooks.SessionStart.length, 1);
+  const { command } = settings.hooks.SessionStart[0].hooks[0];
+  const card = spawnSync('sh', ['-c', command], { cwd: repo, env: box.env, encoding: 'utf8' });
+  assert.equal(card.status, 0, card.stderr);
+  assert.match(card.stdout, /^resume: coordinator/);
+  const bare = spawnSync('sh', ['-c', command], { cwd: repo, env: { ...box.env, PATH: '/usr/bin:/bin' }, encoding: 'utf8' });
+  assert.equal(bare.status, 0, 'without pullboard installed, the session still starts');
+  assert.equal(bare.stdout, '');
+});
