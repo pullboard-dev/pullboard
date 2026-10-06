@@ -699,9 +699,22 @@ function submitHere(ctx, id) {
       throw new Refused('NOT_YOURS', `item #${id} is not claimed by you; claim it first`);
     }
     // A bar that moved since claim can get no verdict (V3), so say so now, not after a verifier's run (V11).
-    if (item.item_frozen_digest && freezer(ctx)(item).digest !== item.item_frozen_digest) {
-      const refreeze = who.id === COORDINATOR ? `pullboard refreeze ${id}` : `shout the coordinator to run pullboard refreeze ${id}`;
-      throw new Refused('CRITERIA_CHANGED', `the spec rows #${id} cites changed after it was claimed, so no verifier could judge it; ${refreeze}, then claim it and submit again`);
+    // A cited row taken out of force (retired, wont) cannot be frozen at all, and says so too.
+    if (item.item_frozen_digest) {
+      let digest = null;
+      let unusable = '';
+      try {
+        digest = freezer(ctx)(item).digest;
+      } catch (error) {
+        if (!(error instanceof Refused)) throw error;
+        unusable = error.message.replace(/^\[\w+\] /, '').split(';')[0];
+      }
+      if (digest !== item.item_frozen_digest) {
+        const step = unusable
+          ? `the coordinator either restores the row and runs pullboard refreeze ${id}, or withdraws #${id}`
+          : `${who.id === COORDINATOR ? '' : 'the coordinator runs '}pullboard refreeze ${id}, then you claim it and submit again`;
+        throw new Refused('CRITERIA_CHANGED', `the spec rows #${id} cites changed after it was claimed${unusable ? ` (${unusable})` : ''}, so no verifier could judge it; ${step}`);
+      }
     }
     return { me: who, claimHead: item.item_claim_head };
   });

@@ -726,7 +726,7 @@ test('submit refuses a bar that moved since the claim, before any verifier runs;
   commitFile(box, box.web, 'web/a.html', '<h1>Hi</h1>', 'feat(web): page [G1]');
   const refused = box.run(box.web, 'submit', '1');
   assert.equal(refused.code, 1);
-  assert.match(refused.err, /CRITERIA_CHANGED\] the spec rows #1 cites changed after it was claimed.*shout the coordinator to run pullboard refreeze 1, then claim it and submit again/);
+  assert.match(refused.err, /CRITERIA_CHANGED\] the spec rows #1 cites changed after it was claimed, so no verifier could judge it; the coordinator runs pullboard refreeze 1, then you claim it and submit again/);
   assert.equal(JSON.parse(box.run(box.repo, 'show', '1', '--json').out).item_status, 'claimed');
   assert.match(box.run(box.repo, 'refreeze', '1').out, /refrozen/);
   box.run(box.web, 'claim', '1');
@@ -835,4 +835,18 @@ test('every wait pullboard suggests names its unit and fits one ten-minute tool 
   const agents = readFileSync(join(box.repo, 'AGENTS.md'), 'utf8');
   assert.match(agents, /`pullboard next --wait 9` keeps looking for up to 9 minutes, which fits one tool call with a ten-minute timeout/);
   assert.doesNotMatch(agents, /--wait 30/);
+});
+
+test('submit names the item and the way out when a cited row was retired after the claim [V11]', () => {
+  const box = project();
+  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');
+  box.run(box.web, 'claim', '1');
+  writeFileSync(join(box.repo, 'SPEC.md'), SPEC.replace('- G1 [approved, must] The page renders. | gate: web test', '- G1 [retired] The page renders.'));
+  box.git(box.repo, 'commit', '-qam', 'docs(spec): retire G1');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page');
+  const refused = box.run(box.web, 'submit', '1');
+  assert.equal(refused.code, 1);
+  assert.match(refused.err, /CRITERIA_CHANGED\] the spec rows #1 cites changed after it was claimed \(G1 is retired\), so no verifier could judge it; the coordinator either restores the row and runs pullboard refreeze 1, or withdraws #1/);
+  assert.equal(JSON.parse(box.run(box.repo, 'show', '1', '--json').out).item_status, 'claimed');
 });
