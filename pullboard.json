@@ -6,7 +6,8 @@
   "lanes": {
     "core": { "owns": ["src/", "bin/"], "specs": ["B", "V", "L", "S", "C", "R", "I"], "starts": "now" },
     "tests": { "owns": ["test/"], "specs": ["P"], "starts": "now" },
-    "docs": { "owns": ["docs/", "README.md", "ROADMAP.md"], "specs": ["H"], "starts": "now" }
+    "docs": { "owns": ["docs/", "README.md", "ROADMAP.md"], "specs": ["H"], "starts": "now" },
+    "view": { "owns": ["src/cockpit.js", "src/serve.js", "test/cockpit.test.js"], "specs": ["N26", "N27", "N28"], "starts": "now" }
   },
   "shared": [],
   "commits": { "requireIds": ["feat", "fix"], "noEmoji": true }
