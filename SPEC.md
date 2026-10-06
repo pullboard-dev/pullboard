@@ -9,7 +9,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - P2 [approved, must] Works offline in any git repo. No account, no network. | gate: test/e2e.test.js
 - P3 [approved, must] Zero runtime dependencies. Node 22.13 or newer. | gate: test/package.test.js
 - P4 [approved, must] Every refusal names its rule and the next step. | gate: review
-- P5 [approved, must] The core names no model, inference engine or model vendor, and opens no network connection. | gate: test/boundary.test.js
+- P5 [approved, must] The core names no model, inference engine or model vendor, and opens no outbound connection. | gate: test/boundary.test.js
 
 ## B · Board
 - B1 [approved, must] One SQLite file in the git common dir. Every worktree sees it; nothing is committed. | gate: test/e2e.test.js
@@ -80,6 +80,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - I5 [approved, must] Every command pullboard suggests to an agent starts with cd to its worktree. | gate: test/e2e.test.js | serves: I4
 - I6 [draft, must] Init adds a Claude Code SessionStart hook that runs `pullboard resume`, keeping every other setting. | gate: test/e2e.test.js | serves: N19
 - I7 [draft, must] `pullboard worktree` prints the opening of a subagent's prompt: its folder, identity, and that AGENTS.md governs. | gate: test/e2e.test.js | serves: I4
+- I8 [draft, must] Init registers the project on this machine, so the view lists it. | gate: test/e2e.test.js | serves: N26
 
 ## N · Next commands
 - N1 [draft, must] `pullboard decide`: the person's queue of everything waiting on them.
@@ -107,6 +108,8 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - N23 [draft, must] `pullboard check [id]` runs an item's check command, yours by default, and prints a digest. | gate: test/e2e.test.js
 - N24 [draft, must] Output piped into a reader that stops early, such as head, ends quietly, with no stack trace. | gate: test/e2e.test.js
 - N25 [draft, must] Every wait pullboard suggests names its unit and fits one ten-minute tool call. | gate: test/e2e.test.js | serves: N13
+- N26 [draft, must] `pullboard view` serves every project's board on localhost, behind a per-session secret. | gate: test/e2e.test.js
+- N27 [draft, must] From the view, the person adds items, shouts and holds lanes; each runs the CLI command. | gate: test/e2e.test.js | serves: N26
 
 ## H · Hosted
 - H1 [pending, aim] `pullboard sync` mirrors the local board to pullboard.dev for teams across machines.
