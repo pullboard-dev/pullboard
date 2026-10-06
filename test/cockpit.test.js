@@ -246,6 +246,11 @@ async function openPage(view, { width = 1280 } = {}) {
       for (const listener of node(id).listeners.input ?? []) listener({ target: node(id) });
       await settle(inflight);
     },
+    // A click on a button with its own listener, or a form's submit.
+    async fire(id, type) {
+      for (const listener of node(id).listeners[type] ?? []) listener({ target: node(id), preventDefault() {} });
+      await settle(inflight);
+    },
   };
 }
 
@@ -453,6 +458,69 @@ test('a sent-back item shows why first [N26]', async () => {
     assert.ok(verified.indexOf('<h3>Brief</h3>') < verified.indexOf('<h3>Verdicts</h3>'), 'a verified item keeps its verdicts after the brief');
     assert.ok(verified.indexOf('<h3>Verdicts</h3>') < verified.indexOf('no heading yet'));
     assert.ok(verified.indexOf('no heading yet') < verified.indexOf('the page shows it'), 'every verdict, oldest first');
+  } finally {
+    await view.stop();
+  }
+});
+
+test('the detail opens on the top item, not a blank form [N26]', async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  box.run(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
+  // Beta's first row is #3, while its #1 and #2 share ids with alpha's first row and pick.
+  const beta = project(box, 'beta');
+  for (const title of ['Beta one', 'Beta two', 'Beta three']) box.run(beta.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
+  const empty = project(box, 'empty');
+  const done = project(box, 'done');
+  box.run(done.repo, 'add', 'web', 'Shipped page', '--specs', 'G1', '--criterion', 'renders');
+  build(box, done, 1, 'shipped.html');
+  accept(box, done, 1);
+  const gone = project(box, 'gone');
+  box.run(gone.repo, 'add', 'web', 'Dropped page', '--specs', 'G1', '--criterion', 'renders');
+  box.run(gone.repo, 'withdraw', '1', 'nobody needs it');
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    const shown = () => /<h2><span>#(\d+)<\/span>([^<]*)</.exec(page.show('detail'))?.slice(1).join(' ');
+    const rows = () => [...page.show('chain').matchAll(/<li class="row( on)?" data-item="(\d+)"/g)].map((match) => match[2] + (match[1] ? '*' : ''));
+    const form = () => [page.element('add-form').hidden, page.element('detail').hidden];
+
+    assert.equal(shown(), '2 Farewell', 'the first row, the item updated last');
+    assert.deepEqual(rows(), ['2*', '1'], 'its row is marked');
+    assert.deepEqual(form(), [true, false], 'no blank form');
+
+    box.run(alpha.web, 'claim', '1');
+    page.element('shout-to').value = 'web';
+    page.element('shout-text').value = 'Greeting is claimed';
+    await page.fire('shout-form', 'submit');
+    assert.deepEqual(rows(), ['1', '2*'], 'the refresh put the claimed item first');
+    assert.equal(shown(), '2 Farewell', 'and the pick held');
+
+    await page.fire('new-item', 'click');
+    assert.deepEqual(form(), [false, true], 'New item opens the form');
+    assert.equal(page.element('add-cancel').hidden, false);
+    await page.fire('add-cancel', 'click');
+    assert.deepEqual(form(), [true, false], 'Cancel closes it');
+    assert.equal(shown(), '2 Farewell', 'and brings back the item it covered');
+
+    await page.click({ root: beta.repo, classes: 'proj side' });
+    assert.equal(shown(), '3 Beta three', "the new project's first row, not an id from alpha");
+    assert.deepEqual(rows(), ['3*', '2', '1']);
+
+    await page.click({ root: empty.repo, classes: 'proj side' });
+    assert.deepEqual(form(), [false, true], 'a project with no items opens on the form');
+    assert.equal(page.element('add-cancel').hidden, true, 'with nothing to go back to');
+
+    await page.click({ root: done.repo, classes: 'proj side' });
+    assert.deepEqual(rows(), [], 'Active shows nothing: the only item is verified');
+    assert.deepEqual(form(), [true, false]);
+    assert.match(page.show('detail'), /Pick an item to see its criterion, verdicts and history\./);
+
+    await page.click({ root: gone.repo, classes: 'proj side' });
+    assert.deepEqual(rows(), [], 'no chip lists the only item: it is withdrawn');
+    assert.deepEqual(form(), [true, false], 'but an item exists, so no form');
+    assert.match(page.show('detail'), /Pick an item to see its criterion, verdicts and history\./);
   } finally {
     await view.stop();
   }

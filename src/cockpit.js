@@ -157,6 +157,7 @@ input, select { border: 1px solid var(--line-strong); background: var(--surface)
 .panel-form { display: grid; gap: 10px; }
 .panel-form label, .inline label { display: grid; gap: 4px; font-size: 12px; color: var(--ink-muted); }
 .panel-form input, .panel-form select, .inline input, .inline select { width: 100%; }
+.actions { display: flex; gap: 8px; } .actions .go { flex: 1; }
 .inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; padding: 10px; }
 .inline label { flex: 1 1 150px; min-width: 0; }
 .feed { padding: 6px 10px 10px; display: grid; }
@@ -228,7 +229,7 @@ input, select { border: 1px solid var(--line-strong); background: var(--surface)
         <label>Title<input id="add-title" required placeholder="What to build"></label>
         <label>Criterion<input id="add-criterion" placeholder="How a verifier knows it is done"></label>
         <label>Spec rows<input id="add-specs" placeholder="G1,G2"></label>
-        <button class="go" type="submit">Add item</button>
+        <div class="actions"><button class="go" type="submit">Add item</button><button class="ghost" id="add-cancel" type="button">Cancel</button></div>
       </form>
     </aside>
   </section>
@@ -312,8 +313,11 @@ async function refresh() {
   $('live').textContent = 'live · ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
 }
 
-function render() {
-  const p = data.project;
+/**
+ * The sidebar: every project, the one shown, and what needs the person elsewhere. A switch draws only
+ * this until the new board arrives, so the main column never mixes the old board with the new pick.
+ */
+function renderSide() {
   // Every project stays in view with what needs the person there, so one look covers them all.
   $('proj-list').innerHTML = data.projects.length ? data.projects.map((x) => {
     const on = x.root === view.root;
@@ -322,8 +326,15 @@ function render() {
   const elsewhere = data.projects.filter((x) => x.root !== view.root).reduce((n, x) => n + needCount(x), 0);
   $('proj-elsewhere').textContent = elsewhere ? elsewhere + ' elsewhere' : '';
   $('proj-elsewhere').hidden = !elsewhere;
-  if (!p) { $('proj-name').textContent = 'No project'; return; }
-  $('proj-name').textContent = (data.projects.find((x) => x.root === view.root) || { name: p.root.split('/').pop() }).name;
+  const p = data.project;
+  $('proj-name').textContent = p ? (data.projects.find((x) => x.root === view.root) || { name: p.root.split('/').pop() }).name : 'No project';
+}
+
+/** Draw the board shown: the sidebar, then every tab's panes from the project's board. */
+function render() {
+  const p = data.project;
+  renderSide();
+  if (!p) return;
   const items = p.items.filter((i) => i.status !== 'withdrawn');
   const by = (s) => items.filter((i) => stateOf(i) === s);
   const active = items.filter((i) => stateOf(i) !== 'verified');
@@ -363,6 +374,8 @@ function render() {
     .filter((i) => !lane || i.lane === lane)
     .filter((i) => !q || ('#' + i.id + ' ' + i.title + ' ' + i.specs.join(' ') + ' ' + (i.criterion || '')).toLowerCase().includes(q))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  // With nothing picked, the detail shows the first row, and keeps it when a refresh reorders the list.
+  if (!view.adding && !p.items.some((i) => i.id === view.item)) view.item = shown.length ? shown[0].id : null;
   $('chain').innerHTML = shown.length ? shown.map((i) => {
     const s = stateOf(i);
     const who = s === 'building' ? i.owner : [i.builtBy, i.verifiedBy].filter(Boolean).join(' → ');
@@ -370,8 +383,12 @@ function render() {
   }).join('') : '<li class="empty">' + (items.length ? 'No items match.' : 'No items yet. Add the first one with New item.') + '</li>';
 
   const item = p.items.find((i) => i.id === view.item);
-  $('add-form').hidden = !(view.adding || !item);
-  $('detail').hidden = !item || view.adding;
+  // The form shows when asked for, or when the project has no item at all, withdrawn ones included.
+  const adding = view.adding || !p.items.length;
+  $('add-form').hidden = !adding;
+  $('add-cancel').hidden = !p.items.length;
+  $('detail').hidden = adding;
+  if (!item) $('detail').innerHTML = '<div class="empty">Pick an item to see its criterion, verdicts and history.</div>';
   if (item && !view.adding) {
     const s = stateOf(item);
     const cited = item.specs.map((id) => p.spec.find((r) => r.id === id) || { id, status: 'missing', text: '(not in SPEC.md)' });
@@ -472,7 +489,9 @@ function switchTo(root) {
   view.adding = false;
   keep('pb.project', root);
   fold(false);
-  if (data) render();
+  // The board that arrives is drawn even if it matches the last one seen, so the pick is made from it.
+  seen = '';
+  if (data) renderSide();
   document.body.classList.add('switching');
   refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }).finally(() => document.body.classList.remove('switching'));
 }
@@ -494,7 +513,9 @@ document.addEventListener('click', (event) => {
   else if (t.dataset.shout) { $('shout-to').value = t.dataset.shout; $('shout-text').value = '#' + t.dataset.about + ': '; view.tab = 'shouts'; showTab(); $('shout-text').focus(); }
   else if (t.dataset.new !== undefined) { view.adding = true; render(); $('add-title').focus(); }
 });
-$('new-item').addEventListener('click', () => { view.adding = true; view.item = null; render(); $('add-title').focus(); });
+// The form covers the picked item rather than dropping it, so Cancel brings it back.
+$('new-item').addEventListener('click', () => { view.adding = true; render(); $('add-title').focus(); });
+$('add-cancel').addEventListener('click', () => { view.adding = false; render(); });
 $('q').addEventListener('input', () => render());
 $('lane-filter').addEventListener('change', () => render());
 $('add-form').addEventListener('submit', async (event) => {
