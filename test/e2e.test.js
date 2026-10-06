@@ -390,7 +390,7 @@ test('run builds routed items unattended: the failure feeds the next attempt; re
     '  if [ "$PULLBOARD_ATTEMPT" = "1" ]; then echo "export const title = \'Hello\';" > web/page.js; echo stray > api/stray.js;',
     '  elif grep -q "The check" "$PULLBOARD_PACK"; then echo "export const title = \'Hi\';" > web/page.js; fi',
     'else',
-    '  echo "export const footer = \'nope\'; // $PULLBOARD_CHECK" | tr B b > web/footer.js',
+    '  echo "export const footer = \'nope\'; // $PULLBOARD_CHECK $PULLBOARD_TIER" | tr B b > web/footer.js',
     'fi',
     '',
   ].join('\n'));
@@ -417,11 +417,11 @@ test('run builds routed items unattended: the failure feeds the next attempt; re
   assert.equal(box.git(light, 'log', '-1', '--format=%s', 'refs/pullboard/items/1/' + box.git(light, 'rev-parse', '--short=12', 'HEAD')), 'feat(web): greet on the page [G1]');
   assert.equal(box.git(light, 'status', '--porcelain'), '');
   const pinned = box.git(light, 'for-each-ref', '--format=%(refname)', 'refs/pullboard/attempts/2/');
-  assert.match(box.git(light, 'show', `${pinned}:web/footer.js`), /nope'; \/\/ grep -q bye web\/footer.js/);
+  assert.match(box.git(light, 'show', `${pinned}:web/footer.js`), /nope'; \/\/ grep -q bye web\/footer.js light/);
   const shown = box.run(box.repo, 'show', '2').out;
   assert.match(shown, /#2 {2}open {2}web {2}Say bye {2}mid/);
   assert.match(shown, /unattended attempts: red, red/);
-  assert.match(shown, /escalated light -> mid by web-2, pinned at refs\/pullboard\/attempts\/2\/[0-9a-f]{12}: every rung stayed red/);
+  assert.match(shown, /escalated light -> mid by web-2, pinned at refs\/pullboard\/attempts\/2\/[0-9a-f]{12}: 2 attempts stayed red/);
   assert.match(box.run(box.repo, 'inbox').out, /web-2 -> coordinator: #2 escalated light -> mid after 2 red attempts/);
 });
 
@@ -449,36 +449,8 @@ test('one runner climbs the tiers: an escalated item goes to the next command, w
   assert.match(ran.out, /runner done: 1 submitted, 1 escalated/);
   assert.equal(box.tryGit(apiRunner, 'merge-base', '--is-ancestor', commit, 'HEAD').status, 0);
   const packs = join(box.dir, 'repo', '.git', 'worktrees', apiRunner.split('/').at(-1), 'pullboard', 'packs');
-  assert.match(readFileSync(join(packs, '2-mid-1.md'), 'utf8'), /## Earlier tries by a lighter model\n- every rung stayed red/);
+  assert.match(readFileSync(join(packs, '2-mid-1.md'), 'utf8'), /## Earlier tries by a lighter model\n- 2 attempts stayed red/);
   assert.equal(existsSync(join(packs, '2-light-1.md')), true);
-});
-
-test('a ladder climbs within a tier; routing history skips a rung that keeps failing a kind of item [N18]', () => {
-  const box = project();
-  const script = (name, line) => {
-    writeFileSync(join(box.dir, name), ['#!/bin/sh', 'mkdir -p web', line, ''].join('\n'));
-    return `sh ${join(box.dir, name)}`;
-  };
-  const weak = script('weak.sh', 'echo nope > web/a$PULLBOARD_ITEM.js');
-  const strong = script('strong.sh', 'echo fixed > web/a$PULLBOARD_ITEM.js');
-  const history = join(box.dir, 'routing.jsonl');
-  for (const n of [1, 2, 3, 4]) {
-    const brief = `Kind: rename\n${LIGHT_BRIEF.replace('web/page.js', `web/a${n}.js`)}`;
-    assert.equal(box.run(box.repo, 'add', 'web', `Rename ${n}`, '--route', 'light', '--criterion', 'renamed', '--check', `grep -q fixed web/a${n}.js`, '--brief', brief).code, 0);
-  }
-  const tree = box.run(box.repo, 'worktree', 'web', '--route', 'light').out.match(/^made (\S+) /)[1];
-  const ran = box.run(tree, 'run', '--agent-light', weak, '--agent-light', strong, '--attempts', '1', '--items', '3', '--history', history, '--minutes', '2');
-  assert.equal(ran.code, 0, ran.err);
-  assert.match(ran.out, /#1 attempt 1: red[\s\S]*#1 attempt 1\/1: running the light agent \(rung 2\)\n#1 attempt 1: green/);
-  assert.match(ran.out, /#3 skips rung 1: it fixed 0 of 2 items with rename\n#3 attempt 1\/1: running the light agent \(rung 2\)/);
-  assert.match(ran.out, /runner done: 3 submitted, 0 escalated/);
-  const records = readFileSync(history, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
-  assert.deepEqual(records.map((record) => `${record.command === weak ? 'weak' : 'strong'}:${record.result}`), ['weak:red', 'strong:green', 'weak:red', 'strong:green', 'strong:green']);
-  assert.deepEqual(records[0].features, ['rename']);
-  const attempt = JSON.parse(box.run(box.repo, 'log', '1').out.split('\n').filter((line) => line.includes(' attempt ')).at(-1).replace(/^.*?(\{.*\})$/, '$1'));
-  assert.equal(attempt.rung, 2);
-  const only = box.run(tree, 'run', '--agent-light', weak, '--attempts', '1', '--history', history, '--minutes', '2');
-  assert.match(only.out, /#4 skips rung 1: it fixed 0 of 2 items with rename\n#4 escalated light -> mid, without spending an attempt/);
 });
 
 test('sweep files one light item per flagged file, in its lane; a second sweep skips what is open [N15]', () => {
