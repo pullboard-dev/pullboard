@@ -10,7 +10,16 @@ A board in `.git`, lanes, a spec, hooks and a gate, with Pullboard's protocol ru
 
 - **`PRACTICE.md`:** the house rules as rows, shipped as a standard each project edits. Linted alongside the spec.
 - **`pullboard spec view`:** the spec, the open questions, sign-offs and the practice as one offline page.
-- **Role guides for decompose, sign-off, review and verify.** Installed as Claude Code skills; printed for any agent by `pullboard prompt <role>`.
+- **Role guides for decompose, plan, sign-off, review and verify.** Installed as Claude Code skills; printed for any agent by `pullboard prompt <role>`.
+
+## Done in 0.5: what the first Haiku micro-build taught
+
+- **Items can wait on each other** (`add --after`), so a lane waits for a shared module instead of copying it.
+- **Submit pins the commit** under `refs/pullboard/items`, so work survives an agent deleting its worktree.
+- **`pullboard worktree <lane>`** replaces three commands with placeholders that agents copied literally.
+- **Refusals say what to do and show what they saw.** A builder had read "the subject starts lowercase" as a contradiction and gamed it.
+- **A `review` lane by default,** for verifiers.
+- **Two new standard practice rows:** one implementation per concern; tests never write outside a temporary directory.
 
 ## Soon: 0.5.x, hardening from real builds
 

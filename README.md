@@ -86,8 +86,8 @@ The main checkout is the coordinator. Every other agent works in its own worktre
 
 ```sh
 pullboard add web "Build the upload page" --specs G1 --criterion "drop a file, see it listed"
-git worktree add ../app-web -b web/upload && cd ../app-web
-pullboard join web                    # joined as web-1
+pullboard worktree web                # makes ../app-web-1, joined as web-1
+cd ../app-web-1 && npm install
 pullboard claim 1                     # 2-hour lease; criterion frozen
 # ... build, commit "feat(web): upload page [G1]" ...
 pullboard submit 1                    # clean tree + gate green at HEAD
@@ -119,8 +119,9 @@ pullboard verify 1 reject --reason TEST_FAILURE --note "upload of a 0-byte file 
 | Command | What it does |
 | --- | --- |
 | `init` | Sets up config, spec, agent instructions, hooks and the board. Safe to rerun. |
-| `join <lane>` | Registers this worktree as the next agent in a lane. |
-| `add <lane> <title>` | Adds an item. `--specs`, `--criterion`, `--parent` for child items. |
+| `worktree <lane>` | From the main checkout: makes a worktree for a new agent, joins it to the lane, prints what to run next. |
+| `join <lane>` | Registers the worktree you are in as the next agent in a lane. |
+| `add <lane> <title>` | Adds an item. `--specs`, `--criterion`, `--after <ids>` to wait on other items, `--parent` for child items. |
 | `list [lane]`, `show <id>` | The board, and one item with its frozen criterion and verdicts. |
 | `claim <id>`, `release <id>` | Take or renew a lease; hand it back. |
 | `submit <id>` | Records the work at HEAD, after the gate passes. Alias: `done`. |
