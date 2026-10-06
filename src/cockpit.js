@@ -166,6 +166,12 @@ input, select { border: 1px solid var(--line-strong); background: var(--surface)
 .agent { display: grid; gap: 2px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; }
 .agent:first-child { border-top: 0; }
 .agent small { color: var(--ink-faint); font: 11.5px var(--mono); overflow-wrap: anywhere; }
+.agent > div { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.agent > div > .muted { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent time { margin-left: auto; color: var(--ink-faint); font: 12px var(--mono); }
+.agent button { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; width: 100%; border: 0; background: none; padding: 2px 0; text-align: left; cursor: pointer; }
+.agent button > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent button:hover > span:first-child { color: var(--accent-strong); text-decoration: underline; text-underline-offset: 2px; }
 .lane { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); font-size: 13px; }
 .lane:first-child { border-top: 0; }
 .rows { padding: 4px 10px 10px; }
@@ -385,7 +391,15 @@ function render() {
 
   $('feed').innerHTML = p.shouts.length ? p.shouts.map((x) => '<div><time>' + clock(x.shout_at) + '</time><div><b>' + esc(x.shout_from) + ' → ' + esc(x.shout_to) + '</b> ' + esc(x.shout_text) + '</div></div>').join('') : '<div class="empty">No shouts yet.</div>';
   $('shout-targets').innerHTML = ['all', ...lanes, ...p.agents.map((a) => a.agent_id)].map((t) => '<option value="' + esc(t) + '">').join('');
-  $('agents').innerHTML = p.agents.length ? p.agents.map((a) => '<div class="agent"><b>' + esc(a.agent_id) + '</b><span class="muted">' + esc(a.agent_lane) + ' lane · ' + esc(a.agent_route) + '</span><small>' + esc(a.agent_path) + '</small></div>').join('') : '<div class="empty">No agents yet.</div>';
+  // Each agent with what it holds: its claim, then its work sent back, then its work waiting for a
+  // verdict. The worktree path is there on hover; what the person reads is who is doing what.
+  const order = ['building', 'back', 'verify'];
+  const holding = (a) => items.filter((i) => i.status === 'claimed' ? i.owner === a.agent_id : i.builtBy === a.agent_id && order.includes(stateOf(i))).sort((x, y) => order.indexOf(stateOf(x)) - order.indexOf(stateOf(y)));
+  $('agents').innerHTML = p.agents.length ? p.agents.map((a) => {
+    const mine = holding(a);
+    return '<div class="agent"><div><b title="' + esc(a.agent_path) + '">' + esc(a.agent_id) + '</b><span class="muted">' + esc(a.agent_lane) + ' · ' + esc(a.agent_route) + '</span>' + (a.lastMoveAt ? '<time title="last moved ' + when(a.lastMoveAt) + '">' + ago(a.lastMoveAt) + '</time>' : '') + '</div>'
+      + (mine.length ? mine.map((i) => '<button data-go="item:' + i.id + '" type="button"><span>#' + i.id + ' ' + esc(i.title) + '</span>' + chip(stateOf(i)) + '</button>').join('') : '<small>idle</small>') + '</div>';
+  }).join('') : '<div class="empty">No agents yet.</div>';
   const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
   $('lanes').innerHTML = working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no">held</span> <span class="muted">' + esc(held.get(l).hold_reason) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join('');
 
