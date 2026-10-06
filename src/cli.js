@@ -9,7 +9,7 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import * as store from './board.js';
 import { COORDINATOR, loadConfig } from './config.js';
-import { runGate } from './gate.js';
+import { gateReport, runGate } from './gate.js';
 import { contains, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
   FIX_NOTE,
@@ -685,11 +685,11 @@ function submitHere(ctx, id) {
   const commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
   const gate = runGate(root, ctx.config);
-  if (!gate.isGreen) throw new Refused('GATE_RED', `the gate is red at ${commit.slice(0, 12)}; fix it, commit, submit again`);
+  if (!gate.isGreen) throw new Refused('GATE_RED', `the gate is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${gateReport(gate)}`);
   withBoard(ctx, (board) => store.submit(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, claimHead, commit) }));
   const pin = `refs/pullboard/items/${id}/${commit.slice(0, 12)}`;
   git(root, ['update-ref', pin, commit]);
-  ctx.io.say(`submitted #${id} at ${commit.slice(0, 12)}; gate green${gate.isCached ? ' (this tree already passed)' : ''}`);
+  ctx.io.say(`submitted #${id} at ${commit.slice(0, 12)}; ${gateReport(gate)}`);
   ctx.io.say(`pinned as ${pin}, so this work can't be lost; keep your worktree until it is merged`);
   ctx.io.say(`next: another agent checks out ${commit.slice(0, 12)} and runs: pullboard verify ${id} accept|reject`);
   return 0;
@@ -1111,7 +1111,7 @@ async function hookCommand(io, { first, second }) {
     if (!problems.length) {
       const gate = runGate(info.root, ctx.config);
       if (gate.isCached) io.say('pre-push: the gate passed on this exact tree; not running it twice');
-      if (!gate.isGreen) problems = ['the gate is red; fix it before pushing'];
+      if (!gate.isGreen) problems = [`the gate is red; fix it before pushing. ${gateReport(gate)}`];
     }
   } else {
     throw new Refused('USAGE', 'pullboard hook pre-commit | commit-msg <file> | pre-push');
@@ -1169,7 +1169,7 @@ export async function main(argv, streams) {
     if (command === 'gate') {
       const ctx = context(io);
       const gate = runGate(ctx.info.root, ctx.config);
-      io.say(gate.isGreen ? `gate green${gate.isCached ? ' (this tree already passed)' : ''}` : 'gate red');
+      io.say(gateReport(gate));
       return gate.isGreen ? 0 : 1;
     }
     const commands = { ...setupCommands(io, args), ...readCommands(io, args), ...workCommands(io, args) };

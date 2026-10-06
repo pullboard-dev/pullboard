@@ -676,3 +676,35 @@ test('a fresh worktree with no install of its own runs pullboard from the main c
   assert.equal(committed.status, 0, committed.stderr);
   assert.match(resume().stdout, /^resume: web-1, web lane/);
 });
+
+test('the gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir [V10]', () => {
+  const box = project();
+  writeFileSync(join(box.repo, 'gate.cjs'), [
+    "const red = require('node:fs').existsSync('RED');",
+    "for (let i = 0; i < 400; i++) console.log(`ok ${i} ${'x'.repeat(red ? 10 : 3000)}`);",
+    "if (red) { console.error('not ok 401 - the page renders a heading'); for (let i = 0; i < 100; i++) console.log(`# note ${i}`); process.exit(1); }",
+    '',
+  ].join('\n'));
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: 'node gate.cjs # prints a lot' }));
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: a noisy gate');
+  const log = join(box.repo, box.git(box.repo, 'rev-parse', '--git-path', 'pullboard-gate.log'));
+  const green = box.run(box.repo, 'gate');
+  assert.equal(green.code, 0, green.err);
+  assert.match(green.out, /^gate green in \d+s\n$/);
+  assert.ok(readFileSync(log, 'utf8').length > 1_200_000, 'more than the default 1 MB pipe buffer, read whole');
+  writeFileSync(join(box.repo, 'RED'), 'red');
+  box.git(box.repo, 'add', 'RED');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: turn the gate red');
+  const red = box.run(box.repo, 'gate');
+  assert.equal(red.code, 1);
+  assert.match(red.out, /^gate red in \d+s:\n {2}not ok 401 - the page renders a heading\n/);
+  assert.match(red.out, / {2}# note 99\nthe whole output is in /);
+  assert.ok(red.out.length < 4000, `${red.out.length} characters`);
+  const lines = readFileSync(log, 'utf8').split('\n');
+  assert.equal(lines.length, 502);
+  assert.equal(lines[400], 'not ok 401 - the page renders a heading', 'stdout and stderr in one stream, in order');
+  box.run(box.repo, 'add', 'coordinator', 'Coordinator work');
+  box.run(box.repo, 'claim', '1');
+  assert.match(box.run(box.repo, 'submit', '1').err, /GATE_RED[\s\S]*not ok 401 - the page renders a heading/);
+});

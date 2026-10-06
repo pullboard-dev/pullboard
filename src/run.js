@@ -15,15 +15,13 @@ import { join } from 'node:path';
 import * as store from './board.js';
 import { briefFiles } from './brief.js';
 import { COORDINATOR } from './config.js';
-import { runGate } from './gate.js';
+import { digestOf, runGate } from './gate.js';
 import { contains, git, headCommit, isClean, tryGit, untracked } from './git.js';
 import { laneNames, outOfLane } from './lanes.js';
 import { Refused } from './refused.js';
 
-const DIGEST_CHARS = 3000;
 const FILE_CHARS = 32_000;
 const PACK_FILE_CHARS = 96_000;
-const FAILURE_RE = /fail|error|expected|received|assert|not ok|✗|×|cannot|undefined|exception/i;
 
 /**
  * A whole number from a flag, within bounds, or a refusal naming the flag.
@@ -76,21 +74,6 @@ function runCommand(command, { cwd, env = process.env, timeoutMs, log }) {
       done({ status, output, timedOut, seconds: Math.round((Date.now() - started) / 1000) });
     });
   });
-}
-
-/**
- * The lines of a failure worth a model's attention: those that look like failures first, then the
- * end of the output, capped, so a retry carries the reason and not the whole log.
- *
- * @param {string} output
- * @returns {string}
- */
-export function digestOf(output) {
-  const lines = output.split('\n').map((line) => line.trimEnd()).filter(Boolean);
-  const failing = lines.filter((line) => FAILURE_RE.test(line)).slice(0, 25);
-  const tail = lines.slice(-15);
-  const kept = [...new Set([...failing, ...tail])].join('\n');
-  return kept.length > DIGEST_CHARS ? `${kept.slice(0, DIGEST_CHARS)}\n...` : kept;
 }
 
 /**
@@ -304,7 +287,7 @@ async function tryItem(ctx, item, { command, attempts, minutes, deps, me, start,
     } else {
       const isDirty = !isClean(root) || untracked(root).length > 0;
       const committed = isDirty ? commitWork(root, item, ctx.config, changedSince(root, start)) : { ok: true, output: '' };
-      const gate = committed.ok ? runGate(root, ctx.config, { stdio: 'pipe' }) : { isGreen: false, output: committed.output };
+      const gate = committed.ok ? runGate(root, ctx.config) : { isGreen: false, output: committed.output };
       if (!gate.isGreen) {
         result = committed.ok ? 'gate-red' : 'commit-refused';
         digest = `${reverted}The check passed, but ${committed.ok ? "the repo's gate" : 'the commit'} failed:\n${digestOf(gate.output)}`;
