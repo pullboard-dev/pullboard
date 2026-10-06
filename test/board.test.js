@@ -58,7 +58,7 @@ test('a claim is a lease: renewable by its holder, free again once it lapses [B4
   assert.equal(store.getItem(board, id).item_owner, 'web-2');
 });
 
-test('one live top-level claim per agent; child items are free; lanes hold [B5]', () => {
+test('one live top-level claim per agent; child items are free; lanes hold, the coordinator\'s too [B5, B12]', () => {
   const first = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'One' });
   const second = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Two' });
   const child = store.addItem(board, { by: 'web-1', lane: 'web', title: 'One, part', parentId: first });
@@ -67,7 +67,9 @@ test('one live top-level claim per agent; child items are free; lanes hold [B5]'
   assert.throws(() => claimAs(second, 'web-1', 'web'), /ONE_CLAIM/);
   claimAs(child, 'web-1', 'web');
   assert.throws(() => claimAs(api, 'web-1', 'web'), /WRONG_LANE/);
-  claimAs(api, 'coordinator', 'coordinator');
+  assert.throws(() => claimAs(api, 'coordinator', 'coordinator'), /WRONG_LANE.*built from that lane's worktree, never the main checkout/);
+  const notes = store.addItem(board, { by: 'coordinator', lane: 'coordinator', title: 'Release notes' });
+  assert.equal(claimAs(notes, 'coordinator', 'coordinator').renewed, false);
   assert.throws(
     () => store.addItem(board, { by: 'web-1', lane: 'api', title: 'Cross', parentId: first }),
     /PARENT_LANE/,
@@ -231,16 +233,23 @@ test('a board made by an older version is migrated on open', () => {
   }
 });
 
-test('next finds the oldest free item in your lane, or says what everything waits on [N2]', () => {
+test('next finds the oldest free item in your lane, or says what everything waits on [N2, N13]', () => {
   const contract = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Contract' });
   const later = store.addItem(board, { by: 'coordinator', lane: 'api', title: 'Uses it', after: [contract] });
-  assert.deepEqual(store.nextFor(board, { agentId: 'api-1', lane: 'api' }), { item: null, reasons: [`#${later} waits on #${contract} (open)`] });
+  assert.deepEqual(store.nextFor(board, { agentId: 'api-1', lane: 'api' }), { item: null, reasons: [`#${later} waits on #${contract} (open, web lane)`] });
+  assert.deepEqual(store.nextFor(board, { agentId: 'coordinator', lane: 'coordinator' }).reasons, ["no open items in the coordinator lane; lane items are built from each lane's own worktree"]);
   assert.equal(store.nextFor(board, { agentId: 'web-1', lane: 'web' }).item.item_id, contract);
   claimAs(contract, 'web-1', 'web');
   assert.equal(store.nextFor(board, { agentId: 'web-1', lane: 'web' }).item.item_status, 'claimed');
   store.submit(board, contract, { agentId: 'web-1', commit: SHA_A, tree: 't' });
   assert.equal(store.nextFor(board, { agentId: 'web-1', lane: 'web', verify: true }).item, null);
   assert.equal(store.nextFor(board, { agentId: 'web-2', lane: 'web', verify: true }).item.item_id, contract);
+  assert.deepEqual(store.nextFor(board, { agentId: 'web-1', lane: 'web' }).reasons, [
+    `no open items in the web lane; #${contract} still awaits a verdict, and a rejected item comes back to this lane. A lane is done when its items are verified`,
+  ]);
+  store.verify(board, contract, { agentId: 'web-2', decision: 'REJECT', reason: 'TEST_FAILURE', note: 'the contract test fails', head: SHA_A, digest: 'digest:Contract', policy: 'any' });
+  assert.deepEqual(store.nextFor(board, { agentId: 'api-1', lane: 'api' }).reasons, [`#${later} waits on #${contract} (open, rejected, web lane)`]);
+  assert.equal(store.nextFor(board, { agentId: 'web-1', lane: 'web' }).item.item_id, contract);
 });
 
 test('an item carries a brief; editing it changes how to build, never what [B10]', () => {
