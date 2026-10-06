@@ -372,7 +372,7 @@ function flowSvg(p) {
   const pos = new Map(row.map((s, i) => [s, { x: L + BW / 2 + i * step, y: Y }]));
   for (const s of FLOW.states.filter((s) => !pos.has(s.id))) {
     const from = row.filter((r) => leads(r).includes(s.id));
-    pos.set(s.id, { x: from.length ? from.reduce((n, r) => n + pos.get(r).x, 0) / from.length : W / 2, y: Y + 120 });
+    pos.set(s.id, { x: from.length ? from.reduce((n, r) => n + pos.get(r).x, 0) / from.length : W / 2, y: Y + 150 });
   }
   const H = Math.max(...[...pos.values()].map((q) => q.y)) + BH / 2 + 20;
   const f = (v) => String(Math.round(v * 10) / 10);
@@ -386,7 +386,6 @@ function flowSvg(p) {
   const made = (pair, m) => counts.get(pair.from + '>' + pair.to + ':' + m.verb) || 0;
   const says = (pair) => pair.moves.map((m) => m.verb + ', ' + pair.from + ' to ' + pair.to + ', by the ' + m.by.join(' or ') + ': ' + m.how + '. Made ' + count(made(pair, m), 'time', 'times') + (m.checks.length ? '.\\nChecks, in order:\\n' + m.checks.map((c) => '  ' + c).join('\\n') : '.')).join('\\n\\n');
   const text = (x, y, words, cls, anchor = 'middle') => '<text class="' + cls + '" x="' + f(x) + '" y="' + f(y) + '" text-anchor="' + anchor + '">' + esc(words) + '</text>';
-  const below = new Map();
   const arrows = pairs.map((pair) => {
     const a = pos.get(pair.from), b = pos.get(pair.to);
     const done = pair.moves.filter((m) => made(pair, m));
@@ -408,19 +407,16 @@ function flowSvg(p) {
       d = 'M' + f(sx) + ' ' + f(top) + 'C' + f(sx) + ' ' + f(cy) + ' ' + f(ex) + ' ' + f(cy) + ' ' + f(ex) + ' ' + f(top);
       label = text((sx + ex) / 2, (top + 3 * cy) / 4 - 7, words, cls);
     } else {
-      // Down to a state off the row: the arrows spread across its top, one label beside its box.
-      d = 'M' + f(a.x) + ' ' + f(a.y + BH / 2) + 'L' + f(b.x + (a.x - b.x) * 0.3) + ' ' + f(b.y - BH / 2);
-      const into = below.get(pair.to) || { verbs: new Map() };
-      for (const m of pair.moves) into.verbs.set(m.verb, (into.verbs.get(m.verb) || 0) + made(pair, m));
-      below.set(pair.to, into);
+      // Down to a state off the row: the arrows spread across its top, each labelled along its way,
+      // on the side away from the others.
+      const sy = a.y + BH / 2, ex = b.x + (a.x - b.x) * 0.3, ey = b.y - BH / 2;
+      d = 'M' + f(a.x) + ' ' + f(sy) + 'L' + f(ex) + ' ' + f(ey);
+      const lx = a.x + (ex - a.x) * 0.6, ly = sy + (ey - sy) * 0.6 + 4;
+      // A straight drop, its ends equal but for rounding, keeps its label on the right.
+      label = a.x < b.x - 0.5 ? text(lx - 6, ly, words, cls, 'end') : text(lx + 6, ly, words, cls, 'start');
     }
     return '<g><title>' + esc(says(pair)) + '</title><path class="edge' + tone + '" d="' + d + '" marker-end="url(#pb-head' + (tone ? '-no' : '') + ')"/>' + label + '</g>';
   });
-  for (const [id, into] of below) {
-    const b = pos.get(id), all = [...into.verbs];
-    const words = (all.some(([, n]) => n) ? all.filter(([, n]) => n).map(([v, n]) => v + ' ' + n) : all.map(([v]) => v)).join(' · ');
-    arrows.push(text(b.x + BW / 2 + 12, b.y + 4, words, 'tag' + (all.some(([, n]) => n) ? '' : ' idle'), 'start'));
-  }
   const back = p.items.filter((i) => stateOf(i) === 'back').length;
   const boxes = FLOW.states.map((s) => {
     const { x, y } = pos.get(s.id);

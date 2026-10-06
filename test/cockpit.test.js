@@ -365,13 +365,17 @@ test('the agents panel says what each agent holds [N26]', async () => {
 });
 
 /**
- * The lifecycle drawing: each box's state, count and title; each arrow's title and label.
+ * The lifecycle drawing: each box's state, count and title; each arrow's title, the pair of states
+ * its title starts with, and the label drawn with it, if any.
  */
 function drawing(svg) {
   return {
     boxes: [...svg.matchAll(/<g class="s-([^"]+)"><title>([^<]*)<\/title>[^]*?<text class="n"[^>]*>(\d+)<\/text>/g)].map((match) => ({ state: match[1], title: match[2], count: Number(match[3]) })),
-    arrows: [...svg.matchAll(/<g><title>([^<]*)<\/title><path class="edge[^"]*"/g)].map((match) => match[1]),
-    labels: [...svg.matchAll(/<text class="tag([^"]*)"[^>]*>([^<]*)<\/text>/g)].map((match) => match[2] + (match[1].includes('idle') ? ' (none yet)' : '')),
+    arrows: [...svg.matchAll(/<g><title>([^<]*)<\/title><path class="edge[^"]*"[^>]*\/>(?:<text class="tag([^"]*)"[^>]*>([^<]*)<\/text>)?<\/g>/g)].map((match) => ({
+      title: match[1],
+      pair: /^\w+, (\w+) to (\w+),/.exec(match[1]).slice(1).join('>'),
+      label: match[3] === undefined ? null : match[3] + (match[2].includes('idle') ? ' (none yet)' : ''),
+    })),
     sentBack: /<text class="sub"[^>]*>([^<]*)<\/text>/.exec(svg)?.[1],
   };
 }
@@ -379,11 +383,18 @@ function drawing(svg) {
 test('the activity tab draws the lifecycle from the declaration, with live counts [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  for (const title of ['Greeting', 'Farewell', 'Header', 'Footer', 'Sidebar']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
+  for (const title of ['Greeting', 'Farewell', 'Header', 'Footer', 'Sidebar', 'Banner', 'Menu', 'Search']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
   build(box, alpha, 1, 'greeting.html');
   accept(box, alpha, 1);
   build(box, alpha, 2, 'farewell.html');
   sendBack(box, alpha, 2, 'no farewell');
+  // Withdrawn from claimed twice, from submitted once and from open once, so each arrow has its count.
+  for (const id of ['6', '8']) {
+    box.run(alpha.web, 'claim', id);
+    box.run(alpha.repo, 'withdraw', id, 'not this release');
+  }
+  build(box, alpha, 7, 'menu.html');
+  box.run(alpha.repo, 'withdraw', '7', 'the menu moved to the next release');
   box.run(alpha.web, 'claim', '3');
   box.run(alpha.web, 'claim', '3');
   box.run(alpha.repo, 'withdraw', '4', 'the footer moved to the next release');
@@ -392,31 +403,34 @@ test('the activity tab draws the lifecycle from the declaration, with live count
     const page = await openPage(view);
     assert.doesNotMatch(page.html, /id="metrics"/, 'the drawing replaces the metric cards');
     assert.ok(!page.html.includes('pullboard claim <id>'), 'the declaration is embedded with < escaped');
-    const { boxes, arrows, labels, sentBack } = drawing(page.show('flow'));
+    const { boxes, arrows, sentBack } = drawing(page.show('flow'));
 
     const esc = (text) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
     assert.deepEqual(boxes.map((entry) => entry.state), MACHINE.states.map((state) => state.id), 'a box for every declared state');
     for (const state of MACHINE.states) assert.ok(boxes.find((entry) => entry.state === state.id).title.startsWith(esc(`${state.id}: ${state.means}`)), `${state.id} says what it means`);
     assert.match(boxes.find((entry) => entry.state === 'verified').title, /Every way in checks:\n {2}the caller&#39;s checkout contains the submitted commit\n {2}the caller did not build it/);
-    assert.deepEqual(Object.fromEntries(boxes.map((entry) => [entry.state, entry.count])), { open: 2, claimed: 1, submitted: 0, verified: 1, withdrawn: 1 });
+    assert.deepEqual(Object.fromEntries(boxes.map((entry) => [entry.state, entry.count])), { open: 2, claimed: 1, submitted: 0, verified: 1, withdrawn: 4 });
     assert.equal(sentBack, '1 sent back');
 
     const pairs = new Set(MACHINE.moves.flatMap((move) => move.from.map((from) => `${from}>${move.to}`)));
-    assert.equal(arrows.length, pairs.size, 'one arrow per pair of states a move joins');
+    assert.deepEqual(arrows.map((arrow) => arrow.pair).sort(), [...pairs].sort(), 'one arrow per pair of states a move joins');
     for (const move of MACHINE.moves) {
-      for (const from of move.from) assert.ok(arrows.some((title) => title.includes(`${move.verb}, ${from} to ${move.to}, by the ${move.by.join(' or ')}: `)), `${move.verb} from ${from} is on an arrow`);
+      for (const from of move.from) assert.ok(arrows.find((arrow) => arrow.pair === `${from}>${move.to}`).title.includes(`${move.verb}, ${from} to ${move.to}, by the ${move.by.join(' or ')}: `), `${move.verb} from ${from} is on its arrow`);
     }
-    assert.ok(arrows.some((title) => title.includes('claim, open to claimed, by the agent or coordinator: pullboard claim &lt;id&gt;. Made 3 times.\nChecks, in order:\n  the caller is the main checkout, or a worktree that joined a lane (NOT_JOINED)\n  the item exists (NO_ITEM)\n  the item is open or claimed (NOT_CLAIMABLE)')), 'each check in order, escaped');
-    assert.deepEqual(labels, [
-      'claim 3',
-      'claim 1',
-      'release · lapse · escalate · refreeze (none yet)',
-      'submit 2',
-      'accept 1',
-      'reject 1',
-      'escalate · refreeze (none yet)',
-      'withdraw 1',
-    ]);
+    assert.ok(arrows.some((arrow) => arrow.title.includes('claim, open to claimed, by the agent or coordinator: pullboard claim &lt;id&gt;. Made 6 times.\nChecks, in order:\n  the caller is the main checkout, or a worktree that joined a lane (NOT_JOINED)\n  the item exists (NO_ITEM)\n  the item is open or claimed (NOT_CLAIMABLE)')), 'each check in order, escaped');
+    // Every arrow carries its own label: the moves made along it and how often, or its moves when none was.
+    assert.deepEqual(Object.fromEntries(arrows.map((arrow) => [arrow.pair, arrow.label])), {
+      'open>claimed': 'claim 6',
+      'claimed>claimed': 'claim 1',
+      'claimed>open': 'release · lapse · escalate · refreeze (none yet)',
+      'claimed>submitted': 'submit 3',
+      'submitted>verified': 'accept 1',
+      'submitted>open': 'reject 1',
+      'open>open': 'escalate · refreeze (none yet)',
+      'open>withdrawn': 'withdraw 1',
+      'claimed>withdrawn': 'withdraw 2',
+      'submitted>withdrawn': 'withdraw 1',
+    });
 
     // The clock's lapse is never logged: an item that reads open after its claim, and a claim logged
     // on an item the replay holds claimed, each mean the clock moved first.
