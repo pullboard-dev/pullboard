@@ -28,6 +28,14 @@ A board in `.git`, lanes, a spec, hooks and a gate, with Pullboard's protocol ru
 - **A must-row has to be testable without a guess.** A vague row ("overdue tasks are flagged") let a time-zone bug through; the decompose guide now asks for the exact comparison, word or format.
 - **Verifiers try the edges:** today, zero, empty, the limit.
 
+## Done in 0.5: what the third micro-build taught
+
+The hidden suite passed 10 of 10, and the verifier caught a real bug by trying calendar edges. The process failed in new ways:
+
+- **Identity cannot leak through the main checkout.** A Haiku verifier's shell started each command in the main checkout, and when it dropped its `cd`, seven verdicts were filed as the coordinator's. A blocked builder then claimed another lane's rejected item from there and rebuilt it. Now the coordinator builds only its own lane's items, verifying in the main checkout needs `--as coordinator`, and every command pullboard suggests starts with `cd <worktree> &&`.
+- **A lane is done when its items are verified.** The store builder quit at "submitted", so when its item was rejected nobody was left to rework it. `next` now names the items still awaiting a verdict.
+- **Every cited row must be met.** A verifier accepted an item while calling one of its cited rows "not applicable". That is now a reject naming the row, and the planner cites only rows an item meets in full.
+
 ## Done in 0.5: from a real coordinator's week
 
 - **Ids are permanent.** A cut row had been deleted, and every commit that cited it lost its meaning. Now the commit refuses a deleted row, `spec check` finds ids once committed or cited and now gone, and a cut row is marked `wont` (won't build): kept, out of the counts, never cited again.
