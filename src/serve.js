@@ -17,6 +17,7 @@ import * as store from './board.js';
 import { cockpitPage } from './cockpit.js';
 import { COORDINATOR, loadConfig } from './config.js';
 import { repoInfo } from './git.js';
+import { productSummaries } from './products.js';
 import { listProjects } from './projects.js';
 import { loadSpec } from './spec.js';
 
@@ -119,6 +120,8 @@ export function projectState(root) {
       holds: store.laneHolds(board),
       spec: rows(config.spec),
       practice: rows(config.practice),
+      // Each product's progress, counted as pullboard status counts it (N28).
+      products: productSummaries(config, loadSpec(info.root, config), all),
     };
   });
 }

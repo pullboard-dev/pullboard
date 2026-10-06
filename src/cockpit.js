@@ -63,6 +63,16 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .start { margin: 12px 4px 0; padding: 10px 4px 0; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-muted); }
 .start summary { cursor: pointer; }
 .start form { margin-top: 10px; }
+.products { padding-top: 6px; }
+.prod { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; padding: 6px 8px 8px; font-size: 13px; }
+.prod p { margin: 0; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.prod p b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prod p span { color: var(--ink-faint); font: 11.5px var(--mono); white-space: nowrap; }
+.prod .bar { height: 6px; border-radius: 99px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.prod .bar i { display: block; height: 100%; background: var(--accent); }
+.prod small { display: flex; flex-wrap: wrap; gap: 2px 10px; color: var(--ink-muted); font-size: 12px; }
+.prod small span { display: inline-flex; align-items: center; gap: 5px; }
+.prod small .dot { display: inline-block; width: 7px; height: 7px; }
 .body { min-width: 0; }
 .top { position: sticky; top: 0; z-index: 10; min-height: var(--top); display: flex; align-items: stretch; gap: 12px; padding: 0 18px; background: var(--surface); border-bottom: 1px solid var(--line); }
 .tabs { display: flex; flex-wrap: wrap; gap: 2px; }
@@ -70,7 +80,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .tab.on { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
 .tab b { font: 600 11px var(--mono); color: var(--ink-faint); margin-left: 4px; }
 .live { margin-left: auto; align-self: center; font-size: 12px; color: var(--ink-faint); white-space: nowrap; }
-.switching main { opacity: .45; transition: opacity .12s; }
+.switching main, .switching .products { opacity: .45; transition: opacity .12s; }
 
 main { padding: 16px 18px 28px; }
 .two { display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 42%, 600px); gap: 16px; align-items: start; }
@@ -199,6 +209,7 @@ input, select { border: 1px solid var(--line-strong); background: var(--surface)
   <div class="side-body" id="side-body">
     <div class="label">Projects</div>
     <nav id="proj-list" aria-label="Projects on this machine"></nav>
+    <section class="products" id="products" aria-label="Products" hidden><div class="label">Products</div><div id="prod-list"></div></section>
     <details class="start"><summary>Start a board</summary><form id="init-form" class="panel-form"><label>Folder of a git repo<input id="init-path" required placeholder="/path/to/repo"></label><button class="go" type="submit">Init</button></form></details>
   </div>
 </aside>
@@ -335,6 +346,13 @@ function render() {
   const p = data.project;
   renderSide();
   if (!p) return;
+  // Each product's progress (N28): the rows an accepted item cites, and its items by state.
+  $('products').hidden = !p.products.length;
+  $('prod-list').innerHTML = p.products.map((x) => {
+    const states = [['open', '', x.items.open], ['building', 'building', x.items.claimed], ['to verify', 'verify', x.items.submitted], ['verified', 'verified', x.items.verified]].filter(([, , n]) => n);
+    return '<div class="prod" title="' + x.rows + ' rows in force, ' + x.approved + ' approved, ' + x.proven + ' cited by accepted items"><p><b>' + esc(x.name) + '</b><span>' + x.proven + '/' + x.rows + ' rows met</span></p><div class="bar"><i style="width:' + (x.rows ? Math.round((100 * x.proven) / x.rows) : 0) + '%"></i></div>'
+      + (states.length ? '<small>' + states.map(([label, dot, n]) => '<span><i class="dot ' + dot + '"></i>' + n + ' ' + label + '</span>').join('') + '</small>' : '') + '</div>';
+  }).join('');
   const items = p.items.filter((i) => i.status !== 'withdrawn');
   const by = (s) => items.filter((i) => stateOf(i) === s);
   const active = items.filter((i) => stateOf(i) !== 'verified');
