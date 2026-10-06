@@ -446,6 +446,40 @@ test('the agents panel says what each agent holds [N26]', async () => {
   }
 });
 
+test('the tab title says what needs you [N26]', async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  box.run(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
+  build(box, alpha, 1, 'greeting.html');
+  sendBack(box, alpha, 1, 'no greeting');
+  build(box, alpha, 2, 'farewell.html');
+  const beta = project(box, 'beta');
+  box.run(beta.repo, 'hold', 'web', '--reason', 'G2 is changing');
+  const calm = project(box, 'calm');
+  const view = await startView(box);
+  const nobody = await startView(machine());
+  try {
+    const page = await openPage(view);
+    const title = () => page.run('document.title');
+    assert.equal(title(), '(3) alpha · Pullboard', 'one sent back and one to verify here, one lane held in beta');
+    page.run(`switchTo(${JSON.stringify(calm.repo)})`);
+    assert.equal(title(), '(3) calm · Pullboard', 'a switch names the project at once; the count still covers them all');
+    await page.run('refresh()');
+    assert.equal(title(), '(3) calm · Pullboard');
+
+    box.run(alpha.repo, 'withdraw', '1', 'the greeting moved to the next release');
+    accept(box, alpha, 2);
+    box.run(beta.repo, 'hold', 'web', '--off');
+    await page.run('refresh()');
+    assert.equal(title(), 'calm · Pullboard', 'nothing needs the person, so no count');
+
+    assert.equal((await openPage(nobody)).run('document.title'), 'Pullboard', 'with no project to show');
+  } finally {
+    await view.stop();
+    await nobody.stop();
+  }
+});
 /**
  * The lifecycle drawing: each box's state, count and title; each arrow's title, the pair of states
  * its title starts with, and the label drawn with it, if any.
