@@ -654,3 +654,25 @@ test('the run pack names verified items that touched the same files, so a cold a
   const packs = join(box.dir, 'repo', '.git', 'worktrees', runner.split('/').at(-1), 'pullboard', 'packs');
   assert.match(readFileSync(join(packs, '2-light-1.md'), 'utf8'), /## Finished items that touched the same files\n- #1 Greet: web\/page.js\nFollow the patterns/);
 });
+
+test('a fresh worktree with no install of its own runs pullboard from the main checkout, for git hooks and the session hook [I6]', () => {
+  const box = project();
+  const bare = { ...box.env, PATH: '/usr/bin:/bin' };
+  const commit = () => spawnSync('git', ['commit', '-q', '-m', 'feat(web): page [G1]'], { cwd: box.web, env: bare, encoding: 'utf8' });
+  const { command } = JSON.parse(readFileSync(join(box.web, '.claude', 'settings.json'), 'utf8')).hooks.SessionStart[0].hooks[0];
+  const resume = () => spawnSync('sh', ['-c', command], { cwd: box.web, env: bare, encoding: 'utf8' });
+  mkdirSync(join(box.web, 'web'));
+  writeFileSync(join(box.web, 'web', 'page.html'), '<h1>Hi</h1>');
+  box.git(box.web, 'add', '-A');
+  const refused = commit();
+  assert.notEqual(refused.status, 0);
+  assert.match(refused.stderr, /pullboard is not installed/);
+  assert.deepEqual([resume().status, resume().stdout], [0, ''], 'no install anywhere: the session still starts, silently');
+  const bin = join(box.repo, 'node_modules', '.bin');
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`);
+  chmodSync(join(bin, 'pullboard'), 0o755);
+  const committed = commit();
+  assert.equal(committed.status, 0, committed.stderr);
+  assert.match(resume().stdout, /^resume: web-1, web lane/);
+});

@@ -107,11 +107,11 @@ function writeAgentDocs(root) {
 }
 
 /**
- * The session hook's command: pullboard from the repo's own install when there is one, else from the
- * PATH, and silence when neither is there, so a session never fails to start over it.
+ * The session hook's command: pullboard from this checkout's install, else the main checkout's,
+ * else the PATH, and silence when there is none, so a session never fails to start over it.
  */
 export const RESUME_HOOK =
-  '[ -x node_modules/.bin/pullboard ] && exec node_modules/.bin/pullboard resume; command -v pullboard >/dev/null && exec pullboard resume; true';
+  'm=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)/..; for p in node_modules/.bin/pullboard "$m/node_modules/.bin/pullboard"; do [ -x "$p" ] && exec "$p" resume; done; command -v pullboard >/dev/null && exec pullboard resume; true';
 
 /**
  * Have Claude Code run `pullboard resume` whenever a session starts, resumes or is compacted (I6), so

@@ -305,8 +305,8 @@ export function prePushProblems(root, refsText) {
 }
 
 /**
- * The shell script for one hook: it runs pullboard from the repo's own install when there is one,
- * else from the PATH.
+ * The shell script for one hook: it runs pullboard from this checkout's install, else the main
+ * checkout's, which a fresh agent worktree shares, else the PATH.
  *
  * @param {string} hook
  * @returns {string}
@@ -317,7 +317,10 @@ export function hookScript(hook) {
     '#!/bin/sh',
     `# ${HOOK_MARK}: runs the pullboard ${hook} checks. Edit pullboard.json, not this file.`,
     'root=$(git rev-parse --show-toplevel)',
-    `if [ -x "$root/node_modules/.bin/pullboard" ]; then exec "$root/node_modules/.bin/pullboard" hook ${hook}${args}; fi`,
+    'main=$(git rev-parse --path-format=absolute --git-common-dir)/..',
+    'for bin in "$root/node_modules/.bin/pullboard" "$main/node_modules/.bin/pullboard"; do',
+    `  if [ -x "$bin" ]; then exec "$bin" hook ${hook}${args}; fi`,
+    'done',
     `if command -v pullboard >/dev/null 2>&1; then exec pullboard hook ${hook}${args}; fi`,
     'echo "pullboard is not installed; npm i -D @pullboard/local, or npm i -g @pullboard/local" >&2',
     'exit 1',
