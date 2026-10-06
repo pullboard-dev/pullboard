@@ -39,6 +39,7 @@ import { briefFiles } from './brief.js';
 import { runItems } from './run.js';
 import { parseProblems, sweepItems } from './sweep.js';
 import { renderSpecView } from './view.js';
+import { tour } from './tour.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
@@ -47,6 +48,7 @@ export const HELP = `pullboard ${VERSION}: the local-first work board for teams 
 Nothing ships until a second agent verifies it.
 
 Set up
+  pullboard tour                        see it work: a reject and its rework, scripted, in thirty seconds
   pullboard init                        config, SPEC.md, agent instructions, git hooks, board
   pullboard worktree <lane> [--route light]   make a worktree for a new agent in a lane, joined, and say what to run next
   pullboard join <lane> [--route light] register the worktree you are in as an agent in a lane
@@ -639,7 +641,7 @@ function readCommands(io, { first, values }) {
       }));
       const built = items.filter((item) => item.item_built_by && item.item_status !== 'withdrawn').reverse();
       const cell = (text) => String(text ?? '').replace(/\|/g, '/').replace(/\s+/g, ' ');
-      io.say(`${stats.items.verified} verified by a second agent · ${stats.items.submitted} awaiting verification · ${stats.rejected} rejections along the way`);
+      io.say(`${stats.items.verified} verified by a second agent · ${stats.items.submitted} awaiting verification · ${stats.rejected} rejection${stats.rejected === 1 ? '' : 's'} along the way`);
       io.say('');
       io.say('| # | Lane | Item | Spec | Built by | Verified by | Commit | Merged |');
       io.say('| --- | --- | --- | --- | --- | --- | --- | --- |');
@@ -1151,6 +1153,7 @@ export async function main(argv, streams) {
   }
   const args = { first, second, rest, values };
   try {
+    if (command === 'tour') return tour(io);
     if (command === 'spec') return specCommand(io, args);
     if (command === 'prompt') {
       let root = io.cwd;

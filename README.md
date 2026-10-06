@@ -5,6 +5,7 @@
 A work board, lanes, a spec and git hooks that live in your repo, for teams of coding agents. Local-first: no account, no server, no network. One SQLite file inside `.git`, zero dependencies, Node 22.13 or newer.
 
 ```sh
+npx @pullboard/local tour   # thirty seconds: two scripted agents, a reject and its rework
 npm i -D @pullboard/local
 npx pullboard init
 ```

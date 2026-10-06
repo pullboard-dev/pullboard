@@ -611,3 +611,23 @@ test('init adds a Claude Code session hook that runs resume, and keeps every oth
   assert.equal(bare.status, 0, 'without pullboard installed, the session still starts');
   assert.equal(bare.stdout, '');
 });
+
+test('the tour runs a reject and its rework on a throwaway repo, in under thirty seconds [N10]', () => {
+  const box = sandbox();
+  const started = Date.now();
+  const shown = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: { ...box.env, TMPDIR: box.dir }, encoding: 'utf8' });
+  assert.equal(shown.status, 0, `${shown.stdout}${shown.stderr}`);
+  assert.ok(Date.now() - started < 30_000, 'thirty seconds');
+  assert.match(shown.stdout, /review-1 \$ pullboard verify 1 reject --reason BEHAVIOR_MISMATCH/);
+  assert.match(shown.stdout, /sent back: #1 BEHAVIOR_MISMATCH by review-1: greet\(''\) returns "Hello, !"/);
+  assert.match(shown.stdout, /with the fix removed\n {7}# pass 1\n {7}# fail 1/);
+  assert.match(shown.stdout, /verified #1: CRITERION_MET/);
+  assert.match(shown.stdout, /\| 1 \| app \| Greeting \| G1 \| app-1 \| review-1 \|/);
+  const repo = /Look around: cd (\S+) && pullboard log/.exec(shown.stdout)[1];
+  assert.match(box.git(repo, 'log', '--format=%an %s', '-1'), /^app-1 fix\(app\): a blank name greets the world \[G1\]$/);
+  const empty = join(box.dir, 'empty');
+  mkdirSync(empty);
+  const stopped = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: { ...box.env, TMPDIR: box.dir, PATH: empty }, encoding: 'utf8' });
+  assert.equal(stopped.status, 1);
+  assert.match(stopped.stdout, /The tour stopped: git init -q -b main exited null/);
+});

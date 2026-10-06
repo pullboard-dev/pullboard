@@ -85,7 +85,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - N7 [draft, must] `pullboard plan` proposes lanes and items from the spec and the repo; --apply writes them.
 - N8 [draft, must] `pullboard run` starts configured agent commands per lane and role, under budgets and stops.
 - N9 [draft, aim] `pullboard report` renders spec coverage, verified items and receipts as one page.
-- N10 [draft, aim] `pullboard tour` shows a reject and its rework with scripted agents in thirty seconds.
+- N10 [draft, aim] `pullboard tour` shows a reject and its rework with scripted agents in thirty seconds. | gate: test/e2e.test.js
 - N11 [draft, aim] A git-pullboard bin, so `git pullboard <command>` works.
 - N12 [draft, aim] `pullboard mcp` serves the same commands as MCP tools.
 - N13 [approved, must] `next` names items still awaiting a verdict; a lane is done when its items are verified. | gate: test/board.test.js | serves: N2
