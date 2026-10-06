@@ -573,7 +573,7 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null }
     }
     const paused = laneHold(board, item.item_lane);
     if (paused && !(isMine && isHeld(board, item))) {
-      throw new Refused('LANE_HELD', `${paused.hold_by} holds the ${item.item_lane} lane: ${paused.hold_reason}. Wait for it: pullboard next --wait 30`);
+      throw new Refused('LANE_HELD', `${paused.hold_by} holds the ${item.item_lane} lane: ${paused.hold_reason}. Wait for it: pullboard next --wait 9 (minutes)`);
     }
     if (item.item_parent_id === null) {
       const other = board.db

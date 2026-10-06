@@ -419,6 +419,7 @@ function resumeHere(io) {
     const all = store.listItems(board, { all: true });
     return {
       me,
+      all,
       holding: all.filter((item) => item.item_status === 'claimed' && item.item_owner === me.id),
       sentBack: all
         .filter((item) => item.item_status === 'open' && item.item_verdict === 'REJECT' && item.item_built_by === me.id)
@@ -467,14 +468,17 @@ function resumeHere(io) {
     say(`the ${me.lane} lane is held by ${card.hold.hold_by}: ${card.hold.hold_reason}`);
   }
   if (card.unread) say(`${plural(card.unread, 'unread shout')}; newest from ${card.newest[0].shout_from}: ${firstLine(card.newest[0].shout_text)} (pullboard inbox reads them)`);
-  const mineOpen = card.open.filter((item) => item.item_lane === me.lane).length;
+  const inLane = card.open.filter((item) => item.item_lane === me.lane);
+  const isVerified = (id) => card.all.find((other) => other.item_id === Number(id))?.item_status === 'verified';
+  const ready = inLane.filter((item) => !item.item_after || item.item_after.split(',').every(isVerified)).length;
   let next;
   if (card.holding.length) next = `build #${card.holding[0].item_id}, commit, then pullboard submit ${card.holding[0].item_id}`;
   else if (card.sentBack.length) next = `pullboard claim ${card.sentBack[0].item.item_id}, fix what the verifier found, and submit again`;
   else if (isMain) next = card.toVerify.length ? 'pullboard next --verify --as coordinator' : 'curate the queue: pullboard add, edit, hold';
-  else if (card.hold) next = 'wait for the hold to lift: pullboard next --wait 30';
-  else if (mineOpen) next = `pullboard next (${mineOpen} open in your lane)`;
-  else if (card.awaiting.length) next = 'pullboard next --wait 30; a rejected item comes back to your lane';
+  else if (card.hold) next = 'wait for the hold to lift: pullboard next --wait 9 (minutes)';
+  else if (ready) next = `pullboard next (${ready} ready in your lane)`;
+  else if (inLane.length) next = `pullboard next --wait 9 (minutes); ${inLane.length} in your lane ${inLane.length === 1 ? 'waits' : 'wait'} on other work`;
+  else if (card.awaiting.length) next = 'pullboard next --wait 9 (minutes); a rejected item comes back to your lane';
   else next = 'nothing open in your lane; pullboard next --verify names work you can check';
   say(`next: ${next}`);
   return 0;
@@ -827,7 +831,7 @@ async function nextHere(io, values) {
     }
     if (!found.retry && Date.now() >= deadline) {
       const waited = minutes ? ` after ${minutes} minutes` : '';
-      io.err(`pullboard: [NOTHING_FREE] ${found.reasons.join('; ')}${waited}. To keep looking: pullboard next --wait 30${values.verify ? ' --verify' : ''}`);
+      io.err(`pullboard: [NOTHING_FREE] ${found.reasons.join('; ')}${waited}. To keep looking: pullboard next --wait 9${values.verify ? ' --verify' : ''} (minutes; give the command a ten-minute timeout)`);
       return 1;
     }
     if (!found.retry) await new Promise((done) => setTimeout(done, 5000));

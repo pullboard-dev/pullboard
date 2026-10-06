@@ -524,7 +524,7 @@ test('resume puts an agent back to work from the board: its claim, its branch, w
   assert.equal(fresh.code, 0, fresh.err);
   assert.match(fresh.out, /^resume: web-1, web lane, at /);
   assert.match(fresh.out, /branch web\/one: 0 ahead of main, 0 behind/);
-  assert.match(fresh.out, /next: pullboard next \(1 open in your lane\)/);
+  assert.match(fresh.out, /next: pullboard next \(1 ready in your lane\)/);
   box.run(box.web, 'next');
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web', 'page.html'), '<h1>Hi</h1>');
@@ -819,4 +819,20 @@ test('output into a reader that stops early ends quietly [N24]', async () => {
   const code = await new Promise((done) => child.on('close', done));
   assert.equal(stderr, '');
   assert.equal(code, 0);
+});
+
+test('every wait pullboard suggests names its unit and fits one ten-minute tool call [N25]', () => {
+  const box = project();
+  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');
+  box.run(box.repo, 'add', 'web', 'Second', '--specs', 'G1', '--after', '1');
+  box.run(box.web, 'claim', '1');
+  commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
+  box.run(box.web, 'submit', '1');
+  assert.match(box.run(box.web, 'next').err, /To keep looking: pullboard next --wait 9 \(minutes; give the command a ten-minute timeout\)/);
+  assert.match(box.run(box.web, 'resume').out, /next: pullboard next --wait 9 \(minutes\); 1 in your lane waits on other work/);
+  box.run(box.repo, 'hold', 'web', '--reason', 'G1 is changing');
+  assert.match(box.run(box.web, 'resume').out, /next: wait for the hold to lift: pullboard next --wait 9 \(minutes\)/);
+  const agents = readFileSync(join(box.repo, 'AGENTS.md'), 'utf8');
+  assert.match(agents, /`pullboard next --wait 9` keeps looking for up to 9 minutes, which fits one tool call with a ten-minute timeout/);
+  assert.doesNotMatch(agents, /--wait 30/);
 });
