@@ -91,6 +91,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - N15 [approved, must] `pullboard sweep` files a checker's problems as light items, one per file, each checked by that checker. | gate: test/sweep.test.js, test/e2e.test.js
 - N16 [approved, must] The runner takes a command per tier and merges an item's verified dependencies before building it. | gate: test/e2e.test.js | serves: N14
 - N17 [approved, must] Sweep runs each item's check once before filing; a check that passes on a flagged file is refused. | gate: test/e2e.test.js | serves: N15
+- N18 [approved, must] Each tier runs a ladder of commands, cheapest first; a rung that failed a kind of item twice and never fixed it is skipped. | gate: test/route.test.js, test/e2e.test.js | serves: N16
 
 ## H · Hosted
 - H1 [pending, aim] `pullboard sync` mirrors the local board to pullboard.dev for teams across machines.
