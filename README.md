@@ -22,7 +22,7 @@ Pullboard makes "done" mean something:
 - **Agents stay in their lanes.** Pre-commit refuses changes outside a lane's folders, moves and deletes included, and no agent can build another lane's item from the main checkout.
 - **Every commit traces to the spec.** `feat` and `fix` commits cite the spec ids they serve, and the ids must exist.
 - **Ids are permanent.** A commit that deletes a spec row is refused, and `spec check` finds any id that history or the board cites and the spec has lost. A row the client cuts stays, marked `wont`, so every old reference keeps its meaning.
-- **Cheaper models get the work they can do.** Items route by the model they need: `light` (a small or local model), `mid` (Haiku, Sonnet) or `strong`. Below strong, an item must be buildable cold: a brief naming its files and its test, a criterion, and a check command. An agent that joins on a route takes its own tier first, then lighter ones.
+- **Cheaper models get the work they can do.** Items route by the model they need: `light` (a small or local model), `mid` (a capable general model) or `strong` (a frontier model). Below strong, an item must be buildable cold: a brief naming its files and its test, a criterion, and a check command. An agent that joins on a route takes its own tier first, then lighter ones.
 - **Routine work runs unattended.** `pullboard run --agent "<command>"` builds routed items with any agent you can call from a shell, such as OpenCode on a local model. Each attempt gets a context pack holding the bar, the brief and the files themselves. A failed check feeds the next attempt. Green work is submitted for a second agent to verify; work still red is pinned and escalated one tier up.
 - **Rigor runs itself.** `pullboard sweep` turns a linter's, type checker's or test reporter's problems into light items, one per file, each proven by the same tool, and `pullboard run` works through them on a local model.
 - **No agent spends a turn on what a tool can fix.** Pre-commit runs your fast fixers, such as prettier, on fully staged files and restages them.
@@ -53,15 +53,15 @@ Init installs them as Claude Code skills. Any other agent reads them with `pullb
 
 Pullboard never calls a model. `pullboard run` drives any command that can read a file and edit files: a coding agent's CLI, your own script, a local model behind a small loop. The contract:
 
-- **In:** a context pack for one item, at `$PULLBOARD_PACK`. It says what done means, names the check (also in `$PULLBOARD_CHECK`), and carries the brief, the rules and the files as they are now.
+- **In:** a context pack for one item, at `$PULLBOARD_PACK`. It says what done means, names the check (also in `$PULLBOARD_CHECK`), and carries the brief, the rules and the files as they are now. `$PULLBOARD_ITEM`, `$PULLBOARD_ATTEMPT` and `$PULLBOARD_TIER` say which item, which try and which tier.
 - **Out:** changed files in the worktree. The runner runs the check itself, reverts changes outside the brief's files, commits, runs the gate and submits; a second agent verifies.
 - **On failure:** the next attempt's pack carries the failure, and after the last attempt the item moves one tier up, its work pinned.
 
 Give each tier its own command:
 
 ```bash
-pullboard run --agent-light 'opencode run --auto -m ollama/qwen3:8b "$(cat "$PULLBOARD_PACK")"' \
-              --agent-mid 'claude -p --model haiku --permission-mode acceptEdits < "$PULLBOARD_PACK"'
+pullboard run --agent-light 'opencode run --auto "$(cat "$PULLBOARD_PACK")"' \
+              --agent-mid 'claude -p --permission-mode acceptEdits < "$PULLBOARD_PACK"'
 ```
 
 Use whatever you run today: Claude Code, Codex, OpenCode, Aider, or a model server and a loop of your own.
