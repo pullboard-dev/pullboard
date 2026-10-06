@@ -83,6 +83,9 @@ export function projectState(root) {
     const status = new Map(all.map((item) => [item.item_id, item.item_status]));
     const rows = (file) => loadSpec(info.root, { ...config, spec: file }).rows.map(({ id, status: state, tier, text, gate, serves, section }) => ({ id, status: state, tier, text, gate, serves, section }));
     const verdict = (row) => ({ decision: row.verdict_decision, reason: row.verdict_reason, note: row.verdict_note, by: row.verdict_by, at: row.verdict_at, commit: row.verdict_commit });
+    const log = store.events(board);
+    // When each agent last moved on the board: the log is in order, so the last write wins.
+    const lastMove = new Map(log.map((event) => [event.event_by, event.event_at]));
     return {
       root: info.root,
       lanes: [COORDINATOR, ...Object.keys(config.lanes)],
@@ -111,8 +114,8 @@ export function projectState(root) {
         };
       }),
       shouts: store.recentShouts(board, 40),
-      events: store.events(board).slice(-80).reverse(),
-      agents: store.listAgents(board),
+      events: log.slice(-80).reverse(),
+      agents: store.listAgents(board).map((agent) => ({ ...agent, lastMoveAt: lastMove.get(agent.agent_id) ?? null })),
       holds: store.laneHolds(board),
       spec: rows(config.spec),
       practice: rows(config.practice),

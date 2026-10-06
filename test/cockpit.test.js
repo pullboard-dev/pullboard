@@ -308,6 +308,56 @@ test('the sidebar lists every project and what needs the person [N26]', async ()
 });
 
 /**
+ * The agents the panel shows: id, the path on hover, its last move, what it holds and whether it
+ * reads idle, and its entry's text with the tags taken out.
+ */
+function agentEntries(html) {
+  return html.split('<div class="agent">').slice(1).map((entry) => ({
+    id: /<b[^>]*>([^<]*)<\/b>/.exec(entry)?.[1],
+    path: /<b title="([^"]*)"/.exec(entry)?.[1],
+    age: /<time[^>]*>([^<]*)<\/time>/.exec(entry)?.[1],
+    holds: [...entry.matchAll(/data-go="item:(\d+)"[^>]*><span>([^]*?)<\/span><span class="chip[^"]*">([^<]*)</g)].map((match) => `${match[2]}: ${match[3]}`),
+    idle: entry.includes('<small>idle</small>'),
+    text: entry.replace(/<[^>]*>/g, ' '),
+  }));
+}
+
+test('the agents panel says what each agent holds [N26]', async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  const second = join(box.dir, 'alpha-web-two');
+  box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
+  box.run(second, 'join', 'web');
+  for (const title of ['Header', 'Farewell', 'Greeting <b>bold</b>', 'Footer']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
+  // The board lists items newest first; each agent's rows must put its higher id second.
+  build(box, alpha, 3, 'greeting.html');
+  const two = { ...alpha, web: second, branch: 'web/two' };
+  build(box, two, 2, 'farewell.html');
+  sendBack(box, two, 2, 'no farewell on the page');
+  build(box, two, 4, 'footer.html');
+  box.run(alpha.web, 'claim', '1');
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    const agents = agentEntries(page.show('agents'));
+    assert.deepEqual(agents.map((agent) => [agent.id, agent.holds, agent.idle]), [
+      ['coordinator', [], true],
+      // The claim first, then work sent back, then work waiting for a verdict.
+      ['web-1', ['#1 Header: building', '#3 Greeting &lt;b&gt;bold&lt;/b&gt;: to verify'], false],
+      ['web-2', ['#2 Farewell: sent back', '#4 Footer: to verify'], false],
+    ]);
+    for (const agent of agents) assert.match(agent.age, /^(now|\d+[mhd])$/, `${agent.id} shows when it last moved`);
+    assert.deepEqual(agents.map((agent) => agent.path), [alpha.repo, alpha.web, second], 'each path is on hover');
+    for (const agent of agents) assert.ok(!agent.text.includes(agent.path), `${agent.id}'s path is not in the text`);
+
+    await page.click({ go: 'item:1' });
+    assert.match(page.show('detail'), /<h2><span>#1<\/span>Header<\/h2>/, 'a held item opens on the Items tab');
+  } finally {
+    await view.stop();
+  }
+});
+
+/**
  * The coordinator accepts an item from a checkout of its submitted commit.
  */
 function accept(box, p, id) {
