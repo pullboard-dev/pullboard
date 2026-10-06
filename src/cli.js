@@ -78,7 +78,8 @@ Work
                                         $PULLBOARD_ATTEMPT, $PULLBOARD_TIER); green work is submitted, red escalated
                 [--agent-light "..."] [--agent-mid "..."] [--agent-strong "..."]   a command per tier
   pullboard list [lane] [--all] [--route light|mid|strong]   open and active items; --all adds closed ones
-  pullboard show <id>                   an item, the criterion frozen at claim, its verdicts
+  pullboard show <id> [--history]       an item, the criterion frozen at claim, its verdicts: the latest in full,
+                                        earlier ones as one line; --history prints every note in full
   pullboard next [--wait <minutes>]     claim the next item in your lane that is free to start
   pullboard next --verify               name the next submitted item you can check
   pullboard check [id]                  run your item's check, the command that proves it (the project gate is pullboard gate)
@@ -154,6 +155,7 @@ const OPTIONS = {
   all: { type: 'boolean' },
   must: { type: 'boolean' },
   json: { type: 'boolean' },
+  history: { type: 'boolean' },
   help: { type: 'boolean', short: 'h' },
   version: { type: 'boolean', short: 'v' },
 };
@@ -333,6 +335,23 @@ function whoAmI(ctx, board) {
  * @returns {(item: any) => { text: string, digest: string }}
  */
 const freezer = (ctx) => (item) => frozenCriterion(loadSpec(ctx.info.root, ctx.config), item);
+
+/** How many characters of an earlier verdict's note show prints (N30). */
+const NOTE_LINE = 120;
+
+/**
+ * A note's first line, cut to NOTE_LINE characters with … marking the cut. A line ends at any line
+ * break, CRLF included, and characters are counted as a reader sees them, so a cut never splits an
+ * emoji or an accented letter.
+ *
+ * @param {string} note
+ * @returns {string}
+ */
+function firstLineOf(note) {
+  const line = note.split(/\r\n|[\n\r\u2028\u2029]/)[0];
+  const characters = [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(line)];
+  return characters.length > NOTE_LINE ? `${characters.slice(0, NOTE_LINE).map((part) => part.segment).join('')}…` : line;
+}
 
 /**
  * One item on one line: id, status and holder, lane, title, spec ids.
@@ -681,7 +700,12 @@ function readCommands(io, { first, values }) {
         frozen.rows.forEach((row) => io.say(`  ${row.id}: ${row.text}${row.gate ? `  | gate: ${row.gate}` : ''}`));
       }
       if (item.item_commit) io.say(`submitted by ${item.item_built_by} at ${item.item_commit}`);
-      verdicts.forEach((verdict) => io.say(`${verdict.verdict_decision} ${verdict.verdict_reason} by ${verdict.verdict_by} at ${verdict.verdict_commit.slice(0, 12)}${verdict.verdict_note ? `: ${verdict.verdict_note}` : ''}`));
+      // Earlier verdicts as one line each, so an item sent back several times stays short to read
+      // (N30); --history prints every note in full.
+      const verdictLine = (verdict) => `${verdict.verdict_decision} ${verdict.verdict_reason} by ${verdict.verdict_by} at ${verdict.verdict_commit.slice(0, 12)}`;
+      const notes = verdicts.map((verdict, index) => (values.history || index === verdicts.length - 1 ? verdict.verdict_note : firstLineOf(verdict.verdict_note)));
+      verdicts.forEach((verdict, index) => io.say(`${verdictLine(verdict)}${notes[index] ? `: ${notes[index]}` : ''}`));
+      if (notes.some((note, index) => note !== verdicts[index].verdict_note)) io.say(`(earlier verdicts shortened; every note in full: pullboard show ${id} --history)`);
       if (item.item_merged_commit) io.say(`merged as ${item.item_merged_commit}`);
       if (item.item_withdrawn_reason) io.say(`withdrawn: ${item.item_withdrawn_reason}`);
       return 0;
