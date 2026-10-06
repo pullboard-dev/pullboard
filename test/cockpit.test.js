@@ -189,10 +189,27 @@ async function settle(inflight) {
 }
 
 /**
- * Open the page a view serves, at a window width, and wait for its first board. show(id) is what
- * that region holds; click() and type() act as the person would.
+ * The browser's Date with its clock moved some days on, as the page would read it then.
  */
-async function openPage(view, { width = 1280 } = {}) {
+function daysOn(days) {
+  const shift = days * 86_400_000;
+  return class extends Date {
+    constructor(...args) {
+      super(...(args.length ? args : [Date.now() + shift]));
+    }
+
+    static now() {
+      return Date.now() + shift;
+    }
+  };
+}
+
+/**
+ * Open the page a view serves, at a window width, and wait for its first board; `later` moves the
+ * page's clock that many days on. show(id) is what that region holds; click() and type() act as
+ * the person would.
+ */
+async function openPage(view, { width = 1280, later = 0 } = {}) {
   const html = await (await fetch(view.link)).text();
   const script = html.slice(html.indexOf('<script>') + '<script>'.length, html.lastIndexOf('</script>'));
   const known = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
@@ -218,6 +235,7 @@ async function openPage(view, { width = 1280 } = {}) {
     innerHeight: 800,
     matchMedia: (query) => ({ matches: width <= Number(/max-width:\s*(\d+)px/.exec(query)?.[1] ?? Infinity) }),
     setInterval: () => 0,
+    ...(later ? { Date: daysOn(later) } : {}),
     setTimeout,
     clearTimeout,
     fetch: (path, init) => {
@@ -717,6 +735,43 @@ test('the detail opens on the top item, not a blank form [N26]', async () => {
     assert.deepEqual(rows(), [], 'no chip lists the only item: it is withdrawn');
     assert.deepEqual(form(), [true, false], 'but an item exists, so no form');
     assert.match(page.show('detail'), /Pick an item to see its criterion, verdicts and history\./);
+  } finally {
+    await view.stop();
+  }
+});
+
+test('times say which day they were [N26]', async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  build(box, alpha, 1, 'greeting.html');
+  box.run(alpha.repo, 'shout', 'web', '#1 is in');
+  const view = await startView(box);
+  try {
+    const days = (html) => [...html.matchAll(/<h4 class="day">([^<]*)<\/h4>/g)].map((match) => match[1]);
+    const times = (html) => [...html.matchAll(/<time>([^<]*)<\/time>/g)].map((match) => match[1]);
+    const bare = (list) => list.length > 0 && list.every((time) => /^\d\d:\d\d$/.test(time));
+
+    const now = await openPage(view);
+    assert.deepEqual([days(now.show('feed')), days(now.show('activity'))], [['Today'], ['Today']]);
+    assert.ok(bare(times(now.show('detail'))), 'a history from today shows bare times');
+
+    const tomorrow = await openPage(view, { later: 1 });
+    assert.deepEqual([days(tomorrow.show('feed')), days(tomorrow.show('activity'))], [['Yesterday'], ['Yesterday']]);
+
+    const weekday = new Date().toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    const date = new Date().toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const later = await openPage(view, { later: 2 });
+    assert.deepEqual([days(later.show('feed')), days(later.show('activity'))], [[weekday], [weekday]], 'two days on, the feeds name the day');
+    assert.ok(bare(times(later.show('feed'))) && bare(times(later.show('activity'))), 'their rows keep the clock time');
+    const history = times(later.show('detail'));
+    assert.ok(history.length === 3 && history.every((time) => new RegExp(`^${date} \\d\\d:\\d\\d$`).test(time)), `the history dates each move: ${history}`);
+
+    // A heading wherever the day changes, and only there.
+    const at = (day, hour) => new Date(2026, 9, day, hour).toISOString();
+    const rows = JSON.stringify([at(6, 15), at(6, 9), at(5, 20), at(3, 12)].map((iso) => ({ iso })));
+    const html = now.run(`byDay(${rows}, (x) => x.iso, () => '<div></div>')`);
+    assert.equal(html.replace(/<h4 class="day">[^<]*<\/h4>/g, 'H').replaceAll('<div></div>', 'r'), 'HrrHrHr');
   } finally {
     await view.stop();
   }
