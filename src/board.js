@@ -511,10 +511,10 @@ export function escalate(board, id, { agentId, note, attempt = '' }) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, n: number, seconds: number, result: string }} attempt
+ * @param {{ agentId: string, n: number, seconds: number, result: string, rung?: number }} attempt
  */
-export function recordAttempt(board, id, { agentId, n, seconds, result }) {
-  logEvent(board, agentId, 'attempt', id, { n, seconds, result });
+export function recordAttempt(board, id, { agentId, n, seconds, result, rung = 1 }) {
+  logEvent(board, agentId, 'attempt', id, { n, seconds, result, ...(rung > 1 ? { rung } : {}) });
 }
 
 /**
