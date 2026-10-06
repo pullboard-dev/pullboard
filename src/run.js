@@ -290,7 +290,7 @@ async function buildItem(ctx, item, { agents, attempts, minutes, deps, me }) {
     const pack = join(packs, `${id}-${item.item_route}-${attempt}.md`);
     writeFileSync(pack, packText(root, fresh, { attempt, attempts, digest, earlier }));
     ctx.io.say(`#${id} attempt ${attempt}/${attempts}: running the ${item.item_route} agent`);
-    const env = { ...process.env, PULLBOARD_PACK: pack, PULLBOARD_ITEM: String(id), PULLBOARD_ATTEMPT: String(attempt) };
+    const env = { ...process.env, PULLBOARD_PACK: pack, PULLBOARD_CHECK: item.item_check, PULLBOARD_ITEM: String(id), PULLBOARD_ATTEMPT: String(attempt) };
     const built = await runCommand(agent, { cwd: root, env, timeoutMs: minutes * 60_000 });
     writeFileSync(join(packs, `${id}-${item.item_route}-${attempt}.log`), built.output);
     const outside = changedSince(root, start).filter((path) => !inScope(path));

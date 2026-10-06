@@ -64,7 +64,8 @@ Work
   pullboard escalate <id> --note "what was tried and how it failed"   hand it one tier up
   pullboard run --agent "<command>" [--attempts 3] [--minutes 15] [--items N] [--wait M]
                                         build routed items unattended in this worktree: the agent command reads
-                                        the context pack at $PULLBOARD_PACK; green work is submitted, red escalated
+                                        the context pack at $PULLBOARD_PACK (and $PULLBOARD_CHECK, $PULLBOARD_ITEM,
+                                        $PULLBOARD_ATTEMPT); green work is submitted, red escalated
                 [--agent-light "..."] [--agent-mid "..."] [--agent-strong "..."]   a command per tier
   pullboard list [lane] [--all] [--route light|mid|strong]   open and active items; --all adds closed ones
   pullboard show <id>                   an item, the criterion frozen at claim, its verdicts
