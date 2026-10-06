@@ -9,6 +9,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - P2 [approved, must] Works offline in any git repo. No account, no network. | gate: test/e2e.test.js
 - P3 [approved, must] Zero runtime dependencies. Node 22.13 or newer. | gate: test/package.test.js
 - P4 [approved, must] Every refusal names its rule and the next step. | gate: review
+- P5 [approved, must] The core names no model, inference engine or vendor and opens no network connection; agents meet it only through the agent contract. | gate: test/boundary.test.js
 
 ## B · Board
 - B1 [approved, must] One SQLite file in the git common dir. Every worktree sees it; nothing is committed. | gate: test/e2e.test.js
@@ -91,7 +92,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - N15 [approved, must] `pullboard sweep` files a checker's problems as light items, one per file, each checked by that checker. | gate: test/sweep.test.js, test/e2e.test.js
 - N16 [approved, must] The runner takes a command per tier and merges an item's verified dependencies before building it. | gate: test/e2e.test.js | serves: N14
 - N17 [approved, must] Sweep runs each item's check once before filing; a check that passes on a flagged file is refused. | gate: test/e2e.test.js | serves: N15
-- N18 [approved, must] Each tier runs a ladder of commands, cheapest first; a rung that fixed under half of two or more similar items is skipped. | gate: test/route.test.js, test/e2e.test.js | serves: N16
+- N18 [retired] Model ladders and routing by history left the core for a separate project; the core keeps tiers and escalation.
 
 ## H · Hosted
 - H1 [pending, aim] `pullboard sync` mirrors the local board to pullboard.dev for teams across machines.
