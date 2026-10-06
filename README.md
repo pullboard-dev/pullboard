@@ -22,7 +22,9 @@ Pullboard makes "done" mean something:
 - **Agents stay in their lanes.** Pre-commit refuses changes outside a lane's folders, moves and deletes included, and no agent can build another lane's item from the main checkout.
 - **Every commit traces to the spec.** `feat` and `fix` commits cite the spec ids they serve, and the ids must exist.
 - **Ids are permanent.** A commit that deletes a spec row is refused, and `spec check` finds any id that history or the board cites and the spec has lost. A row the client cuts stays, marked `wont`, so every old reference keeps its meaning.
-- **Cheaper models get the work they can do.** The planner writes a brief for each item and routes mechanical items `light`. An agent that joins with `--route light` takes and verifies only those.
+- **Cheaper models get the work they can do.** Items route by the model they need: `light` (a small or local model), `mid` (Haiku, Sonnet) or `strong`. Below strong, an item must be buildable cold: a brief naming its files and its test, a criterion, and a check command. An agent that joins on a route takes its own tier first, then lighter ones.
+- **Routine work runs unattended.** `pullboard run --agent "<command>"` builds routed items with any agent you can call from a shell, such as OpenCode on a local model. Each attempt gets a context pack holding the bar, the brief and the files themselves. A failed check feeds the next attempt. Green work is submitted for a second agent to verify; work still red is pinned and escalated one tier up.
+- **No agent spends a turn on what a tool can fix.** Pre-commit runs your fast fixers, such as prettier, on fully staged files and restages them.
 
 ## Two specs: what, and how
 

@@ -28,6 +28,16 @@ A board in `.git`, lanes, a spec, hooks and a gate, with Pullboard's protocol ru
 - **A must-row has to be testable without a guess.** A vague row ("overdue tasks are flagged") let a time-zone bug through; the decompose guide now asks for the exact comparison, word or format.
 - **Verifiers try the edges:** today, zero, empty, the limit.
 
+## Done in 0.5: offloading routine work to cheaper models
+
+Nine Opus lanes spent two days mostly re-reading context (13.2B cache-read tokens against 21.5M written), and half or more of three lanes' work was mechanical. So:
+
+- **Tiers.** Items and agents route `light`, `mid` or `strong`; an agent takes its own tier first, then lighter work.
+- **Briefs that work cold.** Below strong, an item needs its files (inside its lane), its test, a criterion and a check command, or `add` refuses it.
+- **`pullboard run`.** It drives any agent command over routed items: a context pack per attempt, the check, the failure fed back, then submit or escalate. Pullboard still calls no model; the command is yours.
+- **`pullboard escalate`.** It hands an item one tier up, the attempt pinned under `refs/pullboard/attempts`.
+- **Fixers at commit.** Formatting is a deterministic tool's job, not a model turn.
+
 ## Done in 0.5: what the third micro-build taught
 
 The hidden suite passed 10 of 10, and the verifier caught a real bug by trying calendar edges. The process failed in new ways:
