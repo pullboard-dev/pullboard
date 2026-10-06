@@ -291,6 +291,7 @@ test('routes are tiers: an agent claims and verifies its tier and below, its own
   assert.equal(store.nextFor(board, { agentId: 'web-4', lane: 'web' }).item.item_id, mid);
   assert.equal(store.nextFor(board, { agentId: 'web-1', lane: 'web' }).item.item_id, strong);
   assert.equal(store.nextFor(board, { agentId: 'web-1', lane: 'web', runnable: true }).item.item_id, mid);
+  assert.equal(store.nextFor(board, { agentId: 'web-4', lane: 'web', routes: ['light'] }).item.item_id, light);
   claimAs(strong, 'web-1', 'web');
   assert.throws(() => store.editItem(board, strong, { agentId: 'coordinator', route: 'mid' }), /HELD.*only while it is open/);
   store.submit(board, strong, { agentId: 'web-1', commit: SHA_A, tree: 't' });

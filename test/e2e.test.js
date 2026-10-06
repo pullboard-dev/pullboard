@@ -401,14 +401,15 @@ test('run builds routed items unattended: the failure feeds the next attempt; re
   const made = box.run(box.repo, 'worktree', 'web', '--route', 'light');
   const light = made.out.match(/^made (\S+) /)[1];
   assert.match(box.run(box.repo, 'run', '--agent', `sh ${agent}`).err, /MAIN_IS_COORDINATOR/);
-  const ran = box.run(light, 'run', '--agent', `sh ${agent}`, '--attempts', '2', '--minutes', '2');
+  assert.match(box.run(light, 'run', '--agent-mid', `sh ${agent}`).err, /ROUTE.*joined on the light route, so it cannot take mid items/);
+  const ran = box.run(light, 'run', '--agent-light', `sh ${agent}`, '--attempts', '2', '--minutes', '2');
   assert.equal(ran.code, 0, ran.err);
   assert.match(ran.out, /#1 attempt 1: red[\s\S]*#1 attempt 2: green \(agent \d+s, check \d+s\)\nsubmitted #1/);
   assert.match(ran.out, /nothing left to run: no open light runnable items in the web lane/);
   assert.match(ran.out, /#2 attempt 2: red[\s\S]*#2 escalated light -> mid; the attempt is pinned at refs\/pullboard\/attempts\/2\//);
   assert.match(ran.out, /runner done: 1 submitted, 1 escalated/);
   const packs = join(box.dir, 'repo', '.git', 'worktrees', light.split('/').at(-1), 'pullboard', 'packs');
-  const second = readFileSync(join(packs, '1-2.md'), 'utf8');
+  const second = readFileSync(join(packs, '1-light-2.md'), 'utf8');
   assert.match(second, /reverted your changes outside the brief's files: api\/stray.js/);
   assert.match(second, /### web\/page.js\n```\nexport const title = 'Hello';/);
   assert.equal(existsSync(join(light, 'api', 'stray.js')), false);
@@ -421,6 +422,62 @@ test('run builds routed items unattended: the failure feeds the next attempt; re
   assert.match(shown, /unattended attempts: red, red/);
   assert.match(shown, /escalated light -> mid by web-2, pinned at refs\/pullboard\/attempts\/2\/[0-9a-f]{12}: 2 attempts stayed red/);
   assert.match(box.run(box.repo, 'inbox').out, /web-2 -> coordinator: #2 escalated light -> mid after 2 red attempts/);
+});
+
+test('one runner climbs the tiers: an escalated item goes to the next command, with the earlier tries; it merges the verified work an item waits on [N16]', () => {
+  const box = project();
+  const script = (name, lines) => {
+    writeFileSync(join(box.dir, name), ['#!/bin/sh', 'mkdir -p web api', ...lines, ''].join('\n'));
+    return `sh ${join(box.dir, name)}`;
+  };
+  const good = script('web.sh', ["echo \"export const title = 'Hi';\" > web/page.js"]);
+  const weak = script('weak.sh', ['echo nope > api/server.js']);
+  const strong = script('strong.sh', ['grep -q "Earlier tries by a lighter model" "$PULLBOARD_PACK" && echo "export const served = true;" > api/server.js']);
+  const brief = (file) => LIGHT_BRIEF.replace('web/page.js', file);
+  box.run(box.repo, 'add', 'web', 'Greet', '--route', 'light', '--criterion', 'says Hi', '--check', 'grep -q Hi web/page.js', '--brief', brief('web/page.js'));
+  box.run(box.repo, 'add', 'api', 'Serve', 'the', 'page', '--after', '1', '--route', 'light', '--criterion', 'serves it', '--check', 'test -f web/page.js && grep -q served api/server.js', '--brief', brief('api/server.js'));
+  const webRunner = box.run(box.repo, 'worktree', 'web', '--route', 'light').out.match(/^made (\S+) /)[1];
+  assert.match(box.run(webRunner, 'run', '--agent-light', good, '--attempts', '1').out, /submitted #1/);
+  const commit = JSON.parse(box.run(box.repo, 'show', '1', '--json').out).item_commit;
+  box.git(box.web, 'merge', '-q', '--ff-only', commit);
+  assert.match(box.run(box.web, 'verify', '1', 'accept', '--note', 'ran the check, then emptied the file and saw it fail').out, /verified #1/);
+  const apiRunner = box.run(box.repo, 'worktree', 'api', '--route', 'mid').out.match(/^made (\S+) /)[1];
+  const ran = box.run(apiRunner, 'run', '--agent-light', weak, '--agent-mid', strong, '--attempts', '2', '--minutes', '2');
+  assert.equal(ran.code, 0, ran.err);
+  assert.match(ran.out, /#2 attempt 1\/2: running the light agent[\s\S]*#2 escalated light -> mid[\s\S]*#2 attempt 1\/2: running the mid agent\n#2 attempt 1: green[\s\S]*submitted #2/);
+  assert.match(ran.out, /runner done: 1 submitted, 1 escalated/);
+  assert.equal(box.tryGit(apiRunner, 'merge-base', '--is-ancestor', commit, 'HEAD').status, 0);
+  const packs = join(box.dir, 'repo', '.git', 'worktrees', apiRunner.split('/').at(-1), 'pullboard', 'packs');
+  assert.match(readFileSync(join(packs, '2-mid-1.md'), 'utf8'), /## Earlier tries by a lighter model\n- 2 attempts stayed red/);
+  assert.equal(existsSync(join(packs, '2-light-1.md')), true);
+});
+
+test('sweep files one light item per flagged file, in its lane; a second sweep skips what is open [N15]', () => {
+  const box = project();
+  writeFileSync(join(box.dir, 'novar.mjs'), [
+    "import fs from 'node:fs';",
+    "import path from 'node:path';",
+    'const walk = (p) => fs.statSync(p).isDirectory() ? fs.readdirSync(p).filter((n) => !n.startsWith(".") && n !== "node_modules").flatMap((n) => walk(path.join(p, n))) : [p];',
+    'let found = 0;',
+    'for (const file of process.argv.slice(2).flatMap(walk).filter((f) => f.endsWith(".js"))) {',
+    '  fs.readFileSync(file, "utf8").split("\\n").forEach((line, i) => { const col = line.indexOf("var "); if (col >= 0) { found += 1; console.log(`${file}:${i + 1}:${col + 1}: no-var Unexpected var, use let or const.`); } });',
+    '}',
+    'process.exit(found ? 1 : 0);',
+    '',
+  ].join('\n'));
+  commitFile(box, box.repo, 'web/a.js', 'var a = 1;\nvar b = 2;\n', 'chore: two vars');
+  commitFile(box, box.repo, 'api/b.js', 'var c = 3;\n', 'chore: one var');
+  const sweep = ['sweep', '--run', `node ${join(box.dir, 'novar.mjs')} .`, '--check', `node ${join(box.dir, 'novar.mjs')} {file}`];
+  assert.match(box.run(box.web, ...sweep).err, /COORDINATOR_ONLY/);
+  assert.match(box.run(box.repo, ...sweep, '--dry-run').out, /would file: fix 2 problems in web\/a.js \(web lane, light\)/);
+  const filed = box.run(box.repo, ...sweep);
+  assert.equal(filed.code, 0, filed.err);
+  assert.match(filed.out, /#1 fix 2 problems in web\/a.js \(web lane, light\)\n#2 fix 1 problem in api\/b.js \(api lane, light\)/);
+  assert.match(filed.out, /3 problems in 2 files; filed 2/);
+  const shown = box.run(box.repo, 'show', '1').out;
+  assert.match(shown, new RegExp(`check: node ${join(box.dir, 'novar.mjs')} web/a.js`));
+  assert.match(shown, /- line 2:1 no-var: Unexpected var, use let or const\./);
+  assert.match(box.run(box.repo, ...sweep).out, /already open: web\/a.js, api\/b.js\n3 problems in 2 files; filed 0/);
 });
 
 test('pre-commit runs the fixers on fully staged files and restages them; partly staged files are left alone [C5]', () => {
