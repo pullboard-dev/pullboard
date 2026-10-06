@@ -122,8 +122,8 @@ async function startView(box) {
 }
 
 /**
- * An element as the page's script uses one: what it writes, its classes and attributes, the
- * listeners it adds, and how often it was scrolled into view.
+ * An element as the page's script uses one: what it writes, how often it rewrote its markup, its
+ * classes and attributes, the listeners it adds, and how often it was scrolled into view.
  */
 function element(id) {
   const classes = new Set();
@@ -133,7 +133,10 @@ function element(id) {
     id,
     // A browser keeps both as strings, whatever the script assigns.
     get innerHTML() { return html; },
-    set innerHTML(value) { html = String(value ?? ''); },
+    set innerHTML(value) { html = String(value ?? ''); this.writes += 1; },
+    writes: 0,
+    // A change to a node inside, which leaves the rest of the markup where it is.
+    patch(change) { html = change(html); },
     get textContent() { return text; },
     set textContent(value) { text = String(value ?? ''); },
     value: '',
@@ -161,6 +164,21 @@ function element(id) {
     getBoundingClientRect: () => ({ top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0 }),
     querySelectorAll: () => [],
   };
+}
+
+/**
+ * The ages an element holds, as the nodes a browser would hand the page for [data-ago]: each knows
+ * the moment it counts from, and setting its text changes that node alone.
+ */
+function ageNodes(element) {
+  const AGE = /<time data-ago="([^"]*)"([^>]*)>([^<]*)<\/time>/g;
+  return [...element.innerHTML.matchAll(AGE)].map((match, n) => ({
+    dataset: { ago: match[1] },
+    set textContent(text) {
+      let k = 0;
+      element.patch((html) => html.replace(AGE, (whole, at, rest) => (k++ === n ? `<time data-ago="${at}"${rest}>${text}</time>` : whole)));
+    },
+  }));
 }
 
 /**
@@ -224,7 +242,7 @@ async function openPage(view, { width = 1280, later = 0 } = {}) {
     body: element('body'),
     hidden: false,
     getElementById: (id) => (known.has(id) ? node(id) : null),
-    querySelectorAll: () => [],
+    querySelectorAll: (selector) => (selector === '[data-ago]' ? [...elements.values()].flatMap(ageNodes) : []),
     addEventListener: (type, listener) => { if (type === 'click') clicks.push(listener); },
   };
   const context = vm.createContext({
@@ -507,6 +525,32 @@ test('the activity tab draws the lifecycle from the declaration, with live count
     await view.stop();
   }
 });
+test('ages stay true while the board is quiet [N26]', async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  build(box, alpha, 1, 'greeting.html');
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    const ages = () => ({
+      row: /<time data-ago="[^"]+">([^<]*)<\/time>/.exec(itemRow(page.show('chain'), 1))?.[1],
+      needs: /to verify, <time data-ago="[^"]+">([^<]*)<\/time>/.exec(page.show('needs'))?.[1],
+      agent: agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1')?.age,
+    });
+    assert.deepEqual(ages(), { row: 'now', needs: 'now', agent: 'now' });
+    const rebuilds = () => ['chain', 'needs', 'agents'].map((id) => page.element(id).writes);
+    const before = rebuilds();
+
+    // Three hours pass, nothing on the board changes, and the minute timer fires.
+    page.run('const D = Date; globalThis.Date = class extends D { constructor(...a) { super(...(a.length ? a : [D.now() + 3 * 3600e3])); } static now() { return D.now() + 3 * 3600e3; } };');
+    page.run('tickAges()');
+    assert.deepEqual(ages(), { row: '3h', needs: '3h', agent: '3h' });
+    assert.deepEqual(rebuilds(), before, 'each age moved where it stands; nothing was rebuilt');
+  } finally {
+    await view.stop();
+  }
+});
 /**
  * The coordinator accepts an item from a checkout of its submitted commit.
  */
@@ -561,7 +605,7 @@ test('a sent-back item shows why first [N26]', async () => {
     const beforeCriterion = () => page.show('detail').slice(0, Math.max(0, page.show('detail').indexOf('<h3>Criterion</h3>')));
     const needs = page.show('needs');
     assert.match(needs, /<code>#1<\/code><span>Greeting<\/span><em>sent back: BEHAVIOR_MISMATCH →<\/em>/);
-    assert.match(needs, /<code>#2<\/code><span>Farewell<\/span><em>resubmitted after BEHAVIOR_MISMATCH, \w+ →<\/em>/);
+    assert.match(needs, /<code>#2<\/code><span>Farewell<\/span><em>resubmitted after BEHAVIOR_MISMATCH, <time data-ago="[^"]+">\w+<\/time> →<\/em>/);
     const row = itemRow(page.show('chain'), 1);
     assert.ok(row.includes('BEHAVIOR_MISMATCH: no &lt;b&gt;greeting&lt;/b&gt; on the page'), row);
     assert.ok(!row.includes('second line'), 'the row shows the first line of the note only');

@@ -313,6 +313,8 @@ let seen = '';
 const $ = (id) => document.getElementById(id);
 const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const ago = (iso) => { const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 1 ? 'now' : m < 60 ? m + 'm' : m < 2880 ? Math.round(m / 60) + 'h' : Math.round(m / 1440) + 'd'; };
+// An age as the page shows it: the moment it counts from stays on it, so tickAges can move it on.
+const age = (iso) => '<time data-ago="' + esc(iso) + '">' + ago(iso) + '</time>';
 const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 const when = (iso) => (new Date(iso).toDateString() === new Date().toDateString() ? '' : new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ') + clock(iso);
 // A day as a feed names it: Today, Yesterday, or its weekday and date.
@@ -519,12 +521,12 @@ function render() {
   const needs = [
     ...p.spec.filter((r) => r.status === 'pending').map((r) => ['spec:' + r.id, r.id, r.text, 'answer in SPEC.md']),
     ...by('back').map((i) => ['item:' + i.id, '#' + i.id, i.title, 'sent back: ' + i.verdict.reason]),
-    ...by('verify').map((i) => ['item:' + i.id, '#' + i.id, i.title, (rejected(i) ? 'resubmitted after ' + i.verdict.reason : 'to verify') + ', ' + ago(i.updatedAt)]),
+    ...by('verify').map((i) => ['item:' + i.id, '#' + i.id, i.title, (rejected(i) ? 'resubmitted after ' + i.verdict.reason : 'to verify'), i.updatedAt]),
     ...p.holds.map((h) => ['tab:shouts', h.hold_lane, h.hold_reason, 'lane held']),
   ];
   const drafts = p.spec.filter((r) => r.status === 'draft').length;
   $('needs').hidden = !needs.length && !drafts;
-  $('needs').innerHTML = '<div class="head"><i></i>Needs you</div>' + needs.slice(0, 6).map(([target, ref, text, what]) => '<button class="ny" data-go="' + esc(target) + '" type="button"><code>' + esc(ref) + '</code><span>' + esc(text) + '</span><em>' + esc(what) + ' →</em></button>').join('') + (needs.length > 6 ? '<div class="muted" style="padding:2px 4px">and ' + (needs.length - 6) + ' more</div>' : '') + (drafts ? '<button class="ny" data-go="tab:spec" type="button"><code>' + drafts + '</code><span>draft spec rows to approve or drop</span><em>review →</em></button>' : '');
+  $('needs').innerHTML = '<div class="head"><i></i>Needs you</div>' + needs.slice(0, 6).map(([target, ref, text, what, at]) => '<button class="ny" data-go="' + esc(target) + '" type="button"><code>' + esc(ref) + '</code><span>' + esc(text) + '</span><em>' + esc(what) + (at ? ', ' + age(at) : '') + ' →</em></button>').join('') + (needs.length > 6 ? '<div class="muted" style="padding:2px 4px">and ' + (needs.length - 6) + ' more</div>' : '') + (drafts ? '<button class="ny" data-go="tab:spec" type="button"><code>' + drafts + '</code><span>draft spec rows to approve or drop</span><em>review →</em></button>' : '');
 
   const lanes = p.lanes;
   const working = lanes.filter((l) => l !== 'coordinator');
@@ -552,7 +554,7 @@ function render() {
   $('chain').innerHTML = shown.length ? shown.map((i) => {
     const s = stateOf(i);
     const who = s === 'building' ? i.owner : [i.builtBy, i.verifiedBy].filter(Boolean).join(' → ');
-    return '<li class="row' + (view.item === i.id ? ' on' : '') + '" data-item="' + i.id + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + esc(i.title) + '</div><div class="meta"><span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span>' + esc(i.specs.join(', ')) + '</span>' : '') + (who ? '<span>' + esc(who) + '</span>' : '') + (i.blockedBy.length && s === 'open' ? '<span>waits on #' + i.blockedBy.join(', #') + '</span>' : '') + '<span>' + ago(i.updatedAt) + '</span>' + (rejected(i) ? '<span class="why">' + esc(i.verdict.reason + ': ' + firstLine(i.verdict.note)) + '</span>' : '') + '</div></div>' + chip(s) + '</li>';
+    return '<li class="row' + (view.item === i.id ? ' on' : '') + '" data-item="' + i.id + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + esc(i.title) + '</div><div class="meta"><span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span>' + esc(i.specs.join(', ')) + '</span>' : '') + (who ? '<span>' + esc(who) + '</span>' : '') + (i.blockedBy.length && s === 'open' ? '<span>waits on #' + i.blockedBy.join(', #') + '</span>' : '') + '<span>' + age(i.updatedAt) + '</span>' + (rejected(i) ? '<span class="why">' + esc(i.verdict.reason + ': ' + firstLine(i.verdict.note)) + '</span>' : '') + '</div></div>' + chip(s) + '</li>';
   }).join('') : '<li class="empty">' + (items.length ? 'No items match.' : 'No items yet. Add the first one with New item.') + '</li>';
 
   const item = p.items.find((i) => i.id === view.item);
@@ -595,7 +597,7 @@ function render() {
   const holding = (a) => items.filter((i) => i.status === 'claimed' ? i.owner === a.agent_id : i.builtBy === a.agent_id && order.includes(stateOf(i))).sort((x, y) => order.indexOf(stateOf(x)) - order.indexOf(stateOf(y)));
   $('agents').innerHTML = p.agents.length ? p.agents.map((a) => {
     const mine = holding(a);
-    return '<div class="agent"><div><b title="' + esc(a.agent_path) + '">' + esc(a.agent_id) + '</b><span class="muted">' + esc(a.agent_lane) + ' · ' + esc(a.agent_route) + '</span>' + (a.lastMoveAt ? '<time title="last moved ' + when(a.lastMoveAt) + '">' + ago(a.lastMoveAt) + '</time>' : '') + '</div>'
+    return '<div class="agent"><div><b title="' + esc(a.agent_path) + '">' + esc(a.agent_id) + '</b><span class="muted">' + esc(a.agent_lane) + ' · ' + esc(a.agent_route) + '</span>' + (a.lastMoveAt ? '<time data-ago="' + esc(a.lastMoveAt) + '" title="last moved ' + when(a.lastMoveAt) + '">' + ago(a.lastMoveAt) + '</time>' : '') + '</div>'
       + (mine.length ? mine.map((i) => '<button data-go="item:' + i.id + '" type="button"><span>#' + i.id + ' ' + esc(i.title) + '</span>' + chip(stateOf(i)) + '</button>').join('') : '<small>idle</small>') + '</div>';
   }).join('') : '<div class="empty">No agents yet.</div>';
   const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
@@ -680,6 +682,15 @@ async function act(command, args, root = view.root) {
   }
 }
 
+/**
+ * Move every age on the page on to now, where it stands. A list is rebuilt only when the board
+ * changes, so a click is never lost to a rebuild; on a quiet board the ages would otherwise stay
+ * as old as the page.
+ */
+function tickAges() {
+  document.querySelectorAll('[data-ago]').forEach((node) => { node.textContent = ago(node.dataset.ago); });
+}
+
 /** Open or close the project list where the sidebar is folded into a top bar (under 900px). */
 function fold(open) {
   $('side').classList.toggle('open', open);
@@ -745,6 +756,7 @@ $('init-form').addEventListener('submit', async (event) => {
 showTab();
 refresh().catch((error) => { $('live').textContent = 'cannot reach the view: ' + error.message; });
 setInterval(() => { if (!document.hidden) refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }); }, 3000);
+setInterval(tickAges, 60000);
 </script>
 </body>
 </html>`;
