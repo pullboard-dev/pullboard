@@ -11,6 +11,7 @@ import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { briefFiles, briefSections } from './brief.js';
 import { COORDINATOR } from './config.js';
+import { storeTriggers } from './machine.js';
 import { Refused } from './refused.js';
 
 export const ACCEPT_REASON = 'CRITERION_MET';
@@ -134,7 +135,44 @@ export function openBoard(file, clock = systemClock) {
   if (file !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
   db.exec(SCHEMA);
   migrate(db);
-  return { db, clock };
+  const board = { db, clock };
+  guardStore(board);
+  return board;
+}
+
+/** The board's PRAGMA user_version once its triggers are in: losing one after that is news. */
+const GUARDED = 1;
+
+/**
+ * Install the triggers that make the board file refuse what the lifecycle does not allow (M3), and
+ * put back any that are missing or differ from the declaration. A board that never had them is just
+ * older and gets them quietly; a board that had them and lost one was edited by hand, so the event
+ * log says which came back.
+ *
+ * @param {any} board
+ */
+function guardStore(board) {
+  const wanted = storeTriggers();
+  const drift = () => {
+    const have = new Map(
+      board.db.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'machine%'").all().map((row) => [row.name, row.sql]),
+    );
+    return {
+      missing: wanted.filter(({ name }) => !have.has(name)).map(({ name }) => name),
+      changed: wanted.filter(({ name, sql }) => have.has(name) && have.get(name) !== sql).map(({ name }) => name),
+      stale: [...have.keys()].filter((name) => !wanted.some((trigger) => trigger.name === name)),
+    };
+  };
+  const isWhole = ({ missing, changed, stale }) => !missing.length && !changed.length && !stale.length;
+  if (isWhole(drift())) return;
+  atomic(board, () => {
+    const found = drift();
+    if (isWhole(found)) return;
+    for (const name of [...found.changed, ...found.stale]) board.db.exec(`DROP TRIGGER IF EXISTS "${name}"`);
+    for (const { name, sql } of wanted) if (found.missing.includes(name) || found.changed.includes(name)) board.db.exec(sql);
+    if (board.db.prepare('PRAGMA user_version').get().user_version >= GUARDED) logEvent(board, 'board', 'guards', null, found);
+    else board.db.exec(`PRAGMA user_version = ${GUARDED}`);
+  });
 }
 
 /**

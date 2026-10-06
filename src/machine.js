@@ -26,6 +26,8 @@
  * @property {string} means
  * @property {boolean} [final] - Nothing leaves it.
  * @property {string[]} requires - Item fields that are set whenever an item is in this state.
+ * @property {{ says: string, sql: string }} [proof] - What must exist before an item enters it, as an
+ *   SQL condition on NEW, the item row being written; the board file itself checks it (M3).
  */
 
 /**
@@ -44,6 +46,9 @@
 /**
  * @typedef {object} Machine
  * @property {Role[]} roles
+ * @property {string} initial - The state every item starts in.
+ * @property {Record<string, 'append' | 'keep'>} records - Tables the board keeps for good: rows only
+ *   ever added (append), or rows never deleted (keep).
  * @property {State[]} states
  * @property {Guard[]} guards
  * @property {Move[]} moves
@@ -57,12 +62,29 @@ export const IN_STATE = 'inState';
 /** @type {Role[]} */
 export const ROLES = ['agent', 'coordinator', 'clock'];
 
+/** Where every item starts. */
+export const INITIAL = 'open';
+
+/**
+ * What the board file keeps for good: the event log and verdicts are only ever added to (R2, V8),
+ * and an item is withdrawn, never deleted.
+ *
+ * @type {Record<string, 'append' | 'keep'>}
+ */
+export const RECORDS = { event: 'append', verdict: 'append', item: 'keep' };
+
 /** @type {State[]} */
 export const STATES = [
   { id: 'open', means: 'waiting for a builder; claimable once what it waits on is verified', requires: [] },
   { id: 'claimed', means: 'an agent holds it under a lease, its criterion frozen', requires: ['item_owner', 'item_lease_until', 'item_frozen_digest'] },
   { id: 'submitted', means: 'built and gated green at a pinned commit, waiting for another agent', requires: ['item_built_by', 'item_commit', 'item_frozen_digest'] },
-  { id: 'verified', final: true, means: 'another agent accepted it at the submitted commit', requires: ['item_verified_by', 'item_commit'] },
+  {
+    id: 'verified', final: true, means: 'another agent accepted it at the submitted commit', requires: ['item_verified_by', 'item_commit'],
+    proof: {
+      says: 'an ACCEPT at the submitted commit, on the frozen criterion, by an agent that did not build it',
+      sql: "EXISTS (SELECT 1 FROM verdict v WHERE v.item_id = NEW.item_id AND v.verdict_decision = 'ACCEPT' AND v.verdict_commit = NEW.item_commit AND v.verdict_digest = NEW.item_frozen_digest AND v.verdict_by <> NEW.item_built_by)",
+    },
+  },
   { id: 'withdrawn', final: true, means: 'nobody should build it; the reason stays on it', requires: ['item_withdrawn_reason'] },
 ];
 
@@ -158,7 +180,7 @@ export const EXIT_GUARDS = {
 export const UNKNOWN_MOVE = { refuse: 'BAD_DECISION', rule: 'a verdict is accept or reject', next: 'pullboard verify <id> accept, or reject --reason CODE --note "..."' };
 
 /** @type {Machine} */
-export const MACHINE = { roles: ROLES, states: STATES, guards: GUARDS, moves: MOVES, exitGuards: EXIT_GUARDS, unknownMove: UNKNOWN_MOVE };
+export const MACHINE = { roles: ROLES, initial: INITIAL, records: RECORDS, states: STATES, guards: GUARDS, moves: MOVES, exitGuards: EXIT_GUARDS, unknownMove: UNKNOWN_MOVE };
 
 /**
  * The guards a move passes, in order: its own, then any exit guard of its target it left out.
@@ -216,8 +238,8 @@ function unresolved(machine) {
 }
 
 /**
- * Property 2: every state is reachable from open, every non-final state can still reach a final
- * one (no traps), and nothing leaves a final state.
+ * Property 2: every state is reachable from where items start, every non-final state can still
+ * reach a final one (no traps), and nothing leaves a final state.
  *
  * @param {Machine} machine
  * @returns {string[]}
@@ -231,12 +253,12 @@ function unreachable(machine) {
       back.set(move.to, [...(back.get(move.to) ?? []), from]);
     }
   }
-  const fromOpen = reach('open', forward);
+  const fromStart = reach(machine.initial, forward);
   const canEnd = new Set();
   for (const state of machine.states.filter((entry) => entry.final)) for (const id of reach(state.id, back)) canEnd.add(id);
   const problems = [];
   for (const state of machine.states) {
-    if (!fromOpen.has(state.id)) problems.push(`state ${state.id} cannot be reached from open`);
+    if (!fromStart.has(state.id)) problems.push(`state ${state.id} cannot be reached from ${machine.initial}`);
     if (!canEnd.has(state.id)) problems.push(`state ${state.id} is a trap: no way from it to a final state`);
     if (state.final && forward.has(state.id)) problems.push(`final state ${state.id} has a move out`);
   }
@@ -346,4 +368,62 @@ export function machineProblems(machine = MACHINE) {
     ...roleMismatches(machine),
     ...missingFields(machine),
   ];
+}
+
+/**
+ * Text as an SQL string literal.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+const sqlText = (text) => `'${text.replaceAll("'", "''")}'`;
+
+/**
+ * The SQLite triggers that make the board file itself refuse what the declaration does not allow
+ * (M3): an item that starts anywhere but the start, a state or a move nobody declared, a state
+ * entered without its fields, a final state entered without its proof, and an edit to a record the
+ * board keeps for good. All of it comes from the declaration, so the board reinstalls any trigger
+ * that differs when the declaration changes.
+ *
+ * The triggers stop a status written by hand. They cannot stop an agent that forges a verdict row
+ * under some name and then moves the item; that forgery stays in the ledger under the name it used.
+ *
+ * @param {Machine} [machine]
+ * @returns {{ name: string, sql: string }[]}
+ */
+export function storeTriggers(machine = MACHINE) {
+  const refuse = (code, text) => `BEGIN SELECT RAISE(ABORT, ${sqlText(`${code}: ${text}; the board changes only through pullboard commands`)}); END`;
+  const onStatus = 'BEFORE UPDATE OF item_status ON item';
+  const states = machine.states.map((state) => state.id);
+  const moves = [...new Set(machine.moves.flatMap((move) => move.from.filter((from) => from !== move.to).map((from) => `${from}>${move.to}`)))];
+  const declared = `OLD.item_status || '>' || NEW.item_status IN (${moves.map(sqlText).join(', ')})`;
+  const entering = (state) => `NEW.item_status = ${sqlText(state)} AND OLD.item_status <> NEW.item_status AND ${declared}`;
+  const trigger = (name, on, body) => ({ name, sql: `CREATE TRIGGER ${name} ${on}\n${body}` });
+  // Each write meets at most one trigger: an unknown state, else an undeclared move, else missing
+  // fields, else a missing proof. SQLite fires triggers in no promised order, so their conditions
+  // exclude each other and the refusal never depends on which one ran first.
+  const triggers = [
+    trigger('machine_item_start', 'BEFORE INSERT ON item', `WHEN NEW.item_status <> ${sqlText(machine.initial)}\n${refuse('UNDECLARED_MOVE', `an item starts ${machine.initial}`)}`),
+    trigger('machine_item_state', onStatus, `WHEN NEW.item_status NOT IN (${states.map(sqlText).join(', ')})\n${refuse('UNDECLARED_STATE', `an item is ${states.join(', ')}`)}`),
+    trigger(
+      'machine_item_move',
+      onStatus,
+      `WHEN NEW.item_status IN (${states.map(sqlText).join(', ')}) AND OLD.item_status <> NEW.item_status AND NOT ${declared}\n${refuse('UNDECLARED_MOVE', `the moves are ${moves.join(', ')}`)}`,
+    ),
+  ];
+  const missingOf = (state) => state.requires.map((field) => `coalesce(NEW.${field}, '') = ''`).join(' OR ');
+  for (const state of machine.states.filter((entry) => entry.requires.length)) {
+    triggers.push(trigger(`machine_fields_${state.id}`, onStatus, `WHEN ${entering(state.id)} AND (${missingOf(state)})\n${refuse('MISSING_FIELD', `${state.id} needs ${state.requires.join(', ')}`)}`));
+  }
+  for (const state of machine.states.filter((entry) => entry.proof)) {
+    const complete = state.requires.length ? ` AND NOT (${missingOf(state)})` : '';
+    triggers.push(trigger(`machine_proof_${state.id}`, onStatus, `WHEN ${entering(state.id)}${complete} AND NOT ${state.proof.sql}\n${refuse('NOT_PROVEN', `${state.id} needs ${state.proof.says}`)}`));
+  }
+  for (const [table, kept] of Object.entries(machine.records)) {
+    for (const change of kept === 'append' ? ['update', 'delete'] : ['delete']) {
+      const text = kept === 'append' ? `${table} rows are only ever added` : `an ${table} is withdrawn, never deleted`;
+      triggers.push(trigger(`machine_${table}_${change}`, `BEFORE ${change.toUpperCase()} ON ${table}`, refuse(kept === 'append' ? 'APPEND_ONLY' : 'KEPT', text)));
+    }
+  }
+  return triggers;
 }

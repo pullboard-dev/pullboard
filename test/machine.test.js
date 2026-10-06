@@ -3,9 +3,13 @@
  * failing on a broken copy, and in step with the refusals board.js and cli.js raise today.
  */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { IN_STATE, MACHINE, effectiveGuards, machineProblems } from '../src/machine.js';
+import * as store from '../src/board.js';
+import { IN_STATE, MACHINE, effectiveGuards, machineProblems, storeTriggers } from '../src/machine.js';
 
 /**
  * Refusals that are not about an item's lifecycle, so no move declares them: how a command was
@@ -429,4 +433,209 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
 
   const doubleQuoted = editedSource('cli.js', /^const cdTo = .*$/m, "const cdTo = (root) => { if (!root) throw new Refused(\"NO_ROOT\", 'no root'); return 'cd ' + root + ' &&'; };");
   assert.deepEqual(codeProblems(MACHINE, doubleQuoted), ['NO_ROOT is raised by accept and reject but not declared there']);
+});
+
+const SHA_A = 'a'.repeat(40);
+const SHA_B = 'b'.repeat(40);
+
+/**
+ * A freeze that digests the title, as the real one digests the criterion.
+ *
+ * @param {any} item
+ * @returns {{ text: string, digest: string }}
+ */
+const freeze = (item) => ({ text: item.item_title, digest: `digest:${item.item_title}` });
+
+/**
+ * A board file on disk with a coordinator and two web agents, opened the way the CLI opens it,
+ * and a way to open the same file raw, as any agent with a shell could.
+ *
+ * @returns {{ file: string, board: any, raw: () => DatabaseSync, done: () => void }}
+ */
+function boardOnDisk() {
+  const dir = mkdtempSync(join(tmpdir(), 'pullboard-machine-'));
+  const file = join(dir, 'board.sqlite');
+  const board = store.openBoard(file);
+  store.register(board, { lane: 'coordinator', path: '/repo' });
+  store.register(board, { lane: 'web', path: '/repo-web-1' });
+  store.register(board, { lane: 'web', path: '/repo-web-2' });
+  const handles = [board.db];
+  return {
+    file,
+    board,
+    raw: () => {
+      const db = new DatabaseSync(file);
+      handles.push(db);
+      return db;
+    },
+    done: () => {
+      for (const db of handles) {
+        try {
+          db.close();
+        } catch {
+          // already closed by the test
+        }
+      }
+      rmSync(dir, { recursive: true, force: true });
+    },
+  };
+}
+
+/**
+ * An item web-1 claimed and submitted.
+ *
+ * @param {any} board
+ * @returns {number}
+ */
+function submittedItem(board) {
+  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+  store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
+  store.submit(board, id, { agentId: 'web-1', commit: SHA_A, tree: 'tree' });
+  return id;
+}
+
+/**
+ * A verdict with what a careful verifier passes.
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {string} agentId
+ * @param {'ACCEPT' | 'REJECT'} decision
+ */
+function verdictOn(board, id, agentId, decision) {
+  const reason = decision === 'REJECT' ? { reason: 'TEST_FAILURE' } : {};
+  store.verify(board, id, { agentId, decision, head: SHA_A, digest: 'digest:Page', policy: 'any', note: 'reverted the fix; its test went red; restored it', ...reason });
+}
+
+/**
+ * Insert an ACCEPT by hand, as a forger would.
+ *
+ * @param {DatabaseSync} db
+ * @param {number} id
+ * @param {string} by
+ * @param {string} commit
+ * @param {string} [digest]
+ */
+function forgeAccept(db, id, by, commit, digest = 'digest:Page') {
+  db.prepare(
+    `INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_note, verdict_commit, verdict_digest, verdict_head, verdict_at)
+     VALUES (?, ?, 'ACCEPT', 'CRITERION_MET', 'forged', ?, ?, ?, '2026-10-06T00:00:00Z')`,
+  ).run(id, by, commit, digest, commit);
+}
+
+/**
+ * The names of a board file's triggers.
+ *
+ * @param {any} board
+ * @returns {string[]}
+ */
+const triggerNames = (board) => board.db.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' ORDER BY name").all().map((row) => row.name);
+
+test('the board file refuses, written by hand: an unknown state, an undeclared move, an unproven verified, a reasonless withdrawal, an edited record [M3]', () => {
+  const lab = boardOnDisk();
+  try {
+    const open = store.addItem(lab.board, { by: 'coordinator', lane: 'web', title: 'Page' });
+    const built = submittedItem(lab.board);
+    const raw = lab.raw();
+    const refused = (sql, args, code) => assert.throws(() => raw.prepare(sql).run(...args), new RegExp(code), sql);
+    refused('UPDATE item SET item_status = ? WHERE item_id = ?', ['shipped', open], 'UNDECLARED_STATE');
+    refused('UPDATE item SET item_status = ? WHERE item_id = ?', ['verified', open], 'UNDECLARED_MOVE');
+    refused("UPDATE item SET item_status = 'verified', item_verified_by = 'web-2' WHERE item_id = ?", [built], 'NOT_PROVEN');
+    forgeAccept(raw, built, 'web-1', SHA_A);
+    refused("UPDATE item SET item_status = 'verified', item_verified_by = 'web-1' WHERE item_id = ?", [built], 'NOT_PROVEN');
+    forgeAccept(raw, built, 'web-2', SHA_B);
+    refused("UPDATE item SET item_status = 'verified', item_verified_by = 'web-2' WHERE item_id = ?", [built], 'NOT_PROVEN');
+    forgeAccept(raw, built, 'web-2', SHA_A, 'digest:Another criterion');
+    refused("UPDATE item SET item_status = 'verified', item_verified_by = 'web-2' WHERE item_id = ?", [built], 'NOT_PROVEN');
+    refused("UPDATE item SET item_status = 'withdrawn' WHERE item_id = ?", [open], 'MISSING_FIELD');
+    refused("UPDATE event SET event_kind = 'nothing' WHERE event_id = 1", [], 'APPEND_ONLY');
+    refused('DELETE FROM event', [], 'APPEND_ONLY');
+    refused("UPDATE verdict SET verdict_by = 'web-2'", [], 'APPEND_ONLY');
+    refused('DELETE FROM verdict', [], 'APPEND_ONLY');
+    refused('DELETE FROM item WHERE item_id = ?', [open], 'KEPT');
+    refused(
+      "INSERT INTO item (item_lane, item_title, item_status, item_created_by, item_created_at, item_updated_at) VALUES ('web', 'Forged', 'verified', 'web-1', 'now', 'now')",
+      [],
+      'UNDECLARED_MOVE',
+    );
+    assert.equal(store.getItem(lab.board, open).item_status, 'open');
+    assert.equal(store.getItem(lab.board, built).item_status, 'submitted');
+  } finally {
+    lab.done();
+  }
+});
+
+test('every move the board makes passes the triggers: claim, submit, accept, reject, rework, release, escalate, refreeze, withdraw [M3]', () => {
+  const lab = boardOnDisk();
+  try {
+    const { board } = lab;
+    const accepted = submittedItem(board);
+    verdictOn(board, accepted, 'web-2', 'ACCEPT');
+    store.merged(board, accepted, { agentId: 'coordinator', commit: SHA_A });
+    const rejected = submittedItem(board);
+    verdictOn(board, rejected, 'web-2', 'REJECT');
+    store.claim(board, rejected, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
+    store.release(board, rejected, 'web-1');
+    store.escalate(board, rejected, { agentId: 'coordinator', note: 'two tries stayed red' });
+    store.refreeze(board, rejected, { agentId: 'coordinator', freeze });
+    const dropped = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Old idea' });
+    store.claim(board, dropped, { agentId: 'web-2', lane: 'web', leaseMs: 7_200_000, freeze });
+    store.withdraw(board, dropped, { agentId: 'coordinator', reason: 'superseded' });
+    assert.deepEqual([accepted, rejected, dropped].map((id) => store.getItem(board, id).item_status), ['verified', 'open', 'withdrawn']);
+  } finally {
+    lab.done();
+  }
+});
+
+test('an older board gets the triggers quietly on its next open; one dropped by hand comes back, and the log says so [M3]', () => {
+  const lab = boardOnDisk();
+  try {
+    const id = store.addItem(lab.board, { by: 'coordinator', lane: 'web', title: 'Page' });
+    const every = storeTriggers().map(({ name }) => name).sort();
+    assert.deepEqual(triggerNames(lab.board), every);
+    store.closeBoard(lab.board);
+
+    const older = lab.raw();
+    for (const name of every) older.exec(`DROP TRIGGER ${name}`);
+    older.exec('PRAGMA user_version = 0');
+    older.prepare("UPDATE item SET item_status = 'verified' WHERE item_id = ?").run(id);
+    older.prepare("UPDATE item SET item_status = 'open' WHERE item_id = ?").run(id);
+    older.close();
+
+    const upgraded = store.openBoard(lab.file);
+    assert.deepEqual(triggerNames(upgraded), every);
+    assert.equal(upgraded.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind = 'guards'").get().n, 0, 'an older board gets them quietly');
+    store.closeBoard(upgraded);
+
+    const tampered = lab.raw();
+    tampered.exec('DROP TRIGGER machine_proof_verified');
+    tampered.exec('DROP TRIGGER machine_item_move');
+    tampered.exec('CREATE TRIGGER machine_item_move BEFORE UPDATE OF item_status ON item WHEN 0 BEGIN SELECT 1; END');
+    tampered.close();
+
+    const restored = store.openBoard(lab.file);
+    try {
+      assert.deepEqual(triggerNames(restored), every);
+      const logged = restored.db.prepare("SELECT event_by, event_detail FROM event WHERE event_kind = 'guards'").all();
+      assert.deepEqual(logged.map((row) => [row.event_by, JSON.parse(row.event_detail)]), [['board', { missing: ['machine_proof_verified'], changed: ['machine_item_move'], stale: [] }]]);
+      assert.throws(() => lab.raw().prepare("UPDATE item SET item_status = 'verified' WHERE item_id = ?").run(id), /UNDECLARED_MOVE/);
+    } finally {
+      store.closeBoard(restored);
+    }
+  } finally {
+    lab.done();
+  }
+});
+
+test('the triggers come from the declaration, so a changed declaration changes them [M1, M3]', () => {
+  const moveSql = (machine) => storeTriggers(machine).find(({ name }) => name === 'machine_item_move').sql;
+  const pairs = MACHINE.moves.flatMap((move) => move.from.filter((from) => from !== move.to).map((from) => `'${from}>${move.to}'`));
+  for (const pair of pairs) assert.ok(moveSql(MACHINE).includes(pair), `the move trigger allows ${pair}`);
+  assert.ok(!moveSql(MACHINE).includes("'open>submitted'"));
+  const machine = copy();
+  machine.moves.push({ verb: 'land', from: ['open'], to: 'submitted', by: ['coordinator'], refuse: 'CLOSED', guards: ['joined', 'coordinatorOnly', 'itemExists', IN_STATE], sets: ['item_built_by', 'item_commit', 'item_frozen_digest'] });
+  assert.ok(moveSql(machine).includes("'open>submitted'"));
+  const names = storeTriggers().map(({ name }) => name);
+  for (const state of MACHINE.states.filter((entry) => entry.requires.length)) assert.ok(names.includes(`machine_fields_${state.id}`), `${state.id} has a fields trigger`);
+  assert.ok(names.includes('machine_proof_verified'));
 });
