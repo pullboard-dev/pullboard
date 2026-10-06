@@ -1,9 +1,11 @@
 /**
  * The page `pullboard view` serves (N26): one self-contained file, no assets from anywhere, that
- * reads the board through the server's JSON and refreshes itself. It keeps the hosted board's layout:
- * a top bar with the project switcher and tabs, and two panes, a list and the selected thing's
- * detail. Forms post actions that the server runs as CLI commands (N27), so the page never decides a
- * rule itself, and every field a person types in sits outside what the refresh rebuilds.
+ * reads the board through the server's JSON and refreshes itself. The layout is the one the person
+ * asked for: a sidebar listing every project on the machine with what needs them there, and a main
+ * column with the tabs over two panes, a list and the selected thing's detail. Under 900px wide the
+ * sidebar folds into a top bar. Forms post actions that the server runs as CLI commands (N27), so the
+ * page never decides a rule itself, and every field a person types in sits outside what the refresh
+ * rebuilds.
  *
  * @returns {string}
  */
@@ -24,9 +26,10 @@ export function cockpitPage() {
   --shadow: 0 1px 2px rgba(18,26,23,.05), 0 12px 34px -18px rgba(18,26,23,.28);
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  --top: 56px; --detail-w: 424px; --agents-w: 306px;
+  --top: 56px; --side-w: 236px; --agents-w: clamp(240px, 30%, 306px);
   color-scheme: light;
 }
+@media (max-width: 1100px) { :root { --side-w: 208px; } }
 @media (prefers-color-scheme: dark) { :root {
   --ground: #0c110f; --surface: #121815; --surface-2: #171f1b; --line: #232e29; --line-strong: #34423b;
   --ink: #e7ece9; --ink-muted: #9caba3; --ink-faint: #6a776f;
@@ -40,31 +43,52 @@ button, input, select, textarea { font: inherit; color: inherit; }
 [hidden] { display: none !important; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.top { position: sticky; top: 0; z-index: 10; height: var(--top); display: flex; align-items: center; gap: 18px; padding: 0 18px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.shell { display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); min-height: 100vh; }
+.side { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 0 10px 16px; background: var(--surface); border-right: 1px solid var(--line); }
+.side-top { display: flex; align-items: center; gap: 10px; height: var(--top); margin: 0 -10px 6px; padding: 0 16px; border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; white-space: nowrap; }
-.brand svg { width: 22px; height: 22px; }
-.switch { position: relative; }
-.switch-btn { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-weight: 600; max-width: 260px; }
+.brand svg { width: 22px; height: 22px; flex: none; }
+.switch-btn { display: none; align-items: center; gap: 8px; min-width: 0; border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-weight: 600; }
 .switch-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .switch-btn small { color: var(--ink-faint); font-weight: 400; }
-.menu { position: absolute; top: calc(100% + 6px); left: 0; width: 340px; max-width: calc(100vw - 24px); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: var(--shadow); padding: 10px; display: grid; gap: 8px; }
-.label { font: 600 11px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); padding: 4px 6px; }
-.proj { text-align: left; border: 1px solid transparent; background: none; border-radius: 8px; padding: 7px 9px; cursor: pointer; display: grid; gap: 2px; width: 100%; }
+.side-body { display: grid; gap: 2px; align-content: start; }
+.label { font: 600 11px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); padding: 8px 8px 6px; }
+.proj { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 8px; align-items: center; width: 100%; text-align: left; border: 1px solid transparent; background: none; border-radius: 8px; padding: 7px 8px; cursor: pointer; }
 .proj:hover { background: var(--surface-2); }
-.proj.on { background: var(--accent-soft); border-color: var(--accent); }
-.proj small { color: var(--ink-faint); font-size: 12px; }
-.proj .bad { color: var(--reject); }
-.tabs { display: flex; gap: 2px; height: 100%; overflow-x: auto; }
+.proj.on { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.proj .pname { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proj small { grid-column: 1 / -1; color: var(--ink-faint); font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+.proj small.bad { color: var(--reject); }
+.need { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); font: 700 11.5px/1.5 var(--mono); text-align: center; }
+.start { margin: 12px 4px 0; padding: 10px 4px 0; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-muted); }
+.start summary { cursor: pointer; }
+.start form { margin-top: 10px; }
+.body { min-width: 0; }
+.top { position: sticky; top: 0; z-index: 10; min-height: var(--top); display: flex; align-items: stretch; gap: 12px; padding: 0 18px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.tabs { display: flex; flex-wrap: wrap; gap: 2px; }
 .tab { border: 0; background: none; padding: 0 12px; cursor: pointer; color: var(--ink-muted); border-bottom: 2px solid transparent; white-space: nowrap; }
 .tab.on { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
 .tab b { font: 600 11px var(--mono); color: var(--ink-faint); margin-left: 4px; }
-.live { margin-left: auto; font-size: 12px; color: var(--ink-faint); white-space: nowrap; }
-@media (max-width: 760px) { .live { display: none; } .top { gap: 10px; padding: 0 10px; } .brand span { display: none; } }
+.live { margin-left: auto; align-self: center; font-size: 12px; color: var(--ink-faint); white-space: nowrap; }
+.switching main { opacity: .45; transition: opacity .12s; }
 
 main { padding: 16px 18px 28px; }
-.two { display: grid; grid-template-columns: minmax(0, 1fr) var(--detail-w); gap: 16px; align-items: start; }
+.two { display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 42%, 600px); gap: 16px; align-items: start; }
 .two.narrow { grid-template-columns: minmax(0, 1fr) var(--agents-w); }
-@media (max-width: 1040px) { .two, .two.narrow { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 900px) {
+  .shell { display: block; }
+  .side { position: static; height: auto; overflow: visible; padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .side-top { height: auto; margin: 0; padding: 0; border: 0; }
+  .brand span { display: none; }
+  .switch-btn { display: flex; }
+  .side-body { display: none; padding-top: 6px; }
+  .side.open .side-body { display: grid; }
+  .top { padding: 0 6px; }
+  .tab { padding: 11px 6px; }
+  .live { display: none; }
+  main { padding: 12px 10px 24px; }
+  .two, .two.narrow { grid-template-columns: minmax(0, 1fr); }
+}
 .primary { display: grid; gap: 12px; min-width: 0; }
 .card-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); min-width: 0; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; }
@@ -84,7 +108,7 @@ input, select { border: 1px solid var(--line-strong); background: var(--surface)
 .ny em { font-style: normal; color: var(--warn); font-size: 12px; white-space: nowrap; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 2px; }
-.chips button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 11px; cursor: pointer; }
+.chips button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 9px; cursor: pointer; font-size: 13px; }
 .chips button.on { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
 .chips button b { font: 600 11px var(--mono); color: var(--ink-faint); margin-left: 4px; }
 
@@ -105,7 +129,7 @@ input, select { border: 1px solid var(--line-strong); background: var(--surface)
 .empty { color: var(--ink-faint); padding: 14px 10px; }
 
 .detail { position: sticky; top: calc(var(--top) + 16px); max-height: calc(100vh - var(--top) - 32px); overflow-y: auto; padding: 16px; display: grid; gap: 14px; align-content: start; }
-@media (max-width: 1040px) { .detail { position: static; max-height: none; } }
+@media (max-width: 900px) { .detail { position: static; max-height: none; } }
 .detail h2 { margin: 0; font-size: 18px; line-height: 1.3; overflow-wrap: anywhere; }
 .detail h2 span { color: var(--ink-faint); font: 600 13px var(--mono); margin-right: 6px; }
 .detail h3 { margin: 0 0 6px; font: 600 11px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
@@ -155,17 +179,20 @@ input, select { border: 1px solid var(--line-strong); background: var(--surface)
 </style>
 </head>
 <body>
-<header class="top">
-  <div class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg><span>Pullboard</span></div>
-  <div class="switch">
-    <button class="switch-btn" id="proj-switch" type="button" aria-haspopup="true"><span id="proj-name">Projects</span><small>▾</small></button>
-    <div class="menu" id="proj-menu" hidden>
-      <div class="label">Projects on this machine</div>
-      <div id="proj-list"></div>
-      <div class="label">Start a board</div>
-      <form id="init-form" class="inline" style="padding:0 4px 4px"><label>Folder of a git repo<input id="init-path" required placeholder="/path/to/repo"></label><button class="go" type="submit">Init</button></form>
-    </div>
+<div class="shell">
+<aside class="side" id="side" aria-label="Projects">
+  <div class="side-top">
+    <div class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg><span>Pullboard</span></div>
+    <button class="switch-btn" id="proj-switch" type="button" aria-expanded="false" aria-controls="side-body"><span id="proj-name">Projects</span><b class="need" id="proj-elsewhere" title="Needs you in other projects" hidden></b><small>▾</small></button>
   </div>
+  <div class="side-body" id="side-body">
+    <div class="label">Projects</div>
+    <nav id="proj-list" aria-label="Projects on this machine"></nav>
+    <details class="start"><summary>Start a board</summary><form id="init-form" class="panel-form"><label>Folder of a git repo<input id="init-path" required placeholder="/path/to/repo"></label><button class="go" type="submit">Init</button></form></details>
+  </div>
+</aside>
+<div class="body">
+<header class="top">
   <nav class="tabs" id="tabs" aria-label="Board">
     <button class="tab" data-tab="items" type="button">Items<b id="count-items"></b></button>
     <button class="tab" data-tab="shouts" type="button">Shouts<b id="count-shouts"></b></button>
@@ -219,6 +246,8 @@ input, select { border: 1px solid var(--line-strong); background: var(--surface)
     <div class="card-panel feed" id="activity"></div>
   </section>
 </main>
+</div>
+</div>
 <div class="console" id="console" title="Click to close" hidden></div>
 <script>
 const key = new URLSearchParams(location.search).get('k') || '';
@@ -234,6 +263,11 @@ const stateOf = (i) => i.status === 'claimed' ? 'building' : i.status === 'submi
 const STATES = { building: ['building', 'busy'], verify: ['to verify', 'warn'], back: ['sent back', 'no'], verified: ['verified', 'ok'], open: ['open', ''], withdrawn: ['withdrawn', ''] };
 const chip = (s) => '<span class="chip ' + STATES[s][1] + '">' + STATES[s][0] + '</span>';
 const tone = (s) => s === 'approved' ? 'ok' : s === 'pending' ? 'no' : s === 'draft' ? 'warn' : '';
+const count = (n, one, many = one) => n + ' ' + (n === 1 ? one : many);
+// What needs the person in a project, as its Needs-you list counts it: work sent back or waiting for a
+// verdict, open questions, held lanes.
+const needCount = (x) => x.ok ? x.sentBack + x.awaiting + x.pending + x.holds : 0;
+const doing = (x) => [x.sentBack && count(x.sentBack, 'sent back'), x.awaiting && count(x.awaiting, 'to verify'), x.pending && count(x.pending, 'question', 'questions'), x.holds && count(x.holds, 'lane held', 'lanes held'), x.building && count(x.building, 'building')].filter(Boolean).join(' · ') || (x.open ? count(x.open, 'item open', 'items open') : 'nothing open');
 
 async function api(path, body) {
   const res = await fetch(path, { method: body ? 'POST' : 'GET', headers: { 'x-pullboard-key': key, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
@@ -243,7 +277,10 @@ async function api(path, body) {
 }
 
 async function refresh() {
-  const next = await api('/api/state' + (view.root ? '?root=' + encodeURIComponent(view.root) : ''));
+  const root = view.root;
+  const next = await api('/api/state' + (root ? '?root=' + encodeURIComponent(root) : ''));
+  // The person switched projects while this answer was on its way: the switch's own refresh shows it.
+  if (root !== view.root) return;
   if (!next.project && next.projects.some((p) => p.ok)) {
     view.root = next.projects.find((p) => p.ok).root;
     keep('pb.project', view.root);
@@ -261,9 +298,16 @@ async function refresh() {
 
 function render() {
   const p = data.project;
-  $('proj-list').innerHTML = data.projects.length ? data.projects.map((x) => '<button class="proj' + (x.root === view.root ? ' on' : '') + '" data-root="' + esc(x.root) + '" type="button"><b>' + esc(x.name) + '</b>' + (x.ok ? '<small>' + x.building + ' building · ' + x.awaiting + ' to verify · ' + x.verified + ' verified' + (x.pending ? ' · ' + x.pending + ' questions' : '') + '</small>' : '<small class="bad">' + esc(x.error) + '</small>') + '</button>').join('') : '<div class="empty">No projects yet: run pullboard init in a repo, or start one below.</div>';
+  // Every project stays in view with what needs the person there, so one look covers them all.
+  $('proj-list').innerHTML = data.projects.length ? data.projects.map((x) => {
+    const on = x.root === view.root;
+    return '<button class="proj' + (on ? ' on' : '') + '"' + (on ? ' aria-current="true"' : '') + ' data-root="' + esc(x.root) + '" title="' + esc(x.root) + '" type="button"><span class="pname">' + esc(x.name) + '</span>' + (needCount(x) ? '<b class="need" title="needs you">' + needCount(x) + '</b>' : '') + (x.ok ? '<small>' + esc(doing(x)) : '<small class="bad">' + esc(x.error)) + '</small></button>';
+  }).join('') : '<div class="empty">No projects yet: run pullboard init in a repo, or start one below.</div>';
+  const elsewhere = data.projects.filter((x) => x.root !== view.root).reduce((n, x) => n + needCount(x), 0);
+  $('proj-elsewhere').textContent = elsewhere ? elsewhere + ' elsewhere' : '';
+  $('proj-elsewhere').hidden = !elsewhere;
   if (!p) { $('proj-name').textContent = 'No project'; return; }
-  $('proj-name').textContent = p.root.split('/').pop();
+  $('proj-name').textContent = (data.projects.find((x) => x.root === view.root) || { name: p.root.split('/').pop() }).name;
   const items = p.items.filter((i) => i.status !== 'withdrawn');
   const by = (s) => items.filter((i) => stateOf(i) === s);
   const active = items.filter((i) => stateOf(i) !== 'verified');
@@ -387,12 +431,31 @@ async function act(command, args, root = view.root) {
   }
 }
 
+/** Open or close the project list where the sidebar is folded into a top bar (under 900px). */
+function fold(open) {
+  $('side').classList.toggle('open', open);
+  $('proj-switch').setAttribute('aria-expanded', String(open));
+}
+
+/** Show another project: mark it at once, dim the old one's panes until its board arrives. */
+function switchTo(root) {
+  view.root = root;
+  view.item = null;
+  view.adding = false;
+  keep('pb.project', root);
+  fold(false);
+  if (data) render();
+  document.body.classList.add('switching');
+  refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }).finally(() => document.body.classList.remove('switching'));
+}
+
 document.addEventListener('click', (event) => {
   const t = event.target.closest('[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-release],[data-shout],[data-new],#proj-switch,#console');
-  if (!t) { if (!event.target.closest('.switch')) $('proj-menu').hidden = true; return; }
-  if (t.id === 'proj-switch') { $('proj-menu').hidden = !$('proj-menu').hidden; return; }
+  if (!event.target.closest('.side')) fold(false);
+  if (!t) return;
+  if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
   if (t.id === 'console') { t.hidden = true; return; }
-  if (t.dataset.root) { view.root = t.dataset.root; view.item = null; keep('pb.project', view.root); $('proj-menu').hidden = true; refresh(); }
+  if (t.dataset.root) switchTo(t.dataset.root);
   else if (t.dataset.tab) { view.tab = t.dataset.tab; keep('pb.tab', view.tab); showTab(); }
   else if (t.dataset.go) go(t.dataset.go);
   else if (t.dataset.item) { view.item = Number(t.dataset.item); view.adding = false; render(); }
