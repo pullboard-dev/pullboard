@@ -18,6 +18,8 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - B5 [approved, must] One live top-level claim per agent. Child items are free. | gate: test/board.test.js
 - B6 [approved, must] Items cite spec ids that exist. | gate: test/e2e.test.js | serves: S1
 - B7 [approved, must] Shouts reach a lane, an agent or all. Inbox marks them read. | gate: test/board.test.js
+- B8 [approved, must] An item can wait on others; claiming it is refused until they are verified. | gate: test/board.test.js
+- B9 [approved, must] Submit pins the commit under refs/pullboard/items, so submitted work is never lost. | gate: test/e2e.test.js
 
 ## V · Verification
 - V1 [approved, must] The builder never verifies its own work. | gate: test/board.test.js | serves: P1
@@ -48,6 +50,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - C1 [approved, must] Header: type(scope): subject [ids], 72 characters at most. | gate: test/hooks.test.js
 - C2 [approved, must] Cited ids exist. feat and fix commits cite at least one. | gate: test/hooks.test.js | serves: S1
 - C3 [approved, must] Pre-push runs the gate, unless this exact tree already passed it. | gate: test/e2e.test.js | serves: V4
+- C4 [approved, must] Every refusal says what to do and shows what it saw. | gate: test/hooks.test.js | serves: P4
 
 ## R · Receipts
 - R1 [approved, must] The ledger lists built items: lane, spec, builder, verifier, verdict, commit. | gate: test/board.test.js
@@ -57,6 +60,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - I1 [approved, must] One command sets up config, spec, agent instructions, hooks and board. | gate: test/e2e.test.js
 - I2 [approved, must] Init is idempotent and never overwrites a file it did not write. | gate: test/e2e.test.js
 - I3 [approved, must] Init writes the standard PRACTICE.md and the role guides as Claude Code skills. | gate: test/e2e.test.js
+- I4 [approved, must] `pullboard worktree <lane>` makes a joined worktree and says what to run next. | gate: test/e2e.test.js
 
 ## N · Next commands
 - N1 [draft, must] `pullboard decide`: the person's queue of everything waiting on them.
