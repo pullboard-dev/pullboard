@@ -850,3 +850,20 @@ test('submit names the item and the way out when a cited row was retired after t
   assert.match(refused.err, /CRITERIA_CHANGED\] the spec rows #1 cites changed after it was claimed \(G1 is retired\), so no verifier could judge it; the coordinator either restores the row and runs pullboard refreeze 1, or withdraws #1/);
   assert.equal(JSON.parse(box.run(box.repo, 'show', '1', '--json').out).item_status, 'claimed');
 });
+
+test('worktree prints the opening lines of a subagent\'s prompt, with its folder and identity [I7]', () => {
+  const box = sandbox();
+  const repo = join(box.dir, 'my app');
+  mkdirSync(repo);
+  box.git(repo, 'init', '-q', '-b', 'main');
+  box.run(repo, 'init');
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(CONFIG, null, 2));
+  writeFileSync(join(repo, 'SPEC.md'), SPEC);
+  box.git(repo, 'add', '-A');
+  box.git(repo, 'commit', '-q', '-m', 'chore: set up pullboard');
+  const made = box.run(repo, 'worktree', 'web').out;
+  const folder = join(box.dir, 'my app-web-1');
+  assert.match(made, /For a subagent working here, begin its prompt with:\n/);
+  assert.ok(made.includes(`  You are web-1, in the web lane. Work only in "${folder}", and start every command with cd "${folder}" &&\n`), made);
+  assert.ok(made.includes(`  Read "${folder}/AGENTS.md" first. Its rules govern this work, over any other repo's instructions you were given.\n`), made);
+});

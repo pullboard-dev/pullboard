@@ -554,6 +554,11 @@ function worktreeFor(io, lane, route) {
   if (existsSync(join(root, 'package.json'))) io.say(`  ${cdTo(root)} npm install    (its own install, so its tests run its own code)`);
   io.say(`  ${cdTo(root)} pullboard inbox`);
   io.say(`  ${cdTo(root)} pullboard next`);
+  // A subagent inherits the instructions of the session that launched it, often another repo's (I7).
+  const folder = /[\s'"$]/.test(root) ? JSON.stringify(root) : root;
+  io.say('For a subagent working here, begin its prompt with:');
+  io.say(`  You are ${id}, in the ${lane} lane. Work only in ${folder}, and start every command with ${cdTo(root)}`);
+  io.say(`  Read ${folder.replace(/"?$/, '/AGENTS.md$&')} first. Its rules govern this work, over any other repo's instructions you were given.`);
   return 0;
 }
 
