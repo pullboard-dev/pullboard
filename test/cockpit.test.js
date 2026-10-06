@@ -414,6 +414,70 @@ test("the sidebar shows each product's progress [N28]", async () => {
   }
 });
 /**
+ * An item's timeline as rows: the state classes on its dot, its time, its event, who made it, and the
+ * stay it began, with any running age read as its text.
+ */
+function timelineRows(html) {
+  return [...html.matchAll(/<li class="([^"]*)"><time>([^<]*)<\/time><span><b>([^<]*)<\/b> ([^<]*)<\/span>(?:<small>(.*?)<\/small>)?<\/li>/g)].map((match) => ({
+    dot: match[1],
+    time: match[2],
+    event: `${match[3]} ${match[4]}`,
+    stay: (match[5] ?? '').replace(/<time data-ago="[^"]+">([^<]*)<\/time>/, '$1'),
+  }));
+}
+
+test("the history is a timeline of the item's states [N26]", async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  box.run(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
+  build(box, alpha, 1, 'greeting.html');
+  sendBack(box, alpha, 1, 'no greeting');
+  build(box, alpha, 1, 'greeting-again.html');
+  accept(box, alpha, 1);
+  box.run(alpha.repo, 'merged', '1', box.git(alpha.repo, 'rev-parse', alpha.branch));
+  box.run(alpha.web, 'claim', '2');
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    await page.click({ go: 'item:1' });
+    const done = timelineRows(page.show('detail'));
+    assert.deepEqual(done.map((row) => [row.dot, row.event]), [
+      ['tl-open', 'add coordinator'],
+      ['tl-claimed', 'claim web-1'],
+      ['tl-submitted', 'submit web-1'],
+      ['tl-open tl-back', 'reject coordinator'],
+      ['tl-claimed', 'claim web-1'],
+      ['tl-submitted', 'submit web-1'],
+      ['tl-verified', 'accept coordinator'],
+      ['tl-verified tl-quiet', 'merged coordinator'],
+    ], 'a dot per event in the colour of the state it led to; a merge moves nothing');
+    assert.deepEqual(done.map((row) => row.stay.replace(/ for .*/, ' for')), ['open for', 'claimed for', 'submitted for', 'sent back for', 'claimed for', 'submitted for', '', ''], 'each stay until the next move; a final state has none');
+    assert.ok(done.slice(0, 6).every((row) => / for (under a minute|\d+m)$/.test(row.stay)), done.map((row) => row.stay).join(', '));
+    assert.ok(done.every((row) => /^\d\d:\d\d$/.test(row.time)), 'every event keeps its time');
+
+    await page.click({ go: 'item:2' });
+    assert.deepEqual(timelineRows(page.show('detail')).map((row) => [row.dot, row.stay]).slice(1), [['tl-claimed', 'claimed for now so far']]);
+    const later = await openPage(view, { later: 1 });
+    await later.click({ go: 'item:2' });
+    assert.deepEqual(timelineRows(later.show('detail')).map((row) => row.stay).slice(1), ['claimed for 24h so far'], 'the stay so far counts on');
+
+    // A claim logged on an item the replay holds claimed: the clock lapsed the first claim between.
+    const at = (minute) => new Date(Date.UTC(2026, 9, 6, 12, minute)).toISOString();
+    const item = { status: 'claimed', history: [{ kind: 'add', by: 'web-1', at: at(0) }, { kind: 'claim', by: 'web-1', at: at(5) }, { kind: 'claim', by: 'web-2', at: at(200) }] };
+    const lapsed = timelineRows(page.run(`timeline(${JSON.stringify(item)})`));
+    assert.deepEqual(lapsed.map((row) => [row.dot, row.event, row.time === '']), [
+      ['tl-open', 'add web-1', false],
+      ['tl-claimed', 'claim web-1', false],
+      ['tl-open', 'lapse the clock', true],
+      ['tl-claimed', 'claim web-2', false],
+    ]);
+    assert.deepEqual(lapsed.map((row) => row.stay.replace(/ for .*/, ' for')), ['open for', '', '', 'claimed for'], 'a stay that ends in a lapse, or starts with one, has no length to show');
+  } finally {
+    await view.stop();
+  }
+});
+/**
  * The agents the panel shows: id, the path on hover, its last move, what it holds and whether it
  * reads idle, and its entry's text with the tags taken out.
  */
