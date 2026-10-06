@@ -410,6 +410,7 @@ test('run builds routed items unattended: the failure feeds the next attempt; re
   assert.match(ran.out, /runner done: 1 submitted, 1 escalated/);
   const packs = join(box.dir, 'repo', '.git', 'worktrees', light.split('/').at(-1), 'pullboard', 'packs');
   const second = readFileSync(join(packs, '1-light-2.md'), 'utf8');
+  assert.equal(existsSync(join(packs, '1-light-1.log')), true);
   assert.match(second, /reverted your changes outside the brief's files: api\/stray.js/);
   assert.match(second, /### web\/page.js\n```\nexport const title = 'Hello';/);
   assert.equal(existsSync(join(light, 'api', 'stray.js')), false);
