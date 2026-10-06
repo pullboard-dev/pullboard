@@ -425,4 +425,10 @@ test('with only work above its tier open in its lane, next names it and the rero
     `#${strong} (strong) is open in the web lane, above your light route: a strong agent takes it, or, if light can build it, the coordinator reroutes it: pullboard edit ${strong} --route light`,
   ]);
   assert.deepEqual(store.nextFor(board, { agentId: 'api-1', lane: 'api' }).reasons, ['no open items in the api lane']);
+  const contract = store.addItem(board, { by: 'coordinator', lane: 'api', title: 'Contract' });
+  const blocked = routed('Wire it', 'light', { after: [contract] });
+  assert.deepEqual(store.nextFor(board, { agentId: light, lane: 'web' }).reasons, [
+    `#${blocked} waits on #${contract} (open, api lane)`,
+    `#${strong} (strong) is open in the web lane, above your light route: a strong agent takes it, or, if light can build it, the coordinator reroutes it: pullboard edit ${strong} --route light`,
+  ], 'a blocked item of your own tier does not hide the work above it');
 });

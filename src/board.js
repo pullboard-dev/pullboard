@@ -1011,12 +1011,10 @@ export function nextFor(board, { agentId, lane, verify = false, runnable = false
     if (!waiting.length) return { item: entry, reasons: [], shared };
     reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
   }
-  if (!mine.length) {
-    reasons.push(idleReason(items, lane, routed));
-    // Work above the agent's tier is not nothing: name it and the ways through (B16).
-    for (const entry of listItems(board).filter((open) => open.item_status === 'open' && open.item_lane === lane && !canTake(route, open.item_route))) {
-      reasons.push(`#${entry.item_id} (${entry.item_route}) is open in the ${lane} lane, above your ${route} route: a ${entry.item_route} agent takes it, or, if ${route} can build it, the coordinator reroutes it: pullboard edit ${entry.item_id} --route ${route}`);
-    }
+  if (!mine.length) reasons.push(idleReason(items, lane, routed));
+  // Nothing to claim, yet work above the agent's tier is open: name it and the ways through (B16).
+  for (const entry of listItems(board).filter((open) => open.item_status === 'open' && open.item_lane === lane && !canTake(route, open.item_route))) {
+    reasons.push(`#${entry.item_id} (${entry.item_route}) is open in the ${lane} lane, above your ${route} route: a ${entry.item_route} agent takes it, or, if ${route} can build it, the coordinator reroutes it: pullboard edit ${entry.item_id} --route ${route}`);
   }
   return { item: null, reasons };
 }
