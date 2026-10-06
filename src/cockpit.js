@@ -101,11 +101,11 @@ input, select { border: 1px solid var(--line-strong); background: var(--surface)
 .needs-you { background: color-mix(in srgb, var(--warn) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 38%, var(--line)); border-radius: 14px; box-shadow: var(--shadow); padding: 10px 12px; display: grid; gap: 4px; }
 .needs-you .head { font-weight: 700; display: flex; gap: 8px; align-items: center; }
 .needs-you .head i { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); display: inline-block; }
-.ny { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: baseline; text-align: left; border: 0; background: none; padding: 6px 4px; border-radius: 8px; cursor: pointer; width: 100%; }
+.ny { display: grid; grid-template-columns: auto minmax(5em, 1fr) minmax(0, max-content); gap: 10px; align-items: baseline; text-align: left; border: 0; background: none; padding: 6px 4px; border-radius: 8px; cursor: pointer; width: 100%; }
 .ny:hover { background: color-mix(in srgb, var(--warn) 10%, var(--surface)); }
 .ny code { font: 600 12px var(--mono); }
 .ny span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); }
-.ny em { font-style: normal; color: var(--warn); font-size: 12px; white-space: nowrap; }
+.ny em { font-style: normal; color: var(--warn); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 2px; }
 .chips button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 9px; cursor: pointer; font-size: 13px; }
@@ -129,7 +129,7 @@ input, select { border: 1px solid var(--line-strong); background: var(--surface)
 .empty { color: var(--ink-faint); padding: 14px 10px; }
 
 .detail { position: sticky; top: calc(var(--top) + 16px); max-height: calc(100vh - var(--top) - 32px); overflow-y: auto; padding: 16px; display: grid; gap: 14px; align-content: start; }
-@media (max-width: 900px) { .detail { position: static; max-height: none; } }
+@media (max-width: 900px) { .detail { position: static; max-height: none; } #detail { scroll-margin-top: 60px; } }
 .detail h2 { margin: 0; font-size: 18px; line-height: 1.3; overflow-wrap: anywhere; }
 .detail h2 span { color: var(--ink-faint); font: 600 13px var(--mono); margin-right: 6px; }
 .detail h3 { margin: 0 0 6px; font: 600 11px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
@@ -347,16 +347,16 @@ function render() {
     $('add-lane').innerHTML = [...working, 'coordinator'].map((l) => '<option>' + esc(l) + '</option>').join('');
     $('hold-lane').innerHTML = working.map((l) => '<option>' + esc(l) + '</option>').join('');
   }
-  const counts = { active: active.length, open: by('open').length, building: by('building').length, verify: by('verify').length, back: by('back').length, verified: by('verified').length, all: items.length };
-  const names = { active: 'Active', open: 'Open', building: 'Building', verify: 'To verify', back: 'Sent back', verified: 'Verified', all: 'All' };
-  $('state-chips').innerHTML = Object.keys(names).map((s) => '<button data-state="' + s + '" class="' + (view.state === s ? 'on' : '') + '" type="button">' + names[s] + '<b>' + counts[s] + '</b></button>').join('');
   const q = $('q').value.trim().toLowerCase();
   const lane = $('lane-filter').value;
-  const shown = items
-    .filter((i) => view.state === 'all' || (view.state === 'active' ? stateOf(i) !== 'verified' : stateOf(i) === view.state))
+  // Each chip counts what it would show under the lane and the search.
+  const matching = items
     .filter((i) => !lane || i.lane === lane)
-    .filter((i) => !q || ('#' + i.id + ' ' + i.title + ' ' + i.specs.join(' ') + ' ' + (i.criterion || '')).toLowerCase().includes(q))
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    .filter((i) => !q || ('#' + i.id + ' ' + i.title + ' ' + i.specs.join(' ') + ' ' + (i.criterion || '')).toLowerCase().includes(q));
+  const inState = (s) => (i) => s === 'all' || (s === 'active' ? stateOf(i) !== 'verified' : stateOf(i) === s);
+  const names = { active: 'Active', open: 'Open', building: 'Building', verify: 'To verify', back: 'Sent back', verified: 'Verified', all: 'All' };
+  $('state-chips').innerHTML = Object.keys(names).map((s) => '<button data-state="' + s + '" class="' + (view.state === s ? 'on' : '') + '" type="button">' + names[s] + '<b>' + matching.filter(inState(s)).length + '</b></button>').join('');
+  const shown = matching.filter(inState(view.state)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   $('chain').innerHTML = shown.length ? shown.map((i) => {
     const s = stateOf(i);
     const who = s === 'building' ? i.owner : [i.builtBy, i.verifiedBy].filter(Boolean).join(' → ');
@@ -383,7 +383,11 @@ function render() {
       + '<div class="links"><button data-shout="' + esc(item.lane) + '" data-about="' + item.id + '" type="button">Shout the ' + esc(item.lane) + ' lane about #' + item.id + '</button><button data-new type="button">New item</button></div></div>';
   }
 
-  $('feed').innerHTML = p.shouts.length ? p.shouts.map((x) => '<div><time>' + clock(x.shout_at) + '</time><div><b>' + esc(x.shout_from) + ' → ' + esc(x.shout_to) + '</b> ' + esc(x.shout_text) + '</div></div>').join('') : '<div class="empty">No shouts yet.</div>';
+  // A #id in a shout opens that item. The text is escaped first, so the match skips the '#' that
+  // starts an entity such as &#39;, and a number that names no item stays text.
+  const titles = new Map(p.items.map((i) => [String(i.id), i.title]));
+  const linked = (text) => esc(text).replace(/(^|[^&\\w])#(\\d+)\\b/g, (whole, before, id) => titles.has(id) ? before + '<button class="ref" data-go="item:' + id + '" title="' + esc(titles.get(id)) + '" type="button">#' + id + '</button>' : whole);
+  $('feed').innerHTML = p.shouts.length ? p.shouts.map((x) => '<div><time>' + clock(x.shout_at) + '</time><div><b>' + esc(x.shout_from) + ' → ' + esc(x.shout_to) + '</b> ' + linked(x.shout_text) + '</div></div>').join('') : '<div class="empty">No shouts yet.</div>';
   $('shout-targets').innerHTML = ['all', ...lanes, ...p.agents.map((a) => a.agent_id)].map((t) => '<option value="' + esc(t) + '">').join('');
   $('agents').innerHTML = p.agents.length ? p.agents.map((a) => '<div class="agent"><b>' + esc(a.agent_id) + '</b><span class="muted">' + esc(a.agent_lane) + ' lane · ' + esc(a.agent_route) + '</span><small>' + esc(a.agent_path) + '</small></div>').join('') : '<div class="empty">No agents yet.</div>';
   const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
@@ -420,10 +424,27 @@ function showTab() {
 
 function go(target) {
   const [kind, id] = target.split(':');
-  if (kind === 'item') { view.tab = 'items'; view.item = Number(id); view.adding = false; view.state = 'all'; }
+  if (kind === 'item') { view.tab = 'items'; view.state = 'all'; view.before = null; }
   else if (kind === 'spec') { view.tab = 'spec'; view.row.spec = id; view.rows.spec = 'all'; }
   else if (kind === 'tab') view.tab = id;
   keep('pb.tab', view.tab);
+  if (kind === 'item') pick(Number(id));
+  else render();
+}
+
+/** Show an item's detail. Where the list and the detail stack (under 900px), bring the detail into view. */
+function pick(id) {
+  view.item = id;
+  view.adding = false;
+  render();
+  if (matchMedia('(max-width: 900px)').matches) $('detail').scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+
+/** A search looks through every state: All while the box has text, the chip from before once it is empty. */
+function search() {
+  const typed = Boolean($('q').value.trim());
+  if (typed && view.before == null) { view.before = view.state; view.state = 'all'; }
+  else if (!typed && view.before != null) { view.state = view.before; view.before = null; }
   render();
 }
 
@@ -472,7 +493,7 @@ document.addEventListener('click', (event) => {
   if (t.dataset.root) switchTo(t.dataset.root);
   else if (t.dataset.tab) { view.tab = t.dataset.tab; keep('pb.tab', view.tab); showTab(); }
   else if (t.dataset.go) go(t.dataset.go);
-  else if (t.dataset.item) { view.item = Number(t.dataset.item); view.adding = false; render(); }
+  else if (t.dataset.item) pick(Number(t.dataset.item));
   else if (t.dataset.state) { view.state = t.dataset.state; render(); }
   else if (t.dataset.rows) { const [kind, f] = t.dataset.rows.split(':'); view.rows[kind] = f; render(); }
   else if (t.dataset.row) { const [kind, id] = t.dataset.row.split(':'); view.row[kind] = id; render(); }
@@ -481,7 +502,7 @@ document.addEventListener('click', (event) => {
   else if (t.dataset.new !== undefined) { view.adding = true; render(); $('add-title').focus(); }
 });
 $('new-item').addEventListener('click', () => { view.adding = true; view.item = null; render(); $('add-title').focus(); });
-$('q').addEventListener('input', () => render());
+$('q').addEventListener('input', search);
 $('lane-filter').addEventListener('change', () => render());
 $('add-form').addEventListener('submit', async (event) => {
   event.preventDefault();
