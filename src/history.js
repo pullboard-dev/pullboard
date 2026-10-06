@@ -23,17 +23,19 @@ function gitOut(root, args) {
 }
 
 /**
- * Every committed version of a file reachable from HEAD, newest first: the commit, and the file's
- * whole text after it. Renames are followed. One git process, however long the history.
+ * Every committed version of a file reachable from `revs` (HEAD by default), newest first: the
+ * commit, and the file's whole text after it. Renames are followed. One git process, however long
+ * the history.
  *
  * @param {string} root
  * @param {string} path
+ * @param {string[]} [revs]
  * @returns {{ commit: string, text: string }[]}
  */
-export function fileVersions(root, path) {
+export function fileVersions(root, path, revs = ['HEAD']) {
   const out = gitOut(root, [
     'log', '--follow', '--format=%x00%H', '-p', '--unified=1000000',
-    '--no-color', '--no-ext-diff', '--no-textconv', 'HEAD', '--', path,
+    '--no-color', '--no-ext-diff', '--no-textconv', ...revs, '--', path,
   ]);
   if (!out) return [];
   return out.split('\0').filter((chunk) => chunk.trim()).map((chunk) => {
@@ -49,10 +51,11 @@ export function fileVersions(root, path) {
  *
  * @param {string} root
  * @param {string} path
+ * @param {string[]} [revs] - the history to walk; HEAD's by default.
  * @returns {{ ids: Map<string, string>, since: string | null }} `since` is the file's first commit.
  */
-export function committedIds(root, path) {
-  const versions = fileVersions(root, path);
+export function committedIds(root, path, revs = ['HEAD']) {
+  const versions = fileVersions(root, path, revs);
   const ids = new Map();
   for (const { commit, text } of versions) {
     for (const row of parseSpec(text).rows) ids.set(row.id, commit);

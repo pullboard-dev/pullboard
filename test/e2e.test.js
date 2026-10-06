@@ -732,3 +732,18 @@ test('submit refuses a bar that moved since the claim, before any verifier runs;
   box.run(box.web, 'claim', '1');
   assert.match(box.run(box.web, 'submit', '1').out, /submitted #1/);
 });
+
+test('spec check at an older commit skips ids that items cite from a later commit; a never-committed id still fails [S10]', () => {
+  const box = project();
+  writeFileSync(join(box.repo, 'SPEC.md'), `${SPEC}- G3 [draft, must] The page has a footer.\n`);
+  box.git(box.repo, 'commit', '-qam', 'docs(spec): a footer row');
+  box.run(box.repo, 'add', 'web', 'Footer', '--specs', 'G3');
+  const older = box.run(box.web, 'spec', 'check');
+  assert.equal(older.code, 0, older.out);
+  writeFileSync(join(box.repo, 'SPEC.md'), `${SPEC}- G3 [draft, must] The page has a footer.\n- G4 [draft, must] Not committed.\n`);
+  box.run(box.repo, 'add', 'web', 'Ghost', '--specs', 'G4');
+  const ghost = box.run(box.web, 'spec', 'check');
+  assert.equal(ghost.code, 1);
+  assert.match(ghost.out, /SPEC.md: G4 error: item #2 cites it, but it was never committed/);
+  assert.doesNotMatch(ghost.out, /G3 error/);
+});

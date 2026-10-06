@@ -987,20 +987,26 @@ function workCommands(io, args) {
 
 /**
  * Every spec id something cites (S8): commit headers since the spec's first commit, and every item
- * on the board, open or closed. Each must still be in the spec.
+ * on the board, open or closed. Each must still be in the spec. The board is shared by every
+ * checkout, so at an older commit an item may cite a row a later commit added: that id is not lost
+ * here, only not written yet, and it counts once any ref has committed it (S10).
  *
  * @param {any} ctx
- * @param {string | null} since
+ * @param {{ ids: Map<string, string>, since: string | null }} history - this checkout's.
  * @returns {Map<string, string>} Each id, with who cites it.
  */
-function citations(ctx, since) {
+function citations(ctx, { ids, since }) {
   const cited = since ? commitCitations(ctx.info.root, since) : new Map();
   if (!existsSync(ctx.file)) return cited;
+  const byItems = new Map();
   for (const item of withBoard(ctx, (board) => store.listItems(board, { all: true }))) {
     for (const id of item.item_spec_ids ? item.item_spec_ids.split(',') : []) {
-      if (!cited.has(id)) cited.set(id, `item #${item.item_id}`);
+      if (!cited.has(id) && !byItems.has(id)) byItems.set(id, `item #${item.item_id}`);
     }
   }
+  const unseen = [...byItems.keys()].some((id) => !ids.has(id));
+  const elsewhere = unseen ? committedIds(ctx.info.root, ctx.config.spec, ['--all']).ids : new Map();
+  for (const [id, where] of byItems) if (ids.has(id) || !elsewhere.has(id)) cited.set(id, where);
   return cited;
 }
 
@@ -1023,7 +1029,7 @@ function specCommand(io, { first, second, rest, values }) {
       const findings = lintSpec(parsed);
       findings.forEach((finding) => io.say(`${name}:${finding.line} ${finding.id ?? ''} ${finding.level}: ${finding.message}`.replace('  ', ' ')));
       const history = committedIds(ctx.info.root, name);
-      const cited = name === ctx.config.spec ? citations(ctx, history.since) : new Map();
+      const cited = name === ctx.config.spec ? citations(ctx, history) : new Map();
       const lost = permanenceProblems(parsed, { committed: history.ids, cited });
       lost.forEach((problem) => io.say(`${name}: ${problem.id} error: ${problem.message}`));
       const fileErrors = findings.filter((finding) => finding.level === 'error').length + lost.length;
