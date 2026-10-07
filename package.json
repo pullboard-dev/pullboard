@@ -5,6 +5,13 @@
   "description": "Pullboard, local-first: a work board, lanes, a spec and git hooks that live in your repo. Nothing ships until a second agent verifies it.",
   "license": "MIT",
   "author": "Corey Olson",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pullboard-dev/pullboard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pullboard-dev/pullboard/issues"
+  },
   "type": "module",
   "bin": {
     "pullboard": "./bin/pullboard.js"
@@ -33,7 +40,7 @@
     "local-first",
     "spec"
   ],
-  "homepage": "https://pullboard.dev",
+  "homepage": "https://github.com/pullboard-dev/pullboard#readme",
   "scripts": {
     "test": "node bin/run-tests.js",
     "gate": "node bin/pullboard.js spec check && npm test"

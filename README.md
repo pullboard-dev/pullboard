@@ -71,7 +71,7 @@ You need git and Node 22.13 or newer.
 CI runs the gate on Linux with Node 22.13 and 24. On the maintainer's machine, the gate passes on macOS with Node 22.22 and 24. macOS will join CI once the repository is public. Windows has not yet been tested.
 
 ```sh
-npm i -g pullboard             # 0.5.0 or newer; until it is published, run npm i -g . in a clone of this repo
+npm i -g pullboard             # Node 22.13 or newer
 pullboard tour                 # thirty seconds on a throwaway repo: a reject, the fix, the ledger
 ```
 
