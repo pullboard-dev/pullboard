@@ -6,7 +6,7 @@ Statuses: approved = in force · draft = proposed · wont = considered and decli
 
 ## W · Writing
 - W1 [approved, must] Numbers over adjectives. No hedges, no filler. | gate: review
-- W2 [approved, must] Commit headers are type(scope): subject [ids], 72 characters at most, no emojis. | gate: commit-msg hook
+- W2 [approved, must] Headers: type(scope): subject [ids], 72 characters, no emojis. A body only for a non-obvious why, three sentences at most. | gate: commit-msg hook, review
 - W3 [approved, must] Spec ids go in commits, code headers and test names, never in words meant for people. | gate: review
 - W4 [approved, must] A refusal names its rule as a code and says the next step. | gate: review
 
