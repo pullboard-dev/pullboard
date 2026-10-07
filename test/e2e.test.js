@@ -302,7 +302,7 @@ test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [
   assert.equal(box.git(box.repo, 'rev-parse', `refs/pullboard/items/1/${head.slice(0, 12)}`), head, 'submit pins the commit');
 });
 
-test('decisions are asked, listed and answered, and evidence attached, from the command line [B21, B22]', () => {
+test('decisions are asked, listed and answered, and evidence attached, from the command line [B21, B22, B26]', () => {
   const box = project();
   box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');
   const asked = box.run(box.web, 'shout', 'coordinator', 'ship', 'today?', '--decision');
@@ -311,6 +311,9 @@ test('decisions are asked, listed and answered, and evidence attached, from the 
   assert.ok(id, asked.out);
   assert.match(box.run(box.repo, 'decisions').out, new RegExp(`#${id} {2}web-1 -> coordinator, \\d+m ago: ship today\\?`));
   assert.match(box.run(box.repo, 'inbox').out, new RegExp(`web-1 -> coordinator: asks for a decision \\(#${id}; pullboard answer ${id}`));
+  const wrongActor = box.run(box.repo, 'answer', id, 'yes, today', '--as', 'person');
+  assert.notEqual(wrongActor.code, 0);
+  assert.match(wrongActor.err, /B26_PERSON_ANSWER.*person mode answers only/);
   assert.match(box.run(box.repo, 'answer', id, 'yes, today').out, new RegExp(`answered #${id} to web-1 as #\\d+`));
   assert.match(box.run(box.repo, 'decisions').out, /no open decisions/);
   assert.match(box.run(box.web, 'inbox').out, new RegExp(`coordinator -> web-1: answers #${id}: yes, today`));
@@ -319,6 +322,52 @@ test('decisions are asked, listed and answered, and evidence attached, from the 
   assert.equal(proved.code, 0, proved.err);
   assert.match(box.run(box.repo, 'inbox').out, new RegExp(`web-1 -> coordinator: FINISH the page\\n {2}receipt: measured, #1 at ${head.slice(0, 12)}`));
   assert.match(box.run(box.web, 'shout', 'coordinator', 'x', '--evidence', 'receipt', '--outcome', 'measured', '--item', '1', '--commit', 'nope').err, /BAD_EVIDENCE.*"nope"/);
+});
+
+test('decisions default up the chain, pass to the person, and return to the original asker [B25, B26, B27]', () => {
+  const box = project();
+  const asked = box.run(box.web, 'shout', 'Ship the patch?', '--decision');
+  assert.equal(asked.code, 0, asked.err);
+  const id = /as #(\d+)/.exec(asked.out)?.[1];
+  assert.ok(id, asked.out);
+  assert.match(box.run(box.repo, 'decisions').out, new RegExp(`#${id} {2}web-1 -> coordinator`));
+  const passed = box.run(box.repo, 'pass', id, 'the checks are green');
+  assert.equal(passed.code, 0, passed.err);
+  const personId = /as #(\d+)/.exec(passed.out)?.[1];
+  assert.ok(personId, passed.out);
+  assert.match(box.run(box.repo, 'decisions', '--as', 'person').out, new RegExp(`#${personId} {2}coordinator -> person`));
+  const personModeFromAgent = box.run(box.web, 'decisions', '--as', 'person');
+  assert.notEqual(personModeFromAgent.code, 0);
+  assert.match(personModeFromAgent.err, /B26_PERSON_ANSWER.*main checkout/);
+  const agentPersonAnswer = box.run(box.web, 'answer', personId, 'Ship it.', '--as', 'person');
+  assert.notEqual(agentPersonAnswer.code, 0);
+  assert.match(agentPersonAnswer.err, /B26_PERSON_ANSWER.*main checkout/);
+  const agentAnswer = box.run(box.web, 'answer', personId, 'Ship it.');
+  assert.notEqual(agentAnswer.code, 0);
+  assert.match(agentAnswer.err, /NOT_YOUR_DECISION/);
+  const coordinatorAnswer = box.run(box.repo, 'answer', personId, 'Ship it.', '--json');
+  assert.notEqual(coordinatorAnswer.code, 0);
+  const answerRefusal = JSON.parse(coordinatorAnswer.out);
+  assert.equal(answerRefusal.error.code, 'B26_PERSON_ANSWER');
+  assert.match(answerRefusal.error.next, new RegExp(`pullboard answer ${personId} "<answer>" --as person`));
+  assert.match(box.run(box.repo, 'answer', personId, 'Ship it.', '--as', 'person').out, new RegExp(`person answered #${personId}; notified web-1`));
+  assert.match(box.run(box.web, 'resume').out, new RegExp(`newest from person: Person answered #${personId}: Ship it\\.`));
+  assert.match(box.run(box.web, 'inbox').out, new RegExp(`person -> web-1: answers #${id}: Person answered #${personId}: Ship it\\.`));
+  assert.match(box.run(box.repo, 'decisions').out, /no open decisions/);
+  const refused = box.run(box.web, 'shout', 'person', 'Ship?', '--decision', '--json');
+  assert.notEqual(refused.code, 0);
+  const refusal = JSON.parse(refused.out);
+  assert.equal(refusal.error.code, 'B26_PERSON_DECISION');
+  assert.match(refusal.error.next, /ask your coordinator: pullboard shout coordinator/);
+  const coordinatorAsk = box.run(box.repo, 'shout', 'Should we publish?', '--decision');
+  assert.equal(coordinatorAsk.code, 0, coordinatorAsk.err);
+  assert.match(coordinatorAsk.out, /asked person for a decision/);
+  const personDecision = /as #(\d+)/.exec(coordinatorAsk.out)?.[1];
+  assert.ok(personDecision, coordinatorAsk.out);
+  const defaultPersonAnswer = box.run(box.repo, 'answer', personDecision, 'Yes.');
+  assert.notEqual(defaultPersonAnswer.code, 0);
+  assert.match(defaultPersonAnswer.err, /B26_PERSON_ANSWER.*--as person/);
+  assert.equal(box.run(box.repo, 'answer', personDecision, 'Yes.', '--as', 'person').code, 0);
 });
 
 test('pullboard worktree makes a joined worktree for a lane in one command [I4]', () => {

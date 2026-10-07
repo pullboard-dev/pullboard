@@ -242,9 +242,10 @@ test('[A1] command results match the catalog across roots and subcommands', () =
   json(box, repo, 'hold', ['app', '--reason', 'exercise JSON']);
   json(box, repo, 'hold', ['app', '--off']);
 
-  json(box, secondPath, 'shout', ['coordinator', 'Please decide', '--decision']);
+  json(box, secondPath, 'shout', ['Please decide', '--decision']);
   json(box, repo, 'decisions');
-  json(box, repo, 'answer', ['1', 'Yes, keep the change']);
+  json(box, repo, 'pass', ['1', 'The test run is complete']);
+  json(box, repo, 'answer', ['2', 'Yes, keep the change', '--as', 'person']);
   json(box, secondPath, 'inbox');
   json(box, repo, 'sweep', ['--run', 'true', '--check', 'true {file}']);
 

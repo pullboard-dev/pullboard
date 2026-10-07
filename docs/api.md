@@ -4,6 +4,8 @@ Add `--json` to a Pullboard command to receive one JSON document on stdout. The 
 
 The API version is independent of the package version. Its contract is stable within each major API version: existing command names, required fields, field types, and refusal fields do not change within that version. An incompatible change requires a new `version`. New fields may be added, so clients should ignore fields they do not use.
 
+Decision shouts without a recipient go to the agent's coordinator, or to `person` when sent by the coordinator. `pullboard pass <shout-id> <note>` is for coordinators: it forwards an open coordinator decision to the person with the original question and note. From the main checkout, `pullboard decisions` and `pullboard answer <shout-id> <text>` default to the coordinator; use `--as person` to select the person's queue or answer a person-addressed decision. Person mode is accepted only in the main checkout. An answer in person mode cannot answer a coordinator-addressed decision, and a coordinator-default answer cannot impersonate the person; the refusal prints the command to retry. A person answer is delivered to the original asker. An agent worktree cannot select person mode.
+
 A successful command returns the fields listed below. `version` is always the number `1`. The catalog lists required top-level fields; nested objects and arrays are command data, and optional top-level fields may be added.
 
 <!-- api-command-shapes:start -->
@@ -43,6 +45,7 @@ A successful command returns the fields listed below. `version` is always the nu
 | `refreeze` | `version:number`, `id:number`, `after:string` |
 | `shout` | `version:number`, `id:number`, `decision:boolean` |
 | `answer` | `version:number`, `id:number`, `answers:number` |
+| `pass` | `version:number`, `id:number`, `answers:number` |
 | `tour` | `version:number`, `messages:array` |
 | `lifecycle` | `version:number`, `markdown:string` |
 | `view` | `version:number`, `url:string`, `port:number` |

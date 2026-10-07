@@ -92,11 +92,12 @@ Work
   pullboard verify <id> accept --note "what you broke or which edge you tried, and what happened"
   pullboard verify <id> reject --reason TEST_FAILURE --note "what failed"
                                         any --note can be --note-file <file>, which keeps quotes, $ and backticks intact
-  pullboard shout <lane|agent|all> <text>       pullboard inbox
-  pullboard shout <to> <text> --decision          ask for a decision; it stays open until answered
+  pullboard shout <lane|agent|person|all> <text> pullboard inbox
+  pullboard shout [<to>] <text> --decision       ask for a decision; defaults to your coordinator or the person
   pullboard shout <to> <text> --evidence attempt|receipt --outcome <word> --item <id> --commit <rev>
-  pullboard answer <shout-id> <text>              answer a shout that asked for a decision
-  pullboard decisions                             shouts still waiting for a decision
+  pullboard answer <shout-id> <text> [--as person] answer your decision; person mode is main-checkout only
+  pullboard pass <shout-id> <note>                coordinator passes a decision to the person
+  pullboard decisions [--as person]               shouts waiting for you; main checkout defaults to coordinator
 
 Coordinator
   pullboard sweep --run "<checker>" --check "<checker on {file}>" [--route light] [--max 20] [--dry-run]
@@ -265,6 +266,23 @@ function checkMainVerifier(ctx, board, values) {
     'MAIN_IS_COORDINATOR',
     `this is the main checkout, so this verdict would be the coordinator's. An agent verifies from its own worktree, starting every command with cd <worktree> &&.${listed}${detached} The coordinator adds --as coordinator`,
   );
+}
+
+/**
+ * Select the person actor only through the main checkout's explicit person mode (B26).
+ *
+ * @param {any} ctx
+ * @param {{ id: string }} me
+ * @param {{ as?: string }} values
+ * @returns {boolean}
+ */
+function personMode(ctx, me, values) {
+  if (values.as === undefined) return false;
+  if (values.as !== 'person') throw new Refused('USAGE', '--as person is supported for answer and decisions');
+  if (!ctx.info.isMain || me.id !== COORDINATOR) {
+    throw new Refused('B26_PERSON_ANSWER', 'only the main checkout can act as the person; ask your coordinator to answer or pass this decision');
+  }
+  return true;
 }
 
 /**
@@ -899,7 +917,11 @@ function readCommands(io, { first, values }) {
     },
     decisions: () => {
       const ctx = context(io);
-      const asks = withBoard(ctx, (board) => store.openDecisions(board));
+      const asks = withBoard(ctx, (board) => {
+        const me = whoAmI(ctx, board);
+        const asPerson = personMode(ctx, me, values);
+        return store.openDecisions(board, asPerson ? 'person' : me.id);
+      });
       io.result?.({ decisions: asks });
       if (!asks.length) io.say('no open decisions');
       for (const ask of asks) io.say(`#${ask.shout_id}  ${ask.shout_from} -> ${ask.shout_to}, ${span(ctx, ask.shout_at)} ago: ${firstLine(ask.shout_text)}`);
@@ -1308,17 +1330,32 @@ function workCommands(io, args) {
     }),
     shout: () => act((ctx, board, me) => {
       const evidence = values.evidence === undefined ? null : evidenceFrom(ctx, values);
-      const text = [second, ...rest].filter(Boolean).join(' ');
-      const id = store.shout(board, { from: me.id, to: first ?? '', text, lanes: laneNames(ctx.config), decision: Boolean(values.decision), evidence });
+      const recipients = ['all', 'person', ...laneNames(ctx.config), ...board.db.prepare('SELECT agent_id FROM agent').all().map((agent) => agent.agent_id)];
+      const hasRecipient = first && recipients.includes(first);
+      const to = hasRecipient ? first : values.decision ? (me.id === COORDINATOR ? 'person' : COORDINATOR) : first ?? '';
+      const text = [hasRecipient ? second : first, ...(hasRecipient ? rest : [second, ...rest])].filter(Boolean).join(' ');
+      const id = store.shout(board, { from: me.id, to, text, lanes: laneNames(ctx.config), decision: Boolean(values.decision), evidence });
       io.result?.({ id, decision: Boolean(values.decision) });
-      io.say(values.decision ? `asked ${first} for a decision as #${id}; it stays open until someone runs: pullboard answer ${id} "<the decision>"` : `shouted to ${first}`);
+      io.say(values.decision ? `asked ${to} for a decision as #${id}; it stays open until someone runs: pullboard answer ${id} "<the decision>"` : `shouted to ${to}`);
       return 0;
     }),
     answer: () => act((ctx, board, me) => {
+      const asPerson = personMode(ctx, me, values);
+      const id = store.answerDecision(board, idArg(first), { agentId: me.id, text: [second, ...rest].filter(Boolean).join(' '), lanes: laneNames(ctx.config), asPerson });
       const ask = store.getShout(board, idArg(first));
-      const id = store.shout(board, { from: me.id, to: ask.shout_from, text: [second, ...rest].filter(Boolean).join(' '), lanes: laneNames(ctx.config), answers: ask.shout_id });
       io.result?.({ id, answers: ask.shout_id });
-      io.say(`answered #${ask.shout_id} to ${ask.shout_from} as #${id}`);
+      if (asPerson) {
+        const originalAsker = ask.shout_answers === null ? ask.shout_from : store.getShout(board, ask.shout_answers).shout_from;
+        io.say(`person answered #${ask.shout_id}; notified ${originalAsker} as #${id}`);
+      } else {
+        io.say(`answered #${ask.shout_id} to ${ask.shout_from} as #${id}`);
+      }
+      return 0;
+    }),
+    pass: () => act((ctx, board, me) => {
+      const id = store.passDecision(board, idArg(first), { agentId: me.id, note: [second, ...rest].filter(Boolean).join(' '), lanes: laneNames(ctx.config) });
+      io.result?.({ id, answers: idArg(first) });
+      io.say(`passed #${first} to the person as #${id}`);
       return 0;
     }),
   };
@@ -1541,6 +1578,9 @@ async function runCommand(argv, io) {
   }
   const args = { first, second, rest, values };
   try {
+    if (values.as === 'person' && !['answer', 'decisions'].includes(command)) {
+      throw new Refused('USAGE', '--as person works only with pullboard answer or decisions');
+    }
     if (command === 'tour') return tour(io);
     if (command === 'lifecycle') {
       io.result?.({ markdown: lifecycleMarkdown().trimEnd() });

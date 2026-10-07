@@ -232,14 +232,48 @@ test('a shout can ask for a decision; it stays open until someone answers it [B2
   const lanes = ['coordinator', 'web', 'api'];
   const ask = store.shout(board, { from: 'web-1', to: 'coordinator', text: 'ship the page today or tomorrow?', lanes, decision: true });
   const note = store.shout(board, { from: 'web-1', to: 'coordinator', text: 'fyi: the gate is slow', lanes });
-  assert.deepEqual(store.openDecisions(board).map((shout) => shout.shout_id), [ask]);
+  assert.deepEqual(store.openDecisions(board, 'coordinator').map((shout) => shout.shout_id), [ask]);
   assert.throws(() => store.shout(board, { from: 'coordinator', to: 'web-1', text: 'ok', lanes, answers: note }), /NOT_A_DECISION/);
   assert.throws(() => store.shout(board, { from: 'coordinator', to: 'web-1', text: 'ok', lanes, answers: 999 }), /NO_SHOUT/);
-  assert.deepEqual(store.openDecisions(board).map((shout) => shout.shout_id), [ask], 'a refused answer leaves it open');
+  assert.deepEqual(store.openDecisions(board, 'coordinator').map((shout) => shout.shout_id), [ask], 'a refused answer leaves it open');
   const answer = store.shout(board, { from: 'coordinator', to: 'web-1', text: 'today', lanes, answers: ask });
-  assert.deepEqual(store.openDecisions(board), []);
+  assert.deepEqual(store.openDecisions(board, 'coordinator'), []);
   assert.equal(store.getShout(board, answer).shout_answers, ask);
   assert.equal(store.getShout(board, ask).shout_text, 'ship the page today or tomorrow?', 'an answer is a new shout; the ask is never edited');
+});
+
+test('decisions climb to the person and answers return to the first asker [B25, B26, B27]', () => {
+  const lanes = ['coordinator', 'web', 'api'];
+  const original = store.shout(board, { from: 'web-1', to: 'coordinator', text: 'Ship today?', lanes, decision: true });
+  assert.throws(() => store.shout(board, { from: 'web-1', to: 'person', text: 'Ship today?', lanes, decision: true }), /B26_PERSON_DECISION.*ask your coordinator/);
+  const passed = store.passDecision(board, original, { agentId: 'coordinator', note: 'the final CSS screenshot is ready', lanes });
+  const escalated = store.getShout(board, passed);
+  assert.equal(escalated.shout_to, 'person');
+  assert.equal(escalated.shout_answers, original);
+  assert.match(escalated.shout_text, /web-1: Ship today\?/);
+  assert.match(escalated.shout_text, /final CSS screenshot is ready/);
+  assert.deepEqual(store.openDecisions(board, 'person').map((row) => row.shout_id), [passed]);
+  assert.deepEqual(store.openDecisions(board, 'coordinator'), []);
+  assert.throws(() => store.answerDecision(board, passed, { agentId: 'web-1', text: 'No', lanes }), /NOT_YOUR_DECISION/);
+  assert.deepEqual(store.openDecisions(board, 'person').map((row) => row.shout_id), [passed]);
+  assert.throws(() => store.answerDecision(board, passed, { agentId: 'coordinator', text: 'Yes, ship today.', lanes }), /B26_PERSON_ANSWER.*--as person/);
+  const answer = store.answerDecision(board, passed, { agentId: 'coordinator', text: 'Yes, ship today.', lanes, asPerson: true });
+  assert.equal(store.getShout(board, answer).shout_from, 'person');
+  assert.deepEqual(store.openDecisions(board, 'person'), []);
+  assert.deepEqual(store.openDecisions(board, 'coordinator'), []);
+  assert.throws(() => store.passDecision(board, original, { agentId: 'coordinator', note: 'retry', lanes }), /ALREADY_ANSWERED/);
+  assert.throws(() => store.answerDecision(board, passed, { agentId: 'coordinator', text: 'Again', lanes }), /ALREADY_ANSWERED/);
+  const delivered = store.inbox(board, 'web-1');
+  assert.equal(delivered[0].shout_text, `Person answered #${passed}: Yes, ship today.`);
+  assert.equal(delivered[0].shout_answers, original, 'the notice closes the first asker’s decision');
+});
+
+test('only the coordinator can pass an open coordinator decision [B27]', () => {
+  const lanes = ['coordinator', 'web', 'api'];
+  const ask = store.shout(board, { from: 'web-1', to: 'coordinator', text: 'Ship?', lanes, decision: true });
+  assert.throws(() => store.passDecision(board, ask, { agentId: 'web-1', note: 'please', lanes }), /COORDINATOR_ONLY/);
+  assert.throws(() => store.passDecision(board, ask, { agentId: 'coordinator', note: '', lanes }), /EMPTY_NOTE/);
+  assert.equal(store.openDecisions(board, 'coordinator')[0].shout_id, ask);
 });
 
 test('a shout can carry typed evidence: attempt or receipt, outcome, item and commit [B22]', () => {
