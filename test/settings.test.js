@@ -15,7 +15,7 @@ function settings(home, ...args) {
   });
 }
 
-test('[O5,O6] gateSlots defaults to two, reads and sets atomically, and refuses invalid saved values', () => {
+test('[O5,O6] gateSlots defaults to two, reads and sets atomically, and refuses invalid values', () => {
   const home = mkdtempSync(join(tmpdir(), 'pullboard-settings-'));
   try {
     const initial = settings(home);
@@ -27,6 +27,14 @@ test('[O5,O6] gateSlots defaults to two, reads and sets atomically, and refuses 
     assert.equal(JSON.parse(changed.stdout).settings.gateSlots, 3);
     assert.equal(JSON.parse(readFileSync(join(home, 'settings.json'), 'utf8')).gateSlots, 3);
     assert.equal(JSON.parse(settings(home).stdout).settings.gateSlots, 3);
+
+    const saved = readFileSync(join(home, 'settings.json'), 'utf8');
+    for (const value of ['0', 'abc']) {
+      const refusedSet = settings(home, 'gateSlots', value);
+      assert.equal(readFileSync(join(home, 'settings.json'), 'utf8'), saved, `${value} leaves settings.json unchanged`);
+      assert.equal(refusedSet.status, 1, `${value}: ${refusedSet.stdout}${refusedSet.stderr}`);
+      assert.equal(JSON.parse(refusedSet.stdout).error.code, 'USAGE');
+    }
 
     writeFileSync(join(home, 'settings.json'), JSON.stringify({ gateSlots: 0 }));
     const refused = settings(home);

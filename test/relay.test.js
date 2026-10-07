@@ -192,6 +192,64 @@ test('revoking a board credential while its upload body is open stores nothing [
   assert.equal(existsSync(join(dirname(box.database), 'journal', `${board}.journal.sqlite`)), true);
 });
 
+test('revoking a person token during snapshot upload preserves the prior snapshot [H8, A4, H7]', async (t) => {
+  const box = await fixture(t);
+  const person = await login(box);
+  const observer = await login(box);
+  const board = 'c'.repeat(32);
+  await box.auth.linkBoard(person.token, board, 'fixture/repository');
+  const service = await serveRelay({
+    directory: join(dirname(box.database), 'journal'), auth: box.auth, port: 0,
+    publicOrigin: 'http://127.0.0.1:44444', maintenanceMs: 0,
+  });
+  t.after(() => service.close());
+  const origin = `http://127.0.0.1:${service.port}`;
+  const firstSnapshot = await fetch(`${origin}/api/v1/boards/${board}/state`, {
+    method: 'PUT',
+    headers: { authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ sequence: 0, sealed: 'AQ' }),
+  });
+  assert.equal(firstSnapshot.status, 200);
+
+  let firstAuthenticationComplete;
+  let signaled = false;
+  const authenticated = new Promise((resolve) => { firstAuthenticationComplete = resolve; });
+  const authenticate = box.auth.authenticate;
+  box.auth.authenticate = async (...args) => {
+    const result = await authenticate(...args);
+    if (!signaled && args[1]?.board === board) {
+      signaled = true;
+      firstAuthenticationComplete();
+    }
+    return result;
+  };
+  let stream;
+  const upload = fetch(`${origin}/api/v1/boards/${board}/state`, {
+    method: 'PUT',
+    headers: { authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
+    body: new ReadableStream({ start(controller) { stream = controller; controller.enqueue(Buffer.from('{"sequence":0,"sealed":"')); } }),
+    duplex: 'half',
+  });
+  await authenticated;
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  await box.auth.revoke(person.token, person.id);
+  stream.enqueue(Buffer.from('Ag"}'));
+  stream.close();
+
+  const response = await upload;
+  const refusal = await response.json();
+  assert.equal(response.status, 401, JSON.stringify(refusal));
+  assert.equal(refusal.error.code, 'AUTH_REQUIRED');
+  const current = await fetch(`${origin}/api/v1/boards/${board}/state`, {
+    headers: { authorization: `Bearer ${observer.token}` },
+  });
+  assert.equal(current.status, 200);
+  const saved = await current.json();
+  assert.equal(saved.state.sequence, 0);
+  assert.equal(saved.state.sealed, 'AQ', 'the snapshot uploaded before revocation remains the latest snapshot');
+});
+
 test('a deleted and recreated repository cannot inherit the linked board [H8, H1]', async (t) => {
   const box = await fixture(t);
   const signed = await login(box);
