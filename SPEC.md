@@ -87,13 +87,15 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - S10 [approved, must] At an older commit, spec check skips ids that items cite and a later commit added. | gate: test/e2e.test.js | serves: S8
 - S11 [approved, must] pullboard.json names products, each a list of spec ids or section letters, as lanes list theirs. | gate: test/products.test.js
 - S12 [approved, must] Lanes and items belong to the product of their spec prefixes and cited rows; nothing restates it. | gate: test/products.test.js | serves: S11
-- S13 [draft, must] `pullboard spec --json` prints every parsed row, so tools in any language read the spec without parsing it. | gate: test/spec.test.js
-- S14 [draft, must] A sign-off can say what the signer checked, with --note, and the note stays with it. | gate: test/spec.test.js | serves: S5
-- S15 [draft, must] Signing a row shows the tests and verified items that cite it; a row nothing proves cannot be signed. | gate: test/spec.test.js | serves: S5
-- S16 [draft, aim] Each approved row not yet signed shows where it stands on its way to a sign-off. | gate: test/spec.test.js | serves: S5
-- S17 [draft, must] A sign-off lands as a git commit signed with the signer's own key, checked against the repo's allowed signers. | gate: test/signoff.test.js | serves: S5
-- S18 [draft, must] A row can name who must sign it; it is met only when each has a current signed sign-off. | gate: test/signoff.test.js | serves: S17
-- S19 [draft, must] spec check refuses a sign-off committed unsigned, signed by a key not allowed, or edited after it landed. | gate: test/signoff.test.js | serves: S17
+- S13 [approved, must] `pullboard spec --json` prints every parsed row, so tools in any language read the spec without parsing it. | gate: test/spec.test.js
+- S14 [approved, must] A sign-off can say what the signer checked, with --note, and the note stays with it. | gate: test/spec.test.js | serves: S5
+- S15 [approved, must] Signing a row shows the tests and verified items that cite it; a row nothing proves cannot be signed. | gate: test/spec.test.js | serves: S5
+- S16 [approved, aim] Each approved row not yet signed shows where it stands on its way to a sign-off. | gate: test/spec.test.js | serves: S5
+- S17 [approved, must] Once a repo lists signers, each sign-off carries the signer's SSH signature over the row's exact text. | gate: test/signoff.test.js | serves: S5
+- S18 [approved, must] A row can name who must sign it; it is met only when each has a current signed sign-off. | gate: test/signoff.test.js | serves: S17
+- S19 [approved, must] spec check refuses a sign-off whose signature fails or whose key isn't listed; a changed row makes it stale. | gate: test/signoff.test.js | serves: S17
+- S20 [approved, must] A change to the signer list counts only in a commit signed by a key already on it. | gate: test/signoff.test.js | serves: S17
+- S21 [approved, must] `pullboard spec signers add` sets a repo up with the SSH key the person already uses; no GPG. | gate: test/signoff.test.js | serves: S17
 
 ## D · Doctrine
 - D1 [draft, must] Pullboard ships a standard doctrine, versioned, with PB ids; every repo inherits it, Pullboard's own included. | gate: test/practice.test.js
@@ -182,7 +184,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 
 ## H · Relay: pullboard.dev, opt in
 - H1 [approved, must] `pullboard relay on|off` links this board to pullboard.dev, after a GitHub sign-in. | gate: test/relay.test.js
-- H2 [pending, aim] Hosted issues an identity per agent, so a verdict binds who gave it, not a path.
+- H2 [approved, aim] With the relay, each agent has its own token, so a verdict records which agent gave it. | gate: test/relay.test.js
 - H3 [approved, must] With the relay on, every move passes through it in one order: a claim is won once, everywhere. | gate: test/relay.test.js | serves: H1
 - H4 [approved, must] The relay enforces the CLI's own lifecycle, refusing exactly what the CLI refuses. | gate: test/relay.test.js | serves: M1
 - H5 [approved, must] Signed in to pullboard.dev, you see and act on your boards live, on phone or desktop. | gate: test/relay.test.js | serves: N26

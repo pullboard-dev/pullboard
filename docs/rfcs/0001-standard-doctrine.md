@@ -1,6 +1,6 @@
 # RFC 0001: A standard doctrine, version 1
 
-- Status: proposed
+- Status: accepted, 7 October 2026
 - Proposed: 7 October 2026, by Corey Olson
 
 ## Summary
