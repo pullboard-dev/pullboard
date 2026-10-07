@@ -112,3 +112,27 @@ test('[A2, R2] a refused command emits no move event', async (t) => {
   const after = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   try { assert.equal(store.events(after).length, beforeCount); } finally { store.closeBoard(after); }
 });
+
+
+test('[A2, R2] rolling back a transaction also discards its captured events', async (t) => {
+  const { repo } = await project(t);
+  const board = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    const item = store.addItem(board, { by: 'coordinator', lane: 'app', title: 'Committed move' });
+    const rows = store.events(board);
+    const emitted = [...board.emittedEvents];
+    const last = board.lastEvent;
+    assert.throws(() => store.atomic(board, () => {
+      store.recordAttempt(board, item, { agentId: 'coordinator', n: 1, seconds: 1, result: 'rolled back' });
+      throw new Error('abort the real SQLite transaction');
+    }), /abort the real SQLite transaction/);
+    assert.deepEqual(store.events(board), rows, 'the database contains only committed events');
+    assert.deepEqual(board.emittedEvents, emitted, 'delivery cannot include rolled-back rows');
+    assert.deepEqual(board.lastEvent, last, 'the retained row still belongs to a committed move');
+    store.recordAttempt(board, item, { agentId: 'coordinator', n: 2, seconds: 1, result: 'committed' });
+    assert.deepEqual(board.emittedEvents, [...emitted, board.lastEvent]);
+    assert.equal(JSON.parse(board.lastEvent.event_detail).result, 'committed');
+  } finally {
+    store.closeBoard(board);
+  }
+});

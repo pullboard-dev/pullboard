@@ -271,12 +271,16 @@ const now = (board) => board.clock.now().toISOString();
  */
 export function atomic(board, work) {
   board.db.exec('BEGIN IMMEDIATE');
+  const lastEvent = board.lastEvent;
+  const emitted = board.emittedEvents?.length ?? 0;
   try {
     const result = work();
     board.db.exec('COMMIT');
     return result;
   } catch (error) {
     board.db.exec('ROLLBACK');
+    board.lastEvent = lastEvent;
+    board.emittedEvents?.splice(emitted);
     throw error;
   }
 }
