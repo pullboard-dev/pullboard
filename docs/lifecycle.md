@@ -93,7 +93,7 @@ Each move checks its guards in this order and refuses with the first one that do
 | NO_COMMIT | there is a commit to submit | commit your work, then submit |
 | NO_GATE | the repo names a gate command | set "gate" in pullboard.json, e.g. "npm test" |
 | GATE_RED | the gate, which submit runs itself every time, is green at HEAD | fix what the digest names, commit, submit again |
-| MOVED_DURING_GATE | HEAD and every tracked file stayed as they were while the gate ran | leave the worktree alone until the gate finishes, then submit again |
+| MOVED_DURING_GATE | when the gate ends, HEAD and every tracked file are as they were when it started | leave the worktree alone until the gate finishes, then submit again |
 | CHILDREN_OPEN | every child item is verified or withdrawn | finish the child items, or the coordinator withdraws them |
 | HEAD_NOT_NEW | a verifier has not already rejected this commit | commit the rework, then submit |
 | NOT_AT_COMMIT | the caller's checkout contains the submitted commit | git switch --detach <commit> |

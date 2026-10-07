@@ -810,13 +810,14 @@ function submitHere(ctx, id) {
   const commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
   // Submit runs the gate itself, every time: a stamp from an earlier run is a file any agent can
-  // write, so it never stands in for this run (V16). The run must also see the tree as submitted.
+  // write, so it never stands in for this run (V16). It starts on the commit submitted, and must end
+  // on it too. What the gate's own code does in between is the submitted tree's, under review.
   const gate = runGate(root, ctx.config, { trustStamp: false });
   if (!gate.isGreen) throw new Refused('GATE_RED', `the gate is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${gateReport(gate)}`);
   if (headCommit(root) !== commit || !isClean(root)) {
     throw new Refused(
       'MOVED_DURING_GATE',
-      `HEAD or a tracked file changed while the gate ran, so it did not check ${commit.slice(0, 12)} as you would submit it; leave the worktree alone until the gate finishes, then submit again`,
+      `when the gate ended, HEAD or a tracked file differed from ${commit.slice(0, 12)}, the commit it started on, so the gate did not end on what you would submit; leave the worktree alone until the gate finishes, then submit again`,
     );
   }
   withBoard(ctx, (board) => store.submit(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit) }));

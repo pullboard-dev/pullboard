@@ -125,7 +125,7 @@ test('submit runs the gate even on a tree an earlier run passed, which a plain g
   assert.equal(box.runs(), 2, 'submit ran the gate itself, stamp or no stamp');
 });
 
-test('submit refuses a tree that moved while its gate ran: a new commit, or an edited tracked file [V16]', () => {
+test('submit refuses a tree its gate left changed: a new commit, or an edited tracked file [V16]', () => {
   for (const [moves, gate] of [
     ['a commit made during the gate', 'git commit -q --allow-empty -m "chore: moved under the gate"'],
     ['a tracked file edited during the gate', 'echo more >> SPEC.md'],

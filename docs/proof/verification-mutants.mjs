@@ -23,7 +23,7 @@ const VERDICT_ROW = '.run(id, agentId, decision, code, note.trim(), found.item_c
 const SUBMIT_RUN = 'const gate = runGate(root, ctx.config, { trustStamp: false });';
 const MOVED = 'if (headCommit(root) !== commit || !isClean(root)) {';
 const HAND_STAMP = ['test/gate.test.js', 'a stamp written by hand never stands in'];
-const MOVED_TREE = ['test/gate.test.js', 'submit refuses a tree that moved while its gate ran'];
+const MOVED_TREE = ['test/gate.test.js', 'submit refuses a tree its gate left changed'];
 
 /** Row, the change, its edits as [file, from, to], the test that judges it, and the outcome expected. */
 const MUTANTS = [

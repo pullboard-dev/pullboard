@@ -24,7 +24,7 @@ Re-run it with `node docs/proof/verification-mutants.mjs`. It copies the repo to
 | V16 | Submit runs the gate itself on the exact tree it submits; no stamp from an earlier run stands in. | submit trusts a stamp written by hand | submit runs the gate itself: a stamp written by hand never stands in for a red gate | red |
 | V16 | | submit trusts an earlier run's stamp | submit runs the gate even on a tree an earlier run passed, which a plain gate run may skip | red |
 | V16 | | the gate trusts the stamp whatever submit asks | submit runs the gate itself: a stamp written by hand never stands in for a red gate | red |
-| V16 | | submit does not look whether the tree moved; it misses a new commit; it misses an edited tracked file (three changes) | submit refuses a tree that moved while its gate ran: a new commit, or an edited tracked file | red, all three |
+| V16 | | submit does not look whether the tree moved; it misses a new commit; it misses an edited tracked file (three changes) | submit refuses a tree its gate left changed: a new commit, or an edited tracked file | red, all three |
 
 ## What the audit changed
 
@@ -42,4 +42,6 @@ git rev-parse 'HEAD^{tree}' > "$(git rev-parse --git-path pullboard-gate-green)"
 pullboard submit 1    -> submitted #1 at 8c6b3057c8d7; gate green (this tree already passed)
 ```
 
-On one machine, any file pullboard writes an agent can write too, so no stamp can be made safe to trust. Since #51, submit runs the gate itself every time and refuses MOVED_DURING_GATE if HEAD or a tracked file changes while it runs. The stamp now only saves a run where nothing is proven by it: pre-push and `pullboard gate` (C3). Gitignored files that a gate may read are still out of scope; a fresh checkout per submit would be the next step.
+On one machine, any file pullboard writes an agent can write too, so no stamp can be made safe to trust. Since #51, submit runs the gate itself every time. The gate starts on exactly the commit submitted, and submit refuses MOVED_DURING_GATE if HEAD or a tracked file differs from it when the gate ends. The stamp now only saves a run where nothing is proven by it: pre-push and `pullboard gate` (C3). Gitignored files that a gate may read are still out of scope; a fresh checkout per submit would be the next step.
+
+**What submit does not claim.** The gate is code in the submitted tree. A gate that edits a tracked file and puts it back before it exits, or commits and resets, ends on the submitted commit and passes. tests-1 showed both on fresh repos while reviewing #51. Submit cannot tell such a run from an honest one: a gate could as well copy the tree elsewhere and test the copy. So submit promises only what it can see: no stamp stands in, and the gate starts and ends on the submitted commit. What the gate's code does in between is part of the submitted tree. Its verifier reads it and reruns the gate at that commit.
