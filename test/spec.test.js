@@ -136,10 +136,10 @@ test('a grammar-1 repair can commit after grammar 2 was already recorded [A5,S8]
   writeFileSync(join(root, 'PRACTICE.md'), '<!-- pullboard-grammar 2 -->\n# Practice\n');
   git('add', '-A');
   git('commit', '-q', '-m', 'docs: preserve pre-upgrade grammar');
-  const initialized = command('init');
-  assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
   writeFileSync(join(root, 'SPEC.md'), `<!-- pullboard-grammar 1 -->\n${SPEC}`);
   writeFileSync(join(root, 'PRACTICE.md'), '<!-- pullboard-grammar 1 -->\n# Practice\n');
+  const initialized = command('init');
+  assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
   git('add', '-A');
   const repaired = spawnSync('git', ['commit', '-q', '-m', 'docs: restore supported grammar'], { cwd: root, env, encoding: 'utf8' });
   assert.equal(repaired.status, 0, `${repaired.stdout}${repaired.stderr}`);

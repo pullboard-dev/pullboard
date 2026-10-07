@@ -344,7 +344,7 @@ test('[A1,B21,B27] decisions shows an agent its direct and lane asks only', () =
   jsonError(box, app1, 'decisions', ['--as', 'person'], {
     status: 1,
     code: 'B26_PERSON_ANSWER',
-    message: '[B26_PERSON_ANSWER] only the main checkout can act as the person; ask your coordinator to answer or pass this decision',
+    message: 'only the main checkout can act as the person; ask your coordinator to answer or pass this decision',
     next: 'ask your coordinator to answer or pass this decision',
   });
   jsonError(box, app1, 'answer', [String(app2Ask), 'No'], {
