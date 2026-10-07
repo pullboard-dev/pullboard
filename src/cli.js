@@ -87,6 +87,7 @@ Work
                                         earlier ones as one line; --history prints every note in full
   pullboard next [--wait <minutes>]     claim the next item in your lane that is free to start
   pullboard next --verify               reserve the next submitted item you can check;
+  pullboard next --verify <id>          reserve that submitted item instead
                                         in the main checkout, verifying needs --as coordinator
   pullboard check [id]                  run your item's check, the command that proves it (the project gate is pullboard gate)
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
@@ -1117,6 +1118,10 @@ function nextOnce(ctx, values) {
     if (values.verify) checkMainVerifier(ctx, board, values);
     const me = whoAmI(ctx, board);
     if (values.verify) {
+      const reservation = { agentId: me.id, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify };
+      if (values.verifyId !== undefined) {
+        return { item: store.reserveReview(board, idArg(values.verifyId, 'an item id after --verify'), reservation), reasons: [] };
+      }
       return store.reserveNextReview(board, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify, runnable: values.runnable, routes: values.routes });
     }
     const warm = warmFiles(ctx, board, me);
@@ -1143,6 +1148,10 @@ function nextOnce(ctx, values) {
  */
 async function nextHere(io, values) {
   const ctx = context(io);
+  if (values.verifyId !== undefined && !values.verify) {
+    throw new Refused('USAGE', 'give an item id only with --verify: pullboard next --verify <id>');
+  }
+  if (values.verifyId !== undefined) idArg(values.verifyId, 'an item id after --verify');
   const minutes = values.wait === undefined ? 0 : Number(values.wait);
   if (!Number.isFinite(minutes) || minutes < 0 || minutes > 240) {
     throw new Refused('USAGE', '--wait is a number of minutes from 0 to 240');
@@ -1302,7 +1311,7 @@ function workCommands(io, args) {
     }),
     run: () => runItems(io, values, { context, withBoard, whoAmI, nextOnce, submitHere, freezer }),
     sweep: () => act((ctx, board, me) => sweepHere(ctx, board, me, values)),
-    next: () => nextHere(io, values),
+    next: () => nextHere(io, { ...values, verifyId: first }),
     check: () => {
       const ctx = context(io);
       const item = withBoard(ctx, (board) => {
