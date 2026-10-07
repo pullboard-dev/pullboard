@@ -189,6 +189,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - A7 [approved, aim] `pullboard export` writes a whole board as JSON, and `import` rebuilds it, losing nothing. | gate: test/api.test.js
 - A8 [draft, aim] The gate passes on macOS, Linux and Windows. | gate: test/ci.test.js | serves: C7
 - A9 [draft, aim] An agent can work the board through MCP tools, with the same moves and refusals as the CLI. | gate: test/api.test.js
+- A10 [draft, aim] The view exports a board as a read-only static snapshot that replays its events, for any static host. | gate: test/cockpit.test.js | serves: A3
 
 ## H · Relay: pullboard.dev, opt in
 - H1 [approved, must] `pullboard relay on|off` links this board to pullboard.dev, after a GitHub sign-in. | gate: test/relay.test.js
