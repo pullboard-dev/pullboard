@@ -127,7 +127,7 @@ test('under verify: coordinator, lane work is the coordinator\'s to verify', () 
   verdict(id, { agentId: 'coordinator', decision: 'ACCEPT', policy: 'coordinator' });
 });
 
-test('a verdict against a moved criterion is refused [V2]', () => {
+test('a verdict against a moved criterion is refused [V2, V3]', () => {
   const id = submitted();
   assert.throws(() => verdict(id, { agentId: 'web-2', decision: 'ACCEPT', digest: 'digest:moved' }), /CRITERIA_CHANGED/);
   const result = store.refreeze(board, id, { agentId: 'coordinator', freeze: () => ({ text: 'x', digest: 'digest:moved' }) });
