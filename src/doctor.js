@@ -21,11 +21,13 @@ export function doctorProblems(file, root, tryGit) {
   try {
     const schemaProblems = versionProblems(db);
     if (schemaProblems.length) return schemaProblems;
+    const layout = layoutProblems(db);
     return [
       ...triggerProblems(db),
-      ...itemProblems(db),
-      ...pinProblems(db, root, tryGit),
-      ...verdictProblems(db, root, tryGit),
+      ...layout.problems,
+      ...(layout.itemFields ? itemProblems(db) : []),
+      ...(layout.itemPins ? pinProblems(db, root, tryGit) : []),
+      ...(layout.verdicts ? verdictProblems(db, root, tryGit) : []),
     ];
   } finally {
     db.close();
@@ -41,6 +43,35 @@ export function doctorProblems(file, root, tryGit) {
  * @returns {{ code: string, message: string, next: string }}
  */
 const finding = (code, message, next) => ({ code, message, next });
+
+/** Inspect the layout before each row check, retaining trigger findings on an incomplete board. */
+function layoutProblems(db) {
+  const required = {
+    item: ['item_id', 'item_status', 'item_commit', ...new Set(STATES.flatMap((state) => state.requires))],
+    verdict: ['verdict_id', 'item_id', 'verdict_commit'],
+  };
+  const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((table) => table.name));
+  const columns = new Map();
+  const problems = [];
+  for (const [table, fields] of Object.entries(required)) {
+    if (!tables.has(table)) {
+      problems.push(finding('TABLE_MISSING', `board table ${table} is missing`, 'restore a consistent board backup, or run pullboard status to recreate the missing table'));
+      columns.set(table, new Set());
+      continue;
+    }
+    const present = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((column) => column.name));
+    columns.set(table, present);
+    const missing = fields.filter((field) => !present.has(field));
+    if (missing.length) problems.push(finding('COLUMN_MISSING', `board table ${table} is missing columns ${missing.join(', ')}`, 'restore a consistent board backup, then run pullboard status'));
+  }
+  const has = (table, fields) => fields.every((field) => columns.get(table).has(field));
+  return {
+    problems,
+    itemFields: has('item', ['item_id', 'item_status']),
+    itemPins: has('item', ['item_id', 'item_status', 'item_commit']),
+    verdicts: has('verdict', required.verdict),
+  };
+}
 
 /**
  * Report a schema version this executable cannot safely use.

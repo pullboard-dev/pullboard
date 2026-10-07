@@ -172,6 +172,7 @@ test('[A1] command results match the catalog across roots and subcommands', () =
   json(box, repo, 'lanes');
   json(box, repo, 'resume');
   json(box, repo, 'status');
+  json(box, repo, 'doctor');
   const plainStatus = box.run(repo, 'status');
   assert.equal(plainStatus.status, 0, plainStatus.stderr);
   assert.equal(plainStatus.stderr, '');

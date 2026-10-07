@@ -170,3 +170,26 @@ test('doctor reports an older empty SQLite layout without querying current table
   assert.doesNotMatch(result.stderr, /no such table|SQLITE_ERROR|Error:/);
   assert.deepEqual(readFileSync(box.dbFile), before);
 });
+
+test('doctor reports missing triggers on a current empty layout without changing it [A6]', () => {
+  const box = boardBox({ initialize: false });
+  const db = new DatabaseSync(box.dbFile);
+  db.exec('PRAGMA user_version = 1');
+  db.close();
+  const before = readFileSync(box.dbFile);
+  for (const flags of [[], ['--json']]) {
+    const result = box.run('doctor', ...flags);
+    assert.equal(result.status, 1);
+    assert.equal(result.stderr, '');
+    if (flags.length) {
+      const document = JSON.parse(result.stdout);
+      assert.equal(document.version, 1);
+      assert.ok(document.problems.some((problem) => problem.code === 'TRIGGER_MISSING' && problem.message.includes('machine_item_start') && problem.next === 'run pullboard status'));
+      assert.ok(document.problems.some((problem) => problem.code === 'TABLE_MISSING' && problem.message.includes('item') && problem.next.includes('pullboard status')));
+    } else {
+      assert.match(result.stdout, /machine_item_start is missing; repair: run pullboard status/);
+      assert.doesNotMatch(result.stdout, /no such table|Error:/);
+    }
+    assert.deepEqual(readFileSync(box.dbFile), before);
+  }
+});
