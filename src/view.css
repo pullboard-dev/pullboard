@@ -253,6 +253,8 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .srow:hover { background: var(--surface-2); }
 .srow.on { background: var(--accent-soft); }
 .srow code { font: 600 12px var(--mono); }
+.rule-source, .rule-reason { display: block; color: var(--ink-muted); font-size: 11.5px; line-height: 1.5; }
+.rule-reason { margin-top: 3px; }
 @media (width < 480px) { .srow { grid-template-columns: auto minmax(0, 1fr); } .srow > span:last-child { grid-column: 1 / -1; } }
 .flow { position: relative; margin: 0 0 12px; padding: 10px 12px 8px; overflow-x: auto; }
 .flow svg { display: block; width: 100%; min-width: 680px; max-width: 920px; height: auto; margin: 0 auto; }
