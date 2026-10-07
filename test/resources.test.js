@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { chmodSync, existsSync, mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -14,6 +14,7 @@ import { listResources, setResourceCapacity, takeResource } from '../src/resourc
 const TEMP = [];
 const CHILDREN = new Set();
 const MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/resources.js')).href;
+const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/gate.js')).href;
 const PROCESS_INFO_POLICY = '(version 1)(allow default)(deny process-info*)';
 const SANDBOX_EXEC = process.platform === 'darwin' && existsSync('/usr/bin/sandbox-exec');
 const PERL_FORK = process.platform === 'darwin' && existsSync('/usr/bin/perl');
@@ -487,4 +488,52 @@ test('[Q1] machine scope is shared, repo scope stays local, and board scope name
   const refused = spawnSync(process.execPath, ['--input-type=module', '-e', `import {takeResource} from ${JSON.stringify(MODULE)}; await takeResource({name:'x',capacity:1,scope:'board'});`], { env: box.env, encoding: 'utf8' });
   assert.notEqual(refused.status, 0);
   assert.match(refused.stderr, /BOARD_SCOPE_UNAVAILABLE.*relay/i);
+});
+
+test('[Q4] a red gate releases its lease before the same process starts another gate', async () => {
+  const box = fixture();
+  const setting = spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), 'settings', 'gateSlots', '1'], {
+    cwd: box.first, env: box.env, encoding: 'utf8',
+  });
+  assert.equal(setting.status, 0, setting.stderr);
+  const command = join(box.dir, 'red-then-green.cjs');
+  const counter = join(box.dir, 'gate-count');
+  const eventsFile = join(box.dir, 'gate-runs.log');
+  writeFileSync(command, [
+    "const fs = require('node:fs');",
+    'const [counter, events] = process.argv.slice(2);',
+    'const count = Number(fs.existsSync(counter) ? fs.readFileSync(counter, "utf8") : 0);',
+    'fs.writeFileSync(counter, String(count + 1));',
+    "fs.appendFileSync(events, 'start\\nend\\n');",
+    'process.exit(count === 0 ? 7 : 0);',
+  ].join('\n'));
+  const gateCommand = `${JSON.stringify(process.execPath)} ${JSON.stringify(command)} ${JSON.stringify(counter)} ${JSON.stringify(eventsFile)}`;
+  const worker = `
+    import { runGate } from ${JSON.stringify(GATE_MODULE)};
+    const first = await runGate(process.cwd(), { gate: process.argv[1] });
+    const second = await runGate(process.cwd(), { gate: process.argv[1] });
+    console.log(JSON.stringify({ firstGreen: first.isGreen, secondGreen: second.isGreen }));
+  `;
+  const child = spawn(process.execPath, ['--input-type=module', '-e', worker, gateCommand], {
+    cwd: box.first, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let stdout = '';
+  let stderr = '';
+  child.stdout.setEncoding('utf8').on('data', (chunk) => { stdout += chunk; });
+  child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk; });
+  const closed = new Promise((resolveClose) => child.once('close', (code, signal) => resolveClose({ code, signal })));
+  let timer;
+  try {
+    const result = await Promise.race([
+      closed,
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('the red gate kept its lease and blocked the same process')), 5_000); }),
+    ]);
+    assert.equal(result.code, 0, stderr);
+    assert.deepEqual(JSON.parse(stdout.trim()), { firstGreen: false, secondGreen: true });
+    assert.deepEqual(readFileSync(eventsFile, 'utf8').trim().split(/\r?\n/u), ['start', 'end', 'start', 'end']);
+  } finally {
+    clearTimeout(timer);
+    if (child.exitCode === null && child.signalCode === null) process.kill(-child.pid, 'SIGKILL');
+    if (child.exitCode === null && child.signalCode === null) await closed;
+  }
 });
