@@ -9,7 +9,8 @@
         "src/",
         "bin/",
         "test/",
-        "package.json"
+        "package.json",
+        "relay/"
       ],
       "specs": [
         "B",

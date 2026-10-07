@@ -33,6 +33,14 @@ Pullboard gets one versioned API, served two ways: locally by `pullboard serve`,
 
 Every response carries `version: 1`. Within version 1, fields are only added, never removed or changed. The view becomes a client of this API and nothing else, so any app, such as Quant's interface, can do what the view does.
 
+The details, settled while building it:
+
+- **Board ids.** A board's id is a random 128-bit value created with the board and stored in it; an older board gets one when it is upgraded. The id survives moving the repo, and the relay keeps it when the board links, so a client uses one id everywhere.
+- **Agents.** A move's `agent` is a registered agent's name, and the move runs in that agent's worktree; without one it runs as the coordinator. Locally, the session secret may act as any agent on the board. On the relay, a token belongs to one agent.
+- **Requests.** A request is a shout from the person to the coordinator, marked as a request. It stays open until the coordinator answers it done, or declined with a reason. `pullboard resume` and `pullboard inbox` show open requests first, and they never count toward the person's Needs-you.
+- **Errors.** A refused call answers `{version: 1, error: {code, message, next}}`, with the HTTP status giving the kind: 400 for a malformed request, 401 for a missing or wrong secret or token, 403 for a token meant for another board, 404 for an unknown board, and 409 for a move the engine refuses, under the engine's own code.
+- **Events.** Every change, shouts and answers included, appends its event in the same transaction, and a move returns the event it appended. In the live stream, each message's id is the event's sequence number and its data is `{version, event}`; a client that reconnects with `Last-Event-ID` resumes after that event.
+
 **Ordering.** With the relay on, the relay is the board of record. A move goes to the relay, which applies it in one transaction and appends its event with the next sequence number. The CLI then applies that event to its local copy. Two agents claiming one item race at the relay, and one wins. A CLI that can't reach the relay reads its local copy and refuses moves until the relay answers, naming the relay as the reason.
 
 **Identity.** Signing in gives the person a session. `relay on` issues a token for the board. Each agent that joins a linked board gets a token of its own, so a verdict records which agent gave it, not only a worktree path. Tokens are stored hashed, can be revoked one by one, and reach only their board.
