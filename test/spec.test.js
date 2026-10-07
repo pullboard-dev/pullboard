@@ -105,6 +105,7 @@ test('the frozen criterion covers title, criterion and cited row text [V2]', () 
   const reworded = SPEC.replace('Same file twice is a no-op.', 'Same file twice changes nothing.');
   assert.notEqual(frozenCriterion(parseSpec(reworded), item).digest, first.digest);
   assert.notEqual(frozenCriterion(parseSpec(SPEC), { ...item, item_criterion: 'other' }).digest, first.digest);
+  assert.notEqual(frozenCriterion(parseSpec(SPEC), { ...item, item_title: 'Load once' }).digest, first.digest, 'the title is frozen too');
   assert.throws(() => frozenCriterion(parseSpec(SPEC), { ...item, item_spec_ids: 'G9' }), /UNKNOWN_SPEC/);
 });
 

@@ -215,7 +215,7 @@ test('pullboard worktree makes a joined worktree for a lane in one command [I4]'
   assert.match(box.run(box.repo, 'worktree', 'nope').err, /NO_LANE/);
 });
 
-test('a red gate refuses submit', () => {
+test('a red gate refuses submit [V4]', () => {
   const box = project();
   writeFileSync(join(box.repo, 'RED'), 'red');
   box.git(box.repo, 'add', 'RED');
@@ -227,7 +227,7 @@ test('a red gate refuses submit', () => {
   assert.match(refused.err, /GATE_RED/);
 });
 
-test('verify runs at the submitted commit, against the criterion frozen at claim [V3, V7]', () => {
+test('verify runs at the submitted commit, against the criterion frozen at claim [V3, V7, V9]', () => {
   const box = project();
   box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
   box.run(box.web, 'claim', '1');
