@@ -104,7 +104,7 @@ The client owns the encryption format and engine-version checks.
   the need to fetch state and resume after its coverage cursor.
 - DELETE /api/v1/boards/:id removes that board's database and SQLite sidecars.
   It requires a person's signed-in session and current write access.
-  GitHub link/credential lifecycle remains owned by the sign-in/linking layer.
+  It removes the link and its board-scoped credentials too; other boards and person sessions remain valid.
 
 All responses and refusals retain API version 1. Moves use the shared 100,000
 byte JSON-body limit. Snapshots allow a bounded 14,000,000 byte JSON body and
@@ -137,3 +137,49 @@ actual loopback sign-in stand-in, and checks order, snapshots, live delivery,
 revocation, deletion and absence of known plaintext/client keys in database
 bytes. Test encryption is client-only; it is not a public client pairing API.
 The relay/ service stays outside the npm package.
+
+
+## Retention and private backups
+
+`createRelayHandler` and `serveRelay` accept `now` (nonnegative integer milliseconds),
+`backupsDirectory` (default: the journal directory plus `-backups`), and
+`maintenanceMs` (default: 60000; zero delegates scheduling to the caller).
+The service checks expiry on each authorized board contact and every maintenance tick.
+A new sealed move or request resets inactivity; merely reading or replacing a snapshot does not.
+The activity timestamp survives compaction and restart. Links without a move use their original
+link time; older unshipped auth databases receive a full grace period during migration.
+
+At sixty idle days, authorized `GET state` and `PUT state` responses include
+`state.warning`; the board listing includes `warnings`. A warning contains only public board
+identity, `BOARD_INACTIVE`, idle days, the ninety-day deletion deadline and next steps.
+Linked CLI and view consumers must display this on their next contact; this backend has no
+notification delivery and never reads a seal. At ninety idle days, a contact or maintenance
+sweep removes the board's journal, sidecars, backups, link and scoped credentials.
+Explicit person-authorized unlink does the same immediately, including backups. The complete
+local board is unaffected.
+
+Every service journal operation and retention decision takes the same cross-process lock
+in the auth database. All workers for a storage directory must share that auth database.
+Unlink first commits access revocation and a durable cleanup intent; cleanup prevents relinking
+until all managed files are gone. Maintenance retries an unfinished purge after an I/O failure
+or restart. A pending purge is never exposed as an active linked board.
+
+The backup job uses SQLite `VACUUM INTO` to copy a consistent compact database, including
+committed WAL contents, into a private temporary file and atomically publishes it.
+It preserves opaque snapshots, the uncovered tail and public ordering metadata; it needs no key.
+Backups run once per UTC day while the service is running. A restart can produce an extra
+backup that day. Only managed backups and unfinished temporary outputs older than fourteen
+days are pruned; unrelated operator files remain untouched. Directories are mode 700 and
+files mode 600; managed symlinks are refused.
+
+Trusted operators can call `handler.maintenance()` / `relay.maintenance()` or `.backup()`
+for external scheduling. `.maintenanceStatus()` reports a stable error code after a failed
+scheduled tick; it clears after a successful retry. It contains no native error, credential,
+key or storage path. Monitor that status when running a public host: background failures do
+not claim success. Shutdown clears the timer; authentication shutdown remains caller-owned.
+
+`test/relay-retention.test.js` uses an injected lifecycle clock, real SQLite, real loopback
+GitHub sign-in and HTTP. It checks exact sixty/ninety/fourteen-day boundaries, contact warnings,
+compaction/restart, scoped revocation, crash-intent recovery, consistent private backups,
+symlink refusal and retryable maintenance failures. Sign-in's separate clock retains normal
+credential validity during these simulated long lifecycle intervals.

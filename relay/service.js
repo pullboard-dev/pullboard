@@ -1,10 +1,11 @@
 /** Opt-in sealed API v1 relay: authorization, opaque persistence and ordered live delivery [A4,H7]. */
 import { createServer } from 'node:http';
-import { lstatSync, mkdirSync, unlinkSync } from 'node:fs';
+import { lstatSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { createApiHandler, apiJson, apiRefusal, apiStatus, readApiBody } from '../src/api-http.js';
 import { Refused } from '../src/refused.js';
 import { createRelayJournal } from './journal.js';
+import { createRelayRetention } from './retention.js';
 
 const SNAPSHOT_BODY = 14_000_000;
 const STORED_BYTES = 10_000_000;
@@ -68,13 +69,40 @@ function sender(who, personOnly = false) {
 }
 
 /** Create a private relay handler; the caller owns sign-in lifecycle and service shutdown. */
-export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin }) {
+export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin, now = Date.now, backupsDirectory, maintenanceMs = 60_000 }) {
   const origin = trustedOrigin(publicOrigin);
   if (typeof directory !== 'string' || !directory.trim() || !auth) throw new Refused('RELAY_CONFIG', 'configure a private relay directory and sign-in component');
   const root = resolve(directory);
   mkdirSync(root, { recursive: true, mode: 0o700 });
   const stat = lstatSync(root);
   if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0) throw new Refused('RELAY_STORAGE', 'use a private directory with mode 700 for relay storage');
+
+  if (!Number.isSafeInteger(maintenanceMs) || maintenanceMs < 0 || maintenanceMs > 2_147_483_647 || (maintenanceMs > 0 && maintenanceMs < 10)) {
+    throw new Refused('RELAY_CONFIG', 'use a maintenance interval of at least ten milliseconds, or zero for an external scheduler');
+  }
+  const retention = createRelayRetention({ directory: root, backupsDirectory, auth, now });
+  let maintenanceError = null;
+
+  /** Expose only a stable failure code to the trusted operator; never log paths, keys or provider errors. */
+  function maintain() {
+    try { const result = retention.maintain(); maintenanceError = null; return result; }
+    catch (error) { maintenanceError = error instanceof Refused ? error.code : 'RELAY_MAINTENANCE'; throw error; }
+  }
+  const timer = maintenanceMs ? setInterval(() => { try { maintain(); } catch { /* operator reads maintenanceStatus */ } }, maintenanceMs) : null;
+  timer?.unref();
+
+  /** Check expiry only after normal authorization; the first authorized contact also purges overdue data. */
+  async function authorized(token, id, write = false) {
+    const who = await auth.authenticate(token, { board: identity(id), write });
+    if (retention.expire(id)) throw new Refused('NO_BOARD', 'this inactive link expired; link and upload the local board again');
+    return who;
+  }
+
+  /** Add an authorized next-contact warning without exposing any plaintext board contents. */
+  function annotated(row, id) {
+    const warning = retention.notice(id);
+    return { ...state(row), ...(warning ? { warning } : {}) };
+  }
 
   /** Open only an existing journal on reads; each synchronous operation closes its connection. */
   function withJournal(id, work, create = false) {
@@ -88,15 +116,17 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
         throw error;
       }
     }
-    const journal = createRelayJournal({ directory: root, boardId: id, maxBytes: STORED_BYTES });
-    try { return work(journal); } finally { journal.close(); }
+    return auth.withBoard(id, () => {
+      const journal = createRelayJournal({ directory: root, boardId: id, maxBytes: STORED_BYTES, now: () => new Date(now()) });
+      try { return work(journal); } finally { journal.close(); }
+    });
   }
 
   /** Append ciphertext under its server-allocated sequence, with no engine or filesystem access. */
   async function append(board, body, who, kind = 'move') {
     const bytes = sealed(body);
     if (!Number.isSafeInteger(body.sequence) || body.sequence < 1) throw new Refused('BAD_SEQUENCE', 'seal this move for the next positive sequence after the latest committed prefix');
-    const principal = sender(await auth.authenticate(who.credential, { board: board.id, write: true }));
+    const principal = sender(await authorized(who.credential, board.id, true));
     return withJournal(board.id, (journal) => {
       const row = journal.append(body.sequence, bytes, kind, principal);
       return { status: 200, body: { event: event(row), result: { sequence: row.sequence } } };
@@ -107,14 +137,18 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
     authenticate: async (req, { board, write }) => {
       const token = credential(req, origin, write);
       return board === null ? { visible: await auth.boardsFor(token) }
-        : { ...await auth.authenticate(token, { board: identity(board), write }), credential: token };
+        : { ...await authorized(token, board, write), credential: token };
     },
-    boards: (who) => who.visible,
+    boards: (who) => {
+      const boards = who.visible.filter((board) => !retention.expire(board.id));
+      const warnings = boards.map((board) => retention.notice(board.id)).filter(Boolean);
+      return { boards, ...(warnings.length ? { warnings } : {}) };
+    },
     board: (id) => { withJournal(id, () => undefined); return { id }; },
     state: (board) => withJournal(board.id, (journal) => {
       const snapshot = journal.snapshot();
       if (!snapshot) throw new Refused('NO_SNAPSHOT', 'upload a sealed snapshot before reading this board');
-      return state(snapshot);
+      return annotated(snapshot, board.id);
     }),
     events: (board, after) => withJournal(board.id, (journal) => {
       const snapshot = journal.snapshot();
@@ -135,22 +169,18 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
       const deletion = /^\/api\/v1\/boards\/([^/]+)$/.exec(url.pathname);
       if (req.method === 'PUT' && snapshot) {
         const id = identity(snapshot[1]);
-        sender(await auth.authenticate(credential(req, origin, true), { board: id, write: true }), true);
+        sender(await authorized(credential(req, origin, true), id, true), true);
         const body = await readApiBody(req, { maxBytes: SNAPSHOT_BODY });
         const bytes = sealed(body);
         if (!Number.isSafeInteger(body.sequence) || body.sequence < 0) throw new Refused('BAD_SEQUENCE', 'name the nonnegative sequence covered by the sealed snapshot');
-        const principal = sender(await auth.authenticate(credential(req, origin, true), { board: id, write: true }), true);
+        const principal = sender(await authorized(credential(req, origin, true), id, true), true);
         const saved = withJournal(id, (journal) => journal.saveSnapshot(body.sequence, bytes, principal), true);
-        return apiJson(res, 200, { state: state(saved) });
+        return apiJson(res, 200, { state: annotated(saved, id) });
       }
       if (req.method === 'DELETE' && deletion) {
         const id = identity(deletion[1]);
-        sender(await auth.authenticate(credential(req, origin, true), { board: id, write: true }), true);
-        withJournal(id, () => undefined);
-        const file = join(root, id + '.journal.sqlite');
-        for (const suffix of ['', '-wal', '-shm']) {
-          try { unlinkSync(file + suffix); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-        }
+        sender(await authorized(credential(req, origin, true), id, true), true);
+        retention.unlink(id);
         return apiJson(res, 200, { deleted: id });
       }
       return await common(req, res);
@@ -159,19 +189,25 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
       else res.end();
     }
   }
-  handle.close = () => common.close();
+  handle.maintenance = maintain;
+  handle.backup = retention.backup;
+  handle.maintenanceStatus = () => ({ error: maintenanceError });
+  handle.close = () => { clearInterval(timer); common.close(); };
   return handle;
 }
 
 /** Start the opt-in service on a configured address; tests use loopback and an ephemeral port. */
-export function serveRelay({ directory, auth, port = 0, host = '127.0.0.1', pollMs = 200, publicOrigin }) {
-  const handler = createRelayHandler({ directory, auth, pollMs, publicOrigin });
+export function serveRelay({ directory, auth, port = 0, host = '127.0.0.1', pollMs = 200, publicOrigin, now, backupsDirectory, maintenanceMs }) {
+  const handler = createRelayHandler({ directory, auth, pollMs, publicOrigin, now, backupsDirectory, maintenanceMs });
   const server = createServer(handler);
   server.requestTimeout = 15_000;
   return new Promise((ready, fail) => {
     server.once('error', (error) => { handler.close(); fail(new Refused(error.code === 'EADDRINUSE' ? 'PORT_BUSY' : 'RELAY_LISTEN', 'cannot listen on the configured relay address; choose a free port and retry')); });
     server.listen(port, host, () => ready({
       port: server.address().port,
+      maintenance: handler.maintenance,
+      backup: handler.backup,
+      maintenanceStatus: handler.maintenanceStatus,
       close: () => new Promise((done) => { handler.close(); server.close(done); server.closeAllConnections(); }),
     }));
   });
