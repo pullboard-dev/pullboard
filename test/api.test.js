@@ -170,6 +170,7 @@ test('[A1] command results match the catalog across roots and subcommands', () =
   json(box, repo, 'hooks');
   json(box, repo, 'whoami');
   json(box, repo, 'lanes');
+  json(box, repo, 'resources');
   json(box, repo, 'resume');
   json(box, repo, 'status');
   json(box, repo, 'doctor');
