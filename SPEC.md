@@ -177,6 +177,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - N34 [draft, must] A project has one Needs-you and one activity feed across its repos; each repo keeps its own board. | gate: test/cockpit.test.js | serves: N33
 - N35 [draft, aim] A repo whose folder is gone leaves the view; `pullboard forget <path>` removes one by hand. | gate: test/e2e.test.js | serves: N26
 - N36 [draft, aim] The view names each repo as pullboard.json does, falling back to its folder name. | gate: test/cockpit.test.js | serves: N26
+- N37 [draft, must] pullboard help keeps each command's usage apart from its words, so tools can read it. | gate: test/e2e.test.js
 
 ## A · API: the engine others build on
 - A1 [approved, must] Every command prints --json in a documented shape, stable within a major version. | gate: test/api.test.js
