@@ -1147,7 +1147,7 @@ test('the two conditional guards behave as declared: a renewal passes a held lan
  * item rows, in either case. This backs up the runtime guard, which refuses such a write on every
  * path a test runs, for the paths no test reaches. Allowed: moveItem; setItem, the generic update
  * moveItem writes through, which the guard watches; and current(), which builds the reader's view
- * of a lapsed claim and never writes.
+ * of a lapsed claim and never writes; and JSON_SHAPES, whose keys describe output fields.
  *
  * @param {(file: string) => string} read
  * @returns {string[]}
@@ -1158,6 +1158,10 @@ function statusWriters(read) {
     const source = read(file);
     const allowed = file === 'board.js' ? ['moveItem', 'setItem', 'current'].map((name) => functionsIn(source).get(name)) : [];
     const spans = allowed.filter(Boolean).map((body) => [source.indexOf(body), source.indexOf(body) + body.length]);
+    if (file === 'json.js') {
+      const catalog = /^export const JSON_SHAPES = \{[\s\S]*?^\};/m.exec(source);
+      if (catalog) spans.push([catalog.index, catalog.index + catalog[0].length]);
+    }
     for (const match of source.matchAll(/(?:\[\s*)?(['"`]?)item_status\1(?:\s*\])?\s*:|\b(?:update|replace\s+into|insert\s+or\s+replace\s+into)\s+(?:main\.)?item\b/gi)) {
       if (!spans.some(([start, end]) => match.index >= start && match.index < end)) {
         const before = source.slice(0, match.index);
@@ -1178,6 +1182,8 @@ test('only moveItem writes an item\'s status, and a write anywhere else fails th
   assert.deepEqual(statusWriters(lowercase), ['board.js#reopenByHand']);
   const computed = editedSource('board.js', /^export function recordAttempt/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport function recordAttempt");
   assert.deepEqual(statusWriters(computed), ['board.js#reopenByKey']);
+  const besideCatalog = editedSource('json.js', /^export function commandOutput/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport function commandOutput");
+  assert.deepEqual(statusWriters(besideCatalog), ['json.js#reopenByKey'], 'the output catalog exemption never covers a writer beside it');
 });
 
 test('the board refuses a status written outside moveItem at run time, however it is spelled [M1]', () => {

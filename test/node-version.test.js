@@ -65,3 +65,36 @@ test('the git hooks run the same command, so an older Node refuses a commit the 
   const current = spawnSync('git', ['commit', '-q', '-m', 'chore: set up pullboard'], { cwd: repo, env, encoding: 'utf8' });
   assert.equal(current.status, 0, `under this Node the same commit goes through: ${current.stderr}`);
 });
+
+
+test('the real entrypoint versions old-Node refusals and honors JSON flag positioning [A1, P3, P4]', () => {
+  for (const version of ['18.19.0', '20.11.1', '22.12.0']) {
+    for (const args of [['--help', '--json'], ['--json', '--help'], ['help', '--json']]) {
+      const result = spawnSync(process.execPath, ['--import', spoof(version), BIN, ...args], { encoding: 'utf8' });
+      assert.equal(result.status, 1, `${version}: ${args.join(' ')}`);
+      assert.equal(result.stderr, '');
+      assert.deepEqual(JSON.parse(result.stdout), {
+        version: 1,
+        error: {
+          code: 'NODE_TOO_OLD',
+          message: refusal(version).replace(/^pullboard: \[NODE_TOO_OLD\] /, '').trimEnd(),
+          next: 'install it (for example nvm install 22), then run the command again',
+        },
+      });
+    }
+    const literal = spawnSync(process.execPath, ['--import', spoof(version), BIN, 'help', '--', '--json'], { encoding: 'utf8' });
+    assert.equal(literal.status, 1);
+    assert.equal(literal.stdout, '');
+    assert.equal(literal.stderr, refusal(version), '--json after -- is a positional, preserving ordinary guidance');
+  }
+  for (const version of ['22.13.0', '24.0.0', '26.0.0']) {
+    for (const args of [['--help', '--json'], ['--json', '--help']]) {
+      const result = spawnSync(process.execPath, ['--import', spoof(version), BIN, ...args], { encoding: 'utf8' });
+      assert.equal(result.status, 0, `${version}: ${result.stderr}`);
+      assert.equal(result.stderr, '');
+      const document = JSON.parse(result.stdout);
+      assert.equal(document.version, 1);
+      assert.match(document.help, /^pullboard \d+\.\d+\.\d+/);
+    }
+  }
+});

@@ -42,6 +42,7 @@ import { runItems } from './run.js';
 import { parseProblems, sweepItems } from './sweep.js';
 import { renderSpecView } from './view.js';
 import { tour } from './tour.js';
+import { commandOutput } from './json.js';
 import { forgetProject, registerProject } from './projects.js';
 import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
 import { serveView } from './serve.js';
@@ -128,7 +129,7 @@ Gate and hooks
 ${lifecycleHelp()}
 
 Reject reasons: TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD, OTHER.
---json prints list, show and status as JSON.`;
+--json prints one versioned document for every command; refusals include their code and next step.`;
 
 const OPTIONS = {
   criterion: { type: 'string' },
@@ -619,6 +620,7 @@ function resumeHere(io) {
   else if (inLane.length) next = `pullboard next --wait 9 (minutes); ${inLane.length} in your lane ${inLane.length === 1 ? 'waits' : 'wait'} on other work`;
   else if (card.awaiting.length) next = 'pullboard next --wait 9 (minutes); a rejected item comes back to your lane';
   else next = 'nothing open in your lane; pullboard next --verify names work you can check';
+  io.result?.({ ...card, root, dirty, next });
   say(`next: ${next}`);
   return 0;
 }
@@ -641,8 +643,10 @@ async function viewHere(io, values) {
   const port = values.port === undefined ? 0 : Number(values.port);
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Refused('USAGE', '--port is a number from 0 to 65535; 0 picks a free one');
   const view = await serveView({ port });
+  io.result?.({ url: view.url, port: view.port });
   io.say(`Pullboard view: ${view.url}`);
   io.say('Only this machine can reach it, and only with that link. Ctrl-C stops it.');
+  io.flush?.(0);
   if (!values['no-open']) {
     const opener = process.platform === 'darwin' ? ['open', [view.url]] : process.platform === 'win32' ? ['cmd', ['/c', 'start', '', view.url]] : ['xdg-open', [view.url]];
     spawn(opener[0], opener[1], { detached: true, stdio: 'ignore' }).on('error', () => {}).unref();
@@ -672,6 +676,7 @@ function setupCommands(io, { first, values }) {
         register: store.register,
         closeBoard: store.closeBoard,
       });
+      io.result?.({ root: info.root, notes });
       notes.forEach((note) => io.say(note));
       if (registerProject(info.root, new Date(), loadConfig(info.root))) io.say('registered this project on this machine, so pullboard view lists it');
       io.say('next: write SPEC.md rows, declare lanes in pullboard.json, then: pullboard add <lane> <title>');
@@ -679,7 +684,9 @@ function setupCommands(io, { first, values }) {
       return 0;
     },
     hooks: () => {
-      installHooks(repoInfo(io.cwd).root).forEach((note) => io.say(note));
+      const notes = installHooks(repoInfo(io.cwd).root);
+      io.result?.({ notes });
+      notes.forEach((note) => io.say(note));
       return 0;
     },
     join: () => {
@@ -690,6 +697,7 @@ function setupCommands(io, { first, values }) {
       }
       const route = values.route ?? 'strong';
       const id = withBoard(ctx, (board) => store.register(board, { lane: first, path: ctx.info.root, route }));
+      io.result?.({ agent: id, lane: first, route, path: ctx.info.root });
       io.say(`joined as ${id} in the ${first} lane${route === 'light' ? ', on the light route' : ''}`);
       return 0;
     },
@@ -723,6 +731,7 @@ function worktreeFor(io, lane, route) {
   git(mainRoot, ['worktree', 'add', '-q', '-b', `${lane}/${n}`, pathFor(n), git(mainRoot, ['rev-parse', 'HEAD'])]);
   const root = git(pathFor(n), ['rev-parse', '--show-toplevel']);
   const id = withBoard(ctx, (board) => store.register(board, { lane, path: root, route }));
+  io.result?.({ agent: id, lane, route, path: root, branch: `${lane}/${n}`, prompt: `You are ${id}, in the ${lane} lane. Work only in ${shellWord(root)}, and start every command with ${cdTo(root)}\nRead ${shellWord(join(root, 'AGENTS.md'))} first. Its rules govern this work, over any other repo's instructions you were given.` });
   io.say(`made ${root} on branch ${lane}/${n}, joined as ${id} in the ${lane} lane${route === 'light' ? ', on the light route' : ''}`);
   io.say(`Work only in that folder. A shell that starts each command in the main checkout acts as the coordinator there, so start every command with: ${cdTo(root)}`);
   if (existsSync(join(root, 'package.json'))) io.say(`  ${cdTo(root)} npm install    (its own install, so its tests run its own code)`);
@@ -785,11 +794,13 @@ function readCommands(io, { first, values }) {
     whoami: () => {
       const ctx = context(io);
       const me = withBoard(ctx, (board) => whoAmI(ctx, board));
+      io.result?.({ ...me, path: ctx.info.root });
       io.say(`${me.id} (${me.lane} lane${me.route === 'light' ? ', light route' : ''}) at ${ctx.info.root}`);
       return 0;
     },
     lanes: () => {
       const { config } = context(io);
+      io.result?.({ lanes: config.lanes, shared: config.shared, coordinator: COORDINATOR });
       io.say(`${COORDINATOR.padEnd(14)} everything no lane owns; verifies, merges, may change any path`);
       for (const [name, lane] of Object.entries(config.lanes)) {
         const specs = lane.specs?.length ? `  [${lane.specs.join(', ')}]` : '';
@@ -803,7 +814,7 @@ function readCommands(io, { first, values }) {
       const ctx = context(io);
       const items = withBoard(ctx, (board) => store.listItems(board, { lane: first, all: values.all }))
         .filter((item) => !values.route || item.item_route === values.route);
-      if (values.json) io.say(JSON.stringify(items, null, 2));
+      if (values.json) io.result({ items });
       else if (!items.length) io.say(values.all ? 'no items yet' : 'nothing open; --all shows closed items');
       else items.forEach((item) => io.say(itemLine(item)));
       return 0;
@@ -819,7 +830,7 @@ function readCommands(io, { first, values }) {
         reviewer: store.reviewHolder(board, store.getItem(board, id)),
       }));
       if (values.json) {
-        io.say(JSON.stringify({ ...item, verdicts }, null, 2));
+        io.result({ ...item, verdicts });
         return 0;
       }
       io.say(itemLine(item));
@@ -860,7 +871,7 @@ function readCommands(io, { first, values }) {
         return { me, mine, stats: store.stats(board), unread: store.unreadCount(board, me.id) };
       });
       if (values.json) {
-        io.say(JSON.stringify(summary, null, 2));
+        io.result(summary);
         return 0;
       }
       const { items, accepted, rejected } = summary.stats;
@@ -876,6 +887,7 @@ function readCommands(io, { first, values }) {
     inbox: () => {
       const ctx = context(io);
       const shouts = withBoard(ctx, (board) => store.inbox(board, whoAmI(ctx, board).id));
+      io.result?.({ shouts });
       if (!shouts.length) io.say('no new shouts');
       for (const shout of shouts) {
         const ask = shout.shout_decision ? `asks for a decision (#${shout.shout_id}; pullboard answer ${shout.shout_id} "..."): ` : '';
@@ -888,6 +900,7 @@ function readCommands(io, { first, values }) {
     decisions: () => {
       const ctx = context(io);
       const asks = withBoard(ctx, (board) => store.openDecisions(board));
+      io.result?.({ decisions: asks });
       if (!asks.length) io.say('no open decisions');
       for (const ask of asks) io.say(`#${ask.shout_id}  ${ask.shout_from} -> ${ask.shout_to}, ${span(ctx, ask.shout_at)} ago: ${firstLine(ask.shout_text)}`);
       return 0;
@@ -899,6 +912,7 @@ function readCommands(io, { first, values }) {
         stats: store.stats(board),
       }));
       const built = items.filter((item) => item.item_built_by && item.item_status !== 'withdrawn').reverse();
+      io.result?.({ items: built, stats });
       const cell = (text) => String(text ?? '').replace(/\|/g, '/').replace(/\s+/g, ' ');
       io.say(`${stats.items.verified} verified by a second agent · ${stats.items.submitted} awaiting verification · ${stats.rejected} rejection${stats.rejected === 1 ? '' : 's'} along the way`);
       io.say('');
@@ -913,6 +927,7 @@ function readCommands(io, { first, values }) {
       const ctx = context(io);
       const itemId = first ? idArg(first) : undefined;
       const rows = withBoard(ctx, (board) => store.events(board, { itemId }));
+      io.result?.({ events: rows });
       rows.forEach((event) => io.say(`${event.event_at.slice(0, 19)}  ${event.event_by.padEnd(14)} ${event.event_kind.padEnd(9)} ${event.item_id ? `#${event.item_id}` : ''} ${event.event_detail === '{}' ? '' : event.event_detail}`.trimEnd()));
       return 0;
     },
@@ -975,6 +990,7 @@ function submitHere(ctx, id) {
   withBoard(ctx, (board) => store.submit(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit) }));
   const pin = `refs/pullboard/items/${id}/${commit.slice(0, 12)}`;
   git(root, ['update-ref', pin, commit]);
+  ctx.io.result?.({ id, commit, pin, gate: { green: gate.isGreen, report: gateReport(gate) } });
   ctx.io.say(`submitted #${id} at ${commit.slice(0, 12)}; ${gateReport(gate)}`);
   ctx.io.say(`pinned as ${pin}, so this work can't be lost; keep your worktree until it is merged`);
   ctx.io.say(`next: another agent checks out ${commit.slice(0, 12)} and runs: pullboard verify ${id} accept|reject`);
@@ -1022,6 +1038,7 @@ function verifyHere(ctx, id, { second, values }) {
       policy: ctx.config.verify,
     });
   });
+  ctx.io.result?.({ id, ...result });
   ctx.io.say(result.decision === 'ACCEPT' ? `verified #${id}: ${result.reason}` : `rejected #${id}: ${result.reason}; it is open again for rework`);
   return 0;
 }
@@ -1075,6 +1092,7 @@ async function nextHere(io, values) {
     const found = nextOnce(ctx, values);
     if (found.item) {
       const item = found.item;
+      io.result?.({ item, review: Boolean(values.verify), held: Boolean(found.held), shared: found.shared ?? [] });
       const here = cdTo(ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (values.verify) {
@@ -1193,6 +1211,7 @@ function workCommands(io, args) {
         route: values.route ?? 'strong',
         check: values.check ?? '',
       });
+      io.result?.({ item: store.getItem(board, id) });
       io.say(`#${id}`);
       return 0;
     }),
@@ -1206,6 +1225,7 @@ function workCommands(io, args) {
         criterion: values.criterion,
         check: values.check,
       });
+      io.result?.({ item: store.getItem(board, id) });
       io.say(`edited #${id}`);
       return 0;
     }),
@@ -1216,6 +1236,7 @@ function workCommands(io, args) {
       if (me.id !== COORDINATOR) {
         store.shout(board, { from: me.id, to: COORDINATOR, text: `#${id} escalated ${moved.from} -> ${moved.to}: ${note}`, lanes: laneNames(ctx.config) });
       }
+      io.result?.({ id, ...moved });
       io.say(`#${id} escalated ${moved.from} -> ${moved.to}; it is open for a ${moved.to} agent`);
       return 0;
     }),
@@ -1233,12 +1254,14 @@ function workCommands(io, args) {
       });
       if (!item.item_check) throw new Refused('NO_CHECK', `#${item.item_id} has no check command; its proof is the project gate: pullboard gate`);
       const run = runShell(ctx.info.root, item.item_check);
+      io.result?.({ id: item.item_id, green: run.isGreen, seconds: run.seconds, check: item.item_check, report: run.isGreen ? '' : digestOf(run.output) });
       io.say(`check ${run.isGreen ? 'green' : 'red'} in ${run.seconds}s: ${item.item_check}`);
       if (!run.isGreen) io.say(digestOf(run.output).replace(/^/gm, '  '));
       return run.isGreen ? 0 : 1;
     },
     claim: () => act((ctx, board, me) => {
       const result = store.claim(board, idArg(first), { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx), head: headCommit(ctx.info.root) });
+      io.result?.({ id: idArg(first), ...result });
       io.say(`${result.renewed ? 'renewed' : 'claimed'} #${first} until ${result.leaseUntil}; criterion frozen as ${result.digest.slice(0, 12)}`);
       return 0;
     }),
@@ -1251,10 +1274,12 @@ function workCommands(io, args) {
         store.holdLane(board, first, { agentId: me.id, reason: values.reason ?? '' });
         io.say(`holding the ${first} lane: ${values.reason}. Release it with: pullboard hold ${first} --off`);
       }
+      io.result?.({ lane: first, held: !values.off, reason: values.off ? null : values.reason });
       return 0;
     }),
     release: () => act((ctx, board, me) => {
       store.release(board, idArg(first), me.id);
+      io.result?.({ id: idArg(first) });
       io.say(`released #${first}`);
       return 0;
     }),
@@ -1265,16 +1290,19 @@ function workCommands(io, args) {
       const commit = resolveCommit(ctx.info.root, second ?? '');
       if (!commit) throw new Refused('NO_COMMIT', `no commit "${second ?? ''}" in this repo`);
       store.merged(board, idArg(first), { agentId: me.id, commit });
+      io.result?.({ id: idArg(first), commit });
       io.say(`#${first} merged as ${commit.slice(0, 12)}`);
       return 0;
     }),
     withdraw: () => act((ctx, board, me) => {
       store.withdraw(board, idArg(first), { agentId: me.id, reason: [second, ...rest].filter(Boolean).join(' ') });
+      io.result?.({ id: idArg(first), reason: [second, ...rest].filter(Boolean).join(' ') });
       io.say(`withdrew #${first}`);
       return 0;
     }),
     refreeze: () => act((ctx, board, me) => {
       const result = store.refreeze(board, idArg(first), { agentId: me.id, freeze: freezer(ctx) });
+      io.result?.({ id: idArg(first), ...result });
       io.say(`#${first} refrozen ${String(result.before).slice(0, 12)} -> ${result.after.slice(0, 12)}; open again`);
       return 0;
     }),
@@ -1282,12 +1310,14 @@ function workCommands(io, args) {
       const evidence = values.evidence === undefined ? null : evidenceFrom(ctx, values);
       const text = [second, ...rest].filter(Boolean).join(' ');
       const id = store.shout(board, { from: me.id, to: first ?? '', text, lanes: laneNames(ctx.config), decision: Boolean(values.decision), evidence });
+      io.result?.({ id, decision: Boolean(values.decision) });
       io.say(values.decision ? `asked ${first} for a decision as #${id}; it stays open until someone runs: pullboard answer ${id} "<the decision>"` : `shouted to ${first}`);
       return 0;
     }),
     answer: () => act((ctx, board, me) => {
       const ask = store.getShout(board, idArg(first));
       const id = store.shout(board, { from: me.id, to: ask.shout_from, text: [second, ...rest].filter(Boolean).join(' '), lanes: laneNames(ctx.config), answers: ask.shout_id });
+      io.result?.({ id, answers: ask.shout_id });
       io.say(`answered #${ask.shout_id} to ${ask.shout_from} as #${id}`);
       return 0;
     }),
@@ -1361,7 +1391,7 @@ function specCommand(io, { first, second, rest, values }) {
       const rows = files.flatMap(([file, parsed]) => parsed.rows.map(({ id, status, tier, text, gate, serves, section, line }) => (
         { id, status, tier, text, gate, serves, section, line, file }
       )));
-      io.say(JSON.stringify({ version: 1, rows }, null, 2));
+      io.result({ rows });
     } else messages.forEach((message) => io.say(message));
     return errors ? 1 : 0;
   }
@@ -1378,6 +1408,7 @@ function specCommand(io, { first, second, rest, values }) {
     });
     mkdirSync(dirname(out), { recursive: true });
     writeFileSync(out, html);
+    io.result?.({ path: out });
     io.say(`wrote ${out}`);
     io.say(`open: ${pathToFileURL(out).href}`);
     return 0;
@@ -1386,6 +1417,7 @@ function specCommand(io, { first, second, rest, values }) {
     const row = spec.rows.find((entry) => entry.id === second);
     if (!row) throw new Refused('NO_ROW', `no row ${second ?? ''} in ${ctx.config.spec}`);
     const standing = standings(spec.rows, signoffs).get(row.id) ?? { met: [], stale: [] };
+    io.result?.({ row, standing });
     io.say(`${row.id} [${row.status}${row.tier ? `, ${row.tier}` : ''}] ${row.text}`);
     if (row.gate) io.say(`gate: ${row.gate}`);
     if (row.serves.length) io.say(`serves: ${row.serves.join(', ')}`);
@@ -1398,6 +1430,7 @@ function specCommand(io, { first, second, rest, values }) {
     const proof = specProof(ctx);
     const testFiles = citedTestFiles(ctx.info.root);
     const by = standings(spec.rows, signoffs);
+    io.result?.({ rows: rows.map((row) => ({ ...row, stage: rowStage(by.get(row.id), rowEvidence(ctx.info.root, row.id, { ...proof, testFiles })) })) });
     rows.forEach((row) => io.say(`${row.id} [${row.tier || 'no tier'}] ${row.text} — ${rowStage(by.get(row.id), rowEvidence(ctx.info.root, row.id, { ...proof, testFiles }))}`));
     io.say(`${rows.length} approved rows without a current sign-off`);
     return 0;
@@ -1418,6 +1451,7 @@ function specCommand(io, { first, second, rest, values }) {
       for (const item of row.verified) io.say(`  verified #${item.id}: ${item.note || '(no accepting note)'}`);
     }
     const count = signOff(ctx.info.root, spec, { ids, by: values.by ?? '', on: new Date().toISOString().slice(0, 10), note: values.note ?? '' });
+    io.result?.({ count, by: values.by, ids, evidence });
     io.say(`signed ${count} rows as ${values.by}; commit .pullboard/signoffs.jsonl`);
     return 0;
   }
@@ -1480,29 +1514,28 @@ async function hookCommand(io, { first, second }) {
  * Run one command. Returns the exit code: 0 done, 1 refused, 2 usage.
  *
  * @param {string[]} argv
- * @param {{ cwd: string, stdout: any, stderr: any, stdin?: any, clock?: any }} streams
+ * @param {any} io
  * @returns {Promise<number>}
  */
-export async function main(argv, streams) {
-  const io = {
-    ...streams,
-    say: (line) => streams.stdout.write(`${line}\n`),
-    err: (line) => streams.stderr.write(`${line}\n`),
-  };
+async function runCommand(argv, io) {
   let parsed;
   try {
     parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
   } catch (error) {
+    io.refusal?.(new Refused('USAGE', `${error.message}; run pullboard help`));
     io.err(`pullboard: ${error.message}\n\n${HELP}`);
     return 2;
   }
   const { values, positionals } = parsed;
+  io.jsonMode?.(values.json);
   const [command = '', first, second, ...rest] = positionals;
   if (values.version || command === 'version') {
+    io.result?.({ release: VERSION });
     io.say(VERSION);
     return 0;
   }
   if (values.help || !command || command === 'help') {
+    io.result?.({ help: HELP });
     io.say(HELP);
     return 0;
   }
@@ -1510,6 +1543,7 @@ export async function main(argv, streams) {
   try {
     if (command === 'tour') return tour(io);
     if (command === 'lifecycle') {
+      io.result?.({ markdown: lifecycleMarkdown().trimEnd() });
       io.say(lifecycleMarkdown().trimEnd());
       return 0;
     }
@@ -1518,6 +1552,7 @@ export async function main(argv, streams) {
       if (!first || second) throw new Refused('USAGE', 'pullboard forget <path>');
       const root = resolve(io.cwd, first);
       if (!forgetProject(root)) throw new Refused('NO_REPO', `no registered repo at ${root}; see the projects in pullboard view`);
+      io.result?.({ root });
       io.say(`forgot ${root}`);
       return 0;
     }
@@ -1529,13 +1564,16 @@ export async function main(argv, streams) {
       } catch (error) {
         if (!(error instanceof Refused)) throw error;
       }
-      io.say(promptFor(root, first ?? '').trimEnd());
+      const text = promptFor(root, first ?? '').trimEnd();
+      io.result?.({ role: first, text });
+      io.say(text);
       return 0;
     }
     if (command === 'hook') return await hookCommand(io, args);
     if (command === 'gate') {
       const ctx = context(io);
       const gate = runGate(ctx.info.root, ctx.config);
+      io.result?.({ green: gate.isGreen, report: gateReport(gate) });
       io.say(gateReport(gate));
       return gate.isGreen ? 0 : 1;
     }
@@ -1548,9 +1586,29 @@ export async function main(argv, streams) {
     return await run();
   } catch (error) {
     if (error instanceof Refused) {
+      io.refusal?.(error);
       io.err(`pullboard: ${error.message}`);
       return 1;
     }
     throw error;
   }
+}
+
+/** Run one command and emit its single versioned JSON result when requested (A1). */
+export async function main(argv, streams) {
+  const io = commandOutput(argv, streams);
+  const code = await runCommand(argv, io);
+  io.flush(code);
+  return code;
+}
+
+/** Result-producing command names, including aliases, for API contract coverage (A1). */
+export function resultCommands() {
+  const args = { values: {}, rest: [] };
+  return [...new Set([
+    ...Object.keys(setupCommands({}, args)),
+    ...Object.keys(readCommands({}, args)),
+    ...Object.keys(workCommands({}, args)),
+    'help', 'version', 'tour', 'lifecycle', 'view', 'forget', 'spec', 'prompt', 'hook', 'gate',
+  ])].sort();
 }

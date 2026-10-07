@@ -8,9 +8,16 @@
 // with an error that names no remedy, so say what to install before anything loads (P3, P4).
 const [major, minor] = process.versions.node.split('.').map(Number);
 if (major < 22 || (major === 22 && minor < 13)) {
-  process.stderr.write(
-    `pullboard: [NODE_TOO_OLD] this is Node ${process.versions.node}, and pullboard needs Node 22.13 or newer: install it (for example nvm install 22), then run the command again\n`,
-  );
+  const message = `this is Node ${process.versions.node}, and pullboard needs Node 22.13 or newer: install it (for example nvm install 22), then run the command again`;
+  const args = process.argv.slice(2);
+  const flags = args.slice(0, args.indexOf('--') < 0 ? args.length : args.indexOf('--'));
+  if (flags.includes('--json')) {
+    // This module is pure output formatting: it never imports the unavailable SQLite module.
+    const { commandOutput } = await import('../src/json.js');
+    const output = commandOutput(args, { stdout: process.stdout, stderr: process.stderr });
+    output.refusal({ code: 'NODE_TOO_OLD', message });
+    output.flush(1);
+  } else process.stderr.write(`pullboard: [NODE_TOO_OLD] ${message}\n`);
   process.exit(1);
 }
 

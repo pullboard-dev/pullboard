@@ -238,19 +238,22 @@ test('spec --json combines both configured files and keeps every row status [S13
   ]);
 });
 
-test('spec --json refuses errors in either file with the exact spec-check diagnostics and no JSON [S13, S4]', (t) => {
+test('spec --json refuses errors in either file with versioned spec-check diagnostics [S13, S4, A1]', (t) => {
   const box = specBox(t, { practice: '# Practice\n\n## P\n- P1 [approved, must] No gate.\n' });
   writeFileSync(join(box.root, box.specName), `${SPEC}\n- K2 [maybe, must] Bad status. | serves: K9\n`);
   const check = box.run('check');
   const shown = box.run('--json');
   assert.equal(check.status, 1);
   assert.equal(shown.status, 1);
-  assert.equal(shown.stdout, check.stdout);
+  const document = JSON.parse(shown.stdout);
+  assert.equal(document.version, 1);
+  assert.equal(document.error.message, check.stdout.trim());
+  assert.equal(typeof document.error.next, 'string');
   assert.equal(shown.stderr, check.stderr);
-  assert.match(shown.stdout, /status "maybe"/);
-  assert.match(shown.stdout, /serves K9/);
-  assert.match(shown.stdout, /PRACTICE.md:4 P1 error:.*names its gate/);
-  assert.throws(() => JSON.parse(shown.stdout));
+  assert.match(document.error.message, /status "maybe"/);
+  assert.match(document.error.message, /serves K9/);
+  assert.match(document.error.message, /PRACTICE.md:4 P1 error:.*names its gate/);
+  assert.equal(document.error.code, 'COMMAND_FAILED');
 });
 
 test('spec --json also refuses a committed row removed from practice [S13, S8]', (t) => {
@@ -259,9 +262,12 @@ test('spec --json also refuses a committed row removed from practice [S13, S8]',
   const check = box.run('check');
   const shown = box.run('--json');
   assert.equal(shown.status, 1);
-  assert.equal(shown.stdout, check.stdout);
+  const document = JSON.parse(shown.stdout);
+  assert.equal(document.version, 1);
+  assert.equal(document.error.message, check.stdout.trim());
+  assert.equal(typeof document.error.next, 'string');
   assert.match(shown.stdout, /PRACTICE.md: P1 error:.*ids are permanent/);
-  assert.throws(() => JSON.parse(shown.stdout));
+  assert.equal(document.error.code, 'COMMAND_FAILED');
 });
 
 test('warning-only specs keep spec-check success while JSON stays a single document [S13]', (t) => {
