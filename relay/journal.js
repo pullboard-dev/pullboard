@@ -34,7 +34,7 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
   let closed = false;
   try {
     db.exec('PRAGMA busy_timeout = 30000; PRAGMA journal_mode = WAL; BEGIN IMMEDIATE');
-    db.exec('CREATE TABLE IF NOT EXISTS journal_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS journal_record (sequence INTEGER PRIMARY KEY, received_at TEXT NOT NULL, payload BLOB NOT NULL)');
+    db.exec('CREATE TABLE IF NOT EXISTS journal_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS journal_record (sequence INTEGER PRIMARY KEY, received_at TEXT NOT NULL, kind TEXT NOT NULL CHECK(kind IN (\'move\',\'request\')), payload BLOB NOT NULL)');
     const saved = db.prepare('SELECT key, value FROM journal_meta ORDER BY key').all();
     if (saved.length === 0) {
       if (db.prepare('SELECT 1 FROM journal_record LIMIT 1').get()) throw new Refused('RELAY_STORAGE', 'restore the journal with its original identity and format metadata');
@@ -55,7 +55,7 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
   function open() { if (closed) throw new Refused('RELAY_CLOSED', 'open the journal before reading or appending records'); }
 
   /** Convert an SQLite row to detached opaque bytes so callers cannot mutate a stored record. */
-  function record(row) { return { sequence: row.sequence, receivedAt: row.received_at, bytes: Buffer.from(row.payload) }; }
+  function record(row) { return { sequence: row.sequence, receivedAt: row.received_at, kind: row.kind ?? 'snapshot', bytes: Buffer.from(row.payload) }; }
 
   /** Read the latest committed sequence, including an empty journal's initial cursor. */
   function latest() {
@@ -70,10 +70,11 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
   }
 
   /** Serialize prefix checking or sequence allocation with the opaque append. */
-  function insert(sequence, bytes) {
+  function insert(sequence, bytes, kind) {
     open();
     if (sequence !== null && (!Number.isSafeInteger(sequence) || sequence < 1)) throw new Refused('BAD_SEQUENCE', 'upload a positive safe integer sequence');
     const sealed = payload(bytes);
+    if (!['move', 'request'].includes(kind)) throw new Refused('BAD_UPLOAD', 'use the move or request transport kind');
     db.exec('BEGIN IMMEDIATE');
     try {
       const next = latest() + 1;
@@ -83,7 +84,7 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
       if (sequence > next) throw new Refused('SEQUENCE_GAP', 'send the next sequence after the latest committed record before later uploads');
       const at = now();
       if (!(at instanceof Date) || !Number.isFinite(at.getTime())) throw new Refused('RELAY_CONFIG', 'the journal clock must return a valid Date');
-      db.prepare('INSERT INTO journal_record (sequence,received_at,payload) VALUES (?,?,?)').run(sequence, at.toISOString(), sealed);
+      db.prepare('INSERT INTO journal_record (sequence,received_at,kind,payload) VALUES (?,?,?,?)').run(sequence, at.toISOString(), kind, sealed);
       db.prepare('UPDATE journal_head SET sequence=? WHERE slot=1').run(sequence);
       const result = record(db.prepare('SELECT * FROM journal_record WHERE sequence=?').get(sequence));
       db.exec('COMMIT');
@@ -95,10 +96,10 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
   }
 
   /** Append a transport retry only at its explicitly named next sequence. */
-  function append(sequence, bytes) { return insert(sequence, bytes); }
+  function append(sequence, bytes, kind = 'move') { return insert(sequence, bytes, kind); }
 
   /** Allocate the next sequence under the same lock as the append, as the live relay requires. */
-  function appendNext(bytes) { return insert(null, bytes); }
+  function appendNext(bytes, kind = 'move') { return insert(null, bytes, kind); }
 
   /** Read the latest sealed snapshot without interpreting its contents. */
   function snapshot() {

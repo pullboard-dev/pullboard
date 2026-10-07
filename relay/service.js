@@ -44,10 +44,10 @@ function trustedOrigin(value) {
 }
 
 /** Decode only canonical transport bytes; sealed payloads are never parsed or unsealed. */
-function sealed(body, snapshot = false) {
-  const keys = snapshot ? ['sealed', 'sequence'] : ['sealed'];
+function sealed(body) {
+  const keys = ['sealed', 'sequence'];
   if (!body || Object.keys(body).some((key) => !keys.includes(key)) || typeof body.sealed !== 'string' || !/^[A-Za-z0-9_-]+$/.test(body.sealed)) {
-    throw new Refused('BAD_UPLOAD', 'send only a nonempty base64url sealed payload, plus sequence for a snapshot; keep keys on your device');
+    throw new Refused('BAD_UPLOAD', 'send only sequence and a nonempty base64url sealed payload; keep keys on your device');
   }
   const bytes = Buffer.from(body.sealed, 'base64url');
   if (bytes.length === 0 || bytes.toString('base64url') !== body.sealed) throw new Refused('BAD_UPLOAD', 'send canonical nonempty base64url bytes sealed on your device');
@@ -55,7 +55,7 @@ function sealed(body, snapshot = false) {
 }
 
 /** Give live events the common API cursor while keeping all board contents sealed. */
-function event(row) { return { event_id: row.sequence, event_at: row.receivedAt, sealed: row.bytes.toString('base64url') }; }
+function event(row) { return { event_id: row.sequence, event_at: row.receivedAt, kind: row.kind, sealed: row.bytes.toString('base64url') }; }
 
 /** Give a snapshot its coverage cursor; clients unseal it and replay the following sealed events. */
 function state(row) { return { sequence: row.sequence, receivedAt: row.receivedAt, sealed: row.bytes.toString('base64url') }; }
@@ -86,11 +86,12 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
   }
 
   /** Append ciphertext under its server-allocated sequence, with no engine or filesystem access. */
-  async function append(board, body, who) {
+  async function append(board, body, who, kind = 'move') {
     const bytes = sealed(body);
+    if (!Number.isSafeInteger(body.sequence) || body.sequence < 1) throw new Refused('BAD_SEQUENCE', 'seal this move for the next positive sequence after the latest committed prefix');
     await auth.authenticate(who.credential, { board: board.id, write: true });
     return withJournal(board.id, (journal) => {
-      const row = journal.appendNext(bytes);
+      const row = journal.append(body.sequence, bytes, kind);
       return { status: 200, body: { event: event(row), result: { sequence: row.sequence } } };
     });
   }
@@ -114,7 +115,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
       return journal.after(after).map(event);
     }),
     move: append,
-    request: async (board, body, who) => (await append(board, body, who)).body,
+    request: async (board, body, who) => (await append(board, body, who, 'request')).body,
   }, { pollMs });
 
   /** Add authenticated snapshot replacement and deletion to the common versioned read/move paths. */
@@ -129,7 +130,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
         const id = identity(snapshot[1]);
         await auth.authenticate(credential(req, origin, true), { board: id, write: true });
         const body = await readApiBody(req, { maxBytes: SNAPSHOT_BODY });
-        const bytes = sealed(body, true);
+        const bytes = sealed(body);
         if (!Number.isSafeInteger(body.sequence) || body.sequence < 0) throw new Refused('BAD_SEQUENCE', 'name the nonnegative sequence covered by the sealed snapshot');
         await auth.authenticate(credential(req, origin, true), { board: id, write: true });
         const saved = withJournal(id, (journal) => journal.saveSnapshot(body.sequence, bytes), true);

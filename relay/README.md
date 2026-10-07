@@ -34,7 +34,7 @@ refusals have `error: {code, message, next}`. A bearer credential works for CLI
 requests. Cookie-authorized writes must carry the exact configured Origin.
 
 The API layer must call `auth.authenticate(token, {board, write})` before serving
-board data or applying a board move. `write: true` always checks GitHub. For an
+sealed board data or storing a sealed board move. `write: true` always checks GitHub. For an
 agent credential, use the returned `agent`, never an agent supplied in a request
 body. A credential for one board is refused on another before any board lookup.
 Use `auth.boardsFor(token)` for visibility, and `auth.linkBoard(token, board,
@@ -89,10 +89,14 @@ The client owns the encryption format and engine-version checks.
   cannot move behind the previous snapshot, and removes the covered move prefix.
 - GET /api/v1/boards/:id/state returns
   {version: 1, state: {sequence, receivedAt, sealed}}.
-- POST /api/v1/boards/:id/moves takes {sealed}. The relay allocates the next
-  sequence atomically and returns {version: 1, event, result: {sequence}}.
-  An event is {event_id, event_at, sealed}. Requests use the same sealed append
-  through POST /api/v1/boards/:id/requests; clients interpret their contents.
+- POST /api/v1/boards/:id/moves takes {sequence, sealed}. The client proposes
+  the next position before sealing; the relay allocates it atomically only if
+  sequence is its next position and returns {version: 1, event, result: {sequence}}.
+  A loser receives SEQUENCE_REPEAT (409), reads the latest prefix, reseals with
+  a fresh nonce bound to the next position, and retries. Gaps are refused too.
+  An event is {event_id, event_at, kind, sealed}. Requests use the same sealed append
+  through POST /api/v1/boards/:id/requests. The public transport kind is move or
+  request, letting clients select their associated-data binding; content stays sealed.
 - GET /api/v1/boards/:id/events?after=N returns sealed events in sequence.
   Accept: text/event-stream follows the same records; Last-Event-ID resumes.
   A cursor older than the latest snapshot gets SNAPSHOT_REQUIRED (409), naming
