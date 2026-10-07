@@ -34,8 +34,8 @@ test('the core names no model, engine or vendor; secret patterns may name the ke
   assert.deepEqual(found, []);
 });
 
-test('the core opens no outbound connection; the view and API listen on loopback, and the page calls only them [P5, N26, A2]', () => {
-  const allowed = (file, line) =>
+test('only opted-in relay sync opens outbound connections; the view and API stay on loopback [P5, N26, A2]', () => {
+  const allowed = (file, line) => file === 'src/relay.js' ||
     (['src/serve.js', 'src/api.js'].includes(file) && line.trim() === "import { createServer } from 'node:http';") ||
     (file === 'src/serve.js' && line.trim() === "const reply = await fetch(address.origin + path, { headers: { 'x-pullboard-key': address.searchParams.get('k') } });") ||
     (file === 'src/cockpit.js' && /^\s*const res = await fetch\(path, /.test(line));

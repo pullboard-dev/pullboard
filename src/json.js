@@ -20,6 +20,7 @@ export const JSON_SHAPES = {
     lanes: shape({ lanes: 'object', shared: 'array', coordinator: 'string' }),
     resources: shape({ resources: 'array' }),
     settings: shape({ settings: 'object' }),
+    relay: shape({ linked: 'boolean', board: 'string', url: 'string', link: 'string', sequence: 'number', behind: 'number' }),
     list: shape({ items: 'array' }),
     show: shape({ item_id: 'number', item_title: 'string', item_lane: 'string', item_status: 'string', verdicts: 'array' }),
     status: shape({ me: 'object', mine: 'array', stats: 'object', unread: 'number' }),
@@ -117,7 +118,7 @@ export function commandOutput(argv, streams) {
       const message = refusal ? text.replace(/^\[[A-Z][A-Z0-9_]*\] /, '') : match?.[2] ?? text;
       document = refusalDocument({ code: refusal?.code ?? match?.[1] ?? (code === 2 ? 'USAGE' : 'COMMAND_FAILED'), message });
     } else if (result !== undefined) {
-      document = { version: JSON_SHAPES.version, ...result };
+      document = { version: JSON_SHAPES.version, ...result, ...(diagnostics.length ? { diagnostics } : {}) };
     } else {
       // A native versioned document, such as export, already owns its public shape.
       let native;
@@ -125,7 +126,7 @@ export function commandOutput(argv, streams) {
         try { native = JSON.parse(messages[0]); } catch { /* Ordinary command prose is kept as messages. */ }
       }
       document = native && !Array.isArray(native) && typeof native.version === 'number'
-        ? native : { version: JSON_SHAPES.version, messages, ...(diagnostics.length ? { diagnostics } : {}) };
+        ? { ...native, ...(diagnostics.length ? { diagnostics } : {}) } : { version: JSON_SHAPES.version, messages, ...(diagnostics.length ? { diagnostics } : {}) };
     }
     streams.stdout.write(`${JSON.stringify(document, null, 2)}\n`);
   };
