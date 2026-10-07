@@ -13,7 +13,9 @@
         "relay/",
         "docs/api.md",
         "docs/api.test.js",
-        "docs/lifecycle.md"
+        "docs/lifecycle.md",
+        "docs/formats.md",
+        "docs/formats.test.js"
       ],
       "specs": [
         "B",
