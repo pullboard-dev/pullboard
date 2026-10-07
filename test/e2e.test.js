@@ -180,6 +180,7 @@ test('a lane commits only inside its folders; an unjoined worktree cannot commit
   assert.match(unjoined.stderr, /has not joined a lane/);
   const foreign = commitFile(box, box.web, 'api/a.js', 'a', 'feat(web): page [G1]');
   assert.match(foreign.stderr, /outside the web lane: api\/a.js \(api's\)/);
+  assert.match(foreign.stderr, /Fix what each line names/, 'a blocked hook says what to do (C4)');
   box.git(box.web, 'reset', '-q', '--hard');
   box.git(box.web, 'clean', '-fdq');
   assert.equal(commitFile(box, box.web, 'docs/web.md', 'shared', 'docs: web notes').status, 0);
@@ -188,6 +189,14 @@ test('a lane commits only inside its folders; an unjoined worktree cannot commit
   box.git(box.web, 'mv', 'web/a.html', 'api/a.html');
   const moved = box.tryGit(box.web, 'commit', '-q', '-m', 'refactor(web): move the page');
   assert.match(moved.stderr, /outside the web lane: api\/a.html/);
+  assert.equal(commitFile(box, box.repo, 'api/b.js', 'b', 'feat(api): an api file [G2]').status, 0);
+  const second = join(box.dir, 'web-2');
+  box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
+  assert.match(box.run(second, 'join', 'web').out, /joined as web-2/);
+  mkdirSync(join(second, 'web'), { recursive: true });
+  box.git(second, 'mv', 'api/b.js', 'web/b.js');
+  const taken = box.tryGit(second, 'commit', '-q', '-m', 'refactor(web): take the api file');
+  assert.match(taken.stderr, /outside the web lane: api\/b.js/, 'a move counts where it left, not only where it lands');
 });
 
 test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [V4, B9]', () => {
@@ -273,6 +282,7 @@ test('pre-push runs the gate once per tree and pushes only the checked-out commi
   assert.match(box.run(box.repo, 'gate').out, /this tree already passed/);
   const elsewhere = box.tryGit(box.repo, 'push', '-q', 'origin', 'web/one:web/one');
   assert.equal(elsewhere.status, 0, 'web/one is at the same commit as main, so it is what is checked out');
+  assert.match(`${elsewhere.stdout}${elsewhere.stderr}`, /the gate passed on this exact tree; not running it twice/, 'the second push of a passed tree skips the gate');
   commitFile(box, box.web, 'web/b.html', 'b', 'feat(web): second page [G1]');
   const notHere = box.tryGit(box.repo, 'push', '-q', 'origin', 'web/one');
   assert.notEqual(notHere.status, 0);

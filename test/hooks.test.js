@@ -29,6 +29,8 @@ test('feat and fix cite ids; cited ids exist and are not retired [C2]', () => {
 
 test('header format, length, case and period [C1]', () => {
   assert.match(check('Added the page')[0], /type\(scope\): subject/);
+  assert.match(check('Added the page')[0], /saw "Added the page"/, 'the refusal shows the header it saw (C4)');
+  assert.match(check('feature: add the page [G1]')[0], /type\(scope\): subject/, 'a type outside the configured list is refused');
   assert.match(check(`docs: ${'x'.repeat(80)}`)[0], /shorten the header to 72 characters or fewer \(it has 86\)/);
   assert.deepEqual(check('docs: Explain lanes.'), [
     'start the subject with a lowercase letter (saw "Explain lanes.")',

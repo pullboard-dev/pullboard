@@ -40,10 +40,14 @@ test('lane names list the coordinator first [L1]', () => {
   assert.ok(!isLane(CONFIG, 'all'));
 });
 
-test('a config with a bad lane refuses and names the field', () => {
+test('a config with a bad lane refuses and names the field [L1]', () => {
   const problems = configProblems({ ...CONFIG, lanes: { Web: { owns: 'apps/' }, all: { owns: [] } } });
   assert.ok(problems.some((problem) => problem.includes('lane "Web"')));
   assert.ok(problems.some((problem) => problem.includes('lane "all"')));
+  const fields = configProblems({ ...CONFIG, lanes: { web: { owns: 'apps/', specs: 'B', starts: 5 } } });
+  for (const field of ['"owns" is a list', '"specs" is a list', '"starts" is text']) {
+    assert.ok(fields.some((problem) => problem.includes(`lane "web": ${field}`)), `a well-named lane with a bad field is refused: ${field}`);
+  }
   assert.ok(configProblems({ ...CONFIG, verify: 'anyone' }).some((problem) => problem.includes('"verify"')));
 });
 
