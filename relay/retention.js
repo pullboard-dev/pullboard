@@ -96,8 +96,8 @@ export function createRelayRetention({ directory, backupsDirectory = directory +
     if (age < WARN) return null;
     return { board: id, code: 'BOARD_INACTIVE', inactiveDays: Math.floor(age / DAY),
       deletesAt: new Date(activity + EXPIRE).toISOString(),
-      message: 'This linked board is inactive and will be deleted after 90 days without a new sealed move.',
-      next: 'Send a new move before the deadline, or unlink; the local board stays complete.' };
+      message: 'This linked board is inactive and will be deleted after 90 days without new board activity.',
+      next: 'Make a board move before the deadline, or unlink; the local board stays complete.' };
   }
 
   /** Validate all managed paths before any deletion, leaving unrelated files untouched. */

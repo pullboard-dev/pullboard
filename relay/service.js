@@ -155,6 +155,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
       if (snapshot && after < snapshot.sequence) throw new Refused('SNAPSHOT_REQUIRED', 'fetch the latest sealed state, then resume after its sequence');
       return journal.after(after).map(event);
     }),
+    warning: (board) => retention.notice(board.id),
     move: append,
     request: async (board, body, who) => (await append(board, body, who, 'request')).body,
   }, { pollMs });

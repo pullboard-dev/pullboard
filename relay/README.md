@@ -150,7 +150,9 @@ The activity timestamp survives compaction and restart. Links without a move use
 link time; older unshipped auth databases receive a full grace period during migration.
 
 At sixty idle days, authorized `GET state` and `PUT state` responses include
-`state.warning`; the board listing includes `warnings`. A warning contains only public board
+`state.warning`; event polls include `warning`, live streams emit a named `warning` event,
+and the board listing includes `warnings`. Streams send a warning once when it changes,
+with normal authorization on every poll. A warning contains only public board
 identity, `BOARD_INACTIVE`, idle days, the ninety-day deletion deadline and next steps.
 Linked CLI and view consumers must display this on their next contact; this backend has no
 notification delivery and never reads a seal. At ninety idle days, a contact or maintenance

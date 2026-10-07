@@ -81,6 +81,25 @@ test('[H18] warnings begin at sixty days on authorized contact; compaction and r
   assert.equal(warned.body.state.warning.inactiveDays, 60);
   assert.equal(warned.body.state.warning.deletesAt, new Date(start + 90 * DAY).toISOString());
   assert.equal((await box.call(null)).body.warnings.length, 2);
+  assert.equal((await box.call(A, { path: '/events?after=0' })).body.warning.code, 'BOARD_INACTIVE');
+  const controller = new AbortController();
+  const warningTimeout = setTimeout(() => controller.abort(), 10_000);
+  warningTimeout.unref();
+  t.after(() => { clearTimeout(warningTimeout); controller.abort(); });
+  const stream = await fetch('http://127.0.0.1:' + box.relay.port + '/api/v1/boards/' + A + '/events?after=0', {
+    headers: { authorization: 'Bearer ' + box.signed.token, accept: 'text/event-stream' }, signal: controller.signal,
+  });
+  const reader = stream.body.getReader();
+  let delivered = '';
+  try {
+    while (!delivered.includes('BOARD_INACTIVE')) {
+      const chunk = await reader.read();
+      assert.equal(chunk.done, false);
+      delivered += new TextDecoder().decode(chunk.value);
+    }
+    assert.ok(delivered.includes('BOARD_INACTIVE'), 'a live view receives the same authorized warning');
+  } finally { clearTimeout(warningTimeout); controller.abort(); reader.releaseLock(); }
+
   const snapshot = await box.call(A, { method: 'PUT', body: { sequence: 1, sealed: box.payload.toString('base64url') } });
   assert.equal(snapshot.body.state.warning.inactiveDays, 60, 'snapshot upload does not reset inactivity');
   assert.equal(box.journal(A, (db) => db.after(0).length), 0, 'all covered history is folded into the snapshot');
