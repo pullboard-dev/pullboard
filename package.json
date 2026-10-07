@@ -35,7 +35,7 @@
   ],
   "homepage": "https://pullboard.dev",
   "scripts": {
-    "test": "node --disable-warning=ExperimentalWarning --test",
+    "test": "GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 node --disable-warning=ExperimentalWarning --test",
     "gate": "node bin/pullboard.js spec check && npm test"
   }
 }
