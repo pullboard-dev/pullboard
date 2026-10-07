@@ -128,6 +128,15 @@ function laneProblems(name, lane) {
  */
 export function configProblems(config) {
   const problems = [];
+  for (const field of ['project', 'name']) {
+    if (config[field] === undefined) continue;
+    const value = config[field];
+    if (typeof value !== 'string' || !value.trim() || value.trim() !== value || /[\u0000-\u001f\u007f-\u009f]/u.test(value)) {
+      problems.push(`"${field}" is a trimmed, nonempty string without control characters`);
+    } else if (field === 'name' && /[#,]/u.test(value)) {
+      problems.push('"name" cannot contain "#" or ","');
+    }
+  }
   if (typeof config.spec !== 'string' || !config.spec) problems.push('"spec" names a file');
   if (typeof config.practice !== 'string' || !config.practice) problems.push('"practice" names a file');
   if (typeof config.gate !== 'string') problems.push('"gate" is a shell command, like "npm test"');
