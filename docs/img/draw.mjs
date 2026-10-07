@@ -334,8 +334,42 @@ export function drawAgentStart() {
   });
 }
 
+/** How a question climbs from an agent to its coordinator and, if needed, to the person. */
+export function drawChain() {
+  const agent = 140;
+  const coordinator = 420;
+  const person = 700;
+  const flows = [
+    { from: agent, to: coordinator, y: 154, label: 'question' },
+    { from: coordinator, to: agent, y: 204, label: 'answer' },
+    { from: coordinator, to: person, y: 254, label: 'pass decision up' },
+    { from: person, to: coordinator, y: 304, label: 'person answers' },
+    { from: coordinator, to: agent, y: 354, label: 'return answer to asker' },
+  ];
+  return figure({
+    width: 840,
+    height: 416,
+    title: 'Questions go one step up',
+    desc: 'An agent asks its coordinator. The coordinator answers or passes a decision to the person. The person answers through the coordinator, who returns the answer to the original asker. An agent cannot ask the person directly.',
+    body: [
+      text(24, 34, 'Questions go one step up', 'head'),
+      box({ x: 50, y: 58, w: 180, h: 54, kind: 'agent', title: 'Agent', sub: 'asks its coordinator' }),
+      box({ x: 330, y: 58, w: 180, h: 54, kind: 'check', title: 'Coordinator', sub: 'answers or passes it up' }),
+      box({ x: 610, y: 58, w: 180, h: 54, kind: 'person', title: 'Person', sub: 'answers when asked' }),
+      edge([[agent, 116], [agent, 383]], { tip: false, leader: true }),
+      edge([[coordinator, 116], [coordinator, 383]], { tip: false, leader: true }),
+      edge([[person, 116], [person, 383]], { tip: false, leader: true }),
+      ...flows.flatMap(({ from, to, y, label }) => [
+        edge([[from, y], [to, y]]),
+        text((from + to) / 2, y - 8, label, 'label', 'middle'),
+      ]),
+      text(420, 400, 'Agents cannot send a decision straight to the person.', 'aside', 'middle'),
+    ],
+  });
+}
+
 /** Every figure the README links, by file name under docs/img. */
-export const FIGURES = { loop: drawLoop, lifecycle: drawLifecycle, layout: drawLayout, 'agent-start': drawAgentStart };
+export const FIGURES = { loop: drawLoop, lifecycle: drawLifecycle, layout: drawLayout, 'agent-start': drawAgentStart, chain: drawChain };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   for (const [name, draw] of Object.entries(FIGURES)) {

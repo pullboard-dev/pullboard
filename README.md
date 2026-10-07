@@ -28,6 +28,12 @@ Pullboard gives your agents what a good team has: a shared plan, house rules, th
 | **A team, not one agent** | Each agent works in its own worktree and lane. Claims are atomic, so two agents never take the same item, and an item can wait on another. Cheaper models take the simple items. |
 | **Proof before it counts** | The builder can never verify its own work. A different agent checks out a tree that contains the submitted commit and records ACCEPT, with the proof it tried, or REJECT, with a reason. The verdict is bound to the submitted commit, and rejected work must come back changed. `pullboard ledger` prints the receipts. |
 
+## Who asks whom
+
+Questions go one step up. An agent asks its coordinator, who can answer or pass a decision to the person. The agent cannot bypass its coordinator; the person's answer comes back through the coordinator to the original asker.
+
+![An agent asks its coordinator. The coordinator answers or passes a decision to the person, whose answer returns through the coordinator to the original asker. Agents cannot ask the person directly.](docs/img/chain.svg)
+
 ## Built with itself
 
 Pullboard is built with Pullboard. On 6 October 2026, one Claude agent made 17 changes to this CLI in 23 submissions. A Codex agent verified each one from its own worktree. It recorded 5 rejections, each with a counterexample anyone could rerun, and caught a sixth problem while that item's bar was being refrozen:
