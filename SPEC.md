@@ -28,7 +28,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - B14 [approved, must] Below strong, an item needs a criterion, a check command, and a brief naming its test and in-lane files. | gate: test/board.test.js, test/e2e.test.js | serves: B10
 - B15 [approved, must] Escalate frees an item one tier up, its attempt pinned and its failure attached. | gate: test/board.test.js, test/e2e.test.js | serves: B13
 - B16 [approved, must] When only work above an agent's tier is open in its lane, next names it and the ways through. | gate: test/board.test.js | serves: B13
-- B17 [draft, must] Every agent on a board runs one tested version of pullboard, never a checkout's unfinished edits; a new version reaches the board only with its gate green. | gate: test/e2e.test.js | serves: P1
+- B17 [draft, must] Every agent on a board runs one tested version of pullboard, never a checkout's unfinished edits. | gate: test/e2e.test.js | serves: P1
 
 ## M · Machine
 - M1 [draft, must] One declaration holds every item state, move, guard and refusal; code, help and docs derive from it. | gate: test/machine.test.js
@@ -52,6 +52,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - V13 [draft, must] Every verdict records the verifier's HEAD; show and the ledger flag a review made past the submitted commit. | gate: test/board.test.js | serves: V8
 - V14 [draft, must] The bar is the frozen criterion alone. The brief can change, so it guides building, never the verdict. | gate: test/practice.test.js | serves: V2
 - V15 [draft, must] `next --verify` reserves the review under a lease; another verdict on it is refused while the lease lives. | gate: test/machine.test.js | serves: V1
+- V16 [draft, must] Submit runs the gate itself on the exact tree it submits; no stamp from an earlier run stands in. | gate: test/gate.test.js | serves: P1
 
 ## O · Options
 - O1 [draft, must] pullboard.json options switch declared guards on or off per repo; show and the view list them. | gate: test/machine.test.js | serves: M1
