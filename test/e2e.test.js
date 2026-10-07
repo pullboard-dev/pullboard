@@ -1399,6 +1399,9 @@ test('doctrine init preserves legacy rules and outside guidance, refreshes label
   const document = JSON.parse(shown.out);
   assert.equal(document.version, 1);
   assert.equal(document.rows.length, 13);
+  const inherited = document.rows.filter(row => row.origin === 'standard');
+  assert.equal(inherited.length, 10);
+  assert.ok(inherited.every(row => row.version === 1 && row.reason === ''));
   assert.deepEqual(document.rows.filter(row => row.origin === 'repo').map(row => [row.id, row.version, row.reason, row.file]), [
     ['PB2', null, '', 'ways.md'], ['PB8', null, 'This fixture stores only generated data.', 'ways.md'], ['R1', null, '', 'ways.md'],
   ]);
