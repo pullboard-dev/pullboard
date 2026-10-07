@@ -544,6 +544,56 @@ test('verify runs at the submitted commit, against the criterion frozen at claim
   assert.match(ledger, /\| 1 \| web \| Page \| G1 \| web-1 \| coordinator \|/);
 });
 
+test('unsupported spec grammar keeps claim, refreeze, submit and verify refusals typed [A5,A1,M1]', () => {
+  const marker = '<!-- pullboard-grammar 2 -->\n';
+  const setup = () => {
+    const box = project();
+    assert.equal(box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--criterion', 'renders').code, 0);
+    return box;
+  };
+  const claimBox = setup();
+  writeFileSync(join(claimBox.web, 'SPEC.md'), marker + SPEC);
+  for (const args of [['claim', '1'], ['next']]) {
+    const refused = claimBox.run(claimBox.web, ...args);
+    assert.equal(refused.code, 1);
+    assert.match(refused.err, /A5_GRAMMAR_VERSION.*grammar 2.*grammar 1/);
+  }
+  const claimJson = claimBox.run(claimBox.web, 'claim', '1', '--json');
+  assert.equal(claimJson.code, 1);
+  assert.equal(JSON.parse(claimJson.out).error.code, 'A5_GRAMMAR_VERSION');
+  writeFileSync(join(claimBox.repo, 'SPEC.md'), marker + SPEC);
+  const refreeze = claimBox.run(claimBox.repo, 'refreeze', '1');
+  assert.equal(refreeze.code, 1);
+  assert.match(refreeze.err, /A5_GRAMMAR_VERSION/);
+  const refreezeJson = claimBox.run(claimBox.repo, 'refreeze', '1', '--json');
+  assert.equal(refreezeJson.code, 1);
+  assert.equal(JSON.parse(refreezeJson.out).error.code, 'A5_GRAMMAR_VERSION');
+
+  const submitBox = setup();
+  assert.equal(submitBox.run(submitBox.web, 'claim', '1').code, 0);
+  commitFile(submitBox, submitBox.web, 'web/page.html', '<h1>Page</h1>', 'feat(web): add page [G1]');
+  writeFileSync(join(submitBox.web, 'SPEC.md'), marker + SPEC);
+  const submit = submitBox.run(submitBox.web, 'submit', '1');
+  assert.equal(submit.code, 1);
+  assert.match(submit.err, /A5_GRAMMAR_VERSION/);
+  const submitJson = submitBox.run(submitBox.web, 'submit', '1', '--json');
+  assert.equal(submitJson.code, 1);
+  assert.equal(JSON.parse(submitJson.out).error.code, 'A5_GRAMMAR_VERSION');
+
+  const verifyBox = setup();
+  assert.equal(verifyBox.run(verifyBox.web, 'claim', '1').code, 0);
+  commitFile(verifyBox, verifyBox.web, 'web/page.html', '<h1>Page</h1>', 'feat(web): add page [G1]');
+  assert.equal(verifyBox.run(verifyBox.web, 'submit', '1').code, 0);
+  verifyBox.git(verifyBox.repo, 'switch', '--detach', 'web/one');
+  writeFileSync(join(verifyBox.repo, 'SPEC.md'), marker + SPEC);
+  const verify = verifyBox.run(verifyBox.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'checked');
+  assert.equal(verify.code, 1);
+  assert.match(verify.err, /A5_GRAMMAR_VERSION/);
+  const verifyJson = verifyBox.run(verifyBox.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'checked', '--json');
+  assert.equal(verifyJson.code, 1);
+  assert.equal(JSON.parse(verifyJson.out).error.code, 'A5_GRAMMAR_VERSION');
+});
+
 test('pre-push runs the gate once per tree and pushes only the checked-out commit [C3]', () => {
   const box = project();
   const remote = join(box.dir, 'remote.git');

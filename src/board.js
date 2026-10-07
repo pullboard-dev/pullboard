@@ -553,15 +553,17 @@ export function editItem(board, id, { agentId, brief, route, criterion, check })
 }
 
 /**
- * The refusal code src/machine.js declares for a guard of a move: the guard's own, or for the
- * state check, the move's.
+ * The refusal codes src/machine.js declares for a guard of a move: the guard's own and any
+ * additional typed refusals, or for the state check, the move's.
  *
  * @param {any} move
  * @param {string} id
- * @returns {string}
+ * @returns {string[]}
  */
-function declaredCode(move, id) {
-  return id === IN_STATE ? move.refuse : GUARDS.find((guard) => guard.id === id).refuse;
+function declaredCodes(move, id) {
+  if (id === IN_STATE) return [move.refuse];
+  const guard = GUARDS.find((entry) => entry.id === id);
+  return [guard.refuse, ...(guard.alsoRefuses ?? []).map((entry) => entry.code)];
 }
 
 /**
@@ -598,8 +600,9 @@ function moveItem(board, id, verb, { checks, set = () => ({}), before = () => {}
     if (guard === IN_STATE && move.from.includes(item.item_status)) continue;
     const refusal = check(item);
     if (refusal === null) continue;
-    if (refusal.code !== declaredCode(move, guard)) {
-      throw new Error(`move ${verb}: guard ${guard} refused with ${refusal.code}; the declaration says ${declaredCode(move, guard)}`);
+    const codes = declaredCodes(move, guard);
+    if (!codes.includes(refusal.code)) {
+      throw new Error(`move ${verb}: guard ${guard} refused with ${refusal.code}; the declaration says ${codes.join(' or ')}`);
     }
     throw refusal;
   }

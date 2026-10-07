@@ -1,6 +1,6 @@
 /**
  * The item lifecycle's declaration (M1, M2, M4): sound on its own terms, each property shown
- * failing on a broken copy, and in step with the refusals board.js and cli.js raise today.
+ * failing on a broken copy, and in step with the refusals the board, CLI and spec parser raise today.
  */
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -115,7 +115,7 @@ function codeWalk(read) {
     const [file, name] = key.split('#');
     const { bodies, named, spaces } = load(file);
     const body = bodies.get(name) ?? '';
-    const codes = new Set([...body.matchAll(/new Refused\(\s*(['"])([A-Z_]+)\1/g)].map((match) => match[2]));
+    const codes = new Set([...body.matchAll(/new Refused\(\s*(['"])([A-Z][A-Z0-9_]*)\1/g)].map((match) => match[2]));
     const callees = [
       ...[...body.matchAll(/(?<!\w)(?<!(?<!\.\.)\.)(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? CALLBACKS[file]?.[callee])),
       ...[...body.matchAll(/\b(\w+)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : undefined)),
@@ -146,7 +146,7 @@ function declaredCodes(machine, verbs) {
   const moves = verbs ? machine.moves.filter((move) => verbs.includes(move.verb)) : machine.moves;
   const used = new Set(moves.flatMap((move) => effectiveGuards(move, machine)));
   return new Set([
-    ...machine.guards.filter((guard) => !verbs || used.has(guard.id)).map((guard) => guard.refuse),
+    ...machine.guards.filter((guard) => !verbs || used.has(guard.id)).flatMap((guard) => [guard.refuse, ...(guard.alsoRefuses ?? []).map((entry) => entry.code)]),
     ...moves.map((move) => move.refuse),
     machine.unknownMove.refuse,
   ].filter(Boolean));
@@ -154,7 +154,7 @@ function declaredCodes(machine, verbs) {
 
 /**
  * Where a declaration and the code disagree: a refusal a move raises today that the move does not
- * declare, or a code the declaration names that board.js and cli.js never raise.
+ * declare, or a code the declaration names that the board, CLI and spec parser never raise.
  *
  * @param {any} machine
  * @param {(file: string) => string} [read]
@@ -171,8 +171,8 @@ function codeProblems(machine, read = fromDisk) {
       }
     }
   }
-  const raised = new Set(['board.js', 'cli.js'].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
-  for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but board.js and cli.js never raise it`);
+  const raised = new Set(['board.js', 'cli.js', 'spec.js'].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
+  for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but the board, CLI and spec parser never raise it`);
   return [...problems];
 }
 
@@ -305,6 +305,13 @@ const BROKEN = [
     says: /guard laneOpen refuses without a next step/,
   },
   {
+    property: 'every additional refusal says its next step',
+    breaks: (machine) => {
+      machine.guards.find((guard) => guard.id === 'rowsInForce').alsoRefuses[0].next = '';
+    },
+    says: /guard rowsInForce refusal A5_GRAMMAR_VERSION has no next step/,
+  },
+  {
     property: 'every guard is used by some move',
     breaks: (machine) => machine.guards.push({ id: 'unused', refuse: 'UNUSED', rule: 'nothing', next: 'nothing', source: 'board' }),
     says: /guard unused is declared but no move uses it/,
@@ -387,8 +394,11 @@ test('every refusal a move raises today is declared on that move, and every decl
   const walk = codeWalk(fromDisk);
   assert.ok(walk.refusalsOf('board.js#claim').has('UNKNOWN_SPEC'), 'the walk follows claim into the freezer the CLI hands it');
   assert.ok(walk.refusalsOf('board.js#refreeze').has('UNKNOWN_SPEC'), 'and refreeze too');
+  assert.ok(walk.refusalsOf('board.js#claim').has('A5_GRAMMAR_VERSION'), 'grammar declarations can stop a claim with their own code');
+  assert.ok(walk.refusalsOf('board.js#refreeze').has('A5_GRAMMAR_VERSION'), 'and stop a refreeze too');
   assert.ok(walk.refusalsOf('cli.js#submitHere').has('UNKNOWN_SPEC'), 'submit calls the freezer too');
   assert.ok(!walk.refusalsOf('cli.js#submitHere', new Set(CAUGHT['cli.js#submitHere'])).has('UNKNOWN_SPEC'), 'and catches what it raises');
+  assert.ok(walk.refusalsOf('cli.js#freezer').has('A5_GRAMMAR_VERSION'), 'the freezer propagates an unsupported grammar version');
   for (const code of ['NOT_CLAIMABLE', 'LANE_HELD', 'GATE_RED', 'NO_GATE', 'NOT_AT_COMMIT', 'SELF_VERIFY', 'BAD_DECISION']) {
     assert.ok(ENTRY_POINTS.some(({ at }) => at.some((entry) => walk.refusalsOf(entry).has(code))), `the walk finds ${code}`);
   }
@@ -407,6 +417,8 @@ test('a broken copy of the declaration fails the check against the code, both wa
   noRows.guards = noRows.guards.filter((guard) => guard.id !== 'rowsInForce');
   for (const move of noRows.moves) move.guards = move.guards.filter((id) => id !== 'rowsInForce');
   assert.deepEqual(codeProblems(noRows).sort(), [
+    'A5_GRAMMAR_VERSION is raised by claim but not declared there',
+    'A5_GRAMMAR_VERSION is raised by refreeze but not declared there',
     'UNKNOWN_SPEC is raised by claim but not declared there',
     'UNKNOWN_SPEC is raised by refreeze but not declared there',
   ]);
@@ -421,7 +433,7 @@ test('a broken copy of the declaration fails the check against the code, both wa
   const invented = copy();
   invented.guards.push({ id: 'moonPhase', refuse: 'WRONG_MOON', rule: 'the moon is full', next: 'wait', source: 'board' });
   moveOf(invented, 'claim').guards.push('moonPhase');
-  assert.deepEqual(codeProblems(invented), ['WRONG_MOON is declared but board.js and cli.js never raise it']);
+  assert.deepEqual(codeProblems(invented), ['WRONG_MOON is declared but the board, CLI and spec parser never raise it']);
 });
 
 test('a broken copy of the code fails the check: a refusal added wherever a move reaches [M1, M4]', () => {
@@ -715,7 +727,7 @@ test('docs/lifecycle.md is the page the declaration generates, so a stale copy f
     for (const id of effectiveGuards(move)) assert.ok(page.includes(id), `${move.verb}'s guard ${id} is listed`);
   }
   for (const [state, guards] of Object.entries(MACHINE.exitGuards)) assert.ok(page.includes(`| ${state} | ${guards.join(', ')} |`), `${state}'s exit guards are listed`);
-  const codes = new Set([...MACHINE.guards.map((guard) => guard.refuse), ...MACHINE.moves.map((move) => move.refuse), MACHINE.unknownMove.refuse].filter(Boolean));
+  const codes = new Set([...MACHINE.guards.flatMap((guard) => [guard.refuse, ...(guard.alsoRefuses ?? []).map((entry) => entry.code)]), ...MACHINE.moves.map((move) => move.refuse), MACHINE.unknownMove.refuse].filter(Boolean));
   for (const code of codes) assert.match(page, new RegExp(`^\\| ${code} \\|`, 'm'), `${code} is in the refusal table`);
 });
 

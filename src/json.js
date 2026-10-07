@@ -69,7 +69,7 @@ export const JSON_SHAPES = {
 
 /** Extract a concrete repair from existing refusals, retaining their original guidance. */
 function nextStep(message) {
-  const match = /(?:; |\. |: )((?:run|install|fix|restore|commit|check out|set|give|use|ask your coordinator|answer from the main checkout|the coordinator|to keep looking|never work around)\b[\s\S]*)/i.exec(message);
+  const match = /(?:; |\. |: )((?:run|install|upgrade|fix|restore|commit|check out|set|give|use|ask your coordinator|answer from the main checkout|the coordinator|to keep looking|never work around)\b[\s\S]*)/i.exec(message);
   return match?.[1] ?? 'Run pullboard help, correct the reported problem, and retry the command.';
 }
 
@@ -94,8 +94,8 @@ export function commandOutput(argv, streams) {
     let document;
     if (refusal || (code && result === undefined)) {
       const text = refusal?.message ?? [...diagnostics, ...messages].join('\n');
-      const match = /\[([A-Z_]+)\]\s*([\s\S]*)/.exec(text);
-      const message = refusal ? text.replace(/^\[[A-Z_]+\] /, '') : match?.[2] ?? text;
+      const match = /\[([A-Z][A-Z0-9_]*)\]\s*([\s\S]*)/.exec(text);
+      const message = refusal ? text.replace(/^\[[A-Z][A-Z0-9_]*\] /, '') : match?.[2] ?? text;
       document = { version: JSON_SHAPES.version, error: { code: refusal?.code ?? match?.[1] ?? (code === 2 ? 'USAGE' : 'COMMAND_FAILED'), message, next: nextStep(message) } };
     } else if (result !== undefined) {
       document = { version: JSON_SHAPES.version, ...result };
