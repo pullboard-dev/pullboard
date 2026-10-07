@@ -171,6 +171,12 @@ test('[A1] command results match the catalog across roots and subcommands', () =
   json(box, repo, 'whoami');
   json(box, repo, 'lanes');
   json(box, repo, 'resources');
+  assert.equal(json(box, repo, 'settings').settings.gateSlots, 2);
+  assert.equal(json(box, repo, 'settings', ['gateSlots', '1']).settings.gateSlots, 1);
+  assert.equal(json(box, repo, 'settings').settings.gateSlots, 1);
+  const machineSettings = join(box.env.PULLBOARD_HOME, 'settings.json');
+  assert.equal(JSON.parse(readFileSync(machineSettings, 'utf8')).gateSlots, 1);
+  assert.equal(existsSync(join(box.env.PULLBOARD_HOME, 'config.json')), false, 'machine settings use the separate settings.json file');
   json(box, repo, 'resume');
   json(box, repo, 'status');
   json(box, repo, 'doctor');

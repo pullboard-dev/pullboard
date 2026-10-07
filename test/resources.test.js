@@ -9,7 +9,7 @@ import { pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline';
 import { after, test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { listResources } from '../src/resources.js';
+import { listResources, setResourceCapacity, takeResource } from '../src/resources.js';
 
 const TEMP = [];
 const CHILDREN = new Set();
@@ -437,6 +437,36 @@ test('[Q2,Q3] a SIGKILLed waiter is skipped while the next live waiter advances'
   await release(holder);
   assert.equal((await event(live)).acquired, 'live-waiter');
   await release(live);
+});
+
+test('[Q4] machine capacity changes atomically refuse an occupied or queued resource', async () => {
+  const box = fixture();
+  const oldHome = process.env.PULLBOARD_HOME;
+  process.env.PULLBOARD_HOME = box.home;
+  const holder = worker(box, { agent: 'capacity-holder' });
+  try {
+    assert.equal((await event(holder)).acquired, 'capacity-holder');
+    const waiter = worker(box, { agent: 'capacity-waiter' });
+    assert.equal((await event(waiter)).waiting, 1);
+    let persisted = false;
+    assert.throws(() => setResourceCapacity({ name: 'gate', capacity: 3, persist: () => { persisted = true; } }), (error) => error.code === 'RESOURCE_BUSY');
+    assert.equal(persisted, false, 'settings remain unchanged while a holder and waiter exist');
+    await release(holder);
+    assert.equal((await event(waiter)).acquired, 'capacity-waiter');
+    assert.throws(() => setResourceCapacity({ name: 'gate', capacity: 3, persist: () => { persisted = true; } }), (error) => error.code === 'RESOURCE_BUSY');
+    await release(waiter);
+    const changed = setResourceCapacity({ name: 'gate', capacity: 3, persist: () => { persisted = true; } });
+    assert.deepEqual(changed, { name: 'gate', capacity: 3 });
+    assert.equal(persisted, true, 'settings persist under the same queue lock as the capacity');
+    assert.equal(privateList(box)[0].capacity, 3);
+    const lease = await takeResource({ name: 'gate', capacity: 3, capacityProvider: () => 4, allowIdleCapacityUpdate: true, root: box.first, agent: 'fresh-capacity' });
+    assert.equal(privateList(box)[0].capacity, 4, 'a queued gate reads the latest setting after taking the SQLite lock');
+    lease.release();
+  } finally {
+    if (!holder.exitResult) await release(holder);
+    if (oldHome === undefined) delete process.env.PULLBOARD_HOME;
+    else process.env.PULLBOARD_HOME = oldHome;
+  }
 });
 
 test('[Q1] machine scope is shared, repo scope stays local, and board scope names relay requirement', async () => {

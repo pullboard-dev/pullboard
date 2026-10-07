@@ -8,6 +8,8 @@ Decision shouts without a recipient go to the agent's coordinator, or to `person
 
 A successful command returns the fields listed below. `version` is always the number `1`. The catalog lists required top-level fields; nested objects and arrays are command data, and optional top-level fields may be added.
 
+`pullboard settings` reads machine-wide settings from `~/.pullboard/settings.json`; `pullboard settings gateSlots <n>` changes the gate queue capacity, which defaults to `2`. Capacity changes are refused while a gate is running or waiting, so existing holders and FIFO order remain intact.
+
 <!-- api-command-shapes:start -->
 | Command | Required top-level fields |
 | --- | --- |
@@ -21,6 +23,7 @@ A successful command returns the fields listed below. `version` is always the nu
 | `whoami` | `version:number`, `id:string`, `lane:string`, `path:string` |
 | `lanes` | `version:number`, `lanes:object`, `shared:array`, `coordinator:string` |
 | `resources` | `version:number`, `resources:array` |
+| `settings` | `version:number`, `settings:object` |
 | `list` | `version:number`, `items:array` |
 | `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array` |
 | `status` | `version:number`, `me:object`, `mine:array`, `stats:object`, `unread:number` |

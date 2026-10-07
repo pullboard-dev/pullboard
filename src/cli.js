@@ -51,6 +51,7 @@ import { serveView } from './serve.js';
 import { serveApi } from './api.js';
 import { doctorProblems } from './doctor.js';
 import { exportBoard, importBoard } from './exchange.js';
+import { loadMachineSettings, setGateSlots } from './settings.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
@@ -66,6 +67,7 @@ Set up
                                         --route sets which work the model can take; --family records its name
   pullboard whoami | lanes | status     who you are, the lanes, the board at a glance
   pullboard resources                  local resource holders and their FIFO queues
+  pullboard settings [gateSlots <n>]    view or set this machine's gate slots (default 2)
   pullboard view [--port N] [--no-open]  every project on this machine in your browser: items, shouts, doctrine,
                                         agents and activity, live; add items, shout and hold lanes from it
   pullboard serve [--port N]           local API v1: boards, state, moves, requests and live events,
@@ -1056,9 +1058,9 @@ function readCommands(io, { first, second, rest, values }) {
  *
  * @param {any} ctx
  * @param {number} id
- * @returns {number}
+ * @returns {Promise<number>}
  */
-function submitHere(ctx, id) {
+async function submitHere(ctx, id) {
   const { root } = ctx.info;
   const { me, claimHead } = withBoard(ctx, (board) => {
     const who = whoAmI(ctx, board);
@@ -1094,7 +1096,7 @@ function submitHere(ctx, id) {
   // Submit runs the gate itself, every time: a stamp from an earlier run is a file any agent can
   // write, so it never stands in for this run (V16). It starts on the commit submitted, and must end
   // on it too. What the gate's own code does in between is the submitted tree's, under review.
-  const gate = runGate(root, ctx.config, { trustStamp: false });
+  const gate = await runGate(root, ctx.config, { trustStamp: false, onWait: gateWaitReporter(ctx.io) });
   if (!gate.isGreen) throw new Refused('GATE_RED', `the gate is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${gateReport(gate)}`);
   if (headCommit(root) !== commit || !isClean(root)) {
     throw new Refused(
@@ -1399,8 +1401,8 @@ function workCommands(io, args) {
       io.say(review ? `released the review of #${first}; the review is free again` : `released #${first}`);
       return 0;
     }),
-    submit: () => submitHere(context(io), idArg(first)),
-    done: () => submitHere(context(io), idArg(first)),
+    submit: async () => submitHere(context(io), idArg(first)),
+    done: async () => submitHere(context(io), idArg(first)),
     verify: () => verifyHere(context(io), idArg(first), args),
     merged: () => act((ctx, board, me) => {
       const commit = resolveCommit(ctx.info.root, second ?? '');
@@ -1453,6 +1455,36 @@ function workCommands(io, args) {
       return 0;
     }),
   };
+}
+
+/** Build a de-duplicated queue message for a gate waiting on machine capacity. */
+function gateWaitReporter(io) {
+  let last = '';
+  return ({ holders, position }) => {
+    const repos = holders.map(({ repo }) => repo).filter(Boolean);
+    const message = `gate waiting: ${holders.length} running${repos.length ? ` in ${repos.join(', ')}` : ''}; place ${position}`;
+    if (message !== last) {
+      io.say(message);
+      last = message;
+    }
+  };
+}
+
+/** Read or update machine-wide gate capacity. */
+function settingsCommand(io, { first, second, rest }) {
+  if (!first && !second && !rest.length) {
+    const settings = loadMachineSettings();
+    io.result?.({ settings });
+    io.say(`gateSlots: ${settings.gateSlots}`);
+    return 0;
+  }
+  if (first !== 'gateSlots' || !second || rest.length || !/^[1-9]\d*$/u.test(second) || !Number.isSafeInteger(Number(second))) {
+    throw new Refused('USAGE', 'pullboard settings gateSlots <positive integer>');
+  }
+  const settings = setGateSlots(Number(second));
+  io.result?.({ settings });
+  io.say(`gateSlots set to ${settings.gateSlots}`);
+  return 0;
 }
 
 /**
@@ -1648,7 +1680,7 @@ async function hookCommand(io, { first, second }) {
   } else if (first === 'pre-push') {
     problems = prePushProblems(info.root, await readStdin(io.stdin));
     if (!problems.length) {
-      const gate = runGate(info.root, ctx.config);
+      const gate = await runGate(info.root, ctx.config, { onWait: gateWaitReporter(io) });
       if (gate.isCached) io.say('pre-push: the gate passed on this exact tree; not running it twice');
       if (!gate.isGreen) problems = [`the gate is red; fix it before pushing. ${gateReport(gate)}`];
     }
@@ -1724,9 +1756,10 @@ async function runCommand(argv, io) {
       return 0;
     }
     if (command === 'hook') return await hookCommand(io, args);
+    if (command === 'settings') return settingsCommand(io, args);
     if (command === 'gate') {
       const ctx = context(io);
-      const gate = runGate(ctx.info.root, ctx.config);
+      const gate = await runGate(ctx.info.root, ctx.config, { onWait: gateWaitReporter(io) });
       io.result?.({ green: gate.isGreen, report: gateReport(gate) });
       io.say(gateReport(gate));
       return gate.isGreen ? 0 : 1;
@@ -1763,6 +1796,6 @@ export function resultCommands() {
     ...Object.keys(setupCommands({}, args)),
     ...Object.keys(readCommands({}, args)),
     ...Object.keys(workCommands({}, args)),
-    'help', 'version', 'tour', 'lifecycle', 'view', 'serve', 'forget', 'spec', 'prompt', 'hook', 'gate',
+    'help', 'version', 'tour', 'lifecycle', 'view', 'serve', 'forget', 'spec', 'prompt', 'hook', 'gate', 'settings',
   ])].sort();
 }

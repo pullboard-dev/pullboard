@@ -19,6 +19,7 @@ export const JSON_SHAPES = {
     whoami: shape({ id: 'string', lane: 'string', path: 'string' }),
     lanes: shape({ lanes: 'object', shared: 'array', coordinator: 'string' }),
     resources: shape({ resources: 'array' }),
+    settings: shape({ settings: 'object' }),
     list: shape({ items: 'array' }),
     show: shape({ item_id: 'number', item_title: 'string', item_lane: 'string', item_status: 'string', verdicts: 'array' }),
     status: shape({ me: 'object', mine: 'array', stats: 'object', unread: 'number' }),
