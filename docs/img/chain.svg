@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 416" width="840" height="416" role="img" aria-labelledby="title desc">
+<title id="title">Questions go one step up</title><desc id="desc">An agent asks its coordinator. The coordinator answers or passes a decision to the person. The person answers through the coordinator, who returns the answer to the original asker. An agent cannot ask the person directly.</desc>
+<style>
+text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif; fill: #1f2328; }
+.mono { font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace; }
+.card { fill: #ffffff; stroke: #d1d9e0; }
+.head { font-size: 14px; font-weight: 600; }
+.aside { font-size: 12px; fill: #59636e; }
+.t1 { font-size: 14px; font-weight: 600; }
+.t2 { font-size: 12px; fill: #59636e; }
+.label { font-size: 12px; fill: #59636e; }
+.code { font-size: 11.5px; fill: #59636e; }
+.edge { fill: none; stroke: #8c959f; stroke-width: 1.5; }
+.edge.back { stroke: #bc4c00; stroke-dasharray: 5 4; }
+.edge.leader { stroke-width: 1; stroke-dasharray: 2 3; }
+.tip { fill: #8c959f; }
+.tip.back { fill: #bc4c00; }
+.label.back { fill: #bc4c00; }
+.frame { fill: none; stroke: #d1d9e0; stroke-dasharray: 4 4; }
+.plain rect { fill: #f6f8fa; stroke: #d1d9e0; }
+.person rect { fill: #ddf4ff; stroke: #54aeff; }
+.person .t1 { fill: #0a3069; } .person .t2 { fill: #0550ae; }
+.agent rect { fill: #fbefff; stroke: #c297ff; }
+.agent .t1 { fill: #3e1f79; } .agent .t2 { fill: #6639ba; }
+.check rect { fill: #fff8c5; stroke: #d4a72c; }
+.check .t1 { fill: #4d2d00; } .check .t2 { fill: #7d4e00; }
+.done rect { fill: #dafbe1; stroke: #4ac26b; }
+.done .t1 { fill: #044f1e; } .done .t2 { fill: #116329; }
+@media (prefers-color-scheme: dark) {
+  text { fill: #f0f6fc; }
+  .card { fill: #0d1117; stroke: #3d444d; }
+  .aside, .t2, .label, .code { fill: #9198a1; }
+  .edge { stroke: #6e7681; }
+  .edge.back { stroke: #f0883e; }
+  .tip { fill: #6e7681; }
+  .tip.back, .label.back { fill: #f0883e; }
+  .frame { stroke: #3d444d; }
+  .plain rect { fill: #151b23; stroke: #3d444d; }
+  .person rect { fill: #0c2d6b; stroke: #1f6feb; }
+  .person .t1 { fill: #cae8ff; } .person .t2 { fill: #a5d6ff; }
+  .agent rect { fill: #271052; stroke: #8957e5; }
+  .agent .t1 { fill: #ecdeff; } .agent .t2 { fill: #d2a8ff; }
+  .check rect { fill: #272115; stroke: #9e6a03; }
+  .check .t1 { fill: #f8e3a1; } .check .t2 { fill: #e3b341; }
+  .done rect { fill: #04260f; stroke: #238636; }
+  .done .t1 { fill: #aff5b4; } .done .t2 { fill: #7ee787; }
+}
+</style>
+<defs>
+<marker id="tip" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="tip" d="M0 1 L9 5 L0 9 z"/></marker>
+<marker id="tip-back" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="tip back" d="M0 1 L9 5 L0 9 z"/></marker>
+</defs>
+<rect class="card" x="0.5" y="0.5" width="839" height="415" rx="12"/>
+<text class="head" x="24" y="34">Questions go one step up</text>
+<g class="agent"><rect x="50" y="58" width="180" height="54" rx="8"/><text class="t1" x="140" y="81" text-anchor="middle">Agent</text><text class="t2" x="140" y="99" text-anchor="middle">asks its coordinator</text></g>
+<g class="check"><rect x="330" y="58" width="180" height="54" rx="8"/><text class="t1" x="420" y="81" text-anchor="middle">Coordinator</text><text class="t2" x="420" y="99" text-anchor="middle">answers or passes it up</text></g>
+<g class="person"><rect x="610" y="58" width="180" height="54" rx="8"/><text class="t1" x="700" y="81" text-anchor="middle">Person</text><text class="t2" x="700" y="99" text-anchor="middle">answers when asked</text></g>
+<path class="edge leader" d="M 140 116 L 140 383"/>
+<path class="edge leader" d="M 420 116 L 420 383"/>
+<path class="edge leader" d="M 700 116 L 700 383"/>
+<path class="edge" d="M 140 154 L 420 154" marker-end="url(#tip)"/>
+<text class="label" x="280" y="146" text-anchor="middle">question</text>
+<path class="edge" d="M 420 204 L 140 204" marker-end="url(#tip)"/>
+<text class="label" x="280" y="196" text-anchor="middle">answer</text>
+<path class="edge" d="M 420 254 L 700 254" marker-end="url(#tip)"/>
+<text class="label" x="560" y="246" text-anchor="middle">pass decision up</text>
+<path class="edge" d="M 700 304 L 420 304" marker-end="url(#tip)"/>
+<text class="label" x="560" y="296" text-anchor="middle">person answers</text>
+<path class="edge" d="M 420 354 L 140 354" marker-end="url(#tip)"/>
+<text class="label" x="280" y="346" text-anchor="middle">return answer to asker</text>
+<text class="aside" x="420" y="400" text-anchor="middle">Agents cannot send a decision straight to the person.</text>
+</svg>
