@@ -87,6 +87,12 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - S11 [approved, must] pullboard.json names products, each a list of spec ids or section letters, as lanes list theirs. | gate: test/products.test.js
 - S12 [approved, must] Lanes and items belong to the product of their spec prefixes and cited rows; nothing restates it. | gate: test/products.test.js | serves: S11
 - S13 [draft, must] `pullboard spec --json` prints every parsed row, so tools in any language read the spec without parsing it. | gate: test/spec.test.js
+- S14 [draft, must] A sign-off can say what the signer checked, with --note, and the note stays with it. | gate: test/spec.test.js | serves: S5
+- S15 [draft, must] Signing a row shows the tests and verified items that cite it; a row nothing proves cannot be signed. | gate: test/spec.test.js | serves: S5
+- S16 [draft, aim] Each approved row not yet signed shows where it stands on its way to a sign-off. | gate: test/spec.test.js | serves: S5
+- S17 [draft, must] A sign-off lands as a git commit signed with the signer's own key, checked against the repo's allowed signers. | gate: test/signoff.test.js | serves: S5
+- S18 [draft, must] A row can name who must sign it; it is met only when each has a current signed sign-off. | gate: test/signoff.test.js | serves: S17
+- S19 [draft, must] spec check refuses a sign-off committed unsigned, signed by a key not allowed, or edited after it landed. | gate: test/signoff.test.js | serves: S17
 
 ## D · Doctrine
 - D1 [draft, must] Doctrine has three scopes: system (every repo here), repo and lane; a narrower scope adds or overrides. | gate: test/practice.test.js | serves: S6
