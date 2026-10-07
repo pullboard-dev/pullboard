@@ -201,4 +201,4 @@ This package is complete on one machine and free. [Pullboard](https://pullboard.
 
 ## License
 
-Apache-2.0.
+MIT. Copyright 2026 Corey Olson.

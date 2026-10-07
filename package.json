@@ -3,7 +3,8 @@
   "version": "0.5.0",
   "private": true,
   "description": "Pullboard, local-first: a work board, lanes, a spec and git hooks that live in your repo. Nothing ships until a second agent verifies it.",
-  "license": "Apache-2.0",
+  "license": "MIT",
+  "author": "Corey Olson",
   "type": "module",
   "bin": {
     "pullboard": "./bin/pullboard.js"
@@ -17,8 +18,7 @@
     "skills",
     "docs",
     "README.md",
-    "LICENSE",
-    "NOTICE"
+    "LICENSE"
   ],
   "engines": {
     "node": ">=22.13"

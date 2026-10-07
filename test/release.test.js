@@ -11,7 +11,7 @@ import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 
 const ROOT = resolve(import.meta.dirname, '..');
-const PUBLISHED = ['LICENSE', 'NOTICE', 'README.md', 'bin', 'docs', 'package.json', 'skills', 'src'];
+const PUBLISHED = ['LICENSE', 'README.md', 'bin', 'docs', 'package.json', 'skills', 'src'];
 const dirs = [];
 after(() => {
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
