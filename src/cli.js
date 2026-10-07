@@ -1852,7 +1852,7 @@ export async function main(argv, streams) {
     try { await syncRelay(io.cwd, io); }
     catch (error) {
       if (!(error instanceof Refused)) throw error;
-      if (!['NO_REPO', 'NO_CONFIG'].includes(error.code)) io.err(`pullboard: ${error.message}`);
+      if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
     }
   };
   if (sync) await retry();

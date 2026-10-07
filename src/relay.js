@@ -11,6 +11,7 @@ import { terminalQr } from './qr.js';
 import { Refused } from './refused.js';
 
 export const DEFAULT_RELAY = 'https://app.pullboard.dev';
+const LINK_FILES = new WeakMap();
 
 /** Require a trusted origin; HTTP exists only for loopback development and test relays. */
 function relayOrigin(address) {
@@ -201,7 +202,11 @@ async function flush(root, file, state, io) {
 
 /** Retry an opted-in board before/after a CLI command; transport failure never undoes a local move. */
 export async function syncRelay(root, io) {
-  const file = linkFile(root);
+  // Reuse Git discovery only within this command; still re-read the link before each retry.
+  let files = LINK_FILES.get(io);
+  if (!files) { files = new Map(); LINK_FILES.set(io, files); }
+  const file = files.get(root) ?? linkFile(root);
+  files.set(root, file);
   if (!existsSync(file)) return null;
   return locked(file, async () => {
     const state = loadLink(file);
