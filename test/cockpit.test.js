@@ -1638,7 +1638,9 @@ test('times say which day they were [N26]', async () => {
 
 test('spec rows read across a phone [N26]', async () => {
   const box = machine();
-  project(box, 'alpha');
+  const alpha = project(box, 'alpha');
+  // Its own house rules: a fresh init may write PRACTICE.md with none.
+  writeFileSync(join(alpha.repo, 'PRACTICE.md'), '# Practice\n\n## W · Writing\n- W1 [approved, must] Numbers over adjectives. No hedges, no filler. | gate: review\n- W2 [draft, aim] One record per decision. | gate: review\n');
   const view = await startView(box);
   try {
     const page = await openPage(view, { width: 375 });
