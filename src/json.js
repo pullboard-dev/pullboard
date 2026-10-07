@@ -21,6 +21,7 @@ export const JSON_SHAPES = {
     list: shape({ items: 'array' }),
     show: shape({ item_id: 'number', item_title: 'string', item_lane: 'string', item_status: 'string', verdicts: 'array' }),
     status: shape({ me: 'object', mine: 'array', stats: 'object', unread: 'number' }),
+    doctor: shape({ problems: 'array' }),
     inbox: shape({ shouts: 'array' }),
     decisions: shape({ decisions: 'array' }),
     ledger: shape({ items: 'array', stats: 'object' }),
@@ -43,6 +44,7 @@ export const JSON_SHAPES = {
     refreeze: shape({ id: 'number', after: 'string' }),
     shout: shape({ id: 'number', decision: 'boolean' }),
     answer: shape({ id: 'number', answers: 'number' }),
+    pass: shape({ id: 'number', answers: 'number' }),
     tour: shape({ messages: 'array' }),
     lifecycle: shape({ markdown: 'string' }),
     view: shape({ url: 'string', port: 'number' }),
@@ -50,6 +52,8 @@ export const JSON_SHAPES = {
     forget: shape({ root: 'string' }),
     prompt: shape({ role: 'string', text: 'string' }),
     gate: shape({ green: 'boolean', report: 'string' }),
+    export: shape({ tables: 'object' }),
+    import: shape({ tables: 'array' }),
     spec: shape({ rows: 'array' }),
     'spec check': shape({ rows: 'array' }),
     'spec view': shape({ path: 'string' }),
@@ -74,7 +78,7 @@ export const JSON_SHAPES = {
 
 /** Extract a concrete repair from existing refusals, retaining their original guidance. */
 function nextStep(message) {
-  const match = /(?:; |\. |: )((?:run|install|fix|restore|commit|check out|set|give|use|the coordinator|to keep looking|never work around)\b[\s\S]*)/i.exec(message);
+  const match = /(?:; |\. |: )((?:run|install|fix|restore|commit|check out|set|give|use|ask your coordinator|answer from the main checkout|the coordinator|to keep looking|never work around)\b[\s\S]*)/i.exec(message);
   return match?.[1] ?? 'Run pullboard help, correct the reported problem, and retry the command.';
 }
 

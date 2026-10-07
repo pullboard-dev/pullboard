@@ -4,6 +4,8 @@ Add `--json` to a Pullboard command to receive one JSON document on stdout. The 
 
 The API version is independent of the package version. Its contract is stable within each major API version: existing command names, required fields, field types, and refusal fields do not change within that version. An incompatible change requires a new `version`. New fields may be added, so clients should ignore fields they do not use.
 
+Decision shouts without a recipient go to the agent's coordinator, or to `person` when sent by the coordinator. `pullboard pass <shout-id> <note>` is for coordinators: it forwards an open coordinator decision to the person with the original question and note. From the main checkout, `pullboard decisions` and `pullboard answer <shout-id> <text>` default to the coordinator; use `--as person` to select the person's queue or answer a person-addressed decision. Person mode is accepted only in the main checkout. An answer in person mode cannot answer a coordinator-addressed decision, and a coordinator-default answer cannot impersonate the person; the refusal prints the command to retry. A person answer is delivered to the original asker. An agent worktree cannot select person mode.
+
 A successful command returns the fields listed below. `version` is always the number `1`. The catalog lists required top-level fields; nested objects and arrays are command data, and optional top-level fields may be added.
 
 <!-- api-command-shapes:start -->
@@ -21,6 +23,7 @@ A successful command returns the fields listed below. `version` is always the nu
 | `list` | `version:number`, `items:array` |
 | `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array` |
 | `status` | `version:number`, `me:object`, `mine:array`, `stats:object`, `unread:number` |
+| `doctor` | `version:number`, `problems:array` |
 | `inbox` | `version:number`, `shouts:array` |
 | `decisions` | `version:number`, `decisions:array` |
 | `ledger` | `version:number`, `items:array`, `stats:object` |
@@ -43,6 +46,7 @@ A successful command returns the fields listed below. `version` is always the nu
 | `refreeze` | `version:number`, `id:number`, `after:string` |
 | `shout` | `version:number`, `id:number`, `decision:boolean` |
 | `answer` | `version:number`, `id:number`, `answers:number` |
+| `pass` | `version:number`, `id:number`, `answers:number` |
 | `tour` | `version:number`, `messages:array` |
 | `lifecycle` | `version:number`, `markdown:string` |
 | `view` | `version:number`, `url:string`, `port:number` |
@@ -50,6 +54,8 @@ A successful command returns the fields listed below. `version` is always the nu
 | `forget` | `version:number`, `root:string` |
 | `prompt` | `version:number`, `role:string`, `text:string` |
 | `gate` | `version:number`, `green:boolean`, `report:string` |
+| `export` | `version:number`, `tables:object` |
+| `import` | `version:number`, `tables:array` |
 | `spec` | `version:number`, `rows:array` |
 | `spec check` | `version:number`, `rows:array` |
 | `spec view` | `version:number`, `path:string` |
@@ -109,6 +115,8 @@ Run `pullboard serve --port 0` to print a private API address on `127.0.0.1`. Au
 <!-- api-http-shapes:end -->
 
 A move body is `{verb, item, args, agent}`. `item` is the positive integer id when the move needs one. `args` names its CLI positional arguments and flags; text values stay literal, including leading dashes. Omit `agent` to act as the coordinator, or name a registered agent to run in its worktree. Coordinator verification takes `args.as: "coordinator"`, matching the CLI's explicit identity check. The local session secret may act as any agent on that board. `result` is the CLI's JSON result. `next` claims work atomically; when a claim is already held it renews it and returns the renewal event. With no work available it returns the CLI's `NOTHING_FREE` refusal. Waiting remains a CLI option.
+
+Decision moves keep the CLI's routing: `shout` with `args.decision: true` may omit `args.to`; agents ask their coordinator, and the coordinator asks the person. `pass` takes the decision's id as `item` and `args.note`. Answering a decision addressed to the person requires `answer` with `args.as: "person"` from the coordinator's main checkout. Other callers receive the CLI's refusal.
 
 The SQLite schema marker is now `PRAGMA user_version = 2`. Opening an older board upgrades it in place: `board_meta` stores the id as `meta_key = "board_id"` and a 32-character hexadecimal `meta_value`; `shout_request` and `shout_request_outcome` mark requests and their answers. Existing items, agents and events remain intact. The HTTP envelope stays at version 1 independently of the SQLite schema marker.
 

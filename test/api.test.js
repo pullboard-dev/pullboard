@@ -172,6 +172,7 @@ test('[A1] command results match the catalog across roots and subcommands', () =
   json(box, repo, 'lanes');
   json(box, repo, 'resume');
   json(box, repo, 'status');
+  json(box, repo, 'doctor');
   const plainStatus = box.run(repo, 'status');
   assert.equal(plainStatus.status, 0, plainStatus.stderr);
   assert.equal(plainStatus.stderr, '');
@@ -242,9 +243,10 @@ test('[A1] command results match the catalog across roots and subcommands', () =
   json(box, repo, 'hold', ['app', '--reason', 'exercise JSON']);
   json(box, repo, 'hold', ['app', '--off']);
 
-  json(box, secondPath, 'shout', ['coordinator', 'Please decide', '--decision']);
+  json(box, secondPath, 'shout', ['Please decide', '--decision']);
   json(box, repo, 'decisions');
-  json(box, repo, 'answer', ['1', 'Yes, keep the change']);
+  json(box, repo, 'pass', ['1', 'The test run is complete']);
+  json(box, repo, 'answer', ['2', 'Yes, keep the change', '--as', 'person']);
   json(box, secondPath, 'inbox');
   json(box, repo, 'sweep', ['--run', 'true', '--check', 'true {file}']);
 
@@ -364,6 +366,17 @@ test('[A1] long-running servers flush one JSON document before shutdown', async 
   }
 });
 test('[A1] every catalog command and subcommand has a real CLI exercise', () => {
+  const source = project();
+  const target = project();
+  const document = json(source, source.repo, 'export');
+  const file = join(source.dir, 'board.json');
+  writeFileSync(file, JSON.stringify(document));
+  json(source, target.repo, 'import', [file]);
+  const humanTarget = project();
+  const humanImport = source.run(humanTarget.repo, 'import', file);
+  assert.equal(humanImport.status, 0, humanImport.stderr || humanImport.stdout);
+  assert.match(humanImport.stdout, /imported version 1 board tables/);
+
   const missing = Object.keys(JSON_SHAPES.commands).filter((key) => !covered.has(key));
   assert.deepEqual(missing, [], `add real-repo invocations for undocumented coverage gaps: ${missing.join(', ')}`);
   assert.deepEqual([...coveredRoots].sort(), resultCommands(), 'every actual root/factory command has an invocation');
@@ -560,6 +573,53 @@ test('[A2] moves run as the named worktree agent and requests stay visible until
   assert.equal(answered.event.event_kind, 'answer');
   assert.equal(answered.event.event_by, 'coordinator');
   assert.deepEqual((await (await apiFetch(api, `${path}/state`)).json()).state.requests, []);
+});
+
+test('[A2,B25,B26,B27] HTTP decisions preserve routing, passing and explicit person answers', async (t) => {
+  const box = project();
+  const app = join(box.dir, 'app-1');
+  box.git(box.repo, 'worktree', 'add', '-q', '-b', 'app/one', app);
+  assert.equal(box.run(app, 'join', 'app').status, 0);
+  const api = await startApi(t, box);
+  const boards = await (await apiFetch(api, '/api/v1/boards')).json();
+  const board = boards.boards.find((candidate) => candidate.root === box.repo);
+  const path = `/api/v1/boards/${board.id}`;
+  /** Send a real HTTP move while retaining the caller and CLI argument boundaries. */
+  const move = (verb, args, item, agent = 'coordinator') => apiFetch(api, `${path}/moves`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ verb, args, ...(item === undefined ? {} : { item }), agent }),
+  });
+
+  const askResponse = await move('shout', { text: 'May this ship?', decision: true }, undefined, 'app-1');
+  assert.equal(askResponse.status, 200);
+  const ask = await askResponse.json();
+  assert.equal(ask.version, 1);
+  assert.equal(ask.event.event_kind, 'shout');
+  assert.equal(ask.event.event_by, 'app-1');
+  assert.equal(JSON.parse(ask.event.event_detail).to, 'coordinator');
+
+  const notCoordinator = JSON.parse(box.run(app, 'pass', String(ask.result.id), 'Needs the person', '--json').stdout).error;
+  assert.deepEqual(await apiError(await move('pass', { note: 'Needs the person' }, ask.result.id, 'app-1'), 409), notCoordinator);
+
+  const passResponse = await move('pass', { note: 'Needs the person' }, ask.result.id);
+  assert.equal(passResponse.status, 200);
+  const passed = await passResponse.json();
+  assert.equal(passed.version, 1);
+  assert.equal(passed.event.event_kind, 'pass');
+  assert.equal(JSON.parse(passed.event.event_detail).to, 'person');
+
+  const personRequired = JSON.parse(box.run(box.repo, 'answer', String(passed.result.id), 'Approved', '--json').stdout).error;
+  assert.equal(personRequired.code, 'B26_PERSON_ANSWER');
+  assert.deepEqual(await apiError(await move('answer', { text: 'Approved' }, passed.result.id), 409), personRequired);
+  const answerResponse = await move('answer', { text: 'Approved', as: 'person' }, passed.result.id);
+  assert.equal(answerResponse.status, 200);
+  const answered = await answerResponse.json();
+  assert.equal(answered.version, 1);
+  assert.equal(answered.event.event_by, 'person');
+  assert.equal(answered.event.event_kind, 'answer');
+  const replies = json(box, app, 'inbox').shouts;
+  assert.ok(replies.some((entry) => entry.shout_answers === ask.result.id && entry.shout_from === 'person' && entry.shout_text.includes('Approved')));
+  assert.deepEqual((await (await apiFetch(api, `${path}/state`)).json()).state.decisions, []);
 });
 
 test('[A2] SSE delivers a live move and resumes after Last-Event-ID without replay', async (t) => {

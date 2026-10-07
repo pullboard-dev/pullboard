@@ -88,8 +88,9 @@ const MOVES = {
   refreeze: { item: true },
   escalate: { item: true, flags: ['note'] },
   hold: { positions: ['lane'], flags: ['reason'], booleans: ['off'] },
-  shout: { positions: ['to', 'text'], booleans: ['decision'], flags: ['evidence', 'outcome', 'item', 'commit'] },
-  answer: { item: true, positions: ['text'] },
+  shout: { positions: ['to', 'text'], optional: ['to'], booleans: ['decision'], flags: ['evidence', 'outcome', 'item', 'commit'] },
+  answer: { item: true, positions: ['text'], flags: ['as'] },
+  pass: { item: true, positions: ['note'] },
   next: { flags: ['as'], booleans: ['verify'] },
 };
 
@@ -108,6 +109,7 @@ export function moveArgs({ verb, item, args = {} }) {
   } else if (item !== undefined && item !== null) throw new Refused('BAD_REQUEST', `${verb} does not take item; put its arguments in args`);
   const positional = [];
   for (const key of form.positions ?? []) {
+    if (args[key] === undefined && form.optional?.includes(key)) continue;
     if (typeof args[key] !== 'string' || !args[key].trim()) throw new Refused('BAD_REQUEST', `${verb} needs args.${key} as nonempty text; supply the CLI move's argument`);
     positional.push(args[key]);
   }

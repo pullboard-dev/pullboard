@@ -16,6 +16,7 @@ import { GUARDS, IN_STATE, MOVES, STATES, UNKNOWN_MOVE, effectiveGuards, storeTr
 import { Refused } from './refused.js';
 
 export const ACCEPT_REASON = 'CRITERION_MET';
+export const PERSON = 'person';
 
 /**
  * Who can take an item (B13), as tiers in order of the model an item needs: `light` is work a small
@@ -1137,49 +1138,114 @@ export function verdictsFor(board, id) {
 }
 
 /**
- * Shout to a lane, an agent, or `all` (B7). The caller passes the lanes the config declares.
+ * Insert a shout within the caller's transaction.
  *
  * @param {any} board
- * @param {{ from: string, to: string, text: string, lanes: string[] }} message
+ * @param {{ from: string, to: string, text: string, lanes: string[], decision?: boolean, answers?: number | null, evidence?: any, request?: boolean }} message
+ * @returns {number}
  */
-export function shout(board, { from, to, text, lanes, decision = false, answers = null, evidence = null, request = false }) {
+function insertShout(board, { from, to, text, lanes, decision = false, answers = null, evidence = null, request = false }) {
+  if (!text.trim()) throw new Refused('EMPTY_SHOUT', 'a shout needs text');
+  if (request && (from !== 'person' || to !== COORDINATOR || decision || answers !== null)) {
+    throw new Refused('BAD_REQUEST', 'a request goes from the person to the coordinator; use the board requests endpoint with its text');
+  }
+  const ask = answers === null ? null : getShout(board, answers);
+  const isAgent = board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(to);
+  const requestReply = ask?.shout_request && to === ask.shout_from;
+  if (to !== 'all' && to !== PERSON && !lanes.includes(to) && !isAgent && !requestReply) {
+    throw new Refused('NO_READER', `nobody reads "${to}": name a lane, an agent or all`);
+  }
+  if (to === PERSON && decision && from !== COORDINATOR) {
+    throw new Refused('B26_PERSON_DECISION', `only the coordinator can ask the person for a decision; ask your coordinator: pullboard shout coordinator "${text.trim()}" --decision`);
+  }
+  let outcome = '';
+  if (ask?.shout_request) {
+    if (from !== COORDINATOR || !requestReply) throw new Refused('COORDINATOR_ONLY', `only the coordinator answers request #${answers}; ask the coordinator to run pullboard answer ${answers} done or declined <reason>`);
+    if (board.db.prepare('SELECT 1 FROM shout WHERE shout_answers = ? AND shout_request_outcome != ?').get(answers, '')) {
+      throw new Refused('REQUEST_CLOSED', `request #${answers} was already answered; read pullboard inbox before answering another request`);
+    }
+    const reply = /^(done|declined)(?:\s+([\s\S]+))?$/.exec(text.trim());
+    if (!reply || (reply[1] === 'declined' && !reply[2]?.trim())) {
+      throw new Refused('REQUEST_OUTCOME', `answer request #${answers} with done or declined followed by a reason: pullboard answer ${answers} done or declined <reason>`);
+    }
+    outcome = reply[1];
+  } else if (ask && !ask.shout_decision) {
+    throw new Refused('NOT_A_DECISION', `shout #${answers} asked for no decision; reply with pullboard shout`);
+  }
+  if (evidence) checkEvidence(board, evidence);
+  const result = board.db
+    .prepare(
+      `INSERT INTO shout (shout_from, shout_to, shout_text, shout_at, shout_decision, shout_answers,
+         shout_evidence_kind, shout_evidence_outcome, shout_evidence_item, shout_evidence_commit,
+         shout_request, shout_request_outcome)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(from, to, text.trim(), now(board), decision ? 1 : 0, answers, evidence?.kind ?? null, evidence ? evidence.outcome.trim() : null, evidence?.item ?? null, evidence?.commit ?? null, request ? 1 : 0, outcome);
+  const id = Number(result.lastInsertRowid);
+  logEvent(board, from, answers === null ? 'shout' : decision ? 'pass' : 'answer', null, { shout: id, to, decision: Boolean(decision), request: Boolean(request), answers, ...(outcome ? { outcome } : {}) });
+  return id;
+}
+
+/**
+ * Shout to a lane, an agent, `all`, or the person (B7, B25, B26). The caller passes declared lanes.
+ *
+ * @param {any} board
+ * @param {{ from: string, to: string, text: string, lanes: string[], decision?: boolean, answers?: number | null, evidence?: any, request?: boolean }} message
+ * @returns {number}
+ */
+export function shout(board, message) {
+  return atomic(board, () => insertShout(board, message));
+}
+
+/**
+ * Pass an open coordinator decision to the person with the original question and note (B27).
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {{ agentId: string, note: string, lanes: string[] }} options
+ * @returns {number}
+ */
+export function passDecision(board, id, { agentId, note, lanes }) {
   return atomic(board, () => {
-    if (!text.trim()) throw new Refused('EMPTY_SHOUT', 'a shout needs text');
-    if (request && (from !== 'person' || to !== COORDINATOR || decision || answers !== null)) {
-      throw new Refused('BAD_REQUEST', 'a request goes from the person to the coordinator; use the board requests endpoint with its text');
+    if (agentId !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator can pass a decision up');
+    const ask = getShout(board, id);
+    if (!ask.shout_decision || ask.shout_to !== COORDINATOR) throw new Refused('NOT_COORDINATOR_DECISION', `shout #${id} is not a decision waiting for the coordinator`);
+    if (board.db.prepare('SELECT 1 FROM shout WHERE shout_answers = ?').get(id)) throw new Refused('ALREADY_ANSWERED', `shout #${id} already has an answer`);
+    const text = `Passed up from ${ask.shout_from}: ${ask.shout_text}\nCoordinator note: ${String(note ?? '').trim()}`;
+    if (!String(note ?? '').trim()) throw new Refused('EMPTY_NOTE', 'include a note with the reason for passing this decision');
+    return insertShout(board, { from: COORDINATOR, to: PERSON, text, lanes, decision: true, answers: id });
+  });
+}
+
+/**
+ * Answer an open decision addressed to the caller, delivering passed-up answers to the asker (B27).
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {{ agentId: string, text: string, lanes: string[], asPerson?: boolean }} options
+ * @returns {number}
+ */
+export function answerDecision(board, id, { agentId, text, lanes, asPerson = false }) {
+  return atomic(board, () => {
+    const ask = getShout(board, id);
+    if (ask.shout_request) {
+      if (asPerson) throw new Refused('B26_PERSON_ANSWER', `requests are answered by the coordinator; run pullboard answer ${id} done or declined <reason>`);
+      return insertShout(board, { from: agentId, to: ask.shout_from, text, lanes, answers: id });
     }
-    const ask = answers === null ? null : getShout(board, answers);
-    const isAgent = board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(to);
-    const requestReply = ask?.shout_request && to === ask.shout_from;
-    if (to !== 'all' && !lanes.includes(to) && !isAgent && !requestReply) {
-      throw new Refused('NO_READER', `nobody reads "${to}": name a lane, an agent or all`);
+    if (!ask.shout_decision) throw new Refused('NOT_A_DECISION', `shout #${id} asked for no decision`);
+    if (board.db.prepare('SELECT 1 FROM shout WHERE shout_answers = ?').get(id)) throw new Refused('ALREADY_ANSWERED', `shout #${id} already has an answer`);
+    if (asPerson && agentId !== COORDINATOR) throw new Refused('B26_PERSON_ANSWER', `only the main checkout can answer as the person; ask your coordinator: pullboard answer ${id} "<answer>"`);
+    if (asPerson && ask.shout_to !== PERSON) throw new Refused('B26_PERSON_ANSWER', `person mode answers only decisions addressed to the person; the coordinator answers this one: pullboard answer ${id} "<answer>"`);
+    if (!asPerson && ask.shout_to === PERSON && agentId === COORDINATOR) throw new Refused('B26_PERSON_ANSWER', `this decision is addressed to the person; answer from the main checkout: pullboard answer ${id} "<answer>" --as person`);
+    const personAnswer = asPerson;
+    if (ask.shout_to !== agentId && !personAnswer) throw new Refused('NOT_YOUR_DECISION', `shout #${id} is addressed to ${ask.shout_to}, not ${agentId}`);
+    const from = personAnswer ? PERSON : agentId;
+    const answerId = insertShout(board, { from, to: ask.shout_from, text, lanes, answers: id });
+    if (personAnswer && ask.shout_answers !== null) {
+      const original = getShout(board, ask.shout_answers);
+      insertShout(board, { from: PERSON, to: original.shout_from, text: `Person answered #${id}: ${String(text).trim()}`, lanes, answers: original.shout_id });
     }
-    let outcome = '';
-    if (ask?.shout_request) {
-      if (from !== COORDINATOR || !requestReply) throw new Refused('COORDINATOR_ONLY', `only the coordinator answers request #${answers}; ask the coordinator to run pullboard answer ${answers} done or declined <reason>`);
-      if (board.db.prepare('SELECT 1 FROM shout WHERE shout_answers = ? AND shout_request_outcome != ?').get(answers, '')) {
-        throw new Refused('REQUEST_CLOSED', `request #${answers} was already answered; read pullboard inbox before answering another request`);
-      }
-      const reply = /^(done|declined)(?:\s+([\s\S]+))?$/.exec(text.trim());
-      if (!reply || (reply[1] === 'declined' && !reply[2]?.trim())) {
-        throw new Refused('REQUEST_OUTCOME', `answer request #${answers} with done or declined followed by a reason: pullboard answer ${answers} done or declined <reason>`);
-      }
-      outcome = reply[1];
-    } else if (ask && !ask.shout_decision) {
-      throw new Refused('NOT_A_DECISION', `shout #${answers} asked for no decision; reply with pullboard shout`);
-    }
-    if (evidence) checkEvidence(board, evidence);
-    const result = board.db
-      .prepare(
-        `INSERT INTO shout (shout_from, shout_to, shout_text, shout_at, shout_decision, shout_answers,
-           shout_evidence_kind, shout_evidence_outcome, shout_evidence_item, shout_evidence_commit,
-           shout_request, shout_request_outcome)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(from, to, text.trim(), now(board), decision ? 1 : 0, answers, evidence?.kind ?? null, evidence ? evidence.outcome.trim() : null, evidence?.item ?? null, evidence?.commit ?? null, request ? 1 : 0, outcome);
-    const id = Number(result.lastInsertRowid);
-    logEvent(board, from, answers === null ? 'shout' : 'answer', null, { shout: id, to, decision: Boolean(decision), request: Boolean(request), answers, ...(outcome ? { outcome } : {}) });
-    return id;
+    return answerId;
   });
 }
 
@@ -1216,16 +1282,22 @@ export function getShout(board, id) {
 }
 
 /**
- * Shouts that asked for a decision nobody has answered yet, oldest first (B21). They stay here, and
- * in the person's Needs-you, until an answer names them; nothing ever edits the ask.
+ * Shouts that asked for a decision nobody has answered yet, oldest first (B21). An optional
+ * recipient limits the queue; without one this returns every open decision for internal readers.
  *
  * @param {any} board
+ * @param {string} [recipient]
  * @returns {any[]}
  */
-export function openDecisions(board) {
+export function openDecisions(board, recipient = null) {
+  if (recipient === null) {
+    return board.db
+      .prepare('SELECT * FROM shout ask WHERE ask.shout_decision = 1 AND NOT EXISTS (SELECT 1 FROM shout reply WHERE reply.shout_answers = ask.shout_id) ORDER BY ask.shout_id')
+      .all();
+  }
   return board.db
-    .prepare('SELECT * FROM shout ask WHERE ask.shout_decision = 1 AND NOT EXISTS (SELECT 1 FROM shout reply WHERE reply.shout_answers = ask.shout_id) ORDER BY ask.shout_id')
-    .all();
+    .prepare('SELECT * FROM shout ask WHERE ask.shout_decision = 1 AND ask.shout_to = ? AND NOT EXISTS (SELECT 1 FROM shout reply WHERE reply.shout_answers = ask.shout_id) ORDER BY ask.shout_id')
+    .all(recipient);
 }
 
 /** Requests remain visible to the coordinator until a done or declined answer closes them (A2). */

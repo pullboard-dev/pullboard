@@ -47,6 +47,8 @@ import { forgetProject, registerProject } from './projects.js';
 import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
 import { serveView } from './serve.js';
 import { serveApi } from './api.js';
+import { doctorProblems } from './doctor.js';
+import { exportBoard, importBoard } from './exchange.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
@@ -83,6 +85,7 @@ Work
                                         $PULLBOARD_ATTEMPT, $PULLBOARD_TIER); green work is submitted, red escalated
                 [--agent-light "..."] [--agent-mid "..."] [--agent-strong "..."]   a command per tier
   pullboard list [lane] [--all] [--route light|mid|strong]   open and active items; --all adds closed ones
+  pullboard doctor                     check board integrity without changing it
   pullboard show <id> [--history]       an item, the criterion frozen at claim, its verdicts: the latest in full,
                                         earlier ones as one line; --history prints every note in full
   pullboard next [--wait <minutes>]     claim the next item in your lane that is free to start
@@ -95,11 +98,14 @@ Work
   pullboard verify <id> accept --note "what you broke or which edge you tried, and what happened"
   pullboard verify <id> reject --reason TEST_FAILURE --note "what failed"
                                         any --note can be --note-file <file>, which keeps quotes, $ and backticks intact
-  pullboard shout <lane|agent|all> <text>       pullboard inbox
-  pullboard shout <to> <text> --decision          ask for a decision; it stays open until answered
+  pullboard shout <lane|agent|person|all> <text> pullboard inbox
+  pullboard shout [<to>] <text> --decision       ask for a decision; defaults to your coordinator or the person
   pullboard shout <to> <text> --evidence attempt|receipt --outcome <word> --item <id> --commit <rev>
-  pullboard answer <shout-id> <text>              answer a shout that asked for a decision
-  pullboard decisions                             shouts still waiting for a decision
+  pullboard answer <shout-id> <text> [--as person] answer your decision; person mode is main-checkout only
+  pullboard pass <shout-id> <note>                coordinator passes a decision to the person
+  pullboard decisions [--as person]               shouts waiting for you; main checkout defaults to coordinator
+  pullboard export                              print the whole board as versioned JSON
+  pullboard import <file>                       restore a versioned export into an empty board
 
 Coordinator
   pullboard sweep --run "<checker>" --check "<checker on {file}>" [--route light] [--max 20] [--dry-run]
@@ -268,6 +274,23 @@ function checkMainVerifier(ctx, board, values) {
     'MAIN_IS_COORDINATOR',
     `this is the main checkout, so this verdict would be the coordinator's. An agent verifies from its own worktree, starting every command with cd <worktree> &&.${listed}${detached} The coordinator adds --as coordinator`,
   );
+}
+
+/**
+ * Select the person actor only through the main checkout's explicit person mode (B26).
+ *
+ * @param {any} ctx
+ * @param {{ id: string }} me
+ * @param {{ as?: string }} values
+ * @returns {boolean}
+ */
+function personMode(ctx, me, values) {
+  if (values.as === undefined) return false;
+  if (values.as !== 'person') throw new Refused('USAGE', '--as person is supported for answer and decisions');
+  if (!ctx.info.isMain || me.id !== COORDINATOR) {
+    throw new Refused('B26_PERSON_ANSWER', 'only the main checkout can act as the person; ask your coordinator to answer or pass this decision');
+  }
+  return true;
 }
 
 /**
@@ -818,8 +841,30 @@ function refuseUncommittedSetup(mainRoot, config) {
  * @param {any} args
  * @returns {Record<string, () => number>}
  */
-function readCommands(io, { first, values }) {
+function readCommands(io, { first, second, rest, values }) {
   return {
+    export: () => {
+      if (first) throw new Refused('USAGE', 'pullboard export takes no arguments');
+      const ctx = context(io);
+      io.say(JSON.stringify(withBoard(ctx, (board) => exportBoard(board)), null, 2));
+      return 0;
+    },
+    import: () => {
+      if (!first || second || rest.length) throw new Refused('USAGE', 'pullboard import <file>');
+      const file = resolve(io.cwd, first);
+      if (!existsSync(file)) throw new Refused('NO_FILE', `no export file ${first}`);
+      let document;
+      try {
+        document = JSON.parse(readFileSync(file, 'utf8'));
+      } catch {
+        throw new Refused('IMPORT_FORMAT', `file ${first} is not a JSON export; use pullboard export to make one`);
+      }
+      const ctx = context(io);
+      const imported = withBoard(ctx, (board) => importBoard(board, document));
+      io.result?.({ tables: imported.tables });
+      io.say(`imported version ${document.version} board tables: ${imported.tables.join(', ')}`);
+      return 0;
+    },
     resume: () => resumeHere(io),
     whoami: () => {
       const ctx = context(io);
@@ -914,6 +959,17 @@ function readCommands(io, { first, values }) {
       }
       return 0;
     },
+    doctor: () => {
+      const ctx = context(io);
+      const problems = doctorProblems(ctx.file, ctx.info.root, tryGit);
+      io.result?.({ problems });
+      if (!problems.length) {
+        io.say('board is clean');
+        return 0;
+      }
+      for (const problem of problems) io.say(`problem: ${problem.message}; repair: ${problem.next}`);
+      return 1;
+    },
     inbox: () => {
       const ctx = context(io);
       const shouts = withBoard(ctx, (board) => store.inbox(board, whoAmI(ctx, board).id));
@@ -929,7 +985,11 @@ function readCommands(io, { first, values }) {
     },
     decisions: () => {
       const ctx = context(io);
-      const asks = withBoard(ctx, (board) => store.openDecisions(board));
+      const asks = withBoard(ctx, (board) => {
+        const me = whoAmI(ctx, board);
+        const asPerson = personMode(ctx, me, values);
+        return store.openDecisions(board, asPerson ? 'person' : me.id);
+      });
       io.result?.({ decisions: asks });
       if (!asks.length) io.say('no open decisions');
       for (const ask of asks) io.say(`#${ask.shout_id}  ${ask.shout_from} -> ${ask.shout_to}, ${span(ctx, ask.shout_at)} ago: ${firstLine(ask.shout_text)}`);
@@ -1338,17 +1398,32 @@ function workCommands(io, args) {
     }),
     shout: () => act((ctx, board, me) => {
       const evidence = values.evidence === undefined ? null : evidenceFrom(ctx, values);
-      const text = [second, ...rest].filter(Boolean).join(' ');
-      const id = store.shout(board, { from: me.id, to: first ?? '', text, lanes: laneNames(ctx.config), decision: Boolean(values.decision), evidence });
+      const recipients = ['all', 'person', ...laneNames(ctx.config), ...board.db.prepare('SELECT agent_id FROM agent').all().map((agent) => agent.agent_id)];
+      const hasRecipient = first && recipients.includes(first);
+      const to = hasRecipient ? first : values.decision ? (me.id === COORDINATOR ? 'person' : COORDINATOR) : first ?? '';
+      const text = [hasRecipient ? second : first, ...(hasRecipient ? rest : [second, ...rest])].filter(Boolean).join(' ');
+      const id = store.shout(board, { from: me.id, to, text, lanes: laneNames(ctx.config), decision: Boolean(values.decision), evidence });
       io.result?.({ id, decision: Boolean(values.decision) });
-      io.say(values.decision ? `asked ${first} for a decision as #${id}; it stays open until someone runs: pullboard answer ${id} "<the decision>"` : `shouted to ${first}`);
+      io.say(values.decision ? `asked ${to} for a decision as #${id}; it stays open until someone runs: pullboard answer ${id} "<the decision>"` : `shouted to ${to}`);
       return 0;
     }),
     answer: () => act((ctx, board, me) => {
+      const asPerson = personMode(ctx, me, values);
+      const id = store.answerDecision(board, idArg(first), { agentId: me.id, text: [second, ...rest].filter(Boolean).join(' '), lanes: laneNames(ctx.config), asPerson });
       const ask = store.getShout(board, idArg(first));
-      const id = store.shout(board, { from: me.id, to: ask.shout_from, text: [second, ...rest].filter(Boolean).join(' '), lanes: laneNames(ctx.config), answers: ask.shout_id });
       io.result?.({ id, answers: ask.shout_id });
-      io.say(`answered #${ask.shout_id} to ${ask.shout_from} as #${id}`);
+      if (asPerson) {
+        const originalAsker = ask.shout_answers === null ? ask.shout_from : store.getShout(board, ask.shout_answers).shout_from;
+        io.say(`person answered #${ask.shout_id}; notified ${originalAsker} as #${id}`);
+      } else {
+        io.say(`answered #${ask.shout_id} to ${ask.shout_from} as #${id}`);
+      }
+      return 0;
+    }),
+    pass: () => act((ctx, board, me) => {
+      const id = store.passDecision(board, idArg(first), { agentId: me.id, note: [second, ...rest].filter(Boolean).join(' '), lanes: laneNames(ctx.config) });
+      io.result?.({ id, answers: idArg(first) });
+      io.say(`passed #${first} to the person as #${id}`);
       return 0;
     }),
   };
@@ -1381,6 +1456,7 @@ function citations(ctx, { ids, since }) {
 
 /** Current board evidence, with each item's accepting receipts included once. */
 function specProof(ctx) {
+  if (!existsSync(ctx.file)) return { items: [], verdicts: [] };
   return withBoard(ctx, (board) => {
     const items = store.listItems(board, { all: true });
     return { items, verdicts: items.flatMap((item) => store.verdictsFor(board, item.item_id)) };
@@ -1396,6 +1472,22 @@ function specProof(ctx) {
  */
 function specCommand(io, { first, second, rest, values }) {
   const ctx = context(io);
+  const commandFlags = {
+    '--json': ['json'],
+    check: ['json'],
+    view: ['out'],
+    show: [],
+    unmet: ['must'],
+    signoff: ['by', 'note', 'note-file'],
+  }[first ?? '--json'];
+  if (!commandFlags) throw new Refused('USAGE', 'use pullboard spec --json | check | view | show <id> | unmet [--must] | signoff <ids> --by <name> [--note "..."]');
+  const allowedFlags = [...new Set([...commandFlags, 'json'])];
+  for (const flag of Object.keys(values)) {
+    if (!allowedFlags.includes(flag)) {
+      const next = flag === 'must' ? 'use --must with spec unmet' : 'use a flag accepted by this spec command';
+      throw new Refused('FLAG_NOT_ALLOWED', `spec ${first ?? '--json'} does not take --${flag}; ${next}`);
+    }
+  }
   const spec = loadSpec(ctx.info.root, ctx.config);
   if (!spec.exists) throw new Refused('NO_SPEC', `no ${ctx.config.spec}; run: pullboard init`);
   const practice = loadSpec(ctx.info.root, { ...ctx.config, spec: ctx.config.practice });
@@ -1480,7 +1572,8 @@ function specCommand(io, { first, second, rest, values }) {
       for (const file of row.files) io.say(`  test: ${file}`);
       for (const item of row.verified) io.say(`  verified #${item.id}: ${item.note || '(no accepting note)'}`);
     }
-    const count = signOff(ctx.info.root, spec, { ids, by: values.by ?? '', on: new Date().toISOString().slice(0, 10), note: values.note ?? '' });
+    const note = textArg(io, values, 'note') ?? '';
+    const count = signOff(ctx.info.root, spec, { ids, by: values.by ?? '', on: new Date().toISOString().slice(0, 10), note });
     io.result?.({ count, by: values.by, ids, evidence });
     io.say(`signed ${count} rows as ${values.by}; commit .pullboard/signoffs.jsonl`);
     return 0;
@@ -1571,6 +1664,9 @@ async function runCommand(argv, io) {
   }
   const args = { first, second, rest, values };
   try {
+    if (values.as === 'person' && !['answer', 'decisions'].includes(command)) {
+      throw new Refused('USAGE', '--as person works only with pullboard answer or decisions');
+    }
     if (command === 'tour') return tour(io);
     if (command === 'lifecycle') {
       io.result?.({ markdown: lifecycleMarkdown().trimEnd() });
