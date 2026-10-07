@@ -1,6 +1,5 @@
 /** The local API v1: the CLI's moves, persistent board identities and live events (A2). */
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import * as store from './board.js';
@@ -8,23 +7,13 @@ import { COORDINATOR, loadConfig } from './config.js';
 import { repoInfo } from './git.js';
 import { refusalDocument } from './json.js';
 import { laneNames } from './lanes.js';
-import { listProjects, registryFile } from './projects.js';
+import { listApiProjects } from './projects.js';
 import { Refused } from './refused.js';
 import { codeAt, projectState } from './serve.js';
 import { createApiHandler } from './api-http.js';
 
 const ADDRESS = '127.0.0.1';
 const VERSION = 1;
-
-/** Read registry entries without pruning stale roots so the API can report them as warnings. */
-function registeredProjects() {
-  try {
-    const entries = JSON.parse(readFileSync(registryFile(), 'utf8')).projects;
-    return Array.isArray(entries) ? entries.filter((project) => typeof project?.root === 'string') : [];
-  } catch {
-    return [];
-  }
-}
 
 /** Read a registered board and release its SQLite connection on every path. */
 function withBoard(root, read) {
@@ -35,15 +24,20 @@ function withBoard(root, read) {
 }
 
 /** Registered boards carry one persistent identity across local and relay addresses. */
-export function apiBoards(projects = listProjects) {
+export function apiBoards(projects = listApiProjects) {
   return projects().flatMap((project) => {
     try { return [withBoard(project.root, (board) => ({ ...project, id: store.boardId(board) }))]; }
     catch { return []; }
   });
 }
 
-/** List readable registered boards and retain actionable warnings for entries that failed to open. */
-function apiBoardListing(projects = registeredProjects) {
+/**
+ * List readable registered boards and retain actionable warnings for entries that failed to open.
+ *
+ * @param {() => { root: string, name: string, project: string, added: string }[]} projects
+ * @returns {{ boards: object[], warnings: object[] }}
+ */
+function apiBoardListing(projects = listApiProjects) {
   const boards = [];
   const warnings = [];
   for (const project of projects()) {
@@ -171,7 +165,7 @@ function createRequest(root, body) {
 }
 
 /** Create the authenticated local adapter used by the HTTP server and other local transports. */
-export function createLocalApiHandler({ secret, getPort, runCommand, projects = registeredProjects } = {}) {
+export function createLocalApiHandler({ secret, getPort, runCommand, projects = listApiProjects } = {}) {
   if (typeof getPort !== 'function') throw new TypeError('createLocalApiHandler needs a bound-port getter');
   if (typeof runCommand !== 'function') throw new TypeError('createLocalApiHandler needs the actual CLI entry point as runCommand');
   const key = Buffer.from(secret);
@@ -202,7 +196,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
 }
 
 /** Serve the RFC 0002 API only on loopback, behind the same session-secret boundary as the view. */
-export function serveApi({ port = 0, secret = randomBytes(18).toString('base64url'), runCommand, projects = registeredProjects } = {}) {
+export function serveApi({ port = 0, secret = randomBytes(18).toString('base64url'), runCommand, projects = listApiProjects } = {}) {
   if (typeof runCommand !== 'function') throw new TypeError('serveApi needs the actual CLI entry point as runCommand');
   let bound;
   const handler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, projects });
