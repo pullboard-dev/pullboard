@@ -119,7 +119,7 @@ export function readFirstCommit(root) {
   return commit;
 }
 
-/** Read the hash anchoring the first, intentionally unsigned signer-list version. */
+/** Read the first signer-list hash that every later signed receipt binds. */
 function readInitialSignerHash(root) {
   const file = join(root, INITIAL_SIGNERS_HASH_FILE);
   if (!existsSync(file)) throw new Refused('BAD_SIGNERS_BASE', `missing ${INITIAL_SIGNERS_HASH_FILE}; restore the initial signer-list hash`);
@@ -131,9 +131,9 @@ function readInitialSignerHash(root) {
 /** Serialize canonical signed content with stable field order. */
 export function canonical(record) {
   if (record.type === 'signers') {
-    return JSON.stringify({ version: 1, type: record.type, firstCommit: record.firstCommit, previousHash: record.previousHash, previousSigners: record.previousSigners, hash: record.hash, by: record.by, on: record.on });
+    return JSON.stringify({ version: 1, type: record.type, firstCommit: record.firstCommit, initialHash: record.initialHash, previousHash: record.previousHash, previousSigners: record.previousSigners, hash: record.hash, by: record.by, on: record.on });
   }
-  return JSON.stringify({ version: 1, type: 'row', firstCommit: record.firstCommit, id: record.id, text: record.text, commit: record.commit, by: record.by, on: record.on, note: record.note ?? '' });
+  return JSON.stringify({ version: 1, type: 'row', firstCommit: record.firstCommit, initialHash: record.initialHash, id: record.id, text: record.text, commit: record.commit, by: record.by, on: record.on, note: record.note ?? '' });
 }
 
 /** Sign canonical text with ssh-keygen under the fixed Pullboard namespace. */
@@ -174,8 +174,10 @@ export function verifySignerHistory(root, records) {
   const current = readSignerText(root);
   if (!current) return;
   const firstCommit = readFirstCommit(root);
-  let expected = readInitialSignerHash(root);
+  const initialHash = readInitialSignerHash(root);
+  let expected = initialHash;
   for (const record of records.filter((entry) => entry.type === 'signers')) {
+    if (record.initialHash !== initialHash) throw new Refused('BAD_SIGNERS_BASE', 'a signer-list receipt names a different initial list; restore .pullboard/signers.initial and its signed receipts');
     if (record.firstCommit !== firstCommit || record.previousHash !== expected || sha256(record.previousSigners ?? '') !== expected) {
       throw new Refused('UNAUTHORIZED_SIGNERS_CHANGE', 'signer-list history is broken; restore the previous list or sign its change with a key it already listed');
     }
@@ -197,8 +199,10 @@ export function verifySignedRecords(root, records) {
   if (!current.trim()) throw new Refused('EMPTY_SIGNERS', `${SIGNERS_FILE} is empty; restore its SSH signer list before signing or checking`);
   verifySignerHistory(root, records);
   const first = readFirstCommit(root);
+  const initialHash = readInitialSignerHash(root);
   for (const record of records) {
     if (record.type === 'signers') continue;
+    if (record.initialHash !== initialHash) throw new Refused('BAD_SIGNERS_BASE', 'a sign-off names a different initial signer list; restore .pullboard/signers.initial and its signed receipts');
     if (!record.signature) throw new Refused('MISSING_SIGNATURE', `${record.id ?? 'sign-off'} is unsigned after SSH signers were enabled`);
     if (record.firstCommit !== first) throw new Refused('BAD_SIGNOFF', `${record.id} was signed for a different first commit`);
     if (!listsPrincipal(current, record.by)) throw new Refused('UNLISTED_SIGNER', `${record.by} is not listed in ${SIGNERS_FILE}`);
@@ -250,6 +254,7 @@ export function addSigner(root, { by, key } = {}) {
     version: 1,
     type: 'signers',
     firstCommit,
+    initialHash: readInitialSignerHash(root),
     previousHash: sha256(text),
     previousSigners: text,
     hash: sha256(next),
@@ -267,9 +272,10 @@ export function addSigner(root, { by, key } = {}) {
 export function signRows(root, records, requestedKey) {
   const firstCommit = readFirstCommit(root);
   const allowed = readSignerText(root);
+  const initialHash = readInitialSignerHash(root);
   const signed = records.map((fields) => {
     if (!listsPrincipal(allowed, fields.by)) throw new Refused('UNLISTED_SIGNER', `${fields.by} is not listed in ${SIGNERS_FILE}`);
-    const record = { version: 1, type: 'row', firstCommit, ...fields };
+    const record = { version: 1, type: 'row', firstCommit, initialHash, ...fields };
     record.signature = makeSignature(root, record, requestedKey);
     verifySignature(record, allowed);
     return record;

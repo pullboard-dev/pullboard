@@ -1,11 +1,12 @@
 /** SSH sign-off opt-in, rotation, row requirements and tamper rejection [S17,S18,S19,S20,S21]. */
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
-import { canonical } from '../src/signature.js';
+import { canonical, verifySignature } from '../src/signature.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const SPEC = `# Sign-off fixture
@@ -359,4 +360,67 @@ test('[S21] setup chooses the oldest root with a hash tie-break and refuses an u
     assert.match(result.stderr, /NO_FIRST_COMMIT/u);
     assert.equal(existsSync(anchor), false, 'signing and checking never reconstruct a missing anchor');
   }
+});
+
+for (const rotated of [false, true]) {
+  test(`[S19,S20] rewriting the signer base cannot forge an existing principal${rotated ? ' after dropping a real transition' : ''}`, (t) => {
+    const box = fixture(t);
+    const principal = 'co@example.invalid';
+    const originalSpec = SPEC.replace('signers: CO,AB', `signers: ${principal}`)
+      + `- G2 [approved, must] The second approved row stays exact. | gate: test/proof.test.js | signers: ${principal}\n`;
+    writeFileSync(join(box.root, 'SPEC.md'), originalSpec);
+    writeFileSync(join(box.root, 'test/proof.test.js'), "import { test } from 'node:test';\ntest('proof [G1,G2]', () => {});\n");
+    box.git('add', 'SPEC.md', 'test/proof.test.js');
+    box.git('commit', '-q', '-m', 'chore: commit both signer-test rows');
+    succeeds(box, 'signers', 'add');
+    succeeds(box, 'signoff', 'G1,G2', '--note', 'genuine signer receipts');
+    if (rotated) succeeds(box, 'signers', 'add', '--key', box.ab.publicKey, '--by', 'bob@example.invalid');
+    succeeds(box, 'check');
+    const ledger = join(box.root, '.pullboard/signoffs.jsonl');
+    const original = readFileSync(ledger, 'utf8').trim().split('\n').map(JSON.parse);
+    assert.equal(original.filter((record) => record.type === 'signers').length, rotated ? 1 : 0);
+    const rows = original.filter((record) => record.type === 'row');
+    const attacker = makeKey(join(box.keys, 'mallory'));
+    const allowedFile = join(box.root, '.pullboard/signers');
+    const allowed = readFileSync(allowedFile, 'utf8')
+      + `${principal} namespaces="pullboard-signoff" ${readFileSync(attacker.publicKey, 'utf8').trim()}\n`;
+    const changedHash = createHash('sha256').update(allowed).digest('hex');
+    writeFileSync(allowedFile, allowed);
+    writeFileSync(join(box.root, '.pullboard/signers.initial'), `${changedHash}\n`);
+    writeFileSync(ledger, rows.map((record) => JSON.stringify(record)).join('\n') + '\n');
+    const rewritten = box.run('spec', 'check');
+    assert.equal(rewritten.status, 1, 'rewriting the unsigned base cannot leave genuine row signatures valid');
+    assert.match(rewritten.stderr, /BAD_SIGNERS_BASE/);
+
+    const weakened = 'An attacker controls the second row.';
+    writeFileSync(join(box.root, 'SPEC.md'), originalSpec.replace('The second approved row stays exact.', weakened));
+    const forged = { ...rows.find((record) => record.id === 'G2'), text: weakened, initialHash: changedHash };
+    const message = join(box.dir, 'forged-message');
+    writeFileSync(message, canonical(forged));
+    execFileSync('ssh-keygen', ['-Y', 'sign', '-f', attacker.privateKey, '-n', 'pullboard-signoff', message], { cwd: box.root, stdio: 'pipe' });
+    forged.signature = readFileSync(`${message}.sig`, 'utf8').trimEnd();
+    writeFileSync(ledger, [...rows, forged].map((record) => JSON.stringify(record)).join('\n') + '\n');
+    const checked = box.run('spec', 'check', '--json');
+    assert.equal(checked.status, 1, 'an actually signed forgery under the appended key cannot re-root the genuine receipts');
+    assert.equal(JSON.parse(checked.stdout).error.code, 'BAD_SIGNERS_BASE');
+    const shown = box.run('spec', 'show', 'G2', '--json');
+    assert.equal(shown.status, 1, 'the forged required signer cannot be reported as met');
+    assert.equal(JSON.parse(shown.stdout).error.code, 'BAD_SIGNERS_BASE');
+
+    const relabelled = [...rows.map((record) => ({ ...record, initialHash: changedHash })), forged];
+    writeFileSync(ledger, relabelled.map((record) => JSON.stringify(record)).join('\n') + '\n');
+    const rebound = box.run('spec', 'check');
+    assert.equal(rebound.status, 1, 'changing the base field on genuine receipts invalidates their actual SSH signatures');
+    assert.match(rebound.stderr, /BAD_SIGNATURE/);
+  });
+}
+
+test('[S20] a signer-change signature binds its initial-list hash', (t) => {
+  const box = fixture(t);
+  succeeds(box, 'signers', 'add', '--by', 'CO');
+  succeeds(box, 'signers', 'add', '--key', box.ab.publicKey, '--by', 'AB');
+  const change = readFileSync(join(box.root, '.pullboard/signoffs.jsonl'), 'utf8').trim().split('\n').map(JSON.parse).find((record) => record.type === 'signers');
+  assert.match(change.initialHash, /^[0-9a-f]{64}$/);
+  assert.equal(verifySignature(change, change.previousSigners), true);
+  assert.throws(() => verifySignature({ ...change, initialHash: '0'.repeat(64) }, change.previousSigners), { code: 'BAD_SIGNATURE' });
 });
