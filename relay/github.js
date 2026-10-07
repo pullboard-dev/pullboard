@@ -23,6 +23,19 @@ export function repositoryName(value) {
   return value;
 }
 
+/**
+ * Read GitHub's actual role; legacy permission folds triage into read and maintain into write.
+ * Custom role names use strict capability flags, falling back to documented legacy base roles.
+ */
+function repositoryPermission(answer) {
+  if (['none', 'read', 'triage', 'write', 'maintain', 'admin'].includes(answer.role_name)) return answer.role_name;
+  const flags = answer.user?.permissions;
+  for (const [flag, role] of [['admin', 'admin'], ['maintain', 'maintain'], ['push', 'write'], ['triage', 'triage'], ['pull', 'read']]) {
+    if (flags?.[flag] === true) return role;
+  }
+  return ['read', 'write', 'admin'].includes(answer.permission) ? answer.permission : 'none';
+}
+
 /** Registration asks only for metadata; user access tokens intersect the App's and user's access. */
 export function githubAppManifest(callbackURL) {
   const callback = endpoint(callbackURL);
@@ -203,7 +216,7 @@ export function createGitHubClient({ clientId, clientSecret, callbackURL, oauthB
         let permission = 'none';
         try {
           const answer = await request(api, path + '/collaborators/' + encodeURIComponent(user.login) + '/permission', { token: credential.token });
-          if (String(answer.user?.id) === String(user.id) && ['read', 'triage', 'write', 'maintain', 'admin'].includes(answer.permission)) permission = answer.permission;
+          if (String(answer.user?.id) === String(user.id)) permission = repositoryPermission(answer);
         } catch (error) {
           if (repo.private || error.code !== 'NO_REPO_ACCESS') throw error;
         }

@@ -101,7 +101,20 @@ export async function githubFixture(t) {
     if (url.pathname === '/repos/fixture/repository') return reply(res, isInstallation || state.public ? 200 : 404, { id: state.repositoryID, full_name: 'fixture/repository', private: !state.public });
     if (url.pathname === '/repos/fixture/repository/collaborators/fixture-user/permission') {
       if (state.beforePermission) await state.beforePermission();
-      return reply(res, isInstallation ? 200 : 403, { permission: state.access ? state.permission : 'none', user: { id: state.permissionAccountID } });
+      const role = state.access ? state.permission : 'none';
+      const permission = { triage: 'read', maintain: 'write' }[role] || role;
+      const permissions = state.permissions ?? {
+        pull: ['read', 'triage', 'write', 'maintain', 'admin'].includes(role),
+        triage: ['triage', 'write', 'maintain', 'admin'].includes(role),
+        push: ['write', 'maintain', 'admin'].includes(role),
+        maintain: ['maintain', 'admin'].includes(role), admin: role === 'admin',
+      };
+      const answer = { permission, user: { id: state.permissionAccountID } };
+      if (!state.legacyOnly) {
+        answer.role_name = state.roleName ?? role;
+        answer.user.permissions = permissions;
+      }
+      return reply(res, isInstallation ? 200 : 403, answer);
     }
     return reply(res, 404, { message: 'not available' });
   }
