@@ -497,6 +497,43 @@ test('the tab title says what needs you [N26]', async () => {
     await nobody.stop();
   }
 });
+test('each row says what it waits on [N26]', async () => {
+  const box = machine();
+  const lanes = { web: { owns: ['web/'], specs: ['G'] }, api: { owns: ['api/'], specs: ['G'] } };
+  const alpha = project(box, 'alpha', SPEC, { lanes });
+  const add = (lane, title, ...more) => box.run(alpha.repo, 'add', lane, title, '--specs', 'G1', '--criterion', 'renders', ...more);
+  add('web', 'Free');
+  add('web', 'Base');
+  add('web', 'Depends', '--after', '2');
+  add('api', 'Api work');
+  add('web', 'Shipped');
+  add('web', 'Bounced');
+  build(box, alpha, 5, 'shipped.html');
+  build(box, alpha, 6, 'bounced.html');
+  sendBack(box, alpha, 6, 'not yet');
+  box.run(alpha.web, 'claim', '2');
+  box.run(alpha.repo, 'hold', 'api', '--reason', 'API <freeze> until Friday');
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    const rows = Object.fromEntries(page.show('chain').split('<li class="row').slice(1).map((row) => [/data-item="(\d+)"/.exec(row)[1], {
+      chip: /<span class="chip ([^"]*)"[^>]*>([^<]*)<\/span><\/li>$/.exec(row).slice(1).join(': '),
+      edge: /^[^"]*\bgated\b/.test(row),
+      waits: [...row.matchAll(/<span class="gate">(.*?)<\/span>/g)].map((match) => match[1]),
+    }]));
+    assert.deepEqual(rows['1'], { chip: 'free: unclaimed', edge: false, waits: [] }, 'free to claim');
+    assert.deepEqual(rows['2'], { chip: 'busy: web-1', edge: false, waits: [] }, 'a claim names its holder');
+    assert.deepEqual(rows['3'], { chip: 'gate: gated', edge: true, waits: ['waits on <button class="ref" data-go="item:2" type="button">#2</button>'] }, 'gated on #2, which is still being built');
+    assert.deepEqual(rows['4'], { chip: 'gate: lane held', edge: true, waits: ['lane held: API &lt;freeze&gt; until Friday'] });
+    assert.deepEqual(rows['5'], { chip: 'warn: to verify', edge: false, waits: [] });
+    assert.deepEqual(rows['6'], { chip: 'no: sent back', edge: false, waits: [] });
+
+    await page.click({ go: 'item:2' });
+    assert.match(page.show('detail'), /<h2><span>#2<\/span>Base<\/h2>/, 'the gate links to what it waits on');
+  } finally {
+    await view.stop();
+  }
+});
 /**
  * The lifecycle drawing: each box's state, count and title; each arrow's title, the pair of states
  * its title starts with, and the label drawn with it, if any.

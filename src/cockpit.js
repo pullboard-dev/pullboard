@@ -42,7 +42,7 @@ export function cockpitPage() {
   --ink: #121a17; --ink-muted: #4c5852; --ink-faint: #7a887f;
   --accent: #08915f; --accent-strong: #067049; --accent-soft: #dcefe6; --on-accent: #f4fbf7;
   --warn: #a2660f; --warn-soft: #f2e6cf; --reject: #bd4437; --reject-soft: #f4e0dc;
-  --blue: #3f6f9e; --blue-soft: #e1eaf3;
+  --blue: #3f6f9e; --blue-soft: #e1eaf3; --violet: #6b4fc8; --violet-soft: #ebe6fa;
   --shadow: 0 1px 2px rgba(18,26,23,.05), 0 12px 34px -18px rgba(18,26,23,.28);
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -55,7 +55,7 @@ export function cockpitPage() {
   --ink: #e7ece9; --ink-muted: #9caba3; --ink-faint: #6a776f;
   --accent: #34d89e; --accent-strong: #4ee3ac; --accent-soft: #10231c; --on-accent: #05201a;
   --warn: #e4b25a; --warn-soft: #241d10; --reject: #f0776b; --reject-soft: #271613;
-  --blue: #6ba7d6; --blue-soft: #142231;
+  --blue: #6ba7d6; --blue-soft: #142231; --violet: #ab9cf2; --violet-soft: #1e1934;
   --shadow: 0 1px 2px rgba(0,0,0,.4), 0 16px 40px -18px rgba(0,0,0,.7); color-scheme: dark; } }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--ground); color: var(--ink); font: 14px/1.5 var(--sans); }
@@ -161,6 +161,11 @@ input, select { border: 1px solid var(--line-strong); background: var(--surface)
 .chip.warn { background: var(--warn-soft); color: var(--warn); }
 .chip.no { background: var(--reject-soft); color: var(--reject); }
 .chip.busy { background: var(--blue-soft); color: var(--blue); }
+.chip.free { background: var(--violet-soft); color: var(--violet); }
+.chip.gate { background: none; color: var(--ink-muted); outline: 1px dashed var(--line-strong); outline-offset: -1px; }
+.row.gated { border-color: color-mix(in srgb, var(--reject) 40%, var(--line)); }
+.meta .gate { padding: 0 7px; border-radius: 999px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--reject) 35%, var(--line)); }
+.meta button.ref { border: 0; background: none; padding: 0; font: inherit; color: var(--accent-strong); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .empty { color: var(--ink-faint); padding: 14px 10px; }
 
 .detail { position: sticky; top: calc(var(--top) + 16px); max-height: calc(100vh - var(--top) - 32px); overflow-y: auto; padding: 16px; display: grid; gap: 14px; align-content: start; }
@@ -560,10 +565,18 @@ function render() {
   const shown = matching.filter(inState(view.state)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   // With nothing picked, the detail shows the first row, and keeps it when a refresh reorders the list.
   if (!view.adding && !p.items.some((i) => i.id === view.item)) view.item = shown.length ? shown[0].id : null;
+  const heldLanes = new Map(p.holds.map((h) => [h.hold_lane, h]));
   $('chain').innerHTML = shown.length ? shown.map((i) => {
     const s = stateOf(i);
     const who = s === 'building' ? i.owner : [i.builtBy, i.verifiedBy].filter(Boolean).join(' → ');
-    return '<li class="row' + (view.item === i.id ? ' on' : '') + '" data-item="' + i.id + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + esc(i.title) + '</div><div class="meta"><span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span>' + esc(i.specs.join(', ')) + '</span>' : '') + (who ? '<span>' + esc(who) + '</span>' : '') + (i.blockedBy.length && s === 'open' ? '<span>waits on #' + i.blockedBy.join(', #') + '</span>' : '') + '<span>' + age(i.updatedAt) + '</span>' + (rejected(i) ? '<span class="why">' + esc(i.verdict.reason + ': ' + firstLine(i.verdict.note)) + '</span>' : '') + '</div></div>' + chip(s) + '</li>';
+    // What an open item waits on, if anything: items not yet verified, or a hold on its lane.
+    const hold = s === 'open' ? heldLanes.get(i.lane) : null;
+    const waits = s === 'open' && i.blockedBy.length ? i.blockedBy : [];
+    const gated = waits.length > 0 || !!hold;
+    const pills = (waits.length ? '<span class="gate">waits on ' + waits.map((id) => '<button class="ref" data-go="item:' + id + '" type="button">#' + id + '</button>').join(', ') + '</span>' : '') + (hold ? '<span class="gate">lane held: ' + esc(hold.hold_reason) + '</span>' : '');
+    const tag = s === 'building' && i.owner ? '<span class="chip busy" title="building, held by ' + esc(i.owner) + '">' + esc(i.owner) + '</span>'
+      : s === 'open' ? (gated ? '<span class="chip gate">' + (waits.length ? 'gated' : 'lane held') + '</span>' : '<span class="chip free">unclaimed</span>') : chip(s);
+    return '<li class="row' + (view.item === i.id ? ' on' : '') + (gated ? ' gated' : '') + '" data-item="' + i.id + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + esc(i.title) + '</div><div class="meta"><span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span>' + esc(i.specs.join(', ')) + '</span>' : '') + (who ? '<span>' + esc(who) + '</span>' : '') + pills + '<span>' + age(i.updatedAt) + '</span>' + (rejected(i) ? '<span class="why">' + esc(i.verdict.reason + ': ' + firstLine(i.verdict.note)) + '</span>' : '') + '</div></div>' + tag + '</li>';
   }).join('') : '<li class="empty">' + (items.length ? 'No items match.' : 'No items yet. Add the first one with New item.') + '</li>';
 
   const item = p.items.find((i) => i.id === view.item);
