@@ -263,6 +263,25 @@ test('[A1] command results match the catalog across roots and subcommands', () =
   TEMP_DIRS.push(dirname(tourRepo));
 });
 
+test('[A1,B21,B27] a lane decision is answered by its agent through CLI JSON', () => {
+  const box = project();
+  const agent = join(box.dir, 'app-1');
+  box.git(box.repo, 'worktree', 'add', '-q', agent, '-b', 'app/one');
+  const joined = box.run(agent, 'join', 'app');
+  assert.equal(joined.status, 0, joined.stderr);
+
+  const ask = json(box, box.repo, 'shout', ['app', 'Should this endpoint retry?', '--decision']);
+  const answer = json(box, agent, 'answer', [String(ask.id), 'Retry once.']);
+  assert.equal(answer.answers, ask.id);
+  assert.ok(Number.isInteger(answer.id));
+
+  const delivered = json(box, box.repo, 'inbox').shouts.find(({ shout_id }) => shout_id === answer.id);
+  assert.ok(delivered, 'the original coordinator receives the lane answer');
+  assert.equal(delivered.shout_from, 'app-1');
+  assert.equal(delivered.shout_answers, ask.id);
+  assert.equal(delivered.shout_text, 'Retry once.');
+});
+
 test('[A1] refusals are one JSON document with exact public error fields', () => {
   const box = sandbox();
   const repo = join(box.dir, 'repo');

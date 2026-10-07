@@ -320,6 +320,28 @@ test('a shout can ask for a decision; it stays open until someone answers it [B2
   assert.equal(store.getShout(board, ask).shout_text, 'ship the page today or tomorrow?', 'an answer is a new shout; the ask is never edited');
 });
 
+test('an agent answers its lane decision and the reply reaches the asker [B21,B27]', () => {
+  const lanes = ['coordinator', 'web', 'api'];
+  const ask = store.shout(board, { from: 'web-1', to: 'api', text: 'Should the endpoint retry?', lanes, decision: true });
+  const answer = store.answerDecision(board, ask, { agentId: 'api-1', text: 'Retry once.', lanes });
+  const reply = store.getShout(board, answer);
+  assert.equal(reply.shout_from, 'api-1', 'the responding agent is identified');
+  assert.equal(reply.shout_to, 'web-1', 'the answer goes to the original asker');
+  assert.equal(reply.shout_answers, ask, 'the reply closes the lane decision');
+  assert.equal(store.inbox(board, 'web-1').find(({ shout_id }) => shout_id === answer).shout_text, 'Retry once.');
+  assert.deepEqual(store.openDecisions(board, 'api'), []);
+});
+
+test('an agent cannot answer another lane decision [B21,B27]', () => {
+  const lanes = ['coordinator', 'web', 'api'];
+  const ask = store.shout(board, { from: 'web-1', to: 'api', text: 'Should the endpoint retry?', lanes, decision: true });
+  assert.throws(
+    () => store.answerDecision(board, ask, { agentId: 'web-2', text: 'Retry once.', lanes }),
+    /NOT_YOUR_DECISION.*api.*web/u,
+  );
+  assert.deepEqual(store.openDecisions(board, 'api').map(({ shout_id }) => shout_id), [ask]);
+});
+
 test('decisions climb to the person and answers return to the first asker [B25, B26, B27]', () => {
   const lanes = ['coordinator', 'web', 'api'];
   const original = store.shout(board, { from: 'web-1', to: 'coordinator', text: 'Ship today?', lanes, decision: true });

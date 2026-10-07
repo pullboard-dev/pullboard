@@ -1267,7 +1267,12 @@ export function answerDecision(board, id, { agentId, text, lanes, asPerson = fal
     if (asPerson && ask.shout_to !== PERSON) throw new Refused('B26_PERSON_ANSWER', `person mode answers only decisions addressed to the person; the coordinator answers this one: pullboard answer ${id} "<answer>"`);
     if (!asPerson && ask.shout_to === PERSON && agentId === COORDINATOR) throw new Refused('B26_PERSON_ANSWER', `this decision is addressed to the person; answer from the main checkout: pullboard answer ${id} "<answer>" --as person`);
     const personAnswer = asPerson;
-    if (ask.shout_to !== agentId && !personAnswer) throw new Refused('NOT_YOUR_DECISION', `shout #${id} is addressed to ${ask.shout_to}, not ${agentId}`);
+    const caller = personAnswer ? null : board.db.prepare('SELECT agent_lane FROM agent WHERE agent_id = ?').get(agentId);
+    const ownsDecision = ask.shout_to === agentId || ask.shout_to === caller?.agent_lane;
+    if (!ownsDecision && !personAnswer) {
+      const lane = caller?.agent_lane ? `your ${caller.agent_lane} lane` : 'a lane you do not belong to';
+      throw new Refused('NOT_YOUR_DECISION', `shout #${id} is addressed to ${ask.shout_to}, not ${lane} (agent ${agentId})`);
+    }
     const from = personAnswer ? PERSON : agentId;
     const answerId = insertShout(board, { from, to: ask.shout_from, text, lanes, answers: id });
     if (personAnswer && ask.shout_answers !== null) {
