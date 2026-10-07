@@ -397,8 +397,8 @@ const tone = (s) => s === 'approved' ? 'ok' : s === 'pending' ? 'no' : s === 'dr
 const count = (n, one, many = one) => n + ' ' + (n === 1 ? one : many);
 // What needs the person in a project, as its Needs-you list counts it: work sent back or waiting for a
 // verdict, open questions, held lanes.
-const needCount = (x) => x.ok ? x.sentBack + x.awaiting + x.pending + x.holds : 0;
-const doing = (x) => [x.sentBack && count(x.sentBack, 'sent back'), x.awaiting && count(x.awaiting, 'to verify'), x.pending && count(x.pending, 'question', 'questions'), x.holds && count(x.holds, 'lane held', 'lanes held'), x.building && count(x.building, 'building')].filter(Boolean).join(' · ') || (x.open ? count(x.open, 'item open', 'items open') : 'nothing open');
+const needCount = (x) => x.ok ? x.decisions + x.sentBack + x.awaiting + x.pending + x.holds : 0;
+const doing = (x) => [x.decisions && count(x.decisions, 'decision', 'decisions'), x.sentBack && count(x.sentBack, 'sent back'), x.awaiting && count(x.awaiting, 'to verify'), x.pending && count(x.pending, 'question', 'questions'), x.holds && count(x.holds, 'lane held', 'lanes held'), x.building && count(x.building, 'building')].filter(Boolean).join(' · ') || (x.open ? count(x.open, 'item open', 'items open') : 'nothing open');
 // The item lifecycle as pullboard declares it in src/machine.js, embedded when the page is served.
 const FLOW = ${JSON.stringify(lifecycle()).replaceAll('<', '\\u003c')};
 

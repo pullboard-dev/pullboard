@@ -662,6 +662,32 @@ test('the tab title says what needs you [N26]', async () => {
     await nobody.stop();
   }
 });
+test('an open decision counts in the sidebar and the tab title [B21, N26]', async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  const beta = project(box, 'beta');
+  box.run(beta.web, 'shout', 'coordinator', 'Ship beta today?', '--decision');
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    const rows = () => projectRows(page.show('proj-list')).map((row) => [row.name, row.needs, row.line]);
+    assert.deepEqual(rows(), [['alpha', '', 'nothing open'], ['beta', '1', '1 decision']], "beta's ask needs the person, from alpha too");
+    assert.equal(page.run('document.title'), '(1) alpha · Pullboard');
+    assert.equal(page.element('proj-elsewhere').textContent, '1 elsewhere', 'and on a phone');
+
+    box.run(beta.web, 'shout', 'coordinator', 'And the docs?', '--decision');
+    await page.run('refresh()');
+    assert.deepEqual(rows()[1], ['beta', '2', '2 decisions']);
+    box.run(beta.repo, 'answer', '1', 'yes');
+    box.run(beta.repo, 'answer', '2', 'after');
+    await page.run('refresh()');
+    assert.deepEqual(rows(), [['alpha', '', 'nothing open'], ['beta', '', 'nothing open']], 'answered, they need no one');
+    assert.equal(page.run('document.title'), 'alpha · Pullboard');
+    assert.equal(page.element('proj-elsewhere').hidden, true);
+  } finally {
+    await view.stop();
+  }
+});
 test('each row says what it waits on [N26]', async () => {
   const box = machine();
   const lanes = { web: { owns: ['web/'], specs: ['G'] }, api: { owns: ['api/'], specs: ['G'] } };
