@@ -84,7 +84,11 @@ export async function exportView(root, directory) {
     };
     listing = await read('/api/v1/boards');
     const board = listing.boards[0];
-    if (!board) throw new Refused('NO_BOARD', 'no readable board to export; run pullboard init in this repo');
+    if (!board) {
+      const version = listing.warnings?.map((warning) => warning.error?.error).find((error) => error?.code === 'EVENT_LOG_VERSION');
+      if (version) throw new Refused(version.code, version.message);
+      throw new Refused('NO_BOARD', 'no readable board to export; run pullboard init in this repo');
+    }
     const path = '/api/v1/boards/' + encodeURIComponent(board.id);
     state = await read(path + '/state');
     events = await read(path + '/events');

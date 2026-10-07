@@ -4,6 +4,7 @@
  */
 import { Refused } from './refused.js';
 import { storeTriggers } from './machine.js';
+import { EVENT_LOG_VERSION } from './board.js';
 
 const VERSION = 1;
 
@@ -84,12 +85,24 @@ function validateDocument(db, document, names) {
       }
     }
   }
+  const eventLog = document.tables.board_meta.find(({ meta_key }) => meta_key === 'event_log_version');
+  const eventLogVersion = eventLog && /^(?:0|[1-9]\d*)$/u.test(eventLog.meta_value) ? Number(eventLog.meta_value) : eventLog ? NaN : 0;
+  if (!Number.isSafeInteger(eventLogVersion) || eventLogVersion < 0) {
+    throw new Refused('EVENT_LOG_VERSION', `event log version ${eventLog?.meta_value ?? 'missing'} in this export is invalid; export it again or upgrade pullboard`);
+  }
+  if (eventLogVersion > EVENT_LOG_VERSION) {
+    throw new Refused('EVENT_LOG_VERSION', `event log version ${eventLogVersion} in this export is newer than this pullboard version ${EVENT_LOG_VERSION}; upgrade pullboard to read it`);
+  }
 }
 
 /** Only the generated identity is disposable when restoring a fresh board (A2, A7). */
 function hasOnlyIdentity(db) {
   const rows = db.prepare('SELECT * FROM board_meta').all();
-  return rows.length === 1 && rows[0].meta_key === 'board_id' && /^[0-9a-f]{32}$/.test(rows[0].meta_value);
+  const identity = rows.find((row) => row.meta_key === 'board_id');
+  const eventLog = rows.find((row) => row.meta_key === 'event_log_version');
+  return /^[0-9a-f]{32}$/.test(identity?.meta_value ?? '')
+    && rows.length === (eventLog ? 2 : 1)
+    && rows.every((row) => row.meta_key === 'board_id' || row.meta_key === 'event_log_version');
 }
 
 /** True only for the coordinator registration and join event that `pullboard init` creates. */
@@ -154,6 +167,8 @@ export function importBoard(board, document) {
       const insert = db.prepare(sql);
       for (const row of document.tables[table]) insert.run(...columns.map((column) => row[column]));
     }
+    db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?) ON CONFLICT(meta_key) DO UPDATE SET meta_value = excluded.meta_value')
+      .run('event_log_version', String(EVENT_LOG_VERSION));
     const setSequence = db.prepare('UPDATE sqlite_sequence SET seq = ? WHERE name = ?');
     for (const row of document.tables.sqlite_sequence ?? []) {
       if (!setSequence.run(row.seq, row.name).changes) db.prepare('INSERT INTO sqlite_sequence (name, seq) VALUES (?, ?)').run(row.name, row.seq);

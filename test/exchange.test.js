@@ -90,6 +90,38 @@ test('round trips every board row, state, history and AUTOINCREMENT counter [A7]
   }
 });
 
+test('[A5] imported event logs refuse future formats and upgrade older formats', () => {
+  const directory = tempDirectory();
+  const source = populatedBoard(join(directory, 'source.sqlite'));
+  const target = store.openBoard(join(directory, 'target.sqlite'));
+  try {
+    const before = exportBoard(target);
+    const future = structuredClone(exportBoard(source));
+    const futureVersion = future.tables.board_meta.find((row) => row.meta_key === 'event_log_version');
+    futureVersion.meta_value = String(store.EVENT_LOG_VERSION + 1);
+    assert.throws(() => importBoard(target, future), (error) => {
+      assert.equal(error.code, 'EVENT_LOG_VERSION');
+      assert.match(error.message, new RegExp(`version ${store.EVENT_LOG_VERSION + 1}.*version ${store.EVENT_LOG_VERSION}`));
+      assert.match(error.message, /upgrade pullboard/i);
+      return true;
+    });
+    assert.deepEqual(exportBoard(target), before, 'a future export refusal leaves the target unchanged');
+
+    const older = structuredClone(exportBoard(source));
+    older.tables.board_meta.find((row) => row.meta_key === 'event_log_version').meta_value = '0';
+    importBoard(target, older);
+    assert.equal(
+      exportBoard(target).tables.board_meta.find((row) => row.meta_key === 'event_log_version').meta_value,
+      String(store.EVENT_LOG_VERSION),
+      'an older event-log export upgrades its marker on import',
+    );
+  } finally {
+    store.closeBoard(source);
+    store.closeBoard(target);
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('export keeps a single SQLite snapshot while another connection writes [A7]', () => {
   const directory = tempDirectory();
   const file = join(directory, 'shared.sqlite');
