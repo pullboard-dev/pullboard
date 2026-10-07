@@ -914,6 +914,34 @@ test('the detail opens on the top item, not a blank form [N26]', async () => {
   }
 });
 
+test('a new item from the view can carry a brief [N27]', async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    const add = async (fields) => {
+      await page.fire('new-item', 'click');
+      for (const [id, value] of Object.entries(fields)) page.element(id).value = value;
+      await page.fire('add-form', 'submit');
+      return page.element('console').textContent;
+    };
+    const stored = (id) => JSON.parse(box.run(alpha.repo, 'show', String(id), '--json')).item_brief;
+
+    const brief = 'Files: web/greeting.html\nTest: the page says hello';
+    const ran = await add({ 'add-lane': 'web', 'add-title': 'Greeting', 'add-specs': 'G1', 'add-brief': brief });
+    assert.ok(ran.startsWith(`$ pullboard add web Greeting --specs G1 --brief ${brief}\n`), ran);
+    assert.equal(stored(1), brief, 'the brief reaches the board as written, its line break kept');
+    assert.equal(page.element('add-brief').value, '', 'a successful add clears it');
+
+    const plain = await add({ 'add-lane': 'web', 'add-title': 'Farewell', 'add-specs': 'G2', 'add-brief': '  ' });
+    assert.ok(plain.startsWith('$ pullboard add web Farewell --specs G2\n'), plain);
+    assert.ok(!stored(2), 'left empty, the item gets no brief');
+    assert.match(page.html, /<label>Brief<textarea id="add-brief"/, 'the field is in the form, not built by the script');
+  } finally {
+    await view.stop();
+  }
+});
 test('times say which day they were [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
