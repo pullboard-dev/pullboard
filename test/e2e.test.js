@@ -20,6 +20,7 @@ import { connect } from 'node:net';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { parseSpec } from '../src/spec.js';
+import * as store from '../src/board.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const cockpitSource = () => readFileSync(resolve(import.meta.dirname, '../src/cockpit.js'), 'utf8');
@@ -682,6 +683,68 @@ test('next claims the next free item; --verify names the next to check [N2]', ()
   assert.match(named, new RegExp(`check out exactly that commit, here: cd ${box.repo} && git switch --detach [0-9a-f]{40}`));
   assert.match(named, /pullboard verify 1 accept --as coordinator --note/);
   assert.match(box.run(box.web, 'next', '--verify').err, /NOTHING_FREE/);
+});
+
+test('next --verify can reserve a named submitted review and default to the lowest free one [V15]', () => {
+  const box = project();
+  const reviewers = ['api-1', 'api-2'].map((name) => {
+    const path = join(box.dir, name);
+    box.git(box.repo, 'worktree', 'add', '-q', '--detach', path);
+    const joined = box.run(path, 'join', 'api');
+    assert.equal(joined.code, 0, joined.err);
+    return path;
+  });
+  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  let first;
+  let second;
+  try {
+    const commit = box.git(box.repo, 'rev-parse', 'HEAD');
+    const tree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}');
+    /** Create and submit an item through the real SQLite board state. */
+    const submit = (title) => {
+      const id = store.addItem(board, { by: 'coordinator', lane: 'web', title });
+      store.claim(board, id, {
+        agentId: 'web-1', lane: 'web', leaseMs: 60 * 60_000,
+        freeze: (item) => ({ text: item.item_title, digest: `digest:${item.item_title}` }),
+      });
+      store.submit(board, id, { agentId: 'web-1', commit, tree });
+      return id;
+    };
+    first = submit('First review');
+    second = submit('Second review');
+  } finally {
+    store.closeBoard(board);
+  }
+
+  const named = box.run(reviewers[0], 'next', '--verify', String(second));
+  assert.equal(named.code, 0, named.err);
+  assert.match(named.out, new RegExp(`next to verify: #${second} Second review, built by web-1`));
+  assert.match(named.out, new RegExp(`check out exactly that commit, here: cd ${reviewers[0]} && git switch --detach [0-9a-f]{40}`));
+  const namedJson = box.run(reviewers[0], 'next', '--verify', String(second), '--json');
+  assert.equal(namedJson.code, 0, namedJson.err);
+  const result = JSON.parse(namedJson.out);
+  assert.equal(result.version, 1);
+  assert.equal(result.item.item_id, second);
+  assert.equal(result.review, true);
+  assert.equal(result.held, false);
+  assert.deepEqual(result.shared, []);
+  const reserved = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    assert.equal(store.getItem(reserved, second).item_review_by, 'api-1', 'the named item is reserved for the caller');
+  } finally {
+    store.closeBoard(reserved);
+  }
+
+  const held = box.run(reviewers[1], 'next', '--verify', String(second));
+  assert.equal(held.code, 1, held.out);
+  assert.match(held.err, /REVIEW_HELD/);
+  const builder = box.run(box.web, 'next', '--verify', String(first));
+  assert.equal(builder.code, 1, builder.out);
+  assert.match(builder.err, /SELF_VERIFY/);
+
+  const lowest = box.run(reviewers[1], 'next', '--verify');
+  assert.equal(lowest.code, 0, lowest.err);
+  assert.match(lowest.out, new RegExp(`next to verify: #${first} First review, built by web-1`));
 });
 
 test('a deleted spec row is refused at commit; spec check finds any id gone from history or cited [S8, S9]', () => {
