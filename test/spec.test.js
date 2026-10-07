@@ -102,8 +102,13 @@ test('real spec check refuses future grammar in either configured file [A5]', (t
 test('a grammar-1 repair can commit after grammar 2 was already recorded [A5,S8]', (t) => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-grammar-history-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
+  const bin = join(root, '.bin');
+  mkdirSync(bin);
+  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${resolve(import.meta.dirname, '../bin/pullboard.js')}" "$@"\n`);
+  chmodSync(join(bin, 'pullboard'), 0o755);
   const env = {
     ...process.env,
+    PATH: `${bin}:${process.env.PATH}`,
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Test Agent',
