@@ -52,6 +52,15 @@ test('rows parse with id, status, tier, text, gate, serves, section and line [S1
   assert.deepEqual(lintSpec(spec), []);
 });
 
+test('rows parse signer requirements and lint their names and duplicates [S18]', () => {
+  const spec = parseSpec('## G\n- G1 [approved, must] Two people sign. | gate: proof | signers: co@example.invalid, AB\n');
+  assert.deepEqual(spec.rows[0].signers, ['co@example.invalid', 'AB']);
+  assert.deepEqual(lintSpec(spec), []);
+  const invalid = lintSpec(parseSpec('## G\n- G1 [approved, must] Bad names. | gate: proof | signers: bad name,CO,CO\n'));
+  assert.ok(invalid.some((finding) => /signer "bad name" must be one SSH principal/u.test(finding.message)));
+  assert.ok(invalid.some((finding) => /signers are unique/u.test(finding.message)));
+});
+
 test('a row-like line that does not parse is an error, never dropped [S1]', () => {
   const spec = parseSpec('## G\n- G1 [approved, must]\n- just a bullet note\n');
   const findings = lintSpec(spec);
@@ -219,10 +228,10 @@ test('spec --json emits one versioned document with every field, including empty
   assert.deepEqual({ version: data.version, rows: data.rows.filter(row => row.file === 'SPEC.md') }, {
     version: 1,
     rows: [
-      { id: 'G1', status: 'approved', tier: 'must', text: 'Same file twice is a no-op.', gate: 'idempotency test', serves: [], section: 'G · Goals', line: 6, file: 'SPEC.md' },
-      { id: 'G1.2', status: 'draft', tier: 'aim', text: 'Shows a diff.', gate: '', serves: ['G1'], section: 'G · Goals', line: 7, file: 'SPEC.md' },
-      { id: 'G2', status: 'retired', tier: '', text: 'Old idea.', gate: '', serves: [], section: 'G · Goals', line: 8, file: 'SPEC.md' },
-      { id: 'K1', status: 'approved', tier: 'must', text: 'Runs offline.', gate: 'e2e test', serves: ['G1', 'G1.2'], section: 'K · Constraints', line: 11, file: 'SPEC.md' },
+      { id: 'G1', status: 'approved', tier: 'must', text: 'Same file twice is a no-op.', gate: 'idempotency test', serves: [], signers: [], section: 'G · Goals', line: 6, file: 'SPEC.md' },
+      { id: 'G1.2', status: 'draft', tier: 'aim', text: 'Shows a diff.', gate: '', serves: ['G1'], signers: [], section: 'G · Goals', line: 7, file: 'SPEC.md' },
+      { id: 'G2', status: 'retired', tier: '', text: 'Old idea.', gate: '', serves: [], signers: [], section: 'G · Goals', line: 8, file: 'SPEC.md' },
+      { id: 'K1', status: 'approved', tier: 'must', text: 'Runs offline.', gate: 'e2e test', serves: ['G1', 'G1.2'], signers: [], section: 'K · Constraints', line: 11, file: 'SPEC.md' },
     ],
   });
 });
@@ -238,9 +247,9 @@ test('spec --json combines both configured files and keeps every row status [S13
   assert.equal(data.rows.filter(row => row.origin === 'standard').length, standardDoctrine().rows.length);
   assert.ok(data.rows.slice(0, 4).every((row) => row.file === 'requirements.md'));
   assert.deepEqual(data.rows.filter(row => row.file === 'ways.md'), [
-    { id: 'P1', status: 'fact', tier: '', text: 'A fact.', gate: '', serves: [], section: 'P · Practice', line: 4, file: 'ways.md', origin: 'repo', version: null, reason: '' },
-    { id: 'P2', status: 'pending', tier: 'must', text: 'A question.', gate: '', serves: [], section: 'P · Practice', line: 5, file: 'ways.md', origin: 'repo', version: null, reason: '' },
-    { id: 'P3', status: 'wont', tier: '', text: 'An old plan.', gate: '', serves: [], section: 'P · Practice', line: 6, file: 'ways.md', origin: 'repo', version: null, reason: 'An old plan.' },
+    { id: 'P1', status: 'fact', tier: '', text: 'A fact.', gate: '', serves: [], signers: [], section: 'P · Practice', line: 4, file: 'ways.md', origin: 'repo', version: null, reason: '' },
+    { id: 'P2', status: 'pending', tier: 'must', text: 'A question.', gate: '', serves: [], signers: [], section: 'P · Practice', line: 5, file: 'ways.md', origin: 'repo', version: null, reason: '' },
+    { id: 'P3', status: 'wont', tier: '', text: 'An old plan.', gate: '', serves: [], signers: [], section: 'P · Practice', line: 6, file: 'ways.md', origin: 'repo', version: null, reason: 'An old plan.' },
   ]);
 });
 
