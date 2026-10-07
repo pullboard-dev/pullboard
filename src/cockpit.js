@@ -106,7 +106,7 @@ main { padding: 16px 18px 28px; }
 .first p { margin: 0; color: var(--ink-muted); }
 .first code { font: 600 13px var(--mono); color: var(--ink); }
 .boardless .first { display: block; }
-.boardless .top, .boardless [data-pane] { display: none; }
+.loading .top, .loading [data-pane], .boardless .top, .boardless [data-pane] { display: none; }
 .two { display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 42%, 600px); gap: 16px; align-items: start; }
 .two.narrow { grid-template-columns: minmax(0, 1fr) var(--agents-w); }
 @media (max-width: 900px) {
@@ -264,7 +264,7 @@ input, select, textarea { border: 1px solid var(--line-strong); background: var(
 .console.ok { border-color: var(--accent); } .console.no { border-color: var(--reject); }
 </style>
 </head>
-<body>
+<body class="loading">
 <div class="shell">
 <aside class="side" id="side" aria-label="Projects">
   <div class="side-top">
@@ -596,7 +596,9 @@ function renderSide() {
 function render() {
   const p = data.project;
   renderSide();
-  // With no board to show, one message says how a board starts, in place of empty panes.
+  // Until the first board arrives the page shows no tabs or panes, so a machine with none never
+  // flashes them; with no board to show, one message says how a board starts, in their place.
+  document.body.classList.remove('loading');
   document.body.classList.toggle('boardless', !p);
   $('products').hidden = !p || !p.products.length;
   if (!p) return;
@@ -893,7 +895,7 @@ $('hold-form').addEventListener('submit', async (event) => {
   if (await act('hold', { lane: $('hold-lane').value, reason: $('hold-reason').value })) $('hold-reason').value = '';
 });
 showTab();
-refresh().catch((error) => { $('live').textContent = 'cannot reach the view: ' + error.message; });
+refresh().catch((error) => { document.body.classList.remove('loading'); $('live').textContent = 'cannot reach the view: ' + error.message; });
 setInterval(() => { if (!document.hidden) refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }); }, 3000);
 setInterval(tickAges, 60000);
 </script>
