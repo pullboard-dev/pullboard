@@ -46,6 +46,7 @@ import { commandOutput } from './json.js';
 import { forgetProject, registerProject } from './projects.js';
 import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
 import { serveView } from './serve.js';
+import { serveApi } from './api.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
@@ -62,6 +63,8 @@ Set up
   pullboard whoami | lanes | status     who you are, the lanes, the board at a glance
   pullboard view [--port N] [--no-open] every project on this machine in your browser: items, shouts, doctrine,
                                         agents and activity, live; add items, shout and hold lanes from it
+  pullboard serve [--port N]           local API v1: boards, state, moves, requests and live events,
+                                        behind the session secret in its printed address
   pullboard resume                      where you are: your claim, branch, uncommitted work, what came back,
                                         unread shouts, what to do next; run it to start any session
   pullboard hooks                       reinstall the git hooks (e.g. after a fresh clone)
@@ -344,9 +347,10 @@ function configHere(info) {
  */
 function withBoard(ctx, work) {
   const board = store.openBoard(ctx.file, ctx.clock);
+  const firstEvent = board.emittedEvents?.length ?? 0;
   try {
     const result = work(board);
-    if (board.lastEvent) ctx.io.onEvent?.(board.lastEvent);
+    for (const event of board.emittedEvents?.slice(firstEvent) ?? []) ctx.io.onEvent?.(event);
     return result;
   } finally {
     store.closeBoard(board);
@@ -523,6 +527,7 @@ const reworkNext = (card) => `pullboard claim ${card.sentBack[0].item.item_id}, 
  * @returns {string}
  */
 function coordinatorNext(card, rows) {
+  if (card.requests.length) return `answer request #${card.requests[0].shout_id}: pullboard answer ${card.requests[0].shout_id} done, or declined <reason>`;
   const live = rows.filter((row) => !['wont', 'retired'].includes(row.status));
   if (!live.length) return "turn what the person wants into spec rows with them: the pullboard-decompose skill (pullboard prompt decompose)";
   const approved = live.filter((row) => row.status === 'approved');
@@ -562,6 +567,7 @@ function resumeHere(io) {
     return {
       me,
       all,
+      requests: me.id === COORDINATOR ? store.openRequests(board) : [],
       holding: all.filter((item) => item.item_status === 'claimed' && item.item_owner === me.id),
       sentBack: all
         .filter((item) => item.item_status === 'open' && item.item_verdict === 'REJECT' && item.item_built_by === me.id)
@@ -591,6 +597,7 @@ function resumeHere(io) {
   } else if (dirty) {
     say(`${plural(dirty, 'file')} uncommitted in the main checkout`);
   }
+  for (const request of card.requests) say(`request #${request.shout_id}: ${request.shout_text}; answer with pullboard answer ${request.shout_id} done, or declined <reason>`);
   for (const item of card.holding) {
     say(`holding #${item.item_id} ${item.item_title}, lease ${span(ctx, item.item_lease_until)} left${item.item_check ? `; check: ${item.item_check}` : ''}`);
     const files = briefFiles(item.item_brief);
@@ -658,6 +665,27 @@ async function viewHere(io, values) {
     process.once('SIGTERM', stop);
   });
   await view.close();
+  return 0;
+}
+
+/** Serve API v1 until a shutdown signal, printing its address before waiting (A2). */
+async function serveHere(io, values) {
+  const ctx = context(io);
+  const mainRoot = git(ctx.info.root, ['worktree', 'list', '--porcelain']).split('\n')[0].slice('worktree '.length);
+  registerProject(mainRoot, new Date(), loadConfig(mainRoot));
+  const port = values.port === undefined ? 0 : Number(values.port);
+  if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Refused('USAGE', '--port is a number from 0 to 65535; use 0 to choose a free one');
+  const api = await serveApi({ port, runCommand: main });
+  io.result?.({ url: api.url, port: api.port });
+  io.say(`Pullboard API v1: ${api.url}`);
+  io.say('Only this machine can reach it, with its session secret. Ctrl-C stops it.');
+  io.flush?.(0);
+  await new Promise((stop) => {
+    const stopped = () => { process.off('SIGINT', stopped); process.off('SIGTERM', stopped); stop(); };
+    process.once('SIGINT', stopped);
+    process.once('SIGTERM', stopped);
+  });
+  await api.close();
   return 0;
 }
 
@@ -1550,6 +1578,7 @@ async function runCommand(argv, io) {
       return 0;
     }
     if (command === 'view') return await viewHere(io, values);
+    if (command === 'serve') return await serveHere(io, values);
     if (command === 'forget') {
       if (!first || second) throw new Refused('USAGE', 'pullboard forget <path>');
       const root = resolve(io.cwd, first);
@@ -1611,6 +1640,6 @@ export function resultCommands() {
     ...Object.keys(setupCommands({}, args)),
     ...Object.keys(readCommands({}, args)),
     ...Object.keys(workCommands({}, args)),
-    'help', 'version', 'tour', 'lifecycle', 'view', 'forget', 'spec', 'prompt', 'hook', 'gate',
+    'help', 'version', 'tour', 'lifecycle', 'view', 'serve', 'forget', 'spec', 'prompt', 'hook', 'gate',
   ])].sort();
 }
