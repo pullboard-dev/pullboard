@@ -10,6 +10,7 @@ import { createPairingStore } from '../relay/pairing-store.js';
 import { createPairingHandler } from '../relay/pairing-http.js';
 import { createRelayHandler } from '../relay/service.js';
 import { Refused } from '../src/refused.js';
+import { relayClientFixture } from './relay-client-fixture.js';
 
 const BOARD = '0123456789abcdef0123456789abcdef';
 
@@ -34,8 +35,10 @@ async function servePairing(t, authorize, pairings = createPairingStore()) {
 /** Create the exact native-export envelope expected from a linked device. */
 function bundle(overrides = {}) {
   return {
-    version: 1, board: BOARD, url: 'https://app.pullboard.dev', repository: 'owner/repository',
-    sequence: 9, cursor: 14, key: 'A'.repeat(43), snapshot: { version: 1, tables: { board_meta: [] } },
+    version: 1, board: BOARD, url: 'https://app.pullboard.dev', repository: 'owner/repository', mode: 'mirror',
+    sequence: 9, cursor: 14, key: 'A'.repeat(43), snapshot: { version: 1, tables: {
+      board_meta: [{ meta_key: 'board_id', meta_value: BOARD }], event: [{ event_id: 14 }],
+    } },
     ...overrides,
   };
 }
@@ -51,6 +54,17 @@ test('[H15,H17] client seals board key and native snapshot under a one-time code
   assert.ok(!sealed.includes(issued.secret), 'the relay envelope does not contain the human-held code secret');
   assert.ok(!sealed.includes(bundle().key), 'the relay envelope does not contain the board key as readable text');
   assert.deepEqual(await openPairingBundle(issued.code, sealed), bundle());
+
+  const ordered = bundle({ mode: 'ordered', sequence: 14, snapshot: { version: 1, tables: {
+    board_meta: [
+      { meta_key: 'board_id', meta_value: BOARD },
+      { meta_key: 'relay_applied_sequence', meta_value: '14' },
+      { meta_key: 'relay_engine_version', meta_value: '1' },
+    ],
+    event: [{ event_id: 14 }],
+  } } });
+  assert.deepEqual(await openPairingBundle(issued.code, await sealPairingBundle(issued.code, ordered)), ordered,
+    'ordered pairing binds the native checkpoint to the acknowledged relay sequence');
 
   const tampered = sealed.slice(0, -1) + (sealed.endsWith('A') ? 'B' : 'A');
   await assert.rejects(openPairingBundle(issued.code, tampered), { code: 'PAIR_CODE_INVALID' });
@@ -69,10 +83,17 @@ test('[H15,H17] package validation excludes sender credentials and validates rel
     bundle({ cursor: 1.5 }),
     bundle({ key: 'x'.repeat(42) }),
     bundle({ snapshot: { version: 2, tables: {} } }),
+    bundle({ mode: 'ordered' }),
+    bundle({ mode: 'ordered', sequence: 14, snapshot: { version: 1, tables: {
+      board_meta: [{ meta_key: 'board_id', meta_value: BOARD }, { meta_key: 'relay_applied_sequence', meta_value: '14' }, { meta_key: 'relay_engine_version', meta_value: '1' }],
+      event: [{ event_id: 13 }],
+    } } }),
   ]) {
     await assert.rejects(sealPairingBundle(code, invalid), { code: 'PAIR_PACKAGE' });
   }
-  const oversized = bundle({ snapshot: { version: 1, tables: { marker: [{ value: 'x'.repeat(14_000_000) }] } } });
+  const oversized = bundle({ snapshot: { version: 1, tables: {
+    board_meta: [{ meta_key: 'board_id', meta_value: BOARD }], event: [{ event_id: 14 }], marker: [{ value: 'x'.repeat(14_000_000) }],
+  } } });
   await assert.rejects(sealPairingBundle(code, oversized), { code: 'PAIR_PACKAGE_SIZE' });
   for (const invalid of ['', 'abc', 'x'.repeat(98), BOARD + '.A'.repeat(22) + '.B'.repeat(43), null]) {
     assert.throws(() => parsePairingCode(invalid), { code: 'PAIR_CODE_INVALID' });
@@ -213,4 +234,18 @@ test('[H15,H17] relay service holds only bounded opaque pairing bytes and preser
   assert.deepEqual(await openPairingBundle(issued.code, response.sealed), bundle());
   assert.deepEqual(readFileSync(boardFile), marker, 'pairing does not replace or rewrite a journal');
   assert.deepEqual(readdirSync(root).sort(), ['existing.journal.sqlite'], 'pairing bytes stay in bounded memory, not durable relay storage');
+});
+
+test('[H15,H17] production CLI pairs a real second clone and reads the same board', async (t) => {
+  const box = await relayClientFixture(t);
+  await box.link();
+  const printed = await box.cli('relay', 'pair');
+  assert.equal(printed.code, 0, 'the linked CLI publishes a one-use pairing envelope');
+  assert.match(printed.document.code, /^[0-9a-f]{32}\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/);
+  assert.equal(printed.document.expiresIn, 600);
+  assert.match(printed.document.link, /^https:\/\/app\.pullboard\.dev\/#board=/);
+  const paired = await box.otherDeviceJoin(printed.document.code);
+  assert.equal(paired.joined.board, box.before.tables.board_meta.find((row) => row.meta_key === 'board_id').meta_value);
+  assert.deepEqual(paired.exported, box.before, 'the second clone imports the same native rows and counters');
+  assert.ok(!box.calls.some((call) => call.path.includes(printed.document.code)), 'the code secret never appears in a relay request path');
 });

@@ -88,6 +88,9 @@ export async function relayClientFixture(t) {
   /** Invoke the production CLI in this private repository. */
   async function cli(...args) { return childResult(root, env, [CLI, ...args, '--json']); }
   assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, env }).status, 0);
+  writeFileSync(join(root, 'README.md'), 'private relay fixture project\n', { mode: 0o600 });
+  assert.equal(spawnSync('git', ['add', 'README.md'], { cwd: root, env }).status, 0);
+  assert.equal(spawnSync('git', ['commit', '-q', '-m', 'fixture base'], { cwd: root, env }).status, 0, 'fixture clone starts from a committed project');
   assert.equal((await cli('init')).code, 0);
   assert.equal(spawnSync('git', ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git'], { cwd: root, env }).status, 0);
   const lane = Object.keys(JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8')).lanes)[0];
@@ -117,12 +120,31 @@ export async function relayClientFixture(t) {
     assert.equal((await run('relay', 'on', '--url', origin)).code, 0, 'second device signs in independently');
     return (await run('relay', 'off')).code;
   }
+  /** Clone the same committed project into a separate repository/home, then join through a printed code. */
+  async function otherDeviceJoin(code) {
+    const bare = join(scratch, 'project.git');
+    const otherRoot = join(scratch, 'paired-clone');
+    const otherHome = join(scratch, 'paired-home');
+    mkdirSync(otherHome, { mode: 0o700 });
+    const otherEnv = { ...env, HOME: otherHome, PULLBOARD_HOME: join(otherHome, '.pullboard'), PULLBOARD_MACHINE_HOME: join(scratch, 'paired-machine') };
+    assert.equal(spawnSync('git', ['clone', '--bare', root, bare], { cwd: scratch, env: otherEnv }).status, 0, 'fixture project creates a private bare remote');
+    assert.equal(spawnSync('git', ['clone', bare, otherRoot], { cwd: scratch, env: otherEnv }).status, 0, 'second device is a real clone');
+    assert.equal(spawnSync('git', ['remote', 'set-url', 'origin', 'git@github.com:fixture/repository.git'], { cwd: otherRoot, env: otherEnv }).status, 0, 'clone names the same authorized repository');
+    const run = (...args) => childResult(otherRoot, otherEnv, [CLI, ...args, '--json']);
+    assert.equal((await run('init')).code, 0, 'the cloned project initializes its private local board');
+    const joined = await run('relay', 'join', code, '--url', origin);
+    const document = joined.document;
+    if (joined.code !== 0) throw new Error('real clone did not join the one-use pairing code');
+    const exported = await run('export');
+    if (exported.code !== 0) throw new Error('paired clone could not read its restored board');
+    return { joined: document, exported: exported.document };
+  }
   /** Run multiple production commands in one process, emitting only safe counters. */
   async function script(source) {
     return childResult(root, env, ['--input-type=module', '-e', source]);
   }
   return {
-    root, env, lane, before, linkFile, keyFile, calls, cli, link, otherDeviceOff, script,
+    root, env, lane, before, linkFile, keyFile, calls, cli, link, otherDeviceOff, otherDeviceJoin, script,
     advance(days) { time = Date.now() + days * 86400000; },
     overrideDelete(value) { override = value; },
     mainURL: new URL('../src/cli.js', import.meta.url).href,

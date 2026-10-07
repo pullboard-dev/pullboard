@@ -36,16 +36,33 @@ export function parsePairingCode(code) {
 
 /** Validate a native v1 board snapshot and pairing metadata before sealing or installing it. */
 function validateBundle(value) {
-  const fields = ['version', 'board', 'url', 'repository', 'sequence', 'cursor', 'key', 'snapshot'];
+  const fields = ['version', 'board', 'url', 'repository', 'mode', 'sequence', 'cursor', 'key', 'snapshot'];
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
       JSON.stringify(Object.keys(value).sort()) !== JSON.stringify([...fields].sort()) || value.version !== 1 ||
       typeof value.board !== 'string' || !/^[0-9a-f]{32}$/.test(value.board) ||
       typeof value.url !== 'string' || typeof value.repository !== 'string' || !REPOSITORY.test(value.repository) ||
+      !['mirror', 'ordered'].includes(value.mode) ||
       !Number.isSafeInteger(value.sequence) || value.sequence < 0 || !Number.isSafeInteger(value.cursor) || value.cursor < 0 ||
       typeof value.key !== 'string' || !KEY.test(value.key) ||
       !value.snapshot || typeof value.snapshot !== 'object' || Array.isArray(value.snapshot) ||
       value.snapshot.version !== 1 || !value.snapshot.tables || typeof value.snapshot.tables !== 'object' || Array.isArray(value.snapshot.tables)) {
     throw new Refused('PAIR_PACKAGE', 'the encrypted pairing package is not a supported board link; create a new code on the linked device');
+  }
+  const metadata = value.snapshot.tables.board_meta;
+  const events = value.snapshot.tables.event;
+  if (!Array.isArray(metadata) || !Array.isArray(events) ||
+      metadata.filter((row) => row?.meta_key === 'board_id').length !== 1 ||
+      metadata.find((row) => row?.meta_key === 'board_id')?.meta_value !== value.board ||
+      !Number.isSafeInteger(events.at(-1)?.event_id ?? 0) || (events.at(-1)?.event_id ?? 0) !== value.cursor) {
+    throw new Refused('PAIR_PACKAGE', 'the encrypted pairing snapshot does not match its board identity and local cursor; create a fresh code');
+  }
+  const meta = new Map(metadata.map((row) => [row?.meta_key, row?.meta_value]));
+  const hasApplied = meta.has('relay_applied_sequence');
+  const hasEngine = meta.has('relay_engine_version');
+  if (hasApplied !== hasEngine || (value.mode === 'ordered' && (!hasApplied || meta.get('relay_engine_version') !== '1' ||
+      !Number.isSafeInteger(Number(meta.get('relay_applied_sequence'))) || String(Number(meta.get('relay_applied_sequence'))) !== meta.get('relay_applied_sequence') ||
+      Number(meta.get('relay_applied_sequence')) !== value.sequence)) || (value.mode === 'mirror' && hasApplied)) {
+    throw new Refused('PAIR_PACKAGE', 'the encrypted relay checkpoint does not match its ordering mode; create a fresh code after sync');
   }
   let origin;
   try { origin = new URL(value.url); } catch { throw new Refused('PAIR_PACKAGE', 'the encrypted pairing package has an invalid relay origin; create a new code'); }
