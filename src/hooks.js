@@ -6,7 +6,7 @@
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { git, tryGit } from './git.js';
+import { git, gitChildEnv, tryGit } from './git.js';
 import { outOfLane } from './lanes.js';
 import { citedIds, deletedIds, idProblems } from './spec.js';
 
@@ -248,6 +248,7 @@ export function applyFixers(root, fixers) {
     if (!files.length) continue;
     const result = spawnSync(`${fixer.run} ${files.map(shellQuote).join(' ')}`, {
       cwd: root,
+      env: gitChildEnv(root),
       shell: true,
       encoding: 'utf8',
       timeout: 120_000,

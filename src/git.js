@@ -9,6 +9,20 @@ import { Refused } from './refused.js';
 const GIT_FLAGS = ['-c', 'core.quotepath=false'];
 
 /**
+ * The environment for a gate or fixer: keep the user's settings, but remove Git's repository-local
+ * variables so a child that changes folders cannot act on the hook's repository by accident.
+ * Pullboard's own Git calls retain those variables, including a hook's staged index.
+ *
+ * @param {string} root
+ * @returns {NodeJS.ProcessEnv}
+ */
+export function gitChildEnv(root) {
+  const env = { ...process.env };
+  for (const name of git(root, ['rev-parse', '--local-env-vars']).split('\n')) delete env[name];
+  return env;
+}
+
+/**
  * Run git in `cwd` and return its trimmed output, or throw when git fails.
  *
  * @param {string} cwd

@@ -484,6 +484,68 @@ test('pre-push runs the gate once per tree and pushes only the checked-out commi
 });
 
 /**
+ * A gate/fixer that runs Git in two other folders. Even a failed ordinary-repo probe ends by
+ * initializing the bare probe, so removing isolation visibly corrupts only this private fixture.
+ */
+function foreignGitScript(box, name, { fixer = false } = {}) {
+  const file = join(box.dir, `${name}.cjs`);
+  const ordinary = join(box.dir, `${name}-repo`);
+  const bare = join(box.dir, `${name}-bare.git`);
+  writeFileSync(file, [
+    "const fs = require('node:fs'); const cp = require('node:child_process');",
+    `const ordinary = ${JSON.stringify(ordinary)}; const bare = ${JSON.stringify(bare)};`,
+    "fs.mkdirSync(ordinary); fs.mkdirSync(bare);",
+    "let failed = false;",
+    "const run = (cwd, args) => { const r = cp.spawnSync('git', args, { cwd, encoding: 'utf8', timeout: 10000 }); if (r.status !== 0) { failed = true; console.error(r.stderr); } };",
+    "run(ordinary, ['init', '-q', '-b', 'main']);",
+    "fs.writeFileSync(ordinary + '/probe.txt', 'its own repository\\n');",
+    "run(ordinary, ['add', 'probe.txt']); run(ordinary, ['commit', '-q', '-m', 'chore: foreign probe']);",
+    "run(bare, ['init', '-q', '--bare']);",
+    ...(fixer ? ["if (!failed) for (const file of process.argv.slice(2)) fs.writeFileSync(file, fs.readFileSync(file, 'utf8').trimEnd() + '\\n');"] : []),
+    "process.exitCode = failed ? 1 : 0;",
+  ].join('\n'));
+  return { file, ordinary, bare };
+}
+
+test('a linked-worktree push isolates the gate from Git hook variables and leaves both repos intact [C3]', () => {
+  const box = project();
+  const probe = foreignGitScript(box, 'gate');
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: `node ${JSON.stringify(probe.file)}` }));
+  box.git(box.repo, 'commit', '-qam', 'chore: a gate with foreign git commands');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  const remote = join(box.dir, 'remote.git');
+  box.git(box.dir, 'init', '-q', '--bare', remote);
+  box.git(box.repo, 'remote', 'add', 'origin', remote);
+  const head = box.git(box.web, 'rev-parse', 'HEAD');
+  const pushed = box.tryGit(box.web, 'push', '-q', 'origin', 'web/one');
+  assert.equal(box.git(box.repo, 'config', '--get', 'core.bare'), 'false', 'the real hook repo stays non-bare; without isolation this is true');
+  assert.equal(pushed.status, 0, `${pushed.stdout}${pushed.stderr}`);
+  assert.equal(box.git(remote, 'rev-parse', 'refs/heads/web/one'), head, 'the checked-out commit reached the private local remote');
+  assert.equal(box.git(probe.bare, 'rev-parse', '--is-bare-repository'), 'true');
+  assert.equal(box.git(probe.ordinary, 'log', '-1', '--format=%s'), 'chore: foreign probe');
+  assert.equal(readFileSync(join(probe.ordinary, 'probe.txt'), 'utf8'), 'its own repository\n');
+  assert.equal(box.git(box.web, 'status', '--porcelain'), '');
+});
+
+test('a linked-worktree commit isolates fixers while its own staged index still works [C5]', () => {
+  const box = project();
+  const probe = foreignGitScript(box, 'fixer', { fixer: true });
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, fix: [{ run: `node ${JSON.stringify(probe.file)}`, files: ['*.js'] }] }));
+  box.git(box.repo, 'commit', '-qam', 'chore: a fixer with foreign git commands');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  mkdirSync(join(box.web, 'web'), { recursive: true });
+  writeFileSync(join(box.web, 'web', 'probe.js'), 'const value = 1;   \n');
+  box.git(box.web, 'add', 'web/probe.js');
+  const committed = box.tryGit(box.web, 'commit', '-q', '-m', 'feat(web): a formatted probe [G1]');
+  assert.equal(box.git(box.repo, 'config', '--get', 'core.bare'), 'false');
+  assert.equal(committed.status, 0, committed.stderr);
+  assert.equal(box.git(probe.bare, 'rev-parse', '--is-bare-repository'), 'true');
+  assert.equal(box.git(probe.ordinary, 'log', '-1', '--format=%s'), 'chore: foreign probe');
+  assert.equal(box.git(box.web, 'show', 'HEAD:web/probe.js'), 'const value = 1;', 'the parent hook restaged the formatted file through its own index');
+  assert.equal(box.git(box.web, 'status', '--porcelain'), '');
+});
+
+/**
  * Run `pullboard claim` from two worktrees at once, so both race for the same lock.
  */
 function race(box, first, second, id) {
