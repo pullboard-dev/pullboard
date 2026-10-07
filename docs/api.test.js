@@ -28,6 +28,7 @@ function readShapeTable(start, end) {
 test('[A1] API guide documents every CLI result and refusal shape from the source catalog', () => {
   assert.match(guide, /stable within each major API version/);
   assert.match(guide, /incompatible change requires a new \x60version\x60/);
+  assert.match(guide, /agent may answer a decision sent to its own lane/);
 
   const documentedCommands = readShapeTable('<!-- api-command-shapes:start -->', '<!-- api-command-shapes:end -->');
   const sourceCommands = Object.fromEntries(Object.entries(JSON_SHAPES.commands).map(([name, shape]) => [name, shape.required]));
@@ -38,7 +39,6 @@ test('[A1] API guide documents every CLI result and refusal shape from the sourc
   assert.deepEqual(documentedRefusals.error, JSON_SHAPES.errorFields);
   assert.deepEqual(Object.keys(documentedRefusals).sort(), ['envelope', 'error']);
 });
-
 test('[A2] API guide documents the local HTTP response catalog', () => {
   const documented = readShapeTable('<!-- api-http-shapes:start -->', '<!-- api-http-shapes:end -->');
   const source = Object.fromEntries(Object.entries(JSON_SHAPES.http).map(([name, shape]) => [name, shape.required]));
