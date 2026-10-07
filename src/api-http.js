@@ -38,6 +38,12 @@ function eventCursor(value) {
   return Number(value);
 }
 
+/** A supplied state cursor is an integer, so unlike an omitted events cursor, blank is invalid. */
+function seenCursor(value) {
+  if (value === '') throw new Refused('BAD_CURSOR', 'seen needs a nonnegative integer; use the last shout id you have seen');
+  return eventCursor(value);
+}
+
 /** Create the common API router; an adapter controls authorization and board storage. */
 export function createApiHandler(adapter, { pollMs = 200 } = {}) {
   if (!Number.isInteger(pollMs) || pollMs < 10 || pollMs > 60_000) throw new Refused('API_POLL', 'use a poll interval from 10 to 60000 milliseconds');
@@ -90,12 +96,25 @@ export function createApiHandler(adapter, { pollMs = 200 } = {}) {
     try {
       let url;
       try { url = new URL(req.url ?? '/', 'http://127.0.0.1'); } catch { throw new Refused('BAD_REQUEST', 'use a valid path under /api/v1/boards'); }
-      const route = /^\/api\/v1\/boards\/([^/]+)\/(state|events|moves|requests)$/.exec(url.pathname);
+      const route = /^\/api\/v1\/boards\/([^/]+)\/(state|events|moves|requests|code)$/.exec(url.pathname);
       const who = await adapter.authenticate(req, { board: route?.[1] ?? null, write: req.method === 'POST' });
-      if (req.method === 'GET' && url.pathname === '/api/v1/boards') return json(res, 200, { boards: await adapter.boards(who) });
-      if (!route) return json(res, 404, refusal(new Refused('NO_ENDPOINT', 'no API v1 endpoint here; use /api/v1/boards and a board state, events, moves or requests path')));
+      if (req.method === 'GET' && url.pathname === '/api/v1/boards') {
+        const listing = await adapter.boards(who);
+        return json(res, 200, Array.isArray(listing) ? { boards: listing } : listing);
+      }
+      if (!route) return json(res, 404, refusal(new Refused('NO_ENDPOINT', 'no API v1 endpoint here; use /api/v1/boards and a board state, code, events, moves or requests path')));
       const board = await adapter.board(route[1], who);
-      if (req.method === 'GET' && route[2] === 'state') return json(res, 200, { state: await adapter.state(board, who) });
+      if (req.method === 'GET' && route[2] === 'state') {
+        const seen = url.searchParams.has('seen') ? seenCursor(url.searchParams.get('seen')) : null;
+        return json(res, 200, { state: await adapter.state(board, who, seen) });
+      }
+      if (req.method === 'GET' && route[2] === 'code') {
+        if (typeof adapter.code !== 'function') throw new Refused('CODE_NOT_AVAILABLE', 'this API adapter does not provide committed-code previews; use the local view or a local API server');
+        const ref = /^([^:@]+):(\d+)(?:-(\d+))?@([0-9a-f]{7,40})$/.exec(url.searchParams.get('ref') ?? '');
+        if (!ref) throw new Refused('BAD_REF', 'use ref=path:lines@commit, such as src/serve.js:12-30@be4356b');
+        const before = (url.searchParams.get('before') ?? '').slice(-2000);
+        return json(res, 200, { code: await adapter.code(board, { path: ref[1], from: Number(ref[2]), to: Number(ref[3] ?? ref[2]), commit: ref[4], before }, who) });
+      }
       if (req.method === 'GET' && route[2] === 'events') {
         const after = eventCursor(req.headers['last-event-id'] ?? url.searchParams.get('after'));
         const initial = await adapter.events(board, after, who);
