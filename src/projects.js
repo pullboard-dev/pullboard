@@ -2,10 +2,11 @@
  * The projects on this machine: every initialized repo, with optional project and display names.
  * The registry lives in the user's home (or PULLBOARD_HOME for isolated runs).
  */
-import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
 import { loadConfig } from './config.js';
 
 /**
@@ -36,101 +37,23 @@ function readRegistry() {
 }
 
 /**
- * Wait synchronously while another process owns the registry lock.
+ * Open the small SQLite file that serializes registry mutations. SQLite releases its OS lock when
+ * a process exits, so a killed writer cannot strand a directory lock or evict a newer owner.
  *
- * @param {number} milliseconds
- * @returns {void}
+ * @param {string} file
+ * @returns {DatabaseSync} A connection holding BEGIN IMMEDIATE.
  */
-function pause(milliseconds) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
-}
-
-/**
- * Whether a process id still names a running process.
- *
- * @param {number} pid
- * @returns {boolean}
- */
-function processExists(pid) {
+function openRegistryLock(file) {
+  const database = new DatabaseSync(`${file}.lock.sqlite`);
   try {
-    process.kill(pid, 0);
-    return true;
+    database.exec('PRAGMA busy_timeout = 30000');
+    database.exec('CREATE TABLE IF NOT EXISTS registry_lock (id INTEGER PRIMARY KEY CHECK (id = 1), generation INTEGER NOT NULL DEFAULT 0)');
+    database.prepare('INSERT OR IGNORE INTO registry_lock (id, generation) VALUES (1, 0)').run();
+    database.exec('BEGIN IMMEDIATE');
+    return database;
   } catch (error) {
-    return error?.code === 'EPERM';
-  }
-}
-
-/**
- * Acquire the registry lock, reclaiming a lock whose owner crashed.
- *
- * @param {string} lock
- * @returns {string} This process's unique lock token.
- */
-function acquireLock(lock) {
-  const token = randomUUID();
-  const ownerFile = join(lock, 'owner.json');
-  const deadline = Date.now() + 30000;
-  while (Date.now() < deadline) {
-    let created = false;
-    try {
-      mkdirSync(lock);
-      created = true;
-    } catch (error) {
-      if (error?.code !== 'EEXIST') throw error;
-    }
-    if (created) {
-      try {
-        writeFileSync(ownerFile, JSON.stringify({ pid: process.pid, token }));
-        return token;
-      } catch (error) {
-        rmSync(lock, { recursive: true, force: true });
-        throw error;
-      }
-    }
-
-    let owner;
-    let stale = false;
-    try {
-      owner = JSON.parse(readFileSync(ownerFile, 'utf8'));
-      stale = !Number.isInteger(owner.pid) || !processExists(owner.pid);
-    } catch {
-      try {
-        stale = Date.now() - statSync(lock).mtimeMs > 1000;
-      } catch {
-        continue;
-      }
-    }
-    if (stale) {
-      const abandoned = `${lock}.abandoned-${randomUUID()}`;
-      try {
-        renameSync(lock, abandoned);
-        rmSync(abandoned, { recursive: true, force: true });
-      } catch (error) {
-        if (error?.code !== 'ENOENT') pause(10);
-      }
-    } else {
-      pause(10);
-    }
-  }
-  throw new Error('timed out waiting for the project registry lock');
-}
-
-/**
- * Release this process's lock without removing a lock acquired by another process.
- *
- * @param {string} lock
- * @param {string} token
- * @returns {void}
- */
-function releaseLock(lock, token) {
-  try {
-    const owner = JSON.parse(readFileSync(join(lock, 'owner.json'), 'utf8'));
-    if (owner.pid !== process.pid || owner.token !== token) return;
-    const released = `${lock}.released-${token}`;
-    renameSync(lock, released);
-    rmSync(released, { recursive: true, force: true });
-  } catch (error) {
-    if (error?.code !== 'ENOENT') throw error;
+    database.close();
+    throw error;
   }
 }
 
@@ -144,13 +67,21 @@ function releaseLock(lock, token) {
 function withRegistry(mutate) {
   const file = registryFile();
   mkdirSync(join(file, '..'), { recursive: true });
-  const lock = `${file}.lock`;
-  const token = acquireLock(lock);
+  const database = openRegistryLock(file);
   try {
     const state = readRegistry();
-    return mutate(state.projects, state.readable);
+    const result = mutate(state.projects, state.readable);
+    database.exec('COMMIT');
+    return result;
+  } catch (error) {
+    try {
+      database.exec('ROLLBACK');
+    } catch {
+      // A failed commit may already have ended the transaction.
+    }
+    throw error;
   } finally {
-    releaseLock(lock, token);
+    database.close();
   }
 }
 

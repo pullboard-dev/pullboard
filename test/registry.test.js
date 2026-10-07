@@ -1,7 +1,7 @@
 /** Registry metadata, refresh, pruning and forgetting (N33, N35, N36). */
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -72,82 +72,126 @@ test('registry uses validated repo labels, refreshes metadata, prunes missing ro
 });
 
 /**
- * Run a child Node process and reject with its captured diagnostics on failure.
+ * Start a child Node process and expose its ready signal and exit result.
  *
  * @param {string[]} args
  * @param {NodeJS.ProcessEnv} env
- * @returns {Promise<void>}
+ * @returns {{ child: import('node:child_process').ChildProcess, ready: Promise<void>, exited: Promise<{ code: number | null, signal: NodeJS.Signals | null, stderr: string }> }}
  */
-function runNode(args, env) {
-  return new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(process.execPath, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
-    let stderr = '';
-    child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk; });
-    child.on('error', rejectPromise);
-    child.on('close', (code) => code === 0
-      ? resolvePromise()
-      : rejectPromise(new Error(`child exited ${code}: ${stderr}`)));
+function startNode(args, env) {
+  const child = spawn(process.execPath, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
+  let stderr = '';
+  let announcedReady = false;
+  let resolveReady;
+  let rejectReady;
+  const ready = new Promise((resolvePromise, rejectPromise) => {
+    resolveReady = resolvePromise;
+    rejectReady = rejectPromise;
   });
+  child.stdout.setEncoding('utf8').on('data', (chunk) => {
+    if (!announcedReady && chunk.includes('ready')) {
+      announcedReady = true;
+      resolveReady();
+    }
+  });
+  child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk; });
+  child.on('error', (error) => rejectReady(error));
+  const exited = new Promise((resolvePromise, rejectPromise) => {
+    child.on('error', rejectPromise);
+    child.on('close', (code, signal) => {
+      if (!announcedReady) rejectReady(new Error(`child exited before ready (${code ?? signal}): ${stderr}`));
+      resolvePromise({ code, signal, stderr });
+    });
+  });
+  return { child, ready, exited };
 }
 
-test('parallel processes preserve registrations and forget, and recover a crashed lock owner [N35, I8]', async () => {
-  const sandbox = mkdtempSync(join(tmpdir(), 'pullboard-registry-race-'));
-  const home = join(sandbox, 'private-home');
-  const registryModule = new URL('../src/projects.js', import.meta.url).href;
-  const barrier = join(sandbox, 'start');
-  const priorHome = process.env.PULLBOARD_HOME;
-  process.env.PULLBOARD_HOME = home;
-  try {
-    const forgotten = makeRepo(sandbox, 'forgotten');
-    const gone = makeRepo(sandbox, 'gone');
-    const roots = Array.from({ length: 24 }, (_, index) => makeRepo(sandbox, `parallel-${index}`));
-    registerProject(forgotten);
-    registerProject(gone);
-    rmSync(gone, { recursive: true, force: true });
-
-    const worker = `import { existsSync } from 'node:fs';
-import { registerProject, forgetProject, listProjects } from ${JSON.stringify(registryModule)};
+/**
+ * Release one synchronized burst of registry processes and require every one to finish cleanly.
+ *
+ * @param {string} sandbox
+ * @param {string} label
+ * @param {string[]} roots
+ * @param {string} forgotten
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {Promise<void>}
+ */
+async function runRegistryBurst(sandbox, label, roots, forgotten, env) {
+  const barrier = join(sandbox, `${label}.start`);
+  const worker = `import { existsSync } from 'node:fs';
+import { registerProject, forgetProject, listProjects } from ${JSON.stringify(new URL('../src/projects.js', import.meta.url).href)};
 const [operation, root, barrier] = process.argv.slice(1);
+console.log('ready');
 while (!existsSync(barrier)) await new Promise((resolve) => setTimeout(resolve, 1));
 if (operation === 'forget') forgetProject(root);
 else if (operation === 'list') listProjects();
 else registerProject(root);`;
+  const jobs = [
+    ...roots.map((root) => ['register', root]),
+    ['forget', forgotten],
+    ['list', ''],
+  ];
+  const children = jobs.map(([operation, root]) => startNode([
+    '--input-type=module', '-e', worker, operation, root, barrier,
+  ], env));
+  await Promise.all(children.map(({ ready }) => ready));
+  writeFileSync(barrier, 'go');
+  const results = await Promise.all(children.map(({ exited }) => exited));
+  for (const result of results) assert.equal(result.code, 0, result.stderr);
+}
+
+/**
+ * Read and compare the durable registry after one concurrent mutation burst.
+ *
+ * @param {Set<string>} expected
+ * @param {string} forgotten
+ * @param {string} gone
+ */
+function assertRegistry(expected, forgotten, gone) {
+  const listed = JSON.parse(readFileSync(registryFile(), 'utf8')).projects.map((project) => project.root);
+  assert.equal(listed.length, expected.size);
+  assert.deepEqual([...listed].sort(), [...expected].sort());
+  assert.equal(listed.includes(forgotten), false);
+  assert.equal(listed.includes(gone), false);
+}
+
+test('parallel processes preserve 30 registrations across a killed lock owner [N35, I8]', async () => {
+  const sandbox = mkdtempSync(join(tmpdir(), 'pullboard-registry-race-'));
+  const home = join(sandbox, 'private-home');
+  const priorHome = process.env.PULLBOARD_HOME;
+  process.env.PULLBOARD_HOME = home;
+  try {
+    const gone = makeRepo(sandbox, 'gone');
+    registerProject(gone);
+    rmSync(gone, { recursive: true, force: true });
     const env = { ...process.env, PULLBOARD_HOME: home };
-    const workers = [
-      ...roots.map((root) => [worker, 'register', root, barrier]),
-      [worker, 'forget', forgotten, barrier],
-      [worker, 'list', '', barrier],
-    ];
-    const pending = workers.map((args) => runNode(['--input-type=module', '-e', args[0], ...args.slice(1)], env));
-    writeFileSync(barrier, 'go');
-    await Promise.all(pending);
+    const expected = new Set();
+    const controlForgotten = makeRepo(sandbox, 'control-forgotten');
+    registerProject(controlForgotten);
+    const controlRoots = Array.from({ length: 30 }, (_, index) => makeRepo(sandbox, `control-${index}`));
+    await runRegistryBurst(sandbox, 'control', controlRoots, controlForgotten, env);
+    for (const root of controlRoots) expected.add(resolve(root));
+    assertRegistry(expected, controlForgotten, gone);
 
-    const listed = JSON.parse(readFileSync(registryFile(), 'utf8')).projects.map((project) => project.root);
-    assert.deepEqual(new Set(listed), new Set(roots));
-    assert.equal(listed.includes(forgotten), false);
-    assert.equal(listed.includes(gone), false);
-
-    const lock = `${registryFile()}.lock`;
-    const abandonedOwner = `import { mkdirSync, writeFileSync } from 'node:fs';
-mkdirSync(${JSON.stringify(lock)});
-writeFileSync(${JSON.stringify(join(lock, 'owner.json'))}, JSON.stringify({ pid: process.pid, token: 'crashed' }));
-console.log('lock-ready');
+    const lockFile = `${registryFile()}.lock.sqlite`;
+    for (let round = 0; round < 8; round += 1) {
+      const deadOwner = `import { DatabaseSync } from 'node:sqlite';
+const database = new DatabaseSync(${JSON.stringify(lockFile)});
+database.exec('PRAGMA busy_timeout = 30000; BEGIN IMMEDIATE; UPDATE registry_lock SET generation = generation + 1 WHERE id = 1');
+console.log('ready');
 setInterval(() => {}, 1000);`;
-    const crashedOwner = spawn(process.execPath, ['--input-type=module', '-e', abandonedOwner], { env, stdio: ['ignore', 'pipe', 'pipe'] });
-    const ready = new Promise((resolvePromise, rejectPromise) => {
-      crashedOwner.stdout.once('data', resolvePromise);
-      crashedOwner.once('error', rejectPromise);
-    });
-    const exited = new Promise((resolvePromise) => {
-      crashedOwner.once('close', (code, signal) => resolvePromise({ code, signal }));
-    });
-    await ready;
-    crashedOwner.kill('SIGKILL');
-    assert.equal((await exited).signal, 'SIGKILL');
-    const recovered = makeRepo(sandbox, 'after-crash');
-    assert.equal(registerProject(recovered), true);
-    assert.equal(existsSync(lock), false);
-    assert.equal(JSON.parse(readFileSync(registryFile(), 'utf8')).projects.length, roots.length + 1);
+      const owner = startNode(['--input-type=module', '-e', deadOwner], env);
+      await owner.ready;
+      owner.child.kill('SIGKILL');
+      assert.equal((await owner.exited).signal, 'SIGKILL', `round ${round + 1} owner was killed`);
+
+      const forgotten = makeRepo(sandbox, `forgotten-${round}`);
+      registerProject(forgotten);
+      const roots = Array.from({ length: 30 }, (_, index) => makeRepo(sandbox, `round-${round}-${index}`));
+      await runRegistryBurst(sandbox, `round-${round}`, roots, forgotten, env);
+      for (const root of roots) expected.add(resolve(root));
+      assertRegistry(expected, forgotten, gone);
+    }
   } finally {
     if (priorHome === undefined) delete process.env.PULLBOARD_HOME;
     else process.env.PULLBOARD_HOME = priorHome;
