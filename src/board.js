@@ -18,6 +18,9 @@ import { Refused } from './refused.js';
 export const ACCEPT_REASON = 'CRITERION_MET';
 export const PERSON = 'person';
 
+/** Version of the persisted append-only event record format; bump for incompatible format changes. */
+export const EVENT_LOG_VERSION = 1;
+
 /**
  * Who can take an item (B13), as tiers in order of the model an item needs: `light` is work a small
  * or local model can build from its brief, `mid` needs a capable general model, and
