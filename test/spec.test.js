@@ -65,6 +65,8 @@ test('rows inside code fences are examples, not rows', () => {
 test('ids are unique, retired ones included [S2]', () => {
   const findings = lintSpec(parseSpec('## G\n- G1 [retired] Old.\n- G1 [draft] New.\n'));
   assert.match(findings[0].message, /duplicate id; first on line 2/);
+  const later = lintSpec(parseSpec('## G\n- G1 [draft] New.\n- G1 [retired] Old.\n'));
+  assert.match(later[0].message, /duplicate id; first on line 2/, 'a retired row that repeats a live id is a duplicate too');
 });
 
 test('serves links must name real ids and never cycle [S3]', () => {
