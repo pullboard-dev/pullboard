@@ -302,6 +302,66 @@ test('signoff prints cited tests, preserves its note and escapes that note in th
   assert.doesNotMatch(html, /<img>/);
 });
 
+test('signoff reads --note-file exactly [S14]', (t) => {
+  const box = specBox(t);
+  mkdirSync(join(box.root, 'test'));
+  writeFileSync(join(box.root, 'test', 'greeting.test.js'), "import { test } from 'node:test';\ntest('greeting [G1]', () => {});\n");
+  box.git('add', 'test/greeting.test.js');
+  box.git('commit', '-q', '-m', 'test: cite greeting');
+  const note = 'quoted "text" with $vars and `ticks`\nand a final newline\n';
+  const file = join(box.root, 'note.txt');
+  writeFileSync(file, note);
+  const signed = box.run('signoff', 'G1', '--by', 'CO', '--note-file', file);
+  assert.equal(signed.status, 0, signed.stderr);
+  assert.equal(readSignoffs(box.root)[0].note, note);
+});
+
+test('signoff refuses a flag it does not take [P4]', (t) => {
+  const box = specBox(t);
+  const unsupported = box.run('signoff', 'G1', '--by', 'CO', '--must');
+  assert.notEqual(unsupported.status, 0, 'an option for a different spec command must not be ignored');
+  assert.match(unsupported.stderr, /FLAG_NOT_ALLOWED.*spec signoff.*--must/);
+});
+
+test('spec view emits JSON and refuses an unsupported flag before writing [S13, P4]', (t) => {
+  const box = specBox(t);
+  const htmlFile = join(box.root, 'requested-spec.html');
+  const result = box.run('view', '--json', '--out', htmlFile);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  const document = JSON.parse(result.stdout);
+  assert.equal(document.version, 1);
+  assert.equal(document.path, htmlFile);
+  assert.ok(existsSync(htmlFile));
+
+  const refusedFile = join(box.root, 'refused-spec.html');
+  const refused = box.run('view', '--json', '--must', '--out', refusedFile);
+  assert.equal(refused.status, 1);
+  assert.equal(refused.stderr, '');
+  const refusal = JSON.parse(refused.stdout);
+  assert.equal(refusal.version, 1);
+  assert.equal(refusal.error.code, 'FLAG_NOT_ALLOWED');
+  assert.match(refusal.error.message, /spec view does not take --must/);
+  assert.equal(existsSync(refusedFile), false, 'refusal happens before creating the HTML output');
+});
+
+test('spec unmet and signoff do not create a board when reading a repo without one [S14, P4]', (t) => {
+  const box = specBox(t);
+  const boardDir = join(box.root, '.git', 'pullboard');
+  rmSync(boardDir, { recursive: true, force: true });
+  assert.equal(existsSync(boardDir), false);
+
+  const unmet = box.run('unmet');
+  assert.equal(unmet.status, 0, unmet.stderr);
+  assert.equal(existsSync(boardDir), false);
+
+  const signoff = box.run('signoff', 'G1', '--by', 'CO');
+  assert.equal(signoff.status, 1);
+  assert.match(signoff.stderr, /NO_EVIDENCE/);
+  assert.equal(existsSync(boardDir), false);
+});
+
 test('signoff refuses missing evidence atomically, and unmet shows every stage through a verified item [S14, S15, S16]', (t) => {
   const box = specBox(t);
   const failed = box.run('signoff', 'G1', '--by', 'CO', '--note', 'I looked');

@@ -1364,6 +1364,7 @@ function citations(ctx, { ids, since }) {
 
 /** Current board evidence, with each item's accepting receipts included once. */
 function specProof(ctx) {
+  if (!existsSync(ctx.file)) return { items: [], verdicts: [] };
   return withBoard(ctx, (board) => {
     const items = store.listItems(board, { all: true });
     return { items, verdicts: items.flatMap((item) => store.verdictsFor(board, item.item_id)) };
@@ -1379,6 +1380,22 @@ function specProof(ctx) {
  */
 function specCommand(io, { first, second, rest, values }) {
   const ctx = context(io);
+  const commandFlags = {
+    '--json': ['json'],
+    check: ['json'],
+    view: ['out'],
+    show: [],
+    unmet: ['must'],
+    signoff: ['by', 'note', 'note-file'],
+  }[first ?? '--json'];
+  if (!commandFlags) throw new Refused('USAGE', 'use pullboard spec --json | check | view | show <id> | unmet [--must] | signoff <ids> --by <name> [--note "..."]');
+  const allowedFlags = [...new Set([...commandFlags, 'json'])];
+  for (const flag of Object.keys(values)) {
+    if (!allowedFlags.includes(flag)) {
+      const next = flag === 'must' ? 'use --must with spec unmet' : 'use a flag accepted by this spec command';
+      throw new Refused('FLAG_NOT_ALLOWED', `spec ${first ?? '--json'} does not take --${flag}; ${next}`);
+    }
+  }
   const spec = loadSpec(ctx.info.root, ctx.config);
   if (!spec.exists) throw new Refused('NO_SPEC', `no ${ctx.config.spec}; run: pullboard init`);
   const practice = loadSpec(ctx.info.root, { ...ctx.config, spec: ctx.config.practice });
@@ -1463,7 +1480,8 @@ function specCommand(io, { first, second, rest, values }) {
       for (const file of row.files) io.say(`  test: ${file}`);
       for (const item of row.verified) io.say(`  verified #${item.id}: ${item.note || '(no accepting note)'}`);
     }
-    const count = signOff(ctx.info.root, spec, { ids, by: values.by ?? '', on: new Date().toISOString().slice(0, 10), note: values.note ?? '' });
+    const note = textArg(io, values, 'note') ?? '';
+    const count = signOff(ctx.info.root, spec, { ids, by: values.by ?? '', on: new Date().toISOString().slice(0, 10), note });
     io.result?.({ count, by: values.by, ids, evidence });
     io.say(`signed ${count} rows as ${values.by}; commit .pullboard/signoffs.jsonl`);
     return 0;
