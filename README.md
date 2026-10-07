@@ -56,6 +56,12 @@ All six were fixed before they merged. Before accepting each code change, the ve
              apostrophe escaping each made the focused test fail."
 ```
 
+## See every project at once
+
+`pullboard view` gives you a live board for your projects on this machine, with each item's state, decisions, shouts and review history. This screenshot comes from a disposable demo project rebuilt by `node docs/shots/demo.mjs`.
+
+![The Pullboard board shows open, claimed, submitted and accepted work, with a pending decision and the accepted item's review history.](docs/shots/desktop.png)
+
 ## Try it
 
 You need git and Node 22.13 or newer.
@@ -64,6 +70,8 @@ You need git and Node 22.13 or newer.
 npm i -g pullboard             # 0.5.0 or newer; until it is published, run npm i -g . in a clone of this repo
 pullboard tour                 # thirty seconds on a throwaway repo: a reject, the fix, the ledger
 ```
+
+![The timed Pullboard tour shows a change submitted, rejected for a missed edge, fixed and accepted.](docs/shots/tour.svg)
 
 ## Start with an agent
 
