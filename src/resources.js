@@ -1,7 +1,8 @@
 /** Local machine and repository resource queues with SQLite-backed leases [Q1,Q2,Q3]. */
 import { mkdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { repoInfo } from './git.js';
@@ -25,16 +26,39 @@ function open(file) {
   const db = new DatabaseSync(file);
   db.exec(`PRAGMA busy_timeout = 10000;
     CREATE TABLE IF NOT EXISTS resource (name TEXT PRIMARY KEY, capacity INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS holder (token TEXT PRIMARY KEY, name TEXT NOT NULL, pid INTEGER NOT NULL, agent TEXT NOT NULL, repo TEXT NOT NULL, since TEXT NOT NULL, heartbeat INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS holder (token TEXT PRIMARY KEY, name TEXT NOT NULL, pid INTEGER NOT NULL, started TEXT NOT NULL DEFAULT '', agent TEXT NOT NULL, repo TEXT NOT NULL, since TEXT NOT NULL, heartbeat INTEGER NOT NULL);
     CREATE INDEX IF NOT EXISTS holder_name ON holder(name);
-    CREATE TABLE IF NOT EXISTS waiter (ticket INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE NOT NULL, name TEXT NOT NULL, pid INTEGER NOT NULL, agent TEXT NOT NULL, repo TEXT NOT NULL, since TEXT NOT NULL, heartbeat INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS waiter (ticket INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE NOT NULL, name TEXT NOT NULL, pid INTEGER NOT NULL, started TEXT NOT NULL DEFAULT '', agent TEXT NOT NULL, repo TEXT NOT NULL, since TEXT NOT NULL, heartbeat INTEGER NOT NULL);
     CREATE INDEX IF NOT EXISTS waiter_name_ticket ON waiter(name, ticket);`);
+  for (const table of ['holder', 'waiter']) {
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(({ name }) => name);
+    if (!columns.includes('started')) db.exec(`ALTER TABLE ${table} ADD COLUMN started TEXT NOT NULL DEFAULT ''`);
+  }
   return db;
 }
 
-/** Treat a process as alive unless the operating system confirms that its PID is gone. */
+/** Check whether the operating system still recognizes this process ID. */
 function alive(pid) {
   try { process.kill(pid, 0); return true; } catch (error) { return error.code === 'EPERM'; }
+}
+
+/** Read the OS process start identity so a reused PID cannot inherit an old lease. */
+function processStarted(pid) {
+  try {
+    const identity = execFileSync('ps', ['-o', 'lstart=', '-o', 'stat=', '-p', String(pid)], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim().split(/\s+/u);
+    const state = identity.pop();
+    return state?.startsWith('Z') ? '' : identity.join(' ');
+  } catch { return ''; }
+}
+
+/** Confirm that a live PID still belongs to the process recorded in the lease. */
+function sameProcess(pid, started) {
+  return Boolean(started) && alive(pid) && processStarted(pid) === started;
+}
+
+/** Return the Git root for display when the resource caller is inside a repository. */
+function repoRoot(root) {
+  try { return repoInfo(root).root; } catch { return ''; }
 }
 
 /** Run a short serialized database update and discard dead or expired leases. */
@@ -42,11 +66,15 @@ function update(db, action) {
   db.exec('BEGIN IMMEDIATE');
   try {
     const cutoff = Date.now() - LEASE_MS;
-    for (const row of db.prepare('SELECT token, pid, heartbeat FROM holder').all()) {
-      if (row.heartbeat < cutoff || !alive(row.pid)) db.prepare('DELETE FROM holder WHERE token = ?').run(row.token);
+    for (const row of db.prepare('SELECT token, pid, started, heartbeat FROM holder').all()) {
+      if (!alive(row.pid) || (row.heartbeat < cutoff && !sameProcess(row.pid, row.started))) {
+        db.prepare('DELETE FROM holder WHERE token = ?').run(row.token);
+      }
     }
-    for (const row of db.prepare('SELECT token, pid, heartbeat FROM waiter').all()) {
-      if (row.heartbeat < cutoff || !alive(row.pid)) db.prepare('DELETE FROM waiter WHERE token = ?').run(row.token);
+    for (const row of db.prepare('SELECT token, pid, started, heartbeat FROM waiter').all()) {
+      if (!alive(row.pid) || (row.heartbeat < cutoff && !sameProcess(row.pid, row.started))) {
+        db.prepare('DELETE FROM waiter WHERE token = ?').run(row.token);
+      }
     }
     const result = action();
     db.exec('COMMIT');
@@ -82,43 +110,66 @@ export async function takeResource(options) {
   const token = randomUUID();
   const pid = process.pid;
   const agent = options.agent ?? process.env.PULLBOARD_AGENT ?? `pid-${pid}`;
-  const repo = options.repo ?? (scope === 'repo' ? repoInfo(root).root : '');
-  const since = new Date().toISOString();
+  const started = processStarted(pid);
+  const repo = options.repo ?? repoRoot(root);
+  let queuedAt = new Date().toISOString();
   try {
     update(db, () => {
       const row = db.prepare('SELECT capacity FROM resource WHERE name = ?').get(name);
       if (row && row.capacity !== capacity) throw new Refused('RESOURCE_CAPACITY_MISMATCH', `resource "${name}" already has capacity ${row.capacity}`);
       db.prepare('INSERT INTO resource(name, capacity) VALUES (?, ?) ON CONFLICT(name) DO NOTHING').run(name, capacity);
-      db.prepare('INSERT INTO waiter(token, name, pid, agent, repo, since, heartbeat) VALUES (?, ?, ?, ?, ?, ?, ?)').run(token, name, pid, agent, repo, since, Date.now());
+      db.prepare('INSERT INTO waiter(token, name, pid, started, agent, repo, since, heartbeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(token, name, pid, started, agent, repo, queuedAt, Date.now());
     });
     while (true) {
       const acquired = update(db, () => {
+        const waiter = db.prepare('SELECT ticket FROM waiter WHERE token = ?').get(token);
+        if (!waiter) {
+          queuedAt = new Date().toISOString();
+          db.prepare('INSERT INTO waiter(token, name, pid, started, agent, repo, since, heartbeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(token, name, pid, started, agent, repo, queuedAt, Date.now());
+          return { acquired: false, state: { ...snapshot(db, name), position: db.prepare('SELECT count(*) AS count FROM waiter WHERE name = ?').get(name).count, rejoined: true } };
+        }
         db.prepare('UPDATE waiter SET heartbeat = ? WHERE token = ?').run(Date.now(), token);
         const spot = snapshot(db, name);
-        const position = db.prepare('SELECT count(*) AS count FROM waiter WHERE name = ? AND ticket <= (SELECT ticket FROM waiter WHERE token = ?)').get(name, token).count;
+        const position = db.prepare('SELECT count(*) AS count FROM waiter WHERE name = ? AND ticket <= ?').get(name, waiter.ticket).count;
         const limit = db.prepare('SELECT capacity FROM resource WHERE name = ?').get(name).capacity;
         if (position === 1 && spot.holders.length < limit) {
           db.prepare('DELETE FROM waiter WHERE token = ?').run(token);
-          db.prepare('INSERT INTO holder(token, name, pid, agent, repo, since, heartbeat) VALUES (?, ?, ?, ?, ?, ?, ?)').run(token, name, pid, agent, repo, since, Date.now());
+          const acquiredAt = new Date().toISOString();
+          db.prepare('INSERT INTO holder(token, name, pid, started, agent, repo, since, heartbeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(token, name, pid, started, agent, repo, acquiredAt, Date.now());
           return { acquired: true, state: { ...spot, position: 0 } };
         }
         return { acquired: false, state: { ...spot, position } };
       });
       if (acquired.acquired) {
         let released = false;
+        let lost = false;
         const heartbeat = setInterval(() => {
-          if (released) return;
-          try { update(db, () => db.prepare('UPDATE holder SET heartbeat = ? WHERE token = ?').run(Date.now(), token)); } catch { /* Lease expiry remains the crash fallback. */ }
+          if (released || lost) return;
+          try {
+            const changed = update(db, () => db.prepare('UPDATE holder SET heartbeat = ? WHERE token = ?').run(Date.now(), token).changes);
+            if (!changed) { lost = true; clearInterval(heartbeat); }
+          } catch { /* Lease expiry remains the crash fallback. */ }
         }, HEARTBEAT_MS);
         heartbeat.unref();
+        /** Release the resource and close its SQLite handle. */
         const release = () => {
           if (released) return;
           released = true;
           clearInterval(heartbeat);
-          update(db, () => db.prepare('DELETE FROM holder WHERE token = ?').run(token));
-          db.close();
+          try { update(db, () => db.prepare('DELETE FROM holder WHERE token = ?').run(token)); }
+          finally { db.close(); }
         };
-        return { name, scope, token, release, renew: () => update(db, () => db.prepare('UPDATE holder SET heartbeat = ? WHERE token = ?').run(Date.now(), token)) };
+        /** Refresh this lease, or refuse if another process already evicted it. */
+        const renew = () => {
+          if (released || lost) throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
+          const changed = update(db, () => db.prepare('UPDATE holder SET heartbeat = ? WHERE token = ?').run(Date.now(), token).changes);
+          if (!changed) {
+            lost = true;
+            clearInterval(heartbeat);
+            throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
+          }
+        };
+        return { name, scope, token, release, renew };
       }
       options.onWait?.(acquired.state);
       await pause(POLL_MS);
