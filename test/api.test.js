@@ -504,6 +504,8 @@ test('[A1] every catalog command and subcommand has a real CLI exercise', () => 
   assert.equal(humanImport.status, 0, humanImport.stderr || humanImport.stdout);
   assert.match(humanImport.stdout, /imported version 1 board tables/);
 
+  json(source, source.repo, 'relay');
+  json(source, source.repo, 'relay', ['off']);
   const missing = Object.keys(JSON_SHAPES.commands).filter((key) => !covered.has(key));
   assert.deepEqual(missing, [], `add real-repo invocations for undocumented coverage gaps: ${missing.join(', ')}`);
   assert.deepEqual([...coveredRoots].sort(), resultCommands(), 'every actual root/factory command has an invocation');
