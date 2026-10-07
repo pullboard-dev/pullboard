@@ -524,11 +524,19 @@ test('[A2] moves run as the named worktree agent and requests stay visible until
   assert.equal(claimed.event.event_kind, 'claim');
   assert.equal(claimed.result.item.item_id, added.result.item.item_id);
 
+  const renewedResponse = await apiFetch(api, `${path}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'next', args: {}, agent: 'app-1' }) });
+  assert.equal(renewedResponse.status, 200);
+  const renewed = await renewedResponse.json();
+  assert.equal(renewed.result.held, true);
+  assert.equal(renewed.event.event_kind, 'renew');
+  assert.ok(renewed.event.event_id > claimed.event.event_id);
+  assert.equal(renewed.result.item.item_id, claimed.result.item.item_id);
+
   const escalatedResponse = await apiFetch(api, `${path}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'escalate', item: added.result.item.item_id, args: { note: 'Two attempts failed' }, agent: 'app-1' }) });
   assert.equal(escalatedResponse.status, 200);
   const escalated = await escalatedResponse.json();
   assert.equal(escalated.event.event_kind, 'escalate', 'a move returns its own event even when it also sends a coordinator shout');
-  const afterEscalation = (await (await apiFetch(api, `${path}/events?after=${claimed.event.event_id}`)).json()).events;
+  const afterEscalation = (await (await apiFetch(api, `${path}/events?after=${renewed.event.event_id}`)).json()).events;
   assert.deepEqual(afterEscalation.map((event) => event.event_kind), ['escalate', 'shout']);
   assert.equal(afterEscalation[0].event_id, escalated.event.event_id);
 

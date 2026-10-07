@@ -1092,14 +1092,14 @@ function nextOnce(ctx, values) {
     const warm = warmFiles(ctx, board, me);
     const { item, reasons, shared } = store.nextFor(board, { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm });
     if (!item) return { reasons };
-    if (item.item_status === 'claimed') return { item, held: true };
+    const held = item.item_status === 'claimed';
     try {
       store.claim(board, item.item_id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx), head: headCommit(ctx.info.root) });
     } catch (error) {
       if (error instanceof Refused && ['HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true };
       throw error;
     }
-    return { item: store.getItem(board, item.item_id), shared };
+    return { item: store.getItem(board, item.item_id), shared, held };
   });
 }
 

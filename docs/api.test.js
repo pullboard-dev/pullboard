@@ -38,3 +38,9 @@ test('[A1] API guide documents every CLI result and refusal shape from the sourc
   assert.deepEqual(documentedRefusals.error, JSON_SHAPES.errorFields);
   assert.deepEqual(Object.keys(documentedRefusals).sort(), ['envelope', 'error']);
 });
+
+test('[A2] API guide documents the local HTTP response catalog', () => {
+  const documented = readShapeTable('<!-- api-http-shapes:start -->', '<!-- api-http-shapes:end -->');
+  const source = Object.fromEntries(Object.entries(JSON_SHAPES.http).map(([name, shape]) => [name, shape.required]));
+  assert.deepEqual(documented, source);
+});
