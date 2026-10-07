@@ -32,9 +32,9 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - B18 [draft, aim] An item can wait until a time; next and claim pass over it until then. | gate: test/board.test.js | serves: B8
 - B19 [draft, aim] An item can wait until main contains a given commit; next and claim pass over it until then. | gate: test/e2e.test.js | serves: B8
 - B20 [draft, aim] The person orders open items: now, next or later, and up or down within each; next follows it first. | gate: test/board.test.js
-- B21 [draft, aim] A shout can ask for a decision; it stays in the person's Needs-you until someone answers it. | gate: test/board.test.js | serves: B7
-- B22 [draft, aim] A shout can attach typed evidence: attempt or receipt, outcome, item and commit, as fields, not prose. | gate: test/board.test.js | serves: B7
-- B23 [draft, aim] A shout's path:lines@commit reference opens that code as it was at that commit. | gate: test/cockpit.test.js | serves: B7
+- B21 [approved, aim] A shout can ask for a decision; it stays in the person's Needs-you until someone answers it. | gate: test/board.test.js | serves: B7
+- B22 [approved, aim] A shout can attach typed evidence: attempt or receipt, outcome, item and commit, as fields, not prose. | gate: test/board.test.js | serves: B7
+- B23 [approved, aim] A shout's path:lines@commit reference opens that code as it was at that commit. | gate: test/cockpit.test.js | serves: B7
 
 ## M · Machine
 - M1 [draft, must] One declaration holds every item state, move, guard and refusal; code, help and docs derive from it. | gate: test/machine.test.js
