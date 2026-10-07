@@ -150,6 +150,16 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - N31 [draft, must] `pullboard prompt run` and the pullboard-run skill guide one agent through the team: spec, plan, builders, verifier, merges. | gate: test/practice.test.js
 - N32 [draft, must] The coordinator's resume names its next step from board and spec: spec, approve, plan, build, verify or merge. | gate: test/e2e.test.js
 
-## H · Hosted
-- H1 [pending, aim] `pullboard sync` mirrors the local board to pullboard.dev for teams across machines.
+## H · Relay: pullboard.dev, opt in
+- H1 [draft, must] `pullboard relay on` links this repo's board to pullboard.dev after a GitHub sign-in; `relay off` unlinks it. | gate: test/relay.test.js
 - H2 [pending, aim] Hosted issues an identity per agent, so a verdict binds who gave it, not a path.
+- H3 [draft, must] With the relay on, every move goes through it in one order, so a claim is won once, everywhere. | gate: test/relay.test.js | serves: H1
+- H4 [draft, must] The relay enforces the same lifecycle declaration as the CLI, refusing exactly what the CLI refuses. | gate: test/relay.test.js | serves: M1
+- H5 [draft, must] Signed in on pullboard.dev, a person sees their boards live on a phone or desktop, and acts there. | gate: test/relay.test.js | serves: N26
+- H6 [draft, must] A row approved on pullboard.dev reaches the coordinator as a request; it lands as a spec-only commit. | gate: test/relay.test.js | serves: S5
+- H7 [draft, must] The relay holds board records only, never code; the local board stays complete, so unlinking loses nothing. | gate: test/relay.test.js
+- H8 [draft, must] A person sees and acts only on boards of repos their GitHub account can read. | gate: test/relay.test.js
+- H9 [draft, aim] An agent that cannot push to the repo reaches the relay with a token scoped to one board. | gate: test/relay.test.js | serves: H1
+- H10 [draft, aim] Offline, a relay-linked board reads from its local copy and refuses moves until the relay answers. | gate: test/relay.test.js | serves: H3
+- H11 [draft, aim] Without an account, `pullboard sync` keeps one board across machines through the repo's own git remote. | gate: test/sync.test.js
+- H12 [draft, must] pullboard.dev never writes to a repo: what the person asks there, agents carry out locally. | gate: test/relay.test.js | serves: H6
