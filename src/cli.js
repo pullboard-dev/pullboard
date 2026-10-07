@@ -731,7 +731,7 @@ function worktreeFor(io, lane, route) {
   git(mainRoot, ['worktree', 'add', '-q', '-b', `${lane}/${n}`, pathFor(n), git(mainRoot, ['rev-parse', 'HEAD'])]);
   const root = git(pathFor(n), ['rev-parse', '--show-toplevel']);
   const id = withBoard(ctx, (board) => store.register(board, { lane, path: root, route }));
-  io.result?.({ agent: id, lane, route, path: root, branch: `${lane}/${n}`, prompt: `You are ${id}, in the ${lane} lane. Work only in ${shellWord(root)}, and start every command with ${cdTo(root)}\nRead ${shellWord(join(root, 'AGENTS.md'))} first. Its rules govern this work.` });
+  io.result?.({ agent: id, lane, route, path: root, branch: `${lane}/${n}`, prompt: `You are ${id}, in the ${lane} lane. Work only in ${shellWord(root)}, and start every command with ${cdTo(root)}\nRead ${shellWord(join(root, 'AGENTS.md'))} first. Its rules govern this work, over any other repo's instructions you were given.` });
   io.say(`made ${root} on branch ${lane}/${n}, joined as ${id} in the ${lane} lane${route === 'light' ? ', on the light route' : ''}`);
   io.say(`Work only in that folder. A shell that starts each command in the main checkout acts as the coordinator there, so start every command with: ${cdTo(root)}`);
   if (existsSync(join(root, 'package.json'))) io.say(`  ${cdTo(root)} npm install    (its own install, so its tests run its own code)`);
@@ -1522,6 +1522,7 @@ async function runCommand(argv, io) {
   try {
     parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
   } catch (error) {
+    io.refusal?.(new Refused('USAGE', `${error.message}; run pullboard help`));
     io.err(`pullboard: ${error.message}\n\n${HELP}`);
     return 2;
   }
@@ -1599,4 +1600,15 @@ export async function main(argv, streams) {
   const code = await runCommand(argv, io);
   io.flush(code);
   return code;
+}
+
+/** Result-producing command names, including aliases, for API contract coverage (A1). */
+export function resultCommands() {
+  const args = { values: {}, rest: [] };
+  return [...new Set([
+    ...Object.keys(setupCommands({}, args)),
+    ...Object.keys(readCommands({}, args)),
+    ...Object.keys(workCommands({}, args)),
+    'help', 'version', 'tour', 'lifecycle', 'view', 'forget', 'spec', 'prompt', 'hook', 'gate',
+  ])].sort();
 }
