@@ -19,8 +19,9 @@ export function doctorProblems(file, root, tryGit) {
   if (!existsSync(file)) return [finding('BOARD_MISSING', 'board file is missing', 'run pullboard status to create a new board')];
   const db = new DatabaseSync(file, { readOnly: true });
   try {
+    const schemaProblems = versionProblems(db);
+    if (schemaProblems.length) return schemaProblems;
     return [
-      ...versionProblems(db),
       ...triggerProblems(db),
       ...itemProblems(db),
       ...pinProblems(db, root, tryGit),

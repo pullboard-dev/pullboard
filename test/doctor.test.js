@@ -17,7 +17,7 @@ after(() => {
 /**
  * Create a committed repo with a board and isolated git identity for one integrity scenario.
  */
-function boardBox() {
+function boardBox({ initialize = true } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-doctor-'));
   sandboxes.push(dir);
   const root = join(dir, 'repo');
@@ -37,8 +37,10 @@ function boardBox() {
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', lanes: {} }, null, 2));
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: setup');
-  assert.equal(run('status').status, 0);
-  return { dir, root, env, git, run, dbFile: join(root, '.git', 'pullboard', 'board.sqlite') };
+  const dbFile = join(root, '.git', 'pullboard', 'board.sqlite');
+  if (initialize) assert.equal(run('status').status, 0);
+  else mkdirSync(join(root, '.git', 'pullboard'), { recursive: true });
+  return { dir, root, env, git, run, dbFile };
 }
 
 /**
@@ -154,4 +156,17 @@ test('doctor reports older and newer schema versions without migrating either [A
   } finally {
     db.close();
   }
+});
+
+test('doctor reports an older empty SQLite layout without querying current tables [A6]', () => {
+  const box = boardBox({ initialize: false });
+  const db = new DatabaseSync(box.dbFile);
+  db.exec('PRAGMA user_version = 0');
+  db.close();
+  const before = readFileSync(box.dbFile);
+  const result = box.run('doctor');
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /schema version is 0; this pullboard expects 1; repair: run pullboard status to upgrade this board/);
+  assert.doesNotMatch(result.stderr, /no such table|SQLITE_ERROR|Error:/);
+  assert.deepEqual(readFileSync(box.dbFile), before);
 });
