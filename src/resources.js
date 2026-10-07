@@ -11,6 +11,8 @@ import { Refused } from './refused.js';
 const LEASE_MS = 20_000;
 const HEARTBEAT_MS = 3_000;
 const POLL_MS = 40;
+const PROCESS_IDENTITY_CACHE_MS = 3_000;
+const processIdentities = new Map();
 
 /** Resolve the local database for the requested scope. */
 function databaseFile(scope, root) {
@@ -24,15 +26,28 @@ function databaseFile(scope, root) {
 function open(file) {
   mkdirSync(dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
-  db.exec(`PRAGMA busy_timeout = 10000;
-    CREATE TABLE IF NOT EXISTS resource (name TEXT PRIMARY KEY, capacity INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS holder (token TEXT PRIMARY KEY, name TEXT NOT NULL, pid INTEGER NOT NULL, started TEXT NOT NULL DEFAULT '', agent TEXT NOT NULL, repo TEXT NOT NULL, since TEXT NOT NULL, heartbeat INTEGER NOT NULL);
-    CREATE INDEX IF NOT EXISTS holder_name ON holder(name);
-    CREATE TABLE IF NOT EXISTS waiter (ticket INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE NOT NULL, name TEXT NOT NULL, pid INTEGER NOT NULL, started TEXT NOT NULL DEFAULT '', agent TEXT NOT NULL, repo TEXT NOT NULL, since TEXT NOT NULL, heartbeat INTEGER NOT NULL);
-    CREATE INDEX IF NOT EXISTS waiter_name_ticket ON waiter(name, ticket);`);
-  for (const table of ['holder', 'waiter']) {
-    const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(({ name }) => name);
-    if (!columns.includes('started')) db.exec(`ALTER TABLE ${table} ADD COLUMN started TEXT NOT NULL DEFAULT ''`);
+  db.exec('PRAGMA busy_timeout = 10000');
+  let transaction = false;
+  try {
+    db.exec('BEGIN IMMEDIATE');
+    transaction = true;
+    db.exec(`CREATE TABLE IF NOT EXISTS resource (name TEXT PRIMARY KEY, capacity INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS holder (token TEXT PRIMARY KEY, name TEXT NOT NULL, pid INTEGER NOT NULL, started TEXT NOT NULL DEFAULT '', agent TEXT NOT NULL, repo TEXT NOT NULL, since TEXT NOT NULL, heartbeat INTEGER NOT NULL);
+      CREATE INDEX IF NOT EXISTS holder_name ON holder(name);
+      CREATE TABLE IF NOT EXISTS waiter (ticket INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE NOT NULL, name TEXT NOT NULL, pid INTEGER NOT NULL, started TEXT NOT NULL DEFAULT '', agent TEXT NOT NULL, repo TEXT NOT NULL, since TEXT NOT NULL, heartbeat INTEGER NOT NULL);
+      CREATE INDEX IF NOT EXISTS waiter_name_ticket ON waiter(name, ticket);`);
+    for (const table of ['holder', 'waiter']) {
+      const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(({ name }) => name);
+      if (!columns.includes('started')) db.exec(`ALTER TABLE ${table} ADD COLUMN started TEXT NOT NULL DEFAULT ''`);
+    }
+    db.exec('COMMIT');
+    transaction = false;
+  } catch (error) {
+    if (transaction) {
+      try { db.exec('ROLLBACK'); } catch { /* Preserve the migration error. */ }
+    }
+    db.close();
+    throw error;
   }
   return db;
 }
@@ -42,18 +57,42 @@ function alive(pid) {
   try { process.kill(pid, 0); return true; } catch (error) { return error.code === 'EPERM'; }
 }
 
-/** Read the OS process start identity so a reused PID cannot inherit an old lease. */
-function processStarted(pid) {
+/** Read a stable OS process identity; an unreadable identity is unknown, not proof of death. */
+function processIdentity(pid) {
+  const cached = processIdentities.get(pid);
+  if (cached && Date.now() - cached.checkedAt < PROCESS_IDENTITY_CACHE_MS) return cached.identity;
+  let identity = null;
   try {
-    const identity = execFileSync('ps', ['-o', 'lstart=', '-o', 'stat=', '-p', String(pid)], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim().split(/\s+/u);
-    const state = identity.pop();
-    return state?.startsWith('Z') ? '' : identity.join(' ');
-  } catch { return ''; }
+    const output = execFileSync('/bin/ps', ['-o', 'lstart=', '-o', 'stat=', '-p', String(pid)], {
+      encoding: 'utf8',
+      env: { ...process.env, TZ: 'UTC', LC_ALL: 'C', LANG: 'C' },
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    const fields = output.split(/\s+/u);
+    const state = fields.pop();
+    if (fields.length) identity = { started: fields.join(' '), zombie: state?.startsWith('Z') ?? false };
+  } catch { /* A live PID remains authoritative when the OS identity utility is unavailable. */ }
+  processIdentities.set(pid, { identity, checkedAt: Date.now() });
+  if (processIdentities.size > 1024) {
+    for (const [cachedPid, entry] of processIdentities) {
+      if (Date.now() - entry.checkedAt >= PROCESS_IDENTITY_CACHE_MS) processIdentities.delete(cachedPid);
+    }
+  }
+  return identity;
+}
+
+/** Read the start identity to store with a lease when the OS can provide it. */
+function processStarted(pid) {
+  return processIdentity(pid)?.started ?? '';
 }
 
 /** Confirm that a live PID still belongs to the process recorded in the lease. */
 function sameProcess(pid, started) {
-  return Boolean(started) && alive(pid) && processStarted(pid) === started;
+  if (!alive(pid)) return false;
+  const identity = processIdentity(pid);
+  if (!identity) return true;
+  if (identity.zombie) return false;
+  return !started || identity.started === started;
 }
 
 /** Return the Git root for display when the resource caller is inside a repository. */

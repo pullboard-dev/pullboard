@@ -51,6 +51,19 @@ function fixture() {
   return { dir, home, first, second, env: { ...process.env, PULLBOARD_HOME: home } };
 }
 
+/** Create the previous private queue schema so simultaneous openers exercise its migration. */
+function oldSchema(box) {
+  mkdirSync(box.home, { recursive: true });
+  const db = new DatabaseSync(join(box.home, 'resources.sqlite'));
+  try {
+    db.exec(`CREATE TABLE resource (name TEXT PRIMARY KEY, capacity INTEGER NOT NULL);
+      CREATE TABLE holder (token TEXT PRIMARY KEY, name TEXT NOT NULL, pid INTEGER NOT NULL, agent TEXT NOT NULL, repo TEXT NOT NULL, since TEXT NOT NULL, heartbeat INTEGER NOT NULL);
+      CREATE INDEX holder_name ON holder(name);
+      CREATE TABLE waiter (ticket INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE NOT NULL, name TEXT NOT NULL, pid INTEGER NOT NULL, agent TEXT NOT NULL, repo TEXT NOT NULL, since TEXT NOT NULL, heartbeat INTEGER NOT NULL);
+      CREATE INDEX waiter_name_ticket ON waiter(name, ticket);`);
+  } finally { db.close(); }
+}
+
 /** Force a stale private fixture row with a mismatched process start identity. */
 function staleIdentity(box, table, agent) {
   assert.ok(['holder', 'waiter'].includes(table));
@@ -73,9 +86,9 @@ function privateList(box, scope = 'machine', root = process.cwd()) {
 }
 
 /** Launch one independent process that takes a resource and waits for a release command. */
-function worker(box, { name = 'gate', capacity = 1, scope = 'machine', root = box.first, agent, stallMs = 0 }) {
+function worker(box, { name = 'gate', capacity = 1, scope = 'machine', root = box.first, agent, stallMs = 0, env = {} }) {
   const child = spawn(process.execPath, ['--input-type=module', '-e', WORKER, name, String(capacity), scope, root, agent, String(stallMs)], {
-    env: box.env, stdio: ['pipe', 'pipe', 'pipe'],
+    env: { ...box.env, ...env }, stdio: ['pipe', 'pipe', 'pipe'],
   });
   child.lines = createInterface({ input: child.stdout });
   child.errors = '';
@@ -180,6 +193,24 @@ test('[Q1,Q2] capacity two admits two holders and serves the next waiter', async
   await release(next);
 });
 
+test('[Q2,Q3] a stopped head waiter keeps its place ahead of the next process', async () => {
+  const box = fixture();
+  const holder = worker(box, { agent: 'holder' });
+  assert.equal((await event(holder)).acquired, 'holder');
+  const first = worker(box, { agent: 'stopped-first' });
+  assert.equal((await event(first)).waiting, 1);
+  first.kill('SIGSTOP');
+  const second = worker(box, { agent: 'second' });
+  assert.equal((await event(second)).waiting, 2);
+  await release(holder);
+  await assert.rejects(event(second, 800), /worker timed out/u, 'the second waiter cannot jump the stopped head');
+  first.kill('SIGCONT');
+  assert.equal((await event(first)).acquired, 'stopped-first');
+  await release(first);
+  assert.equal((await event(second)).acquired, 'second');
+  await release(second);
+});
+
 test('[Q2,Q3] an evicted live waiter rejoins the FIFO line after it resumes [Q2,Q3]', async () => {
   const box = fixture();
   const holder = worker(box, { agent: 'holder' });
@@ -200,15 +231,24 @@ test('[Q2,Q3] an evicted live waiter rejoins the FIFO line after it resumes [Q2,
 
 test('[Q3] a live stalled holder keeps its place beyond the lease timeout', async () => {
   const box = fixture();
-  const holder = worker(box, { agent: 'stalled-holder', stallMs: 22_000 });
+  const holder = worker(box, { agent: 'stalled-holder', stallMs: 22_000, env: { TZ: 'UTC' } });
   assert.equal((await event(holder)).acquired, 'stalled-holder');
-  const waiter = worker(box, { agent: 'queued-behind-live-holder' });
+  const waiter = worker(box, { agent: 'queued-behind-live-holder', env: { TZ: 'Pacific/Honolulu', PATH: '/usr/bin' } });
   assert.equal((await event(waiter)).waiting, 1);
   await assert.rejects(event(waiter, 20_500), /worker timed out/u, 'a live OS process must not be evicted when its heartbeat pauses');
   assert.equal((await event(holder, 5_000)).resumed, true);
   await release(holder);
   assert.equal((await event(waiter)).acquired, 'queued-behind-live-holder');
   await release(waiter);
+});
+
+test('[Q3] concurrent openers serialize migration of a prior resource database', async () => {
+  const box = fixture();
+  oldSchema(box);
+  const workers = Array.from({ length: 8 }, (_, index) => worker(box, { name: 'legacy', capacity: 8, agent: `migrator-${index}` }));
+  const acquired = await Promise.all(workers.map((child) => event(child)));
+  assert.deepEqual(acquired.map(({ acquired: agent }) => agent).sort(), workers.map((_, index) => `migrator-${index}`).sort());
+  await Promise.all(workers.map(release));
 });
 
 test('[Q3] renew refuses after an OS start-identity mismatch evicts the holder', async () => {
