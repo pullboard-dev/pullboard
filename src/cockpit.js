@@ -767,8 +767,13 @@ function search() {
   render();
 }
 
+/**
+ * Run an action as its CLI command on the server, show what the command said, and redraw from the
+ * board. A new action cancels the last one's pending close, so it can never hide this one's output.
+ */
 async function act(command, args, root = view.root) {
   const out = $('console');
+  clearTimeout(view.closing);
   out.hidden = false;
   out.className = 'console';
   out.textContent = 'running…';
@@ -776,6 +781,8 @@ async function act(command, args, root = view.root) {
     const result = await api('/api/act', { root, command, args });
     out.className = 'console ' + (result.code === 0 ? 'ok' : 'no');
     out.textContent = '$ ' + result.command + '\\n' + (result.out + result.err).trim();
+    // What went through says so and then steps aside; a refusal stays until the person closes it.
+    if (result.code === 0) view.closing = setTimeout(() => { out.hidden = true; }, 6000);
     await refresh();
     return result.code === 0;
   } catch (error) {
