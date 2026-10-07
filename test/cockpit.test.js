@@ -1321,64 +1321,76 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
   writeFileSync(join(alpha.web, 'web', 'note.txt'), 'plain note\n');
   mkdirSync(join(alpha.web, 'web', 'my web'));
   writeFileSync(join(alpha.web, 'web', 'my web', 'note.txt'), 'spaced note\n');
+  mkdirSync(join(alpha.web, 'web', 'one two three four five web'));
+  writeFileSync(join(alpha.web, 'web', 'one two three four five web', 'note.txt'), 'longer spaced note\n');
   box.git(alpha.web, 'add', '-A');
   box.git(alpha.web, 'commit', '-q', '-m', 'feat(web): a warmer greeting [G1]');
   const second = box.git(alpha.web, 'rev-parse', 'HEAD');
   const was = `web/greeting.html:1@${first.slice(0, 7)}`;
   const now = `web/greeting.html:1-2@${second.slice(0, 12)}`;
   const long = `web/long.txt:1-100@${second}`;
-  box.run(alpha.web, 'shout', 'all', `#1 was ${was}, is ${now}; see ${long}.`);
+  const first_ = `#1 was ${was}, is ${now}; see ${long}.`;
+  box.run(alpha.web, 'shout', 'all', first_);
   const spaced = `web/note.txt:1@${second.slice(0, 7)}`;
-  box.run(alpha.web, 'shout', 'all', `absolute /${was} and spaced web/my ${spaced}`);
+  const odd = `absolute /${was} and spaced web/my ${spaced}`;
+  box.run(alpha.web, 'shout', 'all', odd);
   box.run(alpha.web, 'shout', 'all', `plus x+${spaced}`);
   box.run(alpha.web, 'shout', 'all', spaced);
+  box.run(alpha.web, 'shout', 'all', `web/one two three four five ${spaced}`);
   // A file only the working tree has, which no commit holds.
   writeFileSync(join(alpha.repo, 'draft.txt'), 'not committed\n');
   const view = await startView(box);
   try {
     const page = await openPage(view);
-    // A button carries the words just before it that could be part of a path.
+    // A button carries the text written before it on its line.
     const button = (ref, open, before = '') => `<button class="ref" data-code="${ref}"${before ? ` data-before="${before}"` : ''} type="button" aria-expanded="${open}">${ref}</button>`;
-    assert.ok(page.show('feed').includes(`#1</button> was ${button(was, false, '#1 was')}, is ${button(now, false, 'is')}; see ${button(long, false, 'see')}.`), 'each reference is a button in the text');
+    const prior = (text, ref) => text.slice(0, text.indexOf(ref));
+    const [b1, b2, b3] = [was, now, long].map((ref) => prior(first_, ref));
+    assert.ok(page.show('feed').includes(`#1</button> was ${button(was, false, b1)}, is ${button(now, false, b2)}; see ${button(long, false, b3)}.`), 'each reference is a button in the text');
 
-    await page.click({ code: was, before: '#1 was' });
-    await page.click({ code: now, before: 'is' });
+    await page.click({ code: was, before: b1 });
+    await page.click({ code: now, before: b2 });
     let feed = page.show('feed');
-    assert.ok(feed.includes(button(was, true, '#1 was') + '<span class="code"><span><i>1</i>greeting.html</span></span>'), 'the code as it was at that commit');
-    assert.ok(feed.includes(button(now, true, 'is') + '<span class="code"><span><i>1</i>  hello &lt;b&gt;there&lt;/b&gt;</span><span><i>2</i>    second line</span></span>'), 'escaped, every indent kept');
+    assert.ok(feed.includes(button(was, true, b1) + '<span class="code"><span><i>1</i>greeting.html</span></span>'), 'the code as it was at that commit');
+    assert.ok(feed.includes(button(now, true, b2) + '<span class="code"><span><i>1</i>  hello &lt;b&gt;there&lt;/b&gt;</span><span><i>2</i>    second line</span></span>'), 'escaped, every indent kept');
 
-    await page.click({ code: long, before: 'see' });
+    await page.click({ code: long, before: b3 });
     feed = page.show('feed');
-    const shown = feed.slice(feed.indexOf(button(long, true, 'see')));
+    const shown = feed.slice(feed.indexOf(button(long, true, b3)));
     assert.equal([...shown.matchAll(/<span><i>(\d+)<\/i>line \1<\/span>/g)].length, 60, 'at most sixty lines');
     assert.match(shown, /<i>60<\/i>line 60<\/span><span class="more">the first 60 lines<\/span><\/span>/);
 
     await page.run('seen = ""; refresh()');
-    assert.ok(page.show('feed').includes(button(was, true, '#1 was') + '<span class="code">'), 'a refresh keeps it open');
-    await page.click({ code: was, before: '#1 was' });
-    assert.ok(page.show('feed').includes(button(was, false, '#1 was') + ', is'), 'a second click closes it');
+    assert.ok(page.show('feed').includes(button(was, true, b1) + '<span class="code">'), 'a refresh keeps it open');
+    await page.click({ code: was, before: b1 });
+    assert.ok(page.show('feed').includes(button(was, false, b1) + ', is'), 'a second click closes it');
 
     // A reference is a whole word, never the tail of one: what is no path in the repo says so, and so
-    // does one the words before it may make part of a path with a space, rather than open another file.
+    // does one the text before it may make part of a longer path, however long, rather than open
+    // another file.
+    const b4 = prior(odd, spaced);
+    const b5 = 'web/one two three four five ';
     feed = page.show('feed');
-    assert.ok(feed.includes(`absolute ${button('/' + was, false, 'absolute')} and spaced web/my ${button(spaced, false, 'and spaced web/my')}`));
-    assert.ok(feed.includes(`plus ${button('x+' + spaced, false, 'plus')}`));
-    await page.click({ code: '/' + was, before: 'absolute' });
-    await page.click({ code: spaced, before: 'and spaced web/my' });
-    await page.click({ code: 'x+' + spaced, before: 'plus' });
+    assert.ok(feed.includes(`absolute ${button('/' + was, false, 'absolute ')} and spaced web/my ${button(spaced, false, b4)}`));
+    assert.ok(feed.includes(`plus ${button('x+' + spaced, false, 'plus ')}`));
+    await page.click({ code: '/' + was, before: 'absolute ' });
+    await page.click({ code: spaced, before: b4 });
+    await page.click({ code: 'x+' + spaced, before: 'plus ' });
     await page.click({ code: spaced });
+    await page.click({ code: spaced, before: b5 });
     feed = page.show('feed');
-    assert.ok(feed.includes(button('/' + was, true, 'absolute') + '<span class="code no">[BAD_REF] name a file inside the repo by its path from the top, such as src/serve.js (saw &quot;/web/greeting.html&quot;)</span>'), 'escaped, as every refusal');
-    assert.ok(feed.includes(button('x+' + spaced, true, 'plus') + '<span class="code no">[BAD_REF] name a file inside the repo by its path from the top, such as src/serve.js (saw &quot;x+web/note.txt&quot;)</span>'));
-    assert.ok(feed.includes(button(spaced, true, 'and spaced web/my') + '<span class="code no">[AMBIGUOUS] the words before it may make it &quot;web/my web/note.txt&quot;, a path with a space, which a reference cannot name</span>'));
+    assert.ok(feed.includes(button('/' + was, true, 'absolute ') + '<span class="code no">[BAD_REF] name a file inside the repo by its path from the top, such as src/serve.js (saw &quot;/web/greeting.html&quot;)</span>'), 'escaped, as every refusal');
+    assert.ok(feed.includes(button('x+' + spaced, true, 'plus ') + '<span class="code no">[BAD_REF] name a file inside the repo by its path from the top, such as src/serve.js (saw &quot;x+web/note.txt&quot;)</span>'));
+    assert.ok(feed.includes(button(spaced, true, b4) + '<span class="code no">[AMBIGUOUS] the text before it may make it &quot;web/my web/note.txt&quot;, which a reference cannot name</span>'));
+    assert.ok(feed.includes(button(spaced, true, b5) + '<span class="code no">[AMBIGUOUS] the text before it may make it &quot;web/one two three four five web/note.txt&quot;, which a reference cannot name</span>'), 'however many words the path has');
     assert.ok(feed.includes(button(spaced, true) + '<span class="code"><span><i>1</i>plain note</span></span>'), 'a reference standing alone opens, whatever other files there are');
 
     const ask = async (ref, { root = alpha.repo, key = view.key, before = '' } = {}) => {
       const res = await fetch(`${view.base}/api/code?root=${encodeURIComponent(root)}&ref=${encodeURIComponent(ref)}&before=${encodeURIComponent(before)}`, { headers: { 'x-pullboard-key': key } });
       return [res.status, (await res.json()).error ?? ''];
     };
-    assert.deepEqual(await ask(spaced, { before: 'web/my' }), [400, '[AMBIGUOUS] the words before it may make it "web/my web/note.txt", a path with a space, which a reference cannot name']);
-    assert.deepEqual(await ask(spaced, { before: 'see the' }), [200, ''], 'words that make no file leave it be');
+    assert.deepEqual(await ask(spaced, { before: 'see web/my ' }), [400, '[AMBIGUOUS] the text before it may make it "web/my web/note.txt", which a reference cannot name']);
+    assert.deepEqual(await ask(spaced, { before: 'see the ' }), [200, ''], 'text that makes no file leaves it be');
     const sha = first.slice(0, 7);
     for (const ref of [`../outside.txt:1@${sha}`, `/etc/passwd:1@${sha}`, `web/../../outside.txt:1@${sha}`, `./web/greeting.html:1@${sha}`]) {
       assert.deepEqual(await ask(ref), [400, `[BAD_REF] name a file inside the repo by its path from the top, such as src/serve.js (saw "${ref.split(':')[0]}")`], `${ref} is refused`);
@@ -1398,7 +1410,7 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
     // A refused reference says why where its code would be.
     box.run(alpha.web, 'shout', 'all', `gone: web/greeting.html:7@${sha}`);
     await page.run('refresh()');
-    await page.click({ code: `web/greeting.html:7@${sha}` });
+    await page.click({ code: `web/greeting.html:7@${sha}`, before: 'gone: ' });
     assert.ok(page.show('feed').includes(`<span class="code no">[NO_LINES] web/greeting.html has 1 lines at ${sha}</span>`));
   } finally {
     await view.stop();

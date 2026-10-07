@@ -386,22 +386,14 @@ const stateOf = (i) => i.status === 'claimed' ? 'building' : i.status === 'submi
 const STATES = { building: ['building', 'busy'], verify: ['to verify', 'warn'], back: ['sent back', 'no'], verified: ['verified', 'ok'], open: ['open', ''], withdrawn: ['withdrawn', ''] };
 const chip = (s) => '<span class="chip ' + STATES[s][1] + '">' + STATES[s][0] + '</span>';
 // A shout's path:lines@commit reference (B23): a button, and under it, once opened, that code as it
-// was at that commit, with its line numbers. The words before it go with it, so the view can refuse
-// a reference they may make part of a path with a space.
+// was at that commit, with its line numbers. The text before it on its line goes with it, so the view
+// can refuse a reference that text may make part of a longer path.
 const codeRef = (ref, before) => {
   const c = view.code[view.root + '\\n' + before + '\\n' + ref];
   const open = Boolean(c && c.open);
   const shown = !open ? '' : c.error ? '<span class="code no">' + esc(c.error) + '</span>' : !c.lines ? '<span class="code more">loading…</span>'
     : '<span class="code">' + c.lines.map((line, n) => '<span><i>' + (c.from + n) + '</i>' + esc(line) + '</span>').join('') + (c.more ? '<span class="more">the first ' + c.lines.length + ' lines</span>' : '') + '</span>';
   return '<button class="ref" data-code="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' type="button" aria-expanded="' + open + '">' + esc(ref) + '</button>' + shown;
-};
-// The words written just before a reference that could be part of a path, nearest last, up to four:
-// a path with a space would start among them.
-const wordsBefore = (prior) => {
-  const words = /[ \\t]$/.test(prior) ? prior.split('\\n').pop().trim().split(/[ \\t]+/) : [];
-  const kept = [];
-  while (words.length && kept.length < 4 && /^[^:@()[\\]{}"'\`]+$/.test(words.at(-1))) kept.unshift(words.pop());
-  return kept.join(' ');
 };
 const tone = (s) => s === 'approved' ? 'ok' : s === 'pending' ? 'no' : s === 'draft' ? 'warn' : '';
 const count = (n, one, many = one) => n + ' ' + (n === 1 ? one : many);
@@ -713,7 +705,7 @@ function render() {
   // view refuses what is no path in the repo.
   const titles = new Map(p.items.map((i) => [String(i.id), i.title]));
   const linked = (text) => String(text ?? '').split(/(#\\d+|(?<![^\\s([{"'\`])[^\\s:@()[\\]{}"'\`]+:\\d+(?:-\\d+)?@[0-9a-f]{7,40}(?![^\\s)\\]}"'\`.,;:!?]))/).map((part, n, parts) => {
-    if (n % 2 && part[0] !== '#') return codeRef(part, wordsBefore(parts.slice(0, n).join('')));
+    if (n % 2 && part[0] !== '#') return codeRef(part, parts.slice(0, n).join('').split('\\n').pop().slice(-2000));
     const id = /^#\\d+$/.test(part) ? String(Number(part.slice(1))) : '';
     return titles.has(id) ? '<button class="ref" data-go="item:' + id + '" title="' + esc(titles.get(id)) + '" type="button">' + esc(part) + '</button>' : esc(part);
   }).join('');
