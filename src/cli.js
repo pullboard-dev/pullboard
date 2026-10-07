@@ -110,6 +110,7 @@ Receipts
   pullboard log [id]                    every move, in order
 
 Spec
+  pullboard spec --json                 parsed SPEC.md and PRACTICE.md rows as JSON
   pullboard spec check                  lint SPEC.md and PRACTICE.md
   pullboard spec view [--out file]      the spec, open questions, sign-offs and practice as one page
   pullboard spec show <id> | unmet [--must] | signoff <ids> --by <initials>
@@ -1316,7 +1317,7 @@ function citations(ctx, { ids, since }) {
 }
 
 /**
- * The spec commands: check, show, unmet, signoff.
+ * The spec commands: JSON rows, check, view, show, unmet, signoff.
  *
  * @param {any} io
  * @param {any} args
@@ -1330,20 +1331,27 @@ function specCommand(io, { first, second, rest, values }) {
   if (first === 'check' || first === undefined) {
     const files = [[ctx.config.spec, spec], ...(practice.exists ? [[ctx.config.practice, practice]] : [])];
     let errors = 0;
+    const messages = [];
     for (const [name, parsed] of files) {
       const findings = lintSpec(parsed);
-      findings.forEach((finding) => io.say(`${name}:${finding.line} ${finding.id ?? ''} ${finding.level}: ${finding.message}`.replace('  ', ' ')));
+      findings.forEach((finding) => messages.push(`${name}:${finding.line} ${finding.id ?? ''} ${finding.level}: ${finding.message}`.replace('  ', ' ')));
       const history = committedIds(ctx.info.root, name);
       const cited = name === ctx.config.spec ? citations(ctx, history) : new Map();
       const lost = permanenceProblems(parsed, { committed: history.ids, cited });
-      lost.forEach((problem) => io.say(`${name}: ${problem.id} error: ${problem.message}`));
+      lost.forEach((problem) => messages.push(`${name}: ${problem.id} error: ${problem.message}`));
       const fileErrors = findings.filter((finding) => finding.level === 'error').length + lost.length;
       errors += fileErrors;
-      io.say(`${name}: ${parsed.rows.length} rows, ${fileErrors} errors, ${findings.length + lost.length - fileErrors} warnings`);
+      messages.push(`${name}: ${parsed.rows.length} rows, ${fileErrors} errors, ${findings.length + lost.length - fileErrors} warnings`);
     }
     const unnamed = productProblems(ctx.config, spec);
-    unnamed.forEach((problem) => io.say(`${ctx.config.spec}: error: ${problem}`));
+    unnamed.forEach((problem) => messages.push(`${ctx.config.spec}: error: ${problem}`));
     errors += unnamed.length;
+    if (values.json && !errors) {
+      const rows = files.flatMap(([file, parsed]) => parsed.rows.map(({ id, status, tier, text, gate, serves, section, line }) => (
+        { id, status, tier, text, gate, serves, section, line, file }
+      )));
+      io.say(JSON.stringify({ version: 1, rows }, null, 2));
+    } else messages.forEach((message) => io.say(message));
     return errors ? 1 : 0;
   }
   const signoffs = readSignoffs(ctx.info.root);
@@ -1385,7 +1393,7 @@ function specCommand(io, { first, second, rest, values }) {
     io.say(`signed ${count} rows as ${values.by}; commit .pullboard/signoffs.jsonl`);
     return 0;
   }
-  throw new Refused('USAGE', 'pullboard spec check | view | show <id> | unmet [--must] | signoff <ids> --by <initials>');
+  throw new Refused('USAGE', 'pullboard spec --json | check | view | show <id> | unmet [--must] | signoff <ids> --by <initials>');
 }
 
 /**

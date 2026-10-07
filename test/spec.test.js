@@ -2,9 +2,10 @@
  * The spec (S1–S5): parsing SPEC.md rows, the lint, the frozen criterion and sign-offs.
  */
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import {
   citedIds,
@@ -166,3 +167,101 @@ test('the check command is part of the frozen bar; items without one keep their 
   assert.notEqual(frozenCriterion(parseSpec(SPEC), { ...item, item_check: 'npm test' }).digest, before);
 });
 
+/**
+ * A real repo and board with an isolated registry, so JSON exercises the command's lint and history
+ * checks rather than just serializing the parser. Its files may use the configured names.
+ */
+function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md', practice } = {}) {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-spec-json-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const env = {
+    ...process.env,
+    GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com',
+    GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com',
+    PULLBOARD_HOME: join(root, '.home'),
+  };
+  const git = (...args) => execFileSync('git', args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' });
+  const run = (...args) => spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), 'spec', ...args], { cwd: root, env, encoding: 'utf8' });
+  git('init', '-q', '-b', 'main');
+  const init = spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), 'init'], { cwd: root, env, encoding: 'utf8' });
+  assert.equal(init.status, 0, init.stderr);
+  const config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ ...config, spec: specName, practice: practiceName }));
+  rmSync(join(root, 'SPEC.md'), { force: true });
+  rmSync(join(root, 'PRACTICE.md'), { force: true });
+  writeFileSync(join(root, specName), SPEC);
+  if (practice !== undefined) writeFileSync(join(root, practiceName), practice);
+  git('add', '-A');
+  git('commit', '-q', '-m', 'chore: a spec');
+  return { root, run, git, specName, practiceName };
+}
+
+test('spec --json emits one versioned document with every field, including empty fields [S13]', (t) => {
+  const box = specBox(t);
+  const shown = box.run('--json');
+  assert.equal(shown.status, 0, shown.stderr);
+  const data = JSON.parse(shown.stdout);
+  assert.deepEqual(data, {
+    version: 1,
+    rows: [
+      { id: 'G1', status: 'approved', tier: 'must', text: 'Same file twice is a no-op.', gate: 'idempotency test', serves: [], section: 'G · Goals', line: 6, file: 'SPEC.md' },
+      { id: 'G1.2', status: 'draft', tier: 'aim', text: 'Shows a diff.', gate: '', serves: ['G1'], section: 'G · Goals', line: 7, file: 'SPEC.md' },
+      { id: 'G2', status: 'retired', tier: '', text: 'Old idea.', gate: '', serves: [], section: 'G · Goals', line: 8, file: 'SPEC.md' },
+      { id: 'K1', status: 'approved', tier: 'must', text: 'Runs offline.', gate: 'e2e test', serves: ['G1', 'G1.2'], section: 'K · Constraints', line: 11, file: 'SPEC.md' },
+    ],
+  });
+});
+
+test('spec --json combines both configured files and keeps every row status [S13]', (t) => {
+  const practice = '# Practice\n\n## P · Practice\n- P1 [fact] A fact.\n- P2 [pending, must] A question.\n- P3 [wont] An old plan.\n';
+  const box = specBox(t, { specName: 'requirements.md', practiceName: 'ways.md', practice });
+  const shown = box.run('--json');
+  assert.equal(shown.status, 0, shown.stderr);
+  const data = JSON.parse(shown.stdout);
+  assert.equal(data.version, 1);
+  assert.equal(data.rows.length, 7);
+  assert.ok(data.rows.slice(0, 4).every((row) => row.file === 'requirements.md'));
+  assert.deepEqual(data.rows.slice(4), [
+    { id: 'P1', status: 'fact', tier: '', text: 'A fact.', gate: '', serves: [], section: 'P · Practice', line: 4, file: 'ways.md' },
+    { id: 'P2', status: 'pending', tier: 'must', text: 'A question.', gate: '', serves: [], section: 'P · Practice', line: 5, file: 'ways.md' },
+    { id: 'P3', status: 'wont', tier: '', text: 'An old plan.', gate: '', serves: [], section: 'P · Practice', line: 6, file: 'ways.md' },
+  ]);
+});
+
+test('spec --json refuses errors in either file with the exact spec-check diagnostics and no JSON [S13, S4]', (t) => {
+  const box = specBox(t, { practice: '# Practice\n\n## P\n- P1 [approved, must] No gate.\n' });
+  writeFileSync(join(box.root, box.specName), `${SPEC}\n- K2 [maybe, must] Bad status. | serves: K9\n`);
+  const check = box.run('check');
+  const shown = box.run('--json');
+  assert.equal(check.status, 1);
+  assert.equal(shown.status, 1);
+  assert.equal(shown.stdout, check.stdout);
+  assert.equal(shown.stderr, check.stderr);
+  assert.match(shown.stdout, /status "maybe"/);
+  assert.match(shown.stdout, /serves K9/);
+  assert.match(shown.stdout, /PRACTICE.md:4 P1 error:.*names its gate/);
+  assert.throws(() => JSON.parse(shown.stdout));
+});
+
+test('spec --json also refuses a committed row removed from practice [S13, S8]', (t) => {
+  const box = specBox(t, { practice: '# Practice\n\n## P\n- P1 [fact] Kept forever.\n' });
+  writeFileSync(join(box.root, box.practiceName), '# Practice\n\n## P\n');
+  const check = box.run('check');
+  const shown = box.run('--json');
+  assert.equal(shown.status, 1);
+  assert.equal(shown.stdout, check.stdout);
+  assert.match(shown.stdout, /PRACTICE.md: P1 error:.*ids are permanent/);
+  assert.throws(() => JSON.parse(shown.stdout));
+});
+
+test('warning-only specs keep spec-check success while JSON stays a single document [S13]', (t) => {
+  const box = specBox(t);
+  writeFileSync(join(box.root, box.specName), `${SPEC}\n- K2 [draft] ${'word '.repeat(25)}\n`);
+  const check = box.run('check');
+  assert.equal(check.status, 0, check.stderr);
+  assert.match(check.stdout, /warning: 25 words/);
+  const shown = box.run('--json');
+  assert.equal(shown.status, 0, shown.stderr);
+  assert.equal(JSON.parse(shown.stdout).rows.length, 5);
+});
