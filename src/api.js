@@ -1,5 +1,6 @@
 /** The local API v1: the CLI's moves, persistent board identities and live events (A2). */
 import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import * as store from './board.js';
@@ -7,13 +8,23 @@ import { COORDINATOR, loadConfig } from './config.js';
 import { repoInfo } from './git.js';
 import { refusalDocument } from './json.js';
 import { laneNames } from './lanes.js';
-import { listProjects } from './projects.js';
+import { listProjects, registryFile } from './projects.js';
 import { Refused } from './refused.js';
-import { projectState } from './serve.js';
+import { codeAt, projectState } from './serve.js';
 import { createApiHandler } from './api-http.js';
 
 const ADDRESS = '127.0.0.1';
 const VERSION = 1;
+
+/** Read registry entries without pruning stale roots so the API can report them as warnings. */
+function registeredProjects() {
+  try {
+    const entries = JSON.parse(readFileSync(registryFile(), 'utf8')).projects;
+    return Array.isArray(entries) ? entries.filter((project) => typeof project?.root === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 
 /** Read a registered board and release its SQLite connection on every path. */
 function withBoard(root, read) {
@@ -29,6 +40,21 @@ export function apiBoards(projects = listProjects) {
     try { return [withBoard(project.root, (board) => ({ ...project, id: store.boardId(board) }))]; }
     catch { return []; }
   });
+}
+
+/** List readable registered boards and retain actionable warnings for entries that failed to open. */
+function apiBoardListing(projects = registeredProjects) {
+  const boards = [];
+  const warnings = [];
+  for (const project of projects()) {
+    try {
+      boards.push(withBoard(project.root, (board) => ({ ...project, id: store.boardId(board) })));
+    } catch {
+      const error = new Refused('BOARD_UNAVAILABLE', `registered project ${project.root} cannot be read; restore the repo or run pullboard forget ${project.root}`);
+      warnings.push({ ...project, error: refusalDocument(error) });
+    }
+  }
+  return { boards, warnings };
 }
 
 /** Resolve only registered boards, so a request cannot open an arbitrary path on the machine. */
@@ -144,33 +170,42 @@ function createRequest(root, body) {
   });
 }
 
-/** Serve the RFC 0002 API only on loopback, behind the same session-secret boundary as the view. */
-export function serveApi({ port = 0, secret = randomBytes(18).toString('base64url'), runCommand, projects = listProjects } = {}) {
-  if (typeof runCommand !== 'function') throw new TypeError('serveApi needs the actual CLI entry point as runCommand');
+/** Create the authenticated local adapter used by the HTTP server and other local transports. */
+export function createLocalApiHandler({ secret, getPort, runCommand, projects = registeredProjects } = {}) {
+  if (typeof getPort !== 'function') throw new TypeError('createLocalApiHandler needs a bound-port getter');
+  if (typeof runCommand !== 'function') throw new TypeError('createLocalApiHandler needs the actual CLI entry point as runCommand');
   const key = Buffer.from(secret);
-  let bound;
-  const handler = createApiHandler({
+  return createApiHandler({
     authenticate: (req) => {
       const url = new URL(req.url ?? '/', 'http://' + ADDRESS);
       const authorization = String(req.headers.authorization ?? '');
       const given = Buffer.from(String(req.headers['x-pullboard-key'] ?? (authorization.startsWith('Bearer ') ? authorization.slice(7) : url.searchParams.get('k') ?? '')));
+      const bound = getPort();
       const ownHost = req.headers.host === ADDRESS + ':' + bound || req.headers.host === 'localhost:' + bound;
       if (!ownHost || given.length !== key.length || !timingSafeEqual(given, key)) throw new Refused('AUTH_REQUIRED', 'this API needs its session secret and own host; use the address pullboard serve printed');
       if (req.headers.origin && req.headers.origin !== 'http://' + req.headers.host) throw new Refused('API_ORIGIN', 'use the API from its own origin');
       return { local: true };
     },
-    boards: () => apiBoards(projects),
+    boards: () => apiBoardListing(projects),
     board: (id) => findBoard(id, projects),
-    state: (board) => {
-      const state = projectState(board.root);
+    state: (board, who, seen) => {
+      const state = projectState(board.root, { seen });
       state.board = board.id;
       state.requests = withBoard(board.root, (db) => store.openRequests(db));
       return state;
     },
+    code: (board, ref) => codeAt(board.root, ref),
     events: (board, after) => afterEvents(board.root, after),
     move: (board, body) => executeMove(board.root, body, runCommand),
     request: (board, body) => createRequest(board.root, body),
   });
+}
+
+/** Serve the RFC 0002 API only on loopback, behind the same session-secret boundary as the view. */
+export function serveApi({ port = 0, secret = randomBytes(18).toString('base64url'), runCommand, projects = registeredProjects } = {}) {
+  if (typeof runCommand !== 'function') throw new TypeError('serveApi needs the actual CLI entry point as runCommand');
+  let bound;
+  const handler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, projects });
   const server = createServer(handler);
   server.requestTimeout = 15_000;
   return new Promise((ready, fail) => {
