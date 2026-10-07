@@ -12,6 +12,7 @@ import { Refused } from './refused.js';
 
 export const DEFAULT_RELAY = 'https://app.pullboard.dev';
 const LINK_FILES = new WeakMap();
+const WARNED_COMMANDS = new WeakSet();
 
 /** Require a trusted origin; HTTP exists only for loopback development and test relays. */
 function relayOrigin(address) {
@@ -101,13 +102,14 @@ async function locked(file, work) {
 /** Surface retention notices on the very command that receives them, without exposing credentials. */
 function notices(document, io) {
   const warnings = [document.warning, document.state?.warning, ...(document.warnings ?? [])].filter(Boolean);
-  for (const warning of warnings) if (warning.code === 'BOARD_INACTIVE') {
+  for (const warning of warnings) if (warning.code === 'BOARD_INACTIVE' && !WARNED_COMMANDS.has(io)) {
+    WARNED_COMMANDS.add(io);
     io.err(`pullboard: [BOARD_INACTIVE] ${warning.daysLeft} days left before this relay board is deleted; ${warning.next || 'make a board move before the deadline to keep it'}`);
   }
 }
 
 /** The sole outbound transport in the CLI: explicit sign-in or a saved, opted-in board link. */
-async function request(state, path, { method = 'GET', body } = {}, io) {
+async function request(state, path, { method = 'GET', body, allowMissing = false } = {}, io) {
   let response;
   try {
     response = await fetch(relayOrigin(state.url) + path, {
@@ -119,6 +121,8 @@ async function request(state, path, { method = 'GET', body } = {}, io) {
   let document;
   try { document = await response.json(); } catch { throw new Refused('RELAY_RESPONSE', 'the relay returned an invalid response; retry with the configured relay address'); }
   notices(document, io);
+  // Only off can forget a link after a supported API reports that the board is gone.
+  if (allowMissing && method === 'DELETE' && response.status === 404 && document.version === 1) return { alreadyDeleted: true };
   if (!response.ok) throw new Refused(document.error?.code || 'RELAY_UNAVAILABLE', (document.error?.code === 'AUTH_REQUIRED' ? 'the relay sign-in expired or was revoked; run pullboard relay on to sign in again without changing the board key' : document.error?.message) || 'the relay refused this send; the next command retries it');
   if (document.version !== 1) throw new Refused('RELAY_VERSION', 'the relay API version is unsupported; upgrade Pullboard before syncing');
   return document;
@@ -285,12 +289,14 @@ export async function relayOff(root, io) {
     const state = loadLink(file);
     if (!state) return summary(root, null);
     if (!state.unlinking) {
-      await request(state, '/api/v1/boards/' + state.board, { method: 'DELETE' }, io);
+      const deleted = await request(state, '/api/v1/boards/' + state.board, { method: 'DELETE', allowMissing: true }, io);
+      if (deleted.alreadyDeleted) state.alreadyDeleted = true;
       state.unlinking = true;
       saveLink(file, state);
     }
     forgetBoardKey(state.board, state.keyStorage);
     rmSync(file, { force: true });
-    return { linked: false, board: state.board, url: state.url, link: '', sequence: state.sequence, behind: 0 };
+    return { linked: false, board: state.board, url: state.url, link: '', sequence: state.sequence, behind: 0,
+      ...(state.alreadyDeleted ? { alreadyDeleted: true, notice: 'the relay had already deleted this board; this device is unlinked and the local board is complete' } : {}) };
   });
 }
