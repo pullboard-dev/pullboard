@@ -1164,6 +1164,24 @@ test('verify and escalate take a note from a file, exactly as written [V12]', ()
   assert.match(box.run(box.repo, 'help').out, /--note-file <file>/);
 });
 
+test('the help keeps every command description apart from its usage [N37]', () => {
+  const box = sandbox();
+  const help = box.run(box.dir, 'help').out;
+  const commandLines = help.split('\n').filter((line) => line.startsWith('  pullboard '));
+  for (const line of commandLines) {
+    const hasDescriptionGap = / {2,}\S/.test(line.slice('  pullboard '.length));
+    const usageOnly = /(?:<[^<>]+>|\[[^\[\]]+\]|"[^"]*")$/.test(line);
+    assert.ok(hasDescriptionGap || usageOnly, `command usage runs into its description: ${line}`);
+  }
+  const lines = help.split('\n');
+  const answerLine = lines.findIndex((line) => line.startsWith('  pullboard answer '));
+  const answerDescription = lines[answerLine + 1];
+  assert.ok(
+    answerLine >= 0 && answerDescription?.startsWith(`${' '.repeat(40)}answer your decision;`),
+    'the answer description follows its usage at the description column',
+  );
+});
+
 test('output into a reader that stops early ends quietly [N24]', async () => {
   const box = project();
   for (let n = 0; n < 40; n++) box.run(box.repo, 'add', 'web', `Item ${n}`, '--specs', 'G1');
