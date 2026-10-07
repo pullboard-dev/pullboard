@@ -16,6 +16,7 @@ import { once } from 'node:events';
 import { join, dirname, resolve, basename, delimiter } from 'node:path';
 import { after, test } from 'node:test';
 import { resultCommands } from '../src/cli.js';
+import { EVENT_LOG_VERSION } from '../src/board.js';
 import { JSON_SHAPES } from '../src/json.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -32,6 +33,10 @@ const SPEC = `# API fixture
 ## G · Goals
 - G1 [approved, must] The fixture keeps its board. | gate: true
 `;
+
+test('[A5] append-only event records expose format version one', () => {
+  assert.equal(EVENT_LOG_VERSION, 1);
+});
 
 /** Quote a literal executable path for the fixture hook's POSIX shim. */
 function shellWord(value) {
