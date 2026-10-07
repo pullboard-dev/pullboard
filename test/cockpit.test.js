@@ -233,10 +233,11 @@ function daysOn(days) {
 
 /**
  * Open the page a view serves, at a window width, and wait for its first board; `later` moves the
- * page's clock that many days on, and `store` is its local storage, if it has one. show(id) is
- * what that region holds; click() and type() act as the person would.
+ * page's clock that many days on, and `store` is its local storage, if it has one. With `hold`, the
+ * page's requests wait for release(), so the page shows as it is before its first board. show(id)
+ * is what that region holds; click() and type() act as the person would.
  */
-async function openPage(view, { width = 1280, later = 0, store = null } = {}) {
+async function openPage(view, { width = 1280, later = 0, store = null, hold = false } = {}) {
   const html = await (await fetch(view.link)).text();
   const script = html.slice(html.indexOf('<script>') + '<script>'.length, html.lastIndexOf('</script>'));
   const known = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
@@ -255,6 +256,11 @@ async function openPage(view, { width = 1280, later = 0, store = null } = {}) {
     querySelectorAll: (selector) => (selector === '[data-ago]' ? [...elements.values()].flatMap(ageNodes) : []),
     addEventListener: (type, listener) => { if (type === 'click') clicks.push(listener); },
   };
+  // The body starts with the classes its markup gives it, as at first paint.
+  for (const name of (/<body class="([^"]*)">/.exec(html)?.[1] ?? '').split(' ').filter(Boolean)) document.body.classList.add(name);
+  let release = () => {};
+  const held = new Promise((done) => { release = done; });
+  if (!hold) release();
   const context = vm.createContext({
     document,
     location: { search: `?k=${view.key}` },
@@ -268,7 +274,7 @@ async function openPage(view, { width = 1280, later = 0, store = null } = {}) {
     setTimeout,
     clearTimeout,
     fetch: (path, init) => {
-      const answer = fetch(`${view.base}${path}`, init).then(async (res) => {
+      const answer = held.then(() => fetch(`${view.base}${path}`, init)).then(async (res) => {
         const body = await res.json();
         return { ok: res.ok, status: res.status, json: async () => body };
       });
@@ -279,9 +285,14 @@ async function openPage(view, { width = 1280, later = 0, store = null } = {}) {
     },
   });
   vm.runInContext(script, context);
-  await settle(inflight);
+  if (!hold) await settle(inflight);
   return {
     html,
+    // Let the held requests go, and wait for what they bring.
+    async release() {
+      release();
+      await settle(inflight);
+    },
     show: (id) => node(id).innerHTML,
     element: node,
     run: (code) => vm.runInContext(code, context),
@@ -1169,41 +1180,43 @@ test('a new item from the view can carry a brief [N27]', async () => {
     await view.stop();
   }
 });
-test('starting a board shows it [N27]', async () => {
+test('a machine with no board says how to start one [N26]', async () => {
   const box = machine();
-  project(box, 'alpha');
-  const fresh = join(box.dir, 'fresh');
-  mkdirSync(fresh);
-  box.git(fresh, 'init', '-q', '-b', 'main');
-  writeFileSync(join(fresh, 'README.md'), '# Fresh\n');
-  box.git(fresh, 'add', '-A');
-  box.git(fresh, 'commit', '-q', '-m', 'chore: start');
-  const plain = join(box.dir, 'plain');
-  mkdirSync(plain);
   const view = await startView(box);
   try {
     const page = await openPage(view);
-    // The page's timers, held by the test, so a pending close shows.
-    page.run('globalThis.closes = []; globalThis.setTimeout = (run, ms) => closes.push({ run, ms, live: true }); globalThis.clearTimeout = (id) => { if (closes[id - 1]) closes[id - 1].live = false; };');
-    const start = async (path) => {
-      page.element('init-path').value = path;
-      await page.fire('init-form', 'submit');
-    };
-    const out = page.element('console');
+    const style = page.html.slice(page.html.indexOf('<style>'), page.html.indexOf('</style>'));
+    // Agents start boards, so the view offers no form for it.
+    assert.doesNotMatch(page.html, /init-form|init-path|Start a board|<details/, 'no form to start a board');
+    assert.doesNotMatch(style, /\.start\b/);
 
-    await start(plain);
-    assert.equal(out.className, 'console no', 'init refuses a folder that is no git repo');
-    assert.equal(page.element('proj-name').textContent, 'alpha', 'and the view stays where it was');
+    const classes = (on) => ['loading', 'boardless'].filter((name) => on.run(`document.body.classList.contains('${name}')`));
+    assert.deepEqual(classes(page), ['boardless'], 'with no board, the board steps aside');
+    assert.match(style, /\n\.first \{ display: none;[^}]*\}\n(?:\.first [^\n]*\n)*\.boardless \.first \{ display: block; \}\n\.loading \.top, \.loading \[data-pane\], \.boardless \.top, \.boardless \[data-pane\] \{ display: none; \}\n/, 'its bar of tabs and its panes hide, and the message shows');
 
-    await start(fresh);
-    assert.equal(out.className, 'console ok');
-    assert.match(out.textContent, /^\$ pullboard init\n[^]*\nnext: /, 'the output ends with what to do next');
-    assert.equal(out.hidden, false);
-    assert.ok(JSON.parse(page.run('JSON.stringify(closes.map((close) => close.live))')).every((live) => !live), 'and no close is pending, so it stays');
-    assert.equal(page.element('init-path').value, '');
-    assert.equal(page.element('proj-name').textContent, 'fresh', 'the view shows the board just started');
-    assert.deepEqual(projectRows(page.show('proj-list')).map((row) => [row.name, row.current]), [['alpha', false], ['fresh', true]]);
-    assert.match(page.show('chain'), /No items yet/, 'its own empty board');
+    // Until the first board arrives the page shows none of a board, so a slow start flashes nothing.
+    assert.match(page.html, /\n<body class="loading">\n/, 'the page starts loading');
+    const early = await openPage(view, { hold: true });
+    assert.deepEqual(classes(early), ['loading'], 'and stays so while the first answer is on its way');
+    await early.release();
+    assert.deepEqual(classes(early), ['boardless'], 'then the message takes the place of the board');
+    assert.match(page.html, /<main>\n {2}<section class="card-panel first">\n {4}<h2>No boards yet<\/h2>\n {4}<p>Run <code>pullboard init<\/code> in a git repo, or ask an agent to\. Its board shows up here by itself\.<\/p>\n {2}<\/section>\n/, 'the message says how a board starts');
+    assert.equal(page.show('proj-list'), '<div class="empty">None yet.</div>');
+    assert.equal(page.element('products').hidden, true);
+
+    // A board started meanwhile shows up on the next refresh, with no reload.
+    project(box, 'alpha');
+    await page.run('refresh()');
+    assert.equal(page.run("document.body.classList.contains('boardless')"), false, 'a board shows its tabs and panes');
+    assert.equal(page.element('proj-name').textContent, 'alpha');
+    assert.deepEqual(projectRows(page.show('proj-list')).map((row) => [row.name, row.current]), [['alpha', true]]);
+
+    // A view that cannot be reached says so in the bar it shows, rather than show nothing at all.
+    const lost = await openPage(view, { hold: true });
+    await view.stop();
+    await lost.release();
+    assert.deepEqual(classes(lost), []);
+    assert.match(lost.element('live').textContent, /^cannot reach the view: /);
   } finally {
     await view.stop();
   }
