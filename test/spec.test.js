@@ -3,7 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -175,8 +175,13 @@ test('the check command is part of the frozen bar; items without one keep their 
 function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md', practice } = {}) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-spec-json-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
+  const bin = join(root, '.bin');
+  mkdirSync(bin);
+  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${resolve(import.meta.dirname, '../bin/pullboard.js')}" "$@"\n`);
+  chmodSync(join(bin, 'pullboard'), 0o755);
   const env = {
     ...process.env,
+    PATH: `${bin}:${process.env.PATH}`,
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com',
     GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com',
