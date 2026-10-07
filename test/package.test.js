@@ -188,7 +188,7 @@ test('the import scan finds a package however it is imported, and nothing that i
 
 test('every import is a node: built-in or a relative file [P3]', () => {
   const files = [
-    ...readdirSync(join(ROOT, 'src')).map((name) => join(ROOT, 'src', name)),
+    ...readdirSync(join(ROOT, 'src')).filter((name) => /\.m?js$/.test(name)).map((name) => join(ROOT, 'src', name)),
     join(ROOT, 'bin', 'pullboard.js'),
   ];
   const found = importsIn(files.map((file) => readFileSync(file, 'utf8')));
