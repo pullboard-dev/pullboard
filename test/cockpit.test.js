@@ -6,7 +6,8 @@
  */
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
@@ -119,6 +120,13 @@ async function startView(box) {
     child.kill('SIGTERM');
   });
   return { link, key: link.searchParams.get('k'), base: `http://127.0.0.1:${link.port}`, stop };
+}
+
+/**
+ * The page's stylesheet as the view serves it, behind its secret.
+ */
+async function styleOf(view) {
+  return (await fetch(`${view.base}/view.css`, { headers: { 'x-pullboard-key': view.key } })).text();
 }
 
 /**
@@ -345,8 +353,9 @@ test('the sidebar lists every project and what needs the person [N26]', async ()
     const side = page.html.slice(page.html.indexOf('<aside class="side"'), page.html.indexOf('</aside>'));
     assert.match(side, /<nav id="proj-list"/, 'the project rows sit in the sidebar');
     for (const opening of side.match(/<(aside|div|nav)\b[^>]*>/g)) assert.doesNotMatch(opening, /\bhidden\b/, `${opening} shows without opening anything`);
-    assert.match(page.html, /\.shell \{ display: grid; grid-template-columns: var\(--side-w\) minmax\(0, 1fr\);/, 'a sidebar column beside the main one');
-    assert.match(page.html, /@media \(max-width: 900px\) \{[^@]*\.side-body \{ display: none;[^@]*\.side\.open \.side-body \{ display: grid; \}/, 'under 900px the list folds behind the project button');
+    const style = await styleOf(view);
+    assert.match(style, /\.shell \{ display: grid; grid-template-columns: var\(--side-w\) minmax\(0, 1fr\);/, 'a sidebar column beside the main one');
+    assert.match(style, /@media \(max-width: 900px\) \{[^@]*\.side-body \{ display: none;[^@]*\.side\.open \.side-body \{ display: grid; \}/, 'under 900px the list folds behind the project button');
 
     assert.deepEqual(projectRows(page.show('proj-list')), [
       { root: alpha.repo, name: 'alpha', needs: '2', line: '1 sent back · 1 to verify', current: true },
@@ -376,7 +385,7 @@ test('the tabs fit one row on a phone [N26]', async () => {
   const view = await startView(machine());
   try {
     const html = await (await fetch(view.link)).text();
-    const style = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+    const style = await styleOf(view);
     const phone = /@media \(width < 480px\) \{\n([^@]*?)\n\}/.exec(style)?.[1] ?? '';
     assert.doesNotMatch(style, /max-width: 480px/, 'at 480px itself the tabs keep their row');
     assert.match(phone, /\.tabs \{ flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: minmax\(0, 1fr\);/, 'under 480px the tabs share the bar in equal columns');
@@ -394,7 +403,7 @@ test('the view has a light and a dark theme to choose [N26]', async () => {
   try {
     const store = storage();
     const page = await openPage(view, { store });
-    const style = page.html.slice(page.html.indexOf('<style>'), page.html.indexOf('</style>'));
+    const style = await styleOf(view);
     const tokens = /\n:root \{\n([^}]*)\n\}\n/.exec(style)?.[1] ?? '';
     // One list of tokens: every colour in it holds a light and a dark value.
     const colours = [...tokens.matchAll(/(--[a-z0-9-]+): ([^;]*(?:#[0-9a-f]{3,8}|rgba?\()[^;]*);/g)];
@@ -430,7 +439,7 @@ function productEntries(html) {
   return html.split('<div class="prod"').slice(1).map((entry) => ({
     name: /<b>([^<]*)<\/b>/.exec(entry)?.[1],
     met: /<span>([^<]*) rows met<\/span>/.exec(entry)?.[1],
-    bar: Number(/<i style="width:(\d+)%">/.exec(entry)?.[1]),
+    bar: Number(/<rect width="(\d+)" height="1"\/>/.exec(entry)?.[1]),
     items: [...entry.matchAll(/<span><i class="dot ([a-z]*)"><\/i>(\d+) ([a-z ]+)<\/span>/g)].map((match) => `${match[2]} ${match[3]} (${match[1] || 'grey'})`),
   }));
 }
@@ -864,7 +873,7 @@ test('no box carries a coloured edge [N26]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
-    const style = page.html.slice(page.html.indexOf('<style>'), page.html.indexOf('</style>'));
+    const style = await styleOf(view);
     // Every border drawn on one side of a box is nothing, or a 1px divider in the neutral line colour.
     const sides = [...style.matchAll(/border-(?:top|bottom|left|right|inline|block)[a-z-]*:\s*([^;}]+)/g)].map((match) => match[0].trim());
     assert.ok(sides.length > 0);
@@ -874,6 +883,40 @@ test('no box carries a coloured edge [N26]', async () => {
     await page.click({ go: 'item:1' });
     assert.match(page.show('detail'), /<div class="verdict no"><b>REJECT BEHAVIOR_MISMATCH<\/b>/, 'a verdict says what it decided');
     assert.match(style, /\.verdict\.yes b \{ color: var\(--accent-strong\); \} \.verdict\.no b \{ color: var\(--reject\); \}/, 'in the colour of its word, not a bar');
+  } finally {
+    await view.stop();
+  }
+});
+test("the view's styles live in their own file [N26]", async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha', SPEC, { products: { Pages: ['G1', 'G2'] } });
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  build(box, alpha, 1, 'greeting.html');
+  accept(box, alpha, 1);
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    assert.doesNotMatch(page.html, /<style|style=/, 'the page holds no styles');
+    assert.match(page.html, new RegExp(`\n<link rel="stylesheet" href="/view\\.css\\?k=${view.key}">\n`), 'it links its own, with the secret');
+    const css = await fetch(`${view.base}/view.css?k=${view.key}`);
+    assert.equal(css.status, 200);
+    assert.equal(css.headers.get('content-type'), 'text/css; charset=utf-8');
+    assert.equal(await css.text(), readFileSync(new URL('../src/view.css', import.meta.url), 'utf8'), 'src/view.css, as it is');
+    assert.equal((await fetch(`${view.base}/view.css`)).status, 403, 'nothing without the secret');
+    const stranger = await new Promise((done, fail) => {
+      request({ host: '127.0.0.1', port: view.link.port, path: `/view.css?k=${view.key}`, headers: { host: 'pullboard.example' } }, (res) => done(res.statusCode)).on('error', fail).end();
+    });
+    assert.equal(stranger, 403, 'nor under another Host');
+    const policy = (await fetch(view.link)).headers.get('content-security-policy');
+    assert.equal(/(?:^|; )style-src ([^;]*)/.exec(policy)?.[1], "'self'", 'styles come from the view alone, never inline');
+
+    // Nothing the script draws carries a style either: products, the list, a picked item, a spec row.
+    await page.click({ go: 'item:1' });
+    await page.click({ row: 'spec:G1' });
+    assert.match(page.show('prod-list'), /<svg class="bar" viewBox="0 0 100 1" preserveAspectRatio="none" aria-hidden="true"><rect width="50" height="1"\/><\/svg>/, 'a product bar is drawn, half full');
+    for (const id of [...page.html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1])) {
+      assert.doesNotMatch(page.show(id), /style=/, `#${id} holds no style`);
+    }
   } finally {
     await view.stop();
   }
@@ -1289,7 +1332,7 @@ test('a machine with no board says how to start one [N26]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
-    const style = page.html.slice(page.html.indexOf('<style>'), page.html.indexOf('</style>'));
+    const style = await styleOf(view);
     // Agents start boards, so the view offers no form for it.
     assert.doesNotMatch(page.html, /init-form|init-path|Start a board|<details/, 'no form to start a board');
     assert.doesNotMatch(style, /\.start\b/);
@@ -1419,7 +1462,7 @@ test('spec rows read across a phone [N26]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view, { width: 375 });
-    const style = page.html.slice(page.html.indexOf('<style>'), page.html.indexOf('</style>'));
+    const style = await styleOf(view);
     assert.match(style, /\n\.srow \{ display: grid; grid-template-columns: 4\.4em 6\.2em minmax\(0, 1fr\);/, 'wider, a row keeps its three columns');
     const phone = /\n@media ([^{]+) \{ \.srow \{ grid-template-columns: auto minmax\(0, 1fr\); \} \.srow > span:last-child \{ grid-column: 1 \/ -1; \} \}\n/.exec(style);
     assert.ok(phone, 'on a phone the text takes the full width below the id and status');
@@ -1553,7 +1596,7 @@ test('an empty feed says so on one line [N26]', async () => {
     assert.equal(page.show('feed'), '<div class="empty">No shouts yet.</div>');
     assert.match(page.html, /<div class="card-panel feed" id="feed"><\/div>/, 'the shouts feed');
     assert.match(page.html, /<div class="card-panel feed" id="activity"><\/div>/, 'and the activity feed are both feeds');
-    const style = page.html.slice(page.html.indexOf('<style>'), page.html.indexOf('</style>'));
+    const style = await styleOf(view);
     assert.match(style, /\n\.feed > div \{ display: grid; grid-template-columns: 4\.6em minmax\(0, 1fr\);[^\n]*\n\.feed > \.empty \{ display: block; \}\n/, 'a feed row has a time column; its empty note takes the whole width');
   } finally {
     await view.stop();
@@ -1593,7 +1636,7 @@ test('activity names the item each event moved [N26]', async () => {
     for (const row of about) assert.match(row, /type="button">#1<\/button> <span class="what">Greeting &lt;b&gt;bold&lt;\/b&gt;<\/span><\/div>/, 'the escaped title follows the link');
     const joins = rows.filter((row) => /<\/b> join<\/div>/.test(row));
     assert.ok(joins.length > 0 && joins.every((row) => !row.includes('class="what"')), 'an event about no item names none');
-    assert.match(page.html, /\.feed \.act \.what \{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/, 'a long title keeps to one line');
+    assert.match(await styleOf(view), /\.feed \.act \.what \{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/, 'a long title keeps to one line');
   } finally {
     await view.stop();
   }
@@ -1609,7 +1652,7 @@ test('needs-you lines keep their titles on a phone [N26]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view, { width: 375 });
-    const style = page.html.slice(page.html.indexOf('<style>'), page.html.indexOf('</style>'));
+    const style = await styleOf(view);
     assert.match(style, /\n\.ny \{ display: grid; grid-template-columns: auto minmax\(5em, 1fr\) minmax\(0, max-content\);/, 'wider, a line keeps its single row');
     assert.match(style, /\n@media \(width < 480px\) \{ \.ny \{ grid-template-columns: auto minmax\(0, 1fr\); row-gap: 1px; \} \.ny em \{ grid-column: 2; \} \}\n/, 'under 480px, what it needs moves under the title');
     // The rule works because each line is the ref, then the title, then what it needs.
