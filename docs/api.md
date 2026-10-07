@@ -95,6 +95,8 @@ The result and refusal tables are checked against `JSON_SHAPES` in `src/json.js`
 
 Run `pullboard serve --port 0` to print a private API address on `127.0.0.1`. Authenticate each call with the address's `k` query parameter, an `X-Pullboard-Key` header, or `Authorization: Bearer <key>`. The secret belongs to that server session. Board ids are random 128-bit values stored in each board; reopening or moving a repo preserves its id.
 
+The server checks any Origin against its own address and grants no CORS permission. JSON request bodies are limited to 100000 bytes; oversized bodies are drained and refused without applying a partial move. A missing or invalid registered folder is skipped so the other readable boards stay available.
+
 | Method and path | Result |
 | --- | --- |
 | `GET /api/v1/boards` | Registered boards with their project details and ids |
@@ -123,5 +125,7 @@ The SQLite schema marker is now `PRAGMA user_version = 2`. Opening an older boar
 A request body is `{text}`. It creates a request from the person to the coordinator. Open requests stay first in coordinator `resume` and `inbox` until answered `done`, or `declined` with a reason, and do not count as open decisions.
 
 For live events, send `Accept: text/event-stream` to the events path. Each message's `id` is its event sequence and its `data` has the `stream` shape above. Reconnect with `Last-Event-ID` to resume after that sequence; it takes precedence over `after`.
+
+The local server uses a shared HTTP router. Streams recheck access before each poll and close with a versioned refusal if access ends. Slow readers pause delivery and resume from the last delivered sequence.
 
 HTTP refusals use the same versioned error envelope above: 400 for malformed calls, 401 for a missing or wrong session secret, 403 for an agent belonging to another board, 404 for an unknown board or path, and 409 for the CLI engine's refusal. Shouts and answers append their events in the same transaction as their records. A move returns its own event, including when it also sends a coordinator shout.

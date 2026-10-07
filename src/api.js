@@ -10,56 +10,37 @@ import { laneNames } from './lanes.js';
 import { listProjects } from './projects.js';
 import { Refused } from './refused.js';
 import { projectState } from './serve.js';
+import { createApiHandler } from './api-http.js';
 
 const ADDRESS = '127.0.0.1';
 const VERSION = 1;
-const BODY_BYTES = 100_000;
 
 /** Read a registered board and release its SQLite connection on every path. */
 function withBoard(root, read) {
   const info = repoInfo(root);
+  loadConfig(info.root);
   const board = store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'));
   try { return read(board, info); } finally { store.closeBoard(board); }
 }
 
 /** Registered boards carry one persistent identity across local and relay addresses. */
-export function apiBoards() {
-  return listProjects().map((project) => withBoard(project.root, (board) => ({ ...project, id: store.boardId(board) })));
+export function apiBoards(projects = listProjects) {
+  return projects().flatMap((project) => {
+    try { return [withBoard(project.root, (board) => ({ ...project, id: store.boardId(board) }))]; }
+    catch { return []; }
+  });
 }
 
 /** Resolve only registered boards, so a request cannot open an arbitrary path on the machine. */
-function findBoard(id) {
-  const board = apiBoards().find((entry) => entry.id === id);
+function findBoard(id, projects) {
+  const board = apiBoards(projects).find((entry) => entry.id === id);
   if (!board) throw new Refused('NO_BOARD', `no registered board ${id}; run pullboard serve in its repo and use GET /api/v1/boards`);
   return board;
-}
-
-/** A decimal event cursor never skips records through coercion or unsafe integer rounding. */
-function eventCursor(value) {
-  if (value === null || value === undefined || value === '') return 0;
-  if (!/^\d+$/.test(String(value)) || !Number.isSafeInteger(Number(value))) throw new Refused('BAD_CURSOR', 'after and Last-Event-ID need a nonnegative integer; use the last event id received');
-  return Number(value);
 }
 
 /** Read events in sequence, including changes made by other processes on the same board. */
 function afterEvents(root, after) {
   return withBoard(root, (board) => board.db.prepare('SELECT * FROM event WHERE event_id > ? ORDER BY event_id').all(after));
-}
-
-/** Only JSON objects within the byte limit may become move arguments. */
-async function readBody(req) {
-  if (!String(req.headers['content-type'] ?? '').startsWith('application/json')) throw new Refused('BAD_REQUEST', 'send an application/json object as the request body');
-  const chunks = [];
-  let size = 0;
-  for await (const chunk of req) {
-    size += chunk.length;
-    if (size > BODY_BYTES) throw new Refused('BAD_REQUEST', `the body exceeds ${BODY_BYTES} bytes; send one move or request at a time`);
-    chunks.push(chunk);
-  }
-  let body;
-  try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw new Refused('BAD_REQUEST', 'the body is not JSON; send an application/json object'); }
-  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Refused('BAD_REQUEST', 'the body needs a JSON object; send one move or request at a time');
-  return body;
 }
 
 /** Resolve an authenticated local caller's agent to its own checkout, never another board. */
@@ -163,72 +144,35 @@ function createRequest(root, body) {
   });
 }
 
-/** Keep an event stream open and resume from either supported cursor, releasing it on disconnect. */
-function streamEvents(root, after, res, streams) {
-  res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive', 'x-content-type-options': 'nosniff' });
-  res.write(': API v1\n\n');
-  let cursor = after;
-  const send = () => {
-    try {
-      for (const event of afterEvents(root, cursor)) {
-        res.write(`id: ${event.event_id}\ndata: ${JSON.stringify({ version: VERSION, event })}\n\n`);
-        cursor = event.event_id;
-      }
-    } catch (error) {
-      res.write(`event: error\ndata: ${JSON.stringify(refusalDocument(error))}\n\n`);
-      res.end();
-    }
-  };
-  const timer = setInterval(send, 200);
-  timer.unref();
-  streams.add(res);
-  res.once('close', () => { clearInterval(timer); streams.delete(res); });
-  send();
-}
-
 /** Serve the RFC 0002 API only on loopback, behind the same session-secret boundary as the view. */
-export function serveApi({ port = 0, secret = randomBytes(18).toString('base64url'), runCommand } = {}) {
+export function serveApi({ port = 0, secret = randomBytes(18).toString('base64url'), runCommand, projects = listProjects } = {}) {
   if (typeof runCommand !== 'function') throw new TypeError('serveApi needs the actual CLI entry point as runCommand');
   const key = Buffer.from(secret);
-  const streams = new Set();
   let bound;
-  const json = (res, status, body) => {
-    res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer', 'x-content-type-options': 'nosniff' });
-    res.end(JSON.stringify(body));
-  };
-  const server = createServer(async (req, res) => {
-    try {
-      const url = new URL(req.url ?? '/', `http://${ADDRESS}`);
+  const handler = createApiHandler({
+    authenticate: (req) => {
+      const url = new URL(req.url ?? '/', 'http://' + ADDRESS);
       const authorization = String(req.headers.authorization ?? '');
       const given = Buffer.from(String(req.headers['x-pullboard-key'] ?? (authorization.startsWith('Bearer ') ? authorization.slice(7) : url.searchParams.get('k') ?? '')));
-      const ownHost = req.headers.host === `${ADDRESS}:${bound}` || req.headers.host === `localhost:${bound}`;
-      if (!ownHost || given.length !== key.length || !timingSafeEqual(given, key)) return json(res, 401, refusalDocument(new Refused('AUTH_REQUIRED', 'this API needs its session secret and own host; use the address pullboard serve printed')));
-      if (req.method === 'GET' && url.pathname === '/api/v1/boards') return json(res, 200, { version: VERSION, boards: apiBoards() });
-      const route = /^\/api\/v1\/boards\/([^/]+)\/(state|events|moves|requests)$/.exec(url.pathname);
-      if (!route) return json(res, 404, refusalDocument(new Refused('NO_ENDPOINT', 'no API v1 endpoint here; use /api/v1/boards and a board state, events, moves or requests path')));
-      const board = findBoard(route[1]);
-      if (req.method === 'GET' && route[2] === 'state') {
-        const state = projectState(board.root);
-        state.requests = withBoard(board.root, (db) => store.openRequests(db));
-        return json(res, 200, { version: VERSION, state });
-      }
-      if (req.method === 'GET' && route[2] === 'events') {
-        const after = eventCursor(req.headers['last-event-id'] ?? url.searchParams.get('after'));
-        if (String(req.headers.accept ?? '').includes('text/event-stream')) return streamEvents(board.root, after, res, streams);
-        return json(res, 200, { version: VERSION, events: afterEvents(board.root, after) });
-      }
-      if (req.method === 'POST' && route[2] === 'moves') {
-        const moved = await executeMove(board.root, await readBody(req), runCommand);
-        return json(res, moved.status, moved.body);
-      }
-      if (req.method === 'POST' && route[2] === 'requests') return json(res, 200, createRequest(board.root, await readBody(req)));
-      return json(res, 400, refusalDocument(new Refused('BAD_REQUEST', `use the documented method for ${route[2]}; reads use GET and moves and requests use POST`)));
-    } catch (error) {
-      const status = error.code === 'NO_BOARD' ? 404 : error instanceof Refused ? 400 : 500;
-      if (!res.headersSent) json(res, status, refusalDocument(error));
-      else res.end();
-    }
+      const ownHost = req.headers.host === ADDRESS + ':' + bound || req.headers.host === 'localhost:' + bound;
+      if (!ownHost || given.length !== key.length || !timingSafeEqual(given, key)) throw new Refused('AUTH_REQUIRED', 'this API needs its session secret and own host; use the address pullboard serve printed');
+      if (req.headers.origin && req.headers.origin !== 'http://' + req.headers.host) throw new Refused('API_ORIGIN', 'use the API from its own origin');
+      return { local: true };
+    },
+    boards: () => apiBoards(projects),
+    board: (id) => findBoard(id, projects),
+    state: (board) => {
+      const state = projectState(board.root);
+      state.board = board.id;
+      state.requests = withBoard(board.root, (db) => store.openRequests(db));
+      return state;
+    },
+    events: (board, after) => afterEvents(board.root, after),
+    move: (board, body) => executeMove(board.root, body, runCommand),
+    request: (board, body) => createRequest(board.root, body),
   });
+  const server = createServer(handler);
+  server.requestTimeout = 15_000;
   return new Promise((ready, fail) => {
     server.once('error', (error) => fail(new Refused(error.code === 'EADDRINUSE' ? 'PORT_BUSY' : 'API_LISTEN', `cannot listen on ${ADDRESS}:${port}: ${error.message}; run pullboard serve --port 0 to choose a free port`)));
     server.listen(port, ADDRESS, () => {
@@ -236,7 +180,7 @@ export function serveApi({ port = 0, secret = randomBytes(18).toString('base64ur
       ready({
         url: `http://${ADDRESS}:${bound}/api/v1/boards?k=${secret}`,
         port: bound,
-        close: () => new Promise((closed) => { for (const stream of streams) stream.end(); server.close(() => closed()); server.closeIdleConnections(); }),
+        close: () => new Promise((closed) => { handler.close(); server.close(() => closed()); server.closeIdleConnections(); }),
       });
     });
   });
