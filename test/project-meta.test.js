@@ -1,7 +1,7 @@
 /** Project metadata and registry lifecycle (N33, N35, N36). */
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -14,7 +14,11 @@ function fleet(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-cross-repo-')));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const home = join(dir, 'home');
-  const env = { ...process.env, PULLBOARD_HOME: home, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com', GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com' };
+  const bin = join(dir, '.bin');
+  mkdirSync(bin);
+  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`);
+  chmodSync(join(bin, 'pullboard'), 0o755);
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, HOME: home, PULLBOARD_HOME: home, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com', GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com' };
   const prior = process.env.PULLBOARD_HOME;
   process.env.PULLBOARD_HOME = home;
   t.after(() => { if (prior === undefined) delete process.env.PULLBOARD_HOME; else process.env.PULLBOARD_HOME = prior; });

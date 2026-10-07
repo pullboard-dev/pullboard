@@ -3,7 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -175,8 +175,13 @@ test('the check command is part of the frozen bar; items without one keep their 
 function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md', practice } = {}) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-spec-json-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
+  const bin = join(root, '.bin');
+  mkdirSync(bin);
+  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${resolve(import.meta.dirname, '../bin/pullboard.js')}" "$@"\n`);
+  chmodSync(join(bin, 'pullboard'), 0o755);
   const env = {
     ...process.env,
+    PATH: `${bin}:${process.env.PATH}`,
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com',
     GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com',
@@ -233,19 +238,22 @@ test('spec --json combines both configured files and keeps every row status [S13
   ]);
 });
 
-test('spec --json refuses errors in either file with the exact spec-check diagnostics and no JSON [S13, S4]', (t) => {
+test('spec --json refuses errors in either file with versioned spec-check diagnostics [S13, S4, A1]', (t) => {
   const box = specBox(t, { practice: '# Practice\n\n## P\n- P1 [approved, must] No gate.\n' });
   writeFileSync(join(box.root, box.specName), `${SPEC}\n- K2 [maybe, must] Bad status. | serves: K9\n`);
   const check = box.run('check');
   const shown = box.run('--json');
   assert.equal(check.status, 1);
   assert.equal(shown.status, 1);
-  assert.equal(shown.stdout, check.stdout);
+  const document = JSON.parse(shown.stdout);
+  assert.equal(document.version, 1);
+  assert.equal(document.error.message, check.stdout.trim());
+  assert.equal(typeof document.error.next, 'string');
   assert.equal(shown.stderr, check.stderr);
-  assert.match(shown.stdout, /status "maybe"/);
-  assert.match(shown.stdout, /serves K9/);
-  assert.match(shown.stdout, /PRACTICE.md:4 P1 error:.*names its gate/);
-  assert.throws(() => JSON.parse(shown.stdout));
+  assert.match(document.error.message, /status "maybe"/);
+  assert.match(document.error.message, /serves K9/);
+  assert.match(document.error.message, /PRACTICE.md:4 P1 error:.*names its gate/);
+  assert.equal(document.error.code, 'COMMAND_FAILED');
 });
 
 test('spec --json also refuses a committed row removed from practice [S13, S8]', (t) => {
@@ -254,9 +262,12 @@ test('spec --json also refuses a committed row removed from practice [S13, S8]',
   const check = box.run('check');
   const shown = box.run('--json');
   assert.equal(shown.status, 1);
-  assert.equal(shown.stdout, check.stdout);
+  const document = JSON.parse(shown.stdout);
+  assert.equal(document.version, 1);
+  assert.equal(document.error.message, check.stdout.trim());
+  assert.equal(typeof document.error.next, 'string');
   assert.match(shown.stdout, /PRACTICE.md: P1 error:.*ids are permanent/);
-  assert.throws(() => JSON.parse(shown.stdout));
+  assert.equal(document.error.code, 'COMMAND_FAILED');
 });
 
 test('warning-only specs keep spec-check success while JSON stays a single document [S13]', (t) => {
@@ -312,25 +323,27 @@ test('signoff refuses a flag it does not take [P4]', (t) => {
   assert.match(unsupported.stderr, /FLAG_NOT_ALLOWED.*spec signoff.*--must/);
 });
 
-test('spec view handles --json or refuses it instead of silently ignoring it [P4]', (t) => {
+test('spec view emits JSON and refuses an unsupported flag before writing [S13, P4]', (t) => {
   const box = specBox(t);
   const htmlFile = join(box.root, 'requested-spec.html');
-  const jsonAdapter = existsSync(resolve(import.meta.dirname, '../src/json.js'));
   const result = box.run('view', '--json', '--out', htmlFile);
 
-  if (jsonAdapter) {
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stderr, '');
-    const document = JSON.parse(result.stdout);
-    assert.equal(document.version, 1);
-    assert.equal(document.path, htmlFile);
-    assert.ok(existsSync(htmlFile));
-    return;
-  }
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  const document = JSON.parse(result.stdout);
+  assert.equal(document.version, 1);
+  assert.equal(document.path, htmlFile);
+  assert.ok(existsSync(htmlFile));
 
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /FLAG_NOT_ALLOWED.*spec view does not take --json/);
-  assert.equal(existsSync(htmlFile), false, 'refusal happens before creating the HTML output');
+  const refusedFile = join(box.root, 'refused-spec.html');
+  const refused = box.run('view', '--json', '--must', '--out', refusedFile);
+  assert.equal(refused.status, 1);
+  assert.equal(refused.stderr, '');
+  const refusal = JSON.parse(refused.stdout);
+  assert.equal(refusal.version, 1);
+  assert.equal(refusal.error.code, 'FLAG_NOT_ALLOWED');
+  assert.match(refusal.error.message, /spec view does not take --must/);
+  assert.equal(existsSync(refusedFile), false, 'refusal happens before creating the HTML output');
 });
 
 test('spec unmet and signoff do not create a board when reading a repo without one [S14, P4]', (t) => {

@@ -8,3 +8,4 @@ An RFC is one file here, numbered next: what changes, why, what it costs, and wh
 | --- | --- | --- |
 | [0001](0001-standard-doctrine.md) | A standard doctrine, version 1 | accepted |
 | [0002](0002-relay-and-api.md) | The relay and API v1 | accepted |
+| [0003](0003-procedures.md) | Procedures, resources and proposals | accepted |

@@ -32,10 +32,14 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - B18 [draft, aim] An item can wait until a time; next and claim pass over it until then. | gate: test/board.test.js | serves: B8
 - B19 [draft, aim] An item can wait until main contains a given commit; next and claim pass over it until then. | gate: test/e2e.test.js | serves: B8
 - B20 [draft, aim] The person orders open items: now, next or later, and up or down within each; next follows it first. | gate: test/board.test.js
-- B21 [approved, aim] A shout can ask for a decision; it stays in the person's Needs-you until someone answers it. | gate: test/board.test.js | serves: B7
+- B21 [approved, aim] A shout can ask for a decision; it stays open until someone answers it. | gate: test/board.test.js | serves: B7
 - B22 [approved, aim] A shout can attach typed evidence: attempt or receipt, outcome, item and commit, as fields, not prose. | gate: test/board.test.js | serves: B7
 - B23 [approved, aim] A shout's path:lines@commit reference opens that code as it was at that commit. | gate: test/cockpit.test.js | serves: B7
 - B24 [draft, aim] An item can wait on an item in another repo of its project, written repo#id. | gate: test/board.test.js | serves: N33
+- B25 [approved, must] Questions go one step up: agents ask their coordinator; a coordinator asks the person or the coordinator above. | gate: test/board.test.js | serves: B21
+- B26 [approved, must] Needs-you holds only the person's calls: decisions passed up, rows to approve, held lanes; agents ask their coordinator. | gate: test/board.test.js | serves: B25
+- B27 [approved, must] A coordinator answers a decision or passes it up with its note; the answer reaches whoever asked. | gate: test/board.test.js | serves: B25
+- B28 [draft, must] Work renews the lease: a commit, gate run or command from the holder's worktree renews its claim. | gate: test/board.test.js | serves: B4
 
 ## M · Machine
 - M1 [approved, must] One declaration holds every item state, move, guard and refusal; code, help and docs derive from it. | gate: test/machine.test.js
@@ -67,6 +71,9 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - O2 [draft, aim] verify.family: off, prefer or require a verifier from a model family that built none of it. | gate: test/board.test.js | serves: V1
 - O3 [draft, aim] Agents declare their model family on joining; submissions and verdicts record it. | gate: test/board.test.js | serves: O2
 - O4 [retired] Merged into V13.
+- O5 [approved, aim] Machine settings in ~/.pullboard hold what belongs to the machine: gate concurrency, run's tier commands, the view's port. | gate: test/settings.test.js
+- O6 [approved, aim] Each setting has one home: board rules in the repo, machine capacity and tools in ~/.pullboard; flags override. | gate: test/settings.test.js | serves: O5
+- O7 [retired] Merged into Q4.
 
 ## L · Lanes
 - L1 [approved, must] Lanes live in pullboard.json: folders owned, spec prefixes, when it starts. | gate: test/lanes.test.js
@@ -94,7 +101,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - S17 [approved, must] Once a repo lists signers, each sign-off carries the signer's SSH signature over the row's exact text. | gate: test/signoff.test.js | serves: S5
 - S18 [approved, must] A row can name who must sign it; it is met only when each has a current signed sign-off. | gate: test/signoff.test.js | serves: S17
 - S19 [approved, must] spec check refuses a sign-off whose signature fails or whose key isn't listed; a changed row makes it stale. | gate: test/signoff.test.js | serves: S17
-- S20 [approved, must] A change to the signer list counts only in a commit signed by a key already on it. | gate: test/signoff.test.js | serves: S17
+- S20 [approved, must] A change to the signer list counts only when a key already on it signs that change. | gate: test/signoff.test.js | serves: S17
 - S21 [approved, must] `pullboard spec signers add` sets a repo up with the SSH key the person already uses; no GPG. | gate: test/signoff.test.js | serves: S17
 
 ## D · Doctrine
@@ -195,3 +202,18 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - H10 [approved, aim] Offline, a linked board reads locally and refuses moves until the relay answers. | gate: test/relay.test.js | serves: H3
 - H11 [draft, aim] Without an account, `pullboard sync` keeps one board across machines through the repo's own git remote. | gate: test/sync.test.js
 - H12 [approved, must] pullboard.dev never writes to a repo: what you do there, like approving a row, reaches your agents as a request. | gate: test/relay.test.js | serves: H6
+- H13 [draft, must] Acting on a board, and minting its tokens, needs write access to its repo. | gate: test/relay.test.js | serves: H8
+- H14 [draft, must] A public repo's board is hidden from readers without triage access, unless its owner publishes it. | gate: test/relay.test.js | serves: H8
+
+## Q · Queues and procedures
+- Q1 [approved, must] A resource has a name, a capacity, a scope (machine, repo or board) and a queue. | gate: test/resources.test.js
+- Q2 [approved, must] Taking a full resource queues the taker in order, and it says what it waits behind. | gate: test/resources.test.js | serves: Q1
+- Q3 [approved, must] A resource is held under a lease, so a holder that dies frees it when the lease lapses. | gate: test/resources.test.js | serves: Q1
+- Q4 [approved, must] Each gate run takes one of its machine's gate slots, two by default; a cached pass takes none. | gate: test/resources.test.js | serves: Q1
+- Q5 [draft, aim] Procedures are state machines declared as data: states, moves, actors, guards and resources. | gate: test/procedures.test.js
+- Q6 [draft, aim] The item lifecycle runs from its declaration, as the first procedure. | gate: test/procedures.test.js | serves: Q5
+- Q7 [draft, aim] Agents raise proposals from friction; another agent reviews the evidence; the coordinator adopts. | gate: test/procedures.test.js | serves: Q5
+- Q8 [draft, must] An adopted procedure starts as a draft for the person to approve, and they can suspend it any time. | gate: test/procedures.test.js | serves: Q7
+- Q9 [draft, must] spec check refuses a procedure with an unreachable state, a move no actor can make, or a resource cycle. | gate: test/procedures.test.js | serves: Q5
+- Q10 [draft, must] Procedures only add structure: they queue, order and guard moves, and never drop a standard guard. | gate: test/procedures.test.js | serves: Q5
+- Q11 [draft, aim] A repo option says when a draft procedure runs: at once by default, once approved, or never. | gate: test/procedures.test.js | serves: Q7

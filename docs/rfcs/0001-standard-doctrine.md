@@ -5,7 +5,7 @@
 
 ## Summary
 
-Pullboard ships a small standard doctrine that every repo inherits: eleven rules nearly every engineer agrees on, whatever the language, team size or workflow. A repo's PRACTICE.md holds only its own rules: it adds to the standard, overrides a rule, or declines one with a reason.
+Pullboard ships a small standard doctrine that every repo inherits: twelve rules nearly every engineer agrees on, whatever the language, team size or workflow. A repo's PRACTICE.md holds only its own rules: it adds to the standard, overrides a rule, or declines one with a reason.
 
 ## Motivation
 
@@ -26,6 +26,7 @@ The rules use the spec row format. Their ids start with PB and are never reused.
 - PB9 [approved, must] Headers: type(scope): subject [ids], 72 characters at most. A body only for a non-obvious why, three sentences at most. | gate: commit-msg hook, review
 - PB10 [approved, must] Comments explain why, not what; no commented-out code. | gate: review
 - PB11 [approved, must] A new dependency states why it is needed and what it pulls in. | gate: review
+- PB12 [approved, must] Questions go on the board, one step up the chain, and the asker keeps working on what it can meanwhile. | gate: review
 
 ## What is left out, and why
 

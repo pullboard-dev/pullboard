@@ -254,6 +254,36 @@ test('a lane commits only inside its folders; an unjoined worktree cannot commit
   assert.match(taken.stderr, /outside the web lane: api\/b.js/, 'a move counts where it left, not only where it lands');
 });
 
+test("a lane merges main's foreign changes but still refuses its own and non-main foreign changes [L3]", () => {
+  const mainChange = project();
+  assert.equal(commitFile(mainChange, mainChange.repo, 'api/main.js', 'from main', 'feat(api): main change [G2]').status, 0);
+  const preparedMerge = mainChange.tryGit(mainChange.web, 'merge', '--no-commit', '--no-ff', 'main');
+  assert.equal(preparedMerge.status, 0, preparedMerge.stderr);
+  const merged = mainChange.tryGit(mainChange.web, 'commit', '-q', '-m', 'Merge main');
+  assert.equal(merged.status, 0, merged.stderr);
+  assert.equal(mainChange.git(mainChange.web, 'show', 'HEAD:api/main.js'), 'from main');
+
+  const editedDuringMerge = project();
+  assert.equal(commitFile(editedDuringMerge, editedDuringMerge.repo, 'api/main.js', 'from main', 'feat(api): main change [G2]').status, 0);
+  const preparedMain = editedDuringMerge.tryGit(editedDuringMerge.web, 'merge', '--no-commit', '--no-ff', 'main');
+  assert.equal(preparedMain.status, 0, preparedMain.stderr);
+  writeFileSync(join(editedDuringMerge.web, 'api/main.js'), 'changed in the lane merge');
+  editedDuringMerge.git(editedDuringMerge.web, 'add', 'api/main.js');
+  const changedForeign = editedDuringMerge.tryGit(editedDuringMerge.web, 'commit', '-q', '-m', 'Merge main');
+  assert.notEqual(changedForeign.status, 0);
+  assert.match(changedForeign.stderr, /outside the web lane: api\/main.js/);
+
+  const sideBranch = project();
+  sideBranch.git(sideBranch.repo, 'switch', '-q', '-c', 'side');
+  assert.equal(commitFile(sideBranch, sideBranch.repo, 'api/side.js', 'from side', 'feat(api): side change [G2]').status, 0);
+  sideBranch.git(sideBranch.repo, 'switch', '-q', 'main');
+  const preparedSide = sideBranch.tryGit(sideBranch.web, 'merge', '--no-commit', '--no-ff', 'side');
+  assert.equal(preparedSide.status, 0, preparedSide.stderr);
+  const changedSide = sideBranch.tryGit(sideBranch.web, 'commit', '-q', '-m', 'Merge side');
+  assert.notEqual(changedSide.status, 0);
+  assert.match(changedSide.stderr, /outside the web lane: api\/side.js/);
+});
+
 test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [V4, B9]', () => {
   const box = project();
   box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');
