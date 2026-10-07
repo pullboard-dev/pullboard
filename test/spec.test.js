@@ -3,7 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -16,6 +16,7 @@ import {
   parseSpec,
   permanenceProblems,
   readSignoffs,
+  SIGNOFFS_FILE,
   signOff,
   standings,
   unmetRows,
@@ -182,21 +183,22 @@ function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md', practi
     PULLBOARD_HOME: join(root, '.home'),
   };
   const git = (...args) => execFileSync('git', args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' });
-  const run = (...args) => spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), 'spec', ...args], { cwd: root, env, encoding: 'utf8' });
+  const command = (...args) => spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args], { cwd: root, env, encoding: 'utf8' });
+  const run = (...args) => command('spec', ...args);
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Test Agent');
   git('config', 'user.email', 'agent@example.com');
   const init = spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), 'init'], { cwd: root, env, encoding: 'utf8' });
   assert.equal(init.status, 0, init.stderr);
   const config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
-  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ ...config, spec: specName, practice: practiceName }));
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ ...config, spec: specName, practice: practiceName, gate: 'true', lanes: { review: { owns: [] } } }));
   rmSync(join(root, 'SPEC.md'), { force: true });
   rmSync(join(root, 'PRACTICE.md'), { force: true });
   writeFileSync(join(root, specName), SPEC);
   if (practice !== undefined) writeFileSync(join(root, practiceName), practice);
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: a spec');
-  return { root, run, git, specName, practiceName };
+  return { root, run, command, env, git, specName, practiceName };
 }
 
 test('spec --json emits one versioned document with every field, including empty fields [S13]', (t) => {
@@ -266,4 +268,56 @@ test('warning-only specs keep spec-check success while JSON stays a single docum
   const shown = box.run('--json');
   assert.equal(shown.status, 0, shown.stderr);
   assert.equal(JSON.parse(shown.stdout).rows.length, 5);
+});
+
+test('signoff prints cited tests, preserves its note and escapes that note in the spec view [S14, S15]', (t) => {
+  const box = specBox(t);
+  mkdirSync(join(box.root, 'test'));
+  writeFileSync(join(box.root, 'test', 'greeting.test.js'), "import { test } from 'node:test';\ntest('greeting [G1]', () => {});\n");
+  box.git('add', 'test/greeting.test.js');
+  box.git('commit', '-q', '-m', 'test: cite the greeting');
+  const note = 'checked <img> & empty names\nwith the local greeting test';
+  const signed = box.run('signoff', 'G1', '--by', 'CO', '--note', note);
+  assert.equal(signed.status, 0, signed.stderr);
+  assert.match(signed.stdout, /evidence for G1:\n  test: test\/greeting.test.js/);
+  assert.ok(signed.stdout.indexOf('evidence for') < signed.stdout.indexOf('signed 1 rows'));
+  assert.equal(readSignoffs(box.root)[0].note, note);
+  assert.ok(box.run('show', 'G1').stdout.includes(note));
+  const htmlFile = join(box.root, 'spec.html');
+  const view = box.run('view', '--out', htmlFile);
+  assert.equal(view.status, 0, view.stderr);
+  const html = readFileSync(htmlFile, 'utf8');
+  assert.match(html, /checked &lt;img&gt; &amp; empty names<br>with the local greeting test/);
+  assert.doesNotMatch(html, /<img>/);
+});
+
+test('signoff refuses missing evidence atomically, and unmet shows every stage through a verified item [S14, S15, S16]', (t) => {
+  const box = specBox(t);
+  const failed = box.run('signoff', 'G1', '--by', 'CO', '--note', 'I looked');
+  assert.equal(failed.status, 1);
+  assert.match(failed.stderr, /NO_EVIDENCE.*G1.*build it or cite its id in a test first/);
+  assert.equal(existsSync(join(box.root, SIGNOFFS_FILE)), false);
+  assert.match(box.run('unmet').stdout, /G1 \[must\].*— no evidence/);
+  const added = box.command('add', 'coordinator', 'Greeting', '--specs', 'G1');
+  assert.equal(added.status, 0, added.stderr);
+  assert.match(box.run('unmet').stdout, /G1 \[must\].*— building/);
+  assert.equal(box.command('claim', '1').status, 0);
+  const submitted = box.command('submit', '1');
+  assert.equal(submitted.status, 0, submitted.stderr);
+  assert.match(box.run('unmet').stdout, /G1 \[must\].*— awaiting a verdict/);
+  const made = box.command('worktree', 'review');
+  assert.equal(made.status, 0, made.stderr);
+  const review = /^made (.+) on branch/m.exec(made.stdout)[1];
+  const acceptedNote = 'checked greeting in the private fixture\nsecond line stays in the receipt';
+  const accepted = spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), 'verify', '1', 'accept', '--note', acceptedNote], { cwd: review, env: box.env, encoding: 'utf8' });
+  assert.equal(accepted.status, 0, `${accepted.stdout}${accepted.stderr}`);
+  assert.match(box.run('unmet').stdout, /G1 \[must\].*— verified and ready to sign/);
+  const signed = box.run('signoff', 'G1', '--by', 'CO', '--note', 'checked the accepting verdict');
+  assert.equal(signed.status, 0, signed.stderr);
+  assert.match(signed.stdout, /verified #1: checked greeting in the private fixture/);
+  assert.doesNotMatch(signed.stdout, /second line stays in the receipt/);
+  assert.doesNotMatch(box.run('unmet').stdout, /G1 \[must\]/);
+  writeFileSync(join(box.root, box.specName), SPEC.replace('Same file twice is a no-op.', 'Same file twice stays a no-op.'));
+  assert.match(box.run('unmet').stdout, /G1 \[must\].*— stale/);
+  assert.match(box.run('show', 'G1').stdout, /checked the accepting verdict/);
 });

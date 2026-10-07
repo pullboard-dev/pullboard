@@ -287,10 +287,10 @@ export function unmetRows(rows, signoffs, { mustOnly = false } = {}) {
  *
  * @param {string} root
  * @param {ReturnType<typeof parseSpec>} spec
- * @param {{ ids: string[], by: string, on: string }} signoff
+ * @param {{ ids: string[], by: string, on: string, note?: string }} signoff
  * @returns {number} How many rows were signed.
  */
-export function signOff(root, spec, { ids, by, on }) {
+export function signOff(root, spec, { ids, by, on, note = '' }) {
   if (!SIGNER_RE.test(by)) {
     throw new Refused('BAD_SIGNER', 'sign with initials or a first name: --by CO');
   }
@@ -303,7 +303,7 @@ export function signOff(root, spec, { ids, by, on }) {
   if (problems.length) throw new Refused('CANNOT_SIGN', problems.join('; '));
   const file = join(root, SIGNOFFS_FILE);
   mkdirSync(dirname(file), { recursive: true });
-  const lines = ids.map((id) => JSON.stringify({ id, by, on, text: byId.get(id).text }));
+  const lines = ids.map((id) => JSON.stringify({ id, by, on, text: byId.get(id).text, ...(note ? { note } : {}) }));
   appendFileSync(file, `${lines.join('\n')}\n`);
   return ids.length;
 }
