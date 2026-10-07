@@ -282,3 +282,12 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .snapshot-controls label { display: flex; align-items: center; gap: 6px; }
 .snapshot-controls output { color: var(--ink-muted); font: 12px/1.5 var(--mono); }
 .snapshot #new-item, .snapshot form, .snapshot [data-new], .snapshot [data-release], .snapshot [data-shout], .snapshot [data-go^="decide:"] { display: none !important; }
+
+/* Every action keeps a usable touch target at either viewport, including inline controls. */
+button, input, select, textarea, [data-item], [data-row] { min-height: 44px; }
+.theme-btn, .flow-hide { width: 44px; height: 44px; }
+.seg { flex-wrap: wrap; max-width: 100%; }
+.inline > label { min-width: 0; }
+@media (width < 480px) {
+  .toolbar .seg { flex: 1 1 100%; }
+}
