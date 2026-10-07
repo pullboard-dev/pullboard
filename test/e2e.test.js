@@ -155,6 +155,11 @@ test('the board lives in the git common dir; every worktree sees it; nothing is 
   assert.equal(box.git(box.repo, 'status', '--porcelain'), '');
   assert.match(box.run(box.repo, 'whoami').out, /^coordinator/);
   assert.match(box.run(box.web, 'whoami').out, /^web-1 \(web lane\)/);
+  const second = join(box.dir, 'web-2');
+  box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
+  assert.match(box.run(second, 'join', 'web').out, /joined as web-2/);
+  assert.match(box.run(second, 'whoami').out, /^web-2 \(web lane\)/, 'a second worktree in the same lane is its own agent');
+  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(web lane\)/, 'and the first stays itself');
   assert.match(box.run(box.web, 'init').err, /NOT_MAIN/);
   assert.match(box.run(box.repo, 'join', 'web').err, /MAIN_IS_COORDINATOR/);
 });
@@ -185,7 +190,7 @@ test('a lane commits only inside its folders; an unjoined worktree cannot commit
   assert.match(moved.stderr, /outside the web lane: api\/a.html/);
 });
 
-test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [V4]', () => {
+test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [V4, B9]', () => {
   const box = project();
   box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');
   assert.match(box.run(box.web, 'claim', '1').out, /claimed #1/);

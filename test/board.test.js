@@ -51,8 +51,11 @@ test('a claim is a lease: renewable by its holder, free again once it lapses [B4
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
   claimAs(id, 'web-1', 'web');
   assert.throws(() => claimAs(id, 'web-2', 'web'), /HELD/);
+  clock.advance(HOUR);
   assert.equal(claimAs(id, 'web-1', 'web').renewed, true);
-  clock.advance(2 * HOUR + 1);
+  clock.advance(HOUR + 1);
+  assert.throws(() => claimAs(id, 'web-2', 'web'), /HELD/, 'two hours after the first claim, the renewal still holds it');
+  clock.advance(HOUR);
   assert.equal(store.getItem(board, id).item_status, 'open');
   assert.equal(claimAs(id, 'web-2', 'web').renewed, false);
   assert.equal(store.getItem(board, id).item_owner, 'web-2');
@@ -200,7 +203,7 @@ test('every move lands in the event log; stats count items and verdicts [R1, R2]
   assert.equal(stats.rejected, 1);
 });
 
-test('an item can wait on others: claiming it is refused until they are verified', () => {
+test('an item can wait on others: claiming it is refused until they are verified [B8]', () => {
   const contract = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Store module' });
   const user = store.addItem(board, { by: 'coordinator', lane: 'api', title: 'Uses the store', after: [contract] });
   assert.throws(() => claimAs(user, 'api-1', 'api'), /BLOCKED.*#2 waits on #1 \(open, web lane\)/);
@@ -340,6 +343,8 @@ test('escalate frees an item one tier up, with what was tried attached [B15]', (
   assert.deepEqual(store.escalate(board, id, { agentId: 'coordinator', note: 'still stuck' }), { from: 'strong', to: 'strong' });
   const moves = store.events(board, { itemId: id }).map((event) => event.event_kind).filter((kind) => ['attempt', 'escalate'].includes(kind));
   assert.deepEqual(moves, ['attempt', 'escalate', 'escalate', 'escalate']);
+  const first = store.events(board, { itemId: id }).find((event) => event.event_kind === 'escalate');
+  assert.deepEqual(JSON.parse(first.event_detail), { from: 'light', to: 'mid', note: 'check failed twice', attempt: 'refs/pullboard/attempts/1/abc' }, 'the failure and the pinned attempt travel with it');
 });
 
 test('a fresh claim records where the work started; submit records what it changed, reworks included [N21]', () => {

@@ -64,3 +64,15 @@ test('config merges nested groups over the defaults, and leases read as duration
   assert.equal(durationMs('1d'), 86_400_000);
   assert.throws(() => durationMs('soon'), /BAD_CONFIG/);
 });
+
+test("a claim's lease is 2h unless pullboard.json says otherwise [B4]", () => {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-lease-'));
+  try {
+    writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test' }));
+    assert.equal(loadConfig(root).leaseMs, 2 * 3_600_000);
+    writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', lease: '45m' }));
+    assert.equal(loadConfig(root).leaseMs, 45 * 60_000);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

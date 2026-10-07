@@ -1,17 +1,11 @@
 /**
- * The proof audit of the verification rows, V1 to V9 (item #48) and V16 (item #51): for each row, one or more changes to
- * src/ that break the row's rule, and the tagged test that must go red under each. It copies the
- * repo to a fresh temporary folder and works only there, so it never changes a real checkout.
+ * The proof audit of the verification rows, V1 to V9 (item #48) and V16 (item #51): for each row,
+ * one or more changes to src/ that break the row's rule, and the tagged test that must go red under
+ * each. The harness works on a temporary copy, never a real checkout.
  *
  * Run it from the repo root: node docs/proof/verification-mutants.mjs
  */
-import { spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-
-const ROOT = resolve(import.meta.dirname, '..', '..');
-const COPIED = ['src', 'bin', 'test', 'skills', 'package.json', 'PRACTICE.md'];
+import { audit } from './harness.mjs';
 
 const VERIFY_AT_COMMIT = ['test/e2e.test.js', 'verify runs at the submitted commit, against the criterion frozen at claim'];
 const CLEAN_TREE = ['test/e2e.test.js', 'submit needs a clean tree, nothing untracked, and the gate green at HEAD'];
@@ -55,33 +49,4 @@ const MUTANTS = [
   ['V16', 'submit misses a tracked file edited during the gate', [['src/cli.js', MOVED, 'if (headCommit(root) !== commit) {']], MOVED_TREE, 'red'],
 ];
 
-const copy = mkdtempSync(join(tmpdir(), 'pullboard-proof-'));
-try {
-  for (const entry of COPIED) cpSync(join(ROOT, entry), join(copy, entry), { recursive: true });
-  /** Run one test by name in the copy: whether it passed, and how many tests the name matched. */
-  const judge = ([file, name]) => {
-    const result = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', '--test', `--test-name-pattern=${name}`, file], { cwd: copy, encoding: 'utf8', timeout: 300_000 });
-    return { green: result.status === 0, matched: Number(/^# tests (\d+)/m.exec(result.stdout ?? '')?.[1] ?? 0) };
-  };
-  const baselines = [...new Set(MUTANTS.map(([, , , target]) => JSON.stringify(target)))].map((target) => judge(JSON.parse(target)));
-  if (!baselines.every(({ green, matched }) => green && matched === 1)) throw new Error('the unchanged copy is not green on every target, so no red below would mean anything');
-  let unexpected = 0;
-  for (const [row, change, edits, target, expected] of MUTANTS) {
-    const before = new Map(edits.map(([file]) => [file, readFileSync(join(copy, file), 'utf8')]));
-    const after = new Map(before);
-    for (const [file, from, to] of edits) {
-      if (!after.get(file).includes(from)) throw new Error(`${row}: the code to change is gone from ${file}; update this audit`);
-      after.set(file, after.get(file).replace(from, to));
-    }
-    for (const [file, text] of after) writeFileSync(join(copy, file), text);
-    const { green } = judge(target);
-    for (const [file, text] of before) writeFileSync(join(copy, file), text);
-    const outcome = green ? 'green' : 'red';
-    if (outcome !== expected) unexpected += 1;
-    console.log(`${outcome === expected ? 'ok        ' : 'UNEXPECTED'} ${row} ${outcome.padEnd(5)} ${change}  (${target[1]})`);
-  }
-  console.log(`${MUTANTS.length} changes, ${unexpected} unexpected; the unchanged copy is green on all ${baselines.length} targets`);
-  process.exitCode = unexpected ? 1 : 0;
-} finally {
-  rmSync(copy, { recursive: true, force: true });
-}
+audit(MUTANTS);
