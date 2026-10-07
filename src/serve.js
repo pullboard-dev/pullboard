@@ -9,7 +9,7 @@
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -106,8 +106,29 @@ function summary(project) {
       };
     });
   } catch (error) {
-    return { ...project, ok: false, error: error.message };
+    const reason = !existsSync(project.root) ? 'The folder is missing.'
+      : error?.code === 'NO_CONFIG' ? 'pullboard.json is missing.'
+        : error?.code === 'BAD_CONFIG' ? 'pullboard.json is invalid.'
+          : error?.code === 'NOT_A_REPO' ? 'The folder is not a Git repository.'
+            : 'Repository settings or its board cannot be read.';
+    return { ...project, ok: false, error: `${reason} Run pullboard forget "${project.root}" to remove it.` };
   }
+}
+
+/**
+ * Group registered repositories by their configured project name for the sidebar and group view.
+ *
+ * @param {any[]} projects
+ * @returns {{ name: string, key: string, repos: any[] }[]}
+ */
+function projectGroups(projects) {
+  const grouped = new Map();
+  for (const repo of projects) {
+    if (!repo.project) continue;
+    if (!grouped.has(repo.project)) grouped.set(repo.project, []);
+    grouped.get(repo.project).push(repo);
+  }
+  return [...grouped].map(([name, repos]) => ({ name, key: `group:${name}`, repos }));
 }
 
 /**
@@ -293,10 +314,20 @@ export function serveView({ port = 0, secret = randomBytes(18).toString('base64u
       if (req.method === 'GET' && url.pathname === '/view.css') return reply(res, 200, 'text/css; charset=utf-8', VIEW_CSS);
       if (req.method === 'GET' && url.pathname === '/api/state') {
         const projects = listProjects().map(summary);
+        const groups = projectGroups(projects);
         const root = url.searchParams.get('root');
         const known = projects.find((project) => project.root === root && project.ok);
+        const group = root?.startsWith('group:') ? groups.find((entry) => entry.name === root.slice('group:'.length)) : null;
         const seen = /^\d+$/.test(url.searchParams.get('seen') ?? '') ? Number(url.searchParams.get('seen')) : null;
-        return json(res, 200, { projects, project: known ? projectState(known.root, { seen }) : null });
+        return json(res, 200, {
+          projects,
+          groups,
+          project: known ? projectState(known.root, { seen }) : null,
+          group: group ? {
+            name: group.name,
+            repos: group.repos.filter((repo) => repo.ok).map((repo) => ({ root: repo.root, name: repo.name, board: projectState(repo.root) })),
+          } : null,
+        });
       }
       if (req.method === 'GET' && url.pathname === '/api/code') {
         const root = url.searchParams.get('root');

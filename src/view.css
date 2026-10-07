@@ -43,7 +43,21 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .proj.on { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
 .proj .pname { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .proj small { grid-column: 1 / -1; color: var(--ink-faint); font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
-.proj small.bad { color: var(--reject); }
+.repo-group { display: grid; gap: 1px; }
+.project-pick { background: var(--surface-2); }
+.repos { display: grid; gap: 1px; margin-left: 8px; padding-left: 7px; border-left: 1px solid var(--line); }
+.repo-error { margin: 3px 0 5px 8px; padding: 6px 8px; color: var(--ink-faint); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.repo-error b { color: var(--ink-muted); }
+.group-view { display: grid; gap: 14px; max-width: 1000px; }
+.group-panel { padding: 14px 16px; }
+.group-panel h2 { margin: 0 0 10px; font-size: 17px; }
+.group-need { display: grid; grid-template-columns: minmax(90px, auto) auto minmax(0, 1fr) auto; align-items: baseline; gap: 5px 10px; width: 100%; padding: 9px 0; text-align: left; border: 0; border-top: 1px solid var(--line); background: none; cursor: pointer; }
+.group-need:hover { background: var(--surface-2); }
+.group-need > b { color: var(--ink-muted); }
+.group-need > code { color: var(--accent-strong); }
+.group-need > span { overflow-wrap: anywhere; }
+.group-need > em { color: var(--ink-faint); font-size: 12px; font-style: normal; }
+.repo-label { color: var(--ink-muted); }
 .need { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); font: 700 11.5px/1.5 var(--mono); text-align: center; }
 .products { padding-top: 6px; }
 .prod { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; padding: 6px 8px 8px; font-size: 13px; }
@@ -87,8 +101,14 @@ main { padding: 16px 18px 28px; }
   .live { display: none; }
   main { padding: 12px 10px 24px; }
   .two, .two.narrow { grid-template-columns: minmax(0, 1fr); }
+  .group-need { grid-template-columns: minmax(80px, auto) auto minmax(0, 1fr); }
+  .group-need > em { grid-column: 3; }
 }
 @media (width < 480px) {
+  .group-need { grid-template-columns: minmax(0, 1fr) auto; gap: 3px 8px; }
+  .group-need > b { grid-column: 1; }
+  .group-need > code { grid-column: 2; }
+  .group-need > span, .group-need > em { grid-column: 1 / -1; }
   .tabs { flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; }
   .tab { display: grid; grid-template-rows: auto 13px; justify-items: center; align-content: center; padding: 7px 2px 5px; font-size: 13.5px; }
   .tab b { margin: 0; line-height: 13px; }
