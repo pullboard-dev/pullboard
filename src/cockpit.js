@@ -408,17 +408,78 @@ function flowSvg(p) {
   return '<svg viewBox="0 0 ' + W + ' ' + f(H) + '" role="img" aria-label="The item lifecycle, with counts from this board"><defs>' + head('pb-head', '') + head('pb-head-back', 'back') + '</defs>' + routes.join('') + boxes.join('') + '</svg>';
 }
 
+/** Read or move through API v1, retaining the rule and repair guidance in a refusal. */
 async function api(path, body) {
   const res = await fetch(path, { method: body ? 'POST' : 'GET', headers: { 'x-pullboard-key': key, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
   const json = await res.json();
-  if (!res.ok) throw new Error(json.error || res.status);
+  if (!res.ok) {
+    const refusal = json.error;
+    const message = refusal && typeof refusal === 'object' ? '[' + refusal.code + '] ' + refusal.message : refusal || res.status;
+    throw new Error(message);
+  }
   return json;
 }
 
+/** A board's sidebar counts, derived from the same API state the page displays. */
+function boardSummary(board, state) {
+  /** Count one item state for the sidebar. */
+  const count = (test) => state.items.filter(test).length;
+  return {
+    ...board, ok: true,
+    building: count((item) => item.status === 'claimed'),
+    awaiting: count((item) => item.status === 'submitted'),
+    sentBack: count((item) => item.status === 'open' && item.verdict && item.verdict.decision === 'REJECT'),
+    open: count((item) => item.status === 'open'),
+    verified: count((item) => item.status === 'verified'),
+    pending: state.spec.filter((row) => row.status === 'pending').length,
+    drafts: state.spec.filter((row) => row.status === 'draft').length,
+    holds: state.holds.length,
+    decisions: state.decisions.length,
+  };
+}
+
+/** Resolve a displayed repo to the persistent board identity supplied by API v1. */
+function boardPath(root) {
+  const board = data && data.projects.find((entry) => entry.root === root && entry.ok);
+  if (!board) throw new Error('This board is unavailable; choose a readable project and retry.');
+  return '/api/v1/boards/' + encodeURIComponent(board.id);
+}
+
+/** Compose the multi-repo page from the public board list and each board's public state. */
+async function boardState(root, mark) {
+  const listed = await api('/api/v1/boards');
+  const states = new Map();
+  const cursor = mark !== null && mark !== undefined && /^\\d+$/.test(String(mark)) && Number.isSafeInteger(Number(mark)) ? Number(mark) : null;
+  const projects = await Promise.all(listed.boards.map(async (board) => {
+    try {
+      const query = board.root === root && cursor !== null ? '?seen=' + encodeURIComponent(cursor) : '';
+      const reply = await api('/api/v1/boards/' + encodeURIComponent(board.id) + '/state' + query);
+      states.set(board.root, reply.state);
+      return boardSummary(board, reply.state);
+    } catch (error) {
+      return { ...board, ok: false, error: String(error.message || error) };
+    }
+  }));
+  projects.push(...(listed.warnings || []).map((warning) => ({ ...warning, ok: false, error: warning.error.error.message })));
+  const grouped = new Map();
+  for (const project of projects) {
+    if (!project.project) continue;
+    if (!grouped.has(project.project)) grouped.set(project.project, []);
+    grouped.get(project.project).push(project);
+  }
+  const groups = [...grouped].map(([name, repos]) => ({ name, key: 'group:' + name, repos }));
+  const group = groups.find((entry) => entry.key === root);
+  return {
+    projects, groups, project: states.get(root) || null,
+    group: group ? { name: group.name, repos: group.repos.filter((repo) => repo.ok).map((repo) => ({ root: repo.root, name: repo.name, board: states.get(repo.root) })) } : null,
+  };
+}
+
+/** Refresh from API v1 and discard a response for a project the person already left. */
 async function refresh() {
   const root = view.root;
   const mark = root ? view.seen['pb.seen.' + root] ?? keep('pb.seen.' + root) : null;
-  const next = await api('/api/state' + (root ? '?root=' + encodeURIComponent(root) + (mark === null || mark === undefined ? '' : '&seen=' + encodeURIComponent(mark)) : ''));
+  const next = await boardState(root, mark);
   // The person switched projects while this answer was on its way: the switch's own refresh shows it.
   if (root !== view.root) return;
   if (!next.project && !next.group && next.projects.some((p) => p.ok)) {
@@ -755,19 +816,40 @@ async function code(ref, before) {
   if (!c.open || c.lines) return;
   c.error = null;
   try {
-    Object.assign(c, await api('/api/code?root=' + encodeURIComponent(view.root) + '&ref=' + encodeURIComponent(ref) + '&before=' + encodeURIComponent(before)));
+    const reply = await api(boardPath(view.root) + '/code?ref=' + encodeURIComponent(ref) + '&before=' + encodeURIComponent(before));
+    Object.assign(c, reply.code);
   } catch (error) {
     c.error = String(error.message || error);
   }
   render();
 }
 
-/**
- * Run an action as its CLI command on the server, show what the command said, and redraw from the
- * board. The console belongs to the latest action: one that answers after a later one has started
- * writes nothing there and sets no close, and a close fires only while its action is still the
- * latest, so a success can never hide a refusal that came after it.
- */
+/** Translate the page's five actions into the public move shape and a familiar command label. */
+function pageMove(command, args = {}) {
+  /** Trim form values before constructing the move and its display label. */
+  const text = (value) => String(value || '').trim();
+  if (command === 'add') {
+    const fields = { lane: text(args.lane), title: text(args.title) };
+    const label = ['add', fields.lane, fields.title];
+    for (const name of ['criterion', 'specs', 'brief']) if (text(args[name])) { fields[name] = text(args[name]); label.push('--' + name, fields[name]); }
+    return { body: { verb: 'add', args: fields }, label: label.join(' ') };
+  }
+  if (command === 'shout') return { body: { verb: 'shout', args: { to: text(args.to), text: text(args.text) } }, label: ['shout', text(args.to), text(args.text)].join(' ') };
+  if (command === 'answer') return { body: { verb: 'answer', item: Number(args.id), args: { text: text(args.text), as: 'person' } }, label: ['answer', text(args.id), text(args.text), '--as', 'person'].join(' ') };
+  if (command === 'hold') return { body: { verb: 'hold', args: { lane: text(args.lane), reason: text(args.reason) } }, label: ['hold', text(args.lane), '--reason', text(args.reason)].join(' ') };
+  if (command === 'release') return { body: { verb: 'hold', args: { lane: text(args.lane), off: true } }, label: ['hold', text(args.lane), '--off'].join(' ') };
+  throw new Error('No view action ' + String(command) + '; choose add, shout, answer, hold or release.');
+}
+
+/** Describe an API-confirmed move without exposing its transport document in the page. */
+function moveMessage(move, result) {
+  if (move.verb === 'add') return 'added #' + result.item.item_id;
+  if (move.verb === 'shout') return 'shouted to ' + move.args.to;
+  if (move.verb === 'answer') return 'answered #' + move.item;
+  return move.args.off ? 'released the ' + move.args.lane + ' lane' : 'holding the ' + move.args.lane + ' lane: ' + move.args.reason;
+}
+
+/** Run a public API move and let only the latest action own the console and its close timer. */
 async function act(command, args) {
   const out = $('console');
   const run = (view.acting = (view.acting || 0) + 1);
@@ -777,15 +859,16 @@ async function act(command, args) {
   out.className = 'console';
   out.textContent = 'running…';
   try {
-    const result = await api('/api/act', { root: view.root, command, args });
+    const move = pageMove(command, args);
+    const result = await api(boardPath(view.root) + '/moves', move.body);
     if (latest()) {
-      out.className = 'console ' + (result.code === 0 ? 'ok' : 'no');
-      out.textContent = '$ ' + result.command + '\\n' + (result.out + result.err).trim();
+      out.className = 'console ok';
+      out.textContent = '$ pullboard ' + move.label + '\\n' + moveMessage(move.body, result.result);
       // What went through says so and then steps aside; a refusal stays until the person closes it.
-      if (result.code === 0) view.closing = setTimeout(() => { if (latest()) out.hidden = true; }, 6000);
+      view.closing = setTimeout(() => { if (latest()) out.hidden = true; }, 6000);
     }
     await refresh();
-    return result.code === 0;
+    return true;
   } catch (error) {
     if (latest()) {
       out.className = 'console no';

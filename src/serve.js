@@ -1,29 +1,27 @@
 /**
  * `pullboard view` (N26, N27): the person's micro site. One page on this machine shows every
  * registered project: items by state, what needs the person, shouts, doctrine, agents and activity,
- * refreshing itself. Its actions run the real CLI in the project, so every rule and refusal applies
- * exactly as at a terminal.
+ * refreshing itself. Reads and actions use the shared local API v1 handler (A3); actions run the
+ * real CLI in the project, so every rule and refusal applies exactly as at a terminal.
  *
  * It listens on the loopback address only and answers nothing without the session's secret and its
  * own Host, so another site in the browser cannot reach it. It opens no outbound connection (P5).
  */
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import * as store from './board.js';
 import { cockpitPage } from './cockpit.js';
 import { COORDINATOR, loadConfig } from './config.js';
 import { loadDoctrine, standardDoctrine } from './doctrine.js';
 import { repoInfo, resolveCommit } from './git.js';
 import { productSummaries } from './products.js';
-import { listProjects, registryFile } from './projects.js';
+import { registryFile } from './projects.js';
 import { Refused } from './refused.js';
 import { loadSpec } from './spec.js';
 
-const BIN = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
 /** The page's styles (N26), read once: the page links them, so it needs no inline style. */
 const VIEW_CSS = readFileSync(new URL('./view.css', import.meta.url), 'utf8');
 export const LOOPBACK = '127.0.0.1';
@@ -78,60 +76,6 @@ function withProject(root, read) {
   } finally {
     store.closeBoard(board);
   }
-}
-
-/**
- * One project in the sidebar: its counts, or why it cannot be read (moved, no config).
- *
- * @param {{ root: string, name: string }} project
- * @returns {any}
- */
-function summary(project) {
-  try {
-    return withProject(project.root, (board, info, config) => {
-      const items = store.listItems(board, { all: true });
-      const count = (test) => items.filter(test).length;
-      const spec = loadSpec(info.root, config).rows;
-      return {
-        ...project,
-        ok: true,
-        building: count((item) => item.item_status === 'claimed'),
-        awaiting: count((item) => item.item_status === 'submitted'),
-        sentBack: count((item) => item.item_status === 'open' && item.item_verdict === 'REJECT'),
-        open: count((item) => item.item_status === 'open'),
-        verified: count((item) => item.item_status === 'verified'),
-        // What the person decides (B26): rows waiting for their call, held lanes, and the decisions
-        // passed up to them. An agent's ask goes to its coordinator, and stays off this count.
-        pending: spec.filter((row) => row.status === 'pending').length,
-        drafts: spec.filter((row) => row.status === 'draft').length,
-        holds: store.laneHolds(board).length,
-        decisions: store.openDecisions(board, store.PERSON).length,
-      };
-    });
-  } catch (error) {
-    const reason = !existsSync(project.root) ? 'The folder is missing.'
-      : error?.code === 'NO_CONFIG' ? 'pullboard.json is missing.'
-        : error?.code === 'BAD_CONFIG' ? 'pullboard.json is invalid.'
-          : error?.code === 'NOT_A_REPO' ? 'The folder is not a Git repository.'
-            : 'Repository settings or its board cannot be read.';
-    return { ...project, ok: false, error: `${reason} Run pullboard forget "${project.root}" to remove it.` };
-  }
-}
-
-/**
- * Group registered repositories by their configured project name for the sidebar and group view.
- *
- * @param {any[]} projects
- * @returns {{ name: string, key: string, repos: any[] }[]}
- */
-function projectGroups(projects) {
-  const grouped = new Map();
-  for (const repo of projects) {
-    if (!repo.project) continue;
-    if (!grouped.has(repo.project)) grouped.set(repo.project, []);
-    grouped.get(repo.project).push(repo);
-  }
-  return [...grouped].map(([name, repos]) => ({ name, key: `group:${name}`, repos }));
 }
 
 /**
@@ -249,56 +193,19 @@ export function codeAt(root, { path, from, to, commit, before = '' }) {
 }
 
 /**
- * The CLI command an action from the page stands for, or null for one it does not offer.
- *
- * @param {string} command
- * @param {any} args
- * @returns {string[] | null}
- */
-export function actionArgs(command, args = {}) {
-  const text = (value) => String(value ?? '').trim();
-  if (command === 'add') {
-    return ['add', text(args.lane), text(args.title), ...(text(args.criterion) ? ['--criterion', text(args.criterion)] : []), ...(text(args.specs) ? ['--specs', text(args.specs)] : []), ...(text(args.brief) ? ['--brief', text(args.brief)] : [])];
-  }
-  if (command === 'shout') return ['shout', text(args.to), text(args.text)];
-  // The view is the person's, so it answers as the person (B26).
-  if (command === 'answer') return ['answer', text(args.id), text(args.text), '--as', 'person'];
-  if (command === 'hold') return ['hold', text(args.lane), '--reason', text(args.reason)];
-  if (command === 'release') return ['hold', text(args.lane), '--off'];
-  return null;
-}
-
-/**
- * Run the CLI in a folder, as the person would at a terminal there.
- *
- * @param {string} cwd
- * @param {string[]} args
- * @returns {Promise<{ code: number | null, out: string, err: string }>}
- */
-function runCli(cwd, args) {
-  return new Promise((done) => {
-    const child = spawn(process.execPath, [BIN, ...args], { cwd, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
-    let out = '';
-    let err = '';
-    child.stdout.on('data', (chunk) => { out += chunk; });
-    child.stderr.on('data', (chunk) => { err += chunk; });
-    const timer = setTimeout(() => child.kill(), 120_000);
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      done({ code, out, err });
-    });
-  });
-}
-
-/**
  * Serve the view until stopped.
  *
  * @param {{ port?: number, secret?: string }} [options]
  * @returns {Promise<{ url: string, port: number, close: () => Promise<void> }>}
  */
-export function serveView({ port = 0, secret = randomBytes(18).toString('base64url') } = {}) {
+export async function serveView({ port = 0, secret = randomBytes(18).toString('base64url') } = {}) {
   const key = Buffer.from(secret);
   let bound = 0;
+  // The API reads projectState and codeAt from this module. Load its factory after our exports
+  // initialize, and use the real CLI entry point without adding a second move implementation.
+  const { createLocalApiHandler } = await import('./api.js');
+  const { main } = await import('./cli.js');
+  const apiHandler = createLocalApiHandler({ secret, getPort: () => bound, runCommand: main });
   const reply = (res, code, type, body) => {
     res.writeHead(code, {
       'content-type': type,
@@ -319,60 +226,19 @@ export function serveView({ port = 0, secret = randomBytes(18).toString('base64u
     } catch {
       return json(res, 403, { error: 'this view needs its own address and secret: open the link pullboard view printed' });
     }
+    if (url.pathname.startsWith('/api/')) return apiHandler(req, res);
     const given = Buffer.from(String(req.headers['x-pullboard-key'] ?? url.searchParams.get('k') ?? ''));
     const isOwnHost = req.headers.host === `${LOOPBACK}:${bound}` || req.headers.host === `localhost:${bound}`;
     if (!isOwnHost || given.length !== key.length || !timingSafeEqual(given, key)) return json(res, 403, { error: 'this view needs its own address and secret: open the link pullboard view printed' });
     try {
       if (req.method === 'GET' && url.pathname === '/') return reply(res, 200, 'text/html; charset=utf-8', cockpitPage(secret));
       if (req.method === 'GET' && url.pathname === '/view.css') return reply(res, 200, 'text/css; charset=utf-8', VIEW_CSS);
-      if (req.method === 'GET' && url.pathname === '/api/state') {
-        const projects = listProjects().map(summary);
-        const groups = projectGroups(projects);
-        const root = url.searchParams.get('root');
-        const known = projects.find((project) => project.root === root && project.ok);
-        const group = root?.startsWith('group:') ? groups.find((entry) => entry.name === root.slice('group:'.length)) : null;
-        const seen = /^\d+$/.test(url.searchParams.get('seen') ?? '') ? Number(url.searchParams.get('seen')) : null;
-        return json(res, 200, {
-          projects,
-          groups,
-          project: known ? projectState(known.root, { seen }) : null,
-          group: group ? {
-            name: group.name,
-            repos: group.repos.filter((repo) => repo.ok).map((repo) => ({ root: repo.root, name: repo.name, board: projectState(repo.root) })),
-          } : null,
-        });
-      }
-      if (req.method === 'GET' && url.pathname === '/api/code') {
-        const root = url.searchParams.get('root');
-        if (!listProjects().some((project) => project.root === root)) return json(res, 400, { error: 'not a project on this machine' });
-        const ref = /^([^:@]+):(\d+)(?:-(\d+))?@([^@]+)$/.exec(url.searchParams.get('ref') ?? '');
-        if (!ref) return json(res, 400, { error: 'a code reference reads path:lines@commit, such as src/serve.js:12-30@be4356b' });
-        try {
-          const before = (url.searchParams.get('before') ?? '').slice(-2000);
-          return json(res, 200, codeAt(root, { path: ref[1], from: Number(ref[2]), to: Number(ref[3] ?? ref[2]), commit: ref[4], before }));
-        } catch (error) {
-          if (error instanceof Refused) return json(res, 400, { error: error.message });
-          throw error;
-        }
-      }
-      if (req.method === 'POST' && url.pathname === '/api/act' && String(req.headers['content-type']).startsWith('application/json')) {
-        let raw = '';
-        for await (const chunk of req) {
-          raw += chunk;
-          if (raw.length > 100_000) return json(res, 413, { error: 'too large' });
-        }
-        const { root, command, args } = JSON.parse(raw || '{}');
-        const argv = actionArgs(command, args);
-        if (!argv) return json(res, 400, { error: `no action "${command}"` });
-        // An action runs only inside a project this machine already knows; agents start boards.
-        if (!listProjects().some((project) => project.root === root)) return json(res, 400, { error: 'not a project on this machine' });
-        return json(res, 200, { command: `pullboard ${argv.join(' ')}`, ...(await runCli(root, argv)) });
-      }
       return json(res, 404, { error: 'no such page' });
     } catch (error) {
       return json(res, 500, { error: error.message });
     }
   });
+  server.requestTimeout = 15_000;
   // Asked for any port, the view tries the one it last served from first, and takes any free one
   // when that is busy; a port the person names is used as named, and a busy one is refused with the
   // way out rather than a stack trace.
@@ -393,7 +259,7 @@ export function serveView({ port = 0, secret = randomBytes(18).toString('base64u
         ready({
           url: `http://${LOOPBACK}:${bound}/?k=${secret}`,
           port: bound,
-          close: () => new Promise((closed) => server.close(() => closed())),
+          close: () => new Promise((closed) => { apiHandler.close(); server.close(() => closed()); server.closeIdleConnections(); }),
         });
       });
     };
