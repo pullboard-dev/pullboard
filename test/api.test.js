@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -12,7 +13,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { once } from 'node:events';
-import { join, dirname, resolve, basename } from 'node:path';
+import { join, dirname, resolve, basename, delimiter } from 'node:path';
 import { after, test } from 'node:test';
 import { resultCommands } from '../src/cli.js';
 import { JSON_SHAPES } from '../src/json.js';
@@ -32,12 +33,22 @@ const SPEC = `# API fixture
 - G1 [approved, must] The fixture keeps its board. | gate: true
 `;
 
+/** Quote a literal executable path for the fixture hook's POSIX shim. */
+function shellWord(value) {
+  return "'" + value.replace(/'/g, "'\\''") + "'";
+}
+
 /** Make a disposable home and a real repo with isolated git settings. */
 function sandbox() {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-api-')));
   TEMP_DIRS.push(dir);
+  const bin = join(dir, 'bin');
+  mkdirSync(bin);
+  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec ${shellWord(process.execPath)} ${shellWord(BIN)} "$@"\n`);
+  chmodSync(join(bin, 'pullboard'), 0o755);
   const env = {
     ...process.env,
+    PATH: `${bin}${delimiter}${process.env.PATH}`,
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'API Test',
