@@ -43,6 +43,7 @@ import { parseProblems, sweepItems } from './sweep.js';
 import { renderSpecView } from './view.js';
 import { tour } from './tour.js';
 import { forgetProject, registerProject } from './projects.js';
+import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
 import { serveView } from './serve.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -115,6 +116,7 @@ Spec
   pullboard spec check                  lint SPEC.md and PRACTICE.md
   pullboard spec view [--out file]      the spec, open questions, sign-offs and practice as one page
   pullboard spec show <id> | unmet [--must] | signoff <ids> --by <initials>
+                                        signoff: --note "what was checked" stays with the receipt
 
 Role guides
   pullboard prompt decompose|plan|signoff|review|verify   how to do each role; Claude Code gets them as skills
@@ -1317,6 +1319,14 @@ function citations(ctx, { ids, since }) {
   return cited;
 }
 
+/** Current board evidence, with each item's accepting receipts included once. */
+function specProof(ctx) {
+  return withBoard(ctx, (board) => {
+    const items = store.listItems(board, { all: true });
+    return { items, verdicts: items.flatMap((item) => store.verdictsFor(board, item.item_id)) };
+  });
+}
+
 /**
  * The spec commands: JSON rows, check, view, show, unmet, signoff.
  *
@@ -1380,17 +1390,34 @@ function specCommand(io, { first, second, rest, values }) {
     if (row.gate) io.say(`gate: ${row.gate}`);
     if (row.serves.length) io.say(`serves: ${row.serves.join(', ')}`);
     io.say(`signed: ${standing.met.map((entry) => `${entry.by} ${entry.on}`).join(', ') || 'no'}${standing.stale.length ? `; stale: ${standing.stale.length}` : ''}`);
+    for (const entry of [...standing.met, ...standing.stale]) if (entry.note) io.say(`note (${entry.by}): ${entry.note}`);
     return 0;
   }
   if (first === 'unmet') {
     const rows = unmetRows(spec.rows, signoffs, { mustOnly: values.must });
-    rows.forEach((row) => io.say(`${row.id} [${row.tier || 'no tier'}] ${row.text}`));
+    const proof = specProof(ctx);
+    const testFiles = citedTestFiles(ctx.info.root);
+    const by = standings(spec.rows, signoffs);
+    rows.forEach((row) => io.say(`${row.id} [${row.tier || 'no tier'}] ${row.text} — ${rowStage(by.get(row.id), rowEvidence(ctx.info.root, row.id, { ...proof, testFiles }))}`));
     io.say(`${rows.length} approved rows without a current sign-off`);
     return 0;
   }
   if (first === 'signoff') {
     const ids = [second, ...rest].filter(Boolean).flatMap((text) => idList(text));
-    const count = signOff(ctx.info.root, spec, { ids, by: values.by ?? '', on: new Date().toISOString().slice(0, 10) });
+    if (!ids.length) throw new Refused('USAGE', 'pullboard spec signoff <ids> --by <name> [--note "what was checked"]');
+    const invalid = ids.filter((id) => spec.rows.find((row) => row.id === id)?.status !== 'approved');
+    if (invalid.length) throw new Refused('CANNOT_SIGN', `${invalid.join(', ')}: only approved rows in this spec are signed`);
+    const proof = specProof(ctx);
+    const testFiles = citedTestFiles(ctx.info.root);
+    const evidence = ids.map((id) => ({ id, ...rowEvidence(ctx.info.root, id, { ...proof, testFiles }) }));
+    const missing = evidence.filter((row) => !row.files.length && !row.verified.length).map((row) => row.id);
+    if (missing.length) throw new Refused('NO_EVIDENCE', `${missing.join(', ')} has no evidence; build it or cite its id in a test first`);
+    for (const row of evidence) {
+      io.say(`evidence for ${row.id}:`);
+      for (const file of row.files) io.say(`  test: ${file}`);
+      for (const item of row.verified) io.say(`  verified #${item.id}: ${item.note || '(no accepting note)'}`);
+    }
+    const count = signOff(ctx.info.root, spec, { ids, by: values.by ?? '', on: new Date().toISOString().slice(0, 10), note: values.note ?? '' });
     io.say(`signed ${count} rows as ${values.by}; commit .pullboard/signoffs.jsonl`);
     return 0;
   }

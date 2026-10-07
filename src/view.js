@@ -27,10 +27,12 @@ function signoffCell(row, by) {
   const standing = by.get(row.id);
   if (standing?.met.length) {
     const names = standing.met.map((entry) => `${esc(entry.by)} ${esc(entry.on)}`).join(', ');
-    return { html: `<span class="so so-met">signed ${names}</span>`, state: 'met' };
+    const notes = standing.met.filter((entry) => entry.note).map((entry) => `<div>${esc(entry.by)}: ${esc(entry.note).replaceAll('\n', '<br>')}</div>`).join('');
+    return { html: `<span class="so so-met">signed ${names}</span>${notes}`, state: 'met' };
   }
   if (standing?.stale.length) {
-    return { html: '<span class="so so-stale">stale: text changed since sign-off</span>', state: 'stale' };
+    const notes = standing.stale.filter((entry) => entry.note).map((entry) => `<div>${esc(entry.by)}: ${esc(entry.note).replaceAll('\n', '<br>')}</div>`).join('');
+    return { html: `<span class="so so-stale">stale: text changed since sign-off</span>${notes}`, state: 'stale' };
   }
   return { html: '<span class="so so-open">not signed</span>', state: 'open' };
 }
