@@ -42,7 +42,7 @@ import { runItems } from './run.js';
 import { parseProblems, sweepItems } from './sweep.js';
 import { renderSpecView } from './view.js';
 import { tour } from './tour.js';
-import { registerProject } from './projects.js';
+import { forgetProject, registerProject } from './projects.js';
 import { serveView } from './serve.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -111,6 +111,7 @@ Receipts
 
 Spec
   pullboard spec --json                 parsed SPEC.md and PRACTICE.md rows as JSON
+  pullboard forget <path>               remove a repo from this machine's project list
   pullboard spec check                  lint SPEC.md and PRACTICE.md
   pullboard spec view [--out file]      the spec, open questions, sign-offs and practice as one page
   pullboard spec show <id> | unmet [--must] | signoff <ids> --by <initials>
@@ -631,7 +632,7 @@ function resumeHere(io) {
 async function viewHere(io, values) {
   try {
     const info = repoInfo(io.cwd);
-    if (info.isMain && existsSync(join(info.root, CONFIG_FILE))) registerProject(info.root);
+    if (info.isMain && existsSync(join(info.root, CONFIG_FILE))) registerProject(info.root, new Date(), loadConfig(info.root));
   } catch (error) {
     if (!(error instanceof Refused)) throw error;
   }
@@ -670,7 +671,7 @@ function setupCommands(io, { first, values }) {
         closeBoard: store.closeBoard,
       });
       notes.forEach((note) => io.say(note));
-      if (registerProject(info.root)) io.say('registered this project on this machine, so pullboard view lists it');
+      if (registerProject(info.root, new Date(), loadConfig(info.root))) io.say('registered this project on this machine, so pullboard view lists it');
       io.say('next: write SPEC.md rows, declare lanes in pullboard.json, then: pullboard add <lane> <title>');
       io.say('with an agent: start a new Claude Code session here, which loads the pullboard skills, then tell it what to build; the pullboard-run skill runs the team');
       return 0;
@@ -1486,6 +1487,13 @@ export async function main(argv, streams) {
       return 0;
     }
     if (command === 'view') return await viewHere(io, values);
+    if (command === 'forget') {
+      if (!first || second) throw new Refused('USAGE', 'pullboard forget <path>');
+      const root = resolve(io.cwd, first);
+      if (!forgetProject(root)) throw new Refused('NO_REPO', `no registered repo at ${root}; see the projects in pullboard view`);
+      io.say(`forgot ${root}`);
+      return 0;
+    }
     if (command === 'spec') return specCommand(io, args);
     if (command === 'prompt') {
       let root = io.cwd;

@@ -1,11 +1,11 @@
 /**
- * The projects on this machine (I8): every repo `pullboard init` set up, so `pullboard view` can show
- * them all on one page. A plain JSON file in the person's home, or wherever PULLBOARD_HOME points,
- * which is how tests and the tour keep their throwaway repos out of it.
+ * The projects on this machine: every initialized repo, with optional project and display names.
+ * The registry lives in the user's home (or PULLBOARD_HOME for isolated runs).
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, join, resolve } from 'node:path';
+import { loadConfig } from './config.js';
 
 /**
  * The registry file.
@@ -17,34 +17,160 @@ export function registryFile() {
 }
 
 /**
- * Every registered project, oldest first. An unreadable registry reads as empty.
+ * Read the registry, treating unreadable or malformed content as empty without authorizing a rewrite.
  *
- * @returns {{ root: string, name: string, added: string }[]}
+ * @returns {{ projects: any[], readable: boolean }}
  */
-export function listProjects() {
+function readRegistry() {
   const file = registryFile();
-  if (!existsSync(file)) return [];
+  if (!existsSync(file)) return { projects: [], readable: true };
   try {
     const projects = JSON.parse(readFileSync(file, 'utf8')).projects;
-    return Array.isArray(projects) ? projects.filter((project) => typeof project?.root === 'string') : [];
+    return Array.isArray(projects)
+      ? { projects: projects.filter((project) => typeof project?.root === 'string'), readable: true }
+      : { projects: [], readable: false };
   } catch {
-    return [];
+    return { projects: [], readable: false };
   }
 }
 
 /**
- * Add a project's main checkout to the registry, once.
+ * Whether a path currently names a directory.
+ *
+ * @param {string} path
+ * @returns {boolean}
+ */
+function isDirectory(path) {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Metadata from a validated config, or null when the config cannot be trusted.
+ *
+ * @param {string} root
+ * @param {object} [provided]
+ * @returns {{ name: string, project: string } | null}
+ */
+function configMetadata(root, provided = {}) {
+  let current;
+  try {
+    current = loadConfig(root);
+  } catch {
+    current = null;
+  }
+  const hasProvidedMetadata = provided && typeof provided === 'object'
+    && (provided.name !== undefined || provided.project !== undefined);
+  if (!current && !hasProvidedMetadata) return null;
+  const candidate = { ...(current ?? {}) };
+  if (provided && typeof provided === 'object') {
+    if (provided.name !== undefined) candidate.name = provided.name;
+    if (provided.project !== undefined) candidate.project = provided.project;
+  }
+  /**
+   * Whether optional metadata is trimmed, nonempty text with no control characters.
+   *
+   * @param {unknown} value
+   * @returns {boolean}
+   */
+  const validText = (value) => typeof value === 'string' && value.length > 0 && value.trim() === value && !/[\u0000-\u001f\u007f-\u009f]/u.test(value);
+  if (candidate.name !== undefined && (!validText(candidate.name) || /[#,]/u.test(candidate.name))) return null;
+  if (candidate.project !== undefined && !validText(candidate.project)) return null;
+  return { name: candidate.name ?? basename(root), project: candidate.project ?? '' };
+}
+
+/**
+ * Persist a registry only after a caller has determined that its contents changed.
+ *
+ * @param {any[]} projects
+ * @returns {void}
+ */
+function writeRegistry(projects) {
+  const file = registryFile();
+  mkdirSync(join(file, '..'), { recursive: true });
+  writeFileSync(file, `${JSON.stringify({ projects }, null, 2)}\n`);
+}
+
+/**
+ * Every registered project, oldest first. Refreshes valid live metadata and prunes missing roots.
+ *
+ * @returns {{ root: string, name: string, project: string, added: string }[]}
+ */
+export function listProjects() {
+  const state = readRegistry();
+  if (!state.readable) return [];
+  let changed = false;
+  const projects = [];
+  for (const stored of state.projects) {
+    const root = resolve(stored.root);
+    if (!isDirectory(root)) {
+      changed = true;
+      continue;
+    }
+    const metadata = configMetadata(root);
+    const project = {
+      ...stored,
+      root,
+      name: stored.name ?? basename(root),
+      project: stored.project ?? '',
+    };
+    if (metadata) {
+      project.name = metadata.name;
+      project.project = metadata.project;
+    }
+    if (project.root !== stored.root || project.name !== stored.name || project.project !== stored.project) changed = true;
+    projects.push(project);
+  }
+  if (changed) writeRegistry(projects);
+  return projects;
+}
+
+/**
+ * Add a project's main checkout once, preserving its original added timestamp on later registrations.
  *
  * @param {string} root
  * @param {Date} [now]
+ * @param {object} [config]
  * @returns {boolean} Whether it was new.
  */
-export function registerProject(root, now = new Date()) {
-  const projects = listProjects();
-  if (projects.some((project) => project.root === root)) return false;
-  const file = registryFile();
-  mkdirSync(join(file, '..'), { recursive: true });
-  projects.push({ root, name: basename(root), added: now.toISOString() });
-  writeFileSync(file, `${JSON.stringify({ projects }, null, 2)}\n`);
+export function registerProject(root, now = new Date(), config = {}) {
+  const normalizedRoot = resolve(root);
+  const state = readRegistry();
+  if (!state.readable) return false;
+  const projects = state.projects.map((entry) => ({ ...entry, root: resolve(entry.root) }));
+  const metadata = configMetadata(normalizedRoot, config);
+  const existing = projects.find((project) => project.root === normalizedRoot);
+  if (existing) {
+    if (metadata) {
+      const changed = existing.name !== metadata.name || existing.project !== metadata.project;
+      if (changed) {
+        Object.assign(existing, metadata);
+        writeRegistry(projects);
+      }
+    }
+    return false;
+  }
+  const initialMetadata = metadata ?? { name: basename(normalizedRoot), project: '' };
+  projects.push({ root: normalizedRoot, ...initialMetadata, added: now.toISOString() });
+  writeRegistry(projects);
+  return true;
+}
+
+/**
+ * Remove exactly the registered project at a normalized absolute path.
+ *
+ * @param {string} path
+ * @returns {boolean} Whether one registered project was removed.
+ */
+export function forgetProject(path) {
+  const normalized = resolve(path);
+  const state = readRegistry();
+  if (!state.readable) return false;
+  const projects = state.projects.filter((project) => resolve(project.root) !== normalized);
+  if (projects.length === state.projects.length) return false;
+  writeRegistry(projects);
   return true;
 }
