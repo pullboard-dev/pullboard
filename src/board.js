@@ -54,6 +54,7 @@ const SCHEMA = `
     agent_path TEXT NOT NULL UNIQUE,
     agent_last_shout_id INTEGER NOT NULL DEFAULT 0,
     agent_route TEXT NOT NULL DEFAULT 'strong',
+    agent_family TEXT,
     agent_created_at TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS item (
@@ -73,6 +74,7 @@ const SCHEMA = `
     item_frozen TEXT,
     item_frozen_digest TEXT,
     item_built_by TEXT,
+    item_builder_family TEXT,
     item_commit TEXT,
     item_tree TEXT,
     item_verdict TEXT,
@@ -88,6 +90,7 @@ const SCHEMA = `
     verdict_id INTEGER PRIMARY KEY AUTOINCREMENT,
     item_id INTEGER NOT NULL REFERENCES item (item_id),
     verdict_by TEXT NOT NULL,
+    verdict_verifier_family TEXT,
     verdict_decision TEXT NOT NULL,
     verdict_reason TEXT NOT NULL,
     verdict_note TEXT NOT NULL DEFAULT '',
@@ -210,6 +213,9 @@ function migrate(db) {
     ['item', 'item_route', "TEXT NOT NULL DEFAULT 'strong'"],
     ['item', 'item_check', "TEXT NOT NULL DEFAULT ''"],
     ['agent', 'agent_route', "TEXT NOT NULL DEFAULT 'strong'"],
+    ['agent', 'agent_family', 'TEXT'],
+    ['item', 'item_builder_family', 'TEXT'],
+    ['verdict', 'verdict_verifier_family', 'TEXT'],
     ['item', 'item_claim_head', 'TEXT'],
     ['item', 'item_files', "TEXT NOT NULL DEFAULT ''"],
     ['item', 'item_review_by', 'TEXT'],
@@ -347,13 +353,15 @@ export function agentAt(board, path) {
 /**
  * Register a worktree as an agent (B3): the main checkout as the one coordinator, any other
  * worktree as the next agent in its lane (`web-1`, `web-2`, ...), on a route: the tier of model
- * behind it, which decides the items it may take (B13). Registering again is a no-op.
+ * behind it, which decides the items it may take (B13). The optional family is free text supplied
+ * by the agent; the board neither names nor infers it. Registering again preserves the agent id;
+ * an explicitly supplied family updates the declaration, while omission preserves it.
  *
  * @param {any} board
- * @param {{ lane: string, path: string, route?: string }} who
+ * @param {{ lane: string, path: string, route?: string, family?: string | null }} who
  * @returns {string} The agent's id.
  */
-export function register(board, { lane, path, route = 'strong' }) {
+export function register(board, { lane, path, route = 'strong', family }) {
   checkRoute(route);
   if (lane === COORDINATOR && route !== 'strong') {
     throw new Refused('BAD_ROUTE', 'the coordinator plans, merges and verifies; it is always strong');
@@ -367,6 +375,10 @@ export function register(board, { lane, path, route = 'strong' }) {
           `this worktree is ${existing.agent_id} in the ${existing.agent_lane} lane, routed ${existing.agent_route}; use another worktree for ${lane} routed ${route}`,
         );
       }
+      if (family !== undefined && family !== existing.agent_family) {
+        board.db.prepare('UPDATE agent SET agent_family = ? WHERE agent_id = ?').run(family, existing.agent_id);
+        logEvent(board, existing.agent_id, 'family', null, { family });
+      }
       return existing.agent_id;
     }
     const { total } = board.db
@@ -378,9 +390,9 @@ export function register(board, { lane, path, route = 'strong' }) {
     const id = lane === COORDINATOR ? COORDINATOR : `${lane}-${total + 1}`;
     board.db
       .prepare(
-        'INSERT INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_created_at) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_family, agent_created_at) VALUES (?, ?, ?, ?, ?, ?)',
       )
-      .run(id, lane, path, route, now(board));
+      .run(id, lane, path, route, family ?? null, now(board));
     logEvent(board, id, 'join', null, route === 'strong' ? { lane } : { lane, route });
     return id;
   });
@@ -840,6 +852,7 @@ export function submit(board, id, { agentId, commit, tree, files = [] }) {
       },
       set: (found) => ({
         item_built_by: agentId,
+        item_builder_family: board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(agentId)?.agent_family ?? null,
         item_commit: commit,
         item_tree: tree,
         item_lease_until: null,
@@ -985,13 +998,14 @@ export function verify(board, id, { agentId, decision, reason, note = '', head, 
         noteGiven: () => (note.trim() ? null : new Refused('NOTE_REQUIRED', 'a reject says what failed: --note "..."')),
       },
       before: (found) => {
+        const family = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(agentId)?.agent_family ?? null;
         board.db
           .prepare(
             `INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_note,
-               verdict_commit, verdict_digest, verdict_head, verdict_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               verdict_commit, verdict_digest, verdict_head, verdict_verifier_family, verdict_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
-          .run(id, agentId, decision, code, note.trim(), found.item_commit, digest, head, now(board));
+          .run(id, agentId, decision, code, note.trim(), found.item_commit, digest, head, family, now(board));
       },
       set: (found) => ({ item_verdict: decision, item_verified_by: isAccept ? agentId : null, item_owner: isAccept ? found.item_owner : null }),
     });

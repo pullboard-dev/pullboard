@@ -66,6 +66,8 @@ A successful command returns the fields listed below. `version` is always the nu
 | `hook pre-push` | `version:number`, `messages:array` |
 <!-- api-command-shapes:end -->
 
+`join` and `worktree` accept an optional free-text `--family` declaration. Rejoining the same worktree preserves its agent id; a supplied family updates the declaration, while omitting `--family` preserves it. `resume` includes it as `me.family`; `show` includes `item_builder_family` and each verdict's `verdict_verifier_family`. These recorded fields are `null` when the agent did not declare a family, and later declarations do not rewrite prior submissions or verdicts.
+
 ## Refusals
 
 A refusal keeps the command's existing exit status and prints exactly one versioned document to stdout. In JSON mode stderr stays empty. The command-specific `code` identifies the rule; `message` explains what happened; `next` gives the next step.

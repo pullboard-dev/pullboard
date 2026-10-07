@@ -58,9 +58,9 @@ Nothing ships until a second agent verifies it.
 Set up
   pullboard tour                        see it work: a reject and its rework, scripted, in thirty seconds
   pullboard init                        config, SPEC.md, agent instructions, git hooks, board
-  pullboard worktree <lane> [--route light]   make a worktree for a new agent in a lane, joined, and say what to run next
-  pullboard join <lane> [--route light]  register the worktree you are in as an agent in a lane
-                                        --route light: a lighter model that takes only items routed light
+  pullboard worktree <lane> [--route light] [--family <name>]   make and join a worktree for a new agent
+  pullboard join <lane> [--route light] [--family <name>]       register this worktree as an agent
+                                        --route sets which work the model can take; --family records its name
   pullboard whoami | lanes | status     who you are, the lanes, the board at a glance
   pullboard view [--port N] [--no-open]  every project on this machine in your browser: items, shouts, doctrine,
                                         agents and activity, live; add items, shout and hold lanes from it
@@ -154,6 +154,7 @@ const OPTIONS = {
   brief: { type: 'string' },
   'brief-file': { type: 'string' },
   route: { type: 'string' },
+  family: { type: 'string' },
   as: { type: 'string' },
   check: { type: 'string' },
   agent: { type: 'string' },
@@ -380,15 +381,19 @@ function withBoard(ctx, work) {
  *
  * @param {any} ctx
  * @param {any} board
- * @returns {{ id: string, lane: string }}
+ * @returns {{ id: string, lane: string, route?: string, family: string | null }}
  */
 function whoAmI(ctx, board) {
-  if (ctx.info.isMain) return { id: store.ensureCoordinator(board, ctx.info.root), lane: COORDINATOR };
+  if (ctx.info.isMain) {
+    const id = store.ensureCoordinator(board, ctx.info.root);
+    const agent = store.agentAt(board, ctx.info.root);
+    return { id, lane: COORDINATOR, family: agent?.agent_family ?? null };
+  }
   const agent = store.agentAt(board, ctx.info.root);
   if (!agent) {
     throw new Refused('NOT_JOINED', 'this worktree has not joined a lane: pullboard join <lane> (see: pullboard lanes)');
   }
-  return { id: agent.agent_id, lane: agent.agent_lane, route: agent.agent_route };
+  return { id: agent.agent_id, lane: agent.agent_lane, route: agent.agent_route, family: agent.agent_family ?? null };
 }
 
 /**
@@ -601,7 +606,7 @@ function resumeHere(io) {
   const { me } = card;
   const say = (line) => io.say(line);
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-  say(`resume: ${me.id}, ${me.lane} lane${isMain ? ', the main checkout' : ''}, at ${root}`);
+  say(`resume: ${me.id}${me.family ? ` (${me.family})` : ''}, ${me.lane} lane${isMain ? ', the main checkout' : ''}, at ${root}`);
   const dirty = dirtyFiles(root).length;
   if (!isMain) {
     const branch = tryGit(root, ['rev-parse', '--abbrev-ref', 'HEAD']).stdout || 'HEAD';
@@ -720,12 +725,12 @@ function setupCommands(io, { first, values }) {
         throw new Refused('NO_LANE', `no lane "${first ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
       }
       const route = values.route ?? 'strong';
-      const id = withBoard(ctx, (board) => store.register(board, { lane: first, path: ctx.info.root, route }));
+      const id = withBoard(ctx, (board) => store.register(board, { lane: first, path: ctx.info.root, route, family: values.family }));
       io.result?.({ agent: id, lane: first, route, path: ctx.info.root });
       io.say(`joined as ${id} in the ${first} lane${route === 'light' ? ', on the light route' : ''}`);
       return 0;
     },
-    worktree: () => worktreeFor(io, first, values.route ?? 'strong'),
+    worktree: () => worktreeFor(io, first, values.route ?? 'strong', values.family ?? null),
   };
 }
 
@@ -736,9 +741,10 @@ function setupCommands(io, { first, values }) {
  * @param {any} io
  * @param {string | undefined} lane
  * @param {string} route
+ * @param {string | null} family
  * @returns {number}
  */
-function worktreeFor(io, lane, route) {
+function worktreeFor(io, lane, route, family = null) {
   const ctx = context(io);
   if (!lane || lane === COORDINATOR || !isLane(ctx.config, lane)) {
     throw new Refused('NO_LANE', `no lane "${lane ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
@@ -754,9 +760,9 @@ function worktreeFor(io, lane, route) {
   while (isTaken(n)) n += 1;
   git(mainRoot, ['worktree', 'add', '-q', '-b', `${lane}/${n}`, pathFor(n), git(mainRoot, ['rev-parse', 'HEAD'])]);
   const root = git(pathFor(n), ['rev-parse', '--show-toplevel']);
-  const id = withBoard(ctx, (board) => store.register(board, { lane, path: root, route }));
+  const id = withBoard(ctx, (board) => store.register(board, { lane, path: root, route, family }));
   io.result?.({ agent: id, lane, route, path: root, branch: `${lane}/${n}`, prompt: `You are ${id}, in the ${lane} lane. Work only in ${shellWord(root)}, and start every command with ${cdTo(root)}\nRead ${shellWord(join(root, 'AGENTS.md'))} first. Its rules govern this work, over any other repo's instructions you were given.` });
-  io.say(`made ${root} on branch ${lane}/${n}, joined as ${id} in the ${lane} lane${route === 'light' ? ', on the light route' : ''}`);
+  io.say(`made ${root} on branch ${lane}/${n}, joined as ${id} in the ${lane} lane${route === 'light' ? ', on the light route' : ''}${family ? ` (${family})` : ''}`);
   io.say(`Work only in that folder. A shell that starts each command in the main checkout acts as the coordinator there, so start every command with: ${cdTo(root)}`);
   if (existsSync(join(root, 'package.json'))) io.say(`  ${cdTo(root)} npm install    (its own install, so its tests run its own code)`);
   io.say(`  ${cdTo(root)} pullboard inbox`);
@@ -897,11 +903,11 @@ function readCommands(io, { first, second, rest, values }) {
         io.say(`frozen at claim (${item.item_frozen_digest.slice(0, 12)}):`);
         frozen.rows.forEach((row) => io.say(`  ${row.id}: ${row.text}${row.gate ? `  | gate: ${row.gate}` : ''}`));
       }
-      if (item.item_commit) io.say(`submitted by ${item.item_built_by} at ${item.item_commit}`);
+      if (item.item_commit) io.say(`submitted by ${item.item_built_by}${item.item_builder_family ? ` (${item.item_builder_family})` : ''} at ${item.item_commit}`);
       if (reviewer) io.say(`under review by ${reviewer} until ${item.item_review_until}`);
       // Earlier verdicts as one line each, so an item sent back several times stays short to read
       // (N30); --history prints every note in full.
-      const verdictLine = (verdict) => `${verdict.verdict_decision} ${verdict.verdict_reason} by ${verdict.verdict_by} at ${verdict.verdict_commit.slice(0, 12)}`;
+      const verdictLine = (verdict) => `${verdict.verdict_decision} ${verdict.verdict_reason} by ${verdict.verdict_by}${verdict.verdict_verifier_family ? ` (${verdict.verdict_verifier_family})` : ''} at ${verdict.verdict_commit.slice(0, 12)}`;
       const notes = verdicts.map((verdict, index) => (values.history || index === verdicts.length - 1 ? verdict.verdict_note : firstLineOf(verdict.verdict_note)));
       verdicts.forEach((verdict, index) => io.say(`${verdictLine(verdict)}${notes[index] ? `: ${notes[index]}` : ''}`));
       if (notes.some((note, index) => note !== verdicts[index].verdict_note)) io.say(`(earlier verdicts shortened; every note in full: pullboard show ${id} --history)`);
