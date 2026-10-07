@@ -14,6 +14,7 @@ import { after, test } from 'node:test';
 import vm from 'node:vm';
 import { loadDoctrine } from '../src/doctrine.js';
 import { MACHINE } from '../src/machine.js';
+import { portableSnapshot } from '../src/serve.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const scratch = [];
@@ -2295,7 +2296,7 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
   // Capture the live API state before export; the exported replay must finish at exactly this state.
   const live = await startView(box);
   let expected;
-  try { expected = await boardOf(live, alpha.repo); }
+  try { expected = portableSnapshot(await boardOf(live, alpha.repo), alpha.repo); }
   finally { await live.stop(); }
 
   const exportDir = join(box.dir, 'snapshot-export');
@@ -2449,5 +2450,74 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
     if (chrome) await closeSnapshotChrome(chrome);
     await new Promise((resolve) => server.close(resolve));
     rmSync(profile, { recursive: true, force: true });
+  }
+});
+
+test('static export redacts structured checkout paths but preserves paths people wrote [A10]', async () => {
+  const box = machine();
+  const alpha = project(box, 'private-project');
+  box.run(alpha.repo, 'add', 'web', 'Private checkout item', '--specs', 'G1', '--criterion', 'exports without checkout paths');
+  const projectRoot = alpha.repo;
+  const worktreeRoot = alpha.web;
+  const commonGitDir = box.git(alpha.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir');
+  const live = await startView(box);
+  try {
+    const listingResponse = await fetch(`${live.base}/api/v1/boards`, { headers: { 'x-pullboard-key': live.key } });
+    assert.equal(listingResponse.status, 200);
+    const listing = await listingResponse.json();
+    const board = listing.boards.find((entry) => entry.root === projectRoot);
+    assert.ok(board, 'the live listing keeps the absolute project root');
+    assert.equal(board.root, projectRoot);
+    const state = await boardOf(live, projectRoot);
+    assert.equal(state.root, projectRoot, 'live state keeps the absolute root');
+    const agent = state.agents.find((entry) => entry.agent_id === 'web-1');
+    assert.ok(agent);
+    assert.equal(agent.agent_path, worktreeRoot, 'live state keeps the agent worktree path');
+    assert.equal(box.git(alpha.web, 'rev-parse', '--path-format=absolute', '--git-common-dir'), commonGitDir,
+      'the linked worktree still shares the repository common Git directory');
+    const boardEvents = await fetch(`${live.base}/api/v1/boards/${board.id}/events`, { headers: { 'x-pullboard-key': live.key } });
+    assert.equal(boardEvents.status, 200);
+    const events = await boardEvents.json();
+    assert.ok(events.events.length > 0);
+
+    /** Enumerate every exported file, including the API document subtree. */
+    const filesBelow = (directory) => readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(directory, entry.name);
+      return entry.isDirectory() ? filesBelow(path) : [path];
+    });
+    /** Read all bytes so an unexpected exported field cannot hide a private folder. */
+    const exportedText = (directory) => filesBelow(directory).map((path) => readFileSync(path, 'utf8')).join('\n');
+    const snapshot = join(box.dir, 'export-structured');
+    box.run(alpha.repo, 'view', '--export', snapshot);
+    const structuredFiles = exportedText(snapshot);
+    for (const privatePath of [box.dir, projectRoot, worktreeRoot, commonGitDir]) {
+      assert.ok(!structuredFiles.includes(privatePath), `export does not include structured path ${privatePath}`);
+    }
+
+    // A second export deliberately includes paths in human-authored prose. Those exact values are
+    // the only allowed occurrences; project.root, agent_path and common Git metadata stay redacted.
+    const brief = `Keep this literal checkout reference: ${projectRoot}`;
+    const shout = `Please inspect this literal agent folder: ${worktreeRoot}`;
+    box.run(alpha.repo, 'add', 'web', 'Path in prose', '--specs', 'G1', '--criterion', 'keeps prose literal', '--brief', brief);
+    box.run(alpha.web, 'shout', 'all', shout);
+    const proseSnapshot = join(box.dir, 'export-prose');
+    box.run(alpha.repo, 'view', '--export', proseSnapshot);
+    const stateFile = JSON.parse(readFileSync(join(proseSnapshot, 'api', 'v1', 'boards', board.id, 'state.json'), 'utf8')).state;
+    assert.notEqual(stateFile.root, projectRoot, 'export redacts structured project root');
+    assert.notEqual(stateFile.agents.find((entry) => entry.agent_id === 'web-1').agent_path, worktreeRoot,
+      'export redacts the structured agent worktree');
+    assert.equal(stateFile.items.find((entry) => entry.title === 'Path in prose').brief, brief);
+    assert.ok(stateFile.shouts.some((entry) => entry.shout_text === shout), 'the authored shout remains literal');
+    const proseFiles = filesBelow(proseSnapshot).map((path) => readFileSync(path, 'utf8'));
+    let scrubbedText = proseFiles.join('\n');
+    for (const text of [brief, shout]) {
+      scrubbedText = scrubbedText.replaceAll(JSON.stringify(text), '"<authored prose>"')
+        .replaceAll(JSON.stringify(JSON.stringify(text)).slice(1, -1), '<authored event prose>');
+    }
+    for (const privatePath of [box.dir, projectRoot, worktreeRoot, commonGitDir]) {
+      assert.ok(!scrubbedText.includes(privatePath), `outside authored prose, export does not include ${privatePath}`);
+    }
+  } finally {
+    await live.stop();
   }
 });
