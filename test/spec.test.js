@@ -7,6 +7,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
+import { standardDoctrine } from '../src/doctrine.js';
 import {
   citedIds,
   deletedIds,
@@ -211,7 +212,11 @@ test('spec --json emits one versioned document with every field, including empty
   const shown = box.run('--json');
   assert.equal(shown.status, 0, shown.stderr);
   const data = JSON.parse(shown.stdout);
-  assert.deepEqual(data, {
+  const inherited = data.rows.filter(row => row.origin === 'standard 1');
+  assert.equal(data.rows.length, 4 + standardDoctrine().rows.length);
+  assert.deepEqual(inherited.map(row => row.id), standardDoctrine().rows.map(row => row.id));
+  assert.ok(inherited.every(row => row.file === 'standard doctrine 1' && row.version === 1 && row.reason === ''));
+  assert.deepEqual({ version: data.version, rows: data.rows.filter(row => row.file === 'SPEC.md') }, {
     version: 1,
     rows: [
       { id: 'G1', status: 'approved', tier: 'must', text: 'Same file twice is a no-op.', gate: 'idempotency test', serves: [], section: 'G · Goals', line: 6, file: 'SPEC.md' },
@@ -229,12 +234,13 @@ test('spec --json combines both configured files and keeps every row status [S13
   assert.equal(shown.status, 0, shown.stderr);
   const data = JSON.parse(shown.stdout);
   assert.equal(data.version, 1);
-  assert.equal(data.rows.length, 7);
+  assert.equal(data.rows.length, 7 + standardDoctrine().rows.length);
+  assert.equal(data.rows.filter(row => row.origin === 'standard 1').length, standardDoctrine().rows.length);
   assert.ok(data.rows.slice(0, 4).every((row) => row.file === 'requirements.md'));
-  assert.deepEqual(data.rows.slice(4), [
-    { id: 'P1', status: 'fact', tier: '', text: 'A fact.', gate: '', serves: [], section: 'P · Practice', line: 4, file: 'ways.md' },
-    { id: 'P2', status: 'pending', tier: 'must', text: 'A question.', gate: '', serves: [], section: 'P · Practice', line: 5, file: 'ways.md' },
-    { id: 'P3', status: 'wont', tier: '', text: 'An old plan.', gate: '', serves: [], section: 'P · Practice', line: 6, file: 'ways.md' },
+  assert.deepEqual(data.rows.filter(row => row.file === 'ways.md'), [
+    { id: 'P1', status: 'fact', tier: '', text: 'A fact.', gate: '', serves: [], section: 'P · Practice', line: 4, file: 'ways.md', origin: 'repo', version: null, reason: '' },
+    { id: 'P2', status: 'pending', tier: 'must', text: 'A question.', gate: '', serves: [], section: 'P · Practice', line: 5, file: 'ways.md', origin: 'repo', version: null, reason: '' },
+    { id: 'P3', status: 'wont', tier: '', text: 'An old plan.', gate: '', serves: [], section: 'P · Practice', line: 6, file: 'ways.md', origin: 'repo', version: null, reason: 'An old plan.' },
   ]);
 });
 
@@ -278,7 +284,7 @@ test('warning-only specs keep spec-check success while JSON stays a single docum
   assert.match(check.stdout, /warning: 25 words/);
   const shown = box.run('--json');
   assert.equal(shown.status, 0, shown.stderr);
-  assert.equal(JSON.parse(shown.stdout).rows.length, 5);
+  assert.equal(JSON.parse(shown.stdout).rows.length, 5 + standardDoctrine().rows.length);
 });
 
 test('signoff prints cited tests, preserves its note and escapes that note in the spec view [S14, S15]', (t) => {

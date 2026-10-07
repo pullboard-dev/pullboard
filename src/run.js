@@ -14,7 +14,8 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, 
 import { join } from 'node:path';
 import * as store from './board.js';
 import { briefFiles } from './brief.js';
-import { COORDINATOR } from './config.js';
+import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
+import { doctrineText, loadDoctrine } from './doctrine.js';
 import { digestOf, runGate } from './gate.js';
 import { contains, git, headCommit, isClean, tryGit, untracked } from './git.js';
 import { laneNames, outOfLane } from './lanes.js';
@@ -114,6 +115,8 @@ function restore(root, start, paths) {
  */
 export function packText(root, item, { attempt, attempts, digest, earlier = [], related = [] }) {
   const rows = item.item_frozen ? JSON.parse(item.item_frozen).rows : [];
+  const config = existsSync(join(root, CONFIG_FILE)) ? loadConfig(root) : {};
+  const doctrine = loadDoctrine(root, config);
   const files = briefFiles(item.item_brief);
   let budget = PACK_FILE_CHARS;
   const contents = files.map((path) => {
@@ -134,6 +137,9 @@ export function packText(root, item, { attempt, attempts, digest, earlier = [], 
     '',
     `The check that proves it, which the runner runs after you finish: \`${item.item_check}\``,
     ...(rows.length ? ['', '## Spec rows it serves', ...rows.map((row) => `- ${row.id}: ${row.text}`)] : []),
+    '',
+    '## Doctrine: standard 1 and this repo',
+    doctrineText(doctrine),
     '',
     '## Brief',
     item.item_brief || '(none)',
