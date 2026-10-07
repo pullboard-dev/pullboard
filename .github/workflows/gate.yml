@@ -1,12 +1,14 @@
 # The gate on every push to main and every pull request, with the oldest Node pullboard supports and
 # the newest (C7). macOS runs once the repository is public: GitHub bills macOS minutes tenfold on
-# private repositories, and runs public ones free. Full history, since spec check reads it.
+# private repositories, and runs public ones free. Full history, since spec check reads it. Run it by
+# hand on any branch to prove an exact commit: gh workflow run gate.yml --ref <branch>.
 name: gate
 
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
