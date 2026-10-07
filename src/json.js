@@ -65,6 +65,7 @@ export const JSON_SHAPES = {
     state: shape({ state: 'object' }),
     events: shape({ events: 'array' }),
     move: shape({ event: 'object', result: 'object' }),
+    request: shape({ event: 'object', result: 'object' }),
     stream: shape({ event: 'object' }),
   },
   error: shape({ error: 'object' }),

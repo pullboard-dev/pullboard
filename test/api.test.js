@@ -476,6 +476,8 @@ test('[A2] local HTTP v1 versions state and moves, authenticates, and preserves 
 
   const malformed = await apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{bad json' });
   assert.equal((await apiError(malformed, 400)).code, 'BAD_REQUEST');
+  const oversized = await apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'add', args: { lane: 'app', title: 'x'.repeat(100_001) } }) });
+  assert.equal((await apiError(oversized, 400)).code, 'BAD_REQUEST');
   const unknownVerb = await apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'pretend', args: {} }) });
   assert.equal((await apiError(unknownVerb, 400)).code, 'BAD_REQUEST');
   const unknownArgument = await apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'add', args: { lane: 'app', title: 'Ignored', extra: true } }) });
@@ -526,6 +528,7 @@ test('[A2] moves run as the named worktree agent and requests stay visible until
   const requestResponse = await apiFetch(api, `${path}/requests`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: 'Approve the API row' }) });
   assert.equal(requestResponse.status, 200);
   const requested = await requestResponse.json();
+  assertRequiredShape(requested, JSON_SHAPES.http.request.required, 'request response');
   const requestId = requested.result.id;
   assert.equal(requested.event.event_by, 'person');
   const state = (await (await apiFetch(api, `${path}/state`)).json()).state;
