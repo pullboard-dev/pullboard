@@ -232,20 +232,24 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .srow.on { background: var(--accent-soft); }
 .srow code { font: 600 12px var(--mono); }
 @media (width < 480px) { .srow { grid-template-columns: auto minmax(0, 1fr); } .srow > span:last-child { grid-column: 1 / -1; } }
-.flow { margin: 0 0 12px; padding: 10px 12px 8px; overflow-x: auto; }
-.flow svg { display: block; width: 100%; min-width: 680px; max-width: 900px; height: auto; margin: 0 auto; }
-.flow figcaption { color: var(--ink-faint); font-size: 12px; padding: 2px 2px 0; }
-.flow .box { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.3; }
-.flow .s-claimed .box { stroke: var(--blue); } .flow .s-submitted .box { stroke: var(--warn); }
-.flow .s-verified .box { stroke: var(--accent); fill: var(--accent-soft); } .flow .s-withdrawn .box { stroke-dasharray: 4 3; }
+.flow { position: relative; margin: 0 0 12px; padding: 10px 12px 8px; overflow-x: auto; }
+.flow svg { display: block; width: 100%; min-width: 680px; max-width: 920px; height: auto; margin: 0 auto; }
+.flow figcaption { color: var(--ink-faint); font-size: 12px; padding: 2px 34px 0 2px; }
+.flow-hide { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border: 0; border-radius: 8px; background: none; color: var(--ink-faint); font: 18px/1 var(--sans); cursor: pointer; }
+.flow-hide:hover { background: var(--surface-2); color: var(--ink); }
+.flow-show { margin: 0 0 12px; }
+.flow .box { fill: var(--surface-2); stroke: var(--line-strong); stroke-width: 1.2; }
+.flow .box.inner { fill: none; }
+.flow .s-verified .box { fill: var(--accent-soft); stroke: var(--accent); } .flow .s-verified .box.inner { fill: none; }
 .flow .name { font: 600 11px var(--mono); letter-spacing: .06em; fill: var(--ink-faint); }
 .flow .n { font: 800 22px var(--sans); fill: var(--ink); }
-.flow .sub { font: 12px var(--sans); fill: var(--reject); }
+.flow .keep { font: 11px var(--sans); fill: var(--ink-muted); } .flow .keep.idle { fill: var(--ink-faint); }
+.flow .sub { font: 11px var(--sans); fill: var(--reject); }
 .flow .edge { fill: none; stroke: var(--line-strong); stroke-width: 1.4; }
-.flow .edge.no { stroke: var(--reject); }
-.flow marker path { fill: var(--line-strong); } .flow marker.no path { fill: var(--reject); }
-.flow .tag { font: 12px var(--sans); fill: var(--ink-muted); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
-.flow .tag.idle { fill: var(--ink-faint); } .flow .tag.no { fill: var(--reject); }
-.flow g:hover .box, .flow g:hover .edge { stroke-width: 2.4; }
+.flow .edge.back { stroke: var(--reject); stroke-dasharray: 5 4; }
+.flow marker path { fill: var(--line-strong); } .flow marker.back path { fill: var(--reject); }
+.flow .tag { font: 12px var(--sans); fill: var(--ink-muted); }
+.flow .tag.idle { fill: var(--ink-faint); } .flow .tag.back { fill: var(--reject); }
+.flow g:hover > .box, .flow g:hover > .edge { stroke-width: 2.2; }
 .console { position: fixed; right: 16px; bottom: 16px; width: min(560px, calc(100vw - 32px)); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: var(--shadow); padding: 10px 12px; font: 12px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 38vh; overflow: auto; z-index: 20; cursor: pointer; }
 .console.ok { border-color: var(--accent); } .console.no { border-color: var(--reject); }
