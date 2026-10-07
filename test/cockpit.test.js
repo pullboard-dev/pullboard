@@ -1022,3 +1022,23 @@ test('activity names the item each event moved [N26]', async () => {
     await view.stop();
   }
 });
+
+test('needs-you lines keep their titles on a phone [N26]', async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  box.run(alpha.repo, 'add', 'web', 'A greeting with a title long enough to need the room', '--specs', 'G1', '--criterion', 'greets');
+  build(box, alpha, 1, 'greeting.html');
+  sendBack(box, alpha, 1, 'no greeting yet');
+  build(box, alpha, 1, 'greeting-again.html');
+  const view = await startView(box);
+  try {
+    const page = await openPage(view, { width: 375 });
+    const style = page.html.slice(page.html.indexOf('<style>'), page.html.indexOf('</style>'));
+    assert.match(style, /\n\.ny \{ display: grid; grid-template-columns: auto minmax\(5em, 1fr\) minmax\(0, max-content\);/, 'wider, a line keeps its single row');
+    assert.match(style, /\n@media \(width < 480px\) \{ \.ny \{ grid-template-columns: auto minmax\(0, 1fr\); row-gap: 1px; \} \.ny em \{ grid-column: 2; \} \}\n/, 'under 480px, what it needs moves under the title');
+    // The rule works because each line is the ref, then the title, then what it needs.
+    assert.match(page.show('needs'), /<button class="ny" data-go="item:1" type="button"><code>#1<\/code><span>A greeting with a title long enough to need the room<\/span><em>resubmitted after BEHAVIOR_MISMATCH, [^]*? →<\/em><\/button>/);
+  } finally {
+    await view.stop();
+  }
+});
