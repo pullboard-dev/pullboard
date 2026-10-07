@@ -81,13 +81,12 @@ const SPEC = `# Demo spec
  * A repo set up with pullboard, two lanes and a spec, committed through its own hooks, plus a
  * worktree joined to the web lane.
  */
-function project() {
-  const box = sandbox();
+function project(gate = CONFIG.gate, box = sandbox()) {
   const repo = join(box.dir, 'repo');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
   assert.equal(box.run(repo, 'init').code, 0);
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(CONFIG, null, 2));
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate }, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: set up pullboard');
@@ -95,6 +94,53 @@ function project() {
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
   assert.match(box.run(web, 'join', 'web').out, /joined as web-1/);
   return { ...box, repo, web };
+}
+
+/** Create a private gate that waits only after the test arms it. */
+function holdingGate(box) {
+  const script = join(box.dir, 'holding-gate.cjs');
+  const mode = join(box.dir, 'hold-gate');
+  const release = join(box.dir, 'release-gate');
+  const events = join(box.dir, 'gate-events.log');
+  writeFileSync(script, [
+    "const fs = require('node:fs');",
+    'const [armed, release, events] = process.argv.slice(2);',
+    'if (!fs.existsSync(armed)) process.exit(0);',
+    "fs.appendFileSync(events, 'start\\n');",
+    'const deadline = Date.now() + 15000;',
+    'while (!fs.existsSync(release) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);',
+    'if (!fs.existsSync(release)) process.exit(23);',
+    "fs.appendFileSync(events, 'end\\n');",
+  ].join('\n'));
+  const quote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
+  return { command: `node ${quote(script)} ${quote(mode)} ${quote(release)} ${quote(events)}`, mode, release, events };
+}
+
+/** Launch a CLI or Git process while preserving its output for the gate-lock assertion. */
+function launch(box, cwd, command, args) {
+  const child = spawn(command, args, { cwd, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
+  child.stdoutText = '';
+  child.stderrText = '';
+  child.stdout.setEncoding('utf8').on('data', (chunk) => { child.stdoutText += chunk; });
+  child.stderr.setEncoding('utf8').on('data', (chunk) => { child.stderrText += chunk; });
+  child.closed = new Promise((resolveClose) => child.once('close', (code, signal) => resolveClose({ code, signal })));
+  return child;
+}
+
+/** Wait for a private fixture observation with a bounded failure time. */
+async function waitFor(predicate, description, timeoutMs = 8_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const value = predicate();
+    if (value) return value;
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 20));
+  }
+  throw new Error(`timed out waiting for ${description}`);
+}
+
+/** Read the private gate event sequence without exposing arbitrary gate output. */
+function gateEvents(gate) {
+  return existsSync(gate.events) ? readFileSync(gate.events, 'utf8').trim().split(/\r?\n/u).filter(Boolean) : [];
 }
 
 /**
@@ -306,6 +352,65 @@ test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [
   assert.match(submitted.out, /submitted #1 at [0-9a-f]{12}; gate green/);
   const head = box.git(box.web, 'rev-parse', 'HEAD');
   assert.equal(box.git(box.repo, 'rev-parse', `refs/pullboard/items/1/${head.slice(0, 12)}`), head, 'submit pins the commit');
+});
+
+test('submit keeps its machine gate slot until the submitted check finishes [V4,Q4]', async () => {
+  const box = sandbox();
+  const gate = holdingGate(box);
+  const projectBox = project(gate.command, box);
+  assert.equal(projectBox.run(projectBox.repo, 'settings', 'gateSlots', '1').code, 0);
+  projectBox.run(projectBox.repo, 'add', 'web', 'Page', '--specs', 'G1');
+  assert.match(projectBox.run(projectBox.web, 'claim', '1').out, /claimed #1/);
+  assert.equal(commitFile(projectBox, projectBox.web, 'web/page.html', 'page', 'feat(web): page [G1]').status, 0);
+  writeFileSync(gate.mode, 'armed');
+  const children = [];
+  try {
+    const submitted = launch(projectBox, projectBox.web, process.execPath, [BIN, 'submit', '1']);
+    children.push(submitted);
+    await waitFor(() => gateEvents(gate).includes('start'), 'submit gate to start and hold its resource');
+    const competitor = launch(projectBox, projectBox.repo, process.execPath, [BIN, 'gate']);
+    children.push(competitor);
+    await waitFor(() => competitor.stdoutText.includes('place 1'), 'another gate to wait behind submit');
+    assert.deepEqual(gateEvents(gate), ['start']);
+    writeFileSync(gate.release, 'released');
+    const [submitResult, competitorResult] = await Promise.all([submitted.closed, competitor.closed]);
+    assert.equal(submitResult.code, 0, submitted.stderrText);
+    assert.match(submitted.stdoutText, /submitted #1/);
+    assert.equal(competitorResult.code, 0, competitor.stderrText);
+    assert.deepEqual(gateEvents(gate), ['start', 'end', 'start', 'end']);
+  } finally {
+    writeFileSync(gate.release, 'released');
+    await Promise.all(children.map((child) => child.closed));
+  }
+});
+
+test('pre-push keeps its machine gate slot until the hook check finishes [C3,Q4]', async () => {
+  const box = sandbox();
+  const gate = holdingGate(box);
+  const projectBox = project(gate.command, box);
+  const remote = join(box.dir, 'remote.git');
+  projectBox.git(box.dir, 'init', '-q', '--bare', remote);
+  projectBox.git(projectBox.repo, 'remote', 'add', 'origin', remote);
+  assert.equal(projectBox.run(projectBox.repo, 'settings', 'gateSlots', '1').code, 0);
+  writeFileSync(gate.mode, 'armed');
+  const children = [];
+  try {
+    const pushed = launch(projectBox, projectBox.repo, 'git', ['push', '-q', 'origin', 'main']);
+    children.push(pushed);
+    await waitFor(() => gateEvents(gate).includes('start'), 'pre-push gate to start and hold its resource');
+    const competitor = launch(projectBox, projectBox.web, process.execPath, [BIN, 'gate']);
+    children.push(competitor);
+    await waitFor(() => competitor.stdoutText.includes('place 1'), 'another gate to wait behind pre-push');
+    assert.deepEqual(gateEvents(gate), ['start']);
+    writeFileSync(gate.release, 'released');
+    const [pushResult, competitorResult] = await Promise.all([pushed.closed, competitor.closed]);
+    assert.equal(pushResult.code, 0, pushed.stderrText);
+    assert.equal(competitorResult.code, 0, competitor.stderrText);
+    assert.deepEqual(gateEvents(gate), ['start', 'end', 'start', 'end']);
+  } finally {
+    writeFileSync(gate.release, 'released');
+    await Promise.all(children.map((child) => child.closed));
+  }
 });
 
 test('decisions are asked, listed and answered, and evidence attached, from the command line [B21, B22, B26]', () => {
