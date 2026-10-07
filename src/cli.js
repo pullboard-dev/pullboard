@@ -1346,7 +1346,7 @@ function specCommand(io, { first, second, rest, values }) {
     signoff: ['by', 'note', 'note-file'],
   }[first ?? '--json'];
   if (!commandFlags) throw new Refused('USAGE', 'use pullboard spec --json | check | view | show <id> | unmet [--must] | signoff <ids> --by <name> [--note "..."]');
-  const allowedFlags = [...new Set([...commandFlags, 'json'])];
+  const allowedFlags = commandFlags;
   for (const flag of Object.keys(values)) {
     if (!allowedFlags.includes(flag)) {
       const next = flag === 'must' ? 'use --must with spec unmet' : 'use a flag accepted by this spec command';

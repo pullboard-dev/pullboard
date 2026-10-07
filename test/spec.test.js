@@ -312,6 +312,27 @@ test('signoff refuses a flag it does not take [P4]', (t) => {
   assert.match(unsupported.stderr, /FLAG_NOT_ALLOWED.*spec signoff.*--must/);
 });
 
+test('spec view handles --json or refuses it instead of silently ignoring it [P4]', (t) => {
+  const box = specBox(t);
+  const htmlFile = join(box.root, 'requested-spec.html');
+  const jsonAdapter = existsSync(resolve(import.meta.dirname, '../src/json.js'));
+  const result = box.run('view', '--json', '--out', htmlFile);
+
+  if (jsonAdapter) {
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, '');
+    const document = JSON.parse(result.stdout);
+    assert.equal(document.version, 1);
+    assert.equal(document.path, htmlFile);
+    assert.ok(existsSync(htmlFile));
+    return;
+  }
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /FLAG_NOT_ALLOWED.*spec view does not take --json/);
+  assert.equal(existsSync(htmlFile), false, 'refusal happens before creating the HTML output');
+});
+
 test('spec unmet and signoff do not create a board when reading a repo without one [S14, P4]', (t) => {
   const box = specBox(t);
   const boardDir = join(box.root, '.git', 'pullboard');
