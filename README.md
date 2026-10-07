@@ -40,6 +40,8 @@ Pullboard is built with Pullboard. On 6 October 2026, one Claude agent made 17 c
 
 All six were fixed before they merged. Before accepting each code change, the verifier tried to break it, usually by reverting the fix and watching its test fail. Here is one receipt from that day, with the board's agent ids (the builder, `coordinator`, was the Claude agent; the verifier, `tests-2`, a Codex agent) and the verifier's own words, abridged:
 
+As of 7 October 2026, the board records 79 verified items, 79 accepted verdicts and 41 rejected verdicts. Run `pullboard status` from the coordinator checkout to print the live totals.
+
 ```
 #13  worktree prints a subagent's opening lines
      criterion 5349dc84b0ab, frozen at claim             built by coordinator, submitted 12f3640f8630
@@ -65,6 +67,8 @@ All six were fixed before they merged. Before accepting each code change, the ve
 ## Try it
 
 You need git and Node 22.13 or newer.
+
+CI runs the gate on Linux with Node 22.13 and 24. On the maintainer's machine, it also passes on macOS with Node 22.22 and 24. macOS will join CI once the repository is public. Windows has not yet been tested.
 
 ```sh
 npm i -g pullboard             # 0.5.0 or newer; until it is published, run npm i -g . in a clone of this repo
@@ -205,9 +209,9 @@ Submitted commits are pinned under `refs/pullboard/items`, so the work survives 
 - **Hooks can be skipped** with `--no-verify`. Pre-push and the verifier are the backstop.
 - **Verification costs a second agent's time.** The trade is a defect caught before merge instead of after it.
 
-## Local and hosted
+## Today and next
 
-This package is complete on one machine and free. [Pullboard](https://pullboard.dev) is the hosted layer for teams working across machines.
+Today the board lives in your repo's `.git` on one machine. Coming next: one board across machines through the repo's own git remote, and an opt-in pullboard.dev relay to see and run the board from anywhere. Neither is available yet.
 
 ## License
 
