@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 476" width="840" height="476" role="img" aria-labelledby="title desc">
+<title id="title">Starting with an agent</title><desc id="desc">You run pullboard init in your git repo, commit what it wrote, open a new Claude Code session in that folder and say what to build. That agent becomes the coordinator: it takes the spec with you, and only you approve a row; it proposes lanes and plans items with frozen bars; it starts a builder subagent per lane in its own worktree and a verifier that built none of it; it merges verified work only, and reports.</desc>
+<style>
+text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif; fill: #1f2328; }
+.mono { font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace; }
+.card { fill: #ffffff; stroke: #d1d9e0; }
+.head { font-size: 14px; font-weight: 600; }
+.aside { font-size: 12px; fill: #59636e; }
+.t1 { font-size: 14px; font-weight: 600; }
+.t2 { font-size: 12px; fill: #59636e; }
+.label { font-size: 12px; fill: #59636e; }
+.code { font-size: 11.5px; fill: #59636e; }
+.edge { fill: none; stroke: #8c959f; stroke-width: 1.5; }
+.edge.back { stroke: #bc4c00; stroke-dasharray: 5 4; }
+.edge.leader { stroke-width: 1; stroke-dasharray: 2 3; }
+.tip { fill: #8c959f; }
+.tip.back { fill: #bc4c00; }
+.label.back { fill: #bc4c00; }
+.frame { fill: none; stroke: #d1d9e0; stroke-dasharray: 4 4; }
+.plain rect { fill: #f6f8fa; stroke: #d1d9e0; }
+.person rect { fill: #ddf4ff; stroke: #54aeff; }
+.person .t1 { fill: #0a3069; } .person .t2 { fill: #0550ae; }
+.agent rect { fill: #fbefff; stroke: #c297ff; }
+.agent .t1 { fill: #3e1f79; } .agent .t2 { fill: #6639ba; }
+.check rect { fill: #fff8c5; stroke: #d4a72c; }
+.check .t1 { fill: #4d2d00; } .check .t2 { fill: #7d4e00; }
+.done rect { fill: #dafbe1; stroke: #4ac26b; }
+.done .t1 { fill: #044f1e; } .done .t2 { fill: #116329; }
+@media (prefers-color-scheme: dark) {
+  text { fill: #f0f6fc; }
+  .card { fill: #0d1117; stroke: #3d444d; }
+  .aside, .t2, .label, .code { fill: #9198a1; }
+  .edge { stroke: #6e7681; }
+  .edge.back { stroke: #f0883e; }
+  .tip { fill: #6e7681; }
+  .tip.back, .label.back { fill: #f0883e; }
+  .frame { stroke: #3d444d; }
+  .plain rect { fill: #151b23; stroke: #3d444d; }
+  .person rect { fill: #0c2d6b; stroke: #1f6feb; }
+  .person .t1 { fill: #cae8ff; } .person .t2 { fill: #a5d6ff; }
+  .agent rect { fill: #271052; stroke: #8957e5; }
+  .agent .t1 { fill: #ecdeff; } .agent .t2 { fill: #d2a8ff; }
+  .check rect { fill: #272115; stroke: #9e6a03; }
+  .check .t1 { fill: #f8e3a1; } .check .t2 { fill: #e3b341; }
+  .done rect { fill: #04260f; stroke: #238636; }
+  .done .t1 { fill: #aff5b4; } .done .t2 { fill: #7ee787; }
+}
+</style>
+<defs>
+<marker id="tip" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="tip" d="M0 1 L9 5 L0 9 z"/></marker>
+<marker id="tip-back" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="tip back" d="M0 1 L9 5 L0 9 z"/></marker>
+</defs>
+<rect class="card" x="0.5" y="0.5" width="839" height="475" rx="12"/>
+<text class="head" x="24" y="34">Starting with an agent</text>
+<rect class="frame" x="24" y="52" width="388" height="400" rx="10"/>
+<rect class="frame" x="428" y="52" width="388" height="400" rx="10"/>
+<text class="t1" x="44" y="78">You, once</text>
+<text class="t1" x="448" y="78">The agent, as coordinator</text>
+<g class="person"><rect x="44" y="92" width="348" height="56" rx="8"/><text class="t1" x="218" y="116" text-anchor="middle">pullboard init</text><text class="t2" x="218" y="134" text-anchor="middle">in your project's git repo</text></g>
+<g class="person"><rect x="44" y="188" width="348" height="56" rx="8"/><text class="t1" x="218" y="212" text-anchor="middle">Commit what init wrote</text><text class="t2" x="218" y="230" text-anchor="middle">git add -A, then git commit</text></g>
+<g class="person"><rect x="44" y="284" width="348" height="56" rx="8"/><text class="t1" x="218" y="308" text-anchor="middle">Open a new session</text><text class="t2" x="218" y="326" text-anchor="middle">Claude Code, in that folder</text></g>
+<g class="person"><rect x="44" y="380" width="348" height="56" rx="8"/><text class="t1" x="218" y="404" text-anchor="middle">Say what to build</text><text class="t2" x="218" y="422" text-anchor="middle">&quot;use pullboard to build …&quot;</text></g>
+<path class="edge" d="M 218 148 L 218 184" marker-end="url(#tip)"/>
+<path class="edge" d="M 218 244 L 218 280" marker-end="url(#tip)"/>
+<path class="edge" d="M 218 340 L 218 376" marker-end="url(#tip)"/>
+<g class="agent"><rect x="448" y="92" width="348" height="56" rx="8"/><text class="t1" x="622" y="116" text-anchor="middle">Spec with you</text><text class="t2" x="622" y="134" text-anchor="middle">only you approve a row</text></g>
+<g class="agent"><rect x="448" y="164" width="348" height="56" rx="8"/><text class="t1" x="622" y="188" text-anchor="middle">Lanes and a plan</text><text class="t2" x="622" y="206" text-anchor="middle">items with frozen bars</text></g>
+<g class="agent"><rect x="448" y="236" width="348" height="56" rx="8"/><text class="t1" x="622" y="260" text-anchor="middle">A builder per lane</text><text class="t2" x="622" y="278" text-anchor="middle">subagents in worktrees</text></g>
+<g class="agent"><rect x="448" y="308" width="348" height="56" rx="8"/><text class="t1" x="622" y="332" text-anchor="middle">A verifier</text><text class="t2" x="622" y="350" text-anchor="middle">built none of it, checks each</text></g>
+<g class="done"><rect x="448" y="380" width="348" height="56" rx="8"/><text class="t1" x="622" y="404" text-anchor="middle">Merge and report</text><text class="t2" x="622" y="422" text-anchor="middle">verified work only</text></g>
+<path class="edge" d="M 622 148 L 622 160" marker-end="url(#tip)"/>
+<path class="edge" d="M 622 220 L 622 232" marker-end="url(#tip)"/>
+<path class="edge" d="M 622 292 L 622 304" marker-end="url(#tip)"/>
+<path class="edge" d="M 622 364 L 622 376" marker-end="url(#tip)"/>
+<path class="edge" d="M 392 408 L 420 408 L 420 120 L 444 120" marker-end="url(#tip)"/>
+</svg>

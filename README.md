@@ -6,6 +6,8 @@ Pullboard is a work board that lives in your git repo. Every requirement is a on
 
 It runs locally: no account, nothing hosted, no dependencies. The board is one SQLite file inside `.git`. It works with Claude Code, Codex and any agent you can run from a shell, and it never calls a model.
 
+![How work moves. You decide the rows of SPEC.md. An item freezes its bar when an agent claims it. Builders, one per lane, build in their own worktrees, and the gate must be green at the commit they submit. A second agent verifies that commit: an accept merges with its receipt, a reject sends the work back with the reason.](docs/img/loop.svg)
+
 ## Why
 
 Coding agents are fast, and on day one it feels like magic. Past a demo, the same things go wrong on every project:
@@ -61,9 +63,22 @@ npm i -g @pullboard/local      # from the first npm release; until then, run npm
 pullboard tour                 # thirty seconds on a throwaway repo: a reject, the fix, the ledger
 ```
 
-## Quick start
+## Start with an agent
+
+![Starting with an agent. You run pullboard init in your git repo, commit what it wrote, open a new Claude Code session in that folder and say what to build. That agent becomes the coordinator: it takes the spec with you, plans lanes and items, runs a builder per lane and a verifier that built none of it, and merges verified work only.](docs/img/agent-start.svg)
 
 In your repo:
+
+```sh
+pullboard init
+git add -A && git commit -m "chore: set up pullboard"
+```
+
+Then start a new Claude Code session in that folder, so it loads the skills init installed, and say what you want built, for example "use pullboard to build a notes app". The `pullboard-run` skill makes that session the coordinator. It writes the spec with you one question at a time, and only rows you approve get built. It proposes lanes and plans the items, starts a builder subagent in each lane's worktree and a verifier that built none of it, and merges only what was verified. Questions come back to you in the conversation.
+
+## Quick start
+
+By hand, in your repo:
 
 ```sh
 pullboard init                 # pullboard.json, SPEC.md, PRACTICE.md, AGENTS.md, git hooks, the board
@@ -120,6 +135,12 @@ pullboard verify 1 reject --reason TEST_FAILURE --note "a 0-byte upload crashes 
 
 A reject reopens the item: the builder fixes it, commits, claims it again and submits the new commit.
 
+## An item's life
+
+![An item's life, drawn from src/machine.js: each state an item can be in, the moves between them, and the refusals every way into a final state can raise.](docs/img/lifecycle.svg)
+
+Every state, move, guard and refusal is declared once, in `src/machine.js`. The commands check it, the board file refuses any move it does not declare, and the help, [docs/lifecycle.md](docs/lifecycle.md), the view and this picture are drawn from it. Every way into `verified` passes the same guards, whatever command gets there. If you change the lifecycle, redraw the figures with `node docs/img/draw.mjs`; a test fails until you do.
+
 ## See every project at once
 
 ```sh
@@ -154,6 +175,8 @@ pullboard view
 | `run`, `sweep`, `escalate` | Unattended building for cheaper models; turn a linter's findings into items. |
 
 ## What lives where
+
+![Where things live. The main checkout is the coordinator and holds SPEC.md, PRACTICE.md, pullboard.json, AGENTS.md and the git hooks. Inside .git, shared by every worktree, are the board and the pinned submitted commits. Beside it, each agent works in its own worktree, builders in their lanes and a verifier, all on the same board. pullboard view lists every project on this machine.](docs/img/layout.svg)
 
 | Path | What | In git? |
 | --- | --- | --- |

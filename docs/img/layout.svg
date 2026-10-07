@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 404" width="840" height="404" role="img" aria-labelledby="title desc">
+<title id="title">Where things live</title><desc id="desc">The main checkout is the coordinator. It holds SPEC.md, PRACTICE.md, pullboard.json, AGENTS.md and the git hooks. Inside .git, shared by every worktree, are the board, board.sqlite, and the pinned submitted commits. Beside it, each agent works in its own worktree: builders in their lanes and a verifier that built none of it, all on the same board. pullboard view lists every project on this machine.</desc>
+<style>
+text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif; fill: #1f2328; }
+.mono { font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace; }
+.card { fill: #ffffff; stroke: #d1d9e0; }
+.head { font-size: 14px; font-weight: 600; }
+.aside { font-size: 12px; fill: #59636e; }
+.t1 { font-size: 14px; font-weight: 600; }
+.t2 { font-size: 12px; fill: #59636e; }
+.label { font-size: 12px; fill: #59636e; }
+.code { font-size: 11.5px; fill: #59636e; }
+.edge { fill: none; stroke: #8c959f; stroke-width: 1.5; }
+.edge.back { stroke: #bc4c00; stroke-dasharray: 5 4; }
+.edge.leader { stroke-width: 1; stroke-dasharray: 2 3; }
+.tip { fill: #8c959f; }
+.tip.back { fill: #bc4c00; }
+.label.back { fill: #bc4c00; }
+.frame { fill: none; stroke: #d1d9e0; stroke-dasharray: 4 4; }
+.plain rect { fill: #f6f8fa; stroke: #d1d9e0; }
+.person rect { fill: #ddf4ff; stroke: #54aeff; }
+.person .t1 { fill: #0a3069; } .person .t2 { fill: #0550ae; }
+.agent rect { fill: #fbefff; stroke: #c297ff; }
+.agent .t1 { fill: #3e1f79; } .agent .t2 { fill: #6639ba; }
+.check rect { fill: #fff8c5; stroke: #d4a72c; }
+.check .t1 { fill: #4d2d00; } .check .t2 { fill: #7d4e00; }
+.done rect { fill: #dafbe1; stroke: #4ac26b; }
+.done .t1 { fill: #044f1e; } .done .t2 { fill: #116329; }
+@media (prefers-color-scheme: dark) {
+  text { fill: #f0f6fc; }
+  .card { fill: #0d1117; stroke: #3d444d; }
+  .aside, .t2, .label, .code { fill: #9198a1; }
+  .edge { stroke: #6e7681; }
+  .edge.back { stroke: #f0883e; }
+  .tip { fill: #6e7681; }
+  .tip.back, .label.back { fill: #f0883e; }
+  .frame { stroke: #3d444d; }
+  .plain rect { fill: #151b23; stroke: #3d444d; }
+  .person rect { fill: #0c2d6b; stroke: #1f6feb; }
+  .person .t1 { fill: #cae8ff; } .person .t2 { fill: #a5d6ff; }
+  .agent rect { fill: #271052; stroke: #8957e5; }
+  .agent .t1 { fill: #ecdeff; } .agent .t2 { fill: #d2a8ff; }
+  .check rect { fill: #272115; stroke: #9e6a03; }
+  .check .t1 { fill: #f8e3a1; } .check .t2 { fill: #e3b341; }
+  .done rect { fill: #04260f; stroke: #238636; }
+  .done .t1 { fill: #aff5b4; } .done .t2 { fill: #7ee787; }
+}
+</style>
+<defs>
+<marker id="tip" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="tip" d="M0 1 L9 5 L0 9 z"/></marker>
+<marker id="tip-back" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="tip back" d="M0 1 L9 5 L0 9 z"/></marker>
+</defs>
+<rect class="card" x="0.5" y="0.5" width="839" height="403" rx="12"/>
+<text class="head" x="24" y="34">Where things live</text>
+<rect class="frame" x="24" y="52" width="400" height="328" rx="10"/>
+<text class="t1" x="44" y="80">your repo: the main checkout</text>
+<text class="aside" x="44" y="98">the coordinator files, merges and talks with you</text>
+<text class="mono label" x="44" y="130">SPEC.md</text>
+<text class="label" x="204" y="130">what to build, one row per id</text>
+<text class="mono label" x="44" y="152">PRACTICE.md</text>
+<text class="label" x="204" y="152">the house rules</text>
+<text class="mono label" x="44" y="174">pullboard.json</text>
+<text class="label" x="204" y="174">gate, lanes, commit rules</text>
+<text class="mono label" x="44" y="196">AGENTS.md, .claude/</text>
+<text class="label" x="204" y="196">how agents work here</text>
+<text class="mono label" x="44" y="218">.githooks/</text>
+<text class="label" x="204" y="218">commit and push checks</text>
+<g class="plain"><rect x="44" y="236" width="360" height="126" rx="8"/></g>
+<text class="t1 mono" x="60" y="260">.git, shared by every worktree</text>
+<text class="mono label" x="60" y="288">pullboard/board.sqlite</text>
+<text class="aside" x="60" y="305">items, claims, verdicts, shouts</text>
+<text class="mono label" x="60" y="333">refs/pullboard/items</text>
+<text class="aside" x="60" y="350">every submitted commit, pinned</text>
+<g class="agent"><rect x="480" y="60" width="336" height="56" rx="8"/><text class="t1 mono" x="648" y="84" text-anchor="middle">../repo-web-1</text><text class="t2" x="648" y="102" text-anchor="middle">builder · web lane</text></g>
+<g class="agent"><rect x="480" y="140" width="336" height="56" rx="8"/><text class="t1 mono" x="648" y="164" text-anchor="middle">../repo-api-1</text><text class="t2" x="648" y="182" text-anchor="middle">builder · api lane</text></g>
+<g class="agent"><rect x="480" y="220" width="336" height="56" rx="8"/><text class="t1 mono" x="648" y="244" text-anchor="middle">../repo-review-1</text><text class="t2" x="648" y="262" text-anchor="middle">verifier · built none of it</text></g>
+<path class="edge" d="M 480 88 L 452 88"/>
+<path class="edge" d="M 480 168 L 452 168"/>
+<path class="edge" d="M 480 248 L 452 248"/>
+<path class="edge" d="M 452 88 L 452 300 L 408 300" marker-end="url(#tip)"/>
+<text class="aside" x="470" y="300">one board: every worktree reads and writes it</text>
+<g class="person"><rect x="480" y="320" width="336" height="56" rx="8"/><text class="t1 mono" x="648" y="344" text-anchor="middle">~/.pullboard/projects.json</text><text class="t2" x="648" y="362" text-anchor="middle">pullboard view: every project here</text></g>
+</svg>
