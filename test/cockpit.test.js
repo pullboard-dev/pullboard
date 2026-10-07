@@ -2291,6 +2291,8 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
   // Exercise the person's decision button so snapshot mode must hide this real mutation control.
   box.run(alpha.repo, 'shout', 'person', 'Should the replay stay read-only?', '--decision');
   box.run(alpha.repo, 'hold', 'web', '--reason', 'Snapshot stays read-only');
+  const scriptShout = '<script>window.__snapshotShoutRan = true</script>';
+  box.run(alpha.repo, 'shout', 'all', scriptShout);
 
   // Capture the live API state before export; the exported replay must finish at exactly this state.
   const live = await startView(box);
@@ -2302,6 +2304,13 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
   box.run(alpha.repo, 'view', '--export', exportDir);
   assert.ok(existsSync(join(exportDir, 'index.html')));
   assert.ok(existsSync(join(exportDir, 'view.css')));
+  const exportedBoards = JSON.parse(readFileSync(join(exportDir, 'api', 'v1', 'boards.json'), 'utf8'));
+  const boardId = exportedBoards.boards[0].id;
+  const exportedEvents = JSON.parse(readFileSync(join(exportDir, 'api', 'v1', 'boards', boardId, 'events.json'), 'utf8')).events;
+  const fullBoardLog = JSON.parse(box.run(alpha.repo, 'log', '--json')).events;
+  assert.equal(exportedEvents.length, fullBoardLog.length, 'the snapshot exports every board event');
+  assert.deepEqual(exportedEvents.map((event) => event.event_id), fullBoardLog.map((event) => event.event_id),
+    'the snapshot event file contains the complete ordered board log');
 
   const prefix = '/demo/';
   const staticRequests = [];
@@ -2357,6 +2366,28 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
     assert.deepEqual(initial.speedOptions, ['1', '4', '16']);
     assert.ok(initial.total >= 6, 'the exported board contains the complete claim/submit/reject/claim/submit/accept history');
     assert.ok(initial.index >= initial.total - 1, 'the initial replay position is the exported final state');
+
+    const shout = JSON.parse(await evaluate(`JSON.stringify((() => {
+      const feed = document.querySelector('#feed');
+      return { text: feed.textContent, html: feed.innerHTML, scripts: feed.querySelectorAll('script').length };
+    })())`));
+    assert.ok(shout.text.includes(scriptShout), 'the shout is visible as literal text');
+    assert.ok(shout.html.includes('&lt;script&gt;'), 'the snapshot escapes HTML in shout text');
+    assert.equal(shout.scripts, 0, 'shout text never becomes an executable script element');
+
+    const firstPosition = JSON.parse(await evaluate(`(() => {
+      window.__snapshotRealAdvance = advanceReplay;
+      window.__snapshotFirstPosition = null;
+      window.advanceReplay = () => {
+        window.__snapshotFirstPosition = { index: snapshotReplay.index, items: data.project.items.map((item) => item.id) };
+        snapshotReplay.playing = false;
+        replayControls();
+      };
+      document.querySelector('#replay-play').click();
+      return JSON.stringify(window.__snapshotFirstPosition);
+    })()`));
+    assert.deepEqual(firstPosition, { index: 0, items: [] }, 'play starts from an empty board before its first event');
+    await evaluate('window.advanceReplay = window.__snapshotRealAdvance');
 
     const replayKinds = await evaluate(`JSON.stringify(snapshotReplay.events.map((event) => event.event_kind))`);
     const kinds = JSON.parse(replayKinds);
