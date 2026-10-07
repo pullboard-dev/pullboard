@@ -289,8 +289,8 @@ export function unmetRows(rows, signoffs, { mustOnly = false } = {}) {
 }
 
 /**
- * Record a person's sign-off on approved rows, with the text they read (S5). Only a person's word
- * belongs here: the signer is initials or a first name.
+ * Record a person's sign-off on approved rows, with the text they read (S5). The signer is the
+ * exact SSH principal named by the key's allowed-signers entry.
  *
  * @param {string} root
  * @param {ReturnType<typeof parseSpec>} spec

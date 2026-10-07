@@ -52,11 +52,11 @@ test('rows parse with id, status, tier, text, gate, serves, section and line [S1
 });
 
 test('rows parse signer requirements and lint their names and duplicates [S18]', () => {
-  const spec = parseSpec('## G\n- G1 [approved, must] Two people sign. | gate: proof | signers: CO, AB\n');
-  assert.deepEqual(spec.rows[0].signers, ['CO', 'AB']);
+  const spec = parseSpec('## G\n- G1 [approved, must] Two people sign. | gate: proof | signers: co@example.invalid, AB\n');
+  assert.deepEqual(spec.rows[0].signers, ['co@example.invalid', 'AB']);
   assert.deepEqual(lintSpec(spec), []);
-  const invalid = lintSpec(parseSpec('## G\n- G1 [approved, must] Bad names. | gate: proof | signers: co,CO,CO\n'));
-  assert.ok(invalid.some((finding) => /signer "co" must be initials/u.test(finding.message)));
+  const invalid = lintSpec(parseSpec('## G\n- G1 [approved, must] Bad names. | gate: proof | signers: bad name,CO,CO\n'));
+  assert.ok(invalid.some((finding) => /signer "bad name" must be one SSH principal/u.test(finding.message)));
   assert.ok(invalid.some((finding) => /signers are unique/u.test(finding.message)));
 });
 

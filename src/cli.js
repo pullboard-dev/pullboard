@@ -1453,6 +1453,7 @@ function specCommand(io, { first, second, rest, values }) {
     show: [],
     unmet: ['must'],
     signoff: ['by', 'note', 'note-file'],
+    signers: ['key', 'by'],
   }[first ?? '--json'];
   if (!commandFlags) throw new Refused('USAGE', 'use pullboard spec --json | check | view | show <id> | unmet [--must] | signoff <ids> --by <name> [--note "..."]');
   const allowedFlags = [...new Set([...commandFlags, 'json'])];
