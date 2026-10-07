@@ -71,6 +71,10 @@ export function cockpitPage(key = '') {
     <h2>No boards yet</h2>
     <p>Run <code>pullboard init</code> in a git repo, or ask an agent to. Its board shows up here by itself.</p>
   </section>
+  <section id="group-view" class="group-view" hidden>
+    <section class="card-panel group-panel"><h2>Needs you</h2><div id="group-needs"></div></section>
+    <section class="card-panel group-panel"><h2>Activity</h2><div class="feed" id="group-activity"></div></section>
+  </section>
   <section data-pane="items" class="two">
     <div class="primary">
       <div class="card-panel toolbar"><div class="seg" id="state-chips" role="group" aria-label="Show"></div><input id="q" type="search" placeholder="Search" aria-label="Search titles, lanes or ids"><button class="go" id="new-item" type="button">New item</button></div>
@@ -175,6 +179,19 @@ const count = (n, one, many = one) => n + ' ' + (n === 1 ? one : many);
 // verdict, open questions, held lanes.
 const needCount = (x) => x.ok ? x.decisions + x.sentBack + x.awaiting + x.pending + x.holds : 0;
 const doing = (x) => [x.decisions && count(x.decisions, 'decision', 'decisions'), x.sentBack && count(x.sentBack, 'sent back'), x.awaiting && count(x.awaiting, 'to verify'), x.pending && count(x.pending, 'question', 'questions'), x.holds && count(x.holds, 'lane held', 'lanes held'), x.building && count(x.building, 'building')].filter(Boolean).join(' · ') || (x.open ? count(x.open, 'item open', 'items open') : 'nothing open');
+/** The actionable rows shown in one repo's Needs-you panel, reused by a combined project view. */
+function projectNeeds(p) {
+  const items = p.items.filter((item) => item.status !== 'withdrawn');
+  const by = (state) => items.filter((item) => stateOf(item) === state);
+  return [
+    ...p.decisions.map((d) => ({ ref: d.shout_from, text: d.shout_text, what: 'decision', at: d.shout_at })),
+    ...p.spec.filter((row) => row.status === 'pending').map((row) => ({ ref: row.id, text: row.text, what: 'answer in SPEC.md' })),
+    ...by('back').map((item) => ({ ref: '#' + item.id, text: item.title, what: 'sent back: ' + item.verdict.reason, target: 'item:' + item.id, at: item.updatedAt })),
+    ...by('verify').map((item) => ({ ref: '#' + item.id, text: item.title, what: item.reviewer ? 'being reviewed by ' + item.reviewer : rejected(item) ? 'resubmitted after ' + item.verdict.reason : 'to verify', target: 'item:' + item.id, at: item.updatedAt })),
+    ...p.holds.map((hold) => ({ ref: hold.hold_lane, text: hold.hold_reason, what: 'lane held' })),
+    ...(p.spec.some((row) => row.status === 'draft') ? [{ ref: String(p.spec.filter((row) => row.status === 'draft').length), text: 'draft spec rows to approve or drop', what: 'review in SPEC.md', target: 'tab:spec' }] : []),
+  ];
+}
 // The item lifecycle as pullboard declares it in src/machine.js, embedded when the page is served.
 const FLOW = ${JSON.stringify(lifecycle()).replaceAll('<', '\\u003c')};
 
@@ -404,7 +421,7 @@ async function refresh() {
   const next = await api('/api/state' + (root ? '?root=' + encodeURIComponent(root) + (mark === null || mark === undefined ? '' : '&seen=' + encodeURIComponent(mark)) : ''));
   // The person switched projects while this answer was on its way: the switch's own refresh shows it.
   if (root !== view.root) return;
-  if (!next.project && next.projects.some((p) => p.ok)) {
+  if (!next.project && !next.group && next.projects.some((p) => p.ok)) {
     view.root = next.projects.find((p) => p.ok).root;
     keep('pb.project', view.root);
     return refresh();
@@ -426,31 +443,60 @@ async function refresh() {
  * this until the new board arrives, so the main column never mixes the old board with the new pick.
  */
 function renderSide() {
-  // Every project stays in view with what needs the person there, so one look covers them all.
-  $('proj-list').innerHTML = data.projects.length ? data.projects.map((x) => {
+  /** Render a repo button or one muted recovery line when its board cannot be read. */
+  const repoButton = (x) => {
+    if (!x.ok) return '<p class="repo-error" role="status"><b>' + esc(x.name) + ':</b> ' + esc(x.error) + '</p>';
     const on = x.root === view.root;
-    return '<button class="proj' + (on ? ' on' : '') + '"' + (on ? ' aria-current="true"' : '') + ' data-root="' + esc(x.root) + '" title="' + esc(x.root) + '" type="button"><span class="pname">' + esc(x.name) + '</span>' + (needCount(x) ? '<b class="need" title="needs you">' + needCount(x) + '</b>' : '') + (x.ok ? '<small>' + esc(doing(x)) : '<small class="bad">' + esc(x.error)) + '</small></button>';
-  }).join('') : '<div class="empty">None yet.</div>';
-  const elsewhere = data.projects.filter((x) => x.root !== view.root).reduce((n, x) => n + needCount(x), 0);
+    return '<button class="proj repo' + (on ? ' on' : '') + '"' + (on ? ' aria-current="true"' : '') + ' data-root="' + esc(x.root) + '" title="' + esc(x.root) + '" type="button"><span class="pname">' + esc(x.name) + '</span>' + (needCount(x) ? '<b class="need" title="needs you">' + needCount(x) + '</b>' : '') + '<small>' + esc(doing(x)) + '</small></button>';
+  };
+  const groupedRoots = new Set(data.groups.flatMap((group) => group.repos.map((repo) => repo.root)));
+  const grouped = data.groups.map((group) => {
+    const on = group.key === view.root;
+    const needs = group.repos.reduce((total, repo) => total + needCount(repo), 0);
+    const count = group.repos.length;
+    return '<section class="repo-group"><button class="proj project-pick' + (on ? ' on' : '') + '"' + (on ? ' aria-current="true"' : '') + ' data-root="' + esc(group.key) + '" type="button"><span class="pname">' + esc(group.name) + '</span>' + (needs ? '<b class="need" title="needs you">' + needs + '</b>' : '') + '<small>' + count + ' ' + (count === 1 ? 'repo' : 'repos') + '</small></button><div class="repos">' + group.repos.map(repoButton).join('') + '</div></section>';
+  }).join('');
+  const loose = data.projects.filter((repo) => !repo.project && !groupedRoots.has(repo.root)).map(repoButton).join('');
+  $('proj-list').innerHTML = grouped || loose ? grouped + loose : '<div class="empty">None yet.</div>';
+  const currentGroup = data.groups.find((group) => group.key === view.root);
+  const currentRoots = new Set(currentGroup ? currentGroup.repos.map((repo) => repo.root) : [view.root]);
+  const elsewhere = data.projects.filter((x) => !currentRoots.has(x.root)).reduce((n, x) => n + needCount(x), 0);
   $('proj-elsewhere').textContent = elsewhere ? elsewhere + ' elsewhere' : '';
   $('proj-elsewhere').hidden = !elsewhere;
   const p = data.project;
-  $('proj-name').textContent = p ? (data.projects.find((x) => x.root === view.root) || { name: p.root.split('/').pop() }).name : 'No project';
+  const selectedGroup = data.groups.find((group) => group.key === view.root);
+  $('proj-name').textContent = selectedGroup?.name || (p ? (data.projects.find((x) => x.root === view.root) || { name: p.root.split('/').pop() }).name : 'No project');
   // The browser tab says it too, for when the view sits behind other tabs.
   const needs = data.projects.reduce((n, x) => n + needCount(x), 0);
-  document.title = p ? (needs ? '(' + needs + ') ' : '') + $('proj-name').textContent + ' · Pullboard' : 'Pullboard';
+  document.title = p || selectedGroup ? (needs ? '(' + needs + ') ' : '') + $('proj-name').textContent + ' · Pullboard' : 'Pullboard';
+}
+
+/** Draw a project's cross-repo Needs-you list and one activity feed. */
+function renderGroup(group) {
+  const needs = group.repos.flatMap((repo) => projectNeeds(repo.board).map((row) => ({ ...row, repo })));
+  $('group-needs').innerHTML = needs.length ? needs.map((row) => '<button class="group-need" data-root="' + esc(row.repo.root) + '" type="button"><b>' + esc(row.repo.name) + '</b><code>' + esc(row.ref) + '</code><span>' + esc(row.text) + '</span><em>' + esc(row.what) + (row.at ? ', ' + age(row.at) : '') + ' →</em></button>').join('') : '<div class="empty">Nothing needs you across this project.</div>';
+  const events = group.repos.flatMap((repo) => {
+    const titles = new Map(repo.board.items.map((item) => [String(item.id), item.title]));
+    return repo.board.events.map((event) => ({ ...event, repo, title: event.item_id ? titles.get(String(event.item_id)) : null }));
+  }).sort((a, b) => b.event_at.localeCompare(a.event_at)).slice(0, 80);
+  $('group-activity').innerHTML = events.length ? byDay(events, (event) => event.event_at, (event) => '<div><time>' + clock(event.event_at) + '</time><div class="act"><b class="repo-label">' + esc(event.repo.name) + '</b> <span>' + esc(event.event_by) + ' ' + esc(event.event_kind) + (event.item_id ? ' #' + event.item_id + (event.title ? ' ' + esc(event.title) : '') : '') + '</span></div></div>') : '<div class="empty">No activity yet.</div>';
 }
 
 /** Draw the board shown: the sidebar, then every tab's panes from the project's board. */
 function render() {
   const p = data.project;
+  const group = data.group;
   renderSide();
   if (view.answering && view.answering.root !== view.root) answer(null);
   // Until the first board arrives the page shows no tabs or panes, so a machine with none never
   // flashes them; with no board to show, one message says how a board starts, in their place.
   document.body.classList.remove('loading');
-  document.body.classList.toggle('boardless', !p);
+  document.body.classList.toggle('boardless', !p && !group);
+  $('group-view').hidden = !group;
+  $('tabs').hidden = Boolean(group);
+  document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = Boolean(group) || pane.dataset.pane !== view.tab; });
   $('products').hidden = !p || !p.products.length;
+  if (group) { renderGroup(group); return; }
   if (!p) return;
   // Each product's progress (N28): the rows an accepted item cites, and its items by state.
   $('prod-list').innerHTML = p.products.map((x) => {

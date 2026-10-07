@@ -381,6 +381,63 @@ test('the sidebar lists every project and what needs the person [N26]', async ()
   }
 });
 
+test('projects group repos with combined needs and activity, while ungrouped and unreadable repos stay clear [N33, N34, N36]', async () => {
+  const box = machine();
+  const core = project(box, 'core', SPEC, { name: 'Core API', project: 'Atlas' });
+  box.run(core.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  build(box, core, 1, 'greeting.html');
+  sendBack(box, core, 1, 'the page needs a greeting');
+  const web = project(box, 'web', SPEC, { name: 'Web UI', project: 'Atlas' });
+  box.run(web.repo, 'add', 'web', 'Header', '--specs', 'G1', '--criterion', 'has a header');
+  build(box, web, 1, 'header.html');
+  const standalone = project(box, 'standalone', SPEC, { name: 'Scratchpad' });
+  const broken = project(box, 'broken', SPEC, { name: 'Broken repo', project: 'Atlas' });
+  const view = await startView(box);
+  try {
+    const headers = { 'x-pullboard-key': view.key };
+    let response = await fetch(`${view.base}/api/state`, { headers });
+    let state = await response.json();
+    assert.deepEqual(state.groups.map((group) => [group.name, group.repos.map((repo) => repo.name)]), [['Atlas', ['Core API', 'Web UI', 'Broken repo']]]);
+    writeFileSync(join(broken.repo, 'pullboard.json'), '{not valid json');
+    response = await fetch(`${view.base}/api/state`, { headers });
+    state = await response.json();
+    const unreadable = state.projects.find((repo) => repo.root === broken.repo);
+    assert.equal(unreadable.ok, false);
+    assert.match(unreadable.error, /pullboard\.json is invalid/);
+    assert.match(unreadable.error, /pullboard forget/);
+    assert.doesNotMatch(unreadable.error, /BAD_CONFIG|SyntaxError/);
+
+    const page = await openPage(view);
+    const side = page.show('proj-list');
+    assert.match(side, /class="repo-group"/);
+    assert.match(side, /data-root="group:Atlas"/);
+    assert.match(side, /Core API/);
+    assert.match(side, /Web UI/);
+    assert.match(side, /Scratchpad/);
+    assert.match(side, /class="repo-error" role="status"><b>Broken repo:<\/b> pullboard\.json is invalid\. Run pullboard forget/);
+    assert.doesNotMatch(side, /class="small bad"|class="bad"/);
+
+    await page.click({ root: 'group:Atlas' });
+    assert.equal(page.element('group-view').hidden, false);
+    assert.equal(page.element('tabs').hidden, true);
+    assert.match(page.show('group-needs'), /Core API/);
+    assert.match(page.show('group-needs'), /Web UI/);
+    assert.match(page.show('group-needs'), /sent back: BEHAVIOR_MISMATCH/);
+    assert.match(page.show('group-activity'), /Core API/);
+    assert.match(page.show('group-activity'), /Web UI/);
+    assert.match(page.show('group-activity'), /Greeting|Header/);
+
+    await page.click({ root: core.repo });
+    assert.equal(page.element('group-view').hidden, true);
+    assert.equal(page.element('tabs').hidden, false);
+    assert.match(page.show('chain'), /Greeting/);
+    assert.doesNotMatch(page.show('chain'), /Header/);
+    assert.ok(side.includes(`data-root="${standalone.repo}"`), 'the repo without a project stands alone');
+  } finally {
+    await view.stop();
+  }
+});
+
 test('the tabs fit one row on a phone [N26]', async () => {
   const view = await startView(machine());
   try {
