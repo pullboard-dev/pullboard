@@ -1208,7 +1208,13 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
     for (const region of ['id="proj-switch"', 'data-tab="items"', 'data-tab="shouts"', 'data-tab="spec"', 'data-tab="doctrine"', 'data-tab="activity"', 'id="chain"', 'id="detail"', 'id="add-form"', 'id="hold-form"']) {
       assert.ok(page.includes(region), region);
     }
-    assert.match(page, /\$\('add-lane'\)\.innerHTML = \[\.\.\.working, 'coordinator'\]/, 'new items default to a working lane, not the coordinator');
+    // Either filing order keeps a lane that owns folders first; the second, #70's, also puts the
+    // coordinator before lanes that own none. Narrowed to it once #70 is merged.
+    assert.match(
+      page,
+      /\$\('add-lane'\)\.innerHTML = \[\.\.\.working, 'coordinator'\]|const filing = \[\.\.\.working\.filter\(\(l\) => p\.owning\.includes\(l\)\), 'coordinator', \.\.\.working\.filter\(\(l\) => !p\.owning\.includes\(l\)\)\]/,
+      'new items default to a working lane, not the coordinator',
+    );
     const item = (await view.state(box.repo)).project.items[0];
     assert.deepEqual(item.verdicts.map((verdict) => [verdict.decision, verdict.reason, verdict.note]), [['REJECT', 'TEST_FAILURE', 'no heading']]);
     assert.deepEqual(item.history.map((event) => event.kind), ['add', 'claim', 'submit', 'reject']);
