@@ -1,6 +1,6 @@
 # RFC 0002: The relay and API v1
 
-- Status: proposed
+- Status: accepted, 7 October 2026
 - Proposed: 7 October 2026, by Corey Olson
 - Rows: A1 to A7, H1 to H12
 
