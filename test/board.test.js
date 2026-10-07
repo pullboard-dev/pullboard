@@ -3,11 +3,14 @@
  * R2). The git-facing rules (V3, V4, V7) run against real repos in e2e.test.js.
  */
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, test } from 'node:test';
 import * as store from '../src/board.js';
+import { main } from '../src/cli.js';
+import { briefFiles } from '../src/brief.js';
 
 const HOUR = 3_600_000;
 const SHA_A = 'a'.repeat(40);
@@ -33,6 +36,38 @@ beforeEach(() => {
   store.register(board, { lane: 'web', path: '/repo-web-1' });
   store.register(board, { lane: 'web', path: '/repo-web-2' });
   store.register(board, { lane: 'api', path: '/repo-api-1' });
+});
+
+test('[B14] brief paths ignore sentence punctuation but still refuse a foreign path', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-brief-files-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const repo = join(directory, 'repo');
+  mkdirSync(repo);
+  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: repo, stdio: 'pipe' });
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({
+    gate: 'true',
+    spec: 'SPEC.md',
+    lanes: {
+      web: { owns: ['src/'], specs: [] },
+      api: { owns: ['api/'], specs: [] },
+    },
+    shared: ['README.md', 'docs/'],
+  }));
+  const brief = 'Files:\n- src/x.js, README.md, docs/, make. folders). api/server.js.\nChange: add a page\nTest: check the page';
+  assert.deepEqual(briefFiles(brief), ['src/x.js', 'README.md', 'docs/', 'api/server.js']);
+
+  let stdout = '';
+  let stderr = '';
+  const code = await main([
+    'add', 'web', 'Page', '--route', 'light', '--criterion', 'the page renders', '--check', 'true', '--brief', brief,
+  ], {
+    cwd: repo,
+    stdout: { isTTY: false, write: (text) => { stdout += text; } },
+    stderr: { write: (text) => { stderr += text; } },
+  });
+  assert.equal(code, 1, stdout);
+  assert.match(stderr, /BRIEF_LANE.*api\/server\.js \(api's\)/);
+  assert.doesNotMatch(stderr, /make\.|folders\)/);
 });
 
 test('agents are numbered per lane; one coordinator; a worktree joins once', () => {

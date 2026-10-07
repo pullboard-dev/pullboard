@@ -38,6 +38,6 @@ export function briefSections(brief) {
 export function briefFiles(brief) {
   return (briefSections(brief).files ?? [])
     .flatMap((entry) => entry.split(/[,\s]+/))
-    .map((token) => token.replace(/^[(`'"]+|[)`'",;:]+$/g, ''))
-    .filter((token) => /[./]/.test(token) && !/^[a-z]+:\/\//i.test(token));
+    .map((token) => token.replace(/^[(`'"]+|[)\]'".,;:!?]+$/g, ''))
+    .filter((token) => !/^[a-z]+:\/\//i.test(token) && (token.includes('/') || /\.[a-z0-9]+(?:\.[a-z0-9]+)*$/i.test(token)));
 }
