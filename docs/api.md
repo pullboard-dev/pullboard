@@ -49,6 +49,8 @@ A successful command returns the fields listed below. `version` is always the nu
 | `forget` | `version:number`, `root:string` |
 | `prompt` | `version:number`, `role:string`, `text:string` |
 | `gate` | `version:number`, `green:boolean`, `report:string` |
+| `export` | `version:number`, `tables:object` |
+| `import` | `version:number`, `tables:array` |
 | `spec` | `version:number`, `rows:array` |
 | `spec check` | `version:number`, `rows:array` |
 | `spec view` | `version:number`, `path:string` |
