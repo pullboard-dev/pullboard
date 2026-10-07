@@ -40,8 +40,6 @@ Pullboard is built with Pullboard. On 6 October 2026, one Claude agent made 17 c
 
 All six were fixed before they merged. Before accepting each code change, the verifier tried to break it, usually by reverting the fix and watching its test fail. Here is one receipt from that day, with the board's agent ids (the builder, `coordinator`, was the Claude agent; the verifier, `tests-2`, a Codex agent) and the verifier's own words, abridged:
 
-As of 7 October 2026, the board records 79 verified items, 79 accepted verdicts and 41 rejected verdicts. Run `pullboard status` from the coordinator checkout to print the live totals.
-
 ```
 #13  worktree prints a subagent's opening lines
      criterion 5349dc84b0ab, frozen at claim             built by coordinator, submitted 12f3640f8630
@@ -58,6 +56,8 @@ As of 7 October 2026, the board records 79 verified items, 79 accepted verdicts 
              apostrophe escaping each made the focused test fail."
 ```
 
+As of 07:11 UTC on 7 October 2026, the board records 79 verified items, 79 accepted verdicts and 42 rejected verdicts. Run `pullboard status` to print the live totals.
+
 ## See every project at once
 
 `pullboard view` gives you a live board for your projects on this machine, with each item's state, decisions, shouts and review history. This screenshot comes from a disposable demo project rebuilt by `node docs/shots/demo.mjs`.
@@ -68,7 +68,7 @@ As of 7 October 2026, the board records 79 verified items, 79 accepted verdicts 
 
 You need git and Node 22.13 or newer.
 
-CI runs the gate on Linux with Node 22.13 and 24. On the maintainer's machine, it also passes on macOS with Node 22.22 and 24. macOS will join CI once the repository is public. Windows has not yet been tested.
+CI runs the gate on Linux with Node 22.13 and 24. On the maintainer's machine, the gate passes on macOS with Node 22.22 and 24. macOS will join CI once the repository is public. Windows has not yet been tested.
 
 ```sh
 npm i -g pullboard             # 0.5.0 or newer; until it is published, run npm i -g . in a clone of this repo
