@@ -115,7 +115,7 @@ function codeWalk(read) {
     const [file, name] = key.split('#');
     const { bodies, named, spaces } = load(file);
     const body = bodies.get(name) ?? '';
-    const codes = new Set([...body.matchAll(/new Refused\(\s*(['"])([A-Z_]+)\1/g)].map((match) => match[2]));
+    const codes = new Set([...body.matchAll(/new Refused\(\s*(['"])([A-Z0-9_]+)\1/g)].map((match) => match[2]));
     const callees = [
       ...[...body.matchAll(/(?<!\w)(?<!(?<!\.\.)\.)(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? CALLBACKS[file]?.[callee])),
       ...[...body.matchAll(/\b(\w+)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : undefined)),
@@ -869,6 +869,7 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
         judge(built, 'web-1', { reason: bad }),
         judge(built, light, { reason: bad }),
         judge(built, 'web-2', { reason: bad }),
+        judge(built, other, { reason: bad, policy: 'any', familyPolicy: 'require' }),
         judge(built, other, { reason: bad, policy: 'any' }),
         judge(built, 'web-2', { reason: bad, policy: 'any' }),
         judge(built, 'web-2', { reason: bad, policy: 'any', digest: 'digest:Page' }),
@@ -890,12 +891,12 @@ test('reserve refuses in the declared order, one failure peeled at a time [V15, 
     const other = store.register(board, { lane: 'web', path: '/repo-web-other' });
     const built = submittedItem(board);
     const open = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
-    const reserveAs = (id, agentId, policy = 'coordinator') => outcome(() => store.reserveReview(board, id, { agentId, leaseMs: 3_600_000, policy }));
+    const reserveAs = (id, agentId, policy = 'coordinator', familyPolicy = 'off') => outcome(() => store.reserveReview(board, id, { agentId, leaseMs: 3_600_000, policy, familyPolicy }));
     const fired = [reserveAs(999, 'web-2'), reserveAs(open, 'web-2'), reserveAs(built, 'web-1'), reserveAs(built, light), reserveAs(built, 'web-2')];
     store.reserveReview(board, built, { agentId: other, leaseMs: 3_600_000, policy: 'any' });
-    fired.push(reserveAs(built, 'web-2', 'any'), reserveAs(built, other, 'any'));
+    fired.push(reserveAs(built, other, 'any', 'require'), reserveAs(built, 'web-2', 'any'), reserveAs(built, other, 'any'));
     assert.deepEqual(fired, [...declaredBoardOrder('reserve'), 'ok']);
-    assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'REVIEW_HELD', 'ok']);
+    assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'O2_FAMILY_MATCH', 'REVIEW_HELD', 'ok']);
   } finally {
     lab.done();
   }
@@ -1106,7 +1107,7 @@ test('the review lease is reviewLease in pullboard.json, 30 minutes unless the r
 test('the lifecycle page and the help show the reservation: reserve, and reviewFree on every verdict [V15, M1]', () => {
   const page = lifecycleMarkdown();
   assert.match(page, /^\| reserve \| submitted \| submitted \| agent, coordinator \| .*reviewFree \(REVIEW_HELD\) \|$/m);
-  for (const verb of ['accept', 'reject']) assert.match(page, new RegExp(`^\\| ${verb} \\| submitted \\| .*policyAllows \\(COORDINATOR_VERIFIES\\), reviewFree \\(REVIEW_HELD\\), criterionUnchanged`, 'm'));
+  for (const verb of ['accept', 'reject']) assert.match(page, new RegExp(`^\\| ${verb} \\| submitted \\| .*policyAllows \\(COORDINATOR_VERIFIES\\), familyAllows \\(O2_FAMILY_MATCH\\), reviewFree \\(REVIEW_HELD\\), criterionUnchanged`, 'm'));
   assert.match(page, /^\| REVIEW_HELD \| no other agent holds its review under a live lease \| pullboard next --verify/m);
   assert.match(HELP, /^ {2}agent +claim, release, submit, reserve, accept, reject, escalate$/m);
   assert.match(HELP, /pullboard next --verify +reserve the next submitted item you can check/);

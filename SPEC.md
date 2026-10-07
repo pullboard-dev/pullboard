@@ -183,7 +183,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - A1 [approved, must] Every command prints --json in a documented shape, stable within a major version. | gate: test/api.test.js
 - A2 [approved, must] `pullboard serve` offers a versioned local HTTP API: the board's state, its moves, and live events. | gate: test/api.test.js
 - A3 [approved, must] The view uses that API and nothing else, so any app can do what the view does. | gate: test/api.test.js | serves: A2
-- A4 [approved, must] The relay serves the same API, so a client works the same against a local board or pullboard.dev. | gate: test/relay.test.js | serves: A2
+- A4 [approved, must] The relay serves the same API, sealed, so a client with the key works the same locally or on pullboard.dev. | gate: test/relay.test.js | serves: A2
 - A5 [approved, must] SPEC.md's grammar, the board's schema and its event log are documented, versioned, and upgraded in place. | gate: test/api.test.js
 - A6 [approved, must] `pullboard doctor` checks a board's integrity and names how to repair each thing it finds. | gate: test/api.test.js
 - A7 [approved, aim] `pullboard export` writes a whole board as JSON, and `import` rebuilds it, losing nothing. | gate: test/api.test.js
@@ -194,8 +194,8 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - H1 [approved, must] `pullboard relay on|off` links this board to pullboard.dev, after a GitHub sign-in. | gate: test/relay.test.js
 - H2 [approved, aim] With the relay, each agent has its own token, so a verdict records which agent gave it. | gate: test/relay.test.js
 - H3 [approved, must] With the relay on, every move passes through it in one order: a claim is won once, everywhere. | gate: test/relay.test.js | serves: H1
-- H4 [approved, must] The relay enforces the CLI's own lifecycle, refusing exactly what the CLI refuses. | gate: test/relay.test.js | serves: M1
-- H5 [approved, must] Signed in to pullboard.dev, you see and act on your boards live, on phone or desktop. | gate: test/relay.test.js | serves: N26
+- H4 [retired] Merged into H16: clients, not the relay, apply moves in the relay's order.
+- H5 [approved, must] Signed in and paired, you see and act on your boards live, on phone or desktop. | gate: test/relay.test.js | serves: N26
 - H6 [retired] Merged into H12.
 - H7 [approved, must] The relay holds board records, never code; unlinking loses nothing, since the local board stays complete. | gate: test/relay.test.js
 - H8 [approved, must] You see and act only on boards of repos your GitHub account can read. | gate: test/relay.test.js
@@ -205,6 +205,10 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - H12 [approved, must] pullboard.dev never writes to a repo: what you do there, like approving a row, reaches your agents as a request. | gate: test/relay.test.js | serves: H6
 - H13 [draft, must] Acting on a board, and minting its tokens, needs write access to its repo. | gate: test/relay.test.js | serves: H8
 - H14 [draft, must] A public repo's board is hidden from readers without triage access, unless its owner publishes it. | gate: test/relay.test.js | serves: H8
+- H15 [approved, must] The relay can't read boards: the CLI seals every move and snapshot with a key that stays on your devices. | gate: test/relay.test.js | serves: H7
+- H16 [approved, must] Every client applies moves in the relay's order with the CLI's engine, refusing what the CLI refuses. | gate: test/relay.test.js | serves: H3
+- H17 [approved, must] A phone or machine joins a board by pairing once, from a code or QR a linked machine prints. | gate: test/relay.test.js | serves: H15
+- H18 [approved, must] The relay keeps a board only while linked: unlinking deletes it; 90 idle days delete it; backups last 14 days. | gate: test/relay.test.js | serves: H7
 
 ## Q · Queues and procedures
 - Q1 [approved, must] A resource has a name, a capacity, a scope (machine, repo or board) and a queue. | gate: test/resources.test.js

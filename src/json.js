@@ -18,6 +18,7 @@ export const JSON_SHAPES = {
     resume: shape({ me: 'object', all: 'array', requests: 'array', holding: 'array', sentBack: 'array', awaiting: 'array', toVerify: 'array', toMerge: 'array', open: 'array', holds: 'array', unread: 'number', newest: 'array', root: 'string', dirty: 'number', next: 'string' }),
     whoami: shape({ id: 'string', lane: 'string', path: 'string' }),
     lanes: shape({ lanes: 'object', shared: 'array', coordinator: 'string' }),
+    resources: shape({ resources: 'array' }),
     list: shape({ items: 'array' }),
     show: shape({ item_id: 'number', item_title: 'string', item_lane: 'string', item_status: 'string', verdicts: 'array' }),
     status: shape({ me: 'object', mine: 'array', stats: 'object', unread: 'number' }),

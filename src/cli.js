@@ -9,6 +9,7 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import * as store from './board.js';
 import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
+import { loadDoctrine } from './doctrine.js';
 import { digestOf, gateReport, runGate, runShell } from './gate.js';
 import { contains, differFromHead, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
@@ -44,6 +45,7 @@ import { renderSpecView } from './view.js';
 import { tour } from './tour.js';
 import { commandOutput } from './json.js';
 import { forgetProject, registerProject } from './projects.js';
+import { listResources } from './resources.js';
 import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
 import { serveView } from './serve.js';
 import { serveApi } from './api.js';
@@ -63,6 +65,7 @@ Set up
   pullboard join <lane> [--route light] [--family <name>]       register this worktree as an agent
                                         --route sets which work the model can take; --family records its name
   pullboard whoami | lanes | status     who you are, the lanes, the board at a glance
+  pullboard resources                  local resource holders and their FIFO queues
   pullboard view [--port N] [--no-open]  every project on this machine in your browser: items, shouts, doctrine,
                                         agents and activity, live; add items, shout and hold lanes from it
   pullboard serve [--port N]           local API v1: boards, state, moves, requests and live events,
@@ -334,7 +337,7 @@ function context(io) {
   const info = repoInfo(io.cwd);
   const config = configHere(info);
   const file = join(info.commonDir, 'pullboard', 'board.sqlite');
-  return { info, config, file, io, clock: io.clock ?? store.systemClock };
+  return { info, config, file, doctrine: loadDoctrine(info.root, config), io, clock: io.clock ?? store.systemClock };
 }
 
 /**
@@ -872,6 +875,21 @@ function readCommands(io, { first, second, rest, values }) {
       io.say(`imported version ${document.version} board tables: ${imported.tables.join(', ')}`);
       return 0;
     },
+    resources: () => {
+      const ctx = context(io);
+      const resources = [
+        ...listResources({ scope: 'machine' }).map((resource) => ({ ...resource, scope: 'machine' })),
+        ...listResources({ scope: 'repo', root: ctx.info.root }).map((resource) => ({ ...resource, scope: 'repo' })),
+      ];
+      io.result?.({ resources });
+      if (!resources.length) io.say('no resources have been used');
+      for (const resource of resources) {
+        io.say(`${resource.name} (${resource.scope}, capacity ${resource.capacity})`);
+        for (const holder of resource.holders) io.say(`  held by ${holder.agent}${holder.repo ? ` in ${holder.repo}` : ''} since ${holder.since}`);
+        resource.line.forEach((waiter, index) => io.say(`  ${index + 1}. waiting: ${waiter.agent}${waiter.repo ? ` in ${waiter.repo}` : ''}`));
+      }
+      return 0;
+    },
     resume: () => resumeHere(io),
     whoami: () => {
       const ctx = context(io);
@@ -995,7 +1013,7 @@ function readCommands(io, { first, second, rest, values }) {
       const asks = withBoard(ctx, (board) => {
         const me = whoAmI(ctx, board);
         const asPerson = personMode(ctx, me, values);
-        return store.openDecisions(board, asPerson ? 'person' : me.id);
+        return store.openDecisions(board, asPerson ? 'person' : [me.id, me.lane]);
       });
       io.result?.({ decisions: asks });
       if (!asks.length) io.say('no open decisions');
@@ -1132,7 +1150,8 @@ function verifyHere(ctx, id, { second, values }) {
       note: textArg(ctx.io, values, 'note') ?? '',
       head,
       digest,
-      policy: ctx.config.verify,
+      policy: ctx.config.verify.policy,
+      familyPolicy: ctx.config.verify.family,
     });
   });
   ctx.io.result?.({ id, ...result });
@@ -1154,7 +1173,7 @@ function nextOnce(ctx, values) {
     if (values.verify) checkMainVerifier(ctx, board, values);
     const me = whoAmI(ctx, board);
     if (values.verify) {
-      return store.reserveNextReview(board, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify, runnable: values.runnable, routes: values.routes });
+      return store.reserveNextReview(board, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes });
     }
     const warm = warmFiles(ctx, board, me);
     const { item, reasons, shared } = store.nextFor(board, { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm });
@@ -1497,7 +1516,7 @@ function specCommand(io, { first, second, rest, values }) {
   }
   const spec = loadSpec(ctx.info.root, ctx.config);
   if (!spec.exists) throw new Refused('NO_SPEC', `no ${ctx.config.spec}; run: pullboard init`);
-  const practice = loadSpec(ctx.info.root, { ...ctx.config, spec: ctx.config.practice });
+  const practice = ctx.doctrine;
   if (first === 'check' || first === undefined) {
     const files = [[ctx.config.spec, spec], ...(practice.exists ? [[ctx.config.practice, practice]] : [])];
     let errors = 0;
@@ -1507,7 +1526,7 @@ function specCommand(io, { first, second, rest, values }) {
       findings.forEach((finding) => messages.push(`${name}:${finding.line} ${finding.id ?? ''} ${finding.level}: ${finding.message}`.replace('  ', ' ')));
       const history = committedIds(ctx.info.root, name);
       const cited = name === ctx.config.spec ? citations(ctx, history) : new Map();
-      const lost = permanenceProblems(parsed, { committed: history.ids, cited });
+      const lost = permanenceProblems(parsed === practice ? practice.repo : parsed, { committed: history.ids, cited });
       lost.forEach((problem) => messages.push(`${name}: ${problem.id} error: ${problem.message}`));
       const fileErrors = findings.filter((finding) => finding.level === 'error').length + lost.length;
       errors += fileErrors;
@@ -1517,8 +1536,9 @@ function specCommand(io, { first, second, rest, values }) {
     unnamed.forEach((problem) => messages.push(`${ctx.config.spec}: error: ${problem}`));
     errors += unnamed.length;
     if (values.json && !errors) {
-      const rows = files.flatMap(([file, parsed]) => parsed.rows.map(({ id, status, tier, text, gate, serves, section, line }) => (
-        { id, status, tier, text, gate, serves, section, line, file }
+      const rows = files.flatMap(([file, parsed]) => parsed.rows.map(({ id, status, tier, text, gate, serves, section, line, origin, version, reason, file: source }) => (
+        { id, status, tier, text, gate, serves, section, line, file: source ?? file,
+          ...(origin ? { origin, version, reason } : {}) }
       )));
       io.result({ rows });
     } else messages.forEach((message) => io.say(message));

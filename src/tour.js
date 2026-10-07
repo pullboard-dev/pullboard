@@ -21,7 +21,7 @@ const SPEC = `# Greeter
 const CONFIG = {
   gate: 'node --test',
   spec: 'SPEC.md',
-  verify: 'any',
+  verify: { policy: 'any', family: 'off' },
   lease: '2h',
   lanes: { app: { owns: ['src/'], specs: ['G'] }, review: { owns: [] } },
   shared: [],
@@ -37,6 +37,17 @@ test('greets by name [G1]', () => assert.equal(greet('Ada'), 'Hello, Ada!'));
 `;
 const EDGE_TEST = `${TEST}test('a blank name greets the world [G1]', () => assert.equal(greet(' '), 'Hello, world!'));\n`;
 const TRY_EDGE = ['--input-type=module', '-e', "const { greet } = await import('./src/greet.mjs'); console.log(greet(''))"];
+const PROMPT_COLOR = { coordinator: 36, 'app-1': 33, 'review-1': 35 };
+
+/** Whether this person asked for terminal colors, unless NO_COLOR explicitly disables them. */
+function colorEnabled(io) {
+  return process.env.NO_COLOR === undefined && (Boolean(io.stdout.isTTY) || Boolean(process.env.FORCE_COLOR));
+}
+
+/** Wrap text in one plain ANSI style only when terminal styling is enabled. */
+function paint(text, code, enabled) {
+  return enabled ? `\u001b[${code}m${text}\u001b[0m` : text;
+}
 
 /**
  * Arguments as a person would type them.
@@ -67,6 +78,7 @@ function pause(ms) {
  * @returns {number}
  */
 export function tour(io) {
+  const color = colorEnabled(io);
   const pace = io.stdout.isTTY ? 1 : 0;
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-tour-')));
   const shims = join(dir, '.bin');
@@ -85,9 +97,9 @@ export function tour(io) {
   /**
    * Run one command as an agent, show it and the lines of its output worth reading.
    */
-  const run = (who, file, args, { label = `${file} ${typed(args)}`, show = /./, fails = false } = {}) => {
+  const run = (who, file, args, { label = `${file} ${typed(args)}`, show = /./, fails = false, tone } = {}) => {
     pause(400 * pace);
-    if (label) io.say(`   ${who} $ ${label}`);
+    if (label) io.say(`   ${paint(who, PROMPT_COLOR[who], color)} $ ${label}`);
     const result = spawnSync(file, args, {
       cwd: where[who],
       encoding: 'utf8',
@@ -97,7 +109,10 @@ export function tour(io) {
       const said = `${result.stdout ?? ''}${result.stderr ?? ''}${result.error?.message ?? ''}`;
       throw new TourStopped(`${label || `${file} ${typed(args)}`} ${fails ? 'passed, and should have failed' : `exited ${result.status}`}\n${said}`);
     }
-    for (const line of result.stdout.split('\n').filter((text) => text && show?.test(text))) io.say(`       ${line.replaceAll(`${dir}/`, '')}`);
+    for (const line of result.stdout.split('\n').filter((text) => text && show?.test(text))) {
+      const output = `       ${line.replaceAll(`${dir}/`, '')}`;
+      io.say(tone === 'red' ? paint(output, 31, color) : tone === 'green' ? paint(output, 32, color) : output);
+    }
     return result.stdout.trim();
   };
   const pb = (who, args, options) => run(who, process.execPath, [BIN, ...args], { label: `pullboard ${typed(args)}`, ...options });
@@ -109,7 +124,7 @@ export function tour(io) {
   };
   const step = (n, text) => {
     pause(1200 * pace);
-    io.say(`\n${n}  ${text}`);
+    io.say(`\n${paint(`${n}  ${text}`, 1, color)}`);
   };
 
   io.say('pullboard tour: a coordinator and two scripted agents run real commands on a throwaway repo. No model runs.');
@@ -139,7 +154,7 @@ export function tour(io) {
     pb('coordinator', ['worktree', 'review'], { show: /^made /, label: 'pullboard worktree review' });
     run('review-1', 'git', ['switch', '-q', '--detach', first]);
     const edge = run('review-1', process.execPath, TRY_EDGE, { label: "node -e \"greet('')\"" });
-    pb('review-1', ['verify', '1', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--note', `greet('') returns "${edge}"; G1 says a blank name greets the world`]);
+    pb('review-1', ['verify', '1', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--note', `greet('') returns "${edge}"; G1 says a blank name greets the world`], { tone: 'red' });
 
     step(5, "The builder's next session starts from the board, not from memory.");
     pb('app-1', ['resume'], { show: /^sent back|^next/ });
@@ -154,9 +169,10 @@ export function tour(io) {
     run('review-1', 'git', ['switch', '-q', '--detach', second]);
     write('review-1', { 'src/greet.mjs': FIRST });
     // Pin the summary we display: Node 24 defaults to the spec reporter even through a pipe.
-    run('review-1', process.execPath, ['--test', '--test-reporter=tap'], { label: 'node --test   # with the fix removed', show: /^# (pass|fail)/, fails: true });
+    run('review-1', process.execPath, ['--test', '--test-reporter=tap'], { label: 'node --test   # with the fix removed', show: /^# (pass|fail)/, fails: true, tone: 'red' });
     run('review-1', 'git', ['checkout', '--', 'src/greet.mjs']);
-    pb('review-1', ['verify', '1', 'accept', '--note', 'removed the blank-name fix: its new test failed; restored, both pass'], { show: /^verified/ });
+    if (color) run('review-1', process.execPath, ['--test', '--test-reporter=tap'], { label: 'node --test   # after restoring the fix', show: /^# (pass|fail)/, tone: 'green' });
+    pb('review-1', ['verify', '1', 'accept', '--note', 'removed the blank-name fix: its new test failed; restored, both pass'], { show: /^verified/, tone: 'green' });
 
     step(8, 'The coordinator merges it. The ledger is the receipt.');
     run('coordinator', 'git', ['merge', '-q', '--ff-only', 'app/1']);

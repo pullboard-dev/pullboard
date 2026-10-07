@@ -128,7 +128,12 @@ test('init writes config, spec, agent docs and hooks once, and never clobbers [I
   assert.equal(readFileSync(join(repo, 'CLAUDE.md'), 'utf8'), '@AGENTS.md\n');
   assert.equal(box.git(repo, 'config', '--get', 'core.hooksPath'), '.githooks');
   for (const hook of ['pre-commit', 'commit-msg', 'pre-push']) assert.ok(existsSync(join(repo, '.githooks', hook)));
-  assert.ok(readFileSync(join(repo, 'PRACTICE.md'), 'utf8').startsWith('# Practice'));
+  const practice = readFileSync(join(repo, 'PRACTICE.md'), 'utf8');
+  assert.ok(practice.startsWith('# Practice'));
+  assert.deepEqual(parseSpec(practice).rows, [], 'fresh init copies no standard rules [D4]');
+  assert.equal(parseSpec(practice).sections.length, 6);
+  assert.equal(practice.split('Inherits Pullboard standard doctrine version 1.').length, 2);
+  assert.match(agents, /PB1 \(standard 1\)/, 'fresh guidance shows inherited rules [D3]');
   assert.ok(existsSync(join(repo, '.claude', 'skills', 'pullboard-decompose', 'SKILL.md')));
   assert.match(second.out, /kept PRACTICE.md/);
   assert.match(second.out, /kept the Claude Code skills/);
@@ -971,27 +976,52 @@ test('init adds a Claude Code session hook that runs resume, and keeps every oth
 
 test('the tour runs a reject and its rework on a throwaway repo, in under thirty seconds [N10]', () => {
   const box = sandbox();
+  const plainEnv = { ...box.env, TMPDIR: box.dir };
+  delete plainEnv.NO_COLOR;
+  delete plainEnv.FORCE_COLOR;
   const started = Date.now();
-  const shown = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: { ...box.env, TMPDIR: box.dir }, encoding: 'utf8' });
+  const shown = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: plainEnv, encoding: 'utf8' });
   assert.equal(shown.status, 0, `${shown.stdout}${shown.stderr}`);
   assert.ok(Date.now() - started < 30_000, 'thirty seconds');
+  assert.doesNotMatch(shown.stdout, /\u001b\[/, 'piped output stays plain');
   assert.match(shown.stdout, /review-1 \$ pullboard verify 1 reject --reason BEHAVIOR_MISMATCH/);
   assert.match(shown.stdout, /sent back: #1 BEHAVIOR_MISMATCH by review-1: greet\(''\) returns "Hello, !"/);
   assert.match(shown.stdout, /with the fix removed\n {7}# pass 1\n {7}# fail 1/);
   assert.match(shown.stdout, /verified #1: CRITERION_MET/);
   assert.match(shown.stdout, /\| 1 \| app \| Greeting \| G1 \| app-1 \| review-1 \|/);
+
+  const forced = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: { ...plainEnv, FORCE_COLOR: '1' }, encoding: 'utf8' });
+  assert.equal(forced.status, 0, `${forced.stdout}${forced.stderr}`);
+  assert.match(forced.stdout, /\u001b\[1m1  The person approved one spec row\. The coordinator files it as work\.\u001b\[0m/);
+  assert.match(forced.stdout, /\u001b\[36mcoordinator\u001b\[0m \$/);
+  assert.match(forced.stdout, /\u001b\[33mapp-1\u001b\[0m \$/);
+  assert.match(forced.stdout, /\u001b\[35mreview-1\u001b\[0m \$/);
+  assert.match(forced.stdout, /\u001b\[31m[^\n]*rejected #1/);
+  assert.match(forced.stdout, /\u001b\[31m[^\n]*# fail 1/);
+  assert.match(forced.stdout, /\u001b\[32m[^\n]*verified #1: CRITERION_MET/);
+  assert.match(forced.stdout, /\u001b\[32m[^\n]*# pass 2/);
+
+  const noColor = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: { ...plainEnv, FORCE_COLOR: '1', NO_COLOR: '1' }, encoding: 'utf8' });
+  assert.equal(noColor.status, 0, `${noColor.stdout}${noColor.stderr}`);
+  assert.doesNotMatch(noColor.stdout, /\u001b\[/, 'NO_COLOR wins even if the environment could otherwise force color');
+  const normalizeTourRoot = (text) => text
+    .replace(/Look around: cd .* && pullboard log/, 'Look around: cd <tour> && pullboard log')
+    .replace(/\b[0-9a-f]{12}\b/g, '<sha>')
+    .replace(/claimed #1 until \S+ criterion frozen/g, 'claimed #1 until <time> criterion frozen');
+  assert.equal(normalizeTourRoot(noColor.stdout), normalizeTourRoot(shown.stdout), 'NO_COLOR preserves the plain tour output');
+
   const repo = /Look around: cd (\S+) && pullboard log/.exec(shown.stdout)[1];
   assert.match(box.git(repo, 'log', '--format=%an %s', '-1'), /^app-1 fix\(app\): a blank name greets the world \[G1\]$/);
   const hooks = join(box.dir, 'ambient-hooks');
   mkdirSync(hooks);
   writeFileSync(join(hooks, 'pre-commit'), '#!/bin/sh\necho ambient hook ran >&2\nexit 1\n');
   chmodSync(join(hooks, 'pre-commit'), 0o755);
-  const ambient = { ...box.env, TMPDIR: box.dir, GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.hooksPath', GIT_CONFIG_VALUE_0: hooks, GIT_DIR: join(box.dir, 'elsewhere.git') };
+  const ambient = { ...plainEnv, GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.hooksPath', GIT_CONFIG_VALUE_0: hooks, GIT_DIR: join(box.dir, 'elsewhere.git') };
   const isolated = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: ambient, encoding: 'utf8' });
   assert.equal(isolated.status, 0, `git settings from the environment stay out: ${isolated.stdout}`);
   const empty = join(box.dir, 'empty');
   mkdirSync(empty);
-  const stopped = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: { ...box.env, TMPDIR: box.dir, PATH: empty }, encoding: 'utf8' });
+  const stopped = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: { ...plainEnv, PATH: empty }, encoding: 'utf8' });
   assert.equal(stopped.status, 1);
   assert.match(stopped.stdout, /The tour stopped: git init -q -b main exited null/);
 });
@@ -1385,4 +1415,63 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
 test('the view rebuilds the page only when the board changed, so a refresh cannot swallow a click [N26]', () => {
   const page = cockpitSource();
   assert.match(page, /if \(text !== seen\) \{\s*seen = text;\s*data = next;\s*render\(\);\s*\}/);
+});
+
+test('doctrine init preserves legacy rules and outside guidance, refreshes labels and refuses empty declines [D1,D2,D3,D4,S8]', () => {
+  const box = sandbox();
+  const repo = join(box.dir, 'doctrine');
+  mkdirSync(repo);
+  box.git(repo, 'init', '-q', '-b', 'main');
+  const legacy = '# Legacy practice\n\n## Local\n- L1 [fact] Keep the existing local rule.\n';
+  const ways = '# Our ways\n\n## Rules\n- PB2 [fact] Delete only after team review.\n- PB8 [wont] This fixture stores only generated data.\n- R1 [fact] Keep the configured legacy rule.\n';
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: 'true', practice: 'ways.md' }));
+  writeFileSync(join(repo, 'PRACTICE.md'), legacy);
+  writeFileSync(join(repo, 'ways.md'), ways);
+  writeFileSync(join(repo, 'AGENTS.md'), '# Owner guidance\n\nKeep this prefix.\n');
+  const first = box.run(repo, 'init');
+  assert.equal(first.code, 0, first.err);
+  assert.equal(readFileSync(join(repo, 'PRACTICE.md'), 'utf8'), legacy);
+  assert.equal(readFileSync(join(repo, 'ways.md'), 'utf8'), ways);
+  let agents = readFileSync(join(repo, 'AGENTS.md'), 'utf8');
+  assert.match(agents, /PB1 \(standard 1\)/);
+  assert.match(agents, /PB2 \(repo\) \[fact\] Delete only after team review/);
+  assert.match(agents, /PB8 \(repo\) \[wont\] This fixture stores only generated data/);
+  assert.doesNotMatch(agents, /PB2 \(standard 1\)/);
+  const shown = box.run(repo, 'spec', '--json');
+  assert.equal(shown.code, 0, shown.out);
+  const document = JSON.parse(shown.out);
+  assert.equal(document.version, 1);
+  assert.equal(document.rows.length, 13);
+  const inherited = document.rows.filter(row => row.origin === 'standard');
+  assert.equal(inherited.length, 10);
+  assert.ok(inherited.every(row => row.version === 1 && row.reason === ''));
+  assert.deepEqual(document.rows.filter(row => row.origin === 'repo').map(row => [row.id, row.version, row.reason, row.file]), [
+    ['PB2', null, '', 'ways.md'], ['PB8', null, 'This fixture stores only generated data.', 'ways.md'], ['R1', null, '', 'ways.md'],
+  ]);
+  writeFileSync(join(repo, 'AGENTS.md'), agents + '\nKeep this footer.\n');
+  const updatedWays = ways.replace('Delete only after team review.', 'Delete only after pair review.');
+  writeFileSync(join(repo, 'ways.md'), updatedWays);
+  const refreshed = box.run(repo, 'init');
+  assert.equal(refreshed.code, 0, refreshed.err);
+  assert.match(refreshed.out, /updated the pullboard section/);
+  agents = readFileSync(join(repo, 'AGENTS.md'), 'utf8');
+  assert.ok(agents.startsWith('# Owner guidance\n\nKeep this prefix.\n'));
+  assert.ok(agents.endsWith('\nKeep this footer.\n'));
+  assert.match(agents, /PB2 \(repo\).*Delete only after pair review/);
+  assert.equal(agents.split('<!-- pullboard:start -->').length, 2);
+  assert.equal(box.run(repo, 'init').code, 0);
+  assert.equal(readFileSync(join(repo, 'AGENTS.md'), 'utf8'), agents, 'managed guidance refresh is idempotent');
+  writeFileSync(join(repo, 'ways.md'), '# Our ways\n\n## Rules\n- PB2 [wont]    \n');
+  const bad = box.run(repo, 'spec', '--json');
+  assert.equal(bad.code, 1);
+  assert.match(JSON.parse(bad.out).error.message, /declining a standard rule needs a reason in its text/);
+  writeFileSync(join(repo, 'ways.md'), '# Our ways\n\n## Rules\n- PB2 [wont] Declined. | reason: outside syntax\n');
+  assert.match(box.run(repo, 'spec', 'check').out, /unknown field/);
+  writeFileSync(join(repo, 'ways.md'), updatedWays);
+  box.git(repo, 'add', '-A');
+  box.git(repo, 'commit', '-q', '-m', 'chore: retain local doctrine');
+  writeFileSync(join(repo, 'ways.md'), updatedWays.replace('- PB2 [fact] Delete only after pair review.\n', ''));
+  const removed = box.run(repo, 'spec', 'check');
+  assert.equal(removed.code, 1);
+  assert.match(removed.out, /ways.md: PB2 error:.*ids are permanent/, 'inherited PB2 cannot hide removal of a committed repo override');
 });

@@ -9,13 +9,18 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { ROLES, installSkills, promptFor, withoutFrontMatter } from '../src/skills.js';
 import { lintSpec, parseSpec } from '../src/spec.js';
+import { standardDoctrine } from '../src/doctrine.js';
 import { agentsBlock, practiceTemplate } from '../src/templates.js';
 
 test('the standard practice lints clean, and every approved must-row names its enforcer [S6]', () => {
   const practice = parseSpec(practiceTemplate());
   assert.deepEqual(lintSpec(practice), []);
-  assert.ok(practice.rows.length >= 20);
-  const approvedMusts = practice.rows.filter((row) => row.status === 'approved' && row.tier === 'must');
+  assert.equal(practice.rows.length, 0, 'the repo starter no longer copies inherited rules [D4]');
+  assert.equal(practice.sections.length, 6);
+  assert.equal(practice.intro.filter(line => line === 'Inherits Pullboard standard doctrine version 1.').length, 1);
+  const standard = standardDoctrine();
+  assert.deepEqual(lintSpec(standard), []);
+  const approvedMusts = standard.rows.filter((row) => row.status === 'approved' && row.tier === 'must');
   assert.ok(approvedMusts.length >= 8);
   assert.ok(approvedMusts.every((row) => row.gate));
 });

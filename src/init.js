@@ -6,11 +6,12 @@
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { CONFIG_FILE, COORDINATOR } from './config.js';
+import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
+import { loadDoctrine } from './doctrine.js';
 import { installHooks } from './hooks.js';
 import { Refused } from './refused.js';
 import { installSkills } from './skills.js';
-import { AGENTS_START, agentsBlock, configTemplate, practiceTemplate, specTemplate } from './templates.js';
+import { AGENTS_END, AGENTS_START, agentsBlock, configTemplate, practiceTemplate, specTemplate } from './templates.js';
 
 const NPM_DEFAULT_TEST = 'echo "Error: no test specified" && exit 1';
 
@@ -88,13 +89,27 @@ function writeNew(file, text, name) {
 function writeAgentDocs(root) {
   const notes = [];
   const agents = join(root, 'AGENTS.md');
+  const block = agentsBlock(loadDoctrine(root, loadConfig(root)));
   if (!existsSync(agents)) {
-    writeFileSync(agents, `# AGENTS.md\n\n${agentsBlock()}`);
+    writeFileSync(agents, `# AGENTS.md\n\n${block}`);
     notes.push('wrote AGENTS.md');
   } else if (!readFileSync(agents, 'utf8').includes(AGENTS_START)) {
-    appendFileSync(agents, `\n${agentsBlock()}`);
+    appendFileSync(agents, `\n${block}`);
     notes.push('added the pullboard section to AGENTS.md');
-  } else notes.push('kept AGENTS.md');
+  } else {
+    const previous = readFileSync(agents, 'utf8');
+    const start = previous.indexOf(AGENTS_START);
+    const end = previous.indexOf(AGENTS_END, start);
+    if (end < 0) notes.push('kept AGENTS.md (incomplete pullboard markers; restore the closing marker to refresh)');
+    else {
+      const updated = previous.slice(0, start) + block.trimEnd() + previous.slice(end + AGENTS_END.length);
+      if (updated === previous) notes.push('kept AGENTS.md');
+      else {
+        writeFileSync(agents, updated);
+        notes.push('updated the pullboard section in AGENTS.md');
+      }
+    }
+  }
   const claude = join(root, 'CLAUDE.md');
   if (!existsSync(claude)) {
     writeFileSync(claude, '@AGENTS.md\n');

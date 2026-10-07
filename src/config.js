@@ -38,7 +38,7 @@ export function defaults() {
     gate: '',
     lease: '2h',
     reviewLease: '30m',
-    verify: 'any',
+    verify: { policy: 'any', family: 'off' },
     lanes: {},
     products: {},
     shared: [],
@@ -86,6 +86,9 @@ function merge(base, raw) {
     ...raw,
     commits: { ...base.commits, ...(raw.commits ?? {}) },
     protect: { ...base.protect, ...(raw.protect ?? {}) },
+    verify: typeof raw.verify === 'string'
+      ? { ...base.verify, policy: raw.verify }
+      : { ...base.verify, ...(raw.verify ?? {}) },
   };
 }
 
@@ -140,8 +143,11 @@ export function configProblems(config) {
   if (typeof config.spec !== 'string' || !config.spec) problems.push('"spec" names a file');
   if (typeof config.practice !== 'string' || !config.practice) problems.push('"practice" names a file');
   if (typeof config.gate !== 'string') problems.push('"gate" is a shell command, like "npm test"');
-  if (!['any', COORDINATOR].includes(config.verify)) {
-    problems.push('"verify" is "any" (any other agent) or "coordinator"');
+  if (!['any', COORDINATOR].includes(config.verify?.policy)) {
+    problems.push('"verify.policy" is "any" (any other agent) or "coordinator"');
+  }
+  if (!['off', 'prefer', 'require'].includes(config.verify?.family)) {
+    problems.push('"verify.family" is "off", "prefer" or "require"');
   }
   if (!isStringList(config.shared)) problems.push('"shared" is a list of path prefixes');
   const isFixer = (fixer) => typeof fixer?.run === 'string' && fixer.run.trim() && (fixer.files === undefined || isStringList(fixer.files));
