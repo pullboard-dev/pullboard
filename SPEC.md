@@ -96,9 +96,12 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - S19 [draft, must] spec check refuses a sign-off committed unsigned, signed by a key not allowed, or edited after it landed. | gate: test/signoff.test.js | serves: S17
 
 ## D · Doctrine
-- D1 [draft, must] Doctrine has three scopes: system (every repo here), repo and lane; a narrower scope adds or overrides. | gate: test/practice.test.js | serves: S6
-- D2 [draft, must] A repo declines a system rule only with a wont row naming it; no rule drops silently. | gate: test/practice.test.js | serves: D1
-- D3 [draft, must] Agents, the context pack and the view see the merged doctrine, each rule labelled with its scope. | gate: test/e2e.test.js | serves: D1
+- D1 [draft, must] Pullboard ships a standard doctrine, versioned, with PB ids; every repo inherits it, Pullboard's own included. | gate: test/practice.test.js
+- D2 [draft, must] A repo's PRACTICE.md adds rules, overrides one by its PB id, or declines one with a wont row and reason. | gate: test/practice.test.js | serves: D1
+- D3 [draft, must] Agents and the view see the merged doctrine, each rule marked standard, with its version, or the repo's. | gate: test/practice.test.js | serves: D1
+- D4 [draft, must] Init writes a PRACTICE.md for the repo's own rules only; the standard needs no copy. | gate: test/e2e.test.js | serves: D1
+- D5 [draft, aim] `pullboard practice` prints the merged doctrine and what the standard changed since the repo last looked. | gate: test/practice.test.js | serves: D1
+- D6 [draft, must] The standard changes only by an accepted RFC in docs/rfcs, and each change bumps its version. | gate: review | serves: D1
 
 ## C · Commits
 - C1 [approved, must] Header: type(scope): subject [ids], 72 characters at most. | gate: test/hooks.test.js
