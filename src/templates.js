@@ -19,7 +19,7 @@ export function configTemplate(gate, fix = []) {
     ...(fix.length ? { fix } : {}),
     spec: 'SPEC.md',
     practice: 'PRACTICE.md',
-    verify: 'any',
+    verify: { policy: 'any', family: 'off' },
     lease: '2h',
     lanes: { review: { owns: [], starts: 'any time: verifiers check submitted work and own no folders' } },
     shared: [],

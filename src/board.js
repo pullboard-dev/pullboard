@@ -873,10 +873,11 @@ export function reviewHolder(board, item) {
  * nothing, so the agent that made it can still give its verdict unless another reserved it since.
  *
  * @param {any} board
- * @param {{ agentId: string, policy: string }} who
+ * @param {{ agentId: string, policy: string, familyPolicy?: string }} who
  * @returns {Record<string, (found: any) => Refused | null>}
  */
-function reviewerChecks(board, { agentId, policy }) {
+function reviewerChecks(board, { agentId, policy, familyPolicy = 'off' }) {
+  const family = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(agentId)?.agent_family ?? null;
   return {
     notBuilder: (found) => (found.item_built_by === agentId ? new Refused('SELF_VERIFY', 'the builder never verifies its own work; another agent must') : null),
     routeAllows: (found) => {
@@ -885,6 +886,9 @@ function reviewerChecks(board, { agentId, policy }) {
     },
     policyAllows: (found) =>
       policy === COORDINATOR && found.item_lane !== COORDINATOR && agentId !== COORDINATOR ? new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work') : null,
+    familyAllows: (found) => familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
+      ? new Refused('O2_FAMILY_MATCH', `#${found.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`)
+      : null,
     reviewFree: (found) => {
       const holder = reviewHolder(board, found);
       return holder && holder !== agentId
@@ -900,7 +904,7 @@ function reviewerChecks(board, { agentId, policy }) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, leaseMs: number, policy: string }} who
+ * @param {{ agentId: string, leaseMs: number, policy: string, familyPolicy?: string }} who
  * @returns {any} The item, reserved.
  */
 export function reserveReview(board, id, who) {
@@ -912,13 +916,13 @@ export function reserveReview(board, id, who) {
  * transaction, so no other verifier can take it between the look and the reservation.
  *
  * @param {any} board
- * @param {{ agentId: string, lane: string, leaseMs: number, policy: string, runnable?: boolean, routes?: string[] }} who
+ * @param {{ agentId: string, lane: string, leaseMs: number, policy: string, familyPolicy?: string, runnable?: boolean, routes?: string[] }} who
  * @returns {{ item: any | null, reasons: string[] }}
  */
-export function reserveNextReview(board, { agentId, lane, leaseMs, policy, runnable, routes }) {
+export function reserveNextReview(board, { agentId, lane, leaseMs, policy, familyPolicy = 'off', runnable, routes }) {
   return atomic(board, () => {
-    const { item, reasons } = nextFor(board, { agentId, lane, verify: true, runnable, routes });
-    return item ? { item: reserveWithin(board, item.item_id, { agentId, leaseMs, policy }), reasons: [] } : { item: null, reasons };
+    const { item, reasons } = nextFor(board, { agentId, lane, verify: true, familyPolicy, runnable, routes });
+    return item ? { item: reserveWithin(board, item.item_id, { agentId, leaseMs, policy, familyPolicy }), reasons: [] } : { item: null, reasons };
   });
 }
 
@@ -927,17 +931,17 @@ export function reserveNextReview(board, { agentId, lane, leaseMs, policy, runna
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, leaseMs: number, policy: string }} who
+ * @param {{ agentId: string, leaseMs: number, policy: string, familyPolicy?: string }} who
  * @returns {any}
  */
-function reserveWithin(board, id, { agentId, leaseMs, policy }) {
+function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'off' }) {
   const until = new Date(board.clock.now().getTime() + leaseMs).toISOString();
   moveItem(board, id, 'reserve', {
     checks: {
       coordinatorSaysAs: null,
       joined: null,
       [IN_STATE]: (found) => new Refused('NOT_SUBMITTED', `item #${id} is ${current(board, found).item_status}, not submitted`),
-      ...reviewerChecks(board, { agentId, policy }),
+      ...reviewerChecks(board, { agentId, policy, familyPolicy }),
     },
     set: () => ({ item_review_by: agentId, item_review_until: until }),
   });
@@ -958,10 +962,10 @@ function reserveWithin(board, id, { agentId, leaseMs, policy }) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, decision: string, reason?: string, note?: string, head: string, digest: string, policy: string }} verdict
+ * @param {{ agentId: string, decision: string, reason?: string, note?: string, head: string, digest: string, policy: string, familyPolicy?: string }} verdict
  * @returns {{ decision: string, reason: string }}
  */
-export function verify(board, id, { agentId, decision, reason, note = '', head, digest, policy }) {
+export function verify(board, id, { agentId, decision, reason, note = '', head, digest, policy, familyPolicy = 'off' }) {
   const verb = { ACCEPT: 'accept', REJECT: 'reject' }[decision];
   if (!verb) throw new Refused('BAD_DECISION', 'the decision is accept or reject');
   const isAccept = verb === 'accept';
@@ -973,7 +977,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', head, 
         joined: null,
         [IN_STATE]: (found) => new Refused('NOT_SUBMITTED', `item #${id} is ${current(board, found).item_status}, not submitted`),
         atSubmittedCommit: null,
-        ...reviewerChecks(board, { agentId, policy }),
+        ...reviewerChecks(board, { agentId, policy, familyPolicy }),
         criterionUnchanged: (found) =>
           digest === found.item_frozen_digest
             ? null
@@ -1335,10 +1339,10 @@ export function events(board, { itemId } = {}) {
  * and `shared` names them (N20). A held lane offers nothing new (N22).
  *
  * @param {any} board
- * @param {{ agentId: string, lane: string, verify?: boolean, runnable?: boolean, routes?: string[], warm?: string[] }} who
+ * @param {{ agentId: string, lane: string, verify?: boolean, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[] }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
-export function nextFor(board, { agentId, lane, verify = false, runnable = false, routes = ROUTES, warm = [] }) {
+export function nextFor(board, { agentId, lane, verify = false, familyPolicy = 'off', runnable = false, routes = ROUTES, warm = [] }) {
   const route = routeOf(board, agentId);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
   const items = listItems(board)
@@ -1348,7 +1352,11 @@ export function nextFor(board, { agentId, lane, verify = false, runnable = false
   const tiers = route === 'strong' ? '' : `${ROUTES.slice(0, ROUTES.indexOf(route) + 1).reverse().join(' or ')} `;
   const routed = `${tiers}${runnable ? 'runnable ' : ''}`;
   if (verify) {
-    const reviewable = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId);
+    const family = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(agentId)?.agent_family ?? null;
+    const hasDifferentFamily = (entry) => Boolean(family && entry.item_builder_family && family !== entry.item_builder_family);
+    let reviewable = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId);
+    if (familyPolicy === 'require') reviewable = reviewable.filter(hasDifferentFamily);
+    if (familyPolicy === 'prefer') reviewable.sort((first, second) => Number(hasDifferentFamily(second)) - Number(hasDifferentFamily(first)));
     const holder = (entry) => reviewHolder(board, entry);
     const item = reviewable.find((entry) => holder(entry) === agentId) ?? reviewable.find((entry) => !holder(entry));
     if (item) return { item, reasons: [] };

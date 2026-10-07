@@ -48,7 +48,7 @@ test('a config with a bad lane refuses and names the field [L1]', () => {
   for (const field of ['"owns" is a list', '"specs" is a list', '"starts" is text']) {
     assert.ok(fields.some((problem) => problem.includes(`lane "web": ${field}`)), `a well-named lane with a bad field is refused: ${field}`);
   }
-  assert.ok(configProblems({ ...CONFIG, verify: 'anyone' }).some((problem) => problem.includes('"verify"')));
+  assert.ok(configProblems({ ...CONFIG, verify: 'anyone' }).some((problem) => problem.includes('"verify.policy"')));
 });
 
 test('config merges nested groups over the defaults, and leases read as durations', () => {
@@ -59,6 +59,13 @@ test('config merges nested groups over the defaults, and leases read as duration
     assert.equal(config.commits.maxHeader, 60);
     assert.deepEqual(config.commits.requireIds, ['feat', 'fix']);
     assert.equal(config.leaseMs, 90 * 60_000);
+    assert.deepEqual(config.verify, { policy: 'any', family: 'off' });
+    writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', verify: 'coordinator' }));
+    assert.deepEqual(loadConfig(root).verify, { policy: 'coordinator', family: 'off' }, 'legacy verify strings remain valid');
+    writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', verify: { family: 'require' } }));
+    assert.deepEqual(loadConfig(root).verify, { policy: 'any', family: 'require' }, 'nested verify options merge over defaults');
+    writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', verify: { family: 'sometimes' } }));
+    assert.throws(() => loadConfig(root), /verify\.family.*off.*prefer.*require/);
     writeFileSync(join(root, 'pullboard.json'), '{ not json');
     assert.throws(() => loadConfig(root), /BAD_CONFIG/);
   } finally {

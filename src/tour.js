@@ -21,7 +21,7 @@ const SPEC = `# Greeter
 const CONFIG = {
   gate: 'node --test',
   spec: 'SPEC.md',
-  verify: 'any',
+  verify: { policy: 'any', family: 'off' },
   lease: '2h',
   lanes: { app: { owns: ['src/'], specs: ['G'] }, review: { owns: [] } },
   shared: [],
