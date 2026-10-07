@@ -212,7 +212,7 @@ test('spec --json emits one versioned document with every field, including empty
   const shown = box.run('--json');
   assert.equal(shown.status, 0, shown.stderr);
   const data = JSON.parse(shown.stdout);
-  const inherited = data.rows.filter(row => row.origin === 'standard 1');
+  const inherited = data.rows.filter(row => row.origin === 'standard');
   assert.equal(data.rows.length, 4 + standardDoctrine().rows.length);
   assert.deepEqual(inherited.map(row => row.id), standardDoctrine().rows.map(row => row.id));
   assert.ok(inherited.every(row => row.file === 'standard doctrine 1' && row.version === 1 && row.reason === ''));
@@ -235,7 +235,7 @@ test('spec --json combines both configured files and keeps every row status [S13
   const data = JSON.parse(shown.stdout);
   assert.equal(data.version, 1);
   assert.equal(data.rows.length, 7 + standardDoctrine().rows.length);
-  assert.equal(data.rows.filter(row => row.origin === 'standard 1').length, standardDoctrine().rows.length);
+  assert.equal(data.rows.filter(row => row.origin === 'standard').length, standardDoctrine().rows.length);
   assert.ok(data.rows.slice(0, 4).every((row) => row.file === 'requirements.md'));
   assert.deepEqual(data.rows.filter(row => row.file === 'ways.md'), [
     { id: 'P1', status: 'fact', tier: '', text: 'A fact.', gate: '', serves: [], section: 'P · Practice', line: 4, file: 'ways.md', origin: 'repo', version: null, reason: '' },
