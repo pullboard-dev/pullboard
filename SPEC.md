@@ -99,6 +99,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - C4 [approved, must] Every refusal says what to do and shows what it saw. | gate: test/hooks.test.js | serves: P4
 - C5 [approved, must] Pre-commit runs the configured fixers on fully staged files and restages what they fix. | gate: test/e2e.test.js
 - C6 [draft, must] Submit refuses unless the item's commits since claim, together, cite every spec row the item cites. | gate: test/e2e.test.js | serves: C2
+- C7 [draft, must] Every push and pull request runs the gate in CI on macOS and Linux, Node 22.13 and 24. | gate: test/ci.test.js | serves: C3
 
 ## R · Receipts
 - R1 [approved, must] The ledger lists built items: lane, spec, builder, verifier, verdict, commit. | gate: test/board.test.js
