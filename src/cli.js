@@ -48,7 +48,7 @@ import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
 import { serveView } from './serve.js';
 import { doctorProblems } from './doctor.js';
 import { exportBoard, importBoard } from './exchange.js';
-import { addSigner, defaultPrincipal, hasSignerFile } from './signature.js';
+import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
@@ -1469,6 +1469,7 @@ function specCommand(io, { first, second, rest, values }) {
   const signoffs = readSignoffs(ctx.info.root);
   if (first === 'check' || first === undefined) {
     const files = [[ctx.config.spec, spec], ...(practice.exists ? [[ctx.config.practice, practice]] : [])];
+    for (const [, parsed] of files) assertRequiredSigners(ctx.info.root, parsed.rows);
     let errors = 0;
     const messages = [];
     for (const [name, parsed] of files) {

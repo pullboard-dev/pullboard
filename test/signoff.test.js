@@ -78,7 +78,9 @@ test('[S17,S18,S19,S20,S21] signed rows require every named principal and surviv
   assert.equal(succeeds(box, 'signers', 'add', '--key', box.co.publicKey, '--by', 'CO').status, 0);
   assert.equal(readFileSync(join(box.root, '.pullboard/first-commit'), 'utf8').trim(), first);
   succeeds(box, 'signoff', 'G1', '--by', 'CO', '--note', 'checked the exact row');
-  assert.match(succeeds(box, 'check').stdout, /0 errors/);
+  const missingPrincipal = box.run('spec', 'check');
+  assert.notEqual(missingPrincipal.status, 0);
+  assert.match(missingPrincipal.stderr, /UNLISTED_SIGNER/u);
   const partial = JSON.parse(succeeds(box, 'unmet', '--json').stdout);
   assert.ok(partial.rows.some((row) => row.id === 'G1'), 'the row waits until both named principals have signed');
   const page = join(box.dir, 'spec.html');
@@ -203,10 +205,10 @@ test('[S21] signer setup defaults to the configured Git key and email principal 
   const home = join(box.dir, 'git-home');
   const ssh = join(home, '.ssh');
   mkdirSync(ssh, { recursive: true });
-  const configured = makeKey(join(ssh, 'id_ed25519'));
+  const configured = makeKey(join(ssh, 'custom-signing-key'));
   box.env.HOME = home;
   const globalConfig = join(box.dir, 'global.gitconfig');
-  writeFileSync(globalConfig, '[user]\n\temail = global@example.invalid\n\tsigningkey = ~/.ssh/id_ed25519\n');
+  writeFileSync(globalConfig, '[user]\n\temail = global@example.invalid\n\tsigningkey = ~/.ssh/custom-signing-key\n');
   box.env.GIT_CONFIG_GLOBAL = globalConfig;
   box.git('config', '--local', '--unset', 'user.email');
   box.git('config', '--local', '--unset', 'user.signingkey');
@@ -246,6 +248,9 @@ test('[S5,S18] legacy receipts preserve their shape and cannot meet required SSH
   assert.deepEqual(Object.keys(records[0]), ['id', 'by', 'on', 'text', 'note']);
   assert.match(records[0].on, /^\d{4}-\d\d-\d\d$/u);
   assert.equal(existsSync(join(box.root, '.pullboard/signers')), false);
+  const missingList = box.run('spec', 'check');
+  assert.notEqual(missingList.status, 0);
+  assert.match(missingList.stderr, /NO_SIGNERS/u);
   assert.ok(JSON.parse(succeeds(box, 'unmet', '--json').stdout).rows.some((row) => row.id === 'G1'));
   assert.equal(JSON.parse(succeeds(box, 'show', 'G1', '--json').stdout).standing.met.length, 0);
   const page = join(box.dir, 'legacy.html');
@@ -261,6 +266,7 @@ test('[S5,S18] legacy receipts preserve their shape and cannot meet required SSH
   assert.notEqual(invalid.status, 0);
   assert.match(invalid.stderr, /BAD_SIGNER/u);
   assert.equal(readFileSync(file, 'utf8'), original, 'legacy signer validation refuses before appending');
+  succeeds(box, 'check');
 });
 
 test('[S17,S19] an existing empty signer file cannot silently fall back to unsigned sign-offs', (t) => {
@@ -325,4 +331,32 @@ test('[S21] setup refuses inline key data and files containing a GPG public key'
   assert.notEqual(wrongFormat.status, 0);
   assert.match(wrongFormat.stderr, /NOT_SSH_KEY/u);
   assert.equal(existsSync(join(box.root, '.pullboard/signers')), false);
+});
+
+test('[S21] setup chooses the oldest root with a hash tie-break and refuses an unanchored shallow clone', (t) => {
+  const box = fixture(t);
+  box.env.GIT_COMMITTER_DATE = '2000-01-01T00:00:00Z';
+  const roots = ['first unrelated root', 'second unrelated root'].map((message) => box.git('commit-tree', 'HEAD^{tree}', '-m', message));
+  delete box.env.GIT_COMMITTER_DATE;
+  roots.forEach((hash, index) => {
+    box.git('branch', `root-${index}`, hash);
+    box.git('merge', '--quiet', '--allow-unrelated-histories', `root-${index}`, '-m', 'chore: merge an unrelated root');
+  });
+  const shallow = join(box.dir, 'unanchored-shallow');
+  execFileSync('git', ['clone', '-q', '--depth=1', `file://${box.root}`, shallow], { env: box.env, stdio: 'pipe' });
+  const refused = spawnSync(process.execPath, [BIN, 'spec', 'signers', 'add', '--key', box.co.publicKey, '--by', 'CO'], { cwd: shallow, env: box.env, encoding: 'utf8' });
+  assert.notEqual(refused.status, 0);
+  assert.match(refused.stderr, /SHALLOW_BEFORE_OPT_IN/u);
+  assert.match(refused.stderr, /git fetch --unshallow/u);
+  assert.equal(existsSync(join(shallow, '.pullboard/first-commit')), false);
+  succeeds(box, 'signers', 'add', '--by', 'CO');
+  const anchor = join(box.root, '.pullboard/first-commit');
+  assert.equal(readFileSync(anchor, 'utf8').trim(), roots.sort()[0]);
+  rmSync(anchor);
+  for (const args of [['check'], ['signoff', 'G1', '--by', 'CO']]) {
+    const result = box.run('spec', ...args);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /NO_FIRST_COMMIT/u);
+    assert.equal(existsSync(anchor), false, 'signing and checking never reconstruct a missing anchor');
+  }
 });

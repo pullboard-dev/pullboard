@@ -79,6 +79,19 @@ export function readSignerText(root) {
 /** Treat the existence of the signer file as opt-in, including an incomplete empty file. */
 export function hasSignerFile(root) { return existsSync(join(root, SIGNERS_FILE)); }
 
+/** Refuse required SSH principals that have no configured allowed-signers entry. */
+export function assertRequiredSigners(root, rows) {
+  const required = rows.filter((row) => row.signers?.length);
+  if (!required.length) return;
+  if (!hasSignerFile(root)) throw new Refused('NO_SIGNERS', 'rows naming signers need an SSH signer list; run pullboard spec signers add');
+  const allowed = readSignerText(root);
+  for (const row of required) {
+    for (const principal of row.signers) {
+      if (!listsPrincipal(allowed, principal)) throw new Refused('UNLISTED_SIGNER', `${row.id} names ${principal}, which is not listed; run pullboard spec signers add --by ${principal} --key <path>`);
+    }
+  }
+}
+
 /** Find a valid principal in an OpenSSH allowed-signers file. */
 export function listsPrincipal(text, principal) {
   return text.split(/\r?\n/u).filter((line) => line.trim() && !line.trimStart().startsWith('#'))
@@ -200,10 +213,15 @@ export function verifySignedRecords(root, records) {
 function firstCommitFromGit(root) {
   const shallow = spawnSync('git', ['rev-parse', '--is-shallow-repository'], { cwd: root, encoding: 'utf8' });
   if (shallow.status !== 0) throw new Refused('NOT_A_REPO', 'signers add needs a Git repository');
-  if (shallow.stdout.trim() === 'true') throw new Refused('SHALLOW_BEFORE_OPT_IN', 'opt in from a full clone so Pullboard can record the repo first commit');
-  const roots = runTool('git', ['rev-list', '--max-parents=0', 'HEAD'], { cwd: root }).split(/\r?\n/u).filter(Boolean);
-  if (roots.length !== 1) throw new Refused('NO_SINGLE_ROOT', 'signers add needs one reachable first commit');
-  return roots[0];
+  if (shallow.stdout.trim() === 'true') throw new Refused('SHALLOW_BEFORE_OPT_IN', 'run git fetch --unshallow, then pullboard spec signers add so the first commit can be recorded');
+  const roots = runTool('git', ['rev-list', '--max-parents=0', '--timestamp', 'HEAD'], { cwd: root })
+    .split(/\r?\n/u).filter(Boolean).map((line) => {
+      const [time, hash] = line.split(' ');
+      return { time: Number(time), hash };
+    });
+  roots.sort((a, b) => a.time - b.time || (a.hash < b.hash ? -1 : a.hash > b.hash ? 1 : 0));
+  if (!roots.length) throw new Refused('NO_FIRST_COMMIT', 'commit the repo before running pullboard spec signers add');
+  return roots[0].hash;
 }
 
 /** Add a public key to a repo, signing later changes with a key already allowed. */
