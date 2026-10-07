@@ -1289,3 +1289,47 @@ test('needs-you lines keep their titles on a phone [N26]', async () => {
     await view.stop();
   }
 });
+
+test("a finished action's output steps aside [N27]", async () => {
+  const box = machine();
+  project(box, 'alpha');
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    // The page's timers, held by the test: each pending close is recorded and fired at will.
+    page.run('globalThis.pause = setTimeout; globalThis.closes = []; globalThis.setTimeout = (run, ms) => closes.push({ run, ms, live: true }); globalThis.clearTimeout = (id) => { if (closes[id - 1]) closes[id - 1].live = false; };');
+    const pending = () => JSON.parse(page.run('JSON.stringify(closes.map((close) => [close.ms, close.live]))'));
+    const out = page.element('console');
+    const shout = async (to, text) => {
+      page.element('shout-to').value = to;
+      page.element('shout-text').value = text;
+      await page.fire('shout-form', 'submit');
+    };
+
+    await shout('web', 'hello');
+    assert.match(out.textContent, /^\$ pullboard shout web hello\n/);
+    assert.deepEqual([out.className, out.hidden], ['console ok', false]);
+    assert.deepEqual(pending(), [[6000, true]], 'a close six seconds on');
+    page.run('closes[0].run()');
+    assert.equal(out.hidden, true, 'and then the output steps aside');
+
+    await shout('web', 'again');
+    await shout('nobody-here', 'is anyone there');
+    assert.match(out.textContent, /NO_READER/);
+    assert.deepEqual([out.className, out.hidden], ['console no', false]);
+    assert.deepEqual(pending().slice(1), [[6000, false]], 'the refusal cancelled the close the shout before it left, and set none');
+
+    // Two shouts in flight: the first goes through but answers only after the second, a refusal, has
+    // started. The first must not set a close that would hide the refusal.
+    page.run('const plain = fetch; let sent = 0; globalThis.fetch = (path, init) => path === "/api/act" ? new Promise((done) => pause(done, ++sent === 1 ? 300 : 900)).then(() => plain(path, init)) : plain(path, init);');
+    await shout('web', 'first, and slow to answer');
+    await shout('nobody-here', 'second, and refused');
+    await new Promise((done) => setTimeout(done, 2000));
+    await page.run('refresh()');
+    assert.match(out.textContent, /NO_READER/, 'the later action owns the console');
+    page.run('closes.filter((close) => close.live).forEach((close) => close.run())');
+    assert.deepEqual([out.className, out.hidden], ['console no', false], 'and no close from the earlier success hides it');
+  } finally {
+    await view.stop();
+  }
+});

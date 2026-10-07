@@ -767,20 +767,35 @@ function search() {
   render();
 }
 
+/**
+ * Run an action as its CLI command on the server, show what the command said, and redraw from the
+ * board. The console belongs to the latest action: one that answers after a later one has started
+ * writes nothing there and sets no close, and a close fires only while its action is still the
+ * latest, so a success can never hide a refusal that came after it.
+ */
 async function act(command, args, root = view.root) {
   const out = $('console');
+  const run = (view.acting = (view.acting || 0) + 1);
+  const latest = () => run === view.acting;
+  clearTimeout(view.closing);
   out.hidden = false;
   out.className = 'console';
   out.textContent = 'running…';
   try {
     const result = await api('/api/act', { root, command, args });
-    out.className = 'console ' + (result.code === 0 ? 'ok' : 'no');
-    out.textContent = '$ ' + result.command + '\\n' + (result.out + result.err).trim();
+    if (latest()) {
+      out.className = 'console ' + (result.code === 0 ? 'ok' : 'no');
+      out.textContent = '$ ' + result.command + '\\n' + (result.out + result.err).trim();
+      // What went through says so and then steps aside; a refusal stays until the person closes it.
+      if (result.code === 0) view.closing = setTimeout(() => { if (latest()) out.hidden = true; }, 6000);
+    }
     await refresh();
     return result.code === 0;
   } catch (error) {
-    out.className = 'console no';
-    out.textContent = String(error.message || error);
+    if (latest()) {
+      out.className = 'console no';
+      out.textContent = String(error.message || error);
+    }
     return false;
   }
 }
