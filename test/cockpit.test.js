@@ -358,7 +358,7 @@ test('the sidebar lists every project and what needs the person [N26]', async ()
     assert.match(style, /@media \(max-width: 900px\) \{[^@]*\.side-body \{ display: none;[^@]*\.side\.open \.side-body \{ display: grid; \}/, 'under 900px the list folds behind the project button');
 
     assert.deepEqual(projectRows(page.show('proj-list')), [
-      { root: alpha.repo, name: 'alpha', needs: '2', line: '1 sent back · 1 to verify', current: true },
+      { root: alpha.repo, name: 'alpha', needs: '', line: '1 sent back · 1 to verify', current: true },
       { root: beta.repo, name: 'beta', needs: '2', line: '1 question · 1 lane held', current: false },
       { root: gamma.repo.replace('<', '&lt;').replace('>', '&gt;'), name: 'gam&lt;i&gt;ma', needs: '', line: '1 item open', current: false },
     ]);
@@ -369,7 +369,7 @@ test('the sidebar lists every project and what needs the person [N26]', async ()
     assert.match(page.show('chain'), /Gamma page/, 'the main column shows the project picked');
     assert.doesNotMatch(page.show('chain'), /Greeting/);
     assert.equal(page.element('proj-name').textContent, 'gam<i>ma');
-    assert.equal(page.element('proj-elsewhere').textContent, '4 elsewhere', 'the folded button counts what needs the person elsewhere');
+    assert.equal(page.element('proj-elsewhere').textContent, '2 elsewhere', 'the folded button counts what needs the person elsewhere: beta\'s question and held lane, not alpha\'s agents\' work');
 
     await page.click({ id: 'proj-switch', classes: 'switch-btn side' });
     assert.ok(page.element('side').classList.contains('open'), 'the project button opens the list');
@@ -383,13 +383,14 @@ test('the sidebar lists every project and what needs the person [N26]', async ()
 
 test('projects group repos with combined needs and activity, while ungrouped and unreadable repos stay clear [N33, N34, N36]', async () => {
   const box = machine();
-  const core = project(box, 'core', SPEC, { name: 'Core API', project: 'Atlas' });
+  const core = project(box, 'core', `${SPEC}- G3 [pending] Should the API greet in French?\n`, { name: 'Core API', project: 'Atlas' });
   box.run(core.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   build(box, core, 1, 'greeting.html');
   sendBack(box, core, 1, 'the page needs a greeting');
   const web = project(box, 'web', SPEC, { name: 'Web UI', project: 'Atlas' });
   box.run(web.repo, 'add', 'web', 'Header', '--specs', 'G1', '--criterion', 'has a header');
   build(box, web, 1, 'header.html');
+  box.run(web.repo, 'shout', 'person', 'Ship the header today?', '--decision');
   const standalone = project(box, 'standalone', SPEC, { name: 'Scratchpad' });
   const broken = project(box, 'broken', SPEC, { name: 'Broken repo', project: 'Atlas' });
   const view = await startView(box);
@@ -422,7 +423,9 @@ test('projects group repos with combined needs and activity, while ungrouped and
     assert.equal(page.element('tabs').hidden, true);
     assert.match(page.show('group-needs'), /Core API/);
     assert.match(page.show('group-needs'), /Web UI/);
-    assert.match(page.show('group-needs'), /sent back: BEHAVIOR_MISMATCH/);
+    assert.match(page.show('group-needs'), /<b>Core API<\/b><code>G3<\/code><span>Should the API greet in French\?<\/span><em>answer in SPEC\.md →<\/em>/, "a question in one repo's spec");
+    assert.match(page.show('group-needs'), /<b>Web UI<\/b><code>coordinator<\/code><span>Ship the header today\?<\/span><em>decision, /, "and a decision in another's");
+    assert.doesNotMatch(page.show('group-needs'), /sent back|to verify|Greeting|Header/, "work sent back or waiting for a verdict is the agents', not the person's");
     assert.match(page.show('group-activity'), /Core API/);
     assert.match(page.show('group-activity'), /Web UI/);
     assert.match(page.show('group-activity'), /Greeting|Header/);
@@ -675,7 +678,7 @@ test('a review in progress names its reviewer [N26]', async () => {
   try {
     const page = await openPage(view);
     assert.match(itemRow(page.show('chain'), 1), /<span class="chip warn" title="reviewing until [^"]+">web-2 reviewing<\/span><\/li>$/, 'the row names who holds the review');
-    assert.match(page.show('needs'), /<code>#1<\/code><span>Greeting<\/span><em>being reviewed by web-2, <time data-ago="[^"]+">[^<]+<\/time> →<\/em>/);
+    assert.doesNotMatch(page.show('needs'), /Greeting/, "a review is the agents' work, so it stays out of Needs-you");
     const holds = (id) => agentEntries(page.show('agents')).find((agent) => agent.id === id).holds;
     assert.deepEqual(holds('web-2'), ['#1 Greeting: reviewing'], 'the reviewer holds it');
     assert.deepEqual(holds('web-1'), ['#1 Greeting: to verify'], 'the builder waits on it');
@@ -710,11 +713,11 @@ test('the tab title says what needs you [N26]', async () => {
   try {
     const page = await openPage(view);
     const title = () => page.run('document.title');
-    assert.equal(title(), '(3) alpha · Pullboard', 'one sent back and one to verify here, one lane held in beta');
+    assert.equal(title(), '(1) alpha · Pullboard', "the lane held in beta; alpha's work sent back or waiting for a verdict is the agents'");
     page.run(`switchTo(${JSON.stringify(calm.repo)})`);
-    assert.equal(title(), '(3) calm · Pullboard', 'a switch names the project at once; the count still covers them all');
+    assert.equal(title(), '(1) calm · Pullboard', 'a switch names the project at once; the count still covers them all');
     await page.run('refresh()');
-    assert.equal(title(), '(3) calm · Pullboard');
+    assert.equal(title(), '(1) calm · Pullboard');
 
     box.run(alpha.repo, 'withdraw', '1', 'the greeting moved to the next release');
     accept(box, alpha, 2);
@@ -728,7 +731,7 @@ test('the tab title says what needs you [N26]', async () => {
     await nobody.stop();
   }
 });
-test('an open decision counts in the sidebar and the tab title [B21, N26]', async () => {
+test('an open decision counts in the sidebar and the tab title [B21, B26, N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
   const beta = project(box, 'beta');
@@ -737,17 +740,22 @@ test('an open decision counts in the sidebar and the tab title [B21, N26]', asyn
   try {
     const page = await openPage(view);
     const rows = () => projectRows(page.show('proj-list')).map((row) => [row.name, row.needs, row.line]);
-    assert.deepEqual(rows(), [['alpha', '', 'nothing open'], ['beta', '1', '1 decision']], "beta's ask needs the person, from alpha too");
+    assert.deepEqual(rows(), [['alpha', '', 'nothing open'], ['beta', '', 'nothing open']], "an agent's ask is its coordinator's to answer, so it counts for no one here");
+
+    box.run(beta.repo, 'pass', '1', 'it changes the launch');
+    await page.run('refresh()');
+    assert.deepEqual(rows(), [['alpha', '', 'nothing open'], ['beta', '1', '1 decision']], "passed up, it needs the person, from alpha too");
     assert.equal(page.run('document.title'), '(1) alpha · Pullboard');
     assert.equal(page.element('proj-elsewhere').textContent, '1 elsewhere', 'and on a phone');
 
-    box.run(beta.web, 'shout', 'coordinator', 'And the docs?', '--decision');
+    box.run(beta.repo, 'shout', 'person', 'And the docs?', '--decision');
     await page.run('refresh()');
-    assert.deepEqual(rows()[1], ['beta', '2', '2 decisions']);
-    box.run(beta.repo, 'answer', '1', 'yes');
-    box.run(beta.repo, 'answer', '2', 'after');
+    assert.deepEqual(rows()[1], ['beta', '2', '2 decisions'], 'a coordinator asks the person straight out too');
+    box.run(beta.repo, 'answer', '2', 'yes', '--as', 'person');
+    box.run(beta.repo, 'answer', '3', 'after', '--as', 'person');
     await page.run('refresh()');
     assert.deepEqual(rows(), [['alpha', '', 'nothing open'], ['beta', '', 'nothing open']], 'answered, they need no one');
+    assert.match(box.run(beta.web, 'inbox'), /person -> web-1: answers \\?#1: Person answered \\?#2: yes/, "the person's answer reaches the agent that asked");
     assert.equal(page.run('document.title'), 'alpha · Pullboard');
     assert.equal(page.element('proj-elsewhere').hidden, true);
   } finally {
@@ -992,12 +1000,13 @@ test('ages stay true while the board is quiet [N26]', async () => {
   const alpha = project(box, 'alpha');
   box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   build(box, alpha, 1, 'greeting.html');
+  box.run(alpha.repo, 'shout', 'person', 'Ship the greeting today?', '--decision');
   const view = await startView(box);
   try {
     const page = await openPage(view);
     const ages = () => ({
       row: /<time data-ago="[^"]+">([^<]*)<\/time>/.exec(itemRow(page.show('chain'), 1))?.[1],
-      needs: /to verify, <time data-ago="[^"]+">([^<]*)<\/time>/.exec(page.show('needs'))?.[1],
+      needs: /decide, <time data-ago="[^"]+">([^<]*)<\/time>/.exec(page.show('needs'))?.[1],
       agent: agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1')?.age,
     });
     assert.deepEqual(ages(), { row: 'now', needs: 'now', agent: 'now' });
@@ -1130,8 +1139,7 @@ test('a sent-back item shows why first [N26]', async () => {
     const page = await openPage(view);
     const beforeCriterion = () => page.show('detail').slice(0, Math.max(0, page.show('detail').indexOf('<h3>Criterion</h3>')));
     const needs = page.show('needs');
-    assert.match(needs, /<code>#1<\/code><span>Greeting<\/span><em>sent back: BEHAVIOR_MISMATCH →<\/em>/);
-    assert.match(needs, /<code>#2<\/code><span>Farewell<\/span><em>resubmitted after BEHAVIOR_MISMATCH, <time data-ago="[^"]+">\w+<\/time> →<\/em>/);
+    assert.doesNotMatch(needs, /Greeting|Farewell/, "work sent back is the agents' to move, so it stays out of Needs-you; its row says why");
     const row = itemRow(page.show('chain'), 1);
     assert.ok(row.includes('BEHAVIOR_MISMATCH: no &lt;b&gt;greeting&lt;/b&gt; on the page'), row);
     assert.ok(!row.includes('second line'), 'the row shows the first line of the note only');
@@ -1276,7 +1284,7 @@ test('shout ids, search and narrow windows reach the item [N26]', async () => {
   }
 });
 
-test('a decision waits in needs-you until the view answers it [B21, N27]', async () => {
+test('a decision waits in needs-you until the view answers it [B21, B26, N27]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
   box.run(alpha.web, 'shout', 'coordinator', 'Greet in <b>French</b> first?', '--decision');
@@ -1290,10 +1298,18 @@ test('a decision waits in needs-you until the view answers it [B21, N27]', async
     const page = await openPage(view);
     // The question as the page escapes it, written as a pattern.
     const question = 'Greet in &lt;b&gt;French&lt;/b&gt; first\\?';
-    assert.match(page.show('needs'), new RegExp(`^<div class="head"><i></i>Needs you</div><button class="ny" data-go="decide:1" type="button"><code>web-1</code><span>${question}</span><em>decide, <time data-ago="[^"]+">now</time> →</em></button>`), 'first in Needs-you: who asks, what, and since when');
+    // An agent asks its coordinator (B25): the ask waits on the board with who holds it, never in Needs-you.
+    assert.doesNotMatch(page.show('needs'), /decide:/, "an agent's ask is its coordinator's to answer");
     assert.equal(page.element('decisions').hidden, false);
-    assert.match(page.show('decisions'), new RegExp(`^<div class="head"><i></i>Decision needed</div><div class="ask"><p><small><b>web-1</b> asks, <time data-ago="[^"]+">now</time></small></p><p>${question}</p><button class="ghost" data-go="decide:1" type="button">Answer</button></div>$`), 'and above the shouts, with an Answer button');
+    assert.match(page.show('decisions'), new RegExp(`^<div class="head quiet">Waiting on others</div><div class="ask other"><p><small><b>web-1</b> asks <b>coordinator</b>, <time data-ago="[^"]+">now</time></small></p><p>${question}</p></div>$`), 'above the shouts, saying who holds it, with no Answer button');
     assert.doesNotMatch(page.show('feed'), /Greet in/, 'though the feed no longer reaches it');
+
+    // The coordinator passes it up with its note (B27): now it is the person's call.
+    box.run(alpha.repo, 'pass', '1', 'over to you');
+    await page.run('refresh()');
+    const passed = `Passed up from web-1: ${question}\nCoordinator note: over to you`;
+    assert.match(page.show('needs'), new RegExp(`^<div class="head"><i></i>Needs you</div><button class="ny" data-go="decide:42" type="button"><code>coordinator</code><span>${passed}</span><em>decide, <time data-ago="[^"]+">now</time> →</em></button>`), 'first in Needs-you: who passed it, what, and since when');
+    assert.match(page.show('decisions'), new RegExp(`^<div class="head"><i></i>Decision needed</div><div class="ask"><p><small><b>coordinator</b> asks, <time data-ago="[^"]+">now</time></small></p><p>${passed}</p><button class="ghost" data-go="decide:42" type="button">Answer</button></div>$`), 'and above the shouts, with an Answer button');
 
     const form = () => ({
       answering: !page.element('answering').hidden,
@@ -1304,52 +1320,92 @@ test('a decision waits in needs-you until the view answers it [B21, N27]', async
       button: page.element('shout-send').textContent,
     });
     page.element('shout-to').value = 'web';
-    await page.click({ go: 'decide:1' });
+    await page.click({ go: 'decide:42' });
     assert.equal(page.run('view.tab'), 'shouts');
-    assert.deepEqual(form(), { answering: true, who: 'web-1', question: 'Greet in <b>French</b> first?', to: 'web-1', locked: true, button: 'Answer' }, 'Answer turns the form to answering the asker');
+    assert.deepEqual(form(), { answering: true, who: 'coordinator', question: 'Passed up from web-1: Greet in <b>French</b> first?\nCoordinator note: over to you', to: 'coordinator', locked: true, button: 'Answer' }, 'Answer turns the form to answering the one who asked');
     await page.fire('answer-cancel', 'click');
     assert.deepEqual(form(), { answering: false, who: '', question: '', to: 'web', locked: false, button: 'Shout' }, 'Cancel gives back the plain shout');
 
-    await page.click({ go: 'decide:1' });
+    await page.click({ go: 'decide:42' });
     page.element('shout-text').value = 'French, then English';
     await page.fire('shout-form', 'submit');
-    assert.equal(page.element('console').textContent.split('\n')[0], '$ pullboard answer 1 French, then English');
+    assert.equal(page.element('console').textContent.split('\n')[0], '$ pullboard answer 42 French, then English --as person', 'the view answers as the person');
     assert.equal(page.element('console').className, 'console ok');
-    assert.match(box.run(alpha.web, 'inbox'), /coordinator -> web-1: answers #1: French, then English/, 'the answer reaches the asker');
+    assert.match(box.run(alpha.web, 'inbox'), /person -> web-1: answers \\?#1: Person answered \\?#42: French, then English/, 'the answer reaches the agent that asked');
     assert.deepEqual(form(), { answering: false, who: '', question: '', to: 'web', locked: false, button: 'Shout' }, 'the form is a plain shout again');
     assert.equal(page.element('shout-text').value, '');
     assert.doesNotMatch(page.show('needs'), /decide:/, 'an answered decision leaves Needs-you');
     assert.equal(page.element('decisions').hidden, true, 'and the banner');
 
     box.run(alpha.web, 'shout', 'coordinator', 'Ship today?', '--decision');
+    box.run(alpha.repo, 'pass', '45', 'yours');
     await page.run('refresh()');
     const feed = page.show('feed');
     assert.match(feed, /<b>web-1 → coordinator<\/b> <span class="mark ask">decision<\/span> Ship today\?/, 'the feed marks an ask');
-    assert.match(feed, /<b>coordinator → web-1<\/b> <span class="mark">answer<\/span> French, then English/, 'and an answer');
-    assert.match(page.show('needs'), /data-go="decide:43"/);
+    assert.match(feed, /<b>person → coordinator<\/b> <span class="mark">answer<\/span> French, then English/, 'and an answer');
+    assert.match(page.show('needs'), /data-go="decide:46"/);
 
     // An answer belongs to the project whose question it shows.
+    box.run(beta.repo, 'pass', '1', 'yours too');
     const plain = { answering: false, who: '', question: '', to: 'web', locked: false, button: 'Shout' };
-    await page.click({ go: 'decide:43' });
+    await page.click({ go: 'decide:46' });
     // The new project's board is held back, so this is the form the moment the switch is made.
     page.run('globalThis.plain = fetch; globalThis.fetch = (path, init) => new Promise((done) => { globalThis.resume = done; }).then(() => plain(path, init));');
     await page.click({ root: beta.repo });
     assert.deepEqual(form(), plain, 'leaving the project leaves answer mode at once');
     page.run('globalThis.fetch = plain; resume();');
     await page.run('refresh()');
-    await page.click({ go: 'decide:1' });
-    assert.equal(form().question, 'Beta asks too?');
+    await page.click({ go: 'decide:2' });
+    assert.equal(form().question, 'Passed up from web-1: Beta asks too?\nCoordinator note: yours too');
     await page.run(`view.root = ${JSON.stringify(alpha.repo)}; seen = ''; refresh()`);
     assert.deepEqual(form(), plain, 'and so does a board drawn for another project');
     await page.run(`view.root = ${JSON.stringify(beta.repo)}; seen = ''; refresh()`);
-    await page.click({ go: 'decide:1' });
+    await page.click({ go: 'decide:2' });
     page.run(`view.root = ${JSON.stringify(alpha.repo)}`);
     page.element('shout-text').value = 'yes';
     await page.fire('shout-form', 'submit');
     assert.deepEqual(form(), plain, 'an answer is never sent to another project');
-    assert.equal(page.element('console').textContent.split('\n')[0], '$ pullboard answer 1 French, then English', 'nothing ran');
-    assert.match(box.run(beta.repo, 'decisions'), /^#1 {2}web-1 -> coordinator, [^:]+: Beta asks too\?$/m, "beta's ask still waits");
-    assert.match(box.run(alpha.repo, 'decisions'), /^#43 {2}web-1 -> coordinator, [^:]+: Ship today\?$/m, "and so does alpha's");
+    assert.equal(page.element('console').textContent.split('\n')[0], '$ pullboard answer 42 French, then English --as person', 'nothing ran');
+    assert.match(box.run(beta.repo, 'decisions', '--as', 'person'), /^#2 {2}coordinator -> person, [^:]+: Passed up from web-1: Beta asks too\?/m, "beta's ask still waits");
+    assert.match(box.run(alpha.repo, 'decisions', '--as', 'person'), /^#46 {2}coordinator -> person, [^:]+: Passed up from web-1: Ship today\?/m, "and so does alpha's");
+  } finally {
+    await view.stop();
+  }
+});
+test("needs-you holds only the person's calls; the rest show on the board with who holds them [B26, N26]", async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha', `${SPEC}- G3 [pending] Greet in French? | gate: review\n- G4 [draft, aim] A footer on every page. | gate: review\n`);
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  box.run(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
+  build(box, alpha, 1, 'greeting.html');
+  build(box, alpha, 2, 'farewell.html');
+  sendBack(box, alpha, 2, 'no farewell yet');
+  box.run(alpha.web, 'shout', 'coordinator', 'Which colour for the button?', '--decision');
+  box.run(alpha.repo, 'shout', 'person', 'Launch on Friday?', '--decision');
+  box.run(alpha.repo, 'hold', 'web', '--reason', 'G3 is open');
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    const needs = page.show('needs');
+    assert.deepEqual([...needs.matchAll(/<button class="ny" data-go="([^:"]+):[^"]*" type="button"><code>([^<]*)<\/code><span>([^<]*)<\/span>/g)].map((line) => [line[1], line[2], line[3]]), [
+      ['decide', 'coordinator', 'Launch on Friday?'],
+      ['spec', 'G3', 'Greet in French?'],
+      ['tab', 'web', 'G3 is open'],
+      ['tab', '1', 'draft spec rows to approve or drop'],
+    ], "the person's calls, and only those: the decision asked of them, the spec's question, the held lane, the draft row");
+    assert.doesNotMatch(needs, /Which colour|Greeting|Farewell/, "an agent's ask, work waiting for a verdict and work sent back are not the person's");
+    assert.match(needs, /<code>web<\/code><span>G3 is open<\/span><em>lane held by coordinator →<\/em>/, 'a held lane says who set it');
+
+    // Each of the rest is on the board, with who holds it.
+    assert.match(page.show('decisions'), /<div class="head quiet">Waiting on others<\/div><div class="ask other"><p><small><b>web-1<\/b> asks <b>coordinator<\/b>, /, "the agent's ask waits on its coordinator");
+    assert.match(itemRow(page.show('chain'), 1), /<span class="chip [^"]*">to verify<\/span><\/li>$/, 'work waiting for a verdict');
+    assert.ok(itemRow(page.show('chain'), 2).includes('BEHAVIOR_MISMATCH: no farewell yet'), 'and work sent back, with why');
+    assert.deepEqual(agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1').holds, ['#2 Farewell: sent back', '#1 Greeting: to verify'], 'the agent that built them holds both');
+    assert.match(page.show('lanes'), /<b>web<\/b> <span class="chip no">held by coordinator<\/span> <span class="muted">G3 is open<\/span>/, 'a held lane names who holds it');
+
+    // The sidebar counts exactly the person's calls; its line still says what the agents are doing.
+    assert.deepEqual(projectRows(page.show('proj-list')).map((row) => [row.needs, row.line]), [['4', '1 decision · 1 question · 1 draft row · 1 lane held · 1 sent back · 1 to verify']]);
+    assert.equal(page.run('document.title'), '(4) alpha · Pullboard');
   } finally {
     await view.stop();
   }
@@ -1824,11 +1880,7 @@ test('activity names the item each event moved [N26]', async () => {
 
 test('needs-you lines keep their titles on a phone [N26]', async () => {
   const box = machine();
-  const alpha = project(box, 'alpha');
-  box.run(alpha.repo, 'add', 'web', 'A greeting with a title long enough to need the room', '--specs', 'G1', '--criterion', 'greets');
-  build(box, alpha, 1, 'greeting.html');
-  sendBack(box, alpha, 1, 'no greeting yet');
-  build(box, alpha, 1, 'greeting-again.html');
+  project(box, 'alpha', `${SPEC}- G3 [pending] Should a greeting with a title long enough to need the room wrap? | gate: review\n`);
   const view = await startView(box);
   try {
     const page = await openPage(view, { width: 375 });
@@ -1836,7 +1888,7 @@ test('needs-you lines keep their titles on a phone [N26]', async () => {
     assert.match(style, /\n\.ny \{ display: grid; grid-template-columns: auto minmax\(5em, 1fr\) minmax\(0, max-content\);/, 'wider, a line keeps its single row');
     assert.match(style, /\n@media \(width < 480px\) \{ \.ny \{ grid-template-columns: auto minmax\(0, 1fr\); row-gap: 1px; \} \.ny em \{ grid-column: 2; \} \}\n/, 'under 480px, what it needs moves under the title');
     // The rule works because each line is the ref, then the title, then what it needs.
-    assert.match(page.show('needs'), /<button class="ny" data-go="item:1" type="button"><code>#1<\/code><span>A greeting with a title long enough to need the room<\/span><em>resubmitted after BEHAVIOR_MISMATCH, [^]*? →<\/em><\/button>/);
+    assert.match(page.show('needs'), /<button class="ny" data-go="spec:G3" type="button"><code>G3<\/code><span>Should a greeting with a title long enough to need the room wrap\?<\/span><em>answer in SPEC\.md →<\/em><\/button>/);
   } finally {
     await view.stop();
   }

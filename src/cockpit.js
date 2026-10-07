@@ -175,20 +175,18 @@ const codeRef = (ref, before) => {
 };
 const tone = (s) => s === 'approved' ? 'ok' : s === 'pending' ? 'no' : s === 'draft' ? 'warn' : '';
 const count = (n, one, many = one) => n + ' ' + (n === 1 ? one : many);
-// What needs the person in a project, as its Needs-you list counts it: work sent back or waiting for a
-// verdict, open questions, held lanes.
-const needCount = (x) => x.ok ? x.decisions + x.sentBack + x.awaiting + x.pending + x.holds : 0;
-const doing = (x) => [x.decisions && count(x.decisions, 'decision', 'decisions'), x.sentBack && count(x.sentBack, 'sent back'), x.awaiting && count(x.awaiting, 'to verify'), x.pending && count(x.pending, 'question', 'questions'), x.holds && count(x.holds, 'lane held', 'lanes held'), x.building && count(x.building, 'building')].filter(Boolean).join(' · ') || (x.open ? count(x.open, 'item open', 'items open') : 'nothing open');
-/** The actionable rows shown in one repo's Needs-you panel, reused by a combined project view. */
+// What needs the person in a project, as its Needs-you list counts it: only the person's calls (B26),
+// the decisions passed up to them, spec rows waiting for them, and held lanes, which only the main
+// checkout, the person's seat, can set. Work waiting for a verdict or sent back belongs to the agents,
+// and the line under the project says so without counting it.
+const needCount = (x) => x.ok ? x.decisions + x.pending + x.drafts + x.holds : 0;
+const doing = (x) => [x.decisions && count(x.decisions, 'decision', 'decisions'), x.pending && count(x.pending, 'question', 'questions'), x.drafts && count(x.drafts, 'draft row', 'draft rows'), x.holds && count(x.holds, 'lane held', 'lanes held'), x.sentBack && count(x.sentBack, 'sent back'), x.awaiting && count(x.awaiting, 'to verify'), x.building && count(x.building, 'building')].filter(Boolean).join(' · ') || (x.open ? count(x.open, 'item open', 'items open') : 'nothing open');
+/** The person's calls in one repo, as its Needs-you panel shows them, reused by a combined project view. */
 function projectNeeds(p) {
-  const items = p.items.filter((item) => item.status !== 'withdrawn');
-  const by = (state) => items.filter((item) => stateOf(item) === state);
   return [
     ...p.decisions.map((d) => ({ ref: d.shout_from, text: d.shout_text, what: 'decision', at: d.shout_at })),
     ...p.spec.filter((row) => row.status === 'pending').map((row) => ({ ref: row.id, text: row.text, what: 'answer in SPEC.md' })),
-    ...by('back').map((item) => ({ ref: '#' + item.id, text: item.title, what: 'sent back: ' + item.verdict.reason, target: 'item:' + item.id, at: item.updatedAt })),
-    ...by('verify').map((item) => ({ ref: '#' + item.id, text: item.title, what: item.reviewer ? 'being reviewed by ' + item.reviewer : rejected(item) ? 'resubmitted after ' + item.verdict.reason : 'to verify', target: 'item:' + item.id, at: item.updatedAt })),
-    ...p.holds.map((hold) => ({ ref: hold.hold_lane, text: hold.hold_reason, what: 'lane held' })),
+    ...p.holds.map((hold) => ({ ref: hold.hold_lane, text: hold.hold_reason, what: 'lane held by ' + hold.hold_by })),
     ...(p.spec.some((row) => row.status === 'draft') ? [{ ref: String(p.spec.filter((row) => row.status === 'draft').length), text: 'draft spec rows to approve or drop', what: 'review in SPEC.md', target: 'tab:spec' }] : []),
   ];
 }
@@ -505,20 +503,18 @@ function render() {
       + (states.length ? '<small>' + states.map(([label, dot, n]) => '<span><i class="dot ' + dot + '"></i>' + n + ' ' + label + '</span>').join('') + '</small>' : '') + '</div>';
   }).join('');
   const items = p.items.filter((i) => i.status !== 'withdrawn');
-  const by = (s) => items.filter((i) => stateOf(i) === s);
   const active = items.filter((i) => stateOf(i) !== 'verified');
   $('count-items').textContent = active.length || '';
   $('count-spec').textContent = p.spec.filter((r) => ['pending', 'draft'].includes(r.status)).length || '';
   $('count-doctrine').textContent = p.practice.filter((r) => ['pending', 'draft'].includes(r.status)).length || '';
 
-  // What needs the person, first: decisions asked, questions, work sent back, work waiting for a
-  // verdict, held lanes.
+  // What needs the person, first, and only the person's calls (B26): the decisions passed up to them,
+  // questions in the spec, held lanes, then draft rows. Work waiting for a verdict or sent back shows
+  // on the board with who holds it; it is the agents' to move.
   const needs = [
     ...p.decisions.map((d) => ['decide:' + d.shout_id, d.shout_from, d.shout_text, 'decide', d.shout_at]),
     ...p.spec.filter((r) => r.status === 'pending').map((r) => ['spec:' + r.id, r.id, r.text, 'answer in SPEC.md']),
-    ...by('back').map((i) => ['item:' + i.id, '#' + i.id, i.title, 'sent back: ' + i.verdict.reason]),
-    ...by('verify').map((i) => ['item:' + i.id, '#' + i.id, i.title, (i.reviewer ? 'being reviewed by ' + i.reviewer : rejected(i) ? 'resubmitted after ' + i.verdict.reason : 'to verify'), i.updatedAt]),
-    ...p.holds.map((h) => ['tab:shouts', h.hold_lane, h.hold_reason, 'lane held']),
+    ...p.holds.map((h) => ['tab:shouts', h.hold_lane, h.hold_reason, 'lane held by ' + h.hold_by]),
   ];
   const drafts = p.spec.filter((r) => r.status === 'draft').length;
   $('needs').hidden = !needs.length && !drafts;
@@ -602,9 +598,11 @@ function render() {
   // and the commit, shortened, with the full SHA on hover.
   const evidence = (x) => (x.shout_evidence_kind ? '<span class="ev"><b>' + esc(x.shout_evidence_kind) + '</b> ' + esc(x.shout_evidence_outcome) + ' · ' + linked('#' + x.shout_evidence_item) + ' · ' + esc(x.shout_from) + ' · <code title="' + esc(x.shout_evidence_commit) + '">' + esc(String(x.shout_evidence_commit).slice(0, 12)) + '</code></span>' : '');
   $('feed').innerHTML = p.shouts.length ? byDay(p.shouts, (x) => x.shout_at, (x) => '<div><time>' + clock(x.shout_at) + '</time><div><b>' + esc(x.shout_from) + ' → ' + esc(x.shout_to) + '</b> ' + mark(x) + linked(x.shout_text) + evidence(x) + '</div></div>') : '<div class="empty">No shouts yet.</div>';
-  // Each ask waits here until it is answered (B21); the answer itself is typed in the form below.
-  $('decisions').hidden = !p.decisions.length;
-  $('decisions').innerHTML = '<div class="head"><i></i>Decision needed</div>' + p.decisions.map((d) => '<div class="ask"><p><small><b>' + esc(d.shout_from) + '</b> asks, ' + age(d.shout_at) + '</small></p><p>' + linked(d.shout_text) + '</p><button class="ghost" data-go="decide:' + d.shout_id + '" type="button">Answer</button></div>').join('');
+  // Each ask waits here until it is answered (B21); the answer itself is typed in the form below. The
+  // person answers the ones passed up to them; the rest wait on whoever holds them (B26).
+  $('decisions').hidden = !p.decisions.length && !p.asked.length;
+  $('decisions').innerHTML = (p.decisions.length ? '<div class="head"><i></i>Decision needed</div>' + p.decisions.map((d) => '<div class="ask"><p><small><b>' + esc(d.shout_from) + '</b> asks, ' + age(d.shout_at) + '</small></p><p>' + linked(d.shout_text) + '</p><button class="ghost" data-go="decide:' + d.shout_id + '" type="button">Answer</button></div>').join('') : '')
+    + (p.asked.length ? '<div class="head quiet">Waiting on others</div>' + p.asked.map((d) => '<div class="ask other"><p><small><b>' + esc(d.shout_from) + '</b> asks <b>' + esc(d.shout_to) + '</b>, ' + age(d.shout_at) + '</small></p><p>' + linked(d.shout_text) + '</p></div>').join('') : '');
   $('shout-targets').innerHTML = ['all', ...lanes, ...p.agents.map((a) => a.agent_id)].map((t) => '<option value="' + esc(t) + '">').join('');
   // Each agent with what it holds: its claim, then its work sent back, then its work waiting for a
   // verdict. The worktree path is there on hover; what the person reads is who is doing what.
@@ -617,7 +615,7 @@ function render() {
       + (mine.length ? mine.map((i) => '<button data-go="item:' + i.id + '" type="button"><span>#' + i.id + ' ' + esc(i.title) + '</span>' + (i.reviewer === a.agent_id ? '<span class="chip warn">reviewing</span>' : chip(stateOf(i))) + '</button>').join('') : '<small>idle</small>') + '</div>';
   }).join('') : '<div class="empty">No agents yet.</div>';
   const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
-  $('lanes').innerHTML = working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no">held</span> <span class="muted">' + esc(held.get(l).hold_reason) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join('');
+  $('lanes').innerHTML = working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no">held by ' + esc(held.get(l).hold_by) + '</span> <span class="muted">' + esc(held.get(l).hold_reason) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join('');
 
   for (const kind of ['spec', 'doctrine']) {
     const rows = kind === 'spec' ? p.spec : p.practice;

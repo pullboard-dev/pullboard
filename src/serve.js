@@ -90,7 +90,7 @@ function summary(project) {
     return withProject(project.root, (board, info, config) => {
       const items = store.listItems(board, { all: true });
       const count = (test) => items.filter(test).length;
-      const pending = loadSpec(info.root, config).rows.filter((row) => row.status === 'pending').length;
+      const spec = loadSpec(info.root, config).rows;
       return {
         ...project,
         ok: true,
@@ -99,10 +99,12 @@ function summary(project) {
         sentBack: count((item) => item.item_status === 'open' && item.item_verdict === 'REJECT'),
         open: count((item) => item.item_status === 'open'),
         verified: count((item) => item.item_status === 'verified'),
-        pending,
+        // What the person decides (B26): rows waiting for their call, held lanes, and the decisions
+        // passed up to them. An agent's ask goes to its coordinator, and stays off this count.
+        pending: spec.filter((row) => row.status === 'pending').length,
+        drafts: spec.filter((row) => row.status === 'draft').length,
         holds: store.laneHolds(board).length,
-        // Asks still waiting for an answer need the person as much as a verdict does (B21).
-        decisions: store.openDecisions(board).length,
+        decisions: store.openDecisions(board, store.PERSON).length,
       };
     });
   } catch (error) {
@@ -181,8 +183,10 @@ export function projectState(root, { seen = null } = {}) {
         };
       }),
       shouts: store.recentShouts(board, 40),
-      // Every ask still waiting for an answer, however far back the forty shouts reach (B21).
-      decisions: store.openDecisions(board),
+      // Every ask still waiting for an answer, however far back the forty shouts reach (B21): the
+      // person's to answer here, and the rest with who holds them (B26).
+      decisions: store.openDecisions(board, store.PERSON),
+      asked: store.openDecisions(board).filter((ask) => ask.shout_to !== store.PERSON),
       events: log.slice(-80).reverse(),
       agents: store.listAgents(board).map((agent) => ({ ...agent, lastMoveAt: lastMove.get(agent.agent_id) ?? null })),
       holds: store.laneHolds(board),
@@ -249,7 +253,8 @@ export function actionArgs(command, args = {}) {
     return ['add', text(args.lane), text(args.title), ...(text(args.criterion) ? ['--criterion', text(args.criterion)] : []), ...(text(args.specs) ? ['--specs', text(args.specs)] : []), ...(text(args.brief) ? ['--brief', text(args.brief)] : [])];
   }
   if (command === 'shout') return ['shout', text(args.to), text(args.text)];
-  if (command === 'answer') return ['answer', text(args.id), text(args.text)];
+  // The view is the person's, so it answers as the person (B26).
+  if (command === 'answer') return ['answer', text(args.id), text(args.text), '--as', 'person'];
   if (command === 'hold') return ['hold', text(args.lane), '--reason', text(args.reason)];
   if (command === 'release') return ['hold', text(args.lane), '--off'];
   return null;
