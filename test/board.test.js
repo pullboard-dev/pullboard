@@ -156,6 +156,37 @@ test('the builder never verifies its own work [V1]', () => {
   assert.equal(verdict(id, { agentId: 'web-2', decision: 'ACCEPT' }).reason, 'CRITERION_MET');
 });
 
+/** A verifier can release its live review reservation for another verifier [V15]. */
+test('a verifier releases its reserved review; another verifier can take it, and claims still release [V15]', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-review-release-'));
+  const durable = store.openBoard(join(directory, 'board.sqlite'), clock);
+  try {
+    store.register(durable, { lane: 'coordinator', path: '/repo' });
+    const builder = store.register(durable, { lane: 'web', path: '/repo-web-1' });
+    const reviewer = store.register(durable, { lane: 'web', path: '/repo-web-2' });
+    const second = store.register(durable, { lane: 'web', path: '/repo-web-3' });
+    const third = store.register(durable, { lane: 'web', path: '/repo-web-4' });
+    const id = store.addItem(durable, { by: 'coordinator', lane: 'web', title: 'Page' });
+    store.claim(durable, id, { agentId: builder, lane: 'web', leaseMs: HOUR, freeze });
+    store.submit(durable, id, { agentId: builder, commit: SHA_A, tree: 'tree-a' });
+    store.reserveReview(durable, id, { agentId: reviewer, leaseMs: HOUR, policy: 'any' });
+
+    assert.equal(store.release(durable, id, reviewer), true);
+    assert.equal(store.reviewHolder(durable, store.getItem(durable, id)), null);
+    assert.equal(store.events(durable, { itemId: id }).at(-1).event_kind, 'release');
+    assert.equal(store.reserveReview(durable, id, { agentId: second, leaseMs: HOUR, policy: 'any' }).item_review_by, second);
+    assert.throws(() => store.release(durable, id, third), /NOT_YOURS/);
+
+    const claimed = store.addItem(durable, { by: 'coordinator', lane: 'web', title: 'Another page' });
+    store.claim(durable, claimed, { agentId: reviewer, lane: 'web', leaseMs: HOUR, freeze });
+    assert.equal(store.release(durable, claimed, reviewer), false);
+    assert.equal(store.getItem(durable, claimed).item_status, 'open');
+  } finally {
+    store.closeBoard(durable);
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('under verify: coordinator, lane work is the coordinator\'s to verify', () => {
   const id = submitted();
   assert.throws(

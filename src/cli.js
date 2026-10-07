@@ -1278,9 +1278,9 @@ function workCommands(io, args) {
       return 0;
     }),
     release: () => act((ctx, board, me) => {
-      store.release(board, idArg(first), me.id);
+      const review = store.release(board, idArg(first), me.id);
       io.result?.({ id: idArg(first) });
-      io.say(`released #${first}`);
+      io.say(review ? `released the review of #${first}; the review is free again` : `released #${first}`);
       return 0;
     }),
     submit: () => submitHere(context(io), idArg(first)),
