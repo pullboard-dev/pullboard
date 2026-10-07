@@ -123,6 +123,15 @@ git add -A && git commit -m "chore: set up pullboard"
 }
 ```
 
+Use `signers:` when a row needs one or more SSH principals to sign it. Each signer is a comma-separated principal:
+
+```markdown
+- R1 [approved, must] A release is tested. | gate: npm test
+- R2 [approved, must] A release is signed. | gate: npm test | signers: alice@workstation, bob@workstation
+```
+
+Set up the repo's SSH signer with `pullboard spec signers add`.
+
 Commit those, then file work from the main checkout, which is the coordinator:
 
 ```sh
@@ -179,6 +188,7 @@ pullboard view
 ## Commands
 
 Every command also supports a versioned JSON result; see the [CLI JSON API](docs/api.md).
+`pullboard spec check --json` and `pullboard spec view --json` return machine-readable results with their shapes documented in the CLI JSON API.
 
 | Command | What it does |
 | --- | --- |
