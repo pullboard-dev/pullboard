@@ -10,6 +10,10 @@ export const SIGNERS_FILE = '.pullboard/signers';
 export const FIRST_COMMIT_FILE = '.pullboard/first-commit';
 const INITIAL_SIGNERS_HASH_FILE = '.pullboard/signers.initial';
 export const SIGNOFF_NAMESPACE = 'pullboard-signoff';
+const verifiedRows = new WeakSet();
+
+/** Identify receipts verified against this repo's SSH signer list, without persisting a trust flag. */
+export function isVerifiedSignoff(record) { return verifiedRows.has(record); }
 
 /** Hash the exact bytes the repo stores, so whitespace changes are signed changes too. */
 export function sha256(text) { return createHash('sha256').update(text).digest('hex'); }
@@ -71,6 +75,9 @@ export function readSignerText(root) {
   const file = join(root, SIGNERS_FILE);
   return existsSync(file) ? readFileSync(file, 'utf8') : '';
 }
+
+/** Treat the existence of the signer file as opt-in, including an incomplete empty file. */
+export function hasSignerFile(root) { return existsSync(join(root, SIGNERS_FILE)); }
 
 /** Find a valid principal in an OpenSSH allowed-signers file. */
 export function listsPrincipal(text, principal) {
@@ -170,10 +177,11 @@ export function verifySignerHistory(root, records) {
 /** Verify signed rows and signer-list transitions when the repo has opted into SSH sign-offs. */
 export function verifySignedRecords(root, records) {
   const current = readSignerText(root);
-  if (!current) {
+  if (!hasSignerFile(root)) {
     if (existsSync(join(root, FIRST_COMMIT_FILE))) throw new Refused('MISSING_SIGNERS', `${SIGNERS_FILE} was removed after SSH sign-offs were enabled`);
     return records;
   }
+  if (!current.trim()) throw new Refused('EMPTY_SIGNERS', `${SIGNERS_FILE} is empty; restore its SSH signer list before signing or checking`);
   verifySignerHistory(root, records);
   const first = readFirstCommit(root);
   for (const record of records) {
@@ -183,7 +191,9 @@ export function verifySignedRecords(root, records) {
     if (!listsPrincipal(current, record.by)) throw new Refused('UNLISTED_SIGNER', `${record.by} is not listed in ${SIGNERS_FILE}`);
     verifySignature(record, current);
   }
-  return records.filter((record) => record.type !== 'signers');
+  const rows = records.filter((record) => record.type !== 'signers');
+  rows.forEach((record) => verifiedRows.add(record));
+  return rows;
 }
 
 /** Resolve the first commit once, refusing to guess when a shallow clone has no recorded root. */
@@ -203,7 +213,7 @@ export function addSigner(root, { by, key } = {}) {
   const principal = by || defaultPrincipal(root);
   if (!/^(?!#)[^\s,]+$/u.test(principal)) throw new Refused('BAD_SIGNER', 'use --by with one SSH principal, or set git user.email');
   const entry = `${principal} namespaces="${SIGNOFF_NAMESPACE}" ${publicLine}`;
-  if (!text) {
+  if (!hasSignerFile(root)) {
     const firstCommit = firstCommitFromGit(root);
     const next = `${entry}\n`;
     const folder = dirname(join(root, SIGNERS_FILE));

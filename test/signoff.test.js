@@ -14,6 +14,9 @@ const SPEC = `# Sign-off fixture
 - G1 [approved, must] Exact row text is signed. | gate: test/proof.test.js | signers: CO,AB
 `;
 
+/** Quote a source-runner path literally for the fixture's POSIX hook shim. */
+function shellWord(value) { return `'${value.replaceAll("'", "'\\''")}'`; }
+
 /** Create a throwaway OpenSSH Ed25519 private and public key pair. */
 function makeKey(path) {
   execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', 'test@example.invalid', '-f', path], { stdio: 'pipe' });
@@ -32,7 +35,7 @@ function fixture(t) {
   const ab = makeKey(join(keys, 'ab'));
   const binDir = join(dir, 'bin');
   mkdirSync(binDir);
-  writeFileSync(join(binDir, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`);
+  writeFileSync(join(binDir, 'pullboard'), `#!/bin/sh\nexec ${shellWord(process.execPath)} ${shellWord(BIN)} "$@"\n`);
   chmodSync(join(binDir, 'pullboard'), 0o755);
   const env = {
     ...process.env,
@@ -111,10 +114,22 @@ test('[S17,S18,S19,S20,S21] signed rows require every named principal and surviv
   box.git('reset', '--soft', first);
   box.git('commit', '-q', '-m', 'chore: squash signed receipt history');
   assert.match(succeeds(box, 'check').stdout, /0 errors/, 'squash keeps signed receipts valid');
+  succeeds(box, 'signoff', 'G1', '--by', 'AB', '--note', 'checked after rewriting history');
+  const rewritten = readFileSync(join(box.root, '.pullboard/signoffs.jsonl'), 'utf8').trim().split('\n').map(JSON.parse).at(-1);
+  assert.equal(rewritten.firstCommit, first, 'new signatures after a rewrite use the recorded root');
+  box.git('add', '.pullboard/signoffs.jsonl');
+  box.git('commit', '-q', '-m', 'chore: sign after rewriting history');
   const clone = join(box.dir, 'shallow');
   execFileSync('git', ['clone', '-q', '--depth=1', `file://${box.root}`, clone], { env: box.env, stdio: 'pipe' });
   const shallowCheck = spawnSync(process.execPath, [BIN, 'spec', 'check'], { cwd: clone, env: box.env, encoding: 'utf8' });
   assert.equal(shallowCheck.status, 0, `${shallowCheck.stdout}${shallowCheck.stderr}`);
+  execFileSync('git', ['config', 'user.signingkey', box.ab.privateKey], { cwd: clone, env: box.env });
+  const shallowSign = spawnSync(process.execPath, [BIN, 'spec', 'signoff', 'G1', '--by', 'AB'], { cwd: clone, env: box.env, encoding: 'utf8' });
+  assert.equal(shallowSign.status, 0, `${shallowSign.stdout}${shallowSign.stderr}`);
+  const shallowRecord = readFileSync(join(clone, '.pullboard/signoffs.jsonl'), 'utf8').trim().split('\n').map(JSON.parse).at(-1);
+  assert.equal(shallowRecord.firstCommit, first);
+  const signedCheck = spawnSync(process.execPath, [BIN, 'spec', 'check'], { cwd: clone, env: box.env, encoding: 'utf8' });
+  assert.equal(signedCheck.status, 0, `${signedCheck.stdout}${signedCheck.stderr}`);
 });
 
 test('[S19,S20] changed signatures, signer labels and unsigned signer-list edits are refused', (t) => {
@@ -132,12 +147,13 @@ test('[S19,S20] changed signatures, signer labels and unsigned signer-list edits
   assert.match(badSignature.stderr, /BAD_SIGNATURE/);
 
   writeFileSync(file, original);
-  const changedNote = JSON.parse(original);
-  changedNote.note = 'a different check';
-  writeFileSync(file, `${JSON.stringify(changedNote)}\n`);
-  const badNote = box.run('spec', 'check');
-  assert.notEqual(badNote.status, 0);
-  assert.match(badNote.stderr, /BAD_SIGNATURE/);
+  for (const [field, value] of Object.entries({ id: 'G2', text: 'a different row', commit: '0'.repeat(40), on: '2000-01-01T00:00:00.000Z', note: 'a different check', firstCommit: '0'.repeat(40) })) {
+    const changed = { ...JSON.parse(original), [field]: value };
+    writeFileSync(file, `${JSON.stringify(changed)}\n`);
+    const refused = box.run('spec', 'check');
+    assert.notEqual(refused.status, 0, `${field} is covered by the signature`);
+    assert.match(refused.stderr, field === 'firstCommit' ? /BAD_SIGNOFF/u : /BAD_SIGNATURE/u);
+  }
 
   writeFileSync(file, original);
   const foreign = makeKey(join(box.keys, 'foreign'));
@@ -190,10 +206,10 @@ test('[S21] signer setup defaults to the configured Git key and email principal 
   const configured = makeKey(join(ssh, 'id_ed25519'));
   box.env.HOME = home;
   const globalConfig = join(box.dir, 'global.gitconfig');
-  writeFileSync(globalConfig, '[user]\n\temail = global@example.invalid\n');
+  writeFileSync(globalConfig, '[user]\n\temail = global@example.invalid\n\tsigningkey = ~/.ssh/id_ed25519\n');
   box.env.GIT_CONFIG_GLOBAL = globalConfig;
   box.git('config', '--local', '--unset', 'user.email');
-  box.git('config', 'user.signingkey', '~/.ssh/id_ed25519');
+  box.git('config', '--local', '--unset', 'user.signingkey');
   const result = box.run('spec', 'signers', 'add');
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   assert.match(result.stdout, /added SSH signer global@example\.invalid/);
@@ -218,4 +234,95 @@ test('[S21] signer setup falls back to ~/.ssh/id_ed25519.pub when Git has no sig
   const result = box.run('spec', 'signers', 'add');
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   assert.match(readFileSync(join(box.root, '.pullboard/signers'), 'utf8'), new RegExp(readFileSync(fallback.publicKey, 'utf8').trim().replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')));
+});
+
+test('[S5,S18] legacy receipts preserve their shape and cannot meet required SSH signers', (t) => {
+  const box = fixture(t);
+  succeeds(box, 'signoff', 'G1', '--by', 'CO', '--note', 'legacy evidence');
+  succeeds(box, 'signoff', 'G1', '--by', 'AB');
+  const file = join(box.root, '.pullboard/signoffs.jsonl');
+  const original = readFileSync(file, 'utf8');
+  const records = original.trim().split('\n').map(JSON.parse);
+  assert.deepEqual(Object.keys(records[0]), ['id', 'by', 'on', 'text', 'note']);
+  assert.match(records[0].on, /^\d{4}-\d\d-\d\d$/u);
+  assert.equal(existsSync(join(box.root, '.pullboard/signers')), false);
+  assert.ok(JSON.parse(succeeds(box, 'unmet', '--json').stdout).rows.some((row) => row.id === 'G1'));
+  assert.equal(JSON.parse(succeeds(box, 'show', 'G1', '--json').stdout).standing.met.length, 0);
+  const page = join(box.dir, 'legacy.html');
+  succeeds(box, 'view', '--out', page);
+  assert.doesNotMatch(readFileSync(page, 'utf8'), /so-met[^>]*>signed CO/u);
+  records.forEach((record) => { record.signature = 'claimed without verification'; });
+  writeFileSync(file, `${records.map((record) => JSON.stringify(record)).join('\n')}\n`);
+  assert.ok(JSON.parse(succeeds(box, 'unmet', '--json').stdout).rows.some((row) => row.id === 'G1'), 'a stored signature flag cannot forge verification');
+  writeFileSync(file, original);
+  writeFileSync(join(box.root, 'SPEC.md'), SPEC.replace(' | signers: CO,AB', ''));
+  assert.equal(JSON.parse(succeeds(box, 'unmet', '--json').stdout).rows.length, 0, 'ordinary legacy rows still accept unsigned receipts');
+  const invalid = box.run('spec', 'signoff', 'G1', '--by', 'co@example.invalid');
+  assert.notEqual(invalid.status, 0);
+  assert.match(invalid.stderr, /BAD_SIGNER/u);
+  assert.equal(readFileSync(file, 'utf8'), original, 'legacy signer validation refuses before appending');
+});
+
+test('[S17,S19] an existing empty signer file cannot silently fall back to unsigned sign-offs', (t) => {
+  const box = fixture(t);
+  const signerFile = join(box.root, '.pullboard/signers');
+  mkdirSync(join(box.root, '.pullboard'), { recursive: true });
+  writeFileSync(signerFile, '');
+  const receiptFile = join(box.root, '.pullboard/signoffs.jsonl');
+  for (const args of [['check'], ['signoff', 'G1', '--by', 'CO']]) {
+    const result = box.run('spec', ...args);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /EMPTY_SIGNERS/u);
+    assert.equal(existsSync(receiptFile), false);
+  }
+  rmSync(signerFile);
+  succeeds(box, 'signers', 'add', '--by', 'CO');
+  succeeds(box, 'signoff', 'G1', '--by', 'CO');
+  const receipt = readFileSync(receiptFile, 'utf8');
+  writeFileSync(signerFile, '');
+  const check = box.run('spec', 'check');
+  assert.notEqual(check.status, 0);
+  assert.match(check.stderr, /EMPTY_SIGNERS/u);
+  assert.equal(readFileSync(receiptFile, 'utf8'), receipt);
+});
+
+test('[S20] every signer-list transition is bound to its prior list, hash and authorized key', (t) => {
+  const box = fixture(t);
+  succeeds(box, 'signers', 'add', '--by', 'CO');
+  succeeds(box, 'signers', 'add', '--by', 'AB', '--key', box.ab.publicKey);
+  const file = join(box.root, '.pullboard/signoffs.jsonl');
+  const original = readFileSync(file, 'utf8');
+  const record = JSON.parse(original);
+  for (const [field, value] of Object.entries({ previousHash: '0'.repeat(64), previousSigners: 'a different previous list', hash: '0'.repeat(64), firstCommit: '0'.repeat(40), by: 'AB', on: '2000-01-01T00:00:00.000Z', signature: 'invalid SSH signature' })) {
+    writeFileSync(file, `${JSON.stringify({ ...record, [field]: value })}\n`);
+    const refused = box.run('spec', 'check');
+    assert.notEqual(refused.status, 0, `${field} cannot change independently`);
+    assert.match(refused.stderr, /UNAUTHORIZED_SIGNERS_CHANGE|BAD_SIGNATURE/u);
+  }
+  const unauthorized = { ...record, by: 'AB' };
+  const message = join(box.dir, 'unauthorized-transition');
+  writeFileSync(message, canonical(unauthorized));
+  execFileSync('ssh-keygen', ['-Y', 'sign', '-f', box.ab.privateKey, '-n', 'pullboard-signoff', message], { stdio: 'pipe' });
+  unauthorized.signature = readFileSync(`${message}.sig`, 'utf8').trimEnd();
+  writeFileSync(file, `${JSON.stringify(unauthorized)}\n`);
+  const refused = box.run('spec', 'check');
+  assert.notEqual(refused.status, 0);
+  assert.match(refused.stderr, /UNAUTHORIZED_SIGNERS_CHANGE/u, 'a new key cannot authorize its own addition');
+  writeFileSync(file, original);
+  succeeds(box, 'check');
+});
+
+test('[S21] setup refuses inline key data and files containing a GPG public key', (t) => {
+  const box = fixture(t);
+  const publicLine = readFileSync(box.co.publicKey, 'utf8').trim();
+  box.git('config', 'user.signingkey', publicLine);
+  const inline = box.run('spec', 'signers', 'add');
+  assert.notEqual(inline.status, 0);
+  assert.match(inline.stderr, /NOT_SSH_KEY_PATH/u);
+  const gpg = join(box.keys, 'gpg.pub');
+  writeFileSync(gpg, '-----BEGIN PGP PUBLIC KEY BLOCK-----\nsynthetic\n-----END PGP PUBLIC KEY BLOCK-----\n');
+  const wrongFormat = box.run('spec', 'signers', 'add', '--key', gpg);
+  assert.notEqual(wrongFormat.status, 0);
+  assert.match(wrongFormat.stderr, /NOT_SSH_KEY/u);
+  assert.equal(existsSync(join(box.root, '.pullboard/signers')), false);
 });

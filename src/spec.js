@@ -11,7 +11,7 @@ import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { Refused } from './refused.js';
-import { readSignerText, signRows, verifySignedRecords } from './signature.js';
+import { hasSignerFile, isVerifiedSignoff, signRows, verifySignedRecords } from './signature.js';
 
 export const STATUSES = ['approved', 'draft', 'pending', 'fact', 'wont', 'retired'];
 export const TIERS = ['must', 'aim'];
@@ -23,6 +23,7 @@ const ROW_RE = new RegExp(`^- (${ID}) \\[([a-z]+)(?:,\\s*([a-z]+))?\\]\\s+(.+)$`
 const ROWISH_RE = new RegExp(`^- ${ID}\\s+\\[`);
 const SECTION_RE = /^##\s+(.+)$/;
 const SIGNER_RE = /^(?!#)[^\s,]+$/u;
+const LEGACY_SIGNER_RE = /^[A-Z][A-Za-z]{1,11}$/;
 
 /**
  * One row's trailing fields, after the text: `| gate: ...`, `| serves: a, b` and `| signers: CO,AB`.
@@ -258,8 +259,10 @@ export function readSignoffs(root) {
  */
 export function standings(rows, signoffs) {
   const textOf = new Map(rows.map((row) => [row.id, row.text]));
+  const required = new Set(rows.filter((row) => row.signers?.length).map((row) => row.id));
   const by = new Map();
   for (const signoff of signoffs) {
+    if (required.has(signoff.id) && !isVerifiedSignoff(signoff)) continue;
     const standing = by.get(signoff.id) ?? { met: [], stale: [] };
     if (textOf.get(signoff.id) === signoff.text) standing.met.push(signoff);
     else standing.stale.push(signoff);
@@ -289,17 +292,18 @@ export function unmetRows(rows, signoffs, { mustOnly = false } = {}) {
 }
 
 /**
- * Record a person's sign-off on approved rows, with the text they read (S5). The signer is the
- * exact SSH principal named by the key's allowed-signers entry.
+ * Record a person's sign-off on approved rows, with the text they read (S5). Legacy receipts keep
+ * initials or a name; SSH receipts name the exact principal in the key's allowed-signers entry.
  *
  * @param {string} root
  * @param {ReturnType<typeof parseSpec>} spec
- * @param {{ ids: string[], by: string, on: string, note?: string }} signoff
+ * @param {{ ids: string[], by: string, on: string, note?: string, commit?: string }} signoff
  * @returns {number} How many rows were signed.
  */
 export function signOff(root, spec, { ids, by, on, note = '', commit = '' }) {
-  if (!SIGNER_RE.test(by)) {
-    throw new Refused('BAD_SIGNER', 'sign with one principal: --by <principal>');
+  const ssh = hasSignerFile(root);
+  if (!(ssh ? SIGNER_RE : LEGACY_SIGNER_RE).test(by)) {
+    throw new Refused('BAD_SIGNER', ssh ? 'sign with one principal: --by <principal>' : 'sign with initials or a first name: --by CO');
   }
   const byId = new Map(spec.rows.map((row) => [row.id, row]));
   const problems = ids.flatMap((id) => {
@@ -310,7 +314,7 @@ export function signOff(root, spec, { ids, by, on, note = '', commit = '' }) {
   if (problems.length) throw new Refused('CANNOT_SIGN', problems.join('; '));
   const file = join(root, SIGNOFFS_FILE);
   mkdirSync(dirname(file), { recursive: true });
-  if (readSignerText(root)) {
+  if (ssh) {
     if (!commit) throw new Refused('NO_SIGNING_COMMIT', 'signed sign-offs include the commit checked; commit or check out the repo first');
     const rows = ids.map((id) => ({ id, by, on, text: byId.get(id).text, commit, note }));
     signRows(root, rows);

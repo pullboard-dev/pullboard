@@ -48,7 +48,7 @@ import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
 import { serveView } from './serve.js';
 import { doctorProblems } from './doctor.js';
 import { exportBoard, importBoard } from './exchange.js';
-import { addSigner, defaultPrincipal, readSignerText } from './signature.js';
+import { addSigner, defaultPrincipal, hasSignerFile } from './signature.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
@@ -125,7 +125,7 @@ Spec
   pullboard spec view [--out file]      the spec, open questions, sign-offs and practice as one page
   pullboard spec show <id> | unmet [--must] | signoff <ids> [--by <principal>]
                                         signoff: --note "what was checked" stays with the receipt
-  pullboard spec signers add [--key <path>] [--by <principal>] opt into SSH-signed sign-offs
+  pullboard spec signers add [--key <path>] [--by <principal>]  opt into SSH-signed sign-offs
                                         principal defaults to Git user.email; --by overrides it
 
 Role guides
@@ -1558,7 +1558,7 @@ function specCommand(io, { first, second, rest, values }) {
       for (const item of row.verified) io.say(`  verified #${item.id}: ${item.note || '(no accepting note)'}`);
     }
     const note = textArg(io, values, 'note') ?? '';
-    const by = values.by ?? (readSignerText(ctx.info.root) ? defaultPrincipal(ctx.info.root) : '');
+    const by = values.by ?? (hasSignerFile(ctx.info.root) ? defaultPrincipal(ctx.info.root) : '');
     const count = signOff(ctx.info.root, spec, { ids, by, on: new Date().toISOString(), note, commit: headCommit(ctx.info.root) ?? '' });
     io.result?.({ count, by, ids, evidence });
     io.say(`signed ${count} rows as ${by}; commit .pullboard/signoffs.jsonl`);
