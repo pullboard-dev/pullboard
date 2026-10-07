@@ -61,6 +61,7 @@ A successful command returns the fields listed below. `version` is always the nu
 | `spec show` | `version:number`, `row:object`, `standing:object` |
 | `spec unmet` | `version:number`, `rows:array` |
 | `spec signoff` | `version:number`, `count:number`, `by:string`, `ids:array`, `evidence:array` |
+| `spec signers` | `version:number`, `added:boolean`, `by:string`, `path:string`, `initial:boolean` |
 | `hook pre-commit` | `version:number`, `messages:array` |
 | `hook commit-msg` | `version:number`, `messages:array` |
 | `hook pre-push` | `version:number`, `messages:array` |
@@ -89,3 +90,9 @@ A refusal keeps the command's existing exit status and prints exactly one versio
 <!-- api-refusal-shapes:end -->
 
 The result and refusal tables are checked against `JSON_SHAPES` in `src/json.js` by `docs/api.test.js`.
+
+## SSH spec sign-offs
+
+`pullboard spec signers add [--key <path>] [--by <principal>]` opts a repo into OpenSSH-signed spec sign-offs. The key defaults to Git `user.signingkey`, then `~/.ssh/id_ed25519.pub`. The principal defaults to the exact Git `user.email`; `--by` overrides it. `spec signoff` uses the same email default in a repo with SSH signers, and accepts `--by` when a listed principal differs. A row's `signers:` names those exact principals.
+
+The initial command output names `.pullboard/signers`, `.pullboard/first-commit` and `.pullboard/signers.initial` for staging and committing. Later sign-offs and signed signer-list changes are recorded in `.pullboard/signoffs.jsonl`; commit that file with the corresponding signer-list change.

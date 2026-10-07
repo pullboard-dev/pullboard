@@ -48,6 +48,7 @@ import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
 import { serveView } from './serve.js';
 import { doctorProblems } from './doctor.js';
 import { exportBoard, importBoard } from './exchange.js';
+import { addSigner, defaultPrincipal, readSignerText } from './signature.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
@@ -122,8 +123,10 @@ Spec
   pullboard forget <path>               remove a repo from this machine's project list
   pullboard spec check                  lint SPEC.md and PRACTICE.md
   pullboard spec view [--out file]      the spec, open questions, sign-offs and practice as one page
-  pullboard spec show <id> | unmet [--must] | signoff <ids> --by <initials>
+  pullboard spec show <id> | unmet [--must] | signoff <ids> [--by <principal>]
                                         signoff: --note "what was checked" stays with the receipt
+  pullboard spec signers add [--key <path>] [--by <principal>] opt into SSH-signed sign-offs
+                                        principal defaults to Git user.email; --by overrides it
 
 Role guides
   pullboard prompt decompose|plan|signoff|review|verify   how to do each role; Claude Code gets them as skills
@@ -148,6 +151,7 @@ const OPTIONS = {
   note: { type: 'string' },
   'note-file': { type: 'string' },
   by: { type: 'string' },
+  key: { type: 'string' },
   out: { type: 'string' },
   after: { type: 'string' },
   brief: { type: 'string' },
@@ -1461,6 +1465,7 @@ function specCommand(io, { first, second, rest, values }) {
   const spec = loadSpec(ctx.info.root, ctx.config);
   if (!spec.exists) throw new Refused('NO_SPEC', `no ${ctx.config.spec}; run: pullboard init`);
   const practice = loadSpec(ctx.info.root, { ...ctx.config, spec: ctx.config.practice });
+  const signoffs = readSignoffs(ctx.info.root);
   if (first === 'check' || first === undefined) {
     const files = [[ctx.config.spec, spec], ...(practice.exists ? [[ctx.config.practice, practice]] : [])];
     let errors = 0;
@@ -1480,14 +1485,23 @@ function specCommand(io, { first, second, rest, values }) {
     unnamed.forEach((problem) => messages.push(`${ctx.config.spec}: error: ${problem}`));
     errors += unnamed.length;
     if (values.json && !errors) {
-      const rows = files.flatMap(([file, parsed]) => parsed.rows.map(({ id, status, tier, text, gate, serves, section, line }) => (
-        { id, status, tier, text, gate, serves, section, line, file }
+      const rows = files.flatMap(([file, parsed]) => parsed.rows.map(({ id, status, tier, text, gate, serves, signers, section, line }) => (
+        { id, status, tier, text, gate, serves, signers, section, line, file }
       )));
       io.result({ rows });
     } else messages.forEach((message) => io.say(message));
     return errors ? 1 : 0;
   }
-  const signoffs = readSignoffs(ctx.info.root);
+  if (first === 'signers' && second === 'add') {
+    const signer = addSigner(ctx.info.root, { by: values.by, key: values.key });
+    io.result?.(signer);
+    io.say(signer.added
+      ? signer.initial
+        ? `added SSH signer ${signer.by}; stage and commit ${signer.path}, .pullboard/first-commit, and .pullboard/signers.initial`
+        : `added SSH signer ${signer.by} to ${signer.path}; commit ${signer.path} and .pullboard/signoffs.jsonl`
+      : `${signer.by} is already listed in ${signer.path}`);
+    return 0;
+  }
   if (first === 'view') {
     const out = values.out ? resolve(ctx.io.cwd, values.out) : join(ctx.info.gitDir, 'pullboard', 'spec.html');
     const html = renderSpecView({
@@ -1529,7 +1543,7 @@ function specCommand(io, { first, second, rest, values }) {
   }
   if (first === 'signoff') {
     const ids = [second, ...rest].filter(Boolean).flatMap((text) => idList(text));
-    if (!ids.length) throw new Refused('USAGE', 'pullboard spec signoff <ids> --by <name> [--note "what was checked"]');
+    if (!ids.length) throw new Refused('USAGE', 'pullboard spec signoff <ids> [--by <principal>] [--note "what was checked"]');
     const invalid = ids.filter((id) => spec.rows.find((row) => row.id === id)?.status !== 'approved');
     if (invalid.length) throw new Refused('CANNOT_SIGN', `${invalid.join(', ')}: only approved rows in this spec are signed`);
     const proof = specProof(ctx);
@@ -1543,12 +1557,13 @@ function specCommand(io, { first, second, rest, values }) {
       for (const item of row.verified) io.say(`  verified #${item.id}: ${item.note || '(no accepting note)'}`);
     }
     const note = textArg(io, values, 'note') ?? '';
-    const count = signOff(ctx.info.root, spec, { ids, by: values.by ?? '', on: new Date().toISOString().slice(0, 10), note });
-    io.result?.({ count, by: values.by, ids, evidence });
-    io.say(`signed ${count} rows as ${values.by}; commit .pullboard/signoffs.jsonl`);
+    const by = values.by ?? (readSignerText(ctx.info.root) ? defaultPrincipal(ctx.info.root) : '');
+    const count = signOff(ctx.info.root, spec, { ids, by, on: new Date().toISOString(), note, commit: headCommit(ctx.info.root) ?? '' });
+    io.result?.({ count, by, ids, evidence });
+    io.say(`signed ${count} rows as ${by}; commit .pullboard/signoffs.jsonl`);
     return 0;
   }
-  throw new Refused('USAGE', 'pullboard spec --json | check | view | show <id> | unmet [--must] | signoff <ids> --by <initials>');
+  throw new Refused('USAGE', 'pullboard spec --json | check | view | show <id> | unmet [--must] | signoff <ids> [--by <principal>] | signers add');
 }
 
 /**

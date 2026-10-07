@@ -11,6 +11,7 @@ import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { Refused } from './refused.js';
+import { readSignerText, signRows, verifySignedRecords } from './signature.js';
 
 export const STATUSES = ['approved', 'draft', 'pending', 'fact', 'wont', 'retired'];
 export const TIERS = ['must', 'aim'];
@@ -21,23 +22,25 @@ export const ID_RE = new RegExp(`^${ID}$`);
 const ROW_RE = new RegExp(`^- (${ID}) \\[([a-z]+)(?:,\\s*([a-z]+))?\\]\\s+(.+)$`);
 const ROWISH_RE = new RegExp(`^- ${ID}\\s+\\[`);
 const SECTION_RE = /^##\s+(.+)$/;
-const SIGNER_RE = /^[A-Z][A-Za-z]{1,11}$/;
+const SIGNER_RE = /^(?!#)[^\s,]+$/u;
 
 /**
- * One row's trailing fields, after the text: `| gate: ...` and `| serves: a, b`.
+ * One row's trailing fields, after the text: `| gate: ...`, `| serves: a, b` and `| signers: CO,AB`.
  *
  * @param {string} rest
- * @returns {{ text: string, gate: string, serves: string[], unknown: string[] }}
+ * @returns {{ text: string, gate: string, serves: string[], signers: string[], unknown: string[] }}
  */
 function splitFields(rest) {
   const [text = '', ...parts] = rest.split(' | ');
-  const fields = { text: text.trim(), gate: '', serves: [], unknown: [] };
+  const fields = { text: text.trim(), gate: '', serves: [], signers: [], unknown: [] };
   for (const part of parts) {
     const [key = '', ...value] = part.split(':');
     const joined = value.join(':').trim();
     if (key.trim() === 'gate') fields.gate = joined;
     else if (key.trim() === 'serves') {
       fields.serves = joined.split(',').map((id) => id.trim()).filter(Boolean);
+    } else if (key.trim() === 'signers') {
+      fields.signers = joined.split(',').map((signer) => signer.trim()).filter(Boolean);
     } else fields.unknown.push(part.trim());
   }
   return fields;
@@ -114,9 +117,11 @@ function rowFindings(row, maxWords) {
   if (row.status === 'approved' && row.tier === 'must' && !row.gate) {
     add('error', 'an approved must-row names its gate: | gate: <the test or check that proves it>');
   }
+  for (const signer of row.signers ?? []) if (!SIGNER_RE.test(signer)) add('error', `signer "${signer}" must be one SSH principal (no spaces or commas)`);
+  if (new Set(row.signers ?? []).size !== (row.signers ?? []).length) add('error', 'signers are unique on a row');
   const words = row.text.split(/\s+/).filter(Boolean).length;
   if (words > maxWords) add('warning', `${words} words; rows stay under ${maxWords}, the why goes elsewhere`);
-  for (const part of row.unknown) add('error', `unknown field "${part}"; fields are gate and serves`);
+  for (const part of row.unknown) add('error', `unknown field "${part}"; fields are gate, serves and signers`);
   return findings;
 }
 
@@ -230,8 +235,7 @@ export function frozenCriterion(spec, item) {
  */
 export function readSignoffs(root) {
   const file = join(root, SIGNOFFS_FILE);
-  if (!existsSync(file)) return [];
-  return readFileSync(file, 'utf8')
+  const records = !existsSync(file) ? [] : readFileSync(file, 'utf8')
     .split('\n')
     .filter((line) => line.trim())
     .map((line, index) => {
@@ -241,6 +245,7 @@ export function readSignoffs(root) {
         throw new Refused('BAD_SIGNOFFS', `${SIGNOFFS_FILE} line ${index + 1} is not JSON`);
       }
     });
+  return verifySignedRecords(root, records);
 }
 
 /**
@@ -277,7 +282,9 @@ export function unmetRows(rows, signoffs, { mustOnly = false } = {}) {
     (row) =>
       row.status === 'approved' &&
       (!mustOnly || row.tier === 'must') &&
-      !(by.get(row.id)?.met.length),
+      (row.signers?.length
+        ? row.signers.some((signer) => !by.get(row.id)?.met.some((entry) => entry.by === signer))
+        : !(by.get(row.id)?.met.length)),
   );
 }
 
@@ -290,9 +297,9 @@ export function unmetRows(rows, signoffs, { mustOnly = false } = {}) {
  * @param {{ ids: string[], by: string, on: string, note?: string }} signoff
  * @returns {number} How many rows were signed.
  */
-export function signOff(root, spec, { ids, by, on, note = '' }) {
+export function signOff(root, spec, { ids, by, on, note = '', commit = '' }) {
   if (!SIGNER_RE.test(by)) {
-    throw new Refused('BAD_SIGNER', 'sign with initials or a first name: --by CO');
+    throw new Refused('BAD_SIGNER', 'sign with one principal: --by <principal>');
   }
   const byId = new Map(spec.rows.map((row) => [row.id, row]));
   const problems = ids.flatMap((id) => {
@@ -303,7 +310,13 @@ export function signOff(root, spec, { ids, by, on, note = '' }) {
   if (problems.length) throw new Refused('CANNOT_SIGN', problems.join('; '));
   const file = join(root, SIGNOFFS_FILE);
   mkdirSync(dirname(file), { recursive: true });
-  const lines = ids.map((id) => JSON.stringify({ id, by, on, text: byId.get(id).text, ...(note ? { note } : {}) }));
+  if (readSignerText(root)) {
+    if (!commit) throw new Refused('NO_SIGNING_COMMIT', 'signed sign-offs include the commit checked; commit or check out the repo first');
+    const rows = ids.map((id) => ({ id, by, on, text: byId.get(id).text, commit, note }));
+    signRows(root, rows);
+    return ids.length;
+  }
+  const lines = ids.map((id) => JSON.stringify({ id, by, on: on.slice(0, 10), text: byId.get(id).text, ...(note ? { note } : {}) }));
   appendFileSync(file, `${lines.join('\n')}\n`);
   return ids.length;
 }

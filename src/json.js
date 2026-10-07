@@ -59,6 +59,7 @@ export const JSON_SHAPES = {
     'spec show': shape({ row: 'object', standing: 'object' }),
     'spec unmet': shape({ rows: 'array' }),
     'spec signoff': shape({ count: 'number', by: 'string', ids: 'array', evidence: 'array' }),
+    'spec signers': shape({ added: 'boolean', by: 'string', path: 'string', initial: 'boolean' }),
     'hook pre-commit': shape({ messages: 'array' }),
     'hook commit-msg': shape({ messages: 'array' }),
     'hook pre-push': shape({ messages: 'array' }),

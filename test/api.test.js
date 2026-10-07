@@ -194,6 +194,12 @@ test('[A1] command results match the catalog across roots and subcommands', () =
   writeFileSync(join(repo, 'test', 'proof.test.js'), "import { test } from 'node:test';\ntest('proof [G1]', () => {});\n");
   box.git(repo, 'add', 'test/proof.test.js');
   box.git(repo, 'commit', '-q', '-m', 'test: cite the fixture');
+  const signerKey = join(box.dir, 'signer-key');
+  execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', signerKey], { stdio: 'pipe' });
+  box.git(repo, 'config', 'user.signingkey', signerKey);
+  json(box, repo, 'spec', ['signers', 'add', '--key', `${signerKey}.pub`, '--by', 'CO'], 'signers');
+  box.git(repo, 'add', '.pullboard/signers', '.pullboard/signers.initial', '.pullboard/first-commit');
+  box.git(repo, 'commit', '-q', '-m', 'chore: opt into signed sign-offs');
   json(box, repo, 'spec', ['signoff', 'G1', '--by', 'CO'], 'signoff');
   box.git(repo, 'add', '.pullboard/signoffs.jsonl');
   box.git(repo, 'commit', '-q', '-m', 'chore: record the fixture signoff');
