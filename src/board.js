@@ -773,12 +773,15 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null }
  * @param {any} board
  * @param {number} id
  * @param {string} agentId
+ * @returns {boolean} Whether a review reservation was released rather than a claim.
  */
 export function release(board, id, agentId) {
   return atomic(board, () => {
     const item = itemById(board, id);
     if (item.item_status === 'submitted') {
-      if (reviewHolder(board, item) !== agentId) throw new Refused('NOT_YOURS', `item #${id} review is not reserved by you`);
+      if (reviewHolder(board, item) !== agentId) {
+        throw new Refused('NOT_YOURS', `item #${id} review is not reserved by you; ask its current reviewer to release it, or take a free review with pullboard next --verify`);
+      }
       setItem(board, id, { item_review_by: null, item_review_until: null });
       logEvent(board, agentId, 'release', id);
       return true;

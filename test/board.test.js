@@ -172,7 +172,10 @@ test('a verifier releases its reserved review; another verifier can take it, and
     store.reserveReview(durable, id, { agentId: reviewer, leaseMs: HOUR, policy: 'any' });
 
     assert.equal(store.release(durable, id, reviewer), true);
-    assert.equal(store.reviewHolder(durable, store.getItem(durable, id)), null);
+    assert.deepEqual(
+      [store.getItem(durable, id).item_review_by, store.getItem(durable, id).item_review_until],
+      [null, null],
+    );
     assert.equal(store.events(durable, { itemId: id }).at(-1).event_kind, 'release');
     assert.equal(store.reserveReview(durable, id, { agentId: second, leaseMs: HOUR, policy: 'any' }).item_review_by, second);
     assert.throws(() => store.release(durable, id, third), /NOT_YOURS/);
