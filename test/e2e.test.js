@@ -892,27 +892,52 @@ test('init adds a Claude Code session hook that runs resume, and keeps every oth
 
 test('the tour runs a reject and its rework on a throwaway repo, in under thirty seconds [N10]', () => {
   const box = sandbox();
+  const plainEnv = { ...box.env, TMPDIR: box.dir };
+  delete plainEnv.NO_COLOR;
+  delete plainEnv.FORCE_COLOR;
   const started = Date.now();
-  const shown = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: { ...box.env, TMPDIR: box.dir }, encoding: 'utf8' });
+  const shown = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: plainEnv, encoding: 'utf8' });
   assert.equal(shown.status, 0, `${shown.stdout}${shown.stderr}`);
   assert.ok(Date.now() - started < 30_000, 'thirty seconds');
+  assert.doesNotMatch(shown.stdout, /\u001b\[/, 'piped output stays plain');
   assert.match(shown.stdout, /review-1 \$ pullboard verify 1 reject --reason BEHAVIOR_MISMATCH/);
   assert.match(shown.stdout, /sent back: #1 BEHAVIOR_MISMATCH by review-1: greet\(''\) returns "Hello, !"/);
   assert.match(shown.stdout, /with the fix removed\n {7}# pass 1\n {7}# fail 1/);
   assert.match(shown.stdout, /verified #1: CRITERION_MET/);
   assert.match(shown.stdout, /\| 1 \| app \| Greeting \| G1 \| app-1 \| review-1 \|/);
+
+  const forced = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: { ...plainEnv, FORCE_COLOR: '1' }, encoding: 'utf8' });
+  assert.equal(forced.status, 0, `${forced.stdout}${forced.stderr}`);
+  assert.match(forced.stdout, /\u001b\[1m1  The person approved one spec row\. The coordinator files it as work\.\u001b\[0m/);
+  assert.match(forced.stdout, /\u001b\[36mcoordinator\u001b\[0m \$/);
+  assert.match(forced.stdout, /\u001b\[33mapp-1\u001b\[0m \$/);
+  assert.match(forced.stdout, /\u001b\[35mreview-1\u001b\[0m \$/);
+  assert.match(forced.stdout, /\u001b\[31m[^\n]*rejected #1/);
+  assert.match(forced.stdout, /\u001b\[31m[^\n]*# fail 1/);
+  assert.match(forced.stdout, /\u001b\[32m[^\n]*verified #1: CRITERION_MET/);
+  assert.match(forced.stdout, /\u001b\[32m[^\n]*# pass 2/);
+
+  const noColor = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: { ...plainEnv, FORCE_COLOR: '1', NO_COLOR: '1' }, encoding: 'utf8' });
+  assert.equal(noColor.status, 0, `${noColor.stdout}${noColor.stderr}`);
+  assert.doesNotMatch(noColor.stdout, /\u001b\[/, 'NO_COLOR wins even if the environment could otherwise force color');
+  const normalizeTourRoot = (text) => text
+    .replace(/Look around: cd .* && pullboard log/, 'Look around: cd <tour> && pullboard log')
+    .replace(/\b[0-9a-f]{12}\b/g, '<sha>')
+    .replace(/claimed #1 until \S+ criterion frozen/g, 'claimed #1 until <time> criterion frozen');
+  assert.equal(normalizeTourRoot(noColor.stdout), normalizeTourRoot(shown.stdout), 'NO_COLOR preserves the plain tour output');
+
   const repo = /Look around: cd (\S+) && pullboard log/.exec(shown.stdout)[1];
   assert.match(box.git(repo, 'log', '--format=%an %s', '-1'), /^app-1 fix\(app\): a blank name greets the world \[G1\]$/);
   const hooks = join(box.dir, 'ambient-hooks');
   mkdirSync(hooks);
   writeFileSync(join(hooks, 'pre-commit'), '#!/bin/sh\necho ambient hook ran >&2\nexit 1\n');
   chmodSync(join(hooks, 'pre-commit'), 0o755);
-  const ambient = { ...box.env, TMPDIR: box.dir, GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.hooksPath', GIT_CONFIG_VALUE_0: hooks, GIT_DIR: join(box.dir, 'elsewhere.git') };
+  const ambient = { ...plainEnv, GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.hooksPath', GIT_CONFIG_VALUE_0: hooks, GIT_DIR: join(box.dir, 'elsewhere.git') };
   const isolated = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: ambient, encoding: 'utf8' });
   assert.equal(isolated.status, 0, `git settings from the environment stay out: ${isolated.stdout}`);
   const empty = join(box.dir, 'empty');
   mkdirSync(empty);
-  const stopped = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: { ...box.env, TMPDIR: box.dir, PATH: empty }, encoding: 'utf8' });
+  const stopped = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: { ...plainEnv, PATH: empty }, encoding: 'utf8' });
   assert.equal(stopped.status, 1);
   assert.match(stopped.stdout, /The tour stopped: git init -q -b main exited null/);
 });
