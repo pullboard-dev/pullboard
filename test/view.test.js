@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseSpec } from '../src/spec.js';
-import { practiceTemplate } from '../src/templates.js';
+import { standardDoctrine } from '../src/doctrine.js';
 import { esc, renderSpecView } from '../src/view.js';
 
 const SPEC = `# Bakery spec
@@ -22,13 +22,12 @@ Pre-orders for four shops.
 /**
  * The page for the sample spec, with O1 signed on its current text and O2 signed on older text.
  */
-function page() {
+function page(practice = standardDoctrine()) {
   const spec = { ...parseSpec(SPEC), exists: true };
   const signoffs = [
     { id: 'O1', by: 'CO', on: '2026-10-05', text: 'Orders lock at 2pm the day before pickup.' },
     { id: 'O2', by: 'CO', on: '2026-10-04', text: 'A text names the shop.' },
   ];
-  const practice = { ...parseSpec(practiceTemplate()), exists: true };
   return renderSpecView({
     title: spec.title,
     spec,
@@ -39,12 +38,18 @@ function page() {
   });
 }
 
-test('one self-contained page with every tab and every row [S7]', () => {
+test('one self-contained page with every tab and inherited doctrine row [S7,D1,D3]', () => {
   const html = page();
   assert.ok(html.startsWith('<!doctype html>'));
   assert.ok(!/src="http|href="http/.test(html), 'nothing loads from the network');
   for (const label of ['Spec', 'Open questions (1)', 'Sign-off', 'Practice']) assert.ok(html.includes(label));
-  for (const id of ['O1', 'O2', 'O3', 'O4', 'W1', 'G4']) assert.ok(html.includes(`>${id}<`), `${id} is on the page`);
+  for (const id of ['O1', 'O2', 'O3', 'O4', 'PB1', 'PB12']) assert.ok(html.includes(`>${id}<`), `${id} is on the page`);
+});
+
+test('legacy repo practice rows still render without being replaced [S7,D4]', () => {
+  const practice = { ...parseSpec('# Legacy practice\n\n## Writing\n- W1 [fact] A local writing rule.\n\n## Git\n- G4 [fact] A local Git rule.\n'), exists: true };
+  const html = page(practice);
+  for (const id of ['W1', 'G4']) assert.ok(html.includes(`>${id}<`), `${id} remains on the page`);
 });
 
 test('sign-offs show as signed, stale or not signed [S5, S7]', () => {

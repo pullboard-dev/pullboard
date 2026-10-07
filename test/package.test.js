@@ -198,3 +198,11 @@ test('every import is a node: built-in or a relative file [P3]', () => {
   const seen = found.flat().length;
   assert.ok(seen > 50, `the scan found ${seen} imports in src/ and bin/; expected every file's`);
 });
+
+test('the installable package includes the single inherited doctrine file [D1]', () => {
+  const packed = spawnSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { cwd: ROOT, encoding: 'utf8' });
+  assert.equal(packed.status, 0, packed.stderr);
+  const files = JSON.parse(packed.stdout)[0].files.map(file => file.path);
+  assert.equal(files.filter(file => file === 'src/standard-doctrine.md').length, 1);
+  assert.ok(files.includes('src/doctrine.js'));
+});

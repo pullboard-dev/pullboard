@@ -9,6 +9,7 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import * as store from './board.js';
 import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
+import { loadDoctrine } from './doctrine.js';
 import { digestOf, gateReport, runGate, runShell } from './gate.js';
 import { contains, differFromHead, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
@@ -334,7 +335,7 @@ function context(io) {
   const info = repoInfo(io.cwd);
   const config = configHere(info);
   const file = join(info.commonDir, 'pullboard', 'board.sqlite');
-  return { info, config, file, io, clock: io.clock ?? store.systemClock };
+  return { info, config, file, doctrine: loadDoctrine(info.root, config), io, clock: io.clock ?? store.systemClock };
 }
 
 /**
@@ -1497,7 +1498,7 @@ function specCommand(io, { first, second, rest, values }) {
   }
   const spec = loadSpec(ctx.info.root, ctx.config);
   if (!spec.exists) throw new Refused('NO_SPEC', `no ${ctx.config.spec}; run: pullboard init`);
-  const practice = loadSpec(ctx.info.root, { ...ctx.config, spec: ctx.config.practice });
+  const practice = ctx.doctrine;
   if (first === 'check' || first === undefined) {
     const files = [[ctx.config.spec, spec], ...(practice.exists ? [[ctx.config.practice, practice]] : [])];
     let errors = 0;
@@ -1507,7 +1508,7 @@ function specCommand(io, { first, second, rest, values }) {
       findings.forEach((finding) => messages.push(`${name}:${finding.line} ${finding.id ?? ''} ${finding.level}: ${finding.message}`.replace('  ', ' ')));
       const history = committedIds(ctx.info.root, name);
       const cited = name === ctx.config.spec ? citations(ctx, history) : new Map();
-      const lost = permanenceProblems(parsed, { committed: history.ids, cited });
+      const lost = permanenceProblems(parsed === practice ? practice.repo : parsed, { committed: history.ids, cited });
       lost.forEach((problem) => messages.push(`${name}: ${problem.id} error: ${problem.message}`));
       const fileErrors = findings.filter((finding) => finding.level === 'error').length + lost.length;
       errors += fileErrors;
@@ -1517,8 +1518,9 @@ function specCommand(io, { first, second, rest, values }) {
     unnamed.forEach((problem) => messages.push(`${ctx.config.spec}: error: ${problem}`));
     errors += unnamed.length;
     if (values.json && !errors) {
-      const rows = files.flatMap(([file, parsed]) => parsed.rows.map(({ id, status, tier, text, gate, serves, section, line }) => (
-        { id, status, tier, text, gate, serves, section, line, file }
+      const rows = files.flatMap(([file, parsed]) => parsed.rows.map(({ id, status, tier, text, gate, serves, section, line, origin, version, reason, file: source }) => (
+        { id, status, tier, text, gate, serves, section, line, file: source ?? file,
+          ...(origin ? { origin, version, reason } : {}) }
       )));
       io.result({ rows });
     } else messages.forEach((message) => io.say(message));
