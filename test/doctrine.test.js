@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { packText } from '../src/run.js';
 import { doctrineText, loadDoctrine, standardDoctrine, STANDARD_VERSION } from '../src/doctrine.js';
 import { lintSpec, parseSpec } from '../src/spec.js';
+import { renderSpecView } from '../src/view.js';
 
 /** A private repo's configured practice file, automatically removed after its test. */
 function practiceBox(t, text, name = 'PRACTICE.md') {
@@ -74,4 +75,13 @@ test('cold-start run pack uses configured legacy practice and labels each source
   assert.match(pack, /R1 \(repo\).*The legacy rule stays/);
   assert.doesNotMatch(pack, /PB2 \(standard 1\)/);
   assert.equal(readFileSync(join(box.root, 'ways.md'), 'utf8'), text);
+});
+
+test('a shared section heading renders inherited and repo rules once each [D1,D3]', (t) => {
+  const box = practiceBox(t, '# Local rules\n\n## Rules\n- PB2 [fact] A repo override.\n- R1 [fact] A repo addition.\n');
+  const practice = loadDoctrine(box.root, box.config);
+  const html = renderSpecView({ title: 'Fixture', spec: parseSpec('# Fixture\n\n## Goals\n- G1 [fact] A goal.\n'), practice, signoffs: [], generatedAt: 'fixture', files: { spec: 'SPEC.md', practice: 'PRACTICE.md' } });
+  assert.equal((html.match(/>PB1<\/td>/g) ?? []).length, 1, 'the inherited rule appears once');
+  assert.equal((html.match(/>PB2<\/td>/g) ?? []).length, 1, 'the override appears once');
+  assert.equal((html.match(/>R1<\/td>/g) ?? []).length, 1, 'the repo addition appears once');
 });

@@ -32,6 +32,14 @@ export function loadDoctrine(root, config = {}) {
   const standard = standardDoctrine();
   const inherited = new Set(standard.rows.map((row) => row.id));
   const overrides = new Set(repo.rows.filter((row) => inherited.has(row.id)).map((row) => row.id));
+  // Readers group rows by heading name, so one shared heading must not render the rows twice.
+  const sectionNames = new Set();
+  const sections = [...standard.sections, ...repo.sections.map((section) => ({ ...section, origin: 'repo' }))]
+    .filter((section) => {
+      if (sectionNames.has(section.name)) return false;
+      sectionNames.add(section.name);
+      return true;
+    });
   const problems = [...standard.problems, ...repo.problems];
   for (const row of repo.rows) {
     if (/^PB\d/.test(row.id) && !inherited.has(row.id)) {
@@ -45,7 +53,7 @@ export function loadDoctrine(root, config = {}) {
     title: repo.title || 'Doctrine', intro: repo.intro, name, file: repo.file,
     exists: true, repoExists: repo.exists, version: STANDARD_VERSION, repo,
     problems,
-    sections: [...standard.sections, ...repo.sections.map((section) => ({ ...section, origin: 'repo' }))],
+    sections,
     rows: [
       ...standard.rows.filter((row) => !overrides.has(row.id)),
       ...repo.rows.map((row) => ({ ...row, origin: 'repo', version: null, reason: declineReason(row), file: name })),
