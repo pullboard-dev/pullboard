@@ -73,6 +73,26 @@ function succeeds(box, ...args) {
   return result;
 }
 
+test('[S18,S19] spec check requires every row signer to be listed', (t) => {
+  const box = fixture(t);
+  const missingList = box.run('spec', 'check');
+  assert.notEqual(missingList.status, 0);
+  assert.match(missingList.stderr, /\[NO_SIGNERS\]/u);
+  assert.match(missingList.stderr, /run pullboard spec signers add/u);
+
+  succeeds(box, 'signers', 'add', '--key', box.co.publicKey, '--by', 'CO');
+  const missingPrincipal = box.run('spec', 'check');
+  assert.notEqual(missingPrincipal.status, 0);
+  assert.match(missingPrincipal.stderr, /\[UNLISTED_SIGNER\]/u);
+  assert.match(missingPrincipal.stderr, /G1 names AB, which is not listed/u);
+  assert.match(missingPrincipal.stderr, /run pullboard spec signers add --by AB --key <path>/u);
+
+  succeeds(box, 'signers', 'add', '--key', box.ab.publicKey, '--by', 'AB');
+  const listed = box.run('spec', 'check');
+  assert.equal(listed.status, 0, `${listed.stdout}${listed.stderr}`);
+  assert.match(listed.stdout, /SPEC\.md: 1 rows, 0 errors/u);
+});
+
 test('[S17,S18,S19,S20,S21] signed rows require every named principal and survive a shallow clone', (t) => {
   const box = fixture(t);
   const first = box.git('rev-list', '--max-parents=0', 'HEAD');
