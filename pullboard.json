@@ -12,7 +12,8 @@
         "package.json",
         "relay/",
         "docs/api.md",
-        "docs/api.test.js"
+        "docs/api.test.js",
+        "docs/lifecycle.md"
       ],
       "specs": [
         "B",
