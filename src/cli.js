@@ -46,6 +46,7 @@ import { commandOutput } from './json.js';
 import { forgetProject, registerProject } from './projects.js';
 import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
 import { serveView } from './serve.js';
+import { doctorProblems } from './doctor.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
@@ -80,6 +81,7 @@ Work
                                         $PULLBOARD_ATTEMPT, $PULLBOARD_TIER); green work is submitted, red escalated
                 [--agent-light "..."] [--agent-mid "..."] [--agent-strong "..."]   a command per tier
   pullboard list [lane] [--all] [--route light|mid|strong]   open and active items; --all adds closed ones
+  pullboard doctor                     check board integrity without changing it
   pullboard show <id> [--history]       an item, the criterion frozen at claim, its verdicts: the latest in full,
                                         earlier ones as one line; --history prints every note in full
   pullboard next [--wait <minutes>]     claim the next item in your lane that is free to start
@@ -883,6 +885,17 @@ function readCommands(io, { first, values }) {
         productSummaries(ctx.config, loadSpec(ctx.info.root, ctx.config), all).forEach((product) => io.say(productLine(product)));
       }
       return 0;
+    },
+    doctor: () => {
+      const ctx = context(io);
+      const problems = doctorProblems(ctx.file, ctx.info.root, tryGit);
+      io.result?.({ problems });
+      if (!problems.length) {
+        io.say('board is clean');
+        return 0;
+      }
+      for (const problem of problems) io.say(`problem: ${problem.message}; repair: ${problem.next}`);
+      return 1;
     },
     inbox: () => {
       const ctx = context(io);
