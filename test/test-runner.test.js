@@ -1,7 +1,7 @@
 /** Test the CI-like test runner against real Git and PATH behavior [C7, S13]. */
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -55,8 +55,10 @@ test('runner removes its private home after test workers exit [C7, S13]', (t) =>
 import { writeFileSync } from 'node:fs';
 test('reports its sandbox', () => writeFileSync(${JSON.stringify(report)}, process.env.TMPDIR));
 `);
-  const runner = fileURLToPath(new URL('../bin/test.js', import.meta.url));
-  const result = spawnSync(process.execPath, [runner, probe], { encoding: 'utf8' });
+  const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
+  const launchEnv = { ...process.env };
+  delete launchEnv.NODE_TEST_CONTEXT;
+  const result = spawnSync(process.execPath, [runner, probe], { encoding: 'utf8', env: launchEnv });
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   assert.ok(existsSync(report), `${result.stdout}${result.stderr}`);
   const sandbox = readFileSync(report, 'utf8');
@@ -67,4 +69,31 @@ test('reports its sandbox', () => writeFileSync(${JSON.stringify(report)}, proce
   const failed = spawnSync(process.execPath, [runner, failingProbe], { encoding: 'utf8' });
   assert.equal(failed.status, 1, `${failed.stdout}${failed.stderr}`);
   assert.match(failed.stdout, /forward this failure/);
+});
+
+test('default discovery runs one fixture and does not recurse into the runner [C7, S13]', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-runner-discovery-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const bin = join(root, 'bin');
+  const tests = join(root, 'test');
+  mkdirSync(bin);
+  mkdirSync(tests);
+  writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
+  const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
+  copyFileSync(runner, join(bin, 'run-tests.js'));
+  const marker = join(root, 'ran-once');
+  writeFileSync(join(tests, 'one.test.js'), `import { test } from 'node:test';
+import { appendFileSync } from 'node:fs';
+test('one discovered test', () => appendFileSync(${JSON.stringify(marker)}, 'x'));
+`);
+  const launchEnv = { ...process.env };
+  delete launchEnv.NODE_TEST_CONTEXT;
+  const result = spawnSync(process.execPath, ['--test', '--import', join(bin, 'run-tests.js')], {
+    cwd: root,
+    encoding: 'utf8',
+    env: launchEnv,
+    timeout: 15_000,
+  });
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  assert.equal(readFileSync(marker, 'utf8'), 'x', 'one test ran exactly once under default discovery');
 });
