@@ -99,6 +99,30 @@ export function isClean(root) {
 }
 
 /**
+ * How each file under `paths` in the work tree differs from HEAD, whatever is staged: not
+ * committed, changed or deleted. With no commits yet, every file there is not committed.
+ * Read-only: git takes no index lock.
+ *
+ * @param {string} root
+ * @param {string[]} paths
+ * @returns {{ path: string, how: string }[]}
+ */
+export function differFromHead(root, paths) {
+  const listed = (args, input) =>
+    execFileSync('git', ['--no-optional-locks', ...GIT_FLAGS, ...args], { cwd: root, encoding: 'utf8', input: input ?? '' }).split('\0').filter(Boolean);
+  const base = headCommit(root) ?? listed(['hash-object', '-t', 'tree', '--stdin'])[0].trim();
+  const fields = listed(['diff', '--no-renames', '--name-status', '-z', base, '--', ...paths]);
+  const found = [];
+  for (let i = 0; i + 1 < fields.length; i += 2) {
+    found.push({ path: fields[i + 1], how: { A: 'not committed', D: 'deleted' }[fields[i]] ?? 'changed' });
+  }
+  for (const path of listed(['ls-files', '-z', '--others', '--exclude-standard', '--', ...paths])) {
+    found.push({ path, how: 'not committed' });
+  }
+  return found.sort((a, b) => (a.path < b.path ? -1 : 1));
+}
+
+/**
  * Files git would show as untracked: new, and not ignored.
  *
  * @param {string} root

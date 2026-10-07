@@ -4,13 +4,13 @@
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import * as store from './board.js';
 import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
 import { digestOf, gateReport, runGate, runShell } from './gate.js';
-import { contains, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
+import { contains, differFromHead, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
   FIX_NOTE,
   applyFixers,
@@ -299,9 +299,29 @@ function sayBrief(io, brief) {
  */
 function context(io) {
   const info = repoInfo(io.cwd);
-  const config = loadConfig(info.root);
+  const config = configHere(info);
   const file = join(info.commonDir, 'pullboard', 'board.sqlite');
   return { info, config, file, io, clock: io.clock ?? store.systemClock };
+}
+
+/**
+ * This checkout's config. A linked worktree with none, beside a main checkout that has one, was
+ * made from a commit that lacks pullboard's files, and init there would be the wrong fix (C4).
+ *
+ * @param {{ root: string, commonDir: string, isMain: boolean }} info
+ * @returns {any}
+ */
+function configHere(info) {
+  try {
+    return loadConfig(info.root);
+  } catch (error) {
+    const mainRoot = resolve(info.commonDir, '..');
+    if (!(error instanceof Refused) || error.code !== 'NO_CONFIG' || info.isMain || !existsSync(join(mainRoot, CONFIG_FILE))) throw error;
+    throw new Refused(
+      'NO_CONFIG',
+      `this worktree's commit has no ${CONFIG_FILE}, though the main checkout has one: make a new worktree from the main checkout, which says what to commit first: ${cdTo(mainRoot)} pullboard worktree <lane>`,
+    );
+  }
 }
 
 /**
@@ -686,6 +706,7 @@ function worktreeFor(io, lane, route) {
     throw new Refused('BAD_ROUTE', `route "${route}" is strong (needs a frontier model) or light (any model can build it from the brief)`);
   }
   const mainRoot = resolve(ctx.info.commonDir, '..');
+  refuseUncommittedSetup(mainRoot, ctx.config);
   const pathFor = (n) => join(dirname(mainRoot), `${basename(mainRoot)}-${lane}-${n}`);
   const isTaken = (n) => existsSync(pathFor(n)) || tryGit(mainRoot, ['rev-parse', '--verify', '--quiet', `refs/heads/${lane}/${n}`]).status === 0;
   let n = 1;
@@ -703,6 +724,44 @@ function worktreeFor(io, lane, route) {
   io.say(`  You are ${id}, in the ${lane} lane. Work only in ${shellWord(root)}, and start every command with ${cdTo(root)}`);
   io.say(`  Read ${shellWord(join(root, 'AGENTS.md'))} first. Its rules govern this work, over any other repo's instructions you were given.`);
   return 0;
+}
+
+/**
+ * The files a new worktree takes from the main checkout's last commit and works by: the config, the
+ * spec, the practice file, the rules its opening lines name, and the hooks, when git looks for them
+ * inside each worktree.
+ *
+ * @param {string} mainRoot
+ * @param {any} config
+ * @returns {string[]}
+ */
+function setupFiles(mainRoot, config) {
+  const hooks = tryGit(mainRoot, ['config', '--get', 'core.hooksPath']).stdout;
+  const inEach = hooks && !isAbsolute(hooks) && !relative(mainRoot, resolve(mainRoot, hooks)).startsWith('..');
+  return [CONFIG_FILE, config.spec, config.practice, 'AGENTS.md', ...(inEach ? [hooks] : [])].filter(Boolean);
+}
+
+/**
+ * Refuse a worktree whose agent would start without pullboard's files as the main checkout has
+ * them: no config, rules or hooks, or older ones (I4). Name each file and how it differs, and the
+ * command that commits just those (C4).
+ *
+ * @param {string} mainRoot
+ * @param {any} config
+ */
+function refuseUncommittedSetup(mainRoot, config) {
+  const files = setupFiles(mainRoot, config);
+  const hasCommit = headCommit(mainRoot) !== null;
+  let differ = differFromHead(mainRoot, files);
+  if (hasCommit && !differ.length) return;
+  // With no commit, a file git ignores still has to be committed; git add will name the ignore.
+  if (!differ.length) differ = files.filter((path) => existsSync(join(mainRoot, path))).map((path) => ({ path, how: 'not committed' }));
+  const why = hasCommit
+    ? `a new worktree starts from the last commit, and these differ from it here: ${differ.map(({ path, how }) => `${path} (${how})`).join(', ')}`
+    : `this repo has no commit yet, and a new worktree starts from one; not committed: ${differ.map(({ path }) => path).join(', ')}`;
+  const words = differ.map(({ path }) => shellWord(path)).join(' ');
+  const subject = hasCommit ? 'chore: commit pullboard files' : 'chore: set up pullboard';
+  throw new Refused('NOT_COMMITTED', `${why}. Commit them first: ${cdTo(mainRoot)} git add -- ${words} && git commit -q -m "${subject}" -- ${words}`);
 }
 
 /**

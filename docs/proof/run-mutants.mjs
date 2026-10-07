@@ -1,7 +1,8 @@
 /**
  * The proof that one sentence to an agent starts the team (item #66): the run guide (N31), the
- * coordinator's resume (N32) and init's word to an agent (I9). Each change below removes one of
- * them, and its test must go red. The harness works on a temporary copy, never a real checkout.
+ * coordinator's resume (N32) and init's word to an agent (I9). And that the first worktree starts
+ * with pullboard's files, or says what to commit (item #69: I4, C4). Each change below removes one
+ * of them, and its test must go red. The harness works on a temporary copy, never a real checkout.
  *
  * Run it from the repo root: node docs/proof/run-mutants.mjs
  */
@@ -9,6 +10,8 @@ import { audit } from './harness.mjs';
 
 const GUIDE = ['test/practice.test.js', 'the run guide takes one agent through the whole team'];
 const STAGES = ['test/e2e.test.js', "the coordinator's resume names its next step"];
+const FIRST_WORKTREE = ['test/e2e.test.js', "a worktree starts only from a commit that holds pullboard's files"];
+const NO_INIT = ['test/e2e.test.js', 'a worktree whose commit has no pullboard.json is sent to the main checkout'];
 
 /** Row, the change, its edits as [file, from, to], the test that judges it, and the outcome expected. */
 const MUTANTS = [
@@ -22,6 +25,14 @@ const MUTANTS = [
   ['N32', 'verified work is never named for merging', [['src/cli.js', '  if (card.toMerge.length) {', '  if (false) {']], STAGES, 'red'],
   ['N32', 'open items get no builders', [['src/cli.js', '  if (card.open.length) {\n    const lanes', '  if (false) {\n    const lanes']], STAGES, 'red'],
   ['N32', 'approved rows no item cites are never planned', [['src/cli.js', '  if (unplanned.length) {', '  if (false) {']], STAGES, 'red'],
+  ['I4', "a worktree starts from a commit without pullboard's files", [['src/cli.js', '  refuseUncommittedSetup(mainRoot, ctx.config);\n', '']], FIRST_WORKTREE, 'red'],
+  ['I4', 'once there is a commit, a file changed since passes', [['src/cli.js', '  if (hasCommit && !differ.length) return;', '  if (hasCommit) return;']], FIRST_WORKTREE, 'red'],
+  ['I4', 'the hooks are left out', [['src/cli.js', ", ...(inEach ? [hooks] : [])]", ']']], FIRST_WORKTREE, 'red'],
+  ['I4', 'a file never added to git passes', [['src/git.js', "  for (const path of listed(['ls-files', '-z', '--others', '--exclude-standard', '--', ...paths])) {", '  for (const path of []) {']], FIRST_WORKTREE, 'red'],
+  ['C4', 'a deleted file is called changed', [['src/git.js', "{ A: 'not committed', D: 'deleted' }", "{ A: 'not committed' }"]], FIRST_WORKTREE, 'red'],
+  ['C4', 'the command commits everything staged', [['src/cli.js', 'git commit -q -m "${subject}" -- ${words}`);', 'git commit -q -m "${subject}"`);']], FIRST_WORKTREE, 'red'],
+  ['C4', 'a worktree with no config is told to run init', [['src/cli.js', '  const config = configHere(info);', '  const config = loadConfig(info.root);']], NO_INIT, 'red'],
+  ['N31', 'the guide does not say to commit before the first worktree', [['skills/pullboard-run/SKILL.md', ' A worktree starts from the last commit, so first commit what init wrote, the spec and the lanes; `pullboard worktree` refuses until they are.', '']], GUIDE, 'red'],
   ['I9', 'init says nothing to an agent', [['src/cli.js', "      io.say('with an agent: start a new Claude Code session here, which loads the pullboard skills, then tell it what to build; the pullboard-run skill runs the team');\n", '']], STAGES, 'red'],
 ];
 

@@ -41,6 +41,7 @@ test('the run guide takes one agent through the whole team, and init installs it
     ]) {
       assert.ok(guide.includes(step), `the run guide says: ${step}`);
     }
+    assert.match(guide, /\*\*Build[^\n]*A worktree starts from the last commit, so first commit what init wrote, the spec and the lanes/, 'the build step commits the setup before the first worktree');
     assert.match(installSkills(root)[0], /pullboard-run/);
     assert.ok(existsSync(join(root, '.claude', 'skills', 'pullboard-run', 'SKILL.md')), 'init installs it as a skill');
     assert.match(agentsBlock(), /pullboard prompt run/, 'AGENTS.md names it');

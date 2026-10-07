@@ -303,6 +303,92 @@ test('pullboard worktree makes a joined worktree for a lane in one command [I4]'
   assert.match(box.run(box.repo, 'worktree', 'nope').err, /NO_LANE/);
 });
 
+test("a worktree starts only from a commit that holds pullboard's files as the main checkout has them [I4, C4]", () => {
+  const box = sandbox();
+  const repo = join(box.dir, 'repo');
+  mkdirSync(repo);
+  box.git(repo, 'init', '-q', '-b', 'main');
+  assert.equal(box.run(repo, 'init').code, 0);
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(CONFIG, null, 2));
+  writeFileSync(join(repo, 'SPEC.md'), SPEC);
+  writeFileSync(join(repo, 'notes.txt'), 'mine\n');
+  const nothingMade = () => {
+    assert.ok(!existsSync(join(box.dir, 'repo-web-1')), 'no folder');
+    assert.notEqual(box.tryGit(repo, 'rev-parse', '--verify', '--quiet', 'refs/heads/web/1').status, 0, 'no branch');
+  };
+  /** Refused, with the files it names; returns the command it gives. */
+  const refused = (pattern, named) => {
+    const said = box.run(repo, 'worktree', 'web');
+    assert.equal(said.code, 1, said.out);
+    assert.match(said.err, pattern);
+    for (const file of named) assert.ok(said.err.includes(file), `names ${file}: ${said.err}`);
+    assert.ok(!said.err.includes('notes.txt'), 'leaves the person\'s own files out');
+    nothingMade();
+    const [, command] = said.err.match(/Commit them first: (.*)\n/);
+    assert.ok(command.startsWith(`cd ${repo} && git add -- `), command);
+    return command;
+  };
+  const sh = (command) => execFileSync('sh', ['-c', command], { env: box.env, encoding: 'utf8', stdio: 'pipe' });
+
+  const first = refused(/\[NOT_COMMITTED\] this repo has no commit yet, and a new worktree starts from one; not committed: /, [
+    '.githooks/pre-commit',
+    'AGENTS.md',
+    'PRACTICE.md',
+    'SPEC.md',
+    'pullboard.json',
+  ]);
+  sh(first);
+  for (const file of ['.githooks/pre-commit', 'AGENTS.md', 'PRACTICE.md', 'SPEC.md', 'pullboard.json']) {
+    assert.equal(box.git(repo, 'ls-tree', '--name-only', 'HEAD', '--', file), file, `${file} is committed`);
+  }
+  assert.equal(box.git(repo, 'ls-tree', '--name-only', 'HEAD', '--', 'notes.txt'), '', 'the command commits only those files');
+
+  writeFileSync(join(repo, 'SPEC.md'), `${SPEC}- G3 [draft, aim] A third goal. | gate: test\n`);
+  writeFileSync(join(repo, '.githooks', 'post-checkout'), '#!/bin/sh\n');
+  rmSync(join(repo, 'PRACTICE.md'));
+  box.git(repo, 'add', 'notes.txt');
+  refused(/\[NOT_COMMITTED\] a new worktree starts from the last commit, and these differ from it here: /, [
+    '.githooks/post-checkout (not committed)',
+    'PRACTICE.md (deleted)',
+    'SPEC.md (changed)',
+  ]);
+  box.git(repo, 'checkout', '--', 'PRACTICE.md');
+  sh(refused(/these differ from it here: \.githooks\/post-checkout \(not committed\), SPEC\.md \(changed\)\. /, []));
+  assert.equal(box.git(repo, 'diff', '--cached', '--name-only'), 'notes.txt', "the person's staged file stays staged, and out of the commit");
+
+  const made = box.run(repo, 'worktree', 'web');
+  assert.equal(made.code, 0, made.err);
+  assert.match(made.out, /repo-web-1 on branch web\/1, joined as web-1 in the web lane/, 'the refusals made nothing and joined no one');
+  const web = join(box.dir, 'repo-web-1');
+  assert.ok(readFileSync(join(web, 'SPEC.md'), 'utf8').includes('- G3 [draft'), 'it starts with the spec as committed');
+  const foreign = commitFile(box, web, 'api/a.js', 'a', 'feat(web): page [G1]');
+  assert.match(foreign.stderr, /outside the web lane: api\/a.js/, 'its hooks run');
+});
+
+test('a worktree whose commit has no pullboard.json is sent to the main checkout, never told to run init [C4]', () => {
+  const box = sandbox();
+  const repo = join(box.dir, 'repo');
+  mkdirSync(repo);
+  box.git(repo, 'init', '-q', '-b', 'main');
+  writeFileSync(join(repo, 'README.md'), '# app\n');
+  box.git(repo, 'add', 'README.md');
+  box.git(repo, 'commit', '-q', '-m', 'docs: readme');
+  assert.equal(box.run(repo, 'init').code, 0);
+  const old = join(box.dir, 'old');
+  box.git(repo, 'worktree', 'add', '-q', '--detach', old, 'HEAD');
+  for (const command of [['next'], ['status'], ['join', 'web']]) {
+    const said = box.run(old, ...command);
+    assert.equal(said.code, 1, said.out);
+    assert.match(said.err, /\[NO_CONFIG\] this worktree's commit has no pullboard\.json, though the main checkout has one: /);
+    assert.ok(said.err.includes(`which says what to commit first: cd ${repo} && pullboard worktree <lane>`), said.err);
+    assert.ok(!said.err.includes('pullboard init'), `${command[0]} never says to run init`);
+  }
+  const plain = join(box.dir, 'plain');
+  mkdirSync(plain);
+  box.git(plain, 'init', '-q');
+  assert.match(box.run(plain, 'next').err, /\[NO_CONFIG\] no pullboard\.json in .*; run: pullboard init/, 'a repo with no pullboard is still told to init');
+});
+
 test('a red gate refuses submit [V4]', () => {
   const box = project();
   writeFileSync(join(box.repo, 'RED'), 'red');
