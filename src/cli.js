@@ -46,6 +46,7 @@ import { commandOutput } from './json.js';
 import { forgetProject, registerProject } from './projects.js';
 import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
 import { serveView } from './serve.js';
+import { exportBoard, importBoard } from './exchange.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
@@ -97,6 +98,8 @@ Work
   pullboard shout <to> <text> --evidence attempt|receipt --outcome <word> --item <id> --commit <rev>
   pullboard answer <shout-id> <text>              answer a shout that asked for a decision
   pullboard decisions                             shouts still waiting for a decision
+  pullboard export                              print the whole board as versioned JSON
+  pullboard import <file>                       restore a versioned export into an empty board
 
 Coordinator
   pullboard sweep --run "<checker>" --check "<checker on {file}>" [--route light] [--max 20] [--dry-run]
@@ -788,8 +791,30 @@ function refuseUncommittedSetup(mainRoot, config) {
  * @param {any} args
  * @returns {Record<string, () => number>}
  */
-function readCommands(io, { first, values }) {
+function readCommands(io, { first, second, rest, values }) {
   return {
+    export: () => {
+      if (first) throw new Refused('USAGE', 'pullboard export takes no arguments');
+      const ctx = context(io);
+      io.say(JSON.stringify(withBoard(ctx, (board) => exportBoard(board)), null, 2));
+      return 0;
+    },
+    import: () => {
+      if (!first || second || rest.length) throw new Refused('USAGE', 'pullboard import <file>');
+      const file = resolve(io.cwd, first);
+      if (!existsSync(file)) throw new Refused('NO_FILE', `no export file ${first}`);
+      let document;
+      try {
+        document = JSON.parse(readFileSync(file, 'utf8'));
+      } catch {
+        throw new Refused('IMPORT_FORMAT', `file ${first} is not a JSON export; use pullboard export to make one`);
+      }
+      const ctx = context(io);
+      const imported = withBoard(ctx, (board) => importBoard(board, document));
+      if (typeof io.result === 'function') io.result({ tables: imported.tables });
+      else io.say(`imported version ${document.version} board tables: ${imported.tables.join(', ')}`);
+      return 0;
+    },
     resume: () => resumeHere(io),
     whoami: () => {
       const ctx = context(io);
