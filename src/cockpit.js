@@ -225,6 +225,11 @@ input, select, textarea { border: 1px solid var(--line-strong); background: var(
 .feed .day { margin: 0; padding: 12px 0 4px; font: 600 11px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
 .feed .day:first-child { padding-top: 6px; }
 .feed button.ref { border: 0; background: none; padding: 0; color: var(--accent-strong); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.code { display: block; margin: 6px 0 2px; padding: 6px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); font: 12px/1.55 var(--mono); white-space: pre; overflow-x: auto; overflow-wrap: normal; }
+.code > span { display: block; padding-right: 12px; }
+.code i { display: inline-block; min-width: 3.2em; padding: 0 10px 0 6px; text-align: right; font-style: normal; color: var(--ink-faint); user-select: none; }
+.code .more, .code.no { padding: 2px 10px; white-space: normal; color: var(--ink-muted); }
+.code.no { color: var(--reject); }
 .feed .act { display: flex; gap: 0 5px; align-items: baseline; min-width: 0; }
 .feed .act .what { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); }
 .agent { display: grid; gap: 2px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; }
@@ -343,7 +348,7 @@ input, select, textarea { border: 1px solid var(--line-strong); background: var(
 <script>
 const key = new URLSearchParams(location.search).get('k') || '';
 const keep = (name, value) => { try { if (value === undefined) return localStorage.getItem(name); localStorage.setItem(name, value); } catch { return null; } return value; };
-const view = { root: keep('pb.project'), tab: keep('pb.tab') || 'items', seen: {}, item: null, adding: false, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null } };
+const view = { root: keep('pb.project'), tab: keep('pb.tab') || 'items', seen: {}, code: {}, item: null, adding: false, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null } };
 let data = null;
 let seen = '';
 const $ = (id) => document.getElementById(id);
@@ -380,6 +385,15 @@ const verdictHtml = (v) => '<div class="verdict ' + (v.decision === 'ACCEPT' ? '
 const stateOf = (i) => i.status === 'claimed' ? 'building' : i.status === 'submitted' ? 'verify' : i.status === 'verified' ? 'verified' : i.status === 'withdrawn' ? 'withdrawn' : i.verdict && i.verdict.decision === 'REJECT' ? 'back' : 'open';
 const STATES = { building: ['building', 'busy'], verify: ['to verify', 'warn'], back: ['sent back', 'no'], verified: ['verified', 'ok'], open: ['open', ''], withdrawn: ['withdrawn', ''] };
 const chip = (s) => '<span class="chip ' + STATES[s][1] + '">' + STATES[s][0] + '</span>';
+// A shout's path:lines@commit reference (B23): a button, and under it, once opened, that code as it
+// was at that commit, with its line numbers.
+const codeRef = (ref) => {
+  const c = view.code[view.root + ' ' + ref];
+  const open = Boolean(c && c.open);
+  const shown = !open ? '' : c.error ? '<span class="code no">' + esc(c.error) + '</span>' : !c.lines ? '<span class="code more">loading…</span>'
+    : '<span class="code">' + c.lines.map((line, n) => '<span><i>' + (c.from + n) + '</i>' + esc(line) + '</span>').join('') + (c.more ? '<span class="more">the first ' + c.lines.length + ' lines</span>' : '') + '</span>';
+  return '<button class="ref" data-code="' + esc(ref) + '" type="button" aria-expanded="' + open + '">' + esc(ref) + '</button>' + shown;
+};
 const tone = (s) => s === 'approved' ? 'ok' : s === 'pending' ? 'no' : s === 'draft' ? 'warn' : '';
 const count = (n, one, many = one) => n + ' ' + (n === 1 ? one : many);
 // What needs the person in a project, as its Needs-you list counts it: work sent back or waiting for a
@@ -685,9 +699,10 @@ function render() {
 
   // Every #id in a shout that names an item opens it, whatever stands next to it. The ids are found in
   // the raw text and each piece is escaped on its own, so an apostrophe's &#39; is never read as one;
-  // a number that names no item stays text.
+  // a number that names no item stays text. A path:lines@commit reference opens that code (B23).
   const titles = new Map(p.items.map((i) => [String(i.id), i.title]));
-  const linked = (text) => String(text ?? '').split(/(#\\d+)/).map((part) => {
+  const linked = (text) => String(text ?? '').split(/(#\\d+|[\\w.-]+(?:\\/[\\w.-]+)*:\\d+(?:-\\d+)?@[0-9a-f]{7,40}(?!\\w))/).map((part, n) => {
+    if (n % 2 && part[0] !== '#') return codeRef(part);
     const id = /^#\\d+$/.test(part) ? String(Number(part.slice(1))) : '';
     return titles.has(id) ? '<button class="ref" data-go="item:' + id + '" title="' + esc(titles.get(id)) + '" type="button">' + esc(part) + '</button>' : esc(part);
   }).join('');
@@ -789,6 +804,25 @@ function search() {
 }
 
 /**
+ * Open or close the code a path:lines@commit reference names (B23). The first open asks the view for
+ * those lines as they were at that commit; the answer stays with the page, so every refresh redraws
+ * it, and a failed ask is tried again on the next open.
+ */
+async function code(ref) {
+  const c = (view.code[view.root + ' ' + ref] ??= { open: false });
+  c.open = !c.open;
+  render();
+  if (!c.open || c.lines) return;
+  c.error = null;
+  try {
+    Object.assign(c, await api('/api/code?root=' + encodeURIComponent(view.root) + '&ref=' + encodeURIComponent(ref)));
+  } catch (error) {
+    c.error = String(error.message || error);
+  }
+  render();
+}
+
+/**
  * Run an action as its CLI command on the server, show what the command said, and redraw from the
  * board. The console belongs to the latest action: one that answers after a later one has started
  * writes nothing there and sets no close, and a close fires only while its action is still the
@@ -851,7 +885,7 @@ function switchTo(root) {
 }
 
 document.addEventListener('click', (event) => {
-  const t = event.target.closest('[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-release],[data-shout],[data-new],#proj-switch,#console');
+  const t = event.target.closest('[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-release],[data-shout],[data-new],[data-code],#proj-switch,#console');
   if (!event.target.closest('.side')) fold(false);
   if (!t) return;
   if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
@@ -863,6 +897,7 @@ document.addEventListener('click', (event) => {
   else if (t.dataset.state) { view.state = t.dataset.state; render(); }
   else if (t.dataset.rows) { const [kind, f] = t.dataset.rows.split(':'); view.rows[kind] = f; render(); }
   else if (t.dataset.row) { const [kind, id] = t.dataset.row.split(':'); view.row[kind] = id; render(); }
+  else if (t.dataset.code) code(t.dataset.code);
   else if (t.dataset.release) act('release', { lane: t.dataset.release });
   else if (t.dataset.shout) { $('shout-to').value = t.dataset.shout; $('shout-text').value = '#' + t.dataset.about + ': '; view.tab = 'shouts'; showTab(); $('shout-text').focus(); }
   else if (t.dataset.new !== undefined) { view.adding = true; render(); $('add-title').focus(); }
