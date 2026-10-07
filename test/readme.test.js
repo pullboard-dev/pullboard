@@ -97,3 +97,14 @@ test('the lifecycle figure is drawn from the declaration, and refuses a state or
   const bench = { ...MACHINE, moves: [...MACHINE.moves, { verb: 'bench', from: ['claimed'], to: 'open', by: ['coordinator'], guards: [] }] };
   assert.match(texts(drawLifecycle(bench)).map((text) => text.words).join(' '), /\bbench\b/, 'a new move between drawn states is named without touching draw.mjs');
 });
+
+test('README shows JSON output for spec check and view [S13]', () => {
+  assert.match(README, /`pullboard spec check --json`/);
+  assert.match(README, /`pullboard spec view --json`/);
+  assert.match(README, /\[CLI JSON API\]\(docs\/api\.md\)/);
+});
+
+test('README shows the signers field and setup command [S18]', () => {
+  assert.match(README, /```markdown\n- R1 \[approved, must\] A release is tested\. \| gate: npm test\n- R2 \[approved, must\] A release is signed\. \| gate: npm test \| signers: alice@workstation, bob@workstation\n```/);
+  assert.match(README, /`pullboard spec signers add`/);
+});
