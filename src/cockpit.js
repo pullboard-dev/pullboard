@@ -133,6 +133,7 @@ main { padding: 16px 18px 28px; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; }
 .toolbar input { flex: 1 1 96px; }
 input, select, textarea { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 8px; padding: 7px 9px; min-width: 0; }
+input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .go { border: 0; background: var(--ink); color: var(--surface); border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 600; white-space: nowrap; }
 .go:hover { background: var(--accent-strong); color: var(--on-accent); }
 .ghost { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
@@ -146,6 +147,14 @@ input, select, textarea { border: 1px solid var(--line-strong); background: var(
 .ny span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); }
 .ny em { font-style: normal; color: var(--warn); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (width < 480px) { .ny { grid-template-columns: auto minmax(0, 1fr); row-gap: 1px; } .ny em { grid-column: 2; } }
+.ask { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: center; padding: 6px 4px; }
+.ask p { margin: 0; overflow-wrap: anywhere; }
+.ask small { color: var(--ink-muted); }
+.ask button { grid-row: 1 / span 2; grid-column: 2; }
+.answering { flex: 1 1 100%; display: flex; gap: 10px; align-items: baseline; justify-content: space-between; margin: 0; font-size: 13px; color: var(--ink-muted); }
+.answering > span { min-width: 0; overflow-wrap: anywhere; }
+.mark { font: 600 11px var(--mono); padding: 0 6px; border-radius: 999px; background: var(--surface-2); color: var(--ink-muted); }
+.mark.ask { display: inline; background: var(--warn-soft); color: var(--warn); }
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 2px; }
 .chips button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 9px; cursor: pointer; font-size: 13px; }
@@ -315,7 +324,8 @@ input, select, textarea { border: 1px solid var(--line-strong); background: var(
   </section>
   <section data-pane="shouts" class="two narrow">
     <div class="primary">
-      <form id="shout-form" class="card-panel inline"><label>To<input id="shout-to" list="shout-targets" required placeholder="all, a lane or an agent"></label><datalist id="shout-targets"></datalist><label style="flex:4 1 260px">Message<input id="shout-text" required></label><button class="go" type="submit">Shout</button></form>
+      <section class="needs-you" id="decisions" aria-label="Decisions needed" hidden></section>
+      <form id="shout-form" class="card-panel inline"><p class="answering" id="answering" hidden><span>Answering <b id="answering-who"></b>: <span id="answering-q"></span></span><button class="ghost" id="answer-cancel" type="button">Cancel</button></p><label>To<input id="shout-to" list="shout-targets" required placeholder="all, a lane or an agent"></label><datalist id="shout-targets"></datalist><label style="flex:4 1 260px">Message<input id="shout-text" required></label><button class="go" id="shout-send" type="submit">Shout</button></form>
       <div class="card-panel feed" id="feed"></div>
     </div>
     <aside class="card-panel detail" aria-label="Agents and lanes">
@@ -596,6 +606,7 @@ function renderSide() {
 function render() {
   const p = data.project;
   renderSide();
+  if (view.answering && view.answering.root !== view.root) answer(null);
   // Until the first board arrives the page shows no tabs or panes, so a machine with none never
   // flashes them; with no board to show, one message says how a board starts, in their place.
   document.body.classList.remove('loading');
@@ -615,8 +626,10 @@ function render() {
   $('count-spec').textContent = p.spec.filter((r) => ['pending', 'draft'].includes(r.status)).length || '';
   $('count-doctrine').textContent = p.practice.filter((r) => ['pending', 'draft'].includes(r.status)).length || '';
 
-  // What needs the person, first: questions, work sent back, work waiting for a verdict, held lanes.
+  // What needs the person, first: decisions asked, questions, work sent back, work waiting for a
+  // verdict, held lanes.
   const needs = [
+    ...p.decisions.map((d) => ['decide:' + d.shout_id, d.shout_from, d.shout_text, 'decide', d.shout_at]),
     ...p.spec.filter((r) => r.status === 'pending').map((r) => ['spec:' + r.id, r.id, r.text, 'answer in SPEC.md']),
     ...by('back').map((i) => ['item:' + i.id, '#' + i.id, i.title, 'sent back: ' + i.verdict.reason]),
     ...by('verify').map((i) => ['item:' + i.id, '#' + i.id, i.title, (i.reviewer ? 'being reviewed by ' + i.reviewer : rejected(i) ? 'resubmitted after ' + i.verdict.reason : 'to verify'), i.updatedAt]),
@@ -691,7 +704,11 @@ function render() {
     const id = /^#\\d+$/.test(part) ? String(Number(part.slice(1))) : '';
     return titles.has(id) ? '<button class="ref" data-go="item:' + id + '" title="' + esc(titles.get(id)) + '" type="button">' + esc(part) + '</button>' : esc(part);
   }).join('');
-  $('feed').innerHTML = p.shouts.length ? byDay(p.shouts, (x) => x.shout_at, (x) => '<div><time>' + clock(x.shout_at) + '</time><div><b>' + esc(x.shout_from) + ' → ' + esc(x.shout_to) + '</b> ' + linked(x.shout_text) + '</div></div>') : '<div class="empty">No shouts yet.</div>';
+  const mark = (x) => (x.shout_decision ? '<span class="mark ask">decision</span> ' : x.shout_answers ? '<span class="mark">answer</span> ' : '');
+  $('feed').innerHTML = p.shouts.length ? byDay(p.shouts, (x) => x.shout_at, (x) => '<div><time>' + clock(x.shout_at) + '</time><div><b>' + esc(x.shout_from) + ' → ' + esc(x.shout_to) + '</b> ' + mark(x) + linked(x.shout_text) + '</div></div>') : '<div class="empty">No shouts yet.</div>';
+  // Each ask waits here until it is answered (B21); the answer itself is typed in the form below.
+  $('decisions').hidden = !p.decisions.length;
+  $('decisions').innerHTML = '<div class="head"><i></i>Decision needed</div>' + p.decisions.map((d) => '<div class="ask"><p><small><b>' + esc(d.shout_from) + '</b> asks, ' + age(d.shout_at) + '</small></p><p>' + linked(d.shout_text) + '</p><button class="ghost" data-go="decide:' + d.shout_id + '" type="button">Answer</button></div>').join('');
   $('shout-targets').innerHTML = ['all', ...lanes, ...p.agents.map((a) => a.agent_id)].map((t) => '<option value="' + esc(t) + '">').join('');
   // Each agent with what it holds: its claim, then its work sent back, then its work waiting for a
   // verdict. The worktree path is there on hover; what the person reads is who is doing what.
@@ -755,11 +772,32 @@ function countUnseen() {
   $('count-shouts').textContent = (p.unseen && p.unseen.since === seen ? p.unseen.count : p.shouts.filter((x) => x.shout_id > seen).length) || '';
 }
 
+/**
+ * Put the shout form in answer mode for an open decision (B21), or back to a plain shout with null.
+ * The form is never redrawn, so what the person types survives every refresh; only its answer line,
+ * its To and its button change. The To the person had comes back when the answer is done. An answer
+ * belongs to the project whose question it shows: leaving that project leaves answer mode.
+ */
+function answer(id) {
+  const ask = id === null ? null : data.project.decisions.find((d) => d.shout_id === id) || null;
+  if (ask && !view.answering) view.to = $('shout-to').value;
+  if (!ask && view.answering) $('shout-to').value = view.to || '';
+  view.answering = ask ? { root: view.root, id: ask.shout_id } : null;
+  $('answering').hidden = !ask;
+  $('answering-who').textContent = ask ? ask.shout_from : '';
+  $('answering-q').textContent = ask ? ask.shout_text : '';
+  if (ask) $('shout-to').value = ask.shout_from;
+  $('shout-to').disabled = Boolean(ask);
+  $('shout-send').textContent = ask ? 'Answer' : 'Shout';
+  if (ask) $('shout-text').focus();
+}
+
 function go(target) {
   const [kind, id] = target.split(':');
   if (kind === 'item') { view.tab = 'items'; view.state = 'all'; view.before = null; }
   else if (kind === 'spec') { view.tab = 'spec'; view.row.spec = id; view.rows.spec = 'all'; }
   else if (kind === 'tab') view.tab = id;
+  else if (kind === 'decide') { view.tab = 'shouts'; answer(Number(id)); }
   keep('pb.tab', view.tab);
   if (kind === 'item') pick(Number(id));
   else render();
@@ -838,6 +876,7 @@ function fold(open) {
 
 /** Show another project: mark it at once, dim the old one's panes until its board arrives. */
 function switchTo(root) {
+  answer(null);
   view.root = root;
   view.item = null;
   view.adding = false;
@@ -864,12 +903,13 @@ document.addEventListener('click', (event) => {
   else if (t.dataset.rows) { const [kind, f] = t.dataset.rows.split(':'); view.rows[kind] = f; render(); }
   else if (t.dataset.row) { const [kind, id] = t.dataset.row.split(':'); view.row[kind] = id; render(); }
   else if (t.dataset.release) act('release', { lane: t.dataset.release });
-  else if (t.dataset.shout) { $('shout-to').value = t.dataset.shout; $('shout-text').value = '#' + t.dataset.about + ': '; view.tab = 'shouts'; showTab(); $('shout-text').focus(); }
+  else if (t.dataset.shout) { answer(null); $('shout-to').value = t.dataset.shout; $('shout-text').value = '#' + t.dataset.about + ': '; view.tab = 'shouts'; showTab(); $('shout-text').focus(); }
   else if (t.dataset.new !== undefined) { view.adding = true; render(); $('add-title').focus(); }
 });
 // The form covers the picked item rather than dropping it, so Cancel brings it back.
 $('new-item').addEventListener('click', () => { view.adding = true; render(); $('add-title').focus(); });
 $('add-cancel').addEventListener('click', () => { view.adding = false; render(); });
+$('answer-cancel').addEventListener('click', () => answer(null));
 // Each press moves on one, from the system's theme to light, then dark, and back; this browser keeps it.
 $('theme').addEventListener('click', () => {
   const next = { light: 'dark', dark: 'system' }[document.documentElement.dataset.theme] || 'light';
@@ -888,7 +928,12 @@ $('add-form').addEventListener('submit', async (event) => {
 });
 $('shout-form').addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (await act('shout', { to: $('shout-to').value, text: $('shout-text').value })) $('shout-text').value = '';
+  const text = $('shout-text').value;
+  const ask = view.answering;
+  if (ask && ask.root !== view.root) return answer(null);
+  if (!(await (ask ? act('answer', { id: ask.id, text }) : act('shout', { to: $('shout-to').value, text })))) return;
+  $('shout-text').value = '';
+  answer(null);
 });
 $('hold-form').addEventListener('submit', async (event) => {
   event.preventDefault();
