@@ -108,3 +108,20 @@ test('HTTP errors are versioned and bounded; production cookies are Secure [H8, 
   assert.match(captured['Set-Cookie'], /; Secure$/);
   assert.throws(() => createAuthHandler({ auth: box.auth, publicOrigin: 'http://relay.example.invalid' }), { code: 'RELAY_CONFIG' });
 });
+
+test('plain public readers receive the exact missing-board HTTP refusal [H13,H14,H8]', async (t) => {
+  const box = await relay(t);
+  box.state.public = true;
+  const signed = await browserLogin(box);
+  const headers = { cookie: signed.cookie, origin: box.origin, 'Content-Type': 'application/json' };
+  const linked = await fetch(box.origin + '/auth/boards/link', { method: 'POST', headers, body: JSON.stringify({ board: 'alpha', repository: 'fixture/repository' }) });
+  assert.equal(linked.status, 200);
+  box.state.permission = 'none';
+  const known = await fetch(box.origin + '/auth/tokens', { method: 'POST', headers, body: JSON.stringify({ board: 'alpha', agent: 'worker' }) });
+  const absent = await fetch(box.origin + '/auth/tokens', { method: 'POST', headers, body: JSON.stringify({ board: 'missing', agent: 'worker' }) });
+  assert.equal(known.status, 404);
+  assert.equal(absent.status, 404);
+  assert.deepEqual(await known.json(), await absent.json());
+  const visible = await fetch(box.origin + '/auth/boards', { headers: { cookie: signed.cookie } });
+  assert.deepEqual((await visible.json()).boards, []);
+});

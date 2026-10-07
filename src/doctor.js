@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { BLANKS, STATES, storeTriggers } from './machine.js';
 
-const SCHEMA_VERSION = 1;
+import { SCHEMA_VERSION } from './board.js';
 const blankCharacters = new Set(BLANKS.map((point) => String.fromCodePoint(point)));
 
 /**

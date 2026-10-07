@@ -11,6 +11,7 @@ import { beforeEach, test } from 'node:test';
 import * as store from '../src/board.js';
 import { main } from '../src/cli.js';
 import { briefFiles } from '../src/brief.js';
+import { JSON_SHAPES } from '../src/json.js';
 
 const HOUR = 3_600_000;
 const SHA_A = 'a'.repeat(40);
@@ -27,6 +28,49 @@ const freeze = (item) => ({ text: item.item_title, digest: `digest:${item.item_t
  * Claim as an agent in its lane, with a 2-hour lease.
  */
 const claimAs = (id, agentId, lane) => store.claim(board, id, { agentId, lane, leaseMs: 2 * HOUR, freeze });
+
+/**
+ * Run one CLI command with captured text and JSON output streams.
+ *
+ * @param {string} cwd
+ * @param {string[]} argv
+ * @returns {Promise<{ code: number, stdout: string, stderr: string }>}
+ */
+async function runMain(cwd, argv) {
+  let stdout = '';
+  let stderr = '';
+  const code = await main(argv, {
+    cwd,
+    stdout: { isTTY: false, write: (text) => { stdout += text; } },
+    stderr: { write: (text) => { stderr += text; } },
+  });
+  return { code, stdout, stderr };
+}
+
+/**
+ * Freeze the real spec row shape that `show` renders for the family integration fixture.
+ *
+ * @returns {{ text: string, digest: string }}
+ */
+function familyFreeze() {
+  return {
+    text: JSON.stringify({ rows: [{ id: 'G1', text: 'Families are recorded.', gate: 'true' }] }),
+    digest: 'digest:family',
+  };
+}
+
+/**
+ * Check every required top-level JSON result field against the shared CLI catalog.
+ *
+ * @param {any} result
+ * @param {string} command
+ */
+function assertJsonShape(result, command) {
+  for (const [key, type] of Object.entries(JSON_SHAPES.commands[command].required)) {
+    const correct = type === 'array' ? Array.isArray(result[key]) : typeof result[key] === type;
+    assert.equal(correct, true, `${command} JSON field ${key}`);
+  }
+}
 
 beforeEach(() => {
   let at = Date.parse('2026-10-04T12:00:00Z');
@@ -154,6 +198,40 @@ test('the builder never verifies its own work [V1]', () => {
   const id = submitted();
   assert.throws(() => verdict(id, { agentId: 'web-1', decision: 'ACCEPT' }), /SELF_VERIFY/);
   assert.equal(verdict(id, { agentId: 'web-2', decision: 'ACCEPT' }).reason, 'CRITERION_MET');
+});
+
+/** A verifier can release its live review reservation for another verifier [V15]. */
+test('a verifier releases its reserved review; another verifier can take it, and claims still release [V15]', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-review-release-'));
+  const durable = store.openBoard(join(directory, 'board.sqlite'), clock);
+  try {
+    store.register(durable, { lane: 'coordinator', path: '/repo' });
+    const builder = store.register(durable, { lane: 'web', path: '/repo-web-1' });
+    const reviewer = store.register(durable, { lane: 'web', path: '/repo-web-2' });
+    const second = store.register(durable, { lane: 'web', path: '/repo-web-3' });
+    const third = store.register(durable, { lane: 'web', path: '/repo-web-4' });
+    const id = store.addItem(durable, { by: 'coordinator', lane: 'web', title: 'Page' });
+    store.claim(durable, id, { agentId: builder, lane: 'web', leaseMs: HOUR, freeze });
+    store.submit(durable, id, { agentId: builder, commit: SHA_A, tree: 'tree-a' });
+    store.reserveReview(durable, id, { agentId: reviewer, leaseMs: HOUR, policy: 'any' });
+
+    assert.equal(store.release(durable, id, reviewer), true);
+    assert.deepEqual(
+      [store.getItem(durable, id).item_review_by, store.getItem(durable, id).item_review_until],
+      [null, null],
+    );
+    assert.equal(store.events(durable, { itemId: id }).at(-1).event_kind, 'release');
+    assert.equal(store.reserveReview(durable, id, { agentId: second, leaseMs: HOUR, policy: 'any' }).item_review_by, second);
+    assert.throws(() => store.release(durable, id, third), /NOT_YOURS/);
+
+    const claimed = store.addItem(durable, { by: 'coordinator', lane: 'web', title: 'Another page' });
+    store.claim(durable, claimed, { agentId: reviewer, lane: 'web', leaseMs: HOUR, freeze });
+    assert.equal(store.release(durable, claimed, reviewer), false);
+    assert.equal(store.getItem(durable, claimed).item_status, 'open');
+  } finally {
+    store.closeBoard(durable);
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test('under verify: coordinator, lane work is the coordinator\'s to verify', () => {
@@ -315,22 +393,26 @@ test('an item can wait on others: claiming it is refused until they are verified
   assert.throws(() => store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Late', after: [dropped] }), /WITHDRAWN/);
 });
 
-test('a board made by an older version is migrated on open', () => {
+test('a board made by an older version is migrated on open [O3]', () => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-migrate-'));
   try {
     const file = join(dir, 'board.sqlite');
     const old = store.openBoard(file, clock);
-    for (const column of ['item_after', 'item_brief', 'item_route', 'item_check', 'item_claim_head', 'item_files']) old.db.exec(`ALTER TABLE item DROP COLUMN ${column}`);
-    old.db.exec('ALTER TABLE agent DROP COLUMN agent_route');
+    for (const column of ['item_after', 'item_brief', 'item_route', 'item_check', 'item_claim_head', 'item_files', 'item_builder_family']) old.db.exec(`ALTER TABLE item DROP COLUMN ${column}`);
+    for (const column of ['agent_route', 'agent_family']) old.db.exec(`ALTER TABLE agent DROP COLUMN ${column}`);
+    old.db.exec('ALTER TABLE verdict DROP COLUMN verdict_verifier_family');
     old.db.exec('DROP TABLE hold');
     store.closeBoard(old);
     const reopened = store.openBoard(file, clock);
     const columns = (table) => reopened.db.prepare(`PRAGMA table_info(${table})`).all().map((column) => column.name);
-    const [items, agents, holds] = [columns('item'), columns('agent'), columns('hold')];
+    const [items, agents, verdicts, holds] = [columns('item'), columns('agent'), columns('verdict'), columns('hold')];
     store.closeBoard(reopened);
     for (const column of ['item_after', 'item_brief', 'item_route', 'item_check', 'item_claim_head', 'item_files']) assert.ok(items.includes(column), column);
     assert.ok(holds.includes('hold_reason'));
     assert.ok(agents.includes('agent_route'));
+    assert.ok(agents.includes('agent_family'));
+    assert.ok(items.includes('item_builder_family'));
+    assert.ok(verdicts.includes('verdict_verifier_family'));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -557,4 +639,126 @@ test('a builder reworks its own rejected item beside its one claim; nothing else
   assert.equal(store.getItem(board, page).item_status, 'submitted');
   claimAs(nav, 'web-2', 'web');
   assert.throws(() => claimAs(aside, 'web-2', 'web'), /ONE_CLAIM/, "another agent's rejected item is no rework of web-2's");
+});
+
+test('[O3] declared families travel from join through submit and verdict, and absent family is allowed', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-families-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const previousHome = process.env.PULLBOARD_HOME;
+  process.env.PULLBOARD_HOME = join(directory, 'pullboard-home');
+  t.after(() => {
+    if (previousHome === undefined) delete process.env.PULLBOARD_HOME;
+    else process.env.PULLBOARD_HOME = previousHome;
+  });
+  const repo = join(directory, 'repo');
+  mkdirSync(repo);
+  const env = {
+    ...process.env,
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Test Agent',
+    GIT_AUTHOR_EMAIL: 'agent@example.com',
+    GIT_COMMITTER_NAME: 'Test Agent',
+    GIT_COMMITTER_EMAIL: 'agent@example.com',
+  };
+  /** Run Git with isolated identity and configuration in the fixture repository. */
+  const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+  git(repo, 'init', '-q', '-b', 'main');
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({
+    gate: 'true',
+    spec: 'SPEC.md',
+    verify: 'any',
+    lanes: { web: { owns: ['web/'], specs: [] }, review: { owns: ['review/'], specs: [] } },
+    shared: [],
+  }));
+  writeFileSync(join(repo, 'SPEC.md'), '# Family test\n\n## G · Goals\n- G1 [approved, must] Families are recorded. | gate: true\n');
+  git(repo, 'add', '-A');
+  git(repo, 'commit', '-q', '-m', 'chore: initialize family test');
+
+  const made = await runMain(repo, ['worktree', 'web', '--family', 'Family Alpha', '--json']);
+  assert.equal(made.code, 0, made.stderr || made.stdout);
+  const worktree = JSON.parse(made.stdout);
+  assertJsonShape(worktree, 'worktree');
+  const builderPath = worktree.path;
+  const reviewerPath = join(directory, 'reviewer');
+  git(repo, 'worktree', 'add', '-q', '-b', 'review/one', reviewerPath, 'main');
+  const reviewerRoot = git(reviewerPath, 'rev-parse', '--show-toplevel');
+  const joined = await runMain(reviewerRoot, ['join', 'review', '--family', 'Family Beta', '--json']);
+  assert.equal(joined.code, 0, joined.stderr || joined.stdout);
+  const joinResult = JSON.parse(joined.stdout);
+  assertJsonShape(joinResult, 'join');
+  const noFamilyPath = join(directory, 'no-family');
+  git(repo, 'worktree', 'add', '-q', '-b', 'web/two', noFamilyPath, 'main');
+  const noFamilyRoot = git(noFamilyPath, 'rev-parse', '--show-toplevel');
+  const joinedWithout = await runMain(noFamilyRoot, ['join', 'web']);
+  assert.equal(joinedWithout.code, 0, joinedWithout.stderr || joinedWithout.stdout);
+
+  const file = join(repo, '.git', 'pullboard', 'board.sqlite');
+  const persistent = store.openBoard(file);
+  t.after(() => store.closeBoard(persistent));
+  assert.equal(store.agentAt(persistent, builderPath).agent_family, 'Family Alpha');
+  assert.equal(store.agentAt(persistent, reviewerRoot).agent_family, 'Family Beta');
+  assert.equal(store.agentAt(persistent, noFamilyRoot).agent_family, null);
+  store.register(persistent, { lane: 'coordinator', path: repo });
+  assert.equal(store.agentAt(persistent, repo).agent_family, null, 'the core supplies no family for itself');
+  store.register(persistent, { lane: 'coordinator', path: repo, family: 'Family Coordinator' });
+  const coordinatorResume = await runMain(repo, ['resume']);
+  assert.match(coordinatorResume.stdout, /resume: coordinator \(Family Coordinator\), coordinator lane/);
+  const coordinatorJson = await runMain(repo, ['resume', '--json']);
+  assert.equal(JSON.parse(coordinatorJson.stdout).me.family, 'Family Coordinator');
+
+  const id = store.addItem(persistent, { by: 'coordinator', lane: 'web', title: 'Family feature' });
+  store.claim(persistent, id, { agentId: 'web-1', lane: 'web', leaseMs: 2 * HOUR, freeze: familyFreeze });
+  store.submit(persistent, id, { agentId: 'web-1', commit: SHA_A, tree: 'tree-a' });
+  assert.equal(store.getItem(persistent, id).item_builder_family, 'Family Alpha');
+  store.verify(persistent, id, {
+    agentId: 'review-1', decision: 'ACCEPT', note: 'checked the saved family fields',
+    head: SHA_A, digest: 'digest:family', policy: 'any',
+  });
+  const [recorded] = store.verdictsFor(persistent, id);
+  assert.equal(recorded.verdict_verifier_family, 'Family Beta');
+
+  const shown = await runMain(repo, ['show', String(id), '--json']);
+  assert.equal(shown.code, 0, shown.stderr || shown.stdout);
+  const shownJson = JSON.parse(shown.stdout);
+  assertJsonShape(shownJson, 'show');
+  assert.equal(shownJson.item_builder_family, 'Family Alpha');
+  assert.equal(shownJson.verdicts[0].verdict_verifier_family, 'Family Beta');
+  const shownText = await runMain(repo, ['show', String(id)]);
+  assert.match(shownText.stdout, /submitted by web-1 \(Family Alpha\)/);
+  assert.match(shownText.stdout, /ACCEPT CRITERION_MET by review-1 \(Family Beta\)/);
+
+  const redeclared = await runMain(reviewerRoot, ['join', 'review', '--family', 'Family Gamma', '--json']);
+  assert.equal(redeclared.code, 0, redeclared.stderr || redeclared.stdout);
+  assert.equal(JSON.parse(redeclared.stdout).agent, 'review-1', 'redeclaring keeps the existing agent id');
+  assert.equal(store.agentAt(persistent, reviewerRoot).agent_family, 'Family Gamma');
+  assert.equal(store.verdictsFor(persistent, id)[0].verdict_verifier_family, 'Family Beta', 'a later declaration leaves the old verdict unchanged');
+  const rejoined = await runMain(reviewerRoot, ['join', 'review', '--json']);
+  assert.equal(rejoined.code, 0, rejoined.stderr || rejoined.stdout);
+  assert.equal(store.agentAt(persistent, reviewerRoot).agent_family, 'Family Gamma', 'omitting --family preserves the declaration');
+  const historicalShow = await runMain(repo, ['show', String(id)]);
+  assert.match(historicalShow.stdout, /ACCEPT CRITERION_MET by review-1 \(Family Beta\)/);
+
+  const resumed = await runMain(builderPath, ['resume']);
+  assert.match(resumed.stdout, /resume: web-1 \(Family Alpha\), web lane/);
+  const resumedJson = await runMain(builderPath, ['resume', '--json']);
+  assert.equal(resumedJson.code, 0, resumedJson.stderr || resumedJson.stdout);
+  const resumedShape = JSON.parse(resumedJson.stdout);
+  assertJsonShape(resumedShape, 'resume');
+  assert.equal(resumedShape.me.family, 'Family Alpha');
+
+  const unverified = store.addItem(persistent, { by: 'coordinator', lane: 'review', title: 'No-family verdict' });
+  store.claim(persistent, unverified, { agentId: 'review-1', lane: 'review', leaseMs: 2 * HOUR, freeze: familyFreeze });
+  store.submit(persistent, unverified, { agentId: 'review-1', commit: SHA_B, tree: 'tree-b' });
+  store.verify(persistent, unverified, {
+    agentId: 'web-2', decision: 'ACCEPT', note: 'checked without a family declaration',
+    head: SHA_B, digest: 'digest:family', policy: 'any',
+  });
+  const [unattributed] = store.verdictsFor(persistent, unverified);
+  assert.equal(unattributed.verdict_verifier_family, null);
+
+  const unclaimed = store.addItem(persistent, { by: 'coordinator', lane: 'web', title: 'No-family submission' });
+  store.claim(persistent, unclaimed, { agentId: 'web-2', lane: 'web', leaseMs: 2 * HOUR, freeze: familyFreeze });
+  store.submit(persistent, unclaimed, { agentId: 'web-2', commit: SHA_A, tree: 'tree-c' });
+  assert.equal(store.getItem(persistent, unclaimed).item_builder_family, null);
 });

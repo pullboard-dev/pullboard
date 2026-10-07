@@ -15,7 +15,7 @@ export const JSON_SHAPES = {
     hooks: shape({ notes: 'array' }),
     join: shape({ agent: 'string', lane: 'string', route: 'string', path: 'string' }),
     worktree: shape({ agent: 'string', lane: 'string', route: 'string', path: 'string', branch: 'string', prompt: 'string' }),
-    resume: shape({ me: 'object', all: 'array', holding: 'array', sentBack: 'array', awaiting: 'array', toVerify: 'array', toMerge: 'array', open: 'array', holds: 'array', unread: 'number', newest: 'array', root: 'string', dirty: 'number', next: 'string' }),
+    resume: shape({ me: 'object', all: 'array', requests: 'array', holding: 'array', sentBack: 'array', awaiting: 'array', toVerify: 'array', toMerge: 'array', open: 'array', holds: 'array', unread: 'number', newest: 'array', root: 'string', dirty: 'number', next: 'string' }),
     whoami: shape({ id: 'string', lane: 'string', path: 'string' }),
     lanes: shape({ lanes: 'object', shared: 'array', coordinator: 'string' }),
     list: shape({ items: 'array' }),
@@ -48,6 +48,7 @@ export const JSON_SHAPES = {
     tour: shape({ messages: 'array' }),
     lifecycle: shape({ markdown: 'string' }),
     view: shape({ url: 'string', port: 'number' }),
+    serve: shape({ url: 'string', port: 'number' }),
     forget: shape({ root: 'string' }),
     prompt: shape({ role: 'string', text: 'string' }),
     gate: shape({ green: 'boolean', report: 'string' }),
@@ -63,6 +64,14 @@ export const JSON_SHAPES = {
     'hook commit-msg': shape({ messages: 'array' }),
     'hook pre-push': shape({ messages: 'array' }),
   },
+  http: {
+    boards: shape({ boards: 'array' }),
+    state: shape({ state: 'object' }),
+    events: shape({ events: 'array' }),
+    move: shape({ event: 'object', result: 'object' }),
+    request: shape({ event: 'object', result: 'object' }),
+    stream: shape({ event: 'object' }),
+  },
   error: shape({ error: 'object' }),
   errorFields: { code: 'string', message: 'string', next: 'string' },
 };
@@ -71,6 +80,12 @@ export const JSON_SHAPES = {
 function nextStep(message) {
   const match = /(?:; |\. |: )((?:run|install|fix|restore|commit|check out|set|give|use|ask your coordinator|answer from the main checkout|the coordinator|to keep looking|never work around)\b[\s\S]*)/i.exec(message);
   return match?.[1] ?? 'Run pullboard help, correct the reported problem, and retry the command.';
+}
+
+/** A refusal shared by the CLI and API, retaining its rule and repair guidance (A1, A2). */
+export function refusalDocument(error) {
+  const message = String(error.message).replace(/^\[[A-Z_]+\] /, '');
+  return { version: JSON_SHAPES.version, error: { code: error.code ?? 'INTERNAL', message, next: nextStep(message) } };
 }
 
 /**
@@ -96,7 +111,7 @@ export function commandOutput(argv, streams) {
       const text = refusal?.message ?? [...diagnostics, ...messages].join('\n');
       const match = /\[([A-Z_]+)\]\s*([\s\S]*)/.exec(text);
       const message = refusal ? text.replace(/^\[[A-Z_]+\] /, '') : match?.[2] ?? text;
-      document = { version: JSON_SHAPES.version, error: { code: refusal?.code ?? match?.[1] ?? (code === 2 ? 'USAGE' : 'COMMAND_FAILED'), message, next: nextStep(message) } };
+      document = refusalDocument({ code: refusal?.code ?? match?.[1] ?? (code === 2 ? 'USAGE' : 'COMMAND_FAILED'), message });
     } else if (result !== undefined) {
       document = { version: JSON_SHAPES.version, ...result };
     } else {

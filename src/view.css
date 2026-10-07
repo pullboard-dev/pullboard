@@ -126,6 +126,8 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .needs-you { background: color-mix(in srgb, var(--warn) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 38%, var(--line)); border-radius: 14px; box-shadow: var(--shadow); padding: 10px 12px; display: grid; gap: 4px; }
 .needs-you .head { font-weight: 700; display: flex; gap: 8px; align-items: center; }
 .needs-you .head i { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); display: inline-block; }
+.needs-you .head.quiet { color: var(--ink-muted); font-weight: 600; }
+.needs-you .ask + .head.quiet { margin-top: 12px; }
 .needs-you .more { padding: 2px 4px; }
 .ny { display: grid; grid-template-columns: auto minmax(5em, 1fr) minmax(0, max-content); gap: 10px; align-items: baseline; text-align: left; border: 0; background: none; padding: 6px 4px; border-radius: 8px; cursor: pointer; width: 100%; }
 .ny:hover { background: color-mix(in srgb, var(--warn) 10%, var(--surface)); }

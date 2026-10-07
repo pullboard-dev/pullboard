@@ -166,14 +166,10 @@ test('import refuses an export from another version before writing [A7]', () => 
   const target = store.openBoard(join(directory, 'target.sqlite'));
   try {
     const document = exportBoard(source);
+    const before = exportBoard(target);
     document.version = 2;
     assert.throws(() => importBoard(target, document), /IMPORT_VERSION.*version 1/);
-    const empty = store.openBoard(':memory:');
-    try {
-      assert.deepEqual(exportBoard(target), exportBoard(empty));
-    } finally {
-      store.closeBoard(empty);
-    }
+    assert.deepEqual(exportBoard(target), before);
   } finally {
     store.closeBoard(source);
     store.closeBoard(target);
@@ -229,6 +225,32 @@ test('export and import CLI commands exchange a versioned document between real 
     const listed = cli(targetRoot, 'list', '--all');
     assert.equal(listed.status, 0, listed.stderr || listed.stdout);
   } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+
+test('import preserves other metadata and refuses malformed fresh identities [A2,A7]', () => {
+  const directory = tempDirectory();
+  const source = populatedBoard(join(directory, 'source.sqlite'));
+  try {
+    for (const [index, change] of [
+      "INSERT INTO board_meta VALUES ('retained', 'repo setting')",
+      "UPDATE board_meta SET meta_value = 'invalid' WHERE meta_key = 'board_id'",
+    ].entries()) {
+      const target = store.openBoard(join(directory, `target-${index}.sqlite`));
+      try {
+        store.register(target, { lane: 'coordinator', path: '/target' });
+        target.db.exec(change);
+        const before = exportBoard(target);
+        assert.throws(() => importBoard(target, exportBoard(source)), /IMPORT_NOT_EMPTY.*empty board/);
+        assert.deepEqual(exportBoard(target), before, 'a refusal preserves every target row');
+      } finally {
+        store.closeBoard(target);
+      }
+    }
+  } finally {
+    store.closeBoard(source);
     rmSync(directory, { recursive: true, force: true });
   }
 });

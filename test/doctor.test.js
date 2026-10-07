@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
+import { SCHEMA_VERSION } from '../src/board.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const sandboxes = [];
@@ -146,14 +147,14 @@ test('doctor reports older and newer schema versions without migrating either [A
   mutate(box, (db) => db.exec('PRAGMA user_version = 0'));
   const older = box.run('doctor');
   assert.equal(older.status, 1);
-  assert.match(older.stdout, /schema version is 0; this pullboard expects 1; repair: run pullboard status to upgrade this board/);
-  mutate(box, (db) => db.exec('PRAGMA user_version = 2'));
+  assert.match(older.stdout, new RegExp(`schema version is 0; this pullboard expects ${SCHEMA_VERSION}; repair: run pullboard status to upgrade this board`));
+  mutate(box, (db) => db.exec(`PRAGMA user_version = ${SCHEMA_VERSION + 1}`));
   const newer = box.run('doctor');
   assert.equal(newer.status, 1);
-  assert.match(newer.stdout, /schema version is 2; this pullboard expects 1; repair: use a pullboard version that supports this board schema/);
+  assert.match(newer.stdout, new RegExp(`schema version is ${SCHEMA_VERSION + 1}; this pullboard expects ${SCHEMA_VERSION}; repair: use a pullboard version that supports this board schema`));
   const db = new DatabaseSync(box.dbFile, { readOnly: true });
   try {
-    assert.equal(db.prepare('PRAGMA user_version').get().user_version, 2);
+    assert.equal(db.prepare('PRAGMA user_version').get().user_version, SCHEMA_VERSION + 1);
   } finally {
     db.close();
   }
@@ -167,7 +168,7 @@ test('doctor reports an older empty SQLite layout without querying current table
   const before = readFileSync(box.dbFile);
   const result = box.run('doctor');
   assert.equal(result.status, 1);
-  assert.match(result.stdout, /schema version is 0; this pullboard expects 1; repair: run pullboard status to upgrade this board/);
+  assert.match(result.stdout, new RegExp(`schema version is 0; this pullboard expects ${SCHEMA_VERSION}; repair: run pullboard status to upgrade this board`));
   assert.doesNotMatch(result.stderr, /no such table|SQLITE_ERROR|Error:/);
   assert.deepEqual(readFileSync(box.dbFile), before);
 });
@@ -175,7 +176,7 @@ test('doctor reports an older empty SQLite layout without querying current table
 test('doctor reports missing triggers on a current empty layout without changing it [A6]', () => {
   const box = boardBox({ initialize: false });
   const db = new DatabaseSync(box.dbFile);
-  db.exec('PRAGMA user_version = 1');
+  db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   db.close();
   const before = readFileSync(box.dbFile);
   for (const flags of [[], ['--json']]) {

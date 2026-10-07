@@ -47,6 +47,7 @@ import { commandOutput } from './json.js';
 import { forgetProject, registerProject } from './projects.js';
 import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
 import { serveView } from './serve.js';
+import { serveApi } from './api.js';
 import { doctorProblems } from './doctor.js';
 import { exportBoard, importBoard } from './exchange.js';
 
@@ -59,12 +60,14 @@ Nothing ships until a second agent verifies it.
 Set up
   pullboard tour                        see it work: a reject and its rework, scripted, in thirty seconds
   pullboard init                        config, SPEC.md, agent instructions, git hooks, board
-  pullboard worktree <lane> [--route light]   make a worktree for a new agent in a lane, joined, and say what to run next
-  pullboard join <lane> [--route light] register the worktree you are in as an agent in a lane
-                                        --route light: a lighter model that takes only items routed light
+  pullboard worktree <lane> [--route light] [--family <name>]   make and join a worktree for a new agent
+  pullboard join <lane> [--route light] [--family <name>]       register this worktree as an agent
+                                        --route sets which work the model can take; --family records its name
   pullboard whoami | lanes | status     who you are, the lanes, the board at a glance
-  pullboard view [--port N] [--no-open] every project on this machine in your browser: items, shouts, doctrine,
+  pullboard view [--port N] [--no-open]  every project on this machine in your browser: items, shouts, doctrine,
                                         agents and activity, live; add items, shout and hold lanes from it
+  pullboard serve [--port N]           local API v1: boards, state, moves, requests and live events,
+                                        behind the session secret in its printed address
   pullboard resume                      where you are: your claim, branch, uncommitted work, what came back,
                                         unread shouts, what to do next; run it to start any session
   pullboard hooks                       reinstall the git hooks (e.g. after a fresh clone)
@@ -96,10 +99,11 @@ Work
   pullboard verify <id> accept --note "what you broke or which edge you tried, and what happened"
   pullboard verify <id> reject --reason TEST_FAILURE --note "what failed"
                                         any --note can be --note-file <file>, which keeps quotes, $ and backticks intact
-  pullboard shout <lane|agent|person|all> <text> pullboard inbox
+  pullboard shout <lane|agent|person|all> <text>  pullboard inbox
   pullboard shout [<to>] <text> --decision       ask for a decision; defaults to your coordinator or the person
   pullboard shout <to> <text> --evidence attempt|receipt --outcome <word> --item <id> --commit <rev>
-  pullboard answer <shout-id> <text> [--as person] answer your decision; person mode is main-checkout only
+  pullboard answer <shout-id> <text> [--as person]
+                                        answer your decision; person mode is main-checkout only
   pullboard pass <shout-id> <note>                coordinator passes a decision to the person
   pullboard decisions [--as person]               shouts waiting for you; main checkout defaults to coordinator
   pullboard export                              print the whole board as versioned JSON
@@ -154,6 +158,7 @@ const OPTIONS = {
   brief: { type: 'string' },
   'brief-file': { type: 'string' },
   route: { type: 'string' },
+  family: { type: 'string' },
   as: { type: 'string' },
   check: { type: 'string' },
   agent: { type: 'string' },
@@ -368,8 +373,11 @@ function configHere(info) {
  */
 function withBoard(ctx, work) {
   const board = store.openBoard(ctx.file, ctx.clock);
+  const firstEvent = board.emittedEvents?.length ?? 0;
   try {
-    return work(board);
+    const result = work(board);
+    for (const event of board.emittedEvents?.slice(firstEvent) ?? []) ctx.io.onEvent?.(event);
+    return result;
   } finally {
     store.closeBoard(board);
   }
@@ -380,15 +388,19 @@ function withBoard(ctx, work) {
  *
  * @param {any} ctx
  * @param {any} board
- * @returns {{ id: string, lane: string }}
+ * @returns {{ id: string, lane: string, route?: string, family: string | null }}
  */
 function whoAmI(ctx, board) {
-  if (ctx.info.isMain) return { id: store.ensureCoordinator(board, ctx.info.root), lane: COORDINATOR };
+  if (ctx.info.isMain) {
+    const id = store.ensureCoordinator(board, ctx.info.root);
+    const agent = store.agentAt(board, ctx.info.root);
+    return { id, lane: COORDINATOR, family: agent?.agent_family ?? null };
+  }
   const agent = store.agentAt(board, ctx.info.root);
   if (!agent) {
     throw new Refused('NOT_JOINED', 'this worktree has not joined a lane: pullboard join <lane> (see: pullboard lanes)');
   }
-  return { id: agent.agent_id, lane: agent.agent_lane, route: agent.agent_route };
+  return { id: agent.agent_id, lane: agent.agent_lane, route: agent.agent_route, family: agent.agent_family ?? null };
 }
 
 /**
@@ -545,6 +557,7 @@ const reworkNext = (card) => `pullboard claim ${card.sentBack[0].item.item_id}, 
  * @returns {string}
  */
 function coordinatorNext(card, rows) {
+  if (card.requests.length) return `answer request #${card.requests[0].shout_id}: pullboard answer ${card.requests[0].shout_id} done, or declined <reason>`;
   const live = rows.filter((row) => !['wont', 'retired'].includes(row.status));
   if (!live.length) return "turn what the person wants into spec rows with them: the pullboard-decompose skill (pullboard prompt decompose)";
   const approved = live.filter((row) => row.status === 'approved');
@@ -584,6 +597,7 @@ function resumeHere(io) {
     return {
       me,
       all,
+      requests: me.id === COORDINATOR ? store.openRequests(board) : [],
       holding: all.filter((item) => item.item_status === 'claimed' && item.item_owner === me.id),
       sentBack: all
         .filter((item) => item.item_status === 'open' && item.item_verdict === 'REJECT' && item.item_built_by === me.id)
@@ -601,7 +615,7 @@ function resumeHere(io) {
   const { me } = card;
   const say = (line) => io.say(line);
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-  say(`resume: ${me.id}, ${me.lane} lane${isMain ? ', the main checkout' : ''}, at ${root}`);
+  say(`resume: ${me.id}${me.family ? ` (${me.family})` : ''}, ${me.lane} lane${isMain ? ', the main checkout' : ''}, at ${root}`);
   const dirty = dirtyFiles(root).length;
   if (!isMain) {
     const branch = tryGit(root, ['rev-parse', '--abbrev-ref', 'HEAD']).stdout || 'HEAD';
@@ -613,6 +627,7 @@ function resumeHere(io) {
   } else if (dirty) {
     say(`${plural(dirty, 'file')} uncommitted in the main checkout`);
   }
+  for (const request of card.requests) say(`request #${request.shout_id}: ${request.shout_text}; answer with pullboard answer ${request.shout_id} done, or declined <reason>`);
   for (const item of card.holding) {
     say(`holding #${item.item_id} ${item.item_title}, lease ${span(ctx, item.item_lease_until)} left${item.item_check ? `; check: ${item.item_check}` : ''}`);
     const files = briefFiles(item.item_brief);
@@ -683,6 +698,27 @@ async function viewHere(io, values) {
   return 0;
 }
 
+/** Serve API v1 until a shutdown signal, printing its address before waiting (A2). */
+async function serveHere(io, values) {
+  const ctx = context(io);
+  const mainRoot = git(ctx.info.root, ['worktree', 'list', '--porcelain']).split('\n')[0].slice('worktree '.length);
+  registerProject(mainRoot, new Date(), loadConfig(mainRoot));
+  const port = values.port === undefined ? 0 : Number(values.port);
+  if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Refused('USAGE', '--port is a number from 0 to 65535; use 0 to choose a free one');
+  const api = await serveApi({ port, runCommand: main });
+  io.result?.({ url: api.url, port: api.port });
+  io.say(`Pullboard API v1: ${api.url}`);
+  io.say('Only this machine can reach it, with its session secret. Ctrl-C stops it.');
+  io.flush?.(0);
+  await new Promise((stop) => {
+    const stopped = () => { process.off('SIGINT', stopped); process.off('SIGTERM', stopped); stop(); };
+    process.once('SIGINT', stopped);
+    process.once('SIGTERM', stopped);
+  });
+  await api.close();
+  return 0;
+}
+
 /**
  * The commands that set a repo or a worktree up.
  *
@@ -720,12 +756,12 @@ function setupCommands(io, { first, values }) {
         throw new Refused('NO_LANE', `no lane "${first ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
       }
       const route = values.route ?? 'strong';
-      const id = withBoard(ctx, (board) => store.register(board, { lane: first, path: ctx.info.root, route }));
+      const id = withBoard(ctx, (board) => store.register(board, { lane: first, path: ctx.info.root, route, family: values.family }));
       io.result?.({ agent: id, lane: first, route, path: ctx.info.root });
       io.say(`joined as ${id} in the ${first} lane${route === 'light' ? ', on the light route' : ''}`);
       return 0;
     },
-    worktree: () => worktreeFor(io, first, values.route ?? 'strong'),
+    worktree: () => worktreeFor(io, first, values.route ?? 'strong', values.family ?? null),
   };
 }
 
@@ -736,9 +772,10 @@ function setupCommands(io, { first, values }) {
  * @param {any} io
  * @param {string | undefined} lane
  * @param {string} route
+ * @param {string | null} family
  * @returns {number}
  */
-function worktreeFor(io, lane, route) {
+function worktreeFor(io, lane, route, family = null) {
   const ctx = context(io);
   if (!lane || lane === COORDINATOR || !isLane(ctx.config, lane)) {
     throw new Refused('NO_LANE', `no lane "${lane ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
@@ -754,9 +791,9 @@ function worktreeFor(io, lane, route) {
   while (isTaken(n)) n += 1;
   git(mainRoot, ['worktree', 'add', '-q', '-b', `${lane}/${n}`, pathFor(n), git(mainRoot, ['rev-parse', 'HEAD'])]);
   const root = git(pathFor(n), ['rev-parse', '--show-toplevel']);
-  const id = withBoard(ctx, (board) => store.register(board, { lane, path: root, route }));
+  const id = withBoard(ctx, (board) => store.register(board, { lane, path: root, route, family }));
   io.result?.({ agent: id, lane, route, path: root, branch: `${lane}/${n}`, prompt: `You are ${id}, in the ${lane} lane. Work only in ${shellWord(root)}, and start every command with ${cdTo(root)}\nRead ${shellWord(join(root, 'AGENTS.md'))} first. Its rules govern this work, over any other repo's instructions you were given.` });
-  io.say(`made ${root} on branch ${lane}/${n}, joined as ${id} in the ${lane} lane${route === 'light' ? ', on the light route' : ''}`);
+  io.say(`made ${root} on branch ${lane}/${n}, joined as ${id} in the ${lane} lane${route === 'light' ? ', on the light route' : ''}${family ? ` (${family})` : ''}`);
   io.say(`Work only in that folder. A shell that starts each command in the main checkout acts as the coordinator there, so start every command with: ${cdTo(root)}`);
   if (existsSync(join(root, 'package.json'))) io.say(`  ${cdTo(root)} npm install    (its own install, so its tests run its own code)`);
   io.say(`  ${cdTo(root)} pullboard inbox`);
@@ -897,11 +934,11 @@ function readCommands(io, { first, second, rest, values }) {
         io.say(`frozen at claim (${item.item_frozen_digest.slice(0, 12)}):`);
         frozen.rows.forEach((row) => io.say(`  ${row.id}: ${row.text}${row.gate ? `  | gate: ${row.gate}` : ''}`));
       }
-      if (item.item_commit) io.say(`submitted by ${item.item_built_by} at ${item.item_commit}`);
+      if (item.item_commit) io.say(`submitted by ${item.item_built_by}${item.item_builder_family ? ` (${item.item_builder_family})` : ''} at ${item.item_commit}`);
       if (reviewer) io.say(`under review by ${reviewer} until ${item.item_review_until}`);
       // Earlier verdicts as one line each, so an item sent back several times stays short to read
       // (N30); --history prints every note in full.
-      const verdictLine = (verdict) => `${verdict.verdict_decision} ${verdict.verdict_reason} by ${verdict.verdict_by} at ${verdict.verdict_commit.slice(0, 12)}`;
+      const verdictLine = (verdict) => `${verdict.verdict_decision} ${verdict.verdict_reason} by ${verdict.verdict_by}${verdict.verdict_verifier_family ? ` (${verdict.verdict_verifier_family})` : ''} at ${verdict.verdict_commit.slice(0, 12)}`;
       const notes = verdicts.map((verdict, index) => (values.history || index === verdicts.length - 1 ? verdict.verdict_note : firstLineOf(verdict.verdict_note)));
       verdicts.forEach((verdict, index) => io.say(`${verdictLine(verdict)}${notes[index] ? `: ${notes[index]}` : ''}`));
       if (notes.some((note, index) => note !== verdicts[index].verdict_note)) io.say(`(earlier verdicts shortened; every note in full: pullboard show ${id} --history)`);
@@ -1123,14 +1160,14 @@ function nextOnce(ctx, values) {
     const warm = warmFiles(ctx, board, me);
     const { item, reasons, shared } = store.nextFor(board, { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm });
     if (!item) return { reasons };
-    if (item.item_status === 'claimed') return { item, held: true };
+    const held = item.item_status === 'claimed';
     try {
       store.claim(board, item.item_id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx), head: headCommit(ctx.info.root) });
     } catch (error) {
       if (error instanceof Refused && ['HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true };
       throw error;
     }
-    return { item: store.getItem(board, item.item_id), shared };
+    return { item: store.getItem(board, item.item_id), shared, held };
   });
 }
 
@@ -1339,9 +1376,9 @@ function workCommands(io, args) {
       return 0;
     }),
     release: () => act((ctx, board, me) => {
-      store.release(board, idArg(first), me.id);
+      const review = store.release(board, idArg(first), me.id);
       io.result?.({ id: idArg(first) });
-      io.say(`released #${first}`);
+      io.say(review ? `released the review of #${first}; the review is free again` : `released #${first}`);
       return 0;
     }),
     submit: () => submitHere(context(io), idArg(first)),
@@ -1646,6 +1683,7 @@ async function runCommand(argv, io) {
       return 0;
     }
     if (command === 'view') return await viewHere(io, values);
+    if (command === 'serve') return await serveHere(io, values);
     if (command === 'forget') {
       if (!first || second) throw new Refused('USAGE', 'pullboard forget <path>');
       const root = resolve(io.cwd, first);
@@ -1707,6 +1745,6 @@ export function resultCommands() {
     ...Object.keys(setupCommands({}, args)),
     ...Object.keys(readCommands({}, args)),
     ...Object.keys(workCommands({}, args)),
-    'help', 'version', 'tour', 'lifecycle', 'view', 'forget', 'spec', 'prompt', 'hook', 'gate',
+    'help', 'version', 'tour', 'lifecycle', 'view', 'serve', 'forget', 'spec', 'prompt', 'hook', 'gate',
   ])].sort();
 }

@@ -1,4 +1,4 @@
-/** Hash-only relay sessions and board credentials, authorized by current GitHub metadata [H8, H1]. */
+/** Hash-only relay sessions and board credentials, authorized by current GitHub roles [H8, H1, H13, H14]. */
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { chmodSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -85,26 +85,37 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
     if (webFlows.size + deviceFlows.size >= 10_000) throw new Refused('SIGN_IN_BUSY', 'too many sign-ins are pending; retry shortly');
   }
 
-  /** Require GitHub-confirmed access, with a ten-minute read cache and a fresh check for writes. */
+  /** Hide public boards below triage, and refuse actions below write without hiding readable private boards. */
+  function authorize(permission, linked, write) {
+    if (!permission.allowed) {
+      if (permission.hidden) throw new Refused('BOARD_NOT_LINKED', 'link this board to a readable GitHub repository before using it');
+      throw new Refused('NO_REPO_ACCESS', 'GitHub cannot confirm your repository access; ask for access and retry');
+    }
+    if (write && !['write', 'maintain', 'admin'].includes(permission.role)) throw new Refused('WRITE_REQUIRED', 'board actions and token management need repository write access; ask its owner for access');
+    return { ...linked, permission: permission.role, public: permission.public };
+  }
+
+  /** Require current repository roles; cache visibility for ten minutes but never authorize a write from cache. */
   async function access(row, board, write) {
     const linked = db.prepare('SELECT * FROM relay_boards WHERE id=?').get(board);
     if (!linked) throw new Refused('BOARD_NOT_LINKED', 'link this board to a readable GitHub repository before using it');
     const key = row.user_id + ':' + board;
     const prior = permissions.get(key);
     const started = now();
-    if (!write && prior && started >= prior.checked && started - prior.checked < ACCESS_WINDOW_MS) {
-      if (!prior.allowed) throw new Refused('NO_REPO_ACCESS', 'GitHub cannot confirm your repository access; ask for access and retry');
-      return linked;
-    }
+    if (!write && prior && started >= prior.checked && started - prior.checked < ACCESS_WINDOW_MS) return authorize(prior, linked, false);
+    let repo;
     try {
-      const repo = await github.access({ id: row.user_id, login: row.login }, linked.repository);
+      repo = await github.access({ id: row.user_id, login: row.login }, linked.repository);
       if (String(repo.id) !== linked.repository_id) throw new Refused('NO_REPO_ACCESS', 'the linked repository identity changed; ask the coordinator to link the correct board');
-      if (!permissions.has(key) || permissions.get(key).checked <= started) permissions.set(key, { checked: started, allowed: true });
-      return linked;
     } catch (error) {
       if (error.code === 'NO_REPO_ACCESS' && (!permissions.has(key) || permissions.get(key).checked <= started)) permissions.set(key, { checked: started, allowed: false });
       throw error;
     }
+    const canRead = ['read', 'triage', 'write', 'maintain', 'admin'].includes(repo.permission);
+    const hidden = repo.public && !['triage', 'write', 'maintain', 'admin'].includes(repo.permission);
+    const checked = { checked: started, allowed: canRead && !hidden, hidden, role: repo.permission, public: repo.public };
+    if (!permissions.has(key) || permissions.get(key).checked <= started) permissions.set(key, checked);
+    return authorize(checked, linked, write);
   }
 
   const auth = {
@@ -164,20 +175,22 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
     async authenticate(token, { board, write = false } = {}) {
       const row = credential(token);
       if (row.kind === 'board' && board !== row.board) throw new Refused('TOKEN_BOARD', 'use this token only on its named board; obtain another token for another board');
+      let repository;
       if (board !== undefined) {
         identifier(board, 'BAD_BOARD');
-        await access(row, board, write);
+        repository = await access(row, board, write);
         credential(token); // A revocation or expiry during the awaited provider call must take effect.
       }
-      return { id: row.id, kind: row.kind, user: { id: row.user_id, login: row.login }, ...(row.board ? { board: row.board, agent: row.agent } : {}), expires: row.expires };
+      return { id: row.id, kind: row.kind, user: { id: row.user_id, login: row.login }, ...(row.board ? { board: row.board, agent: row.agent } : {}), ...(repository ? { permission: repository.permission, public: repository.public } : {}), expires: row.expires };
     },
-    /** Accept a link only from a signed-in human with current repository read access. */
+    /** Accept a link only from a signed-in human with current repository write access. */
     async linkBoard(token, board, repository) {
       identifier(board, 'BAD_BOARD');
       repositoryName(repository);
       const row = credential(token);
       if (row.kind !== 'session') throw new Refused('HUMAN_REQUIRED', 'sign in as a person to link a board');
       const repo = await github.access({ id: row.user_id, login: row.login }, repository);
+      authorize({ allowed: true, hidden: false, role: repo.permission, public: repo.public }, {}, true);
       credential(token);
       open();
       const existing = db.prepare('SELECT * FROM relay_boards WHERE id=?').get(board);
@@ -193,7 +206,7 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
       const visible = [];
       for (const board of boards) {
         try { await auth.authenticate(token, { board: board.id }); visible.push({ id: board.id, repository: board.repository }); }
-        catch (error) { if (error.code !== 'NO_REPO_ACCESS') throw error; }
+        catch (error) { if (!['NO_REPO_ACCESS', 'BOARD_NOT_LINKED'].includes(error.code)) throw error; }
       }
       return visible;
     },
@@ -208,11 +221,13 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
       return { ...issue(principal.user, 'board', board, agent, expiresIn), board, agent };
     },
     /** Revoke one owned credential; this never revokes an unrelated session or board token. */
-    revoke(token, id) {
+    async revoke(token, id) {
       const row = credential(token);
       if (typeof id !== 'string') throw new Refused('TOKEN_NOT_OWNED', 'name one of your relay credentials to revoke');
-      const target = db.prepare('SELECT id,user_id FROM relay_credentials WHERE id=?').get(id);
+      const target = db.prepare('SELECT id,user_id,kind,board FROM relay_credentials WHERE id=?').get(id);
       if (!target || target.user_id !== row.user_id || (row.kind !== 'session' && row.id !== id)) throw new Refused('TOKEN_NOT_OWNED', 'revoke only your own credential; sign in as its owner');
+      if (target.kind === 'board') await auth.authenticate(token, { board: target.board, write: true });
+      credential(token);
       db.prepare('UPDATE relay_credentials SET revoked=1 WHERE id=?').run(id);
       return { id, revoked: true };
     },

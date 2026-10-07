@@ -98,7 +98,7 @@ test('credentials are hash-only, expire, revoke individually and survive relay r
   const first = await box.auth.issueToken(signed.token, { board: 'alpha', agent: 'one', expiresIn: 10_000 });
   const second = await box.auth.issueToken(signed.token, { board: 'alpha', agent: 'two', expiresIn: 20_000 });
   assert.notEqual(first.token, second.token);
-  box.auth.revoke(signed.token, first.id);
+  await box.auth.revoke(signed.token, first.id);
   await assert.rejects(box.auth.authenticate(first.token, { board: 'alpha' }), { code: 'AUTH_REQUIRED' });
   assert.equal((await box.auth.authenticate(second.token, { board: 'alpha' })).agent, 'two');
   const persisted = readFileSync(box.database);
@@ -129,7 +129,7 @@ test('revoking during an awaited GitHub write check refuses the pending write [H
   box.state.beforePermission = async () => { entered(); await held; };
   const pending = box.auth.authenticate(signed.token, { board: 'alpha', write: true });
   await started;
-  box.auth.revoke(signed.token, signed.id);
+  await box.auth.revoke(signed.token, signed.id);
   release();
   await assert.rejects(pending, { code: 'AUTH_REQUIRED' });
 });
@@ -160,4 +160,73 @@ test('expired browser/device grants cannot create sessions and concurrent polls 
   assert.equal(results.filter(result => result.token).length, 1);
   assert.equal(results.filter(result => result.pending).length, 1);
   await assert.rejects(box.auth.pollDevice(grant.ticket), { code: 'OAUTH_EXPIRED' });
+});
+
+test('a public reader sees no board and cannot act, mint or revoke; refusal matches a missing board [H13,H14,H8]', async (t) => {
+  const box = await fixture(t);
+  box.state.public = true;
+  const signed = await login(box);
+  await box.auth.linkBoard(signed.token, 'alpha', 'fixture/repository');
+  const existing = await box.auth.issueToken(signed.token, { board: 'alpha', agent: 'worker' });
+  box.state.permission = 'none';
+  let missing;
+  await assert.rejects(box.auth.authenticate(signed.token, { board: 'absent', write: true }), error => {
+    missing = { code: error.code, message: error.message }; return error.code === 'BOARD_NOT_LINKED';
+  });
+  await assert.rejects(box.auth.authenticate(signed.token, { board: 'alpha', write: true }), error => {
+    assert.deepEqual({ code: error.code, message: error.message }, missing); return true;
+  });
+  assert.deepEqual(await box.auth.boardsFor(signed.token), []);
+  await assert.rejects(box.auth.issueToken(signed.token, { board: 'alpha', agent: 'second' }), { code: 'BOARD_NOT_LINKED' });
+  await assert.rejects(box.auth.revoke(signed.token, existing.id), { code: 'BOARD_NOT_LINKED' });
+  box.state.permission = 'write';
+  assert.equal((await box.auth.authenticate(existing.token, { board: 'alpha', write: true })).agent, 'worker', 'denied revocation did not alter the token');
+});
+
+test('a public triage account sees its board but cannot act, mint or revoke its tokens [H13,H14,H8]', async (t) => {
+  const box = await fixture(t);
+  box.state.public = true;
+  const signed = await login(box);
+  await box.auth.linkBoard(signed.token, 'alpha', 'fixture/repository');
+  const existing = await box.auth.issueToken(signed.token, { board: 'alpha', agent: 'worker' });
+  box.state.permission = 'triage';
+  await assert.rejects(box.auth.authenticate(signed.token, { board: 'alpha', write: true }), { code: 'WRITE_REQUIRED' });
+  assert.deepEqual((await box.auth.boardsFor(signed.token)).map(board => board.id), ['alpha']);
+  assert.equal((await box.auth.authenticate(existing.token, { board: 'alpha' })).permission, 'triage');
+  await assert.rejects(box.auth.issueToken(signed.token, { board: 'alpha', agent: 'second' }), { code: 'WRITE_REQUIRED' });
+  await assert.rejects(box.auth.revoke(signed.token, existing.id), { code: 'WRITE_REQUIRED' });
+});
+
+test('write, maintain and admin accounts act and mint while private readers only see [H13,H14,H8]', async (t) => {
+  const box = await fixture(t);
+  const signed = await login(box);
+  await box.auth.linkBoard(signed.token, 'alpha', 'fixture/repository');
+  let existing;
+  for (const permission of ['write', 'maintain', 'admin']) {
+    box.state.permission = permission;
+    assert.equal((await box.auth.authenticate(signed.token, { board: 'alpha', write: true })).permission, permission);
+    existing = await box.auth.issueToken(signed.token, { board: 'alpha', agent: 'worker' });
+    assert.equal((await box.auth.authenticate(existing.token, { board: 'alpha', write: true })).permission, permission);
+    await box.auth.revoke(signed.token, existing.id);
+    await assert.rejects(box.auth.authenticate(existing.token, { board: 'alpha' }), { code: 'AUTH_REQUIRED' });
+  }
+  box.state.permission = 'write';
+  existing = await box.auth.issueToken(signed.token, { board: 'alpha', agent: 'reader' });
+  box.state.permission = 'read';
+  await assert.rejects(box.auth.authenticate(signed.token, { board: 'alpha', write: true }), { code: 'WRITE_REQUIRED' });
+  assert.equal((await box.auth.boardsFor(signed.token)).length, 1);
+  assert.equal((await box.auth.authenticate(existing.token, { board: 'alpha' })).permission, 'read');
+  await assert.rejects(box.auth.issueToken(signed.token, { board: 'alpha', agent: 'no' }), { code: 'WRITE_REQUIRED' });
+  await assert.rejects(box.auth.revoke(signed.token, existing.id), { code: 'WRITE_REQUIRED' });
+});
+
+test('an explicit read role still hides a public board below triage [H13,H14,H8]', async (t) => {
+  const box = await fixture(t);
+  box.state.public = true;
+  const signed = await login(box);
+  await box.auth.linkBoard(signed.token, 'alpha', 'fixture/repository');
+  box.state.permission = 'read';
+  assert.deepEqual(await box.auth.boardsFor(signed.token), []);
+  await assert.rejects(box.auth.authenticate(signed.token, { board: 'alpha', write: true }), { code: 'BOARD_NOT_LINKED' });
+  await assert.rejects(box.auth.issueToken(signed.token, { board: 'alpha', agent: 'worker' }), { code: 'BOARD_NOT_LINKED' });
 });
