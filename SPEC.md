@@ -28,6 +28,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - B14 [approved, must] Below strong, an item needs a criterion, a check command, and a brief naming its test and in-lane files. | gate: test/board.test.js, test/e2e.test.js | serves: B10
 - B15 [approved, must] Escalate frees an item one tier up, its attempt pinned and its failure attached. | gate: test/board.test.js, test/e2e.test.js | serves: B13
 - B16 [approved, must] When only work above an agent's tier is open in its lane, next names it and the ways through. | gate: test/board.test.js | serves: B13
+- B17 [draft, must] Every agent on a board runs one tested version of pullboard, never a checkout's unfinished edits; a new version reaches the board only with its gate green. | gate: test/e2e.test.js | serves: P1
 
 ## M · Machine
 - M1 [draft, must] One declaration holds every item state, move, guard and refusal; code, help and docs derive from it. | gate: test/machine.test.js
