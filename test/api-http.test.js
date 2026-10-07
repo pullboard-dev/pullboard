@@ -54,7 +54,7 @@ function fixture(t) {
   writeFileSync(join(root, 'PRACTICE.md'), '');
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: private HTTP fixture');
-  return { root, dir, cli, run };
+  return { root, dir, cli, run, commit: git('rev-parse', 'HEAD').trim() };
 }
 
 /** Serve this fixture's explicit project, avoiding any registry outside its private home. */
@@ -86,9 +86,47 @@ async function httpBox(t, { includeMissing = false } = {}) {
 
 test('[A2] a stale registered folder does not hide another readable board', async (t) => {
   const box = await httpBox(t, { includeMissing: true });
+  const listed = await box.call('/api/v1/boards');
+  assert.equal(listed.document.boards.length, 1);
+  assert.equal(listed.document.warnings.length, 1);
+  assert.equal(listed.document.warnings[0].name, 'Missing fixture');
+  assert.equal(listed.document.warnings[0].error.version, 1);
+  assert.equal(listed.document.warnings[0].error.error.code, 'BOARD_UNAVAILABLE');
+  assert.match(listed.document.warnings[0].error.error.next, /pullboard forget/);
   const state = await box.call(box.path + '/state');
   assert.equal(state.status, 200);
   assert.equal(state.document.state.board, box.id);
+});
+
+test('[A2] local HTTP state accepts a safe seen cursor and committed code previews', async (t) => {
+  const box = await httpBox(t);
+  box.cli(box.root, 'shout', 'app', 'state cursor baseline');
+  const before = await box.call(box.path + '/state');
+  const seen = before.document.state.shouts.at(-1).shout_id;
+  box.cli(box.root, 'shout', 'app', 'state cursor event');
+  const state = await box.call(box.path + '/state?seen=' + seen);
+  assert.equal(state.document.state.unseen.since, seen);
+  assert.equal(state.document.state.unseen.count, 1);
+  const missing = await box.call(box.path + '/state');
+  assert.equal(missing.document.state.unseen, null);
+  for (const cursor of ['', '-1', '1.5', '9007199254740992']) {
+    const invalid = await box.call(box.path + '/state?seen=' + cursor);
+    assert.equal(invalid.status, 400);
+    assert.equal(invalid.document.error.code, 'BAD_CURSOR');
+  }
+
+  writeFileSync(join(box.root, 'SPEC.md'), '# changed working tree\n');
+  const preview = await box.call(box.path + '/code?ref=' + encodeURIComponent('SPEC.md:1-4@' + box.commit) + '&before=' + encodeURIComponent('Please inspect '));
+  assert.equal(preview.status, 200);
+  assert.deepEqual(preview.document.code.lines, ['# HTTP fixture', '', '## Goals', '- G1 [approved, must] Keep the board. | gate: true']);
+  assert.equal(preview.document.code.path, 'SPEC.md');
+  assert.equal(preview.document.code.from, 1);
+  assert.equal(preview.document.code.to, 4);
+  for (const ref of ['../outside:1@' + box.commit, 'SPEC.md:0@' + box.commit, 'SPEC.md:1@HEAD']) {
+    const invalid = await box.call(box.path + '/code?ref=' + encodeURIComponent(ref));
+    assert.equal(invalid.status, 400);
+    assert.ok(['BAD_REF', 'NO_COMMIT'].includes(invalid.document.error.code));
+  }
 });
 
 test('[A2] real HTTP state, moves and refusals use the CLI and exact committed events', async (t) => {
@@ -279,4 +317,24 @@ test('[A2] shared transport stops a live stream when its caller loses access', a
   assert.match(text, /"code":"AUTH_REQUIRED"/);
   assert.doesNotMatch(text, /"event_kind":"add"/);
   assert.ok(checks >= 3, 'access is checked at entry and on live polls');
+});
+
+test('[A2] adapters without a committed-code capability return a versioned refusal', async (t) => {
+  const handler = createApiHandler({
+    authenticate: () => ({ user: 'fixture-user' }),
+    boards: () => [],
+    board: (id) => ({ id }),
+    state: () => ({}),
+    events: () => [],
+  });
+  const server = createServer(handler);
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  t.after(() => new Promise((done) => { handler.close(); server.close(done); }));
+  const id = 'fixture-board';
+  const response = await fetch('http://127.0.0.1:' + server.address().port + '/api/v1/boards/' + id + '/code?ref=secret.txt%3A1%40abcdef0');
+  const document = await response.json();
+  assert.equal(response.status, 400);
+  assert.equal(document.version, 1);
+  assert.equal(document.error.code, 'CODE_NOT_AVAILABLE');
+  assert.match(document.error.next, /local view|local API/);
 });
