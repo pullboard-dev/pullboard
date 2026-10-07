@@ -1293,10 +1293,12 @@ async function startView(box, cwd) {
   const key = link.searchParams.get('k');
   const base = `http://127.0.0.1:${link.port}`;
   const headers = { 'x-pullboard-key': key };
+  /** Read the public listing through the view's real authenticated API. */
   const boards = async () => {
     const response = await fetch(`${base}/api/v1/boards`, { headers });
     return { status: response.status, document: await response.json() };
   };
+  /** Resolve a registered board id and read its public state. */
   const state = async (root) => {
     const listing = await boards();
     if (listing.status !== 200) return listing;
@@ -1305,6 +1307,7 @@ async function startView(box, cwd) {
     const response = await fetch(`${base}/api/v1/boards/${encodeURIComponent(board.id)}/state`, { headers });
     return { ...listing.document, project: (await response.json()).state };
   };
+  /** Send a public move to the registered board or a deliberately unknown id. */
   const act = async (root, body) => {
     const listing = await boards();
     const board = listing.document.boards?.find((entry) => entry.root === root);
@@ -1382,9 +1385,16 @@ test('from the view the person adds items, shouts and holds lanes, through the C
     const unknown = await view.act(box.dir, { verb: 'shout', args: { to: 'all', text: 'x' } });
     assert.equal(unknown.status, 404);
     assert.equal(unknown.document.error.code, 'NO_BOARD');
-    const stranger = await fetch(`${view.base}/api/v1/boards`, { headers: { 'content-type': 'application/json' } });
+    const before = await view.state(box.repo);
+    const target = before.boards.find((entry) => entry.root === box.repo);
+    const stranger = await fetch(`${view.base}/api/v1/boards/${encodeURIComponent(target.id)}/moves`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ verb: 'shout', args: { to: 'all', text: 'unauthorized move' } }),
+    });
     assert.equal(stranger.status, 401);
     assert.equal((await stranger.json()).error.code, 'AUTH_REQUIRED');
+    assert.deepEqual((await view.state(box.repo)).project.shouts, before.project.shouts, 'an unauthenticated move cannot write a shout');
   } finally {
     await view.stop();
   }

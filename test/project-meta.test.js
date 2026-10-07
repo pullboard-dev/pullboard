@@ -45,6 +45,7 @@ test('the API exposes configured repo/project names, refreshed labels, stale war
   const view = await serveView({ port: 0 });
   try {
     const link = new URL(view.url);
+    /** Read the public listing without pruning unavailable registered roots. */
     const boards = async () => {
       const response = await fetch(`${link.origin}/api/v1/boards`, { headers: { 'x-pullboard-key': link.searchParams.get('k') } });
       assert.equal(response.status, 200);
