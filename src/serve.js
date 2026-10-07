@@ -9,16 +9,16 @@
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as store from './board.js';
 import { cockpitPage } from './cockpit.js';
 import { COORDINATOR, loadConfig } from './config.js';
 import { repoInfo, resolveCommit } from './git.js';
 import { productSummaries } from './products.js';
-import { listProjects } from './projects.js';
+import { listProjects, registryFile } from './projects.js';
 import { Refused } from './refused.js';
 import { loadSpec } from './spec.js';
 
@@ -26,6 +26,39 @@ const BIN = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
 /** The page's styles (N26), read once: the page links them, so it needs no inline style. */
 const VIEW_CSS = readFileSync(new URL('./view.css', import.meta.url), 'utf8');
 export const LOOPBACK = '127.0.0.1';
+
+/** Where the view keeps the port it last served from, beside the machine's list of projects. */
+const lastPortFile = () => join(dirname(registryFile()), 'view.json');
+
+/**
+ * The port the view last served from, or 0 when it has none to offer. A browser keeps what the page
+ * stores per address, port included, so serving from the same port again is what lets the person's
+ * choices, such as a hidden figure or a theme, outlive a restart.
+ *
+ * @returns {number}
+ */
+export function lastPort() {
+  try {
+    const port = JSON.parse(readFileSync(lastPortFile(), 'utf8')).port;
+    return Number.isInteger(port) && port >= 1024 && port <= 65535 ? port : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Remember the port the view serves from. Failing to is no reason to stop serving, so it never throws.
+ *
+ * @param {number} port
+ */
+function rememberPort(port) {
+  try {
+    mkdirSync(dirname(lastPortFile()), { recursive: true });
+    writeFileSync(lastPortFile(), `${JSON.stringify({ port })}\n`);
+  } catch {
+    // The next start picks a free port instead.
+  }
+}
 
 /**
  * Open a project's board, read from it, and always close it.
@@ -296,15 +329,25 @@ export function serveView({ port = 0, secret = randomBytes(18).toString('base64u
       return json(res, 500, { error: error.message });
     }
   });
+  // Asked for any port, the view tries the one it last served from first, and takes any free one
+  // when that is busy; a port the person names is used as named.
+  const asked = port;
+  const last = asked === 0 ? lastPort() : 0;
   return new Promise((ready, fail) => {
-    server.once('error', fail);
-    server.listen(port, LOOPBACK, () => {
-      bound = /** @type {any} */ (server.address()).port;
-      ready({
-        url: `http://${LOOPBACK}:${bound}/?k=${secret}`,
-        port: bound,
-        close: () => new Promise((closed) => server.close(() => closed())),
+    const listen = (port) => {
+      const failed = (error) => (port !== 0 && port === last && error.code === 'EADDRINUSE' ? listen(0) : fail(error));
+      server.once('error', failed);
+      server.listen(port, LOOPBACK, () => {
+        server.off('error', failed);
+        bound = /** @type {any} */ (server.address()).port;
+        if (asked === 0) rememberPort(bound);
+        ready({
+          url: `http://${LOOPBACK}:${bound}/?k=${secret}`,
+          port: bound,
+          close: () => new Promise((closed) => server.close(() => closed())),
+        });
       });
-    });
+    };
+    listen(last || asked);
   });
 }
