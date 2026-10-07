@@ -59,10 +59,10 @@ Set up
   pullboard tour                        see it work: a reject and its rework, scripted, in thirty seconds
   pullboard init                        config, SPEC.md, agent instructions, git hooks, board
   pullboard worktree <lane> [--route light]   make a worktree for a new agent in a lane, joined, and say what to run next
-  pullboard join <lane> [--route light] register the worktree you are in as an agent in a lane
+  pullboard join <lane> [--route light]  register the worktree you are in as an agent in a lane
                                         --route light: a lighter model that takes only items routed light
   pullboard whoami | lanes | status     who you are, the lanes, the board at a glance
-  pullboard view [--port N] [--no-open] every project on this machine in your browser: items, shouts, doctrine,
+  pullboard view [--port N] [--no-open]  every project on this machine in your browser: items, shouts, doctrine,
                                         agents and activity, live; add items, shout and hold lanes from it
   pullboard resume                      where you are: your claim, branch, uncommitted work, what came back,
                                         unread shouts, what to do next; run it to start any session
@@ -95,10 +95,11 @@ Work
   pullboard verify <id> accept --note "what you broke or which edge you tried, and what happened"
   pullboard verify <id> reject --reason TEST_FAILURE --note "what failed"
                                         any --note can be --note-file <file>, which keeps quotes, $ and backticks intact
-  pullboard shout <lane|agent|person|all> <text> pullboard inbox
+  pullboard shout <lane|agent|person|all> <text>  pullboard inbox
   pullboard shout [<to>] <text> --decision       ask for a decision; defaults to your coordinator or the person
   pullboard shout <to> <text> --evidence attempt|receipt --outcome <word> --item <id> --commit <rev>
-  pullboard answer <shout-id> <text> [--as person] answer your decision; person mode is main-checkout only
+  pullboard answer <shout-id> <text> [--as person]
+                                        answer your decision; person mode is main-checkout only
   pullboard pass <shout-id> <note>                coordinator passes a decision to the person
   pullboard decisions [--as person]               shouts waiting for you; main checkout defaults to coordinator
   pullboard export                              print the whole board as versioned JSON
