@@ -181,9 +181,16 @@ input, select { border: 1px solid var(--line-strong); background: var(--surface)
 .sentback h3 { color: var(--reject); }
 .sentback .verdict { border-left: 0; padding: 0; margin: 0; }
 .meta .why { flex-basis: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--reject); }
-.hist { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; font-size: 12.5px; }
-.hist div { display: contents; }
-.hist time, .feed time { color: var(--ink-faint); font: 12px var(--mono); }
+.tl { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
+.tl li { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 10px; padding: 0 0 12px 20px; --c: var(--line-strong); }
+.tl li::before { content: ''; position: absolute; left: 0; top: 4px; width: 10px; height: 10px; border-radius: 50%; box-sizing: border-box; border: 2px solid var(--c); background: var(--c); }
+.tl li.tl-quiet::before { background: var(--surface); }
+.tl li::after { content: ''; position: absolute; left: 4px; top: 16px; bottom: 0; width: 2px; border-radius: 2px; background: var(--c); opacity: .55; }
+.tl li:last-child { padding-bottom: 0; } .tl li:last-child::after { display: none; }
+.tl .tl-claimed { --c: var(--blue); } .tl .tl-submitted { --c: var(--warn); } .tl .tl-verified { --c: var(--accent); } .tl .tl-withdrawn { --c: var(--ink-faint); } .tl .tl-back { --c: var(--reject); }
+.tl b { font-weight: 600; }
+.tl small { grid-column: 2; color: var(--ink-faint); font-size: 12px; }
+.tl time, .feed time { color: var(--ink-faint); font: 12px var(--mono); }
 .rowref { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; font-size: 13px; padding: 3px 0; }
 .rowref code { font-weight: 600; }
 .links { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -350,30 +357,73 @@ const doing = (x) => [x.sentBack && count(x.sentBack, 'sent back'), x.awaiting &
 const FLOW = ${JSON.stringify(lifecycle()).replaceAll('<', '\\u003c')};
 
 /**
- * How often each move was made on this board, keyed from>to:verb, by replaying every item's history
- * through the lifecycle. The board logs a move under its verb, and a claim on a claimed item as
- * renew, but never the clock's lapse: an event that cannot start where the replay stands, or an item
- * that reads otherwise than where its history leaves it, means the clock moved first.
+ * An item's history replayed through the lifecycle: each event with the state it found the item in
+ * and the move it made, if it made one. The board logs a move under its verb, and a claim on a
+ * claimed item as renew, but never the clock's lapse: an event that cannot start where the replay
+ * stands, or an item that reads otherwise than where its history leaves it, means the clock moved
+ * first, and the replay puts that lapse in, with no time of its own.
  */
+function replay(item) {
+  const clock = FLOW.moves.filter((m) => m.by.includes('clock'));
+  const steps = [];
+  let at = FLOW.initial;
+  const step = (move, e) => {
+    steps.push({ from: at, move, at: e ? e.at : null, by: e ? e.by : 'the clock', kind: e ? e.kind : move.verb });
+    if (move) at = move.to;
+  };
+  for (const e of item.history) {
+    const verb = e.kind === 'renew' ? 'claim' : e.kind;
+    // A renew is the claim that stays claimed; a claim logged as such is the one that arrives.
+    const fits = (s) => FLOW.moves.find((m) => m.verb === verb && m.from.includes(s) && (verb !== 'claim' || (e.kind === 'renew') === (m.to === s)));
+    const lapse = fits(at) ? null : clock.find((m) => m.from.includes(at) && fits(m.to));
+    if (lapse) step(lapse, null);
+    step(fits(at) || null, e);
+  }
+  const lapse = at === item.status ? null : clock.find((m) => m.from.includes(at) && m.to === item.status);
+  if (lapse) step(lapse, null);
+  return steps;
+}
+
+/** How often each move was made on this board, keyed from>to:verb, from every item's replay. */
 function moveCounts(items) {
   const counts = new Map();
-  const bump = (from, move) => counts.set(from + '>' + move.to + ':' + move.verb, (counts.get(from + '>' + move.to + ':' + move.verb) || 0) + 1);
-  const clock = FLOW.moves.filter((m) => m.by.includes('clock'));
   for (const item of items) {
-    let at = FLOW.initial;
-    for (const e of item.history) {
-      const verb = e.kind === 'renew' ? 'claim' : e.kind;
-      // A renew is the claim that stays claimed; a claim logged as such is the one that arrives.
-      const fits = (s) => FLOW.moves.find((m) => m.verb === verb && m.from.includes(s) && (verb !== 'claim' || (e.kind === 'renew') === (m.to === s)));
-      const lapse = fits(at) ? null : clock.find((m) => m.from.includes(at) && fits(m.to));
-      if (lapse) { bump(at, lapse); at = lapse.to; }
-      const move = fits(at);
-      if (move) { bump(at, move); at = move.to; }
+    for (const s of replay(item)) {
+      if (s.move) counts.set(s.from + '>' + s.move.to + ':' + s.move.verb, (counts.get(s.from + '>' + s.move.to + ':' + s.move.verb) || 0) + 1);
     }
-    const lapse = at === item.status ? null : clock.find((m) => m.from.includes(at) && m.to === item.status);
-    if (lapse) bump(at, lapse);
   }
   return counts;
+}
+
+// A finished stay as the timeline says it: 45m, 3h 20m, 2d 4h.
+const span = (ms) => {
+  const m = Math.max(0, Math.round(ms / 60000));
+  return m < 1 ? 'under a minute' : m < 60 ? m + 'm' : m < 1440 ? Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + (m % 60) + 'm' : '') : Math.floor(m / 1440) + 'd' + (Math.floor((m % 1440) / 60) ? ' ' + Math.floor((m % 1440) / 60) + 'h' : '');
+};
+
+/**
+ * An item's history drawn as a timeline. Each move is a dot in the colour of the state it led to, a
+ * reject in the colour of work sent back, and the item's creation (logged as add) one in the start
+ * state's colour; an event that moves nothing is a hollow dot. Between the dots runs a line in the
+ * colour of the state the item stayed in, and under each dot that began a stay, how long it lasted,
+ * or how long so far while the item can still leave. A lapse has a row but no time, so a stay that
+ * ends or begins at one says its length was not logged rather than guess it.
+ */
+function timeline(item) {
+  const steps = replay(item);
+  return '<ol class="tl">' + steps.map((s, i) => {
+    const enters = s.move ? s.move.to : s.kind === 'add' ? FLOW.initial : null;
+    const state = enters || s.from;
+    const final = FLOW.states.some((f) => f.id === state && f.final);
+    const next = steps.slice(i + 1).find((n) => n.move);
+    const named = s.kind === 'reject' ? 'sent back' : state;
+    const stay = !enters || final ? ''
+      : !s.at ? esc(named + (next ? ' after the ' : ' so far since the ') + s.kind + ', length not logged')
+      : !next ? esc(named) + ' for ' + age(s.at) + ' so far'
+      : !next.at ? esc(named + ' until the ' + next.kind + ', length not logged')
+      : esc(named + ' for ' + span(Date.parse(next.at) - Date.parse(s.at)));
+    return '<li class="tl-' + esc(state) + (s.kind === 'reject' ? ' tl-back' : '') + (enters ? '' : ' tl-quiet') + '"><time>' + (s.at ? when(s.at) : '') + '</time><span><b>' + esc(s.kind) + '</b> ' + esc(s.by) + '</span>' + (stay ? '<small>' + stay + '</small>' : '') + '</li>';
+  }).join('') + '</ol>';
 }
 
 /**
@@ -586,7 +636,7 @@ function render() {
       + (item.brief ? '<div><h3>Brief</h3><div class="text muted">' + esc(item.brief) + '</div></div>' : '')
       + '<div><h3>People and commits</h3><dl class="kv">' + (item.owner && s === 'building' ? '<dt>holding</dt><dd>' + esc(item.owner) + '</dd>' : '') + (item.builtBy ? '<dt>built by</dt><dd>' + esc(item.builtBy) + '</dd>' : '') + (item.verifiedBy ? '<dt>verified by</dt><dd>' + esc(item.verifiedBy) + '</dd>' : '') + (item.commit ? '<dt>commit</dt><dd><code>' + esc(item.commit.slice(0, 12)) + '</code></dd>' : '') + (item.merged ? '<dt>merged</dt><dd><code>' + esc(item.merged.slice(0, 12)) + '</code></dd>' : '') + (item.blockedBy.length ? '<dt>waits on</dt><dd>' + item.blockedBy.map((id) => '#' + id).join(', ') + '</dd>' : '') + '</dl></div>'
       + (back && !earlier.length ? '' : '<div><h3>' + (back ? 'Earlier verdicts' : 'Verdicts') + '</h3>' + (earlier.length ? earlier.map(verdictHtml).join('') : '<div class="muted">None yet.</div>') + '</div>')
-      + '<div><h3>History</h3><div class="hist">' + item.history.map((e) => '<div><time>' + when(e.at) + '</time><span>' + esc(e.by) + ' ' + esc(e.kind) + '</span></div>').join('') + '</div></div>'
+      + '<div><h3>History</h3>' + timeline(item) + '</div>'
       + '<div class="links"><button data-shout="' + esc(item.lane) + '" data-about="' + item.id + '" type="button">Shout the ' + esc(item.lane) + ' lane about #' + item.id + '</button><button data-new type="button">New item</button></div></div>';
   }
 
