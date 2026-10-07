@@ -699,9 +699,11 @@ function render() {
 
   // Every #id in a shout that names an item opens it, whatever stands next to it. The ids are found in
   // the raw text and each piece is escaped on its own, so an apostrophe's &#39; is never read as one;
-  // a number that names no item stays text. A path:lines@commit reference opens that code (B23).
+  // a number that names no item stays text. A path:lines@commit reference opens that code (B23): it
+  // is the whole run of path characters before the colon, never a tail of it, so what it opens is
+  // what it says, and the view refuses what is no path in the repo.
   const titles = new Map(p.items.map((i) => [String(i.id), i.title]));
-  const linked = (text) => String(text ?? '').split(/(#\\d+|[\\w.-]+(?:\\/[\\w.-]+)*:\\d+(?:-\\d+)?@[0-9a-f]{7,40}(?!\\w))/).map((part, n) => {
+  const linked = (text) => String(text ?? '').split(/(#\\d+|(?<![\\w./-])[\\w./-]+:\\d+(?:-\\d+)?@[0-9a-f]{7,40}(?!\\w))/).map((part, n) => {
     if (n % 2 && part[0] !== '#') return codeRef(part);
     const id = /^#\\d+$/.test(part) ? String(Number(part.slice(1))) : '';
     return titles.has(id) ? '<button class="ref" data-go="item:' + id + '" title="' + esc(titles.get(id)) + '" type="button">' + esc(part) + '</button>' : esc(part);

@@ -1317,6 +1317,10 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
   const first = box.git(alpha.web, 'rev-parse', 'HEAD');
   writeFileSync(join(alpha.web, 'web', 'greeting.html'), '  hello <b>there</b>\n    second line\n');
   writeFileSync(join(alpha.web, 'web', 'long.txt'), Array.from({ length: 100 }, (_, n) => `line ${n + 1}`).join('\n') + '\n');
+  // A path with a space ends in another file's path: text naming it must never open the other.
+  writeFileSync(join(alpha.web, 'web', 'note.txt'), 'plain note\n');
+  mkdirSync(join(alpha.web, 'web', 'my web'));
+  writeFileSync(join(alpha.web, 'web', 'my web', 'note.txt'), 'spaced note\n');
   box.git(alpha.web, 'add', '-A');
   box.git(alpha.web, 'commit', '-q', '-m', 'feat(web): a warmer greeting [G1]');
   const second = box.git(alpha.web, 'rev-parse', 'HEAD');
@@ -1324,6 +1328,8 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
   const now = `web/greeting.html:1-2@${second.slice(0, 12)}`;
   const long = `web/long.txt:1-100@${second}`;
   box.run(alpha.web, 'shout', 'all', `#1 was ${was}, is ${now}; see ${long}.`);
+  const spaced = `web/note.txt:1@${second.slice(0, 7)}`;
+  box.run(alpha.web, 'shout', 'all', `absolute /${was} and spaced web/my ${spaced}`);
   // A file only the working tree has, which no commit holds.
   writeFileSync(join(alpha.repo, 'draft.txt'), 'not committed\n');
   const view = await startView(box);
@@ -1349,6 +1355,15 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
     await page.click({ code: was });
     assert.ok(page.show('feed').includes(button(was, false) + ', is'), 'a second click closes it');
 
+    // A reference is the whole path the text gives, never a tail of it; what is no path in the repo,
+    // or may be the end of a path with a space, says so rather than open another file.
+    assert.ok(page.show('feed').includes(`absolute ${button('/' + was, false)} and spaced web/my ${button(spaced, false)}`));
+    await page.click({ code: '/' + was });
+    await page.click({ code: spaced });
+    feed = page.show('feed');
+    assert.ok(feed.includes(button('/' + was, true) + `<span class="code no">[BAD_REF] name a file inside the repo by its path from the top, such as src/serve.js (saw &quot;/web/greeting.html&quot;)</span>`), 'escaped, as every refusal');
+    assert.ok(feed.includes(button(spaced, true) + `<span class="code no">[AMBIGUOUS] web/note.txt may be the end of &quot;web/my web/note.txt&quot; at ${second.slice(0, 7)}, a path with a space, which a reference cannot name</span>`));
+
     const ask = async (ref, { root = alpha.repo, key = view.key } = {}) => {
       const res = await fetch(`${view.base}/api/code?root=${encodeURIComponent(root)}&ref=${encodeURIComponent(ref)}`, { headers: { 'x-pullboard-key': key } });
       return [res.status, (await res.json()).error ?? ''];
@@ -1364,6 +1379,7 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
     assert.deepEqual(await ask(`web/greeting.html:0@${sha}`), [400, '[BAD_REF] name the lines as 12, or 12-30']);
     assert.deepEqual(await ask(`web/greeting.html:3-2@${sha}`), [400, '[BAD_REF] name the lines as 12, or 12-30']);
     assert.deepEqual(await ask(`web/greeting.html:9@${sha}`), [400, `[NO_LINES] web/greeting.html has 1 lines at ${sha}`]);
+    assert.deepEqual(await ask(`web/greeting.html:1-2@${sha}`), [400, `[NO_LINES] web/greeting.html has 1 lines at ${sha}`], 'nor lines that run past the end');
     assert.deepEqual(await ask(`web/greeting.html@${sha}`), [400, 'a code reference reads path:lines@commit, such as src/serve.js:12-30@be4356b']);
     assert.deepEqual(await ask(was, { root: box.dir }), [400, 'not a project on this machine']);
     assert.equal((await ask(was, { key: 'wrong' }))[0], 403, 'and nothing without the secret');
