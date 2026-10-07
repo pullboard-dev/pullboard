@@ -305,8 +305,9 @@ function context(io) {
 }
 
 /**
- * This checkout's config. A linked worktree with none, beside a main checkout that has one, was
- * made from a commit that lacks pullboard's files, and init there would be the wrong fix (C4).
+ * This checkout's config. Init is the fix only where pullboard never was (C4): a config deleted
+ * from a checkout whose last commit has it is restored, and a linked worktree made from a commit
+ * that lacks it, beside a main checkout that has one, is made again from there.
  *
  * @param {{ root: string, commonDir: string, isMain: boolean }} info
  * @returns {any}
@@ -315,8 +316,12 @@ function configHere(info) {
   try {
     return loadConfig(info.root);
   } catch (error) {
+    if (!(error instanceof Refused) || error.code !== 'NO_CONFIG') throw error;
+    if (tryGit(info.root, ['cat-file', '-e', `HEAD:${CONFIG_FILE}`]).status === 0) {
+      throw new Refused('NO_CONFIG', `${CONFIG_FILE} is deleted here, though this checkout's last commit has it: restore it: ${cdTo(info.root)} git checkout HEAD -- ${CONFIG_FILE}`);
+    }
     const mainRoot = resolve(info.commonDir, '..');
-    if (!(error instanceof Refused) || error.code !== 'NO_CONFIG' || info.isMain || !existsSync(join(mainRoot, CONFIG_FILE))) throw error;
+    if (info.isMain || !existsSync(join(mainRoot, CONFIG_FILE))) throw error;
     throw new Refused(
       'NO_CONFIG',
       `this worktree's commit has no ${CONFIG_FILE}, though the main checkout has one: make a new worktree from the main checkout, which says what to commit first: ${cdTo(mainRoot)} pullboard worktree <lane>`,
@@ -750,18 +755,17 @@ function setupFiles(mainRoot, config) {
  * @param {any} config
  */
 function refuseUncommittedSetup(mainRoot, config) {
-  const files = setupFiles(mainRoot, config);
   const hasCommit = headCommit(mainRoot) !== null;
-  let differ = differFromHead(mainRoot, files);
+  const differ = differFromHead(mainRoot, setupFiles(mainRoot, config));
   if (hasCommit && !differ.length) return;
-  // With no commit, a file git ignores still has to be committed; git add will name the ignore.
-  if (!differ.length) differ = files.filter((path) => existsSync(join(mainRoot, path))).map((path) => ({ path, how: 'not committed' }));
   const why = hasCommit
     ? `a new worktree starts from the last commit, and these differ from it here: ${differ.map(({ path, how }) => `${path} (${how})`).join(', ')}`
-    : `this repo has no commit yet, and a new worktree starts from one; not committed: ${differ.map(({ path }) => path).join(', ')}`;
+    : `this repo has no commit yet, and a new worktree starts from one; not committed: ${differ.map(({ path, ignored }) => (ignored ? `${path} (git ignores it)` : path)).join(', ')}`;
   const words = differ.map(({ path }) => shellWord(path)).join(' ');
+  // No commit holds a file git ignores unless it is added by force.
+  const force = differ.some(({ ignored }) => ignored) ? ' -f' : '';
   const subject = hasCommit ? 'chore: commit pullboard files' : 'chore: set up pullboard';
-  throw new Refused('NOT_COMMITTED', `${why}. Commit them first: ${cdTo(mainRoot)} git add -- ${words} && git commit -q -m "${subject}" -- ${words}`);
+  throw new Refused('NOT_COMMITTED', `${why}. Commit them first: ${cdTo(mainRoot)} git add${force} -- ${words} && git commit -q -m "${subject}" -- ${words}`);
 }
 
 /**

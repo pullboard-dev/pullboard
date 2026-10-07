@@ -100,24 +100,27 @@ export function isClean(root) {
 
 /**
  * How each file under `paths` in the work tree differs from HEAD, whatever is staged: not
- * committed, changed or deleted. With no commits yet, every file there is not committed.
- * Read-only: git takes no index lock.
+ * committed, changed or deleted. A file git ignores counts too, marked, since no commit holds it.
+ * With no commits yet, every file there is not committed. Read-only: git takes no index lock.
  *
  * @param {string} root
  * @param {string[]} paths
- * @returns {{ path: string, how: string }[]}
+ * @returns {{ path: string, how: string, ignored: boolean }[]}
  */
 export function differFromHead(root, paths) {
-  const listed = (args, input) =>
-    execFileSync('git', ['--no-optional-locks', ...GIT_FLAGS, ...args], { cwd: root, encoding: 'utf8', input: input ?? '' }).split('\0').filter(Boolean);
+  const listed = (args) =>
+    execFileSync('git', ['--no-optional-locks', ...GIT_FLAGS, ...args], { cwd: root, encoding: 'utf8', input: '' }).split('\0').filter(Boolean);
   const base = headCommit(root) ?? listed(['hash-object', '-t', 'tree', '--stdin'])[0].trim();
   const fields = listed(['diff', '--no-renames', '--name-status', '-z', base, '--', ...paths]);
   const found = [];
   for (let i = 0; i + 1 < fields.length; i += 2) {
-    found.push({ path: fields[i + 1], how: { A: 'not committed', D: 'deleted' }[fields[i]] ?? 'changed' });
+    found.push({ path: fields[i + 1], how: { A: 'not committed', D: 'deleted' }[fields[i]] ?? 'changed', ignored: false });
   }
   for (const path of listed(['ls-files', '-z', '--others', '--exclude-standard', '--', ...paths])) {
-    found.push({ path, how: 'not committed' });
+    found.push({ path, how: 'not committed', ignored: false });
+  }
+  for (const path of listed(['ls-files', '-z', '--others', '--ignored', '--exclude-standard', '--', ...paths])) {
+    found.push({ path, how: 'not committed; git ignores it', ignored: true });
   }
   return found.sort((a, b) => (a.path < b.path ? -1 : 1));
 }

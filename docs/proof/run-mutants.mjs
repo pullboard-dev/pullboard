@@ -12,6 +12,7 @@ const GUIDE = ['test/practice.test.js', 'the run guide takes one agent through t
 const STAGES = ['test/e2e.test.js', "the coordinator's resume names its next step"];
 const FIRST_WORKTREE = ['test/e2e.test.js', "a worktree starts only from a commit that holds pullboard's files"];
 const NO_INIT = ['test/e2e.test.js', 'a worktree whose commit has no pullboard.json is sent to the main checkout'];
+const IGNORED_OR_DELETED = ['test/e2e.test.js', 'a hook git ignores is committed by force before a worktree'];
 
 /** Row, the change, its edits as [file, from, to], the test that judges it, and the outcome expected. */
 const MUTANTS = [
@@ -31,6 +32,9 @@ const MUTANTS = [
   ['I4', 'a file never added to git passes', [['src/git.js', "  for (const path of listed(['ls-files', '-z', '--others', '--exclude-standard', '--', ...paths])) {", '  for (const path of []) {']], FIRST_WORKTREE, 'red'],
   ['C4', 'a deleted file is called changed', [['src/git.js', "{ A: 'not committed', D: 'deleted' }", "{ A: 'not committed' }"]], FIRST_WORKTREE, 'red'],
   ['C4', 'the command commits everything staged', [['src/cli.js', 'git commit -q -m "${subject}" -- ${words}`);', 'git commit -q -m "${subject}"`);']], FIRST_WORKTREE, 'red'],
+  ['I4', 'a hook git ignores passes', [['src/git.js', "  for (const path of listed(['ls-files', '-z', '--others', '--ignored', '--exclude-standard', '--', ...paths])) {", '  for (const path of []) {']], IGNORED_OR_DELETED, 'red'],
+  ['C4', 'a file git ignores is not added by force', [['src/cli.js', "  const force = differ.some(({ ignored }) => ignored) ? ' -f' : '';", "  const force = '';"]], IGNORED_OR_DELETED, 'red'],
+  ['C4', 'a deleted config is sent to init', [['src/cli.js', "    if (tryGit(info.root, ['cat-file', '-e', `HEAD:${CONFIG_FILE}`]).status === 0) {", '    if (false) {']], IGNORED_OR_DELETED, 'red'],
   ['C4', 'a worktree with no config is told to run init', [['src/cli.js', '  const config = configHere(info);', '  const config = loadConfig(info.root);']], NO_INIT, 'red'],
   ['N31', 'the guide does not say to commit before the first worktree', [['skills/pullboard-run/SKILL.md', ' A worktree starts from the last commit, so first commit what init wrote, the spec and the lanes; `pullboard worktree` refuses until they are.', '']], GUIDE, 'red'],
   ['I9', 'init says nothing to an agent', [['src/cli.js', "      io.say('with an agent: start a new Claude Code session here, which loads the pullboard skills, then tell it what to build; the pullboard-run skill runs the team');\n", '']], STAGES, 'red'],

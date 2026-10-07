@@ -365,6 +365,40 @@ test("a worktree starts only from a commit that holds pullboard's files as the m
   assert.match(foreign.stderr, /outside the web lane: api\/a.js/, 'its hooks run');
 });
 
+test('a hook git ignores is committed by force before a worktree; a deleted config is restored, never re-initialized [I4, C4]', () => {
+  const box = project();
+  const sh = (command) => execFileSync('sh', ['-c', command], { env: box.env, encoding: 'utf8', stdio: 'pipe' });
+  writeFileSync(join(box.repo, '.gitignore'), '.githooks/post-checkout\n');
+  box.git(box.repo, 'add', '.gitignore');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: ignore a local hook');
+  writeFileSync(join(box.repo, '.githooks', 'post-checkout'), '#!/bin/sh\n');
+  const ignored = box.run(box.repo, 'worktree', 'web');
+  assert.equal(ignored.code, 1, ignored.out);
+  assert.match(ignored.err, /\[NOT_COMMITTED\] a new worktree starts from the last commit, and these differ from it here: \.githooks\/post-checkout \(not committed; git ignores it\)\. /);
+  assert.ok(!existsSync(join(box.dir, 'repo-web-1')), 'no folder');
+  const [, command] = ignored.err.match(/Commit them first: (.*)\n/);
+  assert.ok(command.includes(' && git add -f -- .githooks/post-checkout && git commit '), command);
+  sh(command);
+  assert.equal(box.git(box.repo, 'ls-tree', '--name-only', 'HEAD', '--', '.githooks/post-checkout'), '.githooks/post-checkout', 'the ignored hook is committed');
+  const made = box.run(box.repo, 'worktree', 'web');
+  assert.equal(made.code, 0, made.err);
+  assert.ok(existsSync(join(box.dir, 'repo-web-1', '.githooks', 'post-checkout')), 'the worktree has the hook the main checkout runs');
+
+  box.git(box.repo, 'rm', '-q', 'pullboard.json');
+  const restore = `cd ${box.repo} && git checkout HEAD -- pullboard.json`;
+  for (const args of [['worktree', 'web'], ['status'], ['next']]) {
+    const said = box.run(box.repo, ...args);
+    assert.equal(said.code, 1, said.out);
+    assert.ok(said.err.includes(`[NO_CONFIG] pullboard.json is deleted here, though this checkout's last commit has it: restore it: ${restore}\n`), said.err);
+    assert.ok(!said.err.includes('pullboard init'), `${args[0]} never says to run init`);
+  }
+  assert.ok(!existsSync(join(box.dir, 'repo-web-2')), 'the refused worktree made nothing');
+  sh(restore);
+  assert.equal(box.run(box.repo, 'status').code, 0, 'restored, the board works again');
+  rmSync(join(box.web, 'pullboard.json'));
+  assert.ok(box.run(box.web, 'next').err.includes(`restore it: cd ${box.web} && git checkout HEAD -- pullboard.json`), 'a linked worktree restores its own');
+});
+
 test('a worktree whose commit has no pullboard.json is sent to the main checkout, never told to run init [C4]', () => {
   const box = sandbox();
   const repo = join(box.dir, 'repo');
