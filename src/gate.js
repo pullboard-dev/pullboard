@@ -8,6 +8,8 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { gitChildEnv, gitPath, headTree, isClean, untracked } from './git.js';
 import { Refused } from './refused.js';
+import { takeResource } from './resources.js';
+import { loadMachineSettings } from './settings.js';
 
 const STAMP = 'pullboard-gate-green';
 const LOG = 'pullboard-gate.log';
@@ -108,22 +110,38 @@ export function runShell(root, command) {
  *
  * @param {string} root
  * @param {any} config
- * @param {{ trustStamp?: boolean }} [options]
- * @returns {{ isGreen: boolean, isCached: boolean, output: string, seconds: number, log: string }}
+ * @param {{ trustStamp?: boolean, onWait?: (state: object) => void }} [options]
+ * @returns {Promise<{ isGreen: boolean, isCached: boolean, output: string, seconds: number, log: string }>}
  */
-export function runGate(root, config, { trustStamp = true } = {}) {
+export async function runGate(root, config, { trustStamp = true, onWait } = {}) {
   if (!config.gate.trim()) {
     throw new Refused('NO_GATE', 'no gate configured; set "gate" in pullboard.json, e.g. "npm test"');
   }
   if (trustStamp && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
-  const before = committedTree(root);
-  const { isGreen, output, seconds } = runShell(root, config.gate);
-  const log = gitPath(root, LOG);
-  writeFileSync(log, output);
-  if (isGreen && before !== null && committedTree(root) === before) {
-    writeFileSync(gitPath(root, STAMP), `${before}\n`);
+  const capacityProvider = () => loadMachineSettings().gateSlots;
+  const lease = await takeResource({
+    name: 'gate',
+    capacity: capacityProvider(),
+    capacityProvider,
+    scope: 'machine',
+    root,
+    repo: root,
+    allowIdleCapacityUpdate: true,
+    onWait,
+  });
+  try {
+    if (trustStamp && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
+    const before = committedTree(root);
+    const { isGreen, output, seconds } = runShell(root, config.gate);
+    const log = gitPath(root, LOG);
+    writeFileSync(log, output);
+    if (isGreen && before !== null && committedTree(root) === before) {
+      writeFileSync(gitPath(root, STAMP), `${before}\n`);
+    }
+    return { isGreen, isCached: false, output, seconds, log };
+  } finally {
+    lease.release();
   }
-  return { isGreen, isCached: false, output, seconds, log };
 }
 
 /**
