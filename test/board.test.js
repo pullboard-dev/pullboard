@@ -761,4 +761,67 @@ test('[O3] declared families travel from join through submit and verdict, and ab
   store.claim(persistent, unclaimed, { agentId: 'web-2', lane: 'web', leaseMs: 2 * HOUR, freeze: familyFreeze });
   store.submit(persistent, unclaimed, { agentId: 'web-2', commit: SHA_A, tree: 'tree-c' });
   assert.equal(store.getItem(persistent, unclaimed).item_builder_family, null);
+
+  const differentFamily = store.addItem(persistent, { by: 'coordinator', lane: 'web', title: 'CLI family review' });
+  store.claim(persistent, differentFamily, { agentId: 'web-1', lane: 'web', leaseMs: 2 * HOUR, freeze: familyFreeze });
+  store.submit(persistent, differentFamily, { agentId: 'web-1', commit: SHA_A, tree: 'tree-d' });
+  assert.equal(store.agentAt(persistent, reviewerRoot).agent_family, 'Family Gamma');
+  assert.equal(store.getItem(persistent, unclaimed).item_builder_family, null);
+  assert.equal(store.nextFor(persistent, { agentId: 'review-1', lane: 'review', verify: true, familyPolicy: 'require' }).item.item_id, differentFamily);
+  const policyConfig = JSON.stringify({
+    gate: 'true', spec: 'SPEC.md', verify: { policy: 'any', family: 'require' },
+    lanes: { web: { owns: ['web/'], specs: [] }, review: { owns: ['review/'], specs: [] } }, shared: [],
+  });
+  writeFileSync(join(repo, 'pullboard.json'), policyConfig);
+  writeFileSync(join(reviewerRoot, 'pullboard.json'), policyConfig);
+  const cliReview = await runMain(reviewerRoot, ['next', '--verify', '--json']);
+  assert.equal(cliReview.code, 0, cliReview.stderr || cliReview.stdout);
+  assert.equal(JSON.parse(cliReview.stdout).item.item_id, differentFamily, 'CLI reads verify.family and reserves different-family work');
+});
+
+test('[O2,O3] family policy controls review order and refuses unknown or matching families', () => {
+  store.register(board, { lane: 'web', path: '/repo-web-1', family: 'Family Alpha' });
+  store.register(board, { lane: 'web', path: '/repo-web-2', family: 'Family Beta' });
+  store.register(board, { lane: 'api', path: '/repo-api-1', family: 'Family Beta' });
+  const submitAs = (agentId, title) => {
+    const id = store.addItem(board, { by: 'coordinator', lane: 'web', title });
+    store.claim(board, id, { agentId, lane: 'web', leaseMs: HOUR, freeze: () => ({ text: title, digest: 'digest:Page' }) });
+    store.submit(board, id, { agentId, commit: SHA_A, tree: `tree-${title}` });
+    return id;
+  };
+  const beta = submitAs('web-2', 'Beta build');
+  const alpha = submitAs('web-1', 'Alpha build');
+  store.register(board, { lane: 'web', path: '/repo-web-2', family: null });
+  const unknown = submitAs('web-2', 'Unknown build');
+
+  assert.equal(store.nextFor(board, { agentId: 'api-1', lane: 'api', verify: true, familyPolicy: 'off' }).item.item_id, beta,
+    'off preserves the existing oldest-first review order');
+  assert.equal(store.nextFor(board, { agentId: 'api-1', lane: 'api', verify: true, familyPolicy: 'prefer' }).item.item_id, alpha,
+    'prefer puts the known different family ahead of a matching or unknown family');
+  assert.equal(store.nextFor(board, { agentId: 'api-1', lane: 'api', verify: true, familyPolicy: 'require' }).item.item_id, alpha,
+    'require offers only work with a known different family');
+  assert.throws(() => store.verify(board, beta, {
+    agentId: 'api-1', decision: 'ACCEPT', head: SHA_A, digest: 'digest:Page', policy: 'any', familyPolicy: 'require',
+    note: 'checked family policy',
+  }), /O2_FAMILY_MATCH.*ask the coordinator/);
+  assert.throws(() => store.verify(board, unknown, {
+    agentId: 'api-1', decision: 'ACCEPT', head: SHA_A, digest: 'digest:Page', policy: 'any', familyPolicy: 'require',
+    note: 'checked unknown builder family',
+  }), /O2_FAMILY_MATCH/);
+  assert.equal(store.reserveNextReview(board, {
+    agentId: 'api-1', lane: 'api', leaseMs: HOUR, policy: 'any', familyPolicy: 'require',
+  }).item.item_id, alpha, 'reservation uses the same family filter as next --verify');
+  assert.equal(store.verify(board, alpha, {
+    agentId: 'api-1', decision: 'ACCEPT', head: SHA_A, digest: 'digest:Page', policy: 'any', familyPolicy: 'require',
+    note: 'verified from a different declared family',
+  }).decision, 'ACCEPT', 'a different-family verifier can complete the verdict');
+
+  store.register(board, { lane: 'api', path: '/repo-api-1', family: null });
+  const unknownVerifierTarget = submitAs('web-1', 'Unknown verifier target');
+  assert.equal(store.nextFor(board, { agentId: 'api-1', lane: 'api', verify: true, familyPolicy: 'require' }).item, null,
+    'an unknown verifier family counts as a match under require');
+  assert.throws(() => store.verify(board, unknownVerifierTarget, {
+    agentId: 'api-1', decision: 'ACCEPT', head: SHA_A, digest: 'digest:Page', policy: 'any', familyPolicy: 'require',
+    note: 'checked unknown verifier family',
+  }), /O2_FAMILY_MATCH/);
 });

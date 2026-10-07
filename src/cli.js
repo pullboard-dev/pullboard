@@ -1150,7 +1150,8 @@ function verifyHere(ctx, id, { second, values }) {
       note: textArg(ctx.io, values, 'note') ?? '',
       head,
       digest,
-      policy: ctx.config.verify,
+      policy: ctx.config.verify.policy,
+      familyPolicy: ctx.config.verify.family,
     });
   });
   ctx.io.result?.({ id, ...result });
@@ -1172,7 +1173,7 @@ function nextOnce(ctx, values) {
     if (values.verify) checkMainVerifier(ctx, board, values);
     const me = whoAmI(ctx, board);
     if (values.verify) {
-      return store.reserveNextReview(board, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify, runnable: values.runnable, routes: values.routes });
+      return store.reserveNextReview(board, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes });
     }
     const warm = warmFiles(ctx, board, me);
     const { item, reasons, shared } = store.nextFor(board, { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm });
