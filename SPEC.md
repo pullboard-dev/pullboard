@@ -202,6 +202,8 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - H10 [approved, aim] Offline, a linked board reads locally and refuses moves until the relay answers. | gate: test/relay.test.js | serves: H3
 - H11 [draft, aim] Without an account, `pullboard sync` keeps one board across machines through the repo's own git remote. | gate: test/sync.test.js
 - H12 [approved, must] pullboard.dev never writes to a repo: what you do there, like approving a row, reaches your agents as a request. | gate: test/relay.test.js | serves: H6
+- H13 [draft, must] Acting on a board, and minting its tokens, needs write access to its repo. | gate: test/relay.test.js | serves: H8
+- H14 [draft, must] A public repo's board is hidden from readers without triage access, unless its owner publishes it. | gate: test/relay.test.js | serves: H8
 
 ## Q · Queues and procedures
 - Q1 [approved, must] A resource has a name, a capacity, a scope (machine, repo or board) and a queue. | gate: test/resources.test.js
