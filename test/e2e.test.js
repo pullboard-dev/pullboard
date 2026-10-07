@@ -217,6 +217,25 @@ test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [
   assert.equal(box.git(box.repo, 'rev-parse', `refs/pullboard/items/1/${head.slice(0, 12)}`), head, 'submit pins the commit');
 });
 
+test('decisions are asked, listed and answered, and evidence attached, from the command line [B21, B22]', () => {
+  const box = project();
+  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');
+  const asked = box.run(box.web, 'shout', 'coordinator', 'ship', 'today?', '--decision');
+  assert.equal(asked.code, 0, asked.err);
+  const id = /as #(\d+)/.exec(asked.out)?.[1];
+  assert.ok(id, asked.out);
+  assert.match(box.run(box.repo, 'decisions').out, new RegExp(`#${id} {2}web-1 -> coordinator, \\d+m ago: ship today\\?`));
+  assert.match(box.run(box.repo, 'inbox').out, new RegExp(`web-1 -> coordinator: asks for a decision \\(#${id}; pullboard answer ${id}`));
+  assert.match(box.run(box.repo, 'answer', id, 'yes, today').out, new RegExp(`answered #${id} to web-1 as #\\d+`));
+  assert.match(box.run(box.repo, 'decisions').out, /no open decisions/);
+  assert.match(box.run(box.web, 'inbox').out, new RegExp(`coordinator -> web-1: answers #${id}: yes, today`));
+  const head = box.git(box.web, 'rev-parse', 'HEAD');
+  const proved = box.run(box.web, 'shout', 'coordinator', 'FINISH', 'the page', '--evidence', 'receipt', '--outcome', 'measured', '--item', '1', '--commit', 'HEAD');
+  assert.equal(proved.code, 0, proved.err);
+  assert.match(box.run(box.repo, 'inbox').out, new RegExp(`web-1 -> coordinator: FINISH the page\\n {2}receipt: measured, #1 at ${head.slice(0, 12)}`));
+  assert.match(box.run(box.web, 'shout', 'coordinator', 'x', '--evidence', 'receipt', '--outcome', 'measured', '--item', '1', '--commit', 'nope').err, /BAD_EVIDENCE.*"nope"/);
+});
+
 test('pullboard worktree makes a joined worktree for a lane in one command [I4]', () => {
   const box = project();
   const made = box.run(box.repo, 'worktree', 'api');

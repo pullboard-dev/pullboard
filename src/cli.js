@@ -91,6 +91,10 @@ Work
   pullboard verify <id> reject --reason TEST_FAILURE --note "what failed"
                                         any --note can be --note-file <file>, which keeps quotes, $ and backticks intact
   pullboard shout <lane|agent|all> <text>       pullboard inbox
+  pullboard shout <to> <text> --decision          ask for a decision; it stays open until answered
+  pullboard shout <to> <text> --evidence attempt|receipt --outcome <word> --item <id> --commit <rev>
+  pullboard answer <shout-id> <text>              answer a shout that asked for a decision
+  pullboard decisions                             shouts still waiting for a decision
 
 Coordinator
   pullboard sweep --run "<checker>" --check "<checker on {file}>" [--route light] [--max 20] [--dry-run]
@@ -156,6 +160,11 @@ const OPTIONS = {
   must: { type: 'boolean' },
   json: { type: 'boolean' },
   history: { type: 'boolean' },
+  decision: { type: 'boolean' },
+  evidence: { type: 'string' },
+  outcome: { type: 'string' },
+  item: { type: 'string' },
+  commit: { type: 'string' },
   help: { type: 'boolean', short: 'h' },
   version: { type: 'boolean', short: 'v' },
 };
@@ -335,6 +344,30 @@ function whoAmI(ctx, board) {
  * @returns {(item: any) => { text: string, digest: string }}
  */
 const freezer = (ctx) => (item) => frozenCriterion(loadSpec(ctx.info.root, ctx.config), item);
+
+/**
+ * The evidence a shout carries, from its flags (B22). The commit is resolved here, in this repo,
+ * so the board only ever stores a full SHA that names a real commit.
+ *
+ * @param {any} ctx
+ * @param {any} values
+ * @returns {{ kind: string, outcome: string, item: number, commit: string }}
+ */
+function evidenceFrom(ctx, values) {
+  const rev = values.commit ?? '';
+  const resolved = rev ? tryGit(ctx.info.root, ['rev-parse', '--verify', '--quiet', `${rev}^{commit}`]) : { status: 1, stdout: '' };
+  if (resolved.status !== 0) throw new Refused('BAD_EVIDENCE', `evidence names a commit in this repo: --commit <rev> (saw "${rev}")`);
+  const item = /^\d+$/.test(values.item ?? '') ? Number(values.item) : NaN;
+  return { kind: values.evidence, outcome: values.outcome ?? '', item, commit: resolved.stdout };
+}
+
+/**
+ * A shout's evidence as one line: its kind, outcome, item and commit (B22).
+ *
+ * @param {any} shout
+ * @returns {string}
+ */
+const evidenceLine = (shout) => `${shout.shout_evidence_kind}: ${shout.shout_evidence_outcome}, #${shout.shout_evidence_item} at ${shout.shout_evidence_commit.slice(0, 12)}`;
 
 /** How many characters of an earlier verdict's note show prints (N30). */
 const NOTE_LINE = 120;
@@ -737,7 +770,19 @@ function readCommands(io, { first, values }) {
       const ctx = context(io);
       const shouts = withBoard(ctx, (board) => store.inbox(board, whoAmI(ctx, board).id));
       if (!shouts.length) io.say('no new shouts');
-      shouts.forEach((shout) => io.say(`${shout.shout_at.slice(0, 16)}  ${shout.shout_from} -> ${shout.shout_to}: ${shout.shout_text}`));
+      for (const shout of shouts) {
+        const ask = shout.shout_decision ? `asks for a decision (#${shout.shout_id}; pullboard answer ${shout.shout_id} "..."): ` : '';
+        const reply = shout.shout_answers ? `answers #${shout.shout_answers}: ` : '';
+        io.say(`${shout.shout_at.slice(0, 16)}  ${shout.shout_from} -> ${shout.shout_to}: ${ask}${reply}${shout.shout_text}`);
+        if (shout.shout_evidence_kind) io.say(`  ${evidenceLine(shout)}`);
+      }
+      return 0;
+    },
+    decisions: () => {
+      const ctx = context(io);
+      const asks = withBoard(ctx, (board) => store.openDecisions(board));
+      if (!asks.length) io.say('no open decisions');
+      for (const ask of asks) io.say(`#${ask.shout_id}  ${ask.shout_from} -> ${ask.shout_to}, ${span(ctx, ask.shout_at)} ago: ${firstLine(ask.shout_text)}`);
       return 0;
     },
     ledger: () => {
@@ -1127,8 +1172,16 @@ function workCommands(io, args) {
       return 0;
     }),
     shout: () => act((ctx, board, me) => {
-      store.shout(board, { from: me.id, to: first ?? '', text: [second, ...rest].filter(Boolean).join(' '), lanes: laneNames(ctx.config) });
-      io.say(`shouted to ${first}`);
+      const evidence = values.evidence === undefined ? null : evidenceFrom(ctx, values);
+      const text = [second, ...rest].filter(Boolean).join(' ');
+      const id = store.shout(board, { from: me.id, to: first ?? '', text, lanes: laneNames(ctx.config), decision: Boolean(values.decision), evidence });
+      io.say(values.decision ? `asked ${first} for a decision as #${id}; it stays open until someone runs: pullboard answer ${id} "<the decision>"` : `shouted to ${first}`);
+      return 0;
+    }),
+    answer: () => act((ctx, board, me) => {
+      const ask = store.getShout(board, idArg(first));
+      const id = store.shout(board, { from: me.id, to: ask.shout_from, text: [second, ...rest].filter(Boolean).join(' '), lanes: laneNames(ctx.config), answers: ask.shout_id });
+      io.say(`answered #${ask.shout_id} to ${ask.shout_from} as #${id}`);
       return 0;
     }),
   };

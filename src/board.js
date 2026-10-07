@@ -213,6 +213,12 @@ function migrate(db) {
     ['item', 'item_files', "TEXT NOT NULL DEFAULT ''"],
     ['item', 'item_review_by', 'TEXT'],
     ['item', 'item_review_until', 'TEXT'],
+    ['shout', 'shout_decision', 'INTEGER NOT NULL DEFAULT 0'],
+    ['shout', 'shout_answers', 'INTEGER'],
+    ['shout', 'shout_evidence_kind', 'TEXT'],
+    ['shout', 'shout_evidence_outcome', 'TEXT'],
+    ['shout', 'shout_evidence_item', 'INTEGER'],
+    ['shout', 'shout_evidence_commit', 'TEXT'],
   ];
   for (const [table, column, type] of added) {
     const columns = db.prepare(`PRAGMA table_info(${table})`).all().map((entry) => entry.name);
@@ -1113,15 +1119,69 @@ export function verdictsFor(board, id) {
  * @param {any} board
  * @param {{ from: string, to: string, text: string, lanes: string[] }} message
  */
-export function shout(board, { from, to, text, lanes }) {
+export function shout(board, { from, to, text, lanes, decision = false, answers = null, evidence = null }) {
   if (!text.trim()) throw new Refused('EMPTY_SHOUT', 'a shout needs text');
   const isAgent = board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(to);
   if (to !== 'all' && !lanes.includes(to) && !isAgent) {
     throw new Refused('NO_READER', `nobody reads "${to}": name a lane, an agent or all`);
   }
-  board.db
-    .prepare('INSERT INTO shout (shout_from, shout_to, shout_text, shout_at) VALUES (?, ?, ?, ?)')
-    .run(from, to, text.trim(), now(board));
+  if (answers !== null && !getShout(board, answers).shout_decision) {
+    throw new Refused('NOT_A_DECISION', `shout #${answers} asked for no decision; reply with pullboard shout`);
+  }
+  if (evidence) checkEvidence(board, evidence);
+  const result = board.db
+    .prepare(
+      `INSERT INTO shout (shout_from, shout_to, shout_text, shout_at, shout_decision, shout_answers,
+         shout_evidence_kind, shout_evidence_outcome, shout_evidence_item, shout_evidence_commit)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(from, to, text.trim(), now(board), decision ? 1 : 0, answers, evidence?.kind ?? null, evidence ? evidence.outcome.trim() : null, evidence?.item ?? null, evidence?.commit ?? null);
+  return Number(result.lastInsertRowid);
+}
+
+/** The kinds of evidence a shout can carry (B22): what was tried, or what was measured. */
+export const EVIDENCE_KINDS = ['attempt', 'receipt'];
+
+/**
+ * Refuse evidence that is not fields a reader can trust (B22): its kind, its outcome, an item on
+ * the board, and a full commit SHA, which the CLI resolves in the repo before it gets here.
+ *
+ * @param {any} board
+ * @param {{ kind: string, outcome: string, item: number, commit: string }} evidence
+ */
+function checkEvidence(board, { kind, outcome, item, commit }) {
+  if (!EVIDENCE_KINDS.includes(kind)) throw new Refused('BAD_EVIDENCE', `the evidence kind is attempt or receipt, not "${kind ?? ''}": --evidence receipt`);
+  if (!String(outcome ?? '').trim()) throw new Refused('BAD_EVIDENCE', 'evidence names its outcome: --outcome measured');
+  if (!Number.isInteger(item) || !board.db.prepare('SELECT 1 FROM item WHERE item_id = ?').get(item)) {
+    throw new Refused('BAD_EVIDENCE', `evidence names an item on the board: --item <id> (saw ${item})`);
+  }
+  if (!/^[0-9a-f]{40}$/.test(commit ?? '')) throw new Refused('BAD_EVIDENCE', `evidence names a commit by its full SHA (saw "${commit ?? ''}")`);
+}
+
+/**
+ * One shout by its id.
+ *
+ * @param {any} board
+ * @param {number} id
+ * @returns {any}
+ */
+export function getShout(board, id) {
+  const found = board.db.prepare('SELECT * FROM shout WHERE shout_id = ?').get(id);
+  if (!found) throw new Refused('NO_SHOUT', `no shout #${id}`);
+  return found;
+}
+
+/**
+ * Shouts that asked for a decision nobody has answered yet, oldest first (B21). They stay here, and
+ * in the person's Needs-you, until an answer names them; nothing ever edits the ask.
+ *
+ * @param {any} board
+ * @returns {any[]}
+ */
+export function openDecisions(board) {
+  return board.db
+    .prepare('SELECT * FROM shout ask WHERE ask.shout_decision = 1 AND NOT EXISTS (SELECT 1 FROM shout reply WHERE reply.shout_answers = ask.shout_id) ORDER BY ask.shout_id')
+    .all();
 }
 
 /**

@@ -193,6 +193,35 @@ test('shouts reach a lane, an agent or all; inbox marks them read [B7]', () => {
   assert.deepEqual(store.inbox(board, 'web-1').map((shout) => shout.shout_text), ['web: rebase']);
 });
 
+test('a shout can ask for a decision; it stays open until someone answers it [B21]', () => {
+  const lanes = ['coordinator', 'web', 'api'];
+  const ask = store.shout(board, { from: 'web-1', to: 'coordinator', text: 'ship the page today or tomorrow?', lanes, decision: true });
+  const note = store.shout(board, { from: 'web-1', to: 'coordinator', text: 'fyi: the gate is slow', lanes });
+  assert.deepEqual(store.openDecisions(board).map((shout) => shout.shout_id), [ask]);
+  assert.throws(() => store.shout(board, { from: 'coordinator', to: 'web-1', text: 'ok', lanes, answers: note }), /NOT_A_DECISION/);
+  assert.throws(() => store.shout(board, { from: 'coordinator', to: 'web-1', text: 'ok', lanes, answers: 999 }), /NO_SHOUT/);
+  assert.deepEqual(store.openDecisions(board).map((shout) => shout.shout_id), [ask], 'a refused answer leaves it open');
+  const answer = store.shout(board, { from: 'coordinator', to: 'web-1', text: 'today', lanes, answers: ask });
+  assert.deepEqual(store.openDecisions(board), []);
+  assert.equal(store.getShout(board, answer).shout_answers, ask);
+  assert.equal(store.getShout(board, ask).shout_text, 'ship the page today or tomorrow?', 'an answer is a new shout; the ask is never edited');
+});
+
+test('a shout can carry typed evidence: attempt or receipt, outcome, item and commit [B22]', () => {
+  const lanes = ['coordinator', 'web', 'api'];
+  const id = submitted();
+  const evidence = { kind: 'receipt', outcome: 'measured', item: id, commit: SHA_A };
+  const stored = store.getShout(board, store.shout(board, { from: 'web-2', to: 'coordinator', text: 'FINISH the page holds', lanes, evidence }));
+  assert.deepEqual([stored.shout_evidence_kind, stored.shout_evidence_outcome, stored.shout_evidence_item, stored.shout_evidence_commit], ['receipt', 'measured', id, SHA_A]);
+  const refused = (fields, field) =>
+    assert.throws(() => store.shout(board, { from: 'web-2', to: 'coordinator', text: 'x', lanes, evidence: { ...evidence, ...fields } }), new RegExp(`BAD_EVIDENCE.*${field}`));
+  refused({ kind: 'hunch' }, 'attempt or receipt');
+  refused({ outcome: '  ' }, 'outcome');
+  refused({ item: 999 }, 'an item on the board');
+  refused({ commit: 'abc' }, 'full SHA');
+  assert.equal(store.getShout(board, store.shout(board, { from: 'web-2', to: 'coordinator', text: 'no evidence', lanes })).shout_evidence_kind, null);
+});
+
 test('every move lands in the event log; stats count items and verdicts [R1, R2]', () => {
   const id = submitted();
   verdict(id, { agentId: 'web-2', decision: 'REJECT', reason: 'TEST_FAILURE', note: 'red' });
