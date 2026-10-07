@@ -155,6 +155,9 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .answering > span { min-width: 0; overflow-wrap: anywhere; }
 .mark { font: 600 11px var(--mono); padding: 0 6px; border-radius: 999px; background: var(--surface-2); color: var(--ink-muted); }
 .mark.ask { display: inline; background: var(--warn-soft); color: var(--warn); }
+.ev { display: flex; flex-wrap: wrap; gap: 0 6px; align-items: baseline; width: fit-content; max-width: 100%; margin-top: 4px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); font-size: 12px; color: var(--ink-muted); }
+.ev b { font: 600 11px var(--mono); letter-spacing: .04em; text-transform: uppercase; color: var(--ink); }
+.ev code { font: 12px var(--mono); }
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 2px; }
 .chips button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 9px; cursor: pointer; font-size: 13px; }
@@ -705,7 +708,10 @@ function render() {
     return titles.has(id) ? '<button class="ref" data-go="item:' + id + '" title="' + esc(titles.get(id)) + '" type="button">' + esc(part) + '</button>' : esc(part);
   }).join('');
   const mark = (x) => (x.shout_decision ? '<span class="mark ask">decision</span> ' : x.shout_answers ? '<span class="mark">answer</span> ' : '');
-  $('feed').innerHTML = p.shouts.length ? byDay(p.shouts, (x) => x.shout_at, (x) => '<div><time>' + clock(x.shout_at) + '</time><div><b>' + esc(x.shout_from) + ' → ' + esc(x.shout_to) + '</b> ' + mark(x) + linked(x.shout_text) + '</div></div>') : '<div class="empty">No shouts yet.</div>';
+  // Evidence a shout carries (B22), as the fields it is: its kind and outcome, the item, who sent it,
+  // and the commit, shortened, with the full SHA on hover.
+  const evidence = (x) => (x.shout_evidence_kind ? '<span class="ev"><b>' + esc(x.shout_evidence_kind) + '</b> ' + esc(x.shout_evidence_outcome) + ' · ' + linked('#' + x.shout_evidence_item) + ' · ' + esc(x.shout_from) + ' · <code title="' + esc(x.shout_evidence_commit) + '">' + esc(String(x.shout_evidence_commit).slice(0, 12)) + '</code></span>' : '');
+  $('feed').innerHTML = p.shouts.length ? byDay(p.shouts, (x) => x.shout_at, (x) => '<div><time>' + clock(x.shout_at) + '</time><div><b>' + esc(x.shout_from) + ' → ' + esc(x.shout_to) + '</b> ' + mark(x) + linked(x.shout_text) + evidence(x) + '</div></div>') : '<div class="empty">No shouts yet.</div>';
   // Each ask waits here until it is answered (B21); the answer itself is typed in the form below.
   $('decisions').hidden = !p.decisions.length;
   $('decisions').innerHTML = '<div class="head"><i></i>Decision needed</div>' + p.decisions.map((d) => '<div class="ask"><p><small><b>' + esc(d.shout_from) + '</b> asks, ' + age(d.shout_at) + '</small></p><p>' + linked(d.shout_text) + '</p><button class="ghost" data-go="decide:' + d.shout_id + '" type="button">Answer</button></div>').join('');
