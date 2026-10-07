@@ -65,7 +65,7 @@ Set up
                                         --route sets which work the model can take; --family records its name
   pullboard whoami | lanes | status     who you are, the lanes, the board at a glance
   pullboard resources                  local resource holders and their FIFO queues
-  pullboard view [--port N] [--no-open] every project on this machine in your browser: items, shouts, doctrine,
+  pullboard view [--port N] [--no-open]  every project on this machine in your browser: items, shouts, doctrine,
                                         agents and activity, live; add items, shout and hold lanes from it
   pullboard serve [--port N]           local API v1: boards, state, moves, requests and live events,
                                         behind the session secret in its printed address
