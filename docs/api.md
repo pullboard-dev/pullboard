@@ -54,6 +54,7 @@ A successful command returns the fields listed below. `version` is always the nu
 | `tour` | `version:number`, `messages:array` |
 | `lifecycle` | `version:number`, `markdown:string` |
 | `view` | `version:number`, `url:string`, `port:number` |
+| `view export` | `version:number`, `path:string` |
 | `serve` | `version:number`, `url:string`, `port:number` |
 | `forget` | `version:number`, `root:string` |
 | `prompt` | `version:number`, `role:string`, `text:string` |

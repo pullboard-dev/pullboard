@@ -47,7 +47,7 @@ import { commandOutput } from './json.js';
 import { forgetProject, registerProject } from './projects.js';
 import { listResources } from './resources.js';
 import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
-import { serveView } from './serve.js';
+import { exportView, serveView } from './serve.js';
 import { serveApi } from './api.js';
 import { doctorProblems } from './doctor.js';
 import { exportBoard, importBoard } from './exchange.js';
@@ -71,6 +71,7 @@ Set up
   pullboard settings [gateSlots <n>]    view or set this machine's gate slots (default 2)
   pullboard view [--port N] [--no-open]  every project on this machine in your browser: items, shouts, doctrine,
                                         agents and activity, live; add items, shout and hold lanes from it
+  pullboard view --export <dir>         a read-only snapshot with event replay, for any static host
   pullboard serve [--port N]           local API v1: boards, state, moves, requests and live events,
                                         behind the session secret in its printed address
   pullboard resume                      where you are: your claim, branch, uncommitted work, what came back,
@@ -157,6 +158,7 @@ const OPTIONS = {
   reason: { type: 'string' },
   off: { type: 'boolean' },
   port: { type: 'string' },
+  export: { type: 'string' },
   'no-open': { type: 'boolean' },
   note: { type: 'string' },
   'note-file': { type: 'string' },
@@ -675,13 +677,20 @@ function resumeHere(io) {
 
 /**
  * \`pullboard view\` (N26): serve the micro site for every project on this machine until stopped,
- * registering the repo it starts in, and open it in the browser unless asked not to.
+ * registering the repo it starts in, and open it in the browser unless asked not to. With --export,
+ * write the current board's read-only static snapshot instead, and return its folder.
  *
  * @param {any} io
  * @param {any} values
  * @returns {Promise<number>}
  */
 async function viewHere(io, values) {
+  if (values.export !== undefined) {
+    const exported = await exportView(io.cwd, resolve(io.cwd, values.export));
+    io.result?.(exported);
+    io.say(`wrote snapshot ${exported.path}`);
+    return 0;
+  }
   try {
     const info = repoInfo(io.cwd);
     if (info.isMain && existsSync(join(info.root, CONFIG_FILE))) registerProject(info.root, new Date(), loadConfig(info.root));

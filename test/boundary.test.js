@@ -37,6 +37,7 @@ test('the core names no model, engine or vendor; secret patterns may name the ke
 test('the core opens no outbound connection; the view and API listen on loopback, and the page calls only them [P5, N26, A2]', () => {
   const allowed = (file, line) =>
     (['src/serve.js', 'src/api.js'].includes(file) && line.trim() === "import { createServer } from 'node:http';") ||
+    (file === 'src/serve.js' && line.trim() === "const reply = await fetch(address.origin + path, { headers: { 'x-pullboard-key': address.searchParams.get('k') } });") ||
     (file === 'src/cockpit.js' && /^\s*const res = await fetch\(path, /.test(line));
   const found = sources().flatMap(({ file, lines }) =>
     lines.flatMap((line, index) => (NETWORK.test(line) && !allowed(file, line) ? [`${file}:${index + 1}: ${line.trim()}`] : [])),

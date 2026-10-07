@@ -9,22 +9,76 @@
  */
 import { spawnSync } from 'node:child_process';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import * as store from './board.js';
 import { cockpitPage } from './cockpit.js';
 import { COORDINATOR, loadConfig } from './config.js';
 import { loadDoctrine, standardDoctrine } from './doctrine.js';
 import { repoInfo, resolveCommit } from './git.js';
 import { productSummaries } from './products.js';
-import { registryFile } from './projects.js';
+import { listApiProjects, registryFile } from './projects.js';
 import { Refused } from './refused.js';
 import { loadSpec } from './spec.js';
 
 /** The page's styles (N26), read once: the page links them, so it needs no inline style. */
 const VIEW_CSS = readFileSync(new URL('./view.css', import.meta.url), 'utf8');
 export const LOOPBACK = '127.0.0.1';
+
+/**
+ * Export one board through the same API v1 used by the live page, closing its temporary local
+ * transport before returning. The static page needs neither that transport nor its session key.
+ *
+ * @param {string} root
+ * @param {string} directory
+ * @returns {Promise<{path: string}>}
+ */
+export async function exportView(root, directory) {
+  const output = resolve(directory);
+  if (existsSync(output) && (!statSync(output).isDirectory() || readdirSync(output).length)) {
+    throw new Refused('EXPORT_EXISTS', `snapshot folder ${output} is not empty; use an empty folder`);
+  }
+  const info = repoInfo(root);
+  const config = loadConfig(info.root);
+  const registered = listApiProjects().find((entry) => {
+    try { return repoInfo(entry.root).commonDir === info.commonDir; } catch { return false; }
+  }) ?? { root: info.root, name: config.name || basename(info.root), project: config.project || '', added: new Date().toISOString() };
+  const { serveApi } = await import('./api.js');
+  const { main } = await import('./cli.js');
+  const api = await serveApi({ port: 0, projects: () => [registered], runCommand: main });
+  let listing;
+  let state;
+  let events;
+  try {
+    const address = new URL(api.url);
+    /** Read an authenticated API document without putting its private key in the snapshot. */
+    const read = async (path) => {
+      const reply = await fetch(address.origin + path, { headers: { 'x-pullboard-key': address.searchParams.get('k') } });
+      const document = await reply.json();
+      if (!reply.ok) throw new Refused(document.error.code, document.error.message);
+      return document;
+    };
+    listing = await read('/api/v1/boards');
+    const board = listing.boards[0];
+    if (!board) throw new Refused('NO_BOARD', 'no readable board to export; run pullboard init in this repo');
+    const path = '/api/v1/boards/' + encodeURIComponent(board.id);
+    state = await read(path + '/state');
+    events = await read(path + '/events');
+    const last = state.state.events[0]?.event_id ?? 0;
+    events.events = events.events.filter((event) => event.event_id <= last);
+  } finally {
+    await api.close();
+  }
+  const boardPath = join(output, 'api', 'v1', 'boards', listing.boards[0].id);
+  mkdirSync(boardPath, { recursive: true });
+  writeFileSync(join(output, 'index.html'), cockpitPage('', { snapshot: true }));
+  writeFileSync(join(output, 'view.css'), VIEW_CSS);
+  writeFileSync(join(output, 'api', 'v1', 'boards.json'), JSON.stringify(listing) + '\n');
+  writeFileSync(join(boardPath, 'state.json'), JSON.stringify(state) + '\n');
+  writeFileSync(join(boardPath, 'events.json'), JSON.stringify(events) + '\n');
+  return { path: output };
+}
 
 /** Where the view keeps the port it last served from, beside the machine's list of projects. */
 const lastPortFile = () => join(dirname(registryFile()), 'view.json');

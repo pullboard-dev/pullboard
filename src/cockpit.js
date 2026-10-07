@@ -30,18 +30,20 @@ function lifecycle() {
  * the page itself holds none, so its policy can refuse inline styles.
  *
  * @param {string} [key] - The session's secret.
+ * @param {{snapshot?: boolean}} [options] - A static, read-only page with event replay.
  * @returns {string}
  */
-export function cockpitPage(key = '') {
+export function cockpitPage(key = '', { snapshot = false } = {}) {
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pullboard</title>
-<link rel="stylesheet" href="/view.css?k=${encodeURIComponent(key)}">
+<link rel="stylesheet" href="${snapshot ? 'view.css' : '/view.css?k=' + encodeURIComponent(key)}">
+${snapshot ? '<link rel="icon" href="data:,">' : ''}
 </head>
-<body class="loading">
+<body class="loading${snapshot ? ' snapshot' : ''}">
 <div class="shell">
 <aside class="side" id="side" aria-label="Projects">
   <div class="side-top">
@@ -70,6 +72,13 @@ export function cockpitPage(key = '') {
   <section class="card-panel first">
     <h2>No boards yet</h2>
     <p>Run <code>pullboard init</code> in a git repo, or ask an agent to. Its board shows up here by itself.</p>
+  </section>
+  <section class="card-panel snapshot-controls" id="snapshot-controls" ${snapshot ? '' : 'hidden'} aria-label="Snapshot replay">
+    <span>Read-only snapshot</span>
+    <button class="ghost" id="replay-play" type="button">Play from first event</button>
+    <button class="ghost" id="replay-pause" type="button" disabled>Pause</button>
+    <label>Speed <select id="replay-speed"><option value="1">1×</option><option value="4">4×</option><option value="16">16×</option></select></label>
+    <output id="replay-progress" aria-live="polite">Loading events…</output>
   </section>
   <section id="group-view" class="group-view" hidden>
     <section class="card-panel group-panel"><h2>Needs you</h2><div id="group-needs"></div></section>
@@ -124,9 +133,12 @@ export function cockpitPage(key = '') {
 </div>
 <div class="console" id="console" title="Click to close" hidden></div>
 <script>
-const key = new URLSearchParams(location.search).get('k') || '';
-const keep = (name, value) => { try { if (value === undefined) return localStorage.getItem(name); localStorage.setItem(name, value); } catch { return null; } return value; };
+const snapshot = ${JSON.stringify(snapshot)};
+const key = snapshot ? '' : new URLSearchParams(location.search).get('k') || '';
+const snapshotReplay = { final: null, events: [], index: 0, playing: false, timer: null };
+const keep = (name, value) => { name = snapshot ? 'snapshot.' + name : name; try { if (value === undefined) return localStorage.getItem(name); localStorage.setItem(name, value); } catch { return null; } return value; };
 const view = { root: keep('pb.project'), tab: keep('pb.tab') || 'items', seen: {}, code: {}, item: null, adding: false, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null } };
+if (snapshot) view.state = 'all';
 let data = null;
 let seen = '';
 const $ = (id) => document.getElementById(id);
@@ -410,7 +422,9 @@ function flowSvg(p) {
 
 /** Read or move through API v1, retaining the rule and repair guidance in a refusal. */
 async function api(path, body) {
-  const res = await fetch(path, { method: body ? 'POST' : 'GET', headers: { 'x-pullboard-key': key, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (snapshot && body) throw new Error('This is a read-only snapshot.');
+  path = snapshot ? path.split('?')[0].slice(1) + '.json' : path;
+  const res = await fetch(path, { method: body ? 'POST' : 'GET', headers: snapshot ? {} : { 'x-pullboard-key': key, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
   const json = await res.json();
   if (!res.ok) {
     const refusal = json.error;
@@ -496,7 +510,125 @@ async function refresh() {
     data = next;
     render();
   }
-  $('live').textContent = 'live · ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+  if (snapshot && !snapshotReplay.final && data.project) {
+    snapshotReplay.final = structuredClone(data.project);
+    snapshotReplay.events = (await api(boardPath(view.root) + '/events')).events;
+    snapshotReplay.index = snapshotReplay.events.length;
+    replayControls();
+  }
+  $('live').textContent = snapshot ? 'read-only snapshot' : 'live · ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+}
+
+/** Display the current event and make the replay's play, pause and end states explicit. */
+function replayControls() {
+  const r = snapshotReplay;
+  const event = r.events[r.index - 1];
+  $('replay-progress').textContent = 'Event ' + r.index + ' / ' + r.events.length + (event ? ' · ' + event.event_kind + (event.item_id ? ' #' + event.item_id : '') : '') + (r.index === r.events.length ? ' · End' : '');
+  $('replay-play').disabled = r.playing || !r.final || !r.events.length;
+  $('replay-play').textContent = r.index === r.events.length ? 'Play from first event' : 'Play';
+  $('replay-pause').disabled = !r.playing;
+}
+
+/** Project only the events already played, using the same declared lifecycle as the live page. */
+function replayProject(index) {
+  const r = snapshotReplay;
+  if (index === r.events.length) return structuredClone(r.final);
+  const p = structuredClone(r.final);
+  const log = r.events.slice(0, index);
+  p.items = p.items.flatMap((item) => {
+    const history = log.filter((event) => event.item_id === item.id);
+    if (!history.some((event) => event.event_kind === 'add')) return [];
+    let state = FLOW.initial;
+    item.owner = null;
+    item.builtBy = null;
+    item.verifiedBy = null;
+    item.reviewer = null;
+    item.reviewUntil = null;
+    item.commit = null;
+    item.merged = null;
+    let verdicts = 0;
+    for (const event of history) {
+      const verb = event.event_kind === 'renew' ? 'claim' : event.event_kind;
+      /** Find a declared move, distinguishing a renewed claim from a new one. */
+      const fits = (at) => FLOW.moves.find((move) => move.verb === verb && move.from.includes(at) && (verb !== 'claim' || (event.event_kind === 'renew') === (move.to === at)));
+      const lapse = fits(state) ? null : FLOW.moves.find((move) => move.by.includes('clock') && move.from.includes(state) && fits(move.to));
+      if (lapse) state = lapse.to;
+      const move = fits(state);
+      if (move) state = move.to;
+      const detail = JSON.parse(event.event_detail);
+      if (verb === 'claim') item.owner = event.event_by;
+      if (verb === 'submit') { item.commit = detail.commit; item.builtBy = event.event_by; item.reviewer = null; item.reviewUntil = null; }
+      if (verb === 'reserve') { item.reviewer = event.event_by; item.reviewUntil = detail.until; }
+      if (verb === 'accept') { item.verifiedBy = event.event_by; verdicts += 1; }
+      if (verb === 'reject') { item.owner = null; verdicts += 1; }
+      if (verb === 'accept' || verb === 'reject' || verb === 'release' || verb === 'withdraw') { item.reviewer = null; item.reviewUntil = null; }
+      if (verb === 'release' || verb === 'withdraw') item.owner = null;
+      if (verb === 'merged') item.merged = detail.commit;
+    }
+    item.status = state;
+    item.history = history.map((event) => ({ kind: event.event_kind, by: event.event_by, at: event.event_at }));
+    item.updatedAt = history.at(-1).event_at;
+    item.verdicts = item.verdicts.slice(0, verdicts);
+    item.verdict = item.verdicts.at(-1) ?? null;
+    return [item];
+  });
+  const statuses = new Map(p.items.map((item) => [item.id, item.status]));
+  for (const item of p.items) {
+    const added = log.find((event) => event.item_id === item.id && event.event_kind === 'add');
+    item.blockedBy = (JSON.parse(added.event_detail).after || []).filter((id) => statuses.get(id) !== 'verified');
+  }
+  const shouted = new Set(log.map((event) => JSON.parse(event.event_detail).shout).filter(Boolean));
+  p.shouts = p.shouts.filter((shout) => shouted.has(shout.shout_id));
+  p.decisions = p.decisions.filter((shout) => shouted.has(shout.shout_id));
+  p.asked = p.asked.filter((shout) => shouted.has(shout.shout_id));
+  const held = new Map();
+  for (const event of log) {
+    const detail = JSON.parse(event.event_detail);
+    if (event.event_kind === 'hold') held.set(detail.lane, { hold_lane: detail.lane, hold_reason: detail.reason, hold_by: event.event_by, hold_at: event.event_at });
+    if (event.event_kind === 'unhold') held.delete(detail.lane);
+  }
+  p.holds = [...held.values()].sort((a, b) => a.hold_lane.localeCompare(b.hold_lane));
+  p.events = log.slice(-80).reverse();
+  return p;
+}
+
+/** Draw a replay position without refreshing or changing the exported board. */
+function replayPosition(index) {
+  const r = snapshotReplay;
+  r.index = index;
+  view.root = r.final.root;
+  view.state = 'all';
+  data.root = view.root;
+  data.group = null;
+  data.project = replayProject(index);
+  data.projects = data.projects.map((board) => board.root === view.root ? boardSummary(board, data.project) : board);
+  render();
+  replayControls();
+}
+
+/** Pause before clearing the next callback, so no event advances after the control returns. */
+function pauseReplay() {
+  snapshotReplay.playing = false;
+  clearTimeout(snapshotReplay.timer);
+  replayControls();
+}
+
+/** Play one event per speed-adjusted interval, stopping exactly at the exported final state. */
+function advanceReplay() {
+  const r = snapshotReplay;
+  if (!r.playing) return;
+  replayPosition(r.index + 1);
+  if (r.index === r.events.length) return pauseReplay();
+  r.timer = setTimeout(advanceReplay, 1000 / Number($('replay-speed').value));
+}
+
+/** Resume a paused replay, or restart at the first event when the snapshot is at the end. */
+function playReplay() {
+  const r = snapshotReplay;
+  if (!r.final || !r.events.length || r.playing) return;
+  if (r.index === r.events.length) replayPosition(0);
+  r.playing = true;
+  advanceReplay();
 }
 
 /**
@@ -619,7 +751,7 @@ function render() {
       : s === 'verify' && i.reviewer ? '<span class="chip warn" title="reviewing until ' + esc(when(i.reviewUntil)) + '">' + esc(i.reviewer) + ' reviewing</span>'
       : s === 'open' ? (gated ? '<span class="chip gate">' + (waits.length ? 'gated' : 'lane held') + '</span>' : '<span class="chip free">unclaimed</span>') : chip(s);
     return '<li class="row' + (view.item === i.id ? ' on' : '') + (gated ? ' gated' : '') + '" data-item="' + i.id + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + esc(i.title) + '</div><div class="meta"><span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span>' + esc(i.specs.join(', ')) + '</span>' : '') + (who ? '<span>' + esc(who) + '</span>' : '') + pills + '<span>' + age(i.updatedAt) + '</span>' + (rejected(i) ? '<span class="why">' + esc(i.verdict.reason + ': ' + firstLine(i.verdict.note)) + '</span>' : '') + '</div></div>' + tag + '</li>';
-  }).join('') : '<li class="empty">' + (items.length ? 'No items match.' : 'No items yet. Add the first one with New item.') + '</li>';
+  }).join('') : '<li class="empty">' + (items.length ? 'No items match.' : snapshot ? 'No items at this event.' : 'No items yet. Add the first one with New item.') + '</li>';
 
   const item = p.items.find((i) => i.id === view.item);
   // The form shows when asked for, or when the project has no item at all, withdrawn ones included.
@@ -852,6 +984,7 @@ function moveMessage(move, result) {
 /** Run a public API move and let only the latest action own the console and its close timer. */
 async function act(command, args) {
   const out = $('console');
+  if (snapshot) { out.hidden = false; out.className = 'console no'; out.textContent = 'This is a read-only snapshot.'; return false; }
   const run = (view.acting = (view.acting || 0) + 1);
   const latest = () => run === view.acting;
   clearTimeout(view.closing);
@@ -964,8 +1097,15 @@ $('hold-form').addEventListener('submit', async (event) => {
   if (await act('hold', { lane: $('hold-lane').value, reason: $('hold-reason').value })) $('hold-reason').value = '';
 });
 showTab();
+if (snapshot) {
+  $('replay-play').addEventListener('click', playReplay);
+  $('replay-pause').addEventListener('click', pauseReplay);
+  $('replay-speed').addEventListener('change', () => {
+    if (snapshotReplay.playing) { clearTimeout(snapshotReplay.timer); snapshotReplay.timer = setTimeout(advanceReplay, 1000 / Number($('replay-speed').value)); }
+  });
+}
 refresh().catch((error) => { document.body.classList.remove('loading'); $('live').textContent = 'cannot reach the view: ' + error.message; });
-setInterval(() => { if (!document.hidden) refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }); }, 3000);
+if (!snapshot) setInterval(() => { if (!document.hidden) refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }); }, 3000);
 setInterval(tickAges, 60000);
 </script>
 </body>
