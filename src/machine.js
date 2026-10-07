@@ -15,6 +15,7 @@
  * @typedef {object} Guard
  * @property {string} id - How moves name it.
  * @property {string} refuse - The refusal code it raises when it does not hold.
+ * @property {{ code: string, next: string }[]} [alsoRefuses] - Additional typed refusals and their repair steps.
  * @property {string} rule - What must hold, in words.
  * @property {string} next - The step that gets past it.
  * @property {'board' | 'cli'} source - Where its fact comes from: the board file, or the CLI's look at git and the worktree.
@@ -104,7 +105,7 @@ export const GUARDS = [
   { id: 'notHeldByAnother', refuse: 'HELD', rule: 'no other agent holds it under a live lease', next: 'pullboard next', source: 'board' },
   { id: 'laneOpen', refuse: 'LANE_HELD', rule: 'nobody holds its lane', next: 'pullboard next --wait 9 (minutes)', source: 'board', when: 'unless the caller is renewing its own live claim' },
   { id: 'oneLiveClaim', refuse: 'ONE_CLAIM', rule: 'the caller holds no other live top-level claim, reworks of its own rejected items aside', next: 'submit or release the other item first; child items are free', source: 'board' },
-  { id: 'rowsInForce', refuse: 'UNKNOWN_SPEC', rule: 'every row the item cites exists and is in force', next: 'fix the spec, or the coordinator withdraws the item', source: 'board', when: 'only where the criterion freezes: claiming an item with no frozen criterion, and refreeze' },
+  { id: 'rowsInForce', refuse: 'UNKNOWN_SPEC', alsoRefuses: [{ code: 'A5_GRAMMAR_VERSION', next: 'upgrade Pullboard or use a file written for grammar 1' }], rule: 'every row the item cites exists and is in force', next: 'fix the spec, or the coordinator withdraws the item', source: 'board', when: 'only where the criterion freezes: claiming an item with no frozen criterion, and refreeze' },
   { id: 'criterionUnchanged', refuse: 'CRITERIA_CHANGED', rule: 'the criterion and the rows it cites read as they did at claim', next: 'the coordinator runs pullboard refreeze <id>', source: 'cli' },
   { id: 'treeClean', refuse: 'DIRTY', rule: 'the worktree has no uncommitted changes', next: 'commit your changes, then submit', source: 'cli' },
   { id: 'nothingUntracked', refuse: 'UNTRACKED', rule: 'the worktree has no untracked files', next: 'commit or ignore them, then submit', source: 'cli' },
@@ -305,9 +306,13 @@ function unnamedRefusals(machine) {
   const used = new Set([...machine.moves.flatMap((move) => move.guards), ...Object.values(machine.exitGuards).flat()]);
   const problems = [];
   for (const guard of machine.guards) {
-    if (guard.id !== IN_STATE && !/^[A-Z][A-Z0-9_]*$/.test(guard.refuse)) problems.push(`guard ${guard.id} names no refusal code`);
+    const codes = [guard.refuse, ...(guard.alsoRefuses ?? []).map((entry) => entry.code)];
+    if (guard.id !== IN_STATE && codes.some((code) => !/^[A-Z][A-Z0-9_]*$/.test(code))) problems.push(`guard ${guard.id} names no refusal code`);
     if (!guard.rule.trim()) problems.push(`guard ${guard.id} states no rule`);
     if (!guard.next.trim()) problems.push(`guard ${guard.id} refuses without a next step`);
+    for (const refusal of guard.alsoRefuses ?? []) {
+      if (!refusal.next?.trim()) problems.push(`guard ${guard.id} refusal ${refusal.code} has no next step`);
+    }
     if (!used.has(guard.id)) problems.push(`guard ${guard.id} is declared but no move uses it`);
   }
   for (const move of machine.moves.filter((entry) => !entry.by.includes('clock'))) {
@@ -457,8 +462,10 @@ export function storeTriggers(machine = MACHINE) {
  * @returns {string}
  */
 function guardLabel(machine, move, id) {
-  const code = id === IN_STATE ? move.refuse : machine.guards.find((guard) => guard.id === id)?.refuse;
-  return code ? `${id} (${code})` : id;
+  const guard = machine.guards.find((entry) => entry.id === id);
+  const codes = id === IN_STATE ? [move.refuse] : [guard?.refuse, ...(guard?.alsoRefuses ?? []).map((entry) => entry.code)];
+  const declared = codes.filter(Boolean).join(' or ');
+  return declared ? `${id} (${declared})` : id;
 }
 
 /**
@@ -480,7 +487,10 @@ export function lifecycleMarkdown(machine = MACHINE) {
     return `| ${move.verb} | ${move.from.join(', ')} | ${move.to} | ${cell(who)} | ${cell(guards)} |`;
   });
   const wrongState = machine.moves.filter((move) => move.refuse).map((move) => `| ${move.refuse} | ${move.verb}: the item is in ${move.from.join(', ')} | pullboard show <id> |`);
-  const refusals = machine.guards.filter((guard) => guard.id !== IN_STATE).map((guard) => `| ${guard.refuse} | ${cell(guard.when ? `${guard.rule}, ${guard.when}` : guard.rule)} | ${cell(guard.next)} |`);
+  const refusals = machine.guards.filter((guard) => guard.id !== IN_STATE).flatMap((guard) => [
+    { code: guard.refuse, next: guard.next },
+    ...(guard.alsoRefuses ?? []),
+  ].map(({ code, next }) => `| ${code} | ${cell(guard.when ? `${guard.rule}, ${guard.when}` : guard.rule)} | ${cell(next)} |`));
   const unknown = `| ${machine.unknownMove.refuse} | ${cell(machine.unknownMove.rule)} | ${cell(machine.unknownMove.next)} |`;
   return [
     '# The item lifecycle',
