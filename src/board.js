@@ -1236,14 +1236,19 @@ export function getShout(board, id) {
 }
 
 /**
- * Shouts that asked for a decision nobody has answered yet, oldest first (B21). They stay here, and
- * in the person's Needs-you, until an answer names them; nothing ever edits the ask.
+ * Shouts that asked for a decision nobody has answered yet, oldest first (B21). An optional
+ * recipient limits the queue; without one this returns every open decision for internal readers.
  *
  * @param {any} board
- * @param {string} [recipient=PERSON]
+ * @param {string} [recipient]
  * @returns {any[]}
  */
-export function openDecisions(board, recipient = PERSON) {
+export function openDecisions(board, recipient = null) {
+  if (recipient === null) {
+    return board.db
+      .prepare('SELECT * FROM shout ask WHERE ask.shout_decision = 1 AND NOT EXISTS (SELECT 1 FROM shout reply WHERE reply.shout_answers = ask.shout_id) ORDER BY ask.shout_id')
+      .all();
+  }
   return board.db
     .prepare('SELECT * FROM shout ask WHERE ask.shout_decision = 1 AND ask.shout_to = ? AND NOT EXISTS (SELECT 1 FROM shout reply WHERE reply.shout_answers = ask.shout_id) ORDER BY ask.shout_id')
     .all(recipient);
