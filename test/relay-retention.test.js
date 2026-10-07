@@ -137,8 +137,16 @@ test('[H18] explicit unlink removes managed backups immediately and a durable cr
   const box = await fixture(t);
   const saved = box.retention.backup();
   assert.equal(saved.written.length, 2);
-  const removed = await box.call(A, { method: 'DELETE', path: '' });
-  assert.equal(removed.status, 200);
+  const journalFile = join(box.data, readdirSync(box.data).find((name) => name.startsWith(A) && name.endsWith('.sqlite')));
+  const journalFiles = ['', '-wal', '-shm'].map((suffix) => journalFile + suffix);
+  const liveJournal = new DatabaseSync(journalFile);
+  try {
+    liveJournal.prepare('SELECT sequence FROM journal_head').get();
+    for (const file of journalFiles) assert.ok(existsSync(file), 'the fixture has a database and live WAL/SHM before unlink');
+    const removed = await box.call(A, { method: 'DELETE', path: '' });
+    assert.equal(removed.status, 200);
+    for (const file of journalFiles) assert.equal(existsSync(file), false, 'unlink removes the database and its live journal files');
+  } finally { liveJournal.close(); }
   assert.equal(readdirSync(box.backups).some((name) => name.startsWith(A)), false);
   assert.equal(readdirSync(box.backups).some((name) => name.startsWith(B)), true);
   // Model a process crash after committing revocation but before deleting any files.
