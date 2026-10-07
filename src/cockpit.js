@@ -501,6 +501,9 @@ function renderSide() {
   $('proj-elsewhere').hidden = !elsewhere;
   const p = data.project;
   $('proj-name').textContent = p ? (data.projects.find((x) => x.root === view.root) || { name: p.root.split('/').pop() }).name : 'No project';
+  // The browser tab says it too, for when the view sits behind other tabs.
+  const needs = data.projects.reduce((n, x) => n + needCount(x), 0);
+  document.title = p ? (needs ? '(' + needs + ') ' : '') + $('proj-name').textContent + ' · Pullboard' : 'Pullboard';
 }
 
 /** Draw the board shown: the sidebar, then every tab's panes from the project's board. */
