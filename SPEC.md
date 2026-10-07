@@ -113,7 +113,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - I6 [approved, must] Init adds a Claude Code SessionStart hook that runs `pullboard resume`, keeping every other setting. | gate: test/e2e.test.js | serves: N19
 - I7 [approved, must] `pullboard worktree` prints the opening of a subagent's prompt: its folder, identity, and that AGENTS.md governs. | gate: test/e2e.test.js | serves: I4
 - I8 [approved, must] Init registers the project on this machine, so the view lists it. | gate: test/e2e.test.js | serves: N26
-- I9 [draft, must] Init ends by telling an agent to start a new session, which loads its skills, then to say what to build. | gate: test/e2e.test.js
+- I9 [draft, must] Init ends by telling an agent to start a new session, which loads its skills, then say what to build. | gate: test/e2e.test.js
 
 ## N · Next commands
 - N1 [draft, must] `pullboard decide`: the person's queue of everything waiting on them.
