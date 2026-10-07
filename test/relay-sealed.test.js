@@ -144,7 +144,8 @@ test('[A4,H7] snapshots compact covered moves, preserve the tail and deletion re
   assert.equal((await box.call(otherPath + '/state', { method: 'PUT', token: box.person.token, body: { sequence: 0, sealed: box.clientSeal({ other: true }, 'snapshot', 0, other) } })).status, 200);
   assert.equal((await box.call(box.path, { method: 'DELETE', token: box.person.token })).status, 200);
   for (const suffix of ['', '-wal', '-shm']) assert.equal(existsSync(join(box.data, box.id + '.journal.sqlite' + suffix)), false);
-  assert.equal((await box.call(box.path + '/state')).status, 404);
+  assert.equal((await box.call(box.path + '/state', { token: box.person.token })).status, 404);
+  assert.equal((await box.call(box.path + '/state')).status, 401, 'unlink revokes board-scoped credentials');
   assert.deepEqual(box.clientOpen((await box.call(otherPath + '/state', { token: box.person.token })).body.state.sealed, 'snapshot', 0, other), { other: true });
   assert.deepEqual(JSON.parse(box.cli('export')), box.document);
 });

@@ -36,18 +36,42 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
   if (database !== ':memory:') mkdirSync(dirname(database), { recursive: true, mode: 0o700 });
   const db = new DatabaseSync(database);
   if (database !== ':memory:') chmodSync(database, 0o600);
-  db.exec(`PRAGMA foreign_keys=ON;
-    CREATE TABLE IF NOT EXISTS relay_users (id TEXT PRIMARY KEY, login TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS relay_boards (id TEXT PRIMARY KEY, repository TEXT NOT NULL, repository_id TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS relay_credentials (id TEXT PRIMARY KEY, hash TEXT UNIQUE NOT NULL, kind TEXT NOT NULL, user_id TEXT NOT NULL REFERENCES relay_users(id), board TEXT REFERENCES relay_boards(id), agent TEXT, expires INTEGER NOT NULL, revoked INTEGER NOT NULL DEFAULT 0);
-  `);
+  db.exec('PRAGMA foreign_keys=ON; PRAGMA busy_timeout=30000; BEGIN IMMEDIATE');
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS relay_users (id TEXT PRIMARY KEY, login TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS relay_boards (id TEXT PRIMARY KEY, repository TEXT NOT NULL, repository_id TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS relay_cleanup (board TEXT PRIMARY KEY);
+      CREATE TABLE IF NOT EXISTS relay_credentials (id TEXT PRIMARY KEY, hash TEXT UNIQUE NOT NULL, kind TEXT NOT NULL, user_id TEXT NOT NULL REFERENCES relay_users(id), board TEXT REFERENCES relay_boards(id), agent TEXT, expires INTEGER NOT NULL, revoked INTEGER NOT NULL DEFAULT 0);
+    `);
+    // Older unshipped links receive a full retention grace period, rather than guessing their age.
+    if (!db.prepare('PRAGMA table_info(relay_boards)').all().some((column) => column.name === 'linked_at')) {
+      db.exec('ALTER TABLE relay_boards ADD COLUMN linked_at INTEGER');
+    }
+    db.prepare('UPDATE relay_boards SET linked_at=? WHERE linked_at IS NULL').run(now());
+    db.exec('COMMIT');
+  } catch (error) { try { db.exec('ROLLBACK'); } finally { db.close(); } throw error; }
   const permissions = new Map();
   const webFlows = new Map();
   const deviceFlows = new Map();
   let closed = false;
+  let locked = false;
 
   /** Refuse operation after closing instead of surfacing a raw SQLite error. */
   function open() { if (closed) throw new Refused('RELAY_CLOSED', 'start the relay before signing in or using a credential'); }
+
+  /** Serialize synchronous lifecycle work across relay processes sharing this auth database. */
+  function lifecycle(work) {
+    open();
+    if (locked) return work();
+    db.exec('BEGIN IMMEDIATE'); locked = true;
+    try {
+      const result = work();
+      if (result && typeof result.then === 'function') throw new Refused('RELAY_CONFIG', 'finish synchronous lifecycle work before awaiting');
+      db.exec('COMMIT'); return result;
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
+    finally { locked = false; }
+  }
 
   /** Resolve a current credential and latest account login without storing its plaintext. */
   function credential(token) {
@@ -111,6 +135,8 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
       if (error.code === 'NO_REPO_ACCESS' && (!permissions.has(key) || permissions.get(key).checked <= started)) permissions.set(key, { checked: started, allowed: false });
       throw error;
     }
+    const current = db.prepare('SELECT repository_id FROM relay_boards WHERE id=?').get(board);
+    if (!current || current.repository_id !== linked.repository_id) throw new Refused('BOARD_NOT_LINKED', 'link this board again before using it');
     const canRead = ['read', 'triage', 'write', 'maintain', 'admin'].includes(repo.permission);
     const hidden = repo.public && !['triage', 'write', 'maintain', 'admin'].includes(repo.permission);
     const checked = { checked: started, allowed: canRead && !hidden, hidden, role: repo.permission, public: repo.public };
@@ -179,6 +205,7 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
       if (board !== undefined) {
         identifier(board, 'BAD_BOARD');
         repository = await access(row, board, write);
+        if (board !== null && board !== undefined && !db.prepare('SELECT 1 FROM relay_boards WHERE id=?').get(board)) throw new Refused('BOARD_NOT_LINKED', 'link this board again before using it');
         credential(token); // A revocation or expiry during the awaited provider call must take effect.
       }
       return { id: row.id, kind: row.kind, user: { id: row.user_id, login: row.login }, ...(row.board ? { board: row.board, agent: row.agent } : {}), ...(repository ? { permission: repository.permission, public: repository.public } : {}), expires: row.expires };
@@ -193,12 +220,48 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
       authorize({ allowed: true, hidden: false, role: repo.permission, public: repo.public }, {}, true);
       credential(token);
       open();
-      const existing = db.prepare('SELECT * FROM relay_boards WHERE id=?').get(board);
-      if (existing && existing.repository_id !== String(repo.id)) throw new Refused('BOARD_LINK_CONFLICT', 'use a new board identifier for a different repository');
-      db.prepare('INSERT INTO relay_boards (id,repository,repository_id) VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET repository=excluded.repository').run(board, repo.name, String(repo.id));
-      permissions.delete(row.user_id + ':' + board);
+      lifecycle(() => {
+        if (db.prepare('SELECT 1 FROM relay_cleanup WHERE board=?').get(board)) throw new Refused('RELAY_CLEANUP', 'finish pending board cleanup before linking again');
+        const existing = db.prepare('SELECT * FROM relay_boards WHERE id=?').get(board);
+        if (existing && existing.repository_id !== String(repo.id)) throw new Refused('BOARD_LINK_CONFLICT', 'use a new board identifier for a different repository');
+        db.prepare('INSERT INTO relay_boards (id,repository,repository_id,linked_at) VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET repository=excluded.repository').run(board, repo.name, String(repo.id), now());
+        permissions.delete(row.user_id + ':' + board);
+      });
       return { id: board, repository: repo.name, repositoryID: String(repo.id) };
     },
+    /** Internal maintenance inventory; HTTP callers must still pass the normal authorization boundary. */
+    linkedBoards() {
+      open();
+      return db.prepare('SELECT id,repository,linked_at AS linkedAt FROM relay_boards ORDER BY id').all();
+    },
+    /** Hold one shared lifecycle lock through every journal use and expiry decision. */
+    withBoard(board, work) {
+      identifier(board, 'BAD_BOARD');
+      return lifecycle(() => {
+        const link = db.prepare('SELECT id,repository,linked_at AS linkedAt FROM relay_boards WHERE id=?').get(board);
+        if (!link) throw new Refused('BOARD_NOT_LINKED', 'link this board again before using it');
+        return work(link);
+      });
+    },
+    /** Persist unlink intent and revoke scoped access before files are removed; retry after crashes. */
+    forgetBoard(board) {
+      identifier(board, 'BAD_BOARD');
+      lifecycle(() => {
+        db.prepare('INSERT OR IGNORE INTO relay_cleanup (board) VALUES (?)').run(board);
+        db.prepare('DELETE FROM relay_credentials WHERE board=?').run(board);
+        db.prepare('DELETE FROM relay_boards WHERE id=?').run(board);
+      });
+      for (const key of permissions.keys()) if (key.endsWith(':' + board)) permissions.delete(key);
+    },
+    /** Keep retrying cleanup exclusive through file removal and intent completion, blocking relink races. */
+    withCleanup(board, work) {
+      identifier(board, 'BAD_BOARD');
+      return lifecycle(() => db.prepare('SELECT 1 FROM relay_cleanup WHERE board=?').get(board) ? work() : undefined);
+    },
+    /** Inventory durable unlink intents without exposing them through the HTTP boundary. */
+    pendingCleanup() { open(); return db.prepare('SELECT board FROM relay_cleanup ORDER BY board').all().map((row) => row.board); },
+    /** Remove an unlink intent only after its journal, sidecars and managed backups are gone. */
+    finishCleanup(board) { identifier(board, 'BAD_BOARD'); lifecycle(() => db.prepare('DELETE FROM relay_cleanup WHERE board=?').run(board)); },
     /** List only linked boards the current credential and GitHub account may read. */
     async boardsFor(token) {
       const row = credential(token);

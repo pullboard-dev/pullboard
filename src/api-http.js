@@ -58,6 +58,7 @@ export function createApiHandler(adapter, { pollMs = 200 } = {}) {
     let closed = false;
     let busy = false;
     let blocked = false;
+    let lastWarning = null;
     let timer;
     /** Remove this stream and its timer once the client disconnects or access is revoked. */
     function stop() {
@@ -73,6 +74,12 @@ export function createApiHandler(adapter, { pollMs = 200 } = {}) {
       busy = true;
       try {
         who = await adapter.authenticate(req, { board: board.id, write: false });
+        const warning = await adapter.warning?.(board, who);
+        const serialized = warning ? JSON.stringify({ version: 1, warning }) : null;
+        if (serialized !== lastWarning) {
+          lastWarning = serialized;
+          if (serialized && !res.write('event: warning\ndata: ' + serialized + '\n\n')) { blocked = true; return; }
+        }
         const records = initial ?? await adapter.events(board, after, who);
         initial = null;
         for (const event of records) {
@@ -121,7 +128,8 @@ export function createApiHandler(adapter, { pollMs = 200 } = {}) {
         const initial = await adapter.events(board, after, who);
         const live = String(req.headers.accept ?? '').split(',').some((part) => /^\s*text\/event-stream\s*(?:;|$)/i.test(part));
         if (live) return await stream(req, res, board, who, after, initial);
-        return json(res, 200, { events: initial });
+        const warning = await adapter.warning?.(board, who);
+        return json(res, 200, { events: initial, ...(warning ? { warning } : {}) });
       }
       if (req.method === 'POST' && route[2] === 'moves') {
         const moved = await adapter.move(board, await readBody(req), who);

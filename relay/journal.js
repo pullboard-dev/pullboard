@@ -33,7 +33,7 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
   const db = new DatabaseSync(file);
   let closed = false;
   try {
-    db.exec('PRAGMA busy_timeout = 30000; PRAGMA journal_mode = WAL; BEGIN IMMEDIATE');
+    db.exec('PRAGMA busy_timeout = 30000; PRAGMA journal_mode = WAL; PRAGMA secure_delete = ON; BEGIN IMMEDIATE');
     db.exec(`CREATE TABLE IF NOT EXISTS journal_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS journal_record (sequence INTEGER PRIMARY KEY, received_at TEXT NOT NULL,
         kind TEXT NOT NULL CHECK(kind IN ('move','request')), payload BLOB NOT NULL,
@@ -52,6 +52,10 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
         received_at TEXT NOT NULL, payload BLOB NOT NULL, sender_kind TEXT NOT NULL CHECK(sender_kind='person'),
         sender_user TEXT NOT NULL, sender_agent TEXT CHECK(sender_agent IS NULL))`);
     db.exec('INSERT OR IGNORE INTO journal_head (slot,sequence) SELECT 1, COALESCE(MAX(sequence),0) FROM journal_record');
+    if (!db.prepare('PRAGMA table_info(journal_head)').all().some((column) => column.name === 'last_activity_at')) {
+      db.exec('ALTER TABLE journal_head ADD COLUMN last_activity_at TEXT');
+      db.exec('UPDATE journal_head SET last_activity_at=(SELECT MAX(received_at) FROM journal_record)');
+    }
     db.exec('COMMIT');
   } catch (error) {
     try { db.exec('ROLLBACK'); } catch { /* Initialization may have failed before its transaction. */ }
@@ -86,6 +90,12 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
     return db.prepare('SELECT sequence FROM journal_head WHERE slot=1').get().sequence;
   }
 
+  /** Last sealed move/request receipt survives snapshot compaction and a service restart. */
+  function activity() {
+    open();
+    return db.prepare('SELECT last_activity_at FROM journal_head WHERE slot=1').get().last_activity_at;
+  }
+
   /** Require detached bounded opaque bytes before opening a write transaction. */
   function payload(bytes) {
     if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0 || bytes.byteLength > maxBytes) throw new Refused('BAD_UPLOAD', 'send nonempty opaque bytes within the configured upload limit');
@@ -109,7 +119,7 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
       const at = now();
       if (!(at instanceof Date) || !Number.isFinite(at.getTime())) throw new Refused('RELAY_CONFIG', 'the journal clock must return a valid Date');
       db.prepare('INSERT INTO journal_record (sequence,received_at,kind,payload,sender_kind,sender_user,sender_agent) VALUES (?,?,?,?,?,?,?)').run(sequence, at.toISOString(), kind, sealed, who.kind, who.userId, who.agent);
-      db.prepare('UPDATE journal_head SET sequence=? WHERE slot=1').run(sequence);
+      db.prepare('UPDATE journal_head SET sequence=?,last_activity_at=? WHERE slot=1').run(sequence, at.toISOString());
       const result = record(db.prepare('SELECT * FROM journal_record WHERE sequence=?').get(sequence));
       db.exec('COMMIT');
       return result;
@@ -167,5 +177,5 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
     closed = true;
   }
 
-  return { board: id, latest, append, appendNext, after, snapshot, saveSnapshot, close };
+  return { board: id, latest, activity, append, appendNext, after, snapshot, saveSnapshot, close };
 }
