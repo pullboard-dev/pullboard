@@ -6,6 +6,8 @@ import { createApiHandler, apiJson, apiRefusal, apiStatus, readApiBody } from '.
 import { Refused } from '../src/refused.js';
 import { createRelayJournal } from './journal.js';
 import { createRelayRetention } from './retention.js';
+import { createPairingStore } from './pairing-store.js';
+import { createPairingHandler } from './pairing-http.js';
 
 const SNAPSHOT_BODY = 14_000_000;
 const STORED_BYTES = 10_000_000;
@@ -98,6 +100,12 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
     return who;
   }
 
+  const pairingStore = createPairingStore({ now });
+  const pairing = createPairingHandler({
+    authenticate: (req, { board, write }) => authorized(credential(req, origin, write), board, write),
+    pairings: pairingStore,
+  });
+
   /** Add an authorized next-contact warning without exposing any plaintext board contents. */
   function annotated(row, id) {
     const warning = retention.notice(id);
@@ -162,6 +170,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
 
   /** Add authenticated snapshot replacement and deletion to the common versioned read/move paths. */
   async function handle(req, res) {
+    if (await pairing(req, res)) return;
     try {
       let url;
       try { url = new URL(req.url ?? '/', 'http://127.0.0.1'); }
