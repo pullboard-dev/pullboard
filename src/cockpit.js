@@ -27,21 +27,25 @@ function lifecycle() {
  * into a top bar. Forms post actions that the server runs as CLI commands (N27), so the page never
  * decides a rule itself, and every field a person types in sits outside what the refresh rebuilds.
  * Its styles are src/view.css, which it links with the session's secret as every request carries it;
- * the page itself holds none, so its policy can refuse inline styles.
+ * styles stay in that separate file so its policy can refuse inline styles. The serving host
+ * supplies the API base and credential headers; clients need no loopback-specific connection.
  *
  * @param {string} [key] - The session's secret.
- * @param {{snapshot?: boolean}} [options] - A static, read-only page with event replay.
+ * @param {{snapshot?: boolean, apiBase?: string, apiHeaders?: Record<string, string>, stylesheet?: string}} [options] - Served API connection and assets, or a static, read-only page with event replay.
  * @returns {string}
  */
-export function cockpitPage(key = '', { snapshot = false } = {}) {
+export function cockpitPage(key = '', { snapshot = false, apiBase = '', apiHeaders = { 'x-pullboard-key': key }, stylesheet = null } = {}) {
+  const connection = JSON.stringify({ base: apiBase.replace(/\/$/, ''), headers: apiHeaders }).replace(/</g, '\\u003c');
+  const css = stylesheet ?? (snapshot ? 'view.css' : '/view.css?k=' + encodeURIComponent(key));
+  const cssAttribute = css.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pullboard</title>
-<link rel="stylesheet" href="${snapshot ? 'view.css' : '/view.css?k=' + encodeURIComponent(key)}">
-${snapshot ? '<link rel="icon" href="data:,">' : ''}
+<link rel="stylesheet" href="${cssAttribute}">
+<link rel="icon" href="data:,">
 </head>
 <body class="loading${snapshot ? ' snapshot' : ''}">
 <div class="shell">
@@ -134,7 +138,7 @@ ${snapshot ? '<link rel="icon" href="data:,">' : ''}
 <div class="console" id="console" title="Click to close" hidden></div>
 <script>
 const snapshot = ${JSON.stringify(snapshot)};
-const key = snapshot ? '' : new URLSearchParams(location.search).get('k') || '';
+const connection = ${connection};
 const snapshotReplay = { final: null, events: [], index: 0, playing: false, timer: null };
 const keep = (name, value) => { name = snapshot ? 'snapshot.' + name : name; try { if (value === undefined) return localStorage.getItem(name); localStorage.setItem(name, value); } catch { return null; } return value; };
 const view = { root: keep('pb.project'), tab: keep('pb.tab') || 'items', seen: {}, code: {}, item: null, adding: false, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null } };
@@ -423,8 +427,8 @@ function flowSvg(p) {
 /** Read or move through API v1, retaining the rule and repair guidance in a refusal. */
 async function api(path, body) {
   if (snapshot && body) throw new Error('This is a read-only snapshot.');
-  path = snapshot ? path.split('?')[0].slice(1) + '.json' : path;
-  const res = await fetch(path, { method: body ? 'POST' : 'GET', headers: snapshot ? {} : { 'x-pullboard-key': key, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  path = snapshot ? path.split('?')[0].slice(1) + '.json' : connection.base + path;
+  const res = await fetch(path, { method: body ? 'POST' : 'GET', headers: snapshot ? {} : { ...connection.headers, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
   const json = await res.json();
   if (!res.ok) {
     const refusal = json.error;

@@ -14,6 +14,7 @@ import { after, test } from 'node:test';
 import vm from 'node:vm';
 import { loadDoctrine } from '../src/doctrine.js';
 import { MACHINE } from '../src/machine.js';
+import { cockpitPage } from '../src/cockpit.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const scratch = [];
@@ -2448,6 +2449,208 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     await new Promise((resolve) => server.close(resolve));
+    rmSync(profile, { recursive: true, force: true });
+  }
+});
+
+
+test('served connection reaches an authenticated API on another origin and path in Chrome [H5,N26]', { timeout: 60_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for the connection proof.');
+  const box = machine();
+  const alpha = project(box, 'remote phone demo');
+  box.run(alpha.repo, 'add', 'web', 'Remote original');
+  const view = await startView(box);
+  const credential = 'test-only-bearer';
+  const seen = [];
+  const apiServer = createServer(async (req, res) => {
+    res.setHeader('access-control-allow-origin', '*');
+    res.setHeader('access-control-allow-headers', 'authorization,content-type');
+    res.setHeader('access-control-allow-methods', 'GET,POST,OPTIONS');
+    if (req.method === 'OPTIONS') return res.writeHead(204).end();
+    seen.push({ path: req.url, method: req.method, authorization: req.headers.authorization, localKey: req.headers['x-pullboard-key'] });
+    if (req.headers.authorization !== `Bearer ${credential}` || !req.url.startsWith('/mirror/api/v1/')) return res.writeHead(401).end(JSON.stringify({ error: 'bad supplied connection' }));
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    try {
+      const upstream = await fetch(view.base + req.url.slice('/mirror'.length), {
+        method: req.method, headers: { 'x-pullboard-key': view.key, ...(req.method === 'POST' ? { 'content-type': 'application/json' } : {}) },
+        ...(req.method === 'POST' ? { body: Buffer.concat(chunks) } : {}), signal: AbortSignal.timeout(10_000),
+      });
+      res.writeHead(upstream.status, { 'content-type': 'application/json' }).end(await upstream.text());
+    } catch (error) { res.writeHead(500).end(JSON.stringify({ error: error.message })); }
+  });
+  await new Promise((resolve) => apiServer.listen(0, '127.0.0.1', resolve));
+  const apiBase = `http://127.0.0.1:${apiServer.address().port}/mirror`;
+  const pageServer = createServer((req, res) => {
+    if (req.url === '/phone/index.html') return res.writeHead(200, { 'content-type': 'text/html' }).end(cockpitPage('', { apiBase, apiHeaders: { authorization: `Bearer ${credential}` }, stylesheet: 'view.css' }));
+    if (req.url === '/phone/view.css') return res.writeHead(200, { 'content-type': 'text/css' }).end(readFileSync(resolve(import.meta.dirname, '../src/view.css')));
+    res.writeHead(404).end();
+  });
+  await new Promise((resolve) => pageServer.listen(0, '127.0.0.1', resolve));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, `http://127.0.0.1:${pageServer.address().port}/phone/index.html`, join(box.dir, 'remote-phone-chrome'));
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor('typeof data === "object" && !!data?.project');
+    assert.equal(await chrome.evaluate('data.project.items[0].title'), 'Remote original');
+    await chrome.evaluate(`document.querySelector('#new-item').click(); document.querySelector('#add-title').value = 'Remote added'; document.querySelector('#add-form').requestSubmit()`);
+    await chrome.waitFor('data.project.items.some(item => item.title === "Remote added")');
+    assert.ok(seen.some((entry) => entry.method === 'POST' && entry.path.endsWith('/moves')), 'a real browser action reaches the configured API');
+    assert.ok(seen.every((entry) => entry.authorization === `Bearer ${credential}` && entry.localKey === undefined && entry.path.startsWith('/mirror/api/v1/')), 'only the supplied credential and API base reach the stand-in');
+    assert.equal(await chrome.evaluate('document.documentElement.scrollWidth'), 375);
+    assert.deepEqual(chrome.exceptions, []);
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    await new Promise((resolve) => pageServer.close(resolve));
+    await new Promise((resolve) => apiServer.close(resolve));
+    await view.stop();
+  }
+});
+
+test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N27]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for viewport checks.');
+
+  const box = machine();
+  const demo = project(box, 'phone-demo');
+  const other = project(box, 'other-demo');
+  box.run(demo.repo, 'add', 'web', 'Starter item', '--specs', 'G1', '--criterion', 'visible in the detail pane');
+  box.run(demo.repo, 'shout', 'person', 'Should the phone demo ship?', '--decision');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-phone-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    const consoleErrors = [];
+    chrome.socket.addEventListener('message', ({ data }) => {
+      const message = JSON.parse(String(data));
+      if (message.method === 'Runtime.consoleAPICalled' && message.params.type === 'error') {
+        consoleErrors.push(message.params.args.map((arg) => arg.value ?? arg.description ?? '').join(' '));
+      }
+      if (message.method === 'Log.entryAdded' && message.params.entry.level === 'error') consoleErrors.push(message.params.entry.text);
+    });
+    await chrome.send('Log.enable');
+
+    /** Click the actual control through Chrome input coordinates. */
+    const click = async (selector) => {
+      const point = JSON.parse(await chrome.evaluate(`(() => {
+        const e=document.querySelector(${JSON.stringify(selector)});
+        if(!e) throw Error('missing '+${JSON.stringify(selector)});
+        e.scrollIntoView({block:'center'});
+        const r=e.getBoundingClientRect(); return JSON.stringify({x:r.x+r.width/2,y:r.y+r.height/2});
+      })()`));
+      await chrome.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
+      await chrome.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
+      await chrome.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
+    };
+    /** Fill a form field and deliver its input and change events. */
+    const fill = (selector, value) => chrome.evaluate(`(() => {
+      const e=document.querySelector(${JSON.stringify(selector)}); if(!e) throw Error('missing '+${JSON.stringify(selector)});
+      e.value=${JSON.stringify(value)}; e.dispatchEvent(new Event('input',{bubbles:true})); e.dispatchEvent(new Event('change',{bubbles:true}));
+    })()`);
+    /** Submit a rendered form through native validation. */
+    const submit = (selector) => chrome.evaluate(`document.querySelector(${JSON.stringify(selector)}).requestSubmit()`);
+    /** Resize Chrome and wait for the board layout. */
+    const setViewport = async (width) => {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.waitFor(`innerWidth === ${width} && document.readyState === 'complete' && !!document.querySelector('#chain .row')`);
+    };
+    /** Read actual visible target sizes and document geometry. */
+    const snapshot = async () => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      const visible=e=>{const s=getComputedStyle(e),r=e.getBoundingClientRect();return !e.disabled&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&r.width>0&&r.height>0&&!e.closest('[hidden]')};
+      const selector='button,a[href],input:not([type=hidden]),select,textarea,[role=button],[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-release],[data-shout],[data-new],[data-code]';
+      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),width:r.width,height:r.height}});
+      return {width:innerWidth,documentWidth:document.documentElement.scrollWidth,bodyWidth:document.body.scrollWidth,
+        projectList:visible(document.querySelector('#proj-list')),needs:visible(document.querySelector('#needs')),
+        detail:visible(document.querySelector('#detail')),controls};
+    })())`));
+    /** Assert the current pane fits and all its controls remain touchable. */
+    const checkLayout = async (width, place) => {
+      const layout = await snapshot();
+      assert.ok(layout.documentWidth <= width && layout.bodyWidth <= width,
+        `${width} ${place}: no horizontal overflow: ${JSON.stringify(layout)}`);
+      const short = layout.controls.filter((control) => control.height < 44);
+      assert.deepEqual(short, [], `${width} ${place}: visible enabled actions are at least 44px high: ${JSON.stringify(short)}`);
+    };
+
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('#chain .row')");
+    for (const width of [375, 1280]) {
+      if (width === 1280) {
+        box.run(demo.repo, 'shout', 'person', 'Should the desktop demo ship?', '--decision');
+        await chrome.waitFor("document.querySelector('#needs').innerText.includes('Should the desktop demo ship?')", 15_000);
+      }
+      await setViewport(width);
+      if (width <= 900) {
+        await click('#proj-switch');
+        await chrome.waitFor("getComputedStyle(document.querySelector('#proj-list')).display !== 'none'");
+        await checkLayout(width, 'open project list');
+        await click(`[data-root="${other.repo}"]`);
+        await chrome.waitFor("document.querySelector('#proj-name').textContent === 'other-demo'");
+        await click('#proj-switch');
+        await click(`[data-root="${demo.repo}"]`);
+        await chrome.waitFor("document.querySelector('#proj-name').textContent === 'phone-demo' && !!document.querySelector('#chain .row')");
+      }
+      assert.ok(await chrome.evaluate("[...document.querySelectorAll('#proj-list .pname')].some(e=>e.textContent==='phone-demo')"), `${width}: demo appears in the project list`);
+      assert.ok(await chrome.evaluate("!!document.querySelector('#needs:not([hidden])')"), `${width}: Needs you is visible`);
+      await click('#chain .row');
+      assert.ok(await chrome.evaluate("!!document.querySelector('#detail h2')"), `${width}: selected item detail is visible`);
+      await checkLayout(width, 'items, Needs you and detail');
+      for (const tab of ['shouts', 'spec', 'doctrine', 'activity']) {
+        await click(`[data-tab="${tab}"]`);
+        await checkLayout(width, `${tab} tab`);
+      }
+      await click('[data-tab="items"]');
+
+      await click('#new-item');
+      await checkLayout(width, 'add form');
+      await fill('#add-lane', 'web');
+      await fill('#add-title', `Phone item ${width}`);
+      await fill('#add-specs', 'G1');
+      await submit('#add-form');
+      await chrome.waitFor(`document.querySelector('#chain').innerText.includes('Phone item ${width}')`);
+
+      await click('[data-tab="shouts"]');
+      await checkLayout(width, 'shout and hold forms');
+      await fill('#shout-to', 'web');
+      await fill('#shout-text', `Phone shout ${width}`);
+      await submit('#shout-form');
+      await chrome.waitFor(`document.querySelector('#feed').innerText.includes('Phone shout ${width}')`);
+
+      const decision = await chrome.evaluate("document.querySelector('#decisions [data-go]')?.getAttribute('data-go')");
+      assert.ok(decision, `${width}: a decision is offered for answer`);
+      await click(`#decisions [data-go="${decision}"]`);
+      await checkLayout(width, 'answer form');
+      await fill('#shout-text', `Phone answer ${width}`);
+      await submit('#shout-form');
+      await chrome.waitFor(`document.querySelector('#feed').innerText.includes('Phone answer ${width}')`);
+
+      await fill('#hold-lane', 'web');
+      await fill('#hold-reason', `Phone hold ${width}`);
+      await submit('#hold-form');
+      await chrome.waitFor("!!document.querySelector('#lanes [data-release=web]')");
+      await click('#lanes [data-release="web"]');
+      await chrome.waitFor("!document.querySelector('#lanes [data-release=web]')");
+    }
+
+    const posts = chrome.requests.filter((request) => request.method === 'POST' && new URL(request.url).pathname.endsWith('/moves'));
+    assert.equal(posts.length, 10, 'each viewport sends add, shout, answer, hold and release through the public move endpoint');
+    const apiRequests = chrome.requests.filter((request) => new URL(request.url).pathname.includes('/api/'));
+    assert.ok(apiRequests.length > 0 && apiRequests.every((request) => new URL(request.url).pathname.startsWith('/api/v1/boards')),
+      'every observed API request uses public v1');
+    const state = await boardOf(view, demo.repo);
+    for (const width of [375, 1280]) {
+      assert.ok(state.items.some((item) => item.title === `Phone item ${width}`));
+      assert.ok(state.shouts.some((shout) => shout.shout_text === `Phone shout ${width}`));
+      assert.ok(state.shouts.some((shout) => shout.shout_from === 'person' && shout.shout_text.includes(`Phone answer ${width}`)));
+    }
+    assert.deepEqual(state.holds, [], 'both widths released the held lane');
+    assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught exceptions');
+    assert.deepEqual(consoleErrors, [], 'Chrome reports no console errors');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    await view.stop();
     rmSync(profile, { recursive: true, force: true });
   }
 });
