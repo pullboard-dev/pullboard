@@ -591,7 +591,7 @@ function render() {
   const needs = [
     ...p.spec.filter((r) => r.status === 'pending').map((r) => ['spec:' + r.id, r.id, r.text, 'answer in SPEC.md']),
     ...by('back').map((i) => ['item:' + i.id, '#' + i.id, i.title, 'sent back: ' + i.verdict.reason]),
-    ...by('verify').map((i) => ['item:' + i.id, '#' + i.id, i.title, (rejected(i) ? 'resubmitted after ' + i.verdict.reason : 'to verify'), i.updatedAt]),
+    ...by('verify').map((i) => ['item:' + i.id, '#' + i.id, i.title, (i.reviewer ? 'being reviewed by ' + i.reviewer : rejected(i) ? 'resubmitted after ' + i.verdict.reason : 'to verify'), i.updatedAt]),
     ...p.holds.map((h) => ['tab:shouts', h.hold_lane, h.hold_reason, 'lane held']),
   ];
   const drafts = p.spec.filter((r) => r.status === 'draft').length;
@@ -631,6 +631,7 @@ function render() {
     const gated = waits.length > 0 || !!hold;
     const pills = (waits.length ? '<span class="gate">waits on ' + waits.map((id) => '<button class="ref" data-go="item:' + id + '" type="button">#' + id + '</button>').join(', ') + '</span>' : '') + (hold ? '<span class="gate">lane held: ' + esc(hold.hold_reason) + '</span>' : '');
     const tag = s === 'building' && i.owner ? '<span class="chip busy" title="building, held by ' + esc(i.owner) + '">' + esc(i.owner) + '</span>'
+      : s === 'verify' && i.reviewer ? '<span class="chip warn" title="reviewing until ' + esc(when(i.reviewUntil)) + '">' + esc(i.reviewer) + ' reviewing</span>'
       : s === 'open' ? (gated ? '<span class="chip gate">' + (waits.length ? 'gated' : 'lane held') + '</span>' : '<span class="chip free">unclaimed</span>') : chip(s);
     return '<li class="row' + (view.item === i.id ? ' on' : '') + (gated ? ' gated' : '') + '" data-item="' + i.id + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + esc(i.title) + '</div><div class="meta"><span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span>' + esc(i.specs.join(', ')) + '</span>' : '') + (who ? '<span>' + esc(who) + '</span>' : '') + pills + '<span>' + age(i.updatedAt) + '</span>' + (rejected(i) ? '<span class="why">' + esc(i.verdict.reason + ': ' + firstLine(i.verdict.note)) + '</span>' : '') + '</div></div>' + tag + '</li>';
   }).join('') : '<li class="empty">' + (items.length ? 'No items match.' : 'No items yet. Add the first one with New item.') + '</li>';
@@ -671,12 +672,13 @@ function render() {
   $('shout-targets').innerHTML = ['all', ...lanes, ...p.agents.map((a) => a.agent_id)].map((t) => '<option value="' + esc(t) + '">').join('');
   // Each agent with what it holds: its claim, then its work sent back, then its work waiting for a
   // verdict. The worktree path is there on hover; what the person reads is who is doing what.
-  const order = ['building', 'back', 'verify'];
-  const holding = (a) => items.filter((i) => i.status === 'claimed' ? i.owner === a.agent_id : i.builtBy === a.agent_id && order.includes(stateOf(i))).sort((x, y) => order.indexOf(stateOf(x)) - order.indexOf(stateOf(y)));
+  // A review an agent holds (V15) comes right after its claim.
+  const rank = (a, i) => i.status === 'claimed' ? 0 : i.reviewer === a.agent_id ? 1 : stateOf(i) === 'back' ? 2 : 3;
+  const holding = (a) => items.filter((i) => i.status === 'claimed' ? i.owner === a.agent_id : i.reviewer === a.agent_id || (i.builtBy === a.agent_id && ['back', 'verify'].includes(stateOf(i)))).sort((x, y) => rank(a, x) - rank(a, y));
   $('agents').innerHTML = p.agents.length ? p.agents.map((a) => {
     const mine = holding(a);
     return '<div class="agent"><div><b title="' + esc(a.agent_path) + '">' + esc(a.agent_id) + '</b><span class="muted">' + esc(a.agent_lane) + ' · ' + esc(a.agent_route) + '</span>' + (a.lastMoveAt ? '<time data-ago="' + esc(a.lastMoveAt) + '" title="last moved ' + when(a.lastMoveAt) + '">' + ago(a.lastMoveAt) + '</time>' : '') + '</div>'
-      + (mine.length ? mine.map((i) => '<button data-go="item:' + i.id + '" type="button"><span>#' + i.id + ' ' + esc(i.title) + '</span>' + chip(stateOf(i)) + '</button>').join('') : '<small>idle</small>') + '</div>';
+      + (mine.length ? mine.map((i) => '<button data-go="item:' + i.id + '" type="button"><span>#' + i.id + ' ' + esc(i.title) + '</span>' + (i.reviewer === a.agent_id ? '<span class="chip warn">reviewing</span>' : chip(stateOf(i))) + '</button>').join('') : '<small>idle</small>') + '</div>';
   }).join('') : '<div class="empty">No agents yet.</div>';
   const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
   $('lanes').innerHTML = working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no">held</span> <span class="muted">' + esc(held.get(l).hold_reason) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join('');

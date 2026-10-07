@@ -541,6 +541,38 @@ test('the agents panel says what each agent holds [N26]', async () => {
   }
 });
 
+test('a review in progress names its reviewer [N26]', async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  const second = join(box.dir, 'alpha-web-two');
+  box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
+  box.run(second, 'join', 'web');
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  build(box, alpha, 1, 'greeting.html');
+  box.run(second, 'next', '--verify');
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    assert.match(itemRow(page.show('chain'), 1), /<span class="chip warn" title="reviewing until [^"]+">web-2 reviewing<\/span><\/li>$/, 'the row names who holds the review');
+    assert.match(page.show('needs'), /<code>#1<\/code><span>Greeting<\/span><em>being reviewed by web-2, <time data-ago="[^"]+">[^<]+<\/time> →<\/em>/);
+    const holds = (id) => agentEntries(page.show('agents')).find((agent) => agent.id === id).holds;
+    assert.deepEqual(holds('web-2'), ['#1 Greeting: reviewing'], 'the reviewer holds it');
+    assert.deepEqual(holds('web-1'), ['#1 Greeting: to verify'], 'the builder waits on it');
+    // A name is board text, so it is escaped: give the board on hand a reviewer with markup and redraw.
+    page.run('data.project.items.find((i) => i.id === 1).reviewer = "web<b>"; render();');
+    assert.match(itemRow(page.show('chain'), 1), />web&lt;b&gt; reviewing<\/span><\/li>$/);
+    await page.run('refresh()');
+
+    box.git(second, 'switch', '-q', '--detach', alpha.branch);
+    box.run(second, 'verify', '1', 'accept', '--note', 'opened the page and read the greeting');
+    await page.run('refresh()');
+    await page.click({ state: 'all' });
+    assert.match(itemRow(page.show('chain'), 1), /<span class="chip ok">verified<\/span><\/li>$/, 'once the verdict lands, the review is over');
+    assert.deepEqual(holds('web-2'), []);
+  } finally {
+    await view.stop();
+  }
+});
 test('the tab title says what needs you [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
