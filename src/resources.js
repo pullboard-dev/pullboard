@@ -137,11 +137,11 @@ function pause(ms) { return new Promise((resolvePromise) => setTimeout(resolvePr
 /**
  * Join a resource's FIFO queue and resolve with a renewable lease when capacity is available.
  *
- * @param {{ name: string, capacity: number, scope?: 'machine'|'repo'|'board', root?: string, agent?: string, repo?: string, onWait?: (state: object) => void }} options
+ * @param {{ name: string, capacity: number, capacityProvider?: () => number, scope?: 'machine'|'repo'|'board', root?: string, agent?: string, repo?: string, onWait?: (state: object) => void, allowIdleCapacityUpdate?: boolean }} options
  * @returns {Promise<{ name: string, scope: string, token: string, release: () => void, renew: () => void }>}
  */
 export async function takeResource(options) {
-  const { name, capacity, scope = 'machine', root = process.cwd() } = options;
+  const { name, capacity, scope = 'machine', root = process.cwd(), allowIdleCapacityUpdate = false } = options;
   if (typeof name !== 'string' || !name.trim() || name.trim() !== name) throw new Refused('BAD_RESOURCE_NAME', 'resource name must be nonempty trimmed text');
   if (!Number.isSafeInteger(capacity) || capacity < 1) throw new Refused('BAD_RESOURCE_CAPACITY', 'resource capacity must be a positive integer');
   const file = databaseFile(scope, root);
@@ -154,9 +154,17 @@ export async function takeResource(options) {
   let queuedAt = new Date().toISOString();
   try {
     update(db, () => {
+      const currentCapacity = options.capacityProvider?.() ?? capacity;
+      if (!Number.isSafeInteger(currentCapacity) || currentCapacity < 1) throw new Refused('BAD_RESOURCE_CAPACITY', 'resource capacity must be a positive integer');
       const row = db.prepare('SELECT capacity FROM resource WHERE name = ?').get(name);
-      if (row && row.capacity !== capacity) throw new Refused('RESOURCE_CAPACITY_MISMATCH', `resource "${name}" already has capacity ${row.capacity}`);
-      db.prepare('INSERT INTO resource(name, capacity) VALUES (?, ?) ON CONFLICT(name) DO NOTHING').run(name, capacity);
+      if (row && row.capacity !== currentCapacity) {
+        const state = snapshot(db, name);
+        if (!allowIdleCapacityUpdate || state.holders.length || state.line.length) {
+          throw new Refused('RESOURCE_CAPACITY_MISMATCH', `resource "${name}" already has capacity ${row.capacity}`);
+        }
+        db.prepare('UPDATE resource SET capacity = ? WHERE name = ?').run(currentCapacity, name);
+      }
+      db.prepare('INSERT INTO resource(name, capacity) VALUES (?, ?) ON CONFLICT(name) DO NOTHING').run(name, currentCapacity);
       db.prepare('INSERT INTO waiter(token, name, pid, started, agent, repo, since, heartbeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(token, name, pid, started, agent, repo, queuedAt, Date.now());
     });
     while (true) {
@@ -218,6 +226,24 @@ export async function takeResource(options) {
     db.close();
     throw error;
   }
+}
+
+/** Change a resource's capacity only while its queue is empty, persisting related settings under the same lock. */
+export function setResourceCapacity({ name, capacity, scope = 'machine', root = process.cwd(), persist = () => {} }) {
+  if (typeof name !== 'string' || !name.trim() || name.trim() !== name) throw new Refused('BAD_RESOURCE_NAME', 'resource name must be nonempty trimmed text');
+  if (!Number.isSafeInteger(capacity) || capacity < 1) throw new Refused('BAD_RESOURCE_CAPACITY', 'resource capacity must be a positive integer');
+  const db = open(databaseFile(scope, root));
+  try {
+    return update(db, () => {
+      const state = snapshot(db, name);
+      if (state.holders.length || state.line.length) {
+        throw new Refused('RESOURCE_BUSY', `resource "${name}" has ${state.holders.length} holder(s) and ${state.line.length} waiter(s); wait for it to become idle, then retry pullboard settings gateSlots ${capacity}`);
+      }
+      persist();
+      db.prepare('INSERT INTO resource(name, capacity) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET capacity = excluded.capacity').run(name, capacity);
+      return { name, capacity };
+    });
+  } finally { db.close(); }
 }
 
 /** List resources and prune leases whose process died or lease expired. */
