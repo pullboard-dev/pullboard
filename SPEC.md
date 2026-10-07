@@ -32,10 +32,13 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - B18 [draft, aim] An item can wait until a time; next and claim pass over it until then. | gate: test/board.test.js | serves: B8
 - B19 [draft, aim] An item can wait until main contains a given commit; next and claim pass over it until then. | gate: test/e2e.test.js | serves: B8
 - B20 [draft, aim] The person orders open items: now, next or later, and up or down within each; next follows it first. | gate: test/board.test.js
-- B21 [approved, aim] A shout can ask for a decision; it stays in the person's Needs-you until someone answers it. | gate: test/board.test.js | serves: B7
+- B21 [approved, aim] A shout can ask for a decision; it stays open until someone answers it. | gate: test/board.test.js | serves: B7
 - B22 [approved, aim] A shout can attach typed evidence: attempt or receipt, outcome, item and commit, as fields, not prose. | gate: test/board.test.js | serves: B7
 - B23 [approved, aim] A shout's path:lines@commit reference opens that code as it was at that commit. | gate: test/cockpit.test.js | serves: B7
 - B24 [draft, aim] An item can wait on an item in another repo of its project, written repo#id. | gate: test/board.test.js | serves: N33
+- B25 [approved, must] Questions go one step up: agents ask their coordinator; a coordinator asks the person or the coordinator above. | gate: test/board.test.js | serves: B21
+- B26 [approved, must] Needs-you holds only the person's calls: decisions passed up, rows to approve, held lanes; agents ask their coordinator. | gate: test/board.test.js | serves: B25
+- B27 [approved, must] A coordinator answers a decision or passes it up with its note; the answer reaches whoever asked. | gate: test/board.test.js | serves: B25
 
 ## M · Machine
 - M1 [approved, must] One declaration holds every item state, move, guard and refusal; code, help and docs derive from it. | gate: test/machine.test.js
@@ -94,7 +97,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - S17 [approved, must] Once a repo lists signers, each sign-off carries the signer's SSH signature over the row's exact text. | gate: test/signoff.test.js | serves: S5
 - S18 [approved, must] A row can name who must sign it; it is met only when each has a current signed sign-off. | gate: test/signoff.test.js | serves: S17
 - S19 [approved, must] spec check refuses a sign-off whose signature fails or whose key isn't listed; a changed row makes it stale. | gate: test/signoff.test.js | serves: S17
-- S20 [approved, must] A change to the signer list counts only in a commit signed by a key already on it. | gate: test/signoff.test.js | serves: S17
+- S20 [approved, must] A change to the signer list counts only when a key already on it signs that change. | gate: test/signoff.test.js | serves: S17
 - S21 [approved, must] `pullboard spec signers add` sets a repo up with the SSH key the person already uses; no GPG. | gate: test/signoff.test.js | serves: S17
 
 ## D · Doctrine
