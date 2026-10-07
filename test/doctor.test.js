@@ -18,13 +18,14 @@ after(() => {
 /**
  * Create a committed repo with a board and isolated git identity for one integrity scenario.
  */
-function boardBox({ initialize = true } = {}) {
+function boardBox({ initialize = true, repoName = 'repo' } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-doctor-'));
   sandboxes.push(dir);
-  const root = join(dir, 'repo');
+  const root = join(dir, repoName);
   mkdirSync(root);
-  const env = {
-    ...process.env,
+  const env = { ...process.env };
+  for (const name of Object.keys(env)) if (name.startsWith('GIT_')) delete env[name];
+  Object.assign(env, {
     PULLBOARD_HOME: join(dir, 'home'),
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
@@ -32,7 +33,7 @@ function boardBox({ initialize = true } = {}) {
     GIT_AUTHOR_EMAIL: 'doctor@example.com',
     GIT_COMMITTER_NAME: 'Doctor Test',
     GIT_COMMITTER_EMAIL: 'doctor@example.com',
-  };
+  });
   const git = (...args) => execFileSync('git', args, { cwd: root, env, encoding: 'utf8' }).trim();
   const run = (...args) => spawnSync(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
@@ -78,6 +79,49 @@ test('doctor reports a clean board in one line and leaves it unchanged [A6]', ()
   assert.equal(result.stdout, 'board is clean\n');
   assert.equal(result.stderr, '');
   assert.deepEqual(readFileSync(box.dbFile), before);
+});
+
+test('commands and doctor explain how to repair core.bare without crossing a nested repo [A6, P4]', () => {
+  const box = boardBox({ repoName: "O'Brien project" });
+  const root = box.git('rev-parse', '--show-toplevel');
+  const gitDir = `'${join(root, '.git').replaceAll("'", "'\\''")}'`;
+  const repair = `git --git-dir=${gitDir} config core.bare false`;
+  box.git('config', 'core.bare', 'true');
+
+  const command = box.run('status');
+  assert.equal(command.status, 1);
+  assert.match(command.stderr, /\[CORE_BARE\].*core\.bare=true.*working files are present beside \.git/u);
+  assert.ok(command.stderr.includes(repair), command.stderr);
+  const refusal = box.run('status', '--json');
+  assert.equal(refusal.status, 1);
+  assert.equal(JSON.parse(refusal.stdout).error.next, `run ${repair}`);
+
+  const doctor = box.run('doctor', '--json');
+  assert.equal(doctor.status, 1);
+  assert.equal(doctor.stderr, '');
+  const document = JSON.parse(doctor.stdout);
+  assert.equal(document.version, 1);
+  assert.deepEqual(document.problems, [{
+    code: 'CORE_BARE',
+    message: `main checkout ${root} has .git/config core.bare=true while working files are present beside .git`,
+    next: repair,
+  }]);
+
+  const nested = join(box.root, 'nested');
+  mkdirSync(nested);
+  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: nested, env: box.env });
+  /** Run the private Pullboard CLI from the nested repo under the bare parent. */
+  const nestedRun = (...args) => spawnSync(process.execPath, [BIN, ...args], { cwd: nested, env: box.env, encoding: 'utf8' });
+  const nestedInit = nestedRun('init');
+  assert.equal(nestedInit.status, 0, nestedInit.stderr);
+  const nestedStatus = nestedRun('status');
+  assert.equal(nestedStatus.status, 0, nestedStatus.stderr);
+  const nestedDoctor = nestedRun('doctor');
+  assert.equal(nestedDoctor.status, 0, nestedDoctor.stderr);
+
+  execFileSync('sh', ['-c', repair], { cwd: root, env: box.env });
+  assert.equal(box.run('status').status, 0);
+  assert.equal(box.run('doctor').status, 0);
 });
 
 test('doctor finds a missing lifecycle trigger without reinstalling it [A6]', () => {

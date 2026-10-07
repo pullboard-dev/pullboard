@@ -11,7 +11,7 @@ import * as store from './board.js';
 import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
 import { loadDoctrine } from './doctrine.js';
 import { digestOf, gateReport, runGate, runShell } from './gate.js';
-import { contains, differFromHead, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
+import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
   FIX_NOTE,
   applyFixers,
@@ -990,6 +990,13 @@ function readCommands(io, { first, second, rest, values }) {
       return 0;
     },
     doctor: () => {
+      const bare = bareWorktreeFinding(io.cwd);
+      if (bare) {
+        const problems = [bare];
+        io.result?.({ problems });
+        for (const problem of problems) io.say(`problem: ${problem.message}; repair: ${problem.next}`);
+        return 1;
+      }
       const ctx = context(io);
       const problems = doctorProblems(ctx.file, ctx.info.root, tryGit);
       io.result?.({ problems });
