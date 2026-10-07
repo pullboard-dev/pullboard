@@ -180,7 +180,7 @@ export function createGitHubClient({ clientId, clientSecret, callbackURL, oauthB
         if (publicRepo.private !== false || !Number.isSafeInteger(publicRepo.id) || publicRepo.id <= 0) {
           throw new Refused('NO_REPO_ACCESS', 'install the GitHub App on this repository and ask for repository access');
         }
-        return { id: String(publicRepo.id), name: repositoryName(publicRepo.full_name) };
+        return { id: String(publicRepo.id), name: repositoryName(publicRepo.full_name), public: true, permission: 'none' };
       }
       if (!Number.isSafeInteger(installation.id) || installation.id <= 0) throw new Refused('NO_REPO_ACCESS', 'GitHub did not confirm an App installation; install the App on this repository');
       const cacheKey = String(installation.id) + ':' + name.toLowerCase();
@@ -199,14 +199,16 @@ export function createGitHubClient({ clientId, clientSecret, callbackURL, oauthB
       try {
         const repo = await request(api, path, { token: credential.token });
         if (!Number.isSafeInteger(repo.id) || repo.id <= 0 || typeof repo.private !== 'boolean') throw new Refused('NO_REPO_ACCESS', 'GitHub did not confirm repository metadata; check the App installation');
-        if (repo.private) {
-          if (!user || !/^[A-Za-z0-9-]+$/.test(user.login)) throw new Refused('NO_REPO_ACCESS', 'sign in again to confirm your GitHub account');
-          const permission = await request(api, path + '/collaborators/' + encodeURIComponent(user.login) + '/permission', { token: credential.token });
-          if (String(permission.user?.id) !== String(user.id) || !['read', 'triage', 'write', 'maintain', 'admin'].includes(permission.permission)) {
-            throw new Refused('NO_REPO_ACCESS', 'your GitHub account cannot read this repository; ask for access or sign in again');
-          }
+        if (!user || !/^[A-Za-z0-9-]+$/.test(user.login)) throw new Refused('NO_REPO_ACCESS', 'sign in again to confirm your GitHub account');
+        let permission = 'none';
+        try {
+          const answer = await request(api, path + '/collaborators/' + encodeURIComponent(user.login) + '/permission', { token: credential.token });
+          if (String(answer.user?.id) === String(user.id) && ['read', 'triage', 'write', 'maintain', 'admin'].includes(answer.permission)) permission = answer.permission;
+        } catch (error) {
+          if (repo.private || error.code !== 'NO_REPO_ACCESS') throw error;
         }
-        return { id: String(repo.id), name: repositoryName(repo.full_name) };
+        if (repo.private && permission === 'none') throw new Refused('NO_REPO_ACCESS', 'your GitHub account cannot read this repository; ask for access or sign in again');
+        return { id: String(repo.id), name: repositoryName(repo.full_name), public: !repo.private, permission };
       } catch (error) {
         if (error.code === 'NO_REPO_ACCESS') installationTokens.delete(cacheKey);
         throw error;

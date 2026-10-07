@@ -87,12 +87,12 @@ export function createAuthHandler({ auth, publicOrigin }) {
       } else {
         const bearer = token(req, true);
         const input = await body(req);
-        json(res, 200, auth.revoke(bearer, input.id));
+        json(res, 200, await auth.revoke(bearer, input.id));
       }
     } catch (error) {
       const code = error instanceof Refused ? error.code : 'INTERNAL_ERROR';
       const message = error instanceof Refused ? error.message.replace(/^\[[^\]]+\] /, '') : 'the relay could not complete this request; retry or contact its coordinator';
-      const status = code === 'AUTH_REQUIRED' ? 401 : ['NO_REPO_ACCESS', 'TOKEN_BOARD', 'TOKEN_NOT_OWNED', 'HUMAN_REQUIRED', 'BAD_ORIGIN'].includes(code) ? 403 : code === 'GITHUB_UNAVAILABLE' ? 503 : code === 'INTERNAL_ERROR' ? 500 : 400;
+      const status = code === 'BOARD_NOT_LINKED' ? 404 : code === 'AUTH_REQUIRED' ? 401 : ['NO_REPO_ACCESS', 'TOKEN_BOARD', 'TOKEN_NOT_OWNED', 'HUMAN_REQUIRED', 'BAD_ORIGIN', 'WRITE_REQUIRED'].includes(code) ? 403 : code === 'GITHUB_UNAVAILABLE' ? 503 : code === 'INTERNAL_ERROR' ? 500 : 400;
       json(res, status, { error: { code, message, next: message } });
     }
     return true;

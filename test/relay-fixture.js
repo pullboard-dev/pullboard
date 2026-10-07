@@ -7,7 +7,7 @@ import { once } from 'node:events';
 /** Start a provider with real signed JWT verification and one-use browser/device grants. */
 export async function githubFixture(t) {
   const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
-  const state = { access: true, public: false, installed: true, repositoryID: 100, accountID: 7, permissionAccountID: 7, deviceAuthorized: false, slow: false, redirect: null };
+  const state = { access: true, permission: 'write', public: false, installed: true, repositoryID: 100, accountID: 7, permissionAccountID: 7, deviceAuthorized: false, slow: false, redirect: null };
   const calls = [];
   const codes = new Map();
   const userTokens = new Set();
@@ -101,7 +101,7 @@ export async function githubFixture(t) {
     if (url.pathname === '/repos/fixture/repository') return reply(res, isInstallation || state.public ? 200 : 404, { id: state.repositoryID, full_name: 'fixture/repository', private: !state.public });
     if (url.pathname === '/repos/fixture/repository/collaborators/fixture-user/permission') {
       if (state.beforePermission) await state.beforePermission();
-      return reply(res, isInstallation ? 200 : 403, { permission: state.access ? 'read' : 'none', user: { id: state.permissionAccountID } });
+      return reply(res, isInstallation ? 200 : 403, { permission: state.access ? state.permission : 'none', user: { id: state.permissionAccountID } });
     }
     return reply(res, 404, { message: 'not available' });
   }

@@ -41,7 +41,7 @@ test('App metadata checks current private access and immutable account identity 
   const fixture = await githubFixture(t);
   const client = createGitHubClient(fixture.config);
   const user = { id: '7', login: 'fixture-user' };
-  assert.deepEqual(await client.access(user, 'fixture/repository'), { id: '100', name: 'fixture/repository' });
+  assert.deepEqual(await client.access(user, 'fixture/repository'), { id: '100', name: 'fixture/repository', public: false, permission: 'write' });
   fixture.state.access = false;
   await assert.rejects(client.access(user, 'fixture/repository'), { code: 'NO_REPO_ACCESS' });
   fixture.state.access = true;
