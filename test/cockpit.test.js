@@ -1325,6 +1325,30 @@ test('a machine with no board says how to start one [N26]', async () => {
     await view.stop();
   }
 });
+test('a fresh board files new work where it can be built [N26, N27]', async () => {
+  const box = machine();
+  // A repo set up by init alone: its only lane is review, which owns no folders, and it has no rows.
+  const fresh = join(box.dir, 'fresh');
+  mkdirSync(fresh);
+  box.git(fresh, 'init', '-q', '-b', 'main');
+  box.run(fresh, 'init');
+  const beta = project(box, 'beta', SPEC, { lanes: { web: { owns: ['web/'], specs: ['G'] }, review: { owns: [] } } });
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    assert.equal(page.element('proj-name').textContent, 'fresh');
+    assert.equal(page.show('add-lane'), '<option>coordinator</option><option>review</option>', 'with no lane that owns folders, new work goes to the coordinator, not to the verifiers');
+    assert.equal(page.element('add-specs').placeholder, 'none yet', 'and its hint names no rows the board lacks');
+    assert.equal(page.show('spec-list'), '<div class="empty">No spec rows yet. Each requirement is one row in SPEC.md, such as G1 [draft, must] and a line; write them, or ask an agent to, and they show up here.</div>', 'the Spec tab says where rows come from');
+
+    await page.click({ root: beta.repo });
+    assert.equal(page.show('add-lane'), '<option>web</option><option>coordinator</option><option>review</option>', 'a lane that owns folders comes first, review last');
+    assert.equal(page.element('add-specs').placeholder, 'G1,G2');
+    assert.equal(page.show('spec-list'), '<div class="empty">No rows match.</div>', 'rows a filter hides are not missing');
+  } finally {
+    await view.stop();
+  }
+});
 test('the view runs no init [N27]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');

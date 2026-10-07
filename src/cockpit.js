@@ -659,11 +659,16 @@ function render() {
 
   const lanes = p.lanes;
   const working = lanes.filter((l) => l !== 'coordinator');
-  if ($('add-lane').dataset.lanes !== lanes.join()) {
-    $('add-lane').dataset.lanes = lanes.join();
-    $('add-lane').innerHTML = [...working, 'coordinator'].map((l) => '<option>' + esc(l) + '</option>').join('');
+  // New work goes first to a lane that owns folders, where builders work, then to the coordinator; a
+  // lane that owns none, such as review, is for verifiers and comes last.
+  const filing = [...working.filter((l) => p.owning.includes(l)), 'coordinator', ...working.filter((l) => !p.owning.includes(l))];
+  if ($('add-lane').dataset.lanes !== filing.join()) {
+    $('add-lane').dataset.lanes = filing.join();
+    $('add-lane').innerHTML = filing.map((l) => '<option>' + esc(l) + '</option>').join('');
     $('hold-lane').innerHTML = working.map((l) => '<option>' + esc(l) + '</option>').join('');
   }
+  const approved = p.spec.filter((r) => r.status === 'approved');
+  $('add-specs').placeholder = (approved.length ? approved : p.spec).slice(0, 2).map((r) => r.id).join(',') || 'none yet';
   const q = $('q').value.trim().toLowerCase();
   // Each chip counts what it would show under the lane and the search. A search looks through every
   // state, withdrawn items included; browsing leaves those out.
@@ -759,7 +764,7 @@ function render() {
       const head = r.section !== section ? '<h4>' + esc(r.section) + '</h4>' : '';
       section = r.section;
       return head + '<div class="srow' + (view.row[kind] === r.id ? ' on' : '') + '" data-row="' + kind + ':' + esc(r.id) + '"><code>' + esc(r.id) + '</code><span><span class="chip ' + tone(r.status) + '">' + esc(r.status) + '</span></span><span>' + esc(r.text) + '</span></div>';
-    }).join('') : '<div class="empty">No rows match.</div>';
+    }).join('') : '<div class="empty">' + (rows.length ? 'No rows match.' : kind === 'spec' ? 'No spec rows yet. Each requirement is one row in SPEC.md, such as G1 [draft, must] and a line; write them, or ask an agent to, and they show up here.' : 'No practice rows yet: they live in PRACTICE.md.') + '</div>';
     const row = rows.find((r) => r.id === view.row[kind]);
     const citing = row ? p.items.filter((i) => i.specs.includes(row.id)) : [];
     $(kind + '-detail').innerHTML = row ? '<div style="display:grid;gap:12px"><h2><span>' + esc(row.id) + '</span>' + esc(row.text) + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(row.status) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + '</div><dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<button data-go="item:' + i.id + '" type="button">#' + i.id + ' ' + esc(i.title) + '</button>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div><div class="muted">Rows change in ' + (kind === 'spec' ? 'SPEC.md' : 'PRACTICE.md') + ', and only you approve them.</div></div>' : '<div class="empty">Pick a row to see it, and the items that cite it.</div>';

@@ -94,6 +94,8 @@ export function projectState(root, { seen = null } = {}) {
     return {
       root: info.root,
       lanes: [COORDINATOR, ...Object.keys(config.lanes)],
+      // The lanes that own folders, where builders work; review lanes own none.
+      owning: Object.keys(config.lanes).filter((lane) => (config.lanes[lane].owns ?? []).length > 0),
       items: all.map((item) => {
         const verdicts = store.verdictsFor(board, item.item_id).map(verdict);
         const after = item.item_after ? item.item_after.split(',').map(Number) : [];
