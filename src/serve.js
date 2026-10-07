@@ -100,6 +100,9 @@ export function projectState(root) {
           status: item.item_status,
           route: item.item_route,
           owner: item.item_owner,
+          // Who holds the review under a live lease (V15), by the board's own rule.
+          reviewer: store.reviewHolder(board, item),
+          reviewUntil: item.item_review_until ?? null,
           builtBy: item.item_built_by,
           verifiedBy: item.item_verified_by,
           specs: item.item_spec_ids ? item.item_spec_ids.split(',') : [],
