@@ -1003,6 +1003,21 @@ test('spec rows read across a phone [N26]', async () => {
   }
 });
 
+test('an empty feed says so on one line [N26]', async () => {
+  const box = machine();
+  project(box, 'alpha');
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    assert.equal(page.show('feed'), '<div class="empty">No shouts yet.</div>');
+    assert.match(page.html, /<div class="card-panel feed" id="feed"><\/div>/, 'the shouts feed');
+    assert.match(page.html, /<div class="card-panel feed" id="activity"><\/div>/, 'and the activity feed are both feeds');
+    const style = page.html.slice(page.html.indexOf('<style>'), page.html.indexOf('</style>'));
+    assert.match(style, /\n\.feed > div \{ display: grid; grid-template-columns: 4\.6em minmax\(0, 1fr\);[^\n]*\n\.feed > \.empty \{ display: block; \}\n/, 'a feed row has a time column; its empty note takes the whole width');
+  } finally {
+    await view.stop();
+  }
+});
 test('activity names the item each event moved [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');

@@ -205,6 +205,7 @@ input, select, textarea { border: 1px solid var(--line-strong); background: var(
 .inline label { flex: 1 1 150px; min-width: 0; }
 .feed { padding: 6px 10px 10px; display: grid; }
 .feed > div { display: grid; grid-template-columns: 4.6em minmax(0, 1fr); gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.feed > .empty { display: block; }
 .feed > div:first-child, .feed > .day + div { border-top: 0; }
 .feed .day { margin: 0; padding: 12px 0 4px; font: 600 11px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
 .feed .day:first-child { padding-top: 6px; }
