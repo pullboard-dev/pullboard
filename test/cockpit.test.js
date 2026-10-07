@@ -6,7 +6,7 @@
  */
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
@@ -1217,6 +1217,33 @@ test('a machine with no board says how to start one [N26]', async () => {
     await lost.release();
     assert.deepEqual(classes(lost), []);
     assert.match(lost.element('live').textContent, /^cannot reach the view: /);
+  } finally {
+    await view.stop();
+  }
+});
+test('the view runs no init [N27]', async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  const other = join(box.dir, 'other');
+  mkdirSync(other);
+  box.git(other, 'init', '-q', '-b', 'main');
+  const view = await startView(box);
+  try {
+    const act = async (body) => {
+      const res = await fetch(`${view.base}/api/act`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-pullboard-key': view.key }, body: JSON.stringify(body) });
+      return { status: res.status, ...(await res.json()) };
+    };
+    assert.deepEqual(await act({ command: 'init', args: { path: other } }), { status: 400, error: 'no action "init"' }, 'agents start boards, not the view');
+    assert.deepEqual(await act({ root: alpha.repo, command: 'init', args: { path: other } }), { status: 400, error: 'no action "init"' }, 'not even from inside a project');
+    assert.deepEqual(readdirSync(other), ['.git'], 'and nothing is set up at the path');
+    for (const command of ['add', 'shout', 'hold', 'release']) {
+      const args = { lane: 'web', title: 'x', to: 'all', text: 'x', reason: 'x' };
+      assert.deepEqual(await act({ root: other, command, args }), { status: 400, error: 'not a project on this machine' }, `${command} runs only inside a known project`);
+    }
+    const state = await (await fetch(`${view.base}/api/state`, { headers: { 'x-pullboard-key': view.key } })).json();
+    assert.deepEqual(state.projects.map((entry) => entry.name), ['alpha'], 'the machine has no new board');
+    const shout = await act({ root: alpha.repo, command: 'shout', args: { to: 'all', text: 'still here' } });
+    assert.deepEqual([shout.status, shout.code, shout.command], [200, 0, 'pullboard shout all still here'], 'the actions it keeps still run');
   } finally {
     await view.stop();
   }

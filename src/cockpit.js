@@ -794,7 +794,7 @@ function search() {
  * writes nothing there and sets no close, and a close fires only while its action is still the
  * latest, so a success can never hide a refusal that came after it.
  */
-async function act(command, args, root = view.root) {
+async function act(command, args) {
   const out = $('console');
   const run = (view.acting = (view.acting || 0) + 1);
   const latest = () => run === view.acting;
@@ -803,7 +803,7 @@ async function act(command, args, root = view.root) {
   out.className = 'console';
   out.textContent = 'running…';
   try {
-    const result = await api('/api/act', { root, command, args });
+    const result = await api('/api/act', { root: view.root, command, args });
     if (latest()) {
       out.className = 'console ' + (result.code === 0 ? 'ok' : 'no');
       out.textContent = '$ ' + result.command + '\\n' + (result.out + result.err).trim();
