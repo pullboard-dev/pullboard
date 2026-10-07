@@ -895,3 +895,23 @@ test('spec rows read across a phone [N26]', async () => {
     await view.stop();
   }
 });
+
+test('activity names the item each event moved [N26]', async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  box.run(alpha.repo, 'add', 'web', 'Greeting <b>bold</b>', '--specs', 'G1', '--criterion', 'greets');
+  box.run(alpha.web, 'claim', '1');
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    const rows = page.show('activity').split('<div><time>').slice(1);
+    const about = rows.filter((row) => row.includes('data-go="item:1"'));
+    assert.equal(about.length, 2, 'the add and the claim');
+    for (const row of about) assert.match(row, /type="button">#1<\/button> <span class="what">Greeting &lt;b&gt;bold&lt;\/b&gt;<\/span><\/div>/, 'the escaped title follows the link');
+    const joins = rows.filter((row) => /<\/b> join<\/div>/.test(row));
+    assert.ok(joins.length > 0 && joins.every((row) => !row.includes('class="what"')), 'an event about no item names none');
+    assert.match(page.html, /\.feed \.act \.what \{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/, 'a long title keeps to one line');
+  } finally {
+    await view.stop();
+  }
+});
