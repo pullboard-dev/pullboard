@@ -57,7 +57,11 @@ test('a packed release installs with no network and runs the whole loop from a f
   const repo = join(dir, 'repo');
   mkdirSync(repo);
   git(repo, 'init', '-q', '-b', 'main');
-  pullboard(repo, 'init');
+  const initialized = pullboard(repo, 'init');
+  for (const line of ['wrote pullboard.json', 'wrote SPEC.md', 'wrote .githooks/pre-commit', 'set core.hooksPath to .githooks', 'opened the board in the git dir; this checkout is the coordinator']) {
+    assert.ok(initialized.includes(line), `init says: ${line}`);
+  }
+  assert.ok(existsSync(join(repo, '.githooks', 'pre-commit')) && existsSync(join(repo, '.git', 'pullboard', 'board.sqlite')), 'init wrote the hooks and the board');
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'test -f web/greet.txt', lanes: { web: { owns: ['web/'], specs: ['G1'] } } }, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), '# Greeter\n\n## G · Goals\n- G1 [approved, must] It greets. | gate: test\n');
   git(repo, 'add', '-A');
@@ -80,7 +84,8 @@ test('a packed release installs with no network and runs the whole loop from a f
   assert.match(pullboard(verifier, 'verify', '1', 'accept', '--note', 'checked out the commit; web/greet.txt says hello'), /verified #1/);
 
   git(repo, 'merge', '-q', '--no-edit', commit);
-  pullboard(repo, 'merged', '1', git(repo, 'rev-parse', 'HEAD'));
+  const merge = git(repo, 'rev-parse', 'HEAD');
+  assert.equal(pullboard(repo, 'merged', '1', merge).trim(), `#1 merged as ${merge.slice(0, 12)}`);
   const shown = pullboard(repo, 'show', '1');
   assert.match(shown, /#1 {2}verified/);
   assert.match(shown, /merged as [0-9a-f]{12}/);
