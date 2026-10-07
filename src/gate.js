@@ -102,15 +102,20 @@ export function runShell(root, command) {
  * Run the configured gate in the repo, unless this exact tree already passed. Its output, both
  * streams in order, is kept whole in the git dir and returned for a digest.
  *
+ * A passed tree is marked by a stamp file in the git dir, which any agent can write. So the stamp
+ * only saves a run where nothing is proven by it, such as pre-push (C3); submit needs a run of its
+ * own and passes `trustStamp: false` (V16).
+ *
  * @param {string} root
  * @param {any} config
+ * @param {{ trustStamp?: boolean }} [options]
  * @returns {{ isGreen: boolean, isCached: boolean, output: string, seconds: number, log: string }}
  */
-export function runGate(root, config) {
+export function runGate(root, config, { trustStamp = true } = {}) {
   if (!config.gate.trim()) {
     throw new Refused('NO_GATE', 'no gate configured; set "gate" in pullboard.json, e.g. "npm test"');
   }
-  if (isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
+  if (trustStamp && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
   const before = committedTree(root);
   const { isGreen, output, seconds } = runShell(root, config.gate);
   const log = gitPath(root, LOG);

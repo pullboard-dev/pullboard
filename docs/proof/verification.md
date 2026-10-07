@@ -1,4 +1,4 @@
-# Proof audit: the verification rows, V1 to V9
+# Proof audit: the verification rows, V1 to V9 and V16
 
 Each verification row was built before the board could verify anything, so no accepted item vouched for it. This audit breaks each row's rule in `src/`, one change at a time, and checks that a test carrying the row's id goes red. A row whose tests stay green under a broken rule is not proven, however long its tests have passed.
 
@@ -21,6 +21,10 @@ Re-run it with `node docs/proof/verification-mutants.mjs`. It copies the repo to
 | V7 | The verifier's checkout contains the submitted commit. | verify skips the containment check | verify runs at the submitted commit, against the criterion frozen at claim | red |
 | V8 | Every verdict binds the submitted commit and the frozen digest. | the verdict records the verifier's head as the commit; the verdict records no digest | every verdict binds the submitted commit and the frozen digest | red, both |
 | V9 | In the main checkout, verifying needs --as coordinator. | the main checkout verifies without --as | verify runs at the submitted commit, against the criterion frozen at claim | red, **once tagged V9 by this audit** |
+| V16 | Submit runs the gate itself on the exact tree it submits; no stamp from an earlier run stands in. | submit trusts a stamp written by hand | submit runs the gate itself: a stamp written by hand never stands in for a red gate | red |
+| V16 | | submit trusts an earlier run's stamp | submit runs the gate even on a tree an earlier run passed, which a plain gate run may skip | red |
+| V16 | | the gate trusts the stamp whatever submit asks | submit runs the gate itself: a stamp written by hand never stands in for a red gate | red |
+| V16 | | submit does not look whether the tree moved; it misses a new commit; it misses an edited tracked file (three changes) | submit refuses a tree that moved while its gate ran: a new commit, or an edited tracked file | red, all three |
 
 ## What the audit changed
 
@@ -28,9 +32,9 @@ Re-run it with `node docs/proof/verification-mutants.mjs`. It copies the repo to
 - **V4:** the red-gate case was tested by "a red gate refuses submit", which carried no row id. So the row's own test went green with the red-gate refusal removed. That test now carries V4.
 - **V9:** the main-checkout rule was checked inside the V3 and V7 test, but no test named V9. That test now carries V9.
 
-## Open finding: a hand-written stamp passes a red gate (V4, drafted as V16)
+## Closed: a hand-written stamp passed a red gate (V4, closed by V16 in #51)
 
-`runGate` skips the gate when `pullboard-gate-green` in the git dir holds the committed tree's hash, and any agent can write that file. Reproduced on a fresh repo whose gate was red:
+`runGate` skipped the gate when `pullboard-gate-green` in the git dir held the committed tree's hash, and any agent can write that file. The audit reproduced it on a fresh repo whose gate was red:
 
 ```
 pullboard submit 1    -> [GATE_RED] the gate is red at 8c6b3057c8d7
@@ -38,4 +42,4 @@ git rev-parse 'HEAD^{tree}' > "$(git rev-parse --git-path pullboard-gate-green)"
 pullboard submit 1    -> submitted #1 at 8c6b3057c8d7; gate green (this tree already passed)
 ```
 
-So V4's "the gate green at HEAD" holds only for agents that don't forge the stamp. On one machine, any file pullboard writes an agent can write too. V16, drafted in SPEC.md, has submit run the gate itself on the tree it submits. Until then, a verifier's own gate run at the submitted commit is the only real check of a green gate.
+On one machine, any file pullboard writes an agent can write too, so no stamp can be made safe to trust. Since #51, submit runs the gate itself every time and refuses MOVED_DURING_GATE if HEAD or a tracked file changes while it runs. The stamp now only saves a run where nothing is proven by it: pre-push and `pullboard gate` (C3). Gitignored files that a gate may read are still out of scope; a fresh checkout per submit would be the next step.

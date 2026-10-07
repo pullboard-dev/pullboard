@@ -46,7 +46,7 @@ Each move checks its guards in this order and refuses with the first one that do
 | claim | open, claimed | claimed | agent, coordinator | joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_CLAIMABLE), inLane (WRONG_LANE), routeAllows (ROUTE), dependenciesVerified (BLOCKED), notHeldByAnother (HELD), laneOpen (LANE_HELD), oneLiveClaim (ONE_CLAIM), rowsInForce (UNKNOWN_SPEC) |
 | release | claimed | open | agent, coordinator | joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_YOURS), isHolder (NOT_YOURS) |
 | lapse | claimed | open | clock, when its lease runs out | none |
-| submit | claimed | submitted | agent, coordinator | joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_YOURS), isHolder (NOT_YOURS), criterionUnchanged (CRITERIA_CHANGED), treeClean (DIRTY), nothingUntracked (UNTRACKED), hasCommit (NO_COMMIT), gateConfigured (NO_GATE), gateGreen (GATE_RED), childrenDone (CHILDREN_OPEN), headIsNew (HEAD_NOT_NEW) |
+| submit | claimed | submitted | agent, coordinator | joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_YOURS), isHolder (NOT_YOURS), criterionUnchanged (CRITERIA_CHANGED), treeClean (DIRTY), nothingUntracked (UNTRACKED), hasCommit (NO_COMMIT), gateConfigured (NO_GATE), gateGreen (GATE_RED), treeStillDuringGate (MOVED_DURING_GATE), childrenDone (CHILDREN_OPEN), headIsNew (HEAD_NOT_NEW) |
 | reserve | submitted | submitted | agent, coordinator | coordinatorSaysAs (MAIN_IS_COORDINATOR), joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_SUBMITTED), notBuilder (SELF_VERIFY), routeAllows (ROUTE), policyAllows (COORDINATOR_VERIFIES), reviewFree (REVIEW_HELD) |
 | accept | submitted | verified | agent, coordinator | coordinatorSaysAs (MAIN_IS_COORDINATOR), joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_SUBMITTED), atSubmittedCommit (NOT_AT_COMMIT), notBuilder (SELF_VERIFY), routeAllows (ROUTE), policyAllows (COORDINATOR_VERIFIES), reviewFree (REVIEW_HELD), criterionUnchanged (CRITERIA_CHANGED), reasonIsMet (BAD_REASON), proofNoted (PROOF_REQUIRED) |
 | reject | submitted | open | agent, coordinator | coordinatorSaysAs (MAIN_IS_COORDINATOR), joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_SUBMITTED), atSubmittedCommit (NOT_AT_COMMIT), notBuilder (SELF_VERIFY), routeAllows (ROUTE), policyAllows (COORDINATOR_VERIFIES), reviewFree (REVIEW_HELD), criterionUnchanged (CRITERIA_CHANGED), reasonCoded (BAD_REASON), noteGiven (NOTE_REQUIRED) |
@@ -92,7 +92,8 @@ Each move checks its guards in this order and refuses with the first one that do
 | UNTRACKED | the worktree has no untracked files | commit or ignore them, then submit |
 | NO_COMMIT | there is a commit to submit | commit your work, then submit |
 | NO_GATE | the repo names a gate command | set "gate" in pullboard.json, e.g. "npm test" |
-| GATE_RED | the gate is green at HEAD | fix what the digest names, commit, submit again |
+| GATE_RED | the gate, which submit runs itself every time, is green at HEAD | fix what the digest names, commit, submit again |
+| MOVED_DURING_GATE | HEAD and every tracked file stayed as they were while the gate ran | leave the worktree alone until the gate finishes, then submit again |
 | CHILDREN_OPEN | every child item is verified or withdrawn | finish the child items, or the coordinator withdraws them |
 | HEAD_NOT_NEW | a verifier has not already rejected this commit | commit the rework, then submit |
 | NOT_AT_COMMIT | the caller's checkout contains the submitted commit | git switch --detach <commit> |

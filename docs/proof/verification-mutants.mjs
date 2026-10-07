@@ -1,5 +1,5 @@
 /**
- * The proof audit of the verification rows, V1 to V9 (item #48): for each row, one or more changes to
+ * The proof audit of the verification rows, V1 to V9 (item #48) and V16 (item #51): for each row, one or more changes to
  * src/ that break the row's rule, and the tagged test that must go red under each. It copies the
  * repo to a fresh temporary folder and works only there, so it never changes a real checkout.
  *
@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '..', '..');
-const COPIED = ['src', 'bin', 'test', 'templates', 'skills', 'package.json', 'PRACTICE.md'];
+const COPIED = ['src', 'bin', 'test', 'skills', 'package.json', 'PRACTICE.md'];
 
 const VERIFY_AT_COMMIT = ['test/e2e.test.js', 'verify runs at the submitted commit, against the criterion frozen at claim'];
 const CLEAN_TREE = ['test/e2e.test.js', 'submit needs a clean tree, nothing untracked, and the gate green at HEAD'];
@@ -20,6 +20,10 @@ const BOARD_CRITERION = ['src/board.js', '        criterionUnchanged: (found) =>
 const CLI_CRITERION = ['src/cli.js', 'if (digest !== item.item_frozen_digest) {', 'if (false) {'];
 const RED_GATE = ['src/cli.js', "if (!gate.isGreen) throw new Refused('GATE_RED'", "if (false) throw new Refused('GATE_RED'"];
 const VERDICT_ROW = '.run(id, agentId, decision, code, note.trim(), found.item_commit, digest, head, now(board));';
+const SUBMIT_RUN = 'const gate = runGate(root, ctx.config, { trustStamp: false });';
+const MOVED = 'if (headCommit(root) !== commit || !isClean(root)) {';
+const HAND_STAMP = ['test/gate.test.js', 'a stamp written by hand never stands in'];
+const MOVED_TREE = ['test/gate.test.js', 'submit refuses a tree that moved while its gate ran'];
 
 /** Row, the change, its edits as [file, from, to], the test that judges it, and the outcome expected. */
 const MUTANTS = [
@@ -43,6 +47,12 @@ const MUTANTS = [
   ['V8', "a verdict binds the verifier's head as the commit", [['src/board.js', VERDICT_ROW, VERDICT_ROW.replace('found.item_commit', 'head')]], ['test/board.test.js', 'every verdict binds the submitted commit'], 'red'],
   ['V8', 'a verdict binds no digest', [['src/board.js', VERDICT_ROW, VERDICT_ROW.replace('digest, head', "'none', head")]], ['test/board.test.js', 'every verdict binds the submitted commit'], 'red'],
   ['V9', 'the main checkout verifies without --as coordinator', [['src/cli.js', '  if (values.as === COORDINATOR) return;\n  const agents = store.listAgents(board)', '  return;\n  const agents = store.listAgents(board)']], VERIFY_AT_COMMIT, 'red'],
+  ['V16', 'submit trusts a stamp written by hand', [['src/cli.js', SUBMIT_RUN, 'const gate = runGate(root, ctx.config);']], HAND_STAMP, 'red'],
+  ['V16', "submit trusts an earlier run's stamp", [['src/cli.js', SUBMIT_RUN, 'const gate = runGate(root, ctx.config);']], ['test/gate.test.js', 'submit runs the gate even on a tree an earlier run passed'], 'red'],
+  ['V16', 'the gate trusts the stamp whatever submit asks', [['src/gate.js', 'if (trustStamp && isStampedGreen(root))', 'if (isStampedGreen(root))']], HAND_STAMP, 'red'],
+  ['V16', 'submit does not look whether the tree moved', [['src/cli.js', MOVED, 'if (false) {']], MOVED_TREE, 'red'],
+  ['V16', 'submit misses a commit made during the gate', [['src/cli.js', MOVED, 'if (!isClean(root)) {']], MOVED_TREE, 'red'],
+  ['V16', 'submit misses a tracked file edited during the gate', [['src/cli.js', MOVED, 'if (headCommit(root) !== commit) {']], MOVED_TREE, 'red'],
 ];
 
 const copy = mkdtempSync(join(tmpdir(), 'pullboard-proof-'));

@@ -809,8 +809,16 @@ function submitHere(ctx, id) {
   if (stray.length) throw new Refused('UNTRACKED', `commit or ignore ${stray.length} untracked file(s), e.g. ${stray[0]}`);
   const commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
-  const gate = runGate(root, ctx.config);
+  // Submit runs the gate itself, every time: a stamp from an earlier run is a file any agent can
+  // write, so it never stands in for this run (V16). The run must also see the tree as submitted.
+  const gate = runGate(root, ctx.config, { trustStamp: false });
   if (!gate.isGreen) throw new Refused('GATE_RED', `the gate is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${gateReport(gate)}`);
+  if (headCommit(root) !== commit || !isClean(root)) {
+    throw new Refused(
+      'MOVED_DURING_GATE',
+      `HEAD or a tracked file changed while the gate ran, so it did not check ${commit.slice(0, 12)} as you would submit it; leave the worktree alone until the gate finishes, then submit again`,
+    );
+  }
   withBoard(ctx, (board) => store.submit(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit) }));
   const pin = `refs/pullboard/items/${id}/${commit.slice(0, 12)}`;
   git(root, ['update-ref', pin, commit]);

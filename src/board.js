@@ -808,6 +808,7 @@ export function submit(board, id, { agentId, commit, tree, files = [] }) {
         hasCommit: null,
         gateConfigured: null,
         gateGreen: null,
+        treeStillDuringGate: null,
         childrenDone: () => {
           const { total } = board.db
             .prepare("SELECT COUNT(*) AS total FROM item WHERE item_parent_id = ? AND item_status IN ('open', 'claimed', 'submitted')")
