@@ -914,6 +914,13 @@ test("the view's styles live in their own file [N26]", async () => {
     await page.click({ go: 'item:1' });
     await page.click({ row: 'spec:G1' });
     assert.match(page.show('prod-list'), /<svg class="bar" viewBox="0 0 100 1" preserveAspectRatio="none" aria-hidden="true"><rect width="50" height="1"\/><\/svg>/, 'a product bar is drawn, half full');
+    // Each layout keeps its own spacing: an item's meta line sits 6px under its title, a spec row's 2px.
+    const style = await styleOf(view);
+    assert.match(page.show('detail'), /<\/h2><div class="meta spaced">/);
+    assert.match(page.show('spec-detail'), /<\/h2><div class="meta">/);
+    assert.match(style, /\n\.meta \{ [^}]*margin-top: 2px; \}\n/);
+    assert.match(style, /\n\.meta\.spaced \{ margin-top: 6px; \}\n/);
+    assert.doesNotMatch(style, /h2 \+ \.meta/, 'no rule reaches past the item into a spec row');
     for (const id of [...page.html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1])) {
       assert.doesNotMatch(page.show(id), /style=/, `#${id} holds no style`);
     }
