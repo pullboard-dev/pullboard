@@ -557,9 +557,11 @@ function replayProject(index) {
       if (move) state = move.to;
       const detail = JSON.parse(event.event_detail);
       if (verb === 'claim') item.owner = event.event_by;
-      if (verb === 'submit') { item.commit = detail.commit; item.builtBy = event.event_by; }
+      if (verb === 'submit') { item.commit = detail.commit; item.builtBy = event.event_by; item.reviewer = null; item.reviewUntil = null; }
+      if (verb === 'reserve') { item.reviewer = event.event_by; item.reviewUntil = detail.until; }
       if (verb === 'accept') { item.verifiedBy = event.event_by; verdicts += 1; }
       if (verb === 'reject') { item.owner = null; verdicts += 1; }
+      if (verb === 'accept' || verb === 'reject' || verb === 'release' || verb === 'withdraw') { item.reviewer = null; item.reviewUntil = null; }
       if (verb === 'release' || verb === 'withdraw') item.owner = null;
       if (verb === 'merged') item.merged = detail.commit;
     }
@@ -579,6 +581,13 @@ function replayProject(index) {
   p.shouts = p.shouts.filter((shout) => shouted.has(shout.shout_id));
   p.decisions = p.decisions.filter((shout) => shouted.has(shout.shout_id));
   p.asked = p.asked.filter((shout) => shouted.has(shout.shout_id));
+  const held = new Map();
+  for (const event of log) {
+    const detail = JSON.parse(event.event_detail);
+    if (event.event_kind === 'hold') held.set(detail.lane, { hold_lane: detail.lane, hold_reason: detail.reason, hold_by: event.event_by, hold_at: event.event_at });
+    if (event.event_kind === 'unhold') held.delete(detail.lane);
+  }
+  p.holds = [...held.values()].sort((a, b) => a.hold_lane.localeCompare(b.hold_lane));
   p.events = log.slice(-80).reverse();
   return p;
 }
@@ -742,7 +751,7 @@ function render() {
       : s === 'verify' && i.reviewer ? '<span class="chip warn" title="reviewing until ' + esc(when(i.reviewUntil)) + '">' + esc(i.reviewer) + ' reviewing</span>'
       : s === 'open' ? (gated ? '<span class="chip gate">' + (waits.length ? 'gated' : 'lane held') + '</span>' : '<span class="chip free">unclaimed</span>') : chip(s);
     return '<li class="row' + (view.item === i.id ? ' on' : '') + (gated ? ' gated' : '') + '" data-item="' + i.id + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + esc(i.title) + '</div><div class="meta"><span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span>' + esc(i.specs.join(', ')) + '</span>' : '') + (who ? '<span>' + esc(who) + '</span>' : '') + pills + '<span>' + age(i.updatedAt) + '</span>' + (rejected(i) ? '<span class="why">' + esc(i.verdict.reason + ': ' + firstLine(i.verdict.note)) + '</span>' : '') + '</div></div>' + tag + '</li>';
-  }).join('') : '<li class="empty">' + (items.length ? 'No items match.' : 'No items yet. Add the first one with New item.') + '</li>';
+  }).join('') : '<li class="empty">' + (items.length ? 'No items match.' : snapshot ? 'No items at this event.' : 'No items yet. Add the first one with New item.') + '</li>';
 
   const item = p.items.find((i) => i.id === view.item);
   // The form shows when asked for, or when the project has no item at all, withdrawn ones included.

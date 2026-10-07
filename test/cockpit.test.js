@@ -6,7 +6,7 @@
  */
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -2162,5 +2162,292 @@ test("a finished action's output steps aside [N27]", async () => {
     assert.deepEqual([out.className, out.hidden], ['console no', false], 'and no close from the earlier success hides it');
   } finally {
     await view.stop();
+  }
+});
+
+/** Find an installed Chrome without making browser availability a product-test failure. */
+function chromeExecutable() {
+  return [process.env.PULLBOARD_CHROME, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser']
+    .find((candidate) => candidate && existsSync(candidate));
+}
+
+/** Wait briefly without retaining a timer after the wait completes. */
+function browserPause(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Start one isolated headless Chrome and expose its page through a small CDP client. */
+async function openSnapshotChrome(executable, url, profile) {
+  const child = spawn(executable, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
+    '--disable-background-networking', '--disable-sync', '--disable-extensions', '--no-proxy-server',
+    '--use-mock-keychain', '--password-store=basic', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'],
+  { detached: true, stdio: ['ignore', 'ignore', 'ignore'] });
+  const stopped = new Promise((resolve) => child.once('close', resolve));
+  let socket;
+  let id = 0;
+  const pending = new Map();
+  const requests = [];
+  const exceptions = [];
+  try {
+    let port;
+    for (let attempt = 0; attempt < 100 && !port; attempt++) {
+      try { port = readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0]; }
+      catch { await browserPause(100); }
+    }
+    assert.ok(port, 'isolated Chrome publishes its DevTools port');
+    const target = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT', signal: AbortSignal.timeout(10_000) })).json();
+    socket = new WebSocket(target.webSocketDebuggerUrl);
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('DevTools socket did not open')), 10_000);
+      socket.addEventListener('open', () => { clearTimeout(timer); resolve(); }, { once: true });
+      socket.addEventListener('error', () => { clearTimeout(timer); reject(new Error('DevTools socket failed')); }, { once: true });
+    });
+    socket.addEventListener('message', ({ data }) => {
+      const message = JSON.parse(String(data));
+      const waiter = pending.get(message.id);
+      if (waiter) {
+        pending.delete(message.id);
+        clearTimeout(waiter.timer);
+        message.error ? waiter.reject(new Error(JSON.stringify(message.error))) : waiter.resolve(message.result);
+      }
+      if (message.method === 'Network.requestWillBeSent') {
+        const request = message.params.request;
+        requests.push({ method: request.method, url: request.url, headers: request.headers ?? {} });
+      }
+      if (message.method === 'Runtime.exceptionThrown') exceptions.push(message.params.exceptionDetails.text);
+    });
+    /** Send one CDP command and clear its timeout on either response or failure. */
+    const send = (method, params = {}) => new Promise((resolve, reject) => {
+      const key = ++id;
+      const timer = setTimeout(() => { pending.delete(key); reject(new Error(`DevTools timed out: ${method}`)); }, 45_000);
+      pending.set(key, { resolve, reject, timer });
+      socket.send(JSON.stringify({ id: key, method, params }));
+    });
+    /** Evaluate an expression in the page and return its by-value result. */
+    const evaluate = async (expression) => {
+      const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+      if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
+      return result.result.value;
+    };
+    /** Poll a page expression with a fixed deadline, without leaving a live interval behind. */
+    const waitFor = async (expression, timeoutMs = 10_000) => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        if (await evaluate(expression)) return;
+        await browserPause(50);
+      }
+      throw new Error(`Browser condition did not arrive: ${expression}`);
+    };
+    await send('Page.enable');
+    await send('Runtime.enable');
+    await send('Network.enable');
+    await send('Page.navigate', { url });
+    return { child, stopped, socket, send, evaluate, waitFor, requests, exceptions };
+  } catch (error) {
+    socket?.close();
+    await stopOwnedChrome(child, stopped);
+    throw error;
+  }
+}
+
+/** Stop only an owned Chrome process group, with bounded TERM and KILL waits. */
+async function stopOwnedChrome(child, stopped) {
+  /** Wait for the owned process to exit, bounding and clearing the timeout either way. */
+  const waitBounded = async (ms) => {
+    let timer;
+    const exited = await Promise.race([stopped.then(() => true), new Promise((resolve) => {
+      timer = setTimeout(() => resolve(false), ms);
+    })]);
+    clearTimeout(timer);
+    return exited;
+  };
+  try { process.kill(-child.pid, 'SIGTERM'); } catch { /* The owned Chrome group already exited. */ }
+  if (await waitBounded(5_000)) return;
+  try { process.kill(-child.pid, 'SIGKILL'); } catch { /* The owned Chrome group already exited. */ }
+  assert.ok(await waitBounded(5_000), 'owned Chrome exits after SIGKILL within the bounded cleanup window');
+}
+
+/** Close the CDP socket and stop only this test's isolated Chrome process group. */
+async function closeSnapshotChrome(chrome) {
+  chrome.socket.close();
+  await stopOwnedChrome(chrome.child, chrome.stopped);
+}
+
+test('static export stays in its prefix and replays read-only in Chrome [A10,A3]', { timeout: 90_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to run the static replay proof.');
+
+  const box = machine();
+  const alpha = project(box, 'snapshot replay');
+  box.run(alpha.repo, 'add', 'web', 'Replay greeting', '--specs', 'G1', '--criterion', 'renders');
+  build(box, alpha, 1, 'greeting.html');
+  sendBack(box, alpha, 1, 'the first greeting needs a correction');
+  build(box, alpha, 1, 'greeting-fix.html');
+  // Accept the submitted commit from a throwaway coordinator checkout, then always restore main.
+  box.git(alpha.repo, 'switch', '-q', '--detach', alpha.branch);
+  try { box.run(alpha.repo, 'verify', '1', 'accept', '--note', 'the corrected greeting renders', '--as', 'coordinator'); }
+  finally { box.git(alpha.repo, 'switch', '-q', 'main'); }
+  // Exercise the person's decision button so snapshot mode must hide this real mutation control.
+  box.run(alpha.repo, 'shout', 'person', 'Should the replay stay read-only?', '--decision');
+  box.run(alpha.repo, 'hold', 'web', '--reason', 'Snapshot stays read-only');
+
+  // Capture the live API state before export; the exported replay must finish at exactly this state.
+  const live = await startView(box);
+  let expected;
+  try { expected = await boardOf(live, alpha.repo); }
+  finally { await live.stop(); }
+
+  const exportDir = join(box.dir, 'snapshot-export');
+  box.run(alpha.repo, 'view', '--export', exportDir);
+  assert.ok(existsSync(join(exportDir, 'index.html')));
+  assert.ok(existsSync(join(exportDir, 'view.css')));
+
+  const prefix = '/demo/';
+  const staticRequests = [];
+  const outsideRequests = [];
+  const server = createServer((request, response) => {
+    const url = new URL(request.url, 'http://127.0.0.1');
+    const entry = { method: request.method, path: url.pathname, headers: request.headers };
+    staticRequests.push(entry);
+    if (!url.pathname.startsWith(prefix)) {
+      outsideRequests.push(entry);
+      response.writeHead(404).end();
+      return;
+    }
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      response.writeHead(405).end();
+      return;
+    }
+    let relativePath;
+    try { relativePath = decodeURIComponent(url.pathname.slice(prefix.length)); }
+    catch { response.writeHead(400).end(); return; }
+    if (!relativePath) relativePath = 'index.html';
+    const file = resolve(exportDir, relativePath);
+    if (!file.startsWith(`${resolve(exportDir)}/`)) { response.writeHead(404).end(); return; }
+    let body;
+    try { body = readFileSync(file); }
+    catch { response.writeHead(404).end(); return; }
+    const type = file.endsWith('.html') ? 'text/html; charset=utf-8'
+      : file.endsWith('.css') ? 'text/css; charset=utf-8'
+      : file.endsWith('.js') ? 'text/javascript; charset=utf-8'
+      : file.endsWith('.json') ? 'application/json; charset=utf-8'
+      : 'application/octet-stream';
+    response.writeHead(200, { 'content-type': type, 'cache-control': 'no-store' });
+    response.end(request.method === 'HEAD' ? undefined : body);
+  });
+  server.listen(0, '127.0.0.1');
+  await new Promise((resolve, reject) => {
+    server.once('listening', resolve);
+    server.once('error', reject);
+  });
+  const address = server.address();
+  const base = `http://127.0.0.1:${address.port}`;
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-snapshot-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, `${base}${prefix}`, profile);
+    const evaluate = chrome.evaluate;
+    await chrome.waitFor("document.body?.classList.contains('snapshot') && typeof snapshotReplay === 'object' && !!data?.project && snapshotReplay.events.length > 0 && snapshotReplay.index === snapshotReplay.events.length");
+    await chrome.waitFor("!!document.querySelector('#replay-play') && !!document.querySelector('#replay-pause') && !!document.querySelector('#replay-speed') && !!document.querySelector('#replay-progress')");
+
+    const initial = JSON.parse(await evaluate(`JSON.stringify({ project: data.project, index: snapshotReplay.index, total: snapshotReplay.events.length, playing: snapshotReplay.playing, speedOptions: [...document.querySelector('#replay-speed').options].map((option) => option.value), bodyClass: document.body.classList.contains('snapshot') })`));
+    assert.equal(initial.bodyClass, true);
+    assert.deepEqual(initial.project, expected, 'the initial snapshot is the final live API state');
+    assert.deepEqual(initial.speedOptions, ['1', '4', '16']);
+    assert.ok(initial.total >= 6, 'the exported board contains the complete claim/submit/reject/claim/submit/accept history');
+    assert.ok(initial.index >= initial.total - 1, 'the initial replay position is the exported final state');
+
+    const replayKinds = await evaluate(`JSON.stringify(snapshotReplay.events.map((event) => event.event_kind))`);
+    const kinds = JSON.parse(replayKinds);
+    const transitions = ['claim', 'submit', 'reject', 'claim', 'submit', 'accept'];
+    let cursor = -1;
+    for (const kind of transitions) {
+      cursor = kinds.indexOf(kind, cursor + 1);
+      assert.notEqual(cursor, -1, `replay includes ordered ${kind} event`);
+    }
+
+    const hiddenMutationControls = await evaluate(`JSON.stringify(['#new-item', '#add-form', '#shout-form', '#hold-form', '[data-release]', '[data-shout]', '[data-new]', '[data-go^="decide:"]'].filter((selector) => { const node = document.querySelector(selector); return node && !node.hidden && getComputedStyle(node).display !== 'none'; }))`);
+    assert.deepEqual(JSON.parse(hiddenMutationControls), [], 'snapshot hides controls that could change the board');
+    const writesBeforeAct = staticRequests.length;
+    const directAction = await evaluate(`(async () => JSON.stringify({ result: await act('shout', { to: 'web', text: 'must remain local' }), message: document.body.innerText }))()`);
+    assert.equal(JSON.parse(directAction).result, false, 'snapshot action refuses direct mutation calls');
+    assert.match(JSON.parse(directAction).message, /snapshot/i, 'refusal explains that this is a snapshot');
+    await browserPause(100);
+    assert.equal(staticRequests.length, writesBeforeAct, 'a refused action makes no browser request');
+
+    await evaluate(`(() => {
+      window.__replayObserved = [];
+      let previousIndex = null;
+      const progress = document.querySelector('#replay-progress');
+      new MutationObserver(() => {
+        const index = snapshotReplay.index;
+        if (index === previousIndex) return;
+        previousIndex = index;
+        const dot = document.querySelector('[data-item="1"] .dot');
+        const status = dot && [...dot.classList].find((name) => ['open', 'building', 'verify', 'back', 'verified'].includes(name));
+        if (status) window.__replayObserved.push({ index, status });
+      }).observe(progress, { childList: true, characterData: true, subtree: true });
+    })()`);
+    await evaluate("document.querySelector('#replay-play').click()");
+    await chrome.waitFor('snapshotReplay.playing && snapshotReplay.index > 0 && snapshotReplay.index < snapshotReplay.events.length');
+    const beforePause = await evaluate('snapshotReplay.index');
+    await evaluate("document.querySelector('#replay-pause').click()");
+    await chrome.waitFor('!snapshotReplay.playing');
+    const pausedIndex = await evaluate('snapshotReplay.index');
+    assert.equal(pausedIndex, beforePause, 'pause keeps the current replay event');
+    await browserPause(180);
+    assert.equal(await evaluate('snapshotReplay.index'), pausedIndex, 'a paused replay does not advance');
+
+    await evaluate("const speed = document.querySelector('#replay-speed'); speed.value = '16'; speed.dispatchEvent(new Event('change', { bubbles: true }))");
+    assert.equal(await evaluate("document.querySelector('#replay-speed').value"), '16');
+    const speedStart = await evaluate('snapshotReplay.index');
+    assert.ok(speedStart + 4 < initial.total, 'at least four events remain to measure 16x playback');
+    const speedStartedAt = Date.now();
+    await evaluate("document.querySelector('#replay-play').click()");
+    await chrome.waitFor(`snapshotReplay.index >= ${speedStart + 4}`, 2_000);
+    assert.ok(Date.now() - speedStartedAt < 2_000, '16x advances four replay events within two seconds');
+    await chrome.waitFor('!snapshotReplay.playing', 20_000);
+    assert.equal(await evaluate('snapshotReplay.playing'), false, 'the replay reaches its end');
+    const renderedStates = JSON.parse(await evaluate('JSON.stringify(window.__replayObserved.map((entry) => entry.status))'));
+    const distinctStates = renderedStates.filter((state, index) => index === 0 || state !== renderedStates[index - 1]);
+    const firstClaim = distinctStates.indexOf('building');
+    assert.notEqual(firstClaim, -1, 'the rendered replay shows a claimed item');
+    assert.deepEqual(distinctStates.slice(firstClaim, firstClaim + 6),
+      ['building', 'verify', 'back', 'building', 'verify', 'verified'],
+      'the actual item row renders claim, submit, reject, claim, submit, accept in order');
+    const finalProject = await evaluate('JSON.stringify(data.project)');
+    assert.deepEqual(JSON.parse(finalProject), expected, 'replay ends at the same state served live before export');
+
+    for (const [width, theme] of [[1280, 'light'], [375, 'dark']]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
+      await evaluate(`document.documentElement.dataset.theme = '${theme}'`);
+      assert.equal(await evaluate('document.documentElement.scrollWidth'), width, 'snapshot controls fit the viewport');
+      if (process.env.PULLBOARD_SNAPSHOT_PROOF) {
+        mkdirSync(process.env.PULLBOARD_SNAPSHOT_PROOF, { recursive: true });
+        const shot = await chrome.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+        writeFileSync(join(process.env.PULLBOARD_SNAPSHOT_PROOF, `snapshot-${width}-${theme}.png`), Buffer.from(shot.data, 'base64'));
+      }
+    }
+
+    assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught page exceptions');
+    const nonHttpRequests = chrome.requests.filter(({ url }) => !/^https?:/i.test(url));
+    assert.ok(nonHttpRequests.every(({ url }) => url.startsWith('data:')), 'the only non-network browser URL may be a local data favicon');
+    const browserRequests = chrome.requests.filter(({ url }) => /^https?:/i.test(url)).map(({ method, url, headers }) => ({
+      method,
+      origin: new URL(url).origin,
+      path: new URL(url).pathname,
+      hasBoardKey: Object.keys(headers).some((name) => name.toLowerCase() === 'x-pullboard-key'),
+    }));
+    assert.ok(browserRequests.length > 0);
+    assert.ok(browserRequests.every((request) => request.origin === base), 'Chrome makes HTTP requests only to the static host');
+    assert.deepEqual(browserRequests.filter((request) => !request.path.startsWith(prefix)), [], 'Chrome never requests outside /demo/');
+    assert.ok(browserRequests.every((request) => request.method === 'GET' && !request.hasBoardKey), 'static assets and API JSON are GET-only and carry no board key');
+    assert.deepEqual(outsideRequests, [], 'the static host receives no request outside /demo/');
+    assert.ok(staticRequests.every((request) => request.method === 'GET' || request.method === 'HEAD'), 'the static host serves reads only');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    await new Promise((resolve) => server.close(resolve));
+    rmSync(profile, { recursive: true, force: true });
   }
 });
