@@ -330,12 +330,17 @@ export function serveView({ port = 0, secret = randomBytes(18).toString('base64u
     }
   });
   // Asked for any port, the view tries the one it last served from first, and takes any free one
-  // when that is busy; a port the person names is used as named.
+  // when that is busy; a port the person names is used as named, and a busy one is refused with the
+  // way out rather than a stack trace.
   const asked = port;
   const last = asked === 0 ? lastPort() : 0;
   return new Promise((ready, fail) => {
     const listen = (port) => {
-      const failed = (error) => (port !== 0 && port === last && error.code === 'EADDRINUSE' ? listen(0) : fail(error));
+      const failed = (error) => {
+        if (error.code !== 'EADDRINUSE') return fail(error);
+        if (port !== 0 && port === last) return listen(0);
+        return fail(asked === 0 ? error : new Refused('PORT_BUSY', `port ${asked} is in use: name another with --port, or leave --port out to take any free one`));
+      };
       server.once('error', failed);
       server.listen(port, LOOPBACK, () => {
         server.off('error', failed);

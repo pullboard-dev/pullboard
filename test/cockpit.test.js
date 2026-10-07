@@ -918,6 +918,18 @@ test('a closed lifecycle stays closed, across a reload and a restart of the view
     await new Promise((done) => taken.close(done));
   }
 });
+test('a named port that is busy is refused with the way out, not a stack trace [N26]', async () => {
+  const box = machine();
+  const held = await new Promise((done) => { const server = createServer(); server.listen(0, '127.0.0.1', () => done(server)); });
+  try {
+    const port = held.address().port;
+    const result = spawnSync(process.execPath, [BIN, 'view', '--no-open', '--port', String(port)], { cwd: box.dir, env: box.env, encoding: 'utf8', timeout: 20000 });
+    assert.equal(result.status, 1, `a refusal, not a crash or a hang: ${result.stderr}`);
+    assert.equal(result.stderr.trim(), `pullboard: [PORT_BUSY] port ${port} is in use: name another with --port, or leave --port out to take any free one`);
+  } finally {
+    await new Promise((done) => held.close(done));
+  }
+});
 test('ages stay true while the board is quiet [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
