@@ -28,6 +28,8 @@ function signoffCell(row, by) {
   if (standing?.met.length) {
     const names = standing.met.map((entry) => `${esc(entry.by)} ${esc(entry.on)}`).join(', ');
     const notes = standing.met.filter((entry) => entry.note).map((entry) => `<div>${esc(entry.by)}: ${esc(entry.note).replaceAll('\n', '<br>')}</div>`).join('');
+    const missing = (row.signers ?? []).filter((signer) => !standing.met.some((entry) => entry.by === signer));
+    if (missing.length) return { html: `<span class="so so-open">signed ${names}; waiting for ${esc(missing.join(', '))}</span>${notes}`, state: 'open' };
     return { html: `<span class="so so-met">signed ${names}</span>${notes}`, state: 'met' };
   }
   if (standing?.stale.length) {

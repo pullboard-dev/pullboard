@@ -17,8 +17,8 @@ import { BLANKS, IN_STATE, MACHINE, effectiveGuards, lifecycleHelp, lifecycleMar
 import { execFileSync, spawnSync } from 'node:child_process';
 
 /**
- * Refusals that are not about an item's lifecycle, so no move declares them: how a command was
- * typed, and registering who is asking, which happens before any move.
+ * Refusals that are not about an item's lifecycle, so no move declares them: command input, caller
+ * registration and machine-wide settings are checked before any item move.
  */
 const NOT_MOVES = {
   USAGE: 'how a command was typed',
@@ -26,6 +26,8 @@ const NOT_MOVES = {
   ALREADY_JOINED: 'registering who is asking, before any move',
   BAD_ROUTE: 'registering who is asking, before any move',
   ONE_COORDINATOR: 'registering who is asking, before any move',
+  BAD_MACHINE_SETTINGS: 'machine-wide settings checked before a command runs',
+  BAD_GATE_SLOTS: 'machine-wide gate capacity checked before a command runs',
 };
 
 /**

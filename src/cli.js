@@ -11,7 +11,7 @@ import * as store from './board.js';
 import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
 import { loadDoctrine } from './doctrine.js';
 import { digestOf, gateReport, runGate, runShell } from './gate.js';
-import { contains, differFromHead, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
+import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
   FIX_NOTE,
   applyFixers,
@@ -51,6 +51,8 @@ import { serveView } from './serve.js';
 import { serveApi } from './api.js';
 import { doctorProblems } from './doctor.js';
 import { exportBoard, importBoard } from './exchange.js';
+import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
+import { loadMachineSettings, setGateSlots } from './settings.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
@@ -66,6 +68,7 @@ Set up
                                         --route sets which work the model can take; --family records its name
   pullboard whoami | lanes | status     who you are, the lanes, the board at a glance
   pullboard resources                  local resource holders and their FIFO queues
+  pullboard settings [gateSlots <n>]    view or set this machine's gate slots (default 2)
   pullboard view [--port N] [--no-open]  every project on this machine in your browser: items, shouts, doctrine,
                                         agents and activity, live; add items, shout and hold lanes from it
   pullboard serve [--port N]           local API v1: boards, state, moves, requests and live events,
@@ -93,6 +96,7 @@ Work
                                         earlier ones as one line; --history prints every note in full
   pullboard next [--wait <minutes>]     claim the next item in your lane that is free to start
   pullboard next --verify               reserve the next submitted item you can check;
+  pullboard next --verify <id>          reserve that submitted item instead
                                         in the main checkout, verifying needs --as coordinator
   pullboard check [id]                  run your item's check, the command that proves it (the project gate is pullboard gate)
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
@@ -129,8 +133,10 @@ Spec
   pullboard forget <path>               remove a repo from this machine's project list
   pullboard spec check                  lint SPEC.md and PRACTICE.md
   pullboard spec view [--out file]      the spec, open questions, sign-offs and practice as one page
-  pullboard spec show <id> | unmet [--must] | signoff <ids> --by <initials>
+  pullboard spec show <id> | unmet [--must] | signoff <ids> [--by <principal>]
                                         signoff: --note "what was checked" stays with the receipt
+  pullboard spec signers add [--key <path>] [--by <principal>]  opt into SSH-signed sign-offs
+                                        principal defaults to Git user.email; --by overrides it
 
 Role guides
   pullboard prompt decompose|plan|signoff|review|verify   how to do each role; Claude Code gets them as skills
@@ -155,6 +161,7 @@ const OPTIONS = {
   note: { type: 'string' },
   'note-file': { type: 'string' },
   by: { type: 'string' },
+  key: { type: 'string' },
   out: { type: 'string' },
   after: { type: 'string' },
   brief: { type: 'string' },
@@ -985,6 +992,13 @@ function readCommands(io, { first, second, rest, values }) {
       return 0;
     },
     doctor: () => {
+      const bare = bareWorktreeFinding(io.cwd);
+      if (bare) {
+        const problems = [bare];
+        io.result?.({ problems });
+        for (const problem of problems) io.say(`problem: ${problem.message}; repair: ${problem.next}`);
+        return 1;
+      }
       const ctx = context(io);
       const problems = doctorProblems(ctx.file, ctx.info.root, tryGit);
       io.result?.({ problems });
@@ -1056,9 +1070,9 @@ function readCommands(io, { first, second, rest, values }) {
  *
  * @param {any} ctx
  * @param {number} id
- * @returns {number}
+ * @returns {Promise<number>}
  */
-function submitHere(ctx, id) {
+async function submitHere(ctx, id) {
   const { root } = ctx.info;
   const { me, claimHead } = withBoard(ctx, (board) => {
     const who = whoAmI(ctx, board);
@@ -1094,7 +1108,7 @@ function submitHere(ctx, id) {
   // Submit runs the gate itself, every time: a stamp from an earlier run is a file any agent can
   // write, so it never stands in for this run (V16). It starts on the commit submitted, and must end
   // on it too. What the gate's own code does in between is the submitted tree's, under review.
-  const gate = runGate(root, ctx.config, { trustStamp: false });
+  const gate = await runGate(root, ctx.config, { trustStamp: false, onWait: gateWaitReporter(ctx.io) });
   if (!gate.isGreen) throw new Refused('GATE_RED', `the gate is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${gateReport(gate)}`);
   if (headCommit(root) !== commit || !isClean(root)) {
     throw new Refused(
@@ -1173,6 +1187,10 @@ function nextOnce(ctx, values) {
     if (values.verify) checkMainVerifier(ctx, board, values);
     const me = whoAmI(ctx, board);
     if (values.verify) {
+      const reservation = { agentId: me.id, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family };
+      if (values.verifyId !== undefined) {
+        return { item: store.reserveReview(board, idArg(values.verifyId, 'an item id after --verify'), reservation), reasons: [] };
+      }
       return store.reserveNextReview(board, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes });
     }
     const warm = warmFiles(ctx, board, me);
@@ -1199,6 +1217,10 @@ function nextOnce(ctx, values) {
  */
 async function nextHere(io, values) {
   const ctx = context(io);
+  if (values.verifyId !== undefined && !values.verify) {
+    throw new Refused('USAGE', 'give an item id only with --verify: pullboard next --verify <id>');
+  }
+  if (values.verifyId !== undefined) idArg(values.verifyId, 'an item id after --verify');
   const minutes = values.wait === undefined ? 0 : Number(values.wait);
   if (!Number.isFinite(minutes) || minutes < 0 || minutes > 240) {
     throw new Refused('USAGE', '--wait is a number of minutes from 0 to 240');
@@ -1358,7 +1380,7 @@ function workCommands(io, args) {
     }),
     run: () => runItems(io, values, { context, withBoard, whoAmI, nextOnce, submitHere, freezer }),
     sweep: () => act((ctx, board, me) => sweepHere(ctx, board, me, values)),
-    next: () => nextHere(io, values),
+    next: () => nextHere(io, { ...values, verifyId: first }),
     check: () => {
       const ctx = context(io);
       const item = withBoard(ctx, (board) => {
@@ -1399,8 +1421,8 @@ function workCommands(io, args) {
       io.say(review ? `released the review of #${first}; the review is free again` : `released #${first}`);
       return 0;
     }),
-    submit: () => submitHere(context(io), idArg(first)),
-    done: () => submitHere(context(io), idArg(first)),
+    submit: async () => submitHere(context(io), idArg(first)),
+    done: async () => submitHere(context(io), idArg(first)),
     verify: () => verifyHere(context(io), idArg(first), args),
     merged: () => act((ctx, board, me) => {
       const commit = resolveCommit(ctx.info.root, second ?? '');
@@ -1455,6 +1477,36 @@ function workCommands(io, args) {
   };
 }
 
+/** Build a de-duplicated queue message for a gate waiting on machine capacity. */
+function gateWaitReporter(io) {
+  let last = '';
+  return ({ holders, position }) => {
+    const repos = holders.map(({ repo }) => repo).filter(Boolean);
+    const message = `gate waiting: ${holders.length} running${repos.length ? ` in ${repos.join(', ')}` : ''}; place ${position}`;
+    if (message !== last) {
+      io.say(message);
+      last = message;
+    }
+  };
+}
+
+/** Read or update machine-wide gate capacity. */
+function settingsCommand(io, { first, second, rest }) {
+  if (!first && !second && !rest.length) {
+    const settings = loadMachineSettings();
+    io.result?.({ settings });
+    io.say(`gateSlots: ${settings.gateSlots}`);
+    return 0;
+  }
+  if (first !== 'gateSlots' || !second || rest.length || !/^[1-9]\d*$/u.test(second) || !Number.isSafeInteger(Number(second))) {
+    throw new Refused('USAGE', 'pullboard settings gateSlots <positive integer>');
+  }
+  const settings = setGateSlots(Number(second));
+  io.result?.({ settings });
+  io.say(`gateSlots set to ${settings.gateSlots}`);
+  return 0;
+}
+
 /**
  * Every spec id something cites (S8): commit headers since the spec's first commit, and every item
  * on the board, open or closed. Each must still be in the spec. The board is shared by every
@@ -1505,6 +1557,7 @@ function specCommand(io, { first, second, rest, values }) {
     show: [],
     unmet: ['must'],
     signoff: ['by', 'note', 'note-file'],
+    signers: ['key', 'by'],
   }[first ?? '--json'];
   if (!commandFlags) throw new Refused('USAGE', 'use pullboard spec --json | check | view | show <id> | unmet [--must] | signoff <ids> --by <name> [--note "..."]');
   const allowedFlags = [...new Set([...commandFlags, 'json'])];
@@ -1517,8 +1570,10 @@ function specCommand(io, { first, second, rest, values }) {
   const spec = loadSpec(ctx.info.root, ctx.config);
   if (!spec.exists) throw new Refused('NO_SPEC', `no ${ctx.config.spec}; run: pullboard init`);
   const practice = ctx.doctrine;
+  const signoffs = readSignoffs(ctx.info.root);
   if (first === 'check' || first === undefined) {
     const files = [[ctx.config.spec, spec], ...(practice.exists ? [[ctx.config.practice, practice]] : [])];
+    for (const [, parsed] of files) assertRequiredSigners(ctx.info.root, parsed.rows);
     let errors = 0;
     const messages = [];
     for (const [name, parsed] of files) {
@@ -1536,15 +1591,24 @@ function specCommand(io, { first, second, rest, values }) {
     unnamed.forEach((problem) => messages.push(`${ctx.config.spec}: error: ${problem}`));
     errors += unnamed.length;
     if (values.json && !errors) {
-      const rows = files.flatMap(([file, parsed]) => parsed.rows.map(({ id, status, tier, text, gate, serves, section, line, origin, version, reason, file: source }) => (
-        { id, status, tier, text, gate, serves, section, line, file: source ?? file,
+      const rows = files.flatMap(([file, parsed]) => parsed.rows.map(({ id, status, tier, text, gate, serves, signers = [], section, line, origin, version, reason, file: source }) => (
+        { id, status, tier, text, gate, serves, signers, section, line, file: source ?? file,
           ...(origin ? { origin, version, reason } : {}) }
       )));
       io.result({ rows });
     } else messages.forEach((message) => io.say(message));
     return errors ? 1 : 0;
   }
-  const signoffs = readSignoffs(ctx.info.root);
+  if (first === 'signers' && second === 'add') {
+    const signer = addSigner(ctx.info.root, { by: values.by, key: values.key });
+    io.result?.(signer);
+    io.say(signer.added
+      ? signer.initial
+        ? `added SSH signer ${signer.by}; stage and commit ${signer.path}, .pullboard/first-commit, and .pullboard/signers.initial`
+        : `added SSH signer ${signer.by} to ${signer.path}; commit ${signer.path} and .pullboard/signoffs.jsonl`
+      : `${signer.by} is already listed in ${signer.path}`);
+    return 0;
+  }
   if (first === 'view') {
     const out = values.out ? resolve(ctx.io.cwd, values.out) : join(ctx.info.gitDir, 'pullboard', 'spec.html');
     const html = renderSpecView({
@@ -1586,7 +1650,7 @@ function specCommand(io, { first, second, rest, values }) {
   }
   if (first === 'signoff') {
     const ids = [second, ...rest].filter(Boolean).flatMap((text) => idList(text));
-    if (!ids.length) throw new Refused('USAGE', 'pullboard spec signoff <ids> --by <name> [--note "what was checked"]');
+    if (!ids.length) throw new Refused('USAGE', 'pullboard spec signoff <ids> [--by <principal>] [--note "what was checked"]');
     const invalid = ids.filter((id) => spec.rows.find((row) => row.id === id)?.status !== 'approved');
     if (invalid.length) throw new Refused('CANNOT_SIGN', `${invalid.join(', ')}: only approved rows in this spec are signed`);
     const proof = specProof(ctx);
@@ -1600,12 +1664,13 @@ function specCommand(io, { first, second, rest, values }) {
       for (const item of row.verified) io.say(`  verified #${item.id}: ${item.note || '(no accepting note)'}`);
     }
     const note = textArg(io, values, 'note') ?? '';
-    const count = signOff(ctx.info.root, spec, { ids, by: values.by ?? '', on: new Date().toISOString().slice(0, 10), note });
-    io.result?.({ count, by: values.by, ids, evidence });
-    io.say(`signed ${count} rows as ${values.by}; commit .pullboard/signoffs.jsonl`);
+    const by = values.by ?? (hasSignerFile(ctx.info.root) ? defaultPrincipal(ctx.info.root) : '');
+    const count = signOff(ctx.info.root, spec, { ids, by, on: new Date().toISOString(), note, commit: headCommit(ctx.info.root) ?? '' });
+    io.result?.({ count, by, ids, evidence });
+    io.say(`signed ${count} rows as ${by}; commit .pullboard/signoffs.jsonl`);
     return 0;
   }
-  throw new Refused('USAGE', 'pullboard spec --json | check | view | show <id> | unmet [--must] | signoff <ids> --by <initials>');
+  throw new Refused('USAGE', 'pullboard spec --json | check | view | show <id> | unmet [--must] | signoff <ids> [--by <principal>] | signers add');
 }
 
 /**
@@ -1648,7 +1713,7 @@ async function hookCommand(io, { first, second }) {
   } else if (first === 'pre-push') {
     problems = prePushProblems(info.root, await readStdin(io.stdin));
     if (!problems.length) {
-      const gate = runGate(info.root, ctx.config);
+      const gate = await runGate(info.root, ctx.config, { onWait: gateWaitReporter(io) });
       if (gate.isCached) io.say('pre-push: the gate passed on this exact tree; not running it twice');
       if (!gate.isGreen) problems = [`the gate is red; fix it before pushing. ${gateReport(gate)}`];
     }
@@ -1724,9 +1789,10 @@ async function runCommand(argv, io) {
       return 0;
     }
     if (command === 'hook') return await hookCommand(io, args);
+    if (command === 'settings') return settingsCommand(io, args);
     if (command === 'gate') {
       const ctx = context(io);
-      const gate = runGate(ctx.info.root, ctx.config);
+      const gate = await runGate(ctx.info.root, ctx.config, { onWait: gateWaitReporter(io) });
       io.result?.({ green: gate.isGreen, report: gateReport(gate) });
       io.say(gateReport(gate));
       return gate.isGreen ? 0 : 1;
@@ -1763,6 +1829,6 @@ export function resultCommands() {
     ...Object.keys(setupCommands({}, args)),
     ...Object.keys(readCommands({}, args)),
     ...Object.keys(workCommands({}, args)),
-    'help', 'version', 'tour', 'lifecycle', 'view', 'serve', 'forget', 'spec', 'prompt', 'hook', 'gate',
+    'help', 'version', 'tour', 'lifecycle', 'view', 'serve', 'forget', 'spec', 'prompt', 'hook', 'gate', 'settings',
   ])].sort();
 }

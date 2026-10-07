@@ -21,6 +21,19 @@ import { contains, git, headCommit, isClean, tryGit, untracked } from './git.js'
 import { laneNames, outOfLane } from './lanes.js';
 import { Refused } from './refused.js';
 
+/** Report changing machine queue state while an unattended item waits for a gate slot. */
+function gateWaitReporter(io) {
+  let last = '';
+  return ({ holders, position }) => {
+    const repos = holders.map(({ repo }) => repo).filter(Boolean);
+    const message = `gate waiting: ${holders.length} running${repos.length ? ` in ${repos.join(', ')}` : ''}; place ${position}`;
+    if (message !== last) {
+      io.say(message);
+      last = message;
+    }
+  };
+}
+
 const FILE_CHARS = 32_000;
 const PACK_FILE_CHARS = 96_000;
 
@@ -293,7 +306,7 @@ async function tryItem(ctx, item, { command, attempts, minutes, deps, me, start,
     } else {
       const isDirty = !isClean(root) || untracked(root).length > 0;
       const committed = isDirty ? commitWork(root, item, ctx.config, changedSince(root, start)) : { ok: true, output: '' };
-      const gate = committed.ok ? runGate(root, ctx.config) : { isGreen: false, output: committed.output };
+      const gate = committed.ok ? await runGate(root, ctx.config, { onWait: gateWaitReporter(ctx.io) }) : { isGreen: false, output: committed.output };
       if (!gate.isGreen) {
         result = committed.ok ? 'gate-red' : 'commit-refused';
         digest = `${reverted}The check passed, but ${committed.ok ? "the repo's gate" : 'the commit'} failed:\n${digestOf(gate.output)}`;
@@ -302,7 +315,7 @@ async function tryItem(ctx, item, { command, attempts, minutes, deps, me, start,
     ctx.io.say(`#${id} attempt ${attempt}: ${result} (agent ${built.seconds}s, check ${checked.seconds}s)`);
     if (result === 'green') {
       try {
-        deps.submitHere(ctx, id);
+        await deps.submitHere(ctx, id);
       } catch (error) {
         if (!(error instanceof Refused)) throw error;
         result = 'submit-refused';

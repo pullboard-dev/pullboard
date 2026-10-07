@@ -3,7 +3,8 @@
  * and whether the tree is clean. Every call is a plain `git` child process.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { resolve } from 'node:path';
+import { existsSync, readdirSync, statSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { Refused } from './refused.js';
 
 const GIT_FLAGS = ['-c', 'core.quotepath=false'];
@@ -50,6 +51,43 @@ export function tryGit(cwd, args) {
 }
 
 /**
+ * Find a main checkout whose `.git/config` marks it bare despite files beside its git directory.
+ * This check uses the filesystem and explicit config path so inherited Git repository variables
+ * cannot hide a damaged checkout from the command that needs to explain its repair.
+ *
+ * @param {string} cwd
+ * @returns {{ code: string, message: string, next: string } | null}
+ */
+export function bareWorktreeFinding(cwd) {
+  let root = resolve(cwd);
+  while (true) {
+    const gitDir = join(root, '.git');
+    if (existsSync(gitDir)) {
+      try {
+        if (!statSync(gitDir).isDirectory()) return null;
+        if (readdirSync(root).some((entry) => entry !== '.git')) {
+          const bare = tryGit(root, ['config', '--file', join(gitDir, 'config'), '--bool', '--get', 'core.bare']);
+          if (bare.status === 0 && bare.stdout === 'true') {
+            const quotedGitDir = `'${gitDir.replaceAll("'", "'\\''")}'`;
+            return {
+              code: 'CORE_BARE',
+              message: `main checkout ${root} has .git/config core.bare=true while working files are present beside .git`,
+              next: `git --git-dir=${quotedGitDir} config core.bare false`,
+            };
+          }
+        }
+      } catch {
+        // An unreadable nearest git directory cannot establish that this is the broken checkout.
+      }
+      return null;
+    }
+    const parent = dirname(root);
+    if (parent === root) return null;
+    root = parent;
+  }
+}
+
+/**
  * The repo around `cwd`: its worktree root, the shared git dir, this worktree's git dir, and
  * whether this is the main checkout.
  *
@@ -61,6 +99,8 @@ export function tryGit(cwd, args) {
 export function repoInfo(cwd) {
   const top = tryGit(cwd, ['rev-parse', '--show-toplevel']);
   if (top.status !== 0) {
+    const bare = bareWorktreeFinding(cwd);
+    if (bare) throw new Refused(bare.code, `${bare.message}; run ${bare.next}`);
     throw new Refused('NOT_A_REPO', 'not inside a git work tree; run git init, or cd into a repo');
   }
   const root = top.stdout;

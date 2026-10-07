@@ -171,6 +171,12 @@ test('[A1] command results match the catalog across roots and subcommands', () =
   json(box, repo, 'whoami');
   json(box, repo, 'lanes');
   json(box, repo, 'resources');
+  assert.equal(json(box, repo, 'settings').settings.gateSlots, 2);
+  assert.equal(json(box, repo, 'settings', ['gateSlots', '1']).settings.gateSlots, 1);
+  assert.equal(json(box, repo, 'settings').settings.gateSlots, 1);
+  const machineSettings = join(box.env.PULLBOARD_HOME, 'settings.json');
+  assert.equal(JSON.parse(readFileSync(machineSettings, 'utf8')).gateSlots, 1);
+  assert.equal(existsSync(join(box.env.PULLBOARD_HOME, 'config.json')), false, 'machine settings use the separate settings.json file');
   json(box, repo, 'resume');
   json(box, repo, 'status');
   json(box, repo, 'doctor');
@@ -195,6 +201,12 @@ test('[A1] command results match the catalog across roots and subcommands', () =
   writeFileSync(join(repo, 'test', 'proof.test.js'), "import { test } from 'node:test';\ntest('proof [G1]', () => {});\n");
   box.git(repo, 'add', 'test/proof.test.js');
   box.git(repo, 'commit', '-q', '-m', 'test: cite the fixture');
+  const signerKey = join(box.dir, 'signer-key');
+  execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', signerKey], { stdio: 'pipe' });
+  box.git(repo, 'config', 'user.signingkey', signerKey);
+  json(box, repo, 'spec', ['signers', 'add', '--key', `${signerKey}.pub`, '--by', 'CO'], 'signers');
+  box.git(repo, 'add', '.pullboard/signers', '.pullboard/signers.initial', '.pullboard/first-commit');
+  box.git(repo, 'commit', '-q', '-m', 'chore: opt into signed sign-offs');
   json(box, repo, 'spec', ['signoff', 'G1', '--by', 'CO'], 'signoff');
   box.git(repo, 'add', '.pullboard/signoffs.jsonl');
   box.git(repo, 'commit', '-q', '-m', 'chore: record the fixture signoff');
