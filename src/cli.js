@@ -345,7 +345,9 @@ function configHere(info) {
 function withBoard(ctx, work) {
   const board = store.openBoard(ctx.file, ctx.clock);
   try {
-    return work(board);
+    const result = work(board);
+    if (board.lastEvent) ctx.io.onEvent?.(board.lastEvent);
+    return result;
   } finally {
     store.closeBoard(board);
   }

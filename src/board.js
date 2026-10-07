@@ -265,7 +265,7 @@ export function atomic(board, work) {
 }
 
 /**
- * Append one move to the event log (R2).
+ * Append one move to the event log (R2), retaining its exact row for an API response (A2).
  *
  * @param {any} board
  * @param {string} by
@@ -274,11 +274,12 @@ export function atomic(board, work) {
  * @param {object} [detail]
  */
 function logEvent(board, by, kind, itemId, detail = {}) {
-  board.db
+  const inserted = board.db
     .prepare(
       'INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)',
     )
     .run(now(board), by, kind, itemId, JSON.stringify(detail));
+  board.lastEvent = board.db.prepare('SELECT * FROM event WHERE event_id = ?').get(inserted.lastInsertRowid);
 }
 
 /**
