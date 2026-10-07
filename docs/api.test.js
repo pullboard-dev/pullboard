@@ -43,4 +43,8 @@ test('[A2] API guide documents the local HTTP response catalog', () => {
   const documented = readShapeTable('<!-- api-http-shapes:start -->', '<!-- api-http-shapes:end -->');
   const source = Object.fromEntries(Object.entries(JSON_SHAPES.http).map(([name, shape]) => [name, shape.required]));
   assert.deepEqual(documented, source);
+  assert.match(guide, /`warnings` with its registry display fields and a versioned refusal/);
+  assert.match(guide, /`GET \/api\/v1\/boards\/:board\/state\?seen=N`/);
+  assert.match(guide, /`GET \/api\/v1\/boards\/:board\/code\?ref=path:lines@commit&before=\.\.\.`/);
+  assert.match(guide, /`CODE_NOT_AVAILABLE` refusal/);
 });

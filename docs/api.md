@@ -98,15 +98,18 @@ The result and refusal tables are checked against `JSON_SHAPES` in `src/json.js`
 
 Run `pullboard serve --port 0` to print a private API address on `127.0.0.1`. Authenticate each call with the address's `k` query parameter, an `X-Pullboard-Key` header, or `Authorization: Bearer <key>`. The secret belongs to that server session. Board ids are random 128-bit values stored in each board; reopening or moving a repo preserves its id.
 
-The server checks any Origin against its own address and grants no CORS permission. JSON request bodies are limited to 100000 bytes; oversized bodies are drained and refused without applying a partial move. A missing or invalid registered folder is skipped so the other readable boards stay available.
+The server checks any Origin against its own address and grants no CORS permission. JSON request bodies are limited to 100000 bytes; oversized bodies are drained and refused without applying a partial move. A missing or invalid registered folder does not hide readable boards: it appears in `warnings` with its registry display fields and a versioned refusal whose `next` field explains how to restore or forget it.
 
 | Method and path | Result |
 | --- | --- |
 | `GET /api/v1/boards` | Registered boards with their project details and ids |
-| `GET /api/v1/boards/:board/state` | The view's board state, including open coordinator requests |
+| `GET /api/v1/boards/:board/state?seen=N` | The view's board state, including open coordinator requests and the unseen shout count since N |
+| `GET /api/v1/boards/:board/code?ref=path:lines@commit&before=...` | A bounded preview of committed file lines from that registered board |
 | `GET /api/v1/boards/:board/events?after=N` | Events after sequence N, in order |
 | `POST /api/v1/boards/:board/moves` | One CLI move and its emitted event |
 | `POST /api/v1/boards/:board/requests` | A person's request for the coordinator |
+
+The boards response keeps `boards` and may include `warnings` for registered entries that could not be opened. State `seen` must be a nonnegative safe integer; omitting it retains the `unseen: null` result. Code previews read only a registered repo's committed tree, use a plain commit SHA and at most 60 lines, and never read the working tree. The shared router lets adapters omit the optional code capability; such adapters return the versioned `CODE_NOT_AVAILABLE` refusal.
 
 <!-- api-http-shapes:start -->
 | Response | Required top-level fields |
