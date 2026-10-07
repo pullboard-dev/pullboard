@@ -38,23 +38,40 @@ function fleet(t) {
   return { dir, home, env, git, run, ok, repo };
 }
 
-test('the view exposes configured repo/project names, refreshed labels, pruning and CLI forgetting [N33, N35, N36]', async (t) => {
+test('the API exposes configured repo/project names, refreshed labels, stale warnings and CLI forgetting [N33, N35, N36]', async (t) => {
   const f = fleet(t);
   const local = f.repo('local', 'Local label');
   const gone = f.repo('gone', 'Gone label');
   const view = await serveView({ port: 0 });
   try {
     const link = new URL(view.url);
-    const state = async () => (await fetch(`${link.origin}/api/state`, { headers: { 'x-pullboard-key': link.searchParams.get('k') } })).json();
-    let data = await state();
-    assert.deepEqual(data.projects.map(({ name, project }) => ({ name, project })), [{ name: 'Local label', project: 'Demo group' }, { name: 'Gone label', project: 'Demo group' }]);
+    const boards = async () => {
+      const response = await fetch(`${link.origin}/api/v1/boards`, { headers: { 'x-pullboard-key': link.searchParams.get('k') } });
+      assert.equal(response.status, 200);
+      const document = await response.json();
+      assert.equal(document.version, 1);
+      assert.ok(Array.isArray(document.boards));
+      assert.ok(Array.isArray(document.warnings));
+      return document;
+    };
+    let data = await boards();
+    assert.deepEqual(data.boards.map(({ name, project }) => ({ name, project })), [{ name: 'Local label', project: 'Demo group' }, { name: 'Gone label', project: 'Demo group' }]);
+    assert.deepEqual(data.warnings, []);
+    const registered = new Map(data.boards.map(({ root, id, added }) => [root, { id, added }]));
     const config = JSON.parse(readFileSync(join(local, 'pullboard.json'), 'utf8'));
     writeFileSync(join(local, 'pullboard.json'), JSON.stringify({ ...config, name: 'New label', project: 'New group' }));
     rmSync(gone, { recursive: true, force: true });
-    data = await state();
-    assert.deepEqual(data.projects.map(({ name, project }) => ({ name, project })), [{ name: 'New label', project: 'New group' }]);
+    data = await boards();
+    assert.deepEqual(data.boards.map(({ name, project }) => ({ name, project })), [{ name: 'New label', project: 'New group' }]);
+    assert.deepEqual(data.boards.map(({ root, id, added }) => ({ root, id, added })), [{ root: local, ...registered.get(local) }]);
+    assert.deepEqual(data.warnings.map(({ root, name, project, added }) => ({ root, name, project, added })), [{ root: gone, name: 'Gone label', project: 'Demo group', added: registered.get(gone).added }]);
+    assert.equal(data.warnings[0].error.version, 1);
+    assert.equal(data.warnings[0].error.error.code, 'BOARD_UNAVAILABLE');
+    assert.match(data.warnings[0].error.error.next, /pullboard forget/);
     f.ok(local, 'forget', '.');
-    assert.deepEqual((await state()).projects, []);
+    data = await boards();
+    assert.deepEqual(data.boards, []);
+    assert.deepEqual(data.warnings.map(({ root }) => root), [gone], 'forget removes only the selected registered repo');
   } finally { await view.close(); }
 });
 

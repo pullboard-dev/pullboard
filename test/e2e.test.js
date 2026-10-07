@@ -1292,8 +1292,30 @@ async function startView(box, cwd) {
   });
   const key = link.searchParams.get('k');
   const base = `http://127.0.0.1:${link.port}`;
-  const state = (root) => fetch(`${base}/api/state${root ? `?root=${encodeURIComponent(root)}` : ''}`, { headers: { 'x-pullboard-key': key } }).then((res) => res.json());
-  const act = (body) => fetch(`${base}/api/act`, { method: 'POST', headers: { 'x-pullboard-key': key, 'content-type': 'application/json' }, body: JSON.stringify(body) }).then((res) => res.json());
+  const headers = { 'x-pullboard-key': key };
+  const boards = async () => {
+    const response = await fetch(`${base}/api/v1/boards`, { headers });
+    return { status: response.status, document: await response.json() };
+  };
+  const state = async (root) => {
+    const listing = await boards();
+    if (listing.status !== 200) return listing;
+    const board = listing.document.boards.find((entry) => entry.root === root);
+    if (!board) return { ...listing.document, project: null };
+    const response = await fetch(`${base}/api/v1/boards/${encodeURIComponent(board.id)}/state`, { headers });
+    return { ...listing.document, project: (await response.json()).state };
+  };
+  const act = async (root, body) => {
+    const listing = await boards();
+    const board = listing.document.boards?.find((entry) => entry.root === root);
+    const id = board?.id ?? '0'.repeat(32);
+    const response = await fetch(`${base}/api/v1/boards/${encodeURIComponent(id)}/moves`, {
+      method: 'POST',
+      headers: { ...headers, 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    return { status: response.status, document: await response.json() };
+  };
   const stop = () => new Promise((done) => {
     if (child.exitCode !== null || child.signalCode !== null) return done();
     child.once('exit', done);
@@ -1311,20 +1333,24 @@ test('view serves every project on this machine, on loopback, behind its secret 
   const view = await startView(box, box.repo);
   try {
     assert.equal((await fetch(`${view.base}/`)).status, 403, 'no secret');
-    assert.equal((await fetch(`${view.base}/api/state`, { headers: { 'x-pullboard-key': 'guess' } })).status, 403, 'a wrong secret');
+    const badSecret = await fetch(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': 'guess' } });
+    assert.equal(badSecret.status, 401, 'a wrong secret');
+    assert.equal((await badSecret.json()).error.code, 'AUTH_REQUIRED');
     const page = await fetch(view.link);
     assert.equal(page.status, 200);
     assert.match(await page.text(), /<title>Pullboard<\/title>/);
-    const { projects, project: shown } = await view.state(box.repo);
-    assert.deepEqual(projects.map((entry) => [entry.name, entry.ok, entry.open]), [['repo', true, 1]]);
+    const { boards, warnings, project: shown } = await view.state(box.repo);
+    assert.deepEqual(boards.map((entry) => [entry.root, entry.name]), [[box.repo, 'repo']]);
+    assert.deepEqual(warnings, []);
+    assert.equal(shown.items.filter((item) => item.status === 'open').length, 1);
     assert.deepEqual(shown.items.map((item) => [item.id, item.title, item.status, item.specs]), [[1, 'Page', 'open', ['G1']]]);
     assert.equal(shown.shouts[0].shout_text, 'the heading is in G1');
     assert.deepEqual(shown.spec.map((row) => [row.id, row.status]), [['G1', 'approved'], ['G2', 'approved']]);
     assert.ok(shown.agents.some((agent) => agent.agent_id === 'web-1'));
     const rebound = await new Promise((done) => {
-      request({ host: '127.0.0.1', port: view.link.port, path: '/api/state', headers: { host: `evil.example:${view.link.port}`, 'x-pullboard-key': view.key } }, (res) => done(res.statusCode)).end();
+      request({ host: '127.0.0.1', port: view.link.port, path: '/api/v1/boards', headers: { host: `evil.example:${view.link.port}`, 'x-pullboard-key': view.key } }, (res) => done(res.statusCode)).end();
     });
-    assert.equal(rebound, 403, 'the right secret from another Host, as DNS rebinding would send it');
+    assert.equal(rebound, 401, 'the right secret from another Host, as DNS rebinding would send it');
   } finally {
     await view.stop();
   }
@@ -1334,22 +1360,31 @@ test('from the view the person adds items, shouts and holds lanes, through the C
   const box = project();
   const view = await startView(box, box.repo);
   try {
-    const act = (body) => view.act({ root: box.repo, ...body });
-    const added = await act({ command: 'add', args: { lane: 'web', title: 'From the view', specs: 'G1' } });
-    assert.equal(added.code, 0, added.err);
-    assert.equal(added.command, 'pullboard add web From the view --specs G1');
+    const added = await view.act(box.repo, { verb: 'add', args: { lane: 'web', title: 'From the view', specs: 'G1' } });
+    assert.equal(added.status, 200, JSON.stringify(added.document));
+    assert.equal(added.document.event.event_kind, 'add');
+    assert.equal(added.document.result.item.item_title, 'From the view');
     assert.equal(JSON.parse(box.run(box.repo, 'show', '1', '--json').out).item_title, 'From the view');
-    const refused = await act({ command: 'add', args: { lane: 'web', title: 'Ghost', specs: 'Z9' } });
-    assert.equal(refused.code, 1);
-    assert.match(refused.err, /UNKNOWN_SPEC/);
-    assert.equal((await act({ command: 'shout', args: { to: 'web', text: 'from the person' } })).code, 0);
+    const refused = await view.act(box.repo, { verb: 'add', args: { lane: 'web', title: 'Ghost', specs: 'Z9' } });
+    assert.equal(refused.status, 409);
+    assert.equal(refused.document.error.code, 'UNKNOWN_SPEC');
+    const shouted = await view.act(box.repo, { verb: 'shout', args: { to: 'web', text: 'from the person' } });
+    assert.equal(shouted.status, 200);
+    assert.equal(shouted.document.event.event_kind, 'shout');
     assert.match(box.run(box.web, 'inbox').out, /coordinator -> web: from the person/);
-    assert.equal((await act({ command: 'hold', args: { lane: 'web', reason: 'G1 is changing' } })).code, 0);
+    const held = await view.act(box.repo, { verb: 'hold', args: { lane: 'web', reason: 'G1 is changing' } });
+    assert.equal(held.status, 200);
+    assert.equal(held.document.event.event_kind, 'hold');
     assert.match(box.run(box.web, 'next').err, /coordinator holds the web lane: G1 is changing/);
-    assert.equal((await act({ command: 'release', args: { lane: 'web' } })).code, 0);
-    assert.match((await act({ root: box.dir, command: 'shout', args: { to: 'all', text: 'x' } })).error, /not a project on this machine/);
-    const stranger = await fetch(`${view.base}/api/act`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ root: box.repo, command: 'shout', args: { to: 'all', text: 'x' } }) });
-    assert.equal(stranger.status, 403);
+    const released = await view.act(box.repo, { verb: 'hold', args: { lane: 'web', off: true } });
+    assert.equal(released.status, 200);
+    assert.equal(released.document.event.event_kind, 'unhold');
+    const unknown = await view.act(box.dir, { verb: 'shout', args: { to: 'all', text: 'x' } });
+    assert.equal(unknown.status, 404);
+    assert.equal(unknown.document.error.code, 'NO_BOARD');
+    const stranger = await fetch(`${view.base}/api/v1/boards`, { headers: { 'content-type': 'application/json' } });
+    assert.equal(stranger.status, 401);
+    assert.equal((await stranger.json()).error.code, 'AUTH_REQUIRED');
   } finally {
     await view.stop();
   }
