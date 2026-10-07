@@ -35,6 +35,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - B21 [approved, aim] A shout can ask for a decision; it stays in the person's Needs-you until someone answers it. | gate: test/board.test.js | serves: B7
 - B22 [approved, aim] A shout can attach typed evidence: attempt or receipt, outcome, item and commit, as fields, not prose. | gate: test/board.test.js | serves: B7
 - B23 [approved, aim] A shout's path:lines@commit reference opens that code as it was at that commit. | gate: test/cockpit.test.js | serves: B7
+- B24 [draft, aim] An item can wait on an item in another repo of its project, written repo#id. | gate: test/board.test.js | serves: N33
 
 ## M · Machine
 - M1 [approved, must] One declaration holds every item state, move, guard and refusal; code, help and docs derive from it. | gate: test/machine.test.js
@@ -87,6 +88,12 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - S11 [approved, must] pullboard.json names products, each a list of spec ids or section letters, as lanes list theirs. | gate: test/products.test.js
 - S12 [approved, must] Lanes and items belong to the product of their spec prefixes and cited rows; nothing restates it. | gate: test/products.test.js | serves: S11
 - S13 [draft, must] `pullboard spec --json` prints every parsed row, so tools in any language read the spec without parsing it. | gate: test/spec.test.js
+- S14 [draft, must] A sign-off can say what the signer checked, with --note, and the note stays with it. | gate: test/spec.test.js | serves: S5
+- S15 [draft, must] Signing a row shows the tests and verified items that cite it; a row nothing proves cannot be signed. | gate: test/spec.test.js | serves: S5
+- S16 [draft, aim] Each approved row not yet signed shows where it stands on its way to a sign-off. | gate: test/spec.test.js | serves: S5
+- S17 [draft, must] A sign-off lands as a git commit signed with the signer's own key, checked against the repo's allowed signers. | gate: test/signoff.test.js | serves: S5
+- S18 [draft, must] A row can name who must sign it; it is met only when each has a current signed sign-off. | gate: test/signoff.test.js | serves: S17
+- S19 [draft, must] spec check refuses a sign-off committed unsigned, signed by a key not allowed, or edited after it landed. | gate: test/signoff.test.js | serves: S17
 
 ## D · Doctrine
 - D1 [draft, must] Doctrine has three scopes: system (every repo here), repo and lane; a narrower scope adds or overrides. | gate: test/practice.test.js | serves: S6
@@ -154,6 +161,10 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - N30 [approved, must] `show` prints the latest verdict in full and earlier ones as one line each; --history prints them all. | gate: test/show.test.js
 - N31 [draft, must] `pullboard prompt run` and the pullboard-run skill guide one agent through the team: spec, plan, builders, verifier, merges. | gate: test/practice.test.js
 - N32 [draft, must] The coordinator's resume names its next step from board and spec: spec, approve, plan, build, verify or merge. | gate: test/e2e.test.js
+- N33 [draft, must] A repo names its project in pullboard.json, and the view lists projects with their repos beneath. | gate: test/cockpit.test.js | serves: N26
+- N34 [draft, must] A project has one Needs-you and one activity feed across its repos; each repo keeps its own board. | gate: test/cockpit.test.js | serves: N33
+- N35 [draft, aim] A repo whose folder is gone leaves the view; `pullboard forget <path>` removes one by hand. | gate: test/e2e.test.js | serves: N26
+- N36 [draft, aim] The view names each repo as pullboard.json does, falling back to its folder name. | gate: test/cockpit.test.js | serves: N26
 
 ## A · API: the engine others build on
 - A1 [draft, must] Every command prints JSON with `--json`, in a documented shape that stays stable within a major version. | gate: test/api.test.js
