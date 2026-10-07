@@ -942,6 +942,45 @@ test('a new item from the view can carry a brief [N27]', async () => {
     await view.stop();
   }
 });
+test('starting a board shows it [N27]', async () => {
+  const box = machine();
+  project(box, 'alpha');
+  const fresh = join(box.dir, 'fresh');
+  mkdirSync(fresh);
+  box.git(fresh, 'init', '-q', '-b', 'main');
+  writeFileSync(join(fresh, 'README.md'), '# Fresh\n');
+  box.git(fresh, 'add', '-A');
+  box.git(fresh, 'commit', '-q', '-m', 'chore: start');
+  const plain = join(box.dir, 'plain');
+  mkdirSync(plain);
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    // The page's timers, held by the test, so a pending close shows.
+    page.run('globalThis.closes = []; globalThis.setTimeout = (run, ms) => closes.push({ run, ms, live: true }); globalThis.clearTimeout = (id) => { if (closes[id - 1]) closes[id - 1].live = false; };');
+    const start = async (path) => {
+      page.element('init-path').value = path;
+      await page.fire('init-form', 'submit');
+    };
+    const out = page.element('console');
+
+    await start(plain);
+    assert.equal(out.className, 'console no', 'init refuses a folder that is no git repo');
+    assert.equal(page.element('proj-name').textContent, 'alpha', 'and the view stays where it was');
+
+    await start(fresh);
+    assert.equal(out.className, 'console ok');
+    assert.match(out.textContent, /^\$ pullboard init\n[^]*\nnext: /, 'the output ends with what to do next');
+    assert.equal(out.hidden, false);
+    assert.ok(JSON.parse(page.run('JSON.stringify(closes.map((close) => close.live))')).every((live) => !live), 'and no close is pending, so it stays');
+    assert.equal(page.element('init-path').value, '');
+    assert.equal(page.element('proj-name').textContent, 'fresh', 'the view shows the board just started');
+    assert.deepEqual(projectRows(page.show('proj-list')).map((row) => [row.name, row.current]), [['alpha', false], ['fresh', true]]);
+    assert.match(page.show('chain'), /No items yet/, 'its own empty board');
+  } finally {
+    await view.stop();
+  }
+});
 test('times say which day they were [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
