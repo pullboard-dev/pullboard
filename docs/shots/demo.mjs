@@ -49,7 +49,11 @@ async function browser(chrome, profile, url) {
     const send = (method, params = {}) => new Promise((ok, fail) => { const key = ++id; pending.set(key, { resolve: ok, reject: fail }); socket.send(JSON.stringify({ id: key, method, params })); });
     await send('Page.enable');
     await send('Runtime.enable');
-    const evaluate = async (expression) => (await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })).result?.value;
+    const evaluate = async (expression) => {
+      const response = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+      if (response.exceptionDetails) throw new Error(`Chrome evaluation failed: ${response.exceptionDetails.text}`);
+      return response.result?.value;
+    };
     for (let n = 0; n < 100 && await evaluate('document.readyState') !== 'complete'; n++) await pause(100);
     return {
       evaluate,
@@ -76,7 +80,9 @@ async function buildBoard(base, env) {
   pb(repo, 'add', 'app', 'Ready for review', '--specs', 'G1', '--criterion', 'The demo item is submitted for review.');
   pb(repo, 'add', 'app', 'Claimed for work', '--specs', 'G1', '--criterion', 'The demo item is being worked on.');
   pb(repo, 'add', 'app', 'Open decision', '--specs', 'G1', '--criterion', 'The demo has a pending decision.');
-  
+  pb(repo, 'add', 'app', 'Withdrawn example', '--specs', 'G1', '--criterion', 'The demo includes withdrawn work.');
+  pb(repo, 'withdraw', '6', 'this example was dropped');
+
   const app = pb(repo, 'worktree', 'app').match(/made (.+) on branch app\/1/)?.[1];
   if (!app) throw new Error('Could not create the demo builder worktree');
   const review = pb(repo, 'worktree', 'review').match(/made (.+) on branch review\/1/)?.[1];
@@ -134,7 +140,7 @@ async function recordTour(env) {
   const status = await new Promise((resolveStatus) => child.once('close', resolveStatus));
   if (buffer.trim()) lines.push({ text: buffer.trim(), at: Date.now() - started });
   if (status !== 0 || !lines.length) throw new Error('The pullboard tour recording did not finish');
-  const shown = lines;
+  const shown = lines.map(({ text, at }) => ({ text: text.replaceAll('^D\b\b', '').replace(/[\x00-\x08\x0b-\x1f]/g, ''), at }));
   const height = Math.max(480, shown.length * 22 + 56);
   const contents = shown.map(({ text, at }, index) => `<text x="24" y="${42 + index * 22}" opacity="0">${escapeXml(text.replace(/^.*Look around: cd .*/, '   Look around: cd greeter && pullboard log').slice(0, 132))}<animate attributeName="opacity" from="0" to="1" begin="${(at / 1000).toFixed(2)}s" dur="0.12s" fill="freeze"/></text>`).join('\n');
   const duration = ((lines.at(-1).at + 4000) / 1000).toFixed(2);
@@ -164,11 +170,12 @@ else {
     view = await browser(chrome, join(base, 'chrome-profile'), url);
     await pause(700);
     await view.viewport(1440, 700);
-    await view.evaluate("document.documentElement.dataset.theme='light'; localStorage.setItem('pb.theme','light'); document.querySelector('[data-state=all]')?.click(); document.querySelector('[data-item=1]')?.click()");
+    const detail = await view.evaluate("(()=>{document.documentElement.dataset.theme='light'; localStorage.setItem('pb.theme','light'); document.querySelector('[data-state=all]')?.click(); const item=document.querySelector('[data-item=\"1\"]'); if(!item) throw new Error('accepted item #1 is missing'); item.click(); return document.querySelector('#detail').textContent})()");
+    if (!detail.includes('REJECT') || !detail.includes('ACCEPT')) throw new Error('The desktop screenshot must show item #1 rejected and accepted.');
     await pause(350);
     await view.screenshot(join(OUTPUT, 'desktop.png'));
     await view.viewport(390, 900);
-    await view.evaluate("document.documentElement.dataset.theme='dark'; localStorage.setItem('pb.theme','dark')");
+    await view.evaluate("(()=>{document.documentElement.dataset.theme='dark'; localStorage.setItem('pb.theme','dark'); const item=document.querySelector('[data-item=\"1\"]'); const detail=document.querySelector('#detail')?.textContent??''; if(document.documentElement.dataset.theme!=='dark'||!item||!detail.includes('ACCEPT')) throw new Error('The phone screenshot must show the selected accepted item in dark mode'); return true})()");
     await view.screenshot(join(OUTPUT, 'phone.png'));
     await view.close(); view = null; server.kill();
     await recordTour(env);

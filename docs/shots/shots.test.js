@@ -35,6 +35,7 @@ test('the demo assets exist and stay within their size budgets [I11,I13]', () =>
   assert.ok(statSync(shots('tour.svg')).size < 200_000, 'tour SVG is under 200 KB');
   const tour = readFileSync(shots('tour.svg'), 'utf8');
   assert.match(tour, /<animate attributeName="opacity"/, 'tour lines appear on a timed animation');
+  assert.doesNotMatch(tour, /[\x00-\x08\x0b-\x1f]/, 'tour SVG contains no XML-invalid control characters');
 });
 
 test('the demo rebuild script uses a temporary repo and isolated home [I11,I13]', () => {
@@ -42,4 +43,7 @@ test('the demo rebuild script uses a temporary repo and isolated home [I11,I13]'
   assert.match(script, /mkdtemp\(join\(tmpdir\(\)/);
   assert.match(script, /PULLBOARD_HOME: home/);
   assert.match(script, /process\.execPath, \[BIN, 'init'\]/);
+  assert.match(script, /'withdraw', '6'/, 'the fixture includes the withdrawn state');
+  assert.match(script, /data-item=\\\\?"1\\\\?"/, 'the screenshot selects the accepted item with a quoted id');
+  assert.match(script, /if \(response\.exceptionDetails\) throw/, 'browser script errors fail instead of silently capturing the wrong view');
 });
