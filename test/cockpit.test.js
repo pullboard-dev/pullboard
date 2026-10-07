@@ -472,7 +472,21 @@ test("the history is a timeline of the item's states [N26]", async () => {
       ['tl-open', 'lapse the clock', true],
       ['tl-claimed', 'claim web-2', false],
     ]);
-    assert.deepEqual(lapsed.map((row) => row.stay.replace(/ for .*/, ' for')), ['open for', '', '', 'claimed for'], 'a stay that ends in a lapse, or starts with one, has no length to show');
+    assert.deepEqual(lapsed.map((row) => row.stay.replace(/ for .*/, ' for')), [
+      'open for',
+      'claimed until the lapse, length not logged',
+      'open after the lapse, length not logged',
+      'claimed for',
+    ], 'a stay that ends or begins at an untimed lapse says its length was not logged');
+    assert.equal(lapsed[0].stay, 'open for 5m');
+
+    // A lease that ran out with nothing after it: the item reads open, and has been since the lapse.
+    const idle = { status: 'open', history: [{ kind: 'add', by: 'web-1', at: at(0) }, { kind: 'claim', by: 'web-1', at: at(5) }] };
+    assert.deepEqual(timelineRows(page.run(`timeline(${JSON.stringify(idle)})`)).map((row) => [row.event, row.stay]), [
+      ['add web-1', 'open for 5m'],
+      ['claim web-1', 'claimed until the lapse, length not logged'],
+      ['lapse the clock', 'open so far since the lapse, length not logged'],
+    ]);
   } finally {
     await view.stop();
   }

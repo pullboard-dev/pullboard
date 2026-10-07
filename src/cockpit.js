@@ -406,7 +406,8 @@ const span = (ms) => {
  * reject in the colour of work sent back, and the item's creation (logged as add) one in the start
  * state's colour; an event that moves nothing is a hollow dot. Between the dots runs a line in the
  * colour of the state the item stayed in, and under each dot that began a stay, how long it lasted,
- * or how long so far while the item can still leave. A lapse has a row but no time.
+ * or how long so far while the item can still leave. A lapse has a row but no time, so a stay that
+ * ends or begins at one says its length was not logged rather than guess it.
  */
 function timeline(item) {
   const steps = replay(item);
@@ -416,8 +417,11 @@ function timeline(item) {
     const final = FLOW.states.some((f) => f.id === state && f.final);
     const next = steps.slice(i + 1).find((n) => n.move);
     const named = s.kind === 'reject' ? 'sent back' : state;
-    // A stay after a lapse has no start to count from, and one that ends in a lapse no end.
-    const stay = !enters || !s.at || final ? '' : !next ? esc(named) + ' for ' + age(s.at) + ' so far' : next.at ? esc(named + ' for ' + span(Date.parse(next.at) - Date.parse(s.at))) : '';
+    const stay = !enters || final ? ''
+      : !s.at ? esc(named + (next ? ' after the ' : ' so far since the ') + s.kind + ', length not logged')
+      : !next ? esc(named) + ' for ' + age(s.at) + ' so far'
+      : !next.at ? esc(named + ' until the ' + next.kind + ', length not logged')
+      : esc(named + ' for ' + span(Date.parse(next.at) - Date.parse(s.at)));
     return '<li class="tl-' + esc(state) + (s.kind === 'reject' ? ' tl-back' : '') + (enters ? '' : ' tl-quiet') + '"><time>' + (s.at ? when(s.at) : '') + '</time><span><b>' + esc(s.kind) + '</b> ' + esc(s.by) + '</span>' + (stay ? '<small>' + stay + '</small>' : '') + '</li>';
   }).join('') + '</ol>';
 }
