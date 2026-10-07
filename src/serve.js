@@ -141,15 +141,15 @@ const CODE_BYTES = 2_000_000;
  * The lines a shout's path:lines@commit reference names, as they were at that commit (B23). Git
  * alone reads them, from the commit's own tree: never the working tree, never a path outside the
  * repo, never a revision that is not a plain SHA, never lines past the file's end, and never more
- * than CODE_LINES lines. A path cannot hold a space, so when the commit holds a path with one that
- * ends in this one, the words before the reference may be its start, and it is refused rather than
- * opened as a different file.
+ * than CODE_LINES lines. A path cannot hold a space, so the words written just before a reference
+ * may be the start of one: when they and the path make a file the commit holds, the reference may
+ * mean that file, and it is refused rather than opened as a different one.
  *
  * @param {string} root
- * @param {{ path: string, from: number, to: number, commit: string }} ref
+ * @param {{ path: string, from: number, to: number, commit: string, before?: string }} ref
  * @returns {{ path: string, commit: string, from: number, to: number, lines: string[], more: boolean }}
  */
-export function codeAt(root, { path, from, to, commit }) {
+export function codeAt(root, { path, from, to, commit, before = '' }) {
   if (!/^[0-9a-f]{7,40}$/.test(commit)) throw new Refused('BAD_REF', `name the commit by its SHA, 7 to 40 hex digits (saw "${commit}")`);
   if (!/^[\w.-]+(?:\/[\w.-]+)*$/.test(path) || path.split('/').some((part) => part === '.' || part === '..')) {
     throw new Refused('BAD_REF', `name a file inside the repo by its path from the top, such as src/serve.js (saw "${path}")`);
@@ -160,9 +160,13 @@ export function codeAt(root, { path, from, to, commit }) {
   const object = `${full}:${path}`;
   const type = spawnSync('git', ['cat-file', '-t', object], { cwd: root, encoding: 'utf8' });
   if (type.status !== 0 || type.stdout.trim() !== 'blob') throw new Refused('NO_FILE', `no file ${path} at ${commit}`);
-  const names = spawnSync('git', ['ls-tree', '-r', '-z', '--name-only', full], { cwd: root, encoding: 'utf8', maxBuffer: 64_000_000 }).stdout.split('\0');
-  const longer = names.find((name) => name.endsWith(` ${path}`));
-  if (longer) throw new Refused('AMBIGUOUS', `${path} may be the end of "${longer}" at ${commit}, a path with a space, which a reference cannot name`);
+  const words = String(before).split(' ').filter(Boolean).slice(-4);
+  for (let k = 1; k <= words.length; k += 1) {
+    const longer = `${words.slice(-k).join(' ')} ${path}`;
+    if (spawnSync('git', ['cat-file', '-e', `${full}:${longer}`], { cwd: root }).status === 0) {
+      throw new Refused('AMBIGUOUS', `the words before it may make it "${longer}", a path with a space, which a reference cannot name`);
+    }
+  }
   const size = Number(spawnSync('git', ['cat-file', '-s', object], { cwd: root, encoding: 'utf8' }).stdout);
   if (!(size <= CODE_BYTES)) throw new Refused('TOO_LARGE', `${path} is over ${CODE_BYTES / 1_000_000} MB, too large to show`);
   const lines = spawnSync('git', ['cat-file', 'blob', object], { cwd: root, encoding: 'utf8', maxBuffer: CODE_BYTES + 1 }).stdout.split('\n');
@@ -259,7 +263,8 @@ export function serveView({ port = 0, secret = randomBytes(18).toString('base64u
         const ref = /^([^:@]+):(\d+)(?:-(\d+))?@([^@]+)$/.exec(url.searchParams.get('ref') ?? '');
         if (!ref) return json(res, 400, { error: 'a code reference reads path:lines@commit, such as src/serve.js:12-30@be4356b' });
         try {
-          return json(res, 200, codeAt(root, { path: ref[1], from: Number(ref[2]), to: Number(ref[3] ?? ref[2]), commit: ref[4] }));
+          const before = (url.searchParams.get('before') ?? '').slice(-200);
+          return json(res, 200, codeAt(root, { path: ref[1], from: Number(ref[2]), to: Number(ref[3] ?? ref[2]), commit: ref[4], before }));
         } catch (error) {
           if (error instanceof Refused) return json(res, 400, { error: error.message });
           throw error;

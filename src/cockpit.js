@@ -386,13 +386,22 @@ const stateOf = (i) => i.status === 'claimed' ? 'building' : i.status === 'submi
 const STATES = { building: ['building', 'busy'], verify: ['to verify', 'warn'], back: ['sent back', 'no'], verified: ['verified', 'ok'], open: ['open', ''], withdrawn: ['withdrawn', ''] };
 const chip = (s) => '<span class="chip ' + STATES[s][1] + '">' + STATES[s][0] + '</span>';
 // A shout's path:lines@commit reference (B23): a button, and under it, once opened, that code as it
-// was at that commit, with its line numbers.
-const codeRef = (ref) => {
-  const c = view.code[view.root + ' ' + ref];
+// was at that commit, with its line numbers. The words before it go with it, so the view can refuse
+// a reference they may make part of a path with a space.
+const codeRef = (ref, before) => {
+  const c = view.code[view.root + '\\n' + before + '\\n' + ref];
   const open = Boolean(c && c.open);
   const shown = !open ? '' : c.error ? '<span class="code no">' + esc(c.error) + '</span>' : !c.lines ? '<span class="code more">loading…</span>'
     : '<span class="code">' + c.lines.map((line, n) => '<span><i>' + (c.from + n) + '</i>' + esc(line) + '</span>').join('') + (c.more ? '<span class="more">the first ' + c.lines.length + ' lines</span>' : '') + '</span>';
-  return '<button class="ref" data-code="' + esc(ref) + '" type="button" aria-expanded="' + open + '">' + esc(ref) + '</button>' + shown;
+  return '<button class="ref" data-code="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' type="button" aria-expanded="' + open + '">' + esc(ref) + '</button>' + shown;
+};
+// The words written just before a reference that could be part of a path, nearest last, up to four:
+// a path with a space would start among them.
+const wordsBefore = (prior) => {
+  const words = /[ \\t]$/.test(prior) ? prior.split('\\n').pop().trim().split(/[ \\t]+/) : [];
+  const kept = [];
+  while (words.length && kept.length < 4 && /^[^:@()[\\]{}"'\`]+$/.test(words.at(-1))) kept.unshift(words.pop());
+  return kept.join(' ');
 };
 const tone = (s) => s === 'approved' ? 'ok' : s === 'pending' ? 'no' : s === 'draft' ? 'warn' : '';
 const count = (n, one, many = one) => n + ' ' + (n === 1 ? one : many);
@@ -699,12 +708,12 @@ function render() {
 
   // Every #id in a shout that names an item opens it, whatever stands next to it. The ids are found in
   // the raw text and each piece is escaped on its own, so an apostrophe's &#39; is never read as one;
-  // a number that names no item stays text. A path:lines@commit reference opens that code (B23): it
-  // is the whole run of path characters before the colon, never a tail of it, so what it opens is
-  // what it says, and the view refuses what is no path in the repo.
+  // a number that names no item stays text. A path:lines@commit reference opens that code (B23). It
+  // counts only as a whole word, never as the tail of one, so what it opens is what it says, and the
+  // view refuses what is no path in the repo.
   const titles = new Map(p.items.map((i) => [String(i.id), i.title]));
-  const linked = (text) => String(text ?? '').split(/(#\\d+|(?<![\\w./-])[\\w./-]+:\\d+(?:-\\d+)?@[0-9a-f]{7,40}(?!\\w))/).map((part, n) => {
-    if (n % 2 && part[0] !== '#') return codeRef(part);
+  const linked = (text) => String(text ?? '').split(/(#\\d+|(?<![^\\s([{"'\`])[^\\s:@()[\\]{}"'\`]+:\\d+(?:-\\d+)?@[0-9a-f]{7,40}(?![^\\s)\\]}"'\`.,;:!?]))/).map((part, n, parts) => {
+    if (n % 2 && part[0] !== '#') return codeRef(part, wordsBefore(parts.slice(0, n).join('')));
     const id = /^#\\d+$/.test(part) ? String(Number(part.slice(1))) : '';
     return titles.has(id) ? '<button class="ref" data-go="item:' + id + '" title="' + esc(titles.get(id)) + '" type="button">' + esc(part) + '</button>' : esc(part);
   }).join('');
@@ -810,14 +819,14 @@ function search() {
  * those lines as they were at that commit; the answer stays with the page, so every refresh redraws
  * it, and a failed ask is tried again on the next open.
  */
-async function code(ref) {
-  const c = (view.code[view.root + ' ' + ref] ??= { open: false });
+async function code(ref, before) {
+  const c = (view.code[view.root + '\\n' + before + '\\n' + ref] ??= { open: false });
   c.open = !c.open;
   render();
   if (!c.open || c.lines) return;
   c.error = null;
   try {
-    Object.assign(c, await api('/api/code?root=' + encodeURIComponent(view.root) + '&ref=' + encodeURIComponent(ref)));
+    Object.assign(c, await api('/api/code?root=' + encodeURIComponent(view.root) + '&ref=' + encodeURIComponent(ref) + '&before=' + encodeURIComponent(before)));
   } catch (error) {
     c.error = String(error.message || error);
   }
@@ -899,7 +908,7 @@ document.addEventListener('click', (event) => {
   else if (t.dataset.state) { view.state = t.dataset.state; render(); }
   else if (t.dataset.rows) { const [kind, f] = t.dataset.rows.split(':'); view.rows[kind] = f; render(); }
   else if (t.dataset.row) { const [kind, id] = t.dataset.row.split(':'); view.row[kind] = id; render(); }
-  else if (t.dataset.code) code(t.dataset.code);
+  else if (t.dataset.code) code(t.dataset.code, t.dataset.before || '');
   else if (t.dataset.release) act('release', { lane: t.dataset.release });
   else if (t.dataset.shout) { $('shout-to').value = t.dataset.shout; $('shout-text').value = '#' + t.dataset.about + ': '; view.tab = 'shouts'; showTab(); $('shout-text').focus(); }
   else if (t.dataset.new !== undefined) { view.adding = true; render(); $('add-title').focus(); }
