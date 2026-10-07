@@ -143,15 +143,20 @@ const SCHEMA = `
 export function openBoard(file, clock = systemClock) {
   if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
-  db.exec('PRAGMA busy_timeout = 10000');
-  if (file !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
-  db.exec(SCHEMA);
-  migrate(db);
-  db.prepare('INSERT OR IGNORE INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run('board_id', randomBytes(16).toString('hex'));
-  const board = { db, clock };
-  guardStore(board);
-  guardMoves(board);
-  return board;
+  try {
+    db.exec('PRAGMA busy_timeout = 10000');
+    if (file !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
+    migrateEventLogVersion(db);
+    migrate(db);
+    db.prepare('INSERT OR IGNORE INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run('board_id', randomBytes(16).toString('hex'));
+    const board = { db, clock };
+    guardStore(board);
+    guardMoves(board);
+    return board;
+  } catch (error) {
+    db.close();
+    throw error;
+  }
 }
 
 /**
@@ -245,6 +250,43 @@ function migrate(db) {
   for (const [table, column, type] of added) {
     const columns = db.prepare(`PRAGMA table_info(${table})`).all().map((entry) => entry.name);
     if (!columns.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  }
+}
+
+/**
+ * Read the persisted event format without migrating it, so integrity checks enforce the same
+ * compatibility rule as the writable opener while leaving older or damaged evidence intact.
+ *
+ * @param {DatabaseSync} db
+ * @returns {number}
+ */
+export function readEventLogVersion(db) {
+  if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'board_meta'").get()) return 0;
+  const stored = db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('event_log_version');
+  const version = stored && /^(?:0|[1-9]\d*)$/u.test(stored.meta_value) ? Number(stored.meta_value) : stored ? NaN : 0;
+  if (!Number.isSafeInteger(version) || version < 0) {
+    throw new Refused('EVENT_LOG_VERSION', `event log version ${stored?.meta_value ?? 'missing'} is invalid; restore a valid board or upgrade pullboard`);
+  }
+  if (version > EVENT_LOG_VERSION) {
+    throw new Refused('EVENT_LOG_VERSION', `event log version ${version} is newer than this pullboard version ${EVENT_LOG_VERSION}; upgrade pullboard to open this board`);
+  }
+  return version;
+}
+
+/** Refuse unknown future event records before migrating anything, and mark older boards current. */
+function migrateEventLogVersion(db) {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec(SCHEMA);
+    const version = readEventLogVersion(db);
+    if (version < EVENT_LOG_VERSION) {
+      db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?) ON CONFLICT(meta_key) DO UPDATE SET meta_value = excluded.meta_value')
+        .run('event_log_version', String(EVENT_LOG_VERSION));
+    }
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
   }
 }
 

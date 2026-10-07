@@ -43,8 +43,8 @@ function apiBoardListing(projects = listApiProjects) {
   for (const project of projects()) {
     try {
       boards.push(withBoard(project.root, (board) => ({ ...project, id: store.boardId(board) })));
-    } catch {
-      const error = new Refused('BOARD_UNAVAILABLE', `registered project ${project.root} cannot be read; restore the repo or run pullboard forget ${project.root}`);
+    } catch (cause) {
+      const error = cause.code === 'EVENT_LOG_VERSION' ? cause : new Refused('BOARD_UNAVAILABLE', `registered project ${project.root} cannot be read; restore the repo or run pullboard forget ${project.root}`);
       warnings.push({ ...project, error: refusalDocument(error) });
     }
   }
@@ -190,6 +190,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     },
     code: (board, ref) => codeAt(board.root, ref),
     events: (board, after) => afterEvents(board.root, after),
+    eventLogVersion: () => store.EVENT_LOG_VERSION,
     move: (board, body) => executeMove(board.root, body, runCommand),
     request: (board, body) => createRequest(board.root, body),
   });

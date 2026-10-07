@@ -1811,7 +1811,7 @@ async function runCommand(argv, io) {
       const result = first === 'on' ? await relayOn(ctx.info.root, values.url, io)
         : first === 'off' ? await relayOff(ctx.info.root, io) : relayStatus(ctx.info.root);
       io.result?.(result);
-      io.say(result.linked ? `${result.link}\nrelay: sequence ${result.sequence}; ${result.behind} pending uploads` : 'relay off; the local board is complete');
+      io.say(result.linked ? `${result.link}\nrelay: sequence ${result.sequence}; ${result.behind} pending uploads` : (result.notice || 'relay off; the local board is complete'));
       return 0;
     }
     if (command === 'gate') {

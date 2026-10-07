@@ -114,7 +114,9 @@ export function createApiHandler(adapter, { pollMs = 200 } = {}) {
       const board = await adapter.board(route[1], who);
       if (req.method === 'GET' && route[2] === 'state') {
         const seen = url.searchParams.has('seen') ? seenCursor(url.searchParams.get('seen')) : null;
-        return json(res, 200, { state: await adapter.state(board, who, seen) });
+        const state = await adapter.state(board, who, seen);
+        const eventLogVersion = await adapter.eventLogVersion?.(board, who);
+        return json(res, 200, { state, ...(eventLogVersion === undefined ? {} : { eventLogVersion }) });
       }
       if (req.method === 'GET' && route[2] === 'code') {
         if (typeof adapter.code !== 'function') throw new Refused('CODE_NOT_AVAILABLE', 'this API adapter does not provide committed-code previews; use the local view or a local API server');
@@ -129,7 +131,8 @@ export function createApiHandler(adapter, { pollMs = 200 } = {}) {
         const live = String(req.headers.accept ?? '').split(',').some((part) => /^\s*text\/event-stream\s*(?:;|$)/i.test(part));
         if (live) return await stream(req, res, board, who, after, initial);
         const warning = await adapter.warning?.(board, who);
-        return json(res, 200, { events: initial, ...(warning ? { warning } : {}) });
+        const eventLogVersion = await adapter.eventLogVersion?.(board, who);
+        return json(res, 200, { events: initial, ...(eventLogVersion === undefined ? {} : { eventLogVersion }), ...(warning ? { warning } : {}) });
       }
       if (req.method === 'POST' && route[2] === 'moves') {
         const moved = await adapter.move(board, await readBody(req), who);

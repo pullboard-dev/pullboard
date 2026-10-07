@@ -113,11 +113,13 @@ The server checks any Origin against its own address and grants no CORS permissi
 | `GET /api/v1/boards` | Registered boards with their project details and ids |
 | `GET /api/v1/boards/:board/state?seen=N` | The view's board state, including open coordinator requests and the unseen shout count since N |
 | `GET /api/v1/boards/:board/code?ref=path:lines@commit&before=...` | A bounded preview of committed file lines from that registered board |
-| `GET /api/v1/boards/:board/events?after=N` | Events after sequence N, in order |
+| `GET /api/v1/boards/:board/events?after=N` | Events after sequence N, in order, and their event-log format version |
 | `POST /api/v1/boards/:board/moves` | One CLI move and its emitted event |
 | `POST /api/v1/boards/:board/requests` | A person's request for the coordinator |
 
 The boards response keeps `boards` and may include `warnings` for registered entries that could not be opened. State `seen` must be a nonnegative safe integer; omitting it retains the `unseen: null` result. Code previews read only a registered repo's committed tree, use a plain commit SHA and at most 60 lines, and never read the working tree. The shared router lets adapters omit the optional code capability; such adapters return the versioned `CODE_NOT_AVAILABLE` refusal.
+
+The local board state and events responses include `eventLogVersion`, which identifies the persisted event-record format separately from the HTTP envelope's `version`. Static view exports keep this field in both state.json and events.json so a reader can refuse a format newer than it understands. Sealed relay events do not use this local board format marker.
 
 <!-- api-http-shapes:start -->
 | Response | Required top-level fields |
