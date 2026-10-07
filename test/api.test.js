@@ -487,6 +487,11 @@ test('[A2] local HTTP v1 versions state and moves, authenticates, and preserves 
   const refusalResponse = await apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'claim', item: 999, args: {} }) });
   assert.deepEqual(await apiError(refusalResponse, 409), cliRefusal, 'HTTP move refusals preserve the CLI code, message and next step');
 
+  const noWork = JSON.parse(box.run(box.repo, 'next', '--json').stdout).error;
+  const nextResponse = await apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'next', args: {} }) });
+  assert.equal(noWork.code, 'NOTHING_FREE');
+  assert.deepEqual(await apiError(nextResponse, 409), noWork, 'next keeps the CLI no-work refusal and its polling guidance');
+
   const verifierRefusal = JSON.parse(box.run(box.repo, 'verify', '999', 'accept', '--as', 'coordinator', '--note', 'checked the API', '--json').stdout).error;
   const verifyResponse = await apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'verify', item: 999, args: { decision: 'accept', as: 'coordinator', note: 'checked the API' } }) });
   assert.deepEqual(await apiError(verifyResponse, 409), verifierRefusal, 'coordinator verification can explicitly assert the same identity as the CLI');
@@ -512,10 +517,12 @@ test('[A2] moves run as the named worktree agent and requests stay visible until
   const path = `/api/v1/boards/${board.id}`;
 
   const added = await (await apiFetch(api, `${path}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'add', args: { lane: 'app', title: 'Agent work' } }) })).json();
-  const claimedResponse = await apiFetch(api, `${path}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'claim', item: added.result.item.item_id, args: {}, agent: 'app-1' }) });
+  const claimedResponse = await apiFetch(api, `${path}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'next', args: {}, agent: 'app-1' }) });
   assert.equal(claimedResponse.status, 200);
   const claimed = await claimedResponse.json();
   assert.equal(claimed.event.event_by, 'app-1');
+  assert.equal(claimed.event.event_kind, 'claim');
+  assert.equal(claimed.result.item.item_id, added.result.item.item_id);
 
   const escalatedResponse = await apiFetch(api, `${path}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'escalate', item: added.result.item.item_id, args: { note: 'Two attempts failed' }, agent: 'app-1' }) });
   assert.equal(escalatedResponse.status, 200);
