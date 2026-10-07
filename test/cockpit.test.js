@@ -784,6 +784,29 @@ async function boardOf(view, root) {
   return (await res.json()).project;
 }
 
+test('no box carries a coloured edge [N26]', async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  build(box, alpha, 1, 'greeting.html');
+  sendBack(box, alpha, 1, 'no greeting yet');
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    const style = page.html.slice(page.html.indexOf('<style>'), page.html.indexOf('</style>'));
+    // Every border drawn on one side of a box is nothing, or a 1px divider in the neutral line colour.
+    const sides = [...style.matchAll(/border-(?:top|bottom|left|right|inline|block)[a-z-]*:\s*([^;}]+)/g)].map((match) => match[0].trim());
+    assert.ok(sides.length > 0);
+    assert.deepEqual(sides.filter((side) => !/^border-(?:top|bottom|left|right): (?:0|1px solid var\(--line\))$/.test(side)), [], 'no coloured or thick bar on one edge');
+    assert.doesNotMatch(style, /box-shadow:[^;}]*inset -?\d+(?:\.\d+)?px 0 0/, 'and no stripe drawn by a shadow');
+
+    await page.click({ go: 'item:1' });
+    assert.match(page.show('detail'), /<div class="verdict no"><b>REJECT BEHAVIOR_MISMATCH<\/b>/, 'a verdict says what it decided');
+    assert.match(style, /\.verdict\.yes b \{ color: var\(--accent-strong\); \} \.verdict\.no b \{ color: var\(--reject\); \}/, 'in the colour of its word, not a bar');
+  } finally {
+    await view.stop();
+  }
+});
 test('a sent-back item shows why first [N26]', async () => {
   const box = machine();
   const p = project(box, 'shop');
