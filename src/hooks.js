@@ -103,14 +103,16 @@ export function commitMsgProblems(raw, { rules, spec }) {
 }
 
 /**
- * Staged paths: every path the commit touches, and the ones it writes. Deletions and both sides of
- * a rename count as touched, so a lane cannot delete or move a file it does not own (L3).
+ * Staged paths: every path the commit touches, and the ones it writes. An optional base lets a
+ * merge check only differences from the merged commit. Deletions and both sides of a rename count
+ * as touched, so a lane cannot delete or move a file it does not own (L3).
  *
  * @param {string} root
+ * @param {string | null} [base]
  * @returns {{ touched: string[], written: string[] }}
  */
-export function stagedPaths(root) {
-  const fields = git(root, ['diff', '--cached', '--name-status', '-z']).split('\0');
+export function stagedPaths(root, base = null) {
+  const fields = git(root, ['diff', '--cached', '--name-status', '-z', ...(base ? [base] : [])]).split('\0');
   const touched = [];
   const written = [];
   let index = 0;
@@ -211,11 +213,27 @@ export function preCommitProblems({ root, isMain, config, agent }) {
     problems.push('this worktree has not joined a lane: pullboard join <lane>');
     return problems;
   }
-  const foreign = outOfLane(config, agent.agent_lane, touched);
+  const mergeBase = mainMergeBase(root);
+  const ownershipTouched = mergeBase ? stagedPaths(root, mergeBase).touched : touched;
+  const foreign = outOfLane(config, agent.agent_lane, ownershipTouched);
   problems.push(
     ...foreign.map((path) => `outside the ${agent.agent_lane} lane: ${path}; shout its owner instead`),
   );
   return problems;
+}
+
+/**
+ * The commit being merged, only when it is already part of main's history.
+ *
+ * @param {string} root
+ * @returns {string | null}
+ */
+function mainMergeBase(root) {
+  const merge = tryGit(root, ['rev-parse', '--verify', 'MERGE_HEAD']);
+  if (merge.status !== 0) return null;
+  return tryGit(root, ['merge-base', '--is-ancestor', merge.stdout, 'refs/heads/main']).status === 0
+    ? merge.stdout
+    : null;
 }
 
 /**
