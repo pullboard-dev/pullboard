@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { request } from 'node:http';
+import { createServer, request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
@@ -735,22 +735,48 @@ test('each row says what it waits on [N26]', async () => {
   }
 });
 /**
- * The lifecycle drawing: each box's state, count and title; each arrow's title, the pair of states
- * its title starts with, and the label drawn with it, if any.
+ * The lifecycle drawing: each box's state, title, count, the moves that keep it and whether it has a
+ * second border; each route's title, the pair of states its title starts with, its class, its
+ * points, and the words drawn with it, if any; and what the box of the first state says came back.
  */
 function drawing(svg) {
   return {
-    boxes: [...svg.matchAll(/<g class="s-([^"]+)"><title>([^<]*)<\/title>[^]*?<text class="n"[^>]*>(\d+)<\/text>/g)].map((match) => ({ state: match[1], title: match[2], count: Number(match[3]) })),
-    arrows: [...svg.matchAll(/<g><title>([^<]*)<\/title><path class="edge[^"]*"[^>]*\/>(?:<text class="tag([^"]*)"[^>]*>([^<]*)<\/text>)?<\/g>/g)].map((match) => ({
+    boxes: [...svg.matchAll(/<g class="s-([^"]+)"><title>([^<]*)<\/title>([^]*?)<\/g>(?=<g class="s-|<\/svg>)/g)].map((match) => ({
+      state: match[1],
+      title: match[2],
+      count: Number(/<text class="n"[^>]*>(\d+)<\/text>/.exec(match[3])[1]),
+      keeps: [...match[3].matchAll(/<text class="keep( idle)?"[^>]*>([^<]*)<\/text>/g)].map((line) => line[2].trim()).join(' ') + (/class="keep idle"/.test(match[3]) ? ' (none yet)' : ''),
+      double: match[3].includes('<rect class="box inner"'),
+    })),
+    routes: [...svg.matchAll(/<g><title>([^<]*)<\/title><path class="edge([^"]*)" d="([^"]*)"[^>]*\/>((?:<text class="tag[^"]*"[^>]*>[^<]*<\/text>)*)<\/g>/g)].map((match) => ({
       title: match[1],
       pair: /^\w+, (\w+) to (\w+),/.exec(match[1]).slice(1).join('>'),
-      label: match[3] === undefined ? null : match[3] + (match[2].includes('idle') ? ' (none yet)' : ''),
+      back: match[2] === ' back',
+      points: [...match[3].matchAll(/([\d.]+) ([\d.]+)/g)].map((point) => [Number(point[1]), Number(point[2])]),
+      label: match[4] ? [...match[4].matchAll(/>([^<]*)<\/text>/g)].map((line) => line[1]).join(' · ') + (match[4].includes(' idle') ? ' (none yet)' : '') : null,
     })),
     sentBack: /<text class="sub"[^>]*>([^<]*)<\/text>/.exec(svg)?.[1],
   };
 }
 
-test('the activity tab draws the lifecycle from the declaration, with live counts [N26]', async () => {
+/**
+ * Where each piece of text in a drawing sits: its words, and a box from a little above its baseline
+ * to a little below, as wide as the widest a font is likely to set it at the size its class gives.
+ */
+function textBoxes(svg) {
+  const sizes = { tag: [12, 0.58], keep: [11, 0.58], sub: [11, 0.58], name: [11, 0.7], n: [22, 0.64] };
+  return [...svg.matchAll(/<text class="([^"]+)" x="([\d.-]+)" y="([\d.-]+)" text-anchor="(start|middle|end)">([^<]*)<\/text>/g)].map(([, cls, x, y, anchor, words]) => {
+    const [size, per] = sizes[cls.split(' ')[0]];
+    const width = words.replace(/&[a-z#0-9]+;/g, '&').length * size * per;
+    const left = anchor === 'start' ? Number(x) : anchor === 'end' ? Number(x) - width : Number(x) - width / 2;
+    return { words, inside: cls !== 'tag' && !cls.startsWith('tag '), left, right: left + width, top: Number(y) - size * 0.8, bottom: Number(y) + size * 0.25 };
+  });
+}
+
+/** Whether two boxes, each with left, right, top and bottom, come within a gap of each other. */
+const meet = (a, b, gap = 0) => a.left - gap < b.right && b.left - gap < a.right && a.top - gap < b.bottom && b.top - gap < a.bottom;
+
+test('the activity tab draws the lifecycle from the declaration, as the README does, with live counts [N26, M1]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
   for (const title of ['Greeting', 'Farewell', 'Header', 'Footer', 'Sidebar', 'Banner', 'Menu', 'Search']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
@@ -758,7 +784,7 @@ test('the activity tab draws the lifecycle from the declaration, with live count
   accept(box, alpha, 1);
   build(box, alpha, 2, 'farewell.html');
   sendBack(box, alpha, 2, 'no farewell');
-  // Withdrawn from claimed twice, from submitted once and from open once, so each arrow has its count.
+  // Withdrawn from claimed twice, from submitted once and from open once, so each route has its count.
   for (const id of ['6', '8']) {
     box.run(alpha.web, 'claim', id);
     box.run(alpha.repo, 'withdraw', id, 'not this release');
@@ -773,7 +799,8 @@ test('the activity tab draws the lifecycle from the declaration, with live count
     const page = await openPage(view);
     assert.doesNotMatch(page.html, /id="metrics"/, 'the drawing replaces the metric cards');
     assert.ok(!page.html.includes('pullboard claim <id>'), 'the declaration is embedded with < escaped');
-    const { boxes, arrows, sentBack } = drawing(page.show('flow'));
+    const svg = page.show('flow');
+    const { boxes, routes, sentBack } = drawing(svg);
 
     const esc = (text) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
     assert.deepEqual(boxes.map((entry) => entry.state), MACHINE.states.map((state) => state.id), 'a box for every declared state');
@@ -781,26 +808,55 @@ test('the activity tab draws the lifecycle from the declaration, with live count
     assert.match(boxes.find((entry) => entry.state === 'verified').title, /Every way in checks:\n {2}the caller&#39;s checkout contains the submitted commit\n {2}the caller did not build it/);
     assert.deepEqual(Object.fromEntries(boxes.map((entry) => [entry.state, entry.count])), { open: 2, claimed: 1, submitted: 0, verified: 1, withdrawn: 4 });
     assert.equal(sentBack, '1 sent back');
+    assert.deepEqual(boxes.filter((entry) => entry.double).map((entry) => entry.state), MACHINE.states.filter((state) => state.final).map((state) => state.id), 'a final state has a double border');
 
-    const pairs = new Set(MACHINE.moves.flatMap((move) => move.from.map((from) => `${from}>${move.to}`)));
-    assert.deepEqual(arrows.map((arrow) => arrow.pair).sort(), [...pairs].sort(), 'one arrow per pair of states a move joins');
+    // The moves that keep a state are written in its box, not drawn as loops.
+    const keeping = MACHINE.states.filter((state) => MACHINE.moves.some((move) => move.to === state.id && move.from.includes(state.id))).map((state) => state.id);
+    assert.deepEqual(Object.fromEntries(boxes.filter((entry) => entry.keeps).map((entry) => [entry.state, entry.keeps])), {
+      open: '↻ escalate · refreeze (none yet)',
+      claimed: '↻ claim 1',
+      submitted: '↻ reserve (none yet)',
+    });
+    assert.deepEqual(boxes.filter((entry) => entry.keeps).map((entry) => entry.state), keeping, 'each state a move keeps');
+
+    const pairs = new Set(MACHINE.moves.flatMap((move) => move.from.filter((from) => from !== move.to).map((from) => `${from}>${move.to}`)));
+    assert.deepEqual(routes.map((route) => route.pair).sort(), [...pairs].sort(), 'one route per pair of states a move joins');
     for (const move of MACHINE.moves) {
-      for (const from of move.from) assert.ok(arrows.find((arrow) => arrow.pair === `${from}>${move.to}`).title.includes(`${move.verb}, ${from} to ${move.to}, by the ${move.by.join(' or ')}: `), `${move.verb} from ${from} is on its arrow`);
+      for (const from of move.from.filter((from) => from !== move.to)) assert.ok(routes.find((route) => route.pair === `${from}>${move.to}`).title.includes(`${move.verb}, ${from} to ${move.to}, by the ${move.by.join(' or ')}: `), `${move.verb} from ${from} is on its route`);
     }
-    assert.ok(arrows.some((arrow) => arrow.title.includes('claim, open to claimed, by the agent or coordinator: pullboard claim &lt;id&gt;. Made 6 times.\nChecks, in order:\n  the caller is the main checkout, or a worktree that joined a lane (NOT_JOINED)\n  the item exists (NO_ITEM)\n  the item is open or claimed (NOT_CLAIMABLE)')), 'each check in order, escaped');
-    // Every arrow carries its own label: the moves made along it and how often, or its moves when none was.
-    assert.deepEqual(Object.fromEntries(arrows.map((arrow) => [arrow.pair, arrow.label])), {
+    assert.ok(routes.some((route) => route.title.includes('claim, open to claimed, by the agent or coordinator: pullboard claim &lt;id&gt;. Made 6 times.\nChecks, in order:\n  the caller is the main checkout, or a worktree that joined a lane (NOT_JOINED)\n  the item exists (NO_ITEM)\n  the item is open or claimed (NOT_CLAIMABLE)')), 'each check in order, escaped');
+    // The moves made along a route and how often, or its moves when none was; the routes into the
+    // state below the row join into one, labelled once with their total.
+    assert.deepEqual(Object.fromEntries(routes.map((route) => [route.pair, route.label])), {
       'open>claimed': 'claim 6',
-      'claimed>claimed': 'claim 1',
       'claimed>open': 'release · lapse · escalate · refreeze (none yet)',
       'claimed>submitted': 'submit 3',
-      'submitted>submitted': 'reserve (none yet)',
       'submitted>verified': 'accept 1',
       'submitted>open': 'reject 1',
-      'open>open': 'escalate · refreeze (none yet)',
-      'open>withdrawn': 'withdraw 1',
-      'claimed>withdrawn': 'withdraw 2',
-      'submitted>withdrawn': 'withdraw 1',
+      'open>withdrawn': 'withdraw 4',
+      'claimed>withdrawn': null,
+      'submitted>withdrawn': null,
+    });
+
+    // Every route is square, and the ones back to an earlier state are dashed, each at its own height.
+    for (const route of routes) {
+      route.points.slice(1).forEach(([x, y], n) => assert.ok(x === route.points[n][0] || y === route.points[n][1], `${route.pair} runs square: ${JSON.stringify(route.points)}`));
+    }
+    const backs = routes.filter((route) => route.back);
+    assert.deepEqual(backs.map((route) => route.pair).sort(), ['claimed>open', 'submitted>open'], 'the routes back are the ones to an earlier state');
+    assert.equal(new Set(backs.map((route) => route.points[1][1])).size, backs.length, 'each at its own height');
+    assert.match(await styleOf(view), /\n\.flow \.edge\.back \{ stroke: var\(--reject\); stroke-dasharray: 5 4; \}/, 'dashed');
+
+    // No word comes within two units of another, a box it is not in, or a route.
+    const texts = textBoxes(svg);
+    const rects = [...svg.matchAll(/<rect class="box" x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"/g)].map(([, x, y, w, h]) => ({ left: Number(x), top: Number(y), right: Number(x) + Number(w), bottom: Number(y) + Number(h) }));
+    const segments = routes.flatMap((route) => route.points.slice(1).map(([x, y], n) => ({ left: Math.min(x, route.points[n][0]), right: Math.max(x, route.points[n][0]) + 0.01, top: Math.min(y, route.points[n][1]), bottom: Math.max(y, route.points[n][1]) + 0.01 })));
+    texts.forEach((one, n) => {
+      for (const other of texts.slice(n + 1)) assert.ok(!meet(one, other, 2), `"${one.words}" and "${other.words}" overlap`);
+      const home = rects.filter((rect) => meet(one, rect, one.inside ? 0 : 2));
+      assert.deepEqual(home.length, one.inside ? 1 : 0, `"${one.words}" sits ${one.inside ? 'in its box' : 'clear of every box'}`);
+      if (one.inside) assert.ok(one.left >= home[0].left && one.right <= home[0].right && one.top >= home[0].top && one.bottom <= home[0].bottom, `"${one.words}" fits inside its box`);
+      for (const segment of segments) assert.ok(!meet(one, segment, 2), `"${one.words}" is clear of every route`);
     });
 
     // The clock's lapse is never logged: an item that reads open after its claim, and a claim logged
@@ -812,6 +868,54 @@ test('the activity tab draws the lifecycle from the declaration, with live count
     assert.deepEqual(counts, [['open>claimed:claim', 3], ['claimed>open:lapse', 2], ['claimed>claimed:claim', 1]]);
   } finally {
     await view.stop();
+  }
+});
+test('a closed lifecycle stays closed, across a reload and a restart of the view [N26]', async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  const first = await startView(box);
+  const store = storage();
+  let port;
+  try {
+    port = first.link.port;
+    const page = await openPage(first, { store });
+    await page.click({ tab: 'activity' });
+    assert.match(page.show('flow'), /^<svg /, 'the figure shows at first');
+    assert.deepEqual([page.element('flow-panel').hidden, page.element('flow-show').hidden], [false, true]);
+    await page.fire('flow-hide', 'click');
+    assert.deepEqual([page.element('flow-panel').hidden, page.element('flow-show').hidden], [true, false], 'closed, with a way to show it again');
+
+    const reloaded = await openPage(first, { store });
+    assert.deepEqual([reloaded.element('flow-panel').hidden, reloaded.element('flow-show').hidden], [true, false], 'a reload keeps it closed');
+    assert.equal(reloaded.element('flow').writes, 0, 'and a closed figure is not drawn');
+  } finally {
+    await first.stop();
+  }
+  // The browser keeps the choice per address, so the view comes back on the port it last used.
+  const second = await startView(box);
+  try {
+    assert.equal(second.link.port, port, 'a restarted view serves from the same port, where the browser kept the choice');
+    const page = await openPage(second, { store });
+    assert.equal(page.element('flow-panel').hidden, true, 'still closed');
+    await page.fire('flow-show', 'click');
+    assert.deepEqual([page.element('flow-panel').hidden, page.element('flow-show').hidden], [false, true], 'shown again on request');
+    assert.match(page.show('flow'), /^<svg /, 'and drawn');
+    assert.equal(store.getItem('pb.flow'), 'shown');
+  } finally {
+    await second.stop();
+  }
+  // With its last port taken, the view takes any free one rather than failing.
+  const taken = await new Promise((done) => { const server = createServer(); server.listen(Number(port), '127.0.0.1', () => done(server)); });
+  try {
+    const third = await startView(box);
+    try {
+      assert.notEqual(third.link.port, port, 'a busy port is passed over');
+    } finally {
+      await third.stop();
+    }
+  } finally {
+    await new Promise((done) => taken.close(done));
   }
 });
 test('ages stay true while the board is quiet [N26]', async () => {

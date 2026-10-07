@@ -111,7 +111,8 @@ export function cockpitPage(key = '') {
     <aside class="card-panel detail" aria-label="Practice row"><div id="doctrine-detail"></div></aside>
   </section>
   <section data-pane="activity">
-    <figure class="card-panel flow"><div id="flow"></div><figcaption>The lifecycle every item follows, as pullboard declares it. Boxes count the items in each state now, arrows the moves made so far; hover over one for what it means and checks.</figcaption></figure>
+    <figure class="card-panel flow" id="flow-panel"><button class="flow-hide" id="flow-hide" type="button" title="Hide the lifecycle" aria-label="Hide the lifecycle">×</button><div id="flow"></div><figcaption>The lifecycle every item follows, as pullboard declares it. Boxes count the items in each state now, labels the moves made along each route, and ↻ the moves that keep an item where it is; hover over one for what it means and checks.</figcaption></figure>
+    <button class="ghost flow-show" id="flow-show" type="button" hidden>Show the lifecycle</button>
     <div class="card-panel feed" id="activity"></div>
   </section>
 </main>
@@ -248,11 +249,14 @@ function timeline(item) {
 }
 
 /**
- * The lifecycle drawn as SVG with this board's counts. The longest way from the start to a final
- * state runs along a row, the first-declared final winning a tie, and any other state sits below,
- * under the states that lead to it. One arrow joins each pair of states some move joins: forward
- * along the row, arcing above it back to an earlier state, down to a state below, or looping at the
- * corner of a box it stays in. Boxes count the items there now; arrows count the moves made along them.
+ * The lifecycle drawn as SVG with this board's counts, the way the README's figure draws it. The
+ * longest way from the start to a final state runs along a row, the first-declared final winning a
+ * tie, its states joined by straight arrows. A pair of states a move leads back along takes a dashed
+ * square route above the row, the further back the higher. The moves that keep a state are written
+ * in its box after a ↻. A state off the row sits below the last state on the row that leads to it,
+ * and the routes into it join into one, labelled once. Final states have a double border. Boxes
+ * count the items there now; labels count the moves made along each route, or name its moves when
+ * none was. Words are wrapped and placed by a generous estimate of their width, so none overlaps.
  */
 function flowSvg(p) {
   const counts = moveCounts(p.items);
@@ -268,14 +272,7 @@ function flowSvg(p) {
     for (const next of new Set(leads(at))) if (!trail.includes(next)) walk([...trail, next]);
   };
   walk([FLOW.initial]);
-  const W = 800, L = 44, BW = 116, BH = 56, Y = 136;
-  const step = (W - 2 * L - BW) / Math.max(row.length - 1, 1);
-  const pos = new Map(row.map((s, i) => [s, { x: L + BW / 2 + i * step, y: Y }]));
-  for (const s of FLOW.states.filter((s) => !pos.has(s.id))) {
-    const from = row.filter((r) => leads(r).includes(s.id));
-    pos.set(s.id, { x: from.length ? from.reduce((n, r) => n + pos.get(r).x, 0) / from.length : W / 2, y: Y + 150 });
-  }
-  const H = Math.max(...[...pos.values()].map((q) => q.y)) + BH / 2 + 20;
+  const W = 880, L = 20, BW = 160, step = (W - 2 * L - BW) / Math.max(row.length - 1, 1);
   const f = (v) => String(Math.round(v * 10) / 10);
   const col = (s) => row.indexOf(s);
   const pairs = [];
@@ -286,48 +283,112 @@ function flowSvg(p) {
   }
   const made = (pair, m) => counts.get(pair.from + '>' + pair.to + ':' + m.verb) || 0;
   const says = (pair) => pair.moves.map((m) => m.verb + ', ' + pair.from + ' to ' + pair.to + ', by the ' + m.by.join(' or ') + ': ' + m.how + '. Made ' + count(made(pair, m), 'time', 'times') + (m.checks.length ? '.\\nChecks, in order:\\n' + m.checks.map((c) => '  ' + c).join('\\n') : '.')).join('\\n\\n');
-  const text = (x, y, words, cls, anchor = 'middle') => '<text class="' + cls + '" x="' + f(x) + '" y="' + f(y) + '" text-anchor="' + anchor + '">' + esc(words) + '</text>';
-  const arrows = pairs.map((pair) => {
-    const a = pos.get(pair.from), b = pos.get(pair.to);
-    const done = pair.moves.filter((m) => made(pair, m));
-    const words = (done.length ? done.map((m) => m.verb + ' ' + made(pair, m)) : pair.moves.map((m) => m.verb)).join(' · ');
-    const tone = pair.moves.some((m) => m.verb === 'reject') ? ' no' : '';
-    const cls = 'tag' + (done.length ? '' : ' idle') + tone;
-    let d, label = '';
-    if (pair.from === pair.to) {
-      // A move that stays: a loop out of the box's bottom edge and back into its left side.
-      const sx = a.x - BW / 2 + 26, sy = a.y + BH / 2, ex = a.x - BW / 2, ey = a.y + BH / 2 - 16;
-      d = 'M' + f(sx) + ' ' + f(sy) + 'C' + f(sx) + ' ' + f(sy + 28) + ' ' + f(ex - 28) + ' ' + f(ey) + ' ' + f(ex) + ' ' + f(ey);
-      label = text(a.x - BW / 2 - 18, a.y + BH / 2 + 34, words, cls, 'start');
-    } else if (col(pair.from) >= 0 && col(pair.to) > col(pair.from)) {
-      d = 'M' + f(a.x + BW / 2) + ' ' + f(a.y) + 'L' + f(b.x - BW / 2) + ' ' + f(b.y);
-      label = text((a.x + b.x) / 2, a.y - 9, words, cls);
-    } else if (col(pair.from) >= 0 && col(pair.to) >= 0) {
-      // Back along the row: an arc above it, higher the further back it goes.
-      const span = col(pair.from) - col(pair.to), sx = a.x - 16 * span, ex = b.x + 16 * span, top = a.y - BH / 2, cy = top - 36 * span - 8;
-      d = 'M' + f(sx) + ' ' + f(top) + 'C' + f(sx) + ' ' + f(cy) + ' ' + f(ex) + ' ' + f(cy) + ' ' + f(ex) + ' ' + f(top);
-      label = text((sx + ex) / 2, (top + 3 * cy) / 4 - 7, words, cls);
-    } else {
-      // Down to a state off the row: the arrows spread across its top, each labelled along its way,
-      // on the side away from the others.
-      const sy = a.y + BH / 2, ex = b.x + (a.x - b.x) * 0.3, ey = b.y - BH / 2;
-      d = 'M' + f(a.x) + ' ' + f(sy) + 'L' + f(ex) + ' ' + f(ey);
-      const lx = a.x + (ex - a.x) * 0.6, ly = sy + (ey - sy) * 0.6 + 4;
-      // A straight drop, its ends equal but for rounding, keeps its label on the right.
-      label = a.x < b.x - 0.5 ? text(lx - 6, ly, words, cls, 'end') : text(lx + 6, ly, words, cls, 'start');
+  // What some pairs' moves come to: each verb with how often it was made, or every verb when none was.
+  const told = (list) => {
+    const sums = new Map();
+    for (const pair of list) for (const m of pair.moves) sums.set(m.verb, (sums.get(m.verb) || 0) + made(pair, m));
+    const done = [...sums].filter(([, n]) => n);
+    return { words: done.length ? done.map(([verb, n]) => verb + ' ' + n) : [...sums.keys()], idle: !done.length };
+  };
+  // A generous width for words at a size, and words joined by dots into the fewest even lines that
+  // fit a room, as the README's figure splits them.
+  const wide = (words, size) => words.length * size * 0.56;
+  const wrap = (words, room, size) => {
+    for (let n = 1; ; n += 1) {
+      const per = Math.ceil(words.length / n), lines = [];
+      for (let i = 0; i < words.length; i += per) lines.push(words.slice(i, i + per).join(' · '));
+      if (per === 1 || lines.every((line) => wide(line, size) <= room)) return lines;
     }
-    return '<g><title>' + esc(says(pair)) + '</title><path class="edge' + tone + '" d="' + d + '" marker-end="url(#pb-head' + (tone ? '-no' : '') + ')"/>' + label + '</g>';
-  });
+  };
+  const text = (x, y, words, cls, anchor = 'middle') => '<text class="' + cls + '" x="' + f(x) + '" y="' + f(y) + '" text-anchor="' + anchor + '">' + esc(words) + '</text>';
+  const lines = (x, y, said, cls, anchor) => said.map((line, i) => text(x, y - 15 * (said.length - 1 - i), line, cls, anchor)).join('');
+  const path = (points) => 'M' + points.map(([x, y]) => f(x) + ' ' + f(y)).join('L');
+
+  // Inside each box: its name and count, then the moves that keep it, then any items sent back.
   const back = p.items.filter((i) => stateOf(i) === 'back').length;
+  const inside = new Map(FLOW.states.map((s) => {
+    const keeps = pairs.find((pair) => pair.from === s.id && pair.to === s.id);
+    const said = keeps ? told([keeps]) : null;
+    const kept = said ? wrap(said.words, BW - 28 - wide('↻ ', 11), 11).map((line, i) => (i ? '  ' : '↻ ') + line) : [];
+    return [s.id, { keeps, said, kept, back: s.id === FLOW.initial && back ? back + ' sent back' : '' }];
+  }));
+  const BH = 44 + 15 * Math.max(1, ...[...inside.values()].map((box) => box.kept.length + (box.back ? 1 : 0)));
+
+  // Routes back along the row, each at a level by how far back it goes; their words above them.
+  const ups = pairs.filter((pair) => pair.from !== pair.to && col(pair.from) >= 0 && col(pair.to) >= 0 && col(pair.to) !== col(pair.from) + 1)
+    .map((pair) => ({ pair, span: Math.abs(col(pair.from) - col(pair.to)) })).sort((a, b) => a.span - b.span);
+  const spans = [...new Set(ups.map((up) => up.span))];
+  for (const up of ups) {
+    up.level = spans.indexOf(up.span);
+    const a = L + BW / 2 + col(up.pair.from) * step, b = L + BW / 2 + col(up.pair.to) * step;
+    const before = (key, value) => ups.filter((other) => other !== up && other.pair[key] === value && other.span < up.span).length;
+    up.start = a + (a > b ? 16 : -16) + (a > b ? 26 : -26) * before('from', up.pair.from);
+    up.end = b + (a > b ? BW / 2 - 40 : 40 - BW / 2) + (a > b ? -30 : 30) * before('to', up.pair.to);
+    up.said = told([up.pair]);
+    up.lines = wrap(up.said.words, Math.abs(up.start - up.end) - 20, 12);
+  }
+  // Each level stands clear of the words of the level below it.
+  const rise = [];
+  for (const level of spans.keys()) {
+    const below = ups.filter((up) => up.level === level - 1);
+    rise[level] = level ? rise[level - 1] + 18 + 15 * Math.max(...below.map((up) => up.lines.length)) : 30;
+  }
+  const highest = ups.length ? Math.max(...ups.map((up) => rise[up.level] + 21 + 15 * (up.lines.length - 1))) : 0;
+  const top = 12 + highest, Y = top + BH / 2, bottom = top + BH;
+  const pos = new Map(row.map((s, i) => [s, { x: L + BW / 2 + i * step, y: Y }]));
+
+  // A state off the row sits below the last state on it that leads there.
+  const below = FLOW.states.filter((s) => !pos.has(s.id));
+  for (const s of below) {
+    const from = row.filter((r) => leads(r).includes(s.id));
+    pos.set(s.id, { x: from.length ? pos.get(from[from.length - 1]).x : W / 2, y: bottom + 80 + BH / 2 });
+  }
+  const H = (below.length ? bottom + 80 + BH : bottom) + 14;
+
+  const group = (pairList, route, label) => pairList.map((pair, n) => '<g><title>' + esc(says(pair)) + '</title><path class="edge' + (route.back ? ' back' : '') + '" d="' + route.d + '" marker-end="url(#pb-head' + (route.back ? '-back' : '') + ')"/>' + (n === 0 ? label : '') + '</g>').join('');
+  const tone = (said, extra = '') => 'tag' + (said.idle ? ' idle' : '') + extra;
+  const routes = [];
+  // Straight along the row.
+  for (const pair of pairs.filter((pair) => col(pair.from) >= 0 && col(pair.to) === col(pair.from) + 1)) {
+    const a = pos.get(pair.from), b = pos.get(pair.to), said = told([pair]);
+    routes.push(group([pair], { d: path([[a.x + BW / 2, Y], [b.x - BW / 2 - 1, Y]]) }, text((a.x + b.x) / 2, Y - 8, said.words.join(' · '), tone(said))));
+  }
+  // Square, above the row.
+  for (const up of ups) {
+    const isBack = col(up.pair.to) < col(up.pair.from), y = top - rise[up.level];
+    routes.push(group([up.pair], { back: isBack, d: path([[up.start, top], [up.start, y], [up.end, y], [up.end, top - 1]]) }, lines((up.start + up.end) / 2, y - 7, up.lines, tone(up.said, isBack ? ' back' : ''))));
+  }
+  // Down from the row, joining into one route per state below, labelled once on the way in.
+  for (const s of below) {
+    const t = pos.get(s.id), into = pairs.filter((pair) => pair.to === s.id && pos.has(pair.from) && pair.from !== s.id);
+    const said = told(into), tTop = t.y - BH / 2;
+    const xs = into.map((pair) => pos.get(pair.from).x).sort((a, b) => a - b);
+    const left = xs.filter((x) => x < t.x - 0.5), right = xs.filter((x) => x > t.x + 0.5);
+    const label = left.length
+      ? lines((left[0] + (left[1] ?? t.x - BW / 2)) / 2, t.y - 8, wrap(said.words, (left[1] ?? t.x - BW / 2) - left[0] - 20, 12), tone(said))
+      : right.length
+        ? lines((right[right.length - 1] + (right[right.length - 2] ?? t.x + BW / 2)) / 2, t.y - 8, wrap(said.words, right[right.length - 1] - (right[right.length - 2] ?? t.x + BW / 2) - 20, 12), tone(said))
+        : lines(t.x + 10, (bottom + tTop) / 2 + 4, said.words, tone(said), 'start');
+    // The label goes with the route that reaches furthest, drawn first; the others join it.
+    const order = [...into].sort((p1, p2) => Math.abs(pos.get(p2.from).x - t.x) - Math.abs(pos.get(p1.from).x - t.x));
+    order.forEach((pair, n) => {
+      const a = pos.get(pair.from);
+      const d = Math.abs(a.x - t.x) < 0.5 ? path([[a.x, bottom], [t.x, tTop - 1]]) : path([[a.x, bottom], [a.x, t.y], [a.x < t.x ? t.x - BW / 2 - 1 : t.x + BW / 2 + 1, t.y]]);
+      routes.push(group([pair], { d }, n === 0 ? label : ''));
+    });
+  }
+
   const boxes = FLOW.states.map((s) => {
-    const { x, y } = pos.get(s.id);
+    const { x, y } = pos.get(s.id), box = inside.get(s.id), left = x - BW / 2, boxTop = y - BH / 2;
     const tip = s.id + ': ' + s.means + (s.entry.length ? '.\\nEvery way in checks:\\n' + s.entry.map((r) => '  ' + r).join('\\n') : '.');
-    return '<g class="s-' + esc(s.id) + '"><title>' + esc(tip) + '</title><rect class="box" x="' + f(x - BW / 2) + '" y="' + f(y - BH / 2) + '" width="' + BW + '" height="' + BH + '" rx="10"/>'
-      + text(x - BW / 2 + 12, y - 9, s.id, 'name', 'start') + text(x - BW / 2 + 12, y + 18, String(p.items.filter((i) => i.status === s.id).length), 'n', 'start')
-      + (s.id === FLOW.initial && back ? text(x + BW / 2 - 10, y + 17, back + ' sent back', 'sub', 'end') : '') + '</g>';
+    const keeps = box.kept.length ? '<g><title>' + esc(says(box.keeps)) + '</title>' + box.kept.map((line, i) => text(left + 14, boxTop + 47 + 15 * i, line, 'keep' + (box.said.idle ? ' idle' : ''), 'start')).join('') + '</g>' : '';
+    return '<g class="s-' + esc(s.id) + '"><title>' + esc(tip) + '</title><rect class="box" x="' + f(left) + '" y="' + f(boxTop) + '" width="' + BW + '" height="' + BH + '" rx="10"/>'
+      + (s.final ? '<rect class="box inner" x="' + f(left + 4) + '" y="' + f(boxTop + 4) + '" width="' + (BW - 8) + '" height="' + (BH - 8) + '" rx="7"/>' : '')
+      + text(left + 14, boxTop + 25, s.id, 'name', 'start') + text(x + BW / 2 - 14, boxTop + 29, String(p.items.filter((i) => i.status === s.id).length), 'n', 'end')
+      + keeps + (box.back ? text(left + 14, boxTop + 47 + 15 * box.kept.length, box.back, 'sub', 'start') : '') + '</g>';
   });
   const head = (id, cls) => '<marker id="' + id + '" class="' + cls + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker>';
-  return '<svg viewBox="0 0 ' + W + ' ' + f(H) + '" role="img" aria-label="The item lifecycle, with counts from this board"><defs>' + head('pb-head', '') + head('pb-head-no', 'no') + '</defs>' + arrows.join('') + boxes.join('') + '</svg>';
+  return '<svg viewBox="0 0 ' + W + ' ' + f(H) + '" role="img" aria-label="The item lifecycle, with counts from this board"><defs>' + head('pb-head', '') + head('pb-head-back', 'back') + '</defs>' + routes.join('') + boxes.join('') + '</svg>';
 }
 
 async function api(path, body) {
@@ -530,9 +591,21 @@ function render() {
     $(kind + '-detail').innerHTML = row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + esc(row.text) + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(row.status) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + '</div><dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<button data-go="item:' + i.id + '" type="button">#' + i.id + ' ' + esc(i.title) + '</button>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div><div class="muted">Rows change in ' + (kind === 'spec' ? 'SPEC.md' : 'PRACTICE.md') + ', and only you approve them.</div></div>' : '<div class="empty">Pick a row to see it, and the items that cite it.</div>';
   }
 
-  $('flow').innerHTML = flowSvg(p);
+  if (keep('pb.flow') !== 'hidden') $('flow').innerHTML = flowSvg(p);
   $('activity').innerHTML = p.events.length ? byDay(p.events, (e) => e.event_at, (e) => '<div><time>' + clock(e.event_at) + '</time><div class="act"><b>' + esc(e.event_by) + '</b> ' + esc(e.event_kind) + (e.item_id ? ' <button class="ref" data-go="item:' + e.item_id + '" type="button">#' + e.item_id + '</button>' + (titles.has(String(e.item_id)) ? ' <span class="what">' + esc(titles.get(String(e.item_id))) + '</span>' : '') : '') + '</div></div>') : '<div class="empty">No activity yet.</div>';
   showTab();
+}
+
+/**
+ * Show or hide the lifecycle on Activity, and keep the choice: a person who closed it has learned
+ * it, so it stays closed across reloads, and across restarts of the view, which serves from the
+ * same address again, until they open it. While hidden it is not drawn.
+ */
+function showFlow(shown) {
+  keep('pb.flow', shown ? 'shown' : 'hidden');
+  $('flow-panel').hidden = !shown;
+  $('flow-show').hidden = shown;
+  if (shown && data && data.project) $('flow').innerHTML = flowSvg(data.project);
 }
 
 function showTab() {
@@ -719,6 +792,10 @@ document.addEventListener('click', (event) => {
 $('new-item').addEventListener('click', () => { view.adding = true; render(); $('add-title').focus(); });
 $('add-cancel').addEventListener('click', () => { view.adding = false; render(); });
 $('answer-cancel').addEventListener('click', () => answer(null));
+$('flow-hide').addEventListener('click', () => showFlow(false));
+$('flow-show').addEventListener('click', () => showFlow(true));
+$('flow-panel').hidden = keep('pb.flow') === 'hidden';
+$('flow-show').hidden = !$('flow-panel').hidden;
 // Each press moves on one, from the system's theme to light, then dark, and back; this browser keeps it.
 $('theme').addEventListener('click', () => {
   const next = { light: 'dark', dark: 'system' }[document.documentElement.dataset.theme] || 'light';
