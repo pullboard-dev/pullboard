@@ -61,6 +61,7 @@ function sandbox() {
     GIT_COMMITTER_NAME: 'API Test',
     GIT_COMMITTER_EMAIL: 'api@example.invalid',
     PULLBOARD_HOME: join(dir, 'home'),
+    PULLBOARD_MACHINE_HOME: join(dir, 'home'),
   };
   const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
   const run = (cwd, ...args) => spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });

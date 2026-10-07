@@ -53,7 +53,7 @@ function fixture() {
     const result = spawnSync('git', ['init', '-q', repo], { encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
   }
-  return { dir, home, first, second, env: { ...process.env, PULLBOARD_HOME: home } };
+  return { dir, home, first, second, env: { ...process.env, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: home } };
 }
 
 /** Create the previous private queue schema so simultaneous openers exercise its migration. */
@@ -92,11 +92,15 @@ function expireHeartbeat(box, table, agent) {
 /** Read a private machine database without changing the process environment for other fixtures. */
 function privateList(box, scope = 'machine', root = process.cwd()) {
   const previous = process.env.PULLBOARD_HOME;
+  const previousMachineHome = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_HOME = box.home;
+  process.env.PULLBOARD_MACHINE_HOME = box.home;
   try { return listResources({ scope, root }); }
   finally {
     if (previous === undefined) delete process.env.PULLBOARD_HOME;
     else process.env.PULLBOARD_HOME = previous;
+    if (previousMachineHome === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
+    else process.env.PULLBOARD_MACHINE_HOME = previousMachineHome;
   }
 }
 
@@ -443,7 +447,9 @@ test('[Q2,Q3] a SIGKILLed waiter is skipped while the next live waiter advances'
 test('[Q4] machine capacity changes atomically refuse an occupied or queued resource', async () => {
   const box = fixture();
   const oldHome = process.env.PULLBOARD_HOME;
+  const oldMachineHome = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_HOME = box.home;
+  process.env.PULLBOARD_MACHINE_HOME = box.home;
   const holder = worker(box, { agent: 'capacity-holder' });
   try {
     assert.equal((await event(holder)).acquired, 'capacity-holder');
@@ -467,6 +473,8 @@ test('[Q4] machine capacity changes atomically refuse an occupied or queued reso
     if (!holder.exitResult) await release(holder);
     if (oldHome === undefined) delete process.env.PULLBOARD_HOME;
     else process.env.PULLBOARD_HOME = oldHome;
+    if (oldMachineHome === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
+    else process.env.PULLBOARD_MACHINE_HOME = oldMachineHome;
   }
 });
 

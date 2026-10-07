@@ -1002,6 +1002,7 @@ test('next --verify reserves the review for the reviewLease and says until when;
       GIT_COMMITTER_NAME: 'Test Agent',
       GIT_COMMITTER_EMAIL: 'agent@example.com',
       PULLBOARD_HOME: join(dir, 'home'),
+      PULLBOARD_MACHINE_HOME: join(dir, 'home'),
     };
     const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
     // A command that never returns fails the test after a minute instead of holding the gate open.

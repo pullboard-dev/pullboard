@@ -36,6 +36,7 @@ function repoWithGate(gate) {
     GIT_COMMITTER_NAME: 'Test Agent',
     GIT_COMMITTER_EMAIL: 'agent@example.com',
     PULLBOARD_HOME: join(dir, 'home'),
+    PULLBOARD_MACHINE_HOME: join(dir, 'home'),
   };
   const git = (...args) => execFileSync('git', args, { cwd: repo, env, encoding: 'utf8', stdio: 'pipe' }).trim();
   const run = (...args) => spawnSync(process.execPath, [BIN, ...args], { cwd: repo, env, encoding: 'utf8', timeout: 60_000 });

@@ -8,7 +8,7 @@ Decision shouts without a recipient go to the agent's coordinator, or to `person
 
 A successful command returns the fields listed below. `version` is always the number `1`. The catalog lists required top-level fields; nested objects and arrays are command data, and optional top-level fields may be added.
 
-`pullboard settings` reads machine-wide settings from `~/.pullboard/settings.json`; `pullboard settings gateSlots <n>` changes the gate queue capacity, which defaults to `2`. Capacity changes are refused while a gate is running or waiting, so existing holders and FIFO order remain intact.
+`pullboard settings` reads machine-wide settings from the OS account's `~/.pullboard/settings.json`; the gate queue database is beside it. This location does not follow `HOME` or `PULLBOARD_HOME`, so agents with private board homes still share one machine gate limit. Set `PULLBOARD_MACHINE_HOME` to an explicit directory only when a separate private machine settings and gate pool is intended; tests use this override. `pullboard settings gateSlots <n>` changes the gate queue capacity, which defaults to `2`. Capacity changes are refused while a gate is running or waiting, so existing holders and FIFO order remain intact.
 
 <!-- api-command-shapes:start -->
 | Command | Required top-level fields |

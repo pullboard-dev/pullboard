@@ -126,6 +126,7 @@ test('a grammar-1 repair can commit after grammar 2 was already recorded [A5,S8]
     GIT_COMMITTER_NAME: 'Test Agent',
     GIT_COMMITTER_EMAIL: 'agent@example.com',
     PULLBOARD_HOME: join(root, '.home'),
+    PULLBOARD_MACHINE_HOME: join(root, '.home'),
   };
   const git = (...args) => execFileSync('git', args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' });
   const command = (...args) => spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args], { cwd: root, env, encoding: 'utf8' });
@@ -282,6 +283,7 @@ function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md', practi
     GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com',
     GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com',
     PULLBOARD_HOME: join(root, '.home'),
+    PULLBOARD_MACHINE_HOME: join(root, '.home'),
   };
   const git = (...args) => execFileSync('git', args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' });
   const command = (...args) => spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args], { cwd: root, env, encoding: 'utf8' });
