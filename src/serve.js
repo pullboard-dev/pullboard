@@ -136,7 +136,7 @@ export function projectState(root) {
 export function actionArgs(command, args = {}) {
   const text = (value) => String(value ?? '').trim();
   if (command === 'add') {
-    return ['add', text(args.lane), text(args.title), ...(text(args.criterion) ? ['--criterion', text(args.criterion)] : []), ...(text(args.specs) ? ['--specs', text(args.specs)] : [])];
+    return ['add', text(args.lane), text(args.title), ...(text(args.criterion) ? ['--criterion', text(args.criterion)] : []), ...(text(args.specs) ? ['--specs', text(args.specs)] : []), ...(text(args.brief) ? ['--brief', text(args.brief)] : [])];
   }
   if (command === 'shout') return ['shout', text(args.to), text(args.text)];
   if (command === 'hold') return ['hold', text(args.lane), '--reason', text(args.reason)];

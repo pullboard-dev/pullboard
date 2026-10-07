@@ -123,7 +123,7 @@ main { padding: 16px 18px 28px; }
 .card-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); min-width: 0; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; }
 .toolbar input { flex: 1 1 200px; }
-input, select { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 8px; padding: 7px 9px; min-width: 0; }
+input, select, textarea { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 8px; padding: 7px 9px; min-width: 0; }
 .go { border: 0; background: var(--ink); color: var(--surface); border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 600; white-space: nowrap; }
 .go:hover { background: var(--accent-strong); color: var(--on-accent); }
 .ghost { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
@@ -186,7 +186,8 @@ input, select { border: 1px solid var(--line-strong); background: var(--surface)
 
 .panel-form { display: grid; gap: 10px; }
 .panel-form label, .inline label { display: grid; gap: 4px; font-size: 12px; color: var(--ink-muted); }
-.panel-form input, .panel-form select, .inline input, .inline select { width: 100%; }
+.panel-form input, .panel-form select, .panel-form textarea, .inline input, .inline select { width: 100%; }
+.panel-form textarea { resize: vertical; }
 .actions { display: flex; gap: 8px; } .actions .go { flex: 1; }
 .inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; padding: 10px; }
 .inline label { flex: 1 1 150px; min-width: 0; }
@@ -274,6 +275,7 @@ input, select { border: 1px solid var(--line-strong); background: var(--surface)
         <label>Title<input id="add-title" required placeholder="What to build"></label>
         <label>Criterion<input id="add-criterion" placeholder="How a verifier knows it is done"></label>
         <label>Spec rows<input id="add-specs" placeholder="G1,G2"></label>
+        <label>Brief<textarea id="add-brief" rows="4" placeholder="How to build it: the files, the change, the test"></textarea></label>
         <div class="actions"><button class="go" type="submit">Add item</button><button class="ghost" id="add-cancel" type="button">Cancel</button></div>
       </form>
     </aside>
@@ -736,10 +738,11 @@ $('q').addEventListener('input', search);
 $('lane-filter').addEventListener('change', () => render());
 $('add-form').addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (await act('add', { lane: $('add-lane').value, title: $('add-title').value, criterion: $('add-criterion').value, specs: $('add-specs').value })) {
+  if (await act('add', { lane: $('add-lane').value, title: $('add-title').value, criterion: $('add-criterion').value, specs: $('add-specs').value, brief: $('add-brief').value })) {
     $('add-title').value = '';
     $('add-criterion').value = '';
     $('add-specs').value = '';
+    $('add-brief').value = '';
   }
 });
 $('shout-form').addEventListener('submit', async (event) => {
