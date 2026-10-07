@@ -141,6 +141,7 @@ input, select, textarea { border: 1px solid var(--line-strong); background: var(
 .ny code { font: 600 12px var(--mono); }
 .ny span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); }
 .ny em { font-style: normal; color: var(--warn); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (width < 480px) { .ny { grid-template-columns: auto minmax(0, 1fr); row-gap: 1px; } .ny em { grid-column: 2; } }
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 2px; }
 .chips button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 9px; cursor: pointer; font-size: 13px; }
