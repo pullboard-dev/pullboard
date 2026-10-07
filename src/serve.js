@@ -9,7 +9,6 @@
  */
 import { spawn } from 'node:child_process';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { existsSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -147,7 +146,6 @@ export function actionArgs(command, args = {}) {
   if (command === 'shout') return ['shout', text(args.to), text(args.text)];
   if (command === 'hold') return ['hold', text(args.lane), '--reason', text(args.reason)];
   if (command === 'release') return ['hold', text(args.lane), '--off'];
-  if (command === 'init') return ['init'];
   return null;
 }
 
@@ -223,11 +221,9 @@ export function serveView({ port = 0, secret = randomBytes(18).toString('base64u
         const { root, command, args } = JSON.parse(raw || '{}');
         const argv = actionArgs(command, args);
         if (!argv) return json(res, 400, { error: `no action "${command}"` });
-        const cwd = command === 'init' ? String(args?.path ?? '').trim() : root;
-        if (command === 'init' ? !(cwd && existsSync(cwd) && statSync(cwd).isDirectory()) : !listProjects().some((project) => project.root === root)) {
-          return json(res, 400, { error: command === 'init' ? `no folder ${cwd}` : 'not a project on this machine' });
-        }
-        return json(res, 200, { command: `pullboard ${argv.join(' ')}`, ...(await runCli(cwd, argv)) });
+        // An action runs only inside a project this machine already knows; agents start boards.
+        if (!listProjects().some((project) => project.root === root)) return json(res, 400, { error: 'not a project on this machine' });
+        return json(res, 200, { command: `pullboard ${argv.join(' ')}`, ...(await runCli(root, argv)) });
       }
       return json(res, 404, { error: 'no such page' });
     } catch (error) {
