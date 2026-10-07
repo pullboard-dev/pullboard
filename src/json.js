@@ -50,6 +50,7 @@ export const JSON_SHAPES = {
     tour: shape({ messages: 'array' }),
     lifecycle: shape({ markdown: 'string' }),
     view: shape({ url: 'string', port: 'number' }),
+    'view export': shape({ path: 'string' }),
     serve: shape({ url: 'string', port: 'number' }),
     forget: shape({ root: 'string' }),
     prompt: shape({ role: 'string', text: 'string' }),

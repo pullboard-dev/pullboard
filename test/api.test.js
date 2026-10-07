@@ -462,6 +462,31 @@ test('[A1] long-running servers flush one JSON document before shutdown', async 
     assert.deepEqual(parseOneDocument(stdout), document, `${command} does not flush a second document on shutdown`);
   }
 });
+test('[A1,A10] view exports a static folder through its JSON variant', () => {
+  const box = project();
+  const item = json(box, box.repo, 'add', ['app', 'Snapshot item', '--specs', 'G1']).item;
+  const output = join(box.dir, 'snapshot folder');
+  const result = json(box, box.repo, 'view', ['--export', output], 'export');
+  assert.equal(result.path, output);
+  assert.equal(result.url, undefined);
+  assert.equal(result.port, undefined);
+  assert.ok(existsSync(join(output, 'index.html')));
+  assert.ok(existsSync(join(output, 'view.css')));
+  const listing = JSON.parse(readFileSync(join(output, 'api/v1/boards.json'), 'utf8'));
+  assert.equal(listing.version, 1);
+  assert.equal(listing.boards.length, 1);
+  const id = listing.boards[0].id;
+  const state = JSON.parse(readFileSync(join(output, 'api/v1/boards', id, 'state.json'), 'utf8'));
+  const events = JSON.parse(readFileSync(join(output, 'api/v1/boards', id, 'events.json'), 'utf8'));
+  assert.equal(state.version, 1);
+  assert.equal(state.state.board, id);
+  assert.equal(state.state.root, box.repo);
+  assert.equal(state.state.items[0].id, item.item_id);
+  assert.equal(events.version, 1);
+  assert.ok(events.events.some((event) => event.event_kind === 'add' && event.item_id === item.item_id));
+  assert.deepEqual(events.events.map((event) => event.event_id), events.events.map((event) => event.event_id).sort((a, b) => a - b));
+});
+
 test('[A1] every catalog command and subcommand has a real CLI exercise', () => {
   const source = project();
   const target = project();
