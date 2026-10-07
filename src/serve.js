@@ -64,6 +64,8 @@ function summary(project) {
         verified: count((item) => item.item_status === 'verified'),
         pending,
         holds: store.laneHolds(board).length,
+        // Asks still waiting for an answer need the person as much as a verdict does (B21).
+        decisions: store.openDecisions(board).length,
       };
     });
   } catch (error) {
