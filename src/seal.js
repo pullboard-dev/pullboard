@@ -36,15 +36,15 @@ function keyBytes(value) {
   return key;
 }
 
-/** Canonical, domain-separated associated data binds every blob to its public position. */
-function associatedData(binding) {
+/** Canonical, domain-separated associated data binds the header and public position. */
+function associatedData(binding, version = SEAL_VERSION) {
   if (!binding || typeof binding.boardId !== 'string' || !binding.boardId.length ||
       binding.boardId.length > 256 || !['snapshot', 'move', 'request'].includes(binding.kind) ||
-      !Number.isSafeInteger(binding.sequence) || binding.sequence < 0) {
+      !Number.isSafeInteger(binding.sequence) || binding.sequence < 0 || !Number.isInteger(version) || version < 0 || version > 255) {
     throw new Refused('SEAL_BINDING', 'Supply the board id, snapshot/move/request kind and nonnegative safe sequence.');
   }
   return new TextEncoder().encode(JSON.stringify([
-    'pullboard-sealed', SEAL_VERSION, binding.boardId, binding.kind, binding.sequence,
+    'pullboard-sealed', version, binding.boardId, binding.sequence, binding.kind,
   ]));
 }
 
@@ -83,7 +83,7 @@ export function decodeBoardKey(encoded) {
 export async function seal(key, plaintext, binding) {
   const raw = keyBytes(key);
   const plain = bytes(plaintext, 'SEAL_DATA', 'Encode the payload as bytes before sealing it.');
-  const additionalData = associatedData(binding);
+  const additionalData = associatedData(binding, SEAL_VERSION);
   const platform = crypto();
   const iv = platform.getRandomValues(new Uint8Array(NONCE_BYTES));
   const imported = await platform.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt']);
@@ -108,9 +108,10 @@ export async function seal(key, plaintext, binding) {
 export async function unseal(key, sealed, binding) {
   const raw = keyBytes(key);
   const blob = bytes(sealed, 'SEAL_FORMAT', 'The sealed payload must be bytes. Fetch the board again.');
-  const additionalData = associatedData(binding);
   if (!blob.length) throw new Refused('SEAL_FORMAT', 'The sealed payload is truncated. Fetch the board again.');
-  if (blob[0] !== SEAL_VERSION) throw new Refused('SEAL_VERSION', 'This sealed format is unsupported. Upgrade this device.');
+  const version = blob[0];
+  const additionalData = associatedData(binding, version);
+  if (version !== SEAL_VERSION) throw new Refused('SEAL_VERSION', 'This sealed format is unsupported. Upgrade this device.');
   if (blob.length < 1 + NONCE_BYTES + TAG_BYTES) {
     throw new Refused('SEAL_FORMAT', 'The sealed payload is truncated. Fetch the board again.');
   }

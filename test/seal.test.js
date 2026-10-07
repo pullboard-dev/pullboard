@@ -1,10 +1,11 @@
 /** Device-side sealing is the same bytes and WebCrypto code in Node and Chrome (H15, H17). */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { decodeBoardKey, encodeBoardKey, generateBoardKey, seal, SEAL_VERSION, unseal } from '../src/seal.js';
 
@@ -74,6 +75,74 @@ test('unsealing refuses wrong keys, every changed payload byte and every wrong b
   for (const truncated of [new Uint8Array(), blob.slice(0, 1), blob.slice(0, 28)]) {
     await assert.rejects(unseal(key, truncated, binding()), refused('SEAL_FORMAT'));
   }
+});
+
+test('adjacent board-id and sequence fields cannot collide at their boundary [H15,H17]', async () => {
+  const key = await generateBoardKey();
+  const blob = await seal(key, TEXT, binding({ boardId: 'a1', sequence: 0, kind: 'move' }));
+  await assert.rejects(unseal(key, blob, binding({ boardId: 'a', sequence: 10, kind: 'move' })), refused('SEAL_AUTH_FAILED'));
+});
+
+test('the header byte remains authenticated when the version refusal guard is removed [H15,H17]', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pullboard-seal-version-mutant-'));
+  try {
+    const source = readFileSync(new URL('../src/seal.js', import.meta.url), 'utf8');
+    const guard = "  if (version !== SEAL_VERSION) throw new Refused('SEAL_VERSION', 'This sealed format is unsupported. Upgrade this device.');";
+    assert.equal(source.split(guard).length - 1, 1, 'the private mutant removes exactly the version guard');
+    writeFileSync(join(dir, 'seal.mjs'), source.replace(guard, ''));
+    writeFileSync(join(dir, 'refused.js'), readFileSync(new URL('../src/refused.js', import.meta.url)));
+    const mutant = await import(pathToFileURL(join(dir, 'seal.mjs')).href);
+    const key = await generateBoardKey();
+    const bindingA = binding({ boardId: 'a1', sequence: 0, kind: 'move' });
+    const blob = await mutant.seal(key, TEXT, bindingA);
+    const changedHeader = new Uint8Array(blob);
+    changedHeader[0] = 9;
+    await assert.rejects(mutant.unseal(key, changedHeader, bindingA), refused('SEAL_AUTH_FAILED'));
+    await assert.rejects(mutant.unseal(key, blob, binding({ boardId: 'a', sequence: 10, kind: 'move' })), refused('SEAL_AUTH_FAILED'));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('generate, encode, decode, seal and unseal never write to console or output streams [H15,H17]', () => {
+  const moduleUrl = process.env.PULLBOARD_SEAL_MODULE ?? pathToFileURL(resolve(import.meta.dirname, '../src/seal.js')).href;
+  const harness = `
+    import { generateBoardKey, encodeBoardKey, decodeBoardKey, seal, unseal } from ${JSON.stringify(moduleUrl)};
+    const methods = ['log','info','warn','error','debug','dir','dirxml','table','trace','group','groupCollapsed','groupEnd','assert','count','countReset','time','timeEnd','timeLog','clear','profile','profileEnd','timeStamp'];
+    const originals = new Map(methods.map((name) => [name, console[name]]));
+    const stdout = process.stdout.write;
+    const stderr = process.stderr.write;
+    let outputCalls = 0;
+    let failed = false;
+    /** Suppress output without retaining attempted bytes or strings. */
+    function suppressOutput() { outputCalls += 1; return true; }
+    try {
+      for (const name of methods) console[name] = suppressOutput;
+      process.stdout.write = suppressOutput;
+      process.stderr.write = suppressOutput;
+      const binding = { boardId: 'private-board', kind: 'move', sequence: 0 };
+      const key = await generateBoardKey();
+      const encoded = encodeBoardKey(key);
+      const decoded = decodeBoardKey(encoded);
+      const blob = await seal(decoded, new TextEncoder().encode('payload'), binding);
+      await unseal(decoded, blob, binding);
+      try { decodeBoardKey('invalid'); failed = true; } catch (error) { failed ||= error.code !== 'SEAL_KEY'; }
+      try { await seal(decoded, new Uint8Array(), { ...binding, kind: 'invalid' }); failed = true; } catch (error) { failed ||= error.code !== 'SEAL_BINDING'; }
+      try { await unseal(decoded, new Uint8Array(), binding); failed = true; } catch (error) { failed ||= error.code !== 'SEAL_FORMAT'; }
+      try { await unseal(await generateBoardKey(), blob, binding); failed = true; } catch (error) { failed ||= error.code !== 'SEAL_AUTH_FAILED'; }
+    } catch { failed = true; }
+    finally {
+      for (const [name, method] of originals) console[name] = method;
+      process.stdout.write = stdout;
+      process.stderr.write = stderr;
+    }
+    process.stdout.write(String(outputCalls));
+    process.exitCode = failed ? 1 : 0;
+  `;
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', harness], { encoding: 'utf8', timeout: 10_000 });
+  assert.equal(result.status, 0, 'the isolated output-capture probe completed its operations');
+  assert.equal(result.stderr.length, 0, 'the probe wrote nothing to stderr');
+  assert.equal(Number(result.stdout), 0, 'no console, stdout or stderr output was attempted');
 });
 
 test('sealing validates inputs and copies mutable buffers and binding before awaiting [H15,H17]', async () => {
