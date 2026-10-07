@@ -1088,7 +1088,7 @@ async function submitHere(ctx, id) {
       try {
         digest = freezer(ctx)(item).digest;
       } catch (error) {
-        if (!(error instanceof Refused)) throw error;
+        if (!(error instanceof Refused) || error.code === 'A5_GRAMMAR_VERSION') throw error;
         unusable = error.message.replace(/^\[\w+\] /, '').split(';')[0];
       }
       if (digest !== item.item_frozen_digest) {
@@ -1155,7 +1155,7 @@ function verifyHere(ctx, id, { second, values }) {
     try {
       digest = freezer(ctx)(item).digest;
     } catch (error) {
-      if (!(error instanceof Refused)) throw error;
+      if (!(error instanceof Refused) || error.code === 'A5_GRAMMAR_VERSION') throw error;
     }
     return store.verify(board, id, {
       agentId: me.id,

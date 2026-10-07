@@ -16,6 +16,8 @@ import { hasSignerFile, isVerifiedSignoff, signRows, verifySignedRecords } from 
 export const STATUSES = ['approved', 'draft', 'pending', 'fact', 'wont', 'retired'];
 export const TIERS = ['must', 'aim'];
 export const SIGNOFFS_FILE = '.pullboard/signoffs.jsonl';
+/** Shared SPEC.md/PRACTICE.md row grammar; bump for incompatible persisted format changes. */
+export const SPEC_GRAMMAR_VERSION = 1;
 
 const ID = '[A-Za-z]+\\d+(?:\\.\\d+)*';
 export const ID_RE = new RegExp(`^${ID}$`);
@@ -52,16 +54,30 @@ function splitFields(rest) {
  * parse are kept as problems, never dropped silently.
  *
  * @param {string} source
- * @returns {{ title: string, intro: string[], sections: any[], rows: any[], problems: any[] }}
+ * @param {{ strictGrammarVersion?: boolean }} [options] - Historical text is parsed for ids without enforcing its marker.
+ * @returns {{ grammarVersion: number, title: string, intro: string[], sections: any[], rows: any[], problems: any[] }}
  */
-export function parseSpec(source) {
-  const spec = { title: '', intro: [], sections: [], rows: [], problems: [] };
+export function parseSpec(source, { strictGrammarVersion = true } = {}) {
+  const spec = { grammarVersion: SPEC_GRAMMAR_VERSION, title: '', intro: [], sections: [], rows: [], problems: [] };
   let section = null;
   let isFenced = false;
   source.split(/\r?\n/).forEach((line, index) => {
     const lineNo = index + 1;
     if (line.startsWith('```')) isFenced = !isFenced;
     if (isFenced || line.startsWith('```')) return;
+    const grammar = /^\uFEFF?\s*<!--\s*pullboard-grammar(?:\s+(.*?))?\s*-->\s*$/.exec(line);
+    if (grammar) {
+      const declared = grammar[1]?.trim() ?? '';
+      const valid = /^\d+$/u.test(declared);
+      if (strictGrammarVersion && (!valid || BigInt(declared) !== BigInt(SPEC_GRAMMAR_VERSION))) {
+        const found = valid ? declared : 'invalid';
+        throw new Refused(
+          'A5_GRAMMAR_VERSION',
+          `grammar ${found} is not supported; this Pullboard reads grammar ${SPEC_GRAMMAR_VERSION}; upgrade Pullboard or use a file written for grammar ${SPEC_GRAMMAR_VERSION}`,
+        );
+      }
+      return;
+    }
     if (line.startsWith('# ') && !spec.title) {
       spec.title = line.slice(2).trim();
       return;
@@ -371,6 +387,6 @@ export function permanenceProblems(spec, { committed, cited }) {
  * @returns {string[]} The deleted ids.
  */
 export function deletedIds(before, after) {
-  const kept = new Set(parseSpec(after).rows.map((row) => row.id));
-  return parseSpec(before).rows.map((row) => row.id).filter((id) => !kept.has(id));
+  const kept = new Set(parseSpec(after, { strictGrammarVersion: false }).rows.map((row) => row.id));
+  return parseSpec(before, { strictGrammarVersion: false }).rows.map((row) => row.id).filter((id) => !kept.has(id));
 }

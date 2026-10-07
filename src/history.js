@@ -58,7 +58,7 @@ export function committedIds(root, path, revs = ['HEAD']) {
   const versions = fileVersions(root, path, revs);
   const ids = new Map();
   for (const { commit, text } of versions) {
-    for (const row of parseSpec(text).rows) ids.set(row.id, commit);
+    for (const row of parseSpec(text, { strictGrammarVersion: false }).rows) ids.set(row.id, commit);
   }
   return { ids, since: versions.at(-1)?.commit ?? null };
 }
