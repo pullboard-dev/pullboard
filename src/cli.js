@@ -811,8 +811,8 @@ function readCommands(io, { first, second, rest, values }) {
       }
       const ctx = context(io);
       const imported = withBoard(ctx, (board) => importBoard(board, document));
-      if (typeof io.result === 'function') io.result({ tables: imported.tables });
-      else io.say(`imported version ${document.version} board tables: ${imported.tables.join(', ')}`);
+      io.result?.({ tables: imported.tables });
+      io.say(`imported version ${document.version} board tables: ${imported.tables.join(', ')}`);
       return 0;
     },
     resume: () => resumeHere(io),

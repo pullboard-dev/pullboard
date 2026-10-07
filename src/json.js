@@ -49,6 +49,8 @@ export const JSON_SHAPES = {
     forget: shape({ root: 'string' }),
     prompt: shape({ role: 'string', text: 'string' }),
     gate: shape({ green: 'boolean', report: 'string' }),
+    export: shape({ tables: 'object' }),
+    import: shape({ tables: 'array' }),
     spec: shape({ rows: 'array' }),
     'spec check': shape({ rows: 'array' }),
     'spec view': shape({ path: 'string' }),

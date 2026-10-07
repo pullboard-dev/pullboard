@@ -363,6 +363,17 @@ test('[A1] view flushes one JSON document before shutdown', async (t) => {
 });
 
 test('[A1] every catalog command and subcommand has a real CLI exercise', () => {
+  const source = project();
+  const target = project();
+  const document = json(source, source.repo, 'export');
+  const file = join(source.dir, 'board.json');
+  writeFileSync(file, JSON.stringify(document));
+  json(source, target.repo, 'import', [file]);
+  const humanTarget = project();
+  const humanImport = source.run(humanTarget.repo, 'import', file);
+  assert.equal(humanImport.status, 0, humanImport.stderr || humanImport.stdout);
+  assert.match(humanImport.stdout, /imported version 1 board tables/);
+
   const missing = Object.keys(JSON_SHAPES.commands).filter((key) => !covered.has(key));
   assert.deepEqual(missing, [], `add real-repo invocations for undocumented coverage gaps: ${missing.join(', ')}`);
   assert.deepEqual([...coveredRoots].sort(), resultCommands(), 'every actual root/factory command has an invocation');
