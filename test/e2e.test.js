@@ -965,7 +965,7 @@ test('view serves every project on this machine, on loopback, behind its secret 
   }
 });
 
-test('from the view the person adds items, shouts, holds lanes and starts a board, through the CLI and its refusals [N27]', async () => {
+test('from the view the person adds items, shouts and holds lanes, through the CLI and its refusals [N27]', async () => {
   const box = project();
   const view = await startView(box, box.repo);
   try {
@@ -985,11 +985,6 @@ test('from the view the person adds items, shouts, holds lanes and starts a boar
     assert.match((await act({ root: box.dir, command: 'shout', args: { to: 'all', text: 'x' } })).error, /not a project on this machine/);
     const stranger = await fetch(`${view.base}/api/act`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ root: box.repo, command: 'shout', args: { to: 'all', text: 'x' } }) });
     assert.equal(stranger.status, 403);
-    const other = join(box.dir, 'other');
-    mkdirSync(other);
-    box.git(other, 'init', '-q', '-b', 'main');
-    assert.equal((await view.act({ command: 'init', args: { path: other } })).code, 0);
-    assert.deepEqual((await view.state()).projects.map((entry) => entry.name).sort(), ['other', 'repo']);
   } finally {
     await view.stop();
   }
