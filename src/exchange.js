@@ -41,11 +41,19 @@ function columnsOf(db, table) {
  * @returns {{ version: number, tables: Record<string, any[]> }}
  */
 export function exportBoard(board) {
-  const tables = Object.fromEntries(tableNames(board.db).map((table) => [
-    table,
-    board.db.prepare(`SELECT * FROM ${identifier(table)} ORDER BY ${table === 'sqlite_sequence' ? 'name' : 'rowid'}`).all(),
-  ]));
-  return { version: VERSION, tables };
+  const db = board.db;
+  db.exec('BEGIN DEFERRED');
+  try {
+    const tables = Object.fromEntries(tableNames(db).map((table) => [
+      table,
+      db.prepare(`SELECT * FROM ${identifier(table)} ORDER BY ${table === 'sqlite_sequence' ? 'name' : 'rowid'}`).all(),
+    ]));
+    db.exec('COMMIT');
+    return { version: VERSION, tables };
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 }
 
 /**

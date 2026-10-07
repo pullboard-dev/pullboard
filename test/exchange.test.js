@@ -90,6 +90,59 @@ test('round trips every board row, state, history and AUTOINCREMENT counter [A7]
   }
 });
 
+test('export keeps a single SQLite snapshot while another connection writes [A7]', () => {
+  const directory = tempDirectory();
+  const file = join(directory, 'shared.sqlite');
+  const source = store.openBoard(file);
+  const writer = store.openBoard(file);
+  try {
+    store.register(source, { lane: 'coordinator', path: '/shared' });
+    store.register(source, { lane: 'web', path: '/shared/web-1' });
+    store.register(source, { lane: 'web', path: '/shared/web-2' });
+    store.addItem(source, { by: 'coordinator', lane: 'web', title: 'present before export' });
+    const before = JSON.stringify(exportBoard(source));
+    let wrote = false;
+    const db = new Proxy(source.db, {
+      get(target, property) {
+        if (property === 'prepare') return (sql) => {
+          const statement = target.prepare(sql);
+          if (sql !== 'SELECT * FROM "item" ORDER BY rowid') return statement;
+          return { all: (...args) => {
+            const rows = statement.all(...args);
+            if (!wrote) {
+              wrote = true;
+              writeAcceptedItem(writer);
+            }
+            return rows;
+          } };
+        };
+        const value = Reflect.get(target, property, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const duringWrite = JSON.stringify(exportBoard({ db }));
+    assert.equal(wrote, true, 'the second connection wrote after the item table was read');
+    assert.equal(duringWrite, before, 'every exported table came from the same pre-write snapshot');
+    assert.equal(exportBoard(writer).tables.item.length, 2, 'the legitimate write committed to the board');
+  } finally {
+    store.closeBoard(writer);
+    store.closeBoard(source);
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+/**
+ * Create an item and finish its lifecycle on the second database connection.
+ * @param {any} board
+ */
+function writeAcceptedItem(board) {
+  const item = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'written during export' });
+  const freeze = (row) => ({ text: row.item_title, digest: `digest:${row.item_title}` });
+  store.claim(board, item, { agentId: 'web-1', lane: 'web', leaseMs: 3_600_000, freeze });
+  store.submit(board, item, { agentId: 'web-1', commit: 'b'.repeat(40), tree: 'tree:concurrent' });
+  store.verify(board, item, { agentId: 'web-2', decision: 'ACCEPT', note: 'the check passed', head: 'b'.repeat(40), digest: 'digest:written during export', policy: 'any' });
+}
+
 test('import refuses a board with rows and leaves it unchanged [A7]', () => {
   const directory = tempDirectory();
   const source = populatedBoard(join(directory, 'source.sqlite'));
