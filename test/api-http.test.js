@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import { serveApi } from '../src/api.js';
 import { main } from '../src/cli.js';
 import { createApiHandler } from '../src/api-http.js';
+import { registryFile, registerProject } from '../src/projects.js';
 import { Refused } from '../src/refused.js';
 import * as store from '../src/board.js';
 
@@ -54,7 +55,7 @@ function fixture(t) {
   writeFileSync(join(root, 'PRACTICE.md'), '');
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: private HTTP fixture');
-  return { root, dir, cli, run, commit: git('rev-parse', 'HEAD').trim() };
+  return { root, dir, env, cli, run, commit: git('rev-parse', 'HEAD').trim() };
 }
 
 /** Serve this fixture's explicit project, avoiding any registry outside its private home. */
@@ -127,6 +128,76 @@ test('[A2] local HTTP state accepts a safe seen cursor and committed code previe
     assert.equal(invalid.status, 400);
     assert.ok(['BAD_REF', 'NO_COMMIT'].includes(invalid.document.error.code));
   }
+});
+
+test('[A2, N33, N35] API listing refreshes live labels and preserves missing-entry warnings', async (t) => {
+  const box = fixture(t);
+  const priorHome = process.env.PULLBOARD_HOME;
+  process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
+  t.after(() => { if (priorHome === undefined) delete process.env.PULLBOARD_HOME; else process.env.PULLBOARD_HOME = priorHome; });
+  const second = join(box.dir, 'second-repo');
+  mkdirSync(second);
+  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: second, env: box.env, stdio: 'pipe' });
+  box.cli(second, 'init');
+  const secondConfigFile = join(second, 'pullboard.json');
+  const secondConfig = JSON.parse(readFileSync(secondConfigFile, 'utf8'));
+  writeFileSync(secondConfigFile, JSON.stringify({ ...secondConfig, name: 'Saved second', project: 'Saved group' }));
+  registerProject(second, new Date('2026-02-03T04:05:06.000Z'));
+
+  const api = await serveApi({ runCommand: main });
+  t.after(() => api.close());
+  const url = new URL(api.url);
+  const key = url.searchParams.get('k');
+  /** Fetch the authenticated board catalog through the real local HTTP server. */
+  async function listing() {
+    const response = await fetch(url.origin + '/api/v1/boards', { headers: { 'x-pullboard-key': key } });
+    assert.equal(response.status, 200);
+    return response.json();
+  }
+
+  const initial = await listing();
+  assert.deepEqual(initial.boards.map((entry) => entry.root), [box.root, second]);
+  assert.deepEqual(initial.warnings, []);
+  const firstId = initial.boards[0].id;
+  const firstAdded = initial.boards[0].added;
+  const secondId = initial.boards[1].id;
+  const secondAdded = initial.boards[1].added;
+  const configFile = join(box.root, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  writeFileSync(configFile, JSON.stringify({ ...config, name: 'Fresh first', project: 'Fresh group' }));
+
+  const refreshedBoth = await listing();
+  assert.deepEqual(refreshedBoth.boards.map(({ root }) => root), [box.root, second]);
+  assert.deepEqual(refreshedBoth.boards.map(({ id }) => id), [firstId, secondId]);
+  assert.deepEqual(refreshedBoth.boards.map(({ added }) => added), [firstAdded, secondAdded]);
+  assert.deepEqual(refreshedBoth.boards.map(({ name, project }) => ({ name, project })), [
+    { name: 'Fresh first', project: 'Fresh group' },
+    { name: 'Saved second', project: 'Saved group' },
+  ]);
+  rmSync(second, { recursive: true, force: true });
+
+  const refreshed = await listing();
+  assert.deepEqual(refreshed.boards.map(({ root, name, project }) => ({ root, name, project })), [
+    { root: box.root, name: 'Fresh first', project: 'Fresh group' },
+  ]);
+  assert.equal(refreshed.boards[0].id, firstId);
+  assert.equal(refreshed.boards[0].added, firstAdded);
+  assert.equal(refreshed.warnings.length, 1);
+  assert.equal(refreshed.warnings[0].root, second);
+  assert.equal(refreshed.warnings[0].name, 'Saved second');
+  assert.equal(refreshed.warnings[0].project, 'Saved group');
+  assert.equal(refreshed.warnings[0].added, secondAdded);
+  assert.equal(refreshed.warnings[0].error.version, 1);
+  assert.equal(refreshed.warnings[0].error.error.code, 'BOARD_UNAVAILABLE');
+  assert.match(refreshed.warnings[0].error.error.next, /pullboard forget/);
+  assert.deepEqual(JSON.parse(readFileSync(registryFile(), 'utf8')).projects.map(({ root }) => root), [box.root, second]);
+
+  const forgotten = box.cli(box.root, 'forget', box.root);
+  assert.equal(forgotten.root, box.root);
+  assert.deepEqual(JSON.parse(readFileSync(registryFile(), 'utf8')).projects.map(({ root }) => root), [second]);
+  const afterForget = await listing();
+  assert.deepEqual(afterForget.boards, []);
+  assert.deepEqual(afterForget.warnings.map(({ root }) => root), [second]);
 });
 
 test('[A2] real HTTP state, moves and refusals use the CLI and exact committed events', async (t) => {

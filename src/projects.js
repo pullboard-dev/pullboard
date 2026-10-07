@@ -153,11 +153,12 @@ function writeRegistry(projects) {
 }
 
 /**
- * Every registered project, oldest first. Refreshes valid live metadata and prunes missing roots.
+ * Every registered project, oldest first. Refreshes valid live metadata and optionally prunes missing roots.
  *
+ * @param {{ pruneMissing?: boolean }} [options]
  * @returns {{ root: string, name: string, project: string, added: string }[]}
  */
-export function listProjects() {
+export function listProjects({ pruneMissing = true } = {}) {
   /**
    * Refresh and prune the latest on-disk entries.
    *
@@ -169,7 +170,7 @@ export function listProjects() {
     const projects = [];
     for (const stored of storedProjects) {
       const root = resolve(stored.root);
-      if (!isDirectory(root)) {
+      if (!isDirectory(root) && pruneMissing) {
         changed = true;
         continue;
       }
@@ -199,6 +200,15 @@ export function listProjects() {
     if (updated.changed) writeRegistry(updated.projects);
     return updated.projects;
   });
+}
+
+/**
+ * Read the API's registered projects while preserving unreadable entries for warnings.
+ *
+ * @returns {{ root: string, name: string, project: string, added: string }[]}
+ */
+export function listApiProjects() {
+  return listProjects({ pruneMissing: false });
 }
 
 /**
