@@ -67,12 +67,26 @@ The board file is in the repository's Git common directory at `.git/pullboard/bo
 | Format | Version | Version source | Upgrade rule |
 | --- | --- | --- | --- |
 | `CLI JSON envelope` | `1` | `JSON_SHAPES.version` in `src/json.js` | Keep optional fields additive within version 1; bump the envelope version for incompatible command/export shapes. |
-| `row grammar` | `1` | `SPEC_GRAMMAR_VERSION` in `src/spec.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means 1) | Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs. |
+| `row grammar` | `1` | `SPEC_GRAMMAR_VERSION` in `src/spec.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar) | Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs. |
 | `board schema` | `2` | `SCHEMA_VERSION` in `src/board.js`, persisted as `PRAGMA user_version` | Create missing tables and indexes, add missing columns in place with declared defaults, restore missing or changed triggers, and remove stale machine triggers without replacing rows. |
 | `event log` | `1` | `EVENT_LOG_VERSION` in `src/board.js`; event rows do not store a separate version marker | This append-only record format has its own version, independent of `SCHEMA_VERSION`. Preserve event rows when the board schema changes. |
 <!-- format-versions:end -->
 
-On open, Pullboard creates missing tables and indexes, then adds each missing column with `ALTER TABLE ... ADD COLUMN` and its declared default; it does not replace the board file or existing rows. It restores missing or changed declared triggers and removes stale `machine_` triggers. A board that already has its guard marker records trigger repair in a `guards` event, including missing, changed and stale trigger names; an older board receives the current marker after installation. Existing event rows are preserved.
+The in-place upgrade behavior is exercised by `exerciseUpgrade` in `docs/formats.test.js`:
+
+<!-- upgrade-rules:start -->
+| Older board condition | Behavior when opened |
+| --- | --- |
+| Missing declared tables or indexes | Create them with `CREATE ... IF NOT EXISTS`. |
+| Missing declared columns | Add each with `ALTER TABLE ... ADD COLUMN` and its declared default. |
+| Missing or changed declared triggers | Install the declared trigger definitions. |
+| Undeclared `machine_` triggers | Drop them as stale. |
+| A board that previously had guard triggers | Append a `guards` event listing missing, changed and stale trigger names. |
+| An older schema version | Set `PRAGMA user_version` to the current `SCHEMA_VERSION` after installation. |
+| Existing rows and event history | Keep them in the same board file; guard repair may append its `guards` event. |
+<!-- upgrade-rules:end -->
+
+An older board that has not yet recorded its guard marker receives the current triggers and marker quietly. `openBoard` does not replace the board file or existing rows.
 
 The following live SQLite declarations include nullability, defaults, primary and unique keys, and foreign keys:
 

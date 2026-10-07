@@ -127,6 +127,14 @@ function documentedIndexes() {
   });
 }
 
+/** List the documented in-place upgrade conditions exercised by exerciseUpgrade. */
+function documentedUpgradeConditions() {
+  return block('<!-- upgrade-rules:start -->', '<!-- upgrade-rules:end -->').split(/\r?\n/).flatMap((line) => {
+    const row = /^\| (.+) \| (.+) \|$/.exec(line);
+    return row && row[1] !== 'Older board condition' && row[1] !== '---' ? [[row[1], row[2]]] : [];
+  });
+}
+
 /** Exercise each board event through the public API and return the rows it actually records. */
 function recordEventContract() {
   const board = openBoard(':memory:');
@@ -193,7 +201,7 @@ function exerciseUpgrade() {
     board = null;
 
     const old = new DatabaseSync(file);
-    old.exec('ALTER TABLE shout DROP COLUMN shout_evidence_kind; DROP TABLE hold; DROP INDEX item_lane_status; DROP TRIGGER machine_event_update; CREATE TRIGGER machine_old_extra AFTER INSERT ON item BEGIN SELECT 1; END; PRAGMA user_version = 1;');
+    old.exec("ALTER TABLE shout DROP COLUMN shout_evidence_kind; DROP TABLE hold; DROP INDEX item_lane_status; DROP TRIGGER machine_event_delete; DROP TRIGGER machine_event_update; CREATE TRIGGER machine_event_update AFTER DELETE ON event BEGIN SELECT 1; END; CREATE TRIGGER machine_old_extra AFTER INSERT ON item BEGIN SELECT 1; END; PRAGMA user_version = 1;");
     old.close();
 
     board = openBoard(file);
@@ -202,11 +210,12 @@ function exerciseUpgrade() {
     assert.ok(board.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'hold'").get());
     assert.ok(board.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'item_lane_status'").get());
     assert.equal(board.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = 'machine_old_extra'").get(), undefined);
+    assert.equal(board.db.prepare('PRAGMA user_version').get().user_version, SCHEMA_VERSION);
     const repair = events(board).find((row) => row.event_kind === 'guards');
     assert.ok(repair, 'reopening reports repaired/missing/stale guards in the event log');
     assert.equal(events(board).length, originalEvents + 1, 'reopening preserves old events and appends one guard-repair event');
     assert.deepEqual(JSON.parse(repair.event_detail), {
-      missing: ['machine_event_update'], changed: [], stale: ['machine_old_extra'],
+      missing: ['machine_event_delete'], changed: ['machine_event_update'], stale: ['machine_old_extra'],
     });
     return events(board).map((row) => ({ ...row, detail: JSON.parse(row.event_detail) }));
   } finally {
@@ -299,6 +308,15 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
     assert.deepEqual(documentedTriggers('<!-- board-triggers:start -->', '<!-- board-triggers:end -->'), liveTriggers(board.db, 'main'));
     assert.deepEqual(documentedTriggers('<!-- temp-triggers:start -->', '<!-- temp-triggers:end -->'), liveTriggers(board.db, 'temp'));
     assert.deepEqual(documentedIndexes(), liveIndexes(board.db));
+    assert.deepEqual(documentedUpgradeConditions(), [
+      ['Missing declared tables or indexes', 'Create them with `CREATE ... IF NOT EXISTS`.'],
+      ['Missing declared columns', 'Add each with `ALTER TABLE ... ADD COLUMN` and its declared default.'],
+      ['Missing or changed declared triggers', 'Install the declared trigger definitions.'],
+      ['Undeclared `machine_` triggers', 'Drop them as stale.'],
+      ['A board that previously had guard triggers', 'Append a `guards` event listing missing, changed and stale trigger names.'],
+      ['An older schema version', 'Set `PRAGMA user_version` to the current `SCHEMA_VERSION` after installation.'],
+      ['Existing rows and event history', 'Keep them in the same board file; guard repair may append its `guards` event.'],
+    ]);
     const versions = block('<!-- format-versions:start -->', '<!-- format-versions:end -->');
     const versionOf = (name) => {
       const match = new RegExp('^\\| `' + name + '` \\| `(\\d+)` \\|', 'm').exec(versions);
