@@ -41,7 +41,7 @@ test('App metadata checks current private access and immutable account identity 
   const fixture = await githubFixture(t);
   const client = createGitHubClient(fixture.config);
   const user = { id: '7', login: 'fixture-user' };
-  assert.deepEqual(await client.access(user, 'fixture/repository'), { id: '100', name: 'fixture/repository' });
+  assert.deepEqual(await client.access(user, 'fixture/repository'), { id: '100', name: 'fixture/repository', public: false, permission: 'write' });
   fixture.state.access = false;
   await assert.rejects(client.access(user, 'fixture/repository'), { code: 'NO_REPO_ACCESS' });
   fixture.state.access = true;
@@ -70,4 +70,41 @@ test('GitHub credentials never follow a redirect to a different origin [H8, H1]'
   const signed = await client.pollDevice(grant.deviceCode);
   await assert.rejects(client.user(signed.accessToken), { code: 'GITHUB_UNAVAILABLE' });
   assert.equal(foreignRequests, 0);
+});
+
+
+test('GitHub roles use role_name, custom-role flags and legacy fallback [H13,H14,H8]', async (t) => {
+  const fixture = await githubFixture(t);
+  fixture.state.public = true;
+  const client = createGitHubClient(fixture.config);
+  const user = { id: '7', login: 'fixture-user' };
+  for (const role of ['none', 'read', 'triage', 'write', 'maintain', 'admin']) {
+    fixture.state.permission = role;
+    assert.equal((await client.access(user, 'fixture/repository')).permission, role);
+  }
+  fixture.state.roleName = 'custom-reader';
+  for (const [flags, expected] of [
+    [{ pull: true }, 'read'], [{ pull: true, triage: true }, 'triage'],
+    [{ pull: true, push: true }, 'write'], [{ maintain: true, push: true }, 'maintain'],
+    [{ admin: true, maintain: true }, 'admin'], [{ triage: 'true', push: 'true' }, 'read'],
+  ]) {
+    fixture.state.permission = 'read';
+    fixture.state.permissions = flags;
+    assert.equal((await client.access(user, 'fixture/repository')).permission, expected);
+  }
+  fixture.state.roleName = 'unknown-custom';
+  fixture.state.permissions = {};
+  fixture.state.permission = 'none';
+  assert.equal((await client.access(user, 'fixture/repository')).permission, 'none');
+  fixture.state.legacyOnly = true;
+  for (const role of ['none', 'read', 'write', 'admin']) {
+    fixture.state.permission = role;
+    assert.equal((await client.access(user, 'fixture/repository')).permission, role);
+  }
+  fixture.state.legacyOnly = false;
+  fixture.state.roleName = 'triage';
+  fixture.state.permission = 'read';
+  fixture.state.permissions = { triage: true };
+  fixture.state.permissionAccountID = 8;
+  assert.equal((await client.access(user, 'fixture/repository')).permission, 'none');
 });

@@ -40,14 +40,18 @@ body. A credential for one board is refused on another before any board lookup.
 Use `auth.boardsFor(token)` for visibility, and `auth.linkBoard(token, board,
 repository)` to link only a repository the person can read. `auth.issueToken`
 requires a human session and returns a random, expiring credential scoped to one
-board/agent. `auth.revoke(token, id)` revokes one owned credential.
+board/agent. `await auth.revoke(token, id)` revokes one owned credential. Session revocation
+is independent of a board; board-token revocation requires current write access.
 
 GitHub user credentials are used only to obtain the account's immutable id and
 login at sign-in, then discarded. Permission checks use an App-signed JWT to
 obtain a repository-scoped installation token asking only for Metadata read.
 These App tokens stay in RAM. Private repositories require an App installation
-and a permission response for the same immutable user id. Public repositories
-are readable without a private installation. Repository ids are pinned so a
+and a permission response for the same immutable user id. Public boards are hidden unless the account has triage, write, maintain, or
+admin permission. Public metadata alone grants no board access; confirming a
+role needs an App installation. Private collaborators with read permission can
+see their boards. Board actions and minting or revoking board tokens require
+write, maintain, or admin permission, checked again on every such operation. Repository ids are pinned so a
 replacement repository cannot inherit a board link.
 
 SQLite stores account/repository identities and SHA-256 hashes of relay-issued
