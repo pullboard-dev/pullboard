@@ -995,7 +995,7 @@ function readCommands(io, { first, second, rest, values }) {
       const asks = withBoard(ctx, (board) => {
         const me = whoAmI(ctx, board);
         const asPerson = personMode(ctx, me, values);
-        return store.openDecisions(board, asPerson ? 'person' : me.id);
+        return store.openDecisions(board, asPerson ? 'person' : [me.id, me.lane]);
       });
       io.result?.({ decisions: asks });
       if (!asks.length) io.say('no open decisions');

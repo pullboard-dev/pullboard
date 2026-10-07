@@ -342,6 +342,18 @@ test('an agent cannot answer another lane decision [B21,B27]', () => {
   assert.deepEqual(store.openDecisions(board, 'api').map(({ shout_id }) => shout_id), [ask]);
 });
 
+test('the decisions store query accepts multiple recipients once in shout order [B21,B27]', () => {
+  const lanes = ['coordinator', 'web', 'api'];
+  const laneAsk = store.shout(board, { from: 'web-1', to: 'api', text: 'lane?', lanes, decision: true });
+  const directAsk = store.shout(board, { from: 'web-1', to: 'api-1', text: 'direct?', lanes, decision: true });
+  const otherLaneAsk = store.shout(board, { from: 'web-1', to: 'web', text: 'other?', lanes, decision: true });
+  assert.deepEqual(store.openDecisions(board, ['api-1', 'api', 'api']).map(({ shout_id }) => shout_id), [laneAsk, directAsk]);
+  store.answerDecision(board, laneAsk, { agentId: 'api-1', text: 'yes', lanes });
+  assert.deepEqual(store.openDecisions(board, ['api-1', 'api']).map(({ shout_id }) => shout_id), [directAsk]);
+  assert.deepEqual(store.openDecisions(board, []), []);
+  assert.deepEqual(store.openDecisions(board, 'web').map(({ shout_id }) => shout_id), [otherLaneAsk]);
+});
+
 test('decisions climb to the person and answers return to the first asker [B25, B26, B27]', () => {
   const lanes = ['coordinator', 'web', 'api'];
   const original = store.shout(board, { from: 'web-1', to: 'coordinator', text: 'Ship today?', lanes, decision: true });
