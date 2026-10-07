@@ -86,9 +86,15 @@ function validateDocument(db, document, names) {
   }
 }
 
+/** Only the generated identity is disposable when restoring a fresh board (A2, A7). */
+function hasOnlyIdentity(db) {
+  const rows = db.prepare('SELECT * FROM board_meta').all();
+  return rows.length === 1 && rows[0].meta_key === 'board_id' && /^[0-9a-f]{32}$/.test(rows[0].meta_value);
+}
+
 /** True only for the coordinator registration and join event that `pullboard init` creates. */
 function hasOnlyInitCoordinator(db, names) {
-  if (!names.includes('sqlite_sequence')) return false;
+  if (!names.includes('sqlite_sequence') || !hasOnlyIdentity(db)) return false;
   const agents = db.prepare('SELECT * FROM agent').all();
   const events = db.prepare('SELECT * FROM event').all();
   const sequence = db.prepare('SELECT name, seq FROM sqlite_sequence ORDER BY name').all();
@@ -113,7 +119,7 @@ function hasOnlyInitCoordinator(db, names) {
     return false;
   }
   return names
-    .filter((table) => table !== 'agent' && table !== 'event' && table !== 'sqlite_sequence')
+    .filter((table) => table !== 'agent' && table !== 'event' && table !== 'sqlite_sequence' && table !== 'board_meta')
     .every((table) => !db.prepare(`SELECT 1 FROM ${identifier(table)} LIMIT 1`).get());
 }
 
@@ -130,7 +136,8 @@ export function importBoard(board, document) {
   validateDocument(db, document, names);
   db.exec('PRAGMA defer_foreign_keys = ON; BEGIN IMMEDIATE');
   try {
-    const occupied = names.filter((table) => db.prepare(`SELECT 1 FROM ${identifier(table)} LIMIT 1`).get());
+    const onlyIdentity = hasOnlyIdentity(db);
+    const occupied = names.filter((table) => !(table === 'board_meta' && onlyIdentity) && db.prepare(`SELECT 1 FROM ${identifier(table)} LIMIT 1`).get());
     const initCoordinator = occupied.length > 0 && hasOnlyInitCoordinator(db, names);
     if (occupied.length && !initCoordinator) {
       throw new Refused('IMPORT_NOT_EMPTY', `board tables already have rows (${occupied.join(', ')}); import into a repo with an empty board`);
@@ -140,6 +147,7 @@ export function importBoard(board, document) {
     if (initCoordinator) {
       db.exec('DELETE FROM event; DELETE FROM agent; DELETE FROM sqlite_sequence');
     }
+    if (onlyIdentity) db.exec('DELETE FROM board_meta');
     for (const table of names.filter((name) => name !== 'sqlite_sequence')) {
       const columns = columnsOf(db, table);
       const sql = `INSERT INTO ${identifier(table)} (${columns.map(identifier).join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`;

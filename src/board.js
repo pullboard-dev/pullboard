@@ -6,6 +6,7 @@
  * every move lands in an append-only event log (R2). The caller supplies what only git and the
  * spec know: the commit, the verifier's checkout, the frozen criterion.
  */
+import { randomBytes } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -48,6 +49,10 @@ export const REJECT_REASONS = [
 export const systemClock = { now: () => new Date() };
 
 const SCHEMA = `
+  CREATE TABLE IF NOT EXISTS board_meta (
+    meta_key TEXT PRIMARY KEY,
+    meta_value TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS agent (
     agent_id TEXT PRIMARY KEY,
     agent_lane TEXT NOT NULL,
@@ -139,6 +144,7 @@ export function openBoard(file, clock = systemClock) {
   if (file !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
   db.exec(SCHEMA);
   migrate(db);
+  db.prepare('INSERT OR IGNORE INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run('board_id', randomBytes(16).toString('hex'));
   const board = { db, clock };
   guardStore(board);
   guardMoves(board);
@@ -166,6 +172,7 @@ function guardMoves(board) {
 }
 
 /** The board's PRAGMA user_version once its triggers are in: losing one after that is news. */
+export const SCHEMA_VERSION = 2;
 const GUARDED = 1;
 
 /**
@@ -189,14 +196,17 @@ function guardStore(board) {
     };
   };
   const isWhole = ({ missing, changed, stale }) => !missing.length && !changed.length && !stale.length;
-  if (isWhole(drift())) return;
+  if (isWhole(drift())) {
+    if (board.db.prepare('PRAGMA user_version').get().user_version < SCHEMA_VERSION) board.db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+    return;
+  }
   atomic(board, () => {
     const found = drift();
     if (isWhole(found)) return;
     for (const name of [...found.changed, ...found.stale]) board.db.exec(`DROP TRIGGER IF EXISTS "${name}"`);
     for (const { name, sql } of wanted) if (found.missing.includes(name) || found.changed.includes(name)) board.db.exec(sql);
     if (board.db.prepare('PRAGMA user_version').get().user_version >= GUARDED) logEvent(board, 'board', 'guards', null, found);
-    else board.db.exec(`PRAGMA user_version = ${GUARDED}`);
+    if (board.db.prepare('PRAGMA user_version').get().user_version < SCHEMA_VERSION) board.db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   });
 }
 
@@ -226,11 +236,18 @@ function migrate(db) {
     ['shout', 'shout_evidence_outcome', 'TEXT'],
     ['shout', 'shout_evidence_item', 'INTEGER'],
     ['shout', 'shout_evidence_commit', 'TEXT'],
+    ['shout', 'shout_request', 'INTEGER NOT NULL DEFAULT 0'],
+    ['shout', 'shout_request_outcome', "TEXT NOT NULL DEFAULT ''"],
   ];
   for (const [table, column, type] of added) {
     const columns = db.prepare(`PRAGMA table_info(${table})`).all().map((entry) => entry.name);
     if (!columns.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
   }
+}
+
+/** The persistent local and relay identity of this board (A2). */
+export function boardId(board) {
+  return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('board_id').meta_value;
 }
 
 /**
@@ -261,18 +278,22 @@ const now = (board) => board.clock.now().toISOString();
  */
 export function atomic(board, work) {
   board.db.exec('BEGIN IMMEDIATE');
+  const lastEvent = board.lastEvent;
+  const emitted = board.emittedEvents?.length ?? 0;
   try {
     const result = work();
     board.db.exec('COMMIT');
     return result;
   } catch (error) {
     board.db.exec('ROLLBACK');
+    board.lastEvent = lastEvent;
+    board.emittedEvents?.splice(emitted);
     throw error;
   }
 }
 
 /**
- * Append one move to the event log (R2).
+ * Append one move to the event log (R2), retaining its exact row for an API response (A2).
  *
  * @param {any} board
  * @param {string} by
@@ -281,11 +302,13 @@ export function atomic(board, work) {
  * @param {object} [detail]
  */
 function logEvent(board, by, kind, itemId, detail = {}) {
-  board.db
+  const inserted = board.db
     .prepare(
       'INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)',
     )
     .run(now(board), by, kind, itemId, JSON.stringify(detail));
+  board.lastEvent = board.db.prepare('SELECT * FROM event WHERE event_id = ?').get(inserted.lastInsertRowid);
+  (board.emittedEvents ??= []).push(board.lastEvent);
 }
 
 /**
@@ -1143,37 +1166,56 @@ export function verdictsFor(board, id) {
  * Insert a shout within the caller's transaction.
  *
  * @param {any} board
- * @param {{ from: string, to: string, text: string, lanes: string[], decision?: boolean, answers?: number | null, evidence?: any }} message
+ * @param {{ from: string, to: string, text: string, lanes: string[], decision?: boolean, answers?: number | null, evidence?: any, request?: boolean }} message
  * @returns {number}
  */
-function insertShout(board, { from, to, text, lanes, decision = false, answers = null, evidence = null }) {
+function insertShout(board, { from, to, text, lanes, decision = false, answers = null, evidence = null, request = false }) {
   if (!text.trim()) throw new Refused('EMPTY_SHOUT', 'a shout needs text');
+  if (request && (from !== 'person' || to !== COORDINATOR || decision || answers !== null)) {
+    throw new Refused('BAD_REQUEST', 'a request goes from the person to the coordinator; use the board requests endpoint with its text');
+  }
+  const ask = answers === null ? null : getShout(board, answers);
   const isAgent = board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(to);
-  if (to !== 'all' && to !== PERSON && !lanes.includes(to) && !isAgent) {
+  const requestReply = ask?.shout_request && to === ask.shout_from;
+  if (to !== 'all' && to !== PERSON && !lanes.includes(to) && !isAgent && !requestReply) {
     throw new Refused('NO_READER', `nobody reads "${to}": name a lane, an agent or all`);
   }
   if (to === PERSON && decision && from !== COORDINATOR) {
     throw new Refused('B26_PERSON_DECISION', `only the coordinator can ask the person for a decision; ask your coordinator: pullboard shout coordinator "${text.trim()}" --decision`);
   }
-  if (answers !== null && !getShout(board, answers).shout_decision) {
+  let outcome = '';
+  if (ask?.shout_request) {
+    if (from !== COORDINATOR || !requestReply) throw new Refused('COORDINATOR_ONLY', `only the coordinator answers request #${answers}; ask the coordinator to run pullboard answer ${answers} done or declined <reason>`);
+    if (board.db.prepare('SELECT 1 FROM shout WHERE shout_answers = ? AND shout_request_outcome != ?').get(answers, '')) {
+      throw new Refused('REQUEST_CLOSED', `request #${answers} was already answered; read pullboard inbox before answering another request`);
+    }
+    const reply = /^(done|declined)(?:\s+([\s\S]+))?$/.exec(text.trim());
+    if (!reply || (reply[1] === 'declined' && !reply[2]?.trim())) {
+      throw new Refused('REQUEST_OUTCOME', `answer request #${answers} with done or declined followed by a reason: pullboard answer ${answers} done or declined <reason>`);
+    }
+    outcome = reply[1];
+  } else if (ask && !ask.shout_decision) {
     throw new Refused('NOT_A_DECISION', `shout #${answers} asked for no decision; reply with pullboard shout`);
   }
   if (evidence) checkEvidence(board, evidence);
   const result = board.db
     .prepare(
       `INSERT INTO shout (shout_from, shout_to, shout_text, shout_at, shout_decision, shout_answers,
-         shout_evidence_kind, shout_evidence_outcome, shout_evidence_item, shout_evidence_commit)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         shout_evidence_kind, shout_evidence_outcome, shout_evidence_item, shout_evidence_commit,
+         shout_request, shout_request_outcome)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(from, to, text.trim(), now(board), decision ? 1 : 0, answers, evidence?.kind ?? null, evidence ? evidence.outcome.trim() : null, evidence?.item ?? null, evidence?.commit ?? null);
-  return Number(result.lastInsertRowid);
+    .run(from, to, text.trim(), now(board), decision ? 1 : 0, answers, evidence?.kind ?? null, evidence ? evidence.outcome.trim() : null, evidence?.item ?? null, evidence?.commit ?? null, request ? 1 : 0, outcome);
+  const id = Number(result.lastInsertRowid);
+  logEvent(board, from, answers === null ? 'shout' : decision ? 'pass' : 'answer', null, { shout: id, to, decision: Boolean(decision), request: Boolean(request), answers, ...(outcome ? { outcome } : {}) });
+  return id;
 }
 
 /**
  * Shout to a lane, an agent, `all`, or the person (B7, B25, B26). The caller passes declared lanes.
  *
  * @param {any} board
- * @param {{ from: string, to: string, text: string, lanes: string[], decision?: boolean, answers?: number | null, evidence?: any }} message
+ * @param {{ from: string, to: string, text: string, lanes: string[], decision?: boolean, answers?: number | null, evidence?: any, request?: boolean }} message
  * @returns {number}
  */
 export function shout(board, message) {
@@ -1211,6 +1253,10 @@ export function passDecision(board, id, { agentId, note, lanes }) {
 export function answerDecision(board, id, { agentId, text, lanes, asPerson = false }) {
   return atomic(board, () => {
     const ask = getShout(board, id);
+    if (ask.shout_request) {
+      if (asPerson) throw new Refused('B26_PERSON_ANSWER', `requests are answered by the coordinator; run pullboard answer ${id} done or declined <reason>`);
+      return insertShout(board, { from: agentId, to: ask.shout_from, text, lanes, answers: id });
+    }
     if (!ask.shout_decision) throw new Refused('NOT_A_DECISION', `shout #${id} asked for no decision`);
     if (board.db.prepare('SELECT 1 FROM shout WHERE shout_answers = ?').get(id)) throw new Refused('ALREADY_ANSWERED', `shout #${id} already has an answer`);
     if (asPerson && agentId !== COORDINATOR) throw new Refused('B26_PERSON_ANSWER', `only the main checkout can answer as the person; ask your coordinator: pullboard answer ${id} "<answer>"`);
@@ -1279,6 +1325,13 @@ export function openDecisions(board, recipient = null) {
     .all(recipient);
 }
 
+/** Requests remain visible to the coordinator until a done or declined answer closes them (A2). */
+export function openRequests(board) {
+  return board.db.prepare(`SELECT * FROM shout ask WHERE ask.shout_request = 1
+    AND NOT EXISTS (SELECT 1 FROM shout reply WHERE reply.shout_answers = ask.shout_id AND reply.shout_request_outcome IN ('done', 'declined'))
+    ORDER BY ask.shout_id`).all();
+}
+
 /**
  * The SQL that picks an agent's unread shouts: to it, to its lane, or to all, from anyone else.
  */
@@ -1300,7 +1353,10 @@ export function inbox(board, agentId) {
       .all(agent.agent_last_shout_id, agentId, agent.agent_lane, agentId);
     const last = shouts.at(-1)?.shout_id ?? agent.agent_last_shout_id;
     board.db.prepare('UPDATE agent SET agent_last_shout_id = ? WHERE agent_id = ?').run(last, agentId);
-    return shouts;
+    if (agentId !== COORDINATOR) return shouts;
+    const requests = openRequests(board);
+    const ids = new Set(requests.map((shout) => shout.shout_id));
+    return [...requests, ...shouts.filter((shout) => !ids.has(shout.shout_id))];
   });
 }
 

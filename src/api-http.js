@@ -1,0 +1,120 @@
+/** API v1's shared HTTP boundary; local and relay adapters supply the same board operations (A2). */
+import { Refused } from './refused.js';
+import { refusalDocument } from './json.js';
+
+const BODY_BYTES = 100_000;
+
+/** Keep unexpected internal failures out of the public refusal document. */
+function refusal(error) {
+  return refusalDocument(error instanceof Refused ? error : new Refused('SERVICE_ERROR', 'the board service could not complete the call; retry or check the service'));
+}
+
+/** Emit exactly one versioned JSON response with no caching or content sniffing. */
+function json(res, status, value) {
+  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer', 'x-content-type-options': 'nosniff' });
+  res.end(JSON.stringify({ version: 1, ...value }));
+}
+
+/** Read a bounded JSON object, draining oversize requests so a refusal reaches the caller. */
+async function readBody(req) {
+  if (!/^application\/json(?:\s*;|$)/i.test(String(req.headers['content-type'] ?? ''))) throw new Refused('BAD_REQUEST', 'send an application/json object as the request body');
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size <= BODY_BYTES) chunks.push(chunk);
+  }
+  if (size > BODY_BYTES) throw new Refused('BAD_REQUEST', 'the body exceeds ' + BODY_BYTES + ' bytes; send one move or request at a time');
+  let value;
+  try { value = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw new Refused('BAD_REQUEST', 'the body is not JSON; send an application/json object'); }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Refused('BAD_REQUEST', 'the body needs a JSON object; send one move or request at a time');
+  return value;
+}
+
+/** Reject unsafe sequence coercion while retaining the CLI's empty-cursor default. */
+function eventCursor(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  if (!/^\d+$/.test(String(value)) || !Number.isSafeInteger(Number(value))) throw new Refused('BAD_CURSOR', 'after and Last-Event-ID need a nonnegative integer; use the last event id received');
+  return Number(value);
+}
+
+/** Create the common API router; an adapter controls authorization and board storage. */
+export function createApiHandler(adapter, { pollMs = 200 } = {}) {
+  if (!Number.isInteger(pollMs) || pollMs < 10 || pollMs > 60_000) throw new Refused('API_POLL', 'use a poll interval from 10 to 60000 milliseconds');
+  const streams = new Set();
+
+  /** Replay and follow records, respecting slow clients and revocation between polls. */
+  async function stream(req, res, board, who, after, initial) {
+    res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer' });
+    res.write(': API v1\n\n');
+    streams.add(res);
+    let closed = false;
+    let busy = false;
+    let blocked = false;
+    let timer;
+    /** Remove this stream and its timer once the client disconnects or access is revoked. */
+    function stop() {
+      if (closed) return;
+      closed = true;
+      clearInterval(timer);
+      streams.delete(res);
+      res.end();
+    }
+    /** Deliver only records after the latest delivered sequence, with no overlapping polls. */
+    async function send() {
+      if (closed || busy || blocked) return;
+      busy = true;
+      try {
+        who = await adapter.authenticate(req, { board: board.id, write: false });
+        const records = initial ?? await adapter.events(board, after, who);
+        initial = null;
+        for (const event of records) {
+          if (closed) break;
+          after = event.event_id;
+          if (!res.write('id: ' + after + '\ndata: ' + JSON.stringify({ version: 1, event }) + '\n\n')) { blocked = true; break; }
+        }
+      } catch (error) {
+        if (!closed) res.write('event: error\ndata: ' + JSON.stringify(refusal(error)) + '\n\n');
+        stop();
+      } finally { busy = false; }
+    }
+    res.once('close', stop);
+    res.on('drain', () => { blocked = false; void send(); });
+    timer = setInterval(send, pollMs);
+    timer.unref();
+    await send();
+  }
+
+  /** Route a request through the adapter and keep every HTTP response inside API v1. */
+  async function handle(req, res) {
+    try {
+      let url;
+      try { url = new URL(req.url ?? '/', 'http://127.0.0.1'); } catch { throw new Refused('BAD_REQUEST', 'use a valid path under /api/v1/boards'); }
+      const route = /^\/api\/v1\/boards\/([^/]+)\/(state|events|moves|requests)$/.exec(url.pathname);
+      const who = await adapter.authenticate(req, { board: route?.[1] ?? null, write: req.method === 'POST' });
+      if (req.method === 'GET' && url.pathname === '/api/v1/boards') return json(res, 200, { boards: await adapter.boards(who) });
+      if (!route) return json(res, 404, refusal(new Refused('NO_ENDPOINT', 'no API v1 endpoint here; use /api/v1/boards and a board state, events, moves or requests path')));
+      const board = await adapter.board(route[1], who);
+      if (req.method === 'GET' && route[2] === 'state') return json(res, 200, { state: await adapter.state(board, who) });
+      if (req.method === 'GET' && route[2] === 'events') {
+        const after = eventCursor(req.headers['last-event-id'] ?? url.searchParams.get('after'));
+        const initial = await adapter.events(board, after, who);
+        const live = String(req.headers.accept ?? '').split(',').some((part) => /^\s*text\/event-stream\s*(?:;|$)/i.test(part));
+        if (live) return await stream(req, res, board, who, after, initial);
+        return json(res, 200, { events: initial });
+      }
+      if (req.method === 'POST' && route[2] === 'moves') {
+        const moved = await adapter.move(board, await readBody(req), who);
+        return json(res, moved.status, moved.body);
+      }
+      if (req.method === 'POST' && route[2] === 'requests') return json(res, 200, await adapter.request(board, await readBody(req), who));
+      return json(res, 400, refusal(new Refused('BAD_REQUEST', 'use GET for reads and POST for moves and requests')));
+    } catch (error) {
+      const status = { AUTH_REQUIRED: 401, TOKEN_BOARD: 403, API_ORIGIN: 403, WRITE_REQUIRED: 403, NO_BOARD: 404, BOARD_NOT_LINKED: 404 }[error.code] ?? (error instanceof Refused ? 400 : 500);
+      if (!res.headersSent) json(res, status, refusal(error));
+      else res.end();
+    }
+  }
+  handle.close = () => { for (const res of streams) res.end(); };
+  return handle;
+}
