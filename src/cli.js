@@ -475,10 +475,16 @@ const firstLine = (text) => {
   return line.length > 100 ? `${line.slice(0, 99)}…` : line;
 };
 
+/** The next step for an agent holding a claim: build it and submit. */
+const buildNext = (card) => `build #${card.holding[0].item_id}, commit, then pullboard submit ${card.holding[0].item_id}`;
+
+/** The next step for an agent whose work came back: rework it. */
+const reworkNext = (card) => `pullboard claim ${card.sentBack[0].item.item_id}, fix what the verifier found, and submit again`;
+
 /**
  * The coordinator's next step, from the board and the spec (N32): the spec with the person first,
- * then the plan, then verdicts, merges and builders, so an agent that runs the team by the run guide
- * always knows where it is.
+ * then its own work in hand, then verdicts, merges, builders and the plan, so an agent that runs the
+ * team by the run guide always knows where it is. Nothing jumps the spec, not even its own claim.
  *
  * @param {any} card
  * @param {{ id: string, status: string }[]} rows
@@ -489,6 +495,8 @@ function coordinatorNext(card, rows) {
   if (!live.length) return "turn what the person wants into spec rows with them: the pullboard-decompose skill (pullboard prompt decompose)";
   const approved = live.filter((row) => row.status === 'approved');
   if (!approved.length) return 'the person approves rows in SPEC.md; then plan them: the pullboard-plan skill';
+  if (card.holding.length) return buildNext(card);
+  if (card.sentBack.length) return reworkNext(card);
   if (card.toVerify.length) return 'pullboard next --verify --as coordinator, or a verifier that built nothing: pullboard worktree review';
   if (card.toMerge.length) {
     const [first] = card.toMerge;
@@ -574,9 +582,9 @@ function resumeHere(io) {
   const isVerified = (id) => card.all.find((other) => other.item_id === Number(id))?.item_status === 'verified';
   const ready = inLane.filter((item) => !item.item_after || item.item_after.split(',').every(isVerified)).length;
   let next;
-  if (card.holding.length) next = `build #${card.holding[0].item_id}, commit, then pullboard submit ${card.holding[0].item_id}`;
-  else if (card.sentBack.length) next = `pullboard claim ${card.sentBack[0].item.item_id}, fix what the verifier found, and submit again`;
-  else if (isMain) next = coordinatorNext(card, loadSpec(root, ctx.config).rows);
+  if (isMain) next = coordinatorNext(card, loadSpec(root, ctx.config).rows);
+  else if (card.holding.length) next = buildNext(card);
+  else if (card.sentBack.length) next = reworkNext(card);
   else if (card.hold) next = 'wait for the hold to lift: pullboard next --wait 9 (minutes)';
   else if (ready) next = `pullboard next (${ready} ready in your lane)`;
   else if (inLane.length) next = `pullboard next --wait 9 (minutes); ${inLane.length} in your lane ${inLane.length === 1 ? 'waits' : 'wait'} on other work`;

@@ -162,8 +162,13 @@ test("the coordinator's resume names its next step from the spec and the board, 
   const initialized = fresh.run(repo, 'init');
   assert.match(initialized.out, /with an agent: start a new Claude Code session here, which loads the pullboard skills, then tell it what to build/, 'init tells an agent to start a new session [I9]');
   assert.match(next(fresh, repo), /^turn what the person wants into spec rows with them: the pullboard-decompose skill/);
+  assert.equal(fresh.run(repo, 'add', 'coordinator', 'Tidy the readme').code, 0);
+  assert.equal(fresh.run(repo, 'claim', '1').code, 0);
+  assert.match(next(fresh, repo), /^turn what the person wants into spec rows with them/, "the coordinator's own claim does not jump the spec");
   writeFileSync(join(repo, 'SPEC.md'), '# Fresh\n\n## G · Goals\n- G1 [draft, must] It works. | gate: test\n');
-  assert.match(next(fresh, repo), /^the person approves rows in SPEC.md; then plan them/);
+  assert.match(next(fresh, repo), /^the person approves rows in SPEC.md; then plan them/, 'nor the approval');
+  writeFileSync(join(repo, 'SPEC.md'), '# Fresh\n\n## G · Goals\n- G1 [approved, must] It works. | gate: test\n');
+  assert.match(next(fresh, repo), /^build #1, commit, then pullboard submit 1/, 'then it comes first');
 
   const box = project();
   assert.match(next(box, box.repo), /^plan the approved rows no item cites \(G1, G2\): the pullboard-plan skill/);

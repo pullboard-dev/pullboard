@@ -17,6 +17,8 @@ const MUTANTS = [
   ['N31', 'the guide drops the rule against merging unverified history', [['skills/pullboard-run/SKILL.md', '   Never merge a commit whose history holds another item\'s commit that is not yet verified.', '   Merge in any order.']], GUIDE, 'red'],
   ['N32', 'an empty spec is not sent to the person', [['src/cli.js', "  if (!live.length) return \"turn what the person wants into spec rows with them: the pullboard-decompose skill (pullboard prompt decompose)\";\n", '']], STAGES, 'red'],
   ['N32', 'draft rows are planned before the person approves them', [['src/cli.js', "  if (!approved.length) return 'the person approves rows in SPEC.md; then plan them: the pullboard-plan skill';\n", '']], STAGES, 'red'],
+  ['N32', "the coordinator's own claim jumps the spec", [['src/cli.js', "  if (isMain) next = coordinatorNext(card, loadSpec(root, ctx.config).rows);\n  else if (card.holding.length) next = buildNext(card);", "  if (card.holding.length) next = buildNext(card);\n  else if (isMain) next = coordinatorNext(card, loadSpec(root, ctx.config).rows);"]], STAGES, 'red'],
+  ['N32', "the coordinator's own claim is never named", [['src/cli.js', '  if (card.holding.length) return buildNext(card);\n', '']], STAGES, 'red'],
   ['N32', 'verified work is never named for merging', [['src/cli.js', '  if (card.toMerge.length) {', '  if (false) {']], STAGES, 'red'],
   ['N32', 'open items get no builders', [['src/cli.js', '  if (card.open.length) {\n    const lanes', '  if (false) {\n    const lanes']], STAGES, 'red'],
   ['N32', 'approved rows no item cites are never planned', [['src/cli.js', '  if (unplanned.length) {', '  if (false) {']], STAGES, 'red'],
