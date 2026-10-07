@@ -1,6 +1,7 @@
 /**
- * The proof audit of the lane and commit rows, L1 to L4 and C1 to C5 (item #55): for each row, one or
- * more changes to src/ that break the row's rule, and the tagged test that must go red under each.
+ * The proof audit of the lane and commit rows, L1 to L4 and C1 to C5 (item #55), and C7, CI (item
+ * #74): for each row, one or more changes that break the row's rule, and the tagged test that must go
+ * red under each.
  * The harness works on a temporary copy, never a real checkout.
  *
  * Run it from the repo root: node docs/proof/lanes-and-commits-mutants.mjs
@@ -16,6 +17,9 @@ const CITES = ['test/hooks.test.js', 'feat and fix cite ids; cited ids exist'];
 const PRE_PUSH = ['test/e2e.test.js', 'pre-push runs the gate once per tree'];
 const MERGE_HINT = ['test/hooks.test.js', 'a refused merge message points to the message git writes'];
 const FIXERS = ['test/e2e.test.js', 'pre-commit runs the fixers on fully staged files'];
+const CI = ['test/ci.test.js', 'CI runs the gate on every push and pull request'];
+const BADGE = ['test/ci.test.js', "the README shows the workflow's status badge"];
+const BADGE_LINE = '[![gate](https://github.com/pullboard-dev/pullboard/actions/workflows/gate.yml/badge.svg)](https://github.com/pullboard-dev/pullboard/actions/workflows/gate.yml)\n\n';
 const PRE_PUSH_RUN = "      const gate = runGate(info.root, ctx.config);\n      if (gate.isCached)";
 
 /** Row, the change, its edits as [file, from, to], the test that judges it, and the outcome expected. */
@@ -45,6 +49,11 @@ const MUTANTS = [
   ['C5', 'no fixer ever runs', [['src/hooks.js', '  if (!fixers.length) return [];', '  return [];']], FIXERS, 'red'],
   ['C5', 'a partly staged file is fixed anyway', [['src/hooks.js', 'covers(fixer, path) && !unstaged.has(path) && existsSync(join(root, path))', 'covers(fixer, path) && existsSync(join(root, path))']], FIXERS, 'red'],
   ['C5', 'what a fixer fixed is not staged again', [['src/hooks.js', "if (result.status === 0) git(root, ['add', '--', ...files]);", "if (false) git(root, ['add', '--', ...files]);"]], FIXERS, 'red'],
+  ['C7', 'macOS runs while the repository is private', [['.github/workflows/gate.yml', "    if: ${{ !github.event.repository.private }}\n", '']], CI, 'red'],
+  ['C7', 'CI drops the oldest Node it supports', [['.github/workflows/gate.yml', "        node: ['22.13', '24']\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - uses: actions/setup-node@v4\n        with:\n          node-version: ${{ matrix.node }}\n      - run: npm run gate\n\n  macos:", "        node: ['24']\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - uses: actions/setup-node@v4\n        with:\n          node-version: ${{ matrix.node }}\n      - run: npm run gate\n\n  macos:"]], CI, 'red'],
+  ['C7', 'CI checks out one commit, not the history spec check reads', [['.github/workflows/gate.yml', '      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - uses: actions/setup-node@v4\n        with:\n          node-version: ${{ matrix.node }}\n      - run: npm run gate\n\n  macos:', '      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: ${{ matrix.node }}\n      - run: npm run gate\n\n  macos:']], CI, 'red'],
+  ['C7', 'a pull request runs no gate', [['.github/workflows/gate.yml', '  pull_request:\n', '']], CI, 'red'],
+  ['C7', 'the README shows no badge', [['README.md', BADGE_LINE, '']], BADGE, 'red'],
 ];
 
 audit(MUTANTS);

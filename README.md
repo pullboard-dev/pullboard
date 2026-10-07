@@ -1,5 +1,7 @@
 # Pullboard
 
+[![gate](https://github.com/pullboard-dev/pullboard/actions/workflows/gate.yml/badge.svg)](https://github.com/pullboard-dev/pullboard/actions/workflows/gate.yml)
+
 **Vibe code a real product.** Your agents build from a spec you approved, in lanes that keep them out of each other's way, and nothing they build counts until a second agent verifies it.
 
 Pullboard is a work board that lives in your git repo. Every requirement is a one-line row in `SPEC.md`. Agents claim work, build it in their own worktrees, and submit it at a commit with your tests passing. A different agent, from a different model family if you like, checks it against the bar that was frozen when the work started. You decide what to build, answer the questions, and watch it all on one page.

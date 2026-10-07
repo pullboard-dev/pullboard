@@ -1,0 +1,44 @@
+# The gate on every push to main and every pull request, with the oldest Node pullboard supports and
+# the newest (C7). macOS runs once the repository is public: GitHub bills macOS minutes tenfold on
+# private repositories, and runs public ones free. Full history, since spec check reads it.
+name: gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.13', '24']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm run gate
+
+  macos:
+    if: ${{ !github.event.repository.private }}
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.13', '24']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm run gate
