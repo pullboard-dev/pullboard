@@ -15,6 +15,7 @@ import { dirname, join } from 'node:path';
 import * as store from './board.js';
 import { cockpitPage } from './cockpit.js';
 import { COORDINATOR, loadConfig } from './config.js';
+import { loadDoctrine, standardDoctrine } from './doctrine.js';
 import { repoInfo, resolveCommit } from './git.js';
 import { productSummaries } from './products.js';
 import { registryFile } from './projects.js';
@@ -90,6 +91,10 @@ export function projectState(root, { seen = null } = {}) {
     const all = store.listItems(board, { all: true });
     const status = new Map(all.map((item) => [item.item_id, item.item_status]));
     const rows = (file) => loadSpec(info.root, { ...config, spec: file }).rows.map(({ id, status: state, tier, text, gate, serves, section }) => ({ id, status: state, tier, text, gate, serves, section }));
+    const doctrine = loadDoctrine(info.root, config);
+    // A decline's text is its reason. Keep the inherited rule available so the page strikes the
+    // rule itself, while showing the repo's reason beside it.
+    const inherited = new Map(standardDoctrine().rows.map((row) => [row.id, row.text]));
     const verdict = (row) => ({ decision: row.verdict_decision, reason: row.verdict_reason, note: row.verdict_note, by: row.verdict_by, at: row.verdict_at, commit: row.verdict_commit });
     const log = store.events(board);
     // When each agent last moved on the board: the log is in order, so the last write wins.
@@ -135,7 +140,10 @@ export function projectState(root, { seen = null } = {}) {
       agents: store.listAgents(board).map((agent) => ({ ...agent, lastMoveAt: lastMove.get(agent.agent_id) ?? null })),
       holds: store.laneHolds(board),
       spec: rows(config.spec),
-      practice: rows(config.practice),
+      practice: doctrine.rows.map(({ id, status: state, tier, text, gate, serves, section, origin, version, reason }) => ({
+        id, status: state, tier, text, gate, serves, section, origin, version, reason,
+        ...(state === 'wont' && inherited.has(id) ? { standardText: inherited.get(id) } : {}),
+      })),
       unseen: seen === null ? null : { since: seen, count: board.db.prepare('SELECT COUNT(*) AS n FROM shout WHERE shout_id > ?').get(seen).n },
       // Each product's progress, counted as pullboard status counts it (N28).
       products: productSummaries(config, loadSpec(info.root, config), all),
