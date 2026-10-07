@@ -95,6 +95,7 @@ export function createRelayRetention({ directory, backupsDirectory = directory +
     const age = time() - activity;
     if (age < WARN) return null;
     return { board: id, code: 'BOARD_INACTIVE', inactiveDays: Math.floor(age / DAY),
+      daysLeft: Math.max(0, Math.ceil((EXPIRE - age) / DAY)),
       deletesAt: new Date(activity + EXPIRE).toISOString(),
       message: 'This linked board is inactive and will be deleted after 90 days without new board activity.',
       next: 'Make a board move before the deadline, or unlink; the local board stays complete.' };

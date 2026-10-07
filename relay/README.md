@@ -153,7 +153,7 @@ At sixty idle days, authorized `GET state` and `PUT state` responses include
 `state.warning`; event polls include `warning`, live streams emit a named `warning` event,
 and the board listing includes `warnings`. Streams send a warning once when it changes,
 with normal authorization on every poll. A warning contains only public board
-identity, `BOARD_INACTIVE`, idle days, the ninety-day deletion deadline and next steps.
+identity, `BOARD_INACTIVE`, idle days, `daysLeft` (remaining days rounded up), the ninety-day deletion deadline and next steps.
 Linked CLI and view consumers must display this on their next contact; this backend has no
 notification delivery and never reads a seal. At ninety idle days, a contact or maintenance
 sweep removes the board's journal, sidecars, backups, link and scoped credentials.

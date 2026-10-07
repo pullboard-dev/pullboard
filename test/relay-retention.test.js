@@ -79,6 +79,7 @@ test('[H18] warnings begin at sixty days on authorized contact; compaction and r
   assert.equal(warned.status, 200);
   assert.equal(warned.body.state.warning.code, 'BOARD_INACTIVE');
   assert.equal(warned.body.state.warning.inactiveDays, 60);
+  assert.equal(warned.body.state.warning.daysLeft, 30);
   assert.equal(warned.body.state.warning.deletesAt, new Date(start + 90 * DAY).toISOString());
   assert.equal((await box.call(null)).body.warnings.length, 2);
   assert.equal((await box.call(A, { path: '/events?after=0' })).body.warning.code, 'BOARD_INACTIVE');
@@ -97,6 +98,7 @@ test('[H18] warnings begin at sixty days on authorized contact; compaction and r
       assert.equal(chunk.done, false);
       delivered += new TextDecoder().decode(chunk.value);
     }
+    assert.ok(delivered.includes('event: warning\n'), 'a live client can distinguish warning metadata from sealed board events');
     assert.ok(delivered.includes('BOARD_INACTIVE'), 'a live view receives the same authorized warning');
   } finally { clearTimeout(warningTimeout); controller.abort(); reader.releaseLock(); }
 
