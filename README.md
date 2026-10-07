@@ -172,6 +172,8 @@ pullboard view
 
 ## Commands
 
+Every command also supports a versioned JSON result; see the [CLI JSON API](docs/api.md).
+
 | Command | What it does |
 | --- | --- |
 | `tour` | A reject and its rework on a throwaway repo. |
