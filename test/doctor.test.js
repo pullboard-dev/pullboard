@@ -24,6 +24,7 @@ function boardBox({ initialize = true } = {}) {
   mkdirSync(root);
   const env = {
     ...process.env,
+    PULLBOARD_HOME: join(dir, 'home'),
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Doctor Test',
