@@ -843,7 +843,7 @@ function pageMove(command, args = {}) {
 
 /** Describe an API-confirmed move without exposing its transport document in the page. */
 function moveMessage(move, result) {
-  if (move.verb === 'add') return 'added #' + result.id;
+  if (move.verb === 'add') return 'added #' + result.item.item_id;
   if (move.verb === 'shout') return 'shouted to ' + move.args.to;
   if (move.verb === 'answer') return 'answered #' + move.item;
   return move.args.off ? 'released the ' + move.args.lane + ' lane' : 'holding the ' + move.args.lane + ' lane: ' + move.args.reason;
