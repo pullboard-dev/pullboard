@@ -256,6 +256,7 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
   };
   const clicks = [];
   const inflight = new Set();
+  const requests = [];
   const document = {
     body: element('body'),
     documentElement: element('html'),
@@ -282,6 +283,7 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
     setTimeout,
     clearTimeout,
     fetch: (path, init) => {
+      requests.push({ path, method: init?.method ?? 'GET', body: init?.body ? JSON.parse(init.body) : null });
       const answer = held.then(() => fetch(`${view.base}${path}`, init)).then(async (res) => {
         const body = await res.json();
         return { ok: res.ok, status: res.status, json: async () => body };
@@ -296,6 +298,7 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
   if (!hold) await settle(inflight);
   return {
     html,
+    requests,
     // Let the held requests go, and wait for what they bring.
     async release() {
       release();
@@ -334,6 +337,63 @@ function projectRows(html) {
     current: /aria-current="true"/.test(row),
   }));
 }
+
+test('the page uses only API v1 for state, code and every offered move [A3,N26,N27]', async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  build(box, alpha, 1, 'greeting.html');
+  const commit = box.git(alpha.web, 'rev-parse', 'HEAD');
+  const ref = `web/greeting.html:1@${commit}`;
+  box.run(alpha.web, 'shout', 'all', ref);
+  const ask = JSON.parse(box.run(alpha.repo, 'shout', 'person', 'Ship the greeting?', '--decision', '--json')).id;
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    const id = await boardId(view, alpha.repo);
+    await page.click({ tab: 'shouts' });
+    await page.click({ code: ref });
+    assert.match(page.show('feed'), /<i>1<\/i>greeting\.html/);
+    assert.equal(await page.run("act('add', {lane:'web', title:'API item', specs:'G1', brief:'Files: web/api.html'})"), true);
+    assert.equal(await page.run("act('shout', {to:'web', text:'API greeting'})"), true);
+    assert.equal(await page.run(`act('answer', {id:${ask}, text:'Ship it.'})`), true);
+    assert.equal(await page.run("act('hold', {lane:'web', reason:'Awaiting the next decision'})"), true);
+    assert.equal(await page.run("act('release', {lane:'web'})"), true);
+    const moves = page.requests.filter((request) => request.method === 'POST');
+    assert.deepEqual(moves.map((request) => request.body.verb), ['add', 'shout', 'answer', 'hold', 'hold']);
+    assert.equal(moves[2].body.args.as, 'person');
+    assert.equal(moves[2].body.item, ask);
+    assert.equal(moves[4].body.args.off, true);
+    assert.ok(page.requests.every((request) => /^\/api\/v1\/boards(?:$|\/[^/]+\/(?:state|code|moves)(?:\?|$))/.test(request.path)), 'every page request uses a public v1 path');
+    assert.ok(page.requests.some((request) => request.path === '/api/v1/boards'));
+    assert.ok(page.requests.some((request) => request.path === `/api/v1/boards/${id}/state`));
+    assert.ok(page.requests.some((request) => request.path.startsWith(`/api/v1/boards/${id}/code?`)));
+    assert.ok(moves.every((request) => request.path === `/api/v1/boards/${id}/moves`));
+    assert.doesNotMatch(page.html, /['"]\/api\/(?:state|act|code)(?:[?'"])/, 'the served page contains no legacy API calls');
+    const state = await boardOf(view, alpha.repo);
+    assert.equal(state.items.find((item) => item.title === 'API item').brief, 'Files: web/api.html');
+    assert.ok(state.shouts.some((shout) => shout.shout_text === 'API greeting'));
+    assert.ok(state.shouts.some((shout) => shout.shout_answers === ask && shout.shout_from === 'person'));
+    assert.deepEqual(state.holds, []);
+    assert.deepEqual(state.decisions, []);
+
+    const headers = { 'x-pullboard-key': view.key };
+    for (const path of ['/api/state', '/api/code', '/api/act']) {
+      const response = await fetch(`${view.base}${path}`, { headers });
+      assert.equal(response.status, 404, `${path} remains unavailable`);
+      const refused = await response.json();
+      assert.equal(refused.version, 1);
+      assert.equal(refused.error.code, 'NO_ENDPOINT');
+    }
+    assert.equal((await fetch(`${view.base}/api/v1/boards`)).status, 401);
+    assert.equal((await fetch(`${view.base}/api/v1/boards`, { headers: { ...headers, origin: 'http://other.invalid' } })).status, 403);
+    const events = await fetch(`${view.base}/api/v1/boards/${id}/events`, { headers });
+    assert.equal(events.status, 200, 'any app can read the same event endpoint on the view address');
+    assert.ok((await events.json()).events.some((event) => event.event_kind === 'shout'));
+  } finally {
+    await view.stop();
+  }
+});
 
 test('the sidebar lists every project and what needs the person [N26]', async () => {
   const box = machine();
@@ -396,17 +456,18 @@ test('projects group repos with combined needs and activity, while ungrouped and
   const view = await startView(box);
   try {
     const headers = { 'x-pullboard-key': view.key };
-    let response = await fetch(`${view.base}/api/state`, { headers });
+    let response = await fetch(`${view.base}/api/v1/boards`, { headers });
     let state = await response.json();
-    assert.deepEqual(state.groups.map((group) => [group.name, group.repos.map((repo) => repo.name)]), [['Atlas', ['Core API', 'Web UI', 'Broken repo']]]);
+    assert.deepEqual(state.boards.filter((repo) => repo.project === 'Atlas').map((repo) => repo.name), ['Core API', 'Web UI', 'Broken repo']);
     writeFileSync(join(broken.repo, 'pullboard.json'), '{not valid json');
-    response = await fetch(`${view.base}/api/state`, { headers });
+    response = await fetch(`${view.base}/api/v1/boards`, { headers });
     state = await response.json();
-    const unreadable = state.projects.find((repo) => repo.root === broken.repo);
-    assert.equal(unreadable.ok, false);
-    assert.match(unreadable.error, /pullboard\.json is invalid/);
-    assert.match(unreadable.error, /pullboard forget/);
-    assert.doesNotMatch(unreadable.error, /BAD_CONFIG|SyntaxError/);
+    const unreadable = state.warnings.find((repo) => repo.root === broken.repo);
+    assert.equal(unreadable.error.version, 1);
+    assert.equal(unreadable.error.error.code, 'BOARD_UNAVAILABLE');
+    assert.match(unreadable.error.error.message, /cannot be read/);
+    assert.match(unreadable.error.error.message, /pullboard forget/);
+    assert.doesNotMatch(unreadable.error.error.message, /BAD_CONFIG|SyntaxError/);
 
     const page = await openPage(view);
     const side = page.show('proj-list');
@@ -415,7 +476,7 @@ test('projects group repos with combined needs and activity, while ungrouped and
     assert.match(side, /Core API/);
     assert.match(side, /Web UI/);
     assert.match(side, /Scratchpad/);
-    assert.match(side, /class="repo-error" role="status"><b>Broken repo:<\/b> pullboard\.json is invalid\. Run pullboard forget/);
+    assert.match(side, /class="repo-error" role="status"><b>Broken repo:<\/b> registered project [^<]+ cannot be read; restore the repo or run pullboard forget/);
     assert.doesNotMatch(side, /class="small bad"|class="bad"/);
 
     await page.click({ root: 'group:Atlas' });
@@ -1039,11 +1100,20 @@ function itemRow(html, id) {
 }
 
 /**
- * The board as the view serves it for one project.
+ * The persistent API identity for a registered project, or an intentionally absent test identity.
  */
+async function boardId(view, root) {
+  const response = await fetch(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': view.key } });
+  assert.equal(response.status, 200);
+  return (await response.json()).boards.find((board) => board.root === root)?.id ?? 'not-registered';
+}
+
+/** The board as the shared API serves it for one project. */
 async function boardOf(view, root) {
-  const res = await fetch(`${view.base}/api/state?root=${encodeURIComponent(root)}`, { headers: { 'x-pullboard-key': view.key } });
-  return (await res.json()).project;
+  const id = await boardId(view, root);
+  const res = await fetch(`${view.base}/api/v1/boards/${id}/state`, { headers: { 'x-pullboard-key': view.key } });
+  assert.equal(res.status, 200);
+  return (await res.json()).state;
 }
 
 test('no box carries a coloured edge [N26]', async () => {
@@ -1458,7 +1528,8 @@ test('the shouts tab counts shouts you have not seen [N26]', async () => {
     // A switch to beta that is slow to arrive: tabs clicked meanwhile must not mark alpha's shouts as
     // beta's, or beta's next shout would never count.
     const racing = await openPage(view, { store });
-    racing.run(`const plain = fetch; globalThis.fetch = (path, init) => path.includes(${JSON.stringify(encodeURIComponent(beta.repo))}) ? new Promise((done) => setTimeout(done, 300)).then(() => plain(path, init)) : plain(path, init);`);
+    const betaId = await boardId(view, beta.repo);
+    racing.run(`const plain = fetch; globalThis.fetch = (path, init) => path.includes(${JSON.stringify('/api/v1/boards/' + betaId + '/state')}) ? new Promise((done) => setTimeout(done, 300)).then(() => plain(path, init)) : plain(path, init);`);
     racing.run(`switchTo(${JSON.stringify(beta.repo)})`);
     await racing.click({ tab: 'shouts' });
     await racing.click({ tab: 'items' });
@@ -1636,21 +1707,32 @@ test('the view runs no init [N27]', async () => {
   box.git(other, 'init', '-q', '-b', 'main');
   const view = await startView(box);
   try {
-    const act = async (body) => {
-      const res = await fetch(`${view.base}/api/act`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-pullboard-key': view.key }, body: JSON.stringify(body) });
+    const act = async ({ root = alpha.repo, command, args }) => {
+      const id = await boardId(view, root);
+      const body = command === 'release' ? { verb: 'hold', args: { lane: args.lane, off: true } } : { verb: command, args };
+      const res = await fetch(`${view.base}/api/v1/boards/${id}/moves`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-pullboard-key': view.key }, body: JSON.stringify(body) });
       return { status: res.status, ...(await res.json()) };
     };
-    assert.deepEqual(await act({ command: 'init', args: { path: other } }), { status: 400, error: 'no action "init"' }, 'agents start boards, not the view');
-    assert.deepEqual(await act({ root: alpha.repo, command: 'init', args: { path: other } }), { status: 400, error: 'no action "init"' }, 'not even from inside a project');
+    for (const root of [undefined, alpha.repo]) {
+      const refused = await act({ root, command: 'init', args: { path: other } });
+      assert.equal(refused.status, 400, 'agents start boards, not the view');
+      assert.equal(refused.version, 1);
+      assert.equal(refused.error.code, 'BAD_REQUEST');
+    }
     assert.deepEqual(readdirSync(other), ['.git'], 'and nothing is set up at the path');
     for (const command of ['add', 'shout', 'hold', 'release']) {
       const args = { lane: 'web', title: 'x', to: 'all', text: 'x', reason: 'x' };
-      assert.deepEqual(await act({ root: other, command, args }), { status: 400, error: 'not a project on this machine' }, `${command} runs only inside a known project`);
+      const refused = await act({ root: other, command, args });
+      assert.equal(refused.status, 404, `${command} runs only inside a registered board`);
+      assert.equal(refused.error.code, 'NO_BOARD');
     }
-    const state = await (await fetch(`${view.base}/api/state`, { headers: { 'x-pullboard-key': view.key } })).json();
-    assert.deepEqual(state.projects.map((entry) => entry.name), ['alpha'], 'the machine has no new board');
+    const state = await (await fetch(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': view.key } })).json();
+    assert.deepEqual(state.boards.map((entry) => entry.name), ['alpha'], 'the machine has no new board');
     const shout = await act({ root: alpha.repo, command: 'shout', args: { to: 'all', text: 'still here' } });
-    assert.deepEqual([shout.status, shout.code, shout.command], [200, 0, 'pullboard shout all still here'], 'the actions it keeps still run');
+    assert.equal(shout.status, 200);
+    assert.equal(shout.version, 1);
+    assert.equal(shout.event.event_kind, 'shout');
+    assert.equal(shout.result.id, (await boardOf(view, alpha.repo)).shouts.find((entry) => entry.shout_text === 'still here').shout_id, 'the action it keeps reaches the real board');
   } finally {
     await view.stop();
   }
@@ -1795,8 +1877,10 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
     assert.ok(feed.includes(button(spaced, true) + '<span class="code"><span><i>1</i>plain note</span></span>'), 'a reference standing alone opens, whatever other files there are');
 
     const ask = async (ref, { root = alpha.repo, key = view.key, before = '' } = {}) => {
-      const res = await fetch(`${view.base}/api/code?root=${encodeURIComponent(root)}&ref=${encodeURIComponent(ref)}&before=${encodeURIComponent(before)}`, { headers: { 'x-pullboard-key': key } });
-      return [res.status, (await res.json()).error ?? ''];
+      const id = await boardId(view, root);
+      const res = await fetch(`${view.base}/api/v1/boards/${id}/code?ref=${encodeURIComponent(ref)}&before=${encodeURIComponent(before)}`, { headers: { 'x-pullboard-key': key } });
+      const result = await res.json();
+      return [res.status, result.error ? `[${result.error.code}] ${result.error.message}` : ''];
     };
     assert.deepEqual(await ask(spaced, { before: 'see web/my ' }), [400, '[AMBIGUOUS] the text before it may make it "web/my web/note.txt", which a reference cannot name']);
     assert.deepEqual(await ask(spaced, { before: 'see the ' }), [200, ''], 'text that makes no file leaves it be');
@@ -1804,7 +1888,7 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
     for (const ref of [`../outside.txt:1@${sha}`, `/etc/passwd:1@${sha}`, `web/../../outside.txt:1@${sha}`, `./web/greeting.html:1@${sha}`]) {
       assert.deepEqual(await ask(ref), [400, `[BAD_REF] name a file inside the repo by its path from the top, such as src/serve.js (saw "${ref.split(':')[0]}")`], `${ref} is refused`);
     }
-    for (const commit of ['HEAD', 'main', '--output=x', 'abc']) assert.match((await ask(`web/greeting.html:1@${commit}`)).join(' '), /^400 \[BAD_REF\] name the commit by its SHA/, `${commit} is no SHA`);
+    for (const commit of ['HEAD', 'main', '--output=x', 'abc']) assert.match((await ask(`web/greeting.html:1@${commit}`)).join(' '), /^400 \[BAD_REF\] use ref=path:lines@commit/, `${commit} is no SHA`);
     assert.deepEqual(await ask('web/greeting.html:1@deadbee'), [400, '[NO_COMMIT] no commit deadbee in this repo']);
     assert.deepEqual(await ask(`draft.txt:1@${second}`), [400, `[NO_FILE] no file draft.txt at ${second}`], 'the working tree is never read');
     assert.deepEqual(await ask(`web:1@${sha}`), [400, `[NO_FILE] no file web at ${sha}`], 'nor a folder');
@@ -1812,9 +1896,11 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
     assert.deepEqual(await ask(`web/greeting.html:3-2@${sha}`), [400, '[BAD_REF] name the lines as 12, or 12-30']);
     assert.deepEqual(await ask(`web/greeting.html:9@${sha}`), [400, `[NO_LINES] web/greeting.html has 1 lines at ${sha}`]);
     assert.deepEqual(await ask(`web/greeting.html:1-2@${sha}`), [400, `[NO_LINES] web/greeting.html has 1 lines at ${sha}`], 'nor lines that run past the end');
-    assert.deepEqual(await ask(`web/greeting.html@${sha}`), [400, 'a code reference reads path:lines@commit, such as src/serve.js:12-30@be4356b']);
-    assert.deepEqual(await ask(was, { root: box.dir }), [400, 'not a project on this machine']);
-    assert.equal((await ask(was, { key: 'wrong' }))[0], 403, 'and nothing without the secret');
+    assert.deepEqual(await ask(`web/greeting.html@${sha}`), [400, '[BAD_REF] use ref=path:lines@commit, such as src/serve.js:12-30@be4356b']);
+    const unknown = await ask(was, { root: box.dir });
+    assert.equal(unknown[0], 404);
+    assert.match(unknown[1], /^\[NO_BOARD\]/, 'a code read can name only a registered board');
+    assert.equal((await ask(was, { key: 'wrong' }))[0], 401, 'and nothing without the secret');
 
     // A refused reference says why where its code would be.
     box.run(alpha.web, 'shout', 'all', `gone: web/greeting.html:7@${sha}`);
@@ -1927,7 +2013,7 @@ test("a finished action's output steps aside [N27]", async () => {
 
     // Two shouts in flight: the first goes through but answers only after the second, a refusal, has
     // started. The first must not set a close that would hide the refusal.
-    page.run('const plain = fetch; let sent = 0; globalThis.fetch = (path, init) => path === "/api/act" ? new Promise((done) => pause(done, ++sent === 1 ? 300 : 900)).then(() => plain(path, init)) : plain(path, init);');
+    page.run('const plain = fetch; let sent = 0; globalThis.fetch = (path, init) => path.endsWith("/moves") ? new Promise((done) => pause(done, ++sent === 1 ? 300 : 900)).then(() => plain(path, init)) : plain(path, init);');
     await shout('web', 'first, and slow to answer');
     await shout('nobody-here', 'second, and refused');
     await new Promise((done) => setTimeout(done, 2000));

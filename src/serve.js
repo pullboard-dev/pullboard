@@ -17,7 +17,7 @@ import { cockpitPage } from './cockpit.js';
 import { COORDINATOR, loadConfig } from './config.js';
 import { repoInfo, resolveCommit } from './git.js';
 import { productSummaries } from './products.js';
-import { listProjects, registryFile } from './projects.js';
+import { registryFile } from './projects.js';
 import { Refused } from './refused.js';
 import { loadSpec } from './spec.js';
 
@@ -197,7 +197,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
   // initialize, and use the real CLI entry point without adding a second move implementation.
   const { createLocalApiHandler } = await import('./api.js');
   const { main } = await import('./cli.js');
-  const apiHandler = createLocalApiHandler({ secret, getPort: () => bound, runCommand: main, projects: listProjects });
+  const apiHandler = createLocalApiHandler({ secret, getPort: () => bound, runCommand: main });
   const reply = (res, code, type, body) => {
     res.writeHead(code, {
       'content-type': type,
