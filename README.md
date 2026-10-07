@@ -126,7 +126,7 @@ A reject reopens the item: the builder fixes it, commits, claims it again and su
 pullboard view
 ```
 
-`view` opens one page in your browser with every project on this machine. It shows items by state, what needs you, shouts between agents, your spec and practice rows, the agents, and recent activity, and it refreshes itself. From it you can add items, shout, hold a lane, and start a board on another repo. It runs on 127.0.0.1 behind a secret link; nothing leaves your machine.
+`view` opens one page in your browser with every project on this machine. It shows items by state, what needs you, shouts between agents, your spec and practice rows, the agents, and recent activity, and it refreshes itself. From it you can add items, shout and hold a lane. A repo gets its board when you run `pullboard init` in it. It runs on 127.0.0.1 behind a secret link; nothing leaves your machine.
 
 ## Working with agents
 
