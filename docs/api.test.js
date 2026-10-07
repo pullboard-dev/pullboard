@@ -28,6 +28,7 @@ function readShapeTable(start, end) {
 test('[A1] API guide documents every CLI result and refusal shape from the source catalog', () => {
   assert.match(guide, /stable within each major API version/);
   assert.match(guide, /incompatible change requires a new \x60version\x60/);
+  assert.match(guide, /agent may answer a decision sent to its own lane/);
 
   const documentedCommands = readShapeTable('<!-- api-command-shapes:start -->', '<!-- api-command-shapes:end -->');
   const sourceCommands = Object.fromEntries(Object.entries(JSON_SHAPES.commands).map(([name, shape]) => [name, shape.required]));
