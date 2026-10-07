@@ -485,7 +485,7 @@ test('[A1,A10] view exports a static folder through its JSON variant', () => {
   const events = JSON.parse(readFileSync(join(output, 'api/v1/boards', id, 'events.json'), 'utf8'));
   assert.equal(state.version, 1);
   assert.equal(state.state.board, id);
-  assert.equal(state.state.root, box.repo);
+  assert.equal(state.state.root, basename(box.repo));
   assert.equal(state.state.items[0].id, item.item_id);
   assert.equal(events.version, 1);
   assert.ok(events.events.some((event) => event.event_kind === 'add' && event.item_id === item.item_id));
