@@ -119,6 +119,8 @@ export function projectState(root, { seen = null } = {}) {
         };
       }),
       shouts: store.recentShouts(board, 40),
+      // Every ask still waiting for an answer, however far back the forty shouts reach (B21).
+      decisions: store.openDecisions(board),
       events: log.slice(-80).reverse(),
       agents: store.listAgents(board).map((agent) => ({ ...agent, lastMoveAt: lastMove.get(agent.agent_id) ?? null })),
       holds: store.laneHolds(board),
@@ -144,6 +146,7 @@ export function actionArgs(command, args = {}) {
     return ['add', text(args.lane), text(args.title), ...(text(args.criterion) ? ['--criterion', text(args.criterion)] : []), ...(text(args.specs) ? ['--specs', text(args.specs)] : []), ...(text(args.brief) ? ['--brief', text(args.brief)] : [])];
   }
   if (command === 'shout') return ['shout', text(args.to), text(args.text)];
+  if (command === 'answer') return ['answer', text(args.id), text(args.text)];
   if (command === 'hold') return ['hold', text(args.lane), '--reason', text(args.reason)];
   if (command === 'release') return ['hold', text(args.lane), '--off'];
   return null;

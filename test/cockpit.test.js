@@ -1027,6 +1027,58 @@ test('shout ids, search and narrow windows reach the item [N26]', async () => {
   }
 });
 
+test('a decision waits in needs-you until the view answers it [B21, N27]', async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  box.run(alpha.web, 'shout', 'coordinator', 'Greet in <b>French</b> first?', '--decision');
+  // Forty shouts after it: the ask is older than every shout the feed loads, and still waits.
+  for (let n = 0; n < 40; n += 1) box.run(alpha.web, 'shout', 'all', `note ${n}`);
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    // The question as the page escapes it, written as a pattern.
+    const question = 'Greet in &lt;b&gt;French&lt;/b&gt; first\\?';
+    assert.match(page.show('needs'), new RegExp(`^<div class="head"><i></i>Needs you</div><button class="ny" data-go="decide:1" type="button"><code>web-1</code><span>${question}</span><em>decide, <time data-ago="[^"]+">now</time> →</em></button>`), 'first in Needs-you: who asks, what, and since when');
+    assert.equal(page.element('decisions').hidden, false);
+    assert.match(page.show('decisions'), new RegExp(`^<div class="head"><i></i>Decision needed</div><div class="ask"><p><small><b>web-1</b> asks, <time data-ago="[^"]+">now</time></small></p><p>${question}</p><button class="ghost" data-go="decide:1" type="button">Answer</button></div>$`), 'and above the shouts, with an Answer button');
+    assert.doesNotMatch(page.show('feed'), /Greet in/, 'though the feed no longer reaches it');
+
+    const form = () => ({
+      answering: !page.element('answering').hidden,
+      who: page.element('answering-who').textContent,
+      question: page.element('answering-q').textContent,
+      to: page.element('shout-to').value,
+      locked: Boolean(page.element('shout-to').disabled),
+      button: page.element('shout-send').textContent,
+    });
+    page.element('shout-to').value = 'web';
+    await page.click({ go: 'decide:1' });
+    assert.equal(page.run('view.tab'), 'shouts');
+    assert.deepEqual(form(), { answering: true, who: 'web-1', question: 'Greet in <b>French</b> first?', to: 'web-1', locked: true, button: 'Answer' }, 'Answer turns the form to answering the asker');
+    await page.fire('answer-cancel', 'click');
+    assert.deepEqual(form(), { answering: false, who: '', question: '', to: 'web', locked: false, button: 'Shout' }, 'Cancel gives back the plain shout');
+
+    await page.click({ go: 'decide:1' });
+    page.element('shout-text').value = 'French, then English';
+    await page.fire('shout-form', 'submit');
+    assert.equal(page.element('console').textContent.split('\n')[0], '$ pullboard answer 1 French, then English');
+    assert.equal(page.element('console').className, 'console ok');
+    assert.match(box.run(alpha.web, 'inbox'), /coordinator -> web-1: answers #1: French, then English/, 'the answer reaches the asker');
+    assert.deepEqual(form(), { answering: false, who: '', question: '', to: 'web', locked: false, button: 'Shout' }, 'the form is a plain shout again');
+    assert.equal(page.element('shout-text').value, '');
+    assert.doesNotMatch(page.show('needs'), /decide:/, 'an answered decision leaves Needs-you');
+    assert.equal(page.element('decisions').hidden, true, 'and the banner');
+
+    box.run(alpha.web, 'shout', 'coordinator', 'Ship today?', '--decision');
+    await page.run('refresh()');
+    const feed = page.show('feed');
+    assert.match(feed, /<b>web-1 → coordinator<\/b> <span class="mark ask">decision<\/span> Ship today\?/, 'the feed marks an ask');
+    assert.match(feed, /<b>coordinator → web-1<\/b> <span class="mark">answer<\/span> French, then English/, 'and an answer');
+    assert.match(page.show('needs'), /data-go="decide:43"/);
+  } finally {
+    await view.stop();
+  }
+});
 test('the shouts tab counts shouts you have not seen [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
