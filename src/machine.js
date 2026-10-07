@@ -305,7 +305,7 @@ function unnamedRefusals(machine) {
   const used = new Set([...machine.moves.flatMap((move) => move.guards), ...Object.values(machine.exitGuards).flat()]);
   const problems = [];
   for (const guard of machine.guards) {
-    if (guard.id !== IN_STATE && !/^[A-Z][A-Z_]*$/.test(guard.refuse)) problems.push(`guard ${guard.id} names no refusal code`);
+    if (guard.id !== IN_STATE && !/^[A-Z][A-Z0-9_]*$/.test(guard.refuse)) problems.push(`guard ${guard.id} names no refusal code`);
     if (!guard.rule.trim()) problems.push(`guard ${guard.id} states no rule`);
     if (!guard.next.trim()) problems.push(`guard ${guard.id} refuses without a next step`);
     if (!used.has(guard.id)) problems.push(`guard ${guard.id} is declared but no move uses it`);
@@ -313,9 +313,9 @@ function unnamedRefusals(machine) {
   for (const move of machine.moves.filter((entry) => !entry.by.includes('clock'))) {
     const checks = move.guards.filter((id) => id === IN_STATE).length;
     if (checks !== 1) problems.push(`${move.verb} checks the item's state ${checks} times, not once`);
-    if (!/^[A-Z][A-Z_]*$/.test(move.refuse ?? '')) problems.push(`${move.verb} names no code for an item in the wrong state`);
+    if (!/^[A-Z][A-Z0-9_]*$/.test(move.refuse ?? '')) problems.push(`${move.verb} names no code for an item in the wrong state`);
   }
-  if (!/^[A-Z][A-Z_]*$/.test(machine.unknownMove.refuse) || !machine.unknownMove.next.trim()) problems.push('the unknown-move refusal has no code or no next step');
+  if (!/^[A-Z][A-Z0-9_]*$/.test(machine.unknownMove.refuse) || !machine.unknownMove.next.trim()) problems.push('the unknown-move refusal has no code or no next step');
   return problems;
 }
 

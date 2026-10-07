@@ -115,7 +115,7 @@ function codeWalk(read) {
     const [file, name] = key.split('#');
     const { bodies, named, spaces } = load(file);
     const body = bodies.get(name) ?? '';
-    const codes = new Set([...body.matchAll(/new Refused\(\s*(['"])([A-Z_]+)\1/g)].map((match) => match[2]));
+    const codes = new Set([...body.matchAll(/new Refused\(\s*(['"])([A-Z0-9_]+)\1/g)].map((match) => match[2]));
     const callees = [
       ...[...body.matchAll(/(?<!\w)(?<!(?<!\.\.)\.)(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? CALLBACKS[file]?.[callee])),
       ...[...body.matchAll(/\b(\w+)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : undefined)),
