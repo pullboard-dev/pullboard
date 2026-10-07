@@ -12,6 +12,7 @@ stateDiagram-v2
   claimed --> open: release
   claimed --> open: lapse (clock)
   claimed --> submitted: submit
+  submitted --> submitted: reserve
   submitted --> verified: accept
   submitted --> open: reject
   open --> open: escalate
@@ -46,8 +47,9 @@ Each move checks its guards in this order and refuses with the first one that do
 | release | claimed | open | agent, coordinator | joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_YOURS), isHolder (NOT_YOURS) |
 | lapse | claimed | open | clock, when its lease runs out | none |
 | submit | claimed | submitted | agent, coordinator | joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_YOURS), isHolder (NOT_YOURS), criterionUnchanged (CRITERIA_CHANGED), treeClean (DIRTY), nothingUntracked (UNTRACKED), hasCommit (NO_COMMIT), gateConfigured (NO_GATE), gateGreen (GATE_RED), childrenDone (CHILDREN_OPEN), headIsNew (HEAD_NOT_NEW) |
-| accept | submitted | verified | agent, coordinator | coordinatorSaysAs (MAIN_IS_COORDINATOR), joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_SUBMITTED), atSubmittedCommit (NOT_AT_COMMIT), notBuilder (SELF_VERIFY), routeAllows (ROUTE), policyAllows (COORDINATOR_VERIFIES), criterionUnchanged (CRITERIA_CHANGED), reasonIsMet (BAD_REASON), proofNoted (PROOF_REQUIRED) |
-| reject | submitted | open | agent, coordinator | coordinatorSaysAs (MAIN_IS_COORDINATOR), joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_SUBMITTED), atSubmittedCommit (NOT_AT_COMMIT), notBuilder (SELF_VERIFY), routeAllows (ROUTE), policyAllows (COORDINATOR_VERIFIES), criterionUnchanged (CRITERIA_CHANGED), reasonCoded (BAD_REASON), noteGiven (NOTE_REQUIRED) |
+| reserve | submitted | submitted | agent, coordinator | coordinatorSaysAs (MAIN_IS_COORDINATOR), joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_SUBMITTED), notBuilder (SELF_VERIFY), routeAllows (ROUTE), policyAllows (COORDINATOR_VERIFIES), reviewFree (REVIEW_HELD) |
+| accept | submitted | verified | agent, coordinator | coordinatorSaysAs (MAIN_IS_COORDINATOR), joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_SUBMITTED), atSubmittedCommit (NOT_AT_COMMIT), notBuilder (SELF_VERIFY), routeAllows (ROUTE), policyAllows (COORDINATOR_VERIFIES), reviewFree (REVIEW_HELD), criterionUnchanged (CRITERIA_CHANGED), reasonIsMet (BAD_REASON), proofNoted (PROOF_REQUIRED) |
+| reject | submitted | open | agent, coordinator | coordinatorSaysAs (MAIN_IS_COORDINATOR), joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_SUBMITTED), atSubmittedCommit (NOT_AT_COMMIT), notBuilder (SELF_VERIFY), routeAllows (ROUTE), policyAllows (COORDINATOR_VERIFIES), reviewFree (REVIEW_HELD), criterionUnchanged (CRITERIA_CHANGED), reasonCoded (BAD_REASON), noteGiven (NOTE_REQUIRED) |
 | escalate | open, claimed | open | agent, coordinator | joined (NOT_JOINED), noteGiven (NOTE_REQUIRED), itemExists (NO_ITEM), holderOrCoordinator (NOT_YOURS), inState (CLOSED) |
 | refreeze | open, claimed, submitted | open | coordinator | joined (NOT_JOINED), coordinatorOnly (COORDINATOR_ONLY), itemExists (NO_ITEM), inState (CLOSED), rowsInForce (UNKNOWN_SPEC) |
 | withdraw | open, claimed, submitted | withdrawn | coordinator | joined (NOT_JOINED), coordinatorOnly (COORDINATOR_ONLY), noteGiven (NOTE_REQUIRED), itemExists (NO_ITEM), inState (CLOSED) |
@@ -66,6 +68,7 @@ Each move checks its guards in this order and refuses with the first one that do
 | NOT_CLAIMABLE | claim: the item is in open, claimed | pullboard show <id> |
 | NOT_YOURS | release: the item is in claimed | pullboard show <id> |
 | NOT_YOURS | submit: the item is in claimed | pullboard show <id> |
+| NOT_SUBMITTED | reserve: the item is in submitted | pullboard show <id> |
 | NOT_SUBMITTED | accept: the item is in submitted | pullboard show <id> |
 | NOT_SUBMITTED | reject: the item is in submitted | pullboard show <id> |
 | CLOSED | escalate: the item is in open, claimed | pullboard show <id> |
@@ -95,6 +98,7 @@ Each move checks its guards in this order and refuses with the first one that do
 | NOT_AT_COMMIT | the caller's checkout contains the submitted commit | git switch --detach <commit> |
 | SELF_VERIFY | the caller did not build it | another agent verifies it: pullboard next --verify |
 | COORDINATOR_VERIFIES | the repo's verify policy lets the caller verify this lane's work | the coordinator verifies it |
+| REVIEW_HELD | no other agent holds its review under a live lease | pullboard next --verify, which passes over reviews another agent holds |
 | BAD_REASON | an accept gives CRITERION_MET as its reason | a failed criterion is a reject: pullboard verify <id> reject --reason CODE |
 | PROOF_REQUIRED | an accept notes how it was proved | --note "what you broke or which edge you tried, and what happened" |
 | BAD_REASON | a reject names one of the reject reasons | --reason TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD or OTHER |

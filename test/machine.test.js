@@ -3,7 +3,7 @@
  * failing on a broken copy, and in step with the refusals board.js and cli.js raise today.
  */
 import assert from 'node:assert/strict';
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -11,9 +11,10 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { HELP } from '../src/cli.js';
+import { loadConfig } from '../src/config.js';
 import { Refused } from '../src/refused.js';
 import { BLANKS, IN_STATE, MACHINE, effectiveGuards, lifecycleHelp, lifecycleMarkdown, machineProblems, storeTriggers } from '../src/machine.js';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 
 /**
  * Refusals that are not about an item's lifecycle, so no move declares them: how a command was
@@ -35,6 +36,7 @@ const ENTRY_POINTS = [
   { verbs: ['claim'], at: ['board.js#claim'] },
   { verbs: ['release'], at: ['board.js#release'] },
   { verbs: ['submit'], at: ['board.js#submit', 'cli.js#submitHere'] },
+  { verbs: ['reserve'], at: ['board.js#reserveReview', 'board.js#reserveNextReview'] },
   { verbs: ['accept', 'reject'], at: ['board.js#verify', 'cli.js#verifyHere'] },
   { verbs: ['escalate'], at: ['board.js#escalate'] },
   { verbs: ['withdraw'], at: ['board.js#withdraw'] },
@@ -115,7 +117,7 @@ function codeWalk(read) {
     const body = bodies.get(name) ?? '';
     const codes = new Set([...body.matchAll(/new Refused\(\s*(['"])([A-Z_]+)\1/g)].map((match) => match[2]));
     const callees = [
-      ...[...body.matchAll(/(?<![.\w])(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? CALLBACKS[file]?.[callee])),
+      ...[...body.matchAll(/(?<!\w)(?<!(?<!\.\.)\.)(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? CALLBACKS[file]?.[callee])),
       ...[...body.matchAll(/\b(\w+)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : undefined)),
     ];
     for (const callee of callees.filter(Boolean)) for (const code of refusalsOf(callee, skip, seen)) codes.add(code);
@@ -342,7 +344,7 @@ test('the declared lifecycle is sound: reachable, no traps, no second door, ever
   assert.deepEqual(machineProblems(), []);
   assert.deepEqual(MACHINE.states.map((state) => state.id), ['open', 'claimed', 'submitted', 'verified', 'withdrawn']);
   assert.deepEqual(MACHINE.states.filter((state) => state.final).map((state) => state.id), ['verified', 'withdrawn']);
-  assert.deepEqual(MACHINE.moves.map((move) => move.verb), ['claim', 'release', 'lapse', 'submit', 'accept', 'reject', 'escalate', 'refreeze', 'withdraw']);
+  assert.deepEqual(MACHINE.moves.map((move) => move.verb), ['claim', 'release', 'lapse', 'submit', 'reserve', 'accept', 'reject', 'escalate', 'refreeze', 'withdraw']);
 });
 
 for (const broken of BROKEN) {
@@ -433,7 +435,8 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
   assert.deepEqual(codeProblems(MACHINE, inArrow).sort(), [
     'NO_ROUTE is raised by accept and reject but not declared there',
     'NO_ROUTE is raised by claim but not declared there',
-  ]);
+    'NO_ROUTE is raised by reserve but not declared there',
+  ], 'reserve reaches the route check through the reviewer checks it shares with a verdict');
 
   const doubleQuoted = editedSource('cli.js', /^const cdTo = .*$/m, "const cdTo = (root) => { if (!root) throw new Refused(\"NO_ROOT\", 'no root'); return 'cd ' + root + ' &&'; };");
   assert.deepEqual(codeProblems(MACHINE, doubleQuoted), ['NO_ROOT is raised by accept and reject but not declared there']);
@@ -454,12 +457,13 @@ const freeze = (item) => ({ text: item.item_title, digest: `digest:${item.item_t
  * A board file on disk with a coordinator and two web agents, opened the way the CLI opens it,
  * and a way to open the same file raw, as any agent with a shell could.
  *
+ * @param {{ now: () => Date }} [clock] - The board's clock; the system's when left out.
  * @returns {{ file: string, board: any, raw: () => DatabaseSync, done: () => void }}
  */
-function boardOnDisk() {
+function boardOnDisk(clock) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-machine-'));
   const file = join(dir, 'board.sqlite');
-  const board = store.openBoard(file);
+  const board = store.openBoard(file, clock);
   store.register(board, { lane: 'coordinator', path: '/repo' });
   store.register(board, { lane: 'web', path: '/repo-web-1' });
   store.register(board, { lane: 'web', path: '/repo-web-2' });
@@ -744,6 +748,7 @@ test('pullboard help lists each role\'s moves from the declaration, and pullboar
 const CLI_CHECKED = {
   claim: ['joined'],
   submit: ['joined', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'gateConfigured', 'gateGreen'],
+  reserve: ['coordinatorSaysAs', 'joined'],
   accept: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit'],
   reject: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit'],
 };
@@ -848,10 +853,12 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
     submits.push(submitAs(piece, 'web-1', SHA_A), submitAs(piece, 'web-1', SHA_B));
     assert.deepEqual(submits, [...declaredBoardOrder('submit'), 'ok']);
 
+    const other = store.register(board, { lane: 'web', path: '/repo-web-other' });
     for (const verb of ['accept', 'reject']) {
       const decision = verb === 'accept' ? 'ACCEPT' : 'REJECT';
       const built = submittedItem(board);
       const open = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+      store.reserveReview(board, built, { agentId: 'web-2', leaseMs: 3_600_000, policy: 'any' });
       const judge = (id, agentId, fields) =>
         outcome(() => store.verify(board, id, { agentId, decision, head: SHA_A, digest: 'wrong', policy: 'coordinator', note: '', ...fields }));
       const bad = verb === 'accept' ? 'TEST_FAILURE' : 'NOPE';
@@ -862,6 +869,7 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
         judge(built, 'web-1', { reason: bad }),
         judge(built, light, { reason: bad }),
         judge(built, 'web-2', { reason: bad }),
+        judge(built, other, { reason: bad, policy: 'any' }),
         judge(built, 'web-2', { reason: bad, policy: 'any' }),
         judge(built, 'web-2', { reason: bad, policy: 'any', digest: 'digest:Page' }),
         judge(built, 'web-2', { reason: good, policy: 'any', digest: 'digest:Page' }),
@@ -872,6 +880,236 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
   } finally {
     lab.done();
   }
+});
+
+test('reserve refuses in the declared order, one failure peeled at a time [V15, M1, M2]', () => {
+  const lab = boardOnDisk();
+  try {
+    const { board } = lab;
+    const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
+    const other = store.register(board, { lane: 'web', path: '/repo-web-other' });
+    const built = submittedItem(board);
+    const open = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+    const reserveAs = (id, agentId, policy = 'coordinator') => outcome(() => store.reserveReview(board, id, { agentId, leaseMs: 3_600_000, policy }));
+    const fired = [reserveAs(999, 'web-2'), reserveAs(open, 'web-2'), reserveAs(built, 'web-1'), reserveAs(built, light), reserveAs(built, 'web-2')];
+    store.reserveReview(board, built, { agentId: other, leaseMs: 3_600_000, policy: 'any' });
+    fired.push(reserveAs(built, 'web-2', 'any'), reserveAs(built, other, 'any'));
+    assert.deepEqual(fired, [...declaredBoardOrder('reserve'), 'ok']);
+    assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'REVIEW_HELD', 'ok']);
+  } finally {
+    lab.done();
+  }
+});
+
+test('a reserved review refuses every other verdict while its lease lives, and only then; a new submission starts free [V15]', () => {
+  let at = Date.parse('2026-10-06T12:00:00.000Z');
+  const lab = boardOnDisk({ now: () => new Date(at) });
+  try {
+    const { board } = lab;
+    const third = store.register(board, { lane: 'web', path: '/repo-web-3' });
+    const id = submittedItem(board);
+    const minutes = (count) => {
+      at += count * 60_000;
+    };
+    const reserve = (agentId) => store.reserveReview(board, id, { agentId, leaseMs: 30 * 60_000, policy: 'any' });
+    const judge = (agentId, decision) =>
+      outcome(() =>
+        store.verify(board, id, {
+          agentId,
+          decision,
+          reason: decision === 'REJECT' ? 'TEST_FAILURE' : undefined,
+          note: 'reverted the fix; its test went red',
+          head: store.getItem(board, id).item_commit,
+          digest: 'digest:Page',
+          policy: 'any',
+        }),
+      );
+    const holder = () => store.reviewHolder(board, store.getItem(board, id));
+    const offered = (agentId) => store.nextFor(board, { agentId, lane: 'web', verify: true });
+
+    assert.equal(reserve('web-2').item_review_until, '2026-10-06T12:30:00.000Z');
+    assert.equal(holder(), 'web-2');
+    assert.equal(offered(third).item ?? null, null, 'another agent is passed over');
+    assert.match(offered(third).reasons.join('; '), /web-2 holds the review of #1 until 2026-10-06T12:30:00\.000Z/);
+    assert.equal(outcome(() => reserve(third)), 'REVIEW_HELD');
+    assert.equal(judge(third, 'ACCEPT'), 'REVIEW_HELD');
+    assert.equal(judge(third, 'REJECT'), 'REVIEW_HELD');
+    assert.equal(offered('web-2').item.item_id, id, 'the holder is offered its own review');
+
+    minutes(20);
+    assert.equal(reserve('web-2').item_review_until, '2026-10-06T12:50:00.000Z', 'reserving again renews the lease');
+    minutes(25);
+    assert.equal(judge(third, 'ACCEPT'), 'REVIEW_HELD', 'at 12:45 the renewed lease still holds');
+
+    minutes(6);
+    assert.equal(holder(), null, 'at 12:51 the lease has run out');
+    assert.equal(offered(third).item.item_id, id);
+    assert.equal(reserve(third).item_review_until, '2026-10-06T13:21:00.000Z');
+    assert.equal(judge('web-2', 'ACCEPT'), 'REVIEW_HELD', 'a lapsed lease gives nothing over the agent that reserved since');
+    assert.equal(judge(third, 'REJECT'), 'ok');
+    assert.equal(store.getItem(board, id).item_review_by, third, 'the reservation stays on the record');
+    assert.equal(holder(), null, 'but holds nothing once the item leaves submitted, though its lease lives until 13:21');
+
+    store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
+    store.submit(board, id, { agentId: 'web-1', commit: SHA_B, tree: 'tree' });
+    assert.equal(store.getItem(board, id).item_review_by, null, 'a new submission starts with no reservation');
+    assert.equal(offered('web-2').item.item_id, id, 'though the last lease would live until 13:21');
+
+    reserve('web-2');
+    minutes(60);
+    assert.equal(holder(), null);
+    assert.equal(judge('web-2', 'ACCEPT'), 'ok', "the holder's own verdict is never refused for its lease having lapsed");
+    assert.equal(store.getItem(board, id).item_status, 'verified');
+    const reserved = store
+      .events(board, { itemId: id })
+      .filter((event) => event.event_kind === 'reserve')
+      .map((event) => [event.event_by, JSON.parse(event.event_detail).until]);
+    assert.deepEqual(reserved, [
+      ['web-2', '2026-10-06T12:30:00.000Z'],
+      ['web-2', '2026-10-06T12:50:00.000Z'],
+      [third, '2026-10-06T13:21:00.000Z'],
+      ['web-2', '2026-10-06T13:21:00.000Z'],
+    ]);
+  } finally {
+    lab.done();
+  }
+});
+
+test('next --verify reserves the review for the reviewLease and says until when; show names the holder; another verifier is passed over and refused [V15]', () => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-reserve-')));
+  try {
+    const env = {
+      ...process.env,
+      GIT_CONFIG_GLOBAL: '/dev/null',
+      GIT_CONFIG_NOSYSTEM: '1',
+      GIT_AUTHOR_NAME: 'Test Agent',
+      GIT_AUTHOR_EMAIL: 'agent@example.com',
+      GIT_COMMITTER_NAME: 'Test Agent',
+      GIT_COMMITTER_EMAIL: 'agent@example.com',
+      PULLBOARD_HOME: join(dir, 'home'),
+    };
+    const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+    // A command that never returns fails the test after a minute instead of holding the gate open.
+    const run = (cwd, ...args) => spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8', timeout: 60_000 });
+    const repo = join(dir, 'repo');
+    mkdirSync(repo);
+    git(repo, 'init', '-q', '-b', 'main');
+    writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true', reviewLease: '45m', lanes: { web: { owns: ['web/'] } } }));
+    writeFileSync(join(repo, 'SPEC.md'), '# Demo\n\n## G · Goals\n- G1 [approved, must] It greets. | gate: test\n');
+    git(repo, 'add', '-A');
+    git(repo, 'commit', '-q', '-m', 'chore: a spec');
+    const [builder, holder, other] = ['web-1', 'web-2', 'web-3'].map((name) => {
+      const path = join(dir, name);
+      git(repo, 'worktree', 'add', '-q', '--detach', path);
+      const joined = run(path, 'join', 'web');
+      assert.match(joined.stdout, new RegExp(`joined as ${name}`), joined.stderr);
+      return path;
+    });
+    const added = run(repo, 'add', 'web', 'Greet', '--specs', 'G1', '--criterion', 'It greets.');
+    assert.equal(added.status, 0, added.stderr);
+    assert.equal(run(builder, 'claim', '1').status, 0);
+    mkdirSync(join(builder, 'web'));
+    writeFileSync(join(builder, 'web', 'greet.txt'), 'hello\n');
+    git(builder, 'add', '-A');
+    git(builder, 'commit', '-q', '-m', 'feat(web): greet [G1]');
+    const commit = git(builder, 'rev-parse', 'HEAD');
+    const submitted = run(builder, 'submit', '1');
+    assert.equal(submitted.status, 0, submitted.stderr);
+
+    const before = Date.now();
+    const first = run(holder, 'next', '--verify');
+    const after = Date.now();
+    assert.equal(first.status, 0, first.stderr);
+    const until = /reserved for you until (\S+): another agent's verdict on it is refused until then/.exec(first.stdout)?.[1];
+    assert.ok(until, first.stdout);
+    const lease = 45 * 60_000;
+    assert.ok(Date.parse(until) >= before + lease && Date.parse(until) <= after + lease, `${until} is 45 minutes on, the repo's reviewLease`);
+    assert.ok(run(repo, 'show', '1').stdout.includes(`under review by web-2 until ${until}`), 'show names the holder and the time');
+
+    const passed = run(other, 'next', '--verify');
+    assert.equal(passed.status, 1, passed.stdout);
+    assert.match(passed.stderr, /NOTHING_FREE/);
+    assert.ok(passed.stderr.includes(`web-2 holds the review of #1 until ${until}`), passed.stderr);
+    git(other, 'switch', '-q', '--detach', commit);
+    const refused = run(other, 'verify', '1', 'accept', '--note', 'it greets');
+    assert.equal(refused.status, 1, refused.stdout);
+    assert.match(refused.stderr, /REVIEW_HELD/);
+    assert.ok(refused.stderr.includes(`web-2 holds the review of #1 until ${until}`), refused.stderr);
+
+    const renewed = run(holder, 'next', '--verify');
+    const again = /reserved for you until (\S+):/.exec(renewed.stdout)?.[1];
+    assert.ok(again && Date.parse(again) > Date.parse(until), `running next --verify again renews the lease: ${renewed.stdout}${renewed.stderr}`);
+    git(holder, 'switch', '-q', '--detach', commit);
+    const accepted = run(holder, 'verify', '1', 'accept', '--note', 'checked out the commit; web/greet.txt says hello');
+    assert.equal(accepted.status, 0, accepted.stderr);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('next --verify looks and reserves in one transaction, so no other verifier takes the review in between [V15]', () => {
+  const lab = boardOnDisk();
+  const others = [];
+  try {
+    const id = submittedItem(lab.board);
+    const third = store.register(lab.board, { lane: 'web', path: '/repo-web-3' });
+    const fourth = store.register(lab.board, { lane: 'web', path: '/repo-web-4' });
+    // A reservation that has already lapsed, so the look has a lease to read the clock for.
+    store.reserveReview(lab.board, id, { agentId: fourth, leaseMs: 1, policy: 'any' });
+    const rival = store.openBoard(lab.file);
+    rival.db.exec('PRAGMA busy_timeout = 0');
+    let armed = false;
+    let rivalSaw = null;
+    // web-2's own connection. Its clock runs a minute ahead, so the lapsed lease is plainly lapsed,
+    // and the first time the look reads it, a rival verifier on another connection tries to
+    // reserve the same review.
+    const looking = store.openBoard(lab.file, {
+      now: () => {
+        if (armed && rivalSaw === null) {
+          try {
+            store.reserveReview(rival, id, { agentId: third, leaseMs: 60_000, policy: 'any' });
+            rivalSaw = 'reserved';
+          } catch (error) {
+            rivalSaw = error.message;
+          }
+        }
+        return new Date(Date.now() + 60_000);
+      },
+    });
+    others.push(rival, looking);
+    armed = true;
+    const found = store.reserveNextReview(looking, { agentId: 'web-2', lane: 'web', leaseMs: 60_000, policy: 'any' });
+    assert.equal(found.item?.item_review_by, 'web-2');
+    assert.ok(rivalSaw !== null, 'the look read the clock, so the rival had its chance mid-look');
+    assert.match(rivalSaw, /locked/, 'the rival could not write while the look held the board');
+  } finally {
+    for (const board of others) store.closeBoard(board);
+    lab.done();
+  }
+});
+
+test('the review lease is reviewLease in pullboard.json, 30 minutes unless the repo says otherwise [V15]', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pullboard-review-lease-'));
+  try {
+    const leaseOf = (config) => {
+      writeFileSync(join(dir, 'pullboard.json'), JSON.stringify({ gate: 'true', ...config }));
+      return loadConfig(dir).reviewLeaseMs;
+    };
+    assert.equal(leaseOf({}), 30 * 60_000);
+    assert.equal(leaseOf({ reviewLease: '2h' }), 2 * 3_600_000);
+    assert.throws(() => leaseOf({ reviewLease: 'soon' }), { code: 'BAD_CONFIG', message: /reviewLease "soon" is not a duration/ });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the lifecycle page and the help show the reservation: reserve, and reviewFree on every verdict [V15, M1]', () => {
+  const page = lifecycleMarkdown();
+  assert.match(page, /^\| reserve \| submitted \| submitted \| agent, coordinator \| .*reviewFree \(REVIEW_HELD\) \|$/m);
+  for (const verb of ['accept', 'reject']) assert.match(page, new RegExp(`^\\| ${verb} \\| submitted \\| .*policyAllows \\(COORDINATOR_VERIFIES\\), reviewFree \\(REVIEW_HELD\\), criterionUnchanged`, 'm'));
+  assert.match(page, /^\| REVIEW_HELD \| no other agent holds its review under a live lease \| pullboard next --verify/m);
+  assert.match(HELP, /^ {2}agent +claim, release, submit, reserve, accept, reject, escalate$/m);
+  assert.match(HELP, /pullboard next --verify +reserve the next submitted item you can check/);
 });
 
 test('the two conditional guards behave as declared: a renewal passes a held lane, and only a freeze checks the rows [M1, M2]', () => {

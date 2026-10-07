@@ -635,6 +635,7 @@ test('the activity tab draws the lifecycle from the declaration, with live count
       'claimed>claimed': 'claim 1',
       'claimed>open': 'release · lapse · escalate · refreeze (none yet)',
       'claimed>submitted': 'submit 3',
+      'submitted>submitted': 'reserve (none yet)',
       'submitted>verified': 'accept 1',
       'submitted>open': 'reject 1',
       'open>open': 'escalate · refreeze (none yet)',

@@ -81,9 +81,9 @@ Work
   pullboard show <id> [--history]       an item, the criterion frozen at claim, its verdicts: the latest in full,
                                         earlier ones as one line; --history prints every note in full
   pullboard next [--wait <minutes>]     claim the next item in your lane that is free to start
-  pullboard next --verify               name the next submitted item you can check
-  pullboard check [id]                  run your item's check, the command that proves it (the project gate is pullboard gate)
+  pullboard next --verify               reserve the next submitted item you can check;
                                         in the main checkout, verifying needs --as coordinator
+  pullboard check [id]                  run your item's check, the command that proves it (the project gate is pullboard gate)
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
   pullboard release <id>                hand it back
   pullboard submit <id>                 needs a clean tree and the gate green at HEAD (alias: done)
@@ -671,11 +671,12 @@ function readCommands(io, { first, values }) {
     show: () => {
       const ctx = context(io);
       const id = idArg(first);
-      const { item, verdicts, moves, related } = withBoard(ctx, (board) => ({
+      const { item, verdicts, moves, related, reviewer } = withBoard(ctx, (board) => ({
         item: store.getItem(board, id),
         verdicts: store.verdictsFor(board, id),
         moves: store.events(board, { itemId: id }).filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
         related: store.relatedItems(board, store.getItem(board, id)),
+        reviewer: store.reviewHolder(board, store.getItem(board, id)),
       }));
       if (values.json) {
         io.say(JSON.stringify({ ...item, verdicts }, null, 2));
@@ -700,6 +701,7 @@ function readCommands(io, { first, values }) {
         frozen.rows.forEach((row) => io.say(`  ${row.id}: ${row.text}${row.gate ? `  | gate: ${row.gate}` : ''}`));
       }
       if (item.item_commit) io.say(`submitted by ${item.item_built_by} at ${item.item_commit}`);
+      if (reviewer) io.say(`under review by ${reviewer} until ${item.item_review_until}`);
       // Earlier verdicts as one line each, so an item sent back several times stays short to read
       // (N30); --history prints every note in full.
       const verdictLine = (verdict) => `${verdict.verdict_decision} ${verdict.verdict_reason} by ${verdict.verdict_by} at ${verdict.verdict_commit.slice(0, 12)}`;
@@ -864,8 +866,9 @@ function verifyHere(ctx, id, { second, values }) {
 }
 
 /**
- * One loop of `next`: claim the next free item, or name the next one to verify. A claim that loses a
- * race to another agent is not an error; the caller looks again.
+ * One loop of `next`: claim the next free item, or reserve the next review (V15). A claim that loses
+ * a race to another agent is not an error; the caller looks again. A review is looked for and
+ * reserved in one transaction, so it cannot lose that race.
  *
  * @param {any} ctx
  * @param {any} values
@@ -875,10 +878,12 @@ function nextOnce(ctx, values) {
   return withBoard(ctx, (board) => {
     if (values.verify) checkMainVerifier(ctx, board, values);
     const me = whoAmI(ctx, board);
-    const warm = values.verify ? [] : warmFiles(ctx, board, me);
-    const { item, reasons, shared } = store.nextFor(board, { agentId: me.id, lane: me.lane, verify: values.verify, runnable: values.runnable, routes: values.routes, warm });
+    if (values.verify) {
+      return store.reserveNextReview(board, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify, runnable: values.runnable, routes: values.routes });
+    }
+    const warm = warmFiles(ctx, board, me);
+    const { item, reasons, shared } = store.nextFor(board, { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm });
     if (!item) return { reasons };
-    if (values.verify) return { item };
     if (item.item_status === 'claimed') return { item, held: true };
     try {
       store.claim(board, item.item_id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx), head: headCommit(ctx.info.root) });
@@ -913,6 +918,7 @@ async function nextHere(io, values) {
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (values.verify) {
         io.say(`next to verify: #${item.item_id} ${item.item_title}, built by ${item.item_built_by} at ${item.item_commit.slice(0, 12)}`);
+        io.say(`reserved for you until ${item.item_review_until}: another agent's verdict on it is refused until then; pullboard next --verify again renews it`);
         io.say(`check out exactly that commit, here: ${here} git switch --detach ${item.item_commit}`);
         io.say(`then: ${here} pullboard verify ${item.item_id} accept${as} --note "how you proved it", or reject${as} --reason CODE --note "what failed"`);
       } else {

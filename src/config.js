@@ -37,6 +37,7 @@ export function defaults() {
     practice: 'PRACTICE.md',
     gate: '',
     lease: '2h',
+    reviewLease: '30m',
     verify: 'any',
     lanes: {},
     products: {},
@@ -62,11 +63,12 @@ export function defaults() {
  * Milliseconds in a duration like `90m`, `2h` or `1d`.
  *
  * @param {string} text
+ * @param {string} [setting] - The setting it came from, for the refusal.
  * @returns {number}
  */
-export function durationMs(text) {
+export function durationMs(text, setting = 'lease') {
   const match = DURATION_RE.exec(String(text));
-  if (!match) throw new Refused('BAD_CONFIG', `lease "${text}" is not a duration like 90m, 2h or 1d`);
+  if (!match) throw new Refused('BAD_CONFIG', `${setting} "${text}" is not a duration like 90m, 2h or 1d`);
   return Number(match[1]) * UNIT_MS[/** @type {'m'|'h'|'d'} */ (match[2])];
 }
 
@@ -179,5 +181,5 @@ export function loadConfig(root) {
   const config = merge(defaults(), raw);
   const problems = configProblems(config);
   if (problems.length) throw new Refused('BAD_CONFIG', `${CONFIG_FILE}: ${problems.join('; ')}`);
-  return { ...config, leaseMs: durationMs(config.lease) };
+  return { ...config, leaseMs: durationMs(config.lease), reviewLeaseMs: durationMs(config.reviewLease, 'reviewLease') };
 }

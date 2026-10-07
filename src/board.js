@@ -211,6 +211,8 @@ function migrate(db) {
     ['agent', 'agent_route', "TEXT NOT NULL DEFAULT 'strong'"],
     ['item', 'item_claim_head', 'TEXT'],
     ['item', 'item_files', "TEXT NOT NULL DEFAULT ''"],
+    ['item', 'item_review_by', 'TEXT'],
+    ['item', 'item_review_until', 'TEXT'],
   ];
   for (const [table, column, type] of added) {
     const columns = db.prepare(`PRAGMA table_info(${table})`).all().map((entry) => entry.name);
@@ -822,11 +824,104 @@ export function submit(board, id, { agentId, commit, tree, files = [] }) {
         item_commit: commit,
         item_tree: tree,
         item_lease_until: null,
+        item_review_by: null,
+        item_review_until: null,
         item_files: [...new Set([...(found.item_files ?? '').split('\n').filter(Boolean), ...files])].join('\n'),
       }),
     });
     logEvent(board, agentId, 'submit', id, { commit, tree });
   });
+}
+
+/**
+ * Who holds an item's review under a live lease (V15), or null. A reservation counts only while the
+ * item is submitted and its lease has not run out, and a new submission starts with none.
+ *
+ * @param {any} board
+ * @param {any} item
+ * @returns {string | null}
+ */
+export function reviewHolder(board, item) {
+  return item.item_status === 'submitted' && item.item_review_by && (item.item_review_until ?? '') > now(board) ? item.item_review_by : null;
+}
+
+/**
+ * What a verifier must pass before it reviews an item, alike when it reserves the review and when
+ * it gives its verdict: it did not build the item, its route covers the item's, the repo's verify
+ * policy lets it, and no other agent holds the review (V15). A reservation that lapsed holds
+ * nothing, so the agent that made it can still give its verdict unless another reserved it since.
+ *
+ * @param {any} board
+ * @param {{ agentId: string, policy: string }} who
+ * @returns {Record<string, (found: any) => Refused | null>}
+ */
+function reviewerChecks(board, { agentId, policy }) {
+  return {
+    notBuilder: (found) => (found.item_built_by === agentId ? new Refused('SELF_VERIFY', 'the builder never verifies its own work; another agent must') : null),
+    routeAllows: (found) => {
+      const route = routeOf(board, agentId);
+      return canTake(route, found.item_route) ? null : new Refused('ROUTE', `item #${found.item_id} needs a ${found.item_route} verifier; you joined on the ${route} route`);
+    },
+    policyAllows: (found) =>
+      policy === COORDINATOR && found.item_lane !== COORDINATOR && agentId !== COORDINATOR ? new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work') : null,
+    reviewFree: (found) => {
+      const holder = reviewHolder(board, found);
+      return holder && holder !== agentId
+        ? new Refused('REVIEW_HELD', `${holder} holds the review of #${found.item_id} until ${found.item_review_until}; take another: pullboard next --verify`)
+        : null;
+    },
+  };
+}
+
+/**
+ * Reserve an item's review for an agent under a lease (V15): until it runs out, another agent's
+ * verdict on the item, or reservation of it, is refused. Reserving again renews the lease.
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {{ agentId: string, leaseMs: number, policy: string }} who
+ * @returns {any} The item, reserved.
+ */
+export function reserveReview(board, id, who) {
+  return atomic(board, () => reserveWithin(board, id, who));
+}
+
+/**
+ * `next --verify` (V15): find the next review the agent may take and reserve it in one
+ * transaction, so no other verifier can take it between the look and the reservation.
+ *
+ * @param {any} board
+ * @param {{ agentId: string, lane: string, leaseMs: number, policy: string, runnable?: boolean, routes?: string[] }} who
+ * @returns {{ item: any | null, reasons: string[] }}
+ */
+export function reserveNextReview(board, { agentId, lane, leaseMs, policy, runnable, routes }) {
+  return atomic(board, () => {
+    const { item, reasons } = nextFor(board, { agentId, lane, verify: true, runnable, routes });
+    return item ? { item: reserveWithin(board, item.item_id, { agentId, leaseMs, policy }), reasons: [] } : { item: null, reasons };
+  });
+}
+
+/**
+ * The reserve move, inside a transaction the caller holds.
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {{ agentId: string, leaseMs: number, policy: string }} who
+ * @returns {any}
+ */
+function reserveWithin(board, id, { agentId, leaseMs, policy }) {
+  const until = new Date(board.clock.now().getTime() + leaseMs).toISOString();
+  moveItem(board, id, 'reserve', {
+    checks: {
+      coordinatorSaysAs: null,
+      joined: null,
+      [IN_STATE]: (found) => new Refused('NOT_SUBMITTED', `item #${id} is ${current(board, found).item_status}, not submitted`),
+      ...reviewerChecks(board, { agentId, policy }),
+    },
+    set: () => ({ item_review_by: agentId, item_review_until: until }),
+  });
+  logEvent(board, agentId, 'reserve', id, { until });
+  return getItem(board, id);
 }
 
 /**
@@ -836,9 +931,9 @@ export function submit(board, id, { agentId, commit, tree, files = [] }) {
  * The verdict binds the submitted commit and the digest frozen at claim. If the criterion's text
  * has moved since, there is no verdict to give: the coordinator refreezes it and the work is
  * claimed again. The builder never verifies; under `verify: "coordinator"`, lane work is the
- * coordinator's to verify; an agent verifies items at its tier or below. An accept means
- * CRITERION_MET and says how it was proved; a reject names one of the reject reasons and says what
- * failed.
+ * coordinator's to verify; an agent verifies items at its tier or below, and not while another
+ * agent holds the review (V15). An accept means CRITERION_MET and says how it was proved; a reject
+ * names one of the reject reasons and says what failed.
  *
  * @param {any} board
  * @param {number} id
@@ -857,13 +952,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', head, 
         joined: null,
         [IN_STATE]: (found) => new Refused('NOT_SUBMITTED', `item #${id} is ${current(board, found).item_status}, not submitted`),
         atSubmittedCommit: null,
-        notBuilder: (found) => (found.item_built_by === agentId ? new Refused('SELF_VERIFY', 'the builder never verifies its own work; another agent must') : null),
-        routeAllows: (found) => {
-          const route = routeOf(board, agentId);
-          return canTake(route, found.item_route) ? null : new Refused('ROUTE', `item #${found.item_id} needs a ${found.item_route} verifier; you joined on the ${route} route`);
-        },
-        policyAllows: (found) =>
-          policy === COORDINATOR && found.item_lane !== COORDINATOR && agentId !== COORDINATOR ? new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work') : null,
+        ...reviewerChecks(board, { agentId, policy }),
         criterionUnchanged: (found) =>
           digest === found.item_frozen_digest
             ? null
@@ -1114,8 +1203,12 @@ export function nextFor(board, { agentId, lane, verify = false, runnable = false
   const tiers = route === 'strong' ? '' : `${ROUTES.slice(0, ROUTES.indexOf(route) + 1).reverse().join(' or ')} `;
   const routed = `${tiers}${runnable ? 'runnable ' : ''}`;
   if (verify) {
-    const item = items.find((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId) ?? null;
-    return { item, reasons: item ? [] : [`nothing ${routed}submitted that you did not build`] };
+    const reviewable = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId);
+    const holder = (entry) => reviewHolder(board, entry);
+    const item = reviewable.find((entry) => holder(entry) === agentId) ?? reviewable.find((entry) => !holder(entry));
+    if (item) return { item, reasons: [] };
+    const held = reviewable.map((entry) => `${holder(entry)} holds the review of #${entry.item_id} until ${entry.item_review_until}`);
+    return { item: null, reasons: [`nothing ${routed}submitted that you did not build${held.length ? ' and no other agent is reviewing' : ''}`, ...held] };
   }
   const held = items.find((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null);
   if (held) return { item: held, reasons: [] };
