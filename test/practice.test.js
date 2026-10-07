@@ -3,13 +3,13 @@
  * and every role guide prints, with a repo's own override taking precedence.
  */
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { ROLES, installSkills, promptFor, withoutFrontMatter } from '../src/skills.js';
 import { lintSpec, parseSpec } from '../src/spec.js';
-import { practiceTemplate } from '../src/templates.js';
+import { agentsBlock, practiceTemplate } from '../src/templates.js';
 
 test('the standard practice lints clean, and every approved must-row names its enforcer [S6]', () => {
   const practice = parseSpec(practiceTemplate());
@@ -18,6 +18,36 @@ test('the standard practice lints clean, and every approved must-row names its e
   const approvedMusts = practice.rows.filter((row) => row.status === 'approved' && row.tier === 'must');
   assert.ok(approvedMusts.length >= 8);
   assert.ok(approvedMusts.every((row) => row.gate));
+});
+
+test('the run guide takes one agent through the whole team, and init installs it beside the others [N31]', () => {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-run-'));
+  try {
+    const guide = promptFor(root, 'run');
+    assert.ok(guide.startsWith('# Run the team'));
+    for (const step of [
+      'pullboard resume',
+      'pullboard-decompose',
+      'Only the person approves a row',
+      'pullboard-plan',
+      'pullboard worktree <lane>',
+      'pullboard worktree review',
+      'pullboard-verify',
+      'git merge --no-edit',
+      'pullboard merged',
+      'not yet verified',
+      'never by you',
+      'Ask, never guess',
+    ]) {
+      assert.ok(guide.includes(step), `the run guide says: ${step}`);
+    }
+    assert.match(installSkills(root)[0], /pullboard-run/);
+    assert.ok(existsSync(join(root, '.claude', 'skills', 'pullboard-run', 'SKILL.md')), 'init installs it as a skill');
+    assert.match(agentsBlock(), /pullboard prompt run/, 'AGENTS.md names it');
+    assert.match(agentsBlock(), /pullboard-run skill/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('every role prints its guide without front matter [N6]', () => {

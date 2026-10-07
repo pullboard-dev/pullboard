@@ -153,6 +153,36 @@ test("init's spec has its sections and no rows, and the README's example fits un
   assert.match(check.out, new RegExp(`SPEC.md: ${rows.length} rows, 0 errors`));
 });
 
+test("the coordinator's resume names its next step from the spec and the board, stage by stage [N32, I9]", () => {
+  const next = (box, cwd) => /^next: (.*)$/m.exec(box.run(cwd, 'resume').out)?.[1] ?? '';
+  const fresh = sandbox();
+  const repo = join(fresh.dir, 'fresh');
+  mkdirSync(repo);
+  fresh.git(repo, 'init', '-q', '-b', 'main');
+  const initialized = fresh.run(repo, 'init');
+  assert.match(initialized.out, /with an agent: start a new Claude Code session here, which loads the pullboard skills, then tell it what to build/, 'init tells an agent to start a new session [I9]');
+  assert.match(next(fresh, repo), /^turn what the person wants into spec rows with them: the pullboard-decompose skill/);
+  writeFileSync(join(repo, 'SPEC.md'), '# Fresh\n\n## G · Goals\n- G1 [draft, must] It works. | gate: test\n');
+  assert.match(next(fresh, repo), /^the person approves rows in SPEC.md; then plan them/);
+
+  const box = project();
+  assert.match(next(box, box.repo), /^plan the approved rows no item cites \(G1, G2\): the pullboard-plan skill/);
+  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');
+  assert.match(next(box, box.repo), /^start a builder for each lane with open items \(web\): pullboard worktree <lane>/);
+  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  assert.equal(commitFile(box, box.web, 'web/index.html', '<h1>hi</h1>', 'feat(web): page [G1]').status, 0);
+  assert.equal(box.run(box.web, 'submit', '1').code, 0);
+  assert.match(next(box, box.repo), /^pullboard next --verify --as coordinator, or a verifier that built nothing: pullboard worktree review/);
+  const commit = box.git(box.web, 'rev-parse', 'HEAD');
+  box.git(box.repo, 'switch', '-q', '--detach', commit);
+  assert.equal(box.run(box.repo, 'verify', '1', 'accept', '--note', 'the page renders hi', '--as', 'coordinator').code, 0);
+  box.git(box.repo, 'switch', '-q', 'main');
+  assert.match(next(box, box.repo), new RegExp(`^merge #1: git merge --no-edit ${commit.slice(0, 12)}, run the gate, then pullboard merged 1 <merge commit>`));
+  box.git(box.repo, 'merge', '-q', '--no-edit', commit);
+  assert.equal(box.run(box.repo, 'merged', '1', box.git(box.repo, 'rev-parse', 'HEAD')).code, 0);
+  assert.match(next(box, box.repo), /^plan the approved rows no item cites \(G2\)/);
+});
+
 test('spec check lints both files; spec view writes one page into the git dir [S6, S7]', () => {
   const box = project();
   writeFileSync(join(box.repo, 'PRACTICE.md'), '# Practice\n\n## C · Code\n- C1 [approved, must] Functions under 60 lines.\n');

@@ -476,6 +476,37 @@ const firstLine = (text) => {
 };
 
 /**
+ * The coordinator's next step, from the board and the spec (N32): the spec with the person first,
+ * then the plan, then verdicts, merges and builders, so an agent that runs the team by the run guide
+ * always knows where it is.
+ *
+ * @param {any} card
+ * @param {{ id: string, status: string }[]} rows
+ * @returns {string}
+ */
+function coordinatorNext(card, rows) {
+  const live = rows.filter((row) => !['wont', 'retired'].includes(row.status));
+  if (!live.length) return "turn what the person wants into spec rows with them: the pullboard-decompose skill (pullboard prompt decompose)";
+  const approved = live.filter((row) => row.status === 'approved');
+  if (!approved.length) return 'the person approves rows in SPEC.md; then plan them: the pullboard-plan skill';
+  if (card.toVerify.length) return 'pullboard next --verify --as coordinator, or a verifier that built nothing: pullboard worktree review';
+  if (card.toMerge.length) {
+    const [first] = card.toMerge;
+    return `merge #${first.item_id}: git merge --no-edit ${first.item_commit.slice(0, 12)}, run the gate, then pullboard merged ${first.item_id} <merge commit>`;
+  }
+  if (card.open.length) {
+    const lanes = [...new Set(card.open.map((item) => item.item_lane))];
+    return `start a builder for each lane with open items (${lanes.join(', ')}): pullboard worktree <lane>, then the pullboard-run skill`;
+  }
+  const cited = new Set(card.all.flatMap((item) => (item.item_spec_ids ?? '').split(',').filter(Boolean)));
+  const unplanned = approved.filter((row) => !cited.has(row.id));
+  if (unplanned.length) {
+    return `plan the approved rows no item cites (${unplanned.slice(0, 4).map((row) => row.id).join(', ')}${unplanned.length > 4 ? ', ...' : ''}): the pullboard-plan skill`;
+  }
+  return 'nothing open: report what was built to the person, or curate the queue: pullboard add, edit, hold';
+}
+
+/**
  * `pullboard resume` (N19): one short card that puts an agent back to work after a fresh start,
  * a restart or a compaction, from the board rather than from a summary.
  *
@@ -545,7 +576,7 @@ function resumeHere(io) {
   let next;
   if (card.holding.length) next = `build #${card.holding[0].item_id}, commit, then pullboard submit ${card.holding[0].item_id}`;
   else if (card.sentBack.length) next = `pullboard claim ${card.sentBack[0].item.item_id}, fix what the verifier found, and submit again`;
-  else if (isMain) next = card.toVerify.length ? 'pullboard next --verify --as coordinator' : 'curate the queue: pullboard add, edit, hold';
+  else if (isMain) next = coordinatorNext(card, loadSpec(root, ctx.config).rows);
   else if (card.hold) next = 'wait for the hold to lift: pullboard next --wait 9 (minutes)';
   else if (ready) next = `pullboard next (${ready} ready in your lane)`;
   else if (inLane.length) next = `pullboard next --wait 9 (minutes); ${inLane.length} in your lane ${inLane.length === 1 ? 'waits' : 'wait'} on other work`;
@@ -607,6 +638,7 @@ function setupCommands(io, { first, values }) {
       notes.forEach((note) => io.say(note));
       if (registerProject(info.root)) io.say('registered this project on this machine, so pullboard view lists it');
       io.say('next: write SPEC.md rows, declare lanes in pullboard.json, then: pullboard add <lane> <title>');
+      io.say('with an agent: start a new Claude Code session here, which loads the pullboard skills, then tell it what to build; the pullboard-run skill runs the team');
       return 0;
     },
     hooks: () => {

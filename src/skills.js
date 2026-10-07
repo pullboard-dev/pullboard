@@ -20,6 +20,7 @@ export const ROLES = {
   signoff: 'pullboard-signoff',
   review: 'pullboard-spec-review',
   verify: 'pullboard-verify',
+  run: 'pullboard-run',
 };
 
 /**

@@ -123,7 +123,7 @@ This repo runs on pullboard: a work board, lanes and a spec that live in git. No
 
 **House rules.** \`PRACTICE.md\` holds how this project is built, in the same row format. Its approved rows are in force; follow them as you would the spec.
 
-**Role guides.** \`pullboard prompt decompose\`, \`signoff\`, \`review\` and \`verify\` print the guide for each role. Claude Code also has them as skills.
+**Role guides.** \`pullboard prompt run\`, \`decompose\`, \`plan\`, \`signoff\`, \`review\` and \`verify\` print the guide for each role. Claude Code also has them as skills. The agent in the main checkout runs the whole team by the run guide (the pullboard-run skill).
 
 **Who you are.** An agent is its worktree. The main checkout is the coordinator. Every other agent gets its own worktree, already joined to one lane, from the main checkout:
 
