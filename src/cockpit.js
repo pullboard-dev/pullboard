@@ -69,16 +69,16 @@ ${snapshot ? '<link rel="icon" href="data:,">' : ''}
   <span class="live" id="live"></span>
 </header>
 <main>
+  <section class="card-panel first">
+    <h2>No boards yet</h2>
+    <p>Run <code>pullboard init</code> in a git repo, or ask an agent to. Its board shows up here by itself.</p>
+  </section>
   <section class="card-panel snapshot-controls" id="snapshot-controls" ${snapshot ? '' : 'hidden'} aria-label="Snapshot replay">
     <span>Read-only snapshot</span>
     <button class="ghost" id="replay-play" type="button">Play from first event</button>
     <button class="ghost" id="replay-pause" type="button" disabled>Pause</button>
     <label>Speed <select id="replay-speed"><option value="1">1×</option><option value="4">4×</option><option value="16">16×</option></select></label>
     <output id="replay-progress" aria-live="polite">Loading events…</output>
-  </section>
-  <section class="card-panel first">
-    <h2>No boards yet</h2>
-    <p>Run <code>pullboard init</code> in a git repo, or ask an agent to. Its board shows up here by itself.</p>
   </section>
   <section id="group-view" class="group-view" hidden>
     <section class="card-panel group-panel"><h2>Needs you</h2><div id="group-needs"></div></section>
@@ -423,8 +423,8 @@ function flowSvg(p) {
 /** Read or move through API v1, retaining the rule and repair guidance in a refusal. */
 async function api(path, body) {
   if (snapshot && body) throw new Error('This is a read-only snapshot.');
-  const address = snapshot ? path.split('?')[0].slice(1) + '.json' : path;
-  const res = await fetch(address, { method: body ? 'POST' : 'GET', headers: snapshot ? {} : { 'x-pullboard-key': key, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  path = snapshot ? path.split('?')[0].slice(1) + '.json' : path;
+  const res = await fetch(path, { method: body ? 'POST' : 'GET', headers: snapshot ? {} : { 'x-pullboard-key': key, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
   const json = await res.json();
   if (!res.ok) {
     const refusal = json.error;
