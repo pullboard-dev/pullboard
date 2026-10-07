@@ -56,6 +56,8 @@ All six were fixed before they merged. Before accepting each code change, the ve
              apostrophe escaping each made the focused test fail."
 ```
 
+As of 07:11 UTC on 7 October 2026, the board records 79 verified items, 79 accepted verdicts and 42 rejected verdicts. Run `pullboard status` to print the live totals.
+
 ## See every project at once
 
 `pullboard view` gives you a live board for your projects on this machine, with each item's state, decisions, shouts and review history. This screenshot comes from a disposable demo project rebuilt by `node docs/shots/demo.mjs`.
@@ -65,6 +67,8 @@ All six were fixed before they merged. Before accepting each code change, the ve
 ## Try it
 
 You need git and Node 22.13 or newer.
+
+CI runs the gate on Linux with Node 22.13 and 24. On the maintainer's machine, the gate passes on macOS with Node 22.22 and 24. macOS will join CI once the repository is public. Windows has not yet been tested.
 
 ```sh
 npm i -g pullboard             # 0.5.0 or newer; until it is published, run npm i -g . in a clone of this repo
@@ -205,9 +209,9 @@ Submitted commits are pinned under `refs/pullboard/items`, so the work survives 
 - **Hooks can be skipped** with `--no-verify`. Pre-push and the verifier are the backstop.
 - **Verification costs a second agent's time.** The trade is a defect caught before merge instead of after it.
 
-## Local and hosted
+## Today and next
 
-This package is complete on one machine and free. [Pullboard](https://pullboard.dev) is the hosted layer for teams working across machines.
+Today the board lives in your repo's `.git` on one machine. Coming next: one board across machines through the repo's own git remote, and an opt-in pullboard.dev relay to see and run the board from anywhere. Neither is available yet.
 
 ## License
 
