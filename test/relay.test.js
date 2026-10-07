@@ -414,19 +414,33 @@ test('unlinked board commands attempt zero outbound requests [H1,P5]', async (t)
   const box = await relayClientFixture(t);
   const result = await box.script(`
     import { main } from ${JSON.stringify(box.mainURL)};
-    let attempts = 0;
-    globalThis.fetch = async () => { attempts++; throw new Error('unexpected outbound attempt'); };
+    import http from 'node:http';
+    import https from 'node:https';
+    import net from 'node:net';
+    import tls from 'node:tls';
+    const attempts = [];
+    const blocked = kind => { attempts.push(kind); throw new Error('unexpected outbound attempt: ' + kind); };
+    globalThis.fetch = async () => blocked('fetch');
+    http.request = (...args) => blocked('http.request');
+    https.request = (...args) => blocked('https.request');
+    net.connect = (...args) => blocked('net.connect');
+    net.Socket.prototype.connect = function (...args) { return blocked('net.Socket.connect'); };
+    tls.connect = (...args) => blocked('tls.connect');
     const codes = [];
     for (const args of [
       ['status'], ['list'], ['show', '1'], ['add', ${JSON.stringify(box.lane)}, 'another fixture item'],
       ['shout', 'coordinator', 'fixture local message'], ['relay'], ['relay', 'off'],
-    ]) codes.push(await main([...args, '--json'], {
-      cwd: process.cwd(), stdout: { write() {} }, stderr: { write() {} },
-    }));
+    ]) {
+      try {
+        codes.push(await main([...args, '--json'], {
+          cwd: process.cwd(), stdout: { write() {} }, stderr: { write() {} },
+        }));
+      } catch { codes.push(-1); }
+    }
     console.log(JSON.stringify({ attempts, codes }));
   `);
   assert.equal(result.code, 0);
-  assert.equal(result.document.attempts, 0);
+  assert.deepEqual(result.document.attempts, [], 'fetch, HTTP(S), raw net and TLS connections are all watched');
   assert.ok(result.document.codes.every(code => code === 0), 'all ordinary local board commands succeed without transport');
 });
 
