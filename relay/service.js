@@ -55,10 +55,17 @@ function sealed(body) {
 }
 
 /** Give live events the common API cursor while keeping all board contents sealed. */
-function event(row) { return { event_id: row.sequence, event_at: row.receivedAt, kind: row.kind, sealed: row.bytes.toString('base64url') }; }
+function event(row) { return { event_id: row.sequence, event_at: row.receivedAt, kind: row.kind, sender: row.sender, sealed: row.bytes.toString('base64url') }; }
 
 /** Give a snapshot its coverage cursor; clients unseal it and replay the following sealed events. */
-function state(row) { return { sequence: row.sequence, receivedAt: row.receivedAt, sealed: row.bytes.toString('base64url') }; }
+function state(row) { return { sequence: row.sequence, receivedAt: row.receivedAt, sender: row.sender, sealed: row.bytes.toString('base64url') }; }
+
+/** Project a freshly authenticated credential to public sender metadata, never taking body fields. */
+function sender(who, personOnly = false) {
+  if (personOnly && who.kind !== 'session') throw new Refused('HUMAN_REQUIRED', 'sign in as a person to replace a snapshot or unlink a board');
+  return { kind: who.kind === 'session' ? 'person' : 'agent', userId: who.user.id,
+    ...(who.kind === 'board' ? { agent: who.agent } : {}) };
+}
 
 /** Create a private relay handler; the caller owns sign-in lifecycle and service shutdown. */
 export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin }) {
@@ -89,9 +96,9 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
   async function append(board, body, who, kind = 'move') {
     const bytes = sealed(body);
     if (!Number.isSafeInteger(body.sequence) || body.sequence < 1) throw new Refused('BAD_SEQUENCE', 'seal this move for the next positive sequence after the latest committed prefix');
-    await auth.authenticate(who.credential, { board: board.id, write: true });
+    const principal = sender(await auth.authenticate(who.credential, { board: board.id, write: true }));
     return withJournal(board.id, (journal) => {
-      const row = journal.append(body.sequence, bytes, kind);
+      const row = journal.append(body.sequence, bytes, kind, principal);
       return { status: 200, body: { event: event(row), result: { sequence: row.sequence } } };
     });
   }
@@ -128,17 +135,17 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
       const deletion = /^\/api\/v1\/boards\/([^/]+)$/.exec(url.pathname);
       if (req.method === 'PUT' && snapshot) {
         const id = identity(snapshot[1]);
-        await auth.authenticate(credential(req, origin, true), { board: id, write: true });
+        sender(await auth.authenticate(credential(req, origin, true), { board: id, write: true }), true);
         const body = await readApiBody(req, { maxBytes: SNAPSHOT_BODY });
         const bytes = sealed(body);
         if (!Number.isSafeInteger(body.sequence) || body.sequence < 0) throw new Refused('BAD_SEQUENCE', 'name the nonnegative sequence covered by the sealed snapshot');
-        await auth.authenticate(credential(req, origin, true), { board: id, write: true });
-        const saved = withJournal(id, (journal) => journal.saveSnapshot(body.sequence, bytes), true);
+        const principal = sender(await auth.authenticate(credential(req, origin, true), { board: id, write: true }), true);
+        const saved = withJournal(id, (journal) => journal.saveSnapshot(body.sequence, bytes, principal), true);
         return apiJson(res, 200, { state: state(saved) });
       }
       if (req.method === 'DELETE' && deletion) {
         const id = identity(deletion[1]);
-        await auth.authenticate(credential(req, origin, true), { board: id, write: true });
+        sender(await auth.authenticate(credential(req, origin, true), { board: id, write: true }), true);
         withJournal(id, () => undefined);
         const file = join(root, id + '.journal.sqlite');
         for (const suffix of ['', '-wal', '-shm']) {

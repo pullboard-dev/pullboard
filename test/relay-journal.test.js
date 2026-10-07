@@ -8,6 +8,8 @@ import { test } from 'node:test';
 import { createRelayJournal } from '../relay/journal.js';
 
 const ID = 'a'.repeat(32);
+const AGENT = { kind: 'agent', userId: '101', agent: 'client-one' };
+const PERSON = { kind: 'person', userId: '101' };
 
 /** Give each test a private directory and close every journal before deleting its files. */
 function fixture(t, options = {}) {
@@ -16,7 +18,14 @@ function fixture(t, options = {}) {
   t.after(() => { for (const journal of opened) journal.close(); rmSync(directory, { recursive: true, force: true }); });
   /** Open the same durable journal through its public interface. */
   function open(overrides = {}) {
-    const journal = createRelayJournal({ directory, boardId: ID, ...options, ...overrides });
+    const raw = createRelayJournal({ directory, boardId: ID, ...options, ...overrides });
+    /** Supply the synthetic authenticated agent for this transport-only fixture. */
+    function append(sequence, bytes, kind = 'move', principal = AGENT) { return raw.append(sequence, bytes, kind, principal); }
+    /** Supply the synthetic authenticated agent when the server allocates a position. */
+    function appendNext(bytes, kind = 'move', principal = AGENT) { return raw.appendNext(bytes, kind, principal); }
+    /** Only the fixture's signed-in person may replace a compacted snapshot. */
+    function saveSnapshot(sequence, bytes, principal = PERSON) { return raw.saveSnapshot(sequence, bytes, principal); }
+    const journal = { ...raw, append, appendNext, saveSnapshot };
     opened.push(journal);
     return journal;
   }
@@ -31,6 +40,9 @@ test('[A4,H7] ordered opaque bytes survive restart without parsing or aliasing',
   assert.equal(first.sequence, 1);
   assert.equal(first.receivedAt, '2026-10-07T00:00:00.000Z');
   assert.deepEqual(first.bytes, bytes);
+  assert.deepEqual(first.sender, AGENT);
+  first.sender.agent = 'forged';
+  assert.deepEqual(box.journal.after()[0].sender, AGENT, 'returned sender objects never alias stored attribution');
   bytes.fill(0);
   first.bytes.fill(0);
   assert.deepEqual(box.journal.after()[0].bytes, Buffer.from([0, 255, 1, 128, 0]));
@@ -58,6 +70,8 @@ test('[A4] gaps, repeats, invalid uploads and clock failures leave the prefix un
   }
   assert.throws(() => box.journal.after(-1), { code: 'BAD_CURSOR' });
   assert.throws(() => box.journal.after('0'), { code: 'BAD_CURSOR' });
+  assert.throws(() => box.journal.append(2, Buffer.from('x'), 'move', null), { code: 'RELAY_PRINCIPAL' });
+  assert.throws(() => box.journal.saveSnapshot(0, Buffer.from('x'), AGENT), { code: 'HUMAN_REQUIRED' });
   assert.equal(box.journal.latest(), 1);
   box.journal.close();
   const badClock = box.open({ now: () => new Date(NaN) });
@@ -74,8 +88,9 @@ test('[A4,H7] two real processes cannot publish the same next sequence', async (
   writeFileSync(worker, [
     'import { createRelayJournal } from ' + JSON.stringify(module) + ';',
     'const journal = createRelayJournal({ directory: process.argv[2], boardId: process.argv[3] });',
+    'const sender = {kind:"agent",userId:"101",agent:"worker"};',
     'try {',
-    '  const row = process.argv[4].startsWith("auto ") ? journal.appendNext(Buffer.from(process.argv[4])) : journal.append(1, Buffer.from(process.argv[4]));',
+    '  const row = process.argv[4].startsWith("auto ") ? journal.appendNext(Buffer.from(process.argv[4]),"move",sender) : journal.append(1, Buffer.from(process.argv[4]),"move",sender);',
     '  process.stdout.write(JSON.stringify({ sequence: row.sequence }));',
     '} catch (error) { process.stdout.write(JSON.stringify({ code: error.code })); }',
     'finally { journal.close(); }',
@@ -136,6 +151,7 @@ test('[A4,H7] a sealed snapshot compacts its prefix without reusing sequence num
   box.journal.appendNext(Buffer.from('opaque move three'));
   box.journal.saveSnapshot(2, Buffer.from('snapshot through two'));
   assert.equal(box.journal.snapshot().sequence, 2);
+  assert.deepEqual(box.journal.snapshot().sender, PERSON);
   assert.equal(box.journal.snapshot().bytes.toString(), 'snapshot through two');
   assert.deepEqual(box.journal.after().map((row) => row.sequence), [3]);
   assert.equal(box.journal.latest(), 3);

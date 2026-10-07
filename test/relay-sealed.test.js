@@ -88,9 +88,10 @@ test('[A4,H7] two clients append sealed moves in one order and no plaintext or c
   assert.equal(listed.status, 200);
   assert.deepEqual(listed.body.boards, [{ id: box.id, repository: 'fixture/repository' }]);
   const initial = box.clientSeal(box.document, 'snapshot', 0);
-  const uploaded = await box.call(box.path + '/state', { method: 'PUT', body: { sequence: 0, sealed: initial } });
+  const uploaded = await box.call(box.path + '/state', { method: 'PUT', token: box.person.token, body: { sequence: 0, sealed: initial } });
   assert.equal(uploaded.status, 200);
   assert.equal(uploaded.body.version, 1);
+  assert.deepEqual(uploaded.body.state.sender, { kind: 'person', userId: box.person.user.id });
   assert.deepEqual(box.clientOpen(uploaded.body.state.sealed, 'snapshot', 0), box.document);
   const sent = [
     { client: 'one', title: 'PRIVATE_MOVE_FROM_CLIENT_ONE' },
@@ -122,12 +123,12 @@ test('[A4,H7] two clients append sealed moves in one order and no plaintext or c
 
 test('[A4,H7] snapshots compact covered moves, preserve the tail and deletion removes only its database', async (t) => {
   const box = await fixture(t);
-  await box.call(box.path + '/state', { method: 'PUT', body: { sequence: 0, sealed: box.clientSeal(box.document, 'snapshot', 0) } });
+  await box.call(box.path + '/state', { method: 'PUT', token: box.person.token, body: { sequence: 0, sealed: box.clientSeal(box.document, 'snapshot', 0) } });
   for (let n = 1; n <= 3; n++) {
     const reply = await box.call(box.path + '/moves', { method: 'POST', body: { sequence: n, sealed: box.clientSeal({ move: n }, 'move', n) } });
     assert.equal(reply.body.event.event_id, n);
   }
-  const compacted = await box.call(box.path + '/state', { method: 'PUT', body: { sequence: 2, sealed: box.clientSeal({ covered: 2 }, 'snapshot', 2) } });
+  const compacted = await box.call(box.path + '/state', { method: 'PUT', token: box.person.token, body: { sequence: 2, sealed: box.clientSeal({ covered: 2 }, 'snapshot', 2) } });
   assert.equal(compacted.status, 200);
   assert.equal(compacted.body.state.sequence, 2);
   assert.deepEqual(box.clientOpen((await box.call(box.path + '/state')).body.state.sealed, 'snapshot', 2), { covered: 2 });
@@ -141,7 +142,7 @@ test('[A4,H7] snapshots compact covered moves, preserve the tail and deletion re
   await box.auth.linkBoard(box.person.token, other, 'fixture/repository');
   const otherPath = '/api/v1/boards/' + other;
   assert.equal((await box.call(otherPath + '/state', { method: 'PUT', token: box.person.token, body: { sequence: 0, sealed: box.clientSeal({ other: true }, 'snapshot', 0, other) } })).status, 200);
-  assert.equal((await box.call(box.path, { method: 'DELETE' })).status, 200);
+  assert.equal((await box.call(box.path, { method: 'DELETE', token: box.person.token })).status, 200);
   for (const suffix of ['', '-wal', '-shm']) assert.equal(existsSync(join(box.data, box.id + '.journal.sqlite' + suffix)), false);
   assert.equal((await box.call(box.path + '/state')).status, 404);
   assert.deepEqual(box.clientOpen((await box.call(otherPath + '/state', { token: box.person.token })).body.state.sealed, 'snapshot', 0, other), { other: true });
@@ -156,10 +157,10 @@ test('[A4,H7] malformed or unauthorized calls cannot store clear records, keys o
   assert.equal(wrong.status, 403);
   assert.equal(wrong.body.error.code, 'TOKEN_BOARD');
   for (const body of [{ sequence: 0, sealed: 'a' }, { sequence: 0, sealed: 'abc=' }, { sequence: 0, sealed: box.clientSeal({}, 'snapshot', 0), key: 'client key stays on device' }, { sequence: '0', sealed: box.clientSeal({}, 'snapshot', 0) }]) {
-    assert.equal((await box.call(box.path + '/state', { method: 'PUT', body })).status, 400);
+    assert.equal((await box.call(box.path + '/state', { method: 'PUT', token: box.person.token, body })).status, 400);
   }
   assert.deepEqual(readdirSync(box.data), []);
-  await box.call(box.path + '/state', { method: 'PUT', body: { sequence: 0, sealed: box.clientSeal(box.document, 'snapshot', 0) } });
+  await box.call(box.path + '/state', { method: 'PUT', token: box.person.token, body: { sequence: 0, sealed: box.clientSeal(box.document, 'snapshot', 0) } });
   assert.equal((await box.call(box.path + '/moves', { method: 'POST', body: { verb: 'add', args: { title: 'clear' } } })).body.error.code, 'BAD_UPLOAD');
   const deniedCookie = await box.call(box.path + '/moves', { method: 'POST', token: null, headers: { cookie: 'pb_session=' + box.person.token, origin: 'https://foreign.example' }, body: { sequence: 1, sealed: box.clientSeal({}, 'move', 1) } });
   assert.equal(deniedCookie.status, 403);
@@ -172,6 +173,7 @@ test('[A4,H7] malformed or unauthorized calls cannot store clear records, keys o
   });
   assert.equal(request.status, 200);
   assert.equal(request.body.event.kind, 'request');
+  assert.deepEqual(request.body.event.sender, { kind: 'agent', userId: box.person.user.id, agent: 'client-one' });
   assert.deepEqual(box.clientOpen(request.body.event.sealed, request.body.event.kind, request.body.event.event_id), { request: true });
   assert.throws(() => box.clientOpen(request.body.event.sealed, 'move', request.body.event.event_id));
 
@@ -188,9 +190,49 @@ test('[A4,H7] malformed or unauthorized calls cannot store clear records, keys o
   assert.equal((await box.call(box.path + '/state')).status, 401);
 });
 
+test('[A4,H2,H7,H16] trusted sender attribution exposes impersonation and agent tokens cannot erase a board', async (t) => {
+  const box = await fixture(t);
+  const initial = box.clientSeal(box.document, 'snapshot', 0);
+  const uploaded = await box.call(box.path + '/state', {
+    method: 'PUT', token: box.person.token, body: { sequence: 0, sealed: initial },
+  });
+  assert.equal(uploaded.status, 200);
+  const forged = { agent: 'client-two', verb: 'claim', item: 1 };
+  const reply = await box.call(box.path + '/moves', {
+    method: 'POST', body: { sequence: 1, sealed: box.clientSeal(forged, 'move', 1) },
+  });
+  assert.equal(reply.status, 200, 'the relay stores opaque bytes without reading their claimed agent');
+  const expected = { kind: 'agent', userId: box.person.user.id, agent: 'client-one' };
+  assert.deepEqual(reply.body.event.sender, expected, 'the sender comes from the credential, not sealed contents');
+  const events = (await box.call(box.path + '/events?after=0')).body.events;
+  assert.equal(events.length, 1);
+  assert.deepEqual(events[0].sender, expected, 'attribution survives the closed/reopened journal');
+  const opened = box.clientOpen(events[0].sealed, events[0].kind, events[0].event_id);
+  assert.notEqual(opened.agent, events[0].sender.agent, 'the client can detect impersonation before engine replay');
+  assert.deepEqual(opened, forged, 'the server never rewrites or interprets the sealed move');
+
+  const compact = await box.call(box.path + '/state', {
+    method: 'PUT', body: { sequence: 1, sealed: box.clientSeal({ covered: 1 }, 'snapshot', 1) },
+  });
+  assert.equal(compact.status, 403);
+  assert.equal(compact.body.error.code, 'HUMAN_REQUIRED');
+  const deleted = await box.call(box.path, { method: 'DELETE' });
+  assert.equal(deleted.status, 403);
+  assert.equal(deleted.body.error.code, 'HUMAN_REQUIRED');
+  assert.deepEqual((await box.call(box.path + '/state')).body.state, uploaded.body.state);
+  assert.deepEqual((await box.call(box.path + '/events?after=0')).body.events, events);
+  assert.ok(existsSync(join(box.data, box.id + '.journal.sqlite')));
+  const personMove = await box.call(box.path + '/moves', {
+    method: 'POST', token: box.person.token,
+    body: { sequence: 2, sealed: box.clientSeal({ person: true }, 'move', 2) },
+  });
+  assert.deepEqual(personMove.body.event.sender, { kind: 'person', userId: box.person.user.id });
+  assert.equal((await box.call(box.path, { method: 'DELETE', token: box.person.token })).status, 200);
+});
+
 test('[A4,H7] live streams follow the same order, resume by cursor and stop after revocation', async (t) => {
   const box = await fixture(t);
-  await box.call(box.path + '/state', { method: 'PUT', body: { sequence: 0, sealed: box.clientSeal(box.document, 'snapshot', 0) } });
+  await box.call(box.path + '/state', { method: 'PUT', token: box.person.token, body: { sequence: 0, sealed: box.clientSeal(box.document, 'snapshot', 0) } });
   const controllers = [];
   t.after(() => { for (const controller of controllers) controller.abort(); });
   /** Open a live API stream and bound each observation without exposing its credential. */
@@ -242,7 +284,7 @@ test('[A4,H7] live streams follow the same order, resume by cursor and stop afte
 test('[A4,H7] a bounded large sealed snapshot is independent of the smaller move-body limit', async (t) => {
   const box = await fixture(t);
   const document = { record: 'a'.repeat(150_000) };
-  const uploaded = await box.call(box.path + '/state', { method: 'PUT', body: { sequence: 0, sealed: box.clientSeal(document, 'snapshot', 0) } });
+  const uploaded = await box.call(box.path + '/state', { method: 'PUT', token: box.person.token, body: { sequence: 0, sealed: box.clientSeal(document, 'snapshot', 0) } });
   assert.equal(uploaded.status, 200);
   assert.deepEqual(box.clientOpen(uploaded.body.state.sealed, 'snapshot', 0), document);
   const oversizeMove = await box.call(box.path + '/moves', { method: 'POST', body: { sequence: 1, sealed: box.clientSeal(document, 'move', 1) } });

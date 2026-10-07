@@ -87,14 +87,15 @@ The client owns the encryption format and engine-version checks.
 - PUT /api/v1/boards/:id/state takes {sequence, sealed}. The first snapshot
   normally covers sequence 0. A later snapshot may cover only committed moves,
   cannot move behind the previous snapshot, and removes the covered move prefix.
+  Snapshot replacement requires a person's signed-in session, not an agent token.
 - GET /api/v1/boards/:id/state returns
-  {version: 1, state: {sequence, receivedAt, sealed}}.
+  {version: 1, state: {sequence, receivedAt, sender, sealed}}.
 - POST /api/v1/boards/:id/moves takes {sequence, sealed}. The client proposes
   the next position before sealing; the relay allocates it atomically only if
   sequence is its next position and returns {version: 1, event, result: {sequence}}.
   A loser receives SEQUENCE_REPEAT (409), reads the latest prefix, reseals with
   a fresh nonce bound to the next position, and retries. Gaps are refused too.
-  An event is {event_id, event_at, kind, sealed}. Requests use the same sealed append
+  An event is {event_id, event_at, kind, sender, sealed}. Requests use the same sealed append
   through POST /api/v1/boards/:id/requests. The public transport kind is move or
   request, letting clients select their associated-data binding; content stays sealed.
 - GET /api/v1/boards/:id/events?after=N returns sealed events in sequence.
@@ -102,12 +103,13 @@ The client owns the encryption format and engine-version checks.
   A cursor older than the latest snapshot gets SNAPSHOT_REQUIRED (409), naming
   the need to fetch state and resume after its coverage cursor.
 - DELETE /api/v1/boards/:id removes that board's database and SQLite sidecars.
+  It requires a person's signed-in session and current write access.
   GitHub link/credential lifecycle remains owned by the sign-in/linking layer.
 
 All responses and refusals retain API version 1. Moves use the shared 100,000
 byte JSON-body limit. Snapshots allow a bounded 14,000,000 byte JSON body and
 10,000,000 decoded bytes. One private SQLite journal per board stores only its
-identity, format, head cursor, receive times and sealed payloads. Compaction
+identity, format, head cursor, receive times, public sender identities and sealed payloads. Compaction
 keeps the head cursor, so the next move never reuses an earlier sequence.
 
 Bearer credentials work for agents and CLI calls. Browser session-cookie reads
@@ -117,6 +119,17 @@ are accepted through query parameters. Writes recheck current repository access
 after body reading; live streams recheck the credential between polls. A board
 credential cannot reach another board. Code previews are unavailable on the
 relay: source files stay local.
+
+Sender is derived only from the freshly authenticated credential: a board token
+gives {kind: 'agent', userId, agent}; a person's session gives {kind: 'person', userId}.
+It contains no credential, token id, login or board key. This attribution is saved
+with every event and snapshot and returned unchanged through reads and streams.
+An agent's client must compare the unsealed move's agent with sender.agent before
+applying it; a mismatch is an impersonation attempt. The opaque relay cannot do
+that comparison itself. Snapshot replacement and deletion refuse agent tokens
+with HUMAN_REQUIRED (403), before reading their bodies or changing storage.
+Journal format 2 requires attribution; the unshipped format-1 prototype is refused
+rather than inventing an identity for historical records.
 
 test/relay-journal.test.js races real processes and checks restart/compaction.
 test/relay-sealed.test.js seals actual CLI records on two test clients, uses an
