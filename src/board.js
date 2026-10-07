@@ -769,14 +769,24 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null }
 }
 
 /**
- * Hand a claimed item back, open for anyone in its lane.
+ * Hand a claimed item back, or free the caller's live review reservation on a submitted item.
  *
  * @param {any} board
  * @param {number} id
  * @param {string} agentId
+ * @returns {boolean} Whether a review reservation was released rather than a claim.
  */
 export function release(board, id, agentId) {
-  atomic(board, () => {
+  return atomic(board, () => {
+    const item = itemById(board, id);
+    if (item.item_status === 'submitted') {
+      if (reviewHolder(board, item) !== agentId) {
+        throw new Refused('NOT_YOURS', `item #${id} review is not reserved by you; ask its current reviewer to release it, or take a free review with pullboard next --verify`);
+      }
+      setItem(board, id, { item_review_by: null, item_review_until: null });
+      logEvent(board, agentId, 'release', id);
+      return true;
+    }
     moveItem(board, id, 'release', {
       checks: {
         joined: null,
@@ -786,6 +796,7 @@ export function release(board, id, agentId) {
       set: () => ({ item_owner: null, item_lease_until: null }),
     });
     logEvent(board, agentId, 'release', id);
+    return false;
   });
 }
 
