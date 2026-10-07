@@ -1,7 +1,8 @@
 /** Real-process resource queue and lease coverage [Q1,Q2,Q3]. */
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, realpathSync, rmSync } from 'node:fs';
+import { once } from 'node:events';
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -13,6 +14,9 @@ import { listResources } from '../src/resources.js';
 const TEMP = [];
 const CHILDREN = new Set();
 const MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/resources.js')).href;
+const PROCESS_INFO_POLICY = '(version 1)(allow default)(deny process-info*)';
+const SANDBOX_EXEC = process.platform === 'darwin' && existsSync('/usr/bin/sandbox-exec');
+const PERL_FORK = process.platform === 'darwin' && existsSync('/usr/bin/perl');
 const WORKER = `
 import { takeResource } from ${JSON.stringify(MODULE)};
 const [name, capacity, scope, root, agent, stallMs] = process.argv.slice(1);
@@ -74,6 +78,16 @@ function staleIdentity(box, table, agent) {
   } finally { db.close(); }
 }
 
+/** Expire a private lease heartbeat without changing its recorded OS identity. */
+function expireHeartbeat(box, table, agent) {
+  assert.ok(['holder', 'waiter'].includes(table));
+  const db = new DatabaseSync(join(box.home, 'resources.sqlite'));
+  try {
+    const result = db.prepare(`UPDATE ${table} SET heartbeat = 0 WHERE agent = ?`).run(agent);
+    assert.equal(result.changes, 1, `${agent} has a private ${table} row`);
+  } finally { db.close(); }
+}
+
 /** Read a private machine database without changing the process environment for other fixtures. */
 function privateList(box, scope = 'machine', root = process.cwd()) {
   const previous = process.env.PULLBOARD_HOME;
@@ -86,8 +100,11 @@ function privateList(box, scope = 'machine', root = process.cwd()) {
 }
 
 /** Launch one independent process that takes a resource and waits for a release command. */
-function worker(box, { name = 'gate', capacity = 1, scope = 'machine', root = box.first, agent, stallMs = 0, env = {} }) {
-  const child = spawn(process.execPath, ['--input-type=module', '-e', WORKER, name, String(capacity), scope, root, agent, String(stallMs)], {
+function worker(box, { name = 'gate', capacity = 1, scope = 'machine', root = box.first, agent, stallMs = 0, env = {}, sandboxProcessInfo = false }) {
+  const workerArgs = ['--input-type=module', '-e', WORKER, name, String(capacity), scope, root, agent, String(stallMs)];
+  const executable = sandboxProcessInfo ? '/usr/bin/sandbox-exec' : process.execPath;
+  const args = sandboxProcessInfo ? ['-p', PROCESS_INFO_POLICY, process.execPath, ...workerArgs] : workerArgs;
+  const child = spawn(executable, args, {
     env: { ...box.env, ...env }, stdio: ['pipe', 'pipe', 'pipe'],
   });
   child.lines = createInterface({ input: child.stdout });
@@ -126,6 +143,47 @@ async function event(child, timeoutMs = 10_000) {
     child.lineWaiters.push(waiter);
   });
   return JSON.parse(line);
+}
+
+/** Read worker events until its real process acquires a resource place. */
+async function acquired(child) {
+  while (true) {
+    const state = await event(child);
+    if (state.acquired) return state;
+  }
+}
+
+/** Read the OS process state for an exact PID under stable locale settings. */
+function processState(pid) {
+  const result = spawnSync('/bin/ps', ['-o', 'stat=', '-p', String(pid)], {
+    encoding: 'utf8',
+    env: { ...process.env, TZ: 'UTC', LC_ALL: 'C', LANG: 'C' },
+  });
+  return result.status === 0 ? result.stdout.trim().split(/\s+/u)[0] ?? '' : '';
+}
+
+/** Wait until the OS reports a requested process state, or fail with the last state observed. */
+async function waitForProcessState(pid, state, timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs;
+  let actual = processState(pid);
+  while (!actual.startsWith(state) && Date.now() < deadline) {
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 40));
+    actual = processState(pid);
+  }
+  assert.ok(actual.startsWith(state), `process ${pid} has state ${actual || '(unreadable)'}, expected ${state}`);
+}
+
+/** Sleep without blocking the test runner event loop. */
+function delay(ms) { return new Promise((resolvePromise) => setTimeout(resolvePromise, ms)); }
+
+/** Add an expired holder row to a private fixture database. */
+function insertExpiredHolder(box, { name, pid, agent, started = '' }) {
+  const db = new DatabaseSync(join(box.home, 'resources.sqlite'));
+  try {
+    db.prepare('INSERT INTO resource(name, capacity) VALUES (?, 1)').run(name);
+    db.prepare('INSERT INTO holder(token, name, pid, started, agent, repo, since, heartbeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(`fixture-${agent}`, name, pid, started, agent, realpathSync(box.first), new Date(Date.now() - 60_000).toISOString(), Date.now() - 60_000);
+  } finally { db.close(); }
 }
 
 /** Ask a holder to release and wait for clean process exit. */
@@ -183,8 +241,8 @@ test('[Q1,Q2] capacity two admits two holders and serves the next waiter', async
   const box = fixture();
   const first = worker(box, { name: 'two-slots', capacity: 2, agent: 'first-holder' });
   const second = worker(box, { name: 'two-slots', capacity: 2, agent: 'second-holder' });
-  assert.equal((await event(first)).acquired, 'first-holder');
-  assert.equal((await event(second)).acquired, 'second-holder');
+  assert.equal((await acquired(first)).acquired, 'first-holder');
+  assert.equal((await acquired(second)).acquired, 'second-holder');
   const next = worker(box, { name: 'two-slots', capacity: 2, agent: 'next-waiter' });
   assert.equal((await event(next)).waiting, 1);
   await release(first);
@@ -246,9 +304,99 @@ test('[Q3] concurrent openers serialize migration of a prior resource database',
   const box = fixture();
   oldSchema(box);
   const workers = Array.from({ length: 8 }, (_, index) => worker(box, { name: 'legacy', capacity: 8, agent: `migrator-${index}` }));
-  const acquired = await Promise.all(workers.map((child) => event(child)));
-  assert.deepEqual(acquired.map(({ acquired: agent }) => agent).sort(), workers.map((_, index) => `migrator-${index}`).sort());
+  const grants = await Promise.all(workers.map((child) => acquired(child)));
+  assert.deepEqual(grants.map(({ acquired: agent }) => agent).sort(), workers.map((_, index) => `migrator-${index}`).sort());
   await Promise.all(workers.map(release));
+});
+
+test('[Q3] a held lease records its OS process start identity', async () => {
+  const box = fixture();
+  const holder = worker(box, { agent: 'identity-recorded' });
+  assert.equal((await acquired(holder)).acquired, 'identity-recorded');
+  const db = new DatabaseSync(join(box.home, 'resources.sqlite'));
+  try {
+    const row = db.prepare('SELECT started FROM holder WHERE agent = ?').get('identity-recorded');
+    assert.ok(row?.started, 'a readable process identity is stored with its lease');
+  } finally { db.close(); }
+  await release(holder);
+});
+
+test('[Q3] process identity lookup ignores a misleading ps on PATH', async () => {
+  const box = fixture();
+  const holder = worker(box, { agent: 'path-spoof-holder' });
+  assert.equal((await acquired(holder)).acquired, 'path-spoof-holder');
+  expireHeartbeat(box, 'holder', 'path-spoof-holder');
+  const fakeBin = join(box.dir, 'fake-bin');
+  mkdirSync(fakeBin);
+  const fakePs = join(fakeBin, 'ps');
+  writeFileSync(fakePs, '#!/bin/sh\nprintf "Mon Jan 1 00:00:00 2001 S\\n"\n');
+  chmodSync(fakePs, 0o755);
+  const previousPath = process.env.PATH;
+  process.env.PATH = fakeBin;
+  try {
+    assert.equal(privateList(box)[0].holders[0]?.agent, 'path-spoof-holder', 'the stable absolute ps result keeps the lease');
+  } finally {
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+  }
+  await release(holder);
+});
+
+test('[Q3] an unreadable process identity keeps a live holder', { skip: !SANDBOX_EXEC }, async () => {
+  const box = fixture();
+  const holder = worker(box, { agent: 'sandbox-live-holder', stallMs: 27_000 });
+  assert.equal((await acquired(holder)).acquired, 'sandbox-live-holder');
+  const waiter = worker(box, { agent: 'sandbox-live-waiter', sandboxProcessInfo: true });
+  assert.equal((await event(waiter)).waiting, 1);
+  await assert.rejects(event(waiter, 20_500), /worker timed out/u, 'denied process-info access is not proof that a live PID died');
+  assert.equal((await event(holder, 8_000)).resumed, true);
+  await release(holder);
+  assert.equal((await acquired(waiter)).acquired, 'sandbox-live-waiter');
+  await release(waiter);
+});
+
+test('[Q3] an unreadable process identity still releases a dead holder', { skip: !SANDBOX_EXEC }, async () => {
+  const box = fixture();
+  const holder = worker(box, { agent: 'sandbox-dead-holder' });
+  assert.equal((await acquired(holder)).acquired, 'sandbox-dead-holder');
+  holder.kill('SIGKILL');
+  const { signal } = await holder.finished;
+  holder.lines.close();
+  assert.equal(signal, 'SIGKILL');
+  const waiter = worker(box, { agent: 'sandbox-dead-waiter', sandboxProcessInfo: true });
+  assert.equal((await acquired(waiter)).acquired, 'sandbox-dead-waiter');
+  await release(waiter);
+});
+
+test('[Q3] cached live identities expire so an actual zombie holder is released', { skip: !PERL_FORK }, async () => {
+  const box = fixture();
+  privateList(box);
+  const script = 'my $pid = fork(); die "fork failed" unless defined $pid; if ($pid == 0) { select undef, undef, undef, 1.2; exit 0; } print "$pid\\n"; $| = 1; select undef, undef, undef, 30; waitpid($pid, 0);';
+  const reaper = spawn('/usr/bin/perl', ['-e', script], { stdio: ['ignore', 'pipe', 'pipe'] });
+  const lines = createInterface({ input: reaper.stdout });
+  try {
+    const pidText = await new Promise((resolveLine, reject) => {
+      lines.once('line', resolveLine);
+      reaper.once('error', reject);
+      reaper.once('exit', (code) => reject(new Error(`zombie parent exited early: ${code}`)));
+    });
+    const pid = Number(pidText);
+    assert.ok(Number.isInteger(pid) && pid > 0, `Perl reports its child PID: ${pidText}`);
+    insertExpiredHolder(box, { name: 'zombie-cache', pid, agent: 'zombie-holder' });
+    const cached = privateList(box).find(({ name }) => name === 'zombie-cache');
+    assert.equal(cached.holders[0]?.agent, 'zombie-holder', 'the live child with an empty stored identity is kept');
+    const cacheAt = Date.now();
+    await waitForProcessState(pid, 'Z');
+    await delay(Math.max(0, cacheAt + 3_200 - Date.now()));
+    const afterExpiry = privateList(box).find(({ name }) => name === 'zombie-cache');
+    assert.deepEqual(afterExpiry.holders, [], 'the refreshed process state identifies and releases the zombie');
+  } finally {
+    lines.close();
+    if (reaper.exitCode === null && reaper.signalCode === null) {
+      reaper.kill('SIGKILL');
+      await once(reaper, 'exit');
+    }
+  }
 });
 
 test('[Q3] renew refuses after an OS start-identity mismatch evicts the holder', async () => {
