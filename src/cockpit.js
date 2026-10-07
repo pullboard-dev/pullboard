@@ -531,6 +531,8 @@ async function refresh() {
     keep('pb.project', view.root);
     return refresh();
   }
+  // The project this board is, so a switch still loading never reads it as the next one's.
+  next.root = root;
   // Rebuild only when the board changed: a list rebuilt under the pointer can swallow a click.
   const text = JSON.stringify(next);
   if (text !== seen) {
@@ -705,7 +707,8 @@ function showTab() {
  */
 function countUnseen() {
   const p = data && data.project;
-  if (!p) return;
+  // While a switch loads, the board on hand is the last project's: it marks nothing for this one.
+  if (!p || data.root !== view.root) return;
   const key = 'pb.seen.' + view.root;
   const kept = view.seen[key] ?? keep(key);
   const newest = p.shouts.length ? p.shouts[0].shout_id : 0;

@@ -905,6 +905,20 @@ test('the shouts tab counts shouts you have not seen [N26]', async () => {
     assert.equal(count(again), '');
     await again.click({ root: alpha.repo, classes: 'proj side' });
     assert.equal(count(again), '41');
+
+    // A switch to beta that is slow to arrive: tabs clicked meanwhile must not mark alpha's shouts as
+    // beta's, or beta's next shout would never count.
+    const racing = await openPage(view, { store });
+    racing.run(`const plain = fetch; globalThis.fetch = (path, init) => path.includes(${JSON.stringify(encodeURIComponent(beta.repo))}) ? new Promise((done) => setTimeout(done, 300)).then(() => plain(path, init)) : plain(path, init);`);
+    racing.run(`switchTo(${JSON.stringify(beta.repo)})`);
+    await racing.click({ tab: 'shouts' });
+    await racing.click({ tab: 'items' });
+    await new Promise((done) => setTimeout(done, 600));
+    await racing.run('refresh()');
+    assert.equal(racing.element('proj-name').textContent, 'beta');
+    box.run(beta.repo, 'shout', 'web', 'beta moves on');
+    await racing.run('refresh()');
+    assert.equal(count(racing), '1', 'the shout that came after counts');
   } finally {
     await view.stop();
   }
