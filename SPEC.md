@@ -59,6 +59,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - V14 [draft, must] The bar is the frozen criterion alone. The brief can change, so it guides building, never the verdict. | gate: test/practice.test.js | serves: V2
 - V15 [draft, must] `next --verify` reserves the review under a lease; another verdict on it is refused while the lease lives. | gate: test/machine.test.js | serves: V1
 - V16 [draft, must] Submit runs the gate itself on the exact tree it submits; no stamp from an earlier run stands in. | gate: test/gate.test.js | serves: P1
+- V17 [draft, must] Submit refuses a head carrying commits pinned to another item that is not verified. | gate: test/e2e.test.js | serves: V6
 
 ## O · Options
 - O1 [draft, must] pullboard.json options switch declared guards on or off per repo; show and the view list them. | gate: test/machine.test.js | serves: M1
@@ -97,6 +98,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - C3 [approved, must] Pre-push runs the gate, unless this exact tree already passed it. | gate: test/e2e.test.js | serves: V4
 - C4 [approved, must] Every refusal says what to do and shows what it saw. | gate: test/hooks.test.js | serves: P4
 - C5 [approved, must] Pre-commit runs the configured fixers on fully staged files and restages what they fix. | gate: test/e2e.test.js
+- C6 [draft, must] Submit refuses unless the item's commits since claim, together, cite every spec row the item cites. | gate: test/e2e.test.js | serves: C2
 
 ## R · Receipts
 - R1 [approved, must] The ledger lists built items: lane, spec, builder, verifier, verdict, commit. | gate: test/board.test.js
