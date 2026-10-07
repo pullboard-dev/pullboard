@@ -282,6 +282,71 @@ test('[A1,B21,B27] a lane decision is answered by its agent through CLI JSON', (
   assert.equal(delivered.shout_text, 'Retry once.');
 });
 
+test('[A1,B21,B27] decisions shows an agent its direct and lane asks only', () => {
+  const box = project();
+  /** Create a real worktree registered to the requested lane. */
+  const worktree = (name, lane) => {
+    const path = join(box.dir, name);
+    box.git(box.repo, 'worktree', 'add', '-q', path, '-b', `${lane}/${name}`);
+    const joined = box.run(path, 'join', lane);
+    assert.equal(joined.status, 0, joined.stderr);
+    return path;
+  };
+  const app1 = worktree('app-1', 'app');
+  const app2 = worktree('app-2', 'app');
+  const review = worktree('review-1', 'review');
+  const laneAsk = json(box, box.repo, 'shout', ['app', 'Lane decision?', '--decision']).id;
+  const app1Ask = json(box, box.repo, 'shout', ['app-1', 'App one decision?', '--decision']).id;
+  const app2Ask = json(box, box.repo, 'shout', ['app-2', 'App two decision?', '--decision']).id;
+  const reviewAsk = json(box, box.repo, 'shout', ['review', 'Review decision?', '--decision']).id;
+  const coordinatorAsk = json(box, box.repo, 'shout', ['coordinator', 'Coordinator decision?', '--decision']).id;
+
+  const app1Queue = json(box, app1, 'decisions').decisions.map(({ shout_id }) => shout_id);
+  assert.deepEqual(app1Queue, [laneAsk, app1Ask]);
+  const app1Text = box.run(app1, 'decisions');
+  assert.equal(app1Text.status, 0, app1Text.stderr);
+  assert.match(app1Text.stdout, new RegExp(`#${laneAsk}\\b`));
+  assert.match(app1Text.stdout, new RegExp(`#${app1Ask}\\b`));
+  assert.doesNotMatch(app1Text.stdout, new RegExp(`#(?:${app2Ask}|${reviewAsk}|${coordinatorAsk})\\b`));
+  assert.deepEqual(json(box, app2, 'decisions').decisions.map(({ shout_id }) => shout_id), [laneAsk, app2Ask]);
+  assert.deepEqual(json(box, review, 'decisions').decisions.map(({ shout_id }) => shout_id), [reviewAsk]);
+  const app2Text = box.run(app2, 'decisions');
+  assert.equal(app2Text.status, 0, app2Text.stderr);
+  assert.match(app2Text.stdout, new RegExp(`#${laneAsk}\\b`));
+  assert.match(app2Text.stdout, new RegExp(`#${app2Ask}\\b`));
+  const reviewText = box.run(review, 'decisions');
+  assert.equal(reviewText.status, 0, reviewText.stderr);
+  assert.match(reviewText.stdout, new RegExp(`#${reviewAsk}\\b`));
+  assert.doesNotMatch(reviewText.stdout, new RegExp(`#(?:${laneAsk}|${app1Ask}|${app2Ask}|${coordinatorAsk})\\b`));
+
+  json(box, app2, 'answer', [String(laneAsk), 'Lane answered.']);
+  assert.deepEqual(json(box, app1, 'decisions').decisions.map(({ shout_id }) => shout_id), [app1Ask]);
+  const answeredText = box.run(app2, 'decisions');
+  assert.equal(answeredText.status, 0, answeredText.stderr);
+  assert.match(answeredText.stdout, new RegExp(`#${app2Ask}\\b`));
+  assert.doesNotMatch(answeredText.stdout, new RegExp(`#${laneAsk}\\b`));
+  assert.deepEqual(json(box, box.repo, 'decisions').decisions.map(({ shout_id }) => shout_id), [coordinatorAsk]);
+  const passedAsk = json(box, app1, 'shout', ['coordinator', 'Please decide this.', '--decision']).id;
+  const pass = json(box, box.repo, 'pass', [String(passedAsk), 'the person should decide']);
+  assert.deepEqual(json(box, box.repo, 'decisions', ['--as', 'person']).decisions.map(({ shout_id }) => shout_id), [pass.id]);
+  jsonError(box, app1, 'decisions', ['--as', 'person'], {
+    status: 1,
+    code: 'B26_PERSON_ANSWER',
+    message: '[B26_PERSON_ANSWER] only the main checkout can act as the person; ask your coordinator to answer or pass this decision',
+    next: 'ask your coordinator to answer or pass this decision',
+  });
+  jsonError(box, app1, 'answer', [String(app2Ask), 'No'], {
+    status: 1,
+    code: 'NOT_YOUR_DECISION',
+    message: `shout #${app2Ask} is addressed to app-2, not your app lane (agent app-1)`,
+    next: 'Run pullboard help, correct the reported problem, and retry the command.',
+  });
+  const coordinatorText = box.run(box.repo, 'decisions');
+  assert.equal(coordinatorText.status, 0, coordinatorText.stderr);
+  assert.match(coordinatorText.stdout, new RegExp(`#${coordinatorAsk}\\b`));
+  assert.doesNotMatch(coordinatorText.stdout, new RegExp(`#(?:${app1Ask}|${app2Ask}|${reviewAsk})\\b`));
+});
+
 test('[A1] refusals are one JSON document with exact public error fields', () => {
   const box = sandbox();
   const repo = join(box.dir, 'repo');

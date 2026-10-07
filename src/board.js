@@ -1317,10 +1317,11 @@ export function getShout(board, id) {
 
 /**
  * Shouts that asked for a decision nobody has answered yet, oldest first (B21). An optional
- * recipient limits the queue; without one this returns every open decision for internal readers.
+ * recipient limits the queue; an array matches any listed recipient. Without one this returns
+ * every open decision for internal readers.
  *
  * @param {any} board
- * @param {string} [recipient]
+ * @param {string | string[]} [recipient]
  * @returns {any[]}
  */
 export function openDecisions(board, recipient = null) {
@@ -1329,9 +1330,12 @@ export function openDecisions(board, recipient = null) {
       .prepare('SELECT * FROM shout ask WHERE ask.shout_decision = 1 AND NOT EXISTS (SELECT 1 FROM shout reply WHERE reply.shout_answers = ask.shout_id) ORDER BY ask.shout_id')
       .all();
   }
+  const recipients = [...new Set(Array.isArray(recipient) ? recipient : [recipient])];
+  if (!recipients.length) return [];
+  const marks = recipients.map(() => '?').join(', ');
   return board.db
-    .prepare('SELECT * FROM shout ask WHERE ask.shout_decision = 1 AND ask.shout_to = ? AND NOT EXISTS (SELECT 1 FROM shout reply WHERE reply.shout_answers = ask.shout_id) ORDER BY ask.shout_id')
-    .all(recipient);
+    .prepare(`SELECT * FROM shout ask WHERE ask.shout_decision = 1 AND ask.shout_to IN (${marks}) AND NOT EXISTS (SELECT 1 FROM shout reply WHERE reply.shout_answers = ask.shout_id) ORDER BY ask.shout_id`)
+    .all(...recipients);
 }
 
 /** Requests remain visible to the coordinator until a done or declined answer closes them (A2). */
