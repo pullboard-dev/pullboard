@@ -8,6 +8,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { evaluationValue } from './devtools-evaluation.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const BIN = join(ROOT, 'bin', 'pullboard.js');
@@ -22,15 +23,23 @@ function command(file, args, cwd, env) {
   return result.stdout.trim();
 }
 
+/** Stop a child and wait until it has released its temporary files and sockets. */
+async function stop(child) {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  child.kill();
+  await new Promise((resolveStop) => child.once('close', resolveStop));
+}
+
 /** Make a child environment with a private home and no inherited git overrides. */
 function isolatedEnv(home) {
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
-  return { ...env, PULLBOARD_HOME: home, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Pullboard demo', GIT_AUTHOR_EMAIL: 'demo@pullboard.invalid', GIT_COMMITTER_NAME: 'Pullboard demo', GIT_COMMITTER_EMAIL: 'demo@pullboard.invalid' };
+  return { ...env, HOME: home, PULLBOARD_HOME: home, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Pullboard demo', GIT_AUTHOR_EMAIL: 'demo@pullboard.invalid', GIT_COMMITTER_NAME: 'Pullboard demo', GIT_COMMITTER_EMAIL: 'demo@pullboard.invalid' };
 }
 
 /** Start Chrome with a disposable profile and return the DevTools connection for its page. */
 async function browser(chrome, profile, url) {
   const child = spawn(chrome, ['--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-sync', '--disable-extensions', '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--window-size=1440,1100', 'about:blank'], { stdio: 'ignore' });
+  let socket;
   let port;
   try {
     for (let n = 0; n < 100 && !port; n++) {
@@ -41,7 +50,7 @@ async function browser(chrome, profile, url) {
     const response = await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(url)}`, { method: 'PUT' });
     if (!response.ok) throw new Error('Chrome could not open the demo view');
     const target = await response.json();
-    const socket = new WebSocket(target.webSocketDebuggerUrl);
+    socket = new WebSocket(target.webSocketDebuggerUrl);
     await new Promise((ok, fail) => { socket.addEventListener('open', ok, { once: true }); socket.addEventListener('error', fail, { once: true }); });
     let id = 0;
     const pending = new Map();
@@ -49,19 +58,19 @@ async function browser(chrome, profile, url) {
     const send = (method, params = {}) => new Promise((ok, fail) => { const key = ++id; pending.set(key, { resolve: ok, reject: fail }); socket.send(JSON.stringify({ id: key, method, params })); });
     await send('Page.enable');
     await send('Runtime.enable');
-    const evaluate = async (expression) => {
-      const response = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
-      if (response.exceptionDetails) throw new Error(`Chrome evaluation failed: ${response.exceptionDetails.text}`);
-      return response.result?.value;
-    };
+    const evaluate = async (expression) => evaluationValue(await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }));
     for (let n = 0; n < 100 && await evaluate('document.readyState') !== 'complete'; n++) await pause(100);
     return {
       evaluate,
       viewport: (width, height) => send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false }),
       screenshot: async (path) => { const result = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }); await writeFile(path, Buffer.from(result.data, 'base64')); },
-      close: () => { socket.close(); child.kill(); },
+      close: async () => { socket.close(); await stop(child); },
     };
-  } catch (error) { child.kill(); throw error; }
+  } catch (error) {
+    socket?.close();
+    await stop(child);
+    throw error;
+  }
 }
 
 /** Build the demo board by issuing real commands in a temporary git repo. */
@@ -119,6 +128,7 @@ async function buildBoard(base, env) {
   pb(app3, 'claim', '4');
   pb(repo, 'shout', 'app', 'Decision needed: should this change wait for another reviewer?', '--decision');
   pb(repo, 'shout', 'all', 'Demo receipt: the fixture is isolated and the accepted revision was checked.', '--evidence', 'receipt', '--outcome', 'accepted', '--item', '1', '--commit', second);
+  if (!/1 withdrawn/.test(pb(repo, 'status'))) throw new Error('The demo board must include a withdrawn item.');
   return repo;
 }
 
@@ -156,10 +166,11 @@ if (!chrome) { process.stderr.write('pullboard demo: install Google Chrome to ca
 else {
   const base = await mkdtemp(join(tmpdir(), 'pullboard-readme-demo-'));
   let view;
+  let server;
   try {
     const env = isolatedEnv(join(base, '.pullboard-home'));
     const repo = await buildBoard(base, env);
-    const server = spawn(process.execPath, [BIN, 'view', '--no-open'], { cwd: repo, env, stdio: ['ignore', 'pipe', 'ignore'] });
+    server = spawn(process.execPath, [BIN, 'view', '--no-open'], { cwd: repo, env, stdio: ['ignore', 'pipe', 'ignore'] });
     const url = await new Promise((resolveUrl, reject) => {
       let output = '';
       const timer = setTimeout(() => reject(new Error('The demo view did not start')), 10000);
@@ -177,7 +188,12 @@ else {
     await view.viewport(390, 900);
     await view.evaluate("(()=>{document.documentElement.dataset.theme='dark'; localStorage.setItem('pb.theme','dark'); const item=document.querySelector('[data-item=\"1\"]'); const detail=document.querySelector('#detail')?.textContent??''; if(document.documentElement.dataset.theme!=='dark'||!item||!detail.includes('ACCEPT')) throw new Error('The phone screenshot must show the selected accepted item in dark mode'); return true})()");
     await view.screenshot(join(OUTPUT, 'phone.png'));
-    await view.close(); view = null; server.kill();
+    await view.close(); view = null;
+    await stop(server); server = null;
     await recordTour(env);
-  } finally { if (view) await view.close(); await rm(base, { recursive: true, force: true }); }
+  } finally {
+    if (view) await view.close();
+    if (server) await stop(server);
+    await rm(base, { recursive: true, force: true });
+  }
 }

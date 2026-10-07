@@ -1,51 +1,51 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 1178" role="img" aria-label="Pullboard tour: a reviewed change is rejected, fixed and accepted"><rect width="100%" height="100%" rx="16" fill="#101820"/><g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" fill="#e6edf3"><text x="24" y="42" opacity="0">pullboard tour: a coordinator and two scripted agents run real commands on a throwaway repo. No model runs.<animate attributeName="opacity" from="0" to="1" begin="0.05s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="64" opacity="0">1  The person approved one spec row. The coordinator files it as work.<animate attributeName="opacity" from="0" to="1" begin="5.10s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="86" opacity="0">   G1: greet(name) returns "Hello, &lt;name&gt;!"; a blank name greets the world: "Hello, world!"<animate attributeName="opacity" from="0" to="1" begin="5.10s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="108" opacity="0">   coordinator $ pullboard add app Greeting --specs G1 --criterion "greet() meets G1"<animate attributeName="opacity" from="0" to="1" begin="5.51s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="130" opacity="0">       #1<animate attributeName="opacity" from="0" to="1" begin="5.58s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="152" opacity="0">2  A builder agent gets its own worktree in the app lane and claims the next item. Its criterion freezes.<animate attributeName="opacity" from="0" to="1" begin="6.78s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="174" opacity="0">   coordinator $ pullboard worktree app<animate attributeName="opacity" from="0" to="1" begin="7.18s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="196" opacity="0">       made greeter-app-1 on branch app/1, joined as app-1 in the app lane<animate attributeName="opacity" from="0" to="1" begin="7.33s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="218" opacity="0">   app-1 $ pullboard next<animate attributeName="opacity" from="0" to="1" begin="7.74s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="240" opacity="0">       claimed #1: Greeting<animate attributeName="opacity" from="0" to="1" begin="7.82s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="262" opacity="0">       criterion: greet() meets G1<animate attributeName="opacity" from="0" to="1" begin="7.82s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="284" opacity="0">3  It writes greet(), tests the happy path and submits. Its own gate is green.<animate attributeName="opacity" from="0" to="1" begin="9.02s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="306" opacity="0">   app-1 $ git commit -q -m "feat(app): greet by name [G1]"<animate attributeName="opacity" from="0" to="1" begin="9.83s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="328" opacity="0">   app-1 $ pullboard submit 1<animate attributeName="opacity" from="0" to="1" begin="11.20s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="350" opacity="0">       submitted #1 at 559da661373f; gate green in 0s<animate attributeName="opacity" from="0" to="1" begin="11.43s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="372" opacity="0">4  A second agent checks out exactly that commit and tries the edge the builder skipped.<animate attributeName="opacity" from="0" to="1" begin="12.63s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="394" opacity="0">   coordinator $ pullboard worktree review<animate attributeName="opacity" from="0" to="1" begin="13.04s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="416" opacity="0">       made greeter-review-1 on branch review/1, joined as review-1 in the review lane<animate attributeName="opacity" from="0" to="1" begin="13.17s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="438" opacity="0">   review-1 $ git switch -q --detach 559da661373f<animate attributeName="opacity" from="0" to="1" begin="13.58s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="460" opacity="0">   review-1 $ node -e "greet('')"<animate attributeName="opacity" from="0" to="1" begin="14.03s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="482" opacity="0">       Hello, !<animate attributeName="opacity" from="0" to="1" begin="14.05s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="504" opacity="0">   review-1 $ pullboard verify 1 reject --reason BEHAVIOR_MISMATCH --note "greet('') returns \"Hello, !\"; G1 says a blank name gree<animate attributeName="opacity" from="0" to="1" begin="14.46s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="526" opacity="0">       rejected #1: BEHAVIOR_MISMATCH; it is open again for rework<animate attributeName="opacity" from="0" to="1" begin="14.54s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="548" opacity="0">5  The builder's next session starts from the board, not from memory.<animate attributeName="opacity" from="0" to="1" begin="15.75s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="570" opacity="0">   app-1 $ pullboard resume<animate attributeName="opacity" from="0" to="1" begin="16.15s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="592" opacity="0">       sent back: #1 BEHAVIOR_MISMATCH by review-1: greet('') returns "Hello, !"; G1 says a blank name greets the world<animate attributeName="opacity" from="0" to="1" begin="16.25s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="614" opacity="0">       next: pullboard claim 1, fix what the verifier found, and submit again<animate attributeName="opacity" from="0" to="1" begin="16.25s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="636" opacity="0">6  It fixes the edge, adds a test that pins it, and submits a new commit.<animate attributeName="opacity" from="0" to="1" begin="17.45s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="658" opacity="0">   app-1 $ pullboard claim 1<animate attributeName="opacity" from="0" to="1" begin="17.85s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="680" opacity="0">       claimed #1 until 2026-10-07T08:40:30.654Z; criterion frozen as e2a1226a8e16<animate attributeName="opacity" from="0" to="1" begin="17.93s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="702" opacity="0">   app-1 $ git commit -q -am "fix(app): a blank name greets the world [G1]"<animate attributeName="opacity" from="0" to="1" begin="18.33s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="724" opacity="0">   app-1 $ pullboard submit 1<animate attributeName="opacity" from="0" to="1" begin="18.97s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="746" opacity="0">       submitted #1 at 92792af0b5d3; gate green in 0s<animate attributeName="opacity" from="0" to="1" begin="19.20s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="768" opacity="0">7  The verifier breaks the fix on purpose, to prove the new test can fail, then restores it and accepts.<animate attributeName="opacity" from="0" to="1" begin="20.41s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="790" opacity="0">   review-1 $ git switch -q --detach 92792af0b5d3<animate attributeName="opacity" from="0" to="1" begin="20.81s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="812" opacity="0">   review-1 $ node --test   # with the fix removed<animate attributeName="opacity" from="0" to="1" begin="21.22s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="834" opacity="0">       # pass 1<animate attributeName="opacity" from="0" to="1" begin="21.29s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="856" opacity="0">       # fail 1<animate attributeName="opacity" from="0" to="1" begin="21.29s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="878" opacity="0">   review-1 $ git checkout -- src/greet.mjs<animate attributeName="opacity" from="0" to="1" begin="21.70s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="900" opacity="0">   review-1 $ pullboard verify 1 accept --note "removed the blank-name fix: its new test failed; restored, both pass"<animate attributeName="opacity" from="0" to="1" begin="22.11s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="922" opacity="0">       verified #1: CRITERION_MET<animate attributeName="opacity" from="0" to="1" begin="22.23s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="944" opacity="0">8  The coordinator merges it. The ledger is the receipt.<animate attributeName="opacity" from="0" to="1" begin="23.43s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="966" opacity="0">   coordinator $ git merge -q --ff-only app/1<animate attributeName="opacity" from="0" to="1" begin="23.84s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="988" opacity="0">   coordinator $ pullboard merged 1 92792af0b5d3<animate attributeName="opacity" from="0" to="1" begin="24.27s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="1010" opacity="0">       #1 merged as 92792af0b5d3<animate attributeName="opacity" from="0" to="1" begin="24.35s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="1032" opacity="0">   coordinator $ pullboard ledger<animate attributeName="opacity" from="0" to="1" begin="24.75s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="1054" opacity="0">       1 verified by a second agent · 0 awaiting verification · 1 rejection along the way<animate attributeName="opacity" from="0" to="1" begin="24.82s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="1076" opacity="0">       | # | Lane | Item | Spec | Built by | Verified by | Commit | Merged |<animate attributeName="opacity" from="0" to="1" begin="24.82s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="1098" opacity="0">       | 1 | app | Greeting | G1 | app-1 | review-1 | 92792af0b5d3 | 92792af0b5d3 |<animate attributeName="opacity" from="0" to="1" begin="24.82s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="1120" opacity="0">Nothing shipped until a second agent verified it.<animate attributeName="opacity" from="0" to="1" begin="24.82s" dur="0.12s" fill="freeze"/></text>
-<text x="24" y="1142" opacity="0">   Look around: cd greeter &amp;&amp; pullboard log<animate attributeName="opacity" from="0" to="1" begin="24.82s" dur="0.12s" fill="freeze"/></text></g><rect x="0" y="0" width="960" height="1178" fill="transparent"><animate attributeName="opacity" from="1" to="1" begin="28.82s" dur="0.1s" fill="freeze"/></rect></svg>
+<text x="24" y="64" opacity="0">1  The person approved one spec row. The coordinator files it as work.<animate attributeName="opacity" from="0" to="1" begin="3.80s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="86" opacity="0">   G1: greet(name) returns "Hello, &lt;name&gt;!"; a blank name greets the world: "Hello, world!"<animate attributeName="opacity" from="0" to="1" begin="3.80s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="108" opacity="0">   coordinator $ pullboard add app Greeting --specs G1 --criterion "greet() meets G1"<animate attributeName="opacity" from="0" to="1" begin="4.21s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="130" opacity="0">       #1<animate attributeName="opacity" from="0" to="1" begin="4.28s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="152" opacity="0">2  A builder agent gets its own worktree in the app lane and claims the next item. Its criterion freezes.<animate attributeName="opacity" from="0" to="1" begin="5.48s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="174" opacity="0">   coordinator $ pullboard worktree app<animate attributeName="opacity" from="0" to="1" begin="5.89s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="196" opacity="0">       made greeter-app-1 on branch app/1, joined as app-1 in the app lane<animate attributeName="opacity" from="0" to="1" begin="6.03s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="218" opacity="0">   app-1 $ pullboard next<animate attributeName="opacity" from="0" to="1" begin="6.43s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="240" opacity="0">       claimed #1: Greeting<animate attributeName="opacity" from="0" to="1" begin="6.51s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="262" opacity="0">       criterion: greet() meets G1<animate attributeName="opacity" from="0" to="1" begin="6.51s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="284" opacity="0">3  It writes greet(), tests the happy path and submits. Its own gate is green.<animate attributeName="opacity" from="0" to="1" begin="7.72s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="306" opacity="0">   app-1 $ git commit -q -m "feat(app): greet by name [G1]"<animate attributeName="opacity" from="0" to="1" begin="8.53s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="328" opacity="0">   app-1 $ pullboard submit 1<animate attributeName="opacity" from="0" to="1" begin="9.59s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="350" opacity="0">       submitted #1 at e68d368da6c3; gate green in 0s<animate attributeName="opacity" from="0" to="1" begin="9.88s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="372" opacity="0">4  A second agent checks out exactly that commit and tries the edge the builder skipped.<animate attributeName="opacity" from="0" to="1" begin="11.08s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="394" opacity="0">   coordinator $ pullboard worktree review<animate attributeName="opacity" from="0" to="1" begin="11.48s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="416" opacity="0">       made greeter-review-1 on branch review/1, joined as review-1 in the review lane<animate attributeName="opacity" from="0" to="1" begin="11.63s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="438" opacity="0">   review-1 $ git switch -q --detach e68d368da6c3<animate attributeName="opacity" from="0" to="1" begin="12.04s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="460" opacity="0">   review-1 $ node -e "greet('')"<animate attributeName="opacity" from="0" to="1" begin="12.50s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="482" opacity="0">       Hello, !<animate attributeName="opacity" from="0" to="1" begin="12.53s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="504" opacity="0">   review-1 $ pullboard verify 1 reject --reason BEHAVIOR_MISMATCH --note "greet('') returns \"Hello, !\"; G1 says a blank name gree<animate attributeName="opacity" from="0" to="1" begin="12.93s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="526" opacity="0">       rejected #1: BEHAVIOR_MISMATCH; it is open again for rework<animate attributeName="opacity" from="0" to="1" begin="13.05s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="548" opacity="0">5  The builder's next session starts from the board, not from memory.<animate attributeName="opacity" from="0" to="1" begin="14.25s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="570" opacity="0">   app-1 $ pullboard resume<animate attributeName="opacity" from="0" to="1" begin="14.65s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="592" opacity="0">       sent back: #1 BEHAVIOR_MISMATCH by review-1: greet('') returns "Hello, !"; G1 says a blank name greets the world<animate attributeName="opacity" from="0" to="1" begin="14.78s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="614" opacity="0">       next: pullboard claim 1, fix what the verifier found, and submit again<animate attributeName="opacity" from="0" to="1" begin="14.78s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="636" opacity="0">6  It fixes the edge, adds a test that pins it, and submits a new commit.<animate attributeName="opacity" from="0" to="1" begin="15.98s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="658" opacity="0">   app-1 $ pullboard claim 1<animate attributeName="opacity" from="0" to="1" begin="16.39s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="680" opacity="0">       claimed #1 until 2026-10-07T08:43:56.922Z; criterion frozen as e2a1226a8e16<animate attributeName="opacity" from="0" to="1" begin="16.61s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="702" opacity="0">   app-1 $ git commit -q -am "fix(app): a blank name greets the world [G1]"<animate attributeName="opacity" from="0" to="1" begin="17.02s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="724" opacity="0">   app-1 $ pullboard submit 1<animate attributeName="opacity" from="0" to="1" begin="17.76s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="746" opacity="0">       submitted #1 at d36b8aa93ec4; gate green in 0s<animate attributeName="opacity" from="0" to="1" begin="18.20s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="768" opacity="0">7  The verifier breaks the fix on purpose, to prove the new test can fail, then restores it and accepts.<animate attributeName="opacity" from="0" to="1" begin="19.40s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="790" opacity="0">   review-1 $ git switch -q --detach d36b8aa93ec4<animate attributeName="opacity" from="0" to="1" begin="19.80s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="812" opacity="0">   review-1 $ node --test   # with the fix removed<animate attributeName="opacity" from="0" to="1" begin="20.24s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="834" opacity="0">       # pass 1<animate attributeName="opacity" from="0" to="1" begin="20.33s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="856" opacity="0">       # fail 1<animate attributeName="opacity" from="0" to="1" begin="20.33s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="878" opacity="0">   review-1 $ git checkout -- src/greet.mjs<animate attributeName="opacity" from="0" to="1" begin="20.74s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="900" opacity="0">   review-1 $ pullboard verify 1 accept --note "removed the blank-name fix: its new test failed; restored, both pass"<animate attributeName="opacity" from="0" to="1" begin="21.16s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="922" opacity="0">       verified #1: CRITERION_MET<animate attributeName="opacity" from="0" to="1" begin="21.73s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="944" opacity="0">8  The coordinator merges it. The ledger is the receipt.<animate attributeName="opacity" from="0" to="1" begin="22.94s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="966" opacity="0">   coordinator $ git merge -q --ff-only app/1<animate attributeName="opacity" from="0" to="1" begin="23.34s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="988" opacity="0">   coordinator $ pullboard merged 1 d36b8aa93ec4<animate attributeName="opacity" from="0" to="1" begin="23.90s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="1010" opacity="0">       #1 merged as d36b8aa93ec4<animate attributeName="opacity" from="0" to="1" begin="24.15s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="1032" opacity="0">   coordinator $ pullboard ledger<animate attributeName="opacity" from="0" to="1" begin="24.56s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="1054" opacity="0">       1 verified by a second agent · 0 awaiting verification · 1 rejection along the way<animate attributeName="opacity" from="0" to="1" begin="24.68s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="1076" opacity="0">       | # | Lane | Item | Spec | Built by | Verified by | Commit | Merged |<animate attributeName="opacity" from="0" to="1" begin="24.68s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="1098" opacity="0">       | 1 | app | Greeting | G1 | app-1 | review-1 | d36b8aa93ec4 | d36b8aa93ec4 |<animate attributeName="opacity" from="0" to="1" begin="24.68s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="1120" opacity="0">Nothing shipped until a second agent verified it.<animate attributeName="opacity" from="0" to="1" begin="24.68s" dur="0.12s" fill="freeze"/></text>
+<text x="24" y="1142" opacity="0">   Look around: cd greeter &amp;&amp; pullboard log<animate attributeName="opacity" from="0" to="1" begin="24.68s" dur="0.12s" fill="freeze"/></text></g><rect x="0" y="0" width="960" height="1178" fill="transparent"><animate attributeName="opacity" from="1" to="1" begin="28.68s" dur="0.1s" fill="freeze"/></rect></svg>

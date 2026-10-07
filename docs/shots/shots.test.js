@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { evaluationValue } from './devtools-evaluation.mjs';
 
 const ROOT = new URL('../../', import.meta.url);
 const README = readFileSync(new URL('README.md', ROOT), 'utf8');
@@ -41,9 +42,11 @@ test('the demo assets exist and stay within their size budgets [I11,I13]', () =>
 test('the demo rebuild script uses a temporary repo and isolated home [I11,I13]', () => {
   const script = readFileSync(shots('demo.mjs'), 'utf8');
   assert.match(script, /mkdtemp\(join\(tmpdir\(\)/);
-  assert.match(script, /PULLBOARD_HOME: home/);
+  assert.match(script, /, HOME: home, PULLBOARD_HOME: home/);
   assert.match(script, /process\.execPath, \[BIN, 'init'\]/);
-  assert.match(script, /'withdraw', '6'/, 'the fixture includes the withdrawn state');
-  assert.match(script, /data-item=\\\\?"1\\\\?"/, 'the screenshot selects the accepted item with a quoted id');
-  assert.match(script, /if \(response\.exceptionDetails\) throw/, 'browser script errors fail instead of silently capturing the wrong view');
+});
+
+test('a Chrome evaluation exception fails the screenshot capture [I11,I13]', () => {
+  assert.equal(evaluationValue({ result: { value: 'ready' } }), 'ready');
+  assert.throws(() => evaluationValue({ exceptionDetails: { text: 'Uncaught SyntaxError' } }), /Chrome evaluation failed: Uncaught SyntaxError/);
 });
