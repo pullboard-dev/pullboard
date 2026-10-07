@@ -827,9 +827,16 @@ $('hold-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   if (await act('hold', { lane: $('hold-lane').value, reason: $('hold-reason').value })) $('hold-reason').value = '';
 });
+// A board just started is the one to look at, and init's output ends with what to do next, so it
+// stays until the person closes it.
 $('init-form').addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (await act('init', { path: $('init-path').value }, null)) $('init-path').value = '';
+  const known = new Set(data ? data.projects.map((x) => x.root) : []);
+  if (!(await act('init', { path: $('init-path').value }, null))) return;
+  $('init-path').value = '';
+  clearTimeout(view.closing);
+  const started = data && data.projects.find((x) => !known.has(x.root));
+  if (started) switchTo(started.root);
 });
 showTab();
 refresh().catch((error) => { $('live').textContent = 'cannot reach the view: ' + error.message; });
