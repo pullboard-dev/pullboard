@@ -1402,6 +1402,26 @@ test('an empty feed says so on one line [N26]', async () => {
     await view.stop();
   }
 });
+test('a shout shows the evidence it carries [B22]', async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha');
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  build(box, alpha, 1, 'greeting.html');
+  const head = box.git(alpha.web, 'rev-parse', 'HEAD');
+  box.run(alpha.web, 'shout', 'all', 'the page loads in 80ms', '--evidence', 'receipt', '--outcome', 'measured <fast>', '--item', '1', '--commit', head.slice(0, 7));
+  box.run(alpha.web, 'shout', 'all', 'tried a cache', '--evidence', 'attempt', '--outcome', 'failed', '--item', '1', '--commit', 'HEAD');
+  box.run(alpha.web, 'shout', 'all', 'nothing to show');
+  const view = await startView(box);
+  try {
+    const feed = (await openPage(view)).show('feed');
+    const card = (kind, outcome) => `<span class="ev"><b>${kind}</b> ${outcome} · <button class="ref" data-go="item:1" title="Greeting" type="button">#1</button> · web-1 · <code title="${head}">${head.slice(0, 12)}</code></span>`;
+    assert.ok(feed.includes('the page loads in 80ms' + card('receipt', 'measured &lt;fast&gt;')), 'what was measured, for which item, by whom, at which commit');
+    assert.ok(feed.includes('tried a cache' + card('attempt', 'failed')), 'and what was tried');
+    assert.ok(feed.includes('nothing to show</div>'), 'a shout with no evidence has no card');
+  } finally {
+    await view.stop();
+  }
+});
 test('activity names the item each event moved [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
