@@ -884,6 +884,35 @@ test('a sent-back item shows why first [N26]', async () => {
   }
 });
 
+test('the list shows active, verified or all [N26]', async () => {
+  const box = machine();
+  const lanes = { web: { owns: ['web/'], specs: ['G'] }, api: { owns: ['api/'], specs: ['G'] } };
+  const alpha = project(box, 'alpha', SPEC, { lanes });
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  box.run(alpha.repo, 'add', 'api', 'Endpoint', '--specs', 'G1', '--criterion', 'answers');
+  build(box, alpha, 1, 'greeting.html');
+  accept(box, alpha, 1);
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    const control = () => [...page.show('state-chips').matchAll(/<button data-state="([a-z]+)" class="(on)?" type="button">([A-Za-z]+)<b>(\d+)<\/b><\/button>/g)].map((match) => `${match[3]} ${match[4]}${match[2] ? ' (shown)' : ''}`);
+    const rows = () => [...page.show('chain').matchAll(/data-item="(\d+)"/g)].map((match) => Number(match[1])).sort();
+    assert.deepEqual(control(), ['Active 1 (shown)', 'Verified 1', 'All 2'], 'three choices, each with its count');
+    assert.deepEqual(rows(), [2]);
+    await page.click({ state: 'verified' });
+    assert.deepEqual(rows(), [1]);
+    await page.click({ state: 'all' });
+    assert.deepEqual(rows(), [1, 2]);
+    assert.match(page.html, /<div class="card-panel toolbar"><div class="seg" id="state-chips" role="group" aria-label="Show"><\/div><input id="q" type="search"/, 'the control sits in the toolbar beside the search');
+    assert.doesNotMatch(page.html, /id="lane-filter"|class="chips" id="state-chips"/, 'no lane menu and no row of chips');
+
+    await page.click({ state: 'active' });
+    await page.type('q', 'api');
+    assert.deepEqual(rows(), [2], 'typing a lane finds its items');
+  } finally {
+    await view.stop();
+  }
+});
 test('shout ids, search and narrow windows reach the item [N26]', async () => {
   const box = machine();
   const p = project(box, 'desk');
