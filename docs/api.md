@@ -21,6 +21,7 @@ A successful command returns the fields listed below. `version` is always the nu
 | `list` | `version:number`, `items:array` |
 | `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array` |
 | `status` | `version:number`, `me:object`, `mine:array`, `stats:object`, `unread:number` |
+| `doctor` | `version:number`, `problems:array` |
 | `inbox` | `version:number`, `shouts:array` |
 | `decisions` | `version:number`, `decisions:array` |
 | `ledger` | `version:number`, `items:array`, `stats:object` |

@@ -47,7 +47,7 @@ const finding = (code, message, next) => ({ code, message, next });
 /** Inspect the layout before each row check, retaining trigger findings on an incomplete board. */
 function layoutProblems(db) {
   const required = {
-    item: ['item_id', 'item_status', 'item_commit', ...new Set(STATES.flatMap((state) => state.requires))],
+    item: [...new Set(['item_id', 'item_status', 'item_commit', ...STATES.flatMap((state) => state.requires)])],
     verdict: ['verdict_id', 'item_id', 'verdict_commit'],
   };
   const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((table) => table.name));
@@ -151,7 +151,7 @@ function pinProblems(db, root, tryGit) {
  * @param {DatabaseSync} db
  * @param {string} root
  * @param {(root: string, args: string[]) => { status: number, stdout: string }} tryGit
- * @returns {string[]}
+ * @returns {{ code: string, message: string, next: string }[]}
  */
 function verdictProblems(db, root, tryGit) {
   return db.prepare('SELECT verdict_id, item_id, verdict_commit FROM verdict ORDER BY verdict_id').all().flatMap((verdict) => {
