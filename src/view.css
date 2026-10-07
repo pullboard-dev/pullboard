@@ -277,3 +277,8 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .flow g:hover > .box, .flow g:hover > .edge { stroke-width: 2.2; }
 .console { position: fixed; right: 16px; bottom: 16px; width: min(560px, calc(100vw - 32px)); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: var(--shadow); padding: 10px 12px; font: 12px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 38vh; overflow: auto; z-index: 20; cursor: pointer; }
 .console.ok { border-color: var(--accent); } .console.no { border-color: var(--reject); }
+.snapshot-controls:not([hidden]) { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; padding: 12px 16px; }
+.snapshot-controls > span { font-weight: 600; }
+.snapshot-controls label { display: flex; align-items: center; gap: 6px; }
+.snapshot-controls output { color: var(--ink-muted); font: 12px/1.5 var(--mono); }
+.snapshot #new-item, .snapshot form, .snapshot [data-new], .snapshot [data-release], .snapshot [data-shout], .snapshot [data-go^="decide:"] { display: none !important; }
