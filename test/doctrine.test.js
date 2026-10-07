@@ -31,7 +31,7 @@ test('standard version1 ships exactly the twelve RFC rules and is inherited with
   assert.equal(merged.repoExists, false);
   assert.deepEqual(merged.rows, standard.rows);
   assert.deepEqual(lintSpec(merged), []);
-  assert.ok(merged.rows.every((row) => row.origin === 'standard 1' && row.version === 1));
+  assert.ok(merged.rows.every((row) => row.origin === 'standard' && row.version === 1));
 });
 
 test('repo rules override and decline inherited rows with a reason, keeping source labels and legacy text [D2,D3,D4]', (t) => {

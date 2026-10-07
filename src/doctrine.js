@@ -11,8 +11,8 @@ export function standardDoctrine() {
   const name = 'standard doctrine ' + STANDARD_VERSION;
   return {
     ...parsed, name, exists: true, version: STANDARD_VERSION,
-    sections: parsed.sections.map((section) => ({ ...section, origin: 'standard ' + STANDARD_VERSION })),
-    rows: parsed.rows.map((row) => ({ ...row, origin: 'standard ' + STANDARD_VERSION, version: STANDARD_VERSION, reason: '', file: name })),
+    sections: parsed.sections.map((section) => ({ ...section, origin: 'standard' })),
+    rows: parsed.rows.map((row) => ({ ...row, origin: 'standard', version: STANDARD_VERSION, reason: '', file: name })),
   };
 }
 
@@ -66,6 +66,7 @@ export function doctrineText(doctrine) {
   return doctrine.rows.map((row) => {
     const state = row.status + (row.tier ? ', ' + row.tier : '');
     const reason = row.reason && row.reason !== row.text ? ' Reason: ' + row.reason : '';
-    return '- ' + row.id + ' (' + row.origin + ') [' + state + '] ' + row.text + reason;
+    const origin = row.origin === 'standard' ? 'standard ' + row.version : row.origin;
+    return '- ' + row.id + ' (' + origin + ') [' + state + '] ' + row.text + reason;
   }).join('\n');
 }
