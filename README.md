@@ -59,7 +59,7 @@ All six were fixed before they merged. Before accepting each code change, the ve
 You need git and Node 22.13 or newer.
 
 ```sh
-npm i -g @pullboard/local      # from the first npm release; until then, run npm i -g . in a clone of this repo
+npm i -g pullboard             # 0.5.0 or newer; until it is published, run npm i -g . in a clone of this repo
 pullboard tour                 # thirty seconds on a throwaway repo: a reject, the fix, the ledger
 ```
 

@@ -322,7 +322,7 @@ export function hookScript(hook) {
     `  if [ -x "$bin" ]; then exec "$bin" hook ${hook}${args}; fi`,
     'done',
     `if command -v pullboard >/dev/null 2>&1; then exec pullboard hook ${hook}${args}; fi`,
-    'echo "pullboard is not installed; npm i -D @pullboard/local, or npm i -g @pullboard/local" >&2',
+    'echo "pullboard is not installed; npm i -D pullboard, or npm i -g pullboard" >&2',
     'exit 1',
     '',
   ].join('\n');

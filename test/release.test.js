@@ -29,7 +29,7 @@ test('a packed release installs with no network and runs the whole loop from a f
   const prefix = join(dir, 'prefix');
   const install = spawnSync('npm', ['install', '--global', '--prefix', prefix, '--offline', '--no-audit', '--no-fund', join(dir, packed.filename)], { env: npmEnv, encoding: 'utf8' });
   assert.equal(install.status, 0, `installs with no network: ${install.stderr}`);
-  const installed = join(prefix, 'lib', 'node_modules', '@pullboard', 'local');
+  const installed = join(prefix, 'lib', 'node_modules', 'pullboard');
   assert.equal(JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8')).dependencies, undefined, 'no dependencies');
   assert.ok(!existsSync(join(installed, 'node_modules')), 'nothing was installed beside it');
   const bin = join(prefix, 'bin', 'pullboard');
