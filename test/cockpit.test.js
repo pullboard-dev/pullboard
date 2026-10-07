@@ -100,9 +100,32 @@ function sendBack(box, p, id, note) {
   box.git(p.repo, 'switch', '-q', 'main');
 }
 
-/**
- * Start `pullboard view` on the machine and read the link it prints; stop() ends it.
- */
+/** Include the transport cause, which fetch's top-level error alone conceals. */
+function fetchReason(error, seen = new Set()) {
+  if (!error || seen.has(error)) return '';
+  seen.add(error);
+  const detail = `${error.name ?? 'Error'}: ${error.message ?? String(error)}${error.code ? ` (${error.code})` : ''}`;
+  const causes = [error.cause, ...(error.errors ?? [])].map((cause) => fetchReason(cause, seen)).filter(Boolean);
+  return [detail, ...causes].join('; caused by ');
+}
+
+/** Retry a fixture read once after a transport failure; never replay a potentially applied move. */
+async function fetchView(url, init = {}) {
+  const method = (init.method ?? 'GET').toUpperCase();
+  const attempts = method === 'GET' ? 2 : 1;
+  const failures = [];
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await fetch(url, { ...init, signal: init.signal ?? AbortSignal.timeout(30_000) });
+    } catch (error) {
+      failures.push(`attempt ${attempt}: ${fetchReason(error)}`);
+    }
+  }
+  const address = new URL(url);
+  throw new Error(`${method} ${address.origin}${address.pathname} failed after ${attempts} attempt${attempts === 1 ? '' : 's'}; ${failures.join('; ')}`);
+}
+
+/** Start the real view and wait for a complete HTTP answer, rather than just its printed link. */
 async function startView(box) {
   const child = spawn(process.execPath, [BIN, 'view', '--no-open'], { cwd: box.dir, env: box.env });
   const link = await new Promise((found, fail) => {
@@ -119,6 +142,14 @@ async function startView(box) {
     child.once('exit', done);
     child.kill('SIGTERM');
   });
+  try {
+    const ready = await fetchView(link);
+    assert.equal(ready.status, 200, 'the view answers before the test fetches its page');
+    await ready.arrayBuffer();
+  } catch (error) {
+    await stop();
+    throw error;
+  }
   return { link, key: link.searchParams.get('k'), base: `http://127.0.0.1:${link.port}`, stop };
 }
 
@@ -246,7 +277,7 @@ function daysOn(days) {
  * is what that region holds; click() and type() act as the person would.
  */
 async function openPage(view, { width = 1280, later = 0, store = null, hold = false } = {}) {
-  const html = await (await fetch(view.link)).text();
+  const html = await (await fetchView(view.link)).text();
   const script = html.slice(html.indexOf('<script>') + '<script>'.length, html.lastIndexOf('</script>'));
   const known = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
   const elements = new Map();
@@ -282,7 +313,7 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
     setTimeout,
     clearTimeout,
     fetch: (path, init) => {
-      const answer = held.then(() => fetch(`${view.base}${path}`, init)).then(async (res) => {
+      const answer = held.then(() => fetchView(`${view.base}${path}`, init)).then(async (res) => {
         const body = await res.json();
         return { ok: res.ok, status: res.status, json: async () => body };
       });
@@ -1410,6 +1441,40 @@ test("needs-you holds only the person's calls; the rest show on the board with w
     await view.stop();
   }
 });
+test('view fixture retries one disconnected read with its cause and never repeats a move [N26]', async () => {
+  const box = machine();
+  project(box, 'transport');
+  const view = await startView(box);
+  const calls = new Map();
+  const proxy = createServer((req, res) => {
+    const count = (calls.get(req.url) ?? 0) + 1;
+    calls.set(req.url, count);
+    if (req.url !== '/retry' || count === 1) return req.socket.destroy();
+    const upstream = request(view.link, (answer) => {
+      res.writeHead(answer.statusCode, answer.headers);
+      answer.pipe(res);
+    });
+    upstream.on('error', (error) => res.destroy(error));
+    upstream.end();
+  });
+  try {
+    await new Promise((ready) => proxy.listen(0, '127.0.0.1', ready));
+    const base = `http://127.0.0.1:${proxy.address().port}`;
+    const response = await fetchView(`${base}/retry`);
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /Pullboard/);
+    assert.equal(calls.get('/retry'), 2, 'exactly one retry reaches the real view');
+    await assert.rejects(fetchView(`${base}/fail`), /GET .*\/fail failed after 2 attempts; attempt 1: .*caused by .*; attempt 2: .*caused by /);
+    assert.equal(calls.get('/fail'), 2, 'a failed retry stops with both transport reasons');
+    await assert.rejects(fetchView(`${base}/move`, { method: 'POST', body: '{}' }), /POST .*\/move failed after 1 attempt; attempt 1: .*caused by /);
+    assert.equal(calls.get('/move'), 1, 'an ambiguous move is never replayed');
+  } finally {
+    proxy.closeAllConnections();
+    await new Promise((closed) => proxy.close(closed));
+    await view.stop();
+  }
+});
+
 test('the shouts tab counts shouts you have not seen [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
