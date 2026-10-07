@@ -73,12 +73,14 @@ function summary(project) {
 }
 
 /**
- * Everything the page shows for one project.
+ * Everything the page shows for one project. Given the newest shout the person has seen there,
+ * it also counts every shout since, which the forty it sends cannot always show.
  *
  * @param {string} root
+ * @param {{ seen?: number | null }} [options]
  * @returns {any}
  */
-export function projectState(root) {
+export function projectState(root, { seen = null } = {}) {
   return withProject(root, (board, info, config) => {
     const all = store.listItems(board, { all: true });
     const status = new Map(all.map((item) => [item.item_id, item.item_status]));
@@ -120,6 +122,7 @@ export function projectState(root) {
       holds: store.laneHolds(board),
       spec: rows(config.spec),
       practice: rows(config.practice),
+      unseen: seen === null ? null : { since: seen, count: board.db.prepare('SELECT COUNT(*) AS n FROM shout WHERE shout_id > ?').get(seen).n },
       // Each product's progress, counted as pullboard status counts it (N28).
       products: productSummaries(config, loadSpec(info.root, config), all),
     };
@@ -205,7 +208,8 @@ export function serveView({ port = 0, secret = randomBytes(18).toString('base64u
         const projects = listProjects().map(summary);
         const root = url.searchParams.get('root');
         const known = projects.find((project) => project.root === root && project.ok);
-        return json(res, 200, { projects, project: known ? projectState(known.root) : null });
+        const seen = /^\d+$/.test(url.searchParams.get('seen') ?? '') ? Number(url.searchParams.get('seen')) : null;
+        return json(res, 200, { projects, project: known ? projectState(known.root, { seen }) : null });
       }
       if (req.method === 'POST' && url.pathname === '/api/act' && String(req.headers['content-type']).startsWith('application/json')) {
         let raw = '';

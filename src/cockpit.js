@@ -522,7 +522,8 @@ async function api(path, body) {
 
 async function refresh() {
   const root = view.root;
-  const next = await api('/api/state' + (root ? '?root=' + encodeURIComponent(root) : ''));
+  const mark = root ? view.seen['pb.seen.' + root] ?? keep('pb.seen.' + root) : null;
+  const next = await api('/api/state' + (root ? '?root=' + encodeURIComponent(root) + (mark === null || mark === undefined ? '' : '&seen=' + encodeURIComponent(mark)) : ''));
   // The person switched projects while this answer was on its way: the switch's own refresh shows it.
   if (root !== view.root) return;
   if (!next.project && next.projects.some((p) => p.ok)) {
@@ -698,7 +699,9 @@ function showTab() {
  * Count on the Shouts tab the shouts that came after the newest one the person has seen in this
  * project. Seeing means having the Shouts tab open with the board drawn; a project shown for the
  * first time has seen everything so far. The mark is kept in this browser, so a reload counts
- * nothing old, and the count is never just how many shouts were loaded.
+ * nothing old. The board counts the shouts since the mark the last refresh sent, so a burst larger
+ * than the forty loaded still counts in full; until a moved mark reaches the board, the loaded
+ * shouts count, which is exact then since the mark only ever moves to the newest.
  */
 function countUnseen() {
   const p = data && data.project;
@@ -708,7 +711,7 @@ function countUnseen() {
   const newest = p.shouts.length ? p.shouts[0].shout_id : 0;
   const seen = view.tab === 'shouts' || kept === null || kept === undefined ? newest : Number(kept);
   if (String(seen) !== String(kept)) { view.seen[key] = seen; keep(key, String(seen)); }
-  $('count-shouts').textContent = p.shouts.filter((x) => x.shout_id > seen).length || '';
+  $('count-shouts').textContent = (p.unseen && p.unseen.since === seen ? p.unseen.count : p.shouts.filter((x) => x.shout_id > seen).length) || '';
 }
 
 function go(target) {

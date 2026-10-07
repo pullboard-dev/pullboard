@@ -866,6 +866,8 @@ test('the shouts tab counts shouts you have not seen [N26]', async () => {
   const alpha = project(box, 'alpha');
   box.run(alpha.repo, 'shout', 'web', 'first');
   box.run(alpha.repo, 'shout', 'web', 'second');
+  const beta = project(box, 'beta');
+  box.run(beta.repo, 'shout', 'web', 'beta has its own');
   const view = await startView(box);
   try {
     const store = storage();
@@ -889,6 +891,20 @@ test('the shouts tab counts shouts you have not seen [N26]', async () => {
     assert.equal(count(reloaded), '1', 'what was seen is remembered across a reload');
     await reloaded.click({ tab: 'shouts' });
     assert.equal(count(reloaded), '');
+
+    // A burst larger than the forty shouts the page loads still counts in full, after a reload too.
+    await reloaded.click({ tab: 'items' });
+    for (let n = 1; n <= 41; n += 1) box.run(alpha.web, 'shout', 'coordinator', `burst ${n}`);
+    await reloaded.run('refresh()');
+    assert.equal(count(reloaded), '41', 'every arrival counts, not just the forty loaded');
+    const again = await openPage(view, { store });
+    assert.equal(count(again), '41');
+
+    // Each project keeps its own mark: a first look at beta sees its shouts, and alpha still counts.
+    await again.click({ root: beta.repo, classes: 'proj side' });
+    assert.equal(count(again), '');
+    await again.click({ root: alpha.repo, classes: 'proj side' });
+    assert.equal(count(again), '41');
   } finally {
     await view.stop();
   }
