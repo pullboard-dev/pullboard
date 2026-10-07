@@ -7,7 +7,8 @@
     "core": {
       "owns": [
         "src/",
-        "bin/"
+        "bin/",
+        "test/"
       ],
       "specs": [
         "B",
@@ -16,18 +17,18 @@
         "S",
         "C",
         "R",
-        "I"
+        "I",
+        "A",
+        "H"
       ],
       "starts": "now"
     },
     "tests": {
-      "owns": [
-        "test/"
-      ],
+      "owns": [],
       "specs": [
         "P"
       ],
-      "starts": "now"
+      "starts": "any time: verifiers check submitted work and own no folders"
     },
     "docs": {
       "owns": [
@@ -36,7 +37,7 @@
         "ROADMAP.md"
       ],
       "specs": [
-        "H"
+        "I"
       ],
       "starts": "now"
     },
