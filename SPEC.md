@@ -37,10 +37,10 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - B23 [approved, aim] A shout's path:lines@commit reference opens that code as it was at that commit. | gate: test/cockpit.test.js | serves: B7
 
 ## M · Machine
-- M1 [draft, must] One declaration holds every item state, move, guard and refusal; code, help and docs derive from it. | gate: test/machine.test.js
-- M2 [draft, must] Every way into a final state passes that state's exit guards, whatever command gets there. | gate: test/machine.test.js | serves: P1
-- M3 [draft, must] The board file refuses an undeclared move, and verified without an ACCEPT at the submitted commit. | gate: test/machine.test.js | serves: P1
-- M4 [draft, must] A property check proves the declaration: every state reachable, none a trap, every refusal naming a next step. | gate: test/machine.test.js | serves: M1
+- M1 [approved, must] One declaration holds every item state, move, guard and refusal; code, help and docs derive from it. | gate: test/machine.test.js
+- M2 [approved, must] Every way into a final state passes that state's exit guards, whatever command gets there. | gate: test/machine.test.js | serves: P1
+- M3 [approved, must] The board file refuses an undeclared move, and verified without an ACCEPT at the submitted commit. | gate: test/machine.test.js | serves: P1
+- M4 [approved, must] A property check proves the declaration: every state reachable, none a trap, every refusal naming a next step. | gate: test/machine.test.js | serves: M1
 
 ## V · Verification
 - V1 [approved, must] The builder never verifies its own work. | gate: test/board.test.js | serves: P1
@@ -57,8 +57,8 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - V12 [approved, must] Verify and escalate take --note-file, so a note reaches the board exactly as written. | gate: test/e2e.test.js | serves: V5
 - V13 [draft, must] Every verdict records the verifier's HEAD; show and the ledger flag a review made past the submitted commit. | gate: test/board.test.js | serves: V8
 - V14 [draft, must] The bar is the frozen criterion alone. The brief can change, so it guides building, never the verdict. | gate: test/practice.test.js | serves: V2
-- V15 [draft, must] `next --verify` reserves the review under a lease; another verdict on it is refused while the lease lives. | gate: test/machine.test.js | serves: V1
-- V16 [draft, must] Submit runs the gate itself on the exact tree it submits; no stamp from an earlier run stands in. | gate: test/gate.test.js | serves: P1
+- V15 [approved, must] `next --verify` reserves the review under a lease; another verdict on it is refused while the lease lives. | gate: test/machine.test.js | serves: V1
+- V16 [approved, must] Submit runs the gate itself on the exact tree it submits; no stamp from an earlier run stands in. | gate: test/gate.test.js | serves: P1
 - V17 [draft, must] Submit refuses a head carrying commits pinned to another item that is not verified. | gate: test/e2e.test.js | serves: V6
 
 ## O · Options
@@ -84,8 +84,8 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - S8 [approved, must] Ids are permanent. Commit refuses a deleted row; spec check finds ids once committed or cited, now gone. | gate: test/e2e.test.js, test/spec.test.js
 - S9 [approved, must] A wont row stays with its id, out of the counts; nothing new may cite it. | gate: test/spec.test.js
 - S10 [approved, must] At an older commit, spec check skips ids that items cite and a later commit added. | gate: test/e2e.test.js | serves: S8
-- S11 [draft, must] pullboard.json names products, each a list of spec ids or section letters, as lanes list theirs. | gate: test/products.test.js
-- S12 [draft, must] Lanes and items belong to the product of their spec prefixes and cited rows; nothing restates it. | gate: test/products.test.js | serves: S11
+- S11 [approved, must] pullboard.json names products, each a list of spec ids or section letters, as lanes list theirs. | gate: test/products.test.js
+- S12 [approved, must] Lanes and items belong to the product of their spec prefixes and cited rows; nothing restates it. | gate: test/products.test.js | serves: S11
 
 ## D · Doctrine
 - D1 [draft, must] Doctrine has three scopes: system (every repo here), repo and lane; a narrower scope adds or overrides. | gate: test/practice.test.js | serves: S6
@@ -142,9 +142,9 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - N25 [approved, must] Every wait pullboard suggests names its unit and fits one ten-minute tool call. | gate: test/e2e.test.js | serves: N13
 - N26 [approved, must] `pullboard view` serves every project's board on localhost, behind a per-session secret. | gate: test/e2e.test.js
 - N27 [approved, must] From the view, the person adds items, shouts and holds lanes; each runs the CLI command. | gate: test/e2e.test.js | serves: N26
-- N28 [draft, must] The view shows each product's progress: rows met, and items open, building and verified. | gate: test/e2e.test.js | serves: S11
+- N28 [approved, must] The view shows each product's progress: rows met, and items open, building and verified. | gate: test/e2e.test.js | serves: S11
 - N29 [draft, must] `pullboard why <path|id>`: the rows, doctrine and verified items behind it, rejections included. | gate: test/e2e.test.js
-- N30 [draft, must] `show` prints the latest verdict in full and earlier ones as one line each; --history prints them all. | gate: test/show.test.js
+- N30 [approved, must] `show` prints the latest verdict in full and earlier ones as one line each; --history prints them all. | gate: test/show.test.js
 
 ## H · Hosted
 - H1 [pending, aim] `pullboard sync` mirrors the local board to pullboard.dev for teams across machines.
