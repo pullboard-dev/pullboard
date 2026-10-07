@@ -86,6 +86,37 @@ function validateDocument(db, document, names) {
   }
 }
 
+/** True only for the coordinator registration and join event that `pullboard init` creates. */
+function hasOnlyInitCoordinator(db, names) {
+  if (!names.includes('sqlite_sequence')) return false;
+  const agents = db.prepare('SELECT * FROM agent').all();
+  const events = db.prepare('SELECT * FROM event').all();
+  const sequence = db.prepare('SELECT name, seq FROM sqlite_sequence ORDER BY name').all();
+  if (agents.length !== 1 || events.length !== 1 || sequence.length !== 1) return false;
+  const [agent] = agents;
+  const [event] = events;
+  if (
+    agent.agent_id !== 'coordinator'
+    || agent.agent_lane !== 'coordinator'
+    || agent.agent_route !== 'strong'
+    || agent.agent_last_shout_id !== 0
+    || !agent.agent_path
+    || event.event_by !== 'coordinator'
+    || event.event_kind !== 'join'
+    || event.item_id !== null
+    || sequence[0].name !== 'event'
+    || sequence[0].seq !== 1
+  ) return false;
+  try {
+    if (JSON.stringify(JSON.parse(event.event_detail)) !== JSON.stringify({ lane: 'coordinator' })) return false;
+  } catch {
+    return false;
+  }
+  return names
+    .filter((table) => table !== 'agent' && table !== 'event' && table !== 'sqlite_sequence')
+    .every((table) => !db.prepare(`SELECT 1 FROM ${identifier(table)} LIMIT 1`).get());
+}
+
 /**
  * Restore a v1 export only into an empty board, atomically, while briefly allowing historical item
  * states to be inserted before restoring the board's declared lifecycle triggers.
@@ -100,11 +131,15 @@ export function importBoard(board, document) {
   db.exec('PRAGMA defer_foreign_keys = ON; BEGIN IMMEDIATE');
   try {
     const occupied = names.filter((table) => db.prepare(`SELECT 1 FROM ${identifier(table)} LIMIT 1`).get());
-    if (occupied.length) {
+    const initCoordinator = occupied.length > 0 && hasOnlyInitCoordinator(db, names);
+    if (occupied.length && !initCoordinator) {
       throw new Refused('IMPORT_NOT_EMPTY', `board tables already have rows (${occupied.join(', ')}); import into a repo with an empty board`);
     }
     const triggers = db.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'machine_%'").all();
     for (const { name } of triggers) db.exec(`DROP TRIGGER ${identifier(name)}`);
+    if (initCoordinator) {
+      db.exec('DELETE FROM event; DELETE FROM agent; DELETE FROM sqlite_sequence');
+    }
     for (const table of names.filter((name) => name !== 'sqlite_sequence')) {
       const columns = columnsOf(db, table);
       const sql = `INSERT INTO ${identifier(table)} (${columns.map(identifier).join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`;

@@ -5,13 +5,13 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { main } from '../src/cli.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 
 const SHA = 'a'.repeat(40);
+const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 /** The deterministic frozen criterion used by the fixture. */
 const FREEZE = (item) => ({ text: item.item_title, digest: `digest:${item.item_title}` });
 
@@ -149,6 +149,7 @@ test('import refuses a board with rows and leaves it unchanged [A7]', () => {
   const target = store.openBoard(join(directory, 'target.sqlite'));
   try {
     store.register(target, { lane: 'coordinator', path: '/target' });
+    store.addItem(target, { by: 'coordinator', lane: 'web', title: 'real work makes this board nonempty' });
     const before = exportBoard(target);
     assert.throws(() => importBoard(target, exportBoard(source)), /IMPORT_NOT_EMPTY.*empty board/);
     assert.deepEqual(exportBoard(target), before);
@@ -189,21 +190,44 @@ test('export and import CLI commands exchange a versioned document between real 
   const source = store.openBoard(join(sourceRoot, '.git', 'pullboard', 'board.sqlite'));
   store.register(source, { lane: 'coordinator', path: sourceRoot });
   store.closeBoard(source);
-  let exported = '';
-  let errors = '';
-  const streams = (cwd) => ({ cwd, stdout: { write: (text) => { exported += text; } }, stderr: { write: (text) => { errors += text; } } });
+  const env = {
+    ...process.env,
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Exchange Test',
+    GIT_AUTHOR_EMAIL: 'exchange@example.invalid',
+    GIT_COMMITTER_NAME: 'Exchange Test',
+    GIT_COMMITTER_EMAIL: 'exchange@example.invalid',
+    PULLBOARD_HOME: join(directory, 'home'),
+  };
+  const cli = (cwd, ...args) => spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   try {
-    assert.equal(await main(['export'], streams(sourceRoot)), 0, errors);
-    const document = JSON.parse(exported);
+    const initialized = cli(targetRoot, 'init');
+    assert.equal(initialized.status, 0, initialized.stderr || initialized.stdout);
+    assert.match(initialized.stdout, /coordinator/i);
+
+    const exported = cli(sourceRoot, 'export', '--json');
+    assert.equal(exported.status, 0, exported.stderr || exported.stdout);
+    const document = JSON.parse(exported.stdout);
     writeFileSync(join(directory, 'board.json'), JSON.stringify(document));
-    exported = '';
-    assert.equal(await main(['import', join(directory, 'board.json')], streams(targetRoot)), 0, errors);
-    const imported = store.openBoard(join(targetRoot, '.git', 'pullboard', 'board.sqlite'));
+    const imported = cli(targetRoot, 'import', join(directory, 'board.json'));
+    assert.equal(imported.status, 0, imported.stderr || imported.stdout);
+    assert.match(imported.stdout, /imported version 1 board tables/);
+
+    const reexported = cli(targetRoot, 'export', '--json');
+    assert.equal(reexported.status, 0, reexported.stderr || reexported.stdout);
+    assert.deepEqual(JSON.parse(reexported.stdout), document, 'a board initialized by pullboard can receive the full export');
+
+    const importedBoard = store.openBoard(join(targetRoot, '.git', 'pullboard', 'board.sqlite'));
     try {
-      assert.deepEqual(JSON.parse(JSON.stringify(exportBoard(imported))), document);
+      assert.deepEqual(JSON.parse(JSON.stringify(exportBoard(importedBoard))), document);
     } finally {
-      store.closeBoard(imported);
+      store.closeBoard(importedBoard);
     }
+    const status = cli(targetRoot, 'status');
+    assert.equal(status.status, 0, status.stderr || status.stdout);
+    const listed = cli(targetRoot, 'list', '--all');
+    assert.equal(listed.status, 0, listed.stderr || listed.stdout);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
