@@ -80,9 +80,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .proj small { grid-column: 1 / -1; color: var(--ink-faint); font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
 .proj small.bad { color: var(--reject); }
 .need { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); font: 700 11.5px/1.5 var(--mono); text-align: center; }
-.start { margin: 12px 4px 0; padding: 10px 4px 0; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-muted); }
-.start summary { cursor: pointer; }
-.start form { margin-top: 10px; }
 .products { padding-top: 6px; }
 .prod { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; padding: 6px 8px 8px; font-size: 13px; }
 .prod p { margin: 0; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
@@ -104,6 +101,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .switching main, .switching .products { opacity: .45; transition: opacity .12s; }
 
 main { padding: 16px 18px 28px; }
+.first { display: none; max-width: 520px; margin: 10vh auto 0; padding: 22px 24px; }
+.first h2 { margin: 0 0 6px; font-size: 18px; }
+.first p { margin: 0; color: var(--ink-muted); }
+.first code { font: 600 13px var(--mono); color: var(--ink); }
+.boardless .first { display: block; }
+.boardless .top, .boardless [data-pane] { display: none; }
 .two { display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 42%, 600px); gap: 16px; align-items: start; }
 .two.narrow { grid-template-columns: minmax(0, 1fr) var(--agents-w); }
 @media (max-width: 900px) {
@@ -273,7 +276,6 @@ input, select, textarea { border: 1px solid var(--line-strong); background: var(
     <div class="label">Projects</div>
     <nav id="proj-list" aria-label="Projects on this machine"></nav>
     <section class="products" id="products" aria-label="Products" hidden><div class="label">Products</div><div id="prod-list"></div></section>
-    <details class="start"><summary>Start a board</summary><form id="init-form" class="panel-form"><label>Folder of a git repo<input id="init-path" required placeholder="/path/to/repo"></label><button class="go" type="submit">Init</button></form></details>
   </div>
 </aside>
 <div class="body">
@@ -288,6 +290,10 @@ input, select, textarea { border: 1px solid var(--line-strong); background: var(
   <span class="live" id="live"></span>
 </header>
 <main>
+  <section class="card-panel first">
+    <h2>No boards yet</h2>
+    <p>Run <code>pullboard init</code> in a git repo, or ask an agent to. Its board shows up here by itself.</p>
+  </section>
   <section data-pane="items" class="two">
     <div class="primary">
       <div class="card-panel toolbar"><div class="seg" id="state-chips" role="group" aria-label="Show"></div><input id="q" type="search" placeholder="Search" aria-label="Search titles, lanes or ids"><button class="go" id="new-item" type="button">New item</button></div>
@@ -575,7 +581,7 @@ function renderSide() {
   $('proj-list').innerHTML = data.projects.length ? data.projects.map((x) => {
     const on = x.root === view.root;
     return '<button class="proj' + (on ? ' on' : '') + '"' + (on ? ' aria-current="true"' : '') + ' data-root="' + esc(x.root) + '" title="' + esc(x.root) + '" type="button"><span class="pname">' + esc(x.name) + '</span>' + (needCount(x) ? '<b class="need" title="needs you">' + needCount(x) + '</b>' : '') + (x.ok ? '<small>' + esc(doing(x)) : '<small class="bad">' + esc(x.error)) + '</small></button>';
-  }).join('') : '<div class="empty">No projects yet: run pullboard init in a repo, or start one below.</div>';
+  }).join('') : '<div class="empty">None yet.</div>';
   const elsewhere = data.projects.filter((x) => x.root !== view.root).reduce((n, x) => n + needCount(x), 0);
   $('proj-elsewhere').textContent = elsewhere ? elsewhere + ' elsewhere' : '';
   $('proj-elsewhere').hidden = !elsewhere;
@@ -590,9 +596,11 @@ function renderSide() {
 function render() {
   const p = data.project;
   renderSide();
+  // With no board to show, one message says how a board starts, in place of empty panes.
+  document.body.classList.toggle('boardless', !p);
+  $('products').hidden = !p || !p.products.length;
   if (!p) return;
   // Each product's progress (N28): the rows an accepted item cites, and its items by state.
-  $('products').hidden = !p.products.length;
   $('prod-list').innerHTML = p.products.map((x) => {
     const states = [['open', '', x.items.open], ['building', 'building', x.items.claimed], ['to verify', 'verify', x.items.submitted], ['verified', 'verified', x.items.verified]].filter(([, , n]) => n);
     return '<div class="prod" title="' + x.rows + ' rows in force, ' + x.approved + ' approved, ' + x.proven + ' cited by accepted items"><p><b>' + esc(x.name) + '</b><span>' + x.proven + '/' + x.rows + ' rows met</span></p><div class="bar"><i style="width:' + (x.rows ? Math.round((100 * x.proven) / x.rows) : 0) + '%"></i></div>'
@@ -883,17 +891,6 @@ $('shout-form').addEventListener('submit', async (event) => {
 $('hold-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   if (await act('hold', { lane: $('hold-lane').value, reason: $('hold-reason').value })) $('hold-reason').value = '';
-});
-// A board just started is the one to look at, and init's output ends with what to do next, so it
-// stays until the person closes it.
-$('init-form').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const known = new Set(data ? data.projects.map((x) => x.root) : []);
-  if (!(await act('init', { path: $('init-path').value }, null))) return;
-  $('init-path').value = '';
-  clearTimeout(view.closing);
-  const started = data && data.projects.find((x) => !known.has(x.root));
-  if (started) switchTo(started.root);
 });
 showTab();
 refresh().catch((error) => { $('live').textContent = 'cannot reach the view: ' + error.message; });

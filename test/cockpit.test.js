@@ -1169,41 +1169,28 @@ test('a new item from the view can carry a brief [N27]', async () => {
     await view.stop();
   }
 });
-test('starting a board shows it [N27]', async () => {
+test('a machine with no board says how to start one [N26]', async () => {
   const box = machine();
-  project(box, 'alpha');
-  const fresh = join(box.dir, 'fresh');
-  mkdirSync(fresh);
-  box.git(fresh, 'init', '-q', '-b', 'main');
-  writeFileSync(join(fresh, 'README.md'), '# Fresh\n');
-  box.git(fresh, 'add', '-A');
-  box.git(fresh, 'commit', '-q', '-m', 'chore: start');
-  const plain = join(box.dir, 'plain');
-  mkdirSync(plain);
   const view = await startView(box);
   try {
     const page = await openPage(view);
-    // The page's timers, held by the test, so a pending close shows.
-    page.run('globalThis.closes = []; globalThis.setTimeout = (run, ms) => closes.push({ run, ms, live: true }); globalThis.clearTimeout = (id) => { if (closes[id - 1]) closes[id - 1].live = false; };');
-    const start = async (path) => {
-      page.element('init-path').value = path;
-      await page.fire('init-form', 'submit');
-    };
-    const out = page.element('console');
+    const style = page.html.slice(page.html.indexOf('<style>'), page.html.indexOf('</style>'));
+    // Agents start boards, so the view offers no form for it.
+    assert.doesNotMatch(page.html, /init-form|init-path|Start a board|<details/, 'no form to start a board');
+    assert.doesNotMatch(style, /\.start\b/);
 
-    await start(plain);
-    assert.equal(out.className, 'console no', 'init refuses a folder that is no git repo');
-    assert.equal(page.element('proj-name').textContent, 'alpha', 'and the view stays where it was');
+    assert.equal(page.run("document.body.classList.contains('boardless')"), true, 'with no board, the board steps aside');
+    assert.match(style, /\n\.first \{ display: none;[^}]*\}\n(?:\.first [^\n]*\n)*\.boardless \.first \{ display: block; \}\n\.boardless \.top, \.boardless \[data-pane\] \{ display: none; \}\n/, 'its bar of tabs and its panes hide, and the message shows');
+    assert.match(page.html, /<main>\n {2}<section class="card-panel first">\n {4}<h2>No boards yet<\/h2>\n {4}<p>Run <code>pullboard init<\/code> in a git repo, or ask an agent to\. Its board shows up here by itself\.<\/p>\n {2}<\/section>\n/, 'the message says how a board starts');
+    assert.equal(page.show('proj-list'), '<div class="empty">None yet.</div>');
+    assert.equal(page.element('products').hidden, true);
 
-    await start(fresh);
-    assert.equal(out.className, 'console ok');
-    assert.match(out.textContent, /^\$ pullboard init\n[^]*\nnext: /, 'the output ends with what to do next');
-    assert.equal(out.hidden, false);
-    assert.ok(JSON.parse(page.run('JSON.stringify(closes.map((close) => close.live))')).every((live) => !live), 'and no close is pending, so it stays');
-    assert.equal(page.element('init-path').value, '');
-    assert.equal(page.element('proj-name').textContent, 'fresh', 'the view shows the board just started');
-    assert.deepEqual(projectRows(page.show('proj-list')).map((row) => [row.name, row.current]), [['alpha', false], ['fresh', true]]);
-    assert.match(page.show('chain'), /No items yet/, 'its own empty board');
+    // A board started meanwhile shows up on the next refresh, with no reload.
+    project(box, 'alpha');
+    await page.run('refresh()');
+    assert.equal(page.run("document.body.classList.contains('boardless')"), false, 'a board shows its tabs and panes');
+    assert.equal(page.element('proj-name').textContent, 'alpha');
+    assert.deepEqual(projectRows(page.show('proj-list')).map((row) => [row.name, row.current]), [['alpha', true]]);
   } finally {
     await view.stop();
   }
