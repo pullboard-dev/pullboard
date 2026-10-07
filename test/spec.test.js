@@ -186,6 +186,8 @@ function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md', practi
   const command = (...args) => spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args], { cwd: root, env, encoding: 'utf8' });
   const run = (...args) => command('spec', ...args);
   git('init', '-q', '-b', 'main');
+  git('config', 'user.name', 'Test Agent');
+  git('config', 'user.email', 'agent@example.com');
   const init = spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), 'init'], { cwd: root, env, encoding: 'utf8' });
   assert.equal(init.status, 0, init.stderr);
   const config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
