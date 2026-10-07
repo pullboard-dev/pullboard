@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import vm from 'node:vm';
+import { loadDoctrine } from '../src/doctrine.js';
 import { MACHINE } from '../src/machine.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -1757,6 +1758,51 @@ test('times say which day they were [N26]', async () => {
   }
 });
 
+test('the doctrine view carries and labels inherited, local, overridden and declined rules [D3,N26]', async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha', SPEC, { practice: 'ways.md' });
+  writeFileSync(join(alpha.repo, 'ways.md'), '# Local rules\n\n## Team\n- R1 [approved, must] Keep <b>local</b> evidence. | gate: review\n- PB2 [approved, must] Deletion needs <i>two</i> approvals. | gate: review\n- PB8 [wont] No <script>persistent</script> data is stored.\n');
+  const view = await startView(box);
+  try {
+    const page = await openPage(view, { width: 375 });
+    const state = JSON.parse(page.run('JSON.stringify(data.project)'));
+    const merged = loadDoctrine(alpha.repo, { practice: 'ways.md' });
+    /** Compare the merged reader's row fields without the view's extra display text. */
+    const fields = ({ id, status, tier, text, gate, serves, section, origin, version, reason }) => ({ id, status, tier, text, gate, serves, section, origin, version, reason });
+    assert.deepEqual(state.practice.map(fields), merged.rows.map(fields), 'state carries the exported merged doctrine, including every source and reason');
+    assert.equal(state.practice.length, 13, 'twelve standard ids with two replaced, plus one local id');
+    assert.equal(state.practice.filter((row) => row.id === 'PB2').length, 1);
+    assert.equal(state.practice.filter((row) => row.id === 'PB8').length, 1);
+    assert.equal(state.practice.find((row) => row.id === 'PB8').standardText, 'No secrets or sensitive info in the repo; test data is synthetic.');
+    await page.click({ tab: 'doctrine' });
+    const list = page.show('doctrine-list');
+    assert.match(list, /data-row="doctrine:PB1"[^]*?<small class="rule-source">standard 1<\/small>/);
+    assert.match(list, /data-row="doctrine:R1"[^]*?<small class="rule-source">repo<\/small>[^]*?Keep &lt;b&gt;local&lt;\/b&gt; evidence\./);
+    assert.match(list, /data-row="doctrine:PB2"[^]*?<small class="rule-source">repo<\/small>[^]*?Deletion needs &lt;i&gt;two&lt;\/i&gt; approvals\./);
+    assert.doesNotMatch(list, /Destructive or irreversible actions wait/);
+    assert.match(list, /data-row="doctrine:PB8"[^]*?<small class="rule-source">repo<\/small>[^]*?<s>No secrets or sensitive info in the repo; test data is synthetic\.<\/s><small class="rule-reason">Reason: No &lt;script&gt;persistent&lt;\/script&gt; data is stored\.<\/small>/);
+    assert.doesNotMatch(list, /<script>|<i>two<\/i>|<b>local<\/b>/, 'all repo text stays text');
+    const style = await styleOf(view);
+    assert.match(style, /\.rule-source, \.rule-reason \{ display: block; color: var\(--ink-muted\);/, 'labels and reasons remain separate readable lines');
+
+    await page.click({ row: 'doctrine:PB1' });
+    assert.match(page.show('doctrine-detail'), /<span class="chip">standard 1<\/span>/);
+    await page.click({ row: 'doctrine:PB2' });
+    assert.match(page.show('doctrine-detail'), /<span class="chip">repo<\/span>/);
+    assert.match(page.show('doctrine-detail'), /Deletion needs &lt;i&gt;two&lt;\/i&gt; approvals\./);
+    await page.click({ row: 'doctrine:PB8' });
+    assert.match(page.show('doctrine-detail'), /<s>No secrets or sensitive info in the repo; test data is synthetic\.<\/s>/);
+    assert.match(page.show('doctrine-detail'), /<dt>reason<\/dt><dd>No &lt;script&gt;persistent&lt;\/script&gt; data is stored\.<\/dd>/);
+
+    writeFileSync(join(alpha.repo, 'ways.md'), '# Local rules\n\n## Team\n- R1 [approved, must] Keep newer evidence. | gate: review\n');
+    await page.run('seen = ""; refresh()');
+    assert.match(page.show('doctrine-list'), /Destructive or irreversible actions wait/);
+    assert.doesNotMatch(page.show('doctrine-list'), /Deletion needs|rule-reason|<s>/, 'removing repo overrides restores the inherited rules');
+  } finally {
+    await view.stop();
+  }
+});
+
 test('spec rows read across a phone [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
@@ -1776,7 +1822,9 @@ test('spec rows read across a phone [N26]', async () => {
     const rows = (html) => html.split('<div class="srow').slice(1);
     const shape = /^[^>]*><code>[^<]+<\/code><span><span class="chip[^"]*">[^<]+<\/span><\/span><span>[^<]+<\/span><\/div>/;
     assert.deepEqual(rows(page.show('spec-list')).map((row) => /data-row="spec:([^"]+)"/.exec(row)[1]), ['G1', 'G2']);
-    for (const row of [...rows(page.show('spec-list')), ...rows(page.show('doctrine-list'))]) assert.match(row, shape);
+    for (const row of rows(page.show('spec-list'))) assert.match(row, shape);
+    const doctrineShape = /^[^>]*><code>[^<]+<\/code><span><span class="chip[^"]*">[^<]+<\/span><small class="rule-source">(?:standard 1|repo)<\/small><\/span><span>[^<]+<\/span><\/div>/;
+    for (const row of rows(page.show('doctrine-list'))) assert.match(row, doctrineShape, 'the source fits inside the status column, keeping the same three-column structure');
     assert.ok(rows(page.show('doctrine-list')).length > 0, 'doctrine rows are drawn the same way');
   } finally {
     await view.stop();
