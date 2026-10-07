@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { evaluationValue } from './devtools-evaluation.mjs';
+import { renderTour } from './tour-renderer.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const BIN = join(ROOT, 'bin', 'pullboard.js');
@@ -137,7 +138,7 @@ async function recordTour(env) {
   const script = process.platform === 'darwin' ? '/usr/bin/script' : '/usr/bin/script';
   const args = process.platform === 'darwin' ? ['-q', '/dev/null', process.execPath, BIN, 'tour'] : ['-q', '-c', `${JSON.stringify(process.execPath)} ${JSON.stringify(BIN)} tour`, '/dev/null'];
   const started = Date.now();
-  const child = spawn(script, args, { env, stdio: ['ignore', 'pipe', 'ignore'] });
+  const child = spawn(script, args, { env: { ...env, NO_COLOR: '1' }, stdio: ['ignore', 'pipe', 'ignore'] });
   let buffer = '';
   const lines = [];
   child.stdout.setEncoding('utf8');
@@ -150,47 +151,44 @@ async function recordTour(env) {
   const status = await new Promise((resolveStatus) => child.once('close', resolveStatus));
   if (buffer.trim()) lines.push({ text: buffer.trim(), at: Date.now() - started });
   if (status !== 0 || !lines.length) throw new Error('The pullboard tour recording did not finish');
-  const shown = lines.map(({ text, at }) => ({ text: text.replaceAll('^D\b\b', '').replace(/[\x00-\x08\x0b-\x1f]/g, ''), at }));
-  const height = Math.max(480, shown.length * 22 + 56);
-  const contents = shown.map(({ text, at }, index) => `<text x="24" y="${42 + index * 22}" opacity="0">${escapeXml(text.replace(/^.*Look around: cd .*/, '   Look around: cd greeter && pullboard log').slice(0, 132))}<animate attributeName="opacity" from="0" to="1" begin="${(at / 1000).toFixed(2)}s" dur="0.12s" fill="freeze"/></text>`).join('\n');
-  const duration = ((lines.at(-1).at + 4000) / 1000).toFixed(2);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 ${height}" role="img" aria-label="Pullboard tour: a reviewed change is rejected, fixed and accepted"><rect width="100%" height="100%" rx="16" fill="#101820"/><g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" fill="#e6edf3">${contents}</g><rect x="0" y="0" width="960" height="${height}" fill="transparent"><animate attributeName="opacity" from="1" to="1" begin="${duration}s" dur="0.1s" fill="freeze"/></rect></svg>`;
-  await writeFile(join(OUTPUT, 'tour.svg'), svg);
+  await writeFile(join(OUTPUT, 'tour.svg'), renderTour(lines));
 }
 
-/** XML-escape terminal output before embedding it in an SVG text node. */
-function escapeXml(value) { return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'); }
-
-const chrome = CHROME.find((path) => { try { return spawnSync(path, ['--version'], { stdio: 'ignore' }).status === 0; } catch { return false; } });
-if (!chrome) { process.stderr.write('pullboard demo: install Google Chrome to capture the board screenshots.\n'); process.exitCode = 1; }
+const tourOnly = process.argv.includes('--tour-only');
+const chrome = !tourOnly && CHROME.find((path) => { try { return spawnSync(path, ['--version'], { stdio: 'ignore' }).status === 0; } catch { return false; } });
+if (!chrome && !tourOnly) { process.stderr.write('pullboard demo: install Google Chrome to capture the board screenshots.\n'); process.exitCode = 1; }
 else {
   const base = await mkdtemp(join(tmpdir(), 'pullboard-readme-demo-'));
   let view;
   let server;
   try {
-    const env = isolatedEnv(join(base, '.pullboard-home'));
-    const repo = await buildBoard(base, env);
-    server = spawn(process.execPath, [BIN, 'view', '--no-open'], { cwd: repo, env, stdio: ['ignore', 'pipe', 'ignore'] });
-    const url = await new Promise((resolveUrl, reject) => {
-      let output = '';
-      const timer = setTimeout(() => reject(new Error('The demo view did not start')), 10000);
-      server.stdout.setEncoding('utf8');
-      server.stdout.on('data', (chunk) => { output += chunk; const match = /Pullboard view: (http:\/\/[^\s]+)/.exec(output); if (match) { clearTimeout(timer); resolveUrl(match[1]); } });
-      server.once('close', () => { clearTimeout(timer); reject(new Error('The demo view stopped before it opened')); });
-    });
-    view = await browser(chrome, join(base, 'chrome-profile'), url);
-    await pause(700);
-    await view.viewport(1440, 700);
-    const detail = await view.evaluate("(()=>{document.documentElement.dataset.theme='light'; localStorage.setItem('pb.theme','light'); document.querySelector('[data-state=all]')?.click(); const item=document.querySelector('[data-item=\"1\"]'); if(!item) throw new Error('accepted item #1 is missing'); item.click(); return document.querySelector('#detail').textContent})()");
-    if (!detail.includes('REJECT') || !detail.includes('ACCEPT')) throw new Error('The desktop screenshot must show item #1 rejected and accepted.');
-    await pause(350);
-    await view.screenshot(join(OUTPUT, 'desktop.png'));
-    await view.viewport(390, 900);
-    await view.evaluate("(()=>{document.documentElement.dataset.theme='dark'; localStorage.setItem('pb.theme','dark'); const item=document.querySelector('[data-item=\"1\"]'); const detail=document.querySelector('#detail')?.textContent??''; if(document.documentElement.dataset.theme!=='dark'||!item||!detail.includes('ACCEPT')) throw new Error('The phone screenshot must show the selected accepted item in dark mode'); return true})()");
-    await view.screenshot(join(OUTPUT, 'phone.png'));
-    await view.close(); view = null;
-    await stop(server); server = null;
-    await recordTour(env);
+    const env = { ...isolatedEnv(join(base, '.pullboard-home')), TMPDIR: base, TMP: base, TEMP: base };
+    if (tourOnly) {
+      await recordTour(env);
+    } else {
+      const repo = await buildBoard(base, env);
+      server = spawn(process.execPath, [BIN, 'view', '--no-open'], { cwd: repo, env, stdio: ['ignore', 'pipe', 'ignore'] });
+      const url = await new Promise((resolveUrl, reject) => {
+        let output = '';
+        const timer = setTimeout(() => reject(new Error('The demo view did not start')), 10000);
+        server.stdout.setEncoding('utf8');
+        server.stdout.on('data', (chunk) => { output += chunk; const match = /Pullboard view: (http:\/\/[^\s]+)/.exec(output); if (match) { clearTimeout(timer); resolveUrl(match[1]); } });
+        server.once('close', () => { clearTimeout(timer); reject(new Error('The demo view stopped before it opened')); });
+      });
+      view = await browser(chrome, join(base, 'chrome-profile'), url);
+      await pause(700);
+      await view.viewport(1440, 700);
+      const detail = await view.evaluate("(()=>{document.documentElement.dataset.theme='light'; localStorage.setItem('pb.theme','light'); document.querySelector('[data-state=all]')?.click(); const item=document.querySelector('[data-item=\"1\"]'); if(!item) throw new Error('accepted item #1 is missing'); item.click(); return document.querySelector('#detail').textContent})()");
+      if (!detail.includes('REJECT') || !detail.includes('ACCEPT')) throw new Error('The desktop screenshot must show item #1 rejected and accepted.');
+      await pause(350);
+      await view.screenshot(join(OUTPUT, 'desktop.png'));
+      await view.viewport(390, 900);
+      await view.evaluate("(()=>{document.documentElement.dataset.theme='dark'; localStorage.setItem('pb.theme','dark'); const item=document.querySelector('[data-item=\"1\"]'); const detail=document.querySelector('#detail')?.textContent??''; if(document.documentElement.dataset.theme!=='dark'||!item||!detail.includes('ACCEPT')) throw new Error('The phone screenshot must show the selected accepted item in dark mode'); return true})()");
+      await view.screenshot(join(OUTPUT, 'phone.png'));
+      await view.close(); view = null;
+      await stop(server); server = null;
+      await recordTour(env);
+    }
   } finally {
     if (view) await view.close();
     if (server) await stop(server);
