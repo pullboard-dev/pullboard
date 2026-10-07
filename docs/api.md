@@ -24,6 +24,7 @@ A successful command returns the fields listed below. `version` is always the nu
 | `lanes` | `version:number`, `lanes:object`, `shared:array`, `coordinator:string` |
 | `resources` | `version:number`, `resources:array` |
 | `settings` | `version:number`, `settings:object` |
+| `relay` | `version:number`, `linked:boolean`, `board:string`, `url:string`, `link:string`, `sequence:number`, `behind:number` |
 | `list` | `version:number`, `items:array` |
 | `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array` |
 | `status` | `version:number`, `me:object`, `mine:array`, `stats:object`, `unread:number` |
@@ -96,6 +97,8 @@ A refusal keeps the command's existing exit status and prints exactly one versio
 | `envelope` | `version:number`, `error:object` |
 | `error` | `code:string`, `message:string`, `next:string` |
 <!-- api-refusal-shapes:end -->
+
+`relay on`, `relay`, and `relay off` share the relay result shape. `status` adds a `relay` object with the current sequence and pending upload count. Successful results may include `diagnostics` for a relay refusal or inactivity notice; a local move still succeeds when its upload must wait. Device sign-in instructions are written immediately to stderr, including with `--json`, so the person can sign in before the command returns.
 
 The result and refusal tables are checked against `JSON_SHAPES` in `src/json.js` by `docs/api.test.js`.
 

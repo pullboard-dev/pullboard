@@ -53,6 +53,7 @@ import { doctorProblems } from './doctor.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
+import { relayOff, relayOn, relayStatus, syncRelay } from './relay.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
@@ -74,6 +75,8 @@ Set up
   pullboard view --export <dir>         a read-only snapshot with event replay, for any static host
   pullboard serve [--port N]           local API v1: boards, state, moves, requests and live events,
                                         behind the session secret in its printed address
+  pullboard relay [on|off] [--url <address>]  link, inspect or unlink this board's sealed relay mirror
+                                        on signs in through GitHub; the address defaults to https://app.pullboard.dev
   pullboard resume                      where you are: your claim, branch, uncommitted work, what came back,
                                         unread shouts, what to do next; run it to start any session
   pullboard hooks                       reinstall the git hooks (e.g. after a fresh clone)
@@ -182,6 +185,7 @@ const OPTIONS = {
   run: { type: 'string' },
   max: { type: 'string' },
   'dry-run': { type: 'boolean' },
+  url: { type: 'string' },
   wait: { type: 'string' },
   verify: { type: 'boolean' },
   all: { type: 'boolean' },
@@ -984,12 +988,13 @@ function readCommands(io, { first, second, rest, values }) {
       const summary = withBoard(ctx, (board) => {
         const me = whoAmI(ctx, board);
         const mine = store.listItems(board).filter((item) => item.item_status === 'claimed' && item.item_owner === me.id);
-        return { me, mine, stats: store.stats(board), unread: store.unreadCount(board, me.id) };
+        return { me, mine, stats: store.stats(board), unread: store.unreadCount(board, me.id), relay: relayStatus(ctx.info.root) };
       });
       if (values.json) {
         io.result(summary);
         return 0;
       }
+      if (summary.relay.linked) io.say(`relay: sequence ${summary.relay.sequence}; ${summary.relay.behind} pending uploads`);
       const { items, accepted, rejected } = summary.stats;
       io.say(`${summary.me.id}: ${summary.unread} unread shouts; holding ${summary.mine.map((item) => `#${item.item_id}`).join(', ') || 'nothing'}`);
       io.say(`board: ${items.open} open, ${items.claimed} claimed, ${items.submitted} awaiting verification, ${items.verified} verified, ${items.withdrawn} withdrawn`);
@@ -1799,6 +1804,16 @@ async function runCommand(argv, io) {
     }
     if (command === 'hook') return await hookCommand(io, args);
     if (command === 'settings') return settingsCommand(io, args);
+    if (command === 'relay') {
+      if (second || rest.length || (first && !['on', 'off'].includes(first)) || (values.url && first !== 'on')) throw new Refused('USAGE', 'pullboard relay [on|off] [--url <address>]');
+      const ctx = context(io);
+      if (!first) await syncRelay(ctx.info.root, io);
+      const result = first === 'on' ? await relayOn(ctx.info.root, values.url, io)
+        : first === 'off' ? await relayOff(ctx.info.root, io) : relayStatus(ctx.info.root);
+      io.result?.(result);
+      io.say(result.linked ? `${result.link}\nrelay: sequence ${result.sequence}; ${result.behind} pending uploads` : 'relay off; the local board is complete');
+      return 0;
+    }
     if (command === 'gate') {
       const ctx = context(io);
       const gate = await runGate(ctx.info.root, ctx.config, { onWait: gateWaitReporter(io) });
@@ -1826,7 +1841,23 @@ async function runCommand(argv, io) {
 /** Run one command and emit its single versioned JSON result when requested (A1). */
 export async function main(argv, streams) {
   const io = commandOutput(argv, streams);
+  let sync = true;
+  try {
+    const parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
+    const command = parsed.positionals[0];
+    sync = Boolean(command) && !parsed.values.help && !parsed.values.version && !['help', 'version', 'hook', 'init', 'relay', 'tour'].includes(command);
+  } catch { sync = false; }
+  /** A network refusal reports lag but cannot reverse or prevent a successful local command. */
+  const retry = async () => {
+    try { await syncRelay(io.cwd, io); }
+    catch (error) {
+      if (!(error instanceof Refused)) throw error;
+      if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
+    }
+  };
+  if (sync) await retry();
   const code = await runCommand(argv, io);
+  if (sync && code === 0) await retry();
   io.flush(code);
   return code;
 }
@@ -1838,6 +1869,6 @@ export function resultCommands() {
     ...Object.keys(setupCommands({}, args)),
     ...Object.keys(readCommands({}, args)),
     ...Object.keys(workCommands({}, args)),
-    'help', 'version', 'tour', 'lifecycle', 'view', 'serve', 'forget', 'spec', 'prompt', 'hook', 'gate', 'settings',
+    'help', 'version', 'tour', 'lifecycle', 'view', 'serve', 'forget', 'spec', 'prompt', 'hook', 'gate', 'settings', 'relay',
   ])].sort();
 }
