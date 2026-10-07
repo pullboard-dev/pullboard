@@ -19,6 +19,7 @@ import { request } from 'node:http';
 import { connect } from 'node:net';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
+import { parseSpec } from '../src/spec.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const cockpitSource = () => readFileSync(resolve(import.meta.dirname, '../src/cockpit.js'), 'utf8');
@@ -131,6 +132,25 @@ test('init writes config, spec, agent docs and hooks once, and never clobbers [I
   assert.ok(existsSync(join(repo, '.claude', 'skills', 'pullboard-decompose', 'SKILL.md')));
   assert.match(second.out, /kept PRACTICE.md/);
   assert.match(second.out, /kept the Claude Code skills/);
+});
+
+test("init's spec has its sections and no rows, and the README's example fits under them as written [I1, S8]", () => {
+  const box = sandbox();
+  const repo = join(box.dir, 'fresh');
+  mkdirSync(repo);
+  box.git(repo, 'init', '-q', '-b', 'main');
+  assert.equal(box.run(repo, 'init').code, 0);
+  const spec = readFileSync(join(repo, 'SPEC.md'), 'utf8');
+  assert.deepEqual(parseSpec(spec).rows, [], 'no placeholder row, so no placeholder id is ever committed and made permanent');
+  assert.deepEqual(parseSpec(spec).sections.map((section) => section.name), ['G · Goals: what the client asked for', 'K · Constraints']);
+  const readme = readFileSync(join(import.meta.dirname, '..', 'README.md'), 'utf8');
+  const example = /```markdown\n([\s\S]*?)```/.exec(readme.slice(readme.indexOf('## Quick start')))?.[1] ?? '';
+  const [heading, ...rows] = example.trim().split('\n');
+  assert.ok(rows.length > 0 && spec.includes(`${heading}\n`), `the README's example heading is one init writes: ${heading}`);
+  writeFileSync(join(repo, 'SPEC.md'), spec.replace(`${heading}\n`, `${heading}\n${rows.join('\n')}\n`));
+  const check = box.run(repo, 'spec', 'check');
+  assert.equal(check.code, 0, check.out);
+  assert.match(check.out, new RegExp(`SPEC.md: ${rows.length} rows, 0 errors`));
 });
 
 test('spec check lints both files; spec view writes one page into the git dir [S6, S7]', () => {

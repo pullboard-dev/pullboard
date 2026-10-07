@@ -70,10 +70,10 @@ pullboard init                 # pullboard.json, SPEC.md, PRACTICE.md, AGENTS.md
 git add -A && git commit -m "chore: set up pullboard"
 ```
 
-Write requirements in `SPEC.md`, one row per line, and set your test command as the gate in `pullboard.json`:
+`SPEC.md` starts with its sections and the row format. Write each requirement as a row under its section, and set your test command as the gate in `pullboard.json`:
 
 ```markdown
-## G · Goals
+## G · Goals: what the client asked for
 - G1 [approved, must] An upload of the same file twice is a no-op. | gate: test/upload.test.js
 - G2 [draft, aim] Show a diff when a month is restated. | serves: G1
 ```
@@ -103,7 +103,7 @@ cd ../<repo>-web-1 && pullboard next
 pullboard submit 1                   # clean tree, gate green at HEAD
 ```
 
-A different agent verifies it. `next --verify` names the item and prints the command that checks out its commit:
+A different agent verifies it. `next --verify` names the item, reserves its review for that agent for 30 minutes so no other verifier takes it, and prints the command that checks out its commit:
 
 ```sh
 pullboard worktree review && cd ../<repo>-review-1
