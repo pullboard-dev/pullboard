@@ -128,7 +128,7 @@ main { padding: 16px 18px 28px; }
 .primary { display: grid; gap: 12px; min-width: 0; }
 .card-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); min-width: 0; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; }
-.toolbar input { flex: 1 1 200px; }
+.toolbar input { flex: 1 1 96px; }
 input, select, textarea { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 8px; padding: 7px 9px; min-width: 0; }
 .go { border: 0; background: var(--ink); color: var(--surface); border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 600; white-space: nowrap; }
 .go:hover { background: var(--accent-strong); color: var(--on-accent); }
@@ -148,6 +148,11 @@ input, select, textarea { border: 1px solid var(--line-strong); background: var(
 .chips button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 9px; cursor: pointer; font-size: 13px; }
 .chips button.on { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
 .chips button b { font: 600 11px var(--mono); color: var(--ink-faint); margin-left: 4px; }
+.seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 8px; background: var(--surface-2); box-shadow: 0 0 0 1px var(--line); }
+.seg button { border: 0; background: none; padding: 4px 8px; border-radius: 6px; color: var(--ink-muted); cursor: pointer; font-size: 12.5px; white-space: nowrap; }
+.seg button:hover { color: var(--ink); }
+.seg button.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(18, 26, 23, .08); }
+.seg button b { font: 600 11px var(--mono); color: var(--ink-faint); margin-left: 5px; }
 
 .chain { list-style: none; margin: 0; padding: 6px; display: grid; gap: 2px; }
 .row { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 9px; border-radius: 10px; border: 1px solid transparent; cursor: pointer; }
@@ -284,9 +289,8 @@ input, select, textarea { border: 1px solid var(--line-strong); background: var(
 <main>
   <section data-pane="items" class="two">
     <div class="primary">
-      <div class="card-panel toolbar"><input id="q" type="search" placeholder="Search items, ids or spec rows" aria-label="Search items"><select id="lane-filter" aria-label="Lane"><option value="">All lanes</option></select><button class="go" id="new-item" type="button">New item</button></div>
+      <div class="card-panel toolbar"><div class="seg" id="state-chips" role="group" aria-label="Show"></div><input id="q" type="search" placeholder="Search" aria-label="Search titles, lanes or ids"><button class="go" id="new-item" type="button">New item</button></div>
       <section class="needs-you" id="needs" aria-label="What needs you" hidden></section>
-      <div class="chips" id="state-chips" aria-label="Filter by state"></div>
       <ol class="card-panel chain" id="chain" aria-label="Items"></ol>
     </div>
     <aside class="card-panel detail" aria-label="Item detail">
@@ -603,23 +607,18 @@ function render() {
 
   const lanes = p.lanes;
   const working = lanes.filter((l) => l !== 'coordinator');
-  if ($('lane-filter').dataset.lanes !== lanes.join()) {
-    const current = $('lane-filter').value;
-    $('lane-filter').innerHTML = '<option value="">All lanes</option>' + lanes.map((l) => '<option>' + esc(l) + '</option>').join('');
-    $('lane-filter').value = lanes.includes(current) ? current : '';
-    $('lane-filter').dataset.lanes = lanes.join();
+  if ($('add-lane').dataset.lanes !== lanes.join()) {
+    $('add-lane').dataset.lanes = lanes.join();
     $('add-lane').innerHTML = [...working, 'coordinator'].map((l) => '<option>' + esc(l) + '</option>').join('');
     $('hold-lane').innerHTML = working.map((l) => '<option>' + esc(l) + '</option>').join('');
   }
   const q = $('q').value.trim().toLowerCase();
-  const lane = $('lane-filter').value;
   // Each chip counts what it would show under the lane and the search. A search looks through every
   // state, withdrawn items included; browsing leaves those out.
   const matching = (q ? p.items : items)
-    .filter((i) => !lane || i.lane === lane)
-    .filter((i) => !q || ('#' + i.id + ' ' + i.title + ' ' + i.specs.join(' ') + ' ' + (i.criterion || '')).toLowerCase().includes(q));
+    .filter((i) => !q || ('#' + i.id + ' ' + i.title + ' ' + i.lane + ' ' + i.specs.join(' ') + ' ' + (i.criterion || '')).toLowerCase().includes(q));
   const inState = (s) => (i) => s === 'all' || (s === 'active' ? !['verified', 'withdrawn'].includes(stateOf(i)) : stateOf(i) === s);
-  const names = { active: 'Active', open: 'Open', building: 'Building', verify: 'To verify', back: 'Sent back', verified: 'Verified', all: 'All' };
+  const names = { active: 'Active', verified: 'Verified', all: 'All' };
   $('state-chips').innerHTML = Object.keys(names).map((s) => '<button data-state="' + s + '" class="' + (view.state === s ? 'on' : '') + '" type="button">' + names[s] + '<b>' + matching.filter(inState(s)).length + '</b></button>').join('');
   const shown = matching.filter(inState(view.state)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   // With nothing picked, the detail shows the first row, and keeps it when a refresh reorders the list.
@@ -836,7 +835,6 @@ document.addEventListener('click', (event) => {
 $('new-item').addEventListener('click', () => { view.adding = true; render(); $('add-title').focus(); });
 $('add-cancel').addEventListener('click', () => { view.adding = false; render(); });
 $('q').addEventListener('input', search);
-$('lane-filter').addEventListener('change', () => render());
 $('add-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   if (await act('add', { lane: $('add-lane').value, title: $('add-title').value, criterion: $('add-criterion').value, specs: $('add-specs').value, brief: $('add-brief').value })) {
