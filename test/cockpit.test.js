@@ -249,6 +249,7 @@ async function openPage(view, { width = 1280, later = 0, store = null } = {}) {
   const inflight = new Set();
   const document = {
     body: element('body'),
+    documentElement: element('html'),
     hidden: false,
     getElementById: (id) => (known.has(id) ? node(id) : null),
     querySelectorAll: (selector) => (selector === '[data-ago]' ? [...elements.values()].flatMap(ageNodes) : []),
@@ -373,6 +374,39 @@ test('the tabs fit one row on a phone [N26]', async () => {
     assert.match(style, /\n\.tabs \{ display: flex; flex-wrap: wrap; gap: 2px; \}\n/, 'wider, the tabs keep the row they have');
     const tabs = [...html.matchAll(/<button class="tab" data-tab="([a-z]+)" type="button">([A-Za-z]+)(<b id="count-([a-z]+)"><\/b>)?<\/button>/g)];
     assert.deepEqual(tabs.map((match) => [match[2], match[4] === match[1]]), [['Items', true], ['Shouts', true], ['Spec', true], ['Doctrine', true], ['Activity', false]], 'five tabs: a label, then its count where it has one');
+  } finally {
+    await view.stop();
+  }
+});
+test('the view has a light and a dark theme to choose [N26]', async () => {
+  const view = await startView(machine());
+  try {
+    const store = storage();
+    const page = await openPage(view, { store });
+    const style = page.html.slice(page.html.indexOf('<style>'), page.html.indexOf('</style>'));
+    const tokens = /\n:root \{\n([^}]*)\n\}\n/.exec(style)?.[1] ?? '';
+    // One list of tokens: every colour in it holds a light and a dark value.
+    const colours = [...tokens.matchAll(/(--[a-z0-9-]+): ([^;]*(?:#[0-9a-f]{3,8}|rgba?\()[^;]*);/g)];
+    assert.ok(colours.length >= 20, 'the colour tokens');
+    assert.deepEqual(colours.filter((colour) => !colour[2].startsWith('light-dark(')).map((colour) => colour[1]), [], 'each holds a light and a dark value');
+    assert.match(tokens, /^ {2}color-scheme: light dark;$/m, 'and they follow the system until the person picks');
+    assert.match(style, /\n:root\[data-theme="light"\] \{ color-scheme: light; \}\n:root\[data-theme="dark"\] \{ color-scheme: dark; \}\n/, 'a pick sets the scheme the tokens answer to');
+    assert.doesNotMatch(style, /prefers-color-scheme/, 'no second list for dark');
+    assert.match(page.html, /<div class="side-top">\n(?: {4}<[^\n]*\n)*? {4}<button class="theme-btn" id="theme" type="button" title="Theme: system">[^\n]*<\/button>\n {2}<\/div>/, 'the button sits in the bar atop the sidebar, which is the top bar on a phone');
+
+    const theme = (on) => [on.run('document.documentElement.dataset.theme') ?? 'system', on.element('theme').title];
+    assert.deepEqual(theme(page), ['system', 'Theme: system'], 'it starts with the system\'s theme');
+    const presses = [];
+    for (let press = 0; press < 3; press += 1) {
+      await page.fire('theme', 'click');
+      presses.push(theme(page));
+    }
+    assert.deepEqual(presses, [['light', 'Theme: light'], ['dark', 'Theme: dark'], ['system', 'Theme: system']], 'each press moves on one, and the title says which is on');
+
+    await page.fire('theme', 'click');
+    await page.fire('theme', 'click');
+    assert.deepEqual(theme(await openPage(view, { store })), ['dark', 'Theme: dark'], 'a reload keeps the pick');
+    assert.deepEqual(theme(await openPage(view)), ['system', 'Theme: system'], 'a browser that keeps nothing follows the system');
   } finally {
     await view.stop();
   }

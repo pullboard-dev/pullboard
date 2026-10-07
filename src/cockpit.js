@@ -38,25 +38,21 @@ export function cockpitPage() {
 <title>Pullboard</title>
 <style>
 :root {
-  --ground: #e9eceb; --surface: #fdfefd; --surface-2: #f2f4f1; --line: #d3d9d5; --line-strong: #bcc5bf;
-  --ink: #121a17; --ink-muted: #4c5852; --ink-faint: #7a887f;
-  --accent: #08915f; --accent-strong: #067049; --accent-soft: #dcefe6; --on-accent: #f4fbf7;
-  --warn: #a2660f; --warn-soft: #f2e6cf; --reject: #bd4437; --reject-soft: #f4e0dc;
-  --blue: #3f6f9e; --blue-soft: #e1eaf3; --violet: #6b4fc8; --violet-soft: #ebe6fa;
-  --shadow: 0 1px 2px rgba(18,26,23,.05), 0 12px 34px -18px rgba(18,26,23,.28);
+  color-scheme: light dark;
+  --ground: light-dark(#e9eceb, #0c110f); --surface: light-dark(#fdfefd, #121815); --surface-2: light-dark(#f2f4f1, #171f1b); --line: light-dark(#d3d9d5, #232e29); --line-strong: light-dark(#bcc5bf, #34423b);
+  --ink: light-dark(#121a17, #e7ece9); --ink-muted: light-dark(#4c5852, #9caba3); --ink-faint: light-dark(#7a887f, #6a776f);
+  --accent: light-dark(#08915f, #34d89e); --accent-strong: light-dark(#067049, #4ee3ac); --accent-soft: light-dark(#dcefe6, #10231c); --on-accent: light-dark(#f4fbf7, #05201a);
+  --warn: light-dark(#a2660f, #e4b25a); --warn-soft: light-dark(#f2e6cf, #241d10); --reject: light-dark(#bd4437, #f0776b); --reject-soft: light-dark(#f4e0dc, #271613);
+  --blue: light-dark(#3f6f9e, #6ba7d6); --blue-soft: light-dark(#e1eaf3, #142231); --violet: light-dark(#6b4fc8, #ab9cf2); --violet-soft: light-dark(#ebe6fa, #1e1934);
+  --shade: light-dark(rgba(18,26,23,.05), rgba(0,0,0,.4)); --shade-far: light-dark(rgba(18,26,23,.28), rgba(0,0,0,.7));
+  --shadow: 0 1px 2px var(--shade), 0 12px 34px -18px var(--shade-far);
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   --top: 56px; --side-w: 236px; --agents-w: clamp(240px, 30%, 306px);
-  color-scheme: light;
 }
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 @media (max-width: 1100px) { :root { --side-w: 208px; } }
-@media (prefers-color-scheme: dark) { :root {
-  --ground: #0c110f; --surface: #121815; --surface-2: #171f1b; --line: #232e29; --line-strong: #34423b;
-  --ink: #e7ece9; --ink-muted: #9caba3; --ink-faint: #6a776f;
-  --accent: #34d89e; --accent-strong: #4ee3ac; --accent-soft: #10231c; --on-accent: #05201a;
-  --warn: #e4b25a; --warn-soft: #241d10; --reject: #f0776b; --reject-soft: #271613;
-  --blue: #6ba7d6; --blue-soft: #142231; --violet: #ab9cf2; --violet-soft: #1e1934;
-  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 16px 40px -18px rgba(0,0,0,.7); color-scheme: dark; } }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--ground); color: var(--ink); font: 14px/1.5 var(--sans); }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -71,6 +67,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .switch-btn { display: none; align-items: center; gap: 8px; min-width: 0; border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-weight: 600; }
 .switch-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .switch-btn small { color: var(--ink-faint); font-weight: 400; }
+.theme-btn { flex: none; margin-left: auto; display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 8px; background: none; color: var(--ink-faint); cursor: pointer; }
+.theme-btn:hover { color: var(--ink); background: var(--surface-2); }
+.theme-btn svg { display: none; width: 16px; height: 16px; }
+:root:not([data-theme]) .theme-btn .sys, :root[data-theme="light"] .theme-btn .sun, :root[data-theme="dark"] .theme-btn .moon { display: block; }
 .side-body { display: grid; gap: 2px; align-content: start; }
 .label { font: 600 11px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); padding: 8px 8px 6px; }
 .proj { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 8px; align-items: center; width: 100%; text-align: left; border: 1px solid transparent; background: none; border-radius: 8px; padding: 7px 8px; cursor: pointer; }
@@ -262,6 +262,7 @@ input, select, textarea { border: 1px solid var(--line-strong); background: var(
   <div class="side-top">
     <div class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg><span>Pullboard</span></div>
     <button class="switch-btn" id="proj-switch" type="button" aria-expanded="false" aria-controls="side-body"><span id="proj-name">Projects</span><b class="need" id="proj-elsewhere" title="Needs you in other projects" hidden></b><small>▾</small></button>
+    <button class="theme-btn" id="theme" type="button" title="Theme: system"><svg class="sys" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="currentColor" d="M8 2a6 6 0 0 1 0 12Z"/></svg><svg class="sun" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M8 1.5v1.2M8 13.3v1.2M1.5 8h1.2M13.3 8h1.2M3.4 3.4l.85.85M11.75 11.75l.85.85M3.4 12.6l.85-.85M11.75 4.25l.85-.85"/></svg><svg class="moon" viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M13.6 9.6A6 6 0 1 1 6.4 2.4a5.2 5.2 0 0 0 7.2 7.2Z"/></svg></button>
   </div>
   <div class="side-body" id="side-body">
     <div class="label">Projects</div>
@@ -336,6 +337,16 @@ const view = { root: keep('pb.project'), tab: keep('pb.tab') || 'items', seen: {
 let data = null;
 let seen = '';
 const $ = (id) => document.getElementById(id);
+/**
+ * Draw the page in the theme the person picked: light or dark, or anything else to follow the system.
+ * The tokens hold both values, so only the scheme they answer to changes.
+ */
+function theme(pick) {
+  if (pick === 'light' || pick === 'dark') document.documentElement.dataset.theme = pick;
+  else delete document.documentElement.dataset.theme;
+  $('theme').title = 'Theme: ' + (document.documentElement.dataset.theme || 'system');
+}
+theme(keep('pb.theme'));
 const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const ago = (iso) => { const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 1 ? 'now' : m < 60 ? m + 'm' : m < 2880 ? Math.round(m / 60) + 'h' : Math.round(m / 1440) + 'd'; };
 // An age as the page shows it: the moment it counts from stays on it, so tickAges can move it on.
@@ -835,6 +846,12 @@ document.addEventListener('click', (event) => {
 // The form covers the picked item rather than dropping it, so Cancel brings it back.
 $('new-item').addEventListener('click', () => { view.adding = true; render(); $('add-title').focus(); });
 $('add-cancel').addEventListener('click', () => { view.adding = false; render(); });
+// Each press moves on one, from the system's theme to light, then dark, and back; this browser keeps it.
+$('theme').addEventListener('click', () => {
+  const next = { light: 'dark', dark: 'system' }[document.documentElement.dataset.theme] || 'light';
+  keep('pb.theme', next);
+  theme(next);
+});
 $('q').addEventListener('input', search);
 $('lane-filter').addEventListener('change', () => render());
 $('add-form').addEventListener('submit', async (event) => {
