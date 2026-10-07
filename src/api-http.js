@@ -16,15 +16,16 @@ function json(res, status, value) {
 }
 
 /** Read a bounded JSON object, draining oversize requests so a refusal reaches the caller. */
-async function readBody(req) {
+async function readBody(req, { maxBytes = BODY_BYTES } = {}) {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 20_000_000) throw new TypeError('API body limit needs a positive safe integer no larger than twenty million');
   if (!/^application\/json(?:\s*;|$)/i.test(String(req.headers['content-type'] ?? ''))) throw new Refused('BAD_REQUEST', 'send an application/json object as the request body');
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size <= BODY_BYTES) chunks.push(chunk);
+    if (size <= maxBytes) chunks.push(chunk);
   }
-  if (size > BODY_BYTES) throw new Refused('BAD_REQUEST', 'the body exceeds ' + BODY_BYTES + ' bytes; send one move or request at a time');
+  if (size > maxBytes) throw new Refused('BAD_REQUEST', 'the body exceeds ' + maxBytes + ' bytes; send one move or request at a time');
   let value;
   try { value = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw new Refused('BAD_REQUEST', 'the body is not JSON; send an application/json object'); }
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Refused('BAD_REQUEST', 'the body needs a JSON object; send one move or request at a time');
@@ -129,7 +130,7 @@ export function createApiHandler(adapter, { pollMs = 200 } = {}) {
       if (req.method === 'POST' && route[2] === 'requests') return json(res, 200, await adapter.request(board, await readBody(req), who));
       return json(res, 400, refusal(new Refused('BAD_REQUEST', 'use GET for reads and POST for moves and requests')));
     } catch (error) {
-      const status = { AUTH_REQUIRED: 401, TOKEN_BOARD: 403, API_ORIGIN: 403, WRITE_REQUIRED: 403, NO_BOARD: 404, BOARD_NOT_LINKED: 404 }[error.code] ?? (error instanceof Refused ? 400 : 500);
+      const status = apiStatus(error);
       if (!res.headersSent) json(res, status, refusal(error));
       else res.end();
     }
@@ -137,3 +138,12 @@ export function createApiHandler(adapter, { pollMs = 200 } = {}) {
   handle.close = () => { for (const res of streams) res.end(); };
   return handle;
 }
+
+
+/** Choose the same HTTP refusal class for local and sealed relay adapters. */
+export function apiStatus(error) {
+  return { AUTH_REQUIRED: 401, TOKEN_BOARD: 403, API_ORIGIN: 403, BAD_ORIGIN: 403, WRITE_REQUIRED: 403, NO_REPO_ACCESS: 403, NO_BOARD: 404, BOARD_NOT_LINKED: 404, NO_SNAPSHOT: 404, SNAPSHOT_REQUIRED: 409 }[error.code] ?? (error instanceof Refused ? 400 : 500);
+}
+
+// Relay-only snapshot/delete routes reuse the exact shared bounded-body and refusal boundary.
+export { json as apiJson, refusal as apiRefusal, readBody as readApiBody };

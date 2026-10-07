@@ -67,3 +67,56 @@ it. Call `auth.close()` when the relay shuts down.
 `test/relay-github.test.js`, `test/relay.test.js`, and `test/relay-http.test.js` use
 real loopback HTTP, generated RSA keys, and private SQLite files. No live GitHub
 credentials, repositories, or board databases are needed.
+
+## Sealed API relay
+
+createRelayHandler({ directory, auth, publicOrigin, pollMs }) from service.js
+mounts API v1 on the existing sign-in component. Mount the auth handler first,
+then this handler, on one HTTP server; call the handler's close() at shutdown.
+serveRelay({ directory, auth, port, host, publicOrigin }) is a convenience
+server for these API routes. Its default address is loopback and its default
+port is chosen by the operating system. It does not deploy a public service or
+close the caller-owned auth component.
+
+Per accepted RFC 0004, this service has no board engine or board key. Clients
+seal records before sending them; the server validates only the outer transport
+envelope and stores uninterpreted bytes. A sealed field is canonical base64url.
+The client owns the encryption format and engine-version checks.
+
+- GET /api/v1/boards returns visible board/repository identities.
+- PUT /api/v1/boards/:id/state takes {sequence, sealed}. The first snapshot
+  normally covers sequence 0. A later snapshot may cover only committed moves,
+  cannot move behind the previous snapshot, and removes the covered move prefix.
+- GET /api/v1/boards/:id/state returns
+  {version: 1, state: {sequence, receivedAt, sealed}}.
+- POST /api/v1/boards/:id/moves takes {sealed}. The relay allocates the next
+  sequence atomically and returns {version: 1, event, result: {sequence}}.
+  An event is {event_id, event_at, sealed}. Requests use the same sealed append
+  through POST /api/v1/boards/:id/requests; clients interpret their contents.
+- GET /api/v1/boards/:id/events?after=N returns sealed events in sequence.
+  Accept: text/event-stream follows the same records; Last-Event-ID resumes.
+  A cursor older than the latest snapshot gets SNAPSHOT_REQUIRED (409), naming
+  the need to fetch state and resume after its coverage cursor.
+- DELETE /api/v1/boards/:id removes that board's database and SQLite sidecars.
+  GitHub link/credential lifecycle remains owned by the sign-in/linking layer.
+
+All responses and refusals retain API version 1. Moves use the shared 100,000
+byte JSON-body limit. Snapshots allow a bounded 14,000,000 byte JSON body and
+10,000,000 decoded bytes. One private SQLite journal per board stores only its
+identity, format, head cursor, receive times and sealed payloads. Compaction
+keeps the head cursor, so the next move never reuses an earlier sequence.
+
+Bearer credentials work for agents and CLI calls. Browser session-cookie reads
+require a configured trusted publicOrigin; cookie writes require that exact
+Origin. Duplicate cookies are refused, and neither credentials nor board keys
+are accepted through query parameters. Writes recheck current repository access
+after body reading; live streams recheck the credential between polls. A board
+credential cannot reach another board. Code previews are unavailable on the
+relay: source files stay local.
+
+test/relay-journal.test.js races real processes and checks restart/compaction.
+test/relay-sealed.test.js seals actual CLI records on two test clients, uses an
+actual loopback sign-in stand-in, and checks order, snapshots, live delivery,
+revocation, deletion and absence of known plaintext/client keys in database
+bytes. Test encryption is client-only; it is not a public client pairing API.
+The relay/ service stays outside the npm package.

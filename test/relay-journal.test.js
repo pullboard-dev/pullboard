@@ -75,7 +75,7 @@ test('[A4,H7] two real processes cannot publish the same next sequence', async (
     'import { createRelayJournal } from ' + JSON.stringify(module) + ';',
     'const journal = createRelayJournal({ directory: process.argv[2], boardId: process.argv[3] });',
     'try {',
-    '  const row = journal.append(1, Buffer.from(process.argv[4]));',
+    '  const row = process.argv[4].startsWith("auto ") ? journal.appendNext(Buffer.from(process.argv[4])) : journal.append(1, Buffer.from(process.argv[4]));',
     '  process.stdout.write(JSON.stringify({ sequence: row.sequence }));',
     '} catch (error) { process.stdout.write(JSON.stringify({ code: error.code })); }',
     'finally { journal.close(); }',
@@ -104,6 +104,11 @@ test('[A4,H7] two real processes cannot publish the same next sequence', async (
   assert.equal(journal.latest(), 1);
   assert.equal(journal.after().length, 1);
   assert.ok(['first record', 'second record'].includes(journal.after()[0].bytes.toString()));
+  journal.close();
+  const allocated = await Promise.all([run('auto first'), run('auto second')]);
+  assert.deepEqual(allocated.map((row) => row.sequence).sort(), [2, 3]);
+  const ordered = box.open();
+  assert.deepEqual(ordered.after().map((row) => row.sequence), [1, 2, 3]);
 });
 
 test('[H7] board identities isolate journals and cannot follow a symlink', (t) => {
@@ -119,4 +124,31 @@ test('[H7] board identities isolate journals and cannot follow a symlink', (t) =
   assert.throws(() => box.open({ boardId: 'c'.repeat(32) }), { code: 'RELAY_STORAGE' });
   box.journal.close();
   assert.throws(() => box.journal.latest(), { code: 'RELAY_CLOSED' });
+});
+
+
+test('[A4,H7] a sealed snapshot compacts its prefix without reusing sequence numbers', (t) => {
+  const box = fixture(t);
+  assert.equal(box.journal.snapshot(), null);
+  box.journal.saveSnapshot(0, Buffer.from('initial opaque snapshot'));
+  box.journal.appendNext(Buffer.from('opaque move one'));
+  box.journal.appendNext(Buffer.from('opaque move two'));
+  box.journal.appendNext(Buffer.from('opaque move three'));
+  box.journal.saveSnapshot(2, Buffer.from('snapshot through two'));
+  assert.equal(box.journal.snapshot().sequence, 2);
+  assert.equal(box.journal.snapshot().bytes.toString(), 'snapshot through two');
+  assert.deepEqual(box.journal.after().map((row) => row.sequence), [3]);
+  assert.equal(box.journal.latest(), 3);
+  assert.throws(() => box.journal.saveSnapshot(1, Buffer.from('stale')), { code: 'SNAPSHOT_STALE' });
+  assert.throws(() => box.journal.saveSnapshot(4, Buffer.from('gap')), { code: 'SEQUENCE_GAP' });
+  assert.equal(box.journal.snapshot().sequence, 2);
+  assert.deepEqual(box.journal.after().map((row) => row.sequence), [3]);
+  box.journal.saveSnapshot(3, Buffer.from('snapshot through three'));
+  assert.deepEqual(box.journal.after(), []);
+  box.journal.close();
+  const restarted = box.open();
+  assert.equal(restarted.latest(), 3);
+  assert.equal(restarted.snapshot().sequence, 3);
+  assert.equal(restarted.appendNext(Buffer.from('move after compaction')).sequence, 4);
+  assert.throws(() => restarted.append(2, Buffer.from('retry old prefix')), { code: 'SEQUENCE_REPEAT' });
 });

@@ -42,6 +42,8 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
     } else if (saved.length !== 2 || saved[0].key !== 'board' || saved[0].value !== id || saved[1].key !== 'format' || saved[1].value !== String(FORMAT)) {
       throw new Refused('RELAY_STORAGE', 'open this journal with its original board identity and supported transport format');
     }
+    db.exec('CREATE TABLE IF NOT EXISTS journal_head (slot INTEGER PRIMARY KEY CHECK(slot=1), sequence INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS journal_snapshot (slot INTEGER PRIMARY KEY CHECK(slot=1), sequence INTEGER NOT NULL, received_at TEXT NOT NULL, payload BLOB NOT NULL)');
+    db.exec('INSERT OR IGNORE INTO journal_head (slot,sequence) SELECT 1, COALESCE(MAX(sequence),0) FROM journal_record');
     db.exec('COMMIT');
   } catch (error) {
     try { db.exec('ROLLBACK'); } catch { /* Initialization may have failed before its transaction. */ }
@@ -58,23 +60,31 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
   /** Read the latest committed sequence, including an empty journal's initial cursor. */
   function latest() {
     open();
-    return db.prepare('SELECT COALESCE(MAX(sequence), 0) AS sequence FROM journal_record').get().sequence;
+    return db.prepare('SELECT sequence FROM journal_head WHERE slot=1').get().sequence;
   }
 
-  /** Serialize the prefix check and append so concurrent senders cannot both claim one sequence. */
-  function append(sequence, bytes) {
-    open();
-    if (!Number.isSafeInteger(sequence) || sequence < 1) throw new Refused('BAD_SEQUENCE', 'upload a positive safe integer sequence');
+  /** Require detached bounded opaque bytes before opening a write transaction. */
+  function payload(bytes) {
     if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0 || bytes.byteLength > maxBytes) throw new Refused('BAD_UPLOAD', 'send nonempty opaque bytes within the configured upload limit');
-    const payload = Buffer.from(bytes);
+    return Buffer.from(bytes);
+  }
+
+  /** Serialize prefix checking or sequence allocation with the opaque append. */
+  function insert(sequence, bytes) {
+    open();
+    if (sequence !== null && (!Number.isSafeInteger(sequence) || sequence < 1)) throw new Refused('BAD_SEQUENCE', 'upload a positive safe integer sequence');
+    const sealed = payload(bytes);
     db.exec('BEGIN IMMEDIATE');
     try {
       const next = latest() + 1;
+      if (!Number.isSafeInteger(next)) throw new Refused('SEQUENCE_LIMIT', 'link a new board before the journal exhausts safe sequence numbers');
+      if (sequence === null) sequence = next;
       if (sequence < next) throw new Refused('SEQUENCE_REPEAT', 'this sequence is already stored; resume after the latest committed sequence');
       if (sequence > next) throw new Refused('SEQUENCE_GAP', 'send the next sequence after the latest committed record before later uploads');
       const at = now();
       if (!(at instanceof Date) || !Number.isFinite(at.getTime())) throw new Refused('RELAY_CONFIG', 'the journal clock must return a valid Date');
-      db.prepare('INSERT INTO journal_record (sequence,received_at,payload) VALUES (?,?,?)').run(sequence, at.toISOString(), payload);
+      db.prepare('INSERT INTO journal_record (sequence,received_at,payload) VALUES (?,?,?)').run(sequence, at.toISOString(), sealed);
+      db.prepare('UPDATE journal_head SET sequence=? WHERE slot=1').run(sequence);
       const result = record(db.prepare('SELECT * FROM journal_record WHERE sequence=?').get(sequence));
       db.exec('COMMIT');
       return result;
@@ -82,6 +92,39 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
       db.exec('ROLLBACK');
       throw error;
     }
+  }
+
+  /** Append a transport retry only at its explicitly named next sequence. */
+  function append(sequence, bytes) { return insert(sequence, bytes); }
+
+  /** Allocate the next sequence under the same lock as the append, as the live relay requires. */
+  function appendNext(bytes) { return insert(null, bytes); }
+
+  /** Read the latest sealed snapshot without interpreting its contents. */
+  function snapshot() {
+    open();
+    const row = db.prepare('SELECT * FROM journal_snapshot WHERE slot=1').get();
+    return row ? record(row) : null;
+  }
+
+  /** Replace a covered snapshot and compact only its acknowledged prefix, keeping the head. */
+  function saveSnapshot(sequence, bytes) {
+    open();
+    if (!Number.isSafeInteger(sequence) || sequence < 0) throw new Refused('BAD_SEQUENCE', 'name the nonnegative sequence this snapshot covers');
+    const sealed = payload(bytes);
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      if (sequence > latest()) throw new Refused('SEQUENCE_GAP', 'upload the missing moves before a snapshot that covers them');
+      const previous = snapshot();
+      if (previous && sequence < previous.sequence) throw new Refused('SNAPSHOT_STALE', 'use the latest stored snapshot and seal a snapshot that covers at least its sequence');
+      const at = now();
+      if (!(at instanceof Date) || !Number.isFinite(at.getTime())) throw new Refused('RELAY_CONFIG', 'the journal clock must return a valid Date');
+      db.prepare('INSERT INTO journal_snapshot (slot,sequence,received_at,payload) VALUES (1,?,?,?) ON CONFLICT(slot) DO UPDATE SET sequence=excluded.sequence,received_at=excluded.received_at,payload=excluded.payload').run(sequence, at.toISOString(), sealed);
+      db.prepare('DELETE FROM journal_record WHERE sequence <= ?').run(sequence);
+      const result = snapshot();
+      db.exec('COMMIT');
+      return result;
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
   }
 
   /** Replay the committed prefix in order, without parsing or executing its payloads. */
@@ -98,5 +141,5 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
     closed = true;
   }
 
-  return { board: id, latest, append, after, close };
+  return { board: id, latest, append, appendNext, after, snapshot, saveSnapshot, close };
 }
