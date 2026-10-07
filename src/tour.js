@@ -153,7 +153,8 @@ export function tour(io) {
     step(7, 'The verifier breaks the fix on purpose, to prove the new test can fail, then restores it and accepts.');
     run('review-1', 'git', ['switch', '-q', '--detach', second]);
     write('review-1', { 'src/greet.mjs': FIRST });
-    run('review-1', process.execPath, ['--test'], { label: 'node --test   # with the fix removed', show: /^# (pass|fail)/, fails: true });
+    // Pin the summary we display: Node 24 defaults to the spec reporter even through a pipe.
+    run('review-1', process.execPath, ['--test', '--test-reporter=tap'], { label: 'node --test   # with the fix removed', show: /^# (pass|fail)/, fails: true });
     run('review-1', 'git', ['checkout', '--', 'src/greet.mjs']);
     pb('review-1', ['verify', '1', 'accept', '--note', 'removed the blank-name fix: its new test failed; restored, both pass'], { show: /^verified/ });
 
