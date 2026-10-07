@@ -1033,6 +1033,9 @@ test('a decision waits in needs-you until the view answers it [B21, N27]', async
   box.run(alpha.web, 'shout', 'coordinator', 'Greet in <b>French</b> first?', '--decision');
   // Forty shouts after it: the ask is older than every shout the feed loads, and still waits.
   for (let n = 0; n < 40; n += 1) box.run(alpha.web, 'shout', 'all', `note ${n}`);
+  // Another project's board numbers its shouts from 1 too.
+  const beta = project(box, 'beta');
+  box.run(beta.web, 'shout', 'coordinator', 'Beta asks too?', '--decision');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -1075,6 +1078,29 @@ test('a decision waits in needs-you until the view answers it [B21, N27]', async
     assert.match(feed, /<b>web-1 → coordinator<\/b> <span class="mark ask">decision<\/span> Ship today\?/, 'the feed marks an ask');
     assert.match(feed, /<b>coordinator → web-1<\/b> <span class="mark">answer<\/span> French, then English/, 'and an answer');
     assert.match(page.show('needs'), /data-go="decide:43"/);
+
+    // An answer belongs to the project whose question it shows.
+    const plain = { answering: false, who: '', question: '', to: 'web', locked: false, button: 'Shout' };
+    await page.click({ go: 'decide:43' });
+    // The new project's board is held back, so this is the form the moment the switch is made.
+    page.run('globalThis.plain = fetch; globalThis.fetch = (path, init) => new Promise((done) => { globalThis.resume = done; }).then(() => plain(path, init));');
+    await page.click({ root: beta.repo });
+    assert.deepEqual(form(), plain, 'leaving the project leaves answer mode at once');
+    page.run('globalThis.fetch = plain; resume();');
+    await page.run('refresh()');
+    await page.click({ go: 'decide:1' });
+    assert.equal(form().question, 'Beta asks too?');
+    await page.run(`view.root = ${JSON.stringify(alpha.repo)}; seen = ''; refresh()`);
+    assert.deepEqual(form(), plain, 'and so does a board drawn for another project');
+    await page.run(`view.root = ${JSON.stringify(beta.repo)}; seen = ''; refresh()`);
+    await page.click({ go: 'decide:1' });
+    page.run(`view.root = ${JSON.stringify(alpha.repo)}`);
+    page.element('shout-text').value = 'yes';
+    await page.fire('shout-form', 'submit');
+    assert.deepEqual(form(), plain, 'an answer is never sent to another project');
+    assert.equal(page.element('console').textContent.split('\n')[0], '$ pullboard answer 1 French, then English', 'nothing ran');
+    assert.match(box.run(beta.repo, 'decisions'), /^#1 {2}web-1 -> coordinator, [^:]+: Beta asks too\?$/m, "beta's ask still waits");
+    assert.match(box.run(alpha.repo, 'decisions'), /^#43 {2}web-1 -> coordinator, [^:]+: Ship today\?$/m, "and so does alpha's");
   } finally {
     await view.stop();
   }

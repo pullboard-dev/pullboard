@@ -606,6 +606,7 @@ function renderSide() {
 function render() {
   const p = data.project;
   renderSide();
+  if (view.answering && view.answering.root !== view.root) answer(null);
   // Until the first board arrives the page shows no tabs or panes, so a machine with none never
   // flashes them; with no board to show, one message says how a board starts, in their place.
   document.body.classList.remove('loading');
@@ -774,13 +775,14 @@ function countUnseen() {
 /**
  * Put the shout form in answer mode for an open decision (B21), or back to a plain shout with null.
  * The form is never redrawn, so what the person types survives every refresh; only its answer line,
- * its To and its button change. The To the person had comes back when the answer is done.
+ * its To and its button change. The To the person had comes back when the answer is done. An answer
+ * belongs to the project whose question it shows: leaving that project leaves answer mode.
  */
 function answer(id) {
   const ask = id === null ? null : data.project.decisions.find((d) => d.shout_id === id) || null;
   if (ask && !view.answering) view.to = $('shout-to').value;
   if (!ask && view.answering) $('shout-to').value = view.to || '';
-  view.answering = ask ? ask.shout_id : null;
+  view.answering = ask ? { root: view.root, id: ask.shout_id } : null;
   $('answering').hidden = !ask;
   $('answering-who').textContent = ask ? ask.shout_from : '';
   $('answering-q').textContent = ask ? ask.shout_text : '';
@@ -874,6 +876,7 @@ function fold(open) {
 
 /** Show another project: mark it at once, dim the old one's panes until its board arrives. */
 function switchTo(root) {
+  answer(null);
   view.root = root;
   view.item = null;
   view.adding = false;
@@ -926,7 +929,9 @@ $('add-form').addEventListener('submit', async (event) => {
 $('shout-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const text = $('shout-text').value;
-  if (!(await (view.answering ? act('answer', { id: view.answering, text }) : act('shout', { to: $('shout-to').value, text })))) return;
+  const ask = view.answering;
+  if (ask && ask.root !== view.root) return answer(null);
+  if (!(await (ask ? act('answer', { id: ask.id, text }) : act('shout', { to: $('shout-to').value, text })))) return;
   $('shout-text').value = '';
   answer(null);
 });
