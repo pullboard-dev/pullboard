@@ -20,6 +20,7 @@ A successful command returns the fields listed below. `version` is always the nu
 | `resume` | `version:number`, `me:object`, `all:array`, `requests:array`, `holding:array`, `sentBack:array`, `awaiting:array`, `toVerify:array`, `toMerge:array`, `open:array`, `holds:array`, `unread:number`, `newest:array`, `root:string`, `dirty:number`, `next:string` |
 | `whoami` | `version:number`, `id:string`, `lane:string`, `path:string` |
 | `lanes` | `version:number`, `lanes:object`, `shared:array`, `coordinator:string` |
+| `resources` | `version:number`, `resources:array` |
 | `list` | `version:number`, `items:array` |
 | `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array` |
 | `status` | `version:number`, `me:object`, `mine:array`, `stats:object`, `unread:number` |

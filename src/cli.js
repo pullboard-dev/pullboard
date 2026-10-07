@@ -44,6 +44,7 @@ import { renderSpecView } from './view.js';
 import { tour } from './tour.js';
 import { commandOutput } from './json.js';
 import { forgetProject, registerProject } from './projects.js';
+import { listResources } from './resources.js';
 import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
 import { serveView } from './serve.js';
 import { serveApi } from './api.js';
@@ -63,7 +64,8 @@ Set up
   pullboard join <lane> [--route light] [--family <name>]       register this worktree as an agent
                                         --route sets which work the model can take; --family records its name
   pullboard whoami | lanes | status     who you are, the lanes, the board at a glance
-  pullboard view [--port N] [--no-open]  every project on this machine in your browser: items, shouts, doctrine,
+  pullboard resources                  local resource holders and their FIFO queues
+  pullboard view [--port N] [--no-open] every project on this machine in your browser: items, shouts, doctrine,
                                         agents and activity, live; add items, shout and hold lanes from it
   pullboard serve [--port N]           local API v1: boards, state, moves, requests and live events,
                                         behind the session secret in its printed address
@@ -870,6 +872,21 @@ function readCommands(io, { first, second, rest, values }) {
       const imported = withBoard(ctx, (board) => importBoard(board, document));
       io.result?.({ tables: imported.tables });
       io.say(`imported version ${document.version} board tables: ${imported.tables.join(', ')}`);
+      return 0;
+    },
+    resources: () => {
+      const ctx = context(io);
+      const resources = [
+        ...listResources({ scope: 'machine' }).map((resource) => ({ ...resource, scope: 'machine' })),
+        ...listResources({ scope: 'repo', root: ctx.info.root }).map((resource) => ({ ...resource, scope: 'repo' })),
+      ];
+      io.result?.({ resources });
+      if (!resources.length) io.say('no resources have been used');
+      for (const resource of resources) {
+        io.say(`${resource.name} (${resource.scope}, capacity ${resource.capacity})`);
+        for (const holder of resource.holders) io.say(`  held by ${holder.agent}${holder.repo ? ` in ${holder.repo}` : ''} since ${holder.since}`);
+        resource.line.forEach((waiter, index) => io.say(`  ${index + 1}. waiting: ${waiter.agent}${waiter.repo ? ` in ${waiter.repo}` : ''}`));
+      }
       return 0;
     },
     resume: () => resumeHere(io),
