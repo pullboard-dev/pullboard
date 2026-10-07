@@ -39,7 +39,7 @@
     "local-first",
     "spec"
   ],
-  "homepage": "https://github.com/pullboard-dev/pullboard#readme",
+  "homepage": "https://pullboard.dev",
   "scripts": {
     "test": "node bin/run-tests.js",
     "gate": "node bin/pullboard.js spec check && npm test"
