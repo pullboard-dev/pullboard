@@ -556,14 +556,15 @@ function routeOf(board, agentId) {
  * ids (B6).
  *
  * @param {any} board
- * @param {{ by: string, lane: string, title: string, criterion?: string, specIds?: string[], parentId?: number | null, after?: number[], brief?: string, route?: string }} item
+ * @param {{ by: string, lane: string, title: string, criterion?: string, specIds?: string[], parentId?: number | null, after?: number[], brief?: string, route?: string, check?: string }} item
  * @returns {number} The new item's id.
  */
-export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong', check = '' }) {
+export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong', check }) {
+  const command = coordinatorCheck(by, check) ?? '';
   const cleanTitle = title.trim();
   if (!cleanTitle) throw new Refused('NO_TITLE', 'an item needs a title');
   checkRoute(route);
-  checkRouted({ brief: brief.trim(), route, criterion, check });
+  checkRouted({ brief: brief.trim(), route, criterion, check: command });
   return atomic(board, () => {
     if (parentId !== null) {
       const parent = itemById(board, parentId);
@@ -586,7 +587,7 @@ export function addItem(board, { by, lane, title, criterion = '', specIds = [], 
            item_after, item_brief, item_route, item_check, item_created_by, item_created_at, item_updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(parentId, lane, cleanTitle, criterion.trim(), specIds.join(','), after.join(','), brief.trim(), route, check.trim(), by, at, at);
+      .run(parentId, lane, cleanTitle, criterion.trim(), specIds.join(','), after.join(','), brief.trim(), route, command, by, at, at);
     const id = Number(result.lastInsertRowid);
     logEvent(board, by, 'add', id, { lane, specIds, after, route });
     return id;
@@ -605,6 +606,7 @@ export function addItem(board, { by, lane, title, criterion = '', specIds = [], 
  * @param {{ agentId: string, brief?: string, route?: string, criterion?: string, check?: string }} change
  */
 export function editItem(board, id, { agentId, brief, route, criterion, check }) {
+  const command = coordinatorCheck(agentId, check);
   if ([brief, route, criterion, check].every((value) => value === undefined)) {
     throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "..." or --check "<command>"');
   }
@@ -620,7 +622,7 @@ export function editItem(board, id, { agentId, brief, route, criterion, check })
       item_brief: brief === undefined ? item.item_brief : brief.trim(),
       item_route: route ?? item.item_route,
       item_criterion: criterion === undefined ? item.item_criterion : criterion.trim(),
-      item_check: check === undefined ? item.item_check : check.trim(),
+      item_check: command === undefined ? item.item_check : command,
     };
     checkRoute(next.item_route);
     const moved = ['item_route', 'item_criterion', 'item_check'].filter((key) => next[key] !== item[key]);
@@ -634,10 +636,33 @@ export function editItem(board, id, { agentId, brief, route, criterion, check })
       ...(next.item_brief !== item.item_brief ? { brief: `${next.item_brief.length} characters` } : {}),
       ...(next.item_route !== item.item_route ? { route: next.item_route } : {}),
       ...(next.item_criterion !== item.item_criterion ? { criterion: next.item_criterion } : {}),
-      ...(next.item_check !== item.item_check ? { check: next.item_check } : {}),
+      ...(command !== undefined ? { check: next.item_check } : {}),
       ...(unfreeze && item.item_frozen_digest ? { unfrozen: item.item_frozen_digest } : {}),
     });
   });
+}
+
+/** Normalize an explicitly supplied check only when its author is the coordinator [V2]. */
+function coordinatorCheck(agentId, command) {
+  if (command === undefined) return undefined;
+  if (agentId !== COORDINATOR) {
+    throw new Refused('COORDINATOR_CHECK', 'only the coordinator sets or edits an item check; ask your coordinator to supply --check');
+  }
+  if (typeof command !== 'string') throw new Refused('BAD_CHECK', 'an item check is a command string; ask your coordinator to supply --check "<command>"');
+  return command.trim();
+}
+
+/** Read the current check's setter from immutable edits, or its original item author [V2]. */
+export function itemCheckAuthor(board, id) {
+  const item = itemById(board, id);
+  const edits = board.db.prepare("SELECT event_by, event_detail FROM event WHERE item_id = ? AND event_kind = 'edit' ORDER BY event_id DESC").all(id);
+  for (const edit of edits) {
+    let detail;
+    try { detail = JSON.parse(edit.event_detail); }
+    catch { return null; }
+    if (detail && Object.hasOwn(detail, 'check')) return detail.check === item.item_check ? edit.event_by : null;
+  }
+  return item.item_created_by;
 }
 
 /**
