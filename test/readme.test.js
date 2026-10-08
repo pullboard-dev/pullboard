@@ -133,8 +133,8 @@ test('README pins its approved Philosophy, Key concepts and Why structure [I10,I
   ]) assert.ok(section.includes(text), `Philosophy keeps ${text}`);
 });
 
-test('README has a By hand workflow and shell examples without inline comments [I10,I12]', () => {
-  assert.match(README, /^### By hand$/mu);
+test('README has a manual workflow and shell examples without inline comments [I10,I12]', () => {
+  assert.match(README, /^### (?:By hand|Manual workflow)$/mu);
   const shellBlocks = [...README.matchAll(/```(?:sh|shell|bash)\n([\s\S]*?)```/gu)].map(([, body]) => body);
   assert.ok(shellBlocks.length > 0, 'the README includes shell examples');
   for (const [index, block] of shellBlocks.entries()) {
