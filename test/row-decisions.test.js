@@ -1,4 +1,4 @@
-/** Person-authored row decisions stay on the board until a coordinator applies them [B26,S18,S19]. */
+/** Person-authored row decisions stay on the board until a coordinator applies them [B26,S18,S19,C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -26,6 +26,14 @@ const BASE_DOCTRINE = `# Repo doctrine
 ## L · Local
 - L1 [draft] Approve this doctrine row. | gate: true
 `;
+const FIXTURE_GIT_ENV = {
+  GIT_CONFIG_GLOBAL: '/dev/null',
+  GIT_CONFIG_NOSYSTEM: '1',
+  GIT_AUTHOR_NAME: 'Row decision fixture',
+  GIT_AUTHOR_EMAIL: 'row-decision@example.invalid',
+  GIT_COMMITTER_NAME: 'Row decision fixture',
+  GIT_COMMITTER_EMAIL: 'row-decision@example.invalid',
+};
 
 /** Remove each private fixture after child processes have been stopped. */
 function cleanup() {
@@ -62,13 +70,8 @@ function sandbox() {
     HOME: join(dir, 'home'),
     PULLBOARD_HOME: join(dir, 'pullboard-home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
-    GIT_CONFIG_GLOBAL: '/dev/null',
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_AUTHOR_NAME: 'Row decision fixture',
-    GIT_AUTHOR_EMAIL: 'row-decision@example.invalid',
-    GIT_COMMITTER_NAME: 'Row decision fixture',
-    GIT_COMMITTER_EMAIL: 'row-decision@example.invalid',
   });
+  Object.assign(env, FIXTURE_GIT_ENV);
   /** Run Git with the fixture's private identity and configuration. */
   function git(cwd, ...args) {
     return execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
@@ -76,11 +79,28 @@ function sandbox() {
   /** Run the real CLI with a clean person environment and optional explicit markers. */
   function run(cwd, args, extraEnv = {}) {
     return spawnSync(process.execPath, [BIN, ...args], {
-      cwd, env: { ...personEnvironment(env), ...extraEnv }, encoding: 'utf8', timeout: 15_000,
+      cwd, env: { ...personEnvironment(env), ...FIXTURE_GIT_ENV, ...extraEnv }, encoding: 'utf8', timeout: 15_000,
     });
   }
   return { dir, env, git, run };
 }
+
+test('[C7] the private runner keeps Git identity detection disabled after fixtures strip GIT_* variables', () => {
+  const box = sandbox();
+  const root = join(box.dir, 'guard-repo');
+  mkdirSync(root);
+  box.git(root, 'init', '-q', '-b', 'main');
+  const env = {
+    ...personEnvironment(box.env),
+    HOME: join(box.dir, 'empty-home'),
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1',
+  };
+  delete env.EMAIL;
+  const result = spawnSync('git', ['var', 'GIT_AUTHOR_IDENT'], { cwd: root, env, encoding: 'utf8' });
+  assert.notEqual(result.status, 0, 'the runner shim refuses Git auto-detection with a new HOME and no inherited identity');
+  assert.match(result.stderr, /auto-detection is disabled/u);
+});
 
 /** Initialize and commit a real repo with SPEC, DOCTRINE, an SQLite board and private lanes. */
 function project({ spec = BASE_SPEC, doctrine = BASE_DOCTRINE } = {}) {

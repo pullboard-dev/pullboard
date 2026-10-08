@@ -111,3 +111,15 @@ test('an unknown command names its closest match and where to see every command 
   assert.equal(help.status, 2);
   assert.match(help.stderr, /closest match is "claim"/);
 });
+
+test('next help exposes explicit build intent alongside review reservations [Q1,V15,N37]', () => {
+  const detail = run('help', 'next');
+  assert.equal(detail.status, 0, detail.stderr);
+  assert.match(detail.stdout, /^       pullboard next --build$/mu);
+  assert.ok(flagsFrom(detail.stdout).some((flag) => flag.startsWith('--build')));
+  assert.ok(flagsFrom(detail.stdout).some((flag) => flag.startsWith('--verify')));
+  assert.equal(run('next', '--help').stdout, detail.stdout);
+  const all = run('help', '--all');
+  assert.match(all.stdout, /pullboard next \[--wait <minutes>\]\s+offer an eligible review when reviews pile up, otherwise claim work/u);
+  assert.match(all.stdout, /pullboard next --build\s+claim a build explicitly, recording a skipped review offer/u);
+});

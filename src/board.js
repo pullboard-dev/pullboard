@@ -853,10 +853,10 @@ export function recordAttempt(board, id, { agentId, n, seconds, result }) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, lane: string, leaseMs: number, freeze: (item: any) => { text: string, digest: string }, head?: string | null }} who
+ * @param {{ agentId: string, lane: string, leaseMs: number, freeze: (item: any) => { text: string, digest: string }, head?: string | null, reviewSkipped?: object | null }} who
  * @returns {{ leaseUntil: string, digest: string, renewed: boolean }}
  */
-export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null }) {
+export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null }) {
   return atomic(board, () => {
     const leaseUntil = new Date(board.clock.now().getTime() + leaseMs).toISOString();
     const isRenewal = (item) => item.item_owner === agentId && isHeld(board, item);
@@ -933,7 +933,7 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null }
     });
     const renewed = isRenewal(item);
     const digest = frozen ? frozen.digest : item.item_frozen_digest;
-    logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest });
+    logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(!renewed && reviewSkipped ? { reviewSkipped } : {}) });
     return { leaseUntil, digest, renewed };
   });
 }
@@ -1034,6 +1034,25 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
  */
 export function reviewHolder(board, item) {
   return item.item_status === 'submitted' && item.item_review_by && (item.item_review_until ?? '') > now(board) ? item.item_review_by : null;
+}
+
+/** Summarize outstanding reviews using live leases and the latest submission's age [Q1,V15]. */
+export function reviewQueue(board) {
+  const pending = listItems(board).filter((item) => item.item_status === 'submitted');
+  const holders = pending.map((item) => reviewHolder(board, item)).filter(Boolean);
+  const submissions = new Map(board.db.prepare("SELECT item_id, MAX(event_at) AS submitted_at FROM event WHERE event_kind='submit' GROUP BY item_id")
+    .all().map((event) => [event.item_id, event.submitted_at]));
+  const oldestSubmittedAt = pending.map((item) => submissions.get(item.item_id)).filter(Boolean).sort()[0] ?? null;
+  return { pending: pending.length, reviewing: new Set(holders).size, reserved: holders.length, oldestSubmittedAt,
+    ageMs: oldestSubmittedAt ? Math.max(0, board.clock.now().getTime() - Date.parse(oldestSubmittedAt)) : 0 };
+}
+
+/** Offer an eligible review at the queue ratio without claiming or reserving anything [Q1,V15]. */
+export function reviewOffer(board, { agentId, lane, policy = 'any', familyPolicy = 'off', ratio = 3, runnable = false, routes = ROUTES }) {
+  const queue = reviewQueue(board);
+  if (queue.pending < ratio * Math.max(queue.reviewing, 1)) return null;
+  const { item } = nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes });
+  return item ? { item, queue, ratio } : null;
 }
 
 /**
@@ -1558,10 +1577,10 @@ export function events(board, { itemId } = {}) {
  * and `shared` names them (N20). A held lane offers nothing new (N22).
  *
  * @param {any} board
- * @param {{ agentId: string, lane: string, verify?: boolean, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[] }} who
+ * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[] }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
-export function nextFor(board, { agentId, lane, verify = false, familyPolicy = 'off', runnable = false, routes = ROUTES, warm = [] }) {
+export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', runnable = false, routes = ROUTES, warm = [] }) {
   const route = routeOf(board, agentId);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
   const items = listItems(board)
@@ -1574,6 +1593,7 @@ export function nextFor(board, { agentId, lane, verify = false, familyPolicy = '
     const family = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(agentId)?.agent_family ?? null;
     const hasDifferentFamily = (entry) => Boolean(family && entry.item_builder_family && family !== entry.item_builder_family);
     let reviewable = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId);
+    if (policy === COORDINATOR && agentId !== COORDINATOR) reviewable = reviewable.filter((entry) => entry.item_lane === COORDINATOR);
     if (familyPolicy === 'require') reviewable = reviewable.filter(hasDifferentFamily);
     if (familyPolicy === 'prefer') reviewable.sort((first, second) => Number(hasDifferentFamily(second)) - Number(hasDifferentFamily(first)));
     const holder = (entry) => reviewHolder(board, entry);
