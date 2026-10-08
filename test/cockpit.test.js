@@ -1438,8 +1438,8 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     box.run(alpha.repo, 'pass', '1', 'over to you');
     await page.run('refresh()');
     const passed = `Passed up from web-1: ${question}\nCoordinator note: over to you`;
-    assert.match(page.show('needs'), new RegExp(`^<div class="head"><i></i>Needs you</div><button class="ny" data-go="decide:42" type="button"><code>coordinator</code><span>${passed}</span><em>decide, <time data-ago="[^"]+">now</time> →</em></button>`), 'first in Needs-you: who passed it, what, and since when');
-    assert.match(page.show('decisions'), new RegExp(`^<div class="head"><i></i>Decision needed</div><div class="ask"><p><small><b>coordinator</b> asks, <time data-ago="[^"]+">now</time></small></p><p>${passed}</p><button class="ghost" data-go="decide:42" type="button">Answer</button></div>$`), 'and above the shouts, with an Answer button');
+    assert.match(page.show('needs'), new RegExp(`^<div class="head"><i></i>Needs you</div><button class="ny" data-go="decide:42" type="button"><code>coordinator</code><span>${passed.replace('\n', '<br>')}</span><em>decide, <time data-ago="[^"]+">now</time> →</em></button>`), 'first in Needs-you: who passed it, what, and since when');
+    assert.match(page.show('decisions'), new RegExp(`^<div class="head"><i></i>Decision needed</div><div class="ask"><p><small><b>coordinator</b> asks, <time data-ago="[^"]+">now</time></small></p><p>${passed.replace('\n', '<br>')}</p><button class="ghost" data-go="decide:42" type="button">Answer</button></div>$`), 'and above the shouts, with an Answer button');
 
     const form = () => ({
       answering: !page.element('answering').hidden,
@@ -2101,7 +2101,7 @@ test('activity names the item each event moved [N26]', async () => {
     for (const row of about) assert.match(row, /type="button">#1<\/button> <span class="what">Greeting &lt;b&gt;bold&lt;\/b&gt;<\/span><\/div>/, 'the escaped title follows the link');
     const joins = rows.filter((row) => /<\/b> join<\/div>/.test(row));
     assert.ok(joins.length > 0 && joins.every((row) => !row.includes('class="what"')), 'an event about no item names none');
-    assert.match(await styleOf(view), /\.feed \.act \.what \{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/, 'a long title keeps to one line');
+    assert.match(await styleOf(view), /\.feed \.act \.what \{ flex: 1 1 auto; min-width: 0; overflow-wrap: break-word;/, 'activity titles wrap at words and permit an overflowing token to break');
   } finally {
     await view.stop();
   }
@@ -2542,7 +2542,7 @@ test('served connection reaches an authenticated API on another origin and path 
   }
 });
 
-test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N27]', { timeout: 120_000 }, async (t) => {
+test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N26,N27]', { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for viewport checks.');
 
@@ -2550,6 +2550,8 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N
   const demo = project(box, 'phone-demo');
   const other = project(box, 'other-demo');
   box.run(demo.repo, 'add', 'web', 'Starter item', '--specs', 'G1', '--criterion', 'visible in the detail pane');
+  const wrapTitle = 'word boundary test ' + 'abcdef0123456789'.repeat(12);
+  box.run(demo.repo, 'add', 'web', wrapTitle, '--specs', 'G1', '--criterion', 'the activity title wraps without splitting words');
   box.run(demo.repo, 'shout', 'person', 'Should the phone demo ship?', '--decision');
   box.run(demo.web, 'shout', 'coordinator', 'Should this waiting ask span the full row?', '--decision');
   const view = await startView(box);
@@ -2595,10 +2597,14 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N
     const snapshot = async () => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
       const visible=e=>{const s=getComputedStyle(e),r=e.getBoundingClientRect();return !e.disabled&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&r.width>0&&r.height>0&&!e.closest('[hidden]')};
       const selector='button,a[href],input:not([type=hidden]),select,textarea,[role=button],[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-release],[data-shout],[data-new],[data-code]';
-      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),width:r.width,height:r.height}});
+      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,inlineReference:e.matches('.feed button.ref, .ask button.ref, .detail button.ref')}});
+      const notice=document.querySelector('#console');
+      const noticeBox=visible(notice)?notice.getBoundingClientRect():null;
+      const toast=noticeBox?{x:noticeBox.x,y:noticeBox.y,right:noticeBox.right,bottom:noticeBox.bottom,visible:noticeBox.y>=0&&noticeBox.bottom<=innerHeight,
+        overlaps:controls.filter(c=>c.x<noticeBox.right&&c.right>noticeBox.x&&c.y<noticeBox.bottom&&c.bottom>noticeBox.y).map(c=>c.id||c.text)}:null;
       return {width:innerWidth,clientWidth:document.documentElement.clientWidth,documentWidth:document.documentElement.scrollWidth,bodyWidth:document.body.scrollWidth,
         projectList:visible(document.querySelector('#proj-list')),needs:visible(document.querySelector('#needs')),
-        detail:visible(document.querySelector('#detail')),controls};
+        detail:visible(document.querySelector('#detail')),controls,toast};
     })())`));
     /** Check document and body overflow against the actual layout viewport, excluding its scrollbar. */
     const fitsViewport = (layout) => layout.documentWidth <= layout.clientWidth && layout.bodyWidth <= layout.clientWidth;
@@ -2607,8 +2613,10 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N
       const layout = await snapshot();
       assert.ok(fitsViewport(layout),
         `${width} ${place}: no horizontal overflow: ${JSON.stringify(layout)}`);
-      const short = layout.controls.filter((control) => control.height < 44);
+      const short = layout.controls.filter((control) => control.height < 44 && !control.inlineReference);
       assert.deepEqual(short, [], `${width} ${place}: visible enabled actions are at least 44px high: ${JSON.stringify(short)}`);
+      if (layout.toast) assert.deepEqual(layout.toast.overlaps, [], `${width} ${place}: the result toast clears every visible control: ${JSON.stringify(layout.toast)}`);
+      if (place === 'successful add toast') assert.equal(layout.toast?.visible, true, `${width}: the successful action toast remains in the viewport: ${JSON.stringify(layout.toast)}`);
     };
 
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -2637,6 +2645,27 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N
       for (const tab of ['shouts', 'spec', 'doctrine', 'activity']) {
         await click(`[data-tab="${tab}"]`);
         await checkLayout(width, `${tab} tab`);
+        if (tab === 'spec') {
+          const chips = JSON.parse(await chrome.evaluate(`JSON.stringify([...document.querySelectorAll('#spec-chips button')].map(button => {
+            const clone=button.cloneNode(true); clone.style.cssText += ';position:fixed;visibility:hidden;width:max-content;flex:none'; button.parentElement.append(clone);
+            const naturalWidth=clone.getBoundingClientRect().width, actualWidth=button.getBoundingClientRect().width; clone.remove();
+            return {text:button.textContent.trim(),actualWidth,naturalWidth};
+          }))`));
+          assert.ok(chips.length >= 2, `${width}: spec filters render as chips`);
+          for (const chip of chips) assert.ok(Math.abs(chip.actualWidth - chip.naturalWidth) < 2, `${width}: ${chip.text} keeps its natural width: ${JSON.stringify(chip)}`);
+        }
+        if (tab === 'activity') {
+          const wrap = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+            const element=[...document.querySelectorAll('#activity .what')].find(node=>node.textContent===${JSON.stringify(wrapTitle)});
+            if(!element) return null;
+            const text=element.firstChild, ranges=(word)=>{const start=text.textContent.indexOf(word),range=document.createRange();range.setStart(text,start);range.setEnd(text,start+word.length);return [...range.getClientRects()].map(rect=>({x:rect.x,y:rect.y,width:rect.width}));};
+            const lines=(rects)=>new Set(rects.map(rect=>Math.round(rect.y))).size;
+            return {width:element.clientWidth,height:element.getBoundingClientRect().height,wordLines:lines(ranges('boundary')),tokenLines:lines(ranges('abcdef0123456789'.repeat(12)))};
+          })())`));
+          assert.ok(wrap, `${width}: the activity feed shows the long item title`);
+          assert.equal(wrap.wordLines, 1, `${width}: a normal word stays together at a line boundary: ${JSON.stringify(wrap)}`);
+          assert.ok(wrap.tokenLines > 1, `${width}: only the overflowing unbroken token splits: ${JSON.stringify(wrap)}`);
+        }
         if (tab === 'shouts') {
           const asks = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
             const waiting = document.querySelector('#decisions .ask.other');
@@ -2671,8 +2700,10 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N
       await fill('#add-lane', 'web');
       await fill('#add-title', `Phone item ${width}`);
       await fill('#add-specs', 'G1');
-      await submit('#add-form');
+      await click('#add-form button[type="submit"]');
       await chrome.waitFor(`document.querySelector('#chain').innerText.includes('Phone item ${width}')`);
+      await chrome.waitFor("document.querySelector('#console.ok') && document.querySelector('#console').textContent.includes('added #')");
+      await checkLayout(width, 'successful add toast');
 
       await click('[data-tab="shouts"]');
       await checkLayout(width, 'shout and hold forms');
@@ -2798,5 +2829,101 @@ test('static export redacts structured checkout paths but preserves paths people
     }
   } finally {
     await live.stop();
+  }
+});
+
+test('real Chrome styles shout code and item text without growing linked lines [N26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for rendered shout checks.');
+
+  const box = machine();
+  const alpha = project(box, 'shout-code');
+  const title = 'A `title` <img src=x onerror=alert(1)> #1';
+  box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'Criterion `value` stays safe', '--brief', 'Run $ pullboard claim 1\nKeep `<safe>` literal.');
+  box.run(alpha.web, 'claim', '1');
+  const sourceHead = box.git(alpha.repo, 'rev-parse', 'HEAD');
+  const sample = 'Inline `code <b>safe</b>`; pullboard shout --decision; --flag; src/cockpit.js; 0123456789abcdef0123456789abcdef01234567.\nPreview SPEC.md:1-2@' + sourceHead + '. Invalid prefix:SPEC.md:1-2@' + sourceHead + '.\n```js\n<script>alert(1)</script>\n```\n$ pullboard claim 1\n<script>alert(1)</script>';
+  box.run(alpha.repo, 'shout', 'person', sample, '--decision');
+  box.run(alpha.web, 'shout', 'coordinator', 'A linked line #1');
+  box.run(alpha.web, 'shout', 'coordinator', 'A plain line here');
+  box.run(alpha.web, 'shout', 'coordinator', '<script>alert(2)</script> outside code');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-shout-code-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    const consoleErrors = [];
+    chrome.socket.addEventListener('message', ({ data }) => {
+      const message = JSON.parse(String(data));
+      if (message.method === 'Runtime.consoleAPICalled' && message.params.type === 'error') consoleErrors.push(message.params.args.map((arg) => arg.value ?? arg.description ?? '').join(' '));
+      if (message.method === 'Log.entryAdded' && message.params.entry.level === 'error') consoleErrors.push(message.params.entry.text);
+    });
+    await chrome.send('Log.enable');
+    await chrome.waitFor('data?.project?.shouts?.length >= 4 && document.querySelectorAll("#feed > div:not(.day)").length >= 4');
+    await chrome.evaluate(`document.querySelector('[data-tab="shouts"]').click()`);
+
+    const rendered = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      const shout = [...document.querySelectorAll('#feed > div:not(.day)')].find((row) => row.textContent.includes('Inline'));
+      const ask = [...document.querySelectorAll('#decisions .ask')].find((row) => row.textContent.includes('Inline'));
+      const titleNode = document.querySelector('#chain .row .t');
+      const outside = [...document.querySelectorAll('#feed > div:not(.day)')].find((row) => row.textContent.includes('alert(2)'));
+      const itemDetail = document.querySelector('#detail');
+      const agentItem = document.querySelector('#agents .agent button[data-go="item:1"]');
+      /** Measure the visible feed text line box for a shout containing the supplied phrase. */
+      const lineHeight = (needle) => {
+        const row = [...document.querySelectorAll('#feed > div:not(.day)')].find((entry) => entry.textContent.includes(needle));
+        return row.children[1].getBoundingClientRect().height;
+      };
+      return {
+        shoutHtml: shout.innerHTML, shoutScripts: shout.querySelectorAll('script').length,
+        askHtml: ask.innerHTML, titleHtml: titleNode.innerHTML,
+        linkedHeight: lineHeight('A linked line'), plainHeight: lineHeight('A plain line'),
+        linkedButtons: [...document.querySelectorAll('#feed > div:not(.day)')].find((entry) => entry.textContent.includes('A linked line'))?.querySelectorAll('button.ref').length,
+        previewLinks: shout.querySelectorAll('button[data-code^="SPEC.md:1-2@"]').length,
+        outsideHtml: outside.innerHTML, askNestedButtons: ask.querySelector('p').querySelectorAll('button').length,
+        criterionHtml: itemDetail.querySelector('.text')?.innerHTML, briefHtml: itemDetail.querySelector('.text.muted')?.innerHTML,
+        needsNestedButtons: document.querySelectorAll('#needs button.ref').length,
+        agentNestedButtons: document.querySelectorAll('#agents .agent button.ref').length,
+      };
+    })())`));
+    assert.match(rendered.shoutHtml, /<code class="inline">code &lt;b&gt;safe&lt;\/b&gt;<\/code>/, 'backticks create escaped inline code');
+    assert.match(rendered.shoutHtml, /<code class="inline">pullboard shout<\/code>/, 'pullboard commands are inline code');
+    assert.match(rendered.shoutHtml, /<code class="inline">--decision<\/code>/, 'flags are inline code');
+    assert.match(rendered.shoutHtml, /<code class="inline">src\/cockpit\.js<\/code>/, 'slash paths are inline code');
+    assert.match(rendered.shoutHtml, /<code class="inline">0123456789abcdef0123456789abcdef01234567<\/code>/, 'hex SHAs are inline code');
+    assert.ok((rendered.shoutHtml.match(/<code class="code block">/g) ?? []).length >= 2, 'fences and dollar-prefixed lines are code blocks');
+    assert.match(rendered.shoutHtml, /<code class="code block">\$ pullboard claim 1<\/code>/, 'the shell prompt stays visible in command blocks');
+    assert.match(rendered.shoutHtml, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/, 'script text is escaped inside code');
+    assert.equal(rendered.shoutScripts, 0, 'a shout cannot create a script element');
+    assert.match(rendered.outsideHtml, /&lt;script&gt;alert\(2\)&lt;\/script&gt; outside code/, 'script text outside code is escaped too');
+    assert.equal(rendered.previewLinks, 1, 'only a path:lines@SHA reference with the original whole-word boundaries becomes an actionable preview');
+    assert.match(rendered.shoutHtml, /Invalid prefix:<code class="inline">SPEC\.md:1-2@/, 'a path:lines@SHA suffix after a colon stays plain inline code');
+    await chrome.evaluate(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"]').click()`);
+    await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"]').getAttribute('aria-expanded') === 'true'`);
+    await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"] + .code')?.textContent.includes('Demo spec')`);
+    assert.match(await chrome.evaluate(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"] + .code')?.textContent || ''`), /Demo spec/, 'the original code preview still opens its referenced lines');
+    assert.match(rendered.askHtml, /<code class="inline">pullboard shout<\/code>/, 'needs-you uses the same code renderer');
+    assert.equal(rendered.askNestedButtons, 0, 'formatted text in an ask cannot nest interactive controls');
+    assert.equal(rendered.needsNestedButtons, 0, 'needs-you keeps its button markup valid');
+    assert.equal(rendered.agentNestedButtons, 0, 'agent item buttons never nest reference controls');
+    assert.match(rendered.titleHtml, /<code class="inline">title<\/code>/, 'item titles use the same code renderer');
+    assert.match(rendered.titleHtml, /&lt;img src=x onerror=alert\(1\)&gt;/, 'item text remains escaped');
+    assert.match(rendered.criterionHtml, /<code class="inline">value<\/code>/, 'criterion text uses the renderer');
+    assert.match(rendered.briefHtml, /<code class="inline">&lt;safe&gt;<\/code>/, 'brief text uses the renderer without interpreting markup');
+    assert.equal(rendered.linkedButtons, 1, 'the compared row contains a rendered item link');
+    assert.ok(Math.abs(rendered.linkedHeight - rendered.plainHeight) < 1, `an item link keeps its desktop line height (${rendered.linkedHeight} vs ${rendered.plainHeight})`);
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor('innerWidth === 375 && document.querySelector("#feed > div:not(.day)")?.getBoundingClientRect().width > 0');
+    const phoneHeights = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      /** Measure one shout's text height at the current viewport width. */
+      const height = (needle) => [...document.querySelectorAll('#feed > div:not(.day)')].find((row) => row.textContent.includes(needle)).children[1].getBoundingClientRect().height;
+      return { linked: height('A linked line'), plain: height('A plain line') };
+    })())`));
+    assert.ok(Math.abs(phoneHeights.linked - phoneHeights.plain) < 1, `an item link keeps its phone line height (${phoneHeights.linked} vs ${phoneHeights.plain})`);
+    assert.deepEqual(consoleErrors, []);
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
   }
 });

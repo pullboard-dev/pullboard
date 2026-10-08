@@ -16,20 +16,26 @@ import { AGENTS_END, AGENTS_START, agentsBlock, configTemplate, practiceTemplate
 const NPM_DEFAULT_TEST = 'echo "Error: no test specified" && exit 1';
 
 /**
- * The gate to start with: `npm test` when the repo has a real test script, otherwise none yet.
+ * Detect an existing ecosystem's test command without running it during setup (I1, I2).
  *
  * @param {string} root
  * @returns {string}
  */
 export function detectGate(root) {
   const file = join(root, 'package.json');
-  if (!existsSync(file)) return '';
-  try {
-    const test = JSON.parse(readFileSync(file, 'utf8'))?.scripts?.test;
-    return typeof test === 'string' && test.trim() && test !== NPM_DEFAULT_TEST ? 'npm test' : '';
-  } catch {
-    return '';
+  if (existsSync(file)) {
+    try {
+      const test = JSON.parse(readFileSync(file, 'utf8'))?.scripts?.test;
+      if (typeof test === 'string' && test.trim() && test.trim() !== NPM_DEFAULT_TEST) return 'npm test';
+    } catch { /* An unreadable package does not hide another ecosystem. */ }
   }
+  if (existsSync(join(root, 'go.mod'))) return 'go test ./...';
+  if (existsSync(join(root, 'Cargo.toml'))) return 'cargo test';
+  if (['pytest.ini', '.pytest.ini', 'pytest.toml', '.pytest.toml', 'pyproject.toml', 'setup.py', 'requirements.txt'].some((name) => existsSync(join(root, name)))) return 'pytest';
+  for (const [name, section] of [['tox.ini', 'pytest'], ['setup.cfg', 'tool:pytest']]) {
+    if (existsSync(join(root, name)) && readFileSync(join(root, name), 'utf8').includes(`[${section}]`)) return 'pytest';
+  }
+  return '';
 }
 
 /**
@@ -71,11 +77,13 @@ function configuredGate(root) {
  * @param {string} file
  * @param {string} text
  * @param {string} name
+ * @param {(path: string) => void} onWrite
  * @returns {string} What happened.
  */
-function writeNew(file, text, name) {
+function writeNew(file, text, name, onWrite) {
   if (existsSync(file)) return `kept ${name}`;
   writeFileSync(file, text);
+  onWrite(name);
   return `wrote ${name}`;
 }
 
@@ -84,17 +92,20 @@ function writeNew(file, text, name) {
  * has, and point CLAUDE.md at AGENTS.md so Claude Code reads the same rules.
  *
  * @param {string} root
+ * @param {(path: string) => void} onWrite
  * @returns {string[]}
  */
-function writeAgentDocs(root) {
+function writeAgentDocs(root, onWrite) {
   const notes = [];
   const agents = join(root, 'AGENTS.md');
   const block = agentsBlock(loadDoctrine(root, loadConfig(root)));
   if (!existsSync(agents)) {
     writeFileSync(agents, `# AGENTS.md\n\n${block}`);
+    onWrite('AGENTS.md');
     notes.push('wrote AGENTS.md');
   } else if (!readFileSync(agents, 'utf8').includes(AGENTS_START)) {
     appendFileSync(agents, `\n${block}`);
+    onWrite('AGENTS.md');
     notes.push('added the pullboard section to AGENTS.md');
   } else {
     const previous = readFileSync(agents, 'utf8');
@@ -106,6 +117,7 @@ function writeAgentDocs(root) {
       if (updated === previous) notes.push('kept AGENTS.md');
       else {
         writeFileSync(agents, updated);
+        onWrite('AGENTS.md');
         notes.push('updated the pullboard section in AGENTS.md');
       }
     }
@@ -113,9 +125,11 @@ function writeAgentDocs(root) {
   const claude = join(root, 'CLAUDE.md');
   if (!existsSync(claude)) {
     writeFileSync(claude, '@AGENTS.md\n');
+    onWrite('CLAUDE.md');
     notes.push('wrote CLAUDE.md (points at AGENTS.md)');
   } else if (!readFileSync(claude, 'utf8').includes('AGENTS.md')) {
     appendFileSync(claude, '\n@AGENTS.md\n');
+    onWrite('CLAUDE.md');
     notes.push('pointed CLAUDE.md at AGENTS.md');
   }
   return notes;
@@ -134,9 +148,10 @@ export const RESUME_HOOK =
  * into .claude/settings.json; every other setting stays as it was.
  *
  * @param {string} root
+ * @param {(path: string) => void} onWrite
  * @returns {string} What happened.
  */
-function writeSessionHook(root) {
+function writeSessionHook(root, onWrite) {
   const file = join(root, '.claude', 'settings.json');
   let settings = {};
   if (existsSync(file)) {
@@ -154,6 +169,7 @@ function writeSessionHook(root) {
   settings.hooks = { ...settings.hooks, SessionStart: [...starts, { hooks: [{ type: 'command', command: RESUME_HOOK, timeout: 30 }] }] };
   mkdirSync(join(root, '.claude'), { recursive: true });
   writeFileSync(file, `${JSON.stringify(settings, null, 2)}\n`);
+  onWrite('.claude/settings.json');
   return 'added a Claude Code session hook: pullboard resume at every start and compaction';
 }
 
@@ -170,14 +186,17 @@ export function initRepo({ info, openBoardHere, register, closeBoard }) {
   const { root } = info;
   const doctrine = existsSync(join(root, CONFIG_FILE)) ? loadConfig(root).practice : doctrineFile(root);
   const gate = detectGate(root);
+  const written = [];
+  /** Record only paths setup actually writes; unrelated files never enter its staging command. */
+  const onWrite = (path) => written.push(path);
   const notes = [
-    writeNew(join(root, CONFIG_FILE), configTemplate(gate, detectFixers(root)), CONFIG_FILE),
-    writeNew(join(root, 'SPEC.md'), specTemplate(basename(root)), 'SPEC.md'),
-    writeNew(join(root, doctrine), practiceTemplate(), doctrine),
-    ...writeAgentDocs(root),
-    ...installHooks(root),
-    ...installSkills(root),
-    writeSessionHook(root),
+    writeNew(join(root, CONFIG_FILE), configTemplate(gate, detectFixers(root)), CONFIG_FILE, onWrite),
+    writeNew(join(root, 'SPEC.md'), specTemplate(basename(root), gate), 'SPEC.md', onWrite),
+    writeNew(join(root, doctrine), practiceTemplate(), doctrine, onWrite),
+    ...writeAgentDocs(root, onWrite),
+    ...installHooks(root, onWrite),
+    ...installSkills(root, onWrite),
+    writeSessionHook(root, onWrite),
   ];
   const board = openBoardHere();
   try {
@@ -189,5 +208,6 @@ export function initRepo({ info, openBoardHere, register, closeBoard }) {
   if (!configuredGate(root)) {
     notes.push('no gate yet: set "gate" in pullboard.json to the command that proves the build');
   }
+  if (written.length) notes.push(`git add -f -- ${written.map((path) => `'${path.replaceAll("'", "'\\''")}'`).join(' ')}`);
   return notes;
 }

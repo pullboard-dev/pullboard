@@ -10,6 +10,8 @@ A successful command returns the fields listed below. `version` is always the nu
 
 `pullboard settings` reads machine-wide settings from `~/.pullboard/settings.json`; `pullboard settings gateSlots <n>` changes the gate queue capacity, which defaults to `2`. Capacity changes are refused while a gate is running or waiting, so existing holders and FIFO order remain intact.
 
+When `add` or `edit` supplies a new nonempty check, Pullboard measures it once in a temporary checkout of the current `main` commit. The item returned by `add`, `edit`, `show`, and `next --verify` may include `item_check_baseline`: `{command, main, result, seconds?, reason?, warning?}`. `main` is the commit id or `null`, and `result` is `green`, `red`, or `unavailable`. A green result carries `warning: "CRITERION_PROVES_NOTHING"`; text output names that warning when filing, showing, or reserving the item for review. An exact match with the project gate configured at that main commit records green with `reason: "repo gate"` without running it again. A missing main records unavailable with `reason: "no main"` and still files the item. Changing the check replaces this observation; clearing it removes the observation. The captured observation travels with the board move, so replicas store the result without executing the command.
+
 <!-- api-command-shapes:start -->
 | Command | Required top-level fields |
 | --- | --- |
@@ -26,6 +28,12 @@ A successful command returns the fields listed below. `version` is always the nu
 | `settings` | `version:number`, `settings:object` |
 | `relay` | `version:number`, `linked:boolean`, `board:string`, `url:string`, `link:string`, `sequence:number`, `behind:number` |
 | `list` | `version:number`, `items:array` |
+| `roadmap` | `version:number`, `milestones:array` |
+| `milestone add` | `version:number`, `milestone:object` |
+| `milestone items` | `version:number`, `milestone:object` |
+| `milestone move` | `version:number`, `milestone:object` |
+| `milestone edit` | `version:number`, `milestone:object` |
+| `milestone remove` | `version:number`, `milestone:object` |
 | `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array` |
 | `status` | `version:number`, `me:object`, `mine:array`, `stats:object`, `unread:number` |
 | `doctor` | `version:number`, `problems:array` |
@@ -69,6 +77,9 @@ A successful command returns the fields listed below. `version` is always the nu
 | `spec unmet` | `version:number`, `rows:array` |
 | `spec signoff` | `version:number`, `count:number`, `by:string`, `ids:array`, `evidence:array` |
 | `spec signers` | `version:number`, `added:boolean`, `by:string`, `path:string`, `initial:boolean` |
+| `spec approve` | `version:number`, `decisions:array` |
+| `spec decline` | `version:number`, `decisions:array` |
+| `spec apply` | `version:number`, `applied:array`, `files:array` |
 | `hook pre-commit` | `version:number`, `messages:array` |
 | `hook commit-msg` | `version:number`, `messages:array` |
 | `hook pre-push` | `version:number`, `messages:array` |
@@ -123,6 +134,8 @@ The boards response keeps `boards` and may include `warnings` for registered ent
 
 The local board state and events responses include `eventLogVersion`, which identifies the persisted event-record format separately from the HTTP envelope's `version`. Static view exports keep this field in both state.json and events.json so a reader can refuse a format newer than it understands. Sealed relay events do not use this local board format marker.
 
+The coordinator maintains the roadmap with `milestone add <name> [--note ...] [--items 1,2,3]`, `milestone items <name> --add|--remove ids`, `milestone move <name> --before <other>`, `milestone edit <name> [--name <new>] [--note <text>]`, and `milestone remove <name>`. A milestone stores only its name, optional note, and ordered item ids in `board_meta`; removing a milestone leaves its items untouched. A `repo#id` reference uses a registered repo's display name (or its folder name) before `#`; its status is read from that board when the repo is registered on this machine. `pullboard roadmap` prints milestones in order with a verified-item done count. Its JSON results and API state use `{ name, note, items: [{ id, title, status }], done, total }` for each milestone.
+
 <!-- api-http-shapes:start -->
 | Response | Required top-level fields |
 | --- | --- |
@@ -137,6 +150,10 @@ The local board state and events responses include `eventLogVersion`, which iden
 A move body is `{verb, item, args, agent}`. `item` is the positive integer id when the move needs one. `args` names its CLI positional arguments and flags; text values stay literal, including leading dashes. Omit `agent` to act as the coordinator, or name a registered agent to run in its worktree. Coordinator verification takes `args.as: "coordinator"`, matching the CLI's explicit identity check. The local session secret may act as any agent on that board. `result` is the CLI's JSON result. `next` claims work atomically; when a claim is already held it renews it and returns the renewal event. With no work available it returns the CLI's `NOTHING_FREE` refusal. Waiting remains a CLI option.
 
 Decision moves keep the CLI's routing: `shout` with `args.decision: true` may omit `args.to`; agents ask their coordinator, and the coordinator asks the person. `pass` takes the decision's id as `item` and `args.note`. Answering a decision addressed to the person requires `answer` with `args.as: "person"` from the coordinator's main checkout. Other callers receive the CLI's refusal.
+
+`spec approve <ids>` and `spec decline <ids> --reason "why"` record the person's exact row decision without writing repo files. Bare ids name SPEC.md rows; `doctrine:<id>` names a repo doctrine row. These commands refuse agent shells and agent worktrees. The authenticated local view uses moves `spec-approve` with `args: {ids: "G1 G2", by: "<optional SSH principal>"}` or `spec-decline` with `args: {ids: "G1", reason: "why"}`, acting through the main checkout. Pending rows keep their source `status` and add `decision` and `stage` (`approved, pending apply` or `declined, pending apply`) in `spec show` and the shared view/API state.
+
+Only the coordinator runs `spec apply`. It preflights every pending row against the exact source text, refusing stale decisions before writing any file. Approval changes the status to `approved`; decline changes it to `wont` with the person's reason as the row text, preserving trailing fields. SSH-enabled approvals carry one signed `row-decision` receipt binding the file, source, replacement, decision, reason and row text. Apply copies that same receipt into `.pullboard/signoffs.jsonl`; it remains a current exact-text sign-off. Commit the changed files and receipts together.
 
 The SQLite schema marker is now `PRAGMA user_version = 2`. Opening an older board upgrades it in place: `board_meta` stores the id as `meta_key = "board_id"` and a 32-character hexadecimal `meta_value`; `shout_request` and `shout_request_outcome` mark requests and their answers. Existing items, agents and events remain intact. The HTTP envelope stays at version 1 independently of the SQLite schema marker.
 

@@ -34,9 +34,10 @@ export function configTemplate(gate, fix = []) {
  * A starter SPEC.md with the row format shown by example.
  *
  * @param {string} project
+ * @param {string} [gate] Use the detected ecosystem's check in the fenced example.
  * @returns {string}
  */
-export function specTemplate(project) {
+export function specTemplate(project, gate = 'the test that proves it') {
   return `# ${project} spec
 
 Every requirement is a row with an id. Agents build against approved rows; commits cite the ids they serve. \`pullboard spec check\` lints this file.
@@ -46,7 +47,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 Write each requirement as one row under its section, in this format. The fence keeps the example out of the spec, so no placeholder id is ever committed; your own rows go below, outside it.
 
 \`\`\`text
-- G1 [draft, must] The first thing the client needs, in one line. | gate: the test that proves it
+- G1 [draft, must] The first thing the client needs, in one line. | gate: ${gate || 'the test that proves it'}
 - K1 [draft, must] A constraint, e.g. runs locally with no account. | gate: review
 \`\`\`
 

@@ -942,7 +942,8 @@ test('an item carries a brief to whoever claims it; a light agent sees only its 
   const foreign = box.run(box.repo, 'add', 'web', 'Copy', '--route', 'light', '--criterion', 'c', '--check', 'true', '--brief', LIGHT_BRIEF.replace('web/page.js', 'api/server.js'));
   assert.match(foreign.err, /BRIEF_LANE.*api\/server.js \(api's\)/);
   const added = box.run(box.repo, 'add', 'web', 'Copy', 'the', 'header', '--route', 'light', '--criterion', 'the page shows the header', '--check', 'test -f web/page.js', '--brief-file', join(box.dir, 'brief.md'));
-  assert.equal(added.out.trim(), '#2', added.err);
+  assert.equal(added.code, 0, added.err);
+  assert.equal(added.out.trim(), `#2\ncheck baseline red at main ${box.git(box.repo, 'rev-parse', 'main')}: test -f web/page.js`);
   assert.match(box.run(box.repo, 'list').out, /#2 {2}open {2}web {2}Copy the header {2}light/);
   assert.doesNotMatch(box.run(box.repo, 'list', '--route', 'light').out, /Design the page/);
   const made = box.run(box.repo, 'worktree', 'web', '--route', 'light');
@@ -1371,7 +1372,7 @@ test('check runs the item\'s own check command, yours by default, and prints a d
   assert.match(green.out, /^check #1 set by coordinator:/);
   assert.equal(box.run(box.repo, 'check', '1').code, 1, 'named, from another checkout: there the file is missing');
   assert.match(box.run(box.web, 'check', '2').err, /NO_CHECK.*#2 has no check command/);
-  assert.match(box.run(box.repo, 'help').out, /pullboard check \[id\]/);
+  assert.match(box.run(box.repo, 'help', '--all').out, /pullboard check \[id\]/);
 });
 
 test('submit leaves a dependency fast-forwarded in out of the files it records [N21]', () => {
@@ -1411,12 +1412,12 @@ test('verify and escalate take a note from a file, exactly as written [V12]', ()
   box.run(light, 'claim', '2');
   assert.match(box.run(light, 'escalate', '2', '--note-file', join(box.dir, 'note.txt')).out, /#2 escalated light -> mid/);
   assert.match(box.run(box.repo, 'show', '2').out, /ran `npm test` with \$HOME unset: "it failed"/);
-  assert.match(box.run(box.repo, 'help').out, /--note-file <file>/);
+  assert.match(box.run(box.repo, 'help', '--all').out, /--note-file <file>/);
 });
 
 test('the help keeps every command description apart from its usage [N37]', () => {
   const box = sandbox();
-  const help = box.run(box.dir, 'help').out;
+  const help = box.run(box.dir, 'help', '--all').out;
   const commandLines = help.split('\n').filter((line) => line.startsWith('  pullboard '));
   for (const line of commandLines) {
     const hasDescriptionGap = / {2,}\S/.test(line.slice('  pullboard '.length));

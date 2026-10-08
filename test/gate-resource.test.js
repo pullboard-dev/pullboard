@@ -31,13 +31,14 @@ function fixture() {
   return { dir, events, env };
 }
 
-/** Create a real clean repository whose gate records its start and end around a delay. */
-function gateRepo(box, name, delay = 0.25) {
+/** Create a clean gate repo whose start and end record observable execution, optionally waiting for a release file. */
+function gateRepo(box, name, delay = 0.25, releaseFile = null) {
   const root = join(box.dir, name);
   mkdirSync(root);
   const git = (...args) => spawnSync('git', args, { cwd: root, env: box.env, encoding: 'utf8' });
   assert.equal(git('init', '-q', '-b', 'main').status, 0);
-  const command = `printf '${name} start\\n' >> ${quote(box.events)}; sleep ${delay}; printf '${name} end\\n' >> ${quote(box.events)}`;
+  const wait = releaseFile ? `while [ ! -e ${quote(releaseFile)} ]; do sleep 0.02; done` : `sleep ${delay}`;
+  const command = `printf '${name} start\\n' >> ${quote(box.events)}; ${wait}; printf '${name} end\\n' >> ${quote(box.events)}`;
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: command }));
   writeFileSync(join(root, 'SPEC.md'), '# Queue fixture\n');
   assert.equal(git('add', '-A').status, 0);
@@ -63,7 +64,7 @@ function launch(box, root) {
 }
 
 /** Wait until an observable fixture state is reached, or fail with a useful timeout. */
-async function waitFor(predicate, description, timeoutMs = 10_000) {
+async function waitFor(predicate, description, timeoutMs = 30_000) {
   const until = Date.now() + timeoutMs;
   while (Date.now() < until) {
     const value = predicate();
@@ -89,18 +90,21 @@ after(async () => {
 
 test('[Q4,O5,O6] gate processes run one at a time in FIFO order when machine slots are one', async () => {
   const box = fixture();
-  const roots = ['first', 'second', 'third'].map((name) => gateRepo(box, name, name === 'first' ? 1.5 : 0.2));
+  const releaseFirst = join(box.dir, 'release-first');
+  const roots = ['first', 'second', 'third'].map((name) => gateRepo(box, name, name === 'first' ? 0.1 : 0.2, name === 'first' ? releaseFirst : null));
   const setting = spawnSync(process.execPath, [BIN, 'settings', 'gateSlots', '1', '--json'], { cwd: roots[0], env: box.env, encoding: 'utf8' });
   assert.equal(setting.status, 0, setting.stderr);
   assert.equal(JSON.parse(setting.stdout).settings.gateSlots, 1);
   const first = launch(box, roots[0]);
-  await waitFor(() => events(box).includes('first start'), 'first gate to start');
+  await waitFor(() => events(box).includes('first start') && !events(box).includes('first end'), 'first gate to remain active', 30_000);
   const second = launch(box, roots[1]);
   await waitFor(() => second.stdoutText.includes('place 1'), 'second gate to enter the FIFO line');
   assert.match(second.stdoutText, /1 running/);
   assert.ok(second.stdoutText.includes(roots[0]), 'wait report names the repo holding the slot');
   const third = launch(box, roots[2]);
   await waitFor(() => third.stdoutText.includes('place 2'), 'third gate to enter behind the second');
+  assert.ok(events(box).includes('first start') && !events(box).includes('first end'), 'both successors queued while the first gate still held its slot');
+  writeFileSync(releaseFirst, 'release\n');
   const results = await Promise.all([first.closed, second.closed, third.closed]);
   assert.deepEqual(results.map(({ code }) => code), [0, 0, 0], `${first.stderrText}${second.stderrText}${third.stderrText}`);
   const starts = events(box).filter((line) => line.endsWith(' start')).map((line) => line.split(' ')[0]);
@@ -118,24 +122,26 @@ test('[Q4,O5,O6] gate processes run one at a time in FIFO order when machine slo
 test('[Q4] an exact-tree cached gate starts while another machine gate holds the only slot', async () => {
   const box = fixture();
   const cachedRoot = gateRepo(box, 'cached', 0.1);
-  const holderRoot = gateRepo(box, 'holder', 2);
+  const releaseHolder = join(box.dir, 'release-holder');
+  const holderRoot = gateRepo(box, 'holder', 0.1, releaseHolder);
   assert.equal(spawnSync(process.execPath, [BIN, 'settings', 'gateSlots', '1'], { cwd: holderRoot, env: box.env }).status, 0);
   const warm = spawnSync(process.execPath, [BIN, 'gate'], { cwd: cachedRoot, env: box.env, encoding: 'utf8' });
   assert.equal(warm.status, 0, warm.stderr);
   const priorCount = events(box).filter((line) => line.startsWith('cached ')).length;
   const holder = launch(box, holderRoot);
-  await waitFor(() => events(box).includes('holder start'), 'uncached holder gate to start');
+  await waitFor(() => events(box).includes('holder start') && !events(box).includes('holder end'), 'uncached holder gate to remain active', 30_000);
   const refusedChange = spawnSync(process.execPath, [BIN, 'settings', 'gateSlots', '2', '--json'], { cwd: cachedRoot, env: box.env, encoding: 'utf8' });
   assert.equal(refusedChange.status, 1);
   assert.equal(JSON.parse(refusedChange.stdout).error.code, 'RESOURCE_BUSY');
   assert.equal(JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'settings.json'), 'utf8')).gateSlots, 1);
-  const started = Date.now();
-  const cached = spawnSync(process.execPath, [BIN, 'gate'], { cwd: cachedRoot, env: box.env, encoding: 'utf8', timeout: 1_000 });
+  const cached = spawnSync(process.execPath, [BIN, 'gate'], { cwd: cachedRoot, env: box.env, encoding: 'utf8', timeout: 30_000 });
   assert.equal(cached.status, 0, cached.stderr);
   assert.match(cached.stdout, /already passed/);
-  assert.ok(Date.now() - started < 1_000, 'cached gate bypasses the occupied machine slot');
+  assert.ok(events(box).includes('holder start') && !events(box).includes('holder end'), 'cached gate returned while the other machine gate still held its slot');
   assert.equal(events(box).filter((line) => line.startsWith('cached ')).length, priorCount, 'cached gate command did not run again');
+  writeFileSync(releaseHolder, 'release\n');
   assert.equal((await holder.closed).code, 0, holder.stderrText);
+  assert.ok(events(box).includes('holder end'), 'the holder exits only after the test releases it');
 });
 
 test('[Q4] SIGKILL during a gate releases its machine slot for the next process', async () => {
