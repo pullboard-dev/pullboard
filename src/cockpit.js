@@ -668,15 +668,79 @@ function renderSide() {
   document.title = p || selectedGroup ? (needs ? '(' + needs + ') ' : '') + $('proj-name').textContent + ' · Pullboard' : 'Pullboard';
 }
 
+  /** Escape plain text while preserving safe item and code-preview links.
+   * @param {string} text
+   * @param {Map<string, string>} titles
+   * @param {boolean} allowLinks
+   * @returns {string}
+   */
+  function linked(text, titles, allowLinks = true) { return String(text ?? '').split(/(#\\d+|(?<![^\\s([{"'\`])[^\\s:@()[\\]{}"'\`]+:\\d+(?:-\\d+)?@[0-9a-f]{7,40}(?![^\\s)\\]}"'\`.,;:!?]))/).map((part, n, parts) => {
+    if (n % 2 && part[0] !== '#') return allowLinks ? codeRef(part, parts.slice(0, n).join('').split('\\n').pop().slice(-2000)) : '<code class="inline">' + esc(part) + '</code>';
+    const id = /^#\\d+$/.test(part) ? String(Number(part.slice(1))) : '';
+    return titles.has(id) && allowLinks ? '<button class="ref" data-go="item:' + id + '" title="' + esc(titles.get(id)) + '" type="button">' + esc(part) + '</button>' : esc(part);
+  }).join(''); }
+  /** Format inline code and recognized command tokens without interpreting markup.
+   * @param {string} text
+   * @param {Map<string, string>} titles
+   * @param {boolean} allowLinks
+   * @returns {string}
+   */
+  function inline(text, titles, allowLinks = true) { return String(text ?? '').split(/(\`[^\`]*\`|[^\\s:@()[\\]{}"'\`]+:\\d+(?:-\\d+)?@[0-9a-f]{7,40}|pullboard(?:\\s+\\w+)+|--[\\w-]+|(?:\\/|\\.\\.?\\/|[\\w.-]+\\/)\\w[\\w./-]*\\.[A-Za-z0-9]+|\\b[0-9a-fA-F]{7,40}\\b|#\\d+)/g).map((part, n, parts) => {
+    if (part.startsWith('\`') && part.endsWith('\`')) return '<code class="inline">' + esc(part.slice(1, -1)) + '</code>';
+    if (part.includes('@') && part.includes(':')) {
+      const textBefore = parts.slice(0, n).join('');
+      const fullText = parts.join('');
+      const after = fullText[textBefore.length + part.length] || '';
+      const leftBoundary = !textBefore || [9, 10, 32, 40, 91, 123, 34, 39, 96].includes(textBefore.at(-1).charCodeAt(0));
+      const rightBoundary = !after || [9, 10, 32, 41, 93, 125, 34, 39, 96, 46, 44, 59, 58, 33, 63].includes(after.charCodeAt(0));
+      const validRef = leftBoundary && rightBoundary;
+      if (allowLinks && validRef) return codeRef(part, textBefore.slice(-2000));
+      return '<code class="inline">' + esc(part) + '</code>';
+    }
+    if (/^(?:pullboard(?:\\s+\\w+)+|--[\\w-]+|(?:\\/|\\.\\.?\\/|[\\w.-]+\\/)\\w[\\w./-]*\\.[A-Za-z0-9]+|\\b[0-9a-fA-F]{7,40}\\b)$/.test(part)) return '<code class="inline">' + esc(part) + '</code>';
+    return linked(part, titles, allowLinks);
+  }).join(''); }
+  /** Render inline text and fenced or shell command blocks with escaped contents.
+   * @param {string} text
+   * @param {Map<string, string>} titles
+   * @param {boolean} allowLinks
+   * @returns {string}
+   */
+  function rich(text, titles, allowLinks = true) {
+    const lines = String(text ?? '').split('\\n');
+    const output = [];
+    for (let i = 0; i < lines.length;) {
+      if (lines[i].startsWith('\`\`\`')) {
+        const block = [];
+        i++;
+        while (i < lines.length && !lines[i].startsWith('\`\`\`')) block.push(lines[i++]);
+        if (i < lines.length) i++;
+        output.push('<code class="code block">' + esc(block.join('\\n')) + '</code>');
+      } else if (lines[i].startsWith('$ ')) {
+        const block = [];
+        while (i < lines.length && lines[i].startsWith('$ ')) block.push(lines[i++]);
+        output.push('<code class="code block">' + esc(block.join('\\n')) + '</code>');
+      } else {
+        const block = [];
+        while (i < lines.length && !lines[i].startsWith('\`\`\`') && !lines[i].startsWith('$ ')) block.push(inline(lines[i++], titles, allowLinks));
+        output.push(block.join('<br>'));
+      }
+    }
+    return output.join('<br>');
+  }
+
 /** Draw a project's cross-repo Needs-you list and one activity feed. */
 function renderGroup(group) {
   const needs = group.repos.flatMap((repo) => projectNeeds(repo.board).map((row) => ({ ...row, repo })));
-  $('group-needs').innerHTML = needs.length ? needs.map((row) => '<button class="group-need" data-root="' + esc(row.repo.root) + '" type="button"><b>' + esc(row.repo.name) + '</b><code>' + esc(row.ref) + '</code><span>' + esc(row.text) + '</span><em>' + esc(row.what) + (row.at ? ', ' + age(row.at) : '') + ' →</em></button>').join('') : '<div class="empty">Nothing needs you across this project.</div>';
+  $('group-needs').innerHTML = needs.length ? needs.map((row) => {
+    const titles = new Map(row.repo.board.items.map((item) => [String(item.id), item.title]));
+    return '<button class="group-need" data-root="' + esc(row.repo.root) + '" type="button"><b>' + esc(row.repo.name) + '</b><code>' + esc(row.ref) + '</code><span>' + rich(row.text, titles, false) + '</span><em>' + esc(row.what) + (row.at ? ', ' + age(row.at) : '') + ' →</em></button>';
+  }).join('') : '<div class="empty">Nothing needs you across this project.</div>';
   const events = group.repos.flatMap((repo) => {
     const titles = new Map(repo.board.items.map((item) => [String(item.id), item.title]));
     return repo.board.events.map((event) => ({ ...event, repo, title: event.item_id ? titles.get(String(event.item_id)) : null }));
   }).sort((a, b) => b.event_at.localeCompare(a.event_at)).slice(0, 80);
-  $('group-activity').innerHTML = events.length ? byDay(events, (event) => event.event_at, (event) => '<div><time>' + clock(event.event_at) + '</time><div class="act"><b class="repo-label">' + esc(event.repo.name) + '</b> <span>' + esc(event.event_by) + ' ' + esc(event.event_kind) + (event.item_id ? ' #' + event.item_id + (event.title ? ' ' + esc(event.title) : '') : '') + '</span></div></div>') : '<div class="empty">No activity yet.</div>';
+  $('group-activity').innerHTML = events.length ? byDay(events, (event) => event.event_at, (event) => '<div><time>' + clock(event.event_at) + '</time><div class="act"><b class="repo-label">' + esc(event.repo.name) + '</b> <span>' + esc(event.event_by) + ' ' + esc(event.event_kind) + (event.item_id ? ' #' + event.item_id + (event.title ? ' ' + rich(event.title, new Map(), false) : '') : '') + '</span></div></div>') : '<div class="empty">No activity yet.</div>';
 }
 
 /** Draw the board shown: the sidebar, then every tab's panes from the project's board. */
@@ -706,6 +770,7 @@ function render() {
   $('count-items').textContent = active.length || '';
   $('count-spec').textContent = p.spec.filter((r) => ['pending', 'draft'].includes(r.status)).length || '';
   $('count-doctrine').textContent = p.practice.filter((r) => ['pending', 'draft'].includes(r.status)).length || '';
+  const titles = new Map(p.items.map((i) => [String(i.id), i.title]));
 
   // What needs the person, first, and only the person's calls (B26): the decisions passed up to them,
   // questions in the spec, held lanes, then draft rows. Work waiting for a verdict or sent back shows
@@ -717,7 +782,7 @@ function render() {
   ];
   const drafts = p.spec.filter((r) => r.status === 'draft').length;
   $('needs').hidden = !needs.length && !drafts;
-  $('needs').innerHTML = '<div class="head"><i></i>Needs you</div>' + needs.slice(0, 6).map(([target, ref, text, what, at]) => '<button class="ny" data-go="' + esc(target) + '" type="button"><code>' + esc(ref) + '</code><span>' + esc(text) + '</span><em>' + esc(what) + (at ? ', ' + age(at) : '') + ' →</em></button>').join('') + (needs.length > 6 ? '<div class="muted more">and ' + (needs.length - 6) + ' more</div>' : '') + (drafts ? '<button class="ny" data-go="tab:spec" type="button"><code>' + drafts + '</code><span>draft spec rows to approve or drop</span><em>review →</em></button>' : '');
+  $('needs').innerHTML = '<div class="head"><i></i>Needs you</div>' + needs.slice(0, 6).map(([target, ref, text, what, at]) => '<button class="ny" data-go="' + esc(target) + '" type="button"><code>' + esc(ref) + '</code><span>' + rich(text, titles, false) + '</span><em>' + esc(what) + (at ? ', ' + age(at) : '') + ' →</em></button>').join('') + (needs.length > 6 ? '<div class="muted more">and ' + (needs.length - 6) + ' more</div>' : '') + (drafts ? '<button class="ny" data-go="tab:spec" type="button"><code>' + drafts + '</code><span>draft spec rows to approve or drop</span><em>review →</em></button>' : '');
 
   const lanes = p.lanes;
   const working = lanes.filter((l) => l !== 'coordinator');
@@ -754,7 +819,7 @@ function render() {
     const tag = s === 'building' && i.owner ? '<span class="chip busy" title="building, held by ' + esc(i.owner) + '">' + esc(i.owner) + '</span>'
       : s === 'verify' && i.reviewer ? '<span class="chip warn" title="reviewing until ' + esc(when(i.reviewUntil)) + '">' + esc(i.reviewer) + ' reviewing</span>'
       : s === 'open' ? (gated ? '<span class="chip gate">' + (waits.length ? 'gated' : 'lane held') + '</span>' : '<span class="chip free">unclaimed</span>') : chip(s);
-    return '<li class="row' + (view.item === i.id ? ' on' : '') + (gated ? ' gated' : '') + '" data-item="' + i.id + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + esc(i.title) + '</div><div class="meta"><span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span>' + esc(i.specs.join(', ')) + '</span>' : '') + (who ? '<span>' + esc(who) + '</span>' : '') + pills + '<span>' + age(i.updatedAt) + '</span>' + (rejected(i) ? '<span class="why">' + esc(i.verdict.reason + ': ' + firstLine(i.verdict.note)) + '</span>' : '') + '</div></div>' + tag + '</li>';
+    return '<li class="row' + (view.item === i.id ? ' on' : '') + (gated ? ' gated' : '') + '" data-item="' + i.id + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + rich(i.title, titles) + '</div><div class="meta"><span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span>' + esc(i.specs.join(', ')) + '</span>' : '') + (who ? '<span>' + esc(who) + '</span>' : '') + pills + '<span>' + age(i.updatedAt) + '</span>' + (rejected(i) ? '<span class="why">' + esc(i.verdict.reason + ': ' + firstLine(i.verdict.note)) + '</span>' : '') + '</div></div>' + tag + '</li>';
   }).join('') : '<li class="empty">' + (items.length ? 'No items match.' : snapshot ? 'No items at this event.' : 'No items yet. Add the first one with New item.') + '</li>';
 
   const item = p.items.find((i) => i.id === view.item);
@@ -770,11 +835,11 @@ function render() {
     // Why it came back is the first thing the person reads; the verdicts before it stay below.
     const back = rejected(item);
     const earlier = back ? item.verdicts.slice(0, -1) : item.verdicts;
-    $('detail').innerHTML = '<div class="stack"><div><h2><span>#' + item.id + '</span>' + esc(item.title) + '</h2><div class="meta spaced">' + chip(s) + '<span class="chip">' + esc(item.lane) + '</span><span class="chip">' + esc(item.route) + '</span></div></div>'
+    $('detail').innerHTML = '<div class="stack"><div><h2><span>#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="meta spaced">' + chip(s) + '<span class="chip">' + esc(item.lane) + '</span><span class="chip">' + esc(item.route) + '</span></div></div>'
       + (back ? '<div class="sentback"><h3>Sent back' + (s === 'building' ? ', being reworked' : s === 'verify' ? ', resubmitted' : s === 'withdrawn' ? ', then withdrawn' : '') + '</h3>' + verdictHtml(item.verdict) + '</div>' : '')
-      + (item.criterion ? '<div><h3>Criterion</h3><div class="text">' + esc(item.criterion) + '</div></div>' : '')
+      + (item.criterion ? '<div><h3>Criterion</h3><div class="text">' + rich(item.criterion, titles) + '</div></div>' : '')
       + (cited.length ? '<div><h3>Spec rows it serves</h3>' + cited.map((r) => '<div class="rowref"><code>' + esc(r.id) + '</code><div>' + esc(r.text) + ' <span class="chip ' + tone(r.status) + '">' + esc(r.status) + '</span></div></div>').join('') + '</div>' : '')
-      + (item.brief ? '<div><h3>Brief</h3><div class="text muted">' + esc(item.brief) + '</div></div>' : '')
+      + (item.brief ? '<div><h3>Brief</h3><div class="text muted">' + rich(item.brief, titles) + '</div></div>' : '')
       + '<div><h3>People and commits</h3><dl class="kv">' + (item.owner && s === 'building' ? '<dt>holding</dt><dd>' + esc(item.owner) + '</dd>' : '') + (item.builtBy ? '<dt>built by</dt><dd>' + esc(item.builtBy) + '</dd>' : '') + (item.verifiedBy ? '<dt>verified by</dt><dd>' + esc(item.verifiedBy) + '</dd>' : '') + (item.commit ? '<dt>commit</dt><dd><code>' + esc(item.commit.slice(0, 12)) + '</code></dd>' : '') + (item.merged ? '<dt>merged</dt><dd><code>' + esc(item.merged.slice(0, 12)) + '</code></dd>' : '') + (item.blockedBy.length ? '<dt>waits on</dt><dd>' + item.blockedBy.map((id) => '#' + id).join(', ') + '</dd>' : '') + '</dl></div>'
       + (back && !earlier.length ? '' : '<div><h3>' + (back ? 'Earlier verdicts' : 'Verdicts') + '</h3>' + (earlier.length ? earlier.map(verdictHtml).join('') : '<div class="muted">None yet.</div>') + '</div>')
       + '<div><h3>History</h3>' + timeline(item) + '</div>'
@@ -786,22 +851,16 @@ function render() {
   // a number that names no item stays text. A path:lines@commit reference opens that code (B23). It
   // counts only as a whole word, never as the tail of one, so what it opens is what it says, and the
   // view refuses what is no path in the repo.
-  const titles = new Map(p.items.map((i) => [String(i.id), i.title]));
-  const linked = (text) => String(text ?? '').split(/(#\\d+|(?<![^\\s([{"'\`])[^\\s:@()[\\]{}"'\`]+:\\d+(?:-\\d+)?@[0-9a-f]{7,40}(?![^\\s)\\]}"'\`.,;:!?]))/).map((part, n, parts) => {
-    if (n % 2 && part[0] !== '#') return codeRef(part, parts.slice(0, n).join('').split('\\n').pop().slice(-2000));
-    const id = /^#\\d+$/.test(part) ? String(Number(part.slice(1))) : '';
-    return titles.has(id) ? '<button class="ref" data-go="item:' + id + '" title="' + esc(titles.get(id)) + '" type="button">' + esc(part) + '</button>' : esc(part);
-  }).join('');
   const mark = (x) => (x.shout_decision ? '<span class="mark ask">decision</span> ' : x.shout_answers ? '<span class="mark">answer</span> ' : '');
   // Evidence a shout carries (B22), as the fields it is: its kind and outcome, the item, who sent it,
   // and the commit, shortened, with the full SHA on hover.
-  const evidence = (x) => (x.shout_evidence_kind ? '<span class="ev"><b>' + esc(x.shout_evidence_kind) + '</b> ' + esc(x.shout_evidence_outcome) + ' · ' + linked('#' + x.shout_evidence_item) + ' · ' + esc(x.shout_from) + ' · <code title="' + esc(x.shout_evidence_commit) + '">' + esc(String(x.shout_evidence_commit).slice(0, 12)) + '</code></span>' : '');
-  $('feed').innerHTML = p.shouts.length ? byDay(p.shouts, (x) => x.shout_at, (x) => '<div><time>' + clock(x.shout_at) + '</time><div><b>' + esc(x.shout_from) + ' → ' + esc(x.shout_to) + '</b> ' + mark(x) + linked(x.shout_text) + evidence(x) + '</div></div>') : '<div class="empty">No shouts yet.</div>';
+  const evidence = (x) => (x.shout_evidence_kind ? '<span class="ev"><b>' + esc(x.shout_evidence_kind) + '</b> ' + esc(x.shout_evidence_outcome) + ' · ' + linked('#' + x.shout_evidence_item, titles) + ' · ' + esc(x.shout_from) + ' · <code title="' + esc(x.shout_evidence_commit) + '">' + esc(String(x.shout_evidence_commit).slice(0, 12)) + '</code></span>' : '');
+  $('feed').innerHTML = p.shouts.length ? byDay(p.shouts, (x) => x.shout_at, (x) => '<div><time>' + clock(x.shout_at) + '</time><div><b>' + esc(x.shout_from) + ' → ' + esc(x.shout_to) + '</b> ' + mark(x) + rich(x.shout_text, titles) + evidence(x) + '</div></div>') : '<div class="empty">No shouts yet.</div>';
   // Each ask waits here until it is answered (B21); the answer itself is typed in the form below. The
   // person answers the ones passed up to them; the rest wait on whoever holds them (B26).
   $('decisions').hidden = !p.decisions.length && !p.asked.length;
-  $('decisions').innerHTML = (p.decisions.length ? '<div class="head"><i></i>Decision needed</div>' + p.decisions.map((d) => '<div class="ask"><p><small><b>' + esc(d.shout_from) + '</b> asks, ' + age(d.shout_at) + '</small></p><p>' + linked(d.shout_text) + '</p><button class="ghost" data-go="decide:' + d.shout_id + '" type="button">Answer</button></div>').join('') : '')
-    + (p.asked.length ? '<div class="head quiet">Waiting on others</div>' + p.asked.map((d) => '<div class="ask other"><p><small><b>' + esc(d.shout_from) + '</b> asks <b>' + esc(d.shout_to) + '</b>, ' + age(d.shout_at) + '</small></p><p>' + linked(d.shout_text) + '</p></div>').join('') : '');
+  $('decisions').innerHTML = (p.decisions.length ? '<div class="head"><i></i>Decision needed</div>' + p.decisions.map((d) => '<div class="ask"><p><small><b>' + esc(d.shout_from) + '</b> asks, ' + age(d.shout_at) + '</small></p><p>' + rich(d.shout_text, titles) + '</p><button class="ghost" data-go="decide:' + d.shout_id + '" type="button">Answer</button></div>').join('') : '')
+    + (p.asked.length ? '<div class="head quiet">Waiting on others</div>' + p.asked.map((d) => '<div class="ask other"><p><small><b>' + esc(d.shout_from) + '</b> asks <b>' + esc(d.shout_to) + '</b>, ' + age(d.shout_at) + '</small></p><p>' + rich(d.shout_text, titles) + '</p></div>').join('') : '');
   $('shout-targets').innerHTML = ['all', ...lanes, ...p.agents.map((a) => a.agent_id)].map((t) => '<option value="' + esc(t) + '">').join('');
   // Each agent with what it holds: its claim, then its work sent back, then its work waiting for a
   // verdict. The worktree path is there on hover; what the person reads is who is doing what.
@@ -811,7 +870,7 @@ function render() {
   $('agents').innerHTML = p.agents.length ? p.agents.map((a) => {
     const mine = holding(a);
     return '<div class="agent"><div><b title="' + esc(a.agent_path) + '">' + esc(a.agent_id) + '</b><span class="muted">' + esc(a.agent_lane) + ' · ' + esc(a.agent_route) + '</span>' + (a.lastMoveAt ? '<time data-ago="' + esc(a.lastMoveAt) + '" title="last moved ' + when(a.lastMoveAt) + '">' + ago(a.lastMoveAt) + '</time>' : '') + '</div>'
-      + (mine.length ? mine.map((i) => '<button data-go="item:' + i.id + '" type="button"><span>#' + i.id + ' ' + esc(i.title) + '</span>' + (i.reviewer === a.agent_id ? '<span class="chip warn">reviewing</span>' : chip(stateOf(i))) + '</button>').join('') : '<small>idle</small>') + '</div>';
+      + (mine.length ? mine.map((i) => '<button data-go="item:' + i.id + '" type="button"><span>#' + i.id + ' ' + rich(i.title, titles, false) + '</span>' + (i.reviewer === a.agent_id ? '<span class="chip warn">reviewing</span>' : chip(stateOf(i))) + '</button>').join('') : '<small>idle</small>') + '</div>';
   }).join('') : '<div class="empty">No agents yet.</div>';
   const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
   $('lanes').innerHTML = working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no">held by ' + esc(held.get(l).hold_by) + '</span> <span class="muted">' + esc(held.get(l).hold_reason) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join('');
@@ -840,7 +899,7 @@ function render() {
     const source = kind === 'doctrine' && row ? '<span class="chip">' + esc(ruleSource(row)) + '</span>' : '';
     const reason = declined && row.reason ? '<dt>reason</dt><dd>' + esc(row.reason) + '</dd>' : '';
     const home = kind === 'doctrine' && row && row.origin === 'standard' ? 'Standard rules come with Pullboard; override or decline one in PRACTICE.md.' : 'Rows change in ' + (kind === 'spec' ? 'SPEC.md' : 'PRACTICE.md') + ', and only you approve them.';
-    $(kind + '-detail').innerHTML = row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(row.status) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div><dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<button data-go="item:' + i.id + '" type="button">#' + i.id + ' ' + esc(i.title) + '</button>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div><div class="muted">' + home + '</div></div>' : '<div class="empty">Pick a row to see it, and the items that cite it.</div>';
+    $(kind + '-detail').innerHTML = row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(row.status) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div><dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<button data-go="item:' + i.id + '" type="button">#' + i.id + ' ' + rich(i.title, titles, false) + '</button>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div><div class="muted">' + home + '</div></div>' : '<div class="empty">Pick a row to see it, and the items that cite it.</div>';
   }
 
   if (keep('pb.flow') !== 'hidden') $('flow').innerHTML = flowSvg(p);

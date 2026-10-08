@@ -13,10 +13,19 @@ import { MACHINE } from '../src/machine.js';
 const ROOT = resolve(import.meta.dirname, '..');
 const README = readFileSync(join(ROOT, 'README.md'), 'utf8');
 const drawn = Object.keys(FIGURES).map((name) => `docs/img/${name}.svg`).sort();
+const SHOT_FIGURES = [
+  { path: 'docs/shots/tour.svg', alt: 'The timed Pullboard tour shows a change submitted, rejected for a missed edge, fixed and accepted.' },
+  { path: 'docs/shots/desktop.png', alt: "The Pullboard board shows open, claimed, submitted and accepted work, with a pending decision and the accepted item's review history." },
+];
 
 /** Average glyph width, in ems, generous enough for the widest system font each figure may get. */
 const EM = { sans: 0.56, mono: 0.62 };
 const SIZE = { head: 14, t1: 14, t2: 12, label: 12, aside: 12, code: 11.5 };
+
+/** Count reader-facing words, ignoring Markdown punctuation. */
+function wordCount(text) {
+  return text.match(/[\p{L}\p{N}]+(?:['’.-][\p{L}\p{N}]+)*/gu)?.length ?? 0;
+}
 
 test('README links the official site directly under its title [I12]', () => {
   const firstTenLines = README.split(/\r?\n/).slice(0, 10);
@@ -61,6 +70,8 @@ test('the README links every figure draw.mjs draws, each committed exactly as dr
   const links = [...README.matchAll(/!\[([^\]]*)\]\((docs\/img\/[^)\s]+)\)/g)].map(([, alt, path]) => ({ alt, path }));
   assert.deepEqual(links.map((link) => link.path).sort(), drawn, 'the README links each drawn figure once, and nothing else under docs/img');
   for (const { alt, path } of links) assert.ok(alt.trim().length >= 40, `${path} has alt text that says what it shows`);
+  assert.ok(README.includes('![An agent asks its coordinator. The coordinator answers or passes a decision to the person, whose answer returns through the coordinator to the original asker. Agents send decision requests to their coordinator first.](docs/img/chain.svg)'), 'the chain figure says that decision requests go to the coordinator first');
+  for (const { alt, path } of SHOT_FIGURES) assert.ok(README.includes(`![${alt}](${path})`), `${path} and its alt text remain in the README`);
   const committed = readdirSync(join(ROOT, 'docs', 'img')).filter((file) => file.endsWith('.svg')).map((file) => `docs/img/${file}`).sort();
   assert.deepEqual(committed, drawn, 'docs/img holds exactly the figures draw.mjs draws');
   for (const [name, draw] of Object.entries(FIGURES)) {
@@ -113,4 +124,76 @@ test('README shows JSON output for spec check and view [S13]', () => {
 test('README shows the signers field and setup command [S18]', () => {
   assert.match(README, /```markdown\n- R1 \[approved, must\] A release is tested\. \| gate: npm test\n- R2 \[approved, must\] A release is signed\. \| gate: npm test \| signers: alice@workstation, bob@workstation\n```/);
   assert.match(README, /`pullboard spec signers add`/);
+});
+
+test('README keeps its product hook and the four reasons near the top [I10,I12]', () => {
+  const hook = "**Vibe code a real product.** Your agents build from a spec you approved, in lanes that keep them out of each other's way, and nothing they build counts until a second agent verifies it.";
+  const whyStart = README.indexOf('## Why');
+  const tryStart = README.indexOf('## Try it');
+  assert.ok(README.startsWith(`# Pullboard\n`));
+  assert.ok(README.includes(hook), 'the original opening hook remains');
+  assert.ok(whyStart > README.indexOf(hook) && whyStart < tryStart, 'Why remains near the top, before setup instructions');
+  const why = README.slice(whyStart, tryStart);
+  for (const problem of [
+    "**It said done. It wasn't.**",
+    '**The agent forgot what you decided.**',
+    '**A fix broke something that worked.**',
+    '**Two agents edited the same file.**',
+  ]) assert.ok(why.includes(problem), `Why keeps ${problem}`);
+});
+
+test('README is concise and skimmable without removing its instructions or figures [I10,I12]', () => {
+  const lines = README.split(/\r?\n/u);
+  let insideFence = false;
+  const proseLines = lines.map((line) => {
+    if (line.startsWith('```')) {
+      insideFence = !insideFence;
+      return '';
+    }
+    return insideFence ? '' : line;
+  });
+  const firstSection = proseLines.findIndex((line) => /^##\s/u.test(line));
+  assert.ok(firstSection > 0, 'the README has a section after its lead');
+  assert.ok(wordCount(proseLines.slice(0, firstSection).join(' ')) <= 80, 'the lead is at most 80 words');
+
+  const headings = proseLines.filter((line) => /^#{1,6}\s/u.test(line)).map((line) => line.replace(/^#{1,6}\s+/u, '').trim().toLocaleLowerCase());
+  assert.equal(new Set(headings).size, headings.length, 'headings are unique');
+
+  for (let index = 0; index < proseLines.length; index += 1) {
+    if (!/^##\s/u.test(proseLines[index])) continue;
+    let next = index + 1;
+    while (next < proseLines.length && !proseLines[next].trim()) next += 1;
+    assert.ok(next < proseLines.length, `${proseLines[index]} has an opening sentence`);
+    assert.match(proseLines[next], /[.!?]$/u, `${proseLines[index]} opens with its point`);
+    assert.doesNotMatch(proseLines[next], /^(?:!\[|\||```)/u, `${proseLines[index]} opens with prose`);
+  }
+
+  const paragraphs = [];
+  let paragraph = [];
+  let inCode = false;
+  const flush = () => {
+    if (paragraph.length) paragraphs.push(paragraph.join(' '));
+    paragraph = [];
+  };
+  for (const line of lines) {
+    if (line.startsWith('```')) {
+      flush();
+      inCode = !inCode;
+    } else if (inCode || !line.trim() || /^#{1,6}\s|^!\[|^\|/u.test(line)) {
+      flush();
+    } else if (/^\s*[-*]\s/u.test(line)) {
+      flush();
+      paragraphs.push(line.replace(/^\s*[-*]\s+/u, ''));
+    } else {
+      paragraph.push(line);
+    }
+  }
+  flush();
+  for (const text of paragraphs) assert.ok(wordCount(text) <= 60, `paragraph has ${wordCount(text)} words: ${text}`);
+
+  for (let index = 0; index < proseLines.length - 1; index += 1) {
+    if (!/^\|/u.test(proseLines[index]) || !/^\|\s*:?-{3,}/u.test(proseLines[index + 1])) continue;
+    const cells = proseLines[index].replace(/^\||\|$/gu, '').split('|').map((cell) => cell.trim());
+    assert.ok(cells.length > 0 && cells.every(Boolean), 'tables have no empty header cells');
+  }
 });

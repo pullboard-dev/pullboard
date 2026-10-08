@@ -82,7 +82,7 @@ function agentPath(root, name = COORDINATOR) {
 
 /** Declarative CLI forms keep API calls on the same argument parser and engine as terminal moves. */
 const MOVES = {
-  'spec-approve': { prefix: ['spec', 'approve'], positions: ['ids'], flags: ['by'] },
+  'spec-approve': { prefix: ['spec', 'approve'], positions: ['ids'], flags: ['by', 'text'] },
   'spec-decline': { prefix: ['spec', 'decline'], positions: ['ids'], flags: ['reason'] },
   add: { positions: ['lane', 'title'], flags: ['criterion', 'specs', 'parent', 'after', 'brief', 'route', 'check'], booleans: ['wait'] },
   edit: { item: true, flags: ['criterion', 'brief', 'route', 'check'], booleans: ['wait'] },
