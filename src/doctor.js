@@ -186,7 +186,9 @@ function submissionProblems(db, root) {
     } catch (error) {
       problems.push(finding(error.code ?? 'SUBMISSION_POLICY', 'item #' + item.item_id + ': ' + (error.code === 'OUTSIDE_LANE' ? error.message : 'its committed submission policy or claim base cannot be checked'), 'ask the coordinator to restore the original policy and inspect this submission'));
     }
-    if (!checkAtCommit(root, item).green) problems.push(finding('CHECK_RED', 'item #' + item.item_id + ' has a red frozen check at ' + item.item_commit, 'ask the coordinator to record and repair the failing submission'));
+    const check = checkAtCommit(root, item);
+    if (check.state === 'unverified') problems.push(finding('CHECK_UNVERIFIED', 'item #' + item.item_id + ' has an unverified frozen ' + check.stage + ' at ' + item.item_commit + '; output digest: ' + check.report, 'restore the install or check environment, then rerun doctor'));
+    else if (check.state === 'red') problems.push(finding('CHECK_RED', 'item #' + item.item_id + ' has a red frozen check at ' + item.item_commit + '; output digest: ' + check.report, 'ask the coordinator to record and repair the failing submission'));
   }
   return problems;
 }

@@ -12,6 +12,9 @@ export const COORDINATOR = 'coordinator';
 const LANE_NAME_RE = /^[a-z][a-z0-9-]{0,30}$/;
 const DURATION_RE = /^(\d+)(m|h|d)$/;
 const UNIT_MS = { m: 60_000, h: 3_600_000, d: 86_400_000 };
+const CHECK_TIMEOUT_RE = /^(\d+)(ms|s|m|h|d)$/;
+const CHECK_TIMEOUT_MS = { ms: 1, s: 1_000, m: 60_000, h: 3_600_000, d: 86_400_000 };
+const MAX_CHECK_TIMEOUT_MS = 2_147_483_647;
 const COMMIT_TYPES = [
   'feat',
   'fix',
@@ -39,6 +42,7 @@ export function defaults() {
     lease: '2h',
     reviewLease: '30m',
     verify: { policy: 'any', family: 'off', reviewRatio: 3 },
+    check: { install: '', timeout: '5m' },
     lanes: {},
     products: {},
     shared: [],
@@ -89,6 +93,10 @@ function merge(base, raw) {
     verify: typeof raw.verify === 'string'
       ? { ...base.verify, policy: raw.verify }
       : { ...base.verify, ...(raw.verify ?? {}) },
+    check: raw.check === undefined ? base.check
+      : raw.check && typeof raw.check === 'object' && !Array.isArray(raw.check)
+        ? { ...base.check, ...raw.check }
+        : raw.check,
   };
 }
 
@@ -149,6 +157,15 @@ export function configProblems(config) {
   if (!['off', 'prefer', 'require'].includes(config.verify?.family)) {
     problems.push('"verify.family" is "off", "prefer" or "require"');
   }
+  if (typeof config.check !== 'object' || config.check === null || Array.isArray(config.check)) {
+    problems.push('"check" is an object with optional "install" and "timeout" fields');
+  }
+  if (typeof config.check?.install !== 'string') problems.push('"check.install" is an install command string');
+  const timeout = typeof config.check?.timeout === 'string' ? CHECK_TIMEOUT_RE.exec(config.check.timeout) : null;
+  const timeoutMs = timeout ? Number(timeout[1]) * CHECK_TIMEOUT_MS[timeout[2]] : NaN;
+  if (!timeout || timeoutMs <= 0 || !Number.isFinite(timeoutMs) || timeoutMs > MAX_CHECK_TIMEOUT_MS) {
+    problems.push('"check.timeout" is a positive duration no longer than 2,147,483,647ms, like "5m"');
+  }
   if (!Number.isFinite(config.verify?.reviewRatio) || config.verify.reviewRatio <= 0) {
     problems.push('"verify.reviewRatio" is a positive number, such as 3');
   }
@@ -201,5 +218,11 @@ export function configFromSource(source) {
   const config = merge(defaults(), raw);
   const problems = configProblems(config);
   if (problems.length) throw new Refused('BAD_CONFIG', `${CONFIG_FILE}: ${problems.join('; ')}`);
-  return { ...config, leaseMs: durationMs(config.lease), reviewLeaseMs: durationMs(config.reviewLease, 'reviewLease') };
+  const timeout = CHECK_TIMEOUT_RE.exec(config.check.timeout);
+  return {
+    ...config,
+    check: { ...config.check, timeoutMs: Number(timeout[1]) * CHECK_TIMEOUT_MS[timeout[2]] },
+    leaseMs: durationMs(config.lease),
+    reviewLeaseMs: durationMs(config.reviewLease, 'reviewLease'),
+  };
 }

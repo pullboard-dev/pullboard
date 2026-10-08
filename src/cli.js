@@ -1476,7 +1476,9 @@ async function verifyHere(ctx, id, { second, values }) {
     }
     if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
-      if (!checkAtCommit(root, item).green) throw new Refused('CHECK_RED', 'the frozen item check is red at the submitted commit; reject with the failing behavior or ask the builder to fix and resubmit');
+      const check = checkAtCommit(root, item);
+      if (check.state === 'unverified') throw new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the submitted commit; output digest:\n${check.report.replace(/^/gm, '  ')}`);
+      if (check.state === 'red') throw new Refused('CHECK_RED', `the frozen item check is red at the submitted commit; check.install may be needed for dependencies; output digest:\n${check.report.replace(/^/gm, '  ')}`);
       const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
       submissionPaths(root, item, commit, { mainCommit: receipt?.policyCommit, dependencies: dependencySnapshots(board.db, item) });
     }

@@ -20,6 +20,7 @@ import { connect } from 'node:net';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { parseSpec } from '../src/spec.js';
+import { checkAtCommit } from '../src/trusted-policy.js';
 import * as store from '../src/board.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -1762,6 +1763,82 @@ function attackCommit(box, cwd) {
   box.git(cwd, 'update-ref', 'HEAD', commit);
   return commit;
 }
+
+/** Submit a fixture whose private check reads an ignored dependency folder. */
+function privateCheckSubmission({ install = '', timeout = '5m', check }) {
+  const box = project('true');
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  config.check = { install, timeout };
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: configure private check fixture');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  assert.equal(box.run(box.repo, 'add', 'web', 'Private check', '--specs', 'G1', '--criterion', 'the installed check passes', '--check', check).code, 0);
+  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  mkdirSync(join(box.web, 'web'));
+  writeFileSync(join(box.web, 'web/.gitignore'), '.deps/\n');
+  writeFileSync(join(box.web, 'web/index.html'), 'fixture');
+  const commit = attackCommit(box, box.web);
+  assert.equal(box.run(box.web, 'submit', '1').code, 0);
+  const review = join(box.dir, 'private-check-review');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
+  assert.equal(box.run(review, 'join', 'api').code, 0);
+  return { ...box, review, commit };
+}
+
+test('accept installs ignored dependencies from frozen policy and doctor audits the same private check [V18,V2]', () => {
+  const box = privateCheckSubmission({
+    install: 'echo frozen-install-ran; mkdir -p web/.deps; printf installed > web/.deps/ready',
+    check: 'test -f web/.deps/ready',
+  });
+  const accepted = box.run(box.review, 'verify', '1', 'accept', '--note', 'the private install created the ignored dependency folder', '--json');
+  assert.equal(accepted.code, 0, accepted.err);
+  const doctor = box.run(box.repo, 'doctor', '--json');
+  assert.equal(doctor.code, 0, doctor.out);
+
+  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  let item;
+  try { item = store.getItem(board, 1); }
+  finally { store.closeBoard(board); }
+  writeFileSync(join(box.web, 'pullboard.json'), JSON.stringify({ ...JSON.parse(readFileSync(join(box.web, 'pullboard.json'), 'utf8')), check: { install: 'echo malicious-install-ran; exit 7', timeout: '5m' } }));
+  const changed = attackCommit(box, box.web);
+  const proof = checkAtCommit(box.repo, { ...item, item_commit: changed });
+  assert.equal(proof.state, 'pass');
+  assert.match(proof.output, /frozen-install-ran/);
+  assert.doesNotMatch(proof.output, /malicious-install-ran/);
+});
+
+test('accept without check.install keeps CHECK_RED and names the missing setting [V18,V2]', () => {
+  const box = privateCheckSubmission({ check: 'echo check-failed; test -f web/.deps/ready' });
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'checking missing private dependency', '--json');
+  assert.equal(refused.code, 1);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'CHECK_RED');
+  assert.match(error.message, /check\.install/);
+  assert.match(error.message, /output digest/);
+  assert.match(error.message, /check-failed/);
+});
+
+test('accept reports failed install as CHECK_UNVERIFIED with an output digest [V18,V2]', () => {
+  const box = privateCheckSubmission({ install: 'echo install-failed; exit 9', check: 'true' });
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'install must complete before verification', '--json');
+  assert.equal(refused.code, 1);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'CHECK_UNVERIFIED');
+  assert.match(error.message, /install failed/);
+  assert.match(error.message, /output digest/);
+  assert.match(error.message, /install-failed/);
+});
+
+test('accept reports a frozen check timeout as CHECK_UNVERIFIED [V18,V2]', () => {
+  const box = privateCheckSubmission({ timeout: '100ms', check: 'case "$PULLBOARD_HOME" in */pullboard-criterion-*/home/.pullboard) while :; do :; done;; *) exit 1;; esac' });
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'the frozen check exceeded its configured timeout', '--json');
+  assert.equal(refused.code, 1);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'CHECK_UNVERIFIED');
+  assert.match(error.message, /check timed out/);
+  assert.match(error.message, /output digest/);
+});
 
 test('the blind gate-bypass repro refuses submit and accept, and doctor audits pre-merge policy [V4,V16,L3,M3]', () => {
   const box = project('true');

@@ -1,6 +1,7 @@
 /** Coordinator policy and immutable submission checks cannot come from a builder's candidate [V4,V16,L3,M3]. */
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { digestOf } from './gate.js';
+import { closeSync, mkdtempSync, mkdirSync, openSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { configFromSource } from './config.js';
@@ -99,19 +100,63 @@ export function frozenCheck(item) {
 /** Run the frozen check at the exact submitted commit in a private clone, leaving live worktrees untouched. */
 export function checkAtCommit(root, item) {
   const command = frozenCheck(item);
-  if (!command) return { green: true, checked: false };
+  if (!command) return { state: 'pass', green: true, checked: false, report: '' };
+  let config;
+  try { config = itemPolicy(root, item).config; }
+  catch { return checkResult('unverified', 'policy', '', ''); }
+  const install = config.check.install;
+  const timeout = config.check.timeoutMs;
   const scratch = mkdtempSync(join(tmpdir(), 'pullboard-criterion-'));
   const copy = join(scratch, 'repo');
   const home = join(scratch, 'home');
   mkdirSync(home, { mode: 0o700 });
-  const env = { ...cleanGitEnvironment(), HOME: home, PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(home, 'machine'), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+  const verifierHome = process.env.HOME ?? process.env.USERPROFILE;
+  const npmCache = process.env.npm_config_cache ?? join(verifierHome ?? home, '.npm');
+  const env = { ...cleanGitEnvironment(), HOME: home, PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(home, 'machine'), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', npm_config_cache: npmCache };
+  delete env.PULLBOARD_RELAY_TOKEN;
+  let installOutput = '';
+  let checkOutput = '';
   try {
     const common = policyGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
     const clone = spawnSync('git', ['clone', '--quiet', '--shared', '--no-checkout', common, copy], { env, stdio: 'ignore' });
     const checkout = clone.status === 0 && spawnSync('git', ['checkout', '--quiet', '--detach', item.item_commit], { cwd: copy, env, stdio: 'ignore' });
-    if (!checkout || checkout.status !== 0) return { green: false, checked: true };
-    const run = spawnSync('(\n' + command + '\n) 2>&1', { cwd: copy, env, shell: true, stdio: 'ignore', timeout: 300000 });
-    return { green: run.status === 0, checked: true };
-  } catch { return { green: false, checked: true }; }
+    if (!checkout || checkout.status !== 0) return checkResult('unverified', 'clone or checkout', installOutput, checkOutput);
+    const deadline = Date.now() + timeout;
+    if (install) {
+      const run = runPrivateCommand(copy, env, install, Math.max(1, deadline - Date.now()), join(scratch, 'install.log'));
+      installOutput = run.output;
+      if (run.error?.code === 'ETIMEDOUT') return checkResult('unverified', 'install timed out', installOutput, checkOutput);
+      if (run.status !== 0) return checkResult('unverified', 'install failed', installOutput, checkOutput);
+    }
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return checkResult('unverified', 'check timed out', installOutput, checkOutput);
+    const run = runPrivateCommand(copy, env, command, remaining, join(scratch, 'check.log'));
+    checkOutput = run.output;
+    if (run.error?.code === 'ETIMEDOUT') return checkResult('unverified', 'check timed out', installOutput, checkOutput);
+    if (run.error || run.status === null) return checkResult('unverified', 'check could not complete', installOutput, checkOutput);
+    return checkResult(run.status === 0 ? 'pass' : 'red', 'check', installOutput, checkOutput);
+  } catch { return checkResult('unverified', 'check', installOutput, checkOutput); }
   finally { rmSync(scratch, { recursive: true, force: true }); }
+}
+
+/** Run one shell command in a bounded private process group and capture its combined output. */
+function runPrivateCommand(root, env, command, timeout, logPath) {
+  const descriptor = openSync(logPath, 'w', 0o600);
+  try {
+    const run = spawnSync('sh', ['-c', `ulimit -f 16384\n(\n${command}\n)`], {
+      cwd: root, env, detached: true, stdio: ['ignore', descriptor, descriptor], timeout,
+    });
+    if (run.pid) {
+      try { process.kill(-run.pid, 'SIGKILL'); } catch { /* The process group has already exited. */ }
+    }
+    const output = readFileSync(logPath, 'utf8');
+    const capped = statSync(logPath).size >= 8 * 1024 * 1024 ? `${output}\n[output capped at 8 MiB]` : output;
+    return { ...run, output: capped };
+  } finally { closeSync(descriptor); }
+}
+
+/** Summarize both private command outputs for verifier and doctor diagnostics. */
+function checkResult(state, stage, installOutput, checkOutput) {
+  const output = `install:\n${installOutput || '(no output)'}\ncheck:\n${checkOutput || '(not run or no output)'}`;
+  return { state, green: state === 'pass', checked: true, stage, report: digestOf(output) || '(no output)', output };
 }
