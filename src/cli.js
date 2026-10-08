@@ -1270,9 +1270,12 @@ function readCommands(io, { first, second, rest, values }) {
       if (reviewer) io.say(`under review by ${reviewer} until ${item.item_review_until}`);
       // Earlier verdicts as one line each, so an item sent back several times stays short to read
       // (N30); --history prints every note in full.
-      const verdictLine = (verdict) => `${verdict.verdict_decision} ${verdict.verdict_reason} by ${verdict.verdict_by}${verdict.verdict_verifier_family ? ` (${verdict.verdict_verifier_family})` : ''} at ${verdict.verdict_commit.slice(0, 12)}; check: ${verdict.check ?? 'unknown'}`;
+      const verdictLine = (verdict) => `${verdict.verdict_decision} ${verdict.verdict_reason} by ${verdict.verdict_by}${verdict.verdict_verifier_family ? ` (${verdict.verdict_verifier_family})` : ''} at ${verdict.verdict_commit.slice(0, 12)}`;
       const notes = verdicts.map((verdict, index) => (values.history || index === verdicts.length - 1 ? verdict.verdict_note : firstLineOf(verdict.verdict_note)));
-      verdicts.forEach((verdict, index) => io.say(`${verdictLine(verdict)}${notes[index] ? `: ${notes[index]}` : ''}`));
+      verdicts.forEach((verdict, index) => {
+        io.say(`${verdictLine(verdict)}${notes[index] ? `: ${notes[index]}` : ''}`);
+        io.say(`  check: ${verdict.check ?? 'unknown'}`);
+      });
       if (notes.some((note, index) => note !== verdicts[index].verdict_note)) io.say(`(earlier verdicts shortened; every note in full: pullboard show ${id} --history)`);
       if (item.item_merged_commit) io.say(`merged as ${item.item_merged_commit}`);
       if (item.item_withdrawn_reason) io.say(`withdrawn: ${item.item_withdrawn_reason}`);

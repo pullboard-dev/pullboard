@@ -135,8 +135,12 @@ test('rework keeps historical rejection unknown and shows the latest accept chec
     assert.match(accepted, /no frozen check ran/);
     const shownJson = JSON.parse(succeeds(box, repo, 'show', String(item.id), '--json'));
     assert.deepEqual(shownJson.verdicts.map((verdict) => verdict.check), ['unknown', 'none']);
-    const shown = succeeds(box, repo, 'show', String(item.id));
-    assert.match(shown, /REJECT[\s\S]*check: unknown[\s\S]*ACCEPT[\s\S]*check: none/);
+    const shown = succeeds(box, repo, 'show', String(item.id)).split('\n');
+    const rejectLine = shown.findIndex((line) => line.startsWith('REJECT BEHAVIOR_MISMATCH'));
+    const acceptLine = shown.findIndex((line) => line.startsWith('ACCEPT CRITERION_MET'));
+    assert.ok(rejectLine >= 0 && acceptLine > rejectLine);
+    assert.equal(shown[rejectLine + 1], '  check: unknown');
+    assert.equal(shown[acceptLine + 1], '  check: none');
     const rows = succeeds(box, repo, 'ledger').split('\n').filter((line) => line.startsWith(`| ${item.id} |`));
     assert.equal(rows.length, 1);
     assert.match(rows[0], /\| unchecked \|/);
