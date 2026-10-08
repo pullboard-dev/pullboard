@@ -1,14 +1,35 @@
 /**
- * The commit-message rules (C1, C2) and the pre-commit pattern checks, without git.
+ * The commit-message rules (C1, C2) and the pre-commit pattern checks on real staged changes.
  */
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { defaults } from '../src/config.js';
-import { addedLines, blockedPaths, commitMsgProblems, matchesPattern, secretsIn } from '../src/hooks.js';
+import { addedLines, blockedPaths, commitMsgProblems, matchesPattern, preCommitProblems, secretsIn } from '../src/hooks.js';
 import { parseSpec } from '../src/spec.js';
+import { Refused } from '../src/refused.js';
 
 const SPEC = { ...parseSpec('## G\n- G1 [approved, must] One. | gate: t\n- G2 [retired] Gone.\n'), name: 'SPEC.md' };
 const RULES = defaults().commits;
+
+/** Make a private real repository for staged-diff hook tests, with cleanup tied to the test. */
+function stagedRepo(t) {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-staged-diff-'));
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  /** Run Git only in this fixture, without the maintainer's identity or configuration. */
+  const git = (...args) => execFileSync('git', args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+  git('init', '-q', '-b', 'main');
+  return { root, git };
+}
+
+/** Run the same staged protections called by the installed pre-commit hook. */
+function stagedProblems(root) {
+  return preCommitProblems({ root, isMain: true, config: defaults(), agent: null });
+}
 
 /**
  * Problems with a message under the default rules, or the given ones.
@@ -76,6 +97,45 @@ test('secrets are named by kind and place, never echoed', () => {
   const found = secretsIn(addedLines(diff));
   assert.deepEqual(found, ['Anthropic key at config/settings.js:2', 'env-style secret at config/settings.js:3']);
   assert.ok(found.every((entry) => !entry.includes('abcdefghij')));
+});
+
+test('the secret scan handles 2.4 MiB of binary images and finds an embedded key [P4]', (t) => {
+  const box = stagedRepo(t);
+  const secret = `sk-ant-${'A'.repeat(32)}`;
+  for (let index = 0; index < 17; index += 1) {
+    const image = Buffer.alloc(150_000);
+    image.set([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46, 0x49, 0x46, 0]);
+    if (index === 0) image.write(`${secret}\n`, 11, 'ascii');
+    writeFileSync(join(box.root, `image-${index}.jpg`), image);
+  }
+  box.git('add', '--', '*.jpg');
+  const problems = stagedProblems(box.root);
+  assert.deepEqual(problems, ['possible secret: Anthropic key at image-0.jpg:1']);
+  assert.ok(!problems.join(' ').includes(secret));
+});
+
+test('a staged diff beyond the safe output limit is a private coded refusal [P4]', (t) => {
+  const box = stagedRepo(t);
+  const marker = 'STAGED_CONTENT_MUST_NOT_BE_ECHOED';
+  writeFileSync(join(box.root, 'large.txt'), `${marker}\n${'ordinary text\n'.repeat(700_000)}`);
+  box.git('add', '--', 'large.txt');
+  assert.throws(() => stagedProblems(box.root), (error) => {
+    assert.ok(error instanceof Refused);
+    assert.equal(error.code, 'DIFF_TOO_LARGE');
+    assert.match(error.message, /split the change into smaller commits, then retry/);
+    assert.ok(!error.message.includes(marker));
+    return true;
+  });
+});
+
+test('pre-commit still refuses and redacts a staged text secret [P4]', (t) => {
+  const box = stagedRepo(t);
+  const secret = `sk-ant-${'A'.repeat(32)}`;
+  writeFileSync(join(box.root, 'settings.js'), `const token = \"${secret}\";\n`);
+  box.git('add', '--', 'settings.js');
+  const problems = stagedProblems(box.root);
+  assert.deepEqual(problems, ['possible secret: Anthropic key at settings.js:1']);
+  assert.ok(!problems.join(' ').includes(secret));
 });
 
 test('a refused merge message points to the message git writes, which is exempt [C4]', () => {
