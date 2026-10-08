@@ -80,7 +80,7 @@ export async function relayClientFixture(t) {
       }
       return end(chunk, ...args);
     };
-    calls.push({ method: req.method, path: req.url, accept: req.headers.accept ?? '' });
+    calls.push({ method: req.method, path: req.url, accept: req.headers.accept ?? '', engine: req.headers['x-pullboard-engine'] });
     if ([...privateKeys].some(key => JSON.stringify({ url: req.url, headers: req.headers }).includes(key))) keyLeaked = true;
     if (refuseEventReads && req.method === 'GET' && /\/events(?:\?|$)/.test(req.url)) {
       res.writeHead(503, { 'content-type': 'application/json' });

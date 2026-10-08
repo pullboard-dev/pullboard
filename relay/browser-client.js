@@ -38,7 +38,9 @@ function transportBytes(value) {
 
 /** Fetch only same-origin API documents, retaining stable refusal guidance and no provider details. */
 async function documentAt(path, onDenied, options = {}) {
-  const response = await fetch(path, { ...options, credentials: 'same-origin', cache: 'no-store', redirect: 'error' });
+  const headers = new Headers(options.headers ?? {});
+  headers.set('x-pullboard-engine', String(ENGINE_VERSION));
+  const response = await fetch(path, { ...options, headers, credentials: 'same-origin', cache: 'no-store', redirect: 'error' });
   const document = await response.json();
   if (!response.ok) {
     const error = document.error;
@@ -105,7 +107,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
   async function snapshot(entry) {
     const response = await fetch('/api/v1/boards/' + entry.id + '/state', {
       credentials: 'same-origin', cache: 'no-store', redirect: 'error',
-      headers: entry.state && entry.snapshotTag ? { 'if-none-match': entry.snapshotTag } : {},
+      headers: { 'x-pullboard-engine': String(ENGINE_VERSION), ...(entry.state && entry.snapshotTag ? { 'if-none-match': entry.snapshotTag } : {}) },
     });
     if (response.status === 304 && entry.state) return;
     const document = await response.json();
@@ -192,38 +194,87 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     for (const row of document.events) await receive(entry, row, true);
   }
 
-  /** Subscribe to real relay events and retention warnings without sending a key or bearer token. */
+  /** Parse a complete SSE message, keeping multi-line data in the standard joined form. */
+  function sseMessage(packet) {
+    let event = 'message';
+    const data = [];
+    for (const line of packet.split(/\r?\n/u)) {
+      if (line.startsWith('event:')) event = line.slice(6).trimStart();
+      else if (line.startsWith('data:')) data.push(line.slice(5).trimStart());
+    }
+    return { event, data: data.join('\n') };
+  }
+
+  /** Handle a relay stream message in sequence, matching EventSource behavior with an engine header. */
+  async function streamMessage(entry, message, stream) {
+    if (!message.data) return;
+    const document = JSON.parse(message.data);
+    if (message.event === 'warning') { warning(document.warning, entry.id); return; }
+    if (message.event === 'error') {
+      stream.close();
+      const error = document.error;
+      if (error?.code === 'SNAPSHOT_REQUIRED') {
+        await snapshot(entry);
+        await catchUp(entry);
+        subscribe(entry);
+        onUpdate();
+      } else {
+        if (['AUTH_REQUIRED', 'NO_REPO_ACCESS', 'TOKEN_BOARD', 'NO_BOARD'].includes(error?.code)) denied();
+        failure = error ? '[' + error.code + '] ' + error.message : 'The relay stream ended. Refresh this board.';
+        notice();
+      }
+      return;
+    }
+    if (document.version !== 1) throw new Error('Upgrade this browser client to read the relay API.');
+    await receive(entry, document.event);
+    failure = '';
+    notice();
+    onUpdate();
+  }
+
+  /** Subscribe to real relay events with an explicit engine declaration and no bearer token or key. */
   function subscribe(entry) {
     entry.stream?.close();
-    const stream = new EventSource('/api/v1/boards/' + entry.id + '/events?after=' + entry.cursor);
+    const controller = new AbortController();
+    const stream = { close: () => controller.abort() };
     entry.stream = stream;
     entry.queue ??= Promise.resolve();
-    stream.onmessage = event => {
-      entry.queue = entry.queue.then(async () => {
-        const document = JSON.parse(event.data);
-        if (document.version !== 1) throw new Error('Upgrade this browser client to read the relay API.');
-        await receive(entry, document.event);
-        failure = '';
-        notice();
-        onUpdate();
-      }).catch(error => { stream.close(); failure = error.message; notice(); });
-    };
-    stream.addEventListener('warning', event => {
-      try { warning(JSON.parse(event.data).warning, entry.id); } catch { /* Malformed warnings never become board content. */ }
-    });
-    stream.addEventListener('error', event => {
-      if (!event.data) return;
-      stream.close();
-      entry.queue = entry.queue.then(async () => {
-        const error = JSON.parse(event.data).error;
-        if (error?.code === 'SNAPSHOT_REQUIRED') {
-          await snapshot(entry);
-          await catchUp(entry);
-          subscribe(entry);
-          onUpdate();
-        } else { if (['AUTH_REQUIRED', 'NO_REPO_ACCESS', 'TOKEN_BOARD', 'NO_BOARD'].includes(error?.code)) denied(); failure = error ? '[' + error.code + '] ' + error.message : 'The relay stream ended. Refresh this board.'; notice(); }
-      }).catch(error => { failure = error.message; notice(); });
-    });
+    (async () => {
+      while (!controller.signal.aborted && !accessLost) {
+        try {
+          const response = await fetch('/api/v1/boards/' + entry.id + '/events?after=' + entry.cursor, {
+            credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal: controller.signal,
+            headers: { 'x-pullboard-engine': String(ENGINE_VERSION), accept: 'text/event-stream' },
+          });
+          if (!response.ok) {
+            const document = await response.json();
+            if ([401, 403].includes(response.status) || document.error?.code === 'NO_BOARD') denied();
+            throw new Refused(document.error?.code ?? 'RELAY_UNAVAILABLE', document.error?.message ?? 'The relay stream ended. Refresh this board.');
+          }
+          if (!response.body) throw new Error('The relay stream is unavailable. Refresh this board.');
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          while (!controller.signal.aborted) {
+            const { value, done } = await reader.read();
+            buffer += decoder.decode(value, { stream: !done });
+            const packets = buffer.split(/\r?\n\r?\n/u);
+            buffer = packets.pop() ?? '';
+            for (const packet of packets) {
+              const message = sseMessage(packet);
+              entry.queue = entry.queue.then(() => streamMessage(entry, message, stream));
+              await entry.queue;
+            }
+            if (done) break;
+          }
+        } catch (error) {
+          if (controller.signal.aborted || accessLost) return;
+          failure = error.message;
+          notice();
+          await new Promise(resolveRetry => setTimeout(resolveRetry, 1000));
+        }
+      }
+    })();
   }
 
   /** Reauthorize the listing, pair only visible boards, and close streams for lost access. */
