@@ -87,6 +87,7 @@ const MOVES = {
   'spec-decline': { prefix: ['spec', 'decline'], positions: ['ids'], flags: ['reason'] },
   add: { positions: ['lane', 'title'], flags: ['criterion', 'specs', 'parent', 'after', 'brief', 'route', 'check'] },
   edit: { item: true, flags: ['criterion', 'brief', 'route', 'check'] },
+  fact: { item: true, positions: ['kind', 'text'], flags: ['supersedes', 'ref'] },
   claim: { item: true },
   release: { item: true },
   submit: { item: true },
@@ -206,10 +207,12 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
         requests: store.openRequests(db),
         milestones: milestoneRoadmap(board.root, db),
         rowDecisions: store.rowDecisions(db),
+        threads: new Map(store.listItems(db, { all: true }).map((item) => [item.item_id, store.itemThread(db, item.item_id)])),
       }));
       state.requests = projectData.requests;
       state.milestones = projectData.milestones;
       state = projectRowDecisions(projectData.rowDecisions, state);
+      state.items = state.items.map((item) => ({ ...item, thread: projectData.threads.get(item.id) ?? [] }));
       return state;
     },
     shout: (board, id) => relayLinked(board.root)

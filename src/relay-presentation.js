@@ -10,11 +10,11 @@ import { projectState } from './serve.js';
 
 /** Capture spec, doctrine, config and board presentation without sending plaintext to a relay. */
 export function relayPresentation(root) {
+  const state = projectState(root);
   const info = repoInfo(root);
   const board = store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'));
-  let shouts;
-  try { shouts = store.allShouts(board); } finally { store.closeBoard(board); }
-  return { version: 1, state: projectState(root), config: loadConfig(root), shouts };
+  try { return { version: 1, state: store.projectItemThreads(board, state), config: loadConfig(root), shouts: store.allShouts(board) }; }
+  finally { store.closeBoard(board); }
 }
 
 /** Resolve one shout from the complete history carried only inside the sealed presentation. */
