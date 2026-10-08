@@ -40,6 +40,12 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - B26 [approved, must] Needs-you holds only the person's calls: decisions passed up, rows to approve, held lanes; agents ask their coordinator. | gate: test/board.test.js | serves: B25
 - B27 [approved, must] A coordinator answers a decision or passes it up with its note; the answer reaches whoever asked. | gate: test/board.test.js | serves: B25
 - B28 [draft, must] Work renews the lease: a commit, gate run or command from the holder's worktree renews its claim. | gate: test/board.test.js | serves: B4
+- B29 [draft, must] Any agent appends typed facts to an item's thread; the board stamps each with author, time and id. | gate: test/board.test.js | serves: B22
+- B30 [draft, must] Judgements on an item (decision, rejection, supersession, root cause) come only from its holder or the coordinator. | gate: test/board.test.js | serves: B29
+- B31 [draft, must] A thread is append-only: a correction is a new fact that supersedes the old one, and both stay visible. | gate: test/board.test.js | serves: B29
+- B32 [draft, must] A fact binds code by full sha; show prints an item's moves and facts as one timeline. | gate: test/board.test.js | serves: B29
+- B33 [draft, aim] The view shows an item's thread in its detail, with code references live. | gate: test/cockpit.test.js | serves: B29
+- B34 [draft, must] The trunk is the main checkout's branch, whatever its name; nothing assumes main. | gate: test/trunk.test.js | serves: P2
 
 ## M · Machine
 - M1 [approved, must] One declaration holds every item state, move, guard and refusal; code, help and docs derive from it. | gate: test/machine.test.js
@@ -65,6 +71,8 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - V15 [approved, must] `next --verify` reserves the review under a lease; another verdict on it is refused while the lease lives. | gate: test/machine.test.js | serves: V1
 - V16 [approved, must] Submit runs the gate itself on the exact tree it submits, never trusting an earlier stamp. | gate: test/gate.test.js | serves: P1
 - V17 [draft, must] Submit refuses a head carrying commits pinned to another item that is not verified. | gate: test/e2e.test.js | serves: V6
+- V18 [draft, must] Accept runs the repo's install step before the frozen check; a failed install or timeout reads unverified, never red. | gate: test/e2e.test.js | serves: V2
+- V19 [draft, must] Every accept records whether a frozen check ran at the submitted commit; show and the ledger say so. | gate: test/verdict-check.test.js | serves: V8
 
 ## O · Options
 - O1 [draft, must] pullboard.json options switch declared guards on or off per repo; show and the view list them. | gate: test/machine.test.js | serves: M1
@@ -74,6 +82,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - O5 [approved, aim] Machine settings in ~/.pullboard hold what belongs to the machine: gate concurrency, run's tier commands, the view's port. | gate: test/settings.test.js
 - O6 [approved, aim] Each setting has one home: board rules in the repo, machine capacity and tools in ~/.pullboard; flags override. | gate: test/settings.test.js | serves: O5
 - O7 [retired] Merged into Q4.
+- O8 [draft, must] Every agent declares the model that runs it; names show it, as web-1 (Claude) or claude-web-1 by option. | gate: test/board.test.js | serves: O3
 
 ## L · Lanes
 - L1 [approved, must] Lanes live in pullboard.json: folders owned, spec prefixes, when it starts. | gate: test/lanes.test.js
@@ -105,8 +114,8 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - S21 [approved, must] `pullboard spec signers add` sets a repo up with the SSH key the person already uses; no GPG. | gate: test/signoff.test.js | serves: S17
 
 ## D · Doctrine
-- D1 [draft, must] Pullboard ships a standard doctrine, versioned, with PB ids; every repo inherits it, Pullboard's own included. | gate: test/practice.test.js
-- D2 [draft, must] A repo's PRACTICE.md adds rules, overrides one by its PB id, or declines one with a wont row and reason. | gate: test/practice.test.js | serves: D1
+- D1 [approved, must] Pullboard ships a standard doctrine, versioned, with PB ids; every repo inherits it, Pullboard's own included. | gate: test/practice.test.js
+- D2 [approved, must] A repo's PRACTICE.md adds rules, overrides one by its PB id, or declines one with a wont row and reason. | gate: test/practice.test.js | serves: D1
 - D3 [draft, must] Agents and the view see the merged doctrine, each rule marked standard, with its version, or the repo's. | gate: test/practice.test.js | serves: D1
 - D4 [draft, must] Init writes a PRACTICE.md for the repo's own rules only; the standard needs no copy. | gate: test/e2e.test.js | serves: D1
 - D5 [draft, aim] `pullboard practice` prints the merged doctrine and what the standard changed since the repo last looked. | gate: test/practice.test.js | serves: D1
@@ -124,6 +133,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 ## R · Receipts
 - R1 [approved, must] The ledger lists built items: lane, spec, builder, verifier, verdict, commit. | gate: test/board.test.js
 - R2 [approved, must] Every move lands in an append-only event log. | gate: test/board.test.js
+- R3 [draft, must] merged records only a trunk commit that contains the item's commit or carries its patch; anything else needs a note. | gate: test/merged.test.js | serves: R1
 
 ## I · Init
 - I1 [approved, must] One command sets up config, spec, agent instructions, hooks and board. | gate: test/e2e.test.js
@@ -140,6 +150,8 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - I12 [draft, must] The README states what runs where today, which systems are tested, and what comes next. | gate: review
 - I13 [draft, aim] A recording of `pullboard tour` plays on the README and the site, regenerated by a script. | gate: docs/shots/shots.test.js
 - I14 [draft, aim] A 90-second product video, rendered by a script from the demo board, plays on the README and the site. | gate: docs/shots/shots.test.js | serves: I13
+- I15 [draft, must] A release is a tag on a green commit; CI publishes it to npm with provenance, never by hand. | gate: review
+- I16 [draft, aim] Init ignores the folders agent tools make inside the repo, such as .claude/worktrees/, so they never block a submit. | gate: test/init-ignore.test.js | serves: I1
 
 ## N · Next commands
 - N1 [draft, must] `pullboard decide`: the person's queue of everything waiting on them.
@@ -179,6 +191,8 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - N35 [draft, aim] A repo whose folder is gone leaves the view; `pullboard forget <path>` removes one by hand. | gate: test/e2e.test.js | serves: N26
 - N36 [draft, aim] The view names each repo as pullboard.json does, falling back to its folder name. | gate: test/cockpit.test.js | serves: N26
 - N37 [draft, must] pullboard help keeps each command's usage apart from its words, so tools can read it. | gate: test/e2e.test.js
+- N38 [draft, must] Every tab, item, row and shout in the view has its own address, so any of them can be linked. | gate: test/cockpit.test.js | serves: N26
+- N39 [draft, must] The view's secret never stays in the address bar: the first link trades it for a cookie. | gate: test/cockpit.test.js | serves: N26
 
 ## A · API: the engine others build on
 - A1 [approved, must] Every command prints --json in a documented shape, stable within a major version. | gate: test/api.test.js

@@ -81,7 +81,7 @@ function project() {
     ...config,
     gate: 'true',
     spec: 'SPEC.md',
-    practice: 'PRACTICE.md',
+    practice: 'DOCTRINE.md',
     lanes: {
       app: { owns: ['app/'], specs: ['G1'] },
       review: { owns: [] },
@@ -89,7 +89,7 @@ function project() {
     shared: [],
   }, null, 2)}\n`);
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
-  writeFileSync(join(repo, 'PRACTICE.md'), '');
+  writeFileSync(join(repo, 'DOCTRINE.md'), '');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: set up API fixture');
   return { ...box, repo, initialized };
@@ -178,8 +178,10 @@ function assertRequiredShape(value, required, label) {
 function json(box, cwd, command, args = [], subcommand) {
   const result = box.run(cwd, command, ...args, '--json');
   assert.equal(result.status, 0, `${command} ${args.join(' ')}: ${result.stderr}${result.stdout}`);
-  assert.equal(result.stderr, '', `${command} --json must keep stderr empty`);
   const document = JSON.parse(result.stdout);
+  if (command === 'check') {
+    assert.equal(result.stderr, `check #${document.id} set by ${document.by}: ${document.check}\n`, 'check attribution is visible before execution while stdout remains one JSON document');
+  } else assert.equal(result.stderr, '', `${command} --json must keep stderr empty`);
   assert.equal(document.version, 1, `${command} --json has a version 1 envelope`);
   assertRequiredShape(document, shapeFor(command, subcommand).required, command);
   return document;
@@ -281,6 +283,7 @@ test('[A1] command results match the catalog across roots and subcommands', () =
 
   const added = json(box, repo, 'add', ['coordinator', 'API item', '--specs', 'G1', '--criterion', 'the API item is verified', '--check', 'true']);
   assert.equal(added.item.item_id, 1);
+  json(box, repo, 'fact', ['1', 'note', 'API fact']);
   json(box, repo, 'edit', ['1', '--criterion', 'the edited API item is verified', '--check', 'true']);
   json(box, repo, 'show', ['1']);
   json(box, repo, 'list', ['--all']);
@@ -459,6 +462,17 @@ test('[A1] refusals are one JSON document with exact public error fields', () =>
   assert.match(unknownDocument.error.message, /Unknown option '--not-a-real-flag'/);
   assert.equal(unknownDocument.error.next, 'run pullboard help');
 
+  const unknownCommand = box.run(repo, 'cliam', '--json');
+  assert.equal(unknownCommand.status, 2);
+  assert.equal(unknownCommand.stderr, '');
+  const unknownCommandDocument = JSON.parse(unknownCommand.stdout);
+  assert.equal(unknownCommandDocument.version, 1);
+  assertRequiredShape(unknownCommandDocument, JSON_SHAPES.error.required, 'error envelope');
+  assertRequiredShape(unknownCommandDocument.error, JSON_SHAPES.errorFields, 'error');
+  assert.equal(unknownCommandDocument.error.code, 'USAGE');
+  assert.match(unknownCommandDocument.error.message, /no command "cliam"; closest match is "claim"/);
+  assert.match(unknownCommandDocument.error.next, /pullboard help --all/);
+
   const valid = readFileSync(join(repo, 'SPEC.md'), 'utf8');
   writeFileSync(join(repo, 'SPEC.md'), `${valid}\n- G2 [maybe, must] Bad status.\n`);
   const textCheck = box.run(repo, 'spec', 'check');
@@ -559,9 +573,73 @@ test('[A1] every catalog command and subcommand has a real CLI exercise', () => 
 
   json(source, source.repo, 'relay');
   json(source, source.repo, 'relay', ['off']);
+  const catalog = json(source, source.repo, 'add', ['app', 'Catalog item', '--criterion', 'catalog coverage'], 'add').item;
+  json(source, source.repo, 'roadmap');
+  json(source, source.repo, 'milestone', ['add', 'Catalog', '--items', String(catalog.item_id)], 'add');
+  json(source, source.repo, 'milestone', ['items', 'Catalog', '--remove', String(catalog.item_id)], 'items');
+  json(source, source.repo, 'milestone', ['items', 'Catalog', '--add', String(catalog.item_id)], 'items');
+  json(source, source.repo, 'milestone', ['add', 'Later'], 'add');
+  json(source, source.repo, 'milestone', ['move', 'Later', '--before', 'Catalog'], 'move');
+  json(source, source.repo, 'milestone', ['edit', 'Catalog', '--name', 'Release', '--note', 'Catalog coverage'], 'edit');
+  json(source, source.repo, 'milestone', ['remove', 'Later'], 'remove');
+  json(source, source.repo, 'milestone', ['remove', 'Release'], 'remove');
+  json(source, source.repo, 'spec', ['approve', 'G1'], 'approve');
+  json(source, source.repo, 'spec', ['decline', 'G1', '--reason', 'Catalog decline'], 'decline');
+  json(source, source.repo, 'spec', ['apply'], 'apply');
   const missing = Object.keys(JSON_SHAPES.commands).filter((key) => !covered.has(key));
   assert.deepEqual(missing, [], `add real-repo invocations for undocumented coverage gaps: ${missing.join(', ')}`);
   assert.deepEqual([...coveredRoots].sort(), resultCommands(), 'every actual root/factory command has an invocation');
+});
+
+test('[N26,A2] roadmap text, JSON and API state follow live local and registered repo items', async (t) => {
+  const box = project();
+  const foreign = project();
+  const foreignConfigFile = join(foreign.repo, 'pullboard.json');
+  const foreignConfig = JSON.parse(readFileSync(foreignConfigFile, 'utf8'));
+  foreignConfig.name = 'foreign';
+  writeFileSync(foreignConfigFile, `${JSON.stringify(foreignConfig, null, 2)}\n`);
+  const registryFile = join(box.env.PULLBOARD_HOME, 'projects.json');
+  const registry = JSON.parse(readFileSync(registryFile, 'utf8'));
+  registry.projects.push({ root: foreign.repo, name: 'foreign', project: '', added: '2026-10-08T00:00:00.000Z' });
+  writeFileSync(registryFile, `${JSON.stringify(registry, null, 2)}\n`);
+
+  const addArgs = (title) => [
+    'app', title, '--route', 'light', '--criterion', 'roadmap item', '--check', 'true',
+    '--brief', 'Files:\n- app/roadmap.js\nChange: track this work\nTest: inspect its status',
+  ];
+  const localItem = json(box, box.repo, 'add', addArgs('Local release'), 'add').item;
+  const externalItem = json(foreign, foreign.repo, 'add', addArgs('External follow-up'), 'add').item;
+  const worktree = json(box, box.repo, 'worktree', ['app', '--route', 'light'], 'worktree');
+
+  json(box, box.repo, 'milestone', ['add', 'Delivery', '--note', 'Ship the release', '--items', `${localItem.item_id},foreign#${externalItem.item_id}`], 'add');
+  json(box, box.repo, 'milestone', ['add', 'Aftercare'], 'add');
+  json(box, box.repo, 'milestone', ['move', 'Aftercare', '--before', 'Delivery'], 'move');
+  jsonError(box, worktree.path, 'milestone', ['add', 'Forbidden'], {
+    status: 1,
+    code: 'COORDINATOR_ONLY',
+    message: 'only the coordinator changes milestones; ask your coordinator to update the roadmap',
+    next: 'ask your coordinator to update the roadmap',
+  }, 'add');
+  const claim = box.run(worktree.path, 'claim', String(localItem.item_id), '--json');
+  assert.equal(claim.status, 0, claim.stderr || claim.stdout);
+
+  const textRoadmap = box.run(box.repo, 'roadmap');
+  assert.equal(textRoadmap.status, 0, textRoadmap.stderr);
+  assert.ok(textRoadmap.stdout.indexOf('Aftercare: 0/0 done') < textRoadmap.stdout.indexOf('Delivery: 0/2 done'));
+  assert.match(textRoadmap.stdout, /Ship the release/);
+  assert.match(textRoadmap.stdout, new RegExp(`#${localItem.item_id} Local release — claimed`));
+  assert.match(textRoadmap.stdout, new RegExp(`foreign#${externalItem.item_id} External follow-up — open`));
+
+  const document = json(box, box.repo, 'roadmap');
+  assert.deepEqual(document.milestones.map(({ name }) => name), ['Aftercare', 'Delivery']);
+  assert.deepEqual(document.milestones[1].items.map(({ status }) => status), ['claimed', 'open']);
+  const api = await startApi(t, box);
+  const listing = await (await apiFetch(api, '/api/v1/boards')).json();
+  const current = listing.boards.find((candidate) => candidate.root === box.repo);
+  const response = await apiFetch(api, `/api/v1/boards/${current.id}/state`);
+  const state = await response.json();
+  assert.equal(response.status, 200);
+  assert.deepEqual(state.state.milestones, document.milestones);
 });
 
 /** Start the real local API server and stop it when its test finishes. */

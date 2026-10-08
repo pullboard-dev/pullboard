@@ -12,6 +12,7 @@ import {
   ACCEPT_REASON,
   answerDecision,
   addItem,
+  appendFact,
   claim,
   closeBoard,
   editItem,
@@ -25,6 +26,8 @@ import {
   passDecision,
   PERSON,
   recordAttempt,
+  recordRowDecisions,
+  applyRowDecisions,
   refreeze,
   register,
   release,
@@ -152,8 +155,12 @@ function recordEventContract() {
   answerDecision(board, personQuestion, { agentId: coordinator, text: 'approved', lanes: ['docs', 'tests'], asPerson: true });
   const request = shout(board, { from: PERSON, to: coordinator, text: 'sample request', lanes: ['docs', 'tests'], request: true });
   answerDecision(board, request, { agentId: coordinator, text: 'done', lanes: ['docs', 'tests'] });
+  const decisions = recordRowDecisions(board, { agentId: PERSON, channel: 'terminal', decisions: [{ kind: 'spec', file: 'SPEC.md', id: 'A1', source: '- A1 [draft] Exact row.', replacement: '- A1 [approved] Exact row.', text: 'Exact row.', decision: 'approve', reason: '' }] });
+  applyRowDecisions(board, { agentId: coordinator, events: decisions.map((record) => record.event) });
   const freeze = (digest) => () => ({ text: `criterion-${digest}`, digest });
   const first = addItem(board, { by: coordinator, lane: 'docs', title: 'Accepted example', criterion: 'Initial', specIds: ['A1'], route: 'strong' });
+  const fact = appendFact(board, first, { agentId: builder, kind: 'note', text: 'Captured evidence', ref: 'docs/formats.md:1-3@' + 'a'.repeat(40) });
+  appendFact(board, first, { agentId: coordinator, kind: 'measurement', text: 'Corrected evidence', supersedes: fact.id });
   editItem(board, first, { agentId: coordinator, brief: 'Files: docs/formats.md\nTest: docs/formats.test.js', route: 'mid', criterion: 'Changed', check: 'node test' });
   recordAttempt(board, first, { agentId: builder, n: 1, seconds: 2, result: 'failed' });
   claim(board, first, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('first') });
@@ -165,7 +172,7 @@ function recordEventContract() {
   refreeze(board, first, { agentId: coordinator, freeze: freeze('second') });
   claim(board, first, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('unused') });
   const acceptedCommit = 'a'.repeat(40);
-  submit(board, first, { agentId: builder, commit: acceptedCommit, tree: 'b'.repeat(40), files: ['docs/formats.md'] });
+  submit(board, first, { agentId: builder, commit: acceptedCommit, tree: 'b'.repeat(40), files: ['docs/formats.md'], policyCommit: 'a'.repeat(40) });
   reserveReview(board, first, { agentId: reviewer, leaseMs: 60_000, policy: 'agents' });
   verify(board, first, { agentId: reviewer, decision: 'ACCEPT', reason: ACCEPT_REASON, note: 'checked the example', head: acceptedCommit, digest: 'second', policy: 'agents' });
   merged(board, first, { agentId: coordinator, commit: 'c'.repeat(40) });
@@ -182,7 +189,7 @@ function recordEventContract() {
   releaseLane(board, 'view', { agentId: coordinator });
   const rows = events(board).map((row) => ({ ...row, detail: JSON.parse(row.event_detail) }));
   closeBoard(board);
-  return { rows, actors: { [coordinator]: 'coordinator', [builder]: 'builder', [reviewer]: 'reviewer', board: 'board' } };
+  return { rows, actors: { [coordinator]: 'coordinator', [builder]: 'builder', [reviewer]: 'reviewer', [PERSON]: 'person', board: 'board' } };
 }
 
 /** Reopen a file after removing old-format objects and report the repaired guard event. */
@@ -346,6 +353,7 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
     add: 'item creator',
     edit: 'editor',
     attempt: 'reporting agent',
+    fact: 'author',
     guards: 'board',
     shout: 'sender',
     pass: 'coordinator',

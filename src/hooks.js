@@ -6,9 +6,12 @@
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { git, gitChildEnv, tryGit } from './git.js';
+import { DOCTRINE_FILE, LEGACY_DOCTRINE_FILE } from './config.js';
+import { git, gitChildEnv, mainCheckout, tryGit } from './git.js';
+import { Refused } from './refused.js';
 import { outOfLane } from './lanes.js';
 import { citedIds, deletedIds, idProblems } from './spec.js';
+import { approvedRowProblems } from './approved-rows.js';
 
 export const HOOKS = ['pre-commit', 'commit-msg', 'pre-push'];
 export const HOOKS_DIR = '.githooks';
@@ -18,6 +21,7 @@ export const FIX_NOTE = 'Fix what each line names. Never work around a refusal w
 const EMOJI_RE = /\p{Extended_Pictographic}|\p{Regional_Indicator}|⃣|️/u;
 const EXEMPT_RE = /^(Merge |Revert "|fixup! |squash! |amend! )/;
 const ZERO_SHA = /^0+$/;
+const MAX_SECRET_DIFF_BYTES = 8 * 1024 * 1024;
 
 /**
  * Secrets by kind, most specific first, so a line is named once by what it most likely is.
@@ -195,19 +199,26 @@ export function blockedPaths(paths, protect) {
  * changes outside its folders. The main checkout is the coordinator's and may change anything; any
  * other worktree must have joined a lane.
  *
- * @param {{ root: string, isMain: boolean, config: any, agent: any }} context
+ * @param {{ root: string, isMain: boolean, config: any, agent: any, boardFile?: string }} context
  * @returns {string[]}
  */
-export function preCommitProblems({ root, isMain, config, agent }) {
+export function preCommitProblems({ root, isMain, config, agent, boardFile }) {
   const { touched, written } = stagedPaths(root);
   const problems = blockedPaths(written, config.protect).map(
     (path) => `${path} is a blocked file (env or secrets); keep it out of git`,
   );
   if (config.protect.secrets) {
-    const diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0']);
+    let diff;
+    try {
+      diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+    } catch (error) {
+      if (error.code !== 'ENOBUFS') throw error;
+      throw new Refused('DIFF_TOO_LARGE', 'the staged text diff exceeds the safe scan limit; split the change into smaller commits, then retry');
+    }
     problems.push(...secretsIn(addedLines(diff)).map((where) => `possible secret: ${where}`));
   }
   problems.push(...deletedRowProblems(root, [config.spec, config.practice]));
+  problems.push(...approvedRowProblems(root, config, boardFile));
   if (isMain) return problems;
   if (!agent) {
     problems.push('this worktree has not joined a lane: pullboard join <lane>');
@@ -223,7 +234,7 @@ export function preCommitProblems({ root, isMain, config, agent }) {
 }
 
 /**
- * The commit being merged, only when it is already part of main's history.
+ * The commit being merged, only when it is already part of the primary checkout's history.
  *
  * @param {string} root
  * @returns {string | null}
@@ -231,7 +242,10 @@ export function preCommitProblems({ root, isMain, config, agent }) {
 function mainMergeBase(root) {
   const merge = tryGit(root, ['rev-parse', '--verify', 'MERGE_HEAD']);
   if (merge.status !== 0) return null;
-  return tryGit(root, ['merge-base', '--is-ancestor', merge.stdout, 'refs/heads/main']).status === 0
+  let main;
+  try { main = mainCheckout(root)?.commit; } catch { return null; }
+  if (!main) return null;
+  return tryGit(root, ['merge-base', '--is-ancestor', merge.stdout, main]).status === 0
     ? merge.stdout
     : null;
 }
@@ -290,12 +304,15 @@ export function applyFixers(root, fixers) {
  */
 export function deletedRowProblems(root, paths) {
   return paths.flatMap((path) => {
-    const before = tryGit(root, ['show', `HEAD:${path}`]);
-    if (before.status !== 0) return [];
-    const staged = tryGit(root, ['show', `:${path}`]);
-    if (staged.status !== 0) return [`${path} is deleted; ids are permanent: restore it`];
+    const names = [DOCTRINE_FILE, LEGACY_DOCTRINE_FILE].includes(path)
+      ? [path, path === DOCTRINE_FILE ? LEGACY_DOCTRINE_FILE : DOCTRINE_FILE]
+      : [path];
+    const before = names.map((name) => ({ ...tryGit(root, ['show', `HEAD:${name}`]), name })).find((file) => file.status === 0);
+    if (!before) return [];
+    const staged = names.map((name) => ({ ...tryGit(root, ['show', `:${name}`]), name })).find((file) => file.status === 0);
+    if (!staged) return [`${before.name} is deleted; ids are permanent: restore it`];
     return deletedIds(before.stdout, staged.stdout).map(
-      (id) => `${path}: ${id} is gone; ids are permanent: keep the row and mark it wont (won't build) or retired`,
+      (id) => `${staged.name}: ${id} is gone; ids are permanent: keep the row and mark it wont (won't build) or retired`,
     );
   });
 }
@@ -352,9 +369,10 @@ export function hookScript(hook) {
  * and reported, so init never clobbers a repo's own hooks (I2).
  *
  * @param {string} root
+ * @param {(path: string) => void} [onWrite] Observe only files this installer actually writes.
  * @returns {string[]} What happened, one line per hook.
  */
-export function installHooks(root) {
+export function installHooks(root, onWrite = () => {}) {
   const dir = join(root, HOOKS_DIR);
   mkdirSync(dir, { recursive: true });
   const notes = [];
@@ -372,6 +390,7 @@ export function installHooks(root) {
     }
     writeFileSync(file, hookScript(hook));
     chmodSync(file, 0o755);
+    onWrite(`${HOOKS_DIR}/${hook}`);
     notes.push(`wrote ${HOOKS_DIR}/${hook}`);
   }
   const current = tryGit(root, ['config', '--get', 'core.hooksPath']).stdout;

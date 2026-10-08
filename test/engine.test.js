@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { exportBoard, importBoard, restoreRelaySnapshot } from '../src/exchange.js';
-import { applyEngineMove, prepareEngineMove, appliedSequence, engineReceipt, startRelayEpoch } from '../src/engine.js';
+import { applyEngineMove, applyRelayMove, prepareEngineMove, appliedSequence, engineReceipt, startRelayEpoch } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { Refused } from '../src/refused.js';
 
@@ -14,13 +14,14 @@ const HOUR = 3_600_000;
 const CLAIM_AT = '2026-10-07T18:00:00.000Z';
 
 /** Open two independent SQLite copies of the same registered board and one available item. */
-function engineCopies(t) {
+function engineCopies(t, initialize = () => {}) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-engine-'));
   const source = store.openBoard(join(directory, 'source.sqlite'));
   store.register(source, { lane: 'coordinator', path: '/source' });
   store.register(source, { lane: 'web', path: '/source/web-1' });
   store.register(source, { lane: 'web', path: '/source/web-2' });
   const item = store.addItem(source, { by: 'coordinator', lane: 'web', title: 'Engine fixture' });
+  initialize(source);
   const document = exportBoard(source);
   const copies = ['one', 'two'].map((name, index) => {
     const clock = { now: () => new Date(`2026-10-07T${index + 16}:00:00.000Z`) };
@@ -57,6 +58,87 @@ function boardRows(board, itemId) {
     events: store.events(board),
   };
 }
+
+test('person answer channel replays identically on agent and plain replicas [B26,H16]', t => {
+  const questions = [];
+  const { copies } = engineCopies(t, source => {
+    questions.push(...['view', 'terminal', 'legacy'].map(channel => store.shout(source, {
+      from: 'coordinator', to: 'person', text: 'Private engine fixture ' + channel,
+      decision: true, lanes: ['web'],
+    })));
+  });
+  const [one, two] = copies;
+  const markers = ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL'];
+  const original = markers.map(name => [name, process.env[name]]);
+  try {
+    questions.forEach((id, index) => {
+      const channel = ['view', 'terminal', undefined][index];
+      const move = prepareEngineMove(one, 'answerDecision', [id, {
+        agentId: 'coordinator', text: 'Approved private fixture', lanes: ['web'], asPerson: true,
+        ...(channel ? { channel } : {}),
+      }]);
+      for (const name of markers) process.env[name] = 'fixture-agent';
+      const agentReceipt = applyEngineMove(one, move, { sequence: index + 1, at: CLAIM_AT });
+      for (const name of markers) delete process.env[name];
+      const plainReceipt = applyEngineMove(two, move, { sequence: index + 1, at: CLAIM_AT });
+      assert.equal(Boolean(agentReceipt.error), false);
+      assert.deepEqual(agentReceipt, plainReceipt, 'replica execution ignores sender-shell markers');
+      assert.equal(JSON.parse(agentReceipt.events[0].event_detail).channel, channel ?? 'terminal');
+    });
+    assert.deepEqual(exportBoard(one).tables, exportBoard(two).tables);
+  } finally {
+    for (const [name, value] of original) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+});
+
+test('missing relay senders are refused deterministically without poisoning a later legitimate move id [H2,H16]', t => {
+  const { copies, item } = engineCopies(t);
+  const [one, two] = copies;
+  const move = claimMove(one, item, 'web-1');
+  for (const board of copies) {
+    const before = store.getItem(board, item);
+    const refused = applyRelayMove(board, move, { sequence: 1, at: CLAIM_AT, kind: 'request' });
+    assert.equal(refused.error.code, 'RELAY_SENDER');
+    assert.deepEqual(store.getItem(board, item), before);
+    assert.equal(appliedSequence(board), 1);
+    assert.equal(engineReceipt(board, move.id), null, 'a forged move id cannot reserve a legitimate operation receipt');
+    assert.equal(store.events(board).at(-1).event_kind, 'relay_refused');
+    assert.equal(store.events(board).at(-1).event_by, 'relay');
+    const accepted = applyRelayMove(board, move, { sequence: 2, at: CLAIM_AT, kind: 'move', sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } });
+    assert.equal(Boolean(accepted.error), false);
+    assert.equal(store.getItem(board, item).item_owner, 'web-1');
+    const after = exportBoard(board);
+    assert.deepEqual(applyRelayMove(board, move, { sequence: 1, at: CLAIM_AT, kind: 'request' }), refused);
+    assert.deepEqual(exportBoard(board), after, 'repeated refusal returns its own receipt without moving the cursor backwards');
+  }
+  assert.deepEqual(exportBoard(one).tables, exportBoard(two).tables);
+});
+
+test('future engine relay records stop before every sender shape without changing a replica [H16]', t => {
+  const { copies, item } = engineCopies(t);
+  const move = { ...claimMove(copies[0], item, 'web-1'), engine: ENGINE_VERSION + 1 };
+  for (const sender of [undefined, {}, { kind: 'person', userId: 'fixture-user' }, { kind: 'agent', userId: 'fixture-user', agent: 'web-2' }]) {
+    for (const board of copies) {
+      const before = exportBoard(board);
+      assert.throws(() => applyRelayMove(board, move, { sequence: 1, at: CLAIM_AT, kind: 'request', sender }), error => error.code === 'ENGINE_VERSION');
+      assert.deepEqual(exportBoard(board), before);
+      assert.equal(appliedSequence(board), 0);
+    }
+  }
+});
+
+test('a relay refusal receipt failure rolls back its log and cursor together [H2,H16]', t => {
+  const { copies, item } = engineCopies(t);
+  const board = copies[0];
+  const before = exportBoard(board);
+  board.db.exec("CREATE TEMP TRIGGER refuse_receipt BEFORE INSERT ON board_meta WHEN NEW.meta_key LIKE 'relay_refusal_%' BEGIN SELECT RAISE(ABORT, 'refusal receipt rollback'); END");
+  assert.throws(() => applyRelayMove(board, claimMove(board, item, 'web-1'), { sequence: 1, at: CLAIM_AT, kind: 'move' }), /refusal receipt rollback/);
+  assert.deepEqual(exportBoard(board), before);
+  assert.equal(appliedSequence(board), 0);
+});
 
 test('the same sealed claim replays to identical rows and sequence retries are idempotent [H3,H16]', (t) => {
   const { copies, item } = engineCopies(t);

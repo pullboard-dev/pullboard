@@ -9,6 +9,8 @@ import { refusalDocument } from './json.js';
 import { relayLinked, relayOperation } from './relay.js';
 import { laneNames } from './lanes.js';
 import { listApiProjects } from './projects.js';
+import { milestoneRoadmap } from './roadmap.js';
+import { projectRowDecisions } from './row-decisions.js';
 import { Refused } from './refused.js';
 import { codeAt, projectState } from './serve.js';
 import { createApiHandler } from './api-http.js';
@@ -80,8 +82,11 @@ function agentPath(root, name = COORDINATOR) {
 
 /** Declarative CLI forms keep API calls on the same argument parser and engine as terminal moves. */
 const MOVES = {
+  'spec-approve': { prefix: ['spec', 'approve'], positions: ['ids'], flags: ['by', 'text'] },
+  'spec-decline': { prefix: ['spec', 'decline'], positions: ['ids'], flags: ['reason'] },
   add: { positions: ['lane', 'title'], flags: ['criterion', 'specs', 'parent', 'after', 'brief', 'route', 'check'] },
   edit: { item: true, flags: ['criterion', 'brief', 'route', 'check'] },
+  fact: { item: true, positions: ['kind', 'text'], flags: ['supersedes', 'ref'] },
   claim: { item: true },
   release: { item: true },
   submit: { item: true },
@@ -95,7 +100,7 @@ const MOVES = {
   shout: { positions: ['to', 'text'], optional: ['to'], booleans: ['decision'], flags: ['evidence', 'outcome', 'item', 'commit'] },
   answer: { item: true, positions: ['text'], flags: ['as'] },
   pass: { item: true, positions: ['note'] },
-  next: { flags: ['as'], booleans: ['verify'] },
+  next: { flags: ['as'], booleans: ['verify', 'build'] },
 };
 
 /** Reject unsupported fields, then pass values as distinct argv entries, never a shell command. */
@@ -106,7 +111,7 @@ export function moveArgs({ verb, item, args = {} }) {
   if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Refused('BAD_REQUEST', 'args needs a JSON object containing this move\'s arguments');
   const allowed = [...(form.positions ?? []), ...(form.flags ?? []), ...(form.booleans ?? [])];
   for (const key of Object.keys(args)) if (!allowed.includes(key)) throw new Refused('BAD_REQUEST', `${verb} does not take args.${key}; use only this CLI move's arguments`);
-  const argv = [verb];
+  const argv = form.prefix ? [...form.prefix] : [verb];
   if (form.item) {
     if (!Number.isSafeInteger(item) || item < 1) throw new Refused('BAD_REQUEST', `${verb} needs a positive integer item; use the item id from the board state`);
     argv.push(String(item));
@@ -144,12 +149,14 @@ async function executeMove(root, body, runCommand) {
   const events = [];
   const status = await runCommand(argv, {
     cwd,
+    personChannel: 'view',
     stdout: { isTTY: false, write: (text) => { output += text; } },
     stderr: { write: (text) => { diagnostics += text; } },
     onEvent: (row) => { events.push(row); },
   });
   const result = JSON.parse(output);
   if (status) return { status: 409, body: result };
+  if (body.verb === 'next' && result.offer) return { status: 200, body: { version: VERSION, event: null, result, offer: result.offer } };
   const kind = body.verb === 'verify' ? body.args?.decision
     : body.verb === 'done' ? 'submit'
     : body.verb === 'hold' && body.args?.off ? 'unhold' : body.verb;
@@ -193,9 +200,18 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     boards: () => apiBoardListing(projects),
     board: (id) => findBoard(id, projects),
     state: (board, who, seen) => {
-      const state = projectState(board.root, { seen });
+      let state = projectState(board.root, { seen });
       state.board = board.id;
-      state.requests = withBoard(board.root, (db) => store.openRequests(db));
+      const projectData = withBoard(board.root, (db) => ({
+        requests: store.openRequests(db),
+        milestones: milestoneRoadmap(board.root, db),
+        rowDecisions: store.rowDecisions(db),
+        threads: new Map(store.listItems(db, { all: true }).map((item) => [item.item_id, store.itemThread(db, item.item_id)])),
+      }));
+      state.requests = projectData.requests;
+      state.milestones = projectData.milestones;
+      state = projectRowDecisions(projectData.rowDecisions, state);
+      state.items = state.items.map((item) => ({ ...item, thread: projectData.threads.get(item.id) ?? [] }));
       return state;
     },
     code: (board, ref) => codeAt(board.root, ref),

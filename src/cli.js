@@ -2,6 +2,7 @@
  * The pullboard command line: every command, bound to who is asking (B3). The main checkout is the
  * coordinator; every other worktree is the agent that joined from it.
  */
+import { createHash } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
@@ -9,7 +10,9 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import * as store from './board.js';
 import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
-import { loadDoctrine } from './doctrine.js';
+import { doctrineHistory, loadDoctrine } from './doctrine.js';
+import { requirePersonChannel } from './person.js';
+import { decisionProjection, planRowApply, prepareRowDecisions, restoreRowApply, writeRowApply } from './row-decisions.js';
 import { digestOf, gateReport, runGate, runShell } from './gate.js';
 import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
@@ -39,17 +42,21 @@ import {
   unmetRows,
 } from './spec.js';
 import { briefFiles } from './brief.js';
+import { checkBaseline, sayCheckBaseline } from './check-baseline.js';
 import { runItems } from './run.js';
 import { parseProblems, sweepItems } from './sweep.js';
 import { renderSpecView } from './view.js';
 import { tour } from './tour.js';
 import { commandOutput } from './json.js';
 import { forgetProject, registerProject } from './projects.js';
+import { milestoneRoadmap } from './roadmap.js';
 import { listResources } from './resources.js';
 import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
 import { exportView, serveView } from './serve.js';
 import { serveApi } from './api.js';
-import { doctorProblems } from './doctor.js';
+import { doctorProblems, doctrineProblems } from './doctor.js';
+import { staleFrozenItems, staleItemFinding } from './approved-rows.js';
+import { mainPolicy, itemPolicy, submissionPaths, frozenCheck, checkAtCommit, dependencySnapshots } from './trusted-policy.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
@@ -58,7 +65,7 @@ import { relayLinked, relayOff, relayOn, relayOperation, relayStatus, syncRelay 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
 
-export const HELP = `pullboard ${VERSION}: the local-first work board for teams of coding agents.
+const ALL_HELP = `pullboard ${VERSION}: the local-first work board for teams of coding agents.
 Nothing ships until a second agent verifies it.
 
 Set up
@@ -95,14 +102,25 @@ Work
                                         $PULLBOARD_ATTEMPT, $PULLBOARD_TIER); green work is submitted, red escalated
                 [--agent-light "..."] [--agent-mid "..."] [--agent-strong "..."]   a command per tier
   pullboard list [lane] [--all] [--route light|mid|strong]   open and active items; --all adds closed ones
+  pullboard roadmap                     ordered milestones and each item's live status
+  pullboard milestone add <name> [--note ...] [--items 1,2,3]   create a milestone and optionally add items
+  pullboard milestone items <name> --add|--remove ids          append or remove item references
+  pullboard milestone move <name> --before <other>             reorder a milestone
+  pullboard milestone edit <name> [--name <new>] [--note <text>]
+                                        rename or update a milestone note
+  pullboard milestone remove <name>                            remove a milestone without changing its items
   pullboard doctor                     check board integrity without changing it
   pullboard show <id> [--history]       an item, the criterion frozen at claim, its verdicts: the latest in full,
                                         earlier ones as one line; --history prints every note in full
-  pullboard next [--wait <minutes>]     claim the next item in your lane that is free to start
+  pullboard fact <id> <kind> <text> [--supersedes <fact-id>] [--ref path:lines@full-sha]
+                                        append an observation or a holder/coordinator judgement to its thread
+  pullboard next [--wait <minutes>]     offer an eligible review when reviews pile up, otherwise claim work
+  pullboard next --build                claim a build explicitly, recording a skipped review offer
   pullboard next --verify               reserve the next submitted item you can check;
   pullboard next --verify <id>          reserve that submitted item instead
                                         in the main checkout, verifying needs --as coordinator
-  pullboard check [id]                  run your item's check, the command that proves it (the project gate is pullboard gate)
+  pullboard check [id] [--yes]          show and run your item's check; --yes confirms a check set by someone else
+                                        the command and its author print first; the project gate is pullboard gate
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
   pullboard release <id>                hand it back
   pullboard submit <id>                 needs a clean tree and the gate green at HEAD (alias: done)
@@ -133,14 +151,17 @@ Receipts
   pullboard log [id]                    every move, in order
 
 Spec
-  pullboard spec --json                 parsed SPEC.md and PRACTICE.md rows as JSON
+  pullboard spec --json                 parsed SPEC.md and doctrine rows as JSON
   pullboard forget <path>               remove a repo from this machine's project list
-  pullboard spec check                  lint SPEC.md and PRACTICE.md
-  pullboard spec view [--out file]      the spec, open questions, sign-offs and practice as one page
+  pullboard spec check                  lint SPEC.md and the doctrine (house rules for agentic development)
+  pullboard spec view [--out file]      the spec, open questions, sign-offs and doctrine as one page
   pullboard spec show <id> | unmet [--must] | signoff <ids> [--by <principal>]
                                         signoff: --note "what was checked" stays with the receipt
   pullboard spec signers add [--key <path>] [--by <principal>]  opt into SSH-signed sign-offs
                                         principal defaults to Git user.email; --by overrides it
+  pullboard spec approve <ids> | decline <ids> --reason "why"  the person's exact-row decision
+                                        approve <id> --text "new wording" approves an exact rewrite
+  pullboard spec apply                  coordinator applies recorded row decisions to the files
 
 Role guides
   pullboard prompt decompose|plan|signoff|review|verify   how to do each role; Claude Code gets them as skills
@@ -153,6 +174,212 @@ ${lifecycleHelp()}
 
 Reject reasons: TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD, OTHER.
 --json prints one versioned document for every command; refusals include their code and next step.`;
+
+const HELP_NAMES = [
+  'tour', 'init', 'worktree', 'join', 'whoami', 'lanes', 'status', 'resources', 'settings', 'view', 'view export',
+  'serve', 'relay', 'resume', 'hooks', 'add', 'edit', 'escalate', 'run', 'list', 'doctor', 'show', 'next',
+  'check', 'claim', 'release', 'submit', 'done', 'verify', 'fact', 'shout', 'answer', 'pass', 'decisions', 'inbox', 'export', 'import',
+  'sweep', 'merged', 'withdraw', 'refreeze', 'hold', 'ledger', 'log', 'spec', 'spec check', 'spec view',
+  'spec show', 'spec unmet', 'spec signoff', 'spec signers', 'spec signers add', 'forget', 'prompt', 'gate', 'hook',
+  'hook pre-commit', 'hook commit-msg', 'hook pre-push', 'view export', 'version', 'lifecycle', 'help',
+  'roadmap', 'milestone',
+];
+
+const HELP_GROUPS = [
+  ['Start', ['tour', 'init', 'worktree']],
+  ['Work', ['add', 'list', 'claim']],
+  ['Review', ['submit', 'next', 'verify']],
+  ['See', ['status', 'view', 'log']],
+];
+
+const HELP_EXAMPLES = {
+  tour: 'pullboard tour', init: 'pullboard init', worktree: 'pullboard worktree web', resume: 'pullboard resume',
+  add: 'pullboard add web "Upload page" --specs G1', list: 'pullboard list web', show: 'pullboard show 12',
+  claim: 'pullboard claim 12', submit: 'pullboard submit 12', 'next --verify': 'pullboard next --verify',
+  fact: 'pullboard fact 12 measurement "The check passes in 8 seconds"',
+  verify: 'pullboard verify 12 accept --note "removed the fix; the test failed"',
+  answer: 'pullboard answer 12 "done"', pass: 'pullboard pass 12 "please decide"',
+  status: 'pullboard status', view: 'pullboard view', log: 'pullboard log 12', ledger: 'pullboard ledger',
+  roadmap: 'pullboard roadmap', milestone: 'pullboard milestone add "0.7.0" --items 12,13',
+  edit: 'pullboard edit 12 --brief "Add the upload page"', release: 'pullboard release 12',
+  escalate: 'pullboard escalate 12 --note "needs a manual step"', next: 'pullboard next',
+  run: 'pullboard run --agent "node agent.js"', 'view export': 'pullboard view --export ./site',
+  'spec check': 'pullboard spec check',
+  'spec view': 'pullboard spec view', 'spec show': 'pullboard spec show G1',
+  'spec unmet': 'pullboard spec unmet', 'spec signoff': 'pullboard spec signoff G1',
+  'spec signers add': 'pullboard spec signers add', help: 'pullboard help claim', version: 'pullboard --version',
+};
+
+const HELP_ALIASES = {
+  whoami: { usage: 'pullboard whoami', source: 'whoami' },
+  lanes: { usage: 'pullboard lanes', source: 'whoami' },
+  status: { usage: 'pullboard status', source: 'whoami' },
+  done: { usage: 'pullboard done <id>', source: 'submit <id>' },
+  inbox: { usage: 'pullboard inbox', source: null },
+  lifecycle: { usage: 'pullboard lifecycle', source: null },
+  escalate: { usage: 'pullboard escalate <id> --note "..." [--note-file <file>]', source: 'escalate <id> --note "what was tried and how it failed"', extraFlags: ['--note-file <file>'] },
+  'view export': { usage: 'pullboard view --export <dir>', source: 'view' },
+  'spec check': { usage: 'pullboard spec check', source: 'spec check' },
+  'spec view': { usage: 'pullboard spec view [--out file]', source: 'spec view' },
+  'spec show': { usage: 'pullboard spec show <id>', source: 'spec show', onlyFlags: [] },
+  'spec unmet': { usage: 'pullboard spec unmet [--must]', source: 'spec show', onlyFlags: ['--must'] },
+  'spec signoff': { usage: 'pullboard spec signoff <ids> [--by <principal>] [--note "..."] [--note-file <file>]', source: 'spec show', onlyFlags: ['--by', '--note', '--note-file'], extraFlags: ['--note-file <file>'] },
+  'spec signers': { usage: 'pullboard spec signers add [--key <path>] [--by <principal>]', source: 'spec signers add' },
+  'spec signers add': { usage: 'pullboard spec signers add [--key <path>] [--by <principal>]', source: 'spec signers add' },
+  hook: { usage: 'pullboard hook pre-commit|commit-msg|pre-push', source: 'hook' },
+  'hook pre-commit': { usage: 'pullboard hook pre-commit', source: 'hook' },
+  'hook commit-msg': { usage: 'pullboard hook commit-msg <file>', source: 'hook' },
+  'hook pre-push': { usage: 'pullboard hook pre-push', source: 'hook' },
+};
+
+const HELP_FLAG_EXPLANATIONS = {
+  '--after': 'claiming waits until those items are verified',
+  '--brief': 'what a cold agent needs',
+  '--check': 'the command that proves it',
+  '--family': 'records the family name',
+  '--json': 'prints one versioned document',
+  '--note': 'what was checked stays with the receipt',
+  '--note-file': 'keeps quotes, $ and backticks intact',
+  '--route': 'sets which work the model can take',
+};
+
+/** Build command-specific help rows from the preserved full list so its syntax stays authoritative. */
+function commandHelpRows(fullHelp) {
+  const lines = fullHelp.split('\n');
+  const rows = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!lines[index].startsWith('  pullboard ')) continue;
+    const details = [lines[index].trim()];
+    for (let next = index + 1; next < lines.length && lines[next].startsWith(' ') && lines[next].trim() && !lines[next].startsWith('  pullboard '); next += 1) details.push(lines[next].trim());
+    rows.push({ usage: lines[index].trim().slice('pullboard '.length).split(/\s{2,}/, 1)[0].trim(), details });
+  }
+  return Object.fromEntries(HELP_NAMES.map((name) => {
+    const parts = name.split(' ');
+    const alias = HELP_ALIASES[name];
+    const matches = alias?.source ? rows.filter((row) => row.usage === alias.source || row.usage.startsWith(`${alias.source} `)) : alias ? [] : rows.filter((row) => {
+      const tokens = row.usage.split(/\s+/u);
+      if (!parts.every((part, index) => tokens[index] === part)) return false;
+      const next = tokens[parts.length];
+      return !next || next.startsWith('--') || next.startsWith('<') || next.startsWith('[') || next === '|';
+    });
+    const usages = alias ? [alias.usage] : matches.length ? [...new Set(matches.map((row) => `pullboard ${row.usage}`))] : [`pullboard ${name}`];
+    const foundFlags = [...matches.flatMap((row) => row.details.flatMap((line) => line.match(/--[a-z][a-z-]*(?:\s+(?:<[^>]+>|"[^"]*"|\[[^\]]+\]|[A-Za-z][A-Za-z0-9|_-]*))?/gu) ?? [])), ...(alias?.extraFlags ?? []), '--json', '--help', ...(name === 'help' ? ['--all'] : [])];
+    const flagMap = new Map();
+    for (const flag of foundFlags) {
+      const key = flag.split(/\s/u, 1)[0];
+      if (alias?.onlyFlags && !alias.onlyFlags.includes(key) && !['--json', '--help'].includes(key)) continue;
+      if (!flagMap.has(key) || flagMap.get(key).length < flag.length) flagMap.set(key, flag);
+    }
+    const flags = [...flagMap.values()].map((flag) => {
+      const explanation = HELP_FLAG_EXPLANATIONS[flag.split(/\s/u, 1)[0]];
+      return explanation ? `${flag} — ${explanation}` : flag;
+    });
+    const example = exampleFor(name, usages[0]);
+    return [name, Object.freeze({ usages, flags, example })];
+  }));
+}
+
+/** Render the short first-run overview, with command names grouped by when a person needs them. */
+function overviewHelp(groups, firstRun = false) {
+  const pointer = 'New here? pullboard tour, then pullboard init.';
+  const description = 'Pullboard is a local-first work board for coding agents; nothing ships until a second agent verifies it.';
+  const lines = [
+    ...(firstRun ? [pointer, description] : [description, pointer]),
+    '',
+  ];
+  for (const [group, names] of groups) lines.push(group, ...names.map((name) => `  pullboard ${name}`));
+  lines.push('', 'More: pullboard help <command>; pullboard help --all for the full list.');
+  return lines.join('\n');
+}
+
+/** The one help declaration feeds the overview, command detail, JSON result and unchanged full list. */
+export const HELP = Object.freeze({
+  overview: overviewHelp(HELP_GROUPS),
+  firstRun: overviewHelp(HELP_GROUPS, true),
+  all: ALL_HELP,
+  groups: HELP_GROUPS,
+  commands: Object.freeze(commandHelpRows(ALL_HELP)),
+});
+
+/** Find the nearest declared command for a useful typo hint. */
+function closestHelpCommand(input) {
+  const needle = input.toLowerCase();
+  /** Measure edit distance between two command names for a useful typo hint. */
+  const distance = (left, right) => {
+    let row = Array.from({ length: right.length + 1 }, (_, index) => index);
+    for (let i = 1; i <= left.length; i += 1) {
+      const next = [i];
+      for (let j = 1; j <= right.length; j += 1) {
+        next[j] = Math.min(next[j - 1] + 1, row[j] + 1, row[j - 1] + (left[i - 1] === right[j - 1] ? 0 : 1));
+      }
+      row = next;
+    }
+    return row.at(-1);
+  };
+  return Object.keys(HELP.commands).sort((a, b) => distance(needle, a) - distance(needle, b) || a.localeCompare(b))[0];
+}
+
+/** Render one command's usage, one-line flags and a pasteable example from the help declaration. */
+function commandHelp(name) {
+  const entry = HELP.commands[name];
+  if (!entry) return null;
+  return [
+    `Usage: ${entry.usages[0]}`,
+    ...entry.usages.slice(1).map((usage) => `       ${usage}`),
+    'Flags:',
+    ...(entry.flags.length ? entry.flags.map((flag) => `  ${flag}`) : ['  none']),
+    'Example:',
+    `  ${entry.example}`,
+  ].join('\n');
+}
+
+/** Replace help placeholders with ordinary values so every command receives a usable example. */
+function exampleFor(name, usage) {
+  if (HELP_EXAMPLES[name]) return HELP_EXAMPLES[name];
+  return usage.split(/\s+\|\s+|\|/u, 1)[0]
+    .replace(/\s+\[[^\]]+\]/gu, '')
+    .replace(/<lane>/gu, 'web')
+    .replace(/<title>/gu, '"Example"')
+    .replace(/<id>/gu, '12')
+    .replace(/<file>/gu, 'board.json')
+    .replace(/<path>/gu, 'src/cli.js')
+    .replace(/<commit>/gu, '0123456')
+    .replace(/<principal>/gu, 'person@example.invalid')
+    .replace(/<[^>]+>/gu, 'value');
+}
+
+/** Write a selected help view in text and the stable help:string JSON field. */
+function printHelp(io, text) {
+  io.result?.({ help: text });
+  io.say(text);
+  return 0;
+}
+
+/** Refuse an unknown command with its nearest declared spelling and a route to the full list. */
+function unknownCommand(io, input) {
+  const closest = closestHelpCommand(input);
+  io.err(`pullboard: no command "${input}"; closest match is "${closest}". Run pullboard help --all for the full list.`);
+  return 2;
+}
+
+/** Resolve overview, command detail or the preserved full list from one invocation. */
+function selectedHelp(command, first, second, rest, values) {
+  if (command === 'help') {
+    if (values.all) return { text: HELP.all };
+    const requested = [first, second, ...rest].filter(Boolean).join(' ');
+    if (!requested || values.help && !first) return { text: HELP.overview };
+    return { name: requested, text: commandHelp(requested) };
+  }
+  if (values.all && (!command || command === 'help')) return { text: HELP.all };
+  if (!command) return { text: HELP.firstRun };
+  if (values.help) {
+    const words = [command, first, second, ...rest].filter(Boolean);
+    const candidates = words.map((_, index) => words.slice(0, index + 1).join(' ')).filter((name) => HELP.commands[name]);
+    const nested = candidates.at(-1) ?? command;
+    return { name: nested, text: commandHelp(nested) };
+  }
+  return null;
+}
 
 const OPTIONS = {
   criterion: { type: 'string' },
@@ -171,10 +398,12 @@ const OPTIONS = {
   after: { type: 'string' },
   brief: { type: 'string' },
   'brief-file': { type: 'string' },
+  text: { type: 'string' },
   route: { type: 'string' },
   family: { type: 'string' },
   as: { type: 'string' },
   check: { type: 'string' },
+  yes: { type: 'boolean' },
   agent: { type: 'string' },
   'agent-light': { type: 'string' },
   'agent-mid': { type: 'string' },
@@ -185,9 +414,14 @@ const OPTIONS = {
   run: { type: 'string' },
   max: { type: 'string' },
   'dry-run': { type: 'boolean' },
+  before: { type: 'string' },
+  add: { type: 'string' },
+  remove: { type: 'string' },
+  name: { type: 'string' },
   url: { type: 'string' },
   wait: { type: 'string' },
   verify: { type: 'boolean' },
+  build: { type: 'boolean' },
   all: { type: 'boolean' },
   must: { type: 'boolean' },
   json: { type: 'boolean' },
@@ -197,6 +431,8 @@ const OPTIONS = {
   outcome: { type: 'string' },
   item: { type: 'string' },
   commit: { type: 'string' },
+  ref: { type: 'string' },
+  supersedes: { type: 'string' },
   help: { type: 'boolean', short: 'h' },
   version: { type: 'boolean', short: 'v' },
 };
@@ -438,7 +674,15 @@ function whoAmI(ctx, board) {
  * @param {any} ctx
  * @returns {(item: any) => { text: string, digest: string }}
  */
-const freezer = (ctx) => (item) => frozenCriterion(loadSpec(ctx.info.root, ctx.config), item);
+const freezer = (ctx) => (item) => {
+  const prior = item.item_frozen ? JSON.parse(item.item_frozen) : null;
+  const policy = prior?.policy ?? (!prior && !(ctx.info.isMain && !headCommit(ctx.info.root)) ? { version: 1, commit: mainPolicy(ctx.info.root).commit } : null);
+  const config = policy ? itemPolicy(ctx.info.root, { ...item, item_frozen: JSON.stringify({ policy }) }).config : ctx.config;
+  const frozen = frozenCriterion(loadSpec(ctx.info.root, config), item);
+  if (!policy) return frozen; // Legacy criteria retain their original digest and committed claim base.
+  const text = JSON.stringify({ ...JSON.parse(frozen.text), policy });
+  return { text, digest: createHash('sha256').update(text).digest('hex') };
+};
 
 /**
  * The evidence a shout carries, from its flags (B22). The commit is resolved here, in this repo,
@@ -642,6 +886,7 @@ function resumeHere(io) {
     };
   });
   const { me } = card;
+  card.stale = staleFrozenItems(card.all, loadSpec(root, ctx.config).rows).map((item) => ({ ...item, ...staleItemFinding(item) }));
   const say = (line) => io.say(line);
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
   say(`resume: ${me.id}${me.family ? ` (${me.family})` : ''}, ${me.lane} lane${isMain ? ', the main checkout' : ''}, at ${root}`);
@@ -665,6 +910,7 @@ function resumeHere(io) {
   for (const { item, verdict } of card.sentBack) {
     say(`sent back: #${item.item_id} ${verdict ? `${verdict.verdict_reason} by ${verdict.verdict_by}: ${firstLine(verdict.verdict_note)}` : 'rejected'}`);
   }
+  for (const item of card.stale) say(`stale: ${item.message}; next: ${item.next}`);
   if (card.awaiting.length) say(`awaiting a verdict: ${card.awaiting.map((item) => `#${item.item_id} (${span(ctx, item.item_updated_at)})`).join(', ')}`);
   if (isMain) {
     if (card.toVerify.length) say(`to verify: ${card.toVerify.map((item) => `#${item.item_id} ${item.item_lane} (${span(ctx, item.item_updated_at)})`).join(', ')}`);
@@ -780,10 +1026,12 @@ function setupCommands(io, { first, values }) {
         closeBoard: store.closeBoard,
       });
       io.result?.({ root: info.root, notes });
-      notes.forEach((note) => io.say(note));
+      const staging = notes.at(-1)?.startsWith('git add -f -- ') ? notes.at(-1) : null;
+      (staging ? notes.slice(0, -1) : notes).forEach((note) => io.say(note));
       if (registerProject(info.root, new Date(), loadConfig(info.root))) io.say('registered this project on this machine, so pullboard view lists it');
       io.say('next: write SPEC.md rows, declare lanes in pullboard.json, then: pullboard add <lane> <title>');
       io.say('with an agent: start a new Claude Code session here, which loads the pullboard skills, then tell it what to build; the pullboard-run skill runs the team');
+      if (staging) io.say(staging);
       return 0;
     },
     hooks: () => {
@@ -968,23 +1216,41 @@ function readCommands(io, { first, second, rest, values }) {
       else items.forEach((item) => io.say(itemLine(item)));
       return 0;
     },
+    roadmap: () => {
+      if (first || second || rest.length) throw new Refused('USAGE', 'pullboard roadmap takes no arguments');
+      const ctx = context(io);
+      const milestones = withBoard(ctx, (board) => milestoneRoadmap(ctx.info.root, board));
+      io.result?.({ milestones });
+      if (!milestones.length) io.say('no milestones yet; the coordinator can add one with pullboard milestone add');
+      for (const milestone of milestones) {
+        io.say(`${milestone.name}: ${milestone.done}/${milestone.total} done`);
+        if (milestone.note) io.say(`  ${milestone.note}`);
+        for (const item of milestone.items) {
+          const id = typeof item.id === 'number' ? `#${item.id}` : item.id;
+          io.say(`  ${id} ${item.title} — ${item.status}`);
+        }
+      }
+      return 0;
+    },
     show: () => {
       const ctx = context(io);
       const id = idArg(first);
-      const { item, verdicts, moves, related, reviewer } = withBoard(ctx, (board) => ({
+      const { item, verdicts, moves, thread, related, reviewer } = withBoard(ctx, (board) => ({
         item: store.getItem(board, id),
         verdicts: store.verdictsFor(board, id),
         moves: store.events(board, { itemId: id }).filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
+        thread: store.itemThread(board, id),
         related: store.relatedItems(board, store.getItem(board, id)),
         reviewer: store.reviewHolder(board, store.getItem(board, id)),
       }));
       if (values.json) {
-        io.result({ ...item, verdicts });
+        io.result({ ...item, verdicts, thread });
         return 0;
       }
       io.say(itemLine(item));
       if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
       if (item.item_check) io.say(`check: ${item.item_check}`);
+      sayCheckBaseline(io, item);
       sayBrief(io, item.item_brief);
       for (const { item: other, shared } of related) {
         io.say(`related: #${other.item_id} ${other.item_title}: ${shared.slice(0, 4).join(', ')}${shared.length > 4 ? ', ...' : ''} (git log -p -1 ${other.item_commit.slice(0, 12)} -- ${shared[0]})`);
@@ -1010,6 +1276,17 @@ function readCommands(io, { first, second, rest, values }) {
       if (notes.some((note, index) => note !== verdicts[index].verdict_note)) io.say(`(earlier verdicts shortened; every note in full: pullboard show ${id} --history)`);
       if (item.item_merged_commit) io.say(`merged as ${item.item_merged_commit}`);
       if (item.item_withdrawn_reason) io.say(`withdrawn: ${item.item_withdrawn_reason}`);
+      io.say('thread:');
+      for (const entry of thread) {
+        const stamp = `  ${entry.at}  ${entry.by}  `;
+        if (entry.type === 'fact') {
+          io.say(`${stamp}fact ${entry.kind} ${entry.id}${entry.supersedes ? ' (supersedes ' + entry.supersedes + ')' : ''}: ${entry.text}`);
+          if (entry.ref) io.say(`    ref: ${entry.ref.path}:${entry.ref.start}${entry.ref.end === entry.ref.start ? '' : '-' + entry.ref.end}@${entry.ref.commit}`);
+        } else {
+          const detail = entry.detail;
+          io.say(`${stamp}${entry.kind}${detail.commit ? ' at ' + detail.commit : ''}${detail.reason ? ': ' + detail.reason : ''}`);
+        }
+      }
       return 0;
     },
     status: () => {
@@ -1017,7 +1294,7 @@ function readCommands(io, { first, second, rest, values }) {
       const summary = withBoard(ctx, (board) => {
         const me = whoAmI(ctx, board);
         const mine = store.listItems(board).filter((item) => item.item_status === 'claimed' && item.item_owner === me.id);
-        return { me, mine, stats: store.stats(board), unread: store.unreadCount(board, me.id), relay: relayStatus(ctx.info.root) };
+        return { me, mine, stats: store.stats(board), reviewQueue: store.reviewQueue(board), unread: store.unreadCount(board, me.id), relay: relayStatus(ctx.info.root) };
       });
       if (values.json) {
         io.result(summary);
@@ -1028,6 +1305,7 @@ function readCommands(io, { first, second, rest, values }) {
       io.say(`${summary.me.id}: ${summary.unread} unread shouts; holding ${summary.mine.map((item) => `#${item.item_id}`).join(', ') || 'nothing'}`);
       io.say(`board: ${items.open} open, ${items.claimed} claimed, ${items.submitted} awaiting verification, ${items.verified} verified, ${items.withdrawn} withdrawn`);
       io.say(`verdicts: ${accepted} accepted, ${rejected} rejected`);
+      io.say(reviewQueueLine(ctx, summary.reviewQueue));
       if (Object.keys(ctx.config.products).length) {
         const all = withBoard(ctx, (board) => store.listItems(board, { all: true }));
         productSummaries(ctx.config, loadSpec(ctx.info.root, ctx.config), all).forEach((product) => io.say(productLine(product)));
@@ -1043,7 +1321,7 @@ function readCommands(io, { first, second, rest, values }) {
         return 1;
       }
       const ctx = context(io);
-      const problems = doctorProblems(ctx.file, ctx.info.root, tryGit);
+      const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config), ...doctrineProblems(ctx.info.root, ctx.config)];
       io.result?.({ problems });
       if (!problems.length) {
         io.say('board is clean');
@@ -1117,6 +1395,17 @@ function readCommands(io, { first, second, rest, values }) {
  */
 async function submitHere(ctx, id) {
   const { root } = ctx.info;
+  const held = withBoard(ctx, (board) => {
+    const me = whoAmI(ctx, board);
+    const item = store.getItem(board, id);
+    if (item.item_status !== 'claimed' || item.item_owner !== me.id) throw new Refused('NOT_YOURS', 'claim this item before submitting it');
+    return item;
+  });
+  const policy = itemPolicy(root, held);
+  const acceptedMain = mainPolicy(root);
+  ctx = { ...ctx, config: policy.config };
+  const dependencies = withBoard(ctx, board => dependencySnapshots(board.db, held));
+  submissionPaths(root, held, headCommit(root), { mainCommit: acceptedMain.commit, dependencies });
   const { me, claimHead } = withBoard(ctx, (board) => {
     const who = whoAmI(ctx, board);
     const item = store.getItem(board, id);
@@ -1159,7 +1448,7 @@ async function submitHere(ctx, id) {
       `when the gate ended, HEAD or a tracked file differed from ${commit.slice(0, 12)}, the commit it started on, so the gate did not end on what you would submit; leave the worktree alone until the gate finishes, then submit again`,
     );
   }
-  await withBoard(ctx, async (board) => await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit) }]));
+  await withBoard(ctx, async (board) => await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit }]));
   const pin = `refs/pullboard/items/${id}/${commit.slice(0, 12)}`;
   git(root, ['update-ref', pin, commit]);
   ctx.io.result?.({ id, commit, pin, gate: { green: gate.isGreen, report: gateReport(gate) } });
@@ -1189,6 +1478,8 @@ async function verifyHere(ctx, id, { second, values }) {
     if (item.item_status !== 'submitted') {
       throw new Refused('NOT_SUBMITTED', `item #${id} is ${item.item_status}, not submitted`);
     }
+    const policy = itemPolicy(root, item);
+    ctx = { ...ctx, config: policy.config };
     const head = headCommit(root) ?? '';
     const commit = resolveCommit(root, item.item_commit);
     if (!commit || !contains(root, commit, head)) {
@@ -1199,6 +1490,14 @@ async function verifyHere(ctx, id, { second, values }) {
       digest = freezer(ctx)(item).digest;
     } catch (error) {
       if (!(error instanceof Refused) || error.code === 'A5_GRAMMAR_VERSION') throw error;
+    }
+    if (decision === 'ACCEPT') {
+      if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
+      const check = checkAtCommit(root, item);
+      if (check.state === 'unverified') throw new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the submitted commit; restore the install or check environment, then retry verification; output digest:\n${check.report.replace(/^/gm, '  ')}`);
+      if (check.state === 'red') throw new Refused('CHECK_RED', `the frozen item check is red at the submitted commit; check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit; output digest:\n${check.report.replace(/^/gm, '  ')}`);
+      const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
+      submissionPaths(root, item, commit, { mainCommit: receipt?.policyCommit, dependencies: dependencySnapshots(board.db, item) });
     }
     return await ordered(ctx, board, 'verify', [id, {
       agentId: me.id,
@@ -1238,16 +1537,38 @@ async function nextOnce(ctx, values) {
     }
     const warm = warmFiles(ctx, board, me);
     const { item, reasons, shared } = store.nextFor(board, { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm });
+    const held = item?.item_status === 'claimed';
+    const offer = held ? null : store.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
+      familyPolicy: ctx.config.verify.family, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes });
+    if (offer && !values.build) return { item: offer.item, offer, build: item ?? null };
     if (!item) return { reasons };
-    const held = item.item_status === 'claimed';
+    const reviewSkipped = values.build && !held
+      ? { offeredItem: offer?.item.item_id ?? null, ratio: ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;
     try {
-      await ordered(ctx, board, 'claim', [item.item_id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx), head: headCommit(ctx.info.root) }]);
+      await ordered(ctx, board, 'claim', [item.item_id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx), head: headCommit(ctx.info.root), reviewSkipped }]);
     } catch (error) {
       if (error instanceof Refused && ['HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true };
       throw error;
     }
-    return { item: store.getItem(board, item.item_id), shared, held };
+    return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped };
   });
+}
+
+/** Describe the queue's actual outstanding reviews and submission age [Q1,V15]. */
+function reviewQueueLine(ctx, queue) {
+  const age = queue.oldestSubmittedAt ? `${span(ctx, queue.oldestSubmittedAt)} ago` : 'none';
+  return `review queue: ${queue.pending} awaiting, ${queue.reviewing} agents reviewing; oldest submission ${age}`;
+}
+
+/** Print an unreserved review first, then the build available through an explicit opt-out. */
+function sayReviewOffer(ctx, found) {
+  const command = `pullboard next --verify ${found.item.item_id}${ctx.info.isMain ? ' --as coordinator' : ''}`;
+  const offer = { item: found.item.item_id, command, queue: found.offer.queue, ratio: found.offer.ratio };
+  ctx.io.result?.({ item: found.item, review: true, held: false, shared: [], offer, build: found.build });
+  ctx.io.say(`${reviewQueueLine(ctx, offer.queue)}; ratio ${offer.ratio} reached (zero active reviewers counts as one)`);
+  ctx.io.say(`review offered: #${found.item.item_id} ${found.item.item_title}, built by ${found.item.item_built_by}; reserve it explicitly: ${command}`);
+  if (found.build) ctx.io.say(`build available: #${found.build.item_id} ${found.build.item_title}; claim it explicitly: pullboard next --build`);
+  else ctx.io.say('no build is currently free in your lane; this review is available');
 }
 
 /**
@@ -1260,6 +1581,7 @@ async function nextOnce(ctx, values) {
  */
 async function nextHere(io, values) {
   const ctx = context(io);
+  if (values.build && values.verify) throw new Refused('USAGE', 'choose a build or a review: pullboard next --build or pullboard next --verify');
   if (values.verifyId !== undefined && !values.verify) {
     throw new Refused('USAGE', 'give an item id only with --verify: pullboard next --verify <id>');
   }
@@ -1272,16 +1594,19 @@ async function nextHere(io, values) {
   for (;;) {
     const found = await nextOnce(ctx, values);
     if (found.item) {
+      if (found.offer) { sayReviewOffer(ctx, found); return 0; }
       const item = found.item;
       io.result?.({ item, review: Boolean(values.verify), held: Boolean(found.held), shared: found.shared ?? [] });
       const here = cdTo(ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (values.verify) {
+        sayCheckBaseline(io, item);
         io.say(`next to verify: #${item.item_id} ${item.item_title}, built by ${item.item_built_by} at ${item.item_commit.slice(0, 12)}`);
         io.say(`reserved for you until ${item.item_review_until}: another agent's verdict on it is refused until then; pullboard next --verify again renews it`);
         io.say(`check out exactly that commit, here: ${here} git switch --detach ${item.item_commit}`);
         io.say(`then: ${here} pullboard verify ${item.item_id} accept${as} --note "how you proved it", or reject${as} --reason CODE --note "what failed"`);
       } else {
+        if (found.reviewSkipped) io.say(`${reviewQueueLine(ctx, found.reviewSkipped)}; explicit build intent recorded with this claim`);
         io.say(`${found.held ? 'you hold' : 'claimed'} #${item.item_id}: ${item.item_title}`);
         if (found.shared?.length) io.say(`it touches ${found.shared.length === 1 ? 'a file' : `${found.shared.length} files`} you worked in recently: ${found.shared.slice(0, 4).join(', ')}`);
         if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
@@ -1372,6 +1697,63 @@ function workCommands(io, args) {
     return withBoard(ctx, (board) => work(ctx, board, whoAmI(ctx, board)));
   };
   return {
+    fact: () => act(async (ctx, board, me) => {
+      if (!first || !second || rest.length !== 1) throw new Refused('USAGE', 'pullboard fact <id> <kind> <text> [--supersedes <fact-id>] [--ref path:lines@full-sha]');
+      const id = idArg(first);
+      const fact = await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: second,
+        text: rest[0], supersedes: values.supersedes ?? null, ref: values.ref ?? null }]);
+      io.result?.({ item: id, fact });
+      io.say(`fact ${fact.id} appended to #${id} as ${fact.kind}`);
+      return 0;
+    }),
+    milestone: () => act(async (ctx, board, me) => {
+      const ids = (text) => (text ?? '').split(',').map((value) => value.trim()).filter(Boolean);
+      let name;
+      let entry;
+      if (first === 'add') {
+        if (!second || rest.length || values.before !== undefined || values.add !== undefined || values.remove !== undefined || values.name !== undefined) {
+          throw new Refused('USAGE', 'pullboard milestone add <name> [--note ...] [--items 1,2,3]');
+        }
+        name = await ordered(ctx, board, 'addMilestone', [{ agentId: me.id, name: second, note: values.note ?? null, items: ids(values.items) }]);
+      } else if (first === 'items') {
+        if (!second || rest.length || Boolean(values.add) === Boolean(values.remove) || values.items !== undefined || values.note !== undefined || values.before !== undefined || values.name !== undefined) {
+          throw new Refused('USAGE', 'pullboard milestone items <name> --add ids or --remove ids');
+        }
+        name = second;
+        const next = await ordered(ctx, board, 'editMilestoneItems', [name, {
+          agentId: me.id,
+          add: values.add === undefined ? [] : ids(values.add),
+          remove: values.remove === undefined ? [] : ids(values.remove),
+        }]);
+        entry = { ...store.milestones(board).find((value) => value.name === name), items: next };
+      } else if (first === 'move') {
+        if (!second || rest.length || !values.before || values.items !== undefined || values.note !== undefined || values.name !== undefined || values.add !== undefined || values.remove !== undefined) {
+          throw new Refused('USAGE', 'pullboard milestone move <name> --before <other>');
+        }
+        name = second;
+        await ordered(ctx, board, 'moveMilestone', [name, { agentId: me.id, before: values.before }]);
+        entry = store.milestones(board).find((value) => value.name === name);
+      } else if (first === 'edit') {
+        if (!second || rest.length || (values.name === undefined && values.note === undefined) || values.items !== undefined || values.before !== undefined || values.add !== undefined || values.remove !== undefined) {
+          throw new Refused('USAGE', 'pullboard milestone edit <name> [--name <new name>] [--note <text>]');
+        }
+        name = second;
+        entry = await ordered(ctx, board, 'editMilestone', [name, { agentId: me.id, newName: values.name, note: values.note }]);
+      } else if (first === 'remove') {
+        if (!second || rest.length || values.items !== undefined || values.note !== undefined || values.before !== undefined || values.name !== undefined || values.add !== undefined || values.remove !== undefined) {
+          throw new Refused('USAGE', 'pullboard milestone remove <name>');
+        }
+        name = second;
+        await ordered(ctx, board, 'removeMilestone', [name, { agentId: me.id }]);
+        entry = { name };
+      } else {
+        throw new Refused('USAGE', 'use pullboard milestone add, items, move, edit or remove');
+      }
+      entry ??= store.milestones(board).find((value) => value.name === name);
+      io.result?.({ milestone: entry });
+      io.say(`milestone ${first === 'remove' ? 'removed' : first === 'add' ? 'added' : 'updated'}: ${name}`);
+      return 0;
+    }),
     add: () => act(async (ctx, board, me) => {
       if (!first || !isLane(ctx.config, first)) throw new Refused('NO_LANE', `no lane "${first ?? ''}"; see: pullboard lanes`);
       const specIds = idList(values.specs);
@@ -1380,7 +1762,7 @@ function workCommands(io, args) {
       const parentId = values.parent ? idArg(values.parent, 'a parent item id') : null;
       const after = idList(values.after).map((text) => idArg(text, 'an item id after --after'));
       const title = [second, ...rest].filter(Boolean).join(' ');
-      const id = await ordered(ctx, board, 'addItem', [{
+      const item = {
         by: me.id,
         lane: first,
         title,
@@ -1390,24 +1772,32 @@ function workCommands(io, args) {
         after,
         brief: briefInLane(ctx, first, briefArg(io, values) ?? ''),
         route: values.route ?? 'strong',
-        check: values.check ?? '',
-      }]);
+        check: values.check,
+      };
+      const { command } = store.validateItemAddition(board, item);
+      if (command) item.checkBaseline = checkBaseline(ctx.info.root, command);
+      const id = await ordered(ctx, board, 'addItem', [item]);
       io.result?.({ item: store.getItem(board, id) });
       io.say(`#${id}`);
+      sayCheckBaseline(io, store.getItem(board, id));
       return 0;
     }),
     edit: () => act(async (ctx, board, me) => {
       const id = idArg(first);
       const brief = briefArg(io, values);
-      await ordered(ctx, board, 'editItem', [id, {
+      const change = {
         agentId: me.id,
         brief: brief === undefined ? undefined : briefInLane(ctx, store.getItem(board, id).item_lane, brief),
         route: values.route,
         criterion: values.criterion,
         check: values.check,
-      }]);
+      };
+      const { item, command } = store.validateItemEdit(board, id, change);
+      if (command && command !== item.item_check) change.checkBaseline = checkBaseline(ctx.info.root, command);
+      await ordered(ctx, board, 'editItem', [id, change]);
       io.result?.({ item: store.getItem(board, id) });
       io.say(`edited #${id}`);
+      sayCheckBaseline(io, store.getItem(board, id));
       return 0;
     }),
     escalate: () => act(async (ctx, board, me) => {
@@ -1424,19 +1814,34 @@ function workCommands(io, args) {
     run: () => runItems(io, values, { context, withBoard, whoAmI, nextOnce, submitHere, freezer, ordered }),
     sweep: () => act((ctx, board, me) => sweepHere(ctx, board, me, values)),
     next: () => nextHere(io, { ...values, verifyId: first }),
-    check: () => {
+    check: async () => {
       const ctx = context(io);
-      const item = withBoard(ctx, (board) => {
-        if (first) return store.getItem(board, idArg(first));
-        const me = whoAmI(ctx, board);
-        const held = store.listItems(board).find((entry) => entry.item_status === 'claimed' && entry.item_owner === me.id && entry.item_parent_id === null);
+      const { item, author, caller } = withBoard(ctx, (board) => {
+        const me = first ? (ctx.info.isMain ? { id: COORDINATOR } : { id: store.agentAt(board, ctx.info.root)?.agent_id }) : whoAmI(ctx, board);
+        const held = first ? store.getItem(board, idArg(first))
+          : store.listItems(board).find((entry) => entry.item_status === 'claimed' && entry.item_owner === me.id && entry.item_parent_id === null);
         if (!held) throw new Refused('NOT_HOLDING', 'you hold no item; name one, pullboard check <id>, or run the project gate: pullboard gate');
-        return held;
+        return { item: held, author: store.itemCheckAuthor(board, held.item_id), caller: me.id };
       });
-      if (!item.item_check) throw new Refused('NO_CHECK', `#${item.item_id} has no check command; its proof is the project gate: pullboard gate`);
-      const run = runShell(ctx.info.root, item.item_check);
-      io.result?.({ id: item.item_id, green: run.isGreen, seconds: run.seconds, check: item.item_check, report: run.isGreen ? '' : digestOf(run.output) });
-      io.say(`check ${run.isGreen ? 'green' : 'red'} in ${run.seconds}s: ${item.item_check}`);
+      const check = frozenCheck(item);
+      if (!check) throw new Refused('NO_CHECK', `#${item.item_id} has no check command; its proof is the project gate: pullboard gate`);
+      if (item.item_claim_head) itemPolicy(ctx.info.root, item);
+      else mainPolicy(ctx.info.root);
+      const by = author || 'unknown (legacy)';
+      const notice = `check #${item.item_id} set by ${by}: ${check}`;
+      if (values.json) io.stderr.write(`${notice}\n`);
+      else io.say(notice);
+      if (!values.yes && (!author || author !== caller)) {
+        if (values.json) io.stderr.write('Run this check? [y/N]\n');
+        else io.err('Run this check? [y/N]');
+        const answer = await firstInputLine(io.stdin);
+        if (!/^y(?:es)?$/iu.test(answer.trim())) {
+          throw new Refused('CHECK_CONFIRM', `the check set by ${by} was not run: ${check}; run pullboard check ${item.item_id} --yes after reading the command, or answer yes at the prompt`);
+        }
+      }
+      const run = runShell(ctx.info.root, check);
+      io.result?.({ id: item.item_id, green: run.isGreen, seconds: run.seconds, check, by, report: run.isGreen ? '' : digestOf(run.output) });
+      io.say(`check ${run.isGreen ? 'green' : 'red'} in ${run.seconds}s: ${check}`);
       if (!run.isGreen) io.say(digestOf(run.output).replace(/^/gm, '  '));
       return run.isGreen ? 0 : 1;
     },
@@ -1500,7 +1905,8 @@ function workCommands(io, args) {
     }),
     answer: () => act(async (ctx, board, me) => {
       const asPerson = personMode(ctx, me, values);
-      const id = await ordered(ctx, board, 'answerDecision', [idArg(first), { agentId: me.id, text: [second, ...rest].filter(Boolean).join(' '), lanes: laneNames(ctx.config), asPerson }]);
+      if (asPerson) requirePersonChannel(ctx.io.personChannel);
+      const id = await ordered(ctx, board, 'answerDecision', [idArg(first), { agentId: me.id, text: [second, ...rest].filter(Boolean).join(' '), lanes: laneNames(ctx.config), asPerson, channel: ctx.io.personChannel ?? 'terminal' }]);
       const ask = store.getShout(board, idArg(first));
       io.result?.({ id, answers: ask.shout_id });
       if (asPerson) {
@@ -1585,13 +1991,13 @@ function specProof(ctx) {
 }
 
 /**
- * The spec commands: JSON rows, check, view, show, unmet, signoff.
+ * The spec commands: reads, sign-offs and person decisions applied by the coordinator.
  *
  * @param {any} io
  * @param {any} args
- * @returns {number}
+ * @returns {Promise<number>}
  */
-function specCommand(io, { first, second, rest, values }) {
+async function specCommand(io, { first, second, rest, values }) {
   const ctx = context(io);
   const commandFlags = {
     '--json': ['json'],
@@ -1601,8 +2007,11 @@ function specCommand(io, { first, second, rest, values }) {
     unmet: ['must'],
     signoff: ['by', 'note', 'note-file'],
     signers: ['key', 'by'],
+    approve: ['by', 'text'],
+    decline: ['reason'],
+    apply: [],
   }[first ?? '--json'];
-  if (!commandFlags) throw new Refused('USAGE', 'use pullboard spec --json | check | view | show <id> | unmet [--must] | signoff <ids> --by <name> [--note "..."]');
+  if (!commandFlags) throw new Refused('USAGE', 'use pullboard spec --json | check | view | show <id> | unmet [--must] | signoff <ids> | approve <ids> | decline <ids> --reason "why" | apply');
   const allowedFlags = [...new Set([...commandFlags, 'json'])];
   for (const flag of Object.keys(values)) {
     if (!allowedFlags.includes(flag)) {
@@ -1614,6 +2023,36 @@ function specCommand(io, { first, second, rest, values }) {
   if (!spec.exists) throw new Refused('NO_SPEC', `no ${ctx.config.spec}; run: pullboard init`);
   const practice = ctx.doctrine;
   const signoffs = readSignoffs(ctx.info.root);
+  if (first === 'approve' || first === 'decline') {
+    requirePersonChannel(io.personChannel);
+    return withBoard(ctx, async (board) => {
+      const me = whoAmI(ctx, board);
+      if (!ctx.info.isMain || me.id !== COORDINATOR) throw new Refused('B26_PERSON_APPROVAL', 'only the person from the main checkout approves or declines rows; use pullboard view for the person to decide');
+      const ids = [second, ...rest].filter(Boolean).flatMap((text) => text.split(/[\s,]+/u)).filter(Boolean);
+      const records = prepareRowDecisions(ctx.info.root, ctx.config, { ids, decision: first, reason: values.reason, text: values.text, by: values.by, on: new Date().toISOString(), commit: headCommit(ctx.info.root) ?? '' });
+      const decisions = await ordered(ctx, board, 'recordRowDecisions', [{ agentId: store.PERSON, channel: io.personChannel ?? 'terminal', decisions: records }]);
+      io.result?.({ decisions });
+      decisions.forEach((record) => io.say(`${record.kind === 'doctrine' ? 'doctrine:' : ''}${record.id}: ${first === 'approve' ? 'approved' : 'declined'}, pending apply`));
+      return 0;
+    });
+  }
+  if (first === 'apply') {
+    if (second || rest.length) throw new Refused('USAGE', 'pullboard spec apply takes no ids; it applies current person decisions');
+    return withBoard(ctx, async (board) => {
+      const me = whoAmI(ctx, board);
+      if (!ctx.info.isMain || me.id !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator applies row decisions; ask your coordinator to run pullboard spec apply');
+      const plan = planRowApply(ctx.info.root, ctx.config, store.rowDecisions(board));
+      writeRowApply(ctx.info.root, plan);
+      let applied;
+      try { applied = await ordered(ctx, board, 'applyRowDecisions', [{ agentId: me.id, events: plan.records.map((record) => record.event) }]); }
+      catch (error) { restoreRowApply(ctx.info.root, plan); throw error; }
+      io.result?.({ applied, files: plan.files.map((file) => file.file) });
+      applied.forEach((record) => io.say(`${record.file}: ${record.id} ${record.decision === 'approve' ? 'approved' : 'wont'}${record.reason ? `: ${record.reason}` : ''}`));
+      if (!applied.length) io.say('no pending row decisions');
+      else io.say('stage and commit the changed row files and any .pullboard/signoffs.jsonl receipts');
+      return 0;
+    });
+  }
   if (first === 'check' || first === undefined) {
     const files = [[ctx.config.spec, spec], ...(practice.exists ? [[ctx.config.practice, practice]] : [])];
     for (const [, parsed] of files) assertRequiredSigners(ctx.info.root, parsed.rows);
@@ -1622,7 +2061,7 @@ function specCommand(io, { first, second, rest, values }) {
     for (const [name, parsed] of files) {
       const findings = lintSpec(parsed);
       findings.forEach((finding) => messages.push(`${name}:${finding.line} ${finding.id ?? ''} ${finding.level}: ${finding.message}`.replace('  ', ' ')));
-      const history = committedIds(ctx.info.root, name);
+      const history = parsed === practice ? doctrineHistory(ctx.info.root, name) : committedIds(ctx.info.root, name);
       const cited = name === ctx.config.spec ? citations(ctx, history) : new Map();
       const lost = permanenceProblems(parsed === practice ? practice.repo : parsed, { committed: history.ids, cited });
       lost.forEach((problem) => messages.push(`${name}: ${problem.id} error: ${problem.message}`));
@@ -1643,6 +2082,7 @@ function specCommand(io, { first, second, rest, values }) {
     return errors ? 1 : 0;
   }
   if (first === 'signers' && second === 'add') {
+    requirePersonChannel(io.personChannel);
     const signer = addSigner(ctx.info.root, { by: values.by, key: values.key });
     io.result?.(signer);
     io.say(signer.added
@@ -1670,11 +2110,16 @@ function specCommand(io, { first, second, rest, values }) {
     return 0;
   }
   if (first === 'show') {
-    const row = spec.rows.find((entry) => entry.id === second);
+    const doctrineId = second?.startsWith('doctrine:');
+    const parsed = doctrineId ? practice : spec;
+    const id = doctrineId ? second.slice('doctrine:'.length) : second;
+    const source = parsed.rows.find((entry) => entry.id === id);
+    const row = source && withBoard(ctx, (board) => decisionProjection(store.rowDecisions(board), source, doctrineId ? 'doctrine' : 'spec'));
     if (!row) throw new Refused('NO_ROW', `no row ${second ?? ''} in ${ctx.config.spec}`);
-    const standing = standings(spec.rows, signoffs).get(row.id) ?? { met: [], stale: [] };
+    const standing = standings(parsed.rows, signoffs).get(row.id) ?? { met: [], stale: [] };
     io.result?.({ row, standing });
     io.say(`${row.id} [${row.status}${row.tier ? `, ${row.tier}` : ''}] ${row.text}`);
+    if (row.stage) io.say(row.stage);
     if (row.gate) io.say(`gate: ${row.gate}`);
     if (row.serves.length) io.say(`serves: ${row.serves.join(', ')}`);
     io.say(`signed: ${standing.met.map((entry) => `${entry.by} ${entry.on}`).join(', ') || 'no'}${standing.stale.length ? `; stale: ${standing.stale.length}` : ''}`);
@@ -1692,6 +2137,7 @@ function specCommand(io, { first, second, rest, values }) {
     return 0;
   }
   if (first === 'signoff') {
+    requirePersonChannel(io.personChannel);
     const ids = [second, ...rest].filter(Boolean).flatMap((text) => idList(text));
     if (!ids.length) throw new Refused('USAGE', 'pullboard spec signoff <ids> [--by <principal>] [--note "what was checked"]');
     const invalid = ids.filter((id) => spec.rows.find((row) => row.id === id)?.status !== 'approved');
@@ -1713,7 +2159,20 @@ function specCommand(io, { first, second, rest, values }) {
     io.say(`signed ${count} rows as ${by}; commit .pullboard/signoffs.jsonl`);
     return 0;
   }
-  throw new Refused('USAGE', 'pullboard spec --json | check | view | show <id> | unmet [--must] | signoff <ids> [--by <principal>] | signers add');
+  throw new Refused('USAGE', 'pullboard spec --json | check | view | show <id> | unmet [--must] | signoff <ids> | signers add | approve <ids> | decline <ids> --reason "why" | apply');
+}
+
+/** Read one consent line without waiting for EOF in an interactive terminal [V2]. */
+async function firstInputLine(stdin) {
+  if (!stdin) return '';
+  let text = '';
+  for await (const chunk of stdin) {
+    text += chunk.toString();
+    const newline = text.indexOf('\n');
+    if (newline >= 0) return text.slice(0, newline);
+    if (text.length > 256) return '';
+  }
+  return text;
 }
 
 /**
@@ -1749,7 +2208,7 @@ async function hookCommand(io, { first, second }) {
   if (first === 'pre-commit') {
     applyFixers(info.root, ctx.config.fix).forEach((note) => io.err(`pullboard pre-commit: ${note}`));
     const agent = info.isMain ? null : withBoard(ctx, (board) => store.agentAt(board, info.root));
-    problems = preCommitProblems({ root: info.root, isMain: info.isMain, config: ctx.config, agent });
+    problems = preCommitProblems({ root: info.root, isMain: info.isMain, config: ctx.config, agent, boardFile: ctx.file });
   } else if (first === 'commit-msg') {
     const message = readFileSync(second ?? '', 'utf8');
     problems = commitMsgProblems(message, { rules: ctx.config.commits, spec: loadSpec(info.root, ctx.config) });
@@ -1781,21 +2240,21 @@ async function runCommand(argv, io) {
     parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
   } catch (error) {
     io.refusal?.(new Refused('USAGE', `${error.message}; run pullboard help`));
-    io.err(`pullboard: ${error.message}\n\n${HELP}`);
+    io.err(`pullboard: ${error.message}\nRun pullboard help --all for the full list.`);
     return 2;
   }
   const { values, positionals } = parsed;
   io.jsonMode?.(values.json);
   const [command = '', first, second, ...rest] = positionals;
-  if (values.version || command === 'version') {
+  if ((values.version || command === 'version') && !values.help) {
     io.result?.({ release: VERSION });
     io.say(VERSION);
     return 0;
   }
-  if (values.help || !command || command === 'help') {
-    io.result?.({ help: HELP });
-    io.say(HELP);
-    return 0;
+  const help = selectedHelp(command, first, second, rest, values);
+  if (help) {
+    if (help.text) return printHelp(io, help.text);
+    return unknownCommand(io, help.name);
   }
   const args = { first, second, rest, values };
   try {
@@ -1818,7 +2277,7 @@ async function runCommand(argv, io) {
       io.say(`forgot ${root}`);
       return 0;
     }
-    if (command === 'spec') return specCommand(io, args);
+    if (command === 'spec') return await specCommand(io, args);
     if (command === 'prompt') {
       let root = io.cwd;
       try {
@@ -1845,17 +2304,14 @@ async function runCommand(argv, io) {
     }
     if (command === 'gate') {
       const ctx = context(io);
-      const gate = await runGate(ctx.info.root, ctx.config, { onWait: gateWaitReporter(io) });
+      const gate = await runGate(ctx.info.root, mainPolicy(ctx.info.root).config, { onWait: gateWaitReporter(io) });
       io.result?.({ green: gate.isGreen, report: gateReport(gate) });
       io.say(gateReport(gate));
       return gate.isGreen ? 0 : 1;
     }
     const commands = { ...setupCommands(io, args), ...readCommands(io, args), ...workCommands(io, args) };
     const run = commands[command];
-    if (!run) {
-      io.err(`pullboard: no command "${command}"\n\n${HELP}`);
-      return 2;
-    }
+    if (!run) return unknownCommand(io, command);
     return await run();
   } catch (error) {
     if (error instanceof Refused) {

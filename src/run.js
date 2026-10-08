@@ -407,7 +407,7 @@ export async function runItems(io, values, deps) {
   const totals = { submitted: 0, escalated: 0 };
   const deadline = Date.now() + waitMinutes * 60_000;
   while (totals.submitted + totals.escalated < limit) {
-    const found = await deps.nextOnce(ctx, { runnable: true, routes });
+    const found = await deps.nextOnce(ctx, { runnable: true, routes, build: true });
     if (found.retry) continue;
     if (!found.item) {
       if (Date.now() >= deadline) {
@@ -417,6 +417,7 @@ export async function runItems(io, values, deps) {
       await new Promise((done) => setTimeout(done, 5000));
       continue;
     }
+    if (found.reviewSkipped) io.say(`review backlog: ${found.reviewSkipped.pending} awaiting, ${found.reviewSkipped.reviewing} agents reviewing; explicit build intent recorded`);
     totals[await buildItem(ctx, found.item, { agents, attempts, minutes, deps, me })] += 1;
   }
   io.say(`runner done: ${totals.submitted} submitted, ${totals.escalated} escalated`);
