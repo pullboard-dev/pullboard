@@ -25,9 +25,10 @@ test('demo Git commits reproduce across homes and inherited emails [I13,A10]', a
       await writeFile(join(repo, 'demo.txt'), 'The same synthetic board.\n');
       git('add', 'demo.txt');
       git('commit', '-q', '-m', 'chore: initialize demo board');
-      const identity = git('show', '-s', '--format=%an|%ae|%cn|%ce|%aI|%cI');
-      assert.equal(identity, 'Pullboard demo|demo@pullboard.invalid|Pullboard demo|demo@pullboard.invalid|' +
-        FIXED_TIME.replace('.000Z', 'Z') + '|' + FIXED_TIME.replace('.000Z', 'Z'));
+      const identity = git('show', '-s', '--format=%an|%ae|%cn|%ce|%aI|%cI').split('|');
+      assert.deepEqual(identity.slice(0, 4), ['Pullboard demo', 'demo@pullboard.invalid', 'Pullboard demo', 'demo@pullboard.invalid']);
+      assert.equal(new Date(identity[4]).toISOString(), FIXED_TIME);
+      assert.equal(new Date(identity[5]).toISOString(), FIXED_TIME);
       commits.push(git('rev-parse', 'HEAD'));
     }
     assert.equal(commits[0], commits[1], 'home, inherited EMAIL and local Git identity cannot change the demo commit');
