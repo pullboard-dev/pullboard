@@ -49,7 +49,13 @@ function cliGit(root, args) {
 async function readMirroredMove({ address, board, token, key, after, item, title }) {
   const path = `/api/v1/boards/${board}/events?after=${after}`;
   const response = await fetch(new URL(path, address), { headers: { authorization: `Bearer ${token}` } });
-  if (!response.ok) throw new Error('the relay did not return the mirrored move');
+  if (!response.ok) {
+    const refusal = await response.json().catch(() => ({}));
+    if (refusal.error?.code === 'SNAPSHOT_REQUIRED') {
+      return readMirroredCheckpoint({ address, board, token, key, after, item, title });
+    }
+    throw new Error('the relay did not return the mirrored move');
+  }
   const document = await response.json();
   const event = document.events?.find((row) => row.event_id === after + 1 && row.kind === 'move');
   if (!event) throw new Error('the relay response did not include the next move');
@@ -73,6 +79,25 @@ async function readMirroredMove({ address, board, token, key, after, item, title
     if (move.event.item_id !== item.item_id || item.item_title !== title) throw new Error('the decrypted relay add does not match the smoke item');
   } else throw new Error('the relay move format is unsupported');
   return event.event_id;
+}
+
+/** Read a compacted move from its authenticated native checkpoint when the event tail is gone. */
+async function readMirroredCheckpoint({ address, board, token, key, after, item, title }) {
+  const response = await fetch(new URL(`/api/v1/boards/${board}/state`, address), { headers: { authorization: `Bearer ${token}` } });
+  if (!response.ok) throw new Error('the relay did not return the mirrored checkpoint');
+  const saved = await response.json();
+  const sequence = saved.state?.sequence;
+  if (!Number.isSafeInteger(sequence) || sequence !== after + 1 || typeof saved.state.sealed !== 'string') {
+    throw new Error('the relay checkpoint does not cover exactly one smoke move');
+  }
+  const bytes = await unseal(key, Buffer.from(saved.state.sealed, 'base64url'), {
+    boardId: board, kind: 'snapshot', sequence,
+  });
+  const checkpoint = JSON.parse(new TextDecoder().decode(bytes));
+  const row = checkpoint.tables?.item?.find((candidate) => candidate.item_id === item.item_id && candidate.item_title === title);
+  const applied = checkpoint.tables?.board_meta?.find((candidate) => candidate.meta_key === 'relay_applied_sequence')?.meta_value;
+  if (Number(applied) !== sequence || !row) throw new Error('the authenticated checkpoint does not contain the smoke move');
+  return sequence;
 }
 
 /** Run relay on, add and unseal one move, then always issue relay off against the supplied origin. */
