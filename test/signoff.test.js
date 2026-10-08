@@ -58,7 +58,7 @@ function fixture(t) {
   const initialized = run('init');
   assert.equal(initialized.status, 0, initialized.stderr);
   writeFileSync(join(root, 'SPEC.md'), SPEC);
-  writeFileSync(join(root, 'PRACTICE.md'), '# Practice\n');
+  writeFileSync(join(root, 'DOCTRINE.md'), '# Doctrine\n');
   mkdirSync(join(root, 'test'));
   writeFileSync(join(root, 'test', 'proof.test.js'), "import { test } from 'node:test';\ntest('proof [G1]', () => {});\n");
   git('add', '-A');
