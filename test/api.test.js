@@ -178,8 +178,10 @@ function assertRequiredShape(value, required, label) {
 function json(box, cwd, command, args = [], subcommand) {
   const result = box.run(cwd, command, ...args, '--json');
   assert.equal(result.status, 0, `${command} ${args.join(' ')}: ${result.stderr}${result.stdout}`);
-  assert.equal(result.stderr, '', `${command} --json must keep stderr empty`);
   const document = JSON.parse(result.stdout);
+  if (command === 'check') {
+    assert.equal(result.stderr, `check #${document.id} set by ${document.by}: ${document.check}\n`, 'check attribution is visible before execution while stdout remains one JSON document');
+  } else assert.equal(result.stderr, '', `${command} --json must keep stderr empty`);
   assert.equal(document.version, 1, `${command} --json has a version 1 envelope`);
   assertRequiredShape(document, shapeFor(command, subcommand).required, command);
   return document;
