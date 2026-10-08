@@ -9,6 +9,9 @@
  * broken copy, and checks the declaration against the refusals board.js and cli.js raise today.
  */
 
+/** Executable move semantics; bump whenever a move's meaning changes [H16]. */
+export const ENGINE_VERSION = 1;
+
 /** @typedef {'agent' | 'coordinator' | 'clock'} Role */
 
 /**
