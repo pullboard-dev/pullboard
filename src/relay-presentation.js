@@ -10,7 +10,25 @@ import { projectState } from './serve.js';
 
 /** Capture spec, doctrine, config and board presentation without sending plaintext to a relay. */
 export function relayPresentation(root) {
-  return { version: 1, state: projectState(root), config: loadConfig(root) };
+  const info = repoInfo(root);
+  const board = store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'));
+  let shouts;
+  try { shouts = store.allShouts(board); } finally { store.closeBoard(board); }
+  return { version: 1, state: projectState(root), config: loadConfig(root), shouts };
+}
+
+/** Resolve one shout from the complete history carried only inside the sealed presentation. */
+export function relayPresentationShout(root, id) {
+  return presentationShout(relayPresentation(root), id);
+}
+
+/** Resolve one addressed shout from an already decoded snapshot without local repository access. */
+export function presentationShout(presentation, id) {
+  if (!Array.isArray(presentation?.shouts)) throw new Refused('SHOUT_NOT_AVAILABLE', 'this snapshot does not include addressed shout history; refresh it with a current CLI');
+  const found = presentation.shouts.find((shout) => shout.shout_id === id);
+  if (!found) throw new Refused('NO_SHOUT', `no shout #${id}`);
+  const answer = found.shout_decision ? presentation.shouts.find((shout) => shout.shout_answers === id) ?? null : null;
+  return { ...found, decision_state: found.shout_decision ? (answer ? 'answered' : 'open') : null, decision_answer: answer };
 }
 
 /** Notice presentation-only changes, including a spec or doctrine edit without a board move. */

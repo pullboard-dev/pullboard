@@ -81,6 +81,7 @@ export const JSON_SHAPES = {
   http: {
     boards: shape({ boards: 'array' }),
     state: shape({ state: 'object' }),
+    shout: shape({ shout: 'object' }),
     events: shape({ events: 'array' }),
     move: shape({ event: 'object', result: 'object' }),
     request: shape({ event: 'object', result: 'object' }),

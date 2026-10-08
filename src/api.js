@@ -13,6 +13,7 @@ import { milestoneRoadmap } from './roadmap.js';
 import { projectRowDecisions } from './row-decisions.js';
 import { Refused } from './refused.js';
 import { codeAt, projectState } from './serve.js';
+import { relayPresentationShout } from './relay-presentation.js';
 import { createApiHandler } from './api-http.js';
 
 const ADDRESS = '127.0.0.1';
@@ -211,6 +212,9 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       state = projectRowDecisions(projectData.rowDecisions, state);
       return state;
     },
+    shout: (board, id) => relayLinked(board.root)
+      ? relayPresentationShout(board.root, id)
+      : withBoard(board.root, (db) => store.shoutDetails(db, id)),
     code: (board, ref) => codeAt(board.root, ref),
     events: (board, after) => afterEvents(board.root, after),
     eventLogVersion: () => store.EVENT_LOG_VERSION,
