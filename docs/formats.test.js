@@ -12,6 +12,7 @@ import {
   ACCEPT_REASON,
   answerDecision,
   addItem,
+  appendFact,
   claim,
   closeBoard,
   editItem,
@@ -158,6 +159,8 @@ function recordEventContract() {
   applyRowDecisions(board, { agentId: coordinator, events: decisions.map((record) => record.event) });
   const freeze = (digest) => () => ({ text: `criterion-${digest}`, digest });
   const first = addItem(board, { by: coordinator, lane: 'docs', title: 'Accepted example', criterion: 'Initial', specIds: ['A1'], route: 'strong' });
+  const fact = appendFact(board, first, { agentId: builder, kind: 'note', text: 'Captured evidence', ref: 'docs/formats.md:1-3@' + 'a'.repeat(40) });
+  appendFact(board, first, { agentId: coordinator, kind: 'measurement', text: 'Corrected evidence', supersedes: fact.id });
   editItem(board, first, { agentId: coordinator, brief: 'Files: docs/formats.md\nTest: docs/formats.test.js', route: 'mid', criterion: 'Changed', check: 'node test' });
   recordAttempt(board, first, { agentId: builder, n: 1, seconds: 2, result: 'failed' });
   claim(board, first, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('first') });
@@ -350,6 +353,7 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
     add: 'item creator',
     edit: 'editor',
     attempt: 'reporting agent',
+    fact: 'author',
     guards: 'board',
     shout: 'sender',
     pass: 'coordinator',

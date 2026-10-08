@@ -112,6 +112,8 @@ Work
   pullboard doctor                     check board integrity without changing it
   pullboard show <id> [--history]       an item, the criterion frozen at claim, its verdicts: the latest in full,
                                         earlier ones as one line; --history prints every note in full
+  pullboard fact <id> <kind> <text> [--supersedes <fact-id>] [--ref path:lines@full-sha]
+                                        append an observation or a holder/coordinator judgement to its thread
   pullboard next [--wait <minutes>]     offer an eligible review when reviews pile up, otherwise claim work
   pullboard next --build                claim a build explicitly, recording a skipped review offer
   pullboard next --verify               reserve the next submitted item you can check;
@@ -176,7 +178,7 @@ Reject reasons: TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HE
 const HELP_NAMES = [
   'tour', 'init', 'worktree', 'join', 'whoami', 'lanes', 'status', 'resources', 'settings', 'view', 'view export',
   'serve', 'relay', 'resume', 'hooks', 'add', 'edit', 'escalate', 'run', 'list', 'doctor', 'show', 'next',
-  'check', 'claim', 'release', 'submit', 'done', 'verify', 'shout', 'answer', 'pass', 'decisions', 'inbox', 'export', 'import',
+  'check', 'claim', 'release', 'submit', 'done', 'verify', 'fact', 'shout', 'answer', 'pass', 'decisions', 'inbox', 'export', 'import',
   'sweep', 'merged', 'withdraw', 'refreeze', 'hold', 'ledger', 'log', 'spec', 'spec check', 'spec view',
   'spec show', 'spec unmet', 'spec signoff', 'spec signers', 'spec signers add', 'forget', 'prompt', 'gate', 'hook',
   'hook pre-commit', 'hook commit-msg', 'hook pre-push', 'view export', 'version', 'lifecycle', 'help',
@@ -194,6 +196,7 @@ const HELP_EXAMPLES = {
   tour: 'pullboard tour', init: 'pullboard init', worktree: 'pullboard worktree web', resume: 'pullboard resume',
   add: 'pullboard add web "Upload page" --specs G1', list: 'pullboard list web', show: 'pullboard show 12',
   claim: 'pullboard claim 12', submit: 'pullboard submit 12', 'next --verify': 'pullboard next --verify',
+  fact: 'pullboard fact 12 measurement "The check passes in 8 seconds"',
   verify: 'pullboard verify 12 accept --note "removed the fix; the test failed"',
   answer: 'pullboard answer 12 "done"', pass: 'pullboard pass 12 "please decide"',
   status: 'pullboard status', view: 'pullboard view', log: 'pullboard log 12', ledger: 'pullboard ledger',
@@ -428,6 +431,8 @@ const OPTIONS = {
   outcome: { type: 'string' },
   item: { type: 'string' },
   commit: { type: 'string' },
+  ref: { type: 'string' },
+  supersedes: { type: 'string' },
   help: { type: 'boolean', short: 'h' },
   version: { type: 'boolean', short: 'v' },
 };
@@ -1230,15 +1235,16 @@ function readCommands(io, { first, second, rest, values }) {
     show: () => {
       const ctx = context(io);
       const id = idArg(first);
-      const { item, verdicts, moves, related, reviewer } = withBoard(ctx, (board) => ({
+      const { item, verdicts, moves, thread, related, reviewer } = withBoard(ctx, (board) => ({
         item: store.getItem(board, id),
         verdicts: store.verdictsFor(board, id),
         moves: store.events(board, { itemId: id }).filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
+        thread: store.itemThread(board, id),
         related: store.relatedItems(board, store.getItem(board, id)),
         reviewer: store.reviewHolder(board, store.getItem(board, id)),
       }));
       if (values.json) {
-        io.result({ ...item, verdicts });
+        io.result({ ...item, verdicts, thread });
         return 0;
       }
       io.say(itemLine(item));
@@ -1270,6 +1276,17 @@ function readCommands(io, { first, second, rest, values }) {
       if (notes.some((note, index) => note !== verdicts[index].verdict_note)) io.say(`(earlier verdicts shortened; every note in full: pullboard show ${id} --history)`);
       if (item.item_merged_commit) io.say(`merged as ${item.item_merged_commit}`);
       if (item.item_withdrawn_reason) io.say(`withdrawn: ${item.item_withdrawn_reason}`);
+      io.say('thread:');
+      for (const entry of thread) {
+        const stamp = `  ${entry.at}  ${entry.by}  `;
+        if (entry.type === 'fact') {
+          io.say(`${stamp}fact ${entry.kind} ${entry.id}${entry.supersedes ? ' (supersedes ' + entry.supersedes + ')' : ''}: ${entry.text}`);
+          if (entry.ref) io.say(`    ref: ${entry.ref.path}:${entry.ref.start}${entry.ref.end === entry.ref.start ? '' : '-' + entry.ref.end}@${entry.ref.commit}`);
+        } else {
+          const detail = entry.detail;
+          io.say(`${stamp}${entry.kind}${detail.commit ? ' at ' + detail.commit : ''}${detail.reason ? ': ' + detail.reason : ''}`);
+        }
+      }
       return 0;
     },
     status: () => {
@@ -1678,6 +1695,15 @@ function workCommands(io, args) {
     return withBoard(ctx, (board) => work(ctx, board, whoAmI(ctx, board)));
   };
   return {
+    fact: () => act(async (ctx, board, me) => {
+      if (!first || !second || rest.length !== 1) throw new Refused('USAGE', 'pullboard fact <id> <kind> <text> [--supersedes <fact-id>] [--ref path:lines@full-sha]');
+      const id = idArg(first);
+      const fact = await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: second,
+        text: rest[0], supersedes: values.supersedes ?? null, ref: values.ref ?? null }]);
+      io.result?.({ item: id, fact });
+      io.say(`fact ${fact.id} appended to #${id} as ${fact.kind}`);
+      return 0;
+    }),
     milestone: () => act(async (ctx, board, me) => {
       const ids = (text) => (text ?? '').split(',').map((value) => value.trim()).filter(Boolean);
       let name;

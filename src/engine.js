@@ -11,7 +11,7 @@ export const ENGINE_OPERATIONS = Object.freeze([
   'claim', 'release', 'submit', 'reserveReview', 'reserveNextReview', 'verify', 'merged',
   'withdraw', 'refreeze', 'shout', 'passDecision', 'answerDecision', 'holdLane', 'releaseLane',
   'addMilestone', 'editMilestoneItems', 'moveMilestone', 'editMilestone', 'removeMilestone',
-  'recordRowDecisions', 'applyRowDecisions',
+  'recordRowDecisions', 'applyRowDecisions', 'appendFact',
 ]);
 
 /** Read a replica's committed prefix without trusting an independently saved transport cursor. */
@@ -81,6 +81,10 @@ function validateMove(move) {
 /** Restore only the frozen criterion callback; no receiver runs another machine's Git or shell. */
 function executableArgs(move) {
   const args = structuredClone(move.args);
+  if (move.operation === 'appendFact') {
+    if (!args[1] || typeof args[1] !== 'object' || Array.isArray(args[1])) throw new Refused('RELAY_MOVE', 'a fact needs its typed arguments; use the current Pullboard engine');
+    args[1].factId = move.id;
+  }
   if (['claim', 'refreeze'].includes(move.operation)) {
     const options = args[1];
     if (!options || !Object.hasOwn(options, 'frozen')) throw new Refused('RELAY_MOVE', 'the claim has no frozen criterion; send it with the current pullboard engine');
