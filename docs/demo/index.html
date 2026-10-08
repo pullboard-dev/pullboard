@@ -104,6 +104,7 @@ const readOnly = false;
 const transportModule = null;
 const connection = {"base":"","headers":{"x-pullboard-key":""}};
 let transport = null;
+let transportLoadError = null;
 const snapshotReplay = { final: null, events: [], index: 0, playing: false, timer: null };
 const keep = (name, value) => { name = snapshot ? 'snapshot.' + name : name; try { if (value === undefined) return localStorage.getItem(name); localStorage.setItem(name, value); } catch { return null; } return value; };
 // Whether the host serves this page at /roadmap as well as at /, so the Roadmap's address is a path;
@@ -406,7 +407,11 @@ function flowSvg(p) {
 /** Read or move through API v1, retaining the rule and repair guidance in a refusal. */
 async function api(path, body) {
   if (body && (snapshot || readOnly)) throw new Error(snapshot ? 'This is a read-only snapshot.' : 'This is a read-only view.');
-  if (transport) return transport.request(path, body);
+  if (transportModule) {
+    if (transport) return transport.request(path, body);
+    if (transportLoadError) throw transportLoadError;
+    throw new Error('The browser transport is still loading.');
+  }
   path = snapshot ? path.split('?')[0].slice(1) + '.json' : connection.base + path;
   const res = await fetch(path, { method: body ? 'POST' : 'GET', headers: snapshot ? {} : { ...connection.headers, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
   const json = await res.json();
@@ -1309,15 +1314,21 @@ if (snapshot) {
 /** Load an explicitly configured transport before the first read; its updates refresh this page. */
 async function startPage() {
   if (transportModule) {
-    const module = await import(transportModule);
-    if (typeof module.createTransport !== 'function') throw new Error('The browser transport must export createTransport({ onUpdate }).');
-    transport = await module.createTransport({ onUpdate: () => transport ? refresh().catch((error) => { $('live').textContent = 'offline: ' + error.message; }) : Promise.resolve() });
-    if (!transport || typeof transport.request !== 'function') throw new Error('The browser transport must provide request(path, body).');
+    try {
+      const module = await import(transportModule);
+      if (typeof module.createTransport !== 'function') throw new Error('The browser transport must export createTransport({ onUpdate }).');
+      const configured = await module.createTransport({ onUpdate: () => transport ? refresh().catch((error) => { $('live').textContent = 'offline: ' + error.message; }) : Promise.resolve() });
+      if (!configured || typeof configured.request !== 'function') throw new Error('The browser transport must provide request(path, body).');
+      transport = configured;
+    } catch (error) {
+      transportLoadError = error;
+      throw error;
+    }
   }
   await refresh();
 }
 startPage().catch((error) => { document.body.classList.remove('loading'); $('live').textContent = 'cannot reach the view: ' + error.message; });
-if (!snapshot) setInterval(() => { if (!document.hidden) refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }); }, 3000);
+if (!snapshot) setInterval(() => { if (!document.hidden && (!transportModule || transport)) refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }); }, 3000);
 setInterval(tickAges, 60000);
 </script>
 </body>
