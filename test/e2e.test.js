@@ -497,9 +497,9 @@ test('pullboard worktree makes a joined worktree for a lane in one command [I4]'
   const made = box.run(box.repo, 'worktree', 'api');
   assert.equal(made.code, 0, made.err);
   const path = join(box.dir, 'repo-api-1');
-  assert.match(made.out, /on branch api\/1, joined as api-1 in the api lane/);
+  assert.match(made.out, /on branch api\/1, joined as api-1 \(Test Model\) in the api lane/);
   assert.match(made.out, new RegExp(`start every command with: cd ${path} &&\n {2}cd ${path} && pullboard inbox\n {2}cd ${path} && pullboard next`));
-  assert.match(box.run(path, 'whoami').out, /^api-1 \(api lane\)/);
+  assert.match(box.run(path, 'whoami').out, /^api-1 \(Test Model\) \(api lane\)/);
   assert.match(box.run(box.repo, 'worktree', 'api').out, /repo-api-2 on branch api\/2, joined as api-2/);
   assert.match(box.run(box.repo, 'worktree', 'nope').err, /NO_LANE/);
 });
@@ -645,7 +645,7 @@ test('verify runs at the submitted commit, against the criterion frozen at claim
   assert.match(box.run(box.web, 'verify', '1', 'accept').err, /SELF_VERIFY/);
   const unsaid = box.run(box.repo, 'verify', '1', 'accept', '--note', 'ran it');
   assert.match(unsaid.err, /MAIN_IS_COORDINATOR\] this is the main checkout, so this verdict would be the coordinator's/);
-  assert.match(unsaid.err, new RegExp(`Agent worktrees: web-1 at ${box.web}`));
+  assert.match(unsaid.err, new RegExp(`Agent worktrees: web-1 \\(Test Model\\) at ${box.web}`));
   assert.match(box.run(box.web, 'verify', '1', 'accept', '--as', 'coordinator').err, /USAGE.*only in the main checkout/);
   assert.match(box.run(box.repo, 'verify', '1', 'accept', '--as', 'coordinator').err, /NOT_AT_COMMIT/);
   box.git(box.repo, 'merge', '-q', '--ff-only', 'web/one');
@@ -958,9 +958,9 @@ test('an item carries a brief to whoever claims it; a light agent sees only its 
   assert.match(box.run(box.repo, 'list').out, /#2 {2}open {2}web {2}Copy the header {2}light/);
   assert.doesNotMatch(box.run(box.repo, 'list', '--route', 'light').out, /Design the page/);
   const made = box.run(box.repo, 'worktree', 'web', '--route', 'light');
-  assert.match(made.out, /joined as web-2 in the web lane, on the light route/);
+  assert.match(made.out, /joined as web-2 \(Test Model\) in the web lane, on the light route/);
   const light = made.out.match(/^made (\S+) /)[1];
-  assert.match(box.run(light, 'whoami').out, /^web-2 \(web lane, light route\)/);
+  assert.match(box.run(light, 'whoami').out, /^web-2 \(Test Model\) \(web lane, light route\)/);
   const next = box.run(light, 'next');
   assert.match(next.out, /claimed #2: Copy the header\ncriterion: the page shows the header\ncheck: test -f web\/page.js {3}\(run it before you submit\)\nbrief:\n {2}Files:\n {2}- web\/page.js/);
   assert.match(box.run(light, 'claim', '1').err, /ROUTE/);
@@ -1011,8 +1011,8 @@ test('run builds routed items unattended: the failure feeds the next attempt; re
   const shown = box.run(box.repo, 'show', '2').out;
   assert.match(shown, /#2 {2}open {2}web {2}Say bye {2}mid/);
   assert.match(shown, /unattended attempts: red, red/);
-  assert.match(shown, /escalated light -> mid by web-2, pinned at refs\/pullboard\/attempts\/2\/[0-9a-f]{12}: 2 attempts stayed red/);
-  assert.match(box.run(box.repo, 'inbox').out, /web-2 -> coordinator: #2 escalated light -> mid after 2 red attempts/);
+  assert.match(shown, /escalated light -> mid by web-2 \(Test Model\), pinned at refs\/pullboard\/attempts\/2\/[0-9a-f]{12}: 2 attempts stayed red/);
+  assert.match(box.run(box.repo, 'inbox').out, /web-2 \(Test Model\) -> coordinator \(unknown\): #2 escalated light -> mid after 2 red attempts/);
 });
 
 test('one runner climbs the tiers: an escalated item goes to the next command, with the earlier tries; it merges the verified work an item waits on [N16]', () => {
@@ -1123,7 +1123,7 @@ test('resume puts an agent back to work from the board: its claim, its branch, w
   assert.match(building, /1 file uncommitted/);
   assert.match(building, /holding #1 Page, lease \d+[mh] left/);
   assert.match(building, /files: web\/page\.html/);
-  assert.match(building, /1 unread shout; newest from coordinator: the heading text is in G1/);
+  assert.match(building, /1 unread shout; newest from coordinator \(unknown\): the heading text is in G1/);
   assert.match(building, /next: build #1, commit, then pullboard submit 1/);
   box.git(box.web, 'add', '-A');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): page [G1]');
@@ -1138,7 +1138,7 @@ test('resume puts an agent back to work from the board: its claim, its branch, w
   assert.match(back, /branch web\/one: main is detached for a verification/);
   box.git(box.repo, 'switch', '-q', 'main');
   assert.match(box.run(box.web, 'resume').out, /branch web\/one: 1 ahead of main, 0 behind/);
-  assert.match(back, /sent back: #1 TEST_FAILURE by coordinator: no test proves the heading$/m);
+  assert.match(back, /sent back: #1 TEST_FAILURE by coordinator \(unknown\): no test proves the heading$/m);
   assert.match(back, /next: pullboard claim 1, fix what the verifier found, and submit again/);
 });
 
@@ -1178,7 +1178,7 @@ test('hold pauses a lane: next names who held it and why; --off lets it go [N22]
   assert.equal(held.code, 1);
   assert.match(held.err, /coordinator holds the web lane: G1 is being rewritten/);
   assert.match(box.run(box.web, 'claim', '1').err, /LANE_HELD/);
-  assert.match(box.run(box.web, 'resume').out, /the web lane is held by coordinator: G1 is being rewritten/);
+  assert.match(box.run(box.web, 'resume').out, /the web lane is held by coordinator \(unknown\): G1 is being rewritten/);
   assert.match(box.run(box.repo, 'hold', 'web', '--off').out, /released the web lane/);
   assert.match(box.run(box.web, 'next').out, /claimed #1: Page/);
 });
@@ -1216,10 +1216,10 @@ test('the tour runs a reject and its rework on a throwaway repo, in under thirty
   assert.ok(Date.now() - started < 30_000, 'thirty seconds');
   assert.doesNotMatch(shown.stdout, /\u001b\[/, 'piped output stays plain');
   assert.match(shown.stdout, /review-1 \$ pullboard verify 1 reject --reason BEHAVIOR_MISMATCH/);
-  assert.match(shown.stdout, /sent back: #1 BEHAVIOR_MISMATCH by review-1: greet\(''\) returns "Hello, !"/);
+  assert.match(shown.stdout, /sent back: #1 BEHAVIOR_MISMATCH by review-1 \(Test Model\): greet\(''\) returns "Hello, !"/);
   assert.match(shown.stdout, /with the fix removed\n {7}# pass 1\n {7}# fail 1/);
   assert.match(shown.stdout, /verified #1: CRITERION_MET/);
-  assert.match(shown.stdout, /\| 1 \| app \| Greeting \| G1 \| app-1 \| review-1 \|/);
+  assert.match(shown.stdout, /\| 1 \| app \| Greeting \| G1 \| app-1 \(Test Model\) \| review-1 \(Test Model\) \|/);
 
   const forced = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: { ...plainEnv, FORCE_COLOR: '1' }, encoding: 'utf8' });
   assert.equal(forced.status, 0, `${forced.stdout}${forced.stderr}`);
@@ -1608,7 +1608,7 @@ test('from the view the person adds items, shouts and holds lanes, through the C
     const shouted = await view.act(box.repo, { verb: 'shout', args: { to: 'web', text: 'from the person' } });
     assert.equal(shouted.status, 200);
     assert.equal(shouted.document.event.event_kind, 'shout');
-    assert.match(box.run(box.web, 'inbox').out, /coordinator -> web: from the person/);
+    assert.match(box.run(box.web, 'inbox').out, /coordinator \(unknown\) -> web: from the person/);
     const held = await view.act(box.repo, { verb: 'hold', args: { lane: 'web', reason: 'G1 is changing' } });
     assert.equal(held.status, 200);
     assert.equal(held.document.event.event_kind, 'hold');

@@ -275,7 +275,7 @@ test('[A1] command results match the catalog across roots and subcommands', () =
   const plainStatus = box.run(repo, 'status');
   assert.equal(plainStatus.status, 0, plainStatus.stderr);
   assert.equal(plainStatus.stderr, '');
-  assert.match(plainStatus.stdout, /^coordinator: /, 'ordinary text mode remains readable');
+  assert.match(plainStatus.stdout, /^coordinator \(unknown\): /, 'ordinary text mode remains readable');
   assert.throws(() => JSON.parse(plainStatus.stdout));
   json(box, repo, 'inbox');
   json(box, repo, 'decisions');

@@ -580,7 +580,7 @@ test('an item carries a brief; editing it changes how to build, never what [B10]
   assert.throws(() => store.editItem(board, id, { agentId: 'api-1', brief: 'mine now' }), /NOT_YOURS.*coordinator/);
   assert.throws(() => store.editItem(board, id, { agentId: 'coordinator' }), /USAGE/);
   assert.throws(() => store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Huge', brief: 'x'.repeat(8001) }), /BRIEF_TOO_LONG/);
-  assert.deepEqual(JSON.parse(store.events(board, { itemId: id }).find((event) => event.event_kind === 'edit').event_detail), { brief: '38 characters' });
+  assert.deepEqual(JSON.parse(store.events(board, { itemId: id }).find((event) => event.event_kind === 'edit').event_detail), { brief: '38 characters', model: 'unknown' });
   store.submit(board, id, { agentId: 'web-1', commit: SHA_A, tree: 't' });
   store.verify(board, id, { agentId: 'web-2', decision: 'ACCEPT', head: SHA_A, digest, policy: 'any', note: 'removed the help case; its test failed' });
   assert.throws(() => store.editItem(board, id, { agentId: 'coordinator', brief: 'late' }), /CLOSED/);
@@ -636,7 +636,7 @@ test('changing a criterion or a check drops the frozen bar, in the open; the nex
   store.editItem(board, id, { agentId: 'coordinator', check: 'npm test', criterion: 'renders' });
   assert.equal(store.getItem(board, id).item_frozen_digest, null);
   const edit = store.events(board, { itemId: id }).find((event) => event.event_kind === 'edit');
-  assert.deepEqual(JSON.parse(edit.event_detail), { criterion: 'renders', check: 'npm test', unfrozen: 'digest:Page' });
+  assert.deepEqual(JSON.parse(edit.event_detail), { criterion: 'renders', check: 'npm test', unfrozen: 'digest:Page', model: 'unknown' });
   assert.equal(claimAs(id, 'web-1', 'web').digest, 'digest:Page');
 });
 
@@ -656,7 +656,7 @@ test('escalate frees an item one tier up, with what was tried attached [B15]', (
   const moves = store.events(board, { itemId: id }).map((event) => event.event_kind).filter((kind) => ['attempt', 'escalate'].includes(kind));
   assert.deepEqual(moves, ['attempt', 'escalate', 'escalate', 'escalate']);
   const first = store.events(board, { itemId: id }).find((event) => event.event_kind === 'escalate');
-  assert.deepEqual(JSON.parse(first.event_detail), { from: 'light', to: 'mid', note: 'check failed twice', attempt: 'refs/pullboard/attempts/1/abc' }, 'the failure and the pinned attempt travel with it');
+  assert.deepEqual(JSON.parse(first.event_detail), { from: 'light', to: 'mid', note: 'check failed twice', attempt: 'refs/pullboard/attempts/1/abc', model: 'unknown' }, 'the failure and the pinned attempt travel with it');
 });
 
 test('a fresh claim records where the work started; submit records what it changed, reworks included [N21]', () => {

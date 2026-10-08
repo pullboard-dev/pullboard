@@ -360,7 +360,9 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
     const entry = actual[kind] ?? { actors: new Set(), fields: new Set() };
     const actor = actorByKind[kind] ?? actors[row.event_by] ?? 'unknown';
     entry.actors.add(actor);
-    for (const field of Object.keys(row.detail)) entry.fields.add(field);
+    for (const field of Object.keys(row.detail)) {
+      if (field !== 'model') entry.fields.add(field);
+    }
     actual[kind] = entry;
   }
   const documented = documentedEvents();

@@ -1059,7 +1059,7 @@ test('next --verify reserves the review for the reviewLease and says until when;
     assert.ok(until, first.stdout);
     const lease = 45 * 60_000;
     assert.ok(Date.parse(until) >= before + lease && Date.parse(until) <= after + lease, `${until} is 45 minutes on, the repo's reviewLease`);
-    assert.ok(run(repo, 'show', '1').stdout.includes(`under review by web-2 until ${until}`), 'show names the holder and the time');
+    assert.ok(run(repo, 'show', '1').stdout.includes(`under review by web-2 (Test Model) until ${until}`), 'show names the holder and the time');
 
     const passed = run(other, 'next', '--verify');
     assert.equal(passed.status, 1, passed.stdout);

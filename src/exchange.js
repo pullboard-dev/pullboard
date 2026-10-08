@@ -127,7 +127,10 @@ function hasOnlyInitCoordinator(db, names) {
     || sequence[0].seq !== 1
   ) return false;
   try {
-    if (JSON.stringify(JSON.parse(event.event_detail)) !== JSON.stringify({ lane: 'coordinator' })) return false;
+    const detail = JSON.parse(event.event_detail);
+    if (detail.model !== undefined && detail.model !== 'unknown') return false;
+    delete detail.model;
+    if (JSON.stringify(detail) !== JSON.stringify({ lane: 'coordinator' })) return false;
   } catch {
     return false;
   }

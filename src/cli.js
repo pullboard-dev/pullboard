@@ -193,7 +193,7 @@ const HELP_GROUPS = [
 ];
 
 const HELP_EXAMPLES = {
-  tour: 'pullboard tour', init: 'pullboard init', worktree: 'pullboard worktree web --model "Claude Sonnet"', join: 'pullboard join web --model "Claude Sonnet"', resume: 'pullboard resume',
+  tour: 'pullboard tour', init: 'pullboard init', worktree: 'pullboard worktree web --model "Example Model"', join: 'pullboard join web --model "Example Model"', resume: 'pullboard resume',
   add: 'pullboard add web "Upload page" --specs G1', list: 'pullboard list web', show: 'pullboard show 12',
   claim: 'pullboard claim 12', submit: 'pullboard submit 12', 'next --verify': 'pullboard next --verify',
   verify: 'pullboard verify 12 accept --note "removed the fix; the test failed"',
