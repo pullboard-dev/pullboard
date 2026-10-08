@@ -87,6 +87,7 @@ main { padding: 16px 18px 28px; }
 .boardless .first { display: block; }
 .loading .top, .loading [data-pane], .boardless .top, .boardless [data-pane] { display: none; }
 .two { display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 42%, 600px); gap: 16px; align-items: start; }
+.two.narrow { grid-template-columns: minmax(0, 1fr) var(--agents-w); }
 .roadmap { display: grid; gap: 12px; max-width: 900px; align-content: start; }
 .milestone { padding: 14px 16px 12px; }
 .milestone header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
@@ -103,7 +104,6 @@ button.milestone-item:hover { background: var(--surface-2); }
 .milestone-item .id { margin-right: 6px; color: var(--ink-faint); font: 500 12px var(--mono); }
 .milestone-empty { margin: 8px 0 0; color: var(--ink-faint); }
 .milestone-note { margin: 10px 0 2px; padding: 8px 10px; border-radius: 8px; background: var(--accent-soft); color: var(--ink-muted); overflow-wrap: anywhere; }
-.two.narrow { grid-template-columns: minmax(0, 1fr) var(--agents-w); }
 @media (max-width: 900px) {
   .shell { display: block; }
   .side { position: static; height: auto; overflow: visible; padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--line); }
