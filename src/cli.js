@@ -1791,6 +1791,7 @@ function workCommands(io, args) {
     add: () => act(async (ctx, board, me) => {
       const recovered = await relayCommandReceipt(ctx.info.root, io.relayCommand);
       if (recovered) {
+        for (const event of recovered.events) io.onEvent?.(event);
         const id = recovered.result;
         io.result?.({ item: store.getItem(board, id) });
         io.say(`#${id}`);
@@ -1829,6 +1830,7 @@ function workCommands(io, args) {
       const id = idArg(first);
       const recovered = await relayCommandReceipt(ctx.info.root, io.relayCommand);
       if (recovered) {
+        for (const event of recovered.events) io.onEvent?.(event);
         io.result?.({ item: store.getItem(board, id) });
         io.say(`edited #${id}`);
         sayCheckBaseline(io, store.getItem(board, id));
@@ -1926,6 +1928,7 @@ function workCommands(io, args) {
     merged: () => act(async (ctx, board, me) => {
       const recovered = await relayCommandReceipt(ctx.info.root, io.relayCommand);
       if (recovered) {
+        for (const event of recovered.events) io.onEvent?.(event);
         const commit = recovered.move.args[1].commit;
         io.result?.({ id: idArg(first), commit });
         io.say(`#${first} merged as ${commit.slice(0, 12)}`);

@@ -518,7 +518,7 @@ export async function relayCommandReceipt(root, command) {
       saveLink(file, state);
       throw new Refused(receipt.outcome.error.code, receipt.outcome.error.message);
     }
-    return { result: receipt.outcome.result, move };
+    return { result: receipt.outcome.result, events: receipt.outcome.events ?? [], move };
   });
 }
 

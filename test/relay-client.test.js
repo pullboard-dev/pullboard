@@ -563,6 +563,29 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
     assert.equal(result.event.event_kind, 'add');
     assert.equal(result.event.item_id, result.result.item.item_id, 'the API returns its own event despite catching up an earlier add');
     assert.equal(result.result.item.item_title, 'This API item');
+
+    const apiLostTitle = 'Lost API reply';
+    const apiLostBody = JSON.stringify({ verb: 'add', args: { lane: 'web', title: apiLostTitle } });
+    const apiLostHeaders = { 'x-pullboard-key': address.searchParams.get('k'), 'content-type': 'application/json' };
+    const beforeLostApi = relay.uploads.length;
+    relay.dropNextReply({ offline: true });
+    const lostApi = await fetch(`${address.origin}/api/v1/boards/${boardId}/moves`, {
+      method: 'POST', headers: apiLostHeaders, body: apiLostBody,
+    });
+    const lostApiResult = await lostApi.json();
+    assert.equal(lostApi.status, 409, JSON.stringify(lostApiResult));
+    assert.equal(lostApiResult.error.code, 'RELAY_UNAVAILABLE');
+    relay.failReads(false);
+    await cli(clones[0], envs[0], 'status');
+    const apiRetry = await fetch(`${address.origin}/api/v1/boards/${boardId}/moves`, {
+      method: 'POST', headers: apiLostHeaders, body: apiLostBody,
+    });
+    const apiRetryResult = await apiRetry.json();
+    assert.equal(apiRetry.status, 200, JSON.stringify(apiRetryResult));
+    assert.equal(apiRetryResult.event.event_kind, 'add');
+    assert.equal(apiRetryResult.event.item_id, apiRetryResult.result.item.item_id);
+    assert.equal(apiRetryResult.result.item.item_title, apiLostTitle);
+    assert.equal(relay.uploads.length, beforeLostApi + 1, 'local API retry returns its original emitted event without posting again');
   } finally { await localApi.close(); }
 
   const beforeDropped = relay.uploads.length;
