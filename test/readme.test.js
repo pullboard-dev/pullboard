@@ -49,6 +49,39 @@ test('README names DOCTRINE.md and explains doctrine once [I12]', () => {
   assert.doesNotMatch(layout, /PRACTICE\.md/u, 'the location figure leaves the legacy filename to migration guidance');
 });
 
+test('current docs pages and shipped skills use DOCTRINE.md, reserving PRACTICE.md for history or fallback [I12]', () => {
+  /**
+   * List the current Markdown contracts recursively so newly added docs and shipped skills join the audit.
+   * @param {string} directory
+   * @returns {string[]}
+   */
+  function markdownFiles(directory) {
+    return readdirSync(join(ROOT, directory), { withFileTypes: true }).flatMap((entry) => {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) return markdownFiles(path);
+      return entry.isFile() && (entry.name.endsWith('.md') || entry.name === 'SKILL.md') ? [path] : [];
+    });
+  }
+
+  const files = [...markdownFiles('docs'), ...markdownFiles('skills')].sort();
+  assert.ok(files.includes('docs/rfcs/0001-standard-doctrine.md'));
+  const specProof = readFileSync(join(ROOT, 'docs/proof/spec.md'), 'utf8');
+  assert.match(specProof, /This checkout still uses legacy `PRACTICE\.md`; new repos use `DOCTRINE\.md`, and `PRACTICE\.md` remains a compatibility fallback/u, 'the proof table is anchored by its explicit legacy-fallback introduction');
+  for (const file of files) {
+    const text = readFileSync(join(ROOT, file), 'utf8');
+    for (const [index, line] of text.split('\n').entries()) {
+      if (!line.includes('PRACTICE.md')) continue;
+      if (file === 'docs/proof/spec.md' && line.startsWith('| S')) continue; // historical proof rows follow the page's legacy-fallback introduction
+      assert.match(line, /legacy|fallback|histor|at the time/i, `${file}:${index + 1} labels PRACTICE.md as legacy, fallback or history`);
+    }
+  }
+
+  const rfc = readFileSync(join(ROOT, 'docs/rfcs/0001-standard-doctrine.md'), 'utf8');
+  assert.match(rfc, /`DOCTRINE\.md`/u, 'the accepted RFC names the current file');
+  assert.match(rfc, /legacy `PRACTICE\.md` remains a compatibility fallback/u, 'the accepted RFC labels the old name only as a fallback');
+  assert.match(rfc, /At the time of this RFC, `pullboard init` copied/u, 'the RFC keeps its old filename in clearly historical context');
+});
+
 /**
  * Every text in a figure with the box it may take up, from its anchor, font size and length.
  *
