@@ -763,13 +763,14 @@ function renderGroup(group) {
   const needs = group.repos.flatMap((repo) => projectNeeds(repo.board).map((row) => ({ ...row, repo })));
   $('group-needs').innerHTML = needs.length ? needs.map((row) => {
     const titles = new Map(row.repo.board.items.map((item) => [String(item.id), item.title]));
-    return '<button class="group-need" data-root="' + esc(row.repo.root) + '" type="button"><b>' + esc(row.repo.name) + '</b><code>' + esc(row.ref) + '</code><span>' + rich(row.text, titles, false) + '</span><em>' + esc(row.what) + (row.at ? ', ' + age(row.at) : '') + ' →</em></button>';
+    const text = rich(row.text, titles).replaceAll('<button class="ref" data-go=', '<button class="ref" data-root="' + esc(row.repo.root) + '" data-go=');
+    return '<div class="group-need"><b>' + esc(row.repo.name) + '</b><code>' + esc(row.ref) + '</code><span>' + text + '</span><button data-root="' + esc(row.repo.root) + '" type="button"><em>' + esc(row.what) + (row.at ? ', ' + age(row.at) : '') + ' →</em></button></div>';
   }).join('') : '<div class="empty">Nothing needs you across this project.</div>';
   const events = group.repos.flatMap((repo) => {
     const titles = new Map(repo.board.items.map((item) => [String(item.id), item.title]));
-    return repo.board.events.map((event) => ({ ...event, repo, title: event.item_id ? titles.get(String(event.item_id)) : null }));
+    return repo.board.events.map((event) => ({ ...event, repo, titles, title: event.item_id ? titles.get(String(event.item_id)) : null }));
   }).sort((a, b) => b.event_at.localeCompare(a.event_at)).slice(0, 80);
-  $('group-activity').innerHTML = events.length ? byDay(events, (event) => event.event_at, (event) => '<div><time>' + clock(event.event_at) + '</time><div class="act"><b class="repo-label">' + esc(event.repo.name) + '</b> <span>' + esc(event.event_by) + ' ' + esc(event.event_kind) + (event.item_id ? ' #' + event.item_id + (event.title ? ' ' + rich(event.title, new Map(), false) : '') : '') + '</span></div></div>') : '<div class="empty">No activity yet.</div>';
+  $('group-activity').innerHTML = events.length ? byDay(events, (event) => event.event_at, (event) => '<div><time>' + clock(event.event_at) + '</time><div class="act"><b class="repo-label">' + esc(event.repo.name) + '</b> <span>' + esc(event.event_by) + ' ' + esc(event.event_kind) + (event.item_id ? ' #' + event.item_id + (event.title ? ' ' + rich(event.title, event.titles).replaceAll('<button class="ref" data-go=', '<button class="ref" data-root="' + esc(event.repo.root) + '" data-go=') : '') : '') + '</span></div></div>') : '<div class="empty">No activity yet.</div>';
 }
 
 /**
@@ -871,7 +872,7 @@ function render() {
   ];
   const drafts = p.spec.filter((r) => r.status === 'draft').length;
   $('needs').hidden = !needs.length && !drafts;
-  $('needs').innerHTML = '<div class="head"><i></i>Needs you</div>' + needs.slice(0, 6).map(([target, ref, text, what, at]) => '<button class="ny" data-go="' + esc(target) + '" type="button"><code>' + esc(ref) + '</code><span>' + rich(text, titles, false) + '</span><em>' + esc(what) + (at ? ', ' + age(at) : '') + ' →</em></button>').join('') + (needs.length > 6 ? '<div class="muted more">and ' + (needs.length - 6) + ' more</div>' : '') + (drafts ? '<button class="ny" data-go="tab:spec" type="button"><code>' + drafts + '</code><span>draft spec rows to approve or drop</span><em>review →</em></button>' : '');
+  $('needs').innerHTML = '<div class="head"><i></i>Needs you</div>' + needs.slice(0, 6).map(([target, ref, text, what, at]) => '<div class="ny"><code>' + esc(ref) + '</code><span class="ny-text">' + rich(text, titles) + '</span><button class="ny-open" data-go="' + esc(target) + '" type="button"><em>' + esc(what) + (at ? ', ' + age(at) : '') + ' →</em></button></div>').join('') + (needs.length > 6 ? '<div class="muted more">and ' + (needs.length - 6) + ' more</div>' : '') + (drafts ? '<div class="ny"><code>' + drafts + '</code><span class="ny-text">draft spec rows to approve or drop</span><button class="ny-open" data-go="tab:spec" type="button"><em>review →</em></button></div>' : '');
 
   const lanes = p.lanes;
   const working = lanes.filter((l) => l !== 'coordinator');
@@ -960,7 +961,7 @@ function render() {
   $('agents').innerHTML = p.agents.length ? p.agents.map((a) => {
     const mine = holding(a);
     return '<div class="agent"><div><b title="' + esc(a.agent_path) + '">' + esc(a.agent_id) + '</b><span class="muted">' + esc(a.agent_lane) + ' · ' + esc(a.agent_route) + '</span>' + (a.lastMoveAt ? '<time data-ago="' + esc(a.lastMoveAt) + '" title="last moved ' + when(a.lastMoveAt) + '">' + ago(a.lastMoveAt) + '</time>' : '') + '</div>'
-      + (mine.length ? mine.map((i) => '<button data-go="item:' + i.id + '" type="button"><span>#' + i.id + ' ' + rich(i.title, titles, false) + '</span>' + (i.reviewer === a.agent_id ? '<span class="chip warn">reviewing</span>' : chip(stateOf(i))) + '</button>').join('') : '<small>idle</small>') + '</div>';
+      + (mine.length ? mine.map((i) => '<div class="agent-work" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span>' + (i.reviewer === a.agent_id ? '<span class="chip warn">reviewing</span>' : chip(stateOf(i))) + '</div>').join('') : '<small>idle</small>') + '</div>';
   }).join('') : '<div class="empty">No agents yet.</div>';
   const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
   $('lanes').innerHTML = working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no">held by ' + esc(held.get(l).hold_by) + '</span> <span class="muted">' + esc(held.get(l).hold_reason) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join('');
@@ -989,11 +990,11 @@ function render() {
     const source = kind === 'doctrine' && row ? '<span class="chip">' + esc(ruleSource(row)) + '</span>' : '';
     const reason = declined && row.reason ? '<dt>reason</dt><dd>' + esc(row.reason) + '</dd>' : '';
     const home = kind === 'doctrine' && row && row.origin === 'standard' ? 'Standard rules come with Pullboard; override or decline one in PRACTICE.md.' : 'Rows change in ' + (kind === 'spec' ? 'SPEC.md' : 'PRACTICE.md') + ', and only you approve them.';
-    $(kind + '-detail').innerHTML = row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(row.status) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div><dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<button data-go="item:' + i.id + '" type="button">#' + i.id + ' ' + rich(i.title, titles, false) + '</button>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div><div class="muted">' + home + '</div></div>' : '<div class="empty">Pick a row to see it, and the items that cite it.</div>';
+    $(kind + '-detail').innerHTML = row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(row.status) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div><dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<div class="links-item" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span></div>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div><div class="muted">' + home + '</div></div>' : '<div class="empty">Pick a row to see it, and the items that cite it.</div>';
   }
 
   if (keep('pb.flow') !== 'hidden') $('flow').innerHTML = flowSvg(p);
-  $('activity').innerHTML = p.events.length ? byDay(p.events, (e) => e.event_at, (e) => '<div><time>' + clock(e.event_at) + '</time><div class="act"><b>' + esc(e.event_by) + '</b> ' + esc(e.event_kind) + (e.item_id ? ' <button class="ref" data-go="item:' + e.item_id + '" type="button">#' + e.item_id + '</button>' + (titles.has(String(e.item_id)) ? ' <span class="what">' + esc(titles.get(String(e.item_id))) + '</span>' : '') : '') + '</div></div>') : '<div class="empty">No activity yet.</div>';
+  $('activity').innerHTML = p.events.length ? byDay(p.events, (e) => e.event_at, (e) => '<div><time>' + clock(e.event_at) + '</time><div class="act"><b>' + esc(e.event_by) + '</b> ' + esc(e.event_kind) + (e.item_id ? ' <button class="ref" data-go="item:' + e.item_id + '" type="button">#' + e.item_id + '</button>' + (titles.has(String(e.item_id)) ? ' <span class="what">' + rich(titles.get(String(e.item_id)), titles) + '</span>' : '') : '') + '</div></div>') : '<div class="empty">No activity yet.</div>';
   showTab();
 }
 
@@ -1246,16 +1247,14 @@ function fold(open) {
   $('proj-switch').setAttribute('aria-expanded', String(open));
 }
 
-/**
- * Show another project: mark it at once, dim the old one's panes until its board arrives. Given an
- * item, its board opens on that item; with record false the history entry stays as it is, for a
- * move that came from the entry.
- */
-function switchTo(root, item = null, record = true) {
+/** Show another project and its item; history restores keep the tab their entry named. */
+function switchTo(root, target = null, record = true) {
   answer(null);
   view.root = root;
-  view.item = item;
+  const item = typeof target === 'number' ? target : /^item:(\\d+)$/.exec(target || '');
+  view.item = typeof item === 'number' ? item : item ? Number(item[1]) : null;
   view.adding = false;
+  if (record && view.item !== null) { view.tab = 'items'; keep('pb.tab', view.tab); }
   keep('pb.project', root);
   if (record) address(false);
   fold(false);
@@ -1265,7 +1264,7 @@ function switchTo(root, item = null, record = true) {
   document.body.classList.add('switching');
   refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }).finally(() => {
     document.body.classList.remove('switching');
-    if (item !== null && view.root === root && view.tab === 'items') reveal();
+    if (view.item !== null && view.root === root && view.tab === 'items') reveal();
   });
 }
 
@@ -1275,7 +1274,7 @@ document.addEventListener('click', (event) => {
   if (!t) return;
   if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
   if (t.id === 'console') { t.hidden = true; return; }
-  if (t.dataset.root) switchTo(t.dataset.root);
+  if (t.dataset.root) switchTo(t.dataset.root, t.dataset.go || '');
   else if (t.dataset.tab) { openTab(t.dataset.tab); showTab(); }
   else if (t.dataset.go) go(t.dataset.go, t.dataset.board);
   else if (t.dataset.item) pick(Number(t.dataset.item));

@@ -504,14 +504,14 @@ test('the sidebar lists every project and what needs the person [N26]', async ()
 
 test('projects group repos with combined needs and activity, while ungrouped and unreadable repos stay clear [N33, N34, N36]', async () => {
   const box = machine();
-  const core = project(box, 'core', `${SPEC}- G3 [pending] Should the API greet in French?\n`, { name: 'Core API', project: 'Atlas' });
-  box.run(core.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  const core = project(box, 'core', `${SPEC}- G3 [pending] Should #1 greet in French?\n`, { name: 'Core API', project: 'Atlas' });
+  box.run(core.repo, 'add', 'web', 'Core target #1', '--specs', 'G1', '--criterion', 'greets');
   build(box, core, 1, 'greeting.html');
   sendBack(box, core, 1, 'the page needs a greeting');
   const web = project(box, 'web', SPEC, { name: 'Web UI', project: 'Atlas' });
-  box.run(web.repo, 'add', 'web', 'Header', '--specs', 'G1', '--criterion', 'has a header');
+  box.run(web.repo, 'add', 'web', 'Target for #1', '--specs', 'G1', '--criterion', 'has a header');
   build(box, web, 1, 'header.html');
-  box.run(web.repo, 'shout', 'person', 'Ship the header today?', '--decision');
+  box.run(web.repo, 'shout', 'person', 'Ship #1 today?', '--decision');
   const standalone = project(box, 'standalone', SPEC, { name: 'Scratchpad' });
   const broken = project(box, 'broken', SPEC, { name: 'Broken repo', project: 'Atlas' });
   const view = await startView(box);
@@ -545,17 +545,36 @@ test('projects group repos with combined needs and activity, while ungrouped and
     assert.equal(page.element('tabs').hidden, true);
     assert.match(page.show('group-needs'), /Core API/);
     assert.match(page.show('group-needs'), /Web UI/);
-    assert.match(page.show('group-needs'), /<b>Core API<\/b><code>G3<\/code><span>Should the API greet in French\?<\/span><em>answer in SPEC\.md →<\/em>/, "a question in one repo's spec");
-    assert.match(page.show('group-needs'), /<b>Web UI<\/b><code>coordinator<\/code><span>Ship the header today\?<\/span><em>decision, /, "and a decision in another's");
+    assert.match(page.show('group-needs'), /<b>Core API<\/b><code>G3<\/code><span>Should <button class="ref" data-root="[^"]+" data-go="item:1" title="Core target #1" type="button">#1<\/button> greet in French\?<\/span><button data-root="[^"]+" type="button"><em>answer in SPEC\.md →<\/em><\/button>/, "a question in one repo's spec");
+    assert.match(page.show('group-needs'), /<b>Web UI<\/b><code>coordinator<\/code><span>Ship <button class="ref" data-root="[^"]+" data-go="item:1" title="Target for #1" type="button">#1<\/button> today\?<\/span><button data-root="[^"]+" type="button"><em>decision, /, "and a decision in another's");
     assert.doesNotMatch(page.show('group-needs'), /sent back|to verify|Greeting|Header/, "work sent back or waiting for a verdict is the agents', not the person's");
     assert.match(page.show('group-activity'), /Core API/);
     assert.match(page.show('group-activity'), /Web UI/);
-    assert.match(page.show('group-activity'), /Greeting|Header/);
+    assert.match(page.show('group-activity'), /Greeting|Target/);
+    const activityRefs = [...page.show('group-activity').matchAll(/<button class="ref" data-root="([^"]+)" data-go="item:1" title="([^"]+)"/g)].map((link) => [link[1], link[2]]);
+    assert.ok(activityRefs.some(([root, title]) => root === core.repo && title === 'Core target #1'), 'activity links bind Core API #1 to its repo');
+    assert.ok(activityRefs.some(([root, title]) => root === web.repo && title === 'Target for #1'), 'activity links bind Web UI #1 to its repo');
+
+    assert.deepEqual([...page.show('group-needs').matchAll(/<button class="ref" data-root="([^"]+)" data-go="item:1" title="([^"]+)"/g)].map((link) => [link[1], link[2]]), [
+      [core.repo, 'Core target #1'], [web.repo, 'Target for #1'],
+    ], 'each duplicate #1 keeps the repo where it was written');
+    page.run("view.tab = 'activity'");
+    await page.click({ root: core.repo, go: 'item:1' });
+    assert.equal(page.run('view.root'), core.repo, 'the Core API link opens its own repo');
+    assert.equal(page.run('view.item'), 1, 'the Core API link opens its #1');
+    assert.equal(page.run('view.tab'), 'items', 'the Core API link opens its item detail');
+    await page.click({ root: 'group:Atlas' });
+    page.run("view.tab = 'activity'");
+    await page.click({ root: web.repo, go: 'item:1' });
+    assert.equal(page.run('view.root'), web.repo, 'the Web UI link opens its own repo');
+    assert.equal(page.run('view.item'), 1, 'the Web UI link opens its #1');
+    assert.equal(page.run('view.tab'), 'items', 'the Web UI link opens its item detail');
+    await page.click({ root: 'group:Atlas' });
 
     await page.click({ root: core.repo });
     assert.equal(page.element('group-view').hidden, true);
     assert.equal(page.element('tabs').hidden, false);
-    assert.match(page.show('chain'), /Greeting/);
+    assert.match(page.show('chain'), /Core target/);
     assert.doesNotMatch(page.show('chain'), /Header/);
     assert.ok(side.includes(`data-root="${standalone.repo}"`), 'the repo without a project stands alone');
   } finally {
@@ -749,7 +768,7 @@ function agentEntries(html) {
     id: /<b[^>]*>([^<]*)<\/b>/.exec(entry)?.[1],
     path: /<b title="([^"]*)"/.exec(entry)?.[1],
     age: /<time[^>]*>([^<]*)<\/time>/.exec(entry)?.[1],
-    holds: [...entry.matchAll(/data-go="item:(\d+)"[^>]*><span>([^]*?)<\/span><span class="chip[^"]*">([^<]*)</g)].map((match) => `${match[2]}: ${match[3]}`),
+    holds: [...entry.matchAll(/data-item="(\d+)"[^>]*><span>([^]*?)<\/span><span class="chip[^"]*">([^<]*)</g)].map((match) => `${match[2]}: ${match[3]}`),
     idle: entry.includes('<small>idle</small>'),
     text: entry.replace(/<[^>]*>/g, ' '),
   }));
@@ -1442,7 +1461,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     box.run(alpha.repo, 'pass', '1', 'over to you');
     await page.run('refresh()');
     const passed = `Passed up from web-1: ${question}\nCoordinator note: over to you`;
-    assert.match(page.show('needs'), new RegExp(`^<div class="head"><i></i>Needs you</div><button class="ny" data-go="decide:42" type="button"><code>coordinator</code><span>${passed.replace('\n', '<br>')}</span><em>decide, <time data-ago="[^"]+">now</time> →</em></button>`), 'first in Needs-you: who passed it, what, and since when');
+    assert.match(page.show('needs'), new RegExp(`^<div class="head"><i></i>Needs you</div><div class="ny"><code>coordinator</code><span class="ny-text">${passed.replace('\n', '<br>')}</span><button class="ny-open" data-go="decide:42" type="button"><em>decide, <time data-ago="[^"]+">now</time> →</em></button></div>`), 'first in Needs-you: who passed it, what, and since when');
     assert.match(page.show('decisions'), new RegExp(`^<div class="head"><i></i>Decision needed</div><div class="ask"><p><small><b>coordinator</b> asks, <time data-ago="[^"]+">now</time></small></p><p>${passed.replace('\n', '<br>')}</p><button class="ghost" data-go="decide:42" type="button">Answer</button></div>$`), 'and above the shouts, with an Answer button');
 
     const form = () => ({
@@ -1521,14 +1540,14 @@ test("needs-you holds only the person's calls; the rest show on the board with w
   try {
     const page = await openPage(view);
     const needs = page.show('needs');
-    assert.deepEqual([...needs.matchAll(/<button class="ny" data-go="([^:"]+):[^"]*" type="button"><code>([^<]*)<\/code><span>([^<]*)<\/span>/g)].map((line) => [line[1], line[2], line[3]]), [
+    assert.deepEqual([...needs.matchAll(/<div class="ny"><code>([^<]*)<\/code><span class="ny-text">([^<]*)<\/span><button class="ny-open" data-go="([^:"]+):[^"]*" type="button"><em>/g)].map((line) => [line[3], line[1], line[2]]), [
       ['decide', 'coordinator', 'Launch on Friday?'],
       ['spec', 'G3', 'Greet in French?'],
       ['tab', 'web', 'G3 is open'],
       ['tab', '1', 'draft spec rows to approve or drop'],
     ], "the person's calls, and only those: the decision asked of them, the spec's question, the held lane, the draft row");
     assert.doesNotMatch(needs, /Which colour|Greeting|Farewell/, "an agent's ask, work waiting for a verdict and work sent back are not the person's");
-    assert.match(needs, /<code>web<\/code><span>G3 is open<\/span><em>lane held by coordinator →<\/em>/, 'a held lane says who set it');
+    assert.match(needs, /<code>web<\/code><span class="ny-text">G3 is open<\/span><button class="ny-open" data-go="tab:shouts" type="button"><em>lane held by coordinator →<\/em><\/button>/, 'a held lane says who set it');
 
     // Each of the rest is on the board, with who holds it.
     assert.match(page.show('decisions'), /<div class="head quiet">Waiting on others<\/div><div class="ask other"><p><small><b>web-1<\/b> asks <b>coordinator<\/b>, /, "the agent's ask waits on its coordinator");
@@ -2122,9 +2141,9 @@ test('needs-you lines keep their titles on a phone [N26]', async () => {
     const page = await openPage(view, { width: 375 });
     const style = await styleOf(view);
     assert.match(style, /\n\.ny \{ display: grid; grid-template-columns: auto minmax\(5em, 1fr\) minmax\(0, max-content\);/, 'wider, a line keeps its single row');
-    assert.match(style, /\n@media \(width < 480px\) \{ \.ny \{ grid-template-columns: auto minmax\(0, 1fr\); row-gap: 1px; \} \.ny em \{ grid-column: 2; \} \}\n/, 'under 480px, what it needs moves under the title');
-    // The rule works because each line is the ref, then the title, then what it needs.
-    assert.match(page.show('needs'), /<button class="ny" data-go="spec:G3" type="button"><code>G3<\/code><span>Should a greeting with a title long enough to need the room wrap\?<\/span><em>answer in SPEC\.md →<\/em><\/button>/);
+    assert.match(style, /\n@media \(width < 480px\) \{ \.ny \{ grid-template-columns: auto minmax\(0, 1fr\); row-gap: 1px; \} \.ny \.ny-open \{ grid-column: 2; \} \}\n/, 'under 480px, the action moves under the text');
+    // The row keeps its reference, text and action in three columns.
+    assert.match(page.show('needs'), /<div class="ny"><code>G3<\/code><span class="ny-text">Should a greeting with a title long enough to need the room wrap\?<\/span><button class="ny-open" data-go="spec:G3" type="button"><em>answer in SPEC\.md →<\/em><\/button><\/div>/);
   } finally {
     await view.stop();
   }
@@ -3105,7 +3124,7 @@ test('real Chrome styles shout code and item text without growing linked lines [
       const titleNode = document.querySelector('#chain .row .t');
       const outside = [...document.querySelectorAll('#feed > div:not(.day)')].find((row) => row.textContent.includes('alert(2)'));
       const itemDetail = document.querySelector('#detail');
-      const agentItem = document.querySelector('#agents .agent button[data-go="item:1"]');
+      const agentItem = document.querySelector('#agents .agent [data-item="1"]');
       /** Measure the complete rendered content line box, including its item link. */
       const lineMetrics = (message) => {
         const row = [...document.querySelectorAll('#feed > div:not(.day)')].find((entry) => {
@@ -3126,8 +3145,9 @@ test('real Chrome styles shout code and item text without growing linked lines [
         previewLinks: shout.querySelectorAll('button[data-code^="SPEC.md:1-2@"]').length,
         outsideHtml: outside.innerHTML, askNestedButtons: ask.querySelector('p').querySelectorAll('button').length,
         criterionHtml: itemDetail.querySelector('.text')?.innerHTML, briefHtml: itemDetail.querySelector('.text.muted')?.innerHTML,
-        needsNestedButtons: document.querySelectorAll('#needs button.ref').length,
-        agentNestedButtons: document.querySelectorAll('#agents .agent button.ref').length,
+        needsNestedButtons: [...document.querySelectorAll('#needs button.ref')].filter(link => link.parentElement.closest('button')).length,
+        agentNestedButtons: [...document.querySelectorAll('#agents .agent button.ref')].filter(link => link.parentElement.closest('button')).length,
+        agentItemHeight: agentItem?.getBoundingClientRect().height,
       };
     })())`));
     assert.match(rendered.shoutHtml, /<code class="inline">code &lt;b&gt;safe&lt;\/b&gt;<\/code>/, 'backticks create escaped inline code');
@@ -3150,6 +3170,7 @@ test('real Chrome styles shout code and item text without growing linked lines [
     assert.equal(rendered.askNestedButtons, 0, 'formatted text in an ask cannot nest interactive controls');
     assert.equal(rendered.needsNestedButtons, 0, 'needs-you keeps its button markup valid');
     assert.equal(rendered.agentNestedButtons, 0, 'agent item buttons never nest reference controls');
+    assert.ok(rendered.agentItemHeight >= 44, 'agent item controls keep a 44px touch target');
     assert.match(rendered.titleHtml, /<code class="inline">title<\/code>/, 'item titles use the same code renderer');
     assert.match(rendered.titleHtml, /&lt;img src=x onerror=alert\(1\)&gt;/, 'item text remains escaped');
     assert.match(rendered.criterionHtml, /<code class="inline">value<\/code>/, 'criterion text uses the renderer');
@@ -3187,6 +3208,123 @@ test('real Chrome styles shout code and item text without growing linked lines [
       'the old whole-text-box comparison would fail on the deliberately wrapped sample');
     assert.deepEqual(consoleErrors, []);
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception on its first load');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
+test('in-text item references stay inline and open their target at phone and desktop widths [N26]', { timeout: 90_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for item-reference layout checks.');
+
+  const box = machine();
+  const demo = project(box, 'inline-references', SPEC, { practice: 'ways.md' });
+  writeFileSync(join(demo.repo, 'ways.md'), '# Local rules\n\n## Team\n- R1 [approved, must] Items carry the page behavior. | gate: review\n');
+  box.run(demo.repo, 'add', 'web', 'Target item', '--specs', 'G1', '--criterion', 'the linked target');
+  box.run(demo.repo, 'add', 'web', 'Title links to #1', '--specs', 'G1', '--criterion', 'Criterion links to #1', '--brief', 'Brief links to #1');
+  box.run(demo.web, 'claim', '2');
+  box.run(demo.repo, 'shout', 'person', 'Please choose #1 next', '--decision');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-inline-references-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor('document.querySelectorAll("#chain .row").length >= 2 && document.querySelector("#needs .ny")');
+
+    for (const width of [375, 1280]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      // The row inlineReference stays on its title line beside the text.
+      const rendered = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+        const row = document.querySelector('#chain .row[data-item="2"]');
+        const plain = document.querySelector('#chain .row[data-item="1"]');
+        const titleRef = row?.querySelector('.t button.ref');
+        const need = [...document.querySelectorAll('#needs .ny')].find((entry) => entry.textContent.includes('Please choose'));
+        const needRef = need?.querySelector('button.ref');
+        const needAction = need?.querySelector('.ny-open');
+        const realButton = document.querySelector('#new-item');
+        /** Measure the element box independently of the inline-link assertion. */
+        const rect = node => { const r=node.getBoundingClientRect(); return {height:r.height,width:r.width}; };
+        return {
+          titleRef: titleRef && { ...rect(titleRef), border:getComputedStyle(titleRef).borderWidth, lineHeight:getComputedStyle(titleRef).lineHeight },
+          linkedTitle: row && rect(row.querySelector('.t')),
+          plainTitle: plain && rect(plain.querySelector('.t')),
+          needRef: needRef && { ...rect(needRef), border:getComputedStyle(needRef).borderWidth, lineHeight:getComputedStyle(needRef).lineHeight },
+          needText: need?.querySelector('.ny-text') && rect(need.querySelector('.ny-text')),
+          needAction: needAction && rect(needAction), realButton: realButton && rect(realButton),
+        };
+      })())`));
+      assert.ok(rendered.titleRef && rendered.needRef, `${width}: list and Needs-you references are links: ${JSON.stringify(rendered)}`);
+      assert.equal(rendered.titleRef.border, '0px', `${width}: the title reference has no button border`);
+      assert.equal(rendered.needRef.border, '0px', `${width}: the Needs-you reference has no button border`);
+      assert.ok(Math.abs(rendered.linkedTitle.height - rendered.plainTitle.height) < 1,
+        `${width}: the title line matches a plain title: ${JSON.stringify(rendered)}`);
+      assert.ok(Math.abs(rendered.titleRef.height - rendered.linkedTitle.height) < 1,
+        `${width}: the title link has the surrounding line height: ${JSON.stringify(rendered)}`);
+      assert.ok(Math.abs(rendered.needRef.height - rendered.needText.height) < 1,
+        `${width}: the Needs-you link has the surrounding line height: ${JSON.stringify(rendered)}`);
+      assert.ok(rendered.needAction.height >= 44 && rendered.realButton.height >= 44,
+        `${width}: real controls keep 44px targets: ${JSON.stringify(rendered)}`);
+
+      for (const section of ['agents', 'spec', 'doctrine']) {
+        if (section === 'agents') {
+          await chrome.evaluate(`document.querySelector('[data-tab="shouts"]').click()`);
+          await chrome.waitFor('document.querySelector("#agents [data-item=\\"2\\"]")');
+        } else {
+          await chrome.evaluate(`document.querySelector('[data-tab="${section}"]').click()`);
+          await chrome.evaluate(`document.querySelector('[data-rows="${section}:all"]').click()`);
+          const citedRow = section === 'doctrine' ? 'R1' : 'G1';
+          if (section === 'doctrine') {
+            // Item citations normally point to SPEC ids; add the distinct practice id to the
+            // browser projection to exercise the shared doctrine citing-item renderer.
+            await chrome.evaluate("data.project.items.find(item => item.id === 2).specs.push('R1'); render();");
+          }
+          await chrome.waitFor(`document.querySelector('#${section}-list [data-row="${section}:${citedRow}"]')`);
+          await chrome.evaluate(`document.querySelector('#${section}-list [data-row="${section}:${citedRow}"]').click()`);
+          await chrome.waitFor(`document.querySelector('#${section}-detail [data-item="2"]')`);
+        }
+        const selector = section === 'agents' ? '#agents [data-item="2"] .ref' : `#${section}-detail .links [data-item="2"] .ref`;
+        const metrics = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+          const ref = document.querySelector(${JSON.stringify(selector)});
+          const container = ref?.closest('[data-item="2"]');
+          const r = ref?.getBoundingClientRect();
+          const c = container?.getBoundingClientRect();
+          return { present:!!ref, border:ref && getComputedStyle(ref).borderWidth,
+            refHeight:r?.height, lineHeight:ref && parseFloat(getComputedStyle(ref).lineHeight),
+            containerHeight:c?.height, nestedButtons:container ? [...container.querySelectorAll('.ref')].filter(link => link.parentElement.closest('button')).length : 0 };
+        })())`));
+        assert.ok(metrics.present, `${width}: ${section} citing title renders a compact item reference: ${JSON.stringify(metrics)}`);
+        assert.equal(metrics.border, '0px', `${width}: ${section} reference has no button border`);
+        assert.ok(Math.abs(metrics.refHeight - metrics.lineHeight) < 1, `${width}: ${section} reference keeps the text line height: ${JSON.stringify(metrics)}`);
+        assert.ok(metrics.containerHeight >= 44, `${width}: ${section} containing item keeps a 44px target`);
+        assert.equal(metrics.nestedButtons, 0, `${width}: ${section} title has no nested controls`);
+        await chrome.evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+        await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
+        await chrome.evaluate(`document.querySelector(${JSON.stringify(selector)}).closest('[data-item="2"]').click()`);
+        await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Title links to #1')");
+      }
+
+      await chrome.evaluate(`document.querySelector('#chain .row[data-item="2"] .t button.ref').click()`);
+      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Target item')");
+      await chrome.evaluate(`document.querySelector('#needs .ny button.ref').click()`);
+      await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
+
+      await chrome.evaluate(`document.querySelector('[data-tab="activity"]').click()`);
+      await chrome.waitFor("document.querySelector('#activity .what button.ref')");
+      await chrome.evaluate(`document.querySelector('#activity .what button.ref').click()`);
+      await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
+
+      await chrome.evaluate(`document.querySelector('#chain .row[data-item="2"]').click()`);
+      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Title links to #1') && document.querySelector('#detail .text button.ref') && document.querySelector('#detail .text.muted button.ref')");
+      await chrome.evaluate(`document.querySelector('#detail .text button.ref').click()`);
+      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Target item')");
+      await chrome.evaluate(`document.querySelector('#chain .row[data-item="2"]').click()`);
+      await chrome.waitFor("document.querySelector('#detail .text.muted button.ref')");
+      await chrome.evaluate(`document.querySelector('#detail .text.muted button.ref').click()`);
+      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Target item')");
+    }
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     rmSync(profile, { recursive: true, force: true });
