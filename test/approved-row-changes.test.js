@@ -69,13 +69,14 @@ function fixture(t, { signer = false, doctrine = false } = {}) {
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Approved-row fixture');
   git('config', 'user.email', 'approved-row@example.invalid');
+  // Seed the legacy file before init so the conventional rename test starts with one doctrine.
+  if (doctrine) writeFileSync(join(root, 'PRACTICE.md'), '# Local rules\n\n## L · Local\n- L1 [approved] Keep the local rule exact. | gate: true\n');
   const initialized = pullboard('init');
   assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
   const configPath = join(root, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   writeFileSync(configPath, `${JSON.stringify({ ...config, gate: 'true', spec: 'SPEC.md' }, null, 2)}\n`);
   writeFileSync(join(root, 'SPEC.md'), SPEC);
-  if (doctrine) writeFileSync(join(root, 'PRACTICE.md'), '# Local rules\n\n## L · Local\n- L1 [approved] Keep the local rule exact. | gate: true\n');
   mkdirSync(join(root, 'test'));
   writeFileSync(join(root, 'test', 'promise.test.js'), "import assert from 'node:assert/strict';\nimport { readFileSync } from 'node:fs';\nimport { test } from 'node:test';\ntest('approved promise remains documented [G1]', () => { assert.match(readFileSync('SPEC.md', 'utf8'), /G1 \\[approved/); });\n");
   git('add', '-A');

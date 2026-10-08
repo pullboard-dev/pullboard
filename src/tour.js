@@ -9,6 +9,8 @@ import { chmodSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from '
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadConfig } from './config.js';
+import { registerProject } from './projects.js';
 
 const BIN = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
 
@@ -19,6 +21,8 @@ const SPEC = `# Greeter
 `;
 
 const CONFIG = {
+  name: 'demo',
+  project: 'Pullboard tour demo',
   gate: 'node --test',
   spec: 'SPEC.md',
   verify: { policy: 'any', family: 'off' },
@@ -184,7 +188,9 @@ export function tour(io) {
     io.say(`The repo is at ${repo}`);
     return 1;
   }
+  registerProject(repo, new Date(), loadConfig(repo));
   io.say('\nNothing shipped until a second agent verified it.');
   io.say(`Look around: cd ${repo} && pullboard log`);
+  io.say('see it: pullboard view');
   return 0;
 }
