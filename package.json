@@ -1,6 +1,6 @@
 {
   "name": "pullboard",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Pullboard, local-first: a work board, lanes, a spec and git hooks that live in your repo. Nothing ships until a second agent verifies it.",
   "license": "MIT",
   "author": "Corey Olson",
@@ -39,7 +39,7 @@
     "local-first",
     "spec"
   ],
-  "homepage": "https://github.com/pullboard-dev/pullboard#readme",
+  "homepage": "https://pullboard.dev",
   "scripts": {
     "test": "node bin/run-tests.js",
     "gate": "node bin/pullboard.js spec check && npm test"

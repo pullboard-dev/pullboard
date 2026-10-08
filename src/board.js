@@ -143,15 +143,20 @@ const SCHEMA = `
 export function openBoard(file, clock = systemClock) {
   if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
-  db.exec('PRAGMA busy_timeout = 10000');
-  if (file !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
-  db.exec(SCHEMA);
-  migrate(db);
-  db.prepare('INSERT OR IGNORE INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run('board_id', randomBytes(16).toString('hex'));
-  const board = { db, clock };
-  guardStore(board);
-  guardMoves(board);
-  return board;
+  try {
+    db.exec('PRAGMA busy_timeout = 10000');
+    if (file !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
+    migrateEventLogVersion(db);
+    migrate(db);
+    db.prepare('INSERT OR IGNORE INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run('board_id', randomBytes(16).toString('hex'));
+    const board = { db, clock };
+    guardStore(board);
+    guardMoves(board);
+    return board;
+  } catch (error) {
+    db.close();
+    throw error;
+  }
 }
 
 /**
@@ -248,6 +253,43 @@ function migrate(db) {
   }
 }
 
+/**
+ * Read the persisted event format without migrating it, so integrity checks enforce the same
+ * compatibility rule as the writable opener while leaving older or damaged evidence intact.
+ *
+ * @param {DatabaseSync} db
+ * @returns {number}
+ */
+export function readEventLogVersion(db) {
+  if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'board_meta'").get()) return 0;
+  const stored = db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('event_log_version');
+  const version = stored && /^(?:0|[1-9]\d*)$/u.test(stored.meta_value) ? Number(stored.meta_value) : stored ? NaN : 0;
+  if (!Number.isSafeInteger(version) || version < 0) {
+    throw new Refused('EVENT_LOG_VERSION', `event log version ${stored?.meta_value ?? 'missing'} is invalid; restore a valid board or upgrade pullboard`);
+  }
+  if (version > EVENT_LOG_VERSION) {
+    throw new Refused('EVENT_LOG_VERSION', `event log version ${version} is newer than this pullboard version ${EVENT_LOG_VERSION}; upgrade pullboard to open this board`);
+  }
+  return version;
+}
+
+/** Refuse unknown future event records before migrating anything, and mark older boards current. */
+function migrateEventLogVersion(db) {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec(SCHEMA);
+    const version = readEventLogVersion(db);
+    if (version < EVENT_LOG_VERSION) {
+      db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?) ON CONFLICT(meta_key) DO UPDATE SET meta_value = excluded.meta_value')
+        .run('event_log_version', String(EVENT_LOG_VERSION));
+    }
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
 /** The persistent local and relay identity of this board (A2). */
 export function boardId(board) {
   return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('board_id').meta_value;
@@ -270,9 +312,12 @@ export function closeBoard(board) {
  */
 const now = (board) => board.clock.now().toISOString();
 
+const TRANSACTION_DEPTH = new WeakMap();
+
 /**
  * Run `work` in one immediate transaction: the write lock is taken before the first read, so two
- * agents can never both see an item as free (B2).
+ * agents can never both see an item as free (B2). Nested moves use savepoints so a replay receipt
+ * and its board mutation can commit together, while a refused move rolls back only its work.
  *
  * @template T
  * @param {any} board
@@ -280,18 +325,23 @@ const now = (board) => board.clock.now().toISOString();
  * @returns {T}
  */
 export function atomic(board, work) {
-  board.db.exec('BEGIN IMMEDIATE');
+  const depth = TRANSACTION_DEPTH.get(board) ?? 0;
+  const savepoint = `pullboard_atomic_${depth}`;
+  board.db.exec(depth ? `SAVEPOINT ${savepoint}` : 'BEGIN IMMEDIATE');
+  TRANSACTION_DEPTH.set(board, depth + 1);
   const lastEvent = board.lastEvent;
   const emitted = board.emittedEvents?.length ?? 0;
   try {
     const result = work();
-    board.db.exec('COMMIT');
+    board.db.exec(depth ? `RELEASE ${savepoint}` : 'COMMIT');
     return result;
   } catch (error) {
-    board.db.exec('ROLLBACK');
+    board.db.exec(depth ? `ROLLBACK TO ${savepoint}; RELEASE ${savepoint}` : 'ROLLBACK');
     board.lastEvent = lastEvent;
     board.emittedEvents?.splice(emitted);
     throw error;
+  } finally {
+    TRANSACTION_DEPTH.set(board, depth);
   }
 }
 
@@ -506,14 +556,15 @@ function routeOf(board, agentId) {
  * ids (B6).
  *
  * @param {any} board
- * @param {{ by: string, lane: string, title: string, criterion?: string, specIds?: string[], parentId?: number | null, after?: number[], brief?: string, route?: string }} item
+ * @param {{ by: string, lane: string, title: string, criterion?: string, specIds?: string[], parentId?: number | null, after?: number[], brief?: string, route?: string, check?: string }} item
  * @returns {number} The new item's id.
  */
-export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong', check = '' }) {
+export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong', check }) {
+  const command = coordinatorCheck(by, check) ?? '';
   const cleanTitle = title.trim();
   if (!cleanTitle) throw new Refused('NO_TITLE', 'an item needs a title');
   checkRoute(route);
-  checkRouted({ brief: brief.trim(), route, criterion, check });
+  checkRouted({ brief: brief.trim(), route, criterion, check: command });
   return atomic(board, () => {
     if (parentId !== null) {
       const parent = itemById(board, parentId);
@@ -536,7 +587,7 @@ export function addItem(board, { by, lane, title, criterion = '', specIds = [], 
            item_after, item_brief, item_route, item_check, item_created_by, item_created_at, item_updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(parentId, lane, cleanTitle, criterion.trim(), specIds.join(','), after.join(','), brief.trim(), route, check.trim(), by, at, at);
+      .run(parentId, lane, cleanTitle, criterion.trim(), specIds.join(','), after.join(','), brief.trim(), route, command, by, at, at);
     const id = Number(result.lastInsertRowid);
     logEvent(board, by, 'add', id, { lane, specIds, after, route });
     return id;
@@ -555,6 +606,7 @@ export function addItem(board, { by, lane, title, criterion = '', specIds = [], 
  * @param {{ agentId: string, brief?: string, route?: string, criterion?: string, check?: string }} change
  */
 export function editItem(board, id, { agentId, brief, route, criterion, check }) {
+  const command = coordinatorCheck(agentId, check);
   if ([brief, route, criterion, check].every((value) => value === undefined)) {
     throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "..." or --check "<command>"');
   }
@@ -570,7 +622,7 @@ export function editItem(board, id, { agentId, brief, route, criterion, check })
       item_brief: brief === undefined ? item.item_brief : brief.trim(),
       item_route: route ?? item.item_route,
       item_criterion: criterion === undefined ? item.item_criterion : criterion.trim(),
-      item_check: check === undefined ? item.item_check : check.trim(),
+      item_check: command === undefined ? item.item_check : command,
     };
     checkRoute(next.item_route);
     const moved = ['item_route', 'item_criterion', 'item_check'].filter((key) => next[key] !== item[key]);
@@ -584,10 +636,33 @@ export function editItem(board, id, { agentId, brief, route, criterion, check })
       ...(next.item_brief !== item.item_brief ? { brief: `${next.item_brief.length} characters` } : {}),
       ...(next.item_route !== item.item_route ? { route: next.item_route } : {}),
       ...(next.item_criterion !== item.item_criterion ? { criterion: next.item_criterion } : {}),
-      ...(next.item_check !== item.item_check ? { check: next.item_check } : {}),
+      ...(command !== undefined ? { check: next.item_check } : {}),
       ...(unfreeze && item.item_frozen_digest ? { unfrozen: item.item_frozen_digest } : {}),
     });
   });
+}
+
+/** Normalize an explicitly supplied check only when its author is the coordinator [V2]. */
+function coordinatorCheck(agentId, command) {
+  if (command === undefined) return undefined;
+  if (agentId !== COORDINATOR) {
+    throw new Refused('COORDINATOR_CHECK', 'only the coordinator sets or edits an item check; ask your coordinator to supply --check');
+  }
+  if (typeof command !== 'string') throw new Refused('BAD_CHECK', 'an item check is a command string; ask your coordinator to supply --check "<command>"');
+  return command.trim();
+}
+
+/** Read the current check's setter from immutable edits, or its original item author [V2]. */
+export function itemCheckAuthor(board, id) {
+  const item = itemById(board, id);
+  const edits = board.db.prepare("SELECT event_by, event_detail FROM event WHERE item_id = ? AND event_kind = 'edit' ORDER BY event_id DESC").all(id);
+  for (const edit of edits) {
+    let detail;
+    try { detail = JSON.parse(edit.event_detail); }
+    catch { return null; }
+    if (detail && Object.hasOwn(detail, 'check')) return detail.check === item.item_check ? edit.event_by : null;
+  }
+  return item.item_created_by;
 }
 
 /**
@@ -850,10 +925,10 @@ export function release(board, id, agentId) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, commit: string, tree: string, files?: string[] }} at - `files`: what the
+ * @param {{ agentId: string, commit: string, tree: string, files?: string[], policyCommit?: string }} at - `files`: what the
  *   item's own commits changed since its claim; a rework adds to what the first attempt changed.
  */
-export function submit(board, id, { agentId, commit, tree, files = [] }) {
+export function submit(board, id, { agentId, commit, tree, files = [], policyCommit = null }) {
   atomic(board, () => {
     const notYours = () => new Refused('NOT_YOURS', `item #${id} is not claimed by you; claim it first`);
     moveItem(board, id, 'submit', {
@@ -865,6 +940,7 @@ export function submit(board, id, { agentId, commit, tree, files = [] }) {
         treeClean: null,
         nothingUntracked: null,
         hasCommit: null,
+        withinLane: null,
         gateConfigured: null,
         gateGreen: null,
         treeStillDuringGate: null,
@@ -890,7 +966,7 @@ export function submit(board, id, { agentId, commit, tree, files = [] }) {
         item_files: [...new Set([...(found.item_files ?? '').split('\n').filter(Boolean), ...files])].join('\n'),
       }),
     });
-    logEvent(board, agentId, 'submit', id, { commit, tree });
+    logEvent(board, agentId, 'submit', id, { commit, tree, ...(policyCommit ? { policyCommit } : {}) });
   });
 }
 
@@ -1023,6 +1099,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', head, 
             ? null
             : new Refused('CRITERIA_CHANGED', `the criterion for #${id} changed after it was claimed; the coordinator runs: pullboard refreeze ${id}`),
         reasonIsMet: () => (reason && reason !== ACCEPT_REASON ? new Refused('BAD_REASON', `accept means ${ACCEPT_REASON}; a failed criterion is a reject`) : null),
+        itemCheckGreen: null,
         proofNoted: () =>
           note.trim()
             ? null
@@ -1590,6 +1667,174 @@ export function laneHold(board, lane) {
  */
 export function laneHolds(board) {
   return board.db.prepare('SELECT * FROM hold ORDER BY hold_lane').all();
+}
+
+/** Read named milestones from board metadata; older boards simply have none. */
+export function milestones(board) {
+  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('milestones');
+  if (!row) return [];
+  try {
+    const value = JSON.parse(row.meta_value);
+    if (!Array.isArray(value)) throw new Error('not an array');
+    return value;
+  } catch {
+    throw new Refused('MILESTONES_CORRUPT', 'the stored roadmap is unreadable; restore board metadata from a known-good board export');
+  }
+}
+
+/** Return milestones with current item status and a verified-item completion count. */
+export function roadmap(board, resolveExternal = null) {
+  const items = new Map(listItems(board, { all: true }).map((item) => [item.item_id, item]));
+  return milestones(board).map((milestone) => {
+    const entries = milestone.items.map((id) => {
+      if (typeof id === 'number') {
+        const item = items.get(id);
+        return item
+          ? { id, title: item.item_title, status: item.item_status }
+          : { id, title: `#${id}`, status: 'missing' };
+      }
+      return resolveExternal?.(id) ?? { id, title: id, status: 'unavailable' };
+    });
+    return {
+      name: milestone.name,
+      note: milestone.note,
+      items: entries,
+      done: entries.filter((item) => item.status === 'verified').length,
+      total: entries.length,
+    };
+  });
+}
+
+/** Validate a coordinator identity before changing roadmap metadata. */
+function requireCoordinator(agentId) {
+  if (agentId !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator changes milestones; ask your coordinator to update the roadmap');
+}
+
+/** Parse an ordered list of local item ids and repo-qualified ids. */
+function normalizeMilestoneItems(items) {
+  if (!Array.isArray(items)) throw new Refused('MILESTONE_ITEMS', 'milestone items need comma-separated item ids; use pullboard milestone add --items 1,2');
+  const result = items.map((value) => {
+    if (Number.isSafeInteger(value) && value > 0) return value;
+    if (typeof value === 'string') {
+      const text = value.trim();
+      if (/^[1-9]\d*$/.test(text) && Number.isSafeInteger(Number(text))) return Number(text);
+      if (/^[^#,\s][^#,]*#[1-9]\d*$/.test(text)) return text;
+    }
+    throw new Refused('MILESTONE_ITEMS', `invalid item id ${String(value)}; use a positive id or repo#id`);
+  });
+  if (new Set(result.map((value) => JSON.stringify(value))).size !== result.length) {
+    throw new Refused('MILESTONE_ITEMS', 'a milestone cannot list the same item twice; remove duplicate ids and retry');
+  }
+  return result;
+}
+
+/** Refuse local item ids that do not exist while leaving repo-qualified ids for board lookup. */
+function validateLocalMilestoneItems(board, items) {
+  for (const id of items) if (typeof id === 'number') itemById(board, id);
+}
+
+/** Validate a milestone name and note before storing them. */
+function normalizeMilestoneText(name, note = null) {
+  if (typeof name !== 'string' || !name.trim()) throw new Refused('MILESTONE_NAME', 'a milestone needs a name; use pullboard milestone add <name>');
+  if (typeof note !== 'string' && note !== null) throw new Refused('MILESTONE_NOTE', 'a milestone note needs text; use --note <text>');
+  return { name: name.trim(), note: note?.trim() || null };
+}
+
+/** Save the whole milestone list in one board_meta value. */
+function saveMilestones(board, entries) {
+  board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?) ON CONFLICT(meta_key) DO UPDATE SET meta_value = excluded.meta_value')
+    .run('milestones', JSON.stringify(entries));
+}
+
+/** Add an ordered milestone without changing any referenced board items. */
+export function addMilestone(board, { agentId, name, note = null, items = [] }) {
+  requireCoordinator(agentId);
+  const text = normalizeMilestoneText(name, note);
+  const normalized = normalizeMilestoneItems(items);
+  validateLocalMilestoneItems(board, normalized);
+  return atomic(board, () => {
+    const entries = milestones(board);
+    if (entries.some((entry) => entry.name === text.name)) throw new Refused('MILESTONE_EXISTS', `milestone ${text.name} already exists; edit it or choose another name`);
+    saveMilestones(board, [...entries, { ...text, items: normalized }]);
+    logEvent(board, agentId, 'milestone_add', null, { name: text.name, items: normalized });
+    return text.name;
+  });
+}
+
+/** Add or remove item references while preserving the remaining order. */
+export function editMilestoneItems(board, name, { agentId, add = [], remove = [] }) {
+  requireCoordinator(agentId);
+  const additions = normalizeMilestoneItems(add);
+  const removals = normalizeMilestoneItems(remove);
+  validateLocalMilestoneItems(board, additions);
+  if (additions.length && removals.length) throw new Refused('MILESTONE_ITEMS', 'add or remove milestone items in separate commands');
+  if (!additions.length && !removals.length) throw new Refused('MILESTONE_ITEMS', 'name ids with --add or --remove');
+  return atomic(board, () => {
+    const entries = milestones(board);
+    const index = entries.findIndex((entry) => entry.name === name);
+    if (index < 0) throw new Refused('NO_MILESTONE', `no milestone named ${name}; list them with pullboard roadmap`);
+    const current = entries[index];
+    const nextItems = additions.length
+      ? [...current.items, ...additions]
+      : current.items.filter((id) => !removals.some((removeId) => JSON.stringify(removeId) === JSON.stringify(id)));
+    if (additions.length && new Set(nextItems.map((value) => JSON.stringify(value))).size !== nextItems.length) {
+      throw new Refused('MILESTONE_ITEMS', 'a milestone cannot list the same item twice; remove duplicate ids and retry');
+    }
+    if (removals.some((id) => current.items.every((present) => JSON.stringify(id) !== JSON.stringify(present)))) {
+      throw new Refused('MILESTONE_ITEMS', 'one or more ids are not in this milestone; read pullboard roadmap and retry');
+    }
+    entries[index] = { ...current, items: nextItems };
+    saveMilestones(board, entries);
+    logEvent(board, agentId, 'milestone_items', null, { name, add: additions, remove: removals });
+    return nextItems;
+  });
+}
+
+/** Move a milestone before another while retaining all item and note data. */
+export function moveMilestone(board, name, { agentId, before }) {
+  requireCoordinator(agentId);
+  return atomic(board, () => {
+    const entries = milestones(board);
+    const index = entries.findIndex((entry) => entry.name === name);
+    const target = entries.findIndex((entry) => entry.name === before);
+    if (index < 0 || target < 0) throw new Refused('NO_MILESTONE', `name both milestones in pullboard milestone move ${name} --before <other>`);
+    if (name === before) throw new Refused('MILESTONE_ORDER', 'choose a different milestone to move before');
+    const [entry] = entries.splice(index, 1);
+    entries.splice(entries.findIndex((value) => value.name === before), 0, entry);
+    saveMilestones(board, entries);
+    logEvent(board, agentId, 'milestone_move', null, { name, before });
+    return entries;
+  });
+}
+
+/** Rename a milestone or update its note without touching its items. */
+export function editMilestone(board, name, { agentId, newName, note }) {
+  requireCoordinator(agentId);
+  if (newName === undefined && note === undefined) throw new Refused('MILESTONE_EDIT', 'supply --name or --note to edit a milestone');
+  return atomic(board, () => {
+    const entries = milestones(board);
+    const index = entries.findIndex((entry) => entry.name === name);
+    if (index < 0) throw new Refused('NO_MILESTONE', `no milestone named ${name}; list them with pullboard roadmap`);
+    const renamed = newName === undefined ? name : normalizeMilestoneText(newName).name;
+    if (renamed !== name && entries.some((entry) => entry.name === renamed)) throw new Refused('MILESTONE_EXISTS', `milestone ${renamed} already exists; choose another name`);
+    entries[index] = { ...entries[index], name: renamed, ...(note === undefined ? {} : { note: normalizeMilestoneText(renamed, note).note }) };
+    saveMilestones(board, entries);
+    logEvent(board, agentId, 'milestone_edit', null, { before: name, after: renamed, noteChanged: note !== undefined });
+    return entries[index];
+  });
+}
+
+/** Remove one milestone only; its referenced work items remain on their boards. */
+export function removeMilestone(board, name, { agentId }) {
+  requireCoordinator(agentId);
+  return atomic(board, () => {
+    const entries = milestones(board);
+    const remaining = entries.filter((entry) => entry.name !== name);
+    if (remaining.length === entries.length) throw new Refused('NO_MILESTONE', `no milestone named ${name}; list them with pullboard roadmap`);
+    saveMilestones(board, remaining);
+    logEvent(board, agentId, 'milestone_remove', null, { name });
+    return name;
+  });
 }
 
 /**

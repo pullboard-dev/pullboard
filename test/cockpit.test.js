@@ -15,6 +15,7 @@ import vm from 'node:vm';
 import { loadDoctrine } from '../src/doctrine.js';
 import { MACHINE } from '../src/machine.js';
 import { cockpitPage } from '../src/cockpit.js';
+import { portableSnapshot } from '../src/serve.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const scratch = [];
@@ -2298,7 +2299,7 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
   // Capture the live API state before export; the exported replay must finish at exactly this state.
   const live = await startView(box);
   let expected;
-  try { expected = await boardOf(live, alpha.repo); }
+  try { expected = portableSnapshot(await boardOf(live, alpha.repo), alpha.repo); }
   finally { await live.stop(); }
 
   const exportDir = join(box.dir, 'snapshot-export');
@@ -2454,7 +2455,8 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
     for (const [width, theme] of [[1280, 'light'], [375, 'dark']]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
       await evaluate(`document.documentElement.dataset.theme = '${theme}'`);
-      assert.equal(await evaluate('document.documentElement.scrollWidth'), width, 'snapshot controls fit the viewport');
+      assert.ok(await evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'),
+        'snapshot controls fit the viewport content area');
       if (process.env.PULLBOARD_SNAPSHOT_PROOF) {
         mkdirSync(process.env.PULLBOARD_SNAPSHOT_PROOF, { recursive: true });
         const shot = await chrome.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
@@ -2529,7 +2531,8 @@ test('served connection reaches an authenticated API on another origin and path 
     await chrome.waitFor('data.project.items.some(item => item.title === "Remote added")');
     assert.ok(seen.some((entry) => entry.method === 'POST' && entry.path.endsWith('/moves')), 'a real browser action reaches the configured API');
     assert.ok(seen.every((entry) => entry.authorization === `Bearer ${credential}` && entry.localKey === undefined && entry.path.startsWith('/mirror/api/v1/')), 'only the supplied credential and API base reach the stand-in');
-    assert.equal(await chrome.evaluate('document.documentElement.scrollWidth'), 375);
+    assert.ok(await chrome.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'),
+      'the remote phone page fits the viewport content area');
     assert.deepEqual(chrome.exceptions, []);
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
@@ -2550,6 +2553,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
   const wrapTitle = 'word boundary test ' + 'abcdef0123456789'.repeat(12);
   box.run(demo.repo, 'add', 'web', wrapTitle, '--specs', 'G1', '--criterion', 'the activity title wraps without splitting words');
   box.run(demo.repo, 'shout', 'person', 'Should the phone demo ship?', '--decision');
+  box.run(demo.web, 'shout', 'coordinator', 'Should this waiting ask span the full row?', '--decision');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-phone-'));
   let chrome;
@@ -2598,14 +2602,16 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       const noticeBox=visible(notice)?notice.getBoundingClientRect():null;
       const toast=noticeBox?{x:noticeBox.x,y:noticeBox.y,right:noticeBox.right,bottom:noticeBox.bottom,visible:noticeBox.y>=0&&noticeBox.bottom<=innerHeight,
         overlaps:controls.filter(c=>c.x<noticeBox.right&&c.right>noticeBox.x&&c.y<noticeBox.bottom&&c.bottom>noticeBox.y).map(c=>c.id||c.text)}:null;
-      return {width:innerWidth,documentWidth:document.documentElement.scrollWidth,bodyWidth:document.body.scrollWidth,
+      return {width:innerWidth,clientWidth:document.documentElement.clientWidth,documentWidth:document.documentElement.scrollWidth,bodyWidth:document.body.scrollWidth,
         projectList:visible(document.querySelector('#proj-list')),needs:visible(document.querySelector('#needs')),
         detail:visible(document.querySelector('#detail')),controls,toast};
     })())`));
+    /** Check document and body overflow against the actual layout viewport, excluding its scrollbar. */
+    const fitsViewport = (layout) => layout.documentWidth <= layout.clientWidth && layout.bodyWidth <= layout.clientWidth;
     /** Assert the current pane fits and all its controls remain touchable. */
     const checkLayout = async (width, place) => {
       const layout = await snapshot();
-      assert.ok(layout.documentWidth <= width && layout.bodyWidth <= width,
+      assert.ok(fitsViewport(layout),
         `${width} ${place}: no horizontal overflow: ${JSON.stringify(layout)}`);
       const short = layout.controls.filter((control) => control.height < 44);
       assert.deepEqual(short, [], `${width} ${place}: visible enabled actions are at least 44px high: ${JSON.stringify(short)}`);
@@ -2660,6 +2666,32 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
           assert.equal(wrap.wordLines, 1, `${width}: a normal word stays together at a line boundary: ${JSON.stringify(wrap)}`);
           assert.ok(wrap.tokenLines > 1, `${width}: only the overflowing unbroken token splits: ${JSON.stringify(wrap)}`);
         }
+        if (tab === 'shouts') {
+          const asks = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+            const waiting = document.querySelector('#decisions .ask.other');
+            const waitingMeta = waiting?.querySelector('p:first-child');
+            const waitingText = waiting?.querySelector('p:nth-child(2)');
+            const answer = document.querySelector('#decisions .ask:not(.other)');
+            const answerMeta = answer?.querySelector('p:first-child');
+            const button = answer?.querySelector('button');
+            const rect = e => { const r=e.getBoundingClientRect(); return {left:r.left,right:r.right,width:r.width,height:r.height}; };
+            return {
+              waitingIsNeedsYou: document.querySelector('#decisions').classList.contains('needs-you'),
+              waitingHasNoButton: !!waiting && !waiting.querySelector('button'),
+              waitingMeta: waitingMeta && rect(waitingMeta),
+              waitingMetaLine: waitingMeta && parseFloat(getComputedStyle(waitingMeta).lineHeight),
+              waitingAsk: waiting && rect(waiting), waitingText: waitingText && rect(waitingText),
+              answerMeta: answerMeta && rect(answerMeta), button: button && rect(button),
+            };
+          })())`));
+          assert.ok(asks.waitingIsNeedsYou && asks.waitingHasNoButton, `${width}: the waiting ask is shown in the Needs-you card without an answer button`);
+          assert.ok(asks.waitingMeta.width > 0 && asks.waitingMeta.height <= asks.waitingMetaLine + 1,
+            `${width}: waiting ask who/when stays on one line: ${JSON.stringify(asks)}`);
+          assert.ok(asks.waitingText.width >= asks.waitingAsk.width - 24,
+            `${width}: waiting ask text spans the row: ${JSON.stringify(asks)}`);
+          assert.ok(asks.button.left > asks.answerMeta.right,
+            `${width}: an answer button keeps its own grid column: ${JSON.stringify(asks)}`);
+        }
       }
       await click('[data-tab="items"]');
 
@@ -2696,6 +2728,20 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       await chrome.waitFor("!document.querySelector('#lanes [data-release=web]')");
     }
 
+    await chrome.evaluate(`(() => {
+      const probe = document.createElement('div');
+      probe.dataset.scrollbarProof = '';
+      probe.style.cssText = 'position:absolute;left:0;top:0;width:2000px;height:1px;';
+      document.body.append(probe);
+    })()`);
+    const overflowingLayout = await snapshot();
+    assert.ok(overflowingLayout.documentWidth > overflowingLayout.clientWidth,
+      'the deliberate probe extends past the content viewport');
+    assert.equal(fitsViewport(overflowingLayout), false,
+      'the no-horizontal-overflow predicate detects deliberate content overflow');
+    await chrome.evaluate("document.querySelector('[data-scrollbar-proof]').remove()");
+    await checkLayout(1280, 'after removing the deliberate overflow probe');
+
     const posts = chrome.requests.filter((request) => request.method === 'POST' && new URL(request.url).pathname.endsWith('/moves'));
     assert.equal(posts.length, 10, 'each viewport sends add, shout, answer, hold and release through the public move endpoint');
     const apiRequests = chrome.requests.filter((request) => new URL(request.url).pathname.includes('/api/'));
@@ -2714,5 +2760,74 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
     if (chrome) await closeSnapshotChrome(chrome);
     await view.stop();
     rmSync(profile, { recursive: true, force: true });
+  }
+});
+
+test('static export redacts structured checkout paths but preserves paths people wrote [A10]', async () => {
+  const box = machine();
+  const alpha = project(box, 'private-project');
+  box.run(alpha.repo, 'add', 'web', 'Private checkout item', '--specs', 'G1', '--criterion', 'exports without checkout paths');
+  const projectRoot = alpha.repo;
+  const worktreeRoot = alpha.web;
+  const commonGitDir = box.git(alpha.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir');
+  const live = await startView(box);
+  try {
+    const listingResponse = await fetch(`${live.base}/api/v1/boards`, { headers: { 'x-pullboard-key': live.key } });
+    assert.equal(listingResponse.status, 200);
+    const listing = await listingResponse.json();
+    const board = listing.boards.find((entry) => entry.root === projectRoot);
+    assert.ok(board, 'the live listing keeps the absolute project root');
+    assert.equal(board.root, projectRoot);
+    const state = await boardOf(live, projectRoot);
+    assert.equal(state.root, projectRoot, 'live state keeps the absolute root');
+    const agent = state.agents.find((entry) => entry.agent_id === 'web-1');
+    assert.ok(agent);
+    assert.equal(agent.agent_path, worktreeRoot, 'live state keeps the agent worktree path');
+    assert.equal(box.git(alpha.web, 'rev-parse', '--path-format=absolute', '--git-common-dir'), commonGitDir,
+      'the linked worktree still shares the repository common Git directory');
+    const boardEvents = await fetch(`${live.base}/api/v1/boards/${board.id}/events`, { headers: { 'x-pullboard-key': live.key } });
+    assert.equal(boardEvents.status, 200);
+    const events = await boardEvents.json();
+    assert.ok(events.events.length > 0);
+
+    /** Enumerate every exported file, including the API document subtree. */
+    const filesBelow = (directory) => readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(directory, entry.name);
+      return entry.isDirectory() ? filesBelow(path) : [path];
+    });
+    /** Read all bytes so an unexpected exported field cannot hide a private folder. */
+    const exportedText = (directory) => filesBelow(directory).map((path) => readFileSync(path, 'utf8')).join('\n');
+    const snapshot = join(box.dir, 'export-structured');
+    box.run(alpha.repo, 'view', '--export', snapshot);
+    const structuredFiles = exportedText(snapshot);
+    for (const privatePath of [box.dir, projectRoot, worktreeRoot, commonGitDir]) {
+      assert.ok(!structuredFiles.includes(privatePath), `export does not include structured path ${privatePath}`);
+    }
+
+    // A second export deliberately includes paths in human-authored prose. Those exact values are
+    // the only allowed occurrences; project.root, agent_path and common Git metadata stay redacted.
+    const brief = `Keep this literal checkout reference: ${projectRoot}`;
+    const shout = `Please inspect this literal agent folder: ${worktreeRoot}`;
+    box.run(alpha.repo, 'add', 'web', 'Path in prose', '--specs', 'G1', '--criterion', 'keeps prose literal', '--brief', brief);
+    box.run(alpha.web, 'shout', 'all', shout);
+    const proseSnapshot = join(box.dir, 'export-prose');
+    box.run(alpha.repo, 'view', '--export', proseSnapshot);
+    const stateFile = JSON.parse(readFileSync(join(proseSnapshot, 'api', 'v1', 'boards', board.id, 'state.json'), 'utf8')).state;
+    assert.notEqual(stateFile.root, projectRoot, 'export redacts structured project root');
+    assert.notEqual(stateFile.agents.find((entry) => entry.agent_id === 'web-1').agent_path, worktreeRoot,
+      'export redacts the structured agent worktree');
+    assert.equal(stateFile.items.find((entry) => entry.title === 'Path in prose').brief, brief);
+    assert.ok(stateFile.shouts.some((entry) => entry.shout_text === shout), 'the authored shout remains literal');
+    const proseFiles = filesBelow(proseSnapshot).map((path) => readFileSync(path, 'utf8'));
+    let scrubbedText = proseFiles.join('\n');
+    for (const text of [brief, shout]) {
+      scrubbedText = scrubbedText.replaceAll(JSON.stringify(text), '"<authored prose>"')
+        .replaceAll(JSON.stringify(JSON.stringify(text)).slice(1, -1), '<authored event prose>');
+    }
+    for (const privatePath of [box.dir, projectRoot, worktreeRoot, commonGitDir]) {
+      assert.ok(!scrubbedText.includes(privatePath), `outside authored prose, export does not include ${privatePath}`);
+    }
+  } finally {
+    await live.stop();
   }
 });

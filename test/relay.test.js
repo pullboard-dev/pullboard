@@ -8,6 +8,7 @@ import { createGitHubClient } from '../relay/github.js';
 import { createRelayAuth, ACCESS_WINDOW_MS } from '../relay/auth.js';
 import { serveRelay } from '../relay/service.js';
 import { githubFixture } from './relay-fixture.js';
+import { relayClientFixture } from './relay-client-fixture.js';
 
 /** Use real private SQLite and an actual HTTP provider with a controllable expiry clock. */
 async function fixture(t, options = {}) {
@@ -345,4 +346,117 @@ test('an explicit read role still hides a public board below triage [H13,H14,H8]
   assert.deepEqual(await box.auth.boardsFor(signed.token), []);
   await assert.rejects(box.auth.authenticate(signed.token, { board: 'alpha', write: true }), { code: 'BOARD_NOT_LINKED' });
   await assert.rejects(box.auth.issueToken(signed.token, { board: 'alpha', agent: 'worker' }), { code: 'BOARD_NOT_LINKED' });
+});
+
+test('relay off forgets expired and independently unlinked boards while preserving local rows [H1,H7,H18]', async (t) => {
+  for (const cause of ['expired', 'other-client']) await t.test(cause, async (t) => {
+    const box = await relayClientFixture(t);
+    await box.link();
+    const localBeforeDeletion = (await box.cli('export')).document.tables;
+    if (cause === 'expired') box.advance(90);
+    else assert.equal(await box.otherDeviceOff(), 0, 'a second real CLI device unlinks the shared board');
+    const off = await box.cli('relay', 'off');
+    assert.equal(off.code, 0);
+    assert.equal(off.document.linked, false);
+    assert.equal(off.document.alreadyDeleted, true);
+    assert.match(off.document.notice, /already deleted/);
+    assert.equal(existsSync(box.linkFile), false, 'local link metadata is forgotten');
+    assert.equal(existsSync(box.keyFile), false, 'device-only fallback key is forgotten');
+    assert.deepEqual((await box.cli('export')).document.tables, localBeforeDeletion, 'local board is complete after remote deletion');
+    const count = box.calls.length;
+    assert.equal((await box.cli('relay', 'off')).code, 0);
+    assert.equal((await box.cli('status')).code, 0);
+    assert.equal(box.calls.length, count, 'repeated off and local commands make no relay connection');
+  });
+});
+
+test('relay off retains credentials and metadata after non-missing or unsupported refusals [H1,H7]', async (t) => {
+  const box = await relayClientFixture(t);
+  await box.link();
+  for (const failure of [
+    { status: 403, code: 'NO_REPO_ACCESS' },
+    { status: 401, code: 'AUTH_REQUIRED' },
+    { status: 500, code: 'NO_BOARD' },
+    { status: 404, code: 'NO_BOARD', version: 2 },
+  ]) {
+    box.overrideDelete(failure);
+    assert.notEqual((await box.cli('relay', 'off')).code, 0, 'only a supported missing-board response permits cleanup');
+    assert.equal(existsSync(box.linkFile), true);
+    assert.equal(existsSync(box.keyFile), true);
+  }
+  box.overrideDelete(null);
+  assert.equal((await box.cli('relay', 'off')).code, 0);
+  assert.equal(existsSync(box.keyFile), false);
+});
+
+test('BOARD_INACTIVE appears once per command and resets for a second command in the same process [H18]', async (t) => {
+  const box = await relayClientFixture(t);
+  await box.link();
+  box.advance(80);
+  const result = await box.script(`
+    import { main } from ${JSON.stringify(box.mainURL)};
+    const counts = [];
+    for (let i = 0; i < 2; i++) {
+      let output = '';
+      const code = await main(['status', '--json'], {
+        cwd: process.cwd(), stdout: { write(part) { output += part; } },
+        stderr: { write() {} },
+      });
+      const value = JSON.parse(output);
+      counts.push({ code, warnings: (value.diagnostics || []).filter(line => line.includes('BOARD_INACTIVE')).length });
+    }
+    console.log(JSON.stringify(counts));
+  `);
+  assert.equal(result.code, 0);
+  assert.deepEqual(result.document, [{ code: 0, warnings: 1 }, { code: 0, warnings: 1 }]);
+});
+
+test('unlinked board commands attempt zero outbound requests [H1,P5]', async (t) => {
+  const box = await relayClientFixture(t);
+  const result = await box.script(`
+    import { main } from ${JSON.stringify(box.mainURL)};
+    import http from 'node:http';
+    import https from 'node:https';
+    import net from 'node:net';
+    import tls from 'node:tls';
+    const attempts = [];
+    const blocked = kind => { attempts.push(kind); throw new Error('unexpected outbound attempt: ' + kind); };
+    globalThis.fetch = async () => blocked('fetch');
+    http.request = (...args) => blocked('http.request');
+    https.request = (...args) => blocked('https.request');
+    net.connect = (...args) => blocked('net.connect');
+    net.Socket.prototype.connect = function (...args) { return blocked('net.Socket.connect'); };
+    tls.connect = (...args) => blocked('tls.connect');
+    const codes = [];
+    for (const args of [
+      ['status'], ['list'], ['show', '1'], ['add', ${JSON.stringify(box.lane)}, 'another fixture item'],
+      ['shout', 'coordinator', 'fixture local message'], ['relay'], ['relay', 'off'],
+    ]) {
+      try {
+        codes.push(await main([...args, '--json'], {
+          cwd: process.cwd(), stdout: { write() {} }, stderr: { write() {} },
+        }));
+      } catch { codes.push(-1); }
+    }
+    console.log(JSON.stringify({ attempts, codes }));
+  `);
+  assert.equal(result.code, 0);
+  assert.deepEqual(result.document.attempts, [], 'fetch, HTTP(S), raw net and TLS connections are all watched');
+  assert.ok(result.document.codes.every(code => code === 0), 'all ordinary local board commands succeed without transport');
+});
+
+test('plain relay off explains an already-deleted board without printing credentials [H1,H18]', async (t) => {
+  const box = await relayClientFixture(t);
+  await box.link();
+  box.advance(90);
+  const result = await box.script(`
+    import { main } from ${JSON.stringify(box.mainURL)};
+    let output = '';
+    const code = await main(['relay', 'off'], {
+      cwd: process.cwd(), stdout: { write(part) { output += part; } }, stderr: { write() {} },
+    });
+    console.log(JSON.stringify({ code, explained: output.includes('already deleted'), credential: /ps_|key=/.test(output) }));
+  `);
+  assert.equal(result.code, 0);
+  assert.deepEqual(result.document, { code: 0, explained: true, credential: false });
 });

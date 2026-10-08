@@ -18,6 +18,12 @@ const drawn = Object.keys(FIGURES).map((name) => `docs/img/${name}.svg`).sort();
 const EM = { sans: 0.56, mono: 0.62 };
 const SIZE = { head: 14, t1: 14, t2: 12, label: 12, aside: 12, code: 11.5 };
 
+test('README links the official site directly under its title [I12]', () => {
+  const firstTenLines = README.split(/\r?\n/).slice(0, 10);
+  assert.equal(firstTenLines[0], '# Pullboard');
+  assert.equal(firstTenLines[1], 'Website: [pullboard.dev](https://pullboard.dev)');
+});
+
 /**
  * Every text in a figure with the box it may take up, from its anchor, font size and length.
  *

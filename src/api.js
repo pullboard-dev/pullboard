@@ -6,8 +6,10 @@ import * as store from './board.js';
 import { COORDINATOR, loadConfig } from './config.js';
 import { repoInfo } from './git.js';
 import { refusalDocument } from './json.js';
+import { relayLinked, relayOperation } from './relay.js';
 import { laneNames } from './lanes.js';
 import { listApiProjects } from './projects.js';
+import { milestoneRoadmap } from './roadmap.js';
 import { Refused } from './refused.js';
 import { codeAt, projectState } from './serve.js';
 import { createApiHandler } from './api-http.js';
@@ -43,8 +45,8 @@ function apiBoardListing(projects = listApiProjects) {
   for (const project of projects()) {
     try {
       boards.push(withBoard(project.root, (board) => ({ ...project, id: store.boardId(board) })));
-    } catch {
-      const error = new Refused('BOARD_UNAVAILABLE', `registered project ${project.root} cannot be read; restore the repo or run pullboard forget ${project.root}`);
+    } catch (cause) {
+      const error = cause.code === 'EVENT_LOG_VERSION' ? cause : new Refused('BOARD_UNAVAILABLE', `registered project ${project.root} cannot be read; restore the repo or run pullboard forget ${project.root}`);
       warnings.push({ ...project, error: refusalDocument(error) });
     }
   }
@@ -67,9 +69,11 @@ function afterEvents(root, after) {
 function agentPath(root, name = COORDINATOR) {
   if (typeof name !== 'string' || !name) throw new Refused('BAD_REQUEST', 'agent needs a registered name; omit it to act as the coordinator');
   return withBoard(root, (board, info) => {
-    if (name === COORDINATOR) store.ensureCoordinator(board, root);
+    if (name === COORDINATOR && !relayLinked(root)) store.ensureCoordinator(board, root);
     const agent = store.listAgents(board).find((entry) => entry.agent_id === name);
     if (!agent) throw new Refused('NO_AGENT', `no registered agent ${name}; use the agents in this board's state or join a worktree first`);
+    // A clone shares the coordinator identity, but resolves its main checkout locally.
+    if (name === COORDINATOR && relayLinked(root)) return root;
     if (repoInfo(agent.agent_path).commonDir !== info.commonDir) throw new Refused('WRONG_BOARD', `agent ${name}'s worktree belongs to another board; join the agent in this board's worktree`);
     return agent.agent_path;
   });
@@ -156,10 +160,17 @@ async function executeMove(root, body, runCommand) {
 }
 
 /** Create a person's coordinator request through the same shout transaction as the CLI. */
-function createRequest(root, body) {
+async function createRequest(root, body) {
   if (typeof body.text !== 'string' || !body.text.trim() || Object.keys(body).some((key) => key !== 'text')) throw new Refused('BAD_REQUEST', 'a request needs {text: "what the coordinator should do"}');
+  const message = { from: 'person', to: COORDINATOR, text: body.text, request: true, lanes: laneNames(loadConfig(root)) };
+  if (relayLinked(root)) {
+    const id = await relayOperation(root, 'shout', [message], { err: () => {} });
+    return withBoard(root, (board) => ({ version: VERSION,
+      event: store.events(board).find((event) => JSON.parse(event.event_detail).shout === id),
+      result: { id, request: true } }));
+  }
   return withBoard(root, (board) => {
-    const id = store.shout(board, { from: 'person', to: COORDINATOR, text: body.text, request: true, lanes: laneNames(loadConfig(root)) });
+    const id = store.shout(board, message);
     return { version: VERSION, event: board.lastEvent, result: { id, request: true } };
   });
 }
@@ -185,11 +196,17 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     state: (board, who, seen) => {
       const state = projectState(board.root, { seen });
       state.board = board.id;
-      state.requests = withBoard(board.root, (db) => store.openRequests(db));
+      const projectData = withBoard(board.root, (db) => ({
+        requests: store.openRequests(db),
+        milestones: milestoneRoadmap(board.root, db),
+      }));
+      state.requests = projectData.requests;
+      state.milestones = projectData.milestones;
       return state;
     },
     code: (board, ref) => codeAt(board.root, ref),
     events: (board, after) => afterEvents(board.root, after),
+    eventLogVersion: () => store.EVENT_LOG_VERSION,
     move: (board, body) => executeMove(board.root, body, runCommand),
     request: (board, body) => createRequest(board.root, body),
   });

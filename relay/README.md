@@ -1,7 +1,54 @@
 # Relay authentication
 
-This module implements the GitHub App sign-in and authorization boundary for the
-opt-in relay. It does not start a public server or change any repository.
+## Deploy the service
+
+The container definition is `relay/Dockerfile`; its build context must be the
+repository root because the service imports `src/` modules. The service listens on
+Railway's `PORT` at `0.0.0.0`, and `GET /health` returns `200` after startup.
+It stores the auth database at `/data/auth.sqlite`, board journals under
+`/data/boards/`, and private backups under `/data/backups/`. Attach one Railway
+volume at `/data`; do not scale this SQLite service to multiple replicas.
+The entry point prepares that root-mounted directory, then runs the server as
+the image's unprivileged `node` user. For Railway volumes, configure
+`RAILWAY_RUN_UID=0` so startup can set the directory ownership before dropping
+privileges.
+
+For #113, the person completes these account steps:
+
+1. Create the Pullboard GitHub App. Set its callback to
+   `https://app.pullboard.dev/auth/github/callback`, grant repository Metadata
+   read-only permission, and enable device flow. Create its client id, client
+   secret and RSA private key.
+2. Create the Railway project and service for this repository. In service
+   settings, keep the root directory `/` so the Docker build can copy `src/`,
+   choose `relay/Dockerfile`, set the start command to
+   `node relay/server.mjs`, and set the health check path to `/health`. Attach
+   one persistent volume at `/data`; the auth database, board journals and
+   backups live at `/data/auth.sqlite`, `/data/boards/` and `/data/backups/`.
+   Set `RAILWAY_RUN_UID=0` so startup can prepare the root-mounted volume before
+   dropping to the image's `node` user. Set
+   `PULLBOARD_PUBLIC_ORIGIN=https://app.pullboard.dev`,
+   `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, and
+   `GITHUB_APP_PRIVATE_KEY` in Railway's service variables. Keep the secret
+   values in Railway, never in git.
+3. Give the service the `app.pullboard.dev` domain and point DNS at the target
+   Railway provides. Wait for the `/health` check to pass before directing
+   clients to it.
+
+The smoke command is `node relay/smoke.mjs <address>`. It uses the current
+repository as a disposable smoke board: it links, creates one uniquely named
+item, reads and unseals its mirrored move, then unlinks. Use a throwaway
+repository and relay when running it against a live deployment; unlink deletes
+the remote board. Tests run the same script against a private loopback relay.
+
+Railway's current Infrastructure as Code uses the `railway/iac` package. This
+dependency-free project keeps the deployment settings in the service checklist
+above instead of adding a Railway SDK dependency. Recheck Railway's current
+configuration format before creating a new service.
+
+The auth and API modules implement the GitHub App sign-in and authorization
+boundary for the opt-in relay. `server.mjs` is the public container entry point;
+the library handlers remain embeddable for tests and other local transports.
 
 Create the GitHub provider with `createGitHubClient` from `github.js`. Configuration
 names are `clientId`, `clientSecret`, `privateKey` (RSA PEM), and `callbackURL`.

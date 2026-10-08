@@ -65,15 +65,17 @@ export function promptFor(root, role) {
  * that is already there (I2).
  *
  * @param {string} root
+ * @param {(path: string) => void} [onWrite] Observe only newly written skill files.
  * @returns {string[]} What happened.
  */
-export function installSkills(root) {
+export function installSkills(root, onWrite = () => {}) {
   const written = [];
   for (const [role, name] of Object.entries(ROLES)) {
     const file = join(root, '.claude', 'skills', name, 'SKILL.md');
     if (existsSync(file)) continue;
     mkdirSync(join(root, '.claude', 'skills', name), { recursive: true });
     writeFileSync(file, shippedSkill(role));
+    onWrite(`.claude/skills/${name}/SKILL.md`);
     written.push(name);
   }
   return written.length

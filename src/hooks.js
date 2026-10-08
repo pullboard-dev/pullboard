@@ -352,9 +352,10 @@ export function hookScript(hook) {
  * and reported, so init never clobbers a repo's own hooks (I2).
  *
  * @param {string} root
+ * @param {(path: string) => void} [onWrite] Observe only files this installer actually writes.
  * @returns {string[]} What happened, one line per hook.
  */
-export function installHooks(root) {
+export function installHooks(root, onWrite = () => {}) {
   const dir = join(root, HOOKS_DIR);
   mkdirSync(dir, { recursive: true });
   const notes = [];
@@ -372,6 +373,7 @@ export function installHooks(root) {
     }
     writeFileSync(file, hookScript(hook));
     chmodSync(file, 0o755);
+    onWrite(`${HOOKS_DIR}/${hook}`);
     notes.push(`wrote ${HOOKS_DIR}/${hook}`);
   }
   const current = tryGit(root, ['config', '--get', 'core.hooksPath']).stdout;

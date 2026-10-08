@@ -7,6 +7,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { COORDINATOR } from '../src/config.js';
 import { JSON_SHAPES } from '../src/json.js';
+import { ENGINE_VERSION } from '../src/machine.js';
 import {
   ACCEPT_REASON,
   answerDecision,
@@ -164,7 +165,7 @@ function recordEventContract() {
   refreeze(board, first, { agentId: coordinator, freeze: freeze('second') });
   claim(board, first, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('unused') });
   const acceptedCommit = 'a'.repeat(40);
-  submit(board, first, { agentId: builder, commit: acceptedCommit, tree: 'b'.repeat(40), files: ['docs/formats.md'] });
+  submit(board, first, { agentId: builder, commit: acceptedCommit, tree: 'b'.repeat(40), files: ['docs/formats.md'], policyCommit: 'a'.repeat(40) });
   reserveReview(board, first, { agentId: reviewer, leaseMs: 60_000, policy: 'agents' });
   verify(board, first, { agentId: reviewer, decision: 'ACCEPT', reason: ACCEPT_REASON, note: 'checked the example', head: acceptedCommit, digest: 'second', policy: 'agents' });
   merged(board, first, { agentId: coordinator, commit: 'c'.repeat(40) });
@@ -264,7 +265,7 @@ test('[A5] the grammar table describes values the parser actually reads', () => 
   ]);
 });
 
-test('[A5] SPEC.md and PRACTICE.md use the exported grammar version', () => {
+test('[A5,H16] grammar and executable engine versions match the format guide', () => {
   assert.equal(SPEC_GRAMMAR_VERSION, 1);
   const versions = block('<!-- format-versions:start -->', '<!-- format-versions:end -->');
   const versionOf = (name) => {
@@ -276,6 +277,9 @@ test('[A5] SPEC.md and PRACTICE.md use the exported grammar version', () => {
   assert.equal(versionOf('row grammar'), SPEC_GRAMMAR_VERSION);
   assert.equal(versionOf('board schema'), SCHEMA_VERSION);
   assert.equal(versionOf('event log'), EVENT_LOG_VERSION);
+  assert.equal(versionOf('move engine'), ENGINE_VERSION);
+  assert.match(versions, /Bump when a move's meaning changes/);
+  assert.match(versions, /`ENGINE_VERSION`.*naming both versions/);
   assert.match(versions, /`SPEC_GRAMMAR_VERSION`/);
   assert.match(versions, /`JSON_SHAPES\.version`/);
   assert.match(versions, /`SCHEMA_VERSION`/);

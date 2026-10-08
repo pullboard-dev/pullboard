@@ -12,11 +12,12 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { DatabaseSync } from 'node:sqlite';
 import { once } from 'node:events';
 import { join, dirname, resolve, basename, delimiter } from 'node:path';
 import { after, test } from 'node:test';
 import { resultCommands } from '../src/cli.js';
-import { EVENT_LOG_VERSION } from '../src/board.js';
+import { EVENT_LOG_VERSION, openBoard } from '../src/board.js';
 import { JSON_SHAPES } from '../src/json.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -94,6 +95,56 @@ function project() {
   return { ...box, repo, initialized };
 }
 
+/** Read the event-log marker without going through openBoard's version guard. */
+function readEventLogVersion(file) {
+  const db = new DatabaseSync(file);
+  try { return db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('event_log_version')?.meta_value; }
+  finally { db.close(); }
+}
+
+/** Set a private fixture's event-log marker to model another reader's persisted format. */
+function setEventLogVersion(file, version) {
+  const db = new DatabaseSync(file);
+  try {
+    db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?) ON CONFLICT(meta_key) DO UPDATE SET meta_value = excluded.meta_value')
+      .run('event_log_version', String(version));
+  } finally { db.close(); }
+}
+
+test('[A5] board opens upgrade older event logs and refuse future event logs before migration', () => {
+  const box = project();
+  const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  assert.equal(readEventLogVersion(file), String(EVENT_LOG_VERSION));
+
+  const future = EVENT_LOG_VERSION + 1;
+  setEventLogVersion(file, future);
+  const refused = box.run(box.repo, 'status', '--json');
+  assert.equal(refused.status, 1, refused.stderr);
+  const refusal = JSON.parse(refused.stdout).error;
+  assert.equal(refusal.code, 'EVENT_LOG_VERSION');
+  assert.match(refusal.message, new RegExp(`event log version ${future}.*version ${EVENT_LOG_VERSION}`));
+  assert.match(refusal.next, /upgrade pullboard/i);
+  assert.equal(readEventLogVersion(file), String(future), 'a future-format refusal leaves the stored version untouched');
+
+  const partialFile = join(box.dir, 'partial-future.sqlite');
+  const partial = new DatabaseSync(partialFile);
+  partial.exec("CREATE TABLE board_meta (meta_key TEXT PRIMARY KEY, meta_value TEXT NOT NULL)");
+  partial.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run('event_log_version', String(future));
+  partial.close();
+  assert.throws(() => openBoard(partialFile), { code: 'EVENT_LOG_VERSION' });
+  const unchanged = new DatabaseSync(partialFile);
+  try {
+    assert.equal(unchanged.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'item'").get(), undefined,
+      'refusing a future event log rolls back schema creation on an older database');
+    assert.equal(unchanged.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('event_log_version').meta_value, String(future));
+  } finally { unchanged.close(); }
+
+  setEventLogVersion(file, EVENT_LOG_VERSION - 1);
+  const older = box.run(box.repo, 'status', '--json');
+  assert.equal(older.status, 0, older.stderr);
+  assert.equal(readEventLogVersion(file), String(EVENT_LOG_VERSION), 'opening an older event log upgrades its marker in place');
+});
+
 /** Resolve the catalog entry for either a root command or a documented subcommand. */
 function shapeFor(command, subcommand) {
   const candidates = [
@@ -127,8 +178,10 @@ function assertRequiredShape(value, required, label) {
 function json(box, cwd, command, args = [], subcommand) {
   const result = box.run(cwd, command, ...args, '--json');
   assert.equal(result.status, 0, `${command} ${args.join(' ')}: ${result.stderr}${result.stdout}`);
-  assert.equal(result.stderr, '', `${command} --json must keep stderr empty`);
   const document = JSON.parse(result.stdout);
+  if (command === 'check') {
+    assert.equal(result.stderr, `check #${document.id} set by ${document.by}: ${document.check}\n`, 'check attribution is visible before execution while stdout remains one JSON document');
+  } else assert.equal(result.stderr, '', `${command} --json must keep stderr empty`);
   assert.equal(document.version, 1, `${command} --json has a version 1 envelope`);
   assertRequiredShape(document, shapeFor(command, subcommand).required, command);
   return document;
@@ -485,9 +538,11 @@ test('[A1,A10] view exports a static folder through its JSON variant', () => {
   const events = JSON.parse(readFileSync(join(output, 'api/v1/boards', id, 'events.json'), 'utf8'));
   assert.equal(state.version, 1);
   assert.equal(state.state.board, id);
-  assert.equal(state.state.root, box.repo);
+  assert.equal(state.eventLogVersion, EVENT_LOG_VERSION);
+  assert.equal(state.state.root, basename(box.repo));
   assert.equal(state.state.items[0].id, item.item_id);
   assert.equal(events.version, 1);
+  assert.equal(events.eventLogVersion, EVENT_LOG_VERSION);
   assert.ok(events.events.some((event) => event.event_kind === 'add' && event.item_id === item.item_id));
   assert.deepEqual(events.events.map((event) => event.event_id), events.events.map((event) => event.event_id).sort((a, b) => a - b));
 });
@@ -506,9 +561,70 @@ test('[A1] every catalog command and subcommand has a real CLI exercise', () => 
 
   json(source, source.repo, 'relay');
   json(source, source.repo, 'relay', ['off']);
+  const catalog = json(source, source.repo, 'add', ['app', 'Catalog item', '--criterion', 'catalog coverage'], 'add').item;
+  json(source, source.repo, 'roadmap');
+  json(source, source.repo, 'milestone', ['add', 'Catalog', '--items', String(catalog.item_id)], 'add');
+  json(source, source.repo, 'milestone', ['items', 'Catalog', '--remove', String(catalog.item_id)], 'items');
+  json(source, source.repo, 'milestone', ['items', 'Catalog', '--add', String(catalog.item_id)], 'items');
+  json(source, source.repo, 'milestone', ['add', 'Later'], 'add');
+  json(source, source.repo, 'milestone', ['move', 'Later', '--before', 'Catalog'], 'move');
+  json(source, source.repo, 'milestone', ['edit', 'Catalog', '--name', 'Release', '--note', 'Catalog coverage'], 'edit');
+  json(source, source.repo, 'milestone', ['remove', 'Later'], 'remove');
+  json(source, source.repo, 'milestone', ['remove', 'Release'], 'remove');
   const missing = Object.keys(JSON_SHAPES.commands).filter((key) => !covered.has(key));
   assert.deepEqual(missing, [], `add real-repo invocations for undocumented coverage gaps: ${missing.join(', ')}`);
   assert.deepEqual([...coveredRoots].sort(), resultCommands(), 'every actual root/factory command has an invocation');
+});
+
+test('[N26,A2] roadmap text, JSON and API state follow live local and registered repo items', async (t) => {
+  const box = project();
+  const foreign = project();
+  const foreignConfigFile = join(foreign.repo, 'pullboard.json');
+  const foreignConfig = JSON.parse(readFileSync(foreignConfigFile, 'utf8'));
+  foreignConfig.name = 'foreign';
+  writeFileSync(foreignConfigFile, `${JSON.stringify(foreignConfig, null, 2)}\n`);
+  const registryFile = join(box.env.PULLBOARD_HOME, 'projects.json');
+  const registry = JSON.parse(readFileSync(registryFile, 'utf8'));
+  registry.projects.push({ root: foreign.repo, name: 'foreign', project: '', added: '2026-10-08T00:00:00.000Z' });
+  writeFileSync(registryFile, `${JSON.stringify(registry, null, 2)}\n`);
+
+  const addArgs = (title) => [
+    'app', title, '--route', 'light', '--criterion', 'roadmap item', '--check', 'true',
+    '--brief', 'Files:\n- app/roadmap.js\nChange: track this work\nTest: inspect its status',
+  ];
+  const localItem = json(box, box.repo, 'add', addArgs('Local release'), 'add').item;
+  const externalItem = json(foreign, foreign.repo, 'add', addArgs('External follow-up'), 'add').item;
+  const worktree = json(box, box.repo, 'worktree', ['app', '--route', 'light'], 'worktree');
+
+  json(box, box.repo, 'milestone', ['add', 'Delivery', '--note', 'Ship the release', '--items', `${localItem.item_id},foreign#${externalItem.item_id}`], 'add');
+  json(box, box.repo, 'milestone', ['add', 'Aftercare'], 'add');
+  json(box, box.repo, 'milestone', ['move', 'Aftercare', '--before', 'Delivery'], 'move');
+  jsonError(box, worktree.path, 'milestone', ['add', 'Forbidden'], {
+    status: 1,
+    code: 'COORDINATOR_ONLY',
+    message: 'only the coordinator changes milestones; ask your coordinator to update the roadmap',
+    next: 'ask your coordinator to update the roadmap',
+  }, 'add');
+  const claim = box.run(worktree.path, 'claim', String(localItem.item_id), '--json');
+  assert.equal(claim.status, 0, claim.stderr || claim.stdout);
+
+  const textRoadmap = box.run(box.repo, 'roadmap');
+  assert.equal(textRoadmap.status, 0, textRoadmap.stderr);
+  assert.ok(textRoadmap.stdout.indexOf('Aftercare: 0/0 done') < textRoadmap.stdout.indexOf('Delivery: 0/2 done'));
+  assert.match(textRoadmap.stdout, /Ship the release/);
+  assert.match(textRoadmap.stdout, new RegExp(`#${localItem.item_id} Local release — claimed`));
+  assert.match(textRoadmap.stdout, new RegExp(`foreign#${externalItem.item_id} External follow-up — open`));
+
+  const document = json(box, box.repo, 'roadmap');
+  assert.deepEqual(document.milestones.map(({ name }) => name), ['Aftercare', 'Delivery']);
+  assert.deepEqual(document.milestones[1].items.map(({ status }) => status), ['claimed', 'open']);
+  const api = await startApi(t, box);
+  const listing = await (await apiFetch(api, '/api/v1/boards')).json();
+  const current = listing.boards.find((candidate) => candidate.root === box.repo);
+  const response = await apiFetch(api, `/api/v1/boards/${current.id}/state`);
+  const state = await response.json();
+  assert.equal(response.status, 200);
+  assert.deepEqual(state.state.milestones, document.milestones);
 });
 
 /** Start the real local API server and stop it when its test finishes. */
@@ -610,11 +726,13 @@ test('[A2] local HTTP v1 versions state and moves, authenticates, and preserves 
   const stateDocument = await stateResponse.json();
   assertRequiredShape(stateDocument, JSON_SHAPES.http.state.required, 'state response');
   assert.equal(stateDocument.version, 1);
+  assert.equal(stateDocument.eventLogVersion, EVENT_LOG_VERSION);
   const eventsResponse = await apiFetch(api, `${boardPath}/events?after=0`);
   assert.equal(eventsResponse.status, 200);
   const eventsDocument = await eventsResponse.json();
   assertRequiredShape(eventsDocument, JSON_SHAPES.http.events.required, 'events response');
   assert.equal(eventsDocument.version, 1);
+  assert.equal(eventsDocument.eventLogVersion, EVENT_LOG_VERSION);
 
   const malformed = await apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{bad json' });
   assert.equal((await apiError(malformed, 400)).code, 'BAD_REQUEST');
@@ -798,4 +916,63 @@ test('[A2] SSE delivers a live move and resumes after Last-Event-ID without repl
   } finally {
     await reader.cancel();
   }
+});
+
+test('[A5,A6] doctor diagnoses future event logs read-only and accepts the current marker', () => {
+  const box = project();
+  const added = json(box, box.repo, 'add', ['app', 'Version fixture', '--specs', 'G1']);
+  const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  assert.ok(added.item.item_id);
+  assert.equal(readEventLogVersion(file), String(EVENT_LOG_VERSION));
+  const beforeCurrent = readFileSync(file);
+  const current = box.run(box.repo, 'doctor', '--json');
+  assert.equal(current.status, 0, current.stderr || current.stdout);
+  assert.equal(current.stderr, '');
+  assert.deepEqual(JSON.parse(current.stdout).problems, [], 'the current event-log version is healthy');
+  assert.deepEqual(readFileSync(file), beforeCurrent, 'doctor leaves a current board byte-for-byte unchanged');
+
+  setEventLogVersion(file, EVENT_LOG_VERSION + 1);
+  const eventsDb = new DatabaseSync(file);
+  let events;
+  try { events = eventsDb.prepare('SELECT COUNT(*) AS count FROM event').get().count; }
+  finally { eventsDb.close(); }
+  assert.ok(events > 0, 'the fixture has real events before modeling the future version');
+  const futureBytes = readFileSync(file);
+  const refused = box.run(box.repo, 'doctor', '--json');
+  assert.equal(refused.status, 1, refused.stderr || refused.stdout);
+  assert.equal(refused.stderr, '', 'doctor returns a JSON finding');
+  const problems = JSON.parse(refused.stdout).problems;
+  const problem = problems.find((entry) => entry.code === 'EVENT_LOG_VERSION');
+  assert.ok(problem, refused.stdout);
+  assert.match(problem.message, new RegExp(`event log version ${EVENT_LOG_VERSION + 1}.*version ${EVENT_LOG_VERSION}`));
+  assert.match(problem.next, /upgrade pullboard/i);
+  assert.deepEqual(readFileSync(file), futureBytes, 'the read-only diagnosis preserves the complete board file');
+  assert.equal(readEventLogVersion(file), String(EVENT_LOG_VERSION + 1), 'doctor does not silently upgrade the marker');
+});
+
+test('[A5] view export preserves the typed future-version refusal without creating output', () => {
+  const box = project();
+  const added = json(box, box.repo, 'add', ['app', 'Export version fixture', '--specs', 'G1']);
+  const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  assert.ok(added.item.item_id);
+  setEventLogVersion(file, EVENT_LOG_VERSION + 1);
+  const eventsDb = new DatabaseSync(file);
+  let events;
+  try { events = eventsDb.prepare('SELECT COUNT(*) AS count FROM event').get().count; }
+  finally { eventsDb.close(); }
+  assert.ok(events > 0, 'the fixture has real events before export refuses');
+  const before = readFileSync(file);
+  const output = join(box.dir, 'future-version-export');
+  assert.equal(existsSync(output), false);
+
+  const refused = box.run(box.repo, 'view', '--export', output, '--json');
+  assert.equal(refused.status, 1, refused.stderr || refused.stdout);
+  assert.equal(refused.stderr, '', 'view export returns a JSON refusal');
+  const error = JSON.parse(refused.stdout).error;
+  assert.equal(error.code, 'EVENT_LOG_VERSION', refused.stdout);
+  assert.match(error.message, new RegExp(`event log version ${EVENT_LOG_VERSION + 1}.*version ${EVENT_LOG_VERSION}`));
+  assert.match(error.next, /upgrade pullboard/i);
+  assert.equal(existsSync(output), false, 'refused export creates no output directory or files');
+  assert.deepEqual(readFileSync(file), before, 'refused export preserves every board byte');
+  assert.equal(readEventLogVersion(file), String(EVENT_LOG_VERSION + 1));
 });

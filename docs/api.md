@@ -1,6 +1,6 @@
 # CLI JSON API
 
-Add `--json` to a Pullboard command to receive one JSON document on stdout. The document has `version: 1`; diagnostics stay out of stderr. The flag may appear with command options before `--`. A flag after `--` is an argument to the command, not an output-mode switch.
+Add `--json` to a Pullboard command to receive one JSON document on stdout. The document has `version: 1`; diagnostics stay out of stderr except for sign-in instructions and check consent notices that must appear before execution. The flag may appear with command options before `--`. A flag after `--` is an argument to the command, not an output-mode switch.
 
 The API version is independent of the package version. Its contract is stable within each major API version: existing command names, required fields, field types, and refusal fields do not change within that version. An incompatible change requires a new `version`. New fields may be added, so clients should ignore fields they do not use.
 
@@ -26,6 +26,12 @@ A successful command returns the fields listed below. `version` is always the nu
 | `settings` | `version:number`, `settings:object` |
 | `relay` | `version:number`, `linked:boolean`, `board:string`, `url:string`, `link:string`, `sequence:number`, `behind:number` |
 | `list` | `version:number`, `items:array` |
+| `roadmap` | `version:number`, `milestones:array` |
+| `milestone add` | `version:number`, `milestone:object` |
+| `milestone items` | `version:number`, `milestone:object` |
+| `milestone move` | `version:number`, `milestone:object` |
+| `milestone edit` | `version:number`, `milestone:object` |
+| `milestone remove` | `version:number`, `milestone:object` |
 | `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array` |
 | `status` | `version:number`, `me:object`, `mine:array`, `stats:object`, `unread:number` |
 | `doctor` | `version:number`, `problems:array` |
@@ -78,7 +84,9 @@ A successful command returns the fields listed below. `version` is always the nu
 
 ## Refusals
 
-A refusal keeps the command's existing exit status and prints exactly one versioned document to stdout. In JSON mode stderr stays empty. The command-specific `code` identifies the rule; `message` explains what happened; `next` gives the next step.
+A refusal keeps the command's existing exit status and prints exactly one versioned document to stdout. In JSON mode stderr stays empty except for sign-in instructions and check consent notices. The command-specific `code` identifies the rule; `message` explains what happened; `next` gives the next step.
+
+Only the coordinator sets or edits an item's `--check`. `pullboard check [id]` prints the command and its setter before execution, and asks for consent when the caller did not set it. Use `--yes` to confirm that command without a prompt. An EOF or declined answer refuses with `CHECK_CONFIRM` before running the command. With `--json`, the notice and prompt appear immediately on stderr and stdout remains one JSON document; a successful check result also includes the optional `by` setter field.
 
 ```json
 {
@@ -113,11 +121,15 @@ The server checks any Origin against its own address and grants no CORS permissi
 | `GET /api/v1/boards` | Registered boards with their project details and ids |
 | `GET /api/v1/boards/:board/state?seen=N` | The view's board state, including open coordinator requests and the unseen shout count since N |
 | `GET /api/v1/boards/:board/code?ref=path:lines@commit&before=...` | A bounded preview of committed file lines from that registered board |
-| `GET /api/v1/boards/:board/events?after=N` | Events after sequence N, in order |
+| `GET /api/v1/boards/:board/events?after=N` | Events after sequence N, in order, and their event-log format version |
 | `POST /api/v1/boards/:board/moves` | One CLI move and its emitted event |
 | `POST /api/v1/boards/:board/requests` | A person's request for the coordinator |
 
 The boards response keeps `boards` and may include `warnings` for registered entries that could not be opened. State `seen` must be a nonnegative safe integer; omitting it retains the `unseen: null` result. Code previews read only a registered repo's committed tree, use a plain commit SHA and at most 60 lines, and never read the working tree. The shared router lets adapters omit the optional code capability; such adapters return the versioned `CODE_NOT_AVAILABLE` refusal.
+
+The local board state and events responses include `eventLogVersion`, which identifies the persisted event-record format separately from the HTTP envelope's `version`. Static view exports keep this field in both state.json and events.json so a reader can refuse a format newer than it understands. Sealed relay events do not use this local board format marker.
+
+The coordinator maintains the roadmap with `milestone add <name> [--note ...] [--items 1,2,3]`, `milestone items <name> --add|--remove ids`, `milestone move <name> --before <other>`, `milestone edit <name> [--name <new>] [--note <text>]`, and `milestone remove <name>`. A milestone stores only its name, optional note, and ordered item ids in `board_meta`; removing a milestone leaves its items untouched. A `repo#id` reference uses a registered repo's display name (or its folder name) before `#`; its status is read from that board when the repo is registered on this machine. `pullboard roadmap` prints milestones in order with a verified-item done count. Its JSON results and API state use `{ name, note, items: [{ id, title, status }], done, total }` for each milestone.
 
 <!-- api-http-shapes:start -->
 | Response | Required top-level fields |

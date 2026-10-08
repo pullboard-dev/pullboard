@@ -2,6 +2,7 @@
  * The pullboard command line: every command, bound to who is asking (B3). The main checkout is the
  * coordinator; every other worktree is the agent that joined from it.
  */
+import { createHash } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
@@ -45,15 +46,17 @@ import { renderSpecView } from './view.js';
 import { tour } from './tour.js';
 import { commandOutput } from './json.js';
 import { forgetProject, registerProject } from './projects.js';
+import { milestoneRoadmap } from './roadmap.js';
 import { listResources } from './resources.js';
 import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
 import { exportView, serveView } from './serve.js';
 import { serveApi } from './api.js';
 import { doctorProblems } from './doctor.js';
+import { mainPolicy, itemPolicy, submissionPaths, frozenCheck, checkAtCommit, dependencySnapshots } from './trusted-policy.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
-import { relayOff, relayOn, relayStatus, syncRelay } from './relay.js';
+import { relayLinked, relayOff, relayOn, relayOperation, relayStatus, syncRelay } from './relay.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
@@ -95,6 +98,13 @@ Work
                                         $PULLBOARD_ATTEMPT, $PULLBOARD_TIER); green work is submitted, red escalated
                 [--agent-light "..."] [--agent-mid "..."] [--agent-strong "..."]   a command per tier
   pullboard list [lane] [--all] [--route light|mid|strong]   open and active items; --all adds closed ones
+  pullboard roadmap                     ordered milestones and each item's live status
+  pullboard milestone add <name> [--note ...] [--items 1,2,3]   create a milestone and optionally add items
+  pullboard milestone items <name> --add|--remove ids          append or remove item references
+  pullboard milestone move <name> --before <other>             reorder a milestone
+  pullboard milestone edit <name> [--name <new>] [--note <text>]
+                                        rename or update a milestone note
+  pullboard milestone remove <name>                            remove a milestone without changing its items
   pullboard doctor                     check board integrity without changing it
   pullboard show <id> [--history]       an item, the criterion frozen at claim, its verdicts: the latest in full,
                                         earlier ones as one line; --history prints every note in full
@@ -102,7 +112,8 @@ Work
   pullboard next --verify               reserve the next submitted item you can check;
   pullboard next --verify <id>          reserve that submitted item instead
                                         in the main checkout, verifying needs --as coordinator
-  pullboard check [id]                  run your item's check, the command that proves it (the project gate is pullboard gate)
+  pullboard check [id] [--yes]          show and run your item's check; --yes confirms a check set by someone else
+                                        the command and its author print first; the project gate is pullboard gate
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
   pullboard release <id>                hand it back
   pullboard submit <id>                 needs a clean tree and the gate green at HEAD (alias: done)
@@ -175,6 +186,7 @@ const OPTIONS = {
   family: { type: 'string' },
   as: { type: 'string' },
   check: { type: 'string' },
+  yes: { type: 'boolean' },
   agent: { type: 'string' },
   'agent-light': { type: 'string' },
   'agent-mid': { type: 'string' },
@@ -185,6 +197,10 @@ const OPTIONS = {
   run: { type: 'string' },
   max: { type: 'string' },
   'dry-run': { type: 'boolean' },
+  before: { type: 'string' },
+  add: { type: 'string' },
+  remove: { type: 'string' },
+  name: { type: 'string' },
   url: { type: 'string' },
   wait: { type: 'string' },
   verify: { type: 'boolean' },
@@ -389,13 +405,24 @@ function configHere(info) {
 function withBoard(ctx, work) {
   const board = store.openBoard(ctx.file, ctx.clock);
   const firstEvent = board.emittedEvents?.length ?? 0;
-  try {
-    const result = work(board);
+  /** Forward committed events before releasing either synchronous or asynchronous work. */
+  const finish = () => {
     for (const event of board.emittedEvents?.slice(firstEvent) ?? []) ctx.io.onEvent?.(event);
-    return result;
-  } finally {
     store.closeBoard(board);
-  }
+  };
+  let result;
+  try { result = work(board); }
+  catch (error) { finish(); throw error; }
+  if (result && typeof result.then === 'function') return result.finally(finish);
+  finish();
+  return result;
+}
+
+/** Dispatch a board mutation locally, or seal it before any linked replica applies it. */
+async function ordered(ctx, board, operation, args) {
+  return relayLinked(ctx.info.root)
+    ? relayOperation(ctx.info.root, operation, args, ctx.io)
+    : store[operation](board, ...args);
 }
 
 /**
@@ -407,8 +434,11 @@ function withBoard(ctx, work) {
  */
 function whoAmI(ctx, board) {
   if (ctx.info.isMain) {
-    const id = store.ensureCoordinator(board, ctx.info.root);
-    const agent = store.agentAt(board, ctx.info.root);
+    const registered = board.db.prepare('SELECT * FROM agent WHERE agent_id=?').get(COORDINATOR);
+    const linked = relayLinked(ctx.info.root);
+    if (linked && !registered) throw new Refused('NO_AGENT', 'the linked snapshot has no coordinator; restore a consistent relay snapshot before acting');
+    const id = linked ? COORDINATOR : store.ensureCoordinator(board, ctx.info.root);
+    const agent = registered ?? store.agentAt(board, ctx.info.root);
     return { id, lane: COORDINATOR, family: agent?.agent_family ?? null };
   }
   const agent = store.agentAt(board, ctx.info.root);
@@ -424,7 +454,15 @@ function whoAmI(ctx, board) {
  * @param {any} ctx
  * @returns {(item: any) => { text: string, digest: string }}
  */
-const freezer = (ctx) => (item) => frozenCriterion(loadSpec(ctx.info.root, ctx.config), item);
+const freezer = (ctx) => (item) => {
+  const prior = item.item_frozen ? JSON.parse(item.item_frozen) : null;
+  const policy = prior?.policy ?? (!prior && !(ctx.info.isMain && !headCommit(ctx.info.root)) ? { version: 1, commit: mainPolicy(ctx.info.root).commit } : null);
+  const config = policy ? itemPolicy(ctx.info.root, { ...item, item_frozen: JSON.stringify({ policy }) }).config : ctx.config;
+  const frozen = frozenCriterion(loadSpec(ctx.info.root, config), item);
+  if (!policy) return frozen; // Legacy criteria retain their original digest and committed claim base.
+  const text = JSON.stringify({ ...JSON.parse(frozen.text), policy });
+  return { text, digest: createHash('sha256').update(text).digest('hex') };
+};
 
 /**
  * The evidence a shout carries, from its flags (B22). The commit is resolved here, in this repo,
@@ -755,14 +793,23 @@ function setupCommands(io, { first, values }) {
       const notes = initRepo({
         info,
         openBoardHere: () => store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), io.clock),
-        register: store.register,
+        /** Keep a linked coordinator's canonical identity without writing a clone-local path. */
+        register: (board, options) => {
+          if (!relayLinked(info.root)) return store.register(board, options);
+          if (!board.db.prepare('SELECT 1 FROM agent WHERE agent_id=?').get(COORDINATOR)) {
+            throw new Refused('NO_AGENT', 'the linked snapshot has no coordinator; restore a consistent relay snapshot before initializing');
+          }
+          return COORDINATOR;
+        },
         closeBoard: store.closeBoard,
       });
       io.result?.({ root: info.root, notes });
-      notes.forEach((note) => io.say(note));
+      const staging = notes.at(-1)?.startsWith('git add -f -- ') ? notes.at(-1) : null;
+      (staging ? notes.slice(0, -1) : notes).forEach((note) => io.say(note));
       if (registerProject(info.root, new Date(), loadConfig(info.root))) io.say('registered this project on this machine, so pullboard view lists it');
       io.say('next: write SPEC.md rows, declare lanes in pullboard.json, then: pullboard add <lane> <title>');
       io.say('with an agent: start a new Claude Code session here, which loads the pullboard skills, then tell it what to build; the pullboard-run skill runs the team');
+      if (staging) io.say(staging);
       return 0;
     },
     hooks: () => {
@@ -771,14 +818,14 @@ function setupCommands(io, { first, values }) {
       notes.forEach((note) => io.say(note));
       return 0;
     },
-    join: () => {
+    join: async () => {
       const ctx = context(io);
       if (ctx.info.isMain) throw new Refused('MAIN_IS_COORDINATOR', 'the main checkout is the coordinator; join from a worktree: git worktree add ../<dir>');
       if (!first || first === COORDINATOR || !isLane(ctx.config, first)) {
         throw new Refused('NO_LANE', `no lane "${first ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
       }
       const route = values.route ?? 'strong';
-      const id = withBoard(ctx, (board) => store.register(board, { lane: first, path: ctx.info.root, route, family: values.family }));
+      const id = await withBoard(ctx, async (board) => await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: values.family }]));
       io.result?.({ agent: id, lane: first, route, path: ctx.info.root });
       io.say(`joined as ${id} in the ${first} lane${route === 'light' ? ', on the light route' : ''}`);
       return 0;
@@ -795,9 +842,9 @@ function setupCommands(io, { first, values }) {
  * @param {string | undefined} lane
  * @param {string} route
  * @param {string | null} family
- * @returns {number}
+ * @returns {Promise<number>}
  */
-function worktreeFor(io, lane, route, family = null) {
+async function worktreeFor(io, lane, route, family = null) {
   const ctx = context(io);
   if (!lane || lane === COORDINATOR || !isLane(ctx.config, lane)) {
     throw new Refused('NO_LANE', `no lane "${lane ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
@@ -813,7 +860,15 @@ function worktreeFor(io, lane, route, family = null) {
   while (isTaken(n)) n += 1;
   git(mainRoot, ['worktree', 'add', '-q', '-b', `${lane}/${n}`, pathFor(n), git(mainRoot, ['rev-parse', 'HEAD'])]);
   const root = git(pathFor(n), ['rev-parse', '--show-toplevel']);
-  const id = withBoard(ctx, (board) => store.register(board, { lane, path: root, route, family }));
+  let id;
+  try { id = await withBoard(ctx, async (board) => await ordered(ctx, board, 'register', [{ lane, path: root, route, family }])); }
+  catch (error) {
+    // Only remove the clean worktree just created here; preserve it if another process changed it.
+    const removed = tryGit(mainRoot, ['worktree', 'remove', root]);
+    if (removed.status === 0) tryGit(mainRoot, ['branch', '-d', `${lane}/${n}`]);
+    else io.err(`pullboard: registration failed; the changed worktree was preserved at ${root}`);
+    throw error;
+  }
   io.result?.({ agent: id, lane, route, path: root, branch: `${lane}/${n}`, prompt: `You are ${id}, in the ${lane} lane. Work only in ${shellWord(root)}, and start every command with ${cdTo(root)}\nRead ${shellWord(join(root, 'AGENTS.md'))} first. Its rules govern this work, over any other repo's instructions you were given.` });
   io.say(`made ${root} on branch ${lane}/${n}, joined as ${id} in the ${lane} lane${route === 'light' ? ', on the light route' : ''}${family ? ` (${family})` : ''}`);
   io.say(`Work only in that folder. A shell that starts each command in the main checkout acts as the coordinator there, so start every command with: ${cdTo(root)}`);
@@ -937,6 +992,22 @@ function readCommands(io, { first, second, rest, values }) {
       if (values.json) io.result({ items });
       else if (!items.length) io.say(values.all ? 'no items yet' : 'nothing open; --all shows closed items');
       else items.forEach((item) => io.say(itemLine(item)));
+      return 0;
+    },
+    roadmap: () => {
+      if (first || second || rest.length) throw new Refused('USAGE', 'pullboard roadmap takes no arguments');
+      const ctx = context(io);
+      const milestones = withBoard(ctx, (board) => milestoneRoadmap(ctx.info.root, board));
+      io.result?.({ milestones });
+      if (!milestones.length) io.say('no milestones yet; the coordinator can add one with pullboard milestone add');
+      for (const milestone of milestones) {
+        io.say(`${milestone.name}: ${milestone.done}/${milestone.total} done`);
+        if (milestone.note) io.say(`  ${milestone.note}`);
+        for (const item of milestone.items) {
+          const id = typeof item.id === 'number' ? `#${item.id}` : item.id;
+          io.say(`  ${id} ${item.title} — ${item.status}`);
+        }
+      }
       return 0;
     },
     show: () => {
@@ -1088,6 +1159,17 @@ function readCommands(io, { first, second, rest, values }) {
  */
 async function submitHere(ctx, id) {
   const { root } = ctx.info;
+  const held = withBoard(ctx, (board) => {
+    const me = whoAmI(ctx, board);
+    const item = store.getItem(board, id);
+    if (item.item_status !== 'claimed' || item.item_owner !== me.id) throw new Refused('NOT_YOURS', 'claim this item before submitting it');
+    return item;
+  });
+  const policy = itemPolicy(root, held);
+  const acceptedMain = mainPolicy(root);
+  ctx = { ...ctx, config: policy.config };
+  const dependencies = withBoard(ctx, board => dependencySnapshots(board.db, held));
+  submissionPaths(root, held, headCommit(root), { mainCommit: acceptedMain.commit, dependencies });
   const { me, claimHead } = withBoard(ctx, (board) => {
     const who = whoAmI(ctx, board);
     const item = store.getItem(board, id);
@@ -1130,7 +1212,7 @@ async function submitHere(ctx, id) {
       `when the gate ended, HEAD or a tracked file differed from ${commit.slice(0, 12)}, the commit it started on, so the gate did not end on what you would submit; leave the worktree alone until the gate finishes, then submit again`,
     );
   }
-  withBoard(ctx, (board) => store.submit(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit) }));
+  await withBoard(ctx, async (board) => await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit }]));
   const pin = `refs/pullboard/items/${id}/${commit.slice(0, 12)}`;
   git(root, ['update-ref', pin, commit]);
   ctx.io.result?.({ id, commit, pin, gate: { green: gate.isGreen, report: gateReport(gate) } });
@@ -1147,19 +1229,21 @@ async function submitHere(ctx, id) {
  * @param {any} ctx
  * @param {number} id
  * @param {any} args
- * @returns {number}
+ * @returns {Promise<number>}
  */
-function verifyHere(ctx, id, { second, values }) {
+async function verifyHere(ctx, id, { second, values }) {
   const decision = { accept: 'ACCEPT', reject: 'REJECT' }[String(second ?? '').toLowerCase()];
   if (!decision) throw new Refused('USAGE', 'pullboard verify <id> accept, or reject --reason CODE --note "..."');
   const { root } = ctx.info;
-  const result = withBoard(ctx, (board) => {
+  const result = await withBoard(ctx, async (board) => {
     checkMainVerifier(ctx, board, values);
     const me = whoAmI(ctx, board);
     const item = store.getItem(board, id);
     if (item.item_status !== 'submitted') {
       throw new Refused('NOT_SUBMITTED', `item #${id} is ${item.item_status}, not submitted`);
     }
+    const policy = itemPolicy(root, item);
+    ctx = { ...ctx, config: policy.config };
     const head = headCommit(root) ?? '';
     const commit = resolveCommit(root, item.item_commit);
     if (!commit || !contains(root, commit, head)) {
@@ -1171,7 +1255,13 @@ function verifyHere(ctx, id, { second, values }) {
     } catch (error) {
       if (!(error instanceof Refused) || error.code === 'A5_GRAMMAR_VERSION') throw error;
     }
-    return store.verify(board, id, {
+    if (decision === 'ACCEPT') {
+      if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
+      if (!checkAtCommit(root, item).green) throw new Refused('CHECK_RED', 'the frozen item check is red at the submitted commit; reject with the failing behavior or ask the builder to fix and resubmit');
+      const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
+      submissionPaths(root, item, commit, { mainCommit: receipt?.policyCommit, dependencies: dependencySnapshots(board.db, item) });
+    }
+    return await ordered(ctx, board, 'verify', [id, {
       agentId: me.id,
       decision,
       reason: values.reason,
@@ -1180,7 +1270,7 @@ function verifyHere(ctx, id, { second, values }) {
       digest,
       policy: ctx.config.verify.policy,
       familyPolicy: ctx.config.verify.family,
-    });
+    }]);
   });
   ctx.io.result?.({ id, ...result });
   ctx.io.say(result.decision === 'ACCEPT' ? `verified #${id}: ${result.reason}` : `rejected #${id}: ${result.reason}; it is open again for rework`);
@@ -1196,23 +1286,23 @@ function verifyHere(ctx, id, { second, values }) {
  * @param {any} values
  * @returns {{ item?: any, held?: boolean, retry?: boolean, reasons?: string[] }}
  */
-function nextOnce(ctx, values) {
-  return withBoard(ctx, (board) => {
+async function nextOnce(ctx, values) {
+  return await withBoard(ctx, async (board) => {
     if (values.verify) checkMainVerifier(ctx, board, values);
     const me = whoAmI(ctx, board);
     if (values.verify) {
       const reservation = { agentId: me.id, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family };
       if (values.verifyId !== undefined) {
-        return { item: store.reserveReview(board, idArg(values.verifyId, 'an item id after --verify'), reservation), reasons: [] };
+        return { item: await ordered(ctx, board, 'reserveReview', [idArg(values.verifyId, 'an item id after --verify'), reservation]), reasons: [] };
       }
-      return store.reserveNextReview(board, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes });
+      return await ordered(ctx, board, 'reserveNextReview', [{ agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes }]);
     }
     const warm = warmFiles(ctx, board, me);
     const { item, reasons, shared } = store.nextFor(board, { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm });
     if (!item) return { reasons };
     const held = item.item_status === 'claimed';
     try {
-      store.claim(board, item.item_id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx), head: headCommit(ctx.info.root) });
+      await ordered(ctx, board, 'claim', [item.item_id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx), head: headCommit(ctx.info.root) }]);
     } catch (error) {
       if (error instanceof Refused && ['HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true };
       throw error;
@@ -1241,7 +1331,7 @@ async function nextHere(io, values) {
   }
   const deadline = Date.now() + minutes * 60_000;
   for (;;) {
-    const found = nextOnce(ctx, values);
+    const found = await nextOnce(ctx, values);
     if (found.item) {
       const item = found.item;
       io.result?.({ item, review: Boolean(values.verify), held: Boolean(found.held), shared: found.shared ?? [] });
@@ -1281,9 +1371,9 @@ async function nextHere(io, values) {
  * @param {any} board
  * @param {{ id: string }} me
  * @param {any} values
- * @returns {number}
+ * @returns {Promise<number>}
  */
-function sweepHere(ctx, board, me, values) {
+async function sweepHere(ctx, board, me, values) {
   if (me.id !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'the coordinator files sweep items, from the main checkout');
   const report = String(values.run ?? '').trim();
   const check = String(values.check ?? '').trim();
@@ -1317,7 +1407,7 @@ function sweepHere(ctx, board, me, values) {
       ctx.io.say(`would file: ${item.title} (${item.lane} lane, ${item.route})`);
       continue;
     }
-    const id = store.addItem(board, { by: me.id, lane: item.lane, title: item.title, criterion: item.criterion, brief: item.brief, route: item.route, check: item.check });
+    const id = await ordered(ctx, board, 'addItem', [{ by: me.id, lane: item.lane, title: item.title, criterion: item.criterion, brief: item.brief, route: item.route, check: item.check }]);
     ctx.io.say(`#${id} ${item.title} (${item.lane} lane, ${item.route})`);
   }
   if (skipped.length) ctx.io.say(`already open: ${skipped.join(', ')}`);
@@ -1343,7 +1433,55 @@ function workCommands(io, args) {
     return withBoard(ctx, (board) => work(ctx, board, whoAmI(ctx, board)));
   };
   return {
-    add: () => act((ctx, board, me) => {
+    milestone: () => act(async (ctx, board, me) => {
+      const ids = (text) => (text ?? '').split(',').map((value) => value.trim()).filter(Boolean);
+      let name;
+      let entry;
+      if (first === 'add') {
+        if (!second || rest.length || values.before !== undefined || values.add !== undefined || values.remove !== undefined || values.name !== undefined) {
+          throw new Refused('USAGE', 'pullboard milestone add <name> [--note ...] [--items 1,2,3]');
+        }
+        name = await ordered(ctx, board, 'addMilestone', [{ agentId: me.id, name: second, note: values.note ?? null, items: ids(values.items) }]);
+      } else if (first === 'items') {
+        if (!second || rest.length || Boolean(values.add) === Boolean(values.remove) || values.items !== undefined || values.note !== undefined || values.before !== undefined || values.name !== undefined) {
+          throw new Refused('USAGE', 'pullboard milestone items <name> --add ids or --remove ids');
+        }
+        name = second;
+        const next = await ordered(ctx, board, 'editMilestoneItems', [name, {
+          agentId: me.id,
+          add: values.add === undefined ? [] : ids(values.add),
+          remove: values.remove === undefined ? [] : ids(values.remove),
+        }]);
+        entry = { ...store.milestones(board).find((value) => value.name === name), items: next };
+      } else if (first === 'move') {
+        if (!second || rest.length || !values.before || values.items !== undefined || values.note !== undefined || values.name !== undefined || values.add !== undefined || values.remove !== undefined) {
+          throw new Refused('USAGE', 'pullboard milestone move <name> --before <other>');
+        }
+        name = second;
+        await ordered(ctx, board, 'moveMilestone', [name, { agentId: me.id, before: values.before }]);
+        entry = store.milestones(board).find((value) => value.name === name);
+      } else if (first === 'edit') {
+        if (!second || rest.length || (values.name === undefined && values.note === undefined) || values.items !== undefined || values.before !== undefined || values.add !== undefined || values.remove !== undefined) {
+          throw new Refused('USAGE', 'pullboard milestone edit <name> [--name <new name>] [--note <text>]');
+        }
+        name = second;
+        entry = await ordered(ctx, board, 'editMilestone', [name, { agentId: me.id, newName: values.name, note: values.note }]);
+      } else if (first === 'remove') {
+        if (!second || rest.length || values.items !== undefined || values.note !== undefined || values.before !== undefined || values.name !== undefined || values.add !== undefined || values.remove !== undefined) {
+          throw new Refused('USAGE', 'pullboard milestone remove <name>');
+        }
+        name = second;
+        await ordered(ctx, board, 'removeMilestone', [name, { agentId: me.id }]);
+        entry = { name };
+      } else {
+        throw new Refused('USAGE', 'use pullboard milestone add, items, move, edit or remove');
+      }
+      entry ??= store.milestones(board).find((value) => value.name === name);
+      io.result?.({ milestone: entry });
+      io.say(`milestone ${first === 'remove' ? 'removed' : first === 'add' ? 'added' : 'updated'}: ${name}`);
+      return 0;
+    }),
+    add: () => act(async (ctx, board, me) => {
       if (!first || !isLane(ctx.config, first)) throw new Refused('NO_LANE', `no lane "${first ?? ''}"; see: pullboard lanes`);
       const specIds = idList(values.specs);
       const problems = idProblems(loadSpec(ctx.info.root, ctx.config), specIds);
@@ -1351,7 +1489,7 @@ function workCommands(io, args) {
       const parentId = values.parent ? idArg(values.parent, 'a parent item id') : null;
       const after = idList(values.after).map((text) => idArg(text, 'an item id after --after'));
       const title = [second, ...rest].filter(Boolean).join(' ');
-      const id = store.addItem(board, {
+      const id = await ordered(ctx, board, 'addItem', [{
         by: me.id,
         lane: first,
         title,
@@ -1361,76 +1499,91 @@ function workCommands(io, args) {
         after,
         brief: briefInLane(ctx, first, briefArg(io, values) ?? ''),
         route: values.route ?? 'strong',
-        check: values.check ?? '',
-      });
+        check: values.check,
+      }]);
       io.result?.({ item: store.getItem(board, id) });
       io.say(`#${id}`);
       return 0;
     }),
-    edit: () => act((ctx, board, me) => {
+    edit: () => act(async (ctx, board, me) => {
       const id = idArg(first);
       const brief = briefArg(io, values);
-      store.editItem(board, id, {
+      await ordered(ctx, board, 'editItem', [id, {
         agentId: me.id,
         brief: brief === undefined ? undefined : briefInLane(ctx, store.getItem(board, id).item_lane, brief),
         route: values.route,
         criterion: values.criterion,
         check: values.check,
-      });
+      }]);
       io.result?.({ item: store.getItem(board, id) });
       io.say(`edited #${id}`);
       return 0;
     }),
-    escalate: () => act((ctx, board, me) => {
+    escalate: () => act(async (ctx, board, me) => {
       const id = idArg(first);
       const note = textArg(io, values, 'note') ?? '';
-      const moved = store.escalate(board, id, { agentId: me.id, note });
+      const moved = await ordered(ctx, board, 'escalate', [id, { agentId: me.id, note }]);
       if (me.id !== COORDINATOR) {
-        store.shout(board, { from: me.id, to: COORDINATOR, text: `#${id} escalated ${moved.from} -> ${moved.to}: ${note}`, lanes: laneNames(ctx.config) });
+        await ordered(ctx, board, 'shout', [{ from: me.id, to: COORDINATOR, text: `#${id} escalated ${moved.from} -> ${moved.to}: ${note}`, lanes: laneNames(ctx.config) }]);
       }
       io.result?.({ id, ...moved });
       io.say(`#${id} escalated ${moved.from} -> ${moved.to}; it is open for a ${moved.to} agent`);
       return 0;
     }),
-    run: () => runItems(io, values, { context, withBoard, whoAmI, nextOnce, submitHere, freezer }),
+    run: () => runItems(io, values, { context, withBoard, whoAmI, nextOnce, submitHere, freezer, ordered }),
     sweep: () => act((ctx, board, me) => sweepHere(ctx, board, me, values)),
     next: () => nextHere(io, { ...values, verifyId: first }),
-    check: () => {
+    check: async () => {
       const ctx = context(io);
-      const item = withBoard(ctx, (board) => {
-        if (first) return store.getItem(board, idArg(first));
-        const me = whoAmI(ctx, board);
-        const held = store.listItems(board).find((entry) => entry.item_status === 'claimed' && entry.item_owner === me.id && entry.item_parent_id === null);
+      const { item, author, caller } = withBoard(ctx, (board) => {
+        const me = first ? (ctx.info.isMain ? { id: COORDINATOR } : { id: store.agentAt(board, ctx.info.root)?.agent_id }) : whoAmI(ctx, board);
+        const held = first ? store.getItem(board, idArg(first))
+          : store.listItems(board).find((entry) => entry.item_status === 'claimed' && entry.item_owner === me.id && entry.item_parent_id === null);
         if (!held) throw new Refused('NOT_HOLDING', 'you hold no item; name one, pullboard check <id>, or run the project gate: pullboard gate');
-        return held;
+        return { item: held, author: store.itemCheckAuthor(board, held.item_id), caller: me.id };
       });
-      if (!item.item_check) throw new Refused('NO_CHECK', `#${item.item_id} has no check command; its proof is the project gate: pullboard gate`);
-      const run = runShell(ctx.info.root, item.item_check);
-      io.result?.({ id: item.item_id, green: run.isGreen, seconds: run.seconds, check: item.item_check, report: run.isGreen ? '' : digestOf(run.output) });
-      io.say(`check ${run.isGreen ? 'green' : 'red'} in ${run.seconds}s: ${item.item_check}`);
+      const check = frozenCheck(item);
+      if (!check) throw new Refused('NO_CHECK', `#${item.item_id} has no check command; its proof is the project gate: pullboard gate`);
+      if (item.item_claim_head) itemPolicy(ctx.info.root, item);
+      else mainPolicy(ctx.info.root);
+      const by = author || 'unknown (legacy)';
+      const notice = `check #${item.item_id} set by ${by}: ${check}`;
+      if (values.json) io.stderr.write(`${notice}\n`);
+      else io.say(notice);
+      if (!values.yes && (!author || author !== caller)) {
+        if (values.json) io.stderr.write('Run this check? [y/N]\n');
+        else io.err('Run this check? [y/N]');
+        const answer = await firstInputLine(io.stdin);
+        if (!/^y(?:es)?$/iu.test(answer.trim())) {
+          throw new Refused('CHECK_CONFIRM', `the check set by ${by} was not run: ${check}; run pullboard check ${item.item_id} --yes after reading the command, or answer yes at the prompt`);
+        }
+      }
+      const run = runShell(ctx.info.root, check);
+      io.result?.({ id: item.item_id, green: run.isGreen, seconds: run.seconds, check, by, report: run.isGreen ? '' : digestOf(run.output) });
+      io.say(`check ${run.isGreen ? 'green' : 'red'} in ${run.seconds}s: ${check}`);
       if (!run.isGreen) io.say(digestOf(run.output).replace(/^/gm, '  '));
       return run.isGreen ? 0 : 1;
     },
-    claim: () => act((ctx, board, me) => {
-      const result = store.claim(board, idArg(first), { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx), head: headCommit(ctx.info.root) });
+    claim: () => act(async (ctx, board, me) => {
+      const result = await ordered(ctx, board, 'claim', [idArg(first), { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx), head: headCommit(ctx.info.root) }]);
       io.result?.({ id: idArg(first), ...result });
       io.say(`${result.renewed ? 'renewed' : 'claimed'} #${first} until ${result.leaseUntil}; criterion frozen as ${result.digest.slice(0, 12)}`);
       return 0;
     }),
-    hold: () => act((ctx, board, me) => {
+    hold: () => act(async (ctx, board, me) => {
       if (!first || !isLane(ctx.config, first)) throw new Refused('NO_LANE', `no lane "${first ?? ''}"; see: pullboard lanes`);
       if (values.off) {
-        store.releaseLane(board, first, { agentId: me.id });
+        await ordered(ctx, board, 'releaseLane', [first, { agentId: me.id }]);
         io.say(`released the ${first} lane`);
       } else {
-        store.holdLane(board, first, { agentId: me.id, reason: values.reason ?? '' });
+        await ordered(ctx, board, 'holdLane', [first, { agentId: me.id, reason: values.reason ?? '' }]);
         io.say(`holding the ${first} lane: ${values.reason}. Release it with: pullboard hold ${first} --off`);
       }
       io.result?.({ lane: first, held: !values.off, reason: values.off ? null : values.reason });
       return 0;
     }),
-    release: () => act((ctx, board, me) => {
-      const review = store.release(board, idArg(first), me.id);
+    release: () => act(async (ctx, board, me) => {
+      const review = await ordered(ctx, board, 'release', [idArg(first), me.id]);
       io.result?.({ id: idArg(first) });
       io.say(review ? `released the review of #${first}; the review is free again` : `released #${first}`);
       return 0;
@@ -1438,40 +1591,40 @@ function workCommands(io, args) {
     submit: async () => submitHere(context(io), idArg(first)),
     done: async () => submitHere(context(io), idArg(first)),
     verify: () => verifyHere(context(io), idArg(first), args),
-    merged: () => act((ctx, board, me) => {
+    merged: () => act(async (ctx, board, me) => {
       const commit = resolveCommit(ctx.info.root, second ?? '');
       if (!commit) throw new Refused('NO_COMMIT', `no commit "${second ?? ''}" in this repo`);
-      store.merged(board, idArg(first), { agentId: me.id, commit });
+      await ordered(ctx, board, 'merged', [idArg(first), { agentId: me.id, commit }]);
       io.result?.({ id: idArg(first), commit });
       io.say(`#${first} merged as ${commit.slice(0, 12)}`);
       return 0;
     }),
-    withdraw: () => act((ctx, board, me) => {
-      store.withdraw(board, idArg(first), { agentId: me.id, reason: [second, ...rest].filter(Boolean).join(' ') });
+    withdraw: () => act(async (ctx, board, me) => {
+      await ordered(ctx, board, 'withdraw', [idArg(first), { agentId: me.id, reason: [second, ...rest].filter(Boolean).join(' ') }]);
       io.result?.({ id: idArg(first), reason: [second, ...rest].filter(Boolean).join(' ') });
       io.say(`withdrew #${first}`);
       return 0;
     }),
-    refreeze: () => act((ctx, board, me) => {
-      const result = store.refreeze(board, idArg(first), { agentId: me.id, freeze: freezer(ctx) });
+    refreeze: () => act(async (ctx, board, me) => {
+      const result = await ordered(ctx, board, 'refreeze', [idArg(first), { agentId: me.id, freeze: freezer(ctx) }]);
       io.result?.({ id: idArg(first), ...result });
       io.say(`#${first} refrozen ${String(result.before).slice(0, 12)} -> ${result.after.slice(0, 12)}; open again`);
       return 0;
     }),
-    shout: () => act((ctx, board, me) => {
+    shout: () => act(async (ctx, board, me) => {
       const evidence = values.evidence === undefined ? null : evidenceFrom(ctx, values);
       const recipients = ['all', 'person', ...laneNames(ctx.config), ...board.db.prepare('SELECT agent_id FROM agent').all().map((agent) => agent.agent_id)];
       const hasRecipient = first && recipients.includes(first);
       const to = hasRecipient ? first : values.decision ? (me.id === COORDINATOR ? 'person' : COORDINATOR) : first ?? '';
       const text = [hasRecipient ? second : first, ...(hasRecipient ? rest : [second, ...rest])].filter(Boolean).join(' ');
-      const id = store.shout(board, { from: me.id, to, text, lanes: laneNames(ctx.config), decision: Boolean(values.decision), evidence });
+      const id = await ordered(ctx, board, 'shout', [{ from: me.id, to, text, lanes: laneNames(ctx.config), decision: Boolean(values.decision), evidence }]);
       io.result?.({ id, decision: Boolean(values.decision) });
       io.say(values.decision ? `asked ${to} for a decision as #${id}; it stays open until someone runs: pullboard answer ${id} "<the decision>"` : `shouted to ${to}`);
       return 0;
     }),
-    answer: () => act((ctx, board, me) => {
+    answer: () => act(async (ctx, board, me) => {
       const asPerson = personMode(ctx, me, values);
-      const id = store.answerDecision(board, idArg(first), { agentId: me.id, text: [second, ...rest].filter(Boolean).join(' '), lanes: laneNames(ctx.config), asPerson });
+      const id = await ordered(ctx, board, 'answerDecision', [idArg(first), { agentId: me.id, text: [second, ...rest].filter(Boolean).join(' '), lanes: laneNames(ctx.config), asPerson }]);
       const ask = store.getShout(board, idArg(first));
       io.result?.({ id, answers: ask.shout_id });
       if (asPerson) {
@@ -1482,8 +1635,8 @@ function workCommands(io, args) {
       }
       return 0;
     }),
-    pass: () => act((ctx, board, me) => {
-      const id = store.passDecision(board, idArg(first), { agentId: me.id, note: [second, ...rest].filter(Boolean).join(' '), lanes: laneNames(ctx.config) });
+    pass: () => act(async (ctx, board, me) => {
+      const id = await ordered(ctx, board, 'passDecision', [idArg(first), { agentId: me.id, note: [second, ...rest].filter(Boolean).join(' '), lanes: laneNames(ctx.config) }]);
       io.result?.({ id, answers: idArg(first) });
       io.say(`passed #${first} to the person as #${id}`);
       return 0;
@@ -1687,6 +1840,19 @@ function specCommand(io, { first, second, rest, values }) {
   throw new Refused('USAGE', 'pullboard spec --json | check | view | show <id> | unmet [--must] | signoff <ids> [--by <principal>] | signers add');
 }
 
+/** Read one consent line without waiting for EOF in an interactive terminal [V2]. */
+async function firstInputLine(stdin) {
+  if (!stdin) return '';
+  let text = '';
+  for await (const chunk of stdin) {
+    text += chunk.toString();
+    const newline = text.indexOf('\n');
+    if (newline >= 0) return text.slice(0, newline);
+    if (text.length > 256) return '';
+  }
+  return text;
+}
+
 /**
  * Read everything git writes on a hook's stdin, or nothing when run by hand.
  *
@@ -1765,6 +1931,7 @@ async function runCommand(argv, io) {
   }
   if (values.help || !command || command === 'help') {
     io.result?.({ help: HELP });
+    if (!command && !values.help) io.say('New here? pullboard tour, then pullboard init.');
     io.say(HELP);
     return 0;
   }
@@ -1811,12 +1978,12 @@ async function runCommand(argv, io) {
       const result = first === 'on' ? await relayOn(ctx.info.root, values.url, io)
         : first === 'off' ? await relayOff(ctx.info.root, io) : relayStatus(ctx.info.root);
       io.result?.(result);
-      io.say(result.linked ? `${result.link}\nrelay: sequence ${result.sequence}; ${result.behind} pending uploads` : 'relay off; the local board is complete');
+      io.say(result.linked ? `${result.link}\nrelay: sequence ${result.sequence}; ${result.behind} pending uploads` : (result.notice || 'relay off; the local board is complete'));
       return 0;
     }
     if (command === 'gate') {
       const ctx = context(io);
-      const gate = await runGate(ctx.info.root, ctx.config, { onWait: gateWaitReporter(io) });
+      const gate = await runGate(ctx.info.root, mainPolicy(ctx.info.root).config, { onWait: gateWaitReporter(io) });
       io.result?.({ green: gate.isGreen, report: gateReport(gate) });
       io.say(gateReport(gate));
       return gate.isGreen ? 0 : 1;
@@ -1847,7 +2014,7 @@ export async function main(argv, streams) {
     const command = parsed.positionals[0];
     sync = Boolean(command) && !parsed.values.help && !parsed.values.version && !['help', 'version', 'hook', 'init', 'relay', 'tour'].includes(command);
   } catch { sync = false; }
-  /** A network refusal reports lag but cannot reverse or prevent a successful local command. */
+  /** A network refusal preserves offline reads; linked mutation dispatch requires an acknowledgement. */
   const retry = async () => {
     try { await syncRelay(io.cwd, io); }
     catch (error) {
