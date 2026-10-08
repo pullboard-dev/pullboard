@@ -3120,3 +3120,62 @@ test('wait references stay on one line and link to every prerequisite at phone a
     await view.stop();
   }
 });
+
+test('roadmap has a direct responsive address and live milestone progress [N26,N38]', { timeout: 90_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for roadmap browser checks.');
+  const box = machine();
+  const alpha = project(box, 'roadmap-demo');
+  box.run(alpha.repo, 'add', 'web', 'Verified milestone item', '--specs', 'G1', '--criterion', 'verified item is linked');
+  box.run(alpha.repo, 'add', 'web', 'Live milestone item', '--specs', 'G1', '--criterion', 'live item changes status');
+  build(box, alpha, 1, 'verified.txt');
+  box.git(alpha.repo, 'switch', '--detach', alpha.branch);
+  box.run(alpha.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'Verified the submitted item in the isolated test fixture.');
+  box.git(alpha.repo, 'switch', 'main');
+  box.run(alpha.repo, 'milestone', 'add', 'First milestone', '--note', 'A highlighted note for the person.', '--items', '1');
+  box.run(alpha.repo, 'milestone', 'add', 'Second milestone', '--note', 'Keep this order.', '--items', '2');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-roadmap-chrome-'));
+  const direct = new URL('/roadmap' + view.link.search, view.link).href;
+  let chrome;
+  try {
+    const response = await fetch(direct);
+    assert.equal(response.status, 200, 'the direct /roadmap address serves the authenticated view');
+    chrome = await openSnapshotChrome(executable, direct, profile);
+    await chrome.waitFor("typeof data === 'object' && !!data?.project?.milestones?.length");
+    for (const width of [375, 1280]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.waitFor(`innerWidth === ${width} && document.querySelector('[data-pane="roadmap"]:not([hidden])')`);
+      const snapshot = JSON.parse(await chrome.evaluate(`JSON.stringify({
+        width: innerWidth, client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth,
+        path: location.pathname, cards: [...document.querySelectorAll('.milestone')].map(card => ({
+          name: card.querySelector('h2').textContent,
+          note: card.querySelector('.milestone-note')?.textContent,
+          value: Number(card.querySelector('[role=progressbar]').getAttribute('aria-valuenow')),
+          total: Number(card.querySelector('[role=progressbar]').getAttribute('aria-valuemax')),
+          bar: Number(card.querySelector('.milestone-progress rect').getAttribute('width')),
+          items: [...card.querySelectorAll('[data-status]')].map(chip => ({ id: chip.closest('[data-go]').dataset.go, status: chip.dataset.status, label: chip.textContent.trim() }))
+        }))
+      })`));
+      assert.equal(snapshot.path, '/roadmap', `${width}px direct address loads the Roadmap tab`);
+      assert.ok(snapshot.scroll <= snapshot.client, `${width}px roadmap has no horizontal overflow: ${JSON.stringify(snapshot)}`);
+      assert.deepEqual(snapshot.cards.map((card) => card.name), ['First milestone', 'Second milestone'], 'cards retain API milestone order');
+      assert.equal(snapshot.cards[0].note, 'A highlighted note for the person.');
+      assert.deepEqual(snapshot.cards.map((card) => [card.value, card.total, card.bar]), [[1, 1, 100], [0, 1, 0]], 'visible progress and accessible counts match the API completion counts');
+      assert.deepEqual(snapshot.cards.flatMap((card) => card.items.map((item) => [item.id, item.status])), [['item:1', 'verified'], ['item:2', 'open']], 'each chip matches live API item state');
+    }
+    await chrome.evaluate("document.querySelector('[data-go=\"item:1\"]').click()");
+    await chrome.waitFor("document.querySelector('[data-pane=items]:not([hidden])') && document.querySelector('#detail').textContent.includes('Verified milestone item')");
+    assert.equal(await chrome.evaluate('location.pathname'), '/', 'opening an item leaves the Roadmap address for the Items tab');
+    await chrome.evaluate("document.querySelector('[data-tab=roadmap]').click()");
+    await chrome.waitFor("location.pathname === '/roadmap'");
+    box.run(alpha.web, 'claim', '2');
+    await chrome.waitFor("data.project.items.find(item => item.id === 2)?.status === 'claimed' && document.querySelector('[data-go=\"item:2\"] [data-status]')?.dataset.status === 'claimed'", 15_000);
+    assert.equal(await chrome.evaluate("document.querySelector('[data-go=\"item:2\"] [data-status]').textContent.trim()"), 'Building', 'the chip updates after a real item move');
+    assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught page exceptions');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    await view.stop();
+    rmSync(profile, { recursive: true, force: true });
+  }
+});

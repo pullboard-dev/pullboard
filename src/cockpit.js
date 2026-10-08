@@ -69,6 +69,7 @@ export function cockpitPage(key = '', { snapshot = false, apiBase = '', apiHeade
     <button class="tab" data-tab="spec" type="button">Spec<b id="count-spec"></b></button>
     <button class="tab" data-tab="doctrine" type="button">Doctrine<b id="count-doctrine"></b></button>
     <button class="tab" data-tab="activity" type="button">Activity</button>
+    <button class="tab" data-tab="roadmap" type="button">Roadmap</button>
   </nav>
   <span class="live" id="live"></span>
 </header>
@@ -132,6 +133,7 @@ export function cockpitPage(key = '', { snapshot = false, apiBase = '', apiHeade
     <button class="ghost flow-show" id="flow-show" type="button" hidden>Show the lifecycle</button>
     <div class="card-panel feed" id="activity"></div>
   </section>
+  <section data-pane="roadmap" class="roadmap" id="roadmap" aria-label="Roadmap"></section>
 </main>
 </div>
 </div>
@@ -141,7 +143,7 @@ const snapshot = ${JSON.stringify(snapshot)};
 const connection = ${connection};
 const snapshotReplay = { final: null, events: [], index: 0, playing: false, timer: null };
 const keep = (name, value) => { name = snapshot ? 'snapshot.' + name : name; try { if (value === undefined) return localStorage.getItem(name); localStorage.setItem(name, value); } catch { return null; } return value; };
-const view = { root: keep('pb.project'), tab: keep('pb.tab') || 'items', seen: {}, code: {}, item: null, adding: false, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null } };
+const view = { root: keep('pb.project'), tab: location.pathname === '/roadmap' ? 'roadmap' : (keep('pb.tab') || 'items'), seen: {}, code: {}, item: null, adding: false, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null } };
 if (snapshot) view.state = 'all';
 let data = null;
 let seen = '';
@@ -772,6 +774,16 @@ function render() {
   $('count-doctrine').textContent = p.practice.filter((r) => ['pending', 'draft'].includes(r.status)).length || '';
   const titles = new Map(p.items.map((i) => [String(i.id), i.title]));
 
+  $('roadmap').innerHTML = p.milestones.length ? p.milestones.map((milestone) => {
+    const percent = milestone.total ? Math.round(100 * milestone.done / milestone.total) : 0;
+    const statuses = { verified: 'Done', submitted: 'In review', claimed: 'Building', open: 'Queued' };
+    const statusTones = { verified: 'ok', submitted: 'busy', claimed: 'warn' };
+    return '<article class="card-panel milestone"><header><h2>' + esc(milestone.name) + '</h2><span class="milestone-count">' + milestone.done + '/' + milestone.total + ' done</span></header>'
+      + '<svg class="milestone-progress" viewBox="0 0 100 1" preserveAspectRatio="none" role="progressbar" aria-label="' + esc(milestone.name) + ' progress" aria-valuemin="0" aria-valuemax="' + milestone.total + '" aria-valuenow="' + milestone.done + '"><rect width="' + percent + '" height="1"/></svg>'
+      + '<ul>' + milestone.items.map((item) => '<li><button class="milestone-item" data-go="item:' + esc(item.id) + '" type="button"><code>#' + esc(item.id) + '</code><span>' + esc(item.title) + '</span><span class="chip ' + (statusTones[item.status] || '') + '" data-status="' + esc(item.status) + '">' + esc(statuses[item.status] || item.status) + '</span></button></li>').join('') + '</ul>'
+      + (milestone.note ? '<p class="milestone-note">' + esc(milestone.note) + '</p>' : '') + '</article>';
+  }).join('') : '<div class="card-panel empty">No milestones yet.</div>';
+
   // What needs the person, first, and only the person's calls (B26): the decisions passed up to them,
   // questions in the spec, held lanes, then draft rows. Work waiting for a verdict or sent back shows
   // on the board with who holds it; it is the agents' to move.
@@ -925,6 +937,13 @@ function showTab() {
   countUnseen();
 }
 
+/** Keep the roadmap's standalone address in sync with the selected tab. */
+function tabAddress(tab) {
+  if (typeof history === 'undefined' || typeof location === 'undefined') return;
+  const path = tab === 'roadmap' ? '/roadmap' : '/';
+  if (location.pathname !== path) history.pushState(null, '', path + location.search);
+}
+
 /**
  * Count on the Shouts tab the shouts that came after the newest one the person has seen in this
  * project. Seeing means having the Shouts tab open with the board drawn; a project shown for the
@@ -972,6 +991,7 @@ function go(target) {
   else if (kind === 'tab') view.tab = id;
   else if (kind === 'decide') { view.tab = 'shouts'; answer(Number(id)); }
   keep('pb.tab', view.tab);
+  tabAddress(view.tab);
   if (kind === 'item') pick(Number(id));
   else render();
 }
@@ -1121,7 +1141,7 @@ document.addEventListener('click', (event) => {
   if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
   if (t.id === 'console') { t.hidden = true; return; }
   if (t.dataset.root) switchTo(t.dataset.root);
-  else if (t.dataset.tab) { view.tab = t.dataset.tab; keep('pb.tab', view.tab); showTab(); }
+  else if (t.dataset.tab) { view.tab = t.dataset.tab; keep('pb.tab', view.tab); tabAddress(view.tab); showTab(); }
   else if (t.dataset.go) go(t.dataset.go);
   else if (t.dataset.item) pick(Number(t.dataset.item));
   else if (t.dataset.state) { view.state = t.dataset.state; render(); }

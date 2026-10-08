@@ -87,6 +87,19 @@ main { padding: 16px 18px 28px; }
 .boardless .first { display: block; }
 .loading .top, .loading [data-pane], .boardless .top, .boardless [data-pane] { display: none; }
 .two { display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 42%, 600px); gap: 16px; align-items: start; }
+.roadmap { display: grid; gap: 12px; max-width: 900px; }
+.milestone { padding: 14px 16px; min-width: 0; }
+.milestone header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.milestone h2 { margin: 0; font-size: 17px; overflow-wrap: anywhere; }
+.milestone-count { color: var(--ink-muted); font: 12px var(--mono); white-space: nowrap; }
+.milestone-progress { display: block; width: 100%; height: 7px; margin: 10px 0; overflow: hidden; border-radius: 99px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+.milestone-progress rect { fill: var(--accent); }
+.milestone ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.milestone-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 7px 4px; border: 0; border-top: 1px solid var(--line); background: none; text-align: left; cursor: pointer; }
+.milestone-item:hover { background: var(--surface-2); }
+.milestone-item code { color: var(--accent-strong); font: 12px var(--mono); }
+.milestone-item > span:nth-child(2) { min-width: 0; overflow-wrap: anywhere; }
+.milestone-note { margin: 10px 0 0; padding: 8px 10px; border-left: 3px solid var(--accent); border-radius: 0 7px 7px 0; background: var(--accent-soft); color: var(--ink-muted); overflow-wrap: anywhere; }
 .two.narrow { grid-template-columns: minmax(0, 1fr) var(--agents-w); }
 @media (max-width: 900px) {
   .shell { display: block; }

@@ -315,7 +315,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     const isOwnHost = req.headers.host === `${LOOPBACK}:${bound}` || req.headers.host === `localhost:${bound}`;
     if (!isOwnHost || given.length !== key.length || !timingSafeEqual(given, key)) return json(res, 403, { error: 'this view needs its own address and secret: open the link pullboard view printed' });
     try {
-      if (req.method === 'GET' && url.pathname === '/') return reply(res, 200, 'text/html; charset=utf-8', cockpitPage(secret));
+      if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/roadmap')) return reply(res, 200, 'text/html; charset=utf-8', cockpitPage(secret));
       if (req.method === 'GET' && url.pathname === '/view.css') return reply(res, 200, 'text/css; charset=utf-8', VIEW_CSS);
       return json(res, 404, { error: 'no such page' });
     } catch (error) {
