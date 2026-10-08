@@ -1,7 +1,7 @@
 /** Canonical doctrine naming keeps legacy repos and the stable state API readable [D1,D2,A5]. */
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
@@ -135,6 +135,14 @@ test('[D1,D2,A5] legacy init keeps PRACTICE rules and doctor offers a working on
   assert.match(readFileSync(join(repo.root, 'legacy-view.html'), 'utf8'), /PRACTICE\.md/u);
   const state = projectState(repo.root);
   assert.ok(state.practice.some((row) => row.id === 'L1'), 'the API still exposes legacy rules as state.practice');
+
+  const untrackedRename = doctorProblems(box, repo.root).find((problem) => problem.code === 'DOCTRINE_LEGACY');
+  assert.ok(untrackedRename);
+  assert.equal(untrackedRename.next, `mv -- ${PRACTICE} ${DOCTRINE}`, 'an untracked legacy file needs a filesystem rename');
+  const moved = spawnSync('sh', ['-c', untrackedRename.next], { cwd: repo.root, env: box.env, encoding: 'utf8' });
+  assert.equal(moved.status, 0, moved.stderr);
+  assert.ok(specRows(box, repo.root).some((row) => row.id === 'L1' && row.file === DOCTRINE));
+  renameSync(join(repo.root, DOCTRINE), join(repo.root, PRACTICE));
 
   box.git(repo.root, 'add', '-A');
   box.git(repo.root, 'commit', '-q', '-m', 'chore: initialize legacy doctrine fixture');
