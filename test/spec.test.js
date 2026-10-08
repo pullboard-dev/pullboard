@@ -110,23 +110,34 @@ test('real spec check refuses future grammar in either configured file [A5]', (t
 });
 
 test('spec check names both locations when ids repeat within or across configured files [A5]', (t) => {
-  const practiceRow = '# Practice\n\n## P\n- G1 [draft] A local rule.\n';
+  const practiceRow = '# Practice\n\n## P\n- P1 [draft] A local rule.\n';
   const crossFile = specBox(t, { practice: practiceRow });
+  writeFileSync(join(crossFile.root, crossFile.practiceName), practiceRow.replace('P1', 'G1'));
   const cross = crossFile.run('check');
   assert.equal(cross.status, 1);
   assert.match(cross.stdout, /SPEC\.md:6 G1 error: duplicate id; also appears at PRACTICE\.md:4/u);
   assert.match(cross.stdout, /PRACTICE\.md:4 G1 error: duplicate id; also appears at SPEC\.md:6/u);
 
-  for (const [file, source, line] of [
-    ['SPEC.md', SPEC.replace('- G1.2 [draft, aim]', '- G1 [draft, aim]'), 7],
-    ['PRACTICE.md', '# Practice\n\n## P\n- P1 [draft] First.\n- P1 [draft] Second.\n', 5],
-  ]) {
-    const box = specBox(t, { practice: file === 'PRACTICE.md' ? source : undefined });
-    if (file === 'SPEC.md') writeFileSync(join(box.root, file), source);
-    const result = box.run('check');
-    assert.equal(result.status, 1);
-    assert.match(result.stdout, new RegExp(`${file}:${line} .*duplicate id; first on line`));
-  }
+  const duplicateSpec = specBox(t);
+  writeFileSync(join(duplicateSpec.root, 'SPEC.md'), SPEC.replace('- G1.2 [draft, aim]', '- G1 [draft, aim]'));
+  const duplicateSpecResult = duplicateSpec.run('check');
+  assert.equal(duplicateSpecResult.status, 1);
+  assert.match(duplicateSpecResult.stdout, /SPEC\.md:7 G1 error: duplicate id; also appears at SPEC\.md:6/u);
+
+  const duplicatePractice = specBox(t, { practice: practiceRow });
+  writeFileSync(join(duplicatePractice.root, 'PRACTICE.md'), practiceRow.replace('- P1 [draft] A local rule.', '- P1 [draft] First.\n- P1 [draft] Second.'));
+  const duplicatePracticeResult = duplicatePractice.run('check');
+  assert.equal(duplicatePracticeResult.status, 1);
+  assert.match(duplicatePracticeResult.stdout, /PRACTICE\.md:5 P1 error: duplicate id; also appears at PRACTICE\.md:4/u);
+});
+
+test('spec check lists collisions already present in HEAD as known warnings [A5]', (t) => {
+  const practice = '# Practice\n\n## G\n- G1 [draft] A known local rule.\n';
+  const box = specBox(t, { practice });
+  const result = box.run('check');
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /SPEC\.md:6 G1 warning: known duplicate id; also appears at PRACTICE\.md:4/u);
+  assert.match(result.stdout, /PRACTICE\.md:4 G1 warning: known duplicate id; also appears at SPEC\.md:6/u);
 });
 
 test('a grammar-1 repair can commit after grammar 2 was already recorded [A5,S8]', (t) => {
@@ -217,6 +228,21 @@ test('cited ids must exist and must not be retired', () => {
   assert.deepEqual(idProblems(spec, ['G9', 'G2']), ['G9 is not in SPEC.md', 'G2 is retired']);
 });
 
+test('doctrine ids use their own namespace when an id also exists in SPEC.md [A5]', () => {
+  const spec = { ...parseSpec('## G\n- G1 [approved] Product rule.\n'), name: 'SPEC.md' };
+  const doctrine = { rows: [
+    { id: 'G1', status: 'approved', text: 'House rule.', gate: '' },
+    { id: 'PB1', status: 'approved', text: 'Inherited rule.', gate: '' },
+  ] };
+  assert.deepEqual(idProblems(spec, ['G1', 'doctrine:G1', 'doctrine:PB1'], doctrine), []);
+  assert.deepEqual(idProblems(spec, ['doctrine:PB9'], doctrine), ['doctrine:PB9 is not in doctrine']);
+  assert.deepEqual(idProblems(spec, ['other:G1'], doctrine), ['other:G1 uses an unknown namespace; use doctrine:<id> for a doctrine row']);
+  const frozen = frozenCriterion(spec, {
+    item_title: 'Use the house rule', item_criterion: 'follow it', item_spec_ids: 'doctrine:G1',
+  }, doctrine);
+  assert.match(frozen.text, /"id":"doctrine:G1","text":"House rule\."/u);
+});
+
 test('the frozen criterion covers title, criterion and cited row text [V2]', () => {
   const item = { item_title: 'Load twice', item_criterion: 'second load adds nothing', item_spec_ids: 'G1' };
   const first = frozenCriterion(parseSpec(SPEC), item);
@@ -249,6 +275,7 @@ test('a sign-off holds the text it approved; changing the row makes it stale [S5
 
 test('commit headers cite ids in a trailing bracket [C2]', () => {
   assert.deepEqual(citedIds('feat(web): add the page [G1, K1.2]'), ['G1', 'K1.2']);
+  assert.deepEqual(citedIds('feat(web): add the rule [doctrine:PB1]'), ['doctrine:PB1']);
   assert.deepEqual(citedIds('feat(web): add the page'), []);
   assert.deepEqual(citedIds('fix: handle [x] in the middle of text'), []);
 });

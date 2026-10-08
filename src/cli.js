@@ -16,6 +16,7 @@ import {
   FIX_NOTE,
   applyFixers,
   commitMsgProblems,
+  commitCitationWarnings,
   installHooks,
   preCommitProblems,
   prePushProblems,
@@ -33,6 +34,7 @@ import {
   lintSpec,
   loadSpec,
   permanenceProblems,
+  parseSpec,
   readSignoffs,
   signOff,
   standings,
@@ -424,7 +426,7 @@ function whoAmI(ctx, board) {
  * @param {any} ctx
  * @returns {(item: any) => { text: string, digest: string }}
  */
-const freezer = (ctx) => (item) => frozenCriterion(loadSpec(ctx.info.root, ctx.config), item);
+const freezer = (ctx) => (item) => frozenCriterion(loadSpec(ctx.info.root, ctx.config), item, ctx.doctrine);
 
 /**
  * The evidence a shout carries, from its flags (B22). The commit is resolved here, in this repo,
@@ -1346,7 +1348,7 @@ function workCommands(io, args) {
     add: () => act((ctx, board, me) => {
       if (!first || !isLane(ctx.config, first)) throw new Refused('NO_LANE', `no lane "${first ?? ''}"; see: pullboard lanes`);
       const specIds = idList(values.specs);
-      const problems = idProblems(loadSpec(ctx.info.root, ctx.config), specIds);
+      const problems = idProblems(loadSpec(ctx.info.root, ctx.config), specIds, ctx.doctrine);
       if (problems.length) throw new Refused('UNKNOWN_SPEC', `${problems.join('; ')}`);
       const parentId = values.parent ? idArg(values.parent, 'a parent item id') : null;
       const after = idList(values.after).map((text) => idArg(text, 'an item id after --after'));
@@ -1588,27 +1590,44 @@ function specCommand(io, { first, second, rest, values }) {
   if (first === 'check' || first === undefined) {
     const files = [[ctx.config.spec, spec], ...(practice.exists ? [[ctx.config.practice, practice]] : [])];
     for (const [, parsed] of files) assertRequiredSigners(ctx.info.root, parsed.rows);
-    const repeatedAcrossFiles = new Map(files.map(([name]) => [name, []]));
-    const firstLocation = new Map();
-    for (const [name, parsed] of files) {
+    const collisionFiles = [[ctx.config.spec, spec], ...(practice.repoExists ? [[ctx.config.practice, practice.repo]] : [])];
+    const previousCounts = new Map(collisionFiles.map(([name]) => {
+      const previous = tryGit(ctx.info.root, ['show', `HEAD:${name}`]);
+      const rows = previous.status === 0 ? parseSpec(previous.stdout, { strictGrammarVersion: false }).rows : [];
+      const counts = new Map();
+      for (const row of rows) counts.set(row.id, (counts.get(row.id) ?? 0) + 1);
+      return [name, counts];
+    }));
+    const locationsById = new Map();
+    for (const [name, parsed] of collisionFiles) {
       for (const row of parsed.rows) {
-        const first = firstLocation.get(row.id);
-        if (first && first.name !== name) {
-          repeatedAcrossFiles.get(first.name).push({
-            level: 'error', line: first.line, id: row.id,
-            message: `duplicate id; also appears at ${name}:${row.line}`,
-          });
-          repeatedAcrossFiles.get(name).push({
-            level: 'error', line: row.line, id: row.id,
-            message: `duplicate id; also appears at ${first.name}:${first.line}`,
-          });
-        } else if (!first) firstLocation.set(row.id, { name, line: row.line });
+        const locations = locationsById.get(row.id) ?? [];
+        locations.push({ name, line: row.line });
+        locationsById.set(row.id, locations);
+      }
+    }
+    const collisionFindings = new Map(collisionFiles.map(([name]) => [name, []]));
+    for (const [id, locations] of locationsById) {
+      if (locations.length < 2) continue;
+      const currentCounts = new Map();
+      for (const location of locations) currentCounts.set(location.name, (currentCounts.get(location.name) ?? 0) + 1);
+      const known = [...currentCounts].every(([name, count]) => count <= (previousCounts.get(name)?.get(id) ?? 0));
+      for (let index = 0; index < locations.length; index++) {
+        const location = locations[index];
+        const other = locations[(index + 1) % locations.length];
+        collisionFindings.get(location.name).push({
+          level: known ? 'warning' : 'error', line: location.line, id,
+          message: `${known ? 'known duplicate id' : 'duplicate id'}; also appears at ${other.name}:${other.line}`,
+        });
       }
     }
     let errors = 0;
     const messages = [];
     for (const [name, parsed] of files) {
-      const findings = [...lintSpec(parsed), ...repeatedAcrossFiles.get(name)];
+      const findings = [
+        ...lintSpec(parsed).filter((finding) => !finding.message.startsWith('duplicate id;')),
+        ...(collisionFindings.get(name) ?? []),
+      ];
       findings.forEach((finding) => messages.push(`${name}:${finding.line} ${finding.id ?? ''} ${finding.level}: ${finding.message}`.replace('  ', ' ')));
       const history = committedIds(ctx.info.root, name);
       const cited = name === ctx.config.spec ? citations(ctx, history) : new Map();
@@ -1740,7 +1759,10 @@ async function hookCommand(io, { first, second }) {
     problems = preCommitProblems({ root: info.root, isMain: info.isMain, config: ctx.config, agent });
   } else if (first === 'commit-msg') {
     const message = readFileSync(second ?? '', 'utf8');
-    problems = commitMsgProblems(message, { rules: ctx.config.commits, spec: loadSpec(info.root, ctx.config) });
+    const spec = loadSpec(info.root, ctx.config);
+    commitCitationWarnings(message, { spec, doctrine: ctx.doctrine })
+      .forEach((warning) => io.say(`pullboard commit-msg: warning: ${warning}`));
+    problems = commitMsgProblems(message, { rules: ctx.config.commits, spec, doctrine: ctx.doctrine });
   } else if (first === 'pre-push') {
     problems = prePushProblems(info.root, await readStdin(io.stdin));
     if (!problems.length) {
