@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { snapshotState, presentationState } from '../relay/browser-model.js';
 import { decodeBoardKey, seal, unseal } from '../src/seal.js';
 import { relaySnapshot } from '../src/relay-presentation.js';
+import { addItem, closeBoard, openBoard } from '../src/board.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
 
@@ -247,15 +248,21 @@ test('an unauthenticated pairing link stays device-only through sign-in and a wr
   assert.equal(box.keyInRequest(), false);
 });
 
-/** A read outage can accumulate moves before any exact pending record has been sealed. */
+/** A pre-ordered mirror's durable local outbox keeps its final browser projection recoverable. */
 test('legacy queued presentations never disclose later unacknowledged moves [H5,H15]', async t => {
   const box = await relayClientFixture(t);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
-  box.refuseReads(true);
-  assert.equal((await box.cli('add', box.lane, 'FIRST_QUEUED_108')).code, 0);
-  assert.equal((await box.cli('add', box.lane, 'SECOND_QUEUED_108')).code, 0);
-  box.refuseReads(false);
+  // Recreate the historical pre-161 link metadata, then commit two local-first rows directly.
+  link.cursor = box.before.tables.event.at(-1)?.event_id ?? 0;
+  delete link.mode;
+  delete link.presentationDigest;
+  writeFileSync(box.linkFile, JSON.stringify(link) + '\n', { mode: 0o600 });
+  const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    addItem(board, { by: 'coordinator', lane: box.lane, title: 'FIRST_QUEUED_108' });
+    addItem(board, { by: 'coordinator', lane: box.lane, title: 'SECOND_QUEUED_108' });
+  } finally { closeBoard(board); }
   box.refuseSnapshotWrites(true);
   const status = await box.cli('status');
   assert.equal(status.code, 0);

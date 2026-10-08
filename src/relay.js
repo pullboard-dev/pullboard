@@ -1,14 +1,16 @@
-/** Opt-in, local-first sealed mirroring; relay-first execution is a later stage [H1,H7,P5]. */
+/** Opt-in, sealed relay ordering, with crash-safe migration from the older mirror [H1,H3,H16,P5]. */
 import { randomUUID } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import * as store from './board.js';
+import { exportBoard, restoreRelaySnapshot } from './exchange.js';
+import { appliedSequence, applyEngineMove, checkpointSequence, engineReceipt, prepareEngineMove, startRelayEpoch } from './engine.js';
+import { ENGINE_VERSION } from './machine.js';
 import { presentationDigest, relayPresentation, relaySnapshot } from './relay-presentation.js';
 import { repoInfo, tryGit } from './git.js';
 import { forgetBoardKey, readBoardKey, storeBoardKey } from './relay-key.js';
-import { encodeBoardKey, generateBoardKey, seal } from './seal.js';
+import { encodeBoardKey, generateBoardKey, seal, unseal } from './seal.js';
 import { terminalQr } from './qr.js';
-import { ENGINE_VERSION } from './machine.js';
 import { Refused } from './refused.js';
 
 export const DEFAULT_RELAY = 'https://app.pullboard.dev';
@@ -118,13 +120,13 @@ async function request(state, path, { method = 'GET', body, allowMissing = false
       headers: { ...(state.token ? { authorization: 'Bearer ' + state.token } : {}), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-  } catch { throw new Refused('RELAY_UNAVAILABLE', 'the relay did not answer; the local board is safe and the next command retries pending sends'); }
+  } catch { throw new Refused('RELAY_UNAVAILABLE', `the relay ${state.url} did not answer; read the local board offline, then retry this move when the relay is reachable`); }
   let document;
   try { document = await response.json(); } catch { throw new Refused('RELAY_RESPONSE', 'the relay returned an invalid response; retry with the configured relay address'); }
   notices(document, io);
   // Only off can forget a link after a supported API reports that the board is gone.
   if (allowMissing && method === 'DELETE' && response.status === 404 && document.version === 1) return { alreadyDeleted: true };
-  if (!response.ok) throw new Refused(document.error?.code || 'RELAY_UNAVAILABLE', (document.error?.code === 'AUTH_REQUIRED' ? 'the relay sign-in expired or was revoked; run pullboard relay on to sign in again without changing the board key' : document.error?.message) || 'the relay refused this send; the next command retries it');
+  if (!response.ok) throw new Refused(document.error?.code || 'RELAY_UNAVAILABLE', (document.error?.code === 'AUTH_REQUIRED' ? 'the relay sign-in expired or was revoked; run pullboard relay on to sign in again without changing the board key' : (document.error?.message ? `the relay ${state.url}: ${document.error.message}` : null)) || 'the relay refused this send; retry this command explicitly when reachable');
   if (document.version !== 1) throw new Refused('RELAY_VERSION', 'the relay API version is unsupported; upgrade Pullboard before syncing');
   return document;
 }
@@ -148,7 +150,7 @@ function summary(root, state) {
   const key = encodeBoardKey(readBoardKey(state.board));
   return { linked: true, board: state.board, url: state.url,
     link: 'https://app.pullboard.dev/#board=' + state.board + '&key=' + key,
-    sequence: state.sequence, behind: behind(root, state) + Number(Boolean(state.snapshot)) };
+    sequence: state.sequence, behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)) };
 }
 
 /** Seal a client record at its proposed public sequence, with no board key in its envelope. */
@@ -157,7 +159,7 @@ async function sealedRecord(key, value, state, kind, sequence) {
 }
 
 /** Catch up in local order, retaining exact ciphertext so a lost response cannot duplicate a move. */
-async function flush(root, file, state, io) {
+async function flushMirror(root, file, state, io) {
   const key = readBoardKey(state.board);
   const path = '/api/v1/boards/' + state.board;
   if (state.linkPending) {
@@ -240,7 +242,162 @@ async function flush(root, file, state, io) {
   return summary(root, state);
 }
 
-/** Retry an opted-in board before/after a CLI command; transport failure never undoes a local move. */
+/** A saved link is the opt-in boundary; unlinked callers neither read keys nor contact the relay. */
+export function relayLinked(root) { return Boolean(loadLink(linkFile(root))); }
+
+/** Authenticate and decode one opaque relay record on this device alone. */
+async function decoded(key, record, state, kind, sequence) {
+  const bytes = Buffer.from(record.sealed, 'base64url');
+  if (!bytes.length || bytes.toString('base64url') !== record.sealed) throw new Refused('RELAY_RESPONSE', 'the relay returned invalid sealed bytes; fetch the board again');
+  const plain = await unseal(key, bytes, { boardId: state.board, kind, sequence });
+  try { return JSON.parse(new TextDecoder().decode(plain)); }
+  catch { throw new Refused('RELAY_MOVE', 'the authenticated relay document is invalid; upgrade pullboard or restore a consistent snapshot'); }
+}
+
+/** Persist the exact checkpoint before uploading, so a lost reply retries identical ciphertext. */
+async function publishCheckpoint(root, file, state, io) {
+  const document = relaySnapshot(root);
+  const sequence = Number(document.tables.board_meta.find((row) => row.meta_key === 'relay_applied_sequence')?.meta_value ?? 0);
+  const digest = presentationDigest(document.presentation);
+  if (!state.checkpoint || state.checkpoint.sequence !== sequence || state.checkpointPresentationDigest !== digest) {
+    state.checkpointPresentationDigest = digest;
+    state.checkpoint = { sequence, sealed: await sealedRecord(readBoardKey(state.board), document, state, 'snapshot', sequence) };
+    saveLink(file, state);
+  }
+  const reply = await request(state, '/api/v1/boards/' + state.board + '/state', { method: 'PUT', body: state.checkpoint }, io);
+  if (reply.state?.sequence !== state.checkpoint.sequence || reply.state.sealed !== state.checkpoint.sealed) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge this checkpoint; retry the configured relay');
+  state.presentationDigest = state.checkpointPresentationDigest;
+  delete state.checkpoint;
+  delete state.checkpointPresentationDigest;
+  saveLink(file, state);
+}
+
+/** Drain a legacy source once, refusing foreign history before it can be silently checkpointed. */
+async function ensureOrdered(root, file, state, io) {
+  if (state.mode === 'ordered') {
+    if (state.linkPending) {
+      await request(state, '/auth/boards/link', { method: 'POST', body: { board: state.board, repository: state.repository } }, io);
+      delete state.linkPending;
+      saveLink(file, state);
+    }
+    if (state.snapshot) {
+      const reply = await request(state, '/api/v1/boards/' + state.board + '/state', { method: 'PUT', body: state.snapshot }, io);
+      if (reply.state?.sequence !== state.snapshot.sequence || reply.state.sealed !== state.snapshot.sealed) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge the initial snapshot; retry the configured relay');
+      delete state.snapshot;
+      saveLink(file, state);
+    }
+    return;
+  }
+  if (!state.checkpoint) {
+    const path = '/api/v1/boards/' + state.board;
+    if (!state.linkPending && !state.snapshot) {
+      let remote;
+      try { remote = await request(state, path + '/events?after=' + state.sequence, {}, io); }
+      catch (error) {
+        if (error.code !== 'SNAPSHOT_REQUIRED') throw error;
+        const checkpoint = await request(state, path + '/state', {}, io);
+        throw new Refused('RELAY_DIVERGED', `relay sequence ${checkpoint.state?.sequence ?? 'unknown'} differs from this mirror's local sequence ${state.sequence}; run pullboard relay off then relay on to re-link from this machine, or join by pairing`);
+      }
+      const unknown = remote.events?.filter((record) => !(state.pending && record.event_id === state.pending.sequence && record.sealed === state.pending.sealed));
+      if (!Array.isArray(remote.events) || unknown.length) {
+        const remoteSequence = remote.events?.at(-1)?.event_id ?? state.sequence;
+        throw new Refused('RELAY_DIVERGED', `relay sequence ${remoteSequence} differs from this mirror's local sequence ${state.sequence}; run pullboard relay off then relay on to re-link from this machine, or join by pairing`);
+      }
+    }
+    await flushMirror(root, file, state, io);
+    localRecords(root, (board) => checkpointSequence(board, state.sequence));
+  }
+  await publishCheckpoint(root, file, state, io);
+  state.mode = 'ordered';
+  saveLink(file, state);
+}
+
+/** Restore a compacted, authenticated native prefix before receiving any following operations. */
+async function restoreCheckpoint(root, state, io, key) {
+  const document = await request(state, '/api/v1/boards/' + state.board + '/state', {}, io);
+  const snapshot = document.state;
+  if (!snapshot || !Number.isSafeInteger(snapshot.sequence) || snapshot.sequence < 0) throw new Refused('RELAY_RESPONSE', 'the relay snapshot has no valid coverage sequence; fetch it again');
+  const native = await decoded(key, snapshot, state, 'snapshot', snapshot.sequence);
+  localRecords(root, (board) => restoreRelaySnapshot(board, native, snapshot.sequence));
+}
+
+/** Apply a validated relay prefix with durable, transaction-bound receipts on this replica. */
+async function catchUp(root, file, state, io) {
+  const key = readBoardKey(state.board);
+  const after = localRecords(root, appliedSequence);
+  let remote;
+  try { remote = await request(state, '/api/v1/boards/' + state.board + '/events?after=' + after, {}, io); }
+  catch (error) {
+    if (error.code !== 'SNAPSHOT_REQUIRED') throw error;
+    await restoreCheckpoint(root, state, io, key);
+    if (localRecords(root, appliedSequence) <= after) throw new Refused('RELAY_RESPONSE', 'the relay checkpoint did not advance the missing prefix; fetch a consistent newer snapshot');
+    return catchUp(root, file, state, io);
+  }
+  if (!Array.isArray(remote.events) || remote.events.some((record, index) => !record || record.event_id !== after + index + 1 || !['move', 'request'].includes(record.kind) || typeof record.sealed !== 'string')) {
+    throw new Refused('RELAY_RESPONSE', 'the relay returned an invalid ordered prefix; fetch a consistent relay snapshot');
+  }
+  for (const record of remote.events) {
+    const move = await decoded(key, record, state, record.kind, record.event_id);
+    localRecords(root, (board) => {
+      applyEngineMove(board, move, { sequence: record.event_id, at: record.event_at });
+    });
+  }
+  state.sequence = localRecords(root, appliedSequence);
+  if (state.pending?.move && localRecords(root, (board) => engineReceipt(board, state.pending.move.id))) delete state.pending;
+  saveLink(file, state);
+}
+
+/** Finish a durable executable send; a collision reseals its unchanged id after applying the winner. */
+async function sendPending(root, file, state, io) {
+  for (let tries = 0; state.pending && tries < 100; tries += 1) {
+    const pending = state.pending;
+    try {
+      const reply = await request(state, '/api/v1/boards/' + state.board + '/moves', { method: 'POST', body: { sequence: pending.sequence, sealed: pending.sealed } }, io);
+      if (reply.event?.event_id !== pending.sequence || reply.event.sealed !== pending.sealed) throw new Refused('RELAY_RESPONSE', 'the relay acknowledgement differs from this executable send; fetch the configured relay');
+    } catch (error) {
+      if (!['SEQUENCE_REPEAT', 'SEQUENCE_GAP'].includes(error.code)) throw error;
+      await catchUp(root, file, state, io);
+      if (state.pending) {
+        state.pending.sequence = state.sequence + 1;
+        state.pending.sealed = await sealedRecord(readBoardKey(state.board), state.pending.move, state, 'move', state.pending.sequence);
+        saveLink(file, state);
+      }
+      continue;
+    }
+    await catchUp(root, file, state, io);
+  }
+  if (state.pending) throw new Refused('RELAY_BUSY', 'the relay order stayed busy; retry this command after other clients finish');
+}
+
+/** Send one board operation before executing it locally, and report its canonical engine result. */
+export async function relayOperation(root, operation, args, io) {
+  const file = linkFile(root);
+  return locked(file, async () => {
+    const state = loadLink(file);
+    if (!state || state.unlinking) throw new Refused('RELAY_UNLINK_PENDING', 'finish unlinking this device with pullboard relay off before sending a move');
+    await ensureOrdered(root, file, state, io);
+    await catchUp(root, file, state, io);
+    if (state.pending) {
+      delete state.pending;
+      saveLink(file, state);
+    }
+    const move = localRecords(root, (board) => prepareEngineMove(board, operation, args));
+    const sequence = state.sequence + 1;
+    state.pending = { move, sequence, sealed: await sealedRecord(readBoardKey(state.board), move, state, 'move', sequence) };
+    saveLink(file, state);
+    await sendPending(root, file, state, io);
+    const receipt = localRecords(root, (board) => engineReceipt(board, move.id));
+    if (!receipt) throw new Refused('RELAY_RESPONSE', 'the acknowledged operation has no replay receipt; fetch a consistent relay snapshot');
+    // A phone can read a compacted checkpoint; failed presentation uploads do not undo the move.
+    try { await publishCheckpoint(root, file, state, io); }
+    catch (error) { if (!(error instanceof Refused)) throw error; io.err(`pullboard: ${error.message}`); }
+    if (receipt.outcome.error) throw new Refused(receipt.outcome.error.code, receipt.outcome.error.message);
+    for (const event of receipt.outcome.events ?? []) io.onEvent?.(event);
+    return receipt.outcome.result;
+  });
+}
+
+/** Catch up an opted-in replica before/after a CLI command; offline reads retain local evidence. */
 export async function syncRelay(root, io) {
   // Reuse Git discovery only within this command; still re-read the link before each retry.
   let files = LINK_FILES.get(io);
@@ -252,12 +409,23 @@ export async function syncRelay(root, io) {
     const state = loadLink(file);
     if (!state) return null;
     if (state.unlinking) { io.err('pullboard: [RELAY_UNLINK_PENDING] the remote board is deleted; run pullboard relay off to finish forgetting this device key'); return summary(root, state); }
-    try { return await flush(root, file, state, io); }
+    try {
+      await ensureOrdered(root, file, state, io);
+      await catchUp(root, file, state, io);
+      if (state.pending) {
+        // The complete prefix did not acknowledge this interrupted send. It must not run later.
+        delete state.pending;
+        saveLink(file, state);
+        io.err(`pullboard: the relay ${state.url} did not sequence the previous move; retry that move explicitly if still wanted`);
+      }
+      if (state.checkpoint || state.presentationDigest !== presentationDigest(relayPresentation(root))) await publishCheckpoint(root, file, state, io);
+      return summary(root, state);
+    }
     catch (error) {
       if (!(error instanceof Refused)) throw error;
       io.err(`pullboard: ${error.message}; run pullboard status to see pending uploads`);
       return { linked: true, board: state.board, url: state.url, sequence: state.sequence,
-        behind: behind(root, state) + Number(Boolean(state.snapshot)) };
+        behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)) };
     }
   });
 }
@@ -296,11 +464,14 @@ export async function relayOn(root, address, io) {
     const key = state ? readBoardKey(state.board) : await generateBoardKey();
     const signed = await deviceSignIn(url, io);
     if (!state) {
-      const document = relaySnapshot(root);
-      const snapshot = { board: document.tables.board_meta.find(row => row.meta_key === 'board_id').meta_value, document };
+      const snapshot = localRecords(root, (board) => {
+        startRelayEpoch(board);
+        return { board: store.boardId(board) };
+      });
+      snapshot.document = relaySnapshot(root);
       // Save the device key before creating any remote link; a locked keychain cannot strand it.
       const keyStorage = storeBoardKey(snapshot.board, key);
-      state = { version: 1, board: snapshot.board, url, repository, token: signed.token,
+      state = { version: 1, mode: 'ordered', board: snapshot.board, url, repository, token: signed.token,
         tokenId: signed.id, keyStorage, presentationDigest: presentationDigest(snapshot.document.presentation), sequence: 0, cursor: snapshot.document.tables.event.at(-1)?.event_id ?? 0, linkPending: true };
       state.snapshot = { sequence: 0, sealed: await sealedRecord(key, snapshot.document, state, 'snapshot', 0) };
     } else { state.token = signed.token; state.tokenId = signed.id; }
@@ -312,7 +483,17 @@ export async function relayOn(root, address, io) {
       saveLink(file, state);
     }
     let result;
-    try { result = await flush(root, file, state, io); }
+    try {
+      if (state.mode === 'ordered' && state.snapshot) {
+        const reply = await request(state, '/api/v1/boards/' + state.board + '/state', { method: 'PUT', body: state.snapshot }, io);
+        if (reply.state?.sequence !== state.snapshot.sequence || reply.state.sealed !== state.snapshot.sealed) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge the initial snapshot; retry the configured relay');
+        delete state.snapshot;
+        saveLink(file, state);
+      }
+      await ensureOrdered(root, file, state, io);
+      await catchUp(root, file, state, io);
+      result = summary(root, state);
+    }
     catch (error) { if (!(error instanceof Refused)) throw error; io.err(`pullboard: ${error.message}; pending records are queued for the next command`); result = summary(root, state); }
     io.say(terminalQr(result.link));
     return result;

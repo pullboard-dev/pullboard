@@ -100,7 +100,7 @@ Each move checks its guards in this order and refuses with the first one that do
 | NOT_AT_COMMIT | the caller's checkout contains the submitted commit | git switch --detach <commit> |
 | SELF_VERIFY | the caller did not build it | another agent verifies it: pullboard next --verify |
 | COORDINATOR_VERIFIES | the repo's verify policy lets the caller verify this lane's work | the coordinator verifies it |
-| O2_FAMILY_MATCH | the builder and verifier have known, different declared families, verify.family is require | ask the coordinator for a verifier from another declared family |
+| O2_FAMILY_MATCH | the builder and verifier have different declared families; an undeclared family counts as a match, only when verify.family is require | ask the coordinator for a verifier from another declared family |
 | REVIEW_HELD | no other agent holds its review under a live lease | pullboard next --verify, which passes over reviews another agent holds |
 | BAD_REASON | an accept gives CRITERION_MET as its reason | a failed criterion is a reject: pullboard verify <id> reject --reason CODE |
 | PROOF_REQUIRED | an accept notes how it was proved | --note "what you broke or which edge you tried, and what happened" |

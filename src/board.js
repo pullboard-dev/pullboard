@@ -312,9 +312,12 @@ export function closeBoard(board) {
  */
 const now = (board) => board.clock.now().toISOString();
 
+const TRANSACTION_DEPTH = new WeakMap();
+
 /**
  * Run `work` in one immediate transaction: the write lock is taken before the first read, so two
- * agents can never both see an item as free (B2).
+ * agents can never both see an item as free (B2). Nested moves use savepoints so a replay receipt
+ * and its board mutation can commit together, while a refused move rolls back only its work.
  *
  * @template T
  * @param {any} board
@@ -322,18 +325,23 @@ const now = (board) => board.clock.now().toISOString();
  * @returns {T}
  */
 export function atomic(board, work) {
-  board.db.exec('BEGIN IMMEDIATE');
+  const depth = TRANSACTION_DEPTH.get(board) ?? 0;
+  const savepoint = `pullboard_atomic_${depth}`;
+  board.db.exec(depth ? `SAVEPOINT ${savepoint}` : 'BEGIN IMMEDIATE');
+  TRANSACTION_DEPTH.set(board, depth + 1);
   const lastEvent = board.lastEvent;
   const emitted = board.emittedEvents?.length ?? 0;
   try {
     const result = work();
-    board.db.exec('COMMIT');
+    board.db.exec(depth ? `RELEASE ${savepoint}` : 'COMMIT');
     return result;
   } catch (error) {
-    board.db.exec('ROLLBACK');
+    board.db.exec(depth ? `ROLLBACK TO ${savepoint}; RELEASE ${savepoint}` : 'ROLLBACK');
     board.lastEvent = lastEvent;
     board.emittedEvents?.splice(emitted);
     throw error;
+  } finally {
+    TRANSACTION_DEPTH.set(board, depth);
   }
 }
 
