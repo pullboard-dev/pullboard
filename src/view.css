@@ -136,7 +136,7 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .ny em { font-style: normal; color: var(--warn); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (width < 480px) { .ny { grid-template-columns: auto minmax(0, 1fr); row-gap: 1px; } .ny em { grid-column: 2; } }
 .ask { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: center; padding: 6px 4px; }
-.ask p { margin: 0; overflow-wrap: anywhere; }
+.ask > p { grid-column: 1; margin: 0; overflow-wrap: anywhere; }
 .ask small { color: var(--ink-muted); }
 .ask button { grid-row: 1 / span 2; grid-column: 2; }
 .answering { flex: 1 1 100%; display: flex; gap: 10px; align-items: baseline; justify-content: space-between; margin: 0; font-size: 13px; color: var(--ink-muted); }
