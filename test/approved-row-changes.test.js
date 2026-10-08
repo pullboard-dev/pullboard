@@ -240,3 +240,42 @@ test('[S19] repo doctrine approved text has the same exact person-approval commi
   const accepted = commit(box, 'docs: apply person-approved local rule');
   assert.equal(accepted.status, 0, `${accepted.stdout}${accepted.stderr}`);
 });
+
+test('[S19] staged config and row-file renames cannot hide an approved rewrite', (t) => {
+  for (const [kind, from, to, id, old, replacement] of [
+    ['spec', 'SPEC.md', 'requirements.md', 'G1', 'The existing approved promise.', 'The unauthorized moved promise.'],
+    ['practice', 'PRACTICE.md', 'DOCTRINE.md', 'L1', 'Keep the local rule exact.', 'The unauthorized moved local rule.'],
+  ]) {
+    const box = fixture(t, { doctrine: true });
+    const configFile = join(box.root, 'pullboard.json');
+    const config = JSON.parse(readFileSync(configFile, 'utf8'));
+    box.git('mv', from, to);
+    writeFileSync(configFile, `${JSON.stringify({ ...config, [kind]: to }, null, 2)}\n`);
+    writeFileSync(join(box.root, to), readFileSync(join(box.root, to), 'utf8').replace(old, replacement));
+    box.git('add', to, 'pullboard.json');
+    const refused = commit(box);
+    assert.notEqual(refused.status, 0, `${kind}: changing the path cannot hide an unapproved rewrite`);
+    assert.match(`${refused.stdout}${refused.stderr}`, new RegExp(`${id} changes approved text.*person`));
+    const approved = box.pullboard('spec', 'approve', `${kind === 'practice' ? 'doctrine:' : ''}${id}`);
+    assert.equal(approved.status, 0, `${approved.stdout}${approved.stderr}`);
+    const accepted = commit(box, 'docs: move exact person-approved wording');
+    assert.equal(accepted.status, 0, `${accepted.stdout}${accepted.stderr}`);
+  }
+});
+
+test('[S19] unstaged config cannot redirect the approval guard away from the staged SPEC', (t) => {
+  const box = fixture(t);
+  setRowText(box, 'G1', 'An unapproved promise remains staged.');
+  stage(box);
+  const configFile = join(box.root, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  writeFileSync(join(box.root, 'decoy.md'), SPEC);
+  writeFileSync(configFile, `${JSON.stringify({ ...config, spec: 'decoy.md' }, null, 2)}\n`);
+  const refused = commit(box);
+  assert.notEqual(refused.status, 0, `${refused.stdout}${refused.stderr}`);
+  assert.match(`${refused.stdout}${refused.stderr}`, /G1 changes approved text.*person/u);
+  box.git('rm', '--cached', 'pullboard.json');
+  const removedConfig = commit(box, 'docs: remove staged config with unauthorized text');
+  assert.notEqual(removedConfig.status, 0, `${removedConfig.stdout}${removedConfig.stderr}`);
+  assert.match(`${removedConfig.stdout}${removedConfig.stderr}`, /G1 changes approved text.*person/u);
+});

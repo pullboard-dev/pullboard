@@ -8,6 +8,7 @@ import { parseSpec, SIGNOFFS_FILE } from './spec.js';
 import { rowDecisions } from './board.js';
 import { hasSignerFile, verifySignedRecords } from './signature.js';
 import { Refused } from './refused.js';
+import { CONFIG_FILE, configFromSource } from './config.js';
 
 const TRUST_FILES = ['.pullboard/signers', '.pullboard/first-commit', '.pullboard/signers.initial', SIGNOFFS_FILE];
 
@@ -15,6 +16,23 @@ const TRUST_FILES = ['.pullboard/signers', '.pullboard/first-commit', '.pullboar
 function gitText(root, revision, file) {
   const result = spawnSync('git', ['--no-replace-objects', 'show', `${revision}:${file}`], { cwd: root, encoding: 'utf8' });
   return result.status === 0 ? result.stdout : null;
+}
+
+/** Read the actual committed or staged file mapping even when unstaged config points elsewhere. */
+function rowPolicyAt(root, revision, fallback) {
+  const source = gitText(root, revision, CONFIG_FILE);
+  return source === null ? fallback : configFromSource(source);
+}
+
+/** Follow the conventional doctrine rename while keeping custom configured paths authoritative. */
+function rowSourceAt(root, revision, file, kind) {
+  let text = gitText(root, revision, file);
+  if (text === null && kind === 'doctrine' && ['PRACTICE.md', 'DOCTRINE.md'].includes(file)) {
+    const alias = file === 'PRACTICE.md' ? 'DOCTRINE.md' : 'PRACTICE.md';
+    const found = gitText(root, revision, alias);
+    if (found !== null) { file = alias; text = found; }
+  }
+  return { file, text };
 }
 
 /** Read the shared decision index without opening the board's migrator or changing its evidence. */
@@ -51,28 +69,34 @@ function stagedApprovals(root, decisions) {
 /** Refuse each rewritten approved row unless its exact staged target has person authorization. */
 export function approvedRowProblems(root, config, boardFile) {
   const changes = [];
-  for (const [kind, file] of [['spec', config.spec], ['doctrine', config.practice]]) {
-    const before = gitText(root, 'HEAD', file);
-    const staged = gitText(root, '', file);
-    if (before === null || staged === null || before === staged) continue;
-    const rows = parseSpec(staged);
-    for (const old of parseSpec(before).rows.filter((row) => row.status === 'approved')) {
+  const beforePolicy = rowPolicyAt(root, 'HEAD', config);
+  const stagedPolicy = rowPolicyAt(root, '', beforePolicy);
+  for (const [kind, key] of [['spec', 'spec'], ['doctrine', 'practice']]) {
+    const before = rowSourceAt(root, 'HEAD', beforePolicy[key], kind);
+    const staged = rowSourceAt(root, '', stagedPolicy[key], kind);
+    if (before.text === null || before.text === staged.text) continue;
+    const rows = parseSpec(staged.text ?? '');
+    for (const old of parseSpec(before.text).rows.filter((row) => row.status === 'approved')) {
       const matches = rows.rows.filter((row) => row.id === old.id);
-      if (matches.length !== 1 || matches[0].text === old.text) continue;
-      changes.push({ kind, file, row: matches[0], target: staged.split(/\r?\n/u)[matches[0].line - 1] });
+      if (matches.length === 1 && matches[0].text === old.text) continue;
+      changes.push({ kind, file: staged.file, files: [before.file, staged.file], row: matches[0] ?? old, ambiguous: matches.length !== 1,
+        target: matches.length === 1 ? staged.text.split(/\r?\n/u)[matches[0].line - 1] : '' });
     }
   }
   if (!changes.length) return [];
   try {
     const decisions = boardApprovals(boardFile);
     const trust = stagedApprovals(root, decisions);
-    return changes.filter(({ kind, file, row, target }) => {
-      const approved = decisions.some((record) => record.kind === kind && record.id === row.id && record.file === file
+    return changes.filter(({ kind, files, row, target, ambiguous }) => {
+      if (ambiguous) return true;
+      const approved = decisions.some((record) => record.kind === kind && record.id === row.id && files.includes(record.file)
         && record.replacement === target && record.text === row.text && (!trust.signed || record.decision === 'decline' || record.signature));
       const signed = trust.records.some((record) => record.id === row.id && record.text === row.text
-        && (record.type === 'row-decision' ? record.kind === kind && record.file === file : kind === 'spec'));
+        && (record.type === 'row-decision' ? record.kind === kind && files.includes(record.file) : kind === 'spec'));
       return !approved && !signed;
-    }).map(({ kind, file, row }) => `${file}: ${row.id} changes approved text without the person's exact approval; ask the person to approve ${kind === 'doctrine' ? 'doctrine:' : ''}${row.id} in pullboard view or sign its new text, then stage the signed receipt`);
+    }).map(({ kind, file, row, ambiguous }) => ambiguous
+      ? `${file}: approved row ${row.id} is missing or duplicated; restore exactly one row with its permanent id before committing`
+      : `${file}: ${row.id} changes approved text without the person's exact approval; ask the person to approve ${kind === 'doctrine' ? 'doctrine:' : ''}${row.id} in pullboard view or sign its new text, then stage the signed receipt`);
   } catch (error) {
     return [`approved-row authorization cannot be checked: ${error.message}; restore valid staged SSH trust files and signed receipts before committing`];
   }
