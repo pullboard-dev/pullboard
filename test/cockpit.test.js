@@ -1917,14 +1917,17 @@ test('the doctrine view carries and labels inherited, local, overridden and decl
   }
 });
 
-test('spec rows read across a phone [N26]', async () => {
+test('spec rows read across a phone [N26,D1]', async () => {
   const box = machine();
-  const alpha = project(box, 'alpha');
+  const alpha = project(box, 'alpha', SPEC, { practice: 'DOCTRINE.md' });
   // Its own house rules follow the doctrine file named by this repo's config.
   writeFileSync(join(alpha.repo, loadConfig(alpha.repo).practice), '# Practice\n\n## W · Writing\n- W1 [approved, must] Numbers over adjectives. No hedges, no filler. | gate: review\n- W2 [draft, aim] One record per decision. | gate: review\n');
   const view = await startView(box);
   try {
     const page = await openPage(view, { width: 375 });
+    const doctrineRows = page.show('doctrine-list');
+    assert.match(doctrineRows, /data-row="doctrine:W1"[^]*?Numbers over adjectives\./, 'W1 from the configured doctrine is shown');
+    assert.match(doctrineRows, /data-row="doctrine:W2"[^]*?One record per decision\./, 'W2 from the configured doctrine is shown');
     const style = await styleOf(view);
     assert.match(style, /\n\.srow \{ display: grid; grid-template-columns: 4\.4em 6\.2em minmax\(0, 1fr\);/, 'wider, a row keeps its three columns');
     const phone = /\n@media ([^{]+) \{ \.srow \{ grid-template-columns: auto minmax\(0, 1fr\); \} \.srow > span:last-child \{ grid-column: 1 \/ -1; \} \}\n/.exec(style);
