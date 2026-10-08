@@ -780,10 +780,12 @@ function setupCommands(io, { first, values }) {
         closeBoard: store.closeBoard,
       });
       io.result?.({ root: info.root, notes });
-      notes.forEach((note) => io.say(note));
+      const staging = notes.at(-1)?.startsWith('git add -f -- ') ? notes.at(-1) : null;
+      (staging ? notes.slice(0, -1) : notes).forEach((note) => io.say(note));
       if (registerProject(info.root, new Date(), loadConfig(info.root))) io.say('registered this project on this machine, so pullboard view lists it');
       io.say('next: write SPEC.md rows, declare lanes in pullboard.json, then: pullboard add <lane> <title>');
       io.say('with an agent: start a new Claude Code session here, which loads the pullboard skills, then tell it what to build; the pullboard-run skill runs the team');
+      if (staging) io.say(staging);
       return 0;
     },
     hooks: () => {
@@ -1794,6 +1796,7 @@ async function runCommand(argv, io) {
   }
   if (values.help || !command || command === 'help') {
     io.result?.({ help: HELP });
+    if (!command && !values.help) io.say('New here? pullboard tour, then pullboard init.');
     io.say(HELP);
     return 0;
   }
