@@ -4,7 +4,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { snapshotState, presentationState } from '../relay/browser-model.js';
-import { decodeBoardKey, unseal } from '../src/seal.js';
+import { decodeBoardKey, seal, unseal } from '../src/seal.js';
+import { relaySnapshot } from '../src/relay-presentation.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
 
@@ -121,6 +122,105 @@ test('real Chrome pairs, retains its device key, follows SSE without polling and
   await chrome.waitFor("document.body.textContent.includes('Sign in with GitHub') && !document.body.textContent.includes(" + JSON.stringify(liveTitle) + ')');
 });
 
+/** Append an authenticated synthetic sealed move without writing it to the private local board. */
+async function appendEngineMove(box, link, key, sequence, engine, presentation) {
+  const event = { event_id: sequence, event_kind: 'add', event_by: 'fixture', event_at: new Date().toISOString(), event_detail: '{}' };
+  const sealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify({ version: 1, engine, event, ...(presentation ? { presentation } : {}) })), {
+    boardId: link.board, kind: 'move', sequence,
+  })).toString('base64url');
+  const response = await fetch(box.origin + '/api/v1/boards/' + link.board + '/moves', {
+    method: 'POST', headers: { authorization: 'Bearer ' + link.token, 'content-type': 'application/json' },
+    body: JSON.stringify({ sequence, sealed }),
+  });
+  assert.equal(response.status, 200, 'the private stand-in accepts the synthetic sealed sequence');
+  return response.json();
+}
+
+test('real Chrome refuses a newer engine in the initial replay without exposing board contents [H5,H15]', {
+  skip: !findChromeExecutable() && 'Chrome is not installed',
+}, async t => {
+  const box = await relayClientFixture(t);
+  const privateTitle = 'ENGINE_TWO_PRIVATE_108';
+  assert.equal((await box.cli('add', box.lane, privateTitle)).code, 0);
+  await box.link();
+  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
+  const presentation = relaySnapshot(box.root).presentation;
+  presentation.state.items[0].title = privateTitle;
+  await appendEngineMove(box, link, key, 1, 2, presentation);
+
+  const chrome = await startChrome();
+  t.after(() => chrome.close());
+  await signIn(chrome, box);
+  await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + readFileSync(box.keyFile, 'utf8').trim());
+  await chrome.waitFor("document.querySelector('#relay-notice')?.textContent.includes('This board needs engine 2')");
+  assert.equal(await chrome.evaluate('document.body.textContent.includes(' + JSON.stringify(privateTitle) + ')'), false,
+    'an unsupported initial event cannot install its attached presentation');
+});
+
+test('real Chrome refuses a newer engine delivered over the live stream [H5,H15]', {
+  skip: !findChromeExecutable() && 'Chrome is not installed',
+}, async t => {
+  const box = await relayClientFixture(t);
+  const initialTitle = 'ENGINE_ONE_INITIAL_108';
+  const privateTitle = 'ENGINE_TWO_LIVE_PRIVATE_108';
+  assert.equal((await box.cli('add', box.lane, initialTitle)).code, 0);
+  await box.link();
+  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
+  const chrome = await startChrome();
+  t.after(() => chrome.close());
+  await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: 'window.setInterval = () => 0;' });
+  await signIn(chrome, box);
+  await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + readFileSync(box.keyFile, 'utf8').trim());
+  await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(initialTitle) + ')');
+  const presentation = relaySnapshot(box.root).presentation;
+  presentation.state.items[0].title = privateTitle;
+  await appendEngineMove(box, link, key, 1, 2, presentation);
+  await chrome.waitFor("document.querySelector('#relay-notice')?.textContent.includes('This board needs engine 2')");
+  assert.equal(await chrome.evaluate('document.body.textContent.includes(' + JSON.stringify(privateTitle) + ')'), false,
+    'a newer live engine is refused before its presentation changes the page');
+});
+
+test('real Chrome waits for and installs the late snapshot that compacts a legacy move [H5,H15]', {
+  skip: !findChromeExecutable() && 'Chrome is not installed',
+}, async t => {
+  const box = await relayClientFixture(t);
+  const initialTitle = 'LATE_SNAPSHOT_INITIAL_108';
+  const finalTitle = 'LATE_SNAPSHOT_REPAIRED_108';
+  assert.equal((await box.cli('add', box.lane, initialTitle)).code, 0);
+  await box.link();
+  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
+  const chrome = await startChrome();
+  t.after(() => chrome.close());
+  await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: 'window.setInterval = () => 0;' });
+  await signIn(chrome, box);
+  await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + readFileSync(box.keyFile, 'utf8').trim());
+  await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(initialTitle) + ')');
+
+  await appendEngineMove(box, link, key, 1, 1);
+  await new Promise(resolveLate => setTimeout(resolveLate, 350));
+  assert.equal(await chrome.evaluate('document.body.textContent.includes(' + JSON.stringify(finalTitle) + ')'), false,
+    'the event position is not consumed while the current snapshot is behind it');
+
+  const checkpoint = relaySnapshot(box.root);
+  checkpoint.tables.item[0].item_title = finalTitle;
+  checkpoint.presentation.state.items[0].title = finalTitle;
+  const bytes = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(checkpoint)), {
+    boardId: link.board, kind: 'snapshot', sequence: 1,
+  })).toString('base64url');
+  const uploaded = await fetch(box.origin + '/api/v1/boards/' + link.board + '/state', {
+    method: 'PUT', headers: { authorization: 'Bearer ' + link.token, 'content-type': 'application/json' },
+    body: JSON.stringify({ sequence: 1, sealed: bytes }),
+  });
+  assert.equal(uploaded.status, 200, 'the stand-in acknowledges a snapshot covering the move');
+  await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(finalTitle) + ')');
+  const replay = await fetch(box.origin + '/api/v1/boards/' + link.board + '/events?after=0', { headers: { authorization: 'Bearer ' + link.token } });
+  assert.equal(replay.status, 409, 'the relay compacted the covered event and requires the new snapshot cursor');
+  assert.equal(box.keyInRequest(), false, 'the key remains absent from browser requests');
+});
+
 test('an unauthenticated pairing link stays device-only through sign-in and a wrong key shows no contents [H5,H15]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
@@ -156,14 +256,39 @@ test('legacy queued presentations never disclose later unacknowledged moves [H5,
   assert.equal((await box.cli('add', box.lane, 'FIRST_QUEUED_108')).code, 0);
   assert.equal((await box.cli('add', box.lane, 'SECOND_QUEUED_108')).code, 0);
   box.refuseReads(false);
-  assert.equal((await box.cli('status')).code, 0);
-  const response = await fetch(box.origin + '/api/v1/boards/' + link.board + '/events?after=0', { headers: { authorization: 'Bearer ' + link.token } });
-  assert.equal(response.status, 200);
-  const rows = (await response.json()).events;
-  assert.equal(rows.length, 2);
+  box.refuseSnapshotWrites(true);
+  const status = await box.cli('status');
+  assert.equal(status.code, 0);
+  assert.equal((status.document.diagnostics ?? []).some(line => line.includes('[RELAY_UNAVAILABLE]')), true,
+    'a refused snapshot keeps the final projection pending for retry');
+  assert.equal(box.calls.filter(call => call.method === 'POST' && /\/moves$/.test(call.path)).length, 2, 'both queued moves reached the real stand-in route');
+  assert.equal(box.moveAcks.length, 2, 'both encrypted move acknowledgements were captured before snapshot compaction');
+  const pendingLink = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  assert.equal(pendingLink.needsPresentation, true);
+  assert.equal(Boolean(pendingLink.snapshot), true);
+  const oldState = await fetch(box.origin + '/api/v1/boards/' + link.board + '/state', { headers: { authorization: 'Bearer ' + link.token } });
+  assert.equal((await oldState.json()).state.sequence, 0, 'the relay did not acknowledge the refused checkpoint');
+
+  box.refuseSnapshotWrites(false);
+  const retried = await box.cli('status');
+  assert.equal(retried.code, 0);
+  assert.equal(retried.document.diagnostics?.length ?? 0, 0, 'the saved checkpoint retries without re-sending acknowledged moves');
+  assert.equal(box.moveAcks.length, 2);
+  const completedLink = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  assert.equal(completedLink.needsPresentation, false, 'only a matching snapshot acknowledgement clears the pending presentation');
+  assert.equal(Boolean(completedLink.snapshot), false);
   const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
-  const moves = await Promise.all(rows.map(async row => JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(row.sealed, 'base64url'), { boardId: link.board, kind: row.kind, sequence: row.event_id })))));
+  const moves = await Promise.all(box.moveAcks.map(async row => JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(row.sealed, 'base64url'), { boardId: link.board, kind: row.kind, sequence: row.event_id })))));
   assert.equal(moves[0].presentation, undefined, 'the earlier record cannot attest the already-advanced whole board');
   assert.equal(moves[1].presentation.state.events[0].event_id, moves[1].event.event_id);
   assert.equal(moves[1].presentation.state.items.some(item => item.title === 'SECOND_QUEUED_108'), true);
+  const response = await fetch(box.origin + '/api/v1/boards/' + link.board + '/state', { headers: { authorization: 'Bearer ' + link.token } });
+  assert.equal(response.status, 200);
+  const checkpoint = (await response.json()).state;
+  assert.equal(checkpoint.sequence, box.moveAcks[1].event_id, 'the acknowledged final checkpoint covers the omitted presentation');
+  const document = JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(checkpoint.sealed, 'base64url'), { boardId: link.board, kind: 'snapshot', sequence: checkpoint.sequence })));
+  assert.equal(document.presentation.state.items.some(item => item.title === 'FIRST_QUEUED_108'), true);
+  assert.equal(document.presentation.state.items.some(item => item.title === 'SECOND_QUEUED_108'), true);
+  const compacted = await fetch(box.origin + '/api/v1/boards/' + link.board + '/events?after=0', { headers: { authorization: 'Bearer ' + link.token } });
+  assert.equal(compacted.status, 409, 'the relay compacted the moves only after acknowledging their final checkpoint');
 });

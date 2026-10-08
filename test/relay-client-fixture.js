@@ -61,12 +61,24 @@ export async function relayClientFixture(t) {
   let time = Date.now();
   let override = null;
   let refuseEventReads = false;
+  let refuseSnapshotWrites = false;
   let signIn;
   let api;
   const calls = [];
+  const moveAcks = [];
   const privateKeys = new Set();
   let keyLeaked = false;
   const server = createServer(async (req, res) => {
+    const end = res.end.bind(res);
+    res.end = (chunk, ...args) => {
+      if (req.method === 'POST' && /\/api\/v1\/boards\/[0-9a-f]{32}\/moves$/.test(req.url ?? '') && (typeof chunk === 'string' || Buffer.isBuffer(chunk))) {
+        try {
+          const response = JSON.parse(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : chunk);
+          if (typeof response.event?.sealed === 'string') moveAcks.push(response.event);
+        } catch { /* Capture only valid move acknowledgements; the production response remains unchanged. */ }
+      }
+      return end(chunk, ...args);
+    };
     calls.push({ method: req.method, path: req.url, accept: req.headers.accept ?? '' });
     if ([...privateKeys].some(key => JSON.stringify({ url: req.url, headers: req.headers }).includes(key))) keyLeaked = true;
     if (refuseEventReads && req.method === 'GET' && /\/events(?:\?|$)/.test(req.url)) {
@@ -77,6 +89,11 @@ export async function relayClientFixture(t) {
     if (override && req.method === 'DELETE') {
       res.writeHead(override.status, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ version: override.version ?? 1, error: { code: override.code, message: 'fixture refusal' } }));
+      return;
+    }
+    if (refuseSnapshotWrites && req.method === 'PUT' && /\/api\/v1\/boards\/[0-9a-f]{32}\/state$/.test(req.url ?? '')) {
+      res.writeHead(503, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ version: 1, error: { code: 'RELAY_UNAVAILABLE', message: 'fixture snapshot outage' } }));
       return;
     }
     if (await signIn(req, res)) return;
@@ -155,9 +172,10 @@ export async function relayClientFixture(t) {
     return childResult(root, env, ['--input-type=module', '-e', source]);
   }
   return {
-    root, env, origin, lane, before, linkFile, keyFile, calls, cli, link, otherDeviceOff, additionalBoard, script,
+    root, env, origin, lane, before, linkFile, keyFile, calls, moveAcks, cli, link, otherDeviceOff, additionalBoard, script,
     advance(days) { time = Date.now() + days * 86400000; },
     overrideDelete(value) { override = value; },
+    refuseSnapshotWrites(value) { refuseSnapshotWrites = value; },
     mainURL: new URL('../src/cli.js', import.meta.url).href,
     keyInRequest() { return keyLeaked; },
     /** Revoke the actual synthetic person session, including its current live streams. */

@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { cockpitPage } from '../src/cockpit.js';
+import { ENGINE_VERSION } from '../src/machine.js';
 import { Refused } from '../src/refused.js';
 
 const STYLES = readFileSync(new URL('../src/view.css', import.meta.url), 'utf8');
@@ -24,6 +25,7 @@ export function createRelayBrowserHandler({ authenticate }) {
     ['/view.css', ['text/css', STYLES]],
     ['/relay/client.js', ['text/javascript', readFileSync(new URL('./browser-client.js', import.meta.url), 'utf8')]],
     ['/relay/model.js', ['text/javascript', readFileSync(new URL('./browser-model.js', import.meta.url), 'utf8').replace("'../src/refused.js'", "'./refused.js'")]],
+    ['/relay/engine.js', ['text/javascript', 'export const ENGINE_VERSION = ' + ENGINE_VERSION + ';\n']],
     ['/relay/seal.js', ['text/javascript', readFileSync(new URL('../src/seal.js', import.meta.url), 'utf8')]],
     ['/relay/refused.js', ['text/javascript', readFileSync(new URL('../src/refused.js', import.meta.url), 'utf8')]],
   ]);

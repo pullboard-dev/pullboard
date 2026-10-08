@@ -1,6 +1,7 @@
 /** Device-only relay transport: cookie authorization, local keys and authenticated ciphertext [H5,H15]. */
 import { decodeBoardKey, unseal } from './seal.js';
 import { snapshotState, presentationState } from './model.js';
+import { ENGINE_VERSION } from './engine.js';
 import { Refused } from './refused.js';
 
 const KEYS = 'pullboard.relay.keys.v1';
@@ -124,6 +125,17 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     }
   }
 
+  /** Wait for an acknowledged device snapshot instead of consuming an event with no projection. */
+  async function waitForSnapshot(entry, sequence) {
+    const deadline = Date.now() + 15000;
+    while (Date.now() < deadline) {
+      await snapshot(entry);
+      if (entry.state && entry.cursor >= sequence) return;
+      await new Promise(resolveSnapshot => setTimeout(resolveSnapshot, 100));
+    }
+    throw new Error('The relay snapshot has not caught up to this move. Retry this board.');
+  }
+
   /** Apply a sealed presentation in strict sequence; newer executable formats are never guessed. */
   async function receive(entry, row, history = false) {
     if (!row || !Number.isSafeInteger(row.event_id) || !['move', 'request'].includes(row.kind)) throw new Error('The relay event is invalid. Refresh this board.');
@@ -138,15 +150,14 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     const move = JSON.parse(new TextDecoder().decode(plain));
     if (accessLost) throw new Error('Sign in again to read this board.');
     if (move.version !== 1 || !Number.isSafeInteger(move.engine) || move.engine < 1) throw new Error('This sealed move has an unsupported format. Refresh it from a linked machine.');
-    if (move.engine !== 1) throw new Refused('RELAY_ENGINE_VERSION', 'This board needs engine ' + move.engine + '; this browser reads engine 1. Upgrade the browser client.');
+    if (move.engine !== ENGINE_VERSION) throw new Refused('RELAY_ENGINE_VERSION', 'This board needs engine ' + move.engine + '; this browser reads engine ' + ENGINE_VERSION + '. Upgrade the browser client.');
     if (move.presentation) {
       entry.state = presentationState(move.presentation, entry.id);
       entry.cursor = row.event_id;
     } else {
-      await snapshot(entry);
-      // Earlier records in a legacy batch have no complete projection. Consume their position
-      // without exposing later local moves; its final record/checkpoint supplies the presentation.
-      if (entry.cursor < row.event_id) entry.cursor = row.event_id;
+      // A snapshot may be uploaded just after this ACK and compact the event immediately. Keep
+      // the cursor where it is until a valid snapshot actually covers this row.
+      await waitForSnapshot(entry, row.event_id);
     }
   }
 

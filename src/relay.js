@@ -8,6 +8,7 @@ import { repoInfo, tryGit } from './git.js';
 import { forgetBoardKey, readBoardKey, storeBoardKey } from './relay-key.js';
 import { encodeBoardKey, generateBoardKey, seal } from './seal.js';
 import { terminalQr } from './qr.js';
+import { ENGINE_VERSION } from './machine.js';
 import { Refused } from './refused.js';
 
 export const DEFAULT_RELAY = 'https://app.pullboard.dev';
@@ -165,8 +166,12 @@ async function flush(root, file, state, io) {
     saveLink(file, state);
   }
   if (state.snapshot) {
-    const uploaded = await request(state, path + '/state', { method: 'PUT', body: state.snapshot }, io);
-    if (uploaded.state?.sequence !== state.snapshot.sequence || uploaded.state.sealed !== state.snapshot.sealed) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge the queued snapshot; retry the configured relay');
+    const pendingSnapshot = state.snapshot;
+    const uploaded = await request(state, path + '/state', { method: 'PUT', body: pendingSnapshot }, io);
+    if (uploaded.state?.sequence !== pendingSnapshot.sequence || uploaded.state.sealed !== pendingSnapshot.sealed) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge the queued snapshot; retry the configured relay');
+    if (state.snapshotPresentationDigest) state.presentationDigest = state.snapshotPresentationDigest;
+    delete state.snapshotPresentationDigest;
+    state.needsPresentation = false;
     delete state.snapshot;
     saveLink(file, state);
   }
@@ -184,7 +189,12 @@ async function flush(root, file, state, io) {
   }
   if (state.pending) {
     const accepted = received.find((event) => event.event_id === state.pending.sequence && event.sealed === state.pending.sealed && event.kind === 'move');
-    if (accepted) { state.cursor = state.pending.localEvent; if (state.pending.presentationDigest) state.presentationDigest = state.pending.presentationDigest; delete state.pending; }
+    if (accepted) {
+      state.cursor = state.pending.localEvent;
+      state.needsPresentation = Boolean(state.needsPresentation || state.pending.needsPresentation || !state.pending.presentationDigest);
+      if (state.pending.presentationDigest) state.presentationDigest = state.pending.presentationDigest;
+      delete state.pending;
+    }
   }
   if (received.length) state.sequence = Math.max(state.sequence, ...received.map((event) => event.event_id));
   if (state.pending && state.pending.sequence <= state.sequence) delete state.pending;
@@ -196,8 +206,8 @@ async function flush(root, file, state, io) {
       const current = relayPresentation(root);
       // Only a projection ending at this local record belongs to its relay position.
       const presentation = current.state.events[0]?.event_id === event.event_id ? current : undefined;
-      state.pending = { localEvent: event.event_id, sequence, ...(presentation ? { presentationDigest: presentationDigest(presentation) } : {}),
-        sealed: await sealedRecord(key, { version: 1, engine: 1, event, presentation }, state, 'move', sequence) };
+      state.pending = { localEvent: event.event_id, sequence, needsPresentation: Boolean(state.needsPresentation || !presentation), ...(presentation ? { presentationDigest: presentationDigest(presentation) } : {}),
+        sealed: await sealedRecord(key, { version: 1, engine: ENGINE_VERSION, event, presentation }, state, 'move', sequence) };
       saveLink(file, state);
     }
     const { sequence, sealed } = state.pending;
@@ -205,20 +215,25 @@ async function flush(root, file, state, io) {
     if (reply.event?.event_id !== sequence || reply.event.sealed !== sealed) throw new Refused('RELAY_RESPONSE', 'the relay acknowledgement does not match the queued record; retry after checking the relay');
     state.sequence = sequence;
     state.cursor = event.event_id;
+    state.needsPresentation = Boolean(state.needsPresentation || state.pending.needsPresentation);
     if (state.pending.presentationDigest) state.presentationDigest = state.pending.presentationDigest;
     delete state.pending;
     saveLink(file, state);
   }
   const presentation = relayPresentation(root);
   const digest = presentationDigest(presentation);
-  if (state.presentationDigest !== digest) {
+  if (state.needsPresentation || state.presentationDigest !== digest) {
     const document = relaySnapshot(root);
     if ((document.tables.event.at(-1)?.event_id ?? 0) !== state.cursor) throw new Refused('RELAY_PRESENTATION_PENDING', 'new local moves arrived while syncing; run pullboard status again before publishing their presentation');
     state.snapshot = { sequence: state.sequence, sealed: await sealedRecord(key, document, state, 'snapshot', state.sequence) };
-    state.presentationDigest = presentationDigest(document.presentation);
+    state.snapshotPresentationDigest = presentationDigest(document.presentation);
     saveLink(file, state);
-    const uploaded = await request(state, path + '/state', { method: 'PUT', body: state.snapshot }, io);
-    if (uploaded.state?.sequence !== state.snapshot.sequence || uploaded.state.sealed !== state.snapshot.sealed) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge the refreshed presentation; retry the configured relay');
+    const pendingSnapshot = state.snapshot;
+    const uploaded = await request(state, path + '/state', { method: 'PUT', body: pendingSnapshot }, io);
+    if (uploaded.state?.sequence !== pendingSnapshot.sequence || uploaded.state.sealed !== pendingSnapshot.sealed) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge the refreshed presentation; retry the configured relay');
+    state.presentationDigest = state.snapshotPresentationDigest;
+    delete state.snapshotPresentationDigest;
+    state.needsPresentation = false;
     delete state.snapshot;
     saveLink(file, state);
   }
