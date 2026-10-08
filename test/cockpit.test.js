@@ -681,7 +681,10 @@ test("the history is a timeline of the item's states [N26]", async () => {
   sendBack(box, alpha, 1, 'no greeting');
   build(box, alpha, 1, 'greeting-again.html');
   accept(box, alpha, 1);
-  box.run(alpha.repo, 'merged', '1', box.git(alpha.repo, 'rev-parse', alpha.branch));
+  box.git(alpha.repo, 'merge', '--no-ff', '-m', 'chore: merge fixture item', alpha.branch);
+  const trunkCommit = box.git(alpha.repo, 'rev-parse', 'HEAD');
+  assert.notEqual(trunkCommit, box.git(alpha.repo, 'rev-parse', alpha.branch), 'the receipt names the trunk merge commit');
+  box.run(alpha.repo, 'merged', '1', trunkCommit);
   box.run(alpha.web, 'claim', '2');
   const view = await startView(box);
   try {
