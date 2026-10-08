@@ -39,6 +39,7 @@ export function defaults() {
     lease: '2h',
     reviewLease: '30m',
     verify: { policy: 'any', family: 'off', reviewRatio: 3 },
+    agents: { names: 'suffix' },
     lanes: {},
     products: {},
     shared: [],
@@ -89,6 +90,7 @@ function merge(base, raw) {
     verify: typeof raw.verify === 'string'
       ? { ...base.verify, policy: raw.verify }
       : { ...base.verify, ...(raw.verify ?? {}) },
+    agents: { ...base.agents, ...(raw.agents ?? {}) },
   };
 }
 
@@ -151,6 +153,11 @@ export function configProblems(config) {
   }
   if (!Number.isFinite(config.verify?.reviewRatio) || config.verify.reviewRatio <= 0) {
     problems.push('"verify.reviewRatio" is a positive number, such as 3');
+  }
+  if (typeof config.agents !== 'object' || config.agents === null || Array.isArray(config.agents)) {
+    problems.push('"agents" is an object with a names option');
+  } else if (!['suffix', 'prefix'].includes(config.agents.names)) {
+    problems.push('"agents.names" is "suffix" or "prefix"');
   }
   if (!isStringList(config.shared)) problems.push('"shared" is a list of path prefixes');
   const isFixer = (fixer) => typeof fixer?.run === 'string' && fixer.run.trim() && (fixer.files === undefined || isStringList(fixer.files));

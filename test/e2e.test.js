@@ -272,12 +272,12 @@ test('the board lives in the git common dir; every worktree sees it; nothing is 
   assert.ok(existsSync(join(box.repo, '.git', 'pullboard', 'board.sqlite')));
   assert.equal(box.git(box.repo, 'status', '--porcelain'), '');
   assert.match(box.run(box.repo, 'whoami').out, /^coordinator/);
-  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(web lane\)/);
+  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(Test Model\) \(web lane\)/);
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
-  assert.match(box.run(second, 'join', 'web').out, /joined as web-2/);
-  assert.match(box.run(second, 'whoami').out, /^web-2 \(web lane\)/, 'a second worktree in the same lane is its own agent');
-  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(web lane\)/, 'and the first stays itself');
+  assert.match(box.run(second, 'join', 'web').out, /joined as web-2 \(Test Model\)/);
+  assert.match(box.run(second, 'whoami').out, /^web-2 \(Test Model\) \(web lane\)/, 'a second worktree in the same lane is its own agent');
+  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(Test Model\) \(web lane\)/, 'and the first stays itself');
   assert.match(box.run(box.web, 'init').err, /NOT_MAIN/);
   assert.match(box.run(box.repo, 'join', 'web').err, /MAIN_IS_COORDINATOR/);
 });
@@ -431,18 +431,18 @@ test('decisions are asked, listed and answered, and evidence attached, from the 
   assert.equal(asked.code, 0, asked.err);
   const id = /as #(\d+)/.exec(asked.out)?.[1];
   assert.ok(id, asked.out);
-  assert.match(box.run(box.repo, 'decisions').out, new RegExp(`#${id} {2}web-1 -> coordinator, \\d+m ago: ship today\\?`));
-  assert.match(box.run(box.repo, 'inbox').out, new RegExp(`web-1 -> coordinator: asks for a decision \\(#${id}; pullboard answer ${id}`));
+  assert.match(box.run(box.repo, 'decisions').out, new RegExp(`#${id} {2}web-1 \\(Test Model\\) -> coordinator \\(unknown\\), \\d+m ago: ship today\\?`));
+  assert.match(box.run(box.repo, 'inbox').out, new RegExp(`web-1 \\(Test Model\\) -> coordinator \\(unknown\\): asks for a decision \\(#${id}; pullboard answer ${id}`));
   const wrongActor = box.run(box.repo, 'answer', id, 'yes, today', '--as', 'person');
   assert.notEqual(wrongActor.code, 0);
   assert.match(wrongActor.err, /B26_PERSON_ANSWER.*person mode answers only/);
-  assert.match(box.run(box.repo, 'answer', id, 'yes, today').out, new RegExp(`answered #${id} to web-1 as #\\d+`));
+  assert.match(box.run(box.repo, 'answer', id, 'yes, today').out, new RegExp(`answered #${id} to web-1 \\(Test Model\\) as #\\d+`));
   assert.match(box.run(box.repo, 'decisions').out, /no open decisions/);
-  assert.match(box.run(box.web, 'inbox').out, new RegExp(`coordinator -> web-1: answers #${id}: yes, today`));
+  assert.match(box.run(box.web, 'inbox').out, new RegExp(`coordinator \\(unknown\\) -> web-1 \\(Test Model\\): answers #${id}: yes, today`));
   const head = box.git(box.web, 'rev-parse', 'HEAD');
   const proved = box.run(box.web, 'shout', 'coordinator', 'FINISH', 'the page', '--evidence', 'receipt', '--outcome', 'measured', '--item', '1', '--commit', 'HEAD');
   assert.equal(proved.code, 0, proved.err);
-  assert.match(box.run(box.repo, 'inbox').out, new RegExp(`web-1 -> coordinator: FINISH the page\\n {2}receipt: measured, #1 at ${head.slice(0, 12)}`));
+  assert.match(box.run(box.repo, 'inbox').out, new RegExp(`web-1 \\(Test Model\\) -> coordinator \\(unknown\\): FINISH the page\\n {2}receipt: measured, #1 at ${head.slice(0, 12)}`));
   assert.match(box.run(box.web, 'shout', 'coordinator', 'x', '--evidence', 'receipt', '--outcome', 'measured', '--item', '1', '--commit', 'nope').err, /BAD_EVIDENCE.*"nope"/);
 });
 
@@ -452,12 +452,12 @@ test('decisions default up the chain, pass to the person, and return to the orig
   assert.equal(asked.code, 0, asked.err);
   const id = /as #(\d+)/.exec(asked.out)?.[1];
   assert.ok(id, asked.out);
-  assert.match(box.run(box.repo, 'decisions').out, new RegExp(`#${id} {2}web-1 -> coordinator`));
+  assert.match(box.run(box.repo, 'decisions').out, new RegExp(`#${id} {2}web-1 \\(Test Model\\) -> coordinator \\(unknown\\)`));
   const passed = box.run(box.repo, 'pass', id, 'the checks are green');
   assert.equal(passed.code, 0, passed.err);
   const personId = /as #(\d+)/.exec(passed.out)?.[1];
   assert.ok(personId, passed.out);
-  assert.match(box.run(box.repo, 'decisions', '--as', 'person').out, new RegExp(`#${personId} {2}coordinator -> person`));
+  assert.match(box.run(box.repo, 'decisions', '--as', 'person').out, new RegExp(`#${personId} {2}coordinator \\(unknown\\) -> person`));
   const personModeFromAgent = box.run(box.web, 'decisions', '--as', 'person');
   assert.notEqual(personModeFromAgent.code, 0);
   assert.match(personModeFromAgent.err, /B26_PERSON_ANSWER.*main checkout/);
@@ -472,9 +472,9 @@ test('decisions default up the chain, pass to the person, and return to the orig
   const answerRefusal = JSON.parse(coordinatorAnswer.out);
   assert.equal(answerRefusal.error.code, 'B26_PERSON_ANSWER');
   assert.match(answerRefusal.error.next, new RegExp(`pullboard answer ${personId} "<answer>" --as person`));
-  assert.match(box.run(box.repo, 'answer', personId, 'Ship it.', '--as', 'person').out, new RegExp(`person answered #${personId}; notified web-1`));
+  assert.match(box.run(box.repo, 'answer', personId, 'Ship it.', '--as', 'person').out, new RegExp(`person answered #${personId}; notified web-1 \\(Test Model\\)`));
   assert.match(box.run(box.web, 'resume').out, new RegExp(`newest from person: Person answered #${personId}: Ship it\\.`));
-  assert.match(box.run(box.web, 'inbox').out, new RegExp(`person -> web-1: answers #${id}: Person answered #${personId}: Ship it\\.`));
+  assert.match(box.run(box.web, 'inbox').out, new RegExp(`person -> web-1 \\(Test Model\\): answers #${id}: Person answered #${personId}: Ship it\\.`));
   assert.match(box.run(box.repo, 'decisions').out, /no open decisions/);
   const refused = box.run(box.web, 'shout', 'person', 'Ship?', '--decision', '--json');
   assert.notEqual(refused.code, 0);
@@ -559,7 +559,7 @@ test("a worktree starts only from a commit that holds pullboard's files as the m
 
   const made = box.run(repo, 'worktree', 'web');
   assert.equal(made.code, 0, made.err);
-  assert.match(made.out, /repo-web-1 on branch web\/1, joined as web-1 in the web lane/, 'the refusals made nothing and joined no one');
+  assert.match(made.out, /repo-web-1 on branch web\/1, joined as web-1 \(Test Model\) in the web lane/, 'the refusals made nothing and joined no one');
   const web = join(box.dir, 'repo-web-1');
   assert.ok(readFileSync(join(web, 'SPEC.md'), 'utf8').includes('- G3 [draft'), 'it starts with the spec as committed');
   const foreign = commitFile(box, web, 'api/a.js', 'a', 'feat(web): page [G1]');
@@ -664,7 +664,7 @@ test('verify runs at the submitted commit, against the criterion frozen at claim
   assert.match(show, /ACCEPT CRITERION_MET by coordinator/);
   const ledger = box.run(box.repo, 'ledger').out;
   assert.match(ledger, /1 verified by a second agent/);
-  assert.match(ledger, /\| 1 \| web \| Page \| G1 \| web-1 \| coordinator \|/);
+  assert.match(ledger, /\| 1 \| web \| Page \| G1 \| web-1 \(Test Model\) \| coordinator \(unknown\) \|/);
 });
 
 test('unsupported spec grammar keeps claim, refreeze, submit and verify refusals typed [A5,A1,M1]', () => {
@@ -846,7 +846,7 @@ test('next claims the next free item; --verify names the next to check [N2]', ()
   assert.match(blocked.err, /NOTHING_FREE\] #2 waits on #1 \(submitted, web lane\)/);
   assert.match(box.run(box.repo, 'next', '--verify').err, /MAIN_IS_COORDINATOR/);
   const named = box.run(box.repo, 'next', '--verify', '--as', 'coordinator').out;
-  assert.match(named, /next to verify: #1 Page, built by web-1/);
+  assert.match(named, /next to verify: #1 Page, built by web-1 \(Test Model\)/);
   assert.match(named, new RegExp(`check out exactly that commit, here: cd ${box.repo} && git switch --detach [0-9a-f]{40}`));
   assert.match(named, /pullboard verify 1 accept --as coordinator --note/);
   assert.match(box.run(box.web, 'next', '--verify').err, /NOTHING_FREE/);
@@ -1112,7 +1112,7 @@ test('resume puts an agent back to work from the board: its claim, its branch, w
   box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--brief', 'Files: web/page.html');
   const fresh = box.run(box.web, 'resume');
   assert.equal(fresh.code, 0, fresh.err);
-  assert.match(fresh.out, /^resume: web-1, web lane, at /);
+  assert.match(fresh.out, /^resume: web-1 \(Test Model\), web lane, at /);
   assert.match(fresh.out, /branch web\/one: 0 ahead of main, 0 behind/);
   assert.match(fresh.out, /next: pullboard next \(1 ready in your lane\)/);
   box.run(box.web, 'next');
@@ -1129,7 +1129,7 @@ test('resume puts an agent back to work from the board: its claim, its branch, w
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): page [G1]');
   assert.equal(box.run(box.web, 'submit', '1').code, 0);
   const coordinator = box.run(box.repo, 'resume').out;
-  assert.match(coordinator, /^resume: coordinator, coordinator lane, the main checkout/);
+  assert.match(coordinator, /^resume: coordinator \(unknown\), coordinator lane, the main checkout/);
   assert.match(coordinator, /to verify: #1 web \(\d+[mhd]\)/);
   assert.match(coordinator, /next: pullboard next --verify --as coordinator/);
   box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
@@ -1296,7 +1296,7 @@ test('a fresh worktree with no install of its own runs pullboard from the main c
   chmodSync(join(bin, 'pullboard'), 0o755);
   const committed = commit();
   assert.equal(committed.status, 0, committed.stderr);
-  assert.match(resume().stdout, /^resume: web-1, web lane/);
+  assert.match(resume().stdout, /^resume: web-1 \(Test Model\), web lane/);
 });
 
 test('the gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir [V10]', () => {
@@ -1501,7 +1501,8 @@ test('worktree prints the opening lines of a subagent\'s prompt, with its folder
   const folder = join(box.dir, "my app's $PULLBOARD_PATH_PROBE-web-1");
   const quoted = `'${folder.replaceAll("'", "'\\''")}'`;
   assert.match(made, /For a subagent working here, begin its prompt with:\n/);
-  assert.ok(made.includes(`  You are web-1, in the web lane. Work only in ${quoted}, and start every command with cd ${quoted} &&\n`), made);
+  assert.ok(made.includes(`  You are web-1 (Test Model), in the web lane. Work only in ${quoted}, and start every command with cd ${quoted} &&\n`), made);
+  assert.match(made, /  Model: Test Model\. When joining or making another agent worktree, pass that agent's exact model with --model or set PULLBOARD_MODEL\./);
   assert.ok(made.includes(`  Read '${folder.replaceAll("'", "'\\''")}/AGENTS.md' first. Its rules govern this work, over any other repo's instructions you were given.\n`), made);
   // Pasted into a shell as printed, the line enters the real folder: nothing in the path expands.
   const cdLine = /start every command with (cd .+ &&)\n/.exec(made)[1];

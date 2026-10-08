@@ -2,6 +2,7 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
+import { displayAgentName } from './agent-names.js';
 import * as store from './board.js';
 import { COORDINATOR, loadConfig } from './config.js';
 import { repoInfo } from './git.js';
@@ -200,6 +201,12 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     board: (id) => findBoard(id, projects),
     state: (board, who, seen) => {
       let state = projectState(board.root, { seen });
+      const config = loadConfig(board.root);
+      state.agents = state.agents.map((agent) => ({
+        ...agent,
+        model: agent.agent_model ?? 'unknown',
+        displayName: displayAgentName(agent, config.agents.names),
+      }));
       state.board = board.id;
       const projectData = withBoard(board.root, (db) => ({
         requests: store.openRequests(db),

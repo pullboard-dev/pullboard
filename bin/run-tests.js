@@ -44,6 +44,7 @@ function testEnvironment(sandbox) {
   env.HOME = home;
   env.USERPROFILE = home;
   env.PULLBOARD_HOME = home;
+  env.PULLBOARD_MODEL = 'Test Model';
   env.TMPDIR = sandbox;
   env.TMP = sandbox;
   env.TEMP = sandbox;

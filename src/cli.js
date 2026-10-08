@@ -10,6 +10,7 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import * as store from './board.js';
 import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
+import { displayAgentName } from './agent-names.js';
 import { loadDoctrine } from './doctrine.js';
 import { requirePersonChannel } from './person.js';
 import { decisionProjection, planRowApply, prepareRowDecisions, restoreRowApply, writeRowApply } from './row-decisions.js';
@@ -71,9 +72,10 @@ Nothing ships until a second agent verifies it.
 Set up
   pullboard tour                        see it work: a reject and its rework, scripted, in thirty seconds
   pullboard init                        config, SPEC.md, agent instructions, git hooks, board
-  pullboard worktree <lane> [--route light] [--family <name>]   make and join a worktree for a new agent
-  pullboard join <lane> [--route light] [--family <name>]       register this worktree as an agent
-                                        --route sets which work the model can take; --family records its name
+  pullboard worktree <lane> --model <name> [--route light] [--family <name>]   make and join a worktree for a new agent
+  pullboard join <lane> --model <name> [--route light] [--family <name>]       register this worktree as an agent
+                                        --model is required (or set PULLBOARD_MODEL); --family records its family
+                                        pullboard.json agents.names: suffix (default) or prefix
   pullboard whoami | lanes | status     who you are, the lanes, the board at a glance
   pullboard resources                  local resource holders and their FIFO queues
   pullboard settings [gateSlots <n>]    view or set this machine's gate slots (default 2)
@@ -191,7 +193,7 @@ const HELP_GROUPS = [
 ];
 
 const HELP_EXAMPLES = {
-  tour: 'pullboard tour', init: 'pullboard init', worktree: 'pullboard worktree web', resume: 'pullboard resume',
+  tour: 'pullboard tour', init: 'pullboard init', worktree: 'pullboard worktree web --model "Claude Sonnet"', join: 'pullboard join web --model "Claude Sonnet"', resume: 'pullboard resume',
   add: 'pullboard add web "Upload page" --specs G1', list: 'pullboard list web', show: 'pullboard show 12',
   claim: 'pullboard claim 12', submit: 'pullboard submit 12', 'next --verify': 'pullboard next --verify',
   verify: 'pullboard verify 12 accept --note "removed the fix; the test failed"',
@@ -234,6 +236,7 @@ const HELP_FLAG_EXPLANATIONS = {
   '--brief': 'what a cold agent needs',
   '--check': 'the command that proves it',
   '--family': 'records the family name',
+  '--model': 'required model label, or set PULLBOARD_MODEL',
   '--json': 'prints one versioned document',
   '--note': 'what was checked stays with the receipt',
   '--note-file': 'keeps quotes, $ and backticks intact',
@@ -398,6 +401,7 @@ const OPTIONS = {
   text: { type: 'string' },
   route: { type: 'string' },
   family: { type: 'string' },
+  model: { type: 'string' },
   as: { type: 'string' },
   check: { type: 'string' },
   yes: { type: 'boolean' },
@@ -517,7 +521,7 @@ function checkMainVerifier(ctx, board, values) {
   }
   if (values.as === COORDINATOR) return;
   const agents = store.listAgents(board).filter((agent) => agent.agent_id !== COORDINATOR);
-  const listed = agents.length ? ` Agent worktrees: ${agents.slice(0, 6).map((agent) => `${agent.agent_id} at ${agent.agent_path}`).join('; ')}.` : '';
+  const listed = agents.length ? ` Agent worktrees: ${agents.slice(0, 6).map((agent) => `${displayAgentName(agent, ctx.config.agents.names)} at ${agent.agent_path}`).join('; ')}.` : '';
   const detached = tryGit(ctx.info.root, ['symbolic-ref', '-q', 'HEAD']).status !== 0 ? ' The main checkout is not on its branch; whoever switched it puts it back.' : '';
   throw new Refused(
     'MAIN_IS_COORDINATOR',
@@ -640,12 +644,21 @@ async function ordered(ctx, board, operation, args) {
     : store[operation](board, ...args);
 }
 
+/** Choose an explicitly supplied model or the standard environment fallback, refusing an unknown identity. */
+function requiredModel(value, env = process.env) {
+  const model = (value ?? env.PULLBOARD_MODEL ?? '').trim();
+  if (!model || /[\u0000-\u001f\u007f-\u009f]/u.test(model)) {
+    throw new Refused('MODEL_REQUIRED', 'give --model "<model name>" or set PULLBOARD_MODEL in this shell before joining');
+  }
+  return model;
+}
+
 /**
  * Who is asking: the coordinator in the main checkout, or the agent this worktree joined as.
  *
  * @param {any} ctx
  * @param {any} board
- * @returns {{ id: string, lane: string, route?: string, family: string | null }}
+ * @returns {{ id: string, lane: string, route?: string, family: string | null, model: string | null, displayName: string }}
  */
 function whoAmI(ctx, board) {
   if (ctx.info.isMain) {
@@ -654,13 +667,13 @@ function whoAmI(ctx, board) {
     if (linked && !registered) throw new Refused('NO_AGENT', 'the linked snapshot has no coordinator; restore a consistent relay snapshot before acting');
     const id = linked ? COORDINATOR : store.ensureCoordinator(board, ctx.info.root);
     const agent = registered ?? store.agentAt(board, ctx.info.root);
-    return { id, lane: COORDINATOR, family: agent?.agent_family ?? null };
+    return { id, lane: COORDINATOR, family: agent?.agent_family ?? null, model: agent?.agent_model ?? 'unknown', displayName: displayAgentName(agent ?? { agent_id: id }, ctx.config.agents.names) };
   }
   const agent = store.agentAt(board, ctx.info.root);
   if (!agent) {
     throw new Refused('NOT_JOINED', 'this worktree has not joined a lane: pullboard join <lane> (see: pullboard lanes)');
   }
-  return { id: agent.agent_id, lane: agent.agent_lane, route: agent.agent_route, family: agent.agent_family ?? null };
+  return { id: agent.agent_id, lane: agent.agent_lane, route: agent.agent_route, family: agent.agent_family ?? null, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, ctx.config.agents.names) };
 }
 
 /**
@@ -726,15 +739,24 @@ function firstLineOf(note) {
  * @param {any} item
  * @returns {string}
  */
-function itemLine(item) {
-  const holder = item.item_status === 'claimed' ? ` ${item.item_owner}` : '';
-  const verifier = item.item_status === 'verified' ? ` by ${item.item_verified_by}` : '';
+function itemLine(item, name = (id) => id) {
+  const holder = item.item_status === 'claimed' ? ` ${name(item.item_owner)}` : '';
+  const verifier = item.item_status === 'verified' ? ` by ${name(item.item_verified_by)}` : '';
   const specs = item.item_spec_ids ? `  [${item.item_spec_ids}]` : '';
   const parent = item.item_parent_id ? `  under #${item.item_parent_id}` : '';
   const after = item.item_after ? `  after ${item.item_after.split(',').map((id) => `#${id}`).join(',')}` : '';
   const rejected = item.item_status === 'open' && item.item_verdict === 'REJECT' ? ' (rejected)' : '';
   const light = item.item_route === 'strong' ? '' : `  ${item.item_route}`;
   return `#${item.item_id}  ${item.item_status}${holder}${verifier}${rejected}  ${item.item_lane}  ${item.item_title}${specs}${parent}${after}${light}`;
+}
+
+/** Format a stable agent id for human-facing CLI output. */
+function agentDisplayName(agents, config, id) {
+  if (!id) return '';
+  const agent = agents.find((entry) => entry.agent_id === id);
+  if (agent) return displayAgentName(agent, config.agents.names);
+  if (id === 'person' || id === 'all' || Object.hasOwn(config.lanes, id)) return id;
+  return displayAgentName({ agent_id: id }, config.agents.names);
 }
 
 /**
@@ -878,13 +900,15 @@ function resumeHere(io) {
       holds: store.laneHolds(board),
       unread: store.unreadCount(board, me.id),
       newest: store.peekShouts(board, me.id, 1),
+      agents: store.listAgents(board),
     };
   });
   const { me } = card;
+  const name = (id) => agentDisplayName(card.agents, ctx.config, id);
   card.stale = staleFrozenItems(card.all, loadSpec(root, ctx.config).rows).map((item) => ({ ...item, ...staleItemFinding(item) }));
   const say = (line) => io.say(line);
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-  say(`resume: ${me.id}${me.family ? ` (${me.family})` : ''}, ${me.lane} lane${isMain ? ', the main checkout' : ''}, at ${root}`);
+  say(`resume: ${me.displayName}${me.family ? ` [family ${me.family}]` : ''}, ${me.lane} lane${isMain ? ', the main checkout' : ''}, at ${root}`);
   const dirty = dirtyFiles(root).length;
   if (!isMain) {
     const branch = tryGit(root, ['rev-parse', '--abbrev-ref', 'HEAD']).stdout || 'HEAD';
@@ -903,7 +927,7 @@ function resumeHere(io) {
     if (files.length) say(`  files: ${files.join(', ')}`);
   }
   for (const { item, verdict } of card.sentBack) {
-    say(`sent back: #${item.item_id} ${verdict ? `${verdict.verdict_reason} by ${verdict.verdict_by}: ${firstLine(verdict.verdict_note)}` : 'rejected'}`);
+    say(`sent back: #${item.item_id} ${verdict ? `${verdict.verdict_reason} by ${name(verdict.verdict_by)}: ${firstLine(verdict.verdict_note)}` : 'rejected'}`);
   }
   for (const item of card.stale) say(`stale: ${item.message}; next: ${item.next}`);
   if (card.awaiting.length) say(`awaiting a verdict: ${card.awaiting.map((item) => `#${item.item_id} (${span(ctx, item.item_updated_at)})`).join(', ')}`);
@@ -914,9 +938,9 @@ function resumeHere(io) {
     const byLane = Object.entries(Map.groupBy(card.open, (item) => item.item_lane)).map(([lane, items]) => `${lane} ${items.length}`);
     say(`open: ${card.open.length}${byLane.length ? ` (${byLane.join(', ')})` : ''}`);
   } else if (card.hold) {
-    say(`the ${me.lane} lane is held by ${card.hold.hold_by}: ${card.hold.hold_reason}`);
+    say(`the ${me.lane} lane is held by ${name(card.hold.hold_by)}: ${card.hold.hold_reason}`);
   }
-  if (card.unread) say(`${plural(card.unread, 'unread shout')}; newest from ${card.newest[0].shout_from}: ${firstLine(card.newest[0].shout_text)} (pullboard inbox reads them)`);
+  if (card.unread) say(`${plural(card.unread, 'unread shout')}; newest from ${name(card.newest[0].shout_from)}: ${firstLine(card.newest[0].shout_text)} (pullboard inbox reads them)`);
   const inLane = card.open.filter((item) => item.item_lane === me.lane);
   const isVerified = (id) => card.all.find((other) => other.item_id === Number(id))?.item_status === 'verified';
   const ready = inLane.filter((item) => !item.item_after || item.item_after.split(',').every(isVerified)).length;
@@ -1042,12 +1066,14 @@ function setupCommands(io, { first, values }) {
         throw new Refused('NO_LANE', `no lane "${first ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
       }
       const route = values.route ?? 'strong';
-      const id = await withBoard(ctx, async (board) => await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: values.family }]));
-      io.result?.({ agent: id, lane: first, route, path: ctx.info.root });
-      io.say(`joined as ${id} in the ${first} lane${route === 'light' ? ', on the light route' : ''}`);
+      const model = requiredModel(values.model);
+      const id = await withBoard(ctx, async (board) => await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: values.family, model }]));
+      const displayName = displayAgentName({ agent_id: id, agent_model: model }, ctx.config.agents.names);
+      io.result?.({ agent: id, lane: first, route, path: ctx.info.root, model, displayName });
+      io.say(`joined as ${displayName} in the ${first} lane${route === 'light' ? ', on the light route' : ''}`);
       return 0;
     },
-    worktree: () => worktreeFor(io, first, values.route ?? 'strong', values.family ?? null),
+    worktree: () => worktreeFor(io, first, values.route ?? 'strong', values.family ?? null, values.model),
   };
 }
 
@@ -1059,9 +1085,10 @@ function setupCommands(io, { first, values }) {
  * @param {string | undefined} lane
  * @param {string} route
  * @param {string | null} family
+ * @param {string | undefined} model
  * @returns {Promise<number>}
  */
-async function worktreeFor(io, lane, route, family = null) {
+async function worktreeFor(io, lane, route, family = null, model) {
   const ctx = context(io);
   if (!lane || lane === COORDINATOR || !isLane(ctx.config, lane)) {
     throw new Refused('NO_LANE', `no lane "${lane ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
@@ -1069,6 +1096,7 @@ async function worktreeFor(io, lane, route, family = null) {
   if (!store.ROUTES.includes(route)) {
     throw new Refused('BAD_ROUTE', `route "${route}" is strong (needs a frontier model) or light (any model can build it from the brief)`);
   }
+  model = requiredModel(model);
   const mainRoot = resolve(ctx.info.commonDir, '..');
   refuseUncommittedSetup(mainRoot, ctx.config);
   const pathFor = (n) => join(dirname(mainRoot), `${basename(mainRoot)}-${lane}-${n}`);
@@ -1078,7 +1106,7 @@ async function worktreeFor(io, lane, route, family = null) {
   git(mainRoot, ['worktree', 'add', '-q', '-b', `${lane}/${n}`, pathFor(n), git(mainRoot, ['rev-parse', 'HEAD'])]);
   const root = git(pathFor(n), ['rev-parse', '--show-toplevel']);
   let id;
-  try { id = await withBoard(ctx, async (board) => await ordered(ctx, board, 'register', [{ lane, path: root, route, family }])); }
+  try { id = await withBoard(ctx, async (board) => await ordered(ctx, board, 'register', [{ lane, path: root, route, family, model }])); }
   catch (error) {
     // Only remove the clean worktree just created here; preserve it if another process changed it.
     const removed = tryGit(mainRoot, ['worktree', 'remove', root]);
@@ -1086,15 +1114,19 @@ async function worktreeFor(io, lane, route, family = null) {
     else io.err(`pullboard: registration failed; the changed worktree was preserved at ${root}`);
     throw error;
   }
-  io.result?.({ agent: id, lane, route, path: root, branch: `${lane}/${n}`, prompt: `You are ${id}, in the ${lane} lane. Work only in ${shellWord(root)}, and start every command with ${cdTo(root)}\nRead ${shellWord(join(root, 'AGENTS.md'))} first. Its rules govern this work, over any other repo's instructions you were given.` });
-  io.say(`made ${root} on branch ${lane}/${n}, joined as ${id} in the ${lane} lane${route === 'light' ? ', on the light route' : ''}${family ? ` (${family})` : ''}`);
+  const displayName = displayAgentName({ agent_id: id, agent_model: model }, ctx.config.agents.names);
+  const modelWord = shellWord(model);
+  const prompt = `You are ${displayName}, in the ${lane} lane. Work only in ${shellWord(root)}, and start every command with ${cdTo(root)}\nModel: ${modelWord}. This worktree joined with --model ${modelWord}. For another worktree using the same model, pass --model ${modelWord} or set PULLBOARD_MODEL=${modelWord}; for a different agent, use that agent's actual model label.\nRead ${shellWord(join(root, 'AGENTS.md'))} first. Its rules govern this work, over any other repo's instructions you were given.`;
+  io.result?.({ agent: id, lane, route, path: root, branch: `${lane}/${n}`, model, displayName, prompt });
+  io.say(`made ${root} on branch ${lane}/${n}, joined as ${displayName} in the ${lane} lane${route === 'light' ? ', on the light route' : ''}${family ? ` (family ${family})` : ''}`);
   io.say(`Work only in that folder. A shell that starts each command in the main checkout acts as the coordinator there, so start every command with: ${cdTo(root)}`);
   if (existsSync(join(root, 'package.json'))) io.say(`  ${cdTo(root)} npm install    (its own install, so its tests run its own code)`);
   io.say(`  ${cdTo(root)} pullboard inbox`);
   io.say(`  ${cdTo(root)} pullboard next`);
   // A subagent inherits the instructions of the session that launched it, often another repo's (I7).
   io.say('For a subagent working here, begin its prompt with:');
-  io.say(`  You are ${id}, in the ${lane} lane. Work only in ${shellWord(root)}, and start every command with ${cdTo(root)}`);
+  io.say(`  You are ${displayName}, in the ${lane} lane. Work only in ${shellWord(root)}, and start every command with ${cdTo(root)}`);
+  io.say(`  Model: ${model}. When joining or making another agent worktree, pass that agent's exact model with --model or set PULLBOARD_MODEL.`);
   io.say(`  Read ${shellWord(join(root, 'AGENTS.md'))} first. Its rules govern this work, over any other repo's instructions you were given.`);
   return 0;
 }
@@ -1169,6 +1201,7 @@ function readCommands(io, { first, second, rest, values }) {
     },
     resources: () => {
       const ctx = context(io);
+      const agents = withBoard(ctx, (board) => store.listAgents(board));
       const resources = [
         ...listResources({ scope: 'machine' }).map((resource) => ({ ...resource, scope: 'machine' })),
         ...listResources({ scope: 'repo', root: ctx.info.root }).map((resource) => ({ ...resource, scope: 'repo' })),
@@ -1177,8 +1210,8 @@ function readCommands(io, { first, second, rest, values }) {
       if (!resources.length) io.say('no resources have been used');
       for (const resource of resources) {
         io.say(`${resource.name} (${resource.scope}, capacity ${resource.capacity})`);
-        for (const holder of resource.holders) io.say(`  held by ${holder.agent}${holder.repo ? ` in ${holder.repo}` : ''} since ${holder.since}`);
-        resource.line.forEach((waiter, index) => io.say(`  ${index + 1}. waiting: ${waiter.agent}${waiter.repo ? ` in ${waiter.repo}` : ''}`));
+        for (const holder of resource.holders) io.say(`  held by ${agentDisplayName(agents, ctx.config, holder.agent)}${holder.repo ? ` in ${holder.repo}` : ''} since ${holder.since}`);
+        resource.line.forEach((waiter, index) => io.say(`  ${index + 1}. waiting: ${agentDisplayName(agents, ctx.config, waiter.agent)}${waiter.repo ? ` in ${waiter.repo}` : ''}`));
       }
       return 0;
     },
@@ -1187,7 +1220,7 @@ function readCommands(io, { first, second, rest, values }) {
       const ctx = context(io);
       const me = withBoard(ctx, (board) => whoAmI(ctx, board));
       io.result?.({ ...me, path: ctx.info.root });
-      io.say(`${me.id} (${me.lane} lane${me.route === 'light' ? ', light route' : ''}) at ${ctx.info.root}`);
+      io.say(`${me.displayName} (${me.lane} lane${me.route === 'light' ? ', light route' : ''}) at ${ctx.info.root}`);
       return 0;
     },
     lanes: () => {
@@ -1204,11 +1237,14 @@ function readCommands(io, { first, second, rest, values }) {
     },
     list: () => {
       const ctx = context(io);
-      const items = withBoard(ctx, (board) => store.listItems(board, { lane: first, all: values.all }))
-        .filter((item) => !values.route || item.item_route === values.route);
-      if (values.json) io.result({ items });
-      else if (!items.length) io.say(values.all ? 'no items yet' : 'nothing open; --all shows closed items');
-      else items.forEach((item) => io.say(itemLine(item)));
+      const { items, agents } = withBoard(ctx, (board) => ({
+        items: store.listItems(board, { lane: first, all: values.all }),
+        agents: store.listAgents(board),
+      }));
+      const filtered = items.filter((item) => !values.route || item.item_route === values.route);
+      if (values.json) io.result({ items: filtered });
+      else if (!filtered.length) io.say(values.all ? 'no items yet' : 'nothing open; --all shows closed items');
+      else filtered.forEach((item) => io.say(itemLine(item, (id) => agentDisplayName(agents, ctx.config, id))));
       return 0;
     },
     roadmap: () => {
@@ -1230,18 +1266,20 @@ function readCommands(io, { first, second, rest, values }) {
     show: () => {
       const ctx = context(io);
       const id = idArg(first);
-      const { item, verdicts, moves, related, reviewer } = withBoard(ctx, (board) => ({
+      const { item, verdicts, moves, related, reviewer, agents } = withBoard(ctx, (board) => ({
         item: store.getItem(board, id),
         verdicts: store.verdictsFor(board, id),
         moves: store.events(board, { itemId: id }).filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
         related: store.relatedItems(board, store.getItem(board, id)),
         reviewer: store.reviewHolder(board, store.getItem(board, id)),
+        agents: store.listAgents(board),
       }));
+      const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
       if (values.json) {
         io.result({ ...item, verdicts });
         return 0;
       }
-      io.say(itemLine(item));
+      io.say(itemLine(item, agentName));
       if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
       if (item.item_check) io.say(`check: ${item.item_check}`);
       sayCheckBaseline(io, item);
@@ -1253,18 +1291,18 @@ function readCommands(io, { first, second, rest, values }) {
       if (attempts.length) io.say(`unattended attempts: ${attempts.join(', ')}`);
       for (const event of moves.filter((entry) => entry.event_kind === 'escalate')) {
         const detail = JSON.parse(event.event_detail);
-        io.say(`escalated ${detail.from} -> ${detail.to} by ${event.event_by}${detail.attempt ? `, pinned at ${detail.attempt}` : ''}: ${detail.note.split('\n')[0]}`);
+        io.say(`escalated ${detail.from} -> ${detail.to} by ${agentName(event.event_by)}${detail.attempt ? `, pinned at ${detail.attempt}` : ''}: ${detail.note.split('\n')[0]}`);
       }
       if (item.item_frozen) {
         const frozen = JSON.parse(item.item_frozen);
         io.say(`frozen at claim (${item.item_frozen_digest.slice(0, 12)}):`);
         frozen.rows.forEach((row) => io.say(`  ${row.id}: ${row.text}${row.gate ? `  | gate: ${row.gate}` : ''}`));
       }
-      if (item.item_commit) io.say(`submitted by ${item.item_built_by}${item.item_builder_family ? ` (${item.item_builder_family})` : ''} at ${item.item_commit}`);
-      if (reviewer) io.say(`under review by ${reviewer} until ${item.item_review_until}`);
+      if (item.item_commit) io.say(`submitted by ${agentName(item.item_built_by)}${item.item_builder_family ? ` [family ${item.item_builder_family}]` : ''} at ${item.item_commit}`);
+      if (reviewer) io.say(`under review by ${agentName(reviewer)} until ${item.item_review_until}`);
       // Earlier verdicts as one line each, so an item sent back several times stays short to read
       // (N30); --history prints every note in full.
-      const verdictLine = (verdict) => `${verdict.verdict_decision} ${verdict.verdict_reason} by ${verdict.verdict_by}${verdict.verdict_verifier_family ? ` (${verdict.verdict_verifier_family})` : ''} at ${verdict.verdict_commit.slice(0, 12)}`;
+      const verdictLine = (verdict) => `${verdict.verdict_decision} ${verdict.verdict_reason} by ${agentName(verdict.verdict_by)}${verdict.verdict_verifier_family ? ` [family ${verdict.verdict_verifier_family}]` : ''} at ${verdict.verdict_commit.slice(0, 12)}`;
       const notes = verdicts.map((verdict, index) => (values.history || index === verdicts.length - 1 ? verdict.verdict_note : firstLineOf(verdict.verdict_note)));
       verdicts.forEach((verdict, index) => io.say(`${verdictLine(verdict)}${notes[index] ? `: ${notes[index]}` : ''}`));
       if (notes.some((note, index) => note !== verdicts[index].verdict_note)) io.say(`(earlier verdicts shortened; every note in full: pullboard show ${id} --history)`);
@@ -1285,7 +1323,7 @@ function readCommands(io, { first, second, rest, values }) {
       }
       if (summary.relay.linked) io.say(`relay: sequence ${summary.relay.sequence}; ${summary.relay.behind} pending uploads`);
       const { items, accepted, rejected } = summary.stats;
-      io.say(`${summary.me.id}: ${summary.unread} unread shouts; holding ${summary.mine.map((item) => `#${item.item_id}`).join(', ') || 'nothing'}`);
+      io.say(`${summary.me.displayName}: ${summary.unread} unread shouts; holding ${summary.mine.map((item) => `#${item.item_id}`).join(', ') || 'nothing'}`);
       io.say(`board: ${items.open} open, ${items.claimed} claimed, ${items.submitted} awaiting verification, ${items.verified} verified, ${items.withdrawn} withdrawn`);
       io.say(`verdicts: ${accepted} accepted, ${rejected} rejected`);
       io.say(reviewQueueLine(ctx, summary.reviewQueue));
@@ -1315,34 +1353,40 @@ function readCommands(io, { first, second, rest, values }) {
     },
     inbox: () => {
       const ctx = context(io);
-      const shouts = withBoard(ctx, (board) => store.inbox(board, whoAmI(ctx, board).id));
+      const { shouts, agents } = withBoard(ctx, (board) => ({
+        shouts: store.inbox(board, whoAmI(ctx, board).id),
+        agents: store.listAgents(board),
+      }));
       io.result?.({ shouts });
       if (!shouts.length) io.say('no new shouts');
       for (const shout of shouts) {
         const ask = shout.shout_decision ? `asks for a decision (#${shout.shout_id}; pullboard answer ${shout.shout_id} "..."): ` : '';
         const reply = shout.shout_answers ? `answers #${shout.shout_answers}: ` : '';
-        io.say(`${shout.shout_at.slice(0, 16)}  ${shout.shout_from} -> ${shout.shout_to}: ${ask}${reply}${shout.shout_text}`);
+        const from = agentDisplayName(agents, ctx.config, shout.shout_from);
+        const to = agentDisplayName(agents, ctx.config, shout.shout_to);
+        io.say(`${shout.shout_at.slice(0, 16)}  ${from} -> ${to}: ${ask}${reply}${shout.shout_text}`);
         if (shout.shout_evidence_kind) io.say(`  ${evidenceLine(shout)}`);
       }
       return 0;
     },
     decisions: () => {
       const ctx = context(io);
-      const asks = withBoard(ctx, (board) => {
+      const { asks, agents } = withBoard(ctx, (board) => {
         const me = whoAmI(ctx, board);
         const asPerson = personMode(ctx, me, values);
-        return store.openDecisions(board, asPerson ? 'person' : [me.id, me.lane]);
+        return { asks: store.openDecisions(board, asPerson ? 'person' : [me.id, me.lane]), agents: store.listAgents(board) };
       });
       io.result?.({ decisions: asks });
       if (!asks.length) io.say('no open decisions');
-      for (const ask of asks) io.say(`#${ask.shout_id}  ${ask.shout_from} -> ${ask.shout_to}, ${span(ctx, ask.shout_at)} ago: ${firstLine(ask.shout_text)}`);
+      for (const ask of asks) io.say(`#${ask.shout_id}  ${agentDisplayName(agents, ctx.config, ask.shout_from)} -> ${agentDisplayName(agents, ctx.config, ask.shout_to)}, ${span(ctx, ask.shout_at)} ago: ${firstLine(ask.shout_text)}`);
       return 0;
     },
     ledger: () => {
       const ctx = context(io);
-      const { items, stats } = withBoard(ctx, (board) => ({
+      const { items, stats, agents } = withBoard(ctx, (board) => ({
         items: store.listItems(board, { all: true }),
         stats: store.stats(board),
+        agents: store.listAgents(board),
       }));
       const built = items.filter((item) => item.item_built_by && item.item_status !== 'withdrawn').reverse();
       io.result?.({ items: built, stats });
@@ -1352,16 +1396,16 @@ function readCommands(io, { first, second, rest, values }) {
       io.say('| # | Lane | Item | Spec | Built by | Verified by | Commit | Merged |');
       io.say('| --- | --- | --- | --- | --- | --- | --- | --- |');
       for (const item of built) {
-        io.say(`| ${item.item_id} | ${item.item_lane} | ${cell(item.item_title)} | ${cell(item.item_spec_ids)} | ${item.item_built_by} | ${item.item_verified_by ?? ''} | ${(item.item_commit ?? '').slice(0, 12)} | ${(item.item_merged_commit ?? '').slice(0, 12)} |`);
+        io.say(`| ${item.item_id} | ${item.item_lane} | ${cell(item.item_title)} | ${cell(item.item_spec_ids)} | ${agentDisplayName(agents, ctx.config, item.item_built_by)} | ${agentDisplayName(agents, ctx.config, item.item_verified_by)} | ${(item.item_commit ?? '').slice(0, 12)} | ${(item.item_merged_commit ?? '').slice(0, 12)} |`);
       }
       return 0;
     },
     log: () => {
       const ctx = context(io);
       const itemId = first ? idArg(first) : undefined;
-      const rows = withBoard(ctx, (board) => store.events(board, { itemId }));
+      const { rows, agents } = withBoard(ctx, (board) => ({ rows: store.events(board, { itemId }), agents: store.listAgents(board) }));
       io.result?.({ events: rows });
-      rows.forEach((event) => io.say(`${event.event_at.slice(0, 19)}  ${event.event_by.padEnd(14)} ${event.event_kind.padEnd(9)} ${event.item_id ? `#${event.item_id}` : ''} ${event.event_detail === '{}' ? '' : event.event_detail}`.trimEnd()));
+      rows.forEach((event) => io.say(`${event.event_at.slice(0, 19)}  ${agentDisplayName(agents, ctx.config, event.event_by).padEnd(24)} ${event.event_kind.padEnd(9)} ${event.item_id ? `#${event.item_id}` : ''} ${event.event_detail === '{}' ? '' : event.event_detail}`.trimEnd()));
       return 0;
     },
   };
@@ -1547,7 +1591,8 @@ function sayReviewOffer(ctx, found) {
   const offer = { item: found.item.item_id, command, queue: found.offer.queue, ratio: found.offer.ratio };
   ctx.io.result?.({ item: found.item, review: true, held: false, shared: [], offer, build: found.build });
   ctx.io.say(`${reviewQueueLine(ctx, offer.queue)}; ratio ${offer.ratio} reached (zero active reviewers counts as one)`);
-  ctx.io.say(`review offered: #${found.item.item_id} ${found.item.item_title}, built by ${found.item.item_built_by}; reserve it explicitly: ${command}`);
+  const agents = withBoard(ctx, (board) => store.listAgents(board));
+  ctx.io.say(`review offered: #${found.item.item_id} ${found.item.item_title}, built by ${agentDisplayName(agents, ctx.config, found.item.item_built_by)}; reserve it explicitly: ${command}`);
   if (found.build) ctx.io.say(`build available: #${found.build.item_id} ${found.build.item_title}; claim it explicitly: pullboard next --build`);
   else ctx.io.say('no build is currently free in your lane; this review is available');
 }
@@ -1577,12 +1622,13 @@ async function nextHere(io, values) {
     if (found.item) {
       if (found.offer) { sayReviewOffer(ctx, found); return 0; }
       const item = found.item;
+      const agents = withBoard(ctx, (board) => store.listAgents(board));
       io.result?.({ item, review: Boolean(values.verify), held: Boolean(found.held), shared: found.shared ?? [] });
       const here = cdTo(ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (values.verify) {
         sayCheckBaseline(io, item);
-        io.say(`next to verify: #${item.item_id} ${item.item_title}, built by ${item.item_built_by} at ${item.item_commit.slice(0, 12)}`);
+        io.say(`next to verify: #${item.item_id} ${item.item_title}, built by ${agentDisplayName(agents, ctx.config, item.item_built_by)} at ${item.item_commit.slice(0, 12)}`);
         io.say(`reserved for you until ${item.item_review_until}: another agent's verdict on it is refused until then; pullboard next --verify again renews it`);
         io.say(`check out exactly that commit, here: ${here} git switch --detach ${item.item_commit}`);
         io.say(`then: ${here} pullboard verify ${item.item_id} accept${as} --note "how you proved it", or reject${as} --reason CODE --note "what failed"`);
@@ -1872,7 +1918,9 @@ function workCommands(io, args) {
       const text = [hasRecipient ? second : first, ...(hasRecipient ? rest : [second, ...rest])].filter(Boolean).join(' ');
       const id = await ordered(ctx, board, 'shout', [{ from: me.id, to, text, lanes: laneNames(ctx.config), decision: Boolean(values.decision), evidence }]);
       io.result?.({ id, decision: Boolean(values.decision) });
-      io.say(values.decision ? `asked ${to} for a decision as #${id}; it stays open until someone runs: pullboard answer ${id} "<the decision>"` : `shouted to ${to}`);
+      const agents = store.listAgents(board);
+      const recipient = agents.some((agent) => agent.agent_id === to) ? agentDisplayName(agents, ctx.config, to) : to;
+      io.say(values.decision ? `asked ${recipient} for a decision as #${id}; it stays open until someone runs: pullboard answer ${id} "<the decision>"` : `shouted to ${recipient}`);
       return 0;
     }),
     answer: () => act(async (ctx, board, me) => {
@@ -1883,9 +1931,9 @@ function workCommands(io, args) {
       io.result?.({ id, answers: ask.shout_id });
       if (asPerson) {
         const originalAsker = ask.shout_answers === null ? ask.shout_from : store.getShout(board, ask.shout_answers).shout_from;
-        io.say(`person answered #${ask.shout_id}; notified ${originalAsker} as #${id}`);
+        io.say(`person answered #${ask.shout_id}; notified ${agentDisplayName(store.listAgents(board), ctx.config, originalAsker)} as #${id}`);
       } else {
-        io.say(`answered #${ask.shout_id} to ${ask.shout_from} as #${id}`);
+        io.say(`answered #${ask.shout_id} to ${agentDisplayName(store.listAgents(board), ctx.config, ask.shout_from)} as #${id}`);
       }
       return 0;
     }),
