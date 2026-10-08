@@ -346,7 +346,10 @@ async function catchUp(root, file, state, io) {
     });
   }
   state.sequence = localRecords(root, appliedSequence);
-  if (state.pending?.move && localRecords(root, (board) => engineReceipt(board, state.pending.move.id))) delete state.pending;
+  if (state.pending?.move && localRecords(root, (board) => engineReceipt(board, state.pending.move.id))) {
+    state.recovered = state.pending;
+    delete state.pending;
+  }
   saveLink(file, state);
 }
 
@@ -372,6 +375,35 @@ async function sendPending(root, file, state, io) {
   if (state.pending) throw new Refused('RELAY_BUSY', 'the relay order stayed busy; retry this command after other clients finish');
 }
 
+/** Compare caller intent without executing frozen callbacks or allocating another operation id. */
+function operationIntent(operation, args) {
+  const values = args.map((value, index) => {
+    if (!['claim', 'refreeze'].includes(operation) || index !== 1 || !value || typeof value !== 'object') return value;
+    const options = { ...value };
+    delete options.freeze;
+    delete options.frozen;
+    delete options.freezeError;
+    return options;
+  });
+  return JSON.stringify({ operation, args: values }, (_key, value) => typeof value === 'function' ? undefined : value);
+}
+
+/** Keep a recovered outcome until its caller repeats the interrupted operation to receive it. */
+function recoveredMove(root, state, operation, args) {
+  if (!state.recovered) return null;
+  const recovered = state.recovered;
+  const intent = recovered.intent ?? operationIntent(recovered.move.operation, recovered.move.args);
+  if (intent !== operationIntent(operation, args)) {
+    throw new Refused('RELAY_RETRY_PENDING', 'the previous move reached the relay; repeat that interrupted command to receive its original outcome before sending a different move');
+  }
+  const receipt = localRecords(root, (board) => engineReceipt(board, recovered.move.id));
+  if (!receipt) throw new Refused('RELAY_RESPONSE', 'the recovered operation has no replay receipt; fetch a consistent relay snapshot before retrying');
+  if (receipt.move !== JSON.stringify(recovered.move)) {
+    throw new Refused('RELAY_MOVE', 'the recovered operation differs from its durable receipt; restore consistent relay metadata before retrying');
+  }
+  return recovered.move;
+}
+
 /** Send one board operation before executing it locally, and report its canonical engine result. */
 export async function relayOperation(root, operation, args, io) {
   const file = linkFile(root);
@@ -384,13 +416,25 @@ export async function relayOperation(root, operation, args, io) {
       delete state.pending;
       saveLink(file, state);
     }
-    const move = localRecords(root, (board) => prepareEngineMove(board, operation, args));
-    const sequence = state.sequence + 1;
-    state.pending = { move, sequence, sealed: await sealedRecord(readBoardKey(state.board), move, state, 'move', sequence) };
-    saveLink(file, state);
-    await sendPending(root, file, state, io);
+    let move = recoveredMove(root, state, operation, args);
+    if (!move) {
+      move = localRecords(root, (board) => prepareEngineMove(board, operation, args));
+      const sequence = state.sequence + 1;
+      state.pending = { move, intent: operationIntent(operation, args), sequence,
+        sealed: await sealedRecord(readBoardKey(state.board), move, state, 'move', sequence) };
+      saveLink(file, state);
+      try { await sendPending(root, file, state, io); }
+      catch (error) {
+        if (!['RELAY_UNAVAILABLE', 'RELAY_RESPONSE'].includes(error.code)) throw error;
+        // A lost acknowledgement can be recovered now without asking the caller to retry side effects.
+        try { await catchUp(root, file, state, io); } catch { throw error; }
+        if (!localRecords(root, (board) => engineReceipt(board, move.id))) throw error;
+      }
+    }
     const receipt = localRecords(root, (board) => engineReceipt(board, move.id));
     if (!receipt) throw new Refused('RELAY_RESPONSE', 'the acknowledged operation has no replay receipt; fetch a consistent relay snapshot');
+    delete state.recovered;
+    saveLink(file, state);
     // A phone can read a compacted checkpoint; failed presentation uploads do not undo the move.
     try { await publishCheckpoint(root, file, state, io); }
     catch (error) { if (!(error instanceof Refused)) throw error; io.err(`pullboard: ${error.message}`); }
@@ -431,6 +475,11 @@ export async function syncRelay(root, io) {
         behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)) };
     }
   });
+}
+
+/** Expose only an unreported operation descriptor so CLI preconditions cannot strand its outcome. */
+export function relayRecovered(root) {
+  return loadLink(linkFile(root))?.recovered?.move ?? null;
 }
 
 /** Read the local link and lag without opening a network connection or revealing its relay token. */

@@ -72,6 +72,8 @@ async function relayServer(t, directory, auth) {
   let api;
   let refuseMoves = false;
   let loseReply = false;
+  let refuseReads = false;
+  let blockAfterDrop = false;
   let now = Date.now();
   const calls = [];
   const uploads = [];
@@ -84,9 +86,13 @@ async function relayServer(t, directory, auth) {
       res.end = (chunk, ...args) => {
         const document = JSON.parse(String(chunk));
         if (document.event) uploads.push({ sequence: document.event.event_id, sealed: document.event.sealed });
-        if (drop && document.event) { res.destroy(); return res; }
+        if (drop && document.event) { refuseReads = blockAfterDrop; res.destroy(); return res; }
         return end(chunk, ...args);
       };
+    }
+    if (refuseReads && req.method === 'GET' && /\/events\?/.test(req.url)) {
+      res.writeHead(503, { 'content-type': 'application/json' }).end('{"version":1,"error":{"code":"TEMPORARY","message":"retry","next":"retry"}}');
+      return;
     }
     if (refuseMoves && req.method === 'POST' && /\/api\/v1\/boards\/[^/]+\/moves$/.test(req.url)) {
       for await (const _chunk of req) { /* consume sealed bytes without logging them */ }
@@ -109,7 +115,7 @@ async function relayServer(t, directory, auth) {
     server.closeAllConnections();
     await new Promise((ready) => server.close(ready));
   });
-  return { origin, calls, uploads, failMoves(value) { refuseMoves = value; }, dropNextReply() { loseReply = true; }, advance(days) { now = Date.now() + days * 86400000; } };
+  return { origin, calls, uploads, failMoves(value) { refuseMoves = value; }, dropNextReply({ offline = false } = {}) { loseReply = true; blockAfterDrop = offline; }, failReads(value) { refuseReads = value; }, advance(days) { now = Date.now() + days * 86400000; } };
 }
 
 test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offline moves, and off preserves the board', async (t) => {
@@ -252,11 +258,26 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   assert.equal(caughtUp.relay.behind, 0, 'the next reachable command recovers the durable send');
   const recoveredRows = localEvents(boardFile).slice(beforeOffline.length);
   assert.deepEqual(recoveredRows, [], 'offline refusal cannot become a later unsolicited move');
-  relay.dropNextReply();
+  relay.dropNextReply({ offline: true });
   await assert.rejects(cli(root, relayEnv, 'add', lane, 'committed reply lost'), /RELAY_UNAVAILABLE/);
+  const durableId = JSON.parse(readFileSync(linkFile, 'utf8')).pending.move.id;
+  await cli(root, relayEnv, 'status');
+  assert.equal(JSON.parse(readFileSync(linkFile, 'utf8')).pending.move.id, durableId,
+    'offline reads preserve the exact uncertain operation id');
+  relay.failReads(false);
   const recovered = await cli(root, relayEnv, 'status');
   assert.equal(recovered.relay.behind, 0);
   assert.equal(recovered.relay.sequence, 3);
+  const different = await cliResult(root, relayEnv, 'add', lane, 'different interrupted intent');
+  assert.equal(different.status, 1);
+  assert.equal(different.document.error.code, 'RELAY_RETRY_PENDING');
+  const sentBeforeRetry = relay.uploads.length;
+  const repeated = await cli(root, relayEnv, 'add', lane, 'committed reply lost');
+  assert.equal(repeated.item.item_title, 'committed reply lost');
+  assert.equal(repeated.item.item_id, 3, 'retry reports the original allocated item id');
+  assert.equal(relay.uploads.length, sentBeforeRetry, 'retry never creates another relay position');
+  assert.equal(JSON.parse(readFileSync(linkFile, 'utf8')).recovered, undefined,
+    'the original outcome is consumed only when its command reports it');
   const lostRows = localEvents(boardFile).filter((row) => row.event_kind === 'add');
   assert.equal(lostRows.length, 3, 'initial, ordered and lost-reply items each apply once');
   const uniqueMoves = new Set();
@@ -297,12 +318,12 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   assert.equal(existsSync(keyFile), false, 'successful off removes this device copy of the board key');
 });
 
-test('[H3,H16] two cloned linked replicas order competing claims and retain the same refusal receipt', { timeout: 240_000 }, async (t) => {
+test('[H3,H16] three cloned linked replicas order competing claims and recover lost replies once', { timeout: 240_000 }, async (t) => {
   const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-relay-clone-race-')));
   const seed = join(scratch, 'seed');
-  const clones = [join(scratch, 'clone-a'), join(scratch, 'clone-b')];
-  const worktrees = [join(scratch, 'work-a'), join(scratch, 'work-b')];
-  const homes = [join(scratch, 'home-a'), join(scratch, 'home-b')];
+  const clones = [join(scratch, 'clone-a'), join(scratch, 'clone-b'), join(scratch, 'clone-c')];
+  const worktrees = [join(scratch, 'work-a'), join(scratch, 'work-b'), join(scratch, 'work-c')];
+  const homes = [join(scratch, 'home-a'), join(scratch, 'home-b'), join(scratch, 'home-c')];
   const privateBin = join(scratch, 'path');
   const relayDirectory = join(scratch, 'relay');
   mkdirSync(seed);
@@ -534,6 +555,73 @@ test('[H3,H16] two cloned linked replicas order competing claims and retain the 
     assert.equal(result.event.item_id, result.result.item.item_id, 'the API returns its own event despite catching up an earlier add');
     assert.equal(result.result.item.item_title, 'This API item');
   } finally { await localApi.close(); }
+
+  const beforeDropped = relay.uploads.length;
+  relay.dropNextReply({ offline: true });
+  const lostAdd = await cliResult(clones[0], envs[0], 'add', 'web', 'Lost clone reply');
+  assert.equal(lostAdd.status, 1);
+  assert.equal(lostAdd.document.error.code, 'RELAY_UNAVAILABLE');
+  relay.failReads(false);
+  await Promise.all(clones.map((root, index) => cli(root, envs[index], 'status')));
+  const retriedAdd = await cli(clones[0], envs[0], 'add', 'web', 'Lost clone reply');
+  assert.equal(relay.uploads.length, beforeDropped + 1, 'three-clone recovery never posts a second operation');
+  const retriedId = retriedAdd.item.item_id;
+  for (const file of replicaFiles) {
+    assert.equal(localEvents(file).filter((event) => event.event_kind === 'add' && event.item_id === retriedId).length, 1,
+      'each replica applies the recovered add once');
+  }
+  assert.deepEqual(localEvents(replicaFiles[0]), localEvents(replicaFiles[1]));
+  assert.deepEqual(localEvents(replicaFiles[1]), localEvents(replicaFiles[2]));
+
+  await cli(worktrees[0], envs[0], 'claim', '1');
+  const beforeDenied = relay.uploads.length;
+  relay.dropNextReply({ offline: true });
+  const lostDenial = await cliResult(worktrees[1], envs[1], 'claim', '1');
+  assert.equal(lostDenial.status, 1);
+  assert.equal(lostDenial.document.error.code, 'RELAY_UNAVAILABLE');
+  relay.failReads(false);
+  await cli(clones[1], envs[1], 'status');
+  const pendingState = JSON.parse(readFileSync(join(commonDir(clones[1], envs[1]), 'pullboard', 'relay.json'), 'utf8'));
+  const recordedDenial = receipts(replicaFiles[1]).find((receipt) => JSON.parse(receipt.move).id === pendingState.recovered.move.id);
+  assert.equal(recordedDenial.outcome.error.code, 'HELD');
+  const retriedDenial = await cliResult(worktrees[1], envs[1], 'claim', '1');
+  assert.equal(retriedDenial.status, 1);
+  assert.deepEqual(retriedDenial.document.error, recordedDenial.outcome.error, 'retry reports the original canonical refusal');
+  assert.equal(relay.uploads.length, beforeDenied + 1, 'a refused move also keeps its original relay position');
+  await cli(worktrees[0], envs[0], 'release', '1');
+  await cli(worktrees[0], envs[0], 'claim', '2');
+  relay.dropNextReply({ offline: true });
+  const lostSubmit = await cliResult(worktrees[0], envs[0], 'submit', '2');
+  assert.equal(lostSubmit.status, 1);
+  assert.equal(lostSubmit.document.error.code, 'RELAY_UNAVAILABLE');
+  relay.failReads(false);
+  await cli(clones[0], envs[0], 'status');
+  const beforeSubmitRetry = relay.uploads.length;
+  const originalCommit = gitAt(worktrees[0], envs[0], 'rev-parse', 'HEAD');
+  const retriedSubmit = await cli(worktrees[0], envs[0], 'submit', '2');
+  assert.equal(retriedSubmit.commit, originalCommit);
+  assert.equal(retriedSubmit.gate.green, true);
+  assert.equal(relay.uploads.length, beforeSubmitRetry, 'submitted-state preconditions cannot duplicate or strand recovery');
+  assert.equal(gitAt(worktrees[0], envs[0], 'rev-parse', retriedSubmit.pin), originalCommit);
+
+  relay.dropNextReply({ offline: true });
+  const lostVerify = await cliResult(worktrees[1], envs[1], 'verify', '2', 'accept', '--note', 'Lost verdict acknowledgement');
+  assert.equal(lostVerify.status, 1);
+  assert.equal(lostVerify.document.error.code, 'RELAY_UNAVAILABLE');
+  relay.failReads(false);
+  await cli(clones[1], envs[1], 'status');
+  const beforeVerifyRetry = relay.uploads.length;
+  const retriedVerify = await cli(worktrees[1], envs[1], 'verify', '2', 'accept', '--note', 'Lost verdict acknowledgement');
+  assert.equal(retriedVerify.decision, 'ACCEPT');
+  assert.equal(relay.uploads.length, beforeVerifyRetry, 'verified-state preconditions also preserve the original outcome');
+
+  const beforeAutomatic = relay.uploads.length;
+  relay.dropNextReply();
+  const automatic = await cli(clones[2], envs[2], 'add', 'web', 'Automatically recovered reply');
+  assert.equal(automatic.item.item_title, 'Automatically recovered reply');
+  assert.equal(relay.uploads.length, beforeAutomatic + 1, 'automatic recovery keeps one ordered move');
+  assert.equal(JSON.parse(readFileSync(join(commonDir(clones[2], envs[2]), 'pullboard', 'relay.json'), 'utf8')).recovered,
+    undefined, 'automatic success consumes its recovered outcome');
 
   await Promise.all(worktrees.map((root, index) => cli(root, envs[index], 'status')));
   const updated = store.openBoard(replicaFiles[0]);

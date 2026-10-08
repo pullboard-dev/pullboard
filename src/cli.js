@@ -60,7 +60,7 @@ import { mainPolicy, itemPolicy, submissionPaths, frozenCheck, checkAtCommit, de
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
-import { relayLinked, relayOff, relayOn, relayOperation, relayStatus, syncRelay } from './relay.js';
+import { relayLinked, relayOff, relayOn, relayOperation, relayRecovered, relayStatus, syncRelay } from './relay.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
@@ -1401,6 +1401,15 @@ function readCommands(io, { first, second, rest, values }) {
  */
 async function submitHere(ctx, id) {
   const { root } = ctx.info;
+  const recovered = relayRecovered(root);
+  if (recovered?.operation === 'submit' && recovered.args[0] === id) {
+    const me = withBoard(ctx, (board) => whoAmI(ctx, board));
+    if (recovered.args[1]?.agentId === me.id) {
+      await withBoard(ctx, async (board) => await ordered(ctx, board, 'submit', recovered.args));
+      return reportSubmission(ctx, id, recovered.args[1].commit,
+        { green: true, report: 'recovered the original submission; its gate ran before the original send' });
+    }
+  }
   const held = withBoard(ctx, (board) => {
     const me = whoAmI(ctx, board);
     const item = store.getItem(board, id);
@@ -1455,10 +1464,16 @@ async function submitHere(ctx, id) {
     );
   }
   await withBoard(ctx, async (board) => await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit }]));
+  return reportSubmission(ctx, id, commit, { green: gate.isGreen, report: gateReport(gate) });
+}
+
+/** Report and pin the original submitted commit, including a recovered acknowledged outcome. */
+function reportSubmission(ctx, id, commit, gate) {
+  const { root } = ctx.info;
   const pin = `refs/pullboard/items/${id}/${commit.slice(0, 12)}`;
   git(root, ['update-ref', pin, commit]);
-  ctx.io.result?.({ id, commit, pin, gate: { green: gate.isGreen, report: gateReport(gate) } });
-  ctx.io.say(`submitted #${id} at ${commit.slice(0, 12)}; ${gateReport(gate)}`);
+  ctx.io.result?.({ id, commit, pin, gate });
+  ctx.io.say(`submitted #${id} at ${commit.slice(0, 12)}; ${gate.report}`);
   ctx.io.say(`pinned as ${pin}, so this work can't be lost; keep your worktree until it is merged`);
   ctx.io.say(`next: another agent checks out ${commit.slice(0, 12)} and runs: pullboard verify ${id} accept|reject`);
   return 0;
@@ -1480,6 +1495,13 @@ async function verifyHere(ctx, id, { second, values }) {
   const result = await withBoard(ctx, async (board) => {
     checkMainVerifier(ctx, board, values);
     const me = whoAmI(ctx, board);
+    const recovered = relayRecovered(root);
+    const previous = recovered?.args[1];
+    if (recovered?.operation === 'verify' && recovered.args[0] === id && previous?.agentId === me.id &&
+        previous.decision === decision && previous.reason === values.reason &&
+        previous.note === (textArg(ctx.io, values, 'note') ?? '')) {
+      return await ordered(ctx, board, 'verify', recovered.args);
+    }
     const item = store.getItem(board, id);
     if (item.item_status !== 'submitted') {
       throw new Refused('NOT_SUBMITTED', `item #${id} is ${item.item_status}, not submitted`);
