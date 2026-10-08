@@ -42,6 +42,7 @@ import {
   unmetRows,
 } from './spec.js';
 import { briefFiles } from './brief.js';
+import { checkBaseline, sayCheckBaseline } from './check-baseline.js';
 import { runItems } from './run.js';
 import { parseProblems, sweepItems } from './sweep.js';
 import { renderSpecView } from './view.js';
@@ -1036,6 +1037,7 @@ function readCommands(io, { first, second, rest, values }) {
       io.say(itemLine(item));
       if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
       if (item.item_check) io.say(`check: ${item.item_check}`);
+      sayCheckBaseline(io, item);
       sayBrief(io, item.item_brief);
       for (const { item: other, shared } of related) {
         io.say(`related: #${other.item_id} ${other.item_title}: ${shared.slice(0, 4).join(', ')}${shared.length > 4 ? ', ...' : ''} (git log -p -1 ${other.item_commit.slice(0, 12)} -- ${shared[0]})`);
@@ -1347,6 +1349,7 @@ async function nextHere(io, values) {
       const here = cdTo(ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (values.verify) {
+        sayCheckBaseline(io, item);
         io.say(`next to verify: #${item.item_id} ${item.item_title}, built by ${item.item_built_by} at ${item.item_commit.slice(0, 12)}`);
         io.say(`reserved for you until ${item.item_review_until}: another agent's verdict on it is refused until then; pullboard next --verify again renews it`);
         io.say(`check out exactly that commit, here: ${here} git switch --detach ${item.item_commit}`);
@@ -1498,7 +1501,7 @@ function workCommands(io, args) {
       const parentId = values.parent ? idArg(values.parent, 'a parent item id') : null;
       const after = idList(values.after).map((text) => idArg(text, 'an item id after --after'));
       const title = [second, ...rest].filter(Boolean).join(' ');
-      const id = await ordered(ctx, board, 'addItem', [{
+      const item = {
         by: me.id,
         lane: first,
         title,
@@ -1509,23 +1512,31 @@ function workCommands(io, args) {
         brief: briefInLane(ctx, first, briefArg(io, values) ?? ''),
         route: values.route ?? 'strong',
         check: values.check,
-      }]);
+      };
+      const { command } = store.validateItemAddition(board, item);
+      if (command) item.checkBaseline = checkBaseline(ctx.info.root, command);
+      const id = await ordered(ctx, board, 'addItem', [item]);
       io.result?.({ item: store.getItem(board, id) });
       io.say(`#${id}`);
+      sayCheckBaseline(io, store.getItem(board, id));
       return 0;
     }),
     edit: () => act(async (ctx, board, me) => {
       const id = idArg(first);
       const brief = briefArg(io, values);
-      await ordered(ctx, board, 'editItem', [id, {
+      const change = {
         agentId: me.id,
         brief: brief === undefined ? undefined : briefInLane(ctx, store.getItem(board, id).item_lane, brief),
         route: values.route,
         criterion: values.criterion,
         check: values.check,
-      }]);
+      };
+      const { item, command } = store.validateItemEdit(board, id, change);
+      if (command && command !== item.item_check) change.checkBaseline = checkBaseline(ctx.info.root, command);
+      await ordered(ctx, board, 'editItem', [id, change]);
       io.result?.({ item: store.getItem(board, id) });
       io.say(`edited #${id}`);
+      sayCheckBaseline(io, store.getItem(board, id));
       return 0;
     }),
     escalate: () => act(async (ctx, board, me) => {

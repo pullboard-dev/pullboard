@@ -560,27 +560,10 @@ function routeOf(board, agentId) {
  * @param {{ by: string, lane: string, title: string, criterion?: string, specIds?: string[], parentId?: number | null, after?: number[], brief?: string, route?: string, check?: string }} item
  * @returns {number} The new item's id.
  */
-export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong', check }) {
-  const command = coordinatorCheck(by, check) ?? '';
-  const cleanTitle = title.trim();
-  if (!cleanTitle) throw new Refused('NO_TITLE', 'an item needs a title');
-  checkRoute(route);
-  checkRouted({ brief: brief.trim(), route, criterion, check: command });
+export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong', check, checkBaseline }) {
   return atomic(board, () => {
-    if (parentId !== null) {
-      const parent = itemById(board, parentId);
-      if (parent.item_lane !== lane) {
-        throw new Refused('PARENT_LANE', `a child item sits in its parent's lane (${parent.item_lane})`);
-      }
-      if (['verified', 'withdrawn'].includes(parent.item_status)) {
-        throw new Refused('PARENT_CLOSED', `item #${parentId} is ${parent.item_status}`);
-      }
-    }
-    for (const dependency of after) {
-      if (itemById(board, dependency).item_status === 'withdrawn') {
-        throw new Refused('WITHDRAWN', `item #${dependency} is withdrawn; nothing can wait on it`);
-      }
-    }
+    const { command, cleanTitle } = validateItemAddition(board, { by, lane, title, criterion, parentId, after, brief, route, check });
+    const baseline = normalizeCheckBaseline(by, command, checkBaseline);
     const at = now(board);
     const result = board.db
       .prepare(
@@ -590,9 +573,34 @@ export function addItem(board, { by, lane, title, criterion = '', specIds = [], 
       )
       .run(parentId, lane, cleanTitle, criterion.trim(), specIds.join(','), after.join(','), brief.trim(), route, command, by, at, at);
     const id = Number(result.lastInsertRowid);
-    logEvent(board, by, 'add', id, { lane, specIds, after, route });
+    saveCheckBaseline(board, id, baseline);
+    logEvent(board, by, 'add', id, { lane, specIds, after, route, ...(baseline ? { checkBaseline: baseline } : {}) });
     return id;
   });
+}
+
+/** Validate an addition before its sender runs a new check, and again when the ordered move applies. */
+export function validateItemAddition(board, { by, lane, title, criterion = '', parentId = null, after = [], brief = '', route = 'strong', check }) {
+  const command = coordinatorCheck(by, check) ?? '';
+  const cleanTitle = title.trim();
+  if (!cleanTitle) throw new Refused('NO_TITLE', 'an item needs a title');
+  checkRoute(route);
+  checkRouted({ brief: brief.trim(), route, criterion, check: command });
+  if (parentId !== null) {
+    const parent = itemById(board, parentId);
+    if (parent.item_lane !== lane) {
+      throw new Refused('PARENT_LANE', `a child item sits in its parent's lane (${parent.item_lane})`);
+    }
+    if (['verified', 'withdrawn'].includes(parent.item_status)) {
+      throw new Refused('PARENT_CLOSED', `item #${parentId} is ${parent.item_status}`);
+    }
+  }
+  for (const dependency of after) {
+    if (itemById(board, dependency).item_status === 'withdrawn') {
+      throw new Refused('WITHDRAWN', `item #${dependency} is withdrawn; nothing can wait on it`);
+    }
+  }
+  return { command, cleanTitle };
 }
 
 /**
@@ -606,51 +614,96 @@ export function addItem(board, { by, lane, title, criterion = '', specIds = [], 
  * @param {number} id
  * @param {{ agentId: string, brief?: string, route?: string, criterion?: string, check?: string }} change
  */
-export function editItem(board, id, { agentId, brief, route, criterion, check }) {
-  const command = coordinatorCheck(agentId, check);
-  if ([brief, route, criterion, check].every((value) => value === undefined)) {
-    throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "..." or --check "<command>"');
-  }
+export function editItem(board, id, { agentId, brief, route, criterion, check, checkBaseline }) {
   atomic(board, () => {
-    const item = current(board, itemById(board, id));
-    if (agentId !== COORDINATOR && agentId !== item.item_created_by) {
-      throw new Refused('NOT_YOURS', `only the coordinator or ${item.item_created_by}, who added #${id}, edits it; shout them instead`);
-    }
-    if (['verified', 'withdrawn'].includes(item.item_status)) {
-      throw new Refused('CLOSED', `item #${id} is ${item.item_status}`);
-    }
-    const next = {
-      item_brief: brief === undefined ? item.item_brief : brief.trim(),
-      item_route: route ?? item.item_route,
-      item_criterion: criterion === undefined ? item.item_criterion : criterion.trim(),
-      item_check: command === undefined ? item.item_check : command,
-    };
-    checkRoute(next.item_route);
-    const moved = ['item_route', 'item_criterion', 'item_check'].filter((key) => next[key] !== item[key]);
-    if (moved.length && item.item_status !== 'open') {
-      throw new Refused('HELD', `item #${id} is ${item.item_status}; change its route, criterion or check only while it is open`);
-    }
-    checkRouted({ brief: next.item_brief, route: next.item_route, criterion: next.item_criterion, check: next.item_check });
-    const unfreeze = next.item_criterion !== item.item_criterion || next.item_check !== item.item_check;
+    const { item, next, command, unfreeze } = validateItemEdit(board, id, { agentId, brief, route, criterion, check });
+    const baseline = normalizeCheckBaseline(agentId, command, checkBaseline);
     setItem(board, id, { ...next, ...(unfreeze ? { item_frozen: null, item_frozen_digest: null } : {}) });
+    if (baseline || next.item_check !== item.item_check) saveCheckBaseline(board, id, baseline);
     logEvent(board, agentId, 'edit', id, {
       ...(next.item_brief !== item.item_brief ? { brief: `${next.item_brief.length} characters` } : {}),
       ...(next.item_route !== item.item_route ? { route: next.item_route } : {}),
       ...(next.item_criterion !== item.item_criterion ? { criterion: next.item_criterion } : {}),
       ...(command !== undefined ? { check: next.item_check } : {}),
+      ...(baseline ? { checkBaseline: baseline } : {}),
       ...(unfreeze && item.item_frozen_digest ? { unfrozen: item.item_frozen_digest } : {}),
     });
   });
 }
 
+/** Validate an edit without side effects, so a refused change never starts a shell baseline. */
+export function validateItemEdit(board, id, { agentId, brief, route, criterion, check }) {
+  const command = coordinatorCheck(agentId, check);
+  if ([brief, route, criterion, check].every((value) => value === undefined)) {
+    throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "..." or --check "<command>"');
+  }
+  const item = current(board, itemById(board, id));
+  if (agentId !== COORDINATOR && agentId !== item.item_created_by) {
+    throw new Refused('NOT_YOURS', `only the coordinator or ${item.item_created_by}, who added #${id}, edits it; shout them instead`);
+  }
+  if (['verified', 'withdrawn'].includes(item.item_status)) {
+    throw new Refused('CLOSED', `item #${id} is ${item.item_status}`);
+  }
+  const next = {
+    item_brief: brief === undefined ? item.item_brief : brief.trim(),
+    item_route: route ?? item.item_route,
+    item_criterion: criterion === undefined ? item.item_criterion : criterion.trim(),
+    item_check: command === undefined ? item.item_check : command,
+  };
+  checkRoute(next.item_route);
+  const moved = ['item_route', 'item_criterion', 'item_check'].filter((key) => next[key] !== item[key]);
+  if (moved.length && item.item_status !== 'open') {
+    throw new Refused('HELD', `item #${id} is ${item.item_status}; change its route, criterion or check only while it is open`);
+  }
+  checkRouted({ brief: next.item_brief, route: next.item_route, criterion: next.item_criterion, check: next.item_check });
+  const unfreeze = next.item_criterion !== item.item_criterion || next.item_check !== item.item_check;
+  return { item, next, command, unfreeze };
+}
+
 /** Normalize an explicitly supplied check only when its author is the coordinator [V2]. */
-function coordinatorCheck(agentId, command) {
+export function coordinatorCheck(agentId, command) {
   if (command === undefined) return undefined;
   if (agentId !== COORDINATOR) {
     throw new Refused('COORDINATOR_CHECK', 'only the coordinator sets or edits an item check; ask your coordinator to supply --check');
   }
   if (typeof command !== 'string') throw new Refused('BAD_CHECK', 'an item check is a command string; ask your coordinator to supply --check "<command>"');
   return command.trim();
+}
+
+/** Validate captured baseline data without asking a replica to run Git or a shell [V2,H16]. */
+function normalizeCheckBaseline(agentId, command, baseline) {
+  if (baseline === undefined) return undefined;
+  coordinatorCheck(agentId, command ?? '');
+  if (!command || !baseline || typeof baseline !== 'object' || Array.isArray(baseline)
+    || baseline.command !== command || !['green', 'red', 'unavailable'].includes(baseline.result)
+    || !(baseline.main === null || typeof baseline.main === 'string' && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(baseline.main))
+    || (baseline.result !== 'unavailable' && baseline.main === null)
+    || (baseline.reason !== undefined && typeof baseline.reason !== 'string')
+    || (baseline.seconds !== undefined && (!Number.isSafeInteger(baseline.seconds) || baseline.seconds < 0))) {
+    throw new Refused('BAD_CHECK_BASELINE', 'the check baseline must describe this command at a main commit; set --check again from the coordinator');
+  }
+  return {
+    command, main: baseline.main, result: baseline.result,
+    ...(baseline.reason === undefined ? {} : { reason: baseline.reason }),
+    ...(baseline.seconds === undefined ? {} : { seconds: baseline.seconds }),
+    ...(baseline.result === 'green' ? { warning: 'CRITERION_PROVES_NOTHING' } : {}),
+  };
+}
+
+/** Store or clear an item's observation atomically with its check and immutable audit event. */
+function saveCheckBaseline(board, id, baseline) {
+  const key = `item_check_baseline_${id}`;
+  if (!baseline) board.db.prepare('DELETE FROM board_meta WHERE meta_key = ?').run(key);
+  else board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
+    .run(key, JSON.stringify(baseline));
+}
+
+/** Read an observation only when it still describes the item's current check command. */
+function itemCheckBaseline(board, item) {
+  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`item_check_baseline_${item.item_id}`);
+  if (!row) return null;
+  const baseline = JSON.parse(row.meta_value);
+  return baseline.command === item.item_check ? baseline : null;
 }
 
 /** Read the current check's setter from immutable edits, or its original item author [V2]. */
@@ -1236,7 +1289,9 @@ export function listItems(board, { lane, all = false } = {}) {
  * @returns {any}
  */
 export function getItem(board, id) {
-  return current(board, itemById(board, id));
+  const item = current(board, itemById(board, id));
+  const baseline = itemCheckBaseline(board, item);
+  return baseline ? { ...item, item_check_baseline: baseline } : item;
 }
 
 /**
