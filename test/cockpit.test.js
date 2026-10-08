@@ -664,7 +664,7 @@ test("the sidebar shows each product's progress [N28]", async () => {
  * stay it began, with any running age read as its text.
  */
 function timelineRows(html) {
-  return [...html.matchAll(/<li class="([^"]*)"><time>([^<]*)<\/time><span><b>([^<]*)<\/b> ([^<]*)<\/span>(?:<small>(.*?)<\/small>)?<\/li>/g)].map((match) => ({
+  return [...html.matchAll(/<li class="([^"]*)"[^>]*><time>([^<]*)<\/time><span><b>([^<]*)<\/b> ([^<]*)<\/span>(?:<small>(.*?)<\/small>)?<\/li>/g)].map((match) => ({
     dot: match[1],
     time: match[2],
     event: `${match[3]} ${match[4]}`,

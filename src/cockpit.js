@@ -257,7 +257,6 @@ function replay(item) {
   };
   for (const e of item.history) {
     const verb = e.kind === 'renew' ? 'claim' : e.kind;
-    if (e.kind !== 'add' && !FLOW.moves.some((move) => move.verb === verb)) continue;
     // A renew is the claim that stays claimed; a claim logged as such is the one that arrives.
     const fits = (s) => FLOW.moves.find((m) => m.verb === verb && m.from.includes(s) && (verb !== 'claim' || (e.kind === 'renew') === (m.to === s)));
     const lapse = fits(at) ? null : clock.find((m) => m.from.includes(at) && fits(m.to));
@@ -295,10 +294,10 @@ const span = (ms) => {
  * ends or begins at one says its length was not logged rather than guess it.
  */
 function timeline(item) {
-  const steps = replay(item);
   const entries = Array.isArray(item.thread) && item.thread.length
     ? item.thread
-    : item.history.map((entry, eventId) => ({ type: 'move', eventId: eventId + 1, ...entry }));
+    : item.history.filter((entry) => entry.kind !== 'fact').map((entry, eventId) => ({ type: 'move', eventId: eventId + 1, ...entry }));
+  const steps = replay({ ...item, history: entries.filter((entry) => entry.type === 'move').map(({ kind, by, at }) => ({ kind, by, at })) });
   const facts = entries.filter((entry) => entry.type === 'fact');
   const replacements = new Map(facts.filter((fact) => fact.supersedes).map((fact) => [fact.supersedes, fact]));
   const rows = [];
