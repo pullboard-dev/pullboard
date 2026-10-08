@@ -73,6 +73,8 @@ The board file is in the repository's Git common directory at `.git/pullboard/bo
 | `move engine` | `1` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
+The move-engine bump rule starts with the first release that includes engine 1. Changes developed together before that release form the initial engine 1.
+
 A board without `event_log_version` is a legacy version-0 event log. Opening an older board writes the current marker without replacing its events. Opening a newer event log refuses with `EVENT_LOG_VERSION`, naming the stored and supported versions and asking you to upgrade Pullboard. `doctor` reports that version conflict read-only.
 
 A native board export includes the marker in its `board_meta` rows. Import refuses a newer event-log version before changing the destination; an older export upgrades its marker in place. Static view exports put `eventLogVersion` beside the data in both `state.json` and `events.json`, separately from the API envelope's `version`.
@@ -236,7 +238,7 @@ The `event` table is a SQLite schema object governed by `SCHEMA_VERSION`; its ap
 | `claim` | builder | `leaseUntil`, `digest` |
 | `renew` | builder | `leaseUntil`, `digest` |
 | `release` | builder | — |
-| `submit` | builder | `commit`, `tree` |
+| `submit` | builder | `commit`, `tree`, `policyCommit` |
 | `reserve` | reviewer | `until` |
 | `accept` | reviewer | `reason`, `commit` |
 | `reject` | reviewer | `reason`, `commit` |
@@ -250,6 +252,8 @@ The `event` table is a SQLite schema object governed by `SCHEMA_VERSION`; its ap
 | `pass` | coordinator | `shout`, `to`, `decision`, `request`, `answers` |
 | `answer` | answerer | `shout`, `to`, `decision`, `request`, `answers`, `outcome` |
 <!-- events:end -->
+
+New CLI claims include a `policy` object (`version: 1`, `commit`) in the frozen criterion. It pins the coordinator checkout’s committed configuration on its attached main branch. A temporary detached review checkout refuses new policy-dependent claims or project gates with `NO_POLICY`; the coordinator returns to its main branch. Existing frozen submissions remain verifiable. Legacy claims use their recorded claim-base commit. A CLI `submit` records the pre-merge coordinator HEAD as optional `policyCommit`; historical doctor and acceptance checks use this snapshot when allowing unchanged foreign files brought in from MAIN. Verified dependencies may also contribute unchanged files in their own lanes before a MAIN merge; foreign deletion or replacement is not authorized by an unrelated dependency’s tree. The complete candidate diff against both claim base and frozen MAIN is checked with rename detection disabled, preserving deleted paths and whitespace in names. Frozen item checks run against the exact submitted commit in an isolated checkout when accepting and auditing; repairing a reviewer’s checkout cannot make a red submission green.
 
 Migration preserves event rows and adds only schema objects that are missing.
 

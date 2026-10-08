@@ -1,6 +1,6 @@
 # CLI JSON API
 
-Add `--json` to a Pullboard command to receive one JSON document on stdout. The document has `version: 1`; diagnostics stay out of stderr. The flag may appear with command options before `--`. A flag after `--` is an argument to the command, not an output-mode switch.
+Add `--json` to a Pullboard command to receive one JSON document on stdout. The document has `version: 1`; diagnostics stay out of stderr except for sign-in instructions and check consent notices that must appear before execution. The flag may appear with command options before `--`. A flag after `--` is an argument to the command, not an output-mode switch.
 
 The API version is independent of the package version. Its contract is stable within each major API version: existing command names, required fields, field types, and refusal fields do not change within that version. An incompatible change requires a new `version`. New fields may be added, so clients should ignore fields they do not use.
 
@@ -84,7 +84,9 @@ A successful command returns the fields listed below. `version` is always the nu
 
 ## Refusals
 
-A refusal keeps the command's existing exit status and prints exactly one versioned document to stdout. In JSON mode stderr stays empty. The command-specific `code` identifies the rule; `message` explains what happened; `next` gives the next step.
+A refusal keeps the command's existing exit status and prints exactly one versioned document to stdout. In JSON mode stderr stays empty except for sign-in instructions and check consent notices. The command-specific `code` identifies the rule; `message` explains what happened; `next` gives the next step.
+
+Only the coordinator sets or edits an item's `--check`. `pullboard check [id]` prints the command and its setter before execution, and asks for consent when the caller did not set it. Use `--yes` to confirm that command without a prompt. An EOF or declined answer refuses with `CHECK_CONFIRM` before running the command. With `--json`, the notice and prompt appear immediately on stderr and stdout remains one JSON document; a successful check result also includes the optional `by` setter field.
 
 ```json
 {

@@ -2,6 +2,7 @@
  * The pullboard command line: every command, bound to who is asking (B3). The main checkout is the
  * coordinator; every other worktree is the agent that joined from it.
  */
+import { createHash } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
@@ -51,6 +52,7 @@ import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
 import { exportView, serveView } from './serve.js';
 import { serveApi } from './api.js';
 import { doctorProblems } from './doctor.js';
+import { mainPolicy, itemPolicy, submissionPaths, frozenCheck, checkAtCommit, dependencySnapshots } from './trusted-policy.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
@@ -110,7 +112,8 @@ Work
   pullboard next --verify               reserve the next submitted item you can check;
   pullboard next --verify <id>          reserve that submitted item instead
                                         in the main checkout, verifying needs --as coordinator
-  pullboard check [id]                  run your item's check, the command that proves it (the project gate is pullboard gate)
+  pullboard check [id] [--yes]          show and run your item's check; --yes confirms a check set by someone else
+                                        the command and its author print first; the project gate is pullboard gate
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
   pullboard release <id>                hand it back
   pullboard submit <id>                 needs a clean tree and the gate green at HEAD (alias: done)
@@ -183,6 +186,7 @@ const OPTIONS = {
   family: { type: 'string' },
   as: { type: 'string' },
   check: { type: 'string' },
+  yes: { type: 'boolean' },
   agent: { type: 'string' },
   'agent-light': { type: 'string' },
   'agent-mid': { type: 'string' },
@@ -450,7 +454,15 @@ function whoAmI(ctx, board) {
  * @param {any} ctx
  * @returns {(item: any) => { text: string, digest: string }}
  */
-const freezer = (ctx) => (item) => frozenCriterion(loadSpec(ctx.info.root, ctx.config), item);
+const freezer = (ctx) => (item) => {
+  const prior = item.item_frozen ? JSON.parse(item.item_frozen) : null;
+  const policy = prior?.policy ?? (!prior && !(ctx.info.isMain && !headCommit(ctx.info.root)) ? { version: 1, commit: mainPolicy(ctx.info.root).commit } : null);
+  const config = policy ? itemPolicy(ctx.info.root, { ...item, item_frozen: JSON.stringify({ policy }) }).config : ctx.config;
+  const frozen = frozenCriterion(loadSpec(ctx.info.root, config), item);
+  if (!policy) return frozen; // Legacy criteria retain their original digest and committed claim base.
+  const text = JSON.stringify({ ...JSON.parse(frozen.text), policy });
+  return { text, digest: createHash('sha256').update(text).digest('hex') };
+};
 
 /**
  * The evidence a shout carries, from its flags (B22). The commit is resolved here, in this repo,
@@ -1145,6 +1157,17 @@ function readCommands(io, { first, second, rest, values }) {
  */
 async function submitHere(ctx, id) {
   const { root } = ctx.info;
+  const held = withBoard(ctx, (board) => {
+    const me = whoAmI(ctx, board);
+    const item = store.getItem(board, id);
+    if (item.item_status !== 'claimed' || item.item_owner !== me.id) throw new Refused('NOT_YOURS', 'claim this item before submitting it');
+    return item;
+  });
+  const policy = itemPolicy(root, held);
+  const acceptedMain = mainPolicy(root);
+  ctx = { ...ctx, config: policy.config };
+  const dependencies = withBoard(ctx, board => dependencySnapshots(board.db, held));
+  submissionPaths(root, held, headCommit(root), { mainCommit: acceptedMain.commit, dependencies });
   const { me, claimHead } = withBoard(ctx, (board) => {
     const who = whoAmI(ctx, board);
     const item = store.getItem(board, id);
@@ -1187,7 +1210,7 @@ async function submitHere(ctx, id) {
       `when the gate ended, HEAD or a tracked file differed from ${commit.slice(0, 12)}, the commit it started on, so the gate did not end on what you would submit; leave the worktree alone until the gate finishes, then submit again`,
     );
   }
-  await withBoard(ctx, async (board) => await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit) }]));
+  await withBoard(ctx, async (board) => await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit }]));
   const pin = `refs/pullboard/items/${id}/${commit.slice(0, 12)}`;
   git(root, ['update-ref', pin, commit]);
   ctx.io.result?.({ id, commit, pin, gate: { green: gate.isGreen, report: gateReport(gate) } });
@@ -1217,6 +1240,8 @@ async function verifyHere(ctx, id, { second, values }) {
     if (item.item_status !== 'submitted') {
       throw new Refused('NOT_SUBMITTED', `item #${id} is ${item.item_status}, not submitted`);
     }
+    const policy = itemPolicy(root, item);
+    ctx = { ...ctx, config: policy.config };
     const head = headCommit(root) ?? '';
     const commit = resolveCommit(root, item.item_commit);
     if (!commit || !contains(root, commit, head)) {
@@ -1227,6 +1252,12 @@ async function verifyHere(ctx, id, { second, values }) {
       digest = freezer(ctx)(item).digest;
     } catch (error) {
       if (!(error instanceof Refused) || error.code === 'A5_GRAMMAR_VERSION') throw error;
+    }
+    if (decision === 'ACCEPT') {
+      if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
+      if (!checkAtCommit(root, item).green) throw new Refused('CHECK_RED', 'the frozen item check is red at the submitted commit; reject with the failing behavior or ask the builder to fix and resubmit');
+      const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
+      submissionPaths(root, item, commit, { mainCommit: receipt?.policyCommit, dependencies: dependencySnapshots(board.db, item) });
     }
     return await ordered(ctx, board, 'verify', [id, {
       agentId: me.id,
@@ -1466,7 +1497,7 @@ function workCommands(io, args) {
         after,
         brief: briefInLane(ctx, first, briefArg(io, values) ?? ''),
         route: values.route ?? 'strong',
-        check: values.check ?? '',
+        check: values.check,
       }]);
       io.result?.({ item: store.getItem(board, id) });
       io.say(`#${id}`);
@@ -1500,19 +1531,34 @@ function workCommands(io, args) {
     run: () => runItems(io, values, { context, withBoard, whoAmI, nextOnce, submitHere, freezer, ordered }),
     sweep: () => act((ctx, board, me) => sweepHere(ctx, board, me, values)),
     next: () => nextHere(io, { ...values, verifyId: first }),
-    check: () => {
+    check: async () => {
       const ctx = context(io);
-      const item = withBoard(ctx, (board) => {
-        if (first) return store.getItem(board, idArg(first));
-        const me = whoAmI(ctx, board);
-        const held = store.listItems(board).find((entry) => entry.item_status === 'claimed' && entry.item_owner === me.id && entry.item_parent_id === null);
+      const { item, author, caller } = withBoard(ctx, (board) => {
+        const me = first ? (ctx.info.isMain ? { id: COORDINATOR } : { id: store.agentAt(board, ctx.info.root)?.agent_id }) : whoAmI(ctx, board);
+        const held = first ? store.getItem(board, idArg(first))
+          : store.listItems(board).find((entry) => entry.item_status === 'claimed' && entry.item_owner === me.id && entry.item_parent_id === null);
         if (!held) throw new Refused('NOT_HOLDING', 'you hold no item; name one, pullboard check <id>, or run the project gate: pullboard gate');
-        return held;
+        return { item: held, author: store.itemCheckAuthor(board, held.item_id), caller: me.id };
       });
-      if (!item.item_check) throw new Refused('NO_CHECK', `#${item.item_id} has no check command; its proof is the project gate: pullboard gate`);
-      const run = runShell(ctx.info.root, item.item_check);
-      io.result?.({ id: item.item_id, green: run.isGreen, seconds: run.seconds, check: item.item_check, report: run.isGreen ? '' : digestOf(run.output) });
-      io.say(`check ${run.isGreen ? 'green' : 'red'} in ${run.seconds}s: ${item.item_check}`);
+      const check = frozenCheck(item);
+      if (!check) throw new Refused('NO_CHECK', `#${item.item_id} has no check command; its proof is the project gate: pullboard gate`);
+      if (item.item_claim_head) itemPolicy(ctx.info.root, item);
+      else mainPolicy(ctx.info.root);
+      const by = author || 'unknown (legacy)';
+      const notice = `check #${item.item_id} set by ${by}: ${check}`;
+      if (values.json) io.stderr.write(`${notice}\n`);
+      else io.say(notice);
+      if (!values.yes && (!author || author !== caller)) {
+        if (values.json) io.stderr.write('Run this check? [y/N]\n');
+        else io.err('Run this check? [y/N]');
+        const answer = await firstInputLine(io.stdin);
+        if (!/^y(?:es)?$/iu.test(answer.trim())) {
+          throw new Refused('CHECK_CONFIRM', `the check set by ${by} was not run: ${check}; run pullboard check ${item.item_id} --yes after reading the command, or answer yes at the prompt`);
+        }
+      }
+      const run = runShell(ctx.info.root, check);
+      io.result?.({ id: item.item_id, green: run.isGreen, seconds: run.seconds, check, by, report: run.isGreen ? '' : digestOf(run.output) });
+      io.say(`check ${run.isGreen ? 'green' : 'red'} in ${run.seconds}s: ${check}`);
       if (!run.isGreen) io.say(digestOf(run.output).replace(/^/gm, '  '));
       return run.isGreen ? 0 : 1;
     },
@@ -1792,6 +1838,19 @@ function specCommand(io, { first, second, rest, values }) {
   throw new Refused('USAGE', 'pullboard spec --json | check | view | show <id> | unmet [--must] | signoff <ids> [--by <principal>] | signers add');
 }
 
+/** Read one consent line without waiting for EOF in an interactive terminal [V2]. */
+async function firstInputLine(stdin) {
+  if (!stdin) return '';
+  let text = '';
+  for await (const chunk of stdin) {
+    text += chunk.toString();
+    const newline = text.indexOf('\n');
+    if (newline >= 0) return text.slice(0, newline);
+    if (text.length > 256) return '';
+  }
+  return text;
+}
+
 /**
  * Read everything git writes on a hook's stdin, or nothing when run by hand.
  *
@@ -1921,7 +1980,7 @@ async function runCommand(argv, io) {
     }
     if (command === 'gate') {
       const ctx = context(io);
-      const gate = await runGate(ctx.info.root, ctx.config, { onWait: gateWaitReporter(io) });
+      const gate = await runGate(ctx.info.root, mainPolicy(ctx.info.root).config, { onWait: gateWaitReporter(io) });
       io.result?.({ green: gate.isGreen, report: gateReport(gate) });
       io.say(gateReport(gate));
       return gate.isGreen ? 0 : 1;
