@@ -1,6 +1,7 @@
 /** Device-only relay transport: cookie authorization, local keys and authenticated ciphertext [H5,H15]. */
 import { decodeBoardKey, unseal } from './seal.js';
 import { snapshotState, presentationState } from './model.js';
+import { Refused } from './refused.js';
 
 const KEYS = 'pullboard.relay.keys.v1';
 const PENDING = 'pullboard.relay.pair.v1';
@@ -137,7 +138,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     const move = JSON.parse(new TextDecoder().decode(plain));
     if (accessLost) throw new Error('Sign in again to read this board.');
     if (move.version !== 1 || !Number.isSafeInteger(move.engine) || move.engine < 1) throw new Error('This sealed move has an unsupported format. Refresh it from a linked machine.');
-    if (move.engine !== 1) throw new Error('This board needs engine ' + move.engine + '; this browser reads engine 1. Upgrade the browser client.');
+    if (move.engine !== 1) throw new Refused('RELAY_ENGINE_VERSION', 'This board needs engine ' + move.engine + '; this browser reads engine 1. Upgrade the browser client.');
     if (move.presentation) {
       entry.state = presentationState(move.presentation, entry.id);
       entry.cursor = row.event_id;
@@ -222,7 +223,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
           try { sessionStorage.removeItem(PENDING); } catch { /* Device storage can be unavailable. */ }
         }
         subscribe(entry);
-      } catch { failure = 'Could not open this board with its saved key. Pair this browser again from a linked machine.'; }
+      } catch (error) { failure = error.code === 'RELAY_ENGINE_VERSION' ? error.message : 'Could not open this board with its saved key. Pair this browser again from a linked machine.'; }
     }
     notice();
     return {
