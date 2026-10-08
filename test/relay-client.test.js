@@ -569,6 +569,7 @@ async function legacyMirrorQueueFragment({
   const link = JSON.parse(readFileSync(linkFile, 'utf8'));
   assert.equal(link.mode, 'ordered');
   link.cursor = priorRows.at(-1)?.event_id ?? 0;
+  // Model the pre-161 local-first outbox: old link metadata plus local rows committed before upload.
   delete link.mode;
   delete link.presentationDigest;
   writeFileSync(linkFile, JSON.stringify(link) + '\n', { mode: 0o600 });
@@ -594,12 +595,21 @@ async function legacyMirrorQueueFragment({
   assert.equal(offline.relay.behind, expectedBehind, 'the legacy local rows remain in the durable queue');
   assert.deepEqual(localEvents(boardFile), queuedRows, 'a failed migration leaves local rows untouched');
   assert.equal(relay.uploads.length, initialUploadCount, 'refused uploads are not acknowledged');
+  const pendingLegacy = JSON.parse(readFileSync(linkFile, 'utf8'));
+  assert.equal(pendingLegacy.pending.sequence, link.sequence + 1);
+  assert.equal(pendingLegacy.pending.needsPresentation, true, 'the first legacy row has no projection covering its position');
 
   relay.failMoves(false);
   const resumed = await cli(root, relayEnv, 'status');
   assert.equal(resumed.relay.behind, 0, 'the next reachable command drains the queued legacy rows');
   assert.deepEqual(localEvents(boardFile), queuedRows, 'migration checkpoints existing rows instead of replaying them');
-  assert.deepEqual(relay.uploads.slice(initialUploadCount).map((upload) => upload.sequence), [4, 5]);
+  const legacyUploads = relay.uploads.slice(initialUploadCount);
+  assert.deepEqual(legacyUploads.map((upload) => upload.sequence), [4, 5]);
+  const openedLegacy = await Promise.all(legacyUploads.map(async (upload) => JSON.parse(new TextDecoder().decode(await unseal(
+    key, Buffer.from(upload.sealed, 'base64url'), { boardId, kind: 'move', sequence: upload.sequence },
+  )))));
+  assert.equal(openedLegacy[0].presentation, undefined, 'the historical first move cannot attest the later row');
+  assert.equal(openedLegacy[1].presentation.state.events[0].event_id, queuedEvents.at(-1).event_id, 'the final legacy move carries only its matching projection');
 
   const authorization = { authorization: `Bearer ${currentPersonToken}` };
   const stateResponse = await fetch(`${relay.origin}/api/v1/boards/${boardId}/state`, { headers: authorization });

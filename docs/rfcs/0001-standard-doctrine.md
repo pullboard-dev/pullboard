@@ -5,11 +5,11 @@
 
 ## Summary
 
-Pullboard ships a small standard doctrine that every repo inherits: twelve rules nearly every engineer agrees on, whatever the language, team size or workflow. A repo's PRACTICE.md holds only its own rules: it adds to the standard, overrides a rule, or declines one with a reason.
+Pullboard ships a small standard doctrine that every repo inherits: twelve rules nearly every engineer agrees on, whatever the language, team size or workflow. A repo's `DOCTRINE.md` holds only its own rules: it adds to the standard, overrides a rule, or declines one with a reason. A legacy `PRACTICE.md` remains a compatibility fallback.
 
 ## Motivation
 
-Today `pullboard init` copies a 26-rule PRACTICE.md into each repo, and the copy never changes again. Copies drift: Pullboard's own file had drifted from the template, and the two reused ids for different rules. One standard that every repo inherits stays one thing, improves for everyone at once, and can be discussed in one place.
+At the time of this RFC, `pullboard init` copied a 26-rule `PRACTICE.md` into each repo, and the copy never changed again. Those copies drifted: Pullboard's own file had drifted from the template, and two reused ids for different rules. One standard that every repo inherits stays one thing, improves for everyone at once, and can be discussed in one place.
 
 ## The standard, version 1
 
@@ -35,7 +35,7 @@ The rules use the spec row format. Their ids start with PB and are never reused.
 
 ## How a repo uses it
 
-Every repo inherits all of it. Its PRACTICE.md adds rules with its own ids, overrides a standard rule by repeating its PB id with new text, or declines one with a wont row naming the PB id and the reason. Agents and the view see the merged set, each rule marked as the standard's, with its version, or the repo's.
+Every repo inherits all of it. Its `DOCTRINE.md` adds rules with its own ids, overrides a standard rule by repeating its PB id with new text, or declines one with a wont row naming the PB id and the reason. A legacy `PRACTICE.md` remains a compatibility fallback. Agents and the view see the merged set, each rule marked as the standard's, with its version, or the repo's.
 
 ## How the standard changes
 
