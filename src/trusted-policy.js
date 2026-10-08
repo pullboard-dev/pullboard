@@ -4,17 +4,9 @@ import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { configFromSource } from './config.js';
+import { cleanGitEnvironment, mainCheckout } from './git.js';
 import { outOfLane } from './lanes.js';
 import { Refused } from './refused.js';
-
-/** Keep private checkouts independent of inherited Git repository and index bindings. */
-function cleanGitEnvironment() {
-  const env = { ...process.env };
-  for (const key of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_PREFIX', 'GIT_CONFIG', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_COUNT', 'GIT_IMPLICIT_WORK_TREE', 'GIT_GRAFT_FILE', 'GIT_NO_REPLACE_OBJECTS', 'GIT_REPLACE_REF_BASE', 'GIT_SHALLOW_FILE']) delete env[key];
-  for (const key of Object.keys(env)) if (/^GIT_CONFIG_(?:KEY|VALUE)_/.test(key)) delete env[key];
-  env.GIT_NO_REPLACE_OBJECTS = '1'; // A pin identifies the underlying object, never refs/replace fiction.
-  return env;
-}
 
 /** Read raw Git output, retaining NUL-delimited names without exposing Git diagnostics. */
 function policyGit(root, args) {
@@ -25,12 +17,10 @@ function policyGit(root, args) {
 
 /** Resolve the primary checkout's committed HEAD, independently of a linked or detached checkout. */
 export function mainPolicy(root) {
-  const common = policyGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
-  let branch;
-  try { branch = policyGit(root, ['--git-dir', common, 'symbolic-ref', '--quiet', 'HEAD']).trim(); }
-  catch { throw new Refused('NO_POLICY', 'the coordinator checkout is detached for review; ask it to return to its main branch before claiming or running the project gate'); }
-  const commit = policyGit(root, ['--git-dir', common, 'rev-parse', '--verify', branch + '^{commit}']).trim();
-  return policyAt(root, commit);
+  const checkout = mainCheckout(root);
+  if (!checkout) throw new Refused('NO_POLICY', 'the coordinator checkout is detached for review; ask it to return to its main branch before claiming or running the project gate');
+  if (!checkout.commit) throw new Refused('NO_POLICY', 'the coordinator checkout has no commit on ' + checkout.branch + '; create its first commit before claiming or running the project gate');
+  return policyAt(root, checkout.commit);
 }
 
 /** Re-read coordinator settings from a pinned Git object; never from the candidate filesystem. */
