@@ -73,10 +73,15 @@ export function prepareEngineMove(board, operation, args, { id = randomUUID() } 
   return JSON.parse(JSON.stringify(move));
 }
 
+/** Stop before interpreting actors or operations that a newer engine may have changed. */
+function requireSupportedEngine(move) {
+  if (Number.isSafeInteger(move?.engine) && move.engine > ENGINE_VERSION) throw new Refused('ENGINE_VERSION', `move engine version ${move.engine} is newer than this pullboard engine version ${ENGINE_VERSION}; upgrade pullboard before applying the relay order`);
+}
+
 /** Validate protocol identity before a future engine or malformed input can alter any replica. */
 function validateMove(move) {
   if (!move || move.version !== 1 || !Number.isSafeInteger(move.engine) || move.engine < 1) throw new Refused('RELAY_MOVE', 'this executable move format is invalid; upgrade pullboard or restore a consistent relay snapshot');
-  if (move.engine > ENGINE_VERSION) throw new Refused('ENGINE_VERSION', `move engine version ${move.engine} is newer than this pullboard engine version ${ENGINE_VERSION}; upgrade pullboard before applying the relay order`);
+  requireSupportedEngine(move);
   if (typeof move.id !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(move.id) || !ENGINE_OPERATIONS.includes(move.operation) || !Array.isArray(move.args)) throw new Refused('RELAY_MOVE', 'this sealed operation is invalid; use a supported board-engine operation');
 }
 
@@ -103,6 +108,7 @@ export function engineReceipt(board, id) {
 
 /** Authorize each public relay position before replay, retaining refusals atomically with its cursor. */
 export function applyRelayMove(board, move, { sequence, at, sender, kind }) {
+  requireSupportedEngine(move);
   const problem = relaySenderProblem(move, sender, kind);
   if (!problem) return applyEngineMove(board, move, { sequence, at });
   if (!Number.isSafeInteger(sequence) || sequence < 1 || !Number.isFinite(Date.parse(at))) throw new Refused('RELAY_MOVE', 'supply a valid relay sequence and receipt timestamp');
