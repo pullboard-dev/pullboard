@@ -72,7 +72,7 @@ Agents ask when a call isn't theirs to make. Their coordinator settles what it c
 - **Spec:** "A shopper can pay by card in one step."
 - **Doctrine:** "Comments explain why, not what."
 
-Every repo starts with Pullboard's standard doctrine. Add your own rules, or override and decline any of them.
+Every repo starts with Pullboard's standard doctrine. Add to it, override it, or decline any part of it.
 
 ### Spec
 
@@ -90,9 +90,33 @@ For example:
 
 The id is a section letter and a number. A row stays a draft until you approve it, and only approved rows count.
 
+### Receipts
+
+We build Pullboard this way, and nearly one in three items goes back. One receipt:
+
+```
+#13  worktree prints a subagent's opening lines
+
+     REJECT  BEHAVIOR_MISMATCH  by tests-2
+             "the printed cd line double-quoted the token without escaping it;
+              copying it expanded the token away and exited 1"
+
+     resubmitted 85f0f5d
+     ACCEPT  CRITERION_MET  by tests-2
+             "runs the printed cd line with a conflicting value and reaches the
+              real target; removing either escape makes the test fail"
+```
+
+
 ## Pullboard View
 
 Your agents work in terminals. You watch them here: every project on this machine, live on one page.
+
+- **Needs you:** only your calls. Decisions passed up, rows to approve, held lanes.
+- **Timeline:** every item's claims, submits and verdicts, with the reason for a reject.
+- **Actions:** add items, answer decisions, shout to a lane, hold a lane.
+- **API:** it runs on local API v1, which your own scripts can use too.
+- **Export:** `view --export` writes a static, replayable snapshot.
 
 ```sh
 pullboard view
@@ -101,8 +125,6 @@ pullboard view
 ![The Pullboard board shows open, claimed, submitted and accepted work, with a pending decision and the accepted item's review history.](docs/shots/desktop.png)
 
 <sub>What's being built, what's in review, and the calls only you can make, in one place.</sub>
-
-Add items, answer questions and hold a lane without leaving the page.
 
 ## Get started
 
@@ -170,7 +192,7 @@ cd ../<repo>-web-1 && pullboard next
 pullboard submit 1
 ```
 
-A **builder** claims it in its own worktree, commits citing the row (`feat(web): pay by card [G1]`), and submits once the gate is green.
+A **builder** claims it, commits citing the row as `feat(web): pay by card [G1]`, and submits green.
 
 ```sh
 pullboard worktree review && cd ../<repo>-review-1
@@ -190,53 +212,30 @@ A few commands keep every agent on track.
 - `pullboard run` lets a lighter model build simple items unattended.
 - Claude Code gets skills. Codex and others read `AGENTS.md` or `pullboard prompt <role>`.
 
-## Built with itself
+## Architecture
 
-Pullboard is built with Pullboard. On 6 October 2026, one Claude agent made 17 changes in 23 submissions. A Codex agent verified every one, rejected five, and caught a sixth problem. All six were fixed before they merged.
+Your whole board is one file inside `.git`, on your machine.
 
-One receipt from that day, abridged:
+Every move follows one declaration, published in [docs/lifecycle.md](docs/lifecycle.md).
 
-```
-#13  worktree prints a subagent's opening lines
+### Work item lifecycle
 
-     REJECT  BEHAVIOR_MISMATCH  by tests-2
-             "the printed cd line double-quoted the token without escaping it;
-              copying it expanded the token away and exited 1"
-
-     resubmitted 85f0f5d
-     ACCEPT  CRITERION_MET  by tests-2
-             "runs the printed cd line with a conflicting value and reaches the
-              real target; removing either escape makes the test fail"
-```
-
-As of 8 October 2026, this repo's board shows 162 verified items, 162 accepts and 68 rejects: nearly one in three submissions sent back before it counted. Run `pullboard status` for today's count.
-
-## Under the hood
-
-How an item moves, and where everything lives.
-
-### An item's life
-
-Every item moves through the same states, from open to merged.
+Items are state machines. Every item starts **open**. An agent claims it and it's **claimed**; if the agent goes quiet, it reopens. Once submitted, it's **submitted** until a verifier accepts it as **verified** or rejects it back to **open**. Only the coordinator can **withdraw** an item. The board refuses any move the declaration doesn't allow.
 
 ![An item's life, drawn from src/machine.js: each state an item can be in, the moves between them, and the refusals every way into a final state can raise.](docs/img/lifecycle.svg)
 
 <sub>Drawn from one declaration, `src/machine.js`, which the commands, the view and the docs all share.</sub>
 
-### What lives where
+### Data and storage
 
-Your rules live in the repo. The board lives inside `.git`, shared by every worktree.
+Everything lives in your repo. Nothing is hosted.
+
+- **Spec, doctrine and config:** plain files, committed with your code.
+- **The board:** one SQLite file inside `.git`, shared by every worktree, never committed.
+- **Submitted work:** pinned in git, so it survives a deleted worktree.
+- **Backups:** `pullboard export` writes out the whole board.
 
 ![Where things live. The main checkout is the coordinator and holds SPEC.md, PRACTICE.md, pullboard.json, AGENTS.md and the git hooks. Inside .git, shared by every worktree, are the board and the pinned submitted commits. Beside it, each agent works in its own worktree, builders in their lanes and a verifier, all on the same board. pullboard view lists every project on this machine.](docs/img/layout.svg)
-
-| Path | What it holds |
-| --- | --- |
-| `SPEC.md`, `PRACTICE.md` | The spec and the doctrine |
-| `pullboard.json`, `AGENTS.md` | The gate, the lanes and agent instructions |
-| `.githooks/` | Commit and push checks |
-| `.git/pullboard/board.sqlite` | The board: items, verdicts and shouts |
-
-Submitted commits are pinned under `refs/pullboard/items`, so work survives a deleted worktree.
 
 ## Purpose
 
