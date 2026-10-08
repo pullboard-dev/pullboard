@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
+import { Transform } from 'node:stream';
 import { once } from 'node:events';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { delimiter, join, resolve } from 'node:path';
@@ -56,21 +57,43 @@ export async function relayClientFixture(t) {
   };
   const provider = await githubFixture(t);
   provider.state.deviceAuthorized = true;
-  const auth = createRelayAuth({ database: join(scratch, 'auth.sqlite'), github: createGitHubClient(provider.config) });
+  const authDatabase = join(scratch, 'auth.sqlite');
+  const auth = createRelayAuth({ database: authDatabase, github: createGitHubClient(provider.config) });
   let time = Date.now();
   let override = null;
   let signIn;
   let api;
   const calls = [];
+  const transit = [];
   const server = createServer(async (req, res) => {
     calls.push({ method: req.method, path: req.url });
+    const requestChunks = [];
+    const responseChunks = [];
+    const request = new Transform({
+      transform(chunk, _encoding, callback) {
+        requestChunks.push(Buffer.from(chunk));
+        callback(null, chunk);
+      },
+    });
+    Object.assign(request, { method: req.method, url: req.url, headers: req.headers });
+    req.pipe(request);
+    /** Capture a response chunk for boolean-only transport audits without changing the response. */
+    function captureResponse(chunk) {
+      if (chunk !== undefined && chunk !== null && typeof chunk !== 'function') responseChunks.push(Buffer.from(chunk));
+    }
+    const write = res.write.bind(res);
+    res.write = (chunk, ...args) => { captureResponse(chunk); return write(chunk, ...args); };
+    const end = res.end.bind(res);
+    res.end = (chunk, ...args) => { captureResponse(chunk); return end(chunk, ...args); };
+    res.once('finish', () => transit.push({ method: req.method, path: req.url,
+      request: Buffer.concat(requestChunks), response: Buffer.concat(responseChunks) }));
     if (override && req.method === 'DELETE') {
       res.writeHead(override.status, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ version: override.version ?? 1, error: { code: override.code, message: 'fixture refusal' } }));
       return;
     }
-    if (await signIn(req, res)) return;
-    await api(req, res);
+    if (await signIn(request, res)) return;
+    await api(request, res);
   });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -88,6 +111,9 @@ export async function relayClientFixture(t) {
   /** Invoke the production CLI in this private repository. */
   async function cli(...args) { return childResult(root, env, [CLI, ...args, '--json']); }
   assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, env }).status, 0);
+  writeFileSync(join(root, 'README.md'), 'private relay fixture project\n', { mode: 0o600 });
+  assert.equal(spawnSync('git', ['add', 'README.md'], { cwd: root, env }).status, 0);
+  assert.equal(spawnSync('git', ['commit', '-q', '-m', 'fixture base'], { cwd: root, env }).status, 0, 'fixture clone starts from a committed project');
   assert.equal((await cli('init')).code, 0);
   assert.equal(spawnSync('git', ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git'], { cwd: root, env }).status, 0);
   const lane = Object.keys(JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8')).lanes)[0];
@@ -117,12 +143,44 @@ export async function relayClientFixture(t) {
     assert.equal((await run('relay', 'on', '--url', origin)).code, 0, 'second device signs in independently');
     return (await run('relay', 'off')).code;
   }
+  /** Clone the same committed project into a separate repository/home, then join through a printed code. */
+  async function otherDeviceJoin(code) {
+    const bare = join(scratch, 'project.git');
+    const otherRoot = join(scratch, 'paired-clone');
+    const otherHome = join(scratch, 'paired-home');
+    mkdirSync(otherHome, { mode: 0o700 });
+    const otherEnv = { ...env, HOME: otherHome, PULLBOARD_HOME: join(otherHome, '.pullboard'), PULLBOARD_MACHINE_HOME: join(scratch, 'paired-machine') };
+    assert.equal(spawnSync('git', ['clone', '--bare', root, bare], { cwd: scratch, env: otherEnv }).status, 0, 'fixture project creates a private bare remote');
+    assert.equal(spawnSync('git', ['clone', bare, otherRoot], { cwd: scratch, env: otherEnv }).status, 0, 'second device is a real clone');
+    assert.equal(spawnSync('git', ['remote', 'set-url', 'origin', 'git@github.com:fixture/repository.git'], { cwd: otherRoot, env: otherEnv }).status, 0, 'clone names the same authorized repository');
+    const run = (...args) => childResult(otherRoot, otherEnv, [CLI, ...args, '--json']);
+    assert.equal((await run('init')).code, 0, 'the cloned project initializes its private local board');
+    const joined = await run('relay', 'join', code, '--url', origin);
+    const document = joined.document;
+    if (joined.code !== 0) throw new Error('real clone did not join the one-use pairing code');
+    const exported = await run('export');
+    if (exported.code !== 0) throw new Error('paired clone could not read its restored board');
+    const link = JSON.parse(readFileSync(join(otherRoot, '.git', 'pullboard', 'relay.json'), 'utf8'));
+    const otherKeyFile = join(otherEnv.PULLBOARD_HOME, 'relay-keys', link.board + '.key');
+    const environmentKey = readFileSync(otherKeyFile, 'utf8').trim();
+    /** Run a real linked-clone command with only the environment key, after removing its key file. */
+    async function syncWithEnvironmentKey(...args) {
+      rmSync(otherKeyFile, { force: true });
+      assert.equal(existsSync(otherKeyFile), false, 'the paired clone has no stored board-key file');
+      const envKey = { ...otherEnv, PULLBOARD_RELAY_KEY: environmentKey };
+      return childResult(otherRoot, envKey, [CLI, ...args, '--json']);
+    }
+    return { joined: document, exported: exported.document, syncWithEnvironmentKey,
+      /** Check that the paired clone still has no persisted board-key file. */
+      keyFileExists() { return existsSync(otherKeyFile); } };
+  }
   /** Run multiple production commands in one process, emitting only safe counters. */
   async function script(source) {
     return childResult(root, env, ['--input-type=module', '-e', source]);
   }
   return {
-    root, env, lane, before, linkFile, keyFile, calls, cli, link, otherDeviceOff, script,
+    root, env, lane, before, linkFile, keyFile, calls, transit, relayDirectory: join(scratch, 'relay'), authDatabase,
+    cli, link, otherDeviceOff, otherDeviceJoin, script,
     advance(days) { time = Date.now() + days * 86400000; },
     overrideDelete(value) { override = value; },
     mainURL: new URL('../src/cli.js', import.meta.url).href,

@@ -61,6 +61,7 @@ import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
 import { relayLinked, relayOff, relayOn, relayOperation, relayStatus, syncRelay } from './relay.js';
+import { relayJoin, relayPair } from './relay-pairing-client.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
@@ -82,8 +83,9 @@ Set up
   pullboard view --export <dir>         a read-only snapshot with event replay, for any static host
   pullboard serve [--port N]           local API v1: boards, state, moves, requests and live events,
                                         behind the session secret in its printed address
-  pullboard relay [on|off] [--url <address>]  link, inspect or unlink this board's sealed relay mirror
+  pullboard relay [on|off|pair|join <code>] [--url <address>]  link, inspect or unlink this board's sealed relay
                                         on signs in through GitHub; the address defaults to https://app.pullboard.dev
+                                        pair prints a one-use machine code; join stores it in another clone
   pullboard resume                      where you are: your claim, branch, uncommitted work, what came back,
                                         unread shouts, what to do next; run it to start any session
   pullboard hooks                       reinstall the git hooks (e.g. after a fresh clone)
@@ -2293,6 +2295,16 @@ async function runCommand(argv, io) {
     if (command === 'hook') return await hookCommand(io, args);
     if (command === 'settings') return settingsCommand(io, args);
     if (command === 'relay') {
+      if (first === 'pair') {
+        if (second || rest.length || values.url) throw new Refused('USAGE', 'pullboard relay pair');
+        const ctx = context(io);
+        return await relayPair(ctx.info.root, io);
+      }
+      if (first === 'join') {
+        if (!second || rest.length) throw new Refused('USAGE', 'pullboard relay join <code> [--url <address>]');
+        const ctx = context(io);
+        return await relayJoin(ctx.info.root, second, values.url, io);
+      }
       if (second || rest.length || (first && !['on', 'off'].includes(first)) || (values.url && first !== 'on')) throw new Refused('USAGE', 'pullboard relay [on|off] [--url <address>]');
       const ctx = context(io);
       if (!first) await syncRelay(ctx.info.root, io);
