@@ -2802,6 +2802,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       await submit('#shout-form');
       await chrome.waitFor(`document.querySelector('#feed').innerText.includes('Phone shout ${width}')`);
 
+      await chrome.waitFor("!!document.querySelector('#decisions [data-go]')");
       const decision = await chrome.evaluate("document.querySelector('#decisions [data-go]')?.getAttribute('data-go')");
       assert.ok(decision, `${width}: a decision is offered for answer`);
       await click(`#decisions [data-go="${decision}"]`);
