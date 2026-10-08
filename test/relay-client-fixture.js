@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
+import { Transform } from 'node:stream';
 import { once } from 'node:events';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { delimiter, join, resolve } from 'node:path';
@@ -56,21 +57,43 @@ export async function relayClientFixture(t) {
   };
   const provider = await githubFixture(t);
   provider.state.deviceAuthorized = true;
-  const auth = createRelayAuth({ database: join(scratch, 'auth.sqlite'), github: createGitHubClient(provider.config) });
+  const authDatabase = join(scratch, 'auth.sqlite');
+  const auth = createRelayAuth({ database: authDatabase, github: createGitHubClient(provider.config) });
   let time = Date.now();
   let override = null;
   let signIn;
   let api;
   const calls = [];
+  const transit = [];
   const server = createServer(async (req, res) => {
     calls.push({ method: req.method, path: req.url });
+    const requestChunks = [];
+    const responseChunks = [];
+    const request = new Transform({
+      transform(chunk, _encoding, callback) {
+        requestChunks.push(Buffer.from(chunk));
+        callback(null, chunk);
+      },
+    });
+    Object.assign(request, { method: req.method, url: req.url, headers: req.headers });
+    req.pipe(request);
+    /** Capture a response chunk for boolean-only transport audits without changing the response. */
+    function captureResponse(chunk) {
+      if (chunk !== undefined && chunk !== null && typeof chunk !== 'function') responseChunks.push(Buffer.from(chunk));
+    }
+    const write = res.write.bind(res);
+    res.write = (chunk, ...args) => { captureResponse(chunk); return write(chunk, ...args); };
+    const end = res.end.bind(res);
+    res.end = (chunk, ...args) => { captureResponse(chunk); return end(chunk, ...args); };
+    res.once('finish', () => transit.push({ method: req.method, path: req.url,
+      request: Buffer.concat(requestChunks), response: Buffer.concat(responseChunks) }));
     if (override && req.method === 'DELETE') {
       res.writeHead(override.status, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ version: override.version ?? 1, error: { code: override.code, message: 'fixture refusal' } }));
       return;
     }
-    if (await signIn(req, res)) return;
-    await api(req, res);
+    if (await signIn(request, res)) return;
+    await api(request, res);
   });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -137,14 +160,27 @@ export async function relayClientFixture(t) {
     if (joined.code !== 0) throw new Error('real clone did not join the one-use pairing code');
     const exported = await run('export');
     if (exported.code !== 0) throw new Error('paired clone could not read its restored board');
-    return { joined: document, exported: exported.document };
+    const link = JSON.parse(readFileSync(join(otherRoot, '.git', 'pullboard', 'relay.json'), 'utf8'));
+    const otherKeyFile = join(otherEnv.PULLBOARD_HOME, 'relay-keys', link.board + '.key');
+    const environmentKey = readFileSync(otherKeyFile, 'utf8').trim();
+    /** Run a real linked-clone command with only the environment key, after removing its key file. */
+    async function syncWithEnvironmentKey(...args) {
+      rmSync(otherKeyFile, { force: true });
+      assert.equal(existsSync(otherKeyFile), false, 'the paired clone has no stored board-key file');
+      const envKey = { ...otherEnv, PULLBOARD_RELAY_KEY: environmentKey };
+      return childResult(otherRoot, envKey, [CLI, ...args, '--json']);
+    }
+    return { joined: document, exported: exported.document, syncWithEnvironmentKey,
+      /** Check that the paired clone still has no persisted board-key file. */
+      keyFileExists() { return existsSync(otherKeyFile); } };
   }
   /** Run multiple production commands in one process, emitting only safe counters. */
   async function script(source) {
     return childResult(root, env, ['--input-type=module', '-e', source]);
   }
   return {
-    root, env, lane, before, linkFile, keyFile, calls, cli, link, otherDeviceOff, otherDeviceJoin, script,
+    root, env, lane, before, linkFile, keyFile, calls, transit, relayDirectory: join(scratch, 'relay'), authDatabase,
+    cli, link, otherDeviceOff, otherDeviceJoin, script,
     advance(days) { time = Date.now() + days * 86400000; },
     overrideDelete(value) { override = value; },
     mainURL: new URL('../src/cli.js', import.meta.url).href,

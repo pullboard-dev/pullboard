@@ -1,11 +1,13 @@
 /** One-time pairing keeps its secret off the relay and rejects replay or expiry [H15,H17]. */
 import assert from 'node:assert/strict';
+import { randomBytes, webcrypto } from 'node:crypto';
 import { createServer } from 'node:http';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createPairingCode, openPairingBundle, parsePairingCode, sealPairingBundle } from '../src/pairing.js';
+import { decodeBoardKey } from '../src/seal.js';
 import { createPairingStore } from '../relay/pairing-store.js';
 import { createPairingHandler } from '../relay/pairing-http.js';
 import { createRelayHandler } from '../relay/service.js';
@@ -13,6 +15,7 @@ import { Refused } from '../src/refused.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 
 const BOARD = '0123456789abcdef0123456789abcdef';
+const OTHER_BOARD = 'fedcba9876543210fedcba9876543210';
 
 /** Serve only the pairing adapter on a private loopback port for actual HTTP boundary checks. */
 async function servePairing(t, authorize, pairings = createPairingStore()) {
@@ -43,6 +46,28 @@ function bundle(overrides = {}) {
   };
 }
 
+/** Make a valid encrypted package for another board to exercise the receiver's identity guard. */
+async function sealedOtherBoardPackage(code) {
+  const { locator, secret } = parsePairingCode(code);
+  const value = bundle({ board: OTHER_BOARD, snapshot: { version: 1, tables: {
+    board_meta: [{ meta_key: 'board_id', meta_value: OTHER_BOARD }], event: [{ event_id: 14 }],
+  } } });
+  const key = await webcrypto.subtle.importKey('raw', secret, 'AES-GCM', false, ['encrypt']);
+  const iv = randomBytes(12);
+  const aad = new TextEncoder().encode(JSON.stringify(['pullboard-pairing', 1, locator]));
+  const plaintext = new TextEncoder().encode(JSON.stringify(value));
+  const ciphertext = await webcrypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: aad, tagLength: 128 }, key, plaintext);
+  return Buffer.concat([iv, Buffer.from(ciphertext)]).toString('base64url');
+}
+
+/** Read relay-owned files only; local device homes intentionally retain their own keys. */
+function relayFiles(directory) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    return entry.isDirectory() ? relayFiles(path) : [readFileSync(path)];
+  });
+}
+
 test('[H15,H17] client seals board key and native snapshot under a one-time code the relay cannot read', async () => {
   const issued = createPairingCode(BOARD);
   assert.match(issued.locator, /^[A-Za-z0-9_-]{22}$/);
@@ -70,6 +95,13 @@ test('[H15,H17] client seals board key and native snapshot under a one-time code
   await assert.rejects(openPairingBundle(issued.code, tampered), { code: 'PAIR_CODE_INVALID' });
   const wrong = createPairingCode(BOARD);
   await assert.rejects(openPairingBundle(wrong.code, sealed), { code: 'PAIR_CODE_INVALID' });
+  const wrongBoardBundle = bundle({ board: OTHER_BOARD, snapshot: { version: 1, tables: {
+    board_meta: [{ meta_key: 'board_id', meta_value: OTHER_BOARD }], event: [{ event_id: 14 }],
+  } } });
+  await assert.rejects(sealPairingBundle(issued.code, wrongBoardBundle), { code: 'PAIR_PACKAGE' },
+    'the linked client will not seal a snapshot for a different board');
+  await assert.rejects(openPairingBundle(issued.code, await sealedOtherBoardPackage(issued.code)), { code: 'PAIR_PACKAGE' },
+    'the joining client rejects a valid encrypted package for a different board');
 });
 
 test('[H15,H17] package validation excludes sender credentials and validates relay and board identity', async () => {
@@ -117,6 +149,18 @@ test('[H15,H17] relay pairing envelopes expire after ten minutes and are consume
   assert.throws(() => store.consume(BOARD, 'C'.repeat(22)), { code: 'PAIR_CODE_UNKNOWN' });
   now += 600_000;
   assert.equal(store.size(), 0, 'expired and used tombstones are eventually pruned');
+});
+
+test('[H15,H17] a pairing code cannot be consumed as another board', () => {
+  const store = createPairingStore();
+  const issued = createPairingCode(BOARD);
+  const opaque = 'A'.repeat(60);
+  store.publish(BOARD, issued.locator, opaque);
+
+  assert.throws(() => store.consume(OTHER_BOARD, issued.locator), { code: 'PAIR_CODE_INVALID' },
+    'the relay record is bound to the board that published the code');
+  assert.deepEqual(store.consume(BOARD, issued.locator), { sealed: opaque },
+    'a mismatched-board attempt does not spend the original code');
 });
 
 test('[H15,H17] relay refuses malformed, duplicate and over-capacity pairing envelopes', () => {
@@ -248,4 +292,38 @@ test('[H15,H17] production CLI pairs a real second clone and reads the same boar
   assert.equal(paired.joined.board, box.before.tables.board_meta.find((row) => row.meta_key === 'board_id').meta_value);
   assert.deepEqual(paired.exported, box.before, 'the second clone imports the same native rows and counters');
   assert.ok(!box.calls.some((call) => call.path.includes(printed.document.code)), 'the code secret never appears in a relay request path');
+});
+
+test('[H15,H17] a paired clone synchronizes without a key file from PULLBOARD_RELAY_KEY', async (t) => {
+  const box = await relayClientFixture(t);
+  await box.link();
+  const printed = await box.cli('relay', 'pair');
+  const paired = await box.otherDeviceJoin(printed.document.code);
+  const beforeSyncCalls = box.calls.length;
+  const synchronized = await paired.syncWithEnvironmentKey('export');
+  assert.equal(synchronized.code, 0, 'the paired clone reads the relay using its local environment key');
+  assert.equal(paired.keyFileExists(), false, 'the synchronization ran with no stored key file');
+  assert.ok(box.calls.slice(beforeSyncCalls).some(({ method, path }) => method === 'GET' && /\/events\?after=/.test(path)),
+    'the clone fetched linked relay state with no stored key file');
+  assert.deepEqual(synchronized.document, paired.exported, 'sync reads the paired board without changing its native rows');
+
+  const encodedKey = readFileSync(box.keyFile, 'utf8').trim();
+  const keyBytes = decodeBoardKey(encodedKey);
+  const secretText = printed.document.code.split('.')[2];
+  const secretBytes = parsePairingCode(printed.document.code).secret;
+  const wireBytes = Buffer.concat(box.transit.flatMap(({ request, response }) => [request, response]));
+  const relayDiskBytes = Buffer.concat([...relayFiles(box.relayDirectory), readFileSync(box.authDatabase)]);
+  const output = JSON.stringify(synchronized.document);
+  for (const [label, value] of [
+    ['raw board key bytes', keyBytes],
+    ['encoded board key', Buffer.from(encodedKey)],
+    ['raw pairing secret bytes', Buffer.from(secretBytes)],
+    ['encoded pairing secret', Buffer.from(secretText)],
+  ]) {
+    assert.equal(wireBytes.includes(value), false, `relay HTTP bodies contain no ${label}`);
+    assert.equal(relayDiskBytes.includes(value), false, `relay-owned files contain no ${label}`);
+  }
+  assert.equal(box.calls.some(({ path }) => path.includes(secretText)), false, 'the pairing secret never appears in a relay URL');
+  assert.equal(output.includes(encodedKey), false, 'the environment key is not echoed in the clone command result');
+  assert.equal(output.includes(secretText), false, 'the pairing secret is not echoed in the clone command result');
 });
