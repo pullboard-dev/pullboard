@@ -34,12 +34,14 @@ function lifecycle() {
  * folder, where a path the host does not serve would leave a reload with nothing.
  *
  * @param {string} [key] - The session's secret.
- * @param {{snapshot?: boolean, apiBase?: string, apiHeaders?: Record<string, string>, stylesheet?: string, paths?: boolean}} [options] - Served API connection and assets, whether the host also serves the page at /roadmap, or a static, read-only page with event replay.
+ * @param {{snapshot?: boolean, readOnly?: boolean, transportModule?: string|null, apiBase?: string, apiHeaders?: Record<string, string>, stylesheet?: string, paths?: boolean}} [options] - Served API connection and assets, whether the host also serves the page at /roadmap, or a static, read-only page with event replay.
  * @returns {string}
  */
-export function cockpitPage(key = '', { snapshot = false, apiBase = '', apiHeaders = { 'x-pullboard-key': key }, stylesheet = null, paths = false } = {}) {
-  const connection = JSON.stringify({ base: apiBase.replace(/\/$/, ''), headers: apiHeaders }).replace(/</g, '\\u003c');
-  const css = stylesheet ?? (snapshot ? 'view.css' : '/view.css?k=' + encodeURIComponent(key));
+export function cockpitPage(key = '', { snapshot = false, readOnly = false, transportModule = null, apiBase = '', apiHeaders = { 'x-pullboard-key': key }, stylesheet = null, paths = false } = {}) {
+  if (transportModule !== null && (typeof transportModule !== 'string' || !transportModule.trim())) throw new TypeError('transportModule must be a non-empty module URL or null');
+  const connection = JSON.stringify(transportModule ? { base: '', headers: {} } : { base: apiBase.replace(/\/$/, ''), headers: apiHeaders }).replace(/</g, '\\u003c');
+  const moduleOption = JSON.stringify(transportModule).replace(/</g, '\\u003c');
+  const css = stylesheet ?? (snapshot ? 'view.css' : transportModule ? '/view.css' : '/view.css?k=' + encodeURIComponent(key));
   const cssAttribute = css.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   return `<!doctype html>
 <html lang="en">
@@ -50,7 +52,7 @@ export function cockpitPage(key = '', { snapshot = false, apiBase = '', apiHeade
 <link rel="stylesheet" href="${cssAttribute}">
 <link rel="icon" href="data:,">
 </head>
-<body class="loading${snapshot ? ' snapshot' : ''}">
+<body class="loading${snapshot ? ' snapshot' : ''}${readOnly ? ' read-only' : ''}">
 <div class="shell">
 <aside class="side" id="side" aria-label="Projects">
   <div class="side-top">
@@ -143,7 +145,10 @@ export function cockpitPage(key = '', { snapshot = false, apiBase = '', apiHeade
 <div class="console" id="console" title="Click to close" hidden></div>
 <script>
 const snapshot = ${JSON.stringify(snapshot)};
+const readOnly = ${JSON.stringify(readOnly)};
+const transportModule = ${moduleOption};
 const connection = ${connection};
+let transport = null;
 const snapshotReplay = { final: null, events: [], index: 0, playing: false, timer: null };
 const keep = (name, value) => { name = snapshot ? 'snapshot.' + name : name; try { if (value === undefined) return localStorage.getItem(name); localStorage.setItem(name, value); } catch { return null; } return value; };
 // Whether the host serves this page at /roadmap as well as at /, so the Roadmap's address is a path;
@@ -444,7 +449,8 @@ function flowSvg(p) {
 
 /** Read or move through API v1, retaining the rule and repair guidance in a refusal. */
 async function api(path, body) {
-  if (snapshot && body) throw new Error('This is a read-only snapshot.');
+  if (body && (snapshot || readOnly)) throw new Error(snapshot ? 'This is a read-only snapshot.' : 'This is a read-only view.');
+  if (transport) return transport.request(path, body);
   path = snapshot ? path.split('?')[0].slice(1) + '.json' : connection.base + path;
   const res = await fetch(path, { method: body ? 'POST' : 'GET', headers: snapshot ? {} : { ...connection.headers, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
   const json = await res.json();
@@ -1188,7 +1194,7 @@ function moveMessage(move, result) {
 /** Run a public API move beside its action and let only the latest one own the console and timer. */
 async function act(command, args, anchor) {
   const out = $('console');
-  if (snapshot) { out.hidden = false; out.className = 'console no'; out.textContent = 'This is a read-only snapshot.'; return false; }
+  if (snapshot || readOnly) { out.hidden = false; out.className = 'console no'; out.textContent = snapshot ? 'This is a read-only snapshot.' : 'This is a read-only view.'; return false; }
   if (anchor) {
     const target = anchor.matches('form')
       ? anchor.querySelector('.actions') || anchor.querySelector('[type="submit"]') || anchor
@@ -1329,7 +1335,17 @@ if (snapshot) {
     if (snapshotReplay.playing) { clearTimeout(snapshotReplay.timer); snapshotReplay.timer = setTimeout(advanceReplay, 1000 / Number($('replay-speed').value)); }
   });
 }
-refresh().catch((error) => { document.body.classList.remove('loading'); $('live').textContent = 'cannot reach the view: ' + error.message; });
+/** Load an explicitly configured transport before the first read; its updates refresh this page. */
+async function startPage() {
+  if (transportModule) {
+    const module = await import(transportModule);
+    if (typeof module.createTransport !== 'function') throw new Error('The browser transport must export createTransport({ onUpdate }).');
+    transport = await module.createTransport({ onUpdate: () => transport ? refresh().catch((error) => { $('live').textContent = 'offline: ' + error.message; }) : Promise.resolve() });
+    if (!transport || typeof transport.request !== 'function') throw new Error('The browser transport must provide request(path, body).');
+  }
+  await refresh();
+}
+startPage().catch((error) => { document.body.classList.remove('loading'); $('live').textContent = 'cannot reach the view: ' + error.message; });
 if (!snapshot) setInterval(() => { if (!document.hidden) refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }); }, 3000);
 setInterval(tickAges, 60000);
 </script>
