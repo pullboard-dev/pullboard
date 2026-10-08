@@ -42,7 +42,7 @@ test('one self-contained page with every tab and inherited doctrine row [S7,D1,D
   const html = page();
   assert.ok(html.startsWith('<!doctype html>'));
   assert.ok(!/src="http|href="http/.test(html), 'nothing loads from the network');
-  for (const label of ['Spec', 'Open questions (1)', 'Sign-off', 'Practice']) assert.ok(html.includes(label));
+  for (const label of ['Spec', 'Open questions (1)', 'Sign-off', 'Doctrine']) assert.ok(html.includes(label));
   for (const id of ['O1', 'O2', 'O3', 'O4', 'PB1', 'PB12']) assert.ok(html.includes(`>${id}<`), `${id} is on the page`);
 });
 

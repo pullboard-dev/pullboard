@@ -1156,10 +1156,10 @@ function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'of
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, decision: string, reason?: string, note?: string, head: string, digest: string, policy: string, familyPolicy?: string }} verdict
- * @returns {{ decision: string, reason: string }}
+ * @param {{ agentId: string, decision: string, reason?: string, note?: string, head: string, digest: string, policy: string, familyPolicy?: string, check?: 'none' | 'green' }} verdict
+ * @returns {{ decision: string, reason: string, check?: 'none' | 'green' }}
  */
-export function verify(board, id, { agentId, decision, reason, note = '', head, digest, policy, familyPolicy = 'off' }) {
+export function verify(board, id, { agentId, decision, reason, note = '', head, digest, policy, familyPolicy = 'off', check }) {
   const verb = { ACCEPT: 'accept', REJECT: 'reject' }[decision];
   if (!verb) throw new Refused('BAD_DECISION', 'the decision is accept or reject');
   const isAccept = verb === 'accept';
@@ -1197,8 +1197,10 @@ export function verify(board, id, { agentId, decision, reason, note = '', head, 
       },
       set: (found) => ({ item_verdict: decision, item_verified_by: isAccept ? agentId : null, item_owner: isAccept ? found.item_owner : null }),
     });
-    logEvent(board, agentId, verb, id, { reason: code, commit: item.item_commit });
-    return { decision, reason: code };
+    const detail = { reason: code, commit: item.item_commit };
+    if (isAccept && check !== undefined) detail.check = check;
+    logEvent(board, agentId, verb, id, detail);
+    return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}) };
   });
 }
 
@@ -1326,7 +1328,13 @@ export function getItem(board, id) {
  * @returns {any[]}
  */
 export function verdictsFor(board, id) {
-  return board.db.prepare('SELECT * FROM verdict WHERE item_id = ? ORDER BY verdict_id').all(id);
+  const verdicts = board.db.prepare('SELECT * FROM verdict WHERE item_id = ? ORDER BY verdict_id').all(id);
+  const receipts = board.db.prepare("SELECT event_kind, event_detail FROM event WHERE item_id = ? AND event_kind IN ('accept', 'reject') ORDER BY event_id").all(id);
+  return verdicts.map((verdict, index) => {
+    let detail = {};
+    try { detail = JSON.parse(receipts[index]?.event_detail ?? '{}'); } catch { /* Malformed legacy details remain unknown. */ }
+    return { ...verdict, check: detail.check ?? 'unknown' };
+  });
 }
 
 /**
@@ -1776,10 +1784,12 @@ export function relatedItems(board, item, limit = 3) {
  *
  * @param {any} board
  * @param {string} lane
- * @param {{ agentId: string, reason: string }} hold
+ * @param {{ agentId: string, reason: string, asPerson?: boolean, channel?: string }} hold
  */
-export function holdLane(board, lane, { agentId, reason }) {
+export function holdLane(board, lane, { agentId, reason, asPerson = false, channel = 'terminal' }) {
   coordinatorOnly(agentId, 'holds a lane');
+  if (asPerson && !['terminal', 'view'].includes(channel)) throw new Refused('B26_PERSON_CHANNEL', 'record the person hold through the terminal or the view; run pullboard view');
+  const by = asPerson ? PERSON : agentId;
   if (!String(reason ?? '').trim()) throw new Refused('USAGE', `a hold needs a reason: pullboard hold ${lane} --reason "why"`);
   atomic(board, () => {
     board.db
@@ -1787,8 +1797,8 @@ export function holdLane(board, lane, { agentId, reason }) {
         `INSERT INTO hold (hold_lane, hold_reason, hold_by, hold_at) VALUES (?, ?, ?, ?)
            ON CONFLICT (hold_lane) DO UPDATE SET hold_reason = excluded.hold_reason, hold_by = excluded.hold_by, hold_at = excluded.hold_at`,
       )
-      .run(lane, reason.trim(), agentId, now(board));
-    logEvent(board, agentId, 'hold', null, { lane, reason: reason.trim() });
+      .run(lane, reason.trim(), by, now(board));
+    logEvent(board, by, 'hold', null, { lane, reason: reason.trim(), ...(asPerson ? { channel } : {}) });
   });
 }
 
@@ -1797,14 +1807,16 @@ export function holdLane(board, lane, { agentId, reason }) {
  *
  * @param {any} board
  * @param {string} lane
- * @param {{ agentId: string }} who
+ * @param {{ agentId: string, asPerson?: boolean, channel?: string }} who
  */
-export function releaseLane(board, lane, { agentId }) {
+export function releaseLane(board, lane, { agentId, asPerson = false, channel = 'terminal' }) {
   coordinatorOnly(agentId, 'releases a lane');
+  if (asPerson && !['terminal', 'view'].includes(channel)) throw new Refused('B26_PERSON_CHANNEL', 'record the person release through the terminal or the view; run pullboard view');
+  const by = asPerson ? PERSON : agentId;
   atomic(board, () => {
     const { changes } = board.db.prepare('DELETE FROM hold WHERE hold_lane = ?').run(lane);
     if (!changes) throw new Refused('NOT_HELD', `the ${lane} lane is not held`);
-    logEvent(board, agentId, 'unhold', null, { lane });
+    logEvent(board, by, 'unhold', null, { lane, ...(asPerson ? { channel } : {}) });
   });
 }
 

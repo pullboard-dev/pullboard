@@ -201,3 +201,28 @@ HTTP refusals use the same versioned error envelope above: 400 for malformed cal
 The initial command output names `.pullboard/signers`, `.pullboard/first-commit` and `.pullboard/signers.initial` for staging and committing. Later sign-offs and signed signer-list changes are recorded in `.pullboard/signoffs.jsonl`; commit that file with the corresponding signer-list change.
 
 Every signed row and signer-list change binds the initial signer-list hash in its canonical text. Rewriting `.pullboard/signers.initial`, or relabelling that hash in earlier receipts, invalidates those receipts.
+
+## Sealed person requests
+
+A paired relay browser translates `add`, `shout`, `answer`, `hold` (including `args.off: true`), `spec-approve` and `spec-decline` into literal CLI intent. Its transport accepts `{verb, item?, args}` at the paired board's moves address and seals a separate request document before posting `{sequence, sealed}` to `/api/v1/boards/:board/requests`. It never sends plaintext arguments, an engine operation or the board key. The relay stores and orders that opaque envelope; it neither executes a command nor writes a repository. Agent credentials cannot submit person intent or person-attributed holds and releases.
+
+The device-only request format is `{version: 1, type: "person-request", id, move: {verb, item?, args}}`. This request version is independent of the ordinary move engine version. The stable `id` survives interrupted sends and sequence collisions. Browser storage keeps each pending request's ciphertext separately, so another tab cannot replace or clear it. A later board read reconciles pending sends with the relay's acknowledged prefix before retrying.
+
+The next ordinary local Pullboard command receives requests in relay order. One linked native device claims each request for ten minutes, measured exclusively from relay receipt timestamps, and runs its literal arguments through the actual CLI in the coordinator's primary checkout, outside the relay lock. Lane, brief, spec, person-channel and other CLI checks run there. Receiving a request never calls an engine operation directly. Its committed result travels as an ordinary move; durable request and move receipts prevent command retries from applying that result twice. A restarted device resumes its durable stages. After the executor lease expires, another linked device may claim the waiting request; each executor has distinct move ids, while the request’s atomic result and status prevent a late executor from creating another effect. Network or sign-in failures leave the request waiting.
+
+Local `GET /api/v1/boards/:board/state` and the device-decrypted relay presentation expose additive `state.personRequests`. Each entry has:
+
+| Field | Meaning |
+| --- | --- |
+| `id` | Stable request identity |
+| `sequence`, `at` | Original relay position and timestamp |
+| `by` | `person` for authenticated person intent; a refused sender names its authenticated actor |
+| `move` | Literal `{verb, item?, args}`, or `null` for refused malformed input |
+| `status` | `waiting`, `done` or `refused` |
+| `error` | Present for refusal: the original `{code, message, next}` CLI guidance, or a typed format/sender refusal |
+| `result`, `resultSequence` | Optional committed ordinary-move result and its relay position |
+| `coordinatorRequest` | Optional local shout id for a repository-change request |
+
+A browser action's decoded response is `{version: 1, event, result: {request}}`; `request` has the same status shape. `event` is the opaque acknowledgement, or `null` when reconciliation finds the earlier acknowledgement already in a sealed checkpoint. Direct actions become `done` when their actual CLI move commits. A refused add, for example, retains `UNKNOWN_SPEC` and the same explanation and next step as the terminal command, without creating an item. Answers always use the person channel; holds and releases keep the coordinator's execution guard while attributing the decision and event to the person.
+
+Row approval and decline first record the person's exact decision through the same authenticated view boundary as the local view, without editing any file. They then create a person-to-coordinator request to run `spec apply`. That request is first in coordinator `resume` and `inbox`. Its status stays `waiting` until the coordinator applies it and answers `done`, or answers `declined <reason>`. Decline resolves the request as `refused` with `REQUEST_DECLINED`, the coordinator's reason and a next step. The browser and relay never run `spec apply`.

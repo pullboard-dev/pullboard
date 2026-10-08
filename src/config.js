@@ -8,10 +8,15 @@ import { Refused } from './refused.js';
 
 export const CONFIG_FILE = 'pullboard.json';
 export const COORDINATOR = 'coordinator';
+export const DOCTRINE_FILE = 'DOCTRINE.md';
+export const LEGACY_DOCTRINE_FILE = 'PRACTICE.md';
 
 const LANE_NAME_RE = /^[a-z][a-z0-9-]{0,30}$/;
 const DURATION_RE = /^(\d+)(m|h|d)$/;
 const UNIT_MS = { m: 60_000, h: 3_600_000, d: 86_400_000 };
+const CHECK_TIMEOUT_RE = /^(\d+)(ms|s|m|h|d)$/;
+const CHECK_TIMEOUT_MS = { ms: 1, s: 1_000, m: 60_000, h: 3_600_000, d: 86_400_000 };
+const MAX_CHECK_TIMEOUT_MS = 2_147_483_647;
 const COMMIT_TYPES = [
   'feat',
   'fix',
@@ -34,11 +39,12 @@ const COMMIT_TYPES = [
 export function defaults() {
   return {
     spec: 'SPEC.md',
-    practice: 'PRACTICE.md',
+    practice: DOCTRINE_FILE,
     gate: '',
     lease: '2h',
     reviewLease: '30m',
     verify: { policy: 'any', family: 'off', reviewRatio: 3 },
+    check: { install: '', timeout: '5m' },
     lanes: {},
     products: {},
     shared: [],
@@ -89,6 +95,10 @@ function merge(base, raw) {
     verify: typeof raw.verify === 'string'
       ? { ...base.verify, policy: raw.verify }
       : { ...base.verify, ...(raw.verify ?? {}) },
+    check: raw.check === undefined ? base.check
+      : raw.check && typeof raw.check === 'object' && !Array.isArray(raw.check)
+        ? { ...base.check, ...raw.check }
+        : raw.check,
   };
 }
 
@@ -141,13 +151,22 @@ export function configProblems(config) {
     }
   }
   if (typeof config.spec !== 'string' || !config.spec) problems.push('"spec" names a file');
-  if (typeof config.practice !== 'string' || !config.practice) problems.push('"practice" names a file');
+  if (typeof config.practice !== 'string' || !config.practice) problems.push('"practice" names the doctrine file');
   if (typeof config.gate !== 'string') problems.push('"gate" is a shell command, like "npm test"');
   if (!['any', COORDINATOR].includes(config.verify?.policy)) {
     problems.push('"verify.policy" is "any" (any other agent) or "coordinator"');
   }
   if (!['off', 'prefer', 'require'].includes(config.verify?.family)) {
     problems.push('"verify.family" is "off", "prefer" or "require"');
+  }
+  if (typeof config.check !== 'object' || config.check === null || Array.isArray(config.check)) {
+    problems.push('"check" is an object with optional "install" and "timeout" fields');
+  }
+  if (typeof config.check?.install !== 'string') problems.push('"check.install" is an install command string');
+  const timeout = typeof config.check?.timeout === 'string' ? CHECK_TIMEOUT_RE.exec(config.check.timeout) : null;
+  const timeoutMs = timeout ? Number(timeout[1]) * CHECK_TIMEOUT_MS[timeout[2]] : NaN;
+  if (!timeout || timeoutMs <= 0 || !Number.isFinite(timeoutMs) || timeoutMs > MAX_CHECK_TIMEOUT_MS) {
+    problems.push('"check.timeout" is a positive duration no longer than 2,147,483,647ms, like "5m"');
   }
   if (!Number.isFinite(config.verify?.reviewRatio) || config.verify.reviewRatio <= 0) {
     problems.push('"verify.reviewRatio" is a positive number, such as 3');
@@ -190,7 +209,19 @@ export function loadConfig(root) {
   if (!existsSync(file)) {
     throw new Refused('NO_CONFIG', `no ${CONFIG_FILE} in ${root}; run: pullboard init`);
   }
-  return configFromSource(readFileSync(file, 'utf8'));
+  const config = configFromSource(readFileSync(file, 'utf8'));
+  return { ...config, practice: doctrineFile(root, config.practice) };
+}
+
+/** Resolve the doctrine's current name while preserving legacy and explicitly configured paths. */
+export function doctrineFile(root, name = DOCTRINE_FILE) {
+  if (![DOCTRINE_FILE, LEGACY_DOCTRINE_FILE].includes(name)) return name;
+  const current = existsSync(join(root, DOCTRINE_FILE));
+  const legacy = existsSync(join(root, LEGACY_DOCTRINE_FILE));
+  if (current && legacy) {
+    throw new Refused('BAD_CONFIG', `${DOCTRINE_FILE} and ${LEGACY_DOCTRINE_FILE} both define the repo doctrine; restore one doctrine file: merge their rules into ${DOCTRINE_FILE} and remove ${LEGACY_DOCTRINE_FILE}`);
+  }
+  return current ? DOCTRINE_FILE : legacy ? LEGACY_DOCTRINE_FILE : name;
 }
 
 /** Parse committed coordinator settings with the same defaults and validation as local settings. */
@@ -201,5 +232,11 @@ export function configFromSource(source) {
   const config = merge(defaults(), raw);
   const problems = configProblems(config);
   if (problems.length) throw new Refused('BAD_CONFIG', `${CONFIG_FILE}: ${problems.join('; ')}`);
-  return { ...config, leaseMs: durationMs(config.lease), reviewLeaseMs: durationMs(config.reviewLease, 'reviewLease') };
+  const timeout = CHECK_TIMEOUT_RE.exec(config.check.timeout);
+  return {
+    ...config,
+    check: { ...config.check, timeoutMs: Number(timeout[1]) * CHECK_TIMEOUT_MS[timeout[2]] },
+    leaseMs: durationMs(config.lease),
+    reviewLeaseMs: durationMs(config.reviewLease, 'reviewLease'),
+  };
 }

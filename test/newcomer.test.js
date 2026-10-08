@@ -21,7 +21,7 @@ function project(t) {
   return { root, env, git, run };
 }
 
-test('init ends with a working staging line for exactly its own writes [I1,I2]', (t) => {
+test('init ends with a working staging line for exactly its own writes [I1,I2,D1,D2]', (t) => {
   const box = project(t);
   writeFileSync(join(box.root, '.env.local'), 'LOCAL=1\n');
   writeFileSync(join(box.root, 'notes.txt'), 'keep this out of the initial commit\n');
@@ -46,7 +46,7 @@ test('init ends with a working staging line for exactly its own writes [I1,I2]',
     '.claude/skills/pullboard-spec-review/SKILL.md',
     '.claude/skills/pullboard-verify/SKILL.md',
     '.githooks/commit-msg', '.githooks/pre-push',
-    'AGENTS.md', 'PRACTICE.md', 'SPEC.md', 'pullboard.json',
+    'AGENTS.md', 'DOCTRINE.md', 'SPEC.md', 'pullboard.json',
   ]);
   assert.equal(readFileSync(join(box.root, '.env.local'), 'utf8'), 'LOCAL=1\n');
   assert.equal(readFileSync(join(box.root, '.githooks', 'pre-commit'), 'utf8'), '#!/bin/sh\n# My hook\n');
