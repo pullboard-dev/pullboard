@@ -92,7 +92,7 @@ export const JSON_SHAPES = {
 
 /** Extract a concrete repair from existing refusals, retaining their original guidance. */
 function nextStep(message) {
-  const match = /(?:; |\. |: )((?:run|install|upgrade|fix|restore|commit|check out|set|give|use|ask your coordinator|answer from the main checkout|the coordinator|to keep looking|never work around)\b[\s\S]*)/i.exec(message);
+  const match = /(?:; |\. |: )((?:run|install|upgrade|fix|restore|commit|check out|set|give|use|reject|ask your coordinator|answer from the main checkout|the coordinator|to keep looking|never work around)\b[\s\S]*)/i.exec(message);
   return match?.[1] ?? 'Run pullboard help, correct the reported problem, and retry the command.';
 }
 

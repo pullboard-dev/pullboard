@@ -1,9 +1,10 @@
 /** Coordinator policy and immutable submission checks cannot come from a builder's candidate [V4,V16,L3,M3]. */
 import { spawnSync } from 'node:child_process';
 import { digestOf } from './gate.js';
-import { closeSync, mkdtempSync, mkdirSync, openSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { configFromSource } from './config.js';
 import { outOfLane } from './lanes.js';
 import { Refused } from './refused.js';
@@ -141,18 +142,25 @@ export function checkAtCommit(root, item) {
 
 /** Run one shell command in a bounded private process group and capture its combined output. */
 function runPrivateCommand(root, env, command, timeout, logPath) {
-  const descriptor = openSync(logPath, 'w', 0o600);
+  const pidFile = logPath + '.pid';
   try {
-    const run = spawnSync('sh', ['-c', `ulimit -f 16384\n(\n${command}\n)`], {
-      cwd: root, env, detached: true, stdio: ['ignore', descriptor, descriptor], timeout, killSignal: 'SIGKILL',
+    // The worker drains pipes even after its capture cap, so noisy successful commands still pass.
+    const run = spawnSync(process.execPath, [fileURLToPath(new URL('./private-check-worker.js', import.meta.url))], {
+      cwd: root, env, input: JSON.stringify({ command, timeout, pidFile }), encoding: 'utf8',
+      timeout: timeout + 1000, killSignal: 'SIGKILL', maxBuffer: 64 * 1024 * 1024,
     });
-    if (run.pid) {
-      try { process.kill(-run.pid, 'SIGKILL'); } catch { /* The process group has already exited. */ }
+    if (run.error) return { status: null, error: { code: run.error.code }, output: '' };
+    try { return JSON.parse(run.stdout); }
+    catch { return { status: null, error: { code: 'CHECK_RUNNER' }, output: '' }; }
+  } finally {
+    if (existsSync(pidFile)) {
+      const pid = Number(readFileSync(pidFile, 'utf8'));
+      if (Number.isSafeInteger(pid) && pid > 0 && pid !== process.pid) {
+        try { process.kill(-pid, 'SIGKILL'); } catch { /* The private command group has already exited. */ }
+      }
+      rmSync(pidFile, { force: true });
     }
-    const output = readFileSync(logPath, 'utf8');
-    const capped = statSync(logPath).size >= 8 * 1024 * 1024 ? `${output}\n[output capped at 8 MiB]` : output;
-    return { ...run, output: capped };
-  } finally { closeSync(descriptor); }
+  }
 }
 
 /** Summarize both private command outputs for verifier and doctor diagnostics. */
