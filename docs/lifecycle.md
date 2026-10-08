@@ -74,7 +74,7 @@ Each move checks its guards in this order and refuses with the first one that do
 | CLOSED | escalate: the item is in open, claimed | pullboard show <id> |
 | CLOSED | refreeze: the item is in open, claimed, submitted | pullboard show <id> |
 | CLOSED | withdraw: the item is in open, claimed, submitted | pullboard show <id> |
-| NOT_JOINED | the caller is the main checkout, or a worktree that joined a lane | pullboard join <lane> (see: pullboard lanes) |
+| NOT_JOINED | the caller is the main checkout, or a worktree that joined a lane | pullboard join <lane> --model "<model name>" (see: pullboard lanes) |
 | NO_ITEM | the item exists | pullboard list --all |
 | COORDINATOR_ONLY | the caller is the coordinator | run it from the main checkout |
 | MAIN_IS_COORDINATOR | in the main checkout, the caller says it is the coordinator | verify from your own worktree; the coordinator adds --as coordinator |

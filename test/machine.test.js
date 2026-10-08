@@ -1064,12 +1064,12 @@ test('next --verify reserves the review for the reviewLease and says until when;
     const passed = run(other, 'next', '--verify');
     assert.equal(passed.status, 1, passed.stdout);
     assert.match(passed.stderr, /NOTHING_FREE/);
-    assert.ok(passed.stderr.includes(`web-2 holds the review of #1 until ${until}`), passed.stderr);
+    assert.ok(passed.stderr.includes(`web-2 (Test Model) holds the review of #1 until ${until}`), passed.stderr);
     git(other, 'switch', '-q', '--detach', commit);
     const refused = run(other, 'verify', '1', 'accept', '--note', 'it greets');
     assert.equal(refused.status, 1, refused.stdout);
     assert.match(refused.stderr, /REVIEW_HELD/);
-    assert.ok(refused.stderr.includes(`web-2 holds the review of #1 until ${until}`), refused.stderr);
+    assert.ok(refused.stderr.includes(`web-2 (Test Model) holds the review of #1 until ${until}`), refused.stderr);
 
     const renewed = run(holder, 'next', '--verify');
     const again = /reserved for you until (\S+):/.exec(renewed.stdout)?.[1];

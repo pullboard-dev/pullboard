@@ -608,7 +608,7 @@ function configHere(info) {
     if (info.isMain || !existsSync(join(mainRoot, CONFIG_FILE))) throw error;
     throw new Refused(
       'NO_CONFIG',
-      `this worktree's commit has no ${CONFIG_FILE}, though the main checkout has one: make a new worktree from the main checkout, which says what to commit first: ${cdTo(mainRoot)} pullboard worktree <lane>`,
+      `this worktree's commit has no ${CONFIG_FILE}, though the main checkout has one: make a new worktree from the main checkout, which says what to commit first: ${cdTo(mainRoot)} pullboard worktree <lane> --model "<model name>"`,
     );
   }
 }
@@ -671,7 +671,7 @@ function whoAmI(ctx, board) {
   }
   const agent = store.agentAt(board, ctx.info.root);
   if (!agent) {
-    throw new Refused('NOT_JOINED', 'this worktree has not joined a lane: pullboard join <lane> (see: pullboard lanes)');
+    throw new Refused('NOT_JOINED', 'this worktree has not joined a lane: pullboard join <lane> --model "<model name>" (see: pullboard lanes)');
   }
   return { id: agent.agent_id, lane: agent.agent_lane, route: agent.agent_route, family: agent.agent_family ?? null, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, ctx.config.agents.names) };
 }
@@ -757,6 +757,38 @@ function agentDisplayName(agents, config, id) {
   if (agent) return displayAgentName(agent, config.agents.names);
   if (id === 'person' || id === 'all' || Object.hasOwn(config.lanes, id)) return id;
   return displayAgentName({ agent_id: id }, config.agents.names);
+}
+
+/** Render only declared actor positions in a refusal, preserving user text and stable JSON ids. */
+function agentRefusalText(message, code, name) {
+  const patterns = {
+    ALREADY_JOINED: /^(\[ALREADY_JOINED\] this worktree is )(\S+)( in )/,
+    HELD: /^(\[HELD\] item #\d+ is held by )(\S+)( until )/,
+    LANE_HELD: /^(\[LANE_HELD\] )(\S+)( holds the )/,
+    REVIEW_HELD: /^(\[REVIEW_HELD\] )(\S+)( holds the )/,
+    NOT_YOURS: /^(\[NOT_YOURS\] only the coordinator or )(\S+)(, who )/,
+    NO_AGENT: /^(\[NO_AGENT\] no agent )(\S+)()$/,
+  };
+  if (code === 'NOT_YOUR_DECISION') {
+    return message.replace(/^(\[NOT_YOUR_DECISION\] shout #\d+ is addressed to )(\S+)(, not your \S+ lane \(agent )(\S+)(\))$/,
+      (_, before, to, middle, caller, after) => `${before}${name(to)}${middle}${name(caller)}${after}`);
+  }
+  return patterns[code] ? message.replace(patterns[code], (_, before, id, after) => `${before}${name(id)}${after}`) : message;
+}
+
+/** Read current display settings for text refusals; the structured error retains its stable identifiers. */
+function displayedRefusal(io, error) {
+  if (!['ALREADY_JOINED', 'HELD', 'LANE_HELD', 'REVIEW_HELD', 'NOT_YOURS', 'NOT_YOUR_DECISION', 'NO_AGENT'].includes(error.code)) return error.message;
+  try {
+    const ctx = context(io);
+    const agents = withBoard(ctx, (board) => store.listAgents(board));
+    return agentRefusalText(error.message, error.code, (id) => agentDisplayName(agents, ctx.config, id));
+  } catch { return error.message; }
+}
+
+/** Label the holder at the start of a generated wait reason without rewriting its quoted reason. */
+function displayedWait(reason, agents, config) {
+  return reason.replace(/^(\S+)( holds the )/, (_, id, rest) => `${agentDisplayName(agents, config, id)}${rest}`);
 }
 
 /**
@@ -854,14 +886,14 @@ function coordinatorNext(card, rows) {
   if (!approved.length) return 'the person approves rows in SPEC.md; then plan them: the pullboard-plan skill';
   if (card.holding.length) return buildNext(card);
   if (card.sentBack.length) return reworkNext(card);
-  if (card.toVerify.length) return 'pullboard next --verify --as coordinator, or a verifier that built nothing: pullboard worktree review';
+  if (card.toVerify.length) return 'pullboard next --verify --as coordinator, or a verifier that built nothing: pullboard worktree review --model "<model name>"';
   if (card.toMerge.length) {
     const [first] = card.toMerge;
     return `merge #${first.item_id}: git merge --no-edit ${first.item_commit.slice(0, 12)}, run the gate, then pullboard merged ${first.item_id} <merge commit>`;
   }
   if (card.open.length) {
     const lanes = [...new Set(card.open.map((item) => item.item_lane))];
-    return `start a builder for each lane with open items (${lanes.join(', ')}): pullboard worktree <lane>, then the pullboard-run skill`;
+    return `start a builder for each lane with open items (${lanes.join(', ')}): pullboard worktree <lane> --model "<model name>", then the pullboard-run skill`;
   }
   const cited = new Set(card.all.flatMap((item) => (item.item_spec_ids ?? '').split(',').filter(Boolean)));
   const unplanned = approved.filter((row) => !cited.has(row.id));
@@ -1646,7 +1678,8 @@ async function nextHere(io, values) {
     }
     if (!found.retry && Date.now() >= deadline) {
       const waited = minutes ? ` after ${minutes} minutes` : '';
-      io.err(`pullboard: [NOTHING_FREE] ${found.reasons.join('; ')}${waited}. To keep looking: pullboard next --wait 9${values.verify ? ' --verify' : ''} (minutes; give the command a ten-minute timeout)`);
+      const agents = withBoard(ctx, (board) => store.listAgents(board));
+      io.err(`pullboard: [NOTHING_FREE] ${found.reasons.map((reason) => displayedWait(reason, agents, ctx.config)).join('; ')}${waited}. To keep looking: pullboard next --wait 9${values.verify ? ' --verify' : ''} (minutes; give the command a ten-minute timeout)`);
       return 1;
     }
     if (!found.retry) await new Promise((done) => setTimeout(done, 5000));
@@ -1834,19 +1867,20 @@ function workCommands(io, args) {
     next: () => nextHere(io, { ...values, verifyId: first }),
     check: async () => {
       const ctx = context(io);
-      const { item, author, caller } = withBoard(ctx, (board) => {
+      const { item, author, caller, agents } = withBoard(ctx, (board) => {
         const me = first ? (ctx.info.isMain ? { id: COORDINATOR } : { id: store.agentAt(board, ctx.info.root)?.agent_id }) : whoAmI(ctx, board);
         const held = first ? store.getItem(board, idArg(first))
           : store.listItems(board).find((entry) => entry.item_status === 'claimed' && entry.item_owner === me.id && entry.item_parent_id === null);
         if (!held) throw new Refused('NOT_HOLDING', 'you hold no item; name one, pullboard check <id>, or run the project gate: pullboard gate');
-        return { item: held, author: store.itemCheckAuthor(board, held.item_id), caller: me.id };
+        return { item: held, author: store.itemCheckAuthor(board, held.item_id), caller: me.id, agents: store.listAgents(board) };
       });
       const check = frozenCheck(item);
       if (!check) throw new Refused('NO_CHECK', `#${item.item_id} has no check command; its proof is the project gate: pullboard gate`);
       if (item.item_claim_head) itemPolicy(ctx.info.root, item);
       else mainPolicy(ctx.info.root);
       const by = author || 'unknown (legacy)';
-      const notice = `check #${item.item_id} set by ${by}: ${check}`;
+      const authorName = author ? agentDisplayName(agents, ctx.config, author) : by;
+      const notice = `check #${item.item_id} set by ${authorName}: ${check}`;
       if (values.json) io.stderr.write(`${notice}\n`);
       else io.say(notice);
       if (!values.yes && (!author || author !== caller)) {
@@ -1854,7 +1888,7 @@ function workCommands(io, args) {
         else io.err('Run this check? [y/N]');
         const answer = await firstInputLine(io.stdin);
         if (!/^y(?:es)?$/iu.test(answer.trim())) {
-          throw new Refused('CHECK_CONFIRM', `the check set by ${by} was not run: ${check}; run pullboard check ${item.item_id} --yes after reading the command, or answer yes at the prompt`);
+          throw new Refused('CHECK_CONFIRM', `the check set by ${authorName} was not run: ${check}; run pullboard check ${item.item_id} --yes after reading the command, or answer yes at the prompt`);
         }
       }
       const run = runShell(ctx.info.root, check);
@@ -2336,7 +2370,7 @@ async function runCommand(argv, io) {
   } catch (error) {
     if (error instanceof Refused) {
       io.refusal?.(error);
-      io.err(`pullboard: ${error.message}`);
+      io.err(`pullboard: ${displayedRefusal(io, error)}`);
       return 1;
     }
     throw error;

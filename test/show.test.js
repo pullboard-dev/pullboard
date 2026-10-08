@@ -123,7 +123,7 @@ test('show prints the latest verdict in full and earlier ones as one line; --his
 
   const whole = run('show', '2');
   assert.equal(whole.status, 0, whole.stderr);
-    assert.ok(whole.stdout.includes(`REJECT TEST_FAILURE by web-2 (unknown) at dddddddddddd: ${EXACT}\n`), 'a first line of exactly 120 characters is printed whole');
+  assert.ok(whole.stdout.includes(`REJECT TEST_FAILURE by web-2 (unknown) at dddddddddddd: ${EXACT}\n`), 'a first line of exactly 120 characters is printed whole');
   assert.doesNotMatch(whole.stdout, /earlier verdicts shortened/, 'no hint when no earlier note was shortened');
 
   const breaks = run('show', '3');

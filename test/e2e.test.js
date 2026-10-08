@@ -1176,7 +1176,7 @@ test('hold pauses a lane: next names who held it and why; --off lets it go [N22]
   assert.match(box.run(box.repo, 'hold', 'web', '--reason', 'G1 is being rewritten').out, /holding the web lane: G1 is being rewritten/);
   const held = box.run(box.web, 'next');
   assert.equal(held.code, 1);
-  assert.match(held.err, /coordinator holds the web lane: G1 is being rewritten/);
+  assert.match(held.err, /coordinator \(unknown\) holds the web lane: G1 is being rewritten/);
   assert.match(box.run(box.web, 'claim', '1').err, /LANE_HELD/);
   assert.match(box.run(box.web, 'resume').out, /the web lane is held by coordinator \(unknown\): G1 is being rewritten/);
   assert.match(box.run(box.repo, 'hold', 'web', '--off').out, /released the web lane/);
@@ -1205,21 +1205,22 @@ test('init adds a Claude Code session hook that runs resume, and keeps every oth
   assert.equal(bare.stdout, '');
 });
 
-test('the tour runs a reject and its rework on a throwaway repo, in under thirty seconds [N10]', () => {
+test('the tour runs a reject and its rework on a throwaway repo, in under thirty seconds without a model environment [N10,O8]', () => {
   const box = sandbox();
   const plainEnv = { ...box.env, TMPDIR: box.dir };
   delete plainEnv.NO_COLOR;
   delete plainEnv.FORCE_COLOR;
+  delete plainEnv.PULLBOARD_MODEL;
   const started = Date.now();
   const shown = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: plainEnv, encoding: 'utf8' });
   assert.equal(shown.status, 0, `${shown.stdout}${shown.stderr}`);
   assert.ok(Date.now() - started < 30_000, 'thirty seconds');
   assert.doesNotMatch(shown.stdout, /\u001b\[/, 'piped output stays plain');
   assert.match(shown.stdout, /review-1 \$ pullboard verify 1 reject --reason BEHAVIOR_MISMATCH/);
-  assert.match(shown.stdout, /sent back: #1 BEHAVIOR_MISMATCH by review-1 \(Test Model\): greet\(''\) returns "Hello, !"/);
+  assert.match(shown.stdout, /sent back: #1 BEHAVIOR_MISMATCH by review-1 \(Scripted\): greet\(''\) returns "Hello, !"/);
   assert.match(shown.stdout, /with the fix removed\n {7}# pass 1\n {7}# fail 1/);
   assert.match(shown.stdout, /verified #1: CRITERION_MET/);
-  assert.match(shown.stdout, /\| 1 \| app \| Greeting \| G1 \| app-1 \(Test Model\) \| review-1 \(Test Model\) \|/);
+  assert.match(shown.stdout, /\| 1 \| app \| Greeting \| G1 \| app-1 \(Scripted\) \| review-1 \(Scripted\) \|/);
 
   const forced = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: { ...plainEnv, FORCE_COLOR: '1' }, encoding: 'utf8' });
   assert.equal(forced.status, 0, `${forced.stdout}${forced.stderr}`);
@@ -1381,7 +1382,7 @@ test('check runs the item\'s own check command, yours by default, and prints a d
   assert.equal(green.code, 0, green.out);
   assert.match(green.out, /^check green in \d+s: test -f web\/a.html/m);
   assert.equal(green.out.split('\n').filter(Boolean).length, 2);
-  assert.match(green.out, /^check #1 set by coordinator:/);
+  assert.match(green.out, /^check #1 set by coordinator \(unknown\):/);
   assert.equal(box.run(box.repo, 'check', '1').code, 1, 'named, from another checkout: there the file is missing');
   assert.match(box.run(box.web, 'check', '2').err, /NO_CHECK.*#2 has no check command/);
   assert.match(box.run(box.repo, 'help', '--all').out, /pullboard check \[id\]/);
@@ -1612,7 +1613,7 @@ test('from the view the person adds items, shouts and holds lanes, through the C
     const held = await view.act(box.repo, { verb: 'hold', args: { lane: 'web', reason: 'G1 is changing' } });
     assert.equal(held.status, 200);
     assert.equal(held.document.event.event_kind, 'hold');
-    assert.match(box.run(box.web, 'next').err, /coordinator holds the web lane: G1 is changing/);
+    assert.match(box.run(box.web, 'next').err, /coordinator \(unknown\) holds the web lane: G1 is changing/);
     const released = await view.act(box.repo, { verb: 'hold', args: { lane: 'web', off: true } });
     assert.equal(released.status, 200);
     assert.equal(released.document.event.event_kind, 'unhold');
@@ -1978,4 +1979,89 @@ test('a detached coordinator review cannot become a new claim policy [V4,V16]', 
   const submitted = box.run(box.web, 'submit', '1', '--json');
   assert.equal(submitted.code, 1);
   assert.equal(JSON.parse(submitted.out).error.code, 'OUTSIDE_LANE');
+});
+
+
+test('configured model names cover refusals, waits and check authors while IDs and user text stay stable [O8,O3]', () => {
+  for (const style of ['suffix', 'prefix']) {
+    const box = project('true');
+    const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+    config.agents = { names: style };
+    writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
+    box.git(box.repo, 'add', 'pullboard.json');
+    box.git(box.repo, 'commit', '-q', '-m', 'chore(repo): choose agent names [G1]');
+    box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+    const joined = box.run(box.web, 'join', 'web', '--model', 'Claude', '--json');
+    assert.equal(joined.code, 0, joined.err || joined.out);
+    assert.equal(JSON.parse(joined.out).agent, 'web-1');
+    const made = box.run(box.repo, 'worktree', 'web', '--model', 'GPT 6', '--json');
+    assert.equal(made.code, 0, made.err || made.out);
+    const second = JSON.parse(made.out);
+    assert.equal(second.agent, 'web-2');
+    const builderName = style === 'suffix' ? 'web-1 (Claude)' : 'claude-web-1';
+    const otherName = style === 'suffix' ? 'web-2 (GPT 6)' : 'gpt-6-web-2';
+    const coordinatorName = style === 'suffix' ? 'coordinator (unknown)' : 'unknown-coordinator';
+    const wrongLane = box.run(box.web, 'join', 'api', '--model', 'Claude');
+    assert.equal(wrongLane.code, 1);
+    assert.ok(wrongLane.err.includes(`this worktree is ${builderName} in the web lane`), wrongLane.err);
+    const added = box.run(box.repo, 'add', 'web', 'Model receipt', '--specs', 'G1', '--check', 'true', '--json');
+    assert.equal(added.code, 0, added.err || added.out);
+    const id = JSON.parse(added.out).item.item_id;
+    const claimed = box.run(box.web, 'claim', String(id));
+    assert.equal(claimed.code, 0, claimed.err || claimed.out);
+    const held = box.run(second.path, 'claim', String(id));
+    assert.equal(held.code, 1);
+    assert.ok(held.err.includes(`held by ${builderName} until`), held.err);
+    const structuredHeld = box.run(second.path, 'claim', String(id), '--json');
+    assert.equal(JSON.parse(structuredHeld.out).error.code, 'HELD');
+    assert.match(JSON.parse(structuredHeld.out).error.message, /held by web-1 until/);
+    const check = box.run(box.repo, 'check', String(id), '--yes', '--json');
+    assert.equal(check.code, 0, check.err || check.out);
+    assert.equal(JSON.parse(check.out).by, 'coordinator', 'the check receipt uses the stable actor id');
+    assert.ok(check.err.includes(`set by ${coordinatorName}: true`), check.err);
+    const refusedCheck = spawnSync(process.execPath, [BIN, 'check', String(id)], {
+      cwd: second.path, env: box.env, encoding: 'utf8', input: 'n\n',
+    });
+    assert.equal(refusedCheck.status, 1);
+    assert.ok(refusedCheck.stderr.includes(`the check set by ${coordinatorName} was not run`), refusedCheck.stderr);
+    const asked = box.run(box.repo, 'shout', 'web-1', 'Keep web-1 literal', '--decision', '--json');
+    assert.equal(asked.code, 0, asked.err || asked.out);
+    const ask = JSON.parse(asked.out).id;
+    const wrongAnswer = box.run(second.path, 'answer', String(ask), 'wrong agent');
+    assert.equal(wrongAnswer.code, 1);
+    assert.ok(wrongAnswer.err.includes(`addressed to ${builderName}, not your web lane (agent ${otherName})`), wrongAnswer.err);
+    assert.equal(box.run(box.repo, 'hold', 'web', '--reason', 'Keep web-1 literal in the reason').code, 0);
+    const waiting = box.run(second.path, 'next', '--build');
+    assert.equal(waiting.code, 1);
+    assert.ok(waiting.err.includes(`${coordinatorName} holds the web lane: Keep web-1 literal in the reason`), waiting.err);
+    const additional = box.run(box.repo, 'add', 'web', 'Another item', '--specs', 'G1', '--json');
+    assert.equal(additional.code, 0, additional.err || additional.out);
+    const id2 = JSON.parse(additional.out).item.item_id;
+    const laneHeld = box.run(second.path, 'claim', String(id2));
+    assert.equal(laneHeld.code, 1);
+    assert.ok(laneHeld.err.includes(`${coordinatorName} holds the web lane: Keep web-1 literal in the reason`), laneHeld.err);
+    const wrongEdit = box.run(second.path, 'edit', String(id2), '--brief', 'not mine');
+    assert.equal(wrongEdit.code, 1);
+    assert.ok(wrongEdit.err.includes(`only the coordinator or ${coordinatorName}, who added`), wrongEdit.err);
+    assert.equal(box.run(box.repo, 'hold', 'web', '--off').code, 0);
+    const submitted = box.run(box.web, 'submit', String(id));
+    assert.equal(submitted.code, 0, submitted.err || submitted.out);
+    const reserved = box.run(second.path, 'next', '--verify', String(id));
+    assert.equal(reserved.code, 0, reserved.err || reserved.out);
+    const reviewHeld = box.run(box.repo, 'next', '--verify', String(id), '--as', 'coordinator');
+    assert.equal(reviewHeld.code, 1);
+    assert.ok(reviewHeld.err.includes(`${otherName} holds the review of #${id}`), reviewHeld.err);
+    const reviewWaiting = box.run(box.repo, 'next', '--verify', '--as', 'coordinator');
+    assert.equal(reviewWaiting.code, 1);
+    assert.ok(reviewWaiting.err.includes(`${otherName} holds the review of #${id}`), reviewWaiting.err);
+    const identity = box.run(box.web, 'whoami', '--json');
+    assert.equal(identity.code, 0, identity.err || identity.out);
+    assert.equal(JSON.parse(identity.out).id, 'web-1');
+    assert.equal(JSON.parse(identity.out).displayName, builderName);
+    const log = box.run(box.repo, 'log', '--json');
+    assert.equal(log.code, 0, log.err || log.out);
+    const claim = JSON.parse(log.out).events.find((event) => event.event_kind === 'claim' && event.item_id === id);
+    assert.equal(claim.event_by, 'web-1');
+    assert.equal(JSON.parse(claim.event_detail).model, 'Claude');
+  }
 });
