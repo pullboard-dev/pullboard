@@ -23,6 +23,25 @@ export function mainPolicy(root) {
   return policyAt(root, checkout.commit);
 }
 
+/** Refuse a candidate that conflicts with the current primary branch, without touching an index or worktree [B34,V6]. */
+export function requireTrunkMerge(root, commit, retainedRef = null) {
+  const checkout = mainCheckout(root);
+  const branchRef = checkout?.branch ?? retainedRef;
+  if (!branchRef?.startsWith('refs/heads/')) throw new Refused('NO_TRUNK', 'no trunk branch was recorded; check out the trunk branch in the main checkout once and run pullboard inbox');
+  const tip = spawnSync('git', ['--no-replace-objects', 'rev-parse', '--verify', '--quiet', branchRef + '^{commit}'], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
+  if (tip.status !== 0) throw new Refused('NO_TRUNK', 'the recorded trunk branch has no readable tip; check out the trunk branch in the main checkout once and run pullboard inbox');
+  const result = spawnSync('git', ['--no-replace-objects', '-c', 'core.quotepath=false', 'merge-tree', '--write-tree', '--name-only', '-z', tip.stdout.trim(), commit], {
+    cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 32 * 1024 * 1024,
+  });
+  if (result.status === 0) return;
+  if (result.status !== 1) throw new Refused('MERGE_CHECK_FAILED', 'Git could not check the candidate against the trunk; use Git 2.38 or newer, restore its objects and retry');
+  const records = result.stdout.split('\0').slice(1);
+  const end = records.indexOf('');
+  const files = records.slice(0, end < 0 ? records.length : end).map(path => JSON.stringify(path));
+  const branch = branchRef.replace(/^refs\/heads\//, '');
+  throw new Refused('MERGE_CONFLICT', `the candidate conflicts with the current trunk ${branch} in ${files.join(', ') || 'unresolved files'}; merge the trunk into your branch, resolve these files, commit and resubmit`);
+}
+
 /** Re-read coordinator settings from a pinned Git object; never from the candidate filesystem. */
 export function policyAt(root, commit) {
   if (!/^[0-9a-f]{40,64}$/.test(commit ?? '')) throw new Refused('NO_POLICY', 'this item has no recorded claim base; ask the coordinator to refreeze it and claim it again');

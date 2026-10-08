@@ -432,6 +432,12 @@ export function agentAt(board, path) {
   return board.db.prepare('SELECT * FROM agent WHERE agent_path = ?').get(path);
 }
 
+/** Remember the primary branch locally, so a detached review can still check its current trunk [B34,V6]. */
+export function trunkRef(board, branch) {
+  if (branch !== undefined) board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value').run('trunk_ref', branch);
+  return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get('trunk_ref')?.meta_value ?? null;
+}
+
 /**
  * Register a worktree as an agent (B3): the main checkout as the one coordinator, any other
  * worktree as the next agent in its lane (`web-1`, `web-2`, ...), on a route: the tier of model
@@ -1000,6 +1006,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
         nothingUntracked: null,
         hasCommit: null,
         withinLane: null,
+        trunkMergeClean: null,
         gateConfigured: null,
         gateGreen: null,
         treeStillDuringGate: null,
@@ -1177,6 +1184,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', head, 
             ? null
             : new Refused('CRITERIA_CHANGED', `the criterion for #${id} changed after it was claimed; the coordinator runs: pullboard refreeze ${id}`),
         reasonIsMet: () => (reason && reason !== ACCEPT_REASON ? new Refused('BAD_REASON', `accept means ${ACCEPT_REASON}; a failed criterion is a reject`) : null),
+        trunkMergeClean: null,
         itemCheckGreen: null,
         proofNoted: () =>
           note.trim()

@@ -115,6 +115,7 @@ export const GUARDS = [
   { id: 'hasCommit', refuse: 'NO_COMMIT', rule: 'there is a commit to submit', next: 'commit your work, then submit', source: 'cli' },
   { id: 'gateConfigured', refuse: 'NO_GATE', rule: 'the repo names a gate command', next: 'set "gate" in pullboard.json, e.g. "npm test"', source: 'cli' },
   { id: 'withinLane', refuse: 'OUTSIDE_LANE', alsoRefuses: [{ code: 'NO_POLICY', next: 'restore the claim base or ask the coordinator to refreeze' }, { code: 'BAD_CONFIG', next: 'restore the committed coordinator configuration' }], rule: 'the full claimed diff respects committed coordinator ownership', next: 'restore foreign paths or shout their owner', source: 'cli' },
+  { id: 'trunkMergeClean', refuse: 'MERGE_CONFLICT', alsoRefuses: [{ code: 'MERGE_CHECK_FAILED', next: 'use Git 2.38 or newer, restore its objects and retry' }, { code: 'NO_POLICY', next: 'restore the primary repository metadata' }, { code: 'NO_TRUNK', next: 'check out the trunk branch in the main checkout once and run pullboard inbox' }], rule: 'the candidate merges cleanly into the current primary branch without changing an index or worktree', next: 'merge the trunk into your branch, resolve conflicts, commit and resubmit', source: 'cli' },
   { id: 'itemCheckGreen', refuse: 'CHECK_RED', rule: 'the frozen item check passes at the exact submitted commit', next: 'reject the failing behavior; the builder fixes and resubmits', source: 'cli' },
   { id: 'gateGreen', refuse: 'GATE_RED', rule: 'the gate, which submit runs itself every time, is green at HEAD', next: 'fix what the digest names, commit, submit again', source: 'cli' },
   { id: 'treeStillDuringGate', refuse: 'MOVED_DURING_GATE', rule: 'when the gate ends, HEAD and every tracked file are as they were when it started', next: 'leave the worktree alone until the gate finishes, then submit again', source: 'cli' },
@@ -145,7 +146,7 @@ export const MOVES = [
   { verb: 'lapse', from: ['claimed'], to: 'open', by: ['clock'], guards: [], when: 'its lease runs out' },
   {
     verb: 'submit', from: ['claimed'], to: 'submitted', by: ['agent', 'coordinator'], refuse: 'NOT_YOURS',
-    guards: ['joined', 'itemExists', IN_STATE, 'isHolder', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'gateConfigured', 'gateGreen', 'treeStillDuringGate', 'childrenDone', 'headIsNew'],
+    guards: ['joined', 'itemExists', IN_STATE, 'isHolder', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'trunkMergeClean', 'gateConfigured', 'gateGreen', 'treeStillDuringGate', 'childrenDone', 'headIsNew'],
     sets: ['item_built_by', 'item_commit'], command: 'pullboard submit <id>',
   },
   {
@@ -155,7 +156,7 @@ export const MOVES = [
   },
   {
     verb: 'accept', from: ['submitted'], to: 'verified', by: ['agent', 'coordinator'], refuse: 'NOT_SUBMITTED',
-    guards: ['coordinatorSaysAs', 'joined', 'itemExists', IN_STATE, 'atSubmittedCommit', 'notBuilder', 'routeAllows', 'policyAllows', 'familyAllows', 'reviewFree', 'criterionUnchanged', 'reasonIsMet', 'itemCheckGreen', 'proofNoted'],
+    guards: ['coordinatorSaysAs', 'joined', 'itemExists', IN_STATE, 'atSubmittedCommit', 'notBuilder', 'routeAllows', 'policyAllows', 'familyAllows', 'reviewFree', 'criterionUnchanged', 'reasonIsMet', 'trunkMergeClean', 'itemCheckGreen', 'proofNoted'],
     sets: ['item_verified_by'], command: 'pullboard verify <id> accept --note "..."',
   },
   {

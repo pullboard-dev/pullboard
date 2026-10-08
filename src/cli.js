@@ -14,7 +14,7 @@ import { loadDoctrine } from './doctrine.js';
 import { requirePersonChannel } from './person.js';
 import { decisionProjection, planRowApply, prepareRowDecisions, restoreRowApply, writeRowApply } from './row-decisions.js';
 import { digestOf, gateReport, runGate, runShell } from './gate.js';
-import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
+import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, isClean, mainCheckout, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
   FIX_NOTE,
   applyFixers,
@@ -56,7 +56,7 @@ import { exportView, serveView } from './serve.js';
 import { serveApi } from './api.js';
 import { doctorProblems } from './doctor.js';
 import { staleFrozenItems, staleItemFinding } from './approved-rows.js';
-import { mainPolicy, itemPolicy, submissionPaths, frozenCheck, checkAtCommit, dependencySnapshots } from './trusted-policy.js';
+import { mainPolicy, itemPolicy, submissionPaths, frozenCheck, checkAtCommit, dependencySnapshots, requireTrunkMerge } from './trusted-policy.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
@@ -631,7 +631,13 @@ function withBoard(ctx, work) {
     store.closeBoard(board);
   };
   let result;
-  try { result = work(board); }
+  try {
+    if (ctx.info.isMain) {
+      const primary = mainCheckout(ctx.info.root);
+      if (primary?.branch) store.trunkRef(board, primary.branch);
+    }
+    result = work(board);
+  }
   catch (error) { finish(); throw error; }
   if (result && typeof result.then === 'function') return result.finally(finish);
   finish();
@@ -1437,6 +1443,7 @@ async function submitHere(ctx, id) {
   if (stray.length) throw new Refused('UNTRACKED', `commit or ignore ${stray.length} untracked file(s), e.g. ${stray[0]}`);
   const commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
+  withBoard(ctx, board => requireTrunkMerge(root, commit, store.trunkRef(board)));
   // Submit runs the gate itself, every time: a stamp from an earlier run is a file any agent can
   // write, so it never stands in for this run (V16). It starts on the commit submitted, and must end
   // on it too. What the gate's own code does in between is the submitted tree's, under review.
@@ -1448,6 +1455,7 @@ async function submitHere(ctx, id) {
       `when the gate ended, HEAD or a tracked file differed from ${commit.slice(0, 12)}, the commit it started on, so the gate did not end on what you would submit; leave the worktree alone until the gate finishes, then submit again`,
     );
   }
+  withBoard(ctx, board => requireTrunkMerge(root, commit, store.trunkRef(board))); // The trunk may have moved while the gate ran.
   await withBoard(ctx, async (board) => await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit }]));
   const pin = `refs/pullboard/items/${id}/${commit.slice(0, 12)}`;
   git(root, ['update-ref', pin, commit]);
@@ -1493,9 +1501,11 @@ async function verifyHere(ctx, id, { second, values }) {
     }
     if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
+      requireTrunkMerge(root, commit, store.trunkRef(board));
       if (!checkAtCommit(root, item).green) throw new Refused('CHECK_RED', 'the frozen item check is red at the submitted commit; reject with the failing behavior or ask the builder to fix and resubmit');
       const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
       submissionPaths(root, item, commit, { mainCommit: receipt?.policyCommit, dependencies: dependencySnapshots(board.db, item) });
+      requireTrunkMerge(root, commit, store.trunkRef(board)); // Re-read after the frozen check, before accepting.
     }
     return await ordered(ctx, board, 'verify', [id, {
       agentId: me.id,
@@ -2321,6 +2331,24 @@ async function runCommand(argv, io) {
   }
 }
 
+/** Retain the primary branch on every command without creating a board for global help. */
+function rememberTrunk(io) {
+  let info;
+  try { info = repoInfo(io.cwd); }
+  catch (error) {
+    if (error instanceof Refused && ['NOT_A_REPO', 'NO_REPO', 'CORE_BARE'].includes(error.code)) return;
+    throw error;
+  }
+  if (!info.isMain) return;
+  const file = join(info.commonDir, 'pullboard', 'board.sqlite');
+  if (!existsSync(file)) return;
+  const primary = mainCheckout(info.root);
+  if (!primary?.branch) return;
+  const board = store.openBoard(file, io.clock ?? store.systemClock);
+  try { store.trunkRef(board, primary.branch); }
+  finally { store.closeBoard(board); }
+}
+
 /** Run one command and emit its single versioned JSON result when requested (A1). */
 export async function main(argv, streams) {
   const io = commandOutput(argv, streams);
@@ -2338,6 +2366,7 @@ export async function main(argv, streams) {
       if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
     }
   };
+  rememberTrunk(io);
   if (sync) await retry();
   const code = await runCommand(argv, io);
   if (sync && code === 0) await retry();

@@ -781,9 +781,9 @@ test('pullboard help lists each role\'s moves from the declaration, and pullboar
 /** Guards the CLI checks before it asks the board: the board's own order starts after them. */
 const CLI_CHECKED = {
   claim: ['joined'],
-  submit: ['joined', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'gateConfigured', 'gateGreen', 'treeStillDuringGate'],
+  submit: ['joined', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'trunkMergeClean', 'gateConfigured', 'gateGreen', 'treeStillDuringGate'],
   reserve: ['coordinatorSaysAs', 'joined'],
-  accept: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit', 'itemCheckGreen'],
+  accept: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit', 'trunkMergeClean', 'itemCheckGreen'],
   reject: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit'],
 };
 
