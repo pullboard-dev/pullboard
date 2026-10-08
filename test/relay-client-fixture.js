@@ -97,17 +97,34 @@ export async function relayClientFixture(t) {
   });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
-  const origin = 'http://127.0.0.1:' + server.address().port;
+  const relayPort = server.address().port;
+  const origin = 'http://127.0.0.1:' + relayPort;
   signIn = createAuthHandler({ auth, publicOrigin: origin });
   api = createRelayHandler({ directory: join(scratch, 'relay'), auth, publicOrigin: origin, pollMs: 10, maintenanceMs: 0, now: () => time });
   t.after(async () => {
     api.close();
     server.closeAllConnections();
-    await new Promise(ready => server.close(ready));
+    if (server.listening) await new Promise(ready => server.close(ready));
     auth.close();
     rmSync(scratch, { recursive: true, force: true });
   });
 
+  /** Stop the real relay listener and close active sockets to model a network outage. */
+  async function stopRelay() {
+    if (!server.listening) return;
+    server.closeAllConnections();
+    await new Promise((ready, reject) => server.close(error => error ? reject(error) : ready()));
+  }
+  /** Restart the same relay listener at the same address without changing its journal or credentials. */
+  async function restartRelay() {
+    if (server.listening) return;
+    await new Promise((ready, reject) => {
+      const failed = error => { server.off('listening', ready); reject(error); };
+      server.once('error', failed);
+      server.once('listening', () => { server.off('error', failed); ready(); });
+      server.listen(relayPort, '127.0.0.1');
+    });
+  }
   /** Invoke the production CLI in this private repository. */
   async function cli(...args) { return childResult(root, env, [CLI, ...args, '--json']); }
   assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, env }).status, 0);
@@ -179,8 +196,9 @@ export async function relayClientFixture(t) {
     return childResult(root, env, ['--input-type=module', '-e', source]);
   }
   return {
-    root, env, lane, before, linkFile, keyFile, calls, transit, relayDirectory: join(scratch, 'relay'), authDatabase,
-    cli, link, otherDeviceOff, otherDeviceJoin, script,
+    root, env, origin, lane, before, linkFile, keyFile, calls, transit,
+    relayDirectory: join(scratch, 'relay'), authDatabase,
+    cli, link, otherDeviceOff, otherDeviceJoin, script, stopRelay, restartRelay,
     advance(days) { time = Date.now() + days * 86400000; },
     overrideDelete(value) { override = value; },
     mainURL: new URL('../src/cli.js', import.meta.url).href,
