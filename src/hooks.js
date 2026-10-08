@@ -11,6 +11,7 @@ import { Refused } from './refused.js';
 import { outOfLane } from './lanes.js';
 import { citedIds, deletedIds, idProblems } from './spec.js';
 import { approvedRowProblems } from './approved-rows.js';
+import { mainPolicy } from './trusted-policy.js';
 
 export const HOOKS = ['pre-commit', 'commit-msg', 'pre-push'];
 export const HOOKS_DIR = '.githooks';
@@ -224,7 +225,10 @@ export function preCommitProblems({ root, isMain, config, agent, boardFile }) {
     return problems;
   }
   const mergeBase = mainMergeBase(root);
-  const ownershipTouched = mergeBase ? stagedPaths(root, mergeBase).touched : touched;
+  const ownershipTouched = mergeBase
+    ? [...new Set([...touched, ...stagedPaths(root, mergeBase).touched])]
+      .filter((path) => !outOfLane(config, agent.agent_lane, [path]).length || !unchangedMergePath(root, path, mergeBase))
+    : touched;
   const foreign = outOfLane(config, agent.agent_lane, ownershipTouched);
   problems.push(
     ...foreign.map((path) => `outside the ${agent.agent_lane} lane: ${path}; shout its owner instead`),
@@ -241,9 +245,35 @@ export function preCommitProblems({ root, isMain, config, agent, boardFile }) {
 function mainMergeBase(root) {
   const merge = tryGit(root, ['rev-parse', '--verify', 'MERGE_HEAD']);
   if (merge.status !== 0) return null;
-  return tryGit(root, ['merge-base', '--is-ancestor', merge.stdout, 'refs/heads/main']).status === 0
+  let main;
+  try { main = mainPolicy(root).commit; } catch { return null; }
+  return tryGit(root, ['merge-base', '--is-ancestor', merge.stdout, main]).status === 0
     ? merge.stdout
     : null;
+}
+
+/** Compare the staged mode and object, rejecting unresolved stages rather than treating them as deletions. */
+function stagedObject(root, path) {
+  const records = git(root, ['ls-files', '--stage', '-z', '--', ':(literal)' + path]).split('\0').filter(Boolean);
+  if (!records.length) return '';
+  if (records.length !== 1) return null;
+  const fields = /^(\d{6}) ([0-9a-f]{40,64}) 0\t/.exec(records[0]);
+  return fields ? fields[1] + ' ' + fields[2] : null;
+}
+
+/** Read one committed path's mode and object without following symlinks or interpreting filename globs. */
+function committedObject(root, commit, path) {
+  const records = git(root, ['ls-tree', '-z', commit, '--', ':(literal)' + path]).split('\0').filter(Boolean);
+  if (!records.length) return '';
+  if (records.length !== 1) return null;
+  const fields = /^(\d{6}) \w+ ([0-9a-f]{40,64})\t/.exec(records[0]);
+  return fields ? fields[1] + ' ' + fields[2] : null;
+}
+
+/** Main integration may preserve either parent's exact foreign object; a new resolution remains lane-owned. */
+function unchangedMergePath(root, path, mergeBase) {
+  const staged = stagedObject(root, path);
+  return staged !== null && (staged === committedObject(root, mergeBase, path) || staged === committedObject(root, 'HEAD', path));
 }
 
 /**
