@@ -2639,6 +2639,117 @@ test('served connection reaches an authenticated API on another origin and path 
   }
 });
 
+test('read-only pages use a local browser transport and refresh on its updates [N26,N27]', { timeout: 90_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to run the browser transport proof.');
+
+  const box = machine();
+  const app = project(box, 'read only transport');
+  box.run(app.repo, 'add', 'web', 'Read-only fixture item', '--specs', 'G1', '--criterion', 'keeps action controls in the DOM');
+  box.run(app.repo, 'shout', 'person', 'Should the read-only fixture ship?', '--decision');
+  box.run(app.repo, 'hold', 'web', '--reason', 'read-only fixture hold');
+  const live = await startView(box);
+  const pageKey = 'page-relay-secret';
+  const headerKey = 'header-relay-secret';
+  const page = cockpitPage(pageKey, {
+    readOnly: true,
+    transportModule: '/transport.js',
+    apiBase: 'https://private.invalid/board?secret=api-base-secret',
+    apiHeaders: { 'x-pullboard-key': headerKey },
+    stylesheet: '/view.css',
+  });
+  for (const secret of [pageKey, headerKey, 'api-base-secret']) assert.equal(page.includes(secret), false, 'custom transport page options do not expose API credentials');
+  assert.throws(() => cockpitPage('', { transportModule: '' }), /transportModule/);
+
+  const forwarded = [];
+  const moduleSource = `export async function createTransport({ onUpdate }) {
+    window.__transportCalls = [];
+    window.__transportUpdate = onUpdate;
+    return { async request(path, body) {
+      window.__transportCalls.push({ path, body: body ?? null });
+      const response = await fetch('/fixture' + path, { method: body ? 'POST' : 'GET', headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+      const document = await response.json();
+      if (!response.ok) throw new Error(document.error?.message || String(response.status));
+      return document;
+    } };
+  }`;
+  const server = createServer((request, response) => {
+    const url = new URL(request.url, 'http://127.0.0.1');
+    if (url.pathname === '/' || url.pathname === '/missing') {
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      response.end(page);
+      return;
+    }
+    if (url.pathname === '/transport.js') {
+      response.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
+      response.end(moduleSource);
+      return;
+    }
+    if (url.pathname === '/view.css') {
+      response.writeHead(200, { 'content-type': 'text/css; charset=utf-8' });
+      response.end(readFileSync(new URL('../src/view.css', import.meta.url), 'utf8'));
+      return;
+    }
+    if (!url.pathname.startsWith('/fixture/')) {
+      response.writeHead(404).end();
+      return;
+    }
+    const target = url.pathname.slice('/fixture'.length) + url.search;
+    const headers = { 'x-pullboard-key': live.key };
+    if (request.method !== 'GET') {
+      forwarded.push(request.method);
+      response.writeHead(405, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'fixture transport accepts reads only' }));
+      return;
+    }
+    forwarded.push(request.method);
+    fetch(live.base + target, { headers }).then(async (reply) => {
+      response.writeHead(reply.status, { 'content-type': 'application/json' });
+      response.end(await reply.text());
+    }).catch((error) => {
+      response.writeHead(502, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ error: String(error.message || error) }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-transport-chrome-'));
+  scratch.push(profile);
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, `http://127.0.0.1:${address.port}/`, profile);
+    await chrome.waitFor("typeof data === 'object' && document.body?.classList.contains('read-only') && !!data?.project && typeof window.__transportUpdate === 'function'");
+    const calls = JSON.parse(await chrome.evaluate('JSON.stringify(window.__transportCalls)'));
+    assert.ok(calls.some((call) => call.path === '/api/v1/boards'));
+    assert.ok(calls.some((call) => call.path.startsWith('/api/v1/boards/') && call.path.endsWith('/state')));
+    assert.match(await chrome.evaluate("document.querySelector('#live').textContent"), /^live · /, 'read-only transport keeps the page live');
+    const actionSelectors = ['#new-item', '#add-form', '#shout-form', '#hold-form', '[data-release]', '[data-shout]', '[data-new]', '[data-go^="decide:"]'];
+    const actionMatches = JSON.parse(await chrome.evaluate(`JSON.stringify(${JSON.stringify(actionSelectors)}.map((selector) => ({ selector, count: document.querySelectorAll(selector).length, visible: [...document.querySelectorAll(selector)].some((node) => !node.hidden && getComputedStyle(node).display !== 'none') })))`));
+    assert.ok(actionMatches.every((entry) => entry.count > 0), 'the seeded item, decision and hold exercise every action selector');
+    assert.deepEqual(actionMatches.filter((entry) => entry.visible).map((entry) => entry.selector), [], 'read-only mode hides every match for every action control');
+
+    const refusedAction = JSON.parse(await chrome.evaluate(`(async () => JSON.stringify({ result: await act('shout', { to: 'all', text: 'blocked' }), message: document.querySelector('#console').textContent }))()`));
+    assert.equal(refusedAction.result, false);
+    assert.match(refusedAction.message, /read-only/i);
+    const refusedApi = await chrome.evaluate(`(async () => { try { await api('/api/v1/boards/demo/moves', { verb: 'shout' }); return 'unexpected success'; } catch (error) { return error.message; } })()`);
+    assert.match(refusedApi, /read-only/i, 'direct API mutation calls are refused before transport');
+    assert.ok(forwarded.every((method) => method === 'GET'), 'read-only action attempts send no write through the transport');
+
+    await chrome.evaluate(`window.__samePage = true; Object.defineProperty(document, 'hidden', { configurable: true, get: () => true })`);
+    box.run(app.repo, 'add', 'web', 'Transport refresh item', '--specs', 'G1', '--criterion', 'appears after a transport update');
+    await chrome.evaluate('window.__transportUpdate()');
+    assert.equal(await chrome.evaluate("data?.project?.items.some((item) => item.title === 'Transport refresh item') && window.__samePage === true"), true, 'onUpdate refreshes state in the same page without relying on the poll');
+    assert.ok(forwarded.every((method) => method === 'GET'), 'transport update refreshed through reads only');
+
+  } finally {
+    if (chrome) {
+      chrome.socket.close();
+      await stopOwnedChrome(chrome.child, chrome.stopped);
+    }
+    await live.stop();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N26,N27]', { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for viewport checks.');
