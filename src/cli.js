@@ -104,7 +104,8 @@ Work
   pullboard next --verify               reserve the next submitted item you can check;
   pullboard next --verify <id>          reserve that submitted item instead
                                         in the main checkout, verifying needs --as coordinator
-  pullboard check [id]                  run your item's check, the command that proves it (the project gate is pullboard gate)
+  pullboard check [id] [--yes]          show and run your item's check; --yes confirms a check set by someone else
+                                        the command and its author print first; the project gate is pullboard gate
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
   pullboard release <id>                hand it back
   pullboard submit <id>                 needs a clean tree and the gate green at HEAD (alias: done)
@@ -177,6 +178,7 @@ const OPTIONS = {
   family: { type: 'string' },
   as: { type: 'string' },
   check: { type: 'string' },
+  yes: { type: 'boolean' },
   agent: { type: 'string' },
   'agent-light': { type: 'string' },
   'agent-mid': { type: 'string' },
@@ -1419,7 +1421,7 @@ function workCommands(io, args) {
         after,
         brief: briefInLane(ctx, first, briefArg(io, values) ?? ''),
         route: values.route ?? 'strong',
-        check: values.check ?? '',
+        check: values.check,
       }]);
       io.result?.({ item: store.getItem(board, id) });
       io.say(`#${id}`);
@@ -1453,21 +1455,33 @@ function workCommands(io, args) {
     run: () => runItems(io, values, { context, withBoard, whoAmI, nextOnce, submitHere, freezer, ordered }),
     sweep: () => act((ctx, board, me) => sweepHere(ctx, board, me, values)),
     next: () => nextHere(io, { ...values, verifyId: first }),
-    check: () => {
+    check: async () => {
       const ctx = context(io);
-      const item = withBoard(ctx, (board) => {
-        if (first) return store.getItem(board, idArg(first));
-        const me = whoAmI(ctx, board);
-        const held = store.listItems(board).find((entry) => entry.item_status === 'claimed' && entry.item_owner === me.id && entry.item_parent_id === null);
+      const { item, author, caller } = withBoard(ctx, (board) => {
+        const me = first ? (ctx.info.isMain ? { id: COORDINATOR } : { id: store.agentAt(board, ctx.info.root)?.agent_id }) : whoAmI(ctx, board);
+        const held = first ? store.getItem(board, idArg(first))
+          : store.listItems(board).find((entry) => entry.item_status === 'claimed' && entry.item_owner === me.id && entry.item_parent_id === null);
         if (!held) throw new Refused('NOT_HOLDING', 'you hold no item; name one, pullboard check <id>, or run the project gate: pullboard gate');
-        return held;
+        return { item: held, author: store.itemCheckAuthor(board, held.item_id), caller: me.id };
       });
       const check = frozenCheck(item);
       if (!check) throw new Refused('NO_CHECK', `#${item.item_id} has no check command; its proof is the project gate: pullboard gate`);
       if (item.item_claim_head) itemPolicy(ctx.info.root, item);
       else mainPolicy(ctx.info.root);
+      const by = author || 'unknown (legacy)';
+      const notice = `check #${item.item_id} set by ${by}: ${check}`;
+      if (values.json) io.stderr.write(`${notice}\n`);
+      else io.say(notice);
+      if (!values.yes && (!author || author !== caller)) {
+        if (values.json) io.stderr.write('Run this check? [y/N]\n');
+        else io.err('Run this check? [y/N]');
+        const answer = await firstInputLine(io.stdin);
+        if (!/^y(?:es)?$/iu.test(answer.trim())) {
+          throw new Refused('CHECK_CONFIRM', `the check set by ${by} was not run: ${check}; run pullboard check ${item.item_id} --yes after reading the command, or answer yes at the prompt`);
+        }
+      }
       const run = runShell(ctx.info.root, check);
-      io.result?.({ id: item.item_id, green: run.isGreen, seconds: run.seconds, check, report: run.isGreen ? '' : digestOf(run.output) });
+      io.result?.({ id: item.item_id, green: run.isGreen, seconds: run.seconds, check, by, report: run.isGreen ? '' : digestOf(run.output) });
       io.say(`check ${run.isGreen ? 'green' : 'red'} in ${run.seconds}s: ${check}`);
       if (!run.isGreen) io.say(digestOf(run.output).replace(/^/gm, '  '));
       return run.isGreen ? 0 : 1;
@@ -1746,6 +1760,19 @@ function specCommand(io, { first, second, rest, values }) {
     return 0;
   }
   throw new Refused('USAGE', 'pullboard spec --json | check | view | show <id> | unmet [--must] | signoff <ids> [--by <principal>] | signers add');
+}
+
+/** Read one consent line without waiting for EOF in an interactive terminal [V2]. */
+async function firstInputLine(stdin) {
+  if (!stdin) return '';
+  let text = '';
+  for await (const chunk of stdin) {
+    text += chunk.toString();
+    const newline = text.indexOf('\n');
+    if (newline >= 0) return text.slice(0, newline);
+    if (text.length > 256) return '';
+  }
+  return text;
 }
 
 /**

@@ -1358,16 +1358,17 @@ test('check runs the item\'s own check command, yours by default, and prints a d
   box.run(box.repo, 'add', 'web', 'Loose', '--specs', 'G1');
   assert.match(box.run(box.web, 'check').err, /NOT_HOLDING.*pullboard gate/);
   box.run(box.web, 'claim', '1');
-  const red = box.run(box.web, 'check');
+  const red = box.run(box.web, 'check', '--yes');
   assert.equal(red.code, 1);
-  assert.match(red.out, /^check red in \d+s: test -f web\/a.html/);
+  assert.match(red.out, /^check red in \d+s: test -f web\/a.html/m);
   assert.match(red.out, /\n {2}not ok 1 - web\/a.html is missing\n/);
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web', 'a.html'), '<h1>Hi</h1>');
-  const green = box.run(box.web, 'check');
+  const green = box.run(box.web, 'check', '--yes');
   assert.equal(green.code, 0, green.out);
-  assert.match(green.out, /^check green in \d+s: test -f web\/a.html/);
-  assert.equal(green.out.split('\n').filter(Boolean).length, 1);
+  assert.match(green.out, /^check green in \d+s: test -f web\/a.html/m);
+  assert.equal(green.out.split('\n').filter(Boolean).length, 2);
+  assert.match(green.out, /^check #1 set by coordinator:/);
   assert.equal(box.run(box.repo, 'check', '1').code, 1, 'named, from another checkout: there the file is missing');
   assert.match(box.run(box.web, 'check', '2').err, /NO_CHECK.*#2 has no check command/);
   assert.match(box.run(box.repo, 'help').out, /pullboard check \[id\]/);
@@ -1881,7 +1882,7 @@ test('accept reruns the frozen check at the submission even when the reviewer re
   assert.equal(box.run(review, 'join', 'api').code, 0);
   box.git(review, 'rm', 'web/RED_CHECK');
   attackCommit(box, review); // Model the adversarial repair without disabling its lane hook.
-  assert.equal(box.run(review, 'check', '1').code, 0, 'the reviewer HEAD alone is green');
+  assert.equal(box.run(review, 'check', '1', '--yes').code, 0, 'the reviewer HEAD alone is green');
   const refused = box.run(review, 'verify', '1', 'accept', '--note', 'reviewer repair is not submission proof', '--json');
   assert.equal(refused.code, 1);
   assert.equal(JSON.parse(refused.out).error.code, 'CHECK_RED');
