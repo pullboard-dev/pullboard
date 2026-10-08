@@ -70,6 +70,7 @@ test('the README links every figure draw.mjs draws, each committed exactly as dr
   const links = [...README.matchAll(/!\[([^\]]*)\]\((docs\/img\/[^)\s]+)\)/g)].map(([, alt, path]) => ({ alt, path }));
   assert.deepEqual(links.map((link) => link.path).sort(), drawn, 'the README links each drawn figure once, and nothing else under docs/img');
   for (const { alt, path } of links) assert.ok(alt.trim().length >= 40, `${path} has alt text that says what it shows`);
+  assert.ok(README.includes('![An agent asks its coordinator. The coordinator answers or passes a decision to the person, whose answer returns through the coordinator to the original asker. Agents send decision requests to their coordinator first.](docs/img/chain.svg)'), 'the chain figure says that decision requests go to the coordinator first');
   for (const { alt, path } of SHOT_FIGURES) assert.ok(README.includes(`![${alt}](${path})`), `${path} and its alt text remain in the README`);
   const committed = readdirSync(join(ROOT, 'docs', 'img')).filter((file) => file.endsWith('.svg')).map((file) => `docs/img/${file}`).sort();
   assert.deepEqual(committed, drawn, 'docs/img holds exactly the figures draw.mjs draws');

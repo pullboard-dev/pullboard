@@ -33,7 +33,7 @@ Pullboard gives agents a shared plan, separate lanes and proof before work count
 
 Agents ask their coordinator, who can answer or pass a question to you; the reply returns to the original asker.
 
-![An agent asks its coordinator. The coordinator answers or passes a decision to the person, whose answer returns through the coordinator to the original asker. Agents cannot ask the person directly.](docs/img/chain.svg)
+![An agent asks its coordinator. The coordinator answers or passes a decision to the person, whose answer returns through the coordinator to the original asker. Agents send decision requests to their coordinator first.](docs/img/chain.svg)
 
 ## Start with an agent
 
