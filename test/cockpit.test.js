@@ -3332,6 +3332,75 @@ test('in-text item references stay inline and open their target at phone and des
   }
 });
 
+test('Roadmap and rule prose references stay inline and open the item on their own board [N26,N38]', { timeout: 90_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for prose-reference checks.');
+  const box = machine();
+  const demo = project(box, 'a-inline-prose', `${SPEC}- G3 [approved, must] Follow #1 first. | gate: review\n`, { practice: 'ways.md' });
+  writeFileSync(join(demo.repo, 'ways.md'), '# Local rules\n\n## Team\n- R1 [approved, must] Review #1 first. | gate: review\n');
+  box.run(demo.repo, 'add', 'web', 'Local target', '--specs', 'G1', '--criterion', 'target');
+  box.run(demo.repo, 'add', 'web', 'Local title links to #1', '--specs', 'G1', '--criterion', 'title');
+  build(box, demo, 2, 'title.txt');
+  sendBack(box, demo, 2, 'Review #1 before accepting.');
+  const other = project(box, 'beacon-prose');
+  box.run(other.repo, 'add', 'web', 'Remote target', '--specs', 'G1', '--criterion', 'target');
+  box.run(other.repo, 'add', 'web', 'Remote title links to #1', '--specs', 'G1', '--criterion', 'title');
+  box.run(demo.repo, 'milestone', 'add', 'Choose #1', '--note', 'Review #1 next.', '--items', '2,beacon-prose#2');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-prose-references-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("document.querySelector('#chain .row[data-item=\"2\"]')");
+    for (const width of [375, 1280]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      const contexts = [
+        ['roadmap', '#roadmap .milestone h2 .ref', 'Local target'],
+        ['roadmap', '#roadmap .milestone-note .ref', 'Local target'],
+        ['roadmap', '#roadmap .milestone-item[data-go="item:2"]:not([data-board]) .t .ref', 'Local target'],
+        ['roadmap', '#roadmap .milestone-item[data-board] .t .ref', 'Remote target'],
+        ['spec', '#spec-list [data-row="spec:G3"] .ref', 'Local target'],
+        ['doctrine', '#doctrine-list [data-row="doctrine:R1"] .ref', 'Local target'],
+      ];
+      for (const [tab, selector, target] of contexts) {
+        await chrome.evaluate(`document.querySelector('[data-root=${JSON.stringify(demo.repo)}]').click();`);
+        await chrome.waitFor("data?.project?.root === view.root && !document.body.classList.contains('switching') && document.querySelector('#proj-name').textContent === 'a-inline-prose'");
+        await chrome.evaluate(`document.querySelector('[data-tab="${tab}"]').click()`);
+        if (tab !== 'roadmap') await chrome.evaluate(`document.querySelector('[data-rows="${tab}:all"]').click()`);
+        const metrics = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+          const ref = document.querySelector(${JSON.stringify(selector)});
+          const row = ref?.closest('.milestone-item');
+          const style = ref && getComputedStyle(ref);
+          return { present:!!ref, title:ref?.title, border:style?.borderWidth, height:ref?.getBoundingClientRect().height,
+            line:style && parseFloat(style.lineHeight), nested:!!ref?.parentElement.closest('button'),
+            rowHeight:row?.getBoundingClientRect().height };
+        })())`));
+        assert.ok(metrics.present, `${width}: ${selector} contains its inline reference`);
+        assert.equal(metrics.title, target, `${width}: the reference tooltip names the target on its own board`);
+        assert.equal(metrics.border, '0px', `${width}: ${selector} has no box`);
+        assert.ok(Math.abs(metrics.height - metrics.line) < 1, `${width}: ${selector} keeps the text line height`);
+        assert.equal(metrics.nested, false, `${width}: ${selector} never nests buttons`);
+        if (metrics.rowHeight !== undefined) assert.ok(metrics.rowHeight >= 44, `${width}: the containing Roadmap control keeps its touch target`);
+        await chrome.evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+        await chrome.waitFor("!document.body.classList.contains('switching') && document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2 > span')?.textContent === '#1'");
+        assert.ok((await chrome.evaluate("document.querySelector('#detail h2').textContent")).includes(target), 'the reference opens its target title');
+        assert.equal(await chrome.evaluate('view.root'), target === 'Remote target' ? other.repo : demo.repo, 'duplicate item numbers stay bound to their own board');
+      }
+      await chrome.evaluate(`document.querySelector('[data-tab="items"]').click(); document.querySelector('#chain .row[data-item="2"]').click()`);
+      await chrome.waitFor("document.querySelector('#detail .verdict .note')");
+      assert.equal(await chrome.evaluate("document.querySelectorAll('#detail .verdict .note .ref').length"), 1, 'verdict prose keeps its item reference');
+      await chrome.evaluate("document.querySelector('#detail .verdict .note .ref').click()");
+      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Local target')");
+      await chrome.evaluate("document.querySelector('[data-tab=roadmap]').click(); document.querySelector('#roadmap .milestone-item[role=button]:not([data-board])').dispatchEvent(new KeyboardEvent('keydown', {key:'Enter',bubbles:true}))");
+      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Local title links to #1') && document.querySelector('[data-tab=items].on')");
+    }
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
 test('wait references stay on one line and link to every prerequisite at phone and desktop widths [N26]', { timeout: 90_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for prerequisite layout checks.');
