@@ -2121,7 +2121,8 @@ async function specCommand(io, { first, second, rest, values }) {
     if (missing.length) throw new Refused('NO_EVIDENCE', `${missing.join(', ')} has no evidence; build it or cite its id in a test first`);
     for (const row of evidence) {
       io.say(`evidence for ${row.id}:`);
-      for (const file of row.files) io.say(`  test: ${file}`);
+      if (row.files.length) io.say('  cited by tests (none run by pullboard):');
+      for (const file of row.files) io.say(`    ${file}`);
       for (const item of row.verified) io.say(`  verified #${item.id}: ${item.note || '(no accepting note)'}`);
     }
     const note = textArg(io, values, 'note') ?? '';
