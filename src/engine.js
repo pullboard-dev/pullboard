@@ -11,6 +11,7 @@ export const ENGINE_OPERATIONS = Object.freeze([
   'claim', 'release', 'submit', 'reserveReview', 'reserveNextReview', 'verify', 'merged',
   'withdraw', 'refreeze', 'shout', 'passDecision', 'answerDecision', 'holdLane', 'releaseLane',
   'addMilestone', 'editMilestoneItems', 'moveMilestone', 'editMilestone', 'removeMilestone',
+  'recordRowDecisions', 'applyRowDecisions',
 ]);
 
 /** Read a replica's committed prefix without trusting an independently saved transport cursor. */

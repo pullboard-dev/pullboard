@@ -571,6 +571,9 @@ test('[A1] every catalog command and subcommand has a real CLI exercise', () => 
   json(source, source.repo, 'milestone', ['edit', 'Catalog', '--name', 'Release', '--note', 'Catalog coverage'], 'edit');
   json(source, source.repo, 'milestone', ['remove', 'Later'], 'remove');
   json(source, source.repo, 'milestone', ['remove', 'Release'], 'remove');
+  json(source, source.repo, 'spec', ['approve', 'G1'], 'approve');
+  json(source, source.repo, 'spec', ['decline', 'G1', '--reason', 'Catalog decline'], 'decline');
+  json(source, source.repo, 'spec', ['apply'], 'apply');
   const missing = Object.keys(JSON_SHAPES.commands).filter((key) => !covered.has(key));
   assert.deepEqual(missing, [], `add real-repo invocations for undocumented coverage gaps: ${missing.join(', ')}`);
   assert.deepEqual([...coveredRoots].sort(), resultCommands(), 'every actual root/factory command has an invocation');

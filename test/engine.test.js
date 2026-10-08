@@ -14,13 +14,14 @@ const HOUR = 3_600_000;
 const CLAIM_AT = '2026-10-07T18:00:00.000Z';
 
 /** Open two independent SQLite copies of the same registered board and one available item. */
-function engineCopies(t) {
+function engineCopies(t, initialize = () => {}) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-engine-'));
   const source = store.openBoard(join(directory, 'source.sqlite'));
   store.register(source, { lane: 'coordinator', path: '/source' });
   store.register(source, { lane: 'web', path: '/source/web-1' });
   store.register(source, { lane: 'web', path: '/source/web-2' });
   const item = store.addItem(source, { by: 'coordinator', lane: 'web', title: 'Engine fixture' });
+  initialize(source);
   const document = exportBoard(source);
   const copies = ['one', 'two'].map((name, index) => {
     const clock = { now: () => new Date(`2026-10-07T${index + 16}:00:00.000Z`) };
@@ -57,6 +58,41 @@ function boardRows(board, itemId) {
     events: store.events(board),
   };
 }
+
+test('person answer channel replays identically on agent and plain replicas [B26,H16]', t => {
+  const questions = [];
+  const { copies } = engineCopies(t, source => {
+    questions.push(...['view', 'terminal', 'legacy'].map(channel => store.shout(source, {
+      from: 'coordinator', to: 'person', text: 'Private engine fixture ' + channel,
+      decision: true, lanes: ['web'],
+    })));
+  });
+  const [one, two] = copies;
+  const markers = ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL'];
+  const original = markers.map(name => [name, process.env[name]]);
+  try {
+    questions.forEach((id, index) => {
+      const channel = ['view', 'terminal', undefined][index];
+      const move = prepareEngineMove(one, 'answerDecision', [id, {
+        agentId: 'coordinator', text: 'Approved private fixture', lanes: ['web'], asPerson: true,
+        ...(channel ? { channel } : {}),
+      }]);
+      for (const name of markers) process.env[name] = 'fixture-agent';
+      const agentReceipt = applyEngineMove(one, move, { sequence: index + 1, at: CLAIM_AT });
+      for (const name of markers) delete process.env[name];
+      const plainReceipt = applyEngineMove(two, move, { sequence: index + 1, at: CLAIM_AT });
+      assert.equal(Boolean(agentReceipt.error), false);
+      assert.deepEqual(agentReceipt, plainReceipt, 'replica execution ignores sender-shell markers');
+      assert.equal(JSON.parse(agentReceipt.events[0].event_detail).channel, channel ?? 'terminal');
+    });
+    assert.deepEqual(exportBoard(one).tables, exportBoard(two).tables);
+  } finally {
+    for (const [name, value] of original) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+});
 
 test('the same sealed claim replays to identical rows and sequence retries are idempotent [H3,H16]', (t) => {
   const { copies, item } = engineCopies(t);

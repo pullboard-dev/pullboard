@@ -25,6 +25,8 @@ import {
   passDecision,
   PERSON,
   recordAttempt,
+  recordRowDecisions,
+  applyRowDecisions,
   refreeze,
   register,
   release,
@@ -152,6 +154,8 @@ function recordEventContract() {
   answerDecision(board, personQuestion, { agentId: coordinator, text: 'approved', lanes: ['docs', 'tests'], asPerson: true });
   const request = shout(board, { from: PERSON, to: coordinator, text: 'sample request', lanes: ['docs', 'tests'], request: true });
   answerDecision(board, request, { agentId: coordinator, text: 'done', lanes: ['docs', 'tests'] });
+  const decisions = recordRowDecisions(board, { agentId: PERSON, channel: 'terminal', decisions: [{ kind: 'spec', file: 'SPEC.md', id: 'A1', source: '- A1 [draft] Exact row.', replacement: '- A1 [approved] Exact row.', text: 'Exact row.', decision: 'approve', reason: '' }] });
+  applyRowDecisions(board, { agentId: coordinator, events: decisions.map((record) => record.event) });
   const freeze = (digest) => () => ({ text: `criterion-${digest}`, digest });
   const first = addItem(board, { by: coordinator, lane: 'docs', title: 'Accepted example', criterion: 'Initial', specIds: ['A1'], route: 'strong' });
   editItem(board, first, { agentId: coordinator, brief: 'Files: docs/formats.md\nTest: docs/formats.test.js', route: 'mid', criterion: 'Changed', check: 'node test' });
@@ -182,7 +186,7 @@ function recordEventContract() {
   releaseLane(board, 'view', { agentId: coordinator });
   const rows = events(board).map((row) => ({ ...row, detail: JSON.parse(row.event_detail) }));
   closeBoard(board);
-  return { rows, actors: { [coordinator]: 'coordinator', [builder]: 'builder', [reviewer]: 'reviewer', board: 'board' } };
+  return { rows, actors: { [coordinator]: 'coordinator', [builder]: 'builder', [reviewer]: 'reviewer', [PERSON]: 'person', board: 'board' } };
 }
 
 /** Reopen a file after removing old-format objects and report the repaired guard event. */
