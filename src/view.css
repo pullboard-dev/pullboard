@@ -99,7 +99,7 @@ main { padding: 16px 18px 28px; }
 .milestone-item:hover { background: var(--surface-2); }
 .milestone-item code { color: var(--accent-strong); font: 12px var(--mono); }
 .milestone-item > span:nth-child(2) { min-width: 0; overflow-wrap: anywhere; }
-.milestone-note { margin: 10px 0 0; padding: 8px 10px; border-left: 3px solid var(--accent); border-radius: 0 7px 7px 0; background: var(--accent-soft); color: var(--ink-muted); overflow-wrap: anywhere; }
+.milestone-note { margin: 10px 0 0; padding: 8px 10px; border-radius: 7px; background: var(--accent-soft); color: var(--ink-muted); overflow-wrap: anywhere; }
 .two.narrow { grid-template-columns: minmax(0, 1fr) var(--agents-w); }
 @media (max-width: 900px) {
   .shell { display: block; }
