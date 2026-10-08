@@ -115,7 +115,8 @@ Work
   pullboard doctor                     check board integrity without changing it
   pullboard show <id> [--history]       an item, the criterion frozen at claim, its verdicts: the latest in full,
                                         earlier ones as one line; --history prints every note in full
-  pullboard next [--wait <minutes>]     claim the next item in your lane that is free to start
+  pullboard next [--wait <minutes>]     offer an eligible review when reviews pile up, otherwise claim work
+  pullboard next --build                claim a build explicitly, recording a skipped review offer
   pullboard next --verify               reserve the next submitted item you can check;
   pullboard next --verify <id>          reserve that submitted item instead
                                         in the main checkout, verifying needs --as coordinator
@@ -420,6 +421,7 @@ const OPTIONS = {
   url: { type: 'string' },
   wait: { type: 'string' },
   verify: { type: 'boolean' },
+  build: { type: 'boolean' },
   all: { type: 'boolean' },
   must: { type: 'boolean' },
   json: { type: 'boolean' },
@@ -1300,7 +1302,7 @@ function readCommands(io, { first, second, rest, values }) {
       const summary = withBoard(ctx, (board) => {
         const me = whoAmI(ctx, board);
         const mine = store.listItems(board).filter((item) => item.item_status === 'claimed' && item.item_owner === me.id);
-        return { me, mine, stats: store.stats(board), unread: store.unreadCount(board, me.id), relay: relayStatus(ctx.info.root) };
+        return { me, mine, stats: store.stats(board), reviewQueue: store.reviewQueue(board), unread: store.unreadCount(board, me.id), relay: relayStatus(ctx.info.root) };
       });
       if (values.json) {
         io.result(summary);
@@ -1311,6 +1313,7 @@ function readCommands(io, { first, second, rest, values }) {
       io.say(`${summary.me.id}: ${summary.unread} unread shouts; holding ${summary.mine.map((item) => `#${item.item_id}`).join(', ') || 'nothing'}`);
       io.say(`board: ${items.open} open, ${items.claimed} claimed, ${items.submitted} awaiting verification, ${items.verified} verified, ${items.withdrawn} withdrawn`);
       io.say(`verdicts: ${accepted} accepted, ${rejected} rejected`);
+      io.say(reviewQueueLine(ctx, summary.reviewQueue));
       if (Object.keys(ctx.config.products).length) {
         const all = withBoard(ctx, (board) => store.listItems(board, { all: true }));
         productSummaries(ctx.config, loadSpec(ctx.info.root, ctx.config), all).forEach((product) => io.say(productLine(product)));
@@ -1540,16 +1543,38 @@ async function nextOnce(ctx, values) {
     }
     const warm = warmFiles(ctx, board, me);
     const { item, reasons, shared } = store.nextFor(board, { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm });
+    const held = item?.item_status === 'claimed';
+    const offer = held ? null : store.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
+      familyPolicy: ctx.config.verify.family, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes });
+    if (offer && !values.build) return { item: offer.item, offer, build: item ?? null };
     if (!item) return { reasons };
-    const held = item.item_status === 'claimed';
+    const reviewSkipped = values.build && !held
+      ? { offeredItem: offer?.item.item_id ?? null, ratio: ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;
     try {
-      await ordered(ctx, board, 'claim', [item.item_id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx), head: headCommit(ctx.info.root) }]);
+      await ordered(ctx, board, 'claim', [item.item_id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx), head: headCommit(ctx.info.root), reviewSkipped }]);
     } catch (error) {
       if (error instanceof Refused && ['HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true };
       throw error;
     }
-    return { item: store.getItem(board, item.item_id), shared, held };
+    return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped };
   });
+}
+
+/** Describe the queue's actual outstanding reviews and submission age [Q1,V15]. */
+function reviewQueueLine(ctx, queue) {
+  const age = queue.oldestSubmittedAt ? `${span(ctx, queue.oldestSubmittedAt)} ago` : 'none';
+  return `review queue: ${queue.pending} awaiting, ${queue.reviewing} agents reviewing; oldest submission ${age}`;
+}
+
+/** Print an unreserved review first, then the build available through an explicit opt-out. */
+function sayReviewOffer(ctx, found) {
+  const command = `pullboard next --verify ${found.item.item_id}${ctx.info.isMain ? ' --as coordinator' : ''}`;
+  const offer = { item: found.item.item_id, command, queue: found.offer.queue, ratio: found.offer.ratio };
+  ctx.io.result?.({ item: found.item, review: true, held: false, shared: [], offer, build: found.build });
+  ctx.io.say(`${reviewQueueLine(ctx, offer.queue)}; ratio ${offer.ratio} reached (zero active reviewers counts as one)`);
+  ctx.io.say(`review offered: #${found.item.item_id} ${found.item.item_title}, built by ${found.item.item_built_by}; reserve it explicitly: ${command}`);
+  if (found.build) ctx.io.say(`build available: #${found.build.item_id} ${found.build.item_title}; claim it explicitly: pullboard next --build`);
+  else ctx.io.say('no build is currently free in your lane; this review is available');
 }
 
 /**
@@ -1562,6 +1587,7 @@ async function nextOnce(ctx, values) {
  */
 async function nextHere(io, values) {
   const ctx = context(io);
+  if (values.build && values.verify) throw new Refused('USAGE', 'choose a build or a review: pullboard next --build or pullboard next --verify');
   if (values.verifyId !== undefined && !values.verify) {
     throw new Refused('USAGE', 'give an item id only with --verify: pullboard next --verify <id>');
   }
@@ -1574,6 +1600,7 @@ async function nextHere(io, values) {
   for (;;) {
     const found = await nextOnce(ctx, values);
     if (found.item) {
+      if (found.offer) { sayReviewOffer(ctx, found); return 0; }
       const item = found.item;
       io.result?.({ item, review: Boolean(values.verify), held: Boolean(found.held), shared: found.shared ?? [] });
       const here = cdTo(ctx.info.root);
@@ -1585,6 +1612,7 @@ async function nextHere(io, values) {
         io.say(`check out exactly that commit, here: ${here} git switch --detach ${item.item_commit}`);
         io.say(`then: ${here} pullboard verify ${item.item_id} accept${as} --note "how you proved it", or reject${as} --reason CODE --note "what failed"`);
       } else {
+        if (found.reviewSkipped) io.say(`${reviewQueueLine(ctx, found.reviewSkipped)}; explicit build intent recorded with this claim`);
         io.say(`${found.held ? 'you hold' : 'claimed'} #${item.item_id}: ${item.item_title}`);
         if (found.shared?.length) io.say(`it touches ${found.shared.length === 1 ? 'a file' : `${found.shared.length} files`} you worked in recently: ${found.shared.slice(0, 4).join(', ')}`);
         if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);

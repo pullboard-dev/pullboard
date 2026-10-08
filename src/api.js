@@ -99,7 +99,7 @@ const MOVES = {
   shout: { positions: ['to', 'text'], optional: ['to'], booleans: ['decision'], flags: ['evidence', 'outcome', 'item', 'commit'] },
   answer: { item: true, positions: ['text'], flags: ['as'] },
   pass: { item: true, positions: ['note'] },
-  next: { flags: ['as'], booleans: ['verify'] },
+  next: { flags: ['as'], booleans: ['verify', 'build'] },
 };
 
 /** Reject unsupported fields, then pass values as distinct argv entries, never a shell command. */
@@ -155,6 +155,7 @@ async function executeMove(root, body, runCommand) {
   });
   const result = JSON.parse(output);
   if (status) return { status: 409, body: result };
+  if (body.verb === 'next' && result.offer) return { status: 200, body: { version: VERSION, event: null, result, offer: result.offer } };
   const kind = body.verb === 'verify' ? body.args?.decision
     : body.verb === 'done' ? 'submit'
     : body.verb === 'hold' && body.args?.off ? 'unhold' : body.verb;

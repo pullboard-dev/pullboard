@@ -73,7 +73,7 @@ The board file is in the repository's Git common directory at `.git/pullboard/bo
 | `move engine` | `2` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
-Pullboard 0.6.1 released engine 1. The first change to released move semantics raises the engine once for the next release; later changes developed before that release keep the same version. Older clients refuse newer-engine moves before changing rows or replay cursors; engine 2 still accepts engine-1 moves.
+Pullboard 0.6.1 released engine 1. The first change to released move semantics raises the engine once for the next release; later changes developed before that release keep the same version. Engine 2 records a fresh explicit-build claim's skipped-review snapshot and captured background-baseline completions. Older clients refuse engine-2 moves before changing rows or replay cursors; engine 2 still accepts engine-1 moves.
 
 A board without `event_log_version` is a legacy version-0 event log. Opening an older board writes the current marker without replacing its events. Opening a newer event log refuses with `EVENT_LOG_VERSION`, naming the stored and supported versions and asking you to upgrade Pullboard. `doctor` reports that version conflict read-only.
 
