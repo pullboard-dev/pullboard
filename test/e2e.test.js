@@ -1302,11 +1302,11 @@ test('a fresh worktree with no install of its own runs pullboard from the main c
 
 test('the gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir [V10]', () => {
   const box = project();
-  // Let piped stdout drain before exiting; process.exit() can discard its last writes on Node 24.
   writeFileSync(join(box.repo, 'gate.cjs'), [
     "const red = require('node:fs').existsSync('RED');",
-    "for (let i = 0; i < 400; i++) console.log(`ok ${i} ${'x'.repeat(red ? 10 : 3000)}`);",
-    "if (red) { console.error('not ok 401 - the page renders a heading'); for (let i = 0; i < 100; i++) console.log(`# note ${i}`); process.exitCode = 1; }",
+    "const { writeSync } = require('node:fs');",
+    "for (let i = 0; i < 400; i++) writeSync(1, `ok ${i} ${'x'.repeat(red ? 10 : 3000)}\\n`);",
+    "if (red) { writeSync(2, 'not ok 401 - the page renders a heading\\n'); for (let i = 0; i < 100; i++) writeSync(1, `# note ${i}\\n`); process.exitCode = 1; }",
     '',
   ].join('\n'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: 'node gate.cjs # prints a lot' }));
