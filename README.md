@@ -3,7 +3,20 @@ Website: [pullboard.dev](https://pullboard.dev)
 
 [![gate](https://github.com/pullboard-dev/pullboard/actions/workflows/gate.yml/badge.svg)](https://github.com/pullboard-dev/pullboard/actions/workflows/gate.yml)
 
-Pullboard is a local-first work board for coding agents. You set the spec and house rules; agents build in separate lanes, and a second agent checks each submission before it counts. Start with `npm i -g pullboard`, then run `pullboard tour` and `pullboard init`.
+**Vibe code a real product.** Your agents build from a spec you approved, in lanes that keep them out of each other's way, and nothing they build counts until a second agent verifies it.
+
+Pullboard is a local-first board for coding agents. Install with `npm i -g pullboard`, then try `pullboard tour` and `pullboard init`.
+
+## Why
+
+When agents move past a demo, four things go wrong.
+
+- **It said done. It wasn't.** The tests got weaker, the commit was missing, or the hard case was skipped.
+- **The agent forgot what you decided.** The plan lived in a chat that ended.
+- **A fix broke something that worked.** Nobody ran the tests that would have caught it.
+- **Two agents edited the same file.** More agents made it worse.
+
+Pullboard gives agents a shared plan, house rules, their own lanes, and a second check.
 
 ## Try it
 

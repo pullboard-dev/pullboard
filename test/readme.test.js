@@ -126,6 +126,22 @@ test('README shows the signers field and setup command [S18]', () => {
   assert.match(README, /`pullboard spec signers add`/);
 });
 
+test('README keeps its product hook and the four reasons near the top [I10,I12]', () => {
+  const hook = "**Vibe code a real product.** Your agents build from a spec you approved, in lanes that keep them out of each other's way, and nothing they build counts until a second agent verifies it.";
+  const whyStart = README.indexOf('## Why');
+  const tryStart = README.indexOf('## Try it');
+  assert.ok(README.startsWith(`# Pullboard\n`));
+  assert.ok(README.includes(hook), 'the original opening hook remains');
+  assert.ok(whyStart > README.indexOf(hook) && whyStart < tryStart, 'Why remains near the top, before setup instructions');
+  const why = README.slice(whyStart, tryStart);
+  for (const problem of [
+    "**It said done. It wasn't.**",
+    '**The agent forgot what you decided.**',
+    '**A fix broke something that worked.**',
+    '**Two agents edited the same file.**',
+  ]) assert.ok(why.includes(problem), `Why keeps ${problem}`);
+});
+
 test('README is concise and skimmable without removing its instructions or figures [I10,I12]', () => {
   const lines = README.split(/\r?\n/u);
   let insideFence = false;
