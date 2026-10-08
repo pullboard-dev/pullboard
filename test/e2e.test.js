@@ -1944,3 +1944,23 @@ test('replacement refs cannot turn a red committed owned tree into a clean green
   assert.equal(submitted.code, 1);
   assert.equal(JSON.parse(submitted.out).error.code, 'DIRTY', 'the underlying tree differs from the files the gate would execute');
 });
+
+test('a detached coordinator review cannot become a new claim policy [V4,V16]', () => {
+  const box = project('test ! -f web/RED');
+  assert.equal(box.run(box.repo, 'add', 'web', 'Detached policy', '--specs', 'G1').code, 0);
+  const config = JSON.parse(readFileSync(join(box.web, 'pullboard.json'), 'utf8'));
+  config.gate = 'true';
+  config.lanes.web.owns.push('pullboard.json');
+  writeFileSync(join(box.web, 'pullboard.json'), JSON.stringify(config));
+  const candidate = attackCommit(box, box.web);
+  box.git(box.repo, 'switch', '-q', '--detach', candidate);
+  const refused = box.run(box.web, 'claim', '1', '--json');
+  assert.equal(refused.code, 1);
+  assert.equal(JSON.parse(refused.out).error.code, 'NO_POLICY');
+  assert.match(JSON.parse(refused.out).error.message, /return to its main branch/);
+  box.git(box.repo, 'switch', '-q', 'main');
+  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  const submitted = box.run(box.web, 'submit', '1', '--json');
+  assert.equal(submitted.code, 1);
+  assert.equal(JSON.parse(submitted.out).error.code, 'OUTSIDE_LANE');
+});

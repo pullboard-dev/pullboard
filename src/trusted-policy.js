@@ -26,7 +26,10 @@ function policyGit(root, args) {
 /** Resolve the primary checkout's committed HEAD, independently of a linked or detached checkout. */
 export function mainPolicy(root) {
   const common = policyGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
-  const commit = policyGit(root, ['--git-dir', common, 'rev-parse', '--verify', 'HEAD^{commit}']).trim();
+  let branch;
+  try { branch = policyGit(root, ['--git-dir', common, 'symbolic-ref', '--quiet', 'HEAD']).trim(); }
+  catch { throw new Refused('NO_POLICY', 'the coordinator checkout is detached for review; ask it to return to its main branch before claiming or running the project gate'); }
+  const commit = policyGit(root, ['--git-dir', common, 'rev-parse', '--verify', branch + '^{commit}']).trim();
   return policyAt(root, commit);
 }
 
