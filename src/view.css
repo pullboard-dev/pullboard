@@ -175,6 +175,8 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .chip.gate { background: none; color: var(--ink-muted); outline: 1px dashed var(--line-strong); outline-offset: -1px; }
 .row.gated { border-color: color-mix(in srgb, var(--reject) 40%, var(--line)); }
 .meta .gate { padding: 0 7px; border-radius: 999px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--reject) 35%, var(--line)); }
+.meta .gate .wait-unit, .kv dd.waits-on .wait-unit { white-space: nowrap; }
+.meta .gate button.ref { min-height: 0; }
 .meta button.ref { border: 0; background: none; padding: 0; font: inherit; color: var(--accent-strong); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .empty { color: var(--ink-faint); padding: 14px 10px; }
 
@@ -190,6 +192,8 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .detail .muted, .muted { color: var(--ink-muted); }
 .kv { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); gap: 4px 10px; font-size: 13px; margin: 0; }
 .kv dt { color: var(--ink-faint); } .kv dd { margin: 0; overflow-wrap: anywhere; }
+.kv dd.waits-on button.ref { border: 0; background: none; padding: 0; font: inherit; color: var(--accent-strong); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.kv dd.waits-on button.ref { min-height: 0; }
 .kv code, .detail code { font: 12px var(--mono); }
 .verdict { display: grid; gap: 3px; margin-bottom: 10px; }
 .verdict.yes b { color: var(--accent-strong); } .verdict.no b { color: var(--reject); }

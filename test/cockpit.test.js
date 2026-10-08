@@ -2595,7 +2595,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N
     const snapshot = async () => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
       const visible=e=>{const s=getComputedStyle(e),r=e.getBoundingClientRect();return !e.disabled&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&r.width>0&&r.height>0&&!e.closest('[hidden]')};
       const selector='button,a[href],input:not([type=hidden]),select,textarea,[role=button],[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-release],[data-shout],[data-new],[data-code]';
-      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),width:r.width,height:r.height}});
+      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),inlineReference:!!e.closest('#chain .meta .gate, #detail .kv dd.waits-on'),width:r.width,height:r.height}});
       return {width:innerWidth,clientWidth:document.documentElement.clientWidth,documentWidth:document.documentElement.scrollWidth,bodyWidth:document.body.scrollWidth,
         projectList:visible(document.querySelector('#proj-list')),needs:visible(document.querySelector('#needs')),
         detail:visible(document.querySelector('#detail')),controls};
@@ -2607,7 +2607,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N
       const layout = await snapshot();
       assert.ok(fitsViewport(layout),
         `${width} ${place}: no horizontal overflow: ${JSON.stringify(layout)}`);
-      const short = layout.controls.filter((control) => control.height < 44);
+      const short = layout.controls.filter((control) => !control.inlineReference && control.height < 44);
       assert.deepEqual(short, [], `${width} ${place}: visible enabled actions are at least 44px high: ${JSON.stringify(short)}`);
     };
 
@@ -2798,5 +2798,75 @@ test('static export redacts structured checkout paths but preserves paths people
     }
   } finally {
     await live.stop();
+  }
+});
+
+test('wait references stay on one line and link to every prerequisite at phone and desktop widths [N26]', { timeout: 90_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for prerequisite layout checks.');
+  const box = machine();
+  const demo = project(box, 'waits-demo');
+  box.run(demo.repo, 'add', 'web', 'Prerequisite one', '--specs', 'G1', '--criterion', 'finish first');
+  box.run(demo.repo, 'add', 'web', 'Prerequisite two', '--specs', 'G1', '--criterion', 'finish second');
+  box.run(demo.repo, 'add', 'web', 'Blocked item', '--specs', 'G1', '--criterion', 'wait on both', '--after', '1,2');
+  const view = await startView(box);
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, join(box.dir, 'waits-chrome'));
+    /** Click a rendered prerequisite link through the same Chrome input path as a person. */
+    const click = async (selector) => {
+      const point = JSON.parse(await chrome.evaluate(`(() => {
+        const element=document.querySelector(${JSON.stringify(selector)});
+        element.scrollIntoView({block:'center'});
+        const rect=element.getBoundingClientRect();
+        return JSON.stringify({x:rect.x+rect.width/2,y:rect.y+rect.height/2});
+      })()`));
+      await chrome.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
+      await chrome.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
+      await chrome.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
+    };
+    for (const width of [375, 1280]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.waitFor(`innerWidth === ${width} && !!document.querySelector('#chain .row')`);
+      const itemIds = await chrome.evaluate('data.project.items.map(item => item.id + ":" + item.title + ":" + item.blockedBy.join(","))');
+      assert.ok(await chrome.evaluate('!!document.querySelector(\'#chain [data-item="3"]\')'), `${width}: blocked item appears among ${itemIds.join('; ')}`);
+      const list = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+        const gate=document.querySelector('#chain [data-item="3"] .meta .gate');
+        const lineHeight=e=>parseFloat(getComputedStyle(e).lineHeight);
+        const neighbors=[...gate.parentElement.children].filter(e=>e!==gate).map(lineHeight).filter(Number.isFinite);
+        const units=[...gate.querySelectorAll('.wait-unit')];
+        return {height:gate.getBoundingClientRect().height,neighborHeight:Math.max(...neighbors),unitWhiteSpaces:units.map(unit=>getComputedStyle(unit).whiteSpace),unitY:units.map(unit=>unit.getBoundingClientRect().y),links:[...gate.querySelectorAll('button.ref')].map(link=>link.dataset.go)};
+      })())`));
+      t.diagnostic(`${width}px list wait marker: ${list.height}px tall, neighboring metadata line ${list.neighborHeight}px`);
+      assert.ok(list.height <= list.neighborHeight + 1, `${width}: list reference matches neighboring metadata height: ${JSON.stringify(list)}`);
+      assert.deepEqual(list.unitWhiteSpaces, ['nowrap', 'nowrap'], `${width}: each list prerequisite stays intact`);
+      assert.equal(new Set(list.unitY).size, 1, `${width}: both list prerequisites fit on one line: ${JSON.stringify(list)}`);
+      assert.deepEqual(list.links, ['item:1', 'item:2'], `${width}: every prerequisite is a link`);
+
+      await click('#chain [data-item="3"] .t');
+      await chrome.waitFor("!!document.querySelector('#detail .kv dd.waits-on')");
+      const detail = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+        const waits=document.querySelector('#detail .kv dd.waits-on');
+        const units=[...waits.querySelectorAll('.wait-unit')];
+        return {height:waits.getBoundingClientRect().height,lineHeight:parseFloat(getComputedStyle(waits).lineHeight),unitWhiteSpaces:units.map(unit=>getComputedStyle(unit).whiteSpace),unitY:units.map(unit=>unit.getBoundingClientRect().y),
+          links:[...waits.querySelectorAll('button.ref')].map(link=>link.dataset.go)};
+      })())`));
+      t.diagnostic(`${width}px detail wait marker: ${detail.height}px tall, neighboring metadata line ${detail.lineHeight}px`);
+      assert.ok(detail.height <= detail.lineHeight + 1, `${width}: detail prerequisite line matches its metadata: ${JSON.stringify(detail)}`);
+      assert.deepEqual(detail.unitWhiteSpaces, ['nowrap', 'nowrap'], `${width}: each detail prerequisite stays intact`);
+      assert.deepEqual(detail.links, ['item:1', 'item:2'], `${width}: detail links every prerequisite`);
+      assert.equal(new Set(detail.unitY).size, 1, `${width}: detail links share one line: ${JSON.stringify(detail)}`);
+      t.diagnostic(`${width}px detail wait links share y=${detail.unitY[0]}`);
+      for (const [id, title] of [['1', 'Prerequisite one'], ['2', 'Prerequisite two']]) {
+        await click('#chain [data-item="3"] .t');
+        await chrome.waitFor("!!document.querySelector('#detail .kv dd.waits-on')");
+        await click(`#detail .waits-on [data-go="item:${id}"]`);
+        await chrome.waitFor(`document.querySelector('#detail h2').textContent.includes(${JSON.stringify(title)})`);
+      }
+    }
+    assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught page exceptions');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    await view.stop();
   }
 });
