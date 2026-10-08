@@ -422,6 +422,10 @@ test('a broken copy of the declaration fails the check against the code, both wa
   assert.deepEqual(codeProblems(noRows).sort(), [
     'A5_GRAMMAR_VERSION is raised by claim but not declared there',
     'A5_GRAMMAR_VERSION is raised by refreeze but not declared there',
+    'BAD_CONFIG is raised by claim but not declared there',
+    'BAD_CONFIG is raised by refreeze but not declared there',
+    'NO_POLICY is raised by claim but not declared there',
+    'NO_POLICY is raised by refreeze but not declared there',
     'UNKNOWN_SPEC is raised by claim but not declared there',
     'UNKNOWN_SPEC is raised by refreeze but not declared there',
   ]);
@@ -762,9 +766,9 @@ test('pullboard help lists each role\'s moves from the declaration, and pullboar
 /** Guards the CLI checks before it asks the board: the board's own order starts after them. */
 const CLI_CHECKED = {
   claim: ['joined'],
-  submit: ['joined', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'gateConfigured', 'gateGreen', 'treeStillDuringGate'],
+  submit: ['joined', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'gateConfigured', 'gateGreen', 'treeStillDuringGate'],
   reserve: ['coordinatorSaysAs', 'joined'],
-  accept: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit'],
+  accept: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit', 'itemCheckGreen'],
   reject: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit'],
 };
 

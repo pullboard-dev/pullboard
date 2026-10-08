@@ -187,12 +187,14 @@ export function loadConfig(root) {
   if (!existsSync(file)) {
     throw new Refused('NO_CONFIG', `no ${CONFIG_FILE} in ${root}; run: pullboard init`);
   }
+  return configFromSource(readFileSync(file, 'utf8'));
+}
+
+/** Parse committed coordinator settings with the same defaults and validation as local settings. */
+export function configFromSource(source) {
   let raw;
-  try {
-    raw = JSON.parse(readFileSync(file, 'utf8'));
-  } catch (error) {
-    throw new Refused('BAD_CONFIG', `${CONFIG_FILE} is not valid JSON (${error.message})`);
-  }
+  try { raw = JSON.parse(source); }
+  catch { throw new Refused('BAD_CONFIG', 'pullboard.json is not valid JSON; restore the coordinator configuration'); }
   const config = merge(defaults(), raw);
   const problems = configProblems(config);
   if (problems.length) throw new Refused('BAD_CONFIG', `${CONFIG_FILE}: ${problems.join('; ')}`);
