@@ -2955,7 +2955,7 @@ test('real Chrome styles shout code and item text without growing linked lines [
       if (message.method === 'Log.entryAdded' && message.params.entry.level === 'error') consoleErrors.push(message.params.entry.text);
     });
     await chrome.send('Log.enable');
-    await chrome.waitFor('data?.project?.shouts?.length >= 4 && document.querySelectorAll("#feed > div:not(.day)").length >= 4');
+    await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 4 && document.querySelectorAll("#feed > div:not(.day)").length >= 4');
     await chrome.evaluate(`document.querySelector('[data-tab="shouts"]').click()`);
 
     const rendered = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
@@ -3045,6 +3045,7 @@ test('real Chrome styles shout code and item text without growing linked lines [
     assert.ok(Math.abs(phoneMetrics.wrapLinked.height - phoneMetrics.wrapPlain.height) >= 1,
       'the old whole-text-box comparison would fail on the deliberately wrapped sample');
     assert.deepEqual(consoleErrors, []);
+    assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception on its first load');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     rmSync(profile, { recursive: true, force: true });
@@ -3066,6 +3067,14 @@ test('wait references stay on one line and link to every prerequisite at phone a
     chrome = await openSnapshotChrome(executable, view.link.href, join(box.dir, 'waits-chrome'));
     /** Click a rendered prerequisite link through the same Chrome input path as a person. */
     const click = async (selector) => {
+      await chrome.waitFor(`(() => {
+        const element=document.querySelector(${JSON.stringify(selector)});
+        if (!element) return false;
+        element.scrollIntoView({block:'center'});
+        const rect=element.getBoundingClientRect();
+        const hit=document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);
+        return rect.width > 0 && rect.height > 0 && !!hit && (hit === element || element.contains(hit));
+      })()`);
       const point = JSON.parse(await chrome.evaluate(`(() => {
         const element=document.querySelector(${JSON.stringify(selector)});
         element.scrollIntoView({block:'center'});
@@ -3078,7 +3087,9 @@ test('wait references stay on one line and link to every prerequisite at phone a
     };
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      await chrome.waitFor(`innerWidth === ${width} && !!document.querySelector('#chain .row')`);
+      await chrome.waitFor(`innerWidth === ${width} && document.querySelector('#chain [data-item="3"] .meta .gate')?.getBoundingClientRect().width > 0`);
+      await click('#chain [data-item="1"] .t');
+      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Prerequisite one')");
       const itemIds = await chrome.evaluate('data.project.items.map(item => item.id + ":" + item.title + ":" + item.blockedBy.join(","))');
       assert.ok(await chrome.evaluate('!!document.querySelector(\'#chain [data-item="3"]\')'), `${width}: blocked item appears among ${itemIds.join('; ')}`);
       const list = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
