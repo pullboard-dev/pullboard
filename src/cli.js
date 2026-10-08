@@ -1,5 +1,5 @@
 /**
- * The pullboard command line: every command, bound to who is asking (B3). The main checkout is the
+ * The pullboard command line: every command, bound to who is asking (B3, R3). The main checkout is the
  * coordinator; every other worktree is the agent that joined from it.
  */
 import { createHash } from 'node:crypto';

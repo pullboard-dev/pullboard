@@ -1,6 +1,6 @@
 /**
  * The few git facts pullboard needs: where the repo is, which worktree this is, what HEAD holds,
- * and whether the tree is clean. Every call is a plain `git` child process.
+ * and whether the tree is clean (R3). Every call is a plain `git` child process.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, statSync } from 'node:fs';

@@ -1,5 +1,5 @@
 /**
- * The board (B1–B7, V1–V8, R1, R2): items, claims, submissions, verdicts and shouts in one SQLite
+ * The board (B1–B7, V1–V8, R1–R3): items, claims, submissions, verdicts and shouts in one SQLite
  * file in the git common dir, so every worktree sees the same board and nothing is committed.
  *
  * Every move is one immediate transaction (B2), so two agents can never claim the same item, and
