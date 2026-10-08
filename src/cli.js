@@ -58,7 +58,7 @@ import { relayLinked, relayOff, relayOn, relayOperation, relayStatus, syncRelay 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
 
-export const HELP = `pullboard ${VERSION}: the local-first work board for teams of coding agents.
+const ALL_HELP = `pullboard ${VERSION}: the local-first work board for teams of coding agents.
 Nothing ships until a second agent verifies it.
 
 Set up
@@ -153,6 +153,209 @@ ${lifecycleHelp()}
 
 Reject reasons: TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD, OTHER.
 --json prints one versioned document for every command; refusals include their code and next step.`;
+
+const HELP_NAMES = [
+  'tour', 'init', 'worktree', 'join', 'whoami', 'lanes', 'status', 'resources', 'settings', 'view', 'view export',
+  'serve', 'relay', 'resume', 'hooks', 'add', 'edit', 'escalate', 'run', 'list', 'doctor', 'show', 'next',
+  'check', 'claim', 'release', 'submit', 'done', 'verify', 'shout', 'answer', 'pass', 'decisions', 'inbox', 'export', 'import',
+  'sweep', 'merged', 'withdraw', 'refreeze', 'hold', 'ledger', 'log', 'spec', 'spec check', 'spec view',
+  'spec show', 'spec unmet', 'spec signoff', 'spec signers', 'spec signers add', 'forget', 'prompt', 'gate', 'hook',
+  'hook pre-commit', 'hook commit-msg', 'hook pre-push', 'view export', 'version', 'lifecycle', 'help',
+];
+
+const HELP_GROUPS = [
+  ['Start', ['tour', 'init', 'worktree']],
+  ['Work', ['add', 'list', 'claim']],
+  ['Review', ['submit', 'next', 'verify']],
+  ['See', ['status', 'view', 'log']],
+];
+
+const HELP_EXAMPLES = {
+  tour: 'pullboard tour', init: 'pullboard init', worktree: 'pullboard worktree web', resume: 'pullboard resume',
+  add: 'pullboard add web "Upload page" --specs G1', list: 'pullboard list web', show: 'pullboard show 12',
+  claim: 'pullboard claim 12', submit: 'pullboard submit 12', 'next --verify': 'pullboard next --verify',
+  verify: 'pullboard verify 12 accept --note "removed the fix; the test failed"',
+  answer: 'pullboard answer 12 "done"', pass: 'pullboard pass 12 "please decide"',
+  status: 'pullboard status', view: 'pullboard view', log: 'pullboard log 12', ledger: 'pullboard ledger',
+  edit: 'pullboard edit 12 --brief "Add the upload page"', release: 'pullboard release 12',
+  escalate: 'pullboard escalate 12 --note "needs a manual step"', next: 'pullboard next',
+  run: 'pullboard run --agent "node agent.js"', 'view export': 'pullboard view --export ./site',
+  'spec check': 'pullboard spec check',
+  'spec view': 'pullboard spec view', 'spec show': 'pullboard spec show G1',
+  'spec unmet': 'pullboard spec unmet', 'spec signoff': 'pullboard spec signoff G1',
+  'spec signers add': 'pullboard spec signers add', help: 'pullboard help claim', version: 'pullboard --version',
+};
+
+const HELP_ALIASES = {
+  whoami: { usage: 'pullboard whoami', source: 'whoami' },
+  lanes: { usage: 'pullboard lanes', source: 'whoami' },
+  status: { usage: 'pullboard status', source: 'whoami' },
+  done: { usage: 'pullboard done <id>', source: 'submit <id>' },
+  inbox: { usage: 'pullboard inbox', source: null },
+  lifecycle: { usage: 'pullboard lifecycle', source: null },
+  escalate: { usage: 'pullboard escalate <id> --note "..." [--note-file <file>]', source: 'escalate <id> --note "what was tried and how it failed"', extraFlags: ['--note-file <file>'] },
+  'view export': { usage: 'pullboard view --export <dir>', source: 'view' },
+  'spec check': { usage: 'pullboard spec check', source: 'spec check' },
+  'spec view': { usage: 'pullboard spec view [--out file]', source: 'spec view' },
+  'spec show': { usage: 'pullboard spec show <id>', source: 'spec show', onlyFlags: [] },
+  'spec unmet': { usage: 'pullboard spec unmet [--must]', source: 'spec show', onlyFlags: ['--must'] },
+  'spec signoff': { usage: 'pullboard spec signoff <ids> [--by <principal>] [--note "..."] [--note-file <file>]', source: 'spec show', onlyFlags: ['--by', '--note', '--note-file'], extraFlags: ['--note-file <file>'] },
+  'spec signers': { usage: 'pullboard spec signers add [--key <path>] [--by <principal>]', source: 'spec signers add' },
+  'spec signers add': { usage: 'pullboard spec signers add [--key <path>] [--by <principal>]', source: 'spec signers add' },
+  hook: { usage: 'pullboard hook pre-commit|commit-msg|pre-push', source: 'hook' },
+  'hook pre-commit': { usage: 'pullboard hook pre-commit', source: 'hook' },
+  'hook commit-msg': { usage: 'pullboard hook commit-msg <file>', source: 'hook' },
+  'hook pre-push': { usage: 'pullboard hook pre-push', source: 'hook' },
+};
+
+const HELP_FLAG_EXPLANATIONS = {
+  '--after': 'claiming waits until those items are verified',
+  '--brief': 'what a cold agent needs',
+  '--check': 'the command that proves it',
+  '--family': 'records the family name',
+  '--json': 'prints one versioned document',
+  '--note': 'what was checked stays with the receipt',
+  '--note-file': 'keeps quotes, $ and backticks intact',
+  '--route': 'sets which work the model can take',
+};
+
+/** Build command-specific help rows from the preserved full list so its syntax stays authoritative. */
+function commandHelpRows(fullHelp) {
+  const lines = fullHelp.split('\n');
+  const rows = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!lines[index].startsWith('  pullboard ')) continue;
+    const details = [lines[index].trim()];
+    for (let next = index + 1; next < lines.length && lines[next].startsWith(' ') && lines[next].trim() && !lines[next].startsWith('  pullboard '); next += 1) details.push(lines[next].trim());
+    rows.push({ usage: lines[index].trim().slice('pullboard '.length).split(/\s{2,}/, 1)[0].trim(), details });
+  }
+  return Object.fromEntries(HELP_NAMES.map((name) => {
+    const parts = name.split(' ');
+    const alias = HELP_ALIASES[name];
+    const matches = alias?.source ? rows.filter((row) => row.usage === alias.source || row.usage.startsWith(`${alias.source} `)) : alias ? [] : rows.filter((row) => {
+      const tokens = row.usage.split(/\s+/u);
+      if (!parts.every((part, index) => tokens[index] === part)) return false;
+      const next = tokens[parts.length];
+      return !next || next.startsWith('--') || next.startsWith('<') || next.startsWith('[') || next === '|';
+    });
+    const usages = alias ? [alias.usage] : matches.length ? [...new Set(matches.map((row) => `pullboard ${row.usage}`))] : [`pullboard ${name}`];
+    const foundFlags = [...matches.flatMap((row) => row.details.flatMap((line) => line.match(/--[a-z][a-z-]*(?:\s+(?:<[^>]+>|"[^"]*"|\[[^\]]+\]|[A-Za-z][A-Za-z0-9|_-]*))?/gu) ?? [])), ...(alias?.extraFlags ?? []), '--json', '--help', ...(name === 'help' ? ['--all'] : [])];
+    const flagMap = new Map();
+    for (const flag of foundFlags) {
+      const key = flag.split(/\s/u, 1)[0];
+      if (alias?.onlyFlags && !alias.onlyFlags.includes(key) && !['--json', '--help'].includes(key)) continue;
+      if (!flagMap.has(key) || flagMap.get(key).length < flag.length) flagMap.set(key, flag);
+    }
+    const flags = [...flagMap.values()].map((flag) => {
+      const explanation = HELP_FLAG_EXPLANATIONS[flag.split(/\s/u, 1)[0]];
+      return explanation ? `${flag} — ${explanation}` : flag;
+    });
+    const example = exampleFor(name, usages[0]);
+    return [name, Object.freeze({ usages, flags, example })];
+  }));
+}
+
+/** Render the short first-run overview, with command names grouped by when a person needs them. */
+function overviewHelp(groups, firstRun = false) {
+  const pointer = 'New here? pullboard tour, then pullboard init.';
+  const description = 'Pullboard is a local-first work board for coding agents; nothing ships until a second agent verifies it.';
+  const lines = [
+    ...(firstRun ? [pointer, description] : [description, pointer]),
+    '',
+  ];
+  for (const [group, names] of groups) lines.push(group, ...names.map((name) => `  pullboard ${name}`));
+  lines.push('', 'More: pullboard help <command>; pullboard help --all for the full list.');
+  return lines.join('\n');
+}
+
+/** The one help declaration feeds the overview, command detail, JSON result and unchanged full list. */
+export const HELP = Object.freeze({
+  overview: overviewHelp(HELP_GROUPS),
+  firstRun: overviewHelp(HELP_GROUPS, true),
+  all: ALL_HELP,
+  groups: HELP_GROUPS,
+  commands: Object.freeze(commandHelpRows(ALL_HELP)),
+});
+
+/** Find the nearest declared command for a useful typo hint. */
+function closestHelpCommand(input) {
+  const needle = input.toLowerCase();
+  /** Measure edit distance between two command names for a useful typo hint. */
+  const distance = (left, right) => {
+    let row = Array.from({ length: right.length + 1 }, (_, index) => index);
+    for (let i = 1; i <= left.length; i += 1) {
+      const next = [i];
+      for (let j = 1; j <= right.length; j += 1) {
+        next[j] = Math.min(next[j - 1] + 1, row[j] + 1, row[j - 1] + (left[i - 1] === right[j - 1] ? 0 : 1));
+      }
+      row = next;
+    }
+    return row.at(-1);
+  };
+  return Object.keys(HELP.commands).sort((a, b) => distance(needle, a) - distance(needle, b) || a.localeCompare(b))[0];
+}
+
+/** Render one command's usage, one-line flags and a pasteable example from the help declaration. */
+function commandHelp(name) {
+  const entry = HELP.commands[name];
+  if (!entry) return null;
+  return [
+    `Usage: ${entry.usages[0]}`,
+    ...entry.usages.slice(1).map((usage) => `       ${usage}`),
+    'Flags:',
+    ...(entry.flags.length ? entry.flags.map((flag) => `  ${flag}`) : ['  none']),
+    'Example:',
+    `  ${entry.example}`,
+  ].join('\n');
+}
+
+/** Replace help placeholders with ordinary values so every command receives a usable example. */
+function exampleFor(name, usage) {
+  if (HELP_EXAMPLES[name]) return HELP_EXAMPLES[name];
+  return usage.split(/\s+\|\s+|\|/u, 1)[0]
+    .replace(/\s+\[[^\]]+\]/gu, '')
+    .replace(/<lane>/gu, 'web')
+    .replace(/<title>/gu, '"Example"')
+    .replace(/<id>/gu, '12')
+    .replace(/<file>/gu, 'board.json')
+    .replace(/<path>/gu, 'src/cli.js')
+    .replace(/<commit>/gu, '0123456')
+    .replace(/<principal>/gu, 'person@example.invalid')
+    .replace(/<[^>]+>/gu, 'value');
+}
+
+/** Write a selected help view in text and the stable help:string JSON field. */
+function printHelp(io, text) {
+  io.result?.({ help: text });
+  io.say(text);
+  return 0;
+}
+
+/** Refuse an unknown command with its nearest declared spelling and a route to the full list. */
+function unknownCommand(io, input) {
+  const closest = closestHelpCommand(input);
+  io.err(`pullboard: no command "${input}"; closest match is "${closest}". Run pullboard help --all for the full list.`);
+  return 2;
+}
+
+/** Resolve overview, command detail or the preserved full list from one invocation. */
+function selectedHelp(command, first, second, rest, values) {
+  if (command === 'help') {
+    if (values.all) return { text: HELP.all };
+    const requested = [first, second, ...rest].filter(Boolean).join(' ');
+    if (!requested || values.help && !first) return { text: HELP.overview };
+    return { name: requested, text: commandHelp(requested) };
+  }
+  if (values.all && (!command || command === 'help')) return { text: HELP.all };
+  if (!command) return { text: HELP.firstRun };
+  if (values.help) {
+    const words = [command, first, second, ...rest].filter(Boolean);
+    const candidates = words.map((_, index) => words.slice(0, index + 1).join(' ')).filter((name) => HELP.commands[name]);
+    const nested = candidates.at(-1) ?? command;
+    return { name: nested, text: commandHelp(nested) };
+  }
+  return null;
+}
 
 const OPTIONS = {
   criterion: { type: 'string' },
@@ -1781,21 +1984,21 @@ async function runCommand(argv, io) {
     parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
   } catch (error) {
     io.refusal?.(new Refused('USAGE', `${error.message}; run pullboard help`));
-    io.err(`pullboard: ${error.message}\n\n${HELP}`);
+    io.err(`pullboard: ${error.message}\nRun pullboard help --all for the full list.`);
     return 2;
   }
   const { values, positionals } = parsed;
   io.jsonMode?.(values.json);
   const [command = '', first, second, ...rest] = positionals;
-  if (values.version || command === 'version') {
+  if ((values.version || command === 'version') && !values.help) {
     io.result?.({ release: VERSION });
     io.say(VERSION);
     return 0;
   }
-  if (values.help || !command || command === 'help') {
-    io.result?.({ help: HELP });
-    io.say(HELP);
-    return 0;
+  const help = selectedHelp(command, first, second, rest, values);
+  if (help) {
+    if (help.text) return printHelp(io, help.text);
+    return unknownCommand(io, help.name);
   }
   const args = { first, second, rest, values };
   try {
@@ -1852,10 +2055,7 @@ async function runCommand(argv, io) {
     }
     const commands = { ...setupCommands(io, args), ...readCommands(io, args), ...workCommands(io, args) };
     const run = commands[command];
-    if (!run) {
-      io.err(`pullboard: no command "${command}"\n\n${HELP}`);
-      return 2;
-    }
+    if (!run) return unknownCommand(io, command);
     return await run();
   } catch (error) {
     if (error instanceof Refused) {

@@ -1369,7 +1369,7 @@ test('check runs the item\'s own check command, yours by default, and prints a d
   assert.equal(green.out.split('\n').filter(Boolean).length, 1);
   assert.equal(box.run(box.repo, 'check', '1').code, 1, 'named, from another checkout: there the file is missing');
   assert.match(box.run(box.web, 'check', '2').err, /NO_CHECK.*#2 has no check command/);
-  assert.match(box.run(box.repo, 'help').out, /pullboard check \[id\]/);
+  assert.match(box.run(box.repo, 'help', '--all').out, /pullboard check \[id\]/);
 });
 
 test('submit leaves a dependency fast-forwarded in out of the files it records [N21]', () => {
@@ -1409,12 +1409,12 @@ test('verify and escalate take a note from a file, exactly as written [V12]', ()
   box.run(light, 'claim', '2');
   assert.match(box.run(light, 'escalate', '2', '--note-file', join(box.dir, 'note.txt')).out, /#2 escalated light -> mid/);
   assert.match(box.run(box.repo, 'show', '2').out, /ran `npm test` with \$HOME unset: "it failed"/);
-  assert.match(box.run(box.repo, 'help').out, /--note-file <file>/);
+  assert.match(box.run(box.repo, 'help', '--all').out, /--note-file <file>/);
 });
 
 test('the help keeps every command description apart from its usage [N37]', () => {
   const box = sandbox();
-  const help = box.run(box.dir, 'help').out;
+  const help = box.run(box.dir, 'help', '--all').out;
   const commandLines = help.split('\n').filter((line) => line.startsWith('  pullboard '));
   for (const line of commandLines) {
     const hasDescriptionGap = / {2,}\S/.test(line.slice('  pullboard '.length));
