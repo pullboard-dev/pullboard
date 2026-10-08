@@ -130,19 +130,21 @@ pullboard init
 git add -A && git commit -m "chore: set up pullboard"
 ```
 
-`init` writes the spec, the doctrine and the agent instructions, and installs the hooks and the board. Then open Claude Code in that folder and say what to build: "use pullboard to build a notes app." That agent becomes your coordinator.
+`init` writes the spec, doctrine and agent instructions, and installs the hooks and the board.
+
+Now open Claude Code there and say what to build. That agent becomes your coordinator.
 
 ### By hand
 
-Prefer to drive? Work from the main checkout, which is the coordinator.
+Rather drive it yourself? Work from your repo's main checkout, which makes you the coordinator.
 
 ```markdown
 ## G · Goals: what the client asked for
-- G1 [approved, must] An upload of the same file twice is a no-op. | gate: test/upload.test.js
-- G2 [draft, aim] Show a diff when a month is restated. | serves: G1
+- G1 [approved, must] A shopper can pay by card in one step. | gate: test/checkout.test.js
+- G2 [draft, aim] Saved carts follow a shopper across devices. | serves: G1
 ```
 
-Each requirement is one row in `SPEC.md`. Only approved rows count.
+Write the spec in `SPEC.md`. Only approved rows count.
 
 ```json
 {
@@ -154,13 +156,13 @@ Each requirement is one row in `SPEC.md`. Only approved rows count.
 }
 ```
 
-`pullboard.json` sets the gate, your test command, and the lanes: who owns which paths.
+Set the gate (your test command) and the lanes (who owns which paths) in `pullboard.json`.
 
 ```sh
-pullboard add web "Upload page" --specs G1 --criterion "a file uploaded twice is listed once"
+pullboard add web "Checkout" --specs G1 --criterion "card payment takes one step"
 ```
 
-The criterion freezes when an agent claims the item.
+File the work. Its bar freezes when an agent claims it.
 
 ```sh
 pullboard worktree web
@@ -168,27 +170,29 @@ cd ../<repo>-web-1 && pullboard next
 pullboard submit 1
 ```
 
-The builder gets its own worktree and claims the next item. It builds and commits, citing the row: `feat(web): upload page [G1]`. Submit needs a clean tree and a green gate.
+A **builder** claims it in its own worktree, commits citing the row (`feat(web): pay by card [G1]`), and submits once the gate is green.
 
 ```sh
 pullboard worktree review && cd ../<repo>-review-1
 pullboard next --verify
-pullboard verify 1 accept --note "uploaded twice: one row; without the fix the test fails"
+pullboard verify 1 accept --note "paid in one step; without the fix the test fails"
 ```
 
-A different agent reserves the review, checks out the commit that `next --verify` names, and accepts with evidence. Or it rejects with a reason (`--reason TEST_FAILURE`), and the work goes back.
+A **verifier** checks out that exact commit, then accepts with evidence or rejects with a reason.
 
 ### Working with agents
 
+A few commands keep every agent on track.
+
 - `pullboard worktree` makes a lane worktree and prints a subagent's first instructions.
-- `pullboard resume` restores an agent's claim, messages and next step after a restart.
+- `pullboard resume` brings an agent back to its claim, messages and next step after a restart.
 - `pullboard next` claims the next free item, never one someone else holds.
-- `pullboard run` lets a lighter model build routed items unattended.
+- `pullboard run` lets a lighter model build simple items unattended.
 - Claude Code gets skills. Codex and others read `AGENTS.md` or `pullboard prompt <role>`.
 
 ## Built with itself
 
-Pullboard is built with Pullboard. On 6 October 2026, one Claude agent made 17 changes in 23 submissions. A Codex agent verified each one, recorded five rejections, and caught a sixth problem while a bar was being refrozen. All six were fixed before they merged.
+Pullboard is built with Pullboard. On 6 October 2026, one Claude agent made 17 changes in 23 submissions. A Codex agent verified every one, rejected five, and caught a sixth problem. All six were fixed before they merged.
 
 One receipt from that day, abridged:
 
@@ -205,7 +209,7 @@ One receipt from that day, abridged:
               real target; removing either escape makes the test fail"
 ```
 
-As of 8 October 2026 the board holds 162 verified items, with 162 accepts and 68 rejects. `pullboard status` prints the live count.
+As of 8 October 2026, this repo's board shows 162 verified items, 162 accepts and 68 rejects: nearly one in three submissions sent back before it counted. Run `pullboard status` for today's count.
 
 ## Under the hood
 
@@ -234,9 +238,9 @@ Your rules live in the repo. The board lives inside `.git`, shared by every work
 
 Submitted commits are pinned under `refs/pullboard/items`, so work survives a deleted worktree.
 
-## Project
+## Purpose
 
-The honest part: what it can't do yet, what's coming, and the fine print.
+Pullboard exists to keep a team of agents coherent over a long build.
 
 ### Limits
 
@@ -246,13 +250,18 @@ The honest part: what it can't do yet, what's coming, and the fine print.
 
 ### Planned features
 
-- **The relay.** Your boards on your phone and your other machines, live. It only sees sealed board records, never your code.
+- **The relay.** Your boards, live on your phone and other machines. Sealed records, never code.
 - **A roadmap in Pullboard View.** Every milestone and what's left in it, at a glance.
 
 ### Docs
 
-Want the deep end? Read the [CLI JSON API](docs/api.md), the [stored formats](docs/formats.md), the [lifecycle](docs/lifecycle.md) and the [RFCs](docs/rfcs/README.md).
+The reference docs, in reading order.
+
+- [Lifecycle](docs/lifecycle.md): how an item moves, state by state.
+- [CLI JSON API](docs/api.md): every command's output, for scripts and tools.
+- [Stored formats](docs/formats.md): the board's files, exports and their versions.
+- [RFCs](docs/rfcs/README.md): the design decisions, and why.
 
 ### License
 
-MIT. Use it, fork it, build on it. Copyright 2026 Corey Olson.
+Pullboard is released under the [MIT License](LICENSE).
