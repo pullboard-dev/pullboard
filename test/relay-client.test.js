@@ -598,11 +598,19 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
   await cli(clones[0], envs[0], 'status');
   const beforeSubmitRetry = relay.uploads.length;
   const originalCommit = gitAt(worktrees[0], envs[0], 'rev-parse', 'HEAD');
+  writeFileSync(join(worktrees[0], 'web', 'README.md'), 'new committed work while the original submission reply is missing\n');
+  gitAt(worktrees[0], envs[0], 'add', 'web/README.md');
+  gitAt(worktrees[0], envs[0], 'commit', '-q', '-m', 'test: move HEAD during submission recovery [G1]');
+  assert.notEqual(gitAt(worktrees[0], envs[0], 'rev-parse', 'HEAD'), originalCommit);
+  writeFileSync(join(worktrees[0], 'web', 'README.md'), 'dirty current work is not a fresh submission\n');
   const retriedSubmit = await cli(worktrees[0], envs[0], 'submit', '2');
   assert.equal(retriedSubmit.commit, originalCommit);
   assert.equal(retriedSubmit.gate.green, true);
+  assert.match(retriedSubmit.gate.report, /recovered the original submission/,
+    'changed or dirty HEAD only receives the original receipt, never a fresh gate claim');
   assert.equal(relay.uploads.length, beforeSubmitRetry, 'submitted-state preconditions cannot duplicate or strand recovery');
   assert.equal(gitAt(worktrees[0], envs[0], 'rev-parse', retriedSubmit.pin), originalCommit);
+  gitAt(worktrees[0], envs[0], 'restore', 'web/README.md');
 
   relay.dropNextReply({ offline: true });
   const lostVerify = await cliResult(worktrees[1], envs[1], 'verify', '2', 'accept', '--note', 'Lost verdict acknowledgement');
