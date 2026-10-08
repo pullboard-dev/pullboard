@@ -107,6 +107,26 @@ test('authenticated relay senders bind every move and refusals preserve replica 
   assert.equal(replayCursor(two), cases.length + 2);
 });
 
+test('authenticated coordinator milestones replay and reject foreign sender identity [H2,H9,H3,H16]', (t) => {
+  const { copies, item } = engineCopies(t);
+  const [one, two] = copies;
+  const move = prepareEngineMove(one, 'addMilestone', [{ agentId: 'coordinator', name: 'Fixture milestone', items: [item] }], { id: 'coordinator-milestone', actor: 'coordinator' });
+  for (const board of copies) {
+    const before = store.milestones(board);
+    const refused = applyEngineMove(board, move, { sequence: 1, at: CLAIM_AT, sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } });
+    assert.equal(refused.error?.code, 'RELAY_ACTOR');
+    assert.deepEqual(store.milestones(board), before, 'a foreign scoped token cannot change milestone metadata');
+  }
+  const valid = { ...move, id: 'valid-coordinator-milestone' };
+  const sender = { kind: 'agent', userId: 'fixture-user', agent: 'coordinator' };
+  const outcomes = copies.map((board) => applyEngineMove(board, valid, { sequence: 2, at: CLAIM_AT, sender }));
+  assert.deepEqual(outcomes[0], outcomes[1]);
+  assert.equal(outcomes[0].error, undefined, 'the coordinator scoped token binds the native milestone actor');
+  assert.deepEqual(store.milestones(one), [{ name: 'Fixture milestone', note: null, items: [item] }]);
+  assert.deepEqual(store.milestones(one), store.milestones(two));
+  assert.deepEqual(store.events(one), store.events(two));
+});
+
 test('the same sealed claim replays to identical rows and sequence retries are idempotent [H3,H16]', (t) => {
   const { copies, item } = engineCopies(t);
   const [one, two] = copies;

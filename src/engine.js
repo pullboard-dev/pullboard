@@ -83,6 +83,7 @@ export function engineActor(operation, args) {
   if (operation === 'answerDecision' && args[1]?.asPerson) return 'person';
   if (operation === 'release') return args[1];
   if (operation === 'addItem') return args[0]?.by;
+  if (operation === 'addMilestone') return args[0]?.agentId;
   if (operation === 'shout') return args[0]?.from;
   if (operation === 'reserveNextReview') return args[0]?.agentId;
   return args[1]?.agentId;
