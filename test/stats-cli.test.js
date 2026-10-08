@@ -60,6 +60,8 @@ test('[R1,R2,A1] stats JSON is versioned, text states the same proof numbers and
   assert.equal(text.code, 0, text.stderr);
   assert.match(text.stdout, /2 submissions · 1 rejections · 50\.0% sent back/u);
   assert.match(text.stdout, /1 items merged · 0 merged without an accept/u);
+  assert.match(text.stdout, /3 agents · 1 family buckets: unknown \(3 agents,/u);
+  assert.match(text.stdout, /agents: coordinator \(unknown; \d+ moves\), review-1 \(unknown; \d+ moves\), web-1 \(unknown; \d+ moves\)/u);
   assert.ok(text.stdout.includes(expected.firstEventAt));
   assert.ok(text.stdout.includes(expected.lastEventAt));
   assert.deepEqual(store.events(board), before, 'reading statistics appends no move');
