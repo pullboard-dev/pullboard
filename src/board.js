@@ -978,10 +978,10 @@ export function release(board, id, agentId) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, commit: string, tree: string, files?: string[] }} at - `files`: what the
+ * @param {{ agentId: string, commit: string, tree: string, files?: string[], policyCommit?: string }} at - `files`: what the
  *   item's own commits changed since its claim; a rework adds to what the first attempt changed.
  */
-export function submit(board, id, { agentId, commit, tree, files = [] }) {
+export function submit(board, id, { agentId, commit, tree, files = [], policyCommit = null }) {
   atomic(board, () => {
     const notYours = () => new Refused('NOT_YOURS', `item #${id} is not claimed by you; claim it first`);
     moveItem(board, id, 'submit', {
@@ -993,6 +993,7 @@ export function submit(board, id, { agentId, commit, tree, files = [] }) {
         treeClean: null,
         nothingUntracked: null,
         hasCommit: null,
+        withinLane: null,
         gateConfigured: null,
         gateGreen: null,
         treeStillDuringGate: null,
@@ -1018,7 +1019,7 @@ export function submit(board, id, { agentId, commit, tree, files = [] }) {
         item_files: [...new Set([...(found.item_files ?? '').split('\n').filter(Boolean), ...files])].join('\n'),
       }),
     });
-    logEvent(board, agentId, 'submit', id, { commit, tree });
+    logEvent(board, agentId, 'submit', id, { commit, tree, ...(policyCommit ? { policyCommit } : {}) });
   });
 }
 
@@ -1151,6 +1152,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', head, 
             ? null
             : new Refused('CRITERIA_CHANGED', `the criterion for #${id} changed after it was claimed; the coordinator runs: pullboard refreeze ${id}`),
         reasonIsMet: () => (reason && reason !== ACCEPT_REASON ? new Refused('BAD_REASON', `accept means ${ACCEPT_REASON}; a failed criterion is a reject`) : null),
+        itemCheckGreen: null,
         proofNoted: () =>
           note.trim()
             ? null
