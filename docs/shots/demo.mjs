@@ -4,18 +4,21 @@
  * The disposable repo and private PULLBOARD_HOME keep personal projects and shouts out of the art.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { evaluationValue } from './devtools-evaluation.mjs';
+import { browser, waitForDemoBoard } from './capture-browser.mjs';
+import { AGENT_SHELL_MARKERS } from '../../src/person.js';
 import { renderTour } from './tour-renderer.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const BIN = join(ROOT, 'bin', 'pullboard.js');
 const OUTPUT = fileURLToPath(new URL('./', import.meta.url));
+const DEMO_OUTPUT = join(ROOT, 'docs', 'demo');
+const DEMO_BOARD_ID = 'demo-board';
+const FIXED_TIME = '2026-10-06T12:00:00.000Z';
 const CHROME = ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
-const pause = (ms) => new Promise((resolvePause) => setTimeout(resolvePause, ms));
 
 /** Run a pullboard or git command in the disposable demo environment. */
 function command(file, args, cwd, env) {
@@ -31,47 +34,28 @@ async function stop(child) {
   await new Promise((resolveStop) => child.once('close', resolveStop));
 }
 
-/** Make a child environment with a private home and no inherited git overrides. */
-function isolatedEnv(home) {
-  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
-  return { ...env, HOME: home, PULLBOARD_HOME: home, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Pullboard demo', GIT_AUTHOR_EMAIL: 'demo@pullboard.invalid', GIT_COMMITTER_NAME: 'Pullboard demo', GIT_COMMITTER_EMAIL: 'demo@pullboard.invalid' };
+/** Model a person terminal only inside the disposable demo, with a private home and no Git overrides. */
+function isolatedEnv(home, clockShim) {
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_') && key !== 'NODE_OPTIONS' && !AGENT_SHELL_MARKERS.includes(key)));
+  return { ...env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: home, NODE_OPTIONS: `--import ${JSON.stringify(clockShim)}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Pullboard demo', GIT_AUTHOR_EMAIL: 'demo@pullboard.invalid', GIT_COMMITTER_NAME: 'Pullboard demo', GIT_AUTHOR_DATE: FIXED_TIME, GIT_COMMITTER_DATE: FIXED_TIME };
 }
 
-/** Start Chrome with a disposable profile and return the DevTools connection for its page. */
-async function browser(chrome, profile, url) {
-  const child = spawn(chrome, ['--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-sync', '--disable-extensions', '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--window-size=1440,1100', 'about:blank'], { stdio: 'ignore' });
-  let socket;
-  let port;
-  try {
-    for (let n = 0; n < 100 && !port; n++) {
-      try { port = (await readFile(join(profile, 'DevToolsActivePort'), 'utf8')).split('\n')[0]; } catch {}
-      if (!port) await pause(100);
-    }
-    if (!port) throw new Error('Chrome did not start');
-    const response = await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(url)}`, { method: 'PUT' });
-    if (!response.ok) throw new Error('Chrome could not open the demo view');
-    const target = await response.json();
-    socket = new WebSocket(target.webSocketDebuggerUrl);
-    await new Promise((ok, fail) => { socket.addEventListener('open', ok, { once: true }); socket.addEventListener('error', fail, { once: true }); });
-    let id = 0;
-    const pending = new Map();
-    socket.addEventListener('message', ({ data }) => { const m = JSON.parse(String(data)); const waiter = pending.get(m.id); if (waiter) { pending.delete(m.id); m.error ? waiter.reject(new Error('Chrome operation failed')) : waiter.resolve(m.result); } });
-    const send = (method, params = {}) => new Promise((ok, fail) => { const key = ++id; pending.set(key, { resolve: ok, reject: fail }); socket.send(JSON.stringify({ id: key, method, params })); });
-    await send('Page.enable');
-    await send('Runtime.enable');
-    const evaluate = async (expression) => evaluationValue(await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }));
-    for (let n = 0; n < 100 && await evaluate('document.readyState') !== 'complete'; n++) await pause(100);
-    return {
-      evaluate,
-      viewport: (width, height) => send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false }),
-      screenshot: async (path) => { const result = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }); await writeFile(path, Buffer.from(result.data, 'base64')); },
-      close: async () => { socket.close(); await stop(child); },
-    };
-  } catch (error) {
-    socket?.close();
-    await stop(child);
-    throw error;
-  }
+/** Export the board, then replace its random storage id with a stable public snapshot id. */
+async function exportBoard(repo, env) {
+  await rm(DEMO_OUTPUT, { recursive: true, force: true });
+  command(process.execPath, [BIN, 'view', '--export', DEMO_OUTPUT], repo, env);
+  const listingPath = join(DEMO_OUTPUT, 'api', 'v1', 'boards.json');
+  const listing = JSON.parse(await readFile(listingPath, 'utf8'));
+  if (listing.boards.length !== 1) throw new Error('The demo export must contain exactly one board.');
+  const source = join(DEMO_OUTPUT, 'api', 'v1', 'boards', listing.boards[0].id);
+  const target = join(DEMO_OUTPUT, 'api', 'v1', 'boards', DEMO_BOARD_ID);
+  await rename(source, target);
+  listing.boards[0].id = DEMO_BOARD_ID;
+  await writeFile(listingPath, JSON.stringify(listing) + '\n');
+  const statePath = join(target, 'state.json');
+  const state = JSON.parse(await readFile(statePath, 'utf8'));
+  state.state.board = DEMO_BOARD_ID;
+  await writeFile(statePath, JSON.stringify(state) + '\n');
 }
 
 /** Build the demo board by issuing real commands in a temporary git repo. */
@@ -80,23 +64,25 @@ async function buildBoard(base, env) {
   await mkdir(repo, { recursive: true });
   command('git', ['init', '-q', '-b', 'main'], repo, env);
   command(process.execPath, [BIN, 'init'], repo, env);
-  await writeFile(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node --check src/demo.js', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { app: { owns: ['src/'], specs: ['G'] }, review: { owns: [], specs: [] } }, shared: [] }, null, 2) + '\n');
-  await writeFile(join(repo, 'SPEC.md'), '# Demo\n\n## G · Goals\n- G1 [approved, must] A demo item exists to show the board. | gate: none\n');
+  await writeFile(join(repo, 'pullboard.json'), JSON.stringify({ name: 'Demo board', project: 'Pullboard demo', gate: 'node --check src/demo.js', spec: 'SPEC.md', verify: { policy: 'any', family: 'require' }, lease: '2h', lanes: { app: { owns: ['src/'], specs: ['G'] }, review: { owns: [], specs: [] } }, shared: [] }, null, 2) + '\n');
+  await writeFile(join(repo, 'SPEC.md'), '# Demo\n\n## G · Goals\n- G1 [approved, must] A demo item exists to show the board. | gate: none\n- G2 [approved, must] The verified item shows its review history. | gate: none\n');
   command('git', ['add', '-A'], repo, env);
   command('git', ['commit', '-q', '-m', 'chore: initialize demo board'], repo, env);
   const pb = (cwd, ...args) => command(process.execPath, [BIN, ...args], cwd, env);
   pb(repo, 'add', 'app', 'Reviewed and accepted', '--specs', 'G1', '--criterion', 'The demo item is accepted after review.');
-  pb(repo, 'add', 'app', 'Open for rework', '--specs', 'G1', '--criterion', 'The demo item remains open after rejection.');
+  pb(repo, 'add', 'app', 'Future work', '--specs', 'G1', '--criterion', 'The board keeps another item open for later work.');
   pb(repo, 'add', 'app', 'Ready for review', '--specs', 'G1', '--criterion', 'The demo item is submitted for review.');
   pb(repo, 'add', 'app', 'Claimed for work', '--specs', 'G1', '--criterion', 'The demo item is being worked on.');
-  pb(repo, 'add', 'app', 'Open decision', '--specs', 'G1', '--criterion', 'The demo has a pending decision.');
+  pb(repo, 'add', 'app', 'Decision follow-up', '--specs', 'G1', '--criterion', 'The board keeps a follow-up visible after the person answers.');
   pb(repo, 'add', 'app', 'Withdrawn example', '--specs', 'G1', '--criterion', 'The demo includes withdrawn work.');
   pb(repo, 'withdraw', '6', 'this example was dropped');
 
   const app = pb(repo, 'worktree', 'app').match(/made (.+) on branch app\/1/)?.[1];
   if (!app) throw new Error('Could not create the demo builder worktree');
+  pb(app, 'join', 'app', '--family', 'codex');
   const review = pb(repo, 'worktree', 'review').match(/made (.+) on branch review\/1/)?.[1];
   if (!review) throw new Error('Could not create the demo reviewer worktree');
+  pb(review, 'join', 'review', '--family', 'claude');
   pb(app, 'next');
   await mkdir(join(app, 'src'), { recursive: true });
   await writeFile(join(app, 'src', 'demo.js'), 'export const reviewed = false;\n');
@@ -118,6 +104,7 @@ async function buildBoard(base, env) {
   pb(repo, 'merged', '1', second);
   const app2 = pb(repo, 'worktree', 'app').match(/made (.+) on branch app\/2/)?.[1];
   if (!app2) throw new Error('Could not create the second demo builder worktree');
+  pb(app2, 'join', 'app', '--family', 'codex');
   pb(app2, 'claim', '3');
   await mkdir(join(app2, 'src'), { recursive: true });
   await writeFile(join(app2, 'src', 'review.js'), 'export const ready = true;\n');
@@ -126,10 +113,21 @@ async function buildBoard(base, env) {
   pb(app2, 'submit', '3');
   const app3 = pb(repo, 'worktree', 'app').match(/made (.+) on branch app\/3/)?.[1];
   if (!app3) throw new Error('Could not create the third demo builder worktree');
+  pb(app3, 'join', 'app', '--family', 'codex');
   pb(app3, 'claim', '4');
-  pb(repo, 'shout', 'app', 'Decision needed: should this change wait for another reviewer?', '--decision');
-  pb(repo, 'shout', 'all', 'Demo receipt: the fixture is isolated and the accepted revision was checked.', '--evidence', 'receipt', '--outcome', 'accepted', '--item', '1', '--commit', second);
+  const decision = pb(app3, 'shout', 'coordinator', 'The review is complete. May the verified change proceed?', '--decision').match(/as #(\d+)/)?.[1];
+  if (!decision) throw new Error('The demo decision request was not recorded.');
+  const passed = pb(repo, 'pass', decision, 'The review passed; ask the person before proceeding.').match(/as #(\d+)/)?.[1];
+  if (!passed) throw new Error('The coordinator did not pass the demo decision to the person.');
+  pb(repo, 'answer', passed, 'Proceed with the verified change.', '--as', 'person');
+  pb(repo, 'hold', 'review', '--reason', 'Waiting for the next demo item.');
   if (!/1 withdrawn/.test(pb(repo, 'status'))) throw new Error('The demo board must include a withdrawn item.');
+  const item = JSON.parse(pb(repo, 'show', '1', '--json'));
+  if (item.item_builder_family !== 'codex' || item.verdicts.at(-1)?.verdict_verifier_family !== 'claude') {
+    throw new Error('The accepted demo item must be verified by another declared model family.');
+  }
+  const doctrine = JSON.parse(pb(repo, 'spec', '--json'));
+  if (!doctrine.rows.some((row) => row.origin === 'standard')) throw new Error('The demo board must include standard doctrine.');
   return repo;
 }
 
@@ -158,15 +156,18 @@ const tourOnly = process.argv.includes('--tour-only');
 const chrome = !tourOnly && CHROME.find((path) => { try { return spawnSync(path, ['--version'], { stdio: 'ignore' }).status === 0; } catch { return false; } });
 if (!chrome && !tourOnly) { process.stderr.write('pullboard demo: install Google Chrome to capture the board screenshots.\n'); process.exitCode = 1; }
 else {
-  const base = await mkdtemp(join(tmpdir(), 'pullboard-readme-demo-'));
+  const base = await realpath(await mkdtemp(join(tmpdir(), 'pullboard-readme-demo-')));
   let view;
   let server;
   try {
-    const env = { ...isolatedEnv(join(base, '.pullboard-home')), TMPDIR: base, TMP: base, TEMP: base };
+    const clockShim = join(base, 'fixed-clock.mjs');
+    await writeFile(clockShim, `const NativeDate = Date;\nconst fixed = NativeDate.parse(${JSON.stringify(FIXED_TIME)});\nclass FixedDate extends NativeDate { constructor(...args) { super(...(args.length ? args : [fixed])); } static now() { return fixed; } }\nglobalThis.Date = FixedDate;\n`);
+    const env = { ...isolatedEnv(join(base, '.pullboard-home'), clockShim), TMPDIR: base, TMP: base, TEMP: base };
     if (tourOnly) {
       await recordTour(env);
     } else {
       const repo = await buildBoard(base, env);
+      await exportBoard(repo, env);
       server = spawn(process.execPath, [BIN, 'view', '--no-open'], { cwd: repo, env, stdio: ['ignore', 'pipe', 'ignore'] });
       const url = await new Promise((resolveUrl, reject) => {
         let output = '';
@@ -176,11 +177,13 @@ else {
         server.once('close', () => { clearTimeout(timer); reject(new Error('The demo view stopped before it opened')); });
       });
       view = await browser(chrome, join(base, 'chrome-profile'), url);
-      await pause(700);
+      await waitForDemoBoard(view, repo);
       await view.viewport(1440, 700);
-      const detail = await view.evaluate("(()=>{document.documentElement.dataset.theme='light'; localStorage.setItem('pb.theme','light'); document.querySelector('[data-state=all]')?.click(); const item=document.querySelector('[data-item=\"1\"]'); if(!item) throw new Error('accepted item #1 is missing'); item.click(); return document.querySelector('#detail').textContent})()");
-      if (!detail.includes('REJECT') || !detail.includes('ACCEPT')) throw new Error('The desktop screenshot must show item #1 rejected and accepted.');
-      await pause(350);
+      await view.evaluate("document.querySelector('[data-state=all]').click()");
+      await view.waitFor("!!document.querySelector('#chain .row[data-item=\"1\"]')", 'accepted item in All');
+      await view.evaluate("(()=>{document.documentElement.dataset.theme='light'; localStorage.setItem('pb.theme','light'); document.querySelector('#chain .row[data-item=\"1\"]').click()})()");
+      await view.waitFor("view.item === 1 && !!document.querySelector('#chain .row.on[data-item=\"1\"]') && document.querySelector('#detail').textContent.includes('Reviewed and accepted') && document.querySelector('#detail').textContent.includes('REJECT') && document.querySelector('#detail').textContent.includes('ACCEPT')", 'selected accepted item and both verdicts');
+      await view.evaluate('document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))');
       await view.screenshot(join(OUTPUT, 'desktop.png'));
       await view.viewport(390, 900);
       await view.evaluate("(()=>{document.documentElement.dataset.theme='dark'; localStorage.setItem('pb.theme','dark'); const item=document.querySelector('[data-item=\"1\"]'); const detail=document.querySelector('#detail')?.textContent??''; if(document.documentElement.dataset.theme!=='dark'||!item||!detail.includes('ACCEPT')) throw new Error('The phone screenshot must show the selected accepted item in dark mode'); return true})()");
