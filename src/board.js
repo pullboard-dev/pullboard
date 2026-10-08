@@ -1156,10 +1156,10 @@ function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'of
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, decision: string, reason?: string, note?: string, head: string, digest: string, policy: string, familyPolicy?: string }} verdict
- * @returns {{ decision: string, reason: string }}
+ * @param {{ agentId: string, decision: string, reason?: string, note?: string, head: string, digest: string, policy: string, familyPolicy?: string, check?: 'none' | 'green' }} verdict
+ * @returns {{ decision: string, reason: string, check?: 'none' | 'green' }}
  */
-export function verify(board, id, { agentId, decision, reason, note = '', head, digest, policy, familyPolicy = 'off' }) {
+export function verify(board, id, { agentId, decision, reason, note = '', head, digest, policy, familyPolicy = 'off', check }) {
   const verb = { ACCEPT: 'accept', REJECT: 'reject' }[decision];
   if (!verb) throw new Refused('BAD_DECISION', 'the decision is accept or reject');
   const isAccept = verb === 'accept';
@@ -1197,8 +1197,10 @@ export function verify(board, id, { agentId, decision, reason, note = '', head, 
       },
       set: (found) => ({ item_verdict: decision, item_verified_by: isAccept ? agentId : null, item_owner: isAccept ? found.item_owner : null }),
     });
-    logEvent(board, agentId, verb, id, { reason: code, commit: item.item_commit });
-    return { decision, reason: code };
+    const detail = { reason: code, commit: item.item_commit };
+    if (isAccept && check !== undefined) detail.check = check;
+    logEvent(board, agentId, verb, id, detail);
+    return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}) };
   });
 }
 
@@ -1326,7 +1328,13 @@ export function getItem(board, id) {
  * @returns {any[]}
  */
 export function verdictsFor(board, id) {
-  return board.db.prepare('SELECT * FROM verdict WHERE item_id = ? ORDER BY verdict_id').all(id);
+  const verdicts = board.db.prepare('SELECT * FROM verdict WHERE item_id = ? ORDER BY verdict_id').all(id);
+  const receipts = board.db.prepare("SELECT event_kind, event_detail FROM event WHERE item_id = ? AND event_kind IN ('accept', 'reject') ORDER BY event_id").all(id);
+  return verdicts.map((verdict, index) => {
+    let detail = {};
+    try { detail = JSON.parse(receipts[index]?.event_detail ?? '{}'); } catch { /* Malformed legacy details remain unknown. */ }
+    return { ...verdict, check: detail.check ?? 'unknown' };
+  });
 }
 
 /**

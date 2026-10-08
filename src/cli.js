@@ -1270,7 +1270,7 @@ function readCommands(io, { first, second, rest, values }) {
       if (reviewer) io.say(`under review by ${reviewer} until ${item.item_review_until}`);
       // Earlier verdicts as one line each, so an item sent back several times stays short to read
       // (N30); --history prints every note in full.
-      const verdictLine = (verdict) => `${verdict.verdict_decision} ${verdict.verdict_reason} by ${verdict.verdict_by}${verdict.verdict_verifier_family ? ` (${verdict.verdict_verifier_family})` : ''} at ${verdict.verdict_commit.slice(0, 12)}`;
+      const verdictLine = (verdict) => `${verdict.verdict_decision} ${verdict.verdict_reason} by ${verdict.verdict_by}${verdict.verdict_verifier_family ? ` (${verdict.verdict_verifier_family})` : ''} at ${verdict.verdict_commit.slice(0, 12)}; check: ${verdict.check ?? 'unknown'}`;
       const notes = verdicts.map((verdict, index) => (values.history || index === verdicts.length - 1 ? verdict.verdict_note : firstLineOf(verdict.verdict_note)));
       verdicts.forEach((verdict, index) => io.say(`${verdictLine(verdict)}${notes[index] ? `: ${notes[index]}` : ''}`));
       if (notes.some((note, index) => note !== verdicts[index].verdict_note)) io.say(`(earlier verdicts shortened; every note in full: pullboard show ${id} --history)`);
@@ -1358,7 +1358,10 @@ function readCommands(io, { first, second, rest, values }) {
     ledger: () => {
       const ctx = context(io);
       const { items, stats } = withBoard(ctx, (board) => ({
-        items: store.listItems(board, { all: true }),
+        items: store.listItems(board, { all: true }).map((item) => ({
+          ...item,
+          check: store.verdictsFor(board, item.item_id).at(-1)?.check ?? 'unknown',
+        })),
         stats: store.stats(board),
       }));
       const built = items.filter((item) => item.item_built_by && item.item_status !== 'withdrawn').reverse();
@@ -1366,10 +1369,10 @@ function readCommands(io, { first, second, rest, values }) {
       const cell = (text) => String(text ?? '').replace(/\|/g, '/').replace(/\s+/g, ' ');
       io.say(`${stats.items.verified} verified by a second agent · ${stats.items.submitted} awaiting verification · ${stats.rejected} rejection${stats.rejected === 1 ? '' : 's'} along the way`);
       io.say('');
-      io.say('| # | Lane | Item | Spec | Built by | Verified by | Commit | Merged |');
-      io.say('| --- | --- | --- | --- | --- | --- | --- | --- |');
+      io.say('| # | Lane | Item | Spec | Built by | Verified by | Check | Commit | Merged |');
+      io.say('| --- | --- | --- | --- | --- | --- | --- | --- | --- |');
       for (const item of built) {
-        io.say(`| ${item.item_id} | ${item.item_lane} | ${cell(item.item_title)} | ${cell(item.item_spec_ids)} | ${item.item_built_by} | ${item.item_verified_by ?? ''} | ${(item.item_commit ?? '').slice(0, 12)} | ${(item.item_merged_commit ?? '').slice(0, 12)} |`);
+        io.say(`| ${item.item_id} | ${item.item_lane} | ${cell(item.item_title)} | ${cell(item.item_spec_ids)} | ${item.item_built_by} | ${item.item_verified_by ?? ''} | ${item.check === 'none' ? 'unchecked' : item.check} | ${(item.item_commit ?? '').slice(0, 12)} | ${(item.item_merged_commit ?? '').slice(0, 12)} |`);
       }
       return 0;
     },
@@ -1486,6 +1489,7 @@ async function verifyHere(ctx, id, { second, values }) {
       throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
     }
     let digest = 'missing';
+    let check;
     try {
       digest = freezer(ctx)(item).digest;
     } catch (error) {
@@ -1493,7 +1497,7 @@ async function verifyHere(ctx, id, { second, values }) {
     }
     if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
-      const check = checkAtCommit(root, item);
+      check = checkAtCommit(root, item);
       if (check.state === 'unverified') throw new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the submitted commit; restore the install or check environment, then retry verification; output digest:\n${check.report.replace(/^/gm, '  ')}`);
       if (check.state === 'red') throw new Refused('CHECK_RED', `the frozen item check is red at the submitted commit; check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit; output digest:\n${check.report.replace(/^/gm, '  ')}`);
       const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
@@ -1508,10 +1512,13 @@ async function verifyHere(ctx, id, { second, values }) {
       digest,
       policy: ctx.config.verify.policy,
       familyPolicy: ctx.config.verify.family,
+      ...(decision === 'ACCEPT' ? { check: check.checked ? 'green' : 'none' } : {}),
     }]);
   });
   ctx.io.result?.({ id, ...result });
-  ctx.io.say(result.decision === 'ACCEPT' ? `verified #${id}: ${result.reason}` : `rejected #${id}: ${result.reason}; it is open again for rework`);
+  ctx.io.say(result.decision === 'ACCEPT'
+    ? `verified #${id}: ${result.reason}${result.check === 'none' ? '; no frozen check ran' : ''}`
+    : `rejected #${id}: ${result.reason}; it is open again for rework`);
   return 0;
 }
 
