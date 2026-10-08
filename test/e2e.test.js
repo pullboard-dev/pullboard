@@ -1840,6 +1840,41 @@ test('accept reports a frozen check timeout as CHECK_UNVERIFIED [V18,V2]', () =>
   assert.match(error.message, /output digest/);
 });
 
+test('private check timeout kills a TERM-resistant shell and its tracked child [V18,V2]', () => {
+  const box = project('true');
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  config.check = { install: '', timeout: '100ms' };
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: configure bounded check fixture');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  assert.equal(box.run(box.repo, 'add', 'web', 'Bounded check', '--specs', 'G1', '--criterion', 'the check stops within its timeout', '--check', 'true').code, 0);
+  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  mkdirSync(join(box.web, 'web'));
+  writeFileSync(join(box.web, 'web/index.html'), 'fixture');
+  const commit = attackCommit(box, box.web);
+  const pidFile = join(box.dir, 'private-check-child.pid');
+  const check = `sleep 30 & echo $! > '${pidFile}'; trap 'while :; do :; done' TERM; while :; do :; done`;
+  const item = { item_frozen: JSON.stringify({ check }), item_claim_head: commit, item_commit: commit };
+  const modulePath = resolve(import.meta.dirname, '../src/trusted-policy.js');
+  const source = `import { checkAtCommit } from ${JSON.stringify(modulePath)}; console.log(JSON.stringify(checkAtCommit(process.argv[1], JSON.parse(process.argv[2]))));`;
+  const outer = spawnSync(process.execPath, ['--input-type=module', '-e', source, box.repo, JSON.stringify(item)], {
+    cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 3000, detached: true,
+  });
+  if (outer.pid) {
+    try { process.kill(-outer.pid, 'SIGKILL'); } catch { /* The outer proof process has exited. */ }
+  }
+  assert.equal(outer.error, undefined, outer.error?.message);
+  assert.equal(outer.status, 0, outer.stderr);
+  assert.equal(JSON.parse(outer.stdout).stage, 'check timed out');
+  const childPid = Number(readFileSync(pidFile, 'utf8').trim());
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try { process.kill(childPid, 0); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10); }
+    catch { return; }
+  }
+  assert.throws(() => process.kill(childPid, 0), /ESRCH/);
+});
+
 test('the blind gate-bypass repro refuses submit and accept, and doctor audits pre-merge policy [V4,V16,L3,M3]', () => {
   const box = project('true');
   assert.equal(box.run(box.repo, 'add', 'web', 'Append notes', '--specs', 'G1', '--criterion', 'append one note', '--check', 'test ! -f web/RED_CHECK').code, 0);

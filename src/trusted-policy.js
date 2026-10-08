@@ -144,7 +144,7 @@ function runPrivateCommand(root, env, command, timeout, logPath) {
   const descriptor = openSync(logPath, 'w', 0o600);
   try {
     const run = spawnSync('sh', ['-c', `ulimit -f 16384\n(\n${command}\n)`], {
-      cwd: root, env, detached: true, stdio: ['ignore', descriptor, descriptor], timeout,
+      cwd: root, env, detached: true, stdio: ['ignore', descriptor, descriptor], timeout, killSignal: 'SIGKILL',
     });
     if (run.pid) {
       try { process.kill(-run.pid, 'SIGKILL'); } catch { /* The process group has already exited. */ }
@@ -157,6 +157,8 @@ function runPrivateCommand(root, env, command, timeout, logPath) {
 
 /** Summarize both private command outputs for verifier and doctor diagnostics. */
 function checkResult(state, stage, installOutput, checkOutput) {
+  const install = digestOf(installOutput) || '(no output)';
+  const check = digestOf(checkOutput) || '(not run or no output)';
   const output = `install:\n${installOutput || '(no output)'}\ncheck:\n${checkOutput || '(not run or no output)'}`;
-  return { state, green: state === 'pass', checked: true, stage, report: digestOf(output) || '(no output)', output };
+  return { state, green: state === 'pass', checked: true, stage, report: `install output:\n${install}\ncheck output:\n${check}`, output };
 }
