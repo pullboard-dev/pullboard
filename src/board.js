@@ -14,6 +14,7 @@ import { briefFiles, briefSections } from './brief.js';
 import { COORDINATOR } from './config.js';
 import { GUARDS, IN_STATE, MOVES, STATES, UNKNOWN_MOVE, effectiveGuards, storeTriggers } from './machine.js';
 import { Refused } from './refused.js';
+import { parseSpec } from './spec.js';
 
 export const ACCEPT_REASON = 'CRITERION_MET';
 export const PERSON = 'person';
@@ -1838,6 +1839,68 @@ export function removeMilestone(board, name, { agentId }) {
     saveMilestones(board, remaining);
     logEvent(board, agentId, 'milestone_remove', null, { name });
     return name;
+  });
+}
+
+/** Current person decisions, including applied receipts, stored without checkout-dependent state. */
+export function rowDecisions(board) {
+  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get('row_decisions');
+  return row ? JSON.parse(row.meta_value) : [];
+}
+
+/** Persist the current decision index inside its caller's board transaction. */
+function writeRowDecisions(board, records) {
+  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
+    .run('row_decisions', JSON.stringify(records));
+}
+
+/** Record one exact-row decision per event; sender-side channel checks precede deterministic replay. */
+export function recordRowDecisions(board, { agentId, channel, decisions }) {
+  if (agentId !== PERSON) throw new Refused('B26_PERSON_APPROVAL', 'only the person approves or declines rows; use pullboard view for the person to decide');
+  if (!['terminal', 'view'].includes(channel)) throw new Refused('B26_PERSON_CHANNEL', 'row decisions use the terminal or the view; use pullboard view');
+  if (!Array.isArray(decisions) || !decisions.length) throw new Refused('ROW_DECISION', 'name at least one row to approve or decline; use pullboard spec approve <ids>');
+  const keys = new Set();
+  for (const record of decisions) {
+    if (!record || !['approve', 'decline'].includes(record.decision) || !['spec', 'doctrine'].includes(record.kind)
+      || !['id', 'file', 'source', 'replacement', 'text'].every((key) => typeof record[key] === 'string' && record[key].trim())
+      || (record.decision === 'decline' && !String(record.reason ?? '').trim())) throw new Refused('ROW_DECISION', 'a row decision needs its id, file and exact text; use pullboard spec approve or decline');
+    const original = parseSpec(`## Decision\n${record.source}\n`).rows;
+    const replacement = parseSpec(`## Decision\n${record.replacement}\n`).rows;
+    const target = replacement[0];
+    if (original.length !== 1 || original[0].id !== record.id || replacement.length !== 1 || target.id !== record.id
+      || target.status !== (record.decision === 'approve' ? 'approved' : 'wont') || target.text !== record.text
+      || (record.decision === 'decline' && target.text !== record.reason)) throw new Refused('ROW_DECISION', 'the exact row must match its recorded approval or decline; use pullboard spec approve or decline');
+    const key = `${record.kind}:${record.id}`;
+    if (keys.has(key)) throw new Refused('ROW_DECISION', `${key} is named twice; use each row once`);
+    keys.add(key);
+  }
+  return atomic(board, () => {
+    let current = rowDecisions(board);
+    const recorded = decisions.map((record) => {
+      logEvent(board, PERSON, 'row_decision', null, { record, channel });
+      const entry = { ...record, event: board.lastEvent.event_id, at: board.lastEvent.event_at, applied: false };
+      current = [...current.filter((old) => old.kind !== record.kind || old.id !== record.id), entry];
+      return entry;
+    });
+    writeRowDecisions(board, current);
+    return recorded;
+  });
+}
+
+/** A coordinator records which exact decisions its local file changes applied, with no replay writes. */
+export function applyRowDecisions(board, { agentId, events }) {
+  if (agentId !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator applies row decisions; ask your coordinator to run pullboard spec apply');
+  if (!Array.isArray(events) || events.some((event) => !Number.isSafeInteger(event) || event < 1)) throw new Refused('ROW_DECISION', 'apply needs current decision event ids; use pullboard spec apply');
+  return atomic(board, () => {
+    const records = rowDecisions(board);
+    const found = events.map((event) => records.find((record) => record.event === event));
+    if (found.some((record) => !record)) throw new Refused('STALE_ROW_DECISION', 'a row decision was replaced; use pullboard spec apply with the current decisions');
+    const applied = found.filter((record) => !record.applied);
+    if (!applied.length) return [];
+    const at = now(board);
+    writeRowDecisions(board, records.map((record) => events.includes(record.event) ? { ...record, applied: true, appliedAt: at } : record));
+    logEvent(board, agentId, 'row_apply', null, { events: applied.map((record) => record.event) });
+    return applied.map((record) => ({ ...record, applied: true, appliedAt: at }));
   });
 }
 

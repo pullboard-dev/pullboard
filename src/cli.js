@@ -12,6 +12,7 @@ import * as store from './board.js';
 import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
 import { loadDoctrine } from './doctrine.js';
 import { requirePersonChannel } from './person.js';
+import { decisionProjection, planRowApply, prepareRowDecisions, restoreRowApply, writeRowApply } from './row-decisions.js';
 import { digestOf, gateReport, runGate, runShell } from './gate.js';
 import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
@@ -153,6 +154,8 @@ Spec
                                         signoff: --note "what was checked" stays with the receipt
   pullboard spec signers add [--key <path>] [--by <principal>]  opt into SSH-signed sign-offs
                                         principal defaults to Git user.email; --by overrides it
+  pullboard spec approve <ids> | decline <ids> --reason "why"  the person's exact-row decision
+  pullboard spec apply                  coordinator applies recorded row decisions to the files
 
 Role guides
   pullboard prompt decompose|plan|signoff|review|verify   how to do each role; Claude Code gets them as skills
@@ -1709,13 +1712,13 @@ function specProof(ctx) {
 }
 
 /**
- * The spec commands: JSON rows, check, view, show, unmet, signoff.
+ * The spec commands: reads, sign-offs and person decisions applied by the coordinator.
  *
  * @param {any} io
  * @param {any} args
- * @returns {number}
+ * @returns {Promise<number>}
  */
-function specCommand(io, { first, second, rest, values }) {
+async function specCommand(io, { first, second, rest, values }) {
   const ctx = context(io);
   const commandFlags = {
     '--json': ['json'],
@@ -1725,8 +1728,11 @@ function specCommand(io, { first, second, rest, values }) {
     unmet: ['must'],
     signoff: ['by', 'note', 'note-file'],
     signers: ['key', 'by'],
+    approve: ['by'],
+    decline: ['reason'],
+    apply: [],
   }[first ?? '--json'];
-  if (!commandFlags) throw new Refused('USAGE', 'use pullboard spec --json | check | view | show <id> | unmet [--must] | signoff <ids> --by <name> [--note "..."]');
+  if (!commandFlags) throw new Refused('USAGE', 'use pullboard spec --json | check | view | show <id> | unmet [--must] | signoff <ids> | approve <ids> | decline <ids> --reason "why" | apply');
   const allowedFlags = [...new Set([...commandFlags, 'json'])];
   for (const flag of Object.keys(values)) {
     if (!allowedFlags.includes(flag)) {
@@ -1738,6 +1744,36 @@ function specCommand(io, { first, second, rest, values }) {
   if (!spec.exists) throw new Refused('NO_SPEC', `no ${ctx.config.spec}; run: pullboard init`);
   const practice = ctx.doctrine;
   const signoffs = readSignoffs(ctx.info.root);
+  if (first === 'approve' || first === 'decline') {
+    requirePersonChannel(io.personChannel);
+    return withBoard(ctx, async (board) => {
+      const me = whoAmI(ctx, board);
+      if (!ctx.info.isMain || me.id !== COORDINATOR) throw new Refused('B26_PERSON_APPROVAL', 'only the person from the main checkout approves or declines rows; use pullboard view for the person to decide');
+      const ids = [second, ...rest].filter(Boolean).flatMap((text) => text.split(/[\s,]+/u)).filter(Boolean);
+      const records = prepareRowDecisions(ctx.info.root, ctx.config, { ids, decision: first, reason: values.reason, by: values.by, on: new Date().toISOString(), commit: headCommit(ctx.info.root) ?? '' });
+      const decisions = await ordered(ctx, board, 'recordRowDecisions', [{ agentId: store.PERSON, channel: io.personChannel ?? 'terminal', decisions: records }]);
+      io.result?.({ decisions });
+      decisions.forEach((record) => io.say(`${record.kind === 'doctrine' ? 'doctrine:' : ''}${record.id}: ${first === 'approve' ? 'approved' : 'declined'}, pending apply`));
+      return 0;
+    });
+  }
+  if (first === 'apply') {
+    if (second || rest.length) throw new Refused('USAGE', 'pullboard spec apply takes no ids; it applies current person decisions');
+    return withBoard(ctx, async (board) => {
+      const me = whoAmI(ctx, board);
+      if (!ctx.info.isMain || me.id !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator applies row decisions; ask your coordinator to run pullboard spec apply');
+      const plan = planRowApply(ctx.info.root, ctx.config, store.rowDecisions(board));
+      writeRowApply(ctx.info.root, plan);
+      let applied;
+      try { applied = await ordered(ctx, board, 'applyRowDecisions', [{ agentId: me.id, events: plan.records.map((record) => record.event) }]); }
+      catch (error) { restoreRowApply(ctx.info.root, plan); throw error; }
+      io.result?.({ applied, files: plan.files.map((file) => file.file) });
+      applied.forEach((record) => io.say(`${record.file}: ${record.id} ${record.decision === 'approve' ? 'approved' : 'wont'}${record.reason ? `: ${record.reason}` : ''}`));
+      if (!applied.length) io.say('no pending row decisions');
+      else io.say('stage and commit the changed row files and any .pullboard/signoffs.jsonl receipts');
+      return 0;
+    });
+  }
   if (first === 'check' || first === undefined) {
     const files = [[ctx.config.spec, spec], ...(practice.exists ? [[ctx.config.practice, practice]] : [])];
     for (const [, parsed] of files) assertRequiredSigners(ctx.info.root, parsed.rows);
@@ -1795,11 +1831,16 @@ function specCommand(io, { first, second, rest, values }) {
     return 0;
   }
   if (first === 'show') {
-    const row = spec.rows.find((entry) => entry.id === second);
+    const doctrineId = second?.startsWith('doctrine:');
+    const parsed = doctrineId ? practice : spec;
+    const id = doctrineId ? second.slice('doctrine:'.length) : second;
+    const source = parsed.rows.find((entry) => entry.id === id);
+    const row = source && withBoard(ctx, (board) => decisionProjection(store.rowDecisions(board), source, doctrineId ? 'doctrine' : 'spec'));
     if (!row) throw new Refused('NO_ROW', `no row ${second ?? ''} in ${ctx.config.spec}`);
-    const standing = standings(spec.rows, signoffs).get(row.id) ?? { met: [], stale: [] };
+    const standing = standings(parsed.rows, signoffs).get(row.id) ?? { met: [], stale: [] };
     io.result?.({ row, standing });
     io.say(`${row.id} [${row.status}${row.tier ? `, ${row.tier}` : ''}] ${row.text}`);
+    if (row.stage) io.say(row.stage);
     if (row.gate) io.say(`gate: ${row.gate}`);
     if (row.serves.length) io.say(`serves: ${row.serves.join(', ')}`);
     io.say(`signed: ${standing.met.map((entry) => `${entry.by} ${entry.on}`).join(', ') || 'no'}${standing.stale.length ? `; stale: ${standing.stale.length}` : ''}`);
@@ -1839,7 +1880,7 @@ function specCommand(io, { first, second, rest, values }) {
     io.say(`signed ${count} rows as ${by}; commit .pullboard/signoffs.jsonl`);
     return 0;
   }
-  throw new Refused('USAGE', 'pullboard spec --json | check | view | show <id> | unmet [--must] | signoff <ids> [--by <principal>] | signers add');
+  throw new Refused('USAGE', 'pullboard spec --json | check | view | show <id> | unmet [--must] | signoff <ids> | signers add | approve <ids> | decline <ids> --reason "why" | apply');
 }
 
 /** Read one consent line without waiting for EOF in an interactive terminal [V2]. */
@@ -1957,7 +1998,7 @@ async function runCommand(argv, io) {
       io.say(`forgot ${root}`);
       return 0;
     }
-    if (command === 'spec') return specCommand(io, args);
+    if (command === 'spec') return await specCommand(io, args);
     if (command === 'prompt') {
       let root = io.cwd;
       try {
