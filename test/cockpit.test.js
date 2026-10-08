@@ -1528,7 +1528,7 @@ test("needs-you holds only the person's calls; the rest show on the board with w
       ['tab', '1', 'draft spec rows to approve or drop'],
     ], "the person's calls, and only those: the decision asked of them, the spec's question, the held lane, the draft row");
     assert.doesNotMatch(needs, /Which colour|Greeting|Farewell/, "an agent's ask, work waiting for a verdict and work sent back are not the person's");
-    assert.match(needs, /<code>web<\/code><span>G3 is open<\/span><em>lane held by coordinator →<\/em>/, 'a held lane says who set it');
+    assert.match(needs, /<code>web<\/code><span>G3 is open<\/span><em>lane held by coordinator, <time data-ago="[^"]+">(?:now|\d+[mhd])<\/time> →<\/em>/, 'a held lane says who set it and shows the API-provided hold age');
 
     // Each of the rest is on the board, with who holds it.
     assert.match(page.show('decisions'), /<div class="head quiet">Waiting on others<\/div><div class="ask other"><p><small><b>web-1<\/b> asks <b>coordinator<\/b>, /, "the agent's ask waits on its coordinator");
@@ -2639,12 +2639,12 @@ test('served connection reaches an authenticated API on another origin and path 
   }
 });
 
-test('read-only pages use a local browser transport and refresh on its updates [N26,N27]', { timeout: 90_000 }, async (t) => {
+test('read-only Needs-you preserves each entry as text while its transport stays read-only [N26,N27,B26]', { timeout: 90_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to run the browser transport proof.');
 
   const box = machine();
-  const app = project(box, 'read only transport');
+  const app = project(box, 'read only transport', `${SPEC}- G3 [pending, must] Confirm the read-only question. | gate: review\n- G4 [draft, must] Confirm the draft row. | gate: review\n`);
   box.run(app.repo, 'add', 'web', 'Read-only fixture item', '--specs', 'G1', '--criterion', 'keeps action controls in the DOM');
   box.run(app.repo, 'shout', 'person', 'Should the read-only fixture ship?', '--decision');
   box.run(app.repo, 'hold', 'web', '--reason', 'read-only fixture hold');
@@ -2716,8 +2716,26 @@ test('read-only pages use a local browser transport and refresh on its updates [
   scratch.push(profile);
   let chrome;
   try {
-    chrome = await openSnapshotChrome(executable, `http://127.0.0.1:${address.port}/`, profile);
+    chrome = await openSnapshotChrome(executable, live.link.href, profile);
+    await chrome.waitFor("typeof data === 'object' && !!data?.project && document.querySelector('#needs .ny')?.textContent.includes('Should the read-only fixture ship?')");
+    /** Read Needs-you labels with absolute API age timestamps so the comparison survives minute ticks. */
+    const readNeedEntries = () => chrome.evaluate(`JSON.stringify([...document.querySelectorAll('#needs .ny')].map((row) => {
+      const em = row.querySelector('em');
+      const time = em.querySelector('time');
+      return [row.querySelector('code')?.textContent, row.querySelector('span')?.textContent,
+        time ? em.textContent.replace(time.textContent, '@' + time.dataset.ago) : em.textContent];
+    }))`);
+    const normalEntries = JSON.parse(await readNeedEntries());
+    assert.deepEqual(normalEntries.map((row) => row[0]), ['coordinator', 'G3', 'web', '1'], 'the normal Needs-you list contains the decision, pending row, held lane, and draft summary');
+    assert.match(normalEntries[0][2], /decide, @[^ ]+ →/, 'the API-provided decision timestamp is shown as an age');
+    assert.match(normalEntries[2][2], /lane held by coordinator, @[^ ]+ →/, 'the holder and API-provided hold timestamp are shown as an age');
+    await chrome.send('Page.navigate', { url: `http://127.0.0.1:${address.port}/` });
     await chrome.waitFor("typeof data === 'object' && document.body?.classList.contains('read-only') && !!data?.project && typeof window.__transportUpdate === 'function'");
+    await chrome.waitFor("document.querySelector('#needs .ny')?.textContent.includes('Should the read-only fixture ship?')");
+    const readOnlyEntries = JSON.parse(await readNeedEntries());
+    assert.deepEqual(readOnlyEntries, normalEntries, 'read-only Needs-you preserves the normal entries and their API-provided asker and ages');
+    assert.equal(await chrome.evaluate("document.querySelectorAll('#needs button, #needs [data-go], #needs [data-new], #needs [data-shout], #needs [data-release]').length"), 0,
+      'read-only Needs-you entries contain no answer, approve, navigation, or other action controls');
     const calls = JSON.parse(await chrome.evaluate('JSON.stringify(window.__transportCalls)'));
     assert.ok(calls.some((call) => call.path === '/api/v1/boards'));
     assert.ok(calls.some((call) => call.path.startsWith('/api/v1/boards/') && call.path.endsWith('/state')));
