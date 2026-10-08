@@ -985,31 +985,41 @@ function moveMessage(move, result) {
   return move.args.off ? 'released the ' + move.args.lane + ' lane' : 'holding the ' + move.args.lane + ' lane: ' + move.args.reason;
 }
 
-/** Run a public API move and let only the latest action own the console and its close timer. */
-async function act(command, args) {
+/** Run a public API move beside its action and let only the latest one own the console and timer. */
+async function act(command, args, anchor) {
   const out = $('console');
   if (snapshot) { out.hidden = false; out.className = 'console no'; out.textContent = 'This is a read-only snapshot.'; return false; }
+  if (anchor) {
+    const target = anchor.matches('form')
+      ? anchor.querySelector('.actions') || anchor.querySelector('[type="submit"]') || anchor
+      : anchor.closest('#lanes') || anchor;
+    target.insertAdjacentElement(anchor.matches('form') ? 'beforebegin' : 'afterend', out);
+  }
   const run = (view.acting = (view.acting || 0) + 1);
   const latest = () => run === view.acting;
   clearTimeout(view.closing);
   out.hidden = false;
   out.className = 'console';
   out.textContent = 'running…';
+  out.scrollIntoView({ block: 'nearest' });
   try {
     const move = pageMove(command, args);
     const result = await api(boardPath(view.root) + '/moves', move.body);
     if (latest()) {
       out.className = 'console ok';
       out.textContent = '$ pullboard ' + move.label + '\\n' + moveMessage(move.body, result.result);
+      out.scrollIntoView({ block: 'center' });
       // What went through says so and then steps aside; a refusal stays until the person closes it.
       view.closing = setTimeout(() => { if (latest()) out.hidden = true; }, 6000);
     }
     await refresh();
+    if (latest()) out.scrollIntoView({ block: 'center' });
     return true;
   } catch (error) {
     if (latest()) {
       out.className = 'console no';
       out.textContent = String(error.message || error);
+      out.scrollIntoView({ block: 'center' });
     }
     return false;
   }
@@ -1059,7 +1069,7 @@ document.addEventListener('click', (event) => {
   else if (t.dataset.rows) { const [kind, f] = t.dataset.rows.split(':'); view.rows[kind] = f; render(); }
   else if (t.dataset.row) { const [kind, id] = t.dataset.row.split(':'); view.row[kind] = id; render(); }
   else if (t.dataset.code) code(t.dataset.code, t.dataset.before || '');
-  else if (t.dataset.release) act('release', { lane: t.dataset.release });
+  else if (t.dataset.release) act('release', { lane: t.dataset.release }, t);
   else if (t.dataset.shout) { answer(null); $('shout-to').value = t.dataset.shout; $('shout-text').value = '#' + t.dataset.about + ': '; view.tab = 'shouts'; showTab(); $('shout-text').focus(); }
   else if (t.dataset.new !== undefined) { view.adding = true; render(); $('add-title').focus(); }
 });
@@ -1080,7 +1090,7 @@ $('theme').addEventListener('click', () => {
 $('q').addEventListener('input', search);
 $('add-form').addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (await act('add', { lane: $('add-lane').value, title: $('add-title').value, criterion: $('add-criterion').value, specs: $('add-specs').value, brief: $('add-brief').value })) {
+  if (await act('add', { lane: $('add-lane').value, title: $('add-title').value, criterion: $('add-criterion').value, specs: $('add-specs').value, brief: $('add-brief').value }, event.currentTarget)) {
     $('add-title').value = '';
     $('add-criterion').value = '';
     $('add-specs').value = '';
@@ -1092,13 +1102,13 @@ $('shout-form').addEventListener('submit', async (event) => {
   const text = $('shout-text').value;
   const ask = view.answering;
   if (ask && ask.root !== view.root) return answer(null);
-  if (!(await (ask ? act('answer', { id: ask.id, text }) : act('shout', { to: $('shout-to').value, text })))) return;
+  if (!(await (ask ? act('answer', { id: ask.id, text }, event.currentTarget) : act('shout', { to: $('shout-to').value, text }, event.currentTarget)))) return;
   $('shout-text').value = '';
   answer(null);
 });
 $('hold-form').addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (await act('hold', { lane: $('hold-lane').value, reason: $('hold-reason').value })) $('hold-reason').value = '';
+  if (await act('hold', { lane: $('hold-lane').value, reason: $('hold-reason').value }, event.currentTarget)) $('hold-reason').value = '';
 });
 showTab();
 if (snapshot) {
