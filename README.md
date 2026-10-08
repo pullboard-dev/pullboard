@@ -69,7 +69,7 @@ Agents ask when a call isn't theirs to make. Their coordinator settles what it c
 
 **A Spec is what you build. Doctrine is how you build it.**
 
-- **Doctrine:** "We do not store credit cards."
+- **Doctrine:** "We keep only the data we need."
 - **Spec:** "A shopper can pay by card in one step."
 
 Every repo starts with Pullboard's standard doctrine. Add to it, override it, or decline any part of it.

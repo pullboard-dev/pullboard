@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import vm from 'node:vm';
+import { loadConfig } from '../src/config.js';
 import { loadDoctrine } from '../src/doctrine.js';
 import { MACHINE } from '../src/machine.js';
 import { cockpitPage } from '../src/cockpit.js';
@@ -1916,8 +1917,8 @@ test('the doctrine view carries and labels inherited, local, overridden and decl
 test('spec rows read across a phone [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  // Its own house rules: a fresh init may write PRACTICE.md with none.
-  writeFileSync(join(alpha.repo, 'PRACTICE.md'), '# Practice\n\n## W · Writing\n- W1 [approved, must] Numbers over adjectives. No hedges, no filler. | gate: review\n- W2 [draft, aim] One record per decision. | gate: review\n');
+  // Its own house rules follow the doctrine file named by this repo's config.
+  writeFileSync(join(alpha.repo, loadConfig(alpha.repo).practice), '# Practice\n\n## W · Writing\n- W1 [approved, must] Numbers over adjectives. No hedges, no filler. | gate: review\n- W2 [draft, aim] One record per decision. | gate: review\n');
   const view = await startView(box);
   try {
     const page = await openPage(view, { width: 375 });
