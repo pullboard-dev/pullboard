@@ -1917,6 +1917,34 @@ test('the doctrine view carries and labels inherited, local, overridden and decl
   }
 });
 
+test('the doctrine pane names DOCTRINE.md and its rules doctrine [D1,N26]', async () => {
+  const box = machine();
+  const alpha = project(box, 'doctrine-name', SPEC, { practice: 'DOCTRINE.md' });
+  writeFileSync(join(alpha.repo, 'DOCTRINE.md'), '# Team\n\n## Team\n- R1 [approved, must] Keep evidence. | gate: review\n');
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    await page.click({ tab: 'doctrine' });
+    const rows = JSON.parse(page.run('JSON.stringify(data.project.practice)'));
+    page.run("data.project.practice = []; view.rows.doctrine = 'all'; render()");
+    const empty = page.show('doctrine-list');
+    assert.match(empty, /No doctrine rows yet: they live in DOCTRINE\.md\./);
+    assert.doesNotMatch(empty, /PRACTICE\.md/);
+
+    page.run('data.project.practice = ' + JSON.stringify(rows) + '; render()');
+    await page.click({ row: 'doctrine:PB1' });
+    const detail = page.show('doctrine-detail');
+    assert.match(detail, /override or decline one in DOCTRINE\.md\./);
+    assert.doesNotMatch(detail, /PRACTICE\.md/);
+    await page.click({ row: 'doctrine:R1' });
+    const localDetail = page.show('doctrine-detail');
+    assert.match(localDetail, /Rows change in DOCTRINE\.md/);
+    assert.doesNotMatch(localDetail, /PRACTICE\.md/);
+  } finally {
+    await view.stop();
+  }
+});
+
 test('spec rows read across a phone [N26,D1]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha', SPEC, { practice: 'DOCTRINE.md' });

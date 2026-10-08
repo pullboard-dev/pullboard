@@ -981,14 +981,14 @@ function render() {
       const reason = declined && r.reason ? '<small class="rule-reason">Reason: ' + esc(r.reason) + '</small>' : '';
       const source = kind === 'doctrine' ? '<small class="rule-source">' + esc(ruleSource(r)) + '</small>' : '';
       return head + '<div class="srow' + (view.row[kind] === r.id ? ' on' : '') + '" data-row="' + kind + ':' + esc(r.id) + '"><code>' + esc(r.id) + '</code><span><span class="chip ' + tone(r.status) + '">' + esc(r.status) + '</span>' + source + '</span><span>' + text + reason + '</span></div>';
-    }).join('') : '<div class="empty">' + (rows.length ? 'No rows match.' : kind === 'spec' ? 'No spec rows yet. Each requirement is one row in SPEC.md, such as G1 [draft, must] and a line; write them, or ask an agent to, and they show up here.' : 'No practice rows yet: they live in PRACTICE.md.') + '</div>';
+    }).join('') : '<div class="empty">' + (rows.length ? 'No rows match.' : kind === 'spec' ? 'No spec rows yet. Each requirement is one row in SPEC.md, such as G1 [draft, must] and a line; write them, or ask an agent to, and they show up here.' : 'No doctrine rows yet: they live in DOCTRINE.md.') + '</div>';
     const row = rows.find((r) => r.id === view.row[kind]);
     const citing = row ? p.items.filter((i) => i.specs.includes(row.id)) : [];
     const declined = kind === 'doctrine' && row && row.status === 'wont';
     const text = row ? declined ? '<s>' + esc(row.standardText || row.text) + '</s>' : esc(row.text) : '';
     const source = kind === 'doctrine' && row ? '<span class="chip">' + esc(ruleSource(row)) + '</span>' : '';
     const reason = declined && row.reason ? '<dt>reason</dt><dd>' + esc(row.reason) + '</dd>' : '';
-    const home = kind === 'doctrine' && row && row.origin === 'standard' ? 'Standard rules come with Pullboard; override or decline one in PRACTICE.md.' : 'Rows change in ' + (kind === 'spec' ? 'SPEC.md' : 'PRACTICE.md') + ', and only you approve them.';
+    const home = kind === 'doctrine' && row && row.origin === 'standard' ? 'Standard rules come with Pullboard; override or decline one in DOCTRINE.md.' : 'Rows change in ' + (kind === 'spec' ? 'SPEC.md' : 'DOCTRINE.md') + ', and only you approve them.';
     $(kind + '-detail').innerHTML = row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(row.status) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div><dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<button data-go="item:' + i.id + '" type="button">#' + i.id + ' ' + rich(i.title, titles, false) + '</button>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div><div class="muted">' + home + '</div></div>' : '<div class="empty">Pick a row to see it, and the items that cite it.</div>';
   }
 
