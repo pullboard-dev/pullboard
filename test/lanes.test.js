@@ -59,11 +59,11 @@ test('config merges nested groups over the defaults, and leases read as duration
     assert.equal(config.commits.maxHeader, 60);
     assert.deepEqual(config.commits.requireIds, ['feat', 'fix']);
     assert.equal(config.leaseMs, 90 * 60_000);
-    assert.deepEqual(config.verify, { policy: 'any', family: 'off' });
+    assert.deepEqual(config.verify, { policy: 'any', family: 'off', reviewRatio: 3 });
     writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', verify: 'coordinator' }));
-    assert.deepEqual(loadConfig(root).verify, { policy: 'coordinator', family: 'off' }, 'legacy verify strings remain valid');
+    assert.deepEqual(loadConfig(root).verify, { policy: 'coordinator', family: 'off', reviewRatio: 3 }, 'legacy verify strings remain valid');
     writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', verify: { family: 'require' } }));
-    assert.deepEqual(loadConfig(root).verify, { policy: 'any', family: 'require' }, 'nested verify options merge over defaults');
+    assert.deepEqual(loadConfig(root).verify, { policy: 'any', family: 'require', reviewRatio: 3 }, 'nested verify options merge over defaults');
     writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', verify: { family: 'sometimes' } }));
     assert.throws(() => loadConfig(root), /verify\.family.*off.*prefer.*require/);
     writeFileSync(join(root, 'pullboard.json'), '{ not json');
@@ -74,6 +74,17 @@ test('config merges nested groups over the defaults, and leases read as duration
   assert.equal(durationMs('2h'), 7_200_000);
   assert.equal(durationMs('1d'), 86_400_000);
   assert.throws(() => durationMs('soon'), /BAD_CONFIG/);
+});
+
+test('[Q1,V15] the review queue ratio is configurable and invalid values name their field', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-review-ratio-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ verify: { reviewRatio: 1.5 } }));
+  assert.equal(loadConfig(root).verify.reviewRatio, 1.5);
+  for (const reviewRatio of [0, -1, '3', null]) {
+    writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ verify: { reviewRatio } }));
+    assert.throws(() => loadConfig(root), { code: 'BAD_CONFIG', message: /verify\.reviewRatio.*positive number/u });
+  }
 });
 
 test("a claim's lease is 2h unless pullboard.json says otherwise [B4]", () => {
