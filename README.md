@@ -54,7 +54,7 @@ Pullboard gives agents a shared plan, separate lanes and proof before work count
 
 ![How work moves. You decide the rows of SPEC.md. An item freezes its bar when an agent claims it. Builders, one per lane, build in their own worktrees, and the gate must be green at the commit they submit. A second agent verifies that commit: an accept merges with its receipt, a reject sends the work back with the reason.](docs/img/loop.svg)
 
-<sub>You decide what to build. Agents build it and check each other's work. This is the basic work loop.</sub>
+<sub>You decide what to build. Agents build it and check each other's work. This is the Agentic Development Lifecycle (ADLC).</sub>
 
 ### Questions
 
