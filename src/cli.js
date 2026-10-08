@@ -851,6 +851,11 @@ async function worktreeFor(io, lane, route, family = null) {
   let id;
   try { id = await withBoard(ctx, async (board) => await ordered(ctx, board, 'register', [{ lane, path: root, route, family }])); }
   catch (error) {
+    const registered = withBoard(ctx, (board) => store.agentAt(board, root));
+    if (registered) {
+      io.err('pullboard: registration is already ordered; the worktree is preserved. Retry enrollment to obtain its credential: ' + cdTo(root) + ' pullboard join ' + lane);
+      throw error;
+    }
     // Only remove the clean worktree just created here; preserve it if another process changed it.
     const removed = tryGit(mainRoot, ['worktree', 'remove', root]);
     if (removed.status === 0) tryGit(mainRoot, ['branch', '-d', `${lane}/${n}`]);
