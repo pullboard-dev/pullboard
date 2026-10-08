@@ -41,6 +41,13 @@ test('CI runs the gate on every push and pull request, Node 22.13 and 24, on Lin
 
 test("the README shows the workflow's status badge [C7]", () => {
   const readme = readFileSync(resolve(ROOT, 'README.md'), 'utf8');
-  const badge = '[![gate](https://github.com/pullboard-dev/pullboard/actions/workflows/gate.yml/badge.svg)](https://github.com/pullboard-dev/pullboard/actions/workflows/gate.yml)';
-  assert.ok(readme.split('\n').slice(0, 4).includes(badge), 'the badge sits under the title');
+  const section = readme.search(/^## /mu);
+  assert.notEqual(section, -1, 'the README has a section after its header');
+  const header = readme.slice(0, section);
+  const workflow = 'https://github\\.com/pullboard-dev/pullboard/actions/workflows/gate\\.yml';
+  const githubBadge = 'https://github\\.com/pullboard-dev/pullboard/actions/workflows/gate\\.yml/badge\\.svg';
+  const shieldsBadge = 'https://img\\.shields\\.io/github/actions/workflow/status/pullboard-dev/pullboard/gate\\.yml';
+  const markdown = new RegExp(`\\[!\\[[^\\]]*\\]\\((?:${githubBadge}|${shieldsBadge}(?:\\?[^)]*)?)\\)\\]\\(${workflow}\\)`, 'u');
+  const html = new RegExp(`<a\\b(?=[^>]*\\bhref="${workflow}")[^>]*>\\s*<img\\b(?=[^>]*\\balt="gate")(?=[^>]*\\bsrc="(?:${githubBadge}|${shieldsBadge}(?:\\?[^\"]*)?)")[^>]*>\\s*<\\/a>`, 'u');
+  assert.ok(markdown.test(header) || html.test(header), 'the header links a GitHub or shields status badge to the gate workflow');
 });

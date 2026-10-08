@@ -197,7 +197,17 @@ test("init's spec has its sections and no rows, and the README's example fits un
   assert.deepEqual(parseSpec(spec).rows, [], 'no placeholder row, so no placeholder id is ever committed and made permanent');
   assert.deepEqual(parseSpec(spec).sections.map((section) => section.name), ['G · Goals: what the client asked for', 'K · Constraints']);
   const readme = readFileSync(join(import.meta.dirname, '..', 'README.md'), 'utf8');
-  const example = /```markdown\n([\s\S]*?)```/.exec(readme.slice(readme.indexOf('## Quick start')))?.[1] ?? '';
+  const section = /^## (?:Quick start|By hand)\s*$/mu.exec(readme);
+  const markdownExamples = [...readme.matchAll(/```markdown\n([\s\S]*?)```/gu)];
+  /** Match the spec example rather than unrelated markdown examples.
+   * @param {RegExpMatchArray} block
+   * @returns {boolean}
+   */
+  const isGoalsExample = (block) => /^## G · Goals[^\n]*$/mu.test(block[1]);
+  const exampleBlock = markdownExamples.find((block) => isGoalsExample(block) && (!section || block.index > section.index))
+    ?? markdownExamples.find(isGoalsExample);
+  assert.ok(exampleBlock, "the README has a markdown block with its G rows under Quick start, By hand, or on its own");
+  const example = exampleBlock[1];
   const [heading, ...rows] = example.trim().split('\n');
   assert.ok(rows.length > 0 && spec.includes(`${heading}\n`), `the README's example heading is one init writes: ${heading}`);
   writeFileSync(join(repo, 'SPEC.md'), spec.replace(`${heading}\n`, `${heading}\n${rows.join('\n')}\n`));

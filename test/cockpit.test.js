@@ -2933,9 +2933,14 @@ test('real Chrome styles shout code and item text without growing linked lines [
   box.run(alpha.web, 'claim', '1');
   const sourceHead = box.git(alpha.repo, 'rev-parse', 'HEAD');
   const sample = 'Inline `code <b>safe</b>`; pullboard shout --decision; --flag; src/cockpit.js; 0123456789abcdef0123456789abcdef01234567.\nPreview SPEC.md:1-2@' + sourceHead + '. Invalid prefix:SPEC.md:1-2@' + sourceHead + '.\n```js\n<script>alert(1)</script>\n```\n$ pullboard claim 1\n<script>alert(1)</script>';
+  const wrappedLinkedText = 'This deliberately long linked sample wraps across lines so text length does not define line height. '.repeat(3) + '#1';
   box.run(alpha.repo, 'shout', 'person', sample, '--decision');
   box.run(alpha.web, 'shout', 'coordinator', 'A linked line #1');
   box.run(alpha.web, 'shout', 'coordinator', 'A plain line here');
+  box.run(alpha.web, 'shout', 'coordinator', 'X #1');
+  box.run(alpha.web, 'shout', 'coordinator', 'X');
+  box.run(alpha.web, 'shout', 'coordinator', wrappedLinkedText);
+  box.run(alpha.web, 'shout', 'coordinator', 'OK');
   box.run(alpha.web, 'shout', 'coordinator', '<script>alert(2)</script> outside code');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-shout-code-chrome-'));
@@ -2959,15 +2964,22 @@ test('real Chrome styles shout code and item text without growing linked lines [
       const outside = [...document.querySelectorAll('#feed > div:not(.day)')].find((row) => row.textContent.includes('alert(2)'));
       const itemDetail = document.querySelector('#detail');
       const agentItem = document.querySelector('#agents .agent button[data-go="item:1"]');
-      /** Measure the visible feed text line box for a shout containing the supplied phrase. */
-      const lineHeight = (needle) => {
-        const row = [...document.querySelectorAll('#feed > div:not(.day)')].find((entry) => entry.textContent.includes(needle));
-        return row.children[1].getBoundingClientRect().height;
+      /** Measure the complete rendered content line box, including its item link. */
+      const lineMetrics = (message) => {
+        const row = [...document.querySelectorAll('#feed > div:not(.day)')].find((entry) => {
+          const content = entry.children[1];
+          return content && content.textContent.slice(content.querySelector('b')?.textContent.length ?? 0).trim() === message;
+        });
+        const content = row.children[1];
+        const height = content.getBoundingClientRect().height;
+        const lineHeight = parseFloat(getComputedStyle(content).lineHeight);
+        return { height, lineHeight, lines: Math.round(height / lineHeight) };
       };
       return {
         shoutHtml: shout.innerHTML, shoutScripts: shout.querySelectorAll('script').length,
         askHtml: ask.innerHTML, titleHtml: titleNode.innerHTML,
-        linkedHeight: lineHeight('A linked line'), plainHeight: lineHeight('A plain line'),
+        linkedMetrics: lineMetrics('X #1'), plainMetrics: lineMetrics('X'),
+        wrapLinked: lineMetrics(${JSON.stringify(wrappedLinkedText)}), wrapPlain: lineMetrics('OK'),
         linkedButtons: [...document.querySelectorAll('#feed > div:not(.day)')].find((entry) => entry.textContent.includes('A linked line'))?.querySelectorAll('button.ref').length,
         previewLinks: shout.querySelectorAll('button[data-code^="SPEC.md:1-2@"]').length,
         outsideHtml: outside.innerHTML, askNestedButtons: ask.querySelector('p').querySelectorAll('button').length,
@@ -3001,15 +3013,36 @@ test('real Chrome styles shout code and item text without growing linked lines [
     assert.match(rendered.criterionHtml, /<code class="inline">value<\/code>/, 'criterion text uses the renderer');
     assert.match(rendered.briefHtml, /<code class="inline">&lt;safe&gt;<\/code>/, 'brief text uses the renderer without interpreting markup');
     assert.equal(rendered.linkedButtons, 1, 'the compared row contains a rendered item link');
-    assert.ok(Math.abs(rendered.linkedHeight - rendered.plainHeight) < 1, `an item link keeps its desktop line height (${rendered.linkedHeight} vs ${rendered.plainHeight})`);
+    assert.equal(rendered.linkedMetrics.lines, 1, 'the short linked sample occupies one desktop line');
+    assert.equal(rendered.plainMetrics.lines, 1, 'the short plain sample occupies one desktop line');
+    assert.ok(Math.abs(rendered.linkedMetrics.height - rendered.plainMetrics.height) < 1, 'the complete one-line desktop boxes match within 1px');
+    assert.ok(Math.abs(rendered.linkedMetrics.height - rendered.linkedMetrics.lineHeight) < 1, 'the linked desktop box equals one computed line-height');
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 375 && document.querySelector("#feed > div:not(.day)")?.getBoundingClientRect().width > 0');
-    const phoneHeights = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
-      /** Measure one shout's text height at the current viewport width. */
-      const height = (needle) => [...document.querySelectorAll('#feed > div:not(.day)')].find((row) => row.textContent.includes(needle)).children[1].getBoundingClientRect().height;
-      return { linked: height('A linked line'), plain: height('A plain line') };
+    const phoneMetrics = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      /** Measure the complete rendered content line box, including its item link. */
+      const lineMetrics = (message) => {
+        const row = [...document.querySelectorAll('#feed > div:not(.day)')].find((entry) => {
+          const content = entry.children[1];
+          return content && content.textContent.slice(content.querySelector('b')?.textContent.length ?? 0).trim() === message;
+        });
+        const content = row.children[1];
+        const height = content.getBoundingClientRect().height;
+        const lineHeight = parseFloat(getComputedStyle(content).lineHeight);
+        return { height, lineHeight, lines: Math.round(height / lineHeight) };
+      };
+      return { linked: lineMetrics('X #1'), plain: lineMetrics('X'), wrapLinked: lineMetrics(${JSON.stringify(wrappedLinkedText)}), wrapPlain: lineMetrics('OK') };
     })())`));
-    assert.ok(Math.abs(phoneHeights.linked - phoneHeights.plain) < 1, `an item link keeps its phone line height (${phoneHeights.linked} vs ${phoneHeights.plain})`);
+    assert.equal(phoneMetrics.linked.lines, 1, 'the short linked sample occupies one phone line');
+    assert.equal(phoneMetrics.plain.lines, 1, 'the short plain sample occupies one phone line');
+    assert.ok(Math.abs(phoneMetrics.linked.height - phoneMetrics.plain.height) < 1, 'the complete one-line phone boxes match within 1px');
+    assert.ok(Math.abs(phoneMetrics.linked.height - phoneMetrics.linked.lineHeight) < 1, 'the linked phone box equals one computed line-height');
+    assert.ok(phoneMetrics.wrapLinked.lines > 1, 'the long linked probe actually wraps at 375px');
+    assert.equal(phoneMetrics.wrapPlain.lines, 1, 'the short plain wrap probe remains on one line');
+    assert.ok(Math.abs(phoneMetrics.wrapLinked.height / phoneMetrics.wrapLinked.lines - phoneMetrics.wrapPlain.lineHeight) < 1,
+      'normalizing the forced wrap by its rendered line count proves the same per-line height');
+    assert.ok(Math.abs(phoneMetrics.wrapLinked.height - phoneMetrics.wrapPlain.height) >= 1,
+      'the old whole-text-box comparison would fail on the deliberately wrapped sample');
     assert.deepEqual(consoleErrors, []);
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
