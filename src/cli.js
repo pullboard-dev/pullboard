@@ -54,6 +54,7 @@ import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
 import { exportView, serveView } from './serve.js';
 import { serveApi } from './api.js';
 import { doctorProblems } from './doctor.js';
+import { staleFrozenItems, staleItemFinding } from './approved-rows.js';
 import { mainPolicy, itemPolicy, submissionPaths, frozenCheck, checkAtCommit, dependencySnapshots } from './trusted-policy.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
@@ -155,6 +156,7 @@ Spec
   pullboard spec signers add [--key <path>] [--by <principal>]  opt into SSH-signed sign-offs
                                         principal defaults to Git user.email; --by overrides it
   pullboard spec approve <ids> | decline <ids> --reason "why"  the person's exact-row decision
+                                        approve <id> --text "new wording" approves an exact rewrite
   pullboard spec apply                  coordinator applies recorded row decisions to the files
 
 Role guides
@@ -186,6 +188,7 @@ const OPTIONS = {
   after: { type: 'string' },
   brief: { type: 'string' },
   'brief-file': { type: 'string' },
+  text: { type: 'string' },
   route: { type: 'string' },
   family: { type: 'string' },
   as: { type: 'string' },
@@ -670,6 +673,7 @@ function resumeHere(io) {
     };
   });
   const { me } = card;
+  card.stale = staleFrozenItems(card.all, loadSpec(root, ctx.config).rows).map((item) => ({ ...item, ...staleItemFinding(item) }));
   const say = (line) => io.say(line);
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
   say(`resume: ${me.id}${me.family ? ` (${me.family})` : ''}, ${me.lane} lane${isMain ? ', the main checkout' : ''}, at ${root}`);
@@ -693,6 +697,7 @@ function resumeHere(io) {
   for (const { item, verdict } of card.sentBack) {
     say(`sent back: #${item.item_id} ${verdict ? `${verdict.verdict_reason} by ${verdict.verdict_by}: ${firstLine(verdict.verdict_note)}` : 'rejected'}`);
   }
+  for (const item of card.stale) say(`stale: ${item.message}; next: ${item.next}`);
   if (card.awaiting.length) say(`awaiting a verdict: ${card.awaiting.map((item) => `#${item.item_id} (${span(ctx, item.item_updated_at)})`).join(', ')}`);
   if (isMain) {
     if (card.toVerify.length) say(`to verify: ${card.toVerify.map((item) => `#${item.item_id} ${item.item_lane} (${span(ctx, item.item_updated_at)})`).join(', ')}`);
@@ -1089,7 +1094,7 @@ function readCommands(io, { first, second, rest, values }) {
         return 1;
       }
       const ctx = context(io);
-      const problems = doctorProblems(ctx.file, ctx.info.root, tryGit);
+      const problems = doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config);
       io.result?.({ problems });
       if (!problems.length) {
         io.say('board is clean');
@@ -1730,7 +1735,7 @@ async function specCommand(io, { first, second, rest, values }) {
     unmet: ['must'],
     signoff: ['by', 'note', 'note-file'],
     signers: ['key', 'by'],
-    approve: ['by'],
+    approve: ['by', 'text'],
     decline: ['reason'],
     apply: [],
   }[first ?? '--json'];
@@ -1752,7 +1757,7 @@ async function specCommand(io, { first, second, rest, values }) {
       const me = whoAmI(ctx, board);
       if (!ctx.info.isMain || me.id !== COORDINATOR) throw new Refused('B26_PERSON_APPROVAL', 'only the person from the main checkout approves or declines rows; use pullboard view for the person to decide');
       const ids = [second, ...rest].filter(Boolean).flatMap((text) => text.split(/[\s,]+/u)).filter(Boolean);
-      const records = prepareRowDecisions(ctx.info.root, ctx.config, { ids, decision: first, reason: values.reason, by: values.by, on: new Date().toISOString(), commit: headCommit(ctx.info.root) ?? '' });
+      const records = prepareRowDecisions(ctx.info.root, ctx.config, { ids, decision: first, reason: values.reason, text: values.text, by: values.by, on: new Date().toISOString(), commit: headCommit(ctx.info.root) ?? '' });
       const decisions = await ordered(ctx, board, 'recordRowDecisions', [{ agentId: store.PERSON, channel: io.personChannel ?? 'terminal', decisions: records }]);
       io.result?.({ decisions });
       decisions.forEach((record) => io.say(`${record.kind === 'doctrine' ? 'doctrine:' : ''}${record.id}: ${first === 'approve' ? 'approved' : 'declined'}, pending apply`));
@@ -1931,7 +1936,7 @@ async function hookCommand(io, { first, second }) {
   if (first === 'pre-commit') {
     applyFixers(info.root, ctx.config.fix).forEach((note) => io.err(`pullboard pre-commit: ${note}`));
     const agent = info.isMain ? null : withBoard(ctx, (board) => store.agentAt(board, info.root));
-    problems = preCommitProblems({ root: info.root, isMain: info.isMain, config: ctx.config, agent });
+    problems = preCommitProblems({ root: info.root, isMain: info.isMain, config: ctx.config, agent, boardFile: ctx.file });
   } else if (first === 'commit-msg') {
     const message = readFileSync(second ?? '', 'utf8');
     problems = commitMsgProblems(message, { rules: ctx.config.commits, spec: loadSpec(info.root, ctx.config) });

@@ -23,15 +23,16 @@ function decisionRows(root, config, ids) {
 }
 
 /** Capture all source text and signatures before recording any decision on the board. */
-export function prepareRowDecisions(root, config, { ids, decision, reason = '', by, on, commit = '' }) {
+export function prepareRowDecisions(root, config, { ids, decision, reason = '', text: proposedText, by, on, commit = '' }) {
   if (!ids.length) throw new Refused('USAGE', 'name rows: pullboard spec approve <ids> or spec decline <ids> --reason "why"');
   if (!['approve', 'decline'].includes(decision)) throw new Refused('ROW_DECISION', 'use pullboard spec approve or decline');
   if (decision === 'decline' && (!reason.trim() || /[\r\n|]/u.test(reason))) throw new Refused('ROW_DECISION', 'a decline needs a one-line reason without a field separator; use --reason "why"');
+  if (proposedText !== undefined && (decision !== 'approve' || ids.length !== 1 || !proposedText.trim() || /[\r\n|]/u.test(proposedText))) throw new Refused('ROW_DECISION', 'approve one row with --text "exact one-line text", without a field separator');
   const signed = decision === 'approve' && hasSignerFile(root);
   const principal = by ?? (signed ? defaultPrincipal(root) : 'person');
   return decisionRows(root, config, ids).map(({ kind, file, row, source }) => {
     const status = decision === 'approve' ? 'approved' : 'wont';
-    const text = decision === 'approve' ? row.text : reason.trim();
+    const text = decision === 'approve' ? proposedText?.trim() ?? row.text : reason.trim();
     const replacement = source.replace(/\[([a-z]+)(,\s*[a-z]+)?\]/u, (_, old, tier = '') => `[${status}${tier}]`)
       .replace(/(\]\s+)([^|]*)(?=\s*\||$)/u, (_, prefix, old) => `${prefix}${text}${old.match(/\s+$/u)?.[0] ?? ''}`);
     const record = { version: 1, type: 'row-decision', kind, file, id: row.id, source, replacement, text, decision, reason: decision === 'decline' ? reason.trim() : '', by: principal, on, commit, note: '' };
