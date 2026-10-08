@@ -14,7 +14,7 @@ import { loadDoctrine } from './doctrine.js';
 import { requirePersonChannel } from './person.js';
 import { decisionProjection, planRowApply, prepareRowDecisions, restoreRowApply, writeRowApply } from './row-decisions.js';
 import { digestOf, gateReport, runGate, runShell } from './gate.js';
-import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
+import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, isClean, mainCheckout, patchId, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
   FIX_NOTE,
   applyFixers,
@@ -1847,7 +1847,25 @@ function workCommands(io, args) {
     merged: () => act(async (ctx, board, me) => {
       const commit = resolveCommit(ctx.info.root, second ?? '');
       if (!commit) throw new Refused('NO_COMMIT', `no commit "${second ?? ''}" in this repo`);
-      await ordered(ctx, board, 'merged', [idArg(first), { agentId: me.id, commit }]);
+      const id = idArg(first);
+      const note = (textArg(io, values, 'note') ?? '').trim();
+      const item = store.getItem(board, id);
+      if (item.item_status === 'verified') {
+        const trunk = mainCheckout(ctx.info.root);
+        const itemCommit = item.item_commit;
+        const itemOnCandidate = contains(ctx.info.root, itemCommit, commit);
+        const candidateOnTrunk = Boolean(trunk?.commit && contains(ctx.info.root, commit, trunk.commit));
+        const parent = tryGit(ctx.info.root, ['rev-parse', '--verify', '--quiet', `${commit}^`]);
+        const itemPatch = item.item_claim_head ? patchId(ctx.info.root, item.item_claim_head, itemCommit) : null;
+        const candidatePatch = parent.status === 0 ? patchId(ctx.info.root, parent.stdout, commit) : null;
+        const carriesPatch = Boolean(itemPatch && candidatePatch && itemPatch === candidatePatch);
+        if (!note && !(candidateOnTrunk && (itemOnCandidate || carriesPatch))) {
+          const trunkName = trunk?.branch ?? 'the unavailable primary trunk';
+          const trunkAt = trunk?.commit ? ` at ${trunk.commit}` : '';
+          throw new Refused('NOT_MERGED', `commit ${commit} is not on trunk ${trunkName}${trunkAt}, or does not contain item commit ${itemCommit} or carry its patch; merge that work onto ${trunkName}, or use --note "why"`);
+        }
+      }
+      await ordered(ctx, board, 'merged', [id, { agentId: me.id, commit, note }]);
       io.result?.({ id: idArg(first), commit });
       io.say(`#${first} merged as ${commit.slice(0, 12)}`);
       return 0;

@@ -12,6 +12,8 @@ A successful command returns the fields listed below. `version` is always the nu
 
 When `add` or `edit` supplies a new nonempty check, Pullboard measures it once in a temporary checkout of the current `main` commit. The item returned by `add`, `edit`, `show`, and `next --verify` may include `item_check_baseline`: `{command, main, result, seconds?, reason?, warning?}`. `main` is the commit id or `null`, and `result` is `green`, `red`, or `unavailable`. A green result carries `warning: "CRITERION_PROVES_NOTHING"`; text output names that warning when filing, showing, or reserving the item for review. An exact match with the project gate configured at that main commit records green with `reason: "repo gate"` without running it again. A missing main records unavailable with `reason: "no main"` and still files the item. Changing the check replaces this observation; clearing it removes the observation. The captured observation travels with the board move, so replicas store the result without executing the command.
 
+`merged <id> <commit>` records only a commit reachable from the primary checkout's branch that contains the item's submitted commit or has the same stable patch id as the item's change from its claim base. Other commits are refused with `NOT_MERGED`; `--note "why"` records an exceptional receipt and keeps the note in that item's `merged` event.
+
 <!-- api-command-shapes:start -->
 | Command | Required top-level fields |
 | --- | --- |

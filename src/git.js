@@ -89,6 +89,22 @@ export function tryGit(cwd, args) {
 }
 
 /**
+ * Compute the stable patch id for a commit range, or null when Git cannot produce one.
+ *
+ * @param {string} root
+ * @param {string} base
+ * @param {string} commit
+ * @returns {string | null}
+ */
+export function patchId(root, base, commit) {
+  const env = cleanGitEnvironment();
+  const diff = spawnSync('git', [...GIT_FLAGS, 'diff', base, commit], { cwd: root, env, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+  if (diff.status !== 0 || !diff.stdout) return null;
+  const result = spawnSync('git', [...GIT_FLAGS, 'patch-id', '--stable'], { cwd: root, env, encoding: 'utf8', input: diff.stdout });
+  return result.status === 0 ? result.stdout.trim().split(/\s+/u)[0] || null : null;
+}
+
+/**
  * Find a main checkout whose `.git/config` marks it bare despite files beside its git directory.
  * This check uses the filesystem and explicit config path so inherited Git repository variables
  * cannot hide a damaged checkout from the command that needs to explain its repair.
