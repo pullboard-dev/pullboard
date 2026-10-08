@@ -36,7 +36,7 @@ export function createAuthHandler({ auth, publicOrigin }) {
   try { origin = new URL(publicOrigin); } catch { throw new Refused('RELAY_CONFIG', 'configure the relay public origin'); }
   if (origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash || (origin.protocol !== 'https:' && !(origin.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(origin.hostname)))) throw new Refused('RELAY_CONFIG', 'use an HTTPS public origin, or a loopback HTTP origin for local tests');
   const secure = origin.protocol === 'https:' ? '; Secure' : '';
-  const routes = new Set(['GET /auth/github/start', 'GET /auth/github/callback', 'POST /auth/device/start', 'POST /auth/device/poll', 'GET /auth/session', 'GET /auth/boards', 'POST /auth/boards/link', 'POST /auth/tokens', 'POST /auth/tokens/revoke']);
+  const routes = new Set(['GET /auth/github/start', 'GET /auth/github/callback', 'POST /auth/device/start', 'POST /auth/device/poll', 'GET /auth/session', 'GET /auth/boards', 'POST /auth/boards/link', 'GET /auth/tokens', 'POST /auth/tokens', 'POST /auth/tokens/revoke']);
 
   /** Resolve a bearer or cookie credential; cookie writes require an exact trusted Origin. */
   function token(req, write = false) {
@@ -73,13 +73,15 @@ export function createAuthHandler({ auth, publicOrigin }) {
         const input = await body(req);
         json(res, 200, await auth.pollDevice(input.ticket));
       } else if (route === 'GET /auth/session') {
-        json(res, 200, { session: await auth.authenticate(token(req)) });
+        json(res, 200, { session: await auth.authenticate(token(req), { ...(url.searchParams.has('board') ? { board: url.searchParams.get('board') } : {}) }) });
       } else if (route === 'GET /auth/boards') {
         json(res, 200, { boards: await auth.boardsFor(token(req)) });
       } else if (route === 'POST /auth/boards/link') {
         const bearer = token(req, true);
         const input = await body(req);
         json(res, 200, { board: await auth.linkBoard(bearer, input.board, input.repository) });
+      } else if (route === 'GET /auth/tokens') {
+        json(res, 200, { tokens: await auth.listTokens(token(req), url.searchParams.get('board')) });
       } else if (route === 'POST /auth/tokens') {
         const bearer = token(req, true);
         const input = await body(req);

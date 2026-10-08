@@ -283,6 +283,15 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
       credential(token);
       return { ...issue(principal.user, 'board', board, agent, expiresIn), board, agent };
     },
+    /** List only owned board-token metadata after a fresh person permission check, never bearer values or hashes. */
+    async listTokens(token, board) {
+      identifier(board, 'BAD_BOARD');
+      const principal = await auth.authenticate(token, { board, write: true });
+      if (principal.kind !== 'session') throw new Refused('HUMAN_REQUIRED', 'sign in as a person to list agent tokens');
+      credential(token);
+      return db.prepare('SELECT id,board,agent,expires,revoked FROM relay_credentials WHERE user_id=? AND kind=? AND board=? ORDER BY agent,id')
+        .all(principal.user.id, 'board', board).map((row) => ({ ...row, revoked: Boolean(row.revoked) }));
+    },
     /** Revoke one owned credential; this never revokes an unrelated session or board token. */
     async revoke(token, id) {
       const row = credential(token);
