@@ -29,12 +29,15 @@ function lifecycle() {
  * Its styles are src/view.css, which it links with the session's secret as every request carries it;
  * styles stay in that separate file so its policy can refuse inline styles. The serving host
  * supplies the API base and credential headers; clients need no loopback-specific connection.
+ * The Roadmap tab has its own address (N38): /roadmap on a host that serves the page there too,
+ * which `paths` declares, and a #roadmap fragment anywhere else, such as a snapshot hosted under a
+ * folder, where a path the host does not serve would leave a reload with nothing.
  *
  * @param {string} [key] - The session's secret.
- * @param {{snapshot?: boolean, apiBase?: string, apiHeaders?: Record<string, string>, stylesheet?: string}} [options] - Served API connection and assets, or a static, read-only page with event replay.
+ * @param {{snapshot?: boolean, apiBase?: string, apiHeaders?: Record<string, string>, stylesheet?: string, paths?: boolean}} [options] - Served API connection and assets, whether the host also serves the page at /roadmap, or a static, read-only page with event replay.
  * @returns {string}
  */
-export function cockpitPage(key = '', { snapshot = false, apiBase = '', apiHeaders = { 'x-pullboard-key': key }, stylesheet = null } = {}) {
+export function cockpitPage(key = '', { snapshot = false, apiBase = '', apiHeaders = { 'x-pullboard-key': key }, stylesheet = null, paths = false } = {}) {
   const connection = JSON.stringify({ base: apiBase.replace(/\/$/, ''), headers: apiHeaders }).replace(/</g, '\\u003c');
   const css = stylesheet ?? (snapshot ? 'view.css' : '/view.css?k=' + encodeURIComponent(key));
   const cssAttribute = css.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
@@ -69,6 +72,7 @@ export function cockpitPage(key = '', { snapshot = false, apiBase = '', apiHeade
     <button class="tab" data-tab="spec" type="button">Spec<b id="count-spec"></b></button>
     <button class="tab" data-tab="doctrine" type="button">Doctrine<b id="count-doctrine"></b></button>
     <button class="tab" data-tab="activity" type="button">Activity</button>
+    <button class="tab" data-tab="roadmap" type="button">Roadmap</button>
   </nav>
   <span class="live" id="live"></span>
 </header>
@@ -132,6 +136,7 @@ export function cockpitPage(key = '', { snapshot = false, apiBase = '', apiHeade
     <button class="ghost flow-show" id="flow-show" type="button" hidden>Show the lifecycle</button>
     <div class="card-panel feed" id="activity"></div>
   </section>
+  <section data-pane="roadmap" class="roadmap" id="roadmap" aria-label="Roadmap"></section>
 </main>
 </div>
 </div>
@@ -141,7 +146,20 @@ const snapshot = ${JSON.stringify(snapshot)};
 const connection = ${connection};
 const snapshotReplay = { final: null, events: [], index: 0, playing: false, timer: null };
 const keep = (name, value) => { name = snapshot ? 'snapshot.' + name : name; try { if (value === undefined) return localStorage.getItem(name); localStorage.setItem(name, value); } catch { return null; } return value; };
-const view = { root: keep('pb.project'), tab: keep('pb.tab') || 'items', seen: {}, code: {}, item: null, adding: false, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null } };
+// Whether the host serves this page at /roadmap as well as at /, so the Roadmap's address is a path;
+// anywhere else it is a #roadmap fragment on the page's own address (N38).
+const routed = ${JSON.stringify(Boolean(paths) && !snapshot)};
+/** The tab the address names: the Roadmap at its own address, or null at the board's. */
+function addressTab() {
+  if (typeof location === 'undefined') return null;
+  return (routed ? location.pathname === '/roadmap' : location.hash === '#roadmap') ? 'roadmap' : null;
+}
+/** The tab the board's own address shows: the one last picked there, or Items. */
+function homeTab() {
+  const kept = keep('pb.tab');
+  return kept && kept !== 'roadmap' ? kept : 'items';
+}
+const view = { root: keep('pb.project'), tab: addressTab() || homeTab(), seen: {}, code: {}, item: null, adding: false, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null } };
 if (snapshot) view.state = 'all';
 let data = null;
 let seen = '';
@@ -453,6 +471,9 @@ function boardSummary(board, state) {
     drafts: state.spec.filter((row) => row.status === 'draft').length,
     holds: state.holds.length,
     decisions: state.decisions.length,
+    // What each item's state reads from, so another repo's roadmap can show it as this board's
+    // Items tab does, sent back included, and open it here.
+    items: state.items.map((item) => ({ id: item.id, title: item.title, status: item.status, verdict: item.verdict && { decision: item.verdict.decision } })),
   };
 }
 
@@ -581,6 +602,8 @@ function replayProject(index) {
     const added = log.find((event) => event.item_id === item.id && event.event_kind === 'add');
     item.blockedBy = (JSON.parse(added.event_detail).after || []).filter((id) => statuses.get(id) !== 'verified');
   }
+  // A milestone lists only this board's items added by now; another repo's stay as the export read them.
+  p.milestones = (p.milestones || []).map((milestone) => ({ ...milestone, items: milestone.items.filter((entry) => typeof entry.id !== 'number' || statuses.has(entry.id)) }));
   const shouted = new Set(log.map((event) => JSON.parse(event.event_detail).shout).filter(Boolean));
   p.shouts = p.shouts.filter((shout) => shouted.has(shout.shout_id));
   p.decisions = p.decisions.filter((shout) => shouted.has(shout.shout_id));
@@ -743,6 +766,65 @@ function renderGroup(group) {
   $('group-activity').innerHTML = events.length ? byDay(events, (event) => event.event_at, (event) => '<div><time>' + clock(event.event_at) + '</time><div class="act"><b class="repo-label">' + esc(event.repo.name) + '</b> <span>' + esc(event.event_by) + ' ' + esc(event.event_kind) + (event.item_id ? ' #' + event.item_id + (event.title ? ' ' + rich(event.title, new Map(), false) : '') : '') + '</span></div></div>') : '<div class="empty">No activity yet.</div>';
 }
 
+/**
+ * A milestone's item as the Items tab reads it (N26). This board's own come from its items, and
+ * another repo's, written repo#id, from that repo's board when the view lists one by that name or
+ * folder, as the roadmap resolves it: the same state, sent back included, and it opens there. An
+ * item no listed board holds keeps the status the roadmap read for it, and opens nowhere.
+ */
+function milestoneItem(entry, p) {
+  const local = typeof entry.id === 'number';
+  const ref = local ? null : /^(.+)#([1-9]\\d*)$/.exec(String(entry.id));
+  const named = ref ? data.projects.filter((x) => x.name === ref[1] || String(x.root).split('/').pop() === ref[1]) : [];
+  const root = local ? view.root : named.length === 1 && named[0].ok ? named[0].root : null;
+  const id = local ? entry.id : ref ? Number(ref[2]) : null;
+  const item = (root === view.root ? p.items : root ? named[0].items : []).find((i) => i.id === id) || null;
+  // A status the lifecycle declares; the roadmap says unavailable or missing for an item it could not read.
+  const read = item || (FLOW.states.some((state) => state.id === entry.status) ? { status: entry.status, verdict: null } : null);
+  return {
+    label: local ? '#' + entry.id : String(entry.id),
+    title: item ? item.title : read ? entry.title : '',
+    state: read ? stateOf(read) : null,
+    word: entry.status,
+    open: item ? { root, id } : null,
+    // Why an item does not open, short enough to read beside its id on a phone.
+    why: item ? '' : local ? 'not on this board' : root ? 'not on that board' : snapshot ? 'not in this snapshot'
+      : named.length > 1 ? 'board name not unique' : named.length ? 'board unreadable' : 'no such board',
+  };
+}
+
+/**
+ * One item's row on the Roadmap, laid out as the Items list lays one out: the dot of its state, its
+ * id and title on one line that ends in an ellipsis when cut, and the Items tab's chip. The whole
+ * title is the row's tooltip. An item that opens is a button; one that cannot says why instead.
+ */
+function milestoneRow(row, titles) {
+  const title = row.title ? inline(String(row.title).replace(/\\s+/g, ' '), titles, false) : '<span class="muted">' + esc(row.why) + '</span>';
+  const inner = '<span class="dot' + (row.state ? ' ' + row.state : '') + '"></span><span class="t"><span class="id">' + esc(row.label) + '</span>' + title + '</span>' + (row.state ? chip(row.state) : '<span class="chip">' + esc(row.word) + '</span>');
+  if (!row.open) return '<li><div class="milestone-item" title="' + esc(row.title ? row.title + ' (' + row.why + ')' : row.why) + '">' + inner + '</div></li>';
+  return '<li><button class="milestone-item" data-go="item:' + row.open.id + '"' + (row.open.root === view.root ? '' : ' data-board="' + esc(row.open.root) + '"') + ' title="' + esc(row.title) + '" type="button">' + inner + '</button></li>';
+}
+
+/**
+ * The Roadmap (N26, N38): a card for each milestone in the board's order, with how many of its
+ * items are verified as a count and a bar, a row for each, and the note to the person in its own
+ * highlighted line. A milestone with no items says so, rather than draw an empty bar.
+ */
+function roadmapCards(p, titles) {
+  const milestones = p.milestones || [];
+  if (!milestones.length) return '<div class="card-panel empty">No milestones yet. The coordinator adds one with <code class="inline">pullboard milestone add</code>.</div>';
+  return milestones.map((milestone) => {
+    const rows = milestone.items.map((entry) => milestoneItem(entry, p));
+    const done = rows.filter((row) => row.state === 'verified').length;
+    const name = esc(milestone.name);
+    return '<article class="card-panel milestone"><header><h2>' + name + '</h2>' + (rows.length ? '<span class="milestone-count">' + done + '/' + rows.length + ' done</span>' : '') + '</header>'
+      + (rows.length
+        ? '<svg class="milestone-progress" viewBox="0 0 100 1" preserveAspectRatio="none" role="progressbar" aria-label="' + name + ': ' + done + ' of ' + rows.length + ' done" aria-valuemin="0" aria-valuemax="' + rows.length + '" aria-valuenow="' + done + '"><rect width="' + Math.round((100 * done) / rows.length) + '" height="1"/></svg><ul>' + rows.map((row) => milestoneRow(row, titles)).join('') + '</ul>'
+        : '<p class="milestone-empty">No items yet.</p>')
+      + (milestone.note ? '<p class="milestone-note">' + rich(milestone.note, titles, false) + '</p>' : '') + '</article>';
+  }).join('');
+}
+
 /** Draw the board shown: the sidebar, then every tab's panes from the project's board. */
 function render() {
   const p = data.project;
@@ -771,6 +853,7 @@ function render() {
   $('count-spec').textContent = p.spec.filter((r) => ['pending', 'draft'].includes(r.status)).length || '';
   $('count-doctrine').textContent = p.practice.filter((r) => ['pending', 'draft'].includes(r.status)).length || '';
   const titles = new Map(p.items.map((i) => [String(i.id), i.title]));
+  $('roadmap').innerHTML = roadmapCards(p, titles);
 
   // What needs the person, first, and only the person's calls (B26): the decisions passed up to them,
   // questions in the spec, held lanes, then draft rows. Work waiting for a verdict or sent back shows
@@ -806,7 +889,8 @@ function render() {
   $('state-chips').innerHTML = Object.keys(names).map((s) => '<button data-state="' + s + '" class="' + (view.state === s ? 'on' : '') + '" type="button">' + names[s] + '<b>' + matching.filter(inState(s)).length + '</b></button>').join('');
   const shown = matching.filter(inState(view.state)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   // With nothing picked, the detail shows the first row, and keeps it when a refresh reorders the list.
-  if (!view.adding && !p.items.some((i) => i.id === view.item)) view.item = shown.length ? shown[0].id : null;
+  // While another project loads, the item picked there waits for its own board.
+  if (data.root === view.root && !view.adding && !p.items.some((i) => i.id === view.item)) view.item = shown.length ? shown[0].id : null;
   const heldLanes = new Map(p.holds.map((h) => [h.hold_lane, h]));
   $('chain').innerHTML = shown.length ? shown.map((i) => {
     const s = stateOf(i);
@@ -925,6 +1009,51 @@ function showTab() {
   countUnseen();
 }
 
+/** The address that names a tab: the Roadmap's own, or the board's, keeping the rest as it is. */
+function tabHref(tab) {
+  const own = tab === 'roadmap';
+  return routed ? (own ? '/roadmap' : '/') + location.search : location.pathname + location.search + (own ? '#roadmap' : '');
+}
+
+/**
+ * Keep the address naming what the page shows (N38). Moving between the Roadmap and another tab
+ * changes it and adds a history entry, so Back and Forward return there; anything else, or push
+ * false, only updates the entry. Each entry carries its project and item too, so returning to one
+ * shows that board as it was. A host that refuses the change still shows the tab.
+ */
+function address(push = true) {
+  if (typeof history === 'undefined' || typeof location === 'undefined') return;
+  const state = { tab: view.tab, root: view.root, item: view.item };
+  const href = tabHref(view.tab);
+  try {
+    if (push && href !== location.pathname + location.search + (routed ? '' : location.hash)) history.pushState(state, '', href);
+    else history.replaceState(state, '');
+  } catch { /* The tab shows all the same. */ }
+}
+
+/**
+ * Show what a history entry names, on Back, Forward or an edited #roadmap: the tab its address
+ * names, or at the board's address the tab the entry kept, and the project and item it kept.
+ */
+function fromAddress(event) {
+  const kept = (event && event.state) || {};
+  view.tab = addressTab() || (kept.tab && kept.tab !== 'roadmap' ? kept.tab : homeTab());
+  if (view.tab !== 'roadmap') keep('pb.tab', view.tab);
+  const item = typeof kept.item === 'number' ? kept.item : null;
+  if (kept.root && kept.root !== view.root && data && data.projects.some((x) => x.ok && x.root === kept.root)) return switchTo(kept.root, item, false);
+  if (item !== null && view.tab === 'items') view.item = item;
+  address(false);
+  if (data) render();
+  else showTab();
+}
+
+/** Pick a tab. The board's address keeps it for next time; the Roadmap has an address of its own. */
+function openTab(tab) {
+  view.tab = tab;
+  if (tab !== 'roadmap') keep('pb.tab', tab);
+  address();
+}
+
 /**
  * Count on the Shouts tab the shouts that came after the newest one the person has seen in this
  * project. Seeing means having the Shouts tab open with the board drawn; a project shown for the
@@ -965,22 +1094,34 @@ function answer(id) {
   if (ask) $('shout-text').focus();
 }
 
-function go(target) {
+/**
+ * Follow a link in the page: an item, a spec row, a tab or a decision to answer. An item can live on
+ * another project's board, root, which the page then switches to.
+ */
+function go(target, root = view.root) {
   const [kind, id] = target.split(':');
-  if (kind === 'item') { view.tab = 'items'; view.state = 'all'; view.before = null; }
-  else if (kind === 'spec') { view.tab = 'spec'; view.row.spec = id; view.rows.spec = 'all'; }
-  else if (kind === 'tab') view.tab = id;
-  else if (kind === 'decide') { view.tab = 'shouts'; answer(Number(id)); }
-  keep('pb.tab', view.tab);
-  if (kind === 'item') pick(Number(id));
+  let tab = view.tab;
+  if (kind === 'item') { tab = 'items'; view.state = 'all'; view.before = null; }
+  else if (kind === 'spec') { tab = 'spec'; view.row.spec = id; view.rows.spec = 'all'; }
+  else if (kind === 'tab') tab = id;
+  else if (kind === 'decide') { tab = 'shouts'; answer(Number(id)); }
+  openTab(tab);
+  if (kind === 'item') pick(Number(id), root);
   else render();
 }
 
-/** Show an item's detail. Where the list and the detail stack (under 900px), bring the detail into view. */
-function pick(id) {
-  view.item = id;
+/** Show an item's detail, on another project's board when root names one. */
+function pick(id, root = view.root) {
   view.adding = false;
+  if (root !== view.root) return switchTo(root, id);
+  view.item = id;
+  address(false);
   render();
+  reveal();
+}
+
+/** Where the list and the detail stack (under 900px), bring the detail into view. */
+function reveal() {
   if (matchMedia('(max-width: 900px)').matches) $('detail').scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
@@ -1099,19 +1240,27 @@ function fold(open) {
   $('proj-switch').setAttribute('aria-expanded', String(open));
 }
 
-/** Show another project: mark it at once, dim the old one's panes until its board arrives. */
-function switchTo(root) {
+/**
+ * Show another project: mark it at once, dim the old one's panes until its board arrives. Given an
+ * item, its board opens on that item; with record false the history entry stays as it is, for a
+ * move that came from the entry.
+ */
+function switchTo(root, item = null, record = true) {
   answer(null);
   view.root = root;
-  view.item = null;
+  view.item = item;
   view.adding = false;
   keep('pb.project', root);
+  if (record) address(false);
   fold(false);
   // The board that arrives is drawn even if it matches the last one seen, so the pick is made from it.
   seen = '';
   if (data) renderSide();
   document.body.classList.add('switching');
-  refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }).finally(() => document.body.classList.remove('switching'));
+  refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }).finally(() => {
+    document.body.classList.remove('switching');
+    if (item !== null && view.root === root && view.tab === 'items') reveal();
+  });
 }
 
 document.addEventListener('click', (event) => {
@@ -1121,15 +1270,15 @@ document.addEventListener('click', (event) => {
   if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
   if (t.id === 'console') { t.hidden = true; return; }
   if (t.dataset.root) switchTo(t.dataset.root);
-  else if (t.dataset.tab) { view.tab = t.dataset.tab; keep('pb.tab', view.tab); showTab(); }
-  else if (t.dataset.go) go(t.dataset.go);
+  else if (t.dataset.tab) { openTab(t.dataset.tab); showTab(); }
+  else if (t.dataset.go) go(t.dataset.go, t.dataset.board);
   else if (t.dataset.item) pick(Number(t.dataset.item));
   else if (t.dataset.state) { view.state = t.dataset.state; render(); }
   else if (t.dataset.rows) { const [kind, f] = t.dataset.rows.split(':'); view.rows[kind] = f; render(); }
   else if (t.dataset.row) { const [kind, id] = t.dataset.row.split(':'); view.row[kind] = id; render(); }
   else if (t.dataset.code) code(t.dataset.code, t.dataset.before || '');
   else if (t.dataset.release) act('release', { lane: t.dataset.release }, t);
-  else if (t.dataset.shout) { answer(null); $('shout-to').value = t.dataset.shout; $('shout-text').value = '#' + t.dataset.about + ': '; view.tab = 'shouts'; showTab(); $('shout-text').focus(); }
+  else if (t.dataset.shout) { answer(null); $('shout-to').value = t.dataset.shout; $('shout-text').value = '#' + t.dataset.about + ': '; openTab('shouts'); showTab(); $('shout-text').focus(); }
   else if (t.dataset.new !== undefined) { view.adding = true; render(); $('add-title').focus(); }
 });
 // The form covers the picked item rather than dropping it, so Cancel brings it back.
@@ -1169,6 +1318,9 @@ $('hold-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   if (await act('hold', { lane: $('hold-lane').value, reason: $('hold-reason').value }, event.currentTarget)) $('hold-reason').value = '';
 });
+// The first entry keeps the tab it opened on; Back and Forward show what each entry names.
+address(false);
+globalThis.addEventListener?.('popstate', fromAddress);
 showTab();
 if (snapshot) {
   $('replay-play').addEventListener('click', playReplay);
