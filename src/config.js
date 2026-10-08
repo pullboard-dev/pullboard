@@ -40,7 +40,7 @@ export function defaults() {
     gate: '',
     lease: '2h',
     reviewLease: '30m',
-    verify: { policy: 'any', family: 'off' },
+    verify: { policy: 'any', family: 'off', reviewRatio: 3 },
     lanes: {},
     products: {},
     shared: [],
@@ -150,6 +150,9 @@ export function configProblems(config) {
   }
   if (!['off', 'prefer', 'require'].includes(config.verify?.family)) {
     problems.push('"verify.family" is "off", "prefer" or "require"');
+  }
+  if (!Number.isFinite(config.verify?.reviewRatio) || config.verify.reviewRatio <= 0) {
+    problems.push('"verify.reviewRatio" is a positive number, such as 3');
   }
   if (!isStringList(config.shared)) problems.push('"shared" is a list of path prefixes');
   const isFixer = (fixer) => typeof fixer?.run === 'string' && fixer.run.trim() && (fixer.files === undefined || isStringList(fixer.files));
