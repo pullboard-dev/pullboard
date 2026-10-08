@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { exportBoard, importBoard, restoreRelaySnapshot } from '../src/exchange.js';
-import { applyEngineMove, prepareEngineMove, appliedSequence, engineReceipt, startRelayEpoch } from '../src/engine.js';
+import { applyEngineMove, applyRelayMove, prepareEngineMove, appliedSequence, engineReceipt, startRelayEpoch } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { Refused } from '../src/refused.js';
 
@@ -92,6 +92,39 @@ test('person answer channel replays identically on agent and plain replicas [B26
       else process.env[name] = value;
     }
   }
+});
+
+test('missing relay senders are refused deterministically without poisoning a later legitimate move id [H2,H16]', t => {
+  const { copies, item } = engineCopies(t);
+  const [one, two] = copies;
+  const move = claimMove(one, item, 'web-1');
+  for (const board of copies) {
+    const before = store.getItem(board, item);
+    const refused = applyRelayMove(board, move, { sequence: 1, at: CLAIM_AT, kind: 'request' });
+    assert.equal(refused.error.code, 'RELAY_SENDER');
+    assert.deepEqual(store.getItem(board, item), before);
+    assert.equal(appliedSequence(board), 1);
+    assert.equal(engineReceipt(board, move.id), null, 'a forged move id cannot reserve a legitimate operation receipt');
+    assert.equal(store.events(board).at(-1).event_kind, 'relay_refused');
+    assert.equal(store.events(board).at(-1).event_by, 'relay');
+    const accepted = applyRelayMove(board, move, { sequence: 2, at: CLAIM_AT, kind: 'move', sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } });
+    assert.equal(Boolean(accepted.error), false);
+    assert.equal(store.getItem(board, item).item_owner, 'web-1');
+    const after = exportBoard(board);
+    assert.deepEqual(applyRelayMove(board, move, { sequence: 1, at: CLAIM_AT, kind: 'request' }), refused);
+    assert.deepEqual(exportBoard(board), after, 'repeated refusal returns its own receipt without moving the cursor backwards');
+  }
+  assert.deepEqual(exportBoard(one).tables, exportBoard(two).tables);
+});
+
+test('a relay refusal receipt failure rolls back its log and cursor together [H2,H16]', t => {
+  const { copies, item } = engineCopies(t);
+  const board = copies[0];
+  const before = exportBoard(board);
+  board.db.exec("CREATE TEMP TRIGGER refuse_receipt BEFORE INSERT ON board_meta WHEN NEW.meta_key LIKE 'relay_refusal_%' BEGIN SELECT RAISE(ABORT, 'refusal receipt rollback'); END");
+  assert.throws(() => applyRelayMove(board, claimMove(board, item, 'web-1'), { sequence: 1, at: CLAIM_AT, kind: 'move' }), /refusal receipt rollback/);
+  assert.deepEqual(exportBoard(board), before);
+  assert.equal(appliedSequence(board), 0);
 });
 
 test('the same sealed claim replays to identical rows and sequence retries are idempotent [H3,H16]', (t) => {
