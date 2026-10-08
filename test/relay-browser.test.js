@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { snapshotState, presentationState } from '../relay/browser-model.js';
 import { decodeBoardKey, seal, unseal } from '../src/seal.js';
 import { relaySnapshot } from '../src/relay-presentation.js';
+import { ENGINE_VERSION } from '../src/machine.js';
 import { addItem, closeBoard, openBoard } from '../src/board.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
@@ -148,13 +149,13 @@ test('real Chrome refuses a newer engine in the initial replay without exposing 
   const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
   const presentation = relaySnapshot(box.root).presentation;
   presentation.state.items[0].title = privateTitle;
-  await appendEngineMove(box, link, key, 1, 2, presentation);
+  await appendEngineMove(box, link, key, 1, ENGINE_VERSION + 1, presentation);
 
   const chrome = await startChrome();
   t.after(() => chrome.close());
   await signIn(chrome, box);
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + readFileSync(box.keyFile, 'utf8').trim());
-  await chrome.waitFor("document.querySelector('#relay-notice')?.textContent.includes('This board needs engine 2')");
+  await chrome.waitFor("document.querySelector('#relay-notice')?.textContent.includes(" + JSON.stringify('This board needs engine ' + (ENGINE_VERSION + 1)) + ")");
   assert.equal(await chrome.evaluate('document.body.textContent.includes(' + JSON.stringify(privateTitle) + ')'), false,
     'an unsupported initial event cannot install its attached presentation');
 });
@@ -177,8 +178,8 @@ test('real Chrome refuses a newer engine delivered over the live stream [H5,H15]
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(initialTitle) + ')');
   const presentation = relaySnapshot(box.root).presentation;
   presentation.state.items[0].title = privateTitle;
-  await appendEngineMove(box, link, key, 1, 2, presentation);
-  await chrome.waitFor("document.querySelector('#relay-notice')?.textContent.includes('This board needs engine 2')");
+  await appendEngineMove(box, link, key, 1, ENGINE_VERSION + 1, presentation);
+  await chrome.waitFor("document.querySelector('#relay-notice')?.textContent.includes(" + JSON.stringify('This board needs engine ' + (ENGINE_VERSION + 1)) + ")");
   assert.equal(await chrome.evaluate('document.body.textContent.includes(' + JSON.stringify(privateTitle) + ')'), false,
     'a newer live engine is refused before its presentation changes the page');
 });
@@ -200,7 +201,7 @@ test('real Chrome waits for and installs the late snapshot that compacts a legac
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + readFileSync(box.keyFile, 'utf8').trim());
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(initialTitle) + ')');
 
-  await appendEngineMove(box, link, key, 1, 1);
+  await appendEngineMove(box, link, key, 1, ENGINE_VERSION);
   await new Promise(resolveLate => setTimeout(resolveLate, 350));
   assert.equal(await chrome.evaluate('document.body.textContent.includes(' + JSON.stringify(finalTitle) + ')'), false,
     'the event position is not consumed while the current snapshot is behind it');
