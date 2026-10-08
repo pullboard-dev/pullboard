@@ -34,13 +34,14 @@ function lifecycle() {
  * folder, where a path the host does not serve would leave a reload with nothing.
  *
  * @param {string} [key] - The session's secret.
- * @param {{snapshot?: boolean, readOnly?: boolean, transportModule?: string|null, apiBase?: string, apiHeaders?: Record<string, string>, stylesheet?: string, paths?: boolean}} [options] - Served API connection and assets, whether the host also serves the page at /roadmap, or a static, read-only page with event replay.
+ * @param {{snapshot?: boolean, readOnly?: boolean, requests?: boolean, transportModule?: string|null, apiBase?: string, apiHeaders?: Record<string, string>, stylesheet?: string, paths?: boolean}} [options] - Served connection and assets, optional person requests over a read-only transport, host routes, or a static page with event replay.
  * @returns {string}
  */
-export function cockpitPage(key = '', { snapshot = false, readOnly = false, transportModule = null, apiBase = '', apiHeaders = { 'x-pullboard-key': key }, stylesheet = null, paths = false } = {}) {
+export function cockpitPage(key = '', { snapshot = false, readOnly = false, requests = false, transportModule = null, apiBase = '', apiHeaders = { 'x-pullboard-key': key }, stylesheet = null, paths = false } = {}) {
   if (transportModule !== null && (typeof transportModule !== 'string' || !transportModule.trim())) throw new TypeError('transportModule must be a non-empty module URL or null');
   const connection = JSON.stringify(transportModule ? { base: '', headers: {} } : { base: apiBase.replace(/\/$/, ''), headers: apiHeaders }).replace(/</g, '\\u003c');
   const moduleOption = JSON.stringify(transportModule).replace(/</g, '\\u003c');
+  const requestMode = Boolean(readOnly && requests && !snapshot && transportModule);
   const css = stylesheet ?? (snapshot ? 'view.css' : transportModule ? '/view.css' : '/view.css?k=' + encodeURIComponent(key));
   const cssAttribute = css.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   return `<!doctype html>
@@ -52,7 +53,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, tran
 <link rel="stylesheet" href="${cssAttribute}">
 <link rel="icon" href="data:,">
 </head>
-<body class="loading${snapshot ? ' snapshot' : ''}${readOnly ? ' read-only' : ''}">
+<body class="loading${snapshot ? ' snapshot' : ''}${readOnly ? ' read-only' : ''}${requestMode ? ' requests' : ''}">
 <div class="shell">
 <aside class="side" id="side" aria-label="Projects">
   <div class="side-top">
@@ -94,6 +95,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, tran
     <section class="card-panel group-panel"><h2>Needs you</h2><div id="group-needs"></div></section>
     <section class="card-panel group-panel"><h2>Activity</h2><div class="feed" id="group-activity"></div></section>
   </section>
+  <section class="card-panel person-requests" id="person-requests" aria-label="Your requests" aria-live="polite" hidden></section>
   <section data-pane="items" class="two">
     <div class="primary">
       <div class="card-panel toolbar"><div class="seg" id="state-chips" role="group" aria-label="Show"></div><input id="q" type="search" placeholder="Search" aria-label="Search titles, lanes or ids"><button class="go" id="new-item" type="button">New item</button></div>
@@ -146,6 +148,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, tran
 <script>
 const snapshot = ${JSON.stringify(snapshot)};
 const readOnly = ${JSON.stringify(readOnly)};
+const requests = ${JSON.stringify(requestMode)};
 const transportModule = ${moduleOption};
 const connection = ${connection};
 let transport = null;
@@ -466,6 +469,53 @@ async function api(path, body) {
     throw new Error(message);
   }
   return json;
+}
+
+/** Send only literal person intent; the transport seals it and generic API writes stay refused. */
+async function sendPersonRequest(root, move) {
+  if (!requests || snapshot || !readOnly) throw new Error('This view cannot send person requests.');
+  if (!['add', 'shout', 'answer', 'hold', 'spec-approve', 'spec-decline'].includes(move.verb)) throw new Error('Choose a person action from the view controls.');
+  if (!transport) throw transportLoadError || new Error('The browser transport is still loading.');
+  return transport.request(boardPath(root) + '/moves', move);
+}
+
+/** Name a person request using its public literal intent, without exposing its sealed document. */
+function requestLabel(request) {
+  const move = request.move;
+  const args = move?.args || {};
+  if (move?.verb === 'add') return 'New item: ' + (args.title || 'Untitled');
+  if (move?.verb === 'shout') return 'Shout to ' + (args.to || 'coordinator') + ': ' + (args.text || '');
+  if (move?.verb === 'answer') return 'Answer #' + move.item + ': ' + (args.text || '');
+  if (move?.verb === 'hold') return (args.off ? 'Release ' : 'Hold ') + (args.lane || '') + ' lane' + (!args.off && args.reason ? ': ' + args.reason : '');
+  if (move?.verb === 'spec-approve') return 'Approve row ' + (args.ids || '');
+  if (move?.verb === 'spec-decline') return 'Decline row ' + (args.ids || '');
+  return 'Person request';
+}
+
+/** Retain the native request status and the CLI's complete refusal guidance beside an action. */
+function requestNotice(request) {
+  const label = { waiting: 'Waiting', done: 'Done', refused: 'Refused' }[request.status] || 'Unknown status';
+  const error = request.status === 'refused' && request.error;
+  return label + ' · ' + requestLabel(request) + (error ? '\\n' + (error.code ? '[' + error.code + '] ' : '') + (error.message || '') + (error.next ? '\\n' + error.next : '') : '');
+}
+
+/** Show the public request receipts on every board tab and update the latest action's status. */
+function renderPersonRequests(project) {
+  const entries = project?.personRequests || [];
+  const panel = $('person-requests');
+  panel.hidden = !entries.length;
+  panel.innerHTML = entries.length ? '<h2>Your requests</h2><ul class="request-list">' + [...entries].sort((a, b) => b.sequence - a.sequence).map((request) => {
+    const status = { waiting: 'Waiting', done: 'Done', refused: 'Refused' }[request.status] || 'Unknown status';
+    const error = request.status === 'refused' && request.error;
+    const reason = error ? '<p class="request-error">' + (error.code ? '<b>' + esc(error.code) + '</b> ' : '') + esc(error.message || '') + '</p>' + (error.next ? '<p class="request-next">' + esc(error.next) + '</p>' : '') : '';
+    return '<li data-person-request="' + esc(request.id) + '"><span class="request-label">' + esc(requestLabel(request)) + '</span><span class="chip request-status ' + (request.status === 'done' ? 'ok' : request.status === 'refused' ? 'no' : 'warn') + '">' + status + '</span>' + reason + '</li>';
+  }).join('') + '</ul>' : '';
+  const active = view.request;
+  const current = active && active.root === view.root && active.run === view.acting && entries.find((request) => request.id === active.id);
+  if (current && !$('console').hidden) {
+    $('console').className = 'console' + (current.status === 'done' ? ' ok' : current.status === 'refused' ? ' no' : '');
+    $('console').textContent = requestNotice(current);
+  }
 }
 
 /** A board's sidebar counts, derived from the same API state the page displays. */
@@ -858,6 +908,7 @@ function render() {
   $('tabs').hidden = Boolean(group);
   document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = Boolean(group) || pane.dataset.pane !== view.tab; });
   $('products').hidden = !p || !p.products.length;
+  renderPersonRequests(p);
   if (group) { renderGroup(group); return; }
   if (!p) return;
   // Each product's progress (N28): the rows an accepted item cites, and its items by state.
@@ -1181,7 +1232,7 @@ async function code(ref, before) {
   render();
 }
 
-/** Translate the page's five actions into the public move shape and a familiar command label. */
+/** Translate person actions into their public literal intent and a familiar command label. */
 function pageMove(command, args = {}) {
   /** Trim form values before constructing the move and its display label. */
   const text = (value) => String(value || '').trim();
@@ -1195,6 +1246,8 @@ function pageMove(command, args = {}) {
   if (command === 'answer') return { body: { verb: 'answer', item: Number(args.id), args: { text: text(args.text), as: 'person' } }, label: ['answer', text(args.id), text(args.text), '--as', 'person'].join(' ') };
   if (command === 'hold') return { body: { verb: 'hold', args: { lane: text(args.lane), reason: text(args.reason) } }, label: ['hold', text(args.lane), '--reason', text(args.reason)].join(' ') };
   if (command === 'release') return { body: { verb: 'hold', args: { lane: text(args.lane), off: true } }, label: ['hold', text(args.lane), '--off'].join(' ') };
+  if (command === 'spec-approve') return { body: { verb: command, args: { ids: text(args.ids) } }, label: 'spec approve ' + text(args.ids) };
+  if (command === 'spec-decline') return { body: { verb: command, args: { ids: text(args.ids), reason: text(args.reason) } }, label: 'spec decline ' + text(args.ids) + ' --reason ' + text(args.reason) };
   throw new Error('No view action ' + String(command) + '; choose add, shout, answer, hold or release.');
 }
 
@@ -1209,7 +1262,7 @@ function moveMessage(move, result) {
 /** Run a public API move beside its action and let only the latest one own the console and timer. */
 async function act(command, args, anchor) {
   const out = $('console');
-  if (snapshot || readOnly) { out.hidden = false; out.className = 'console no'; out.textContent = snapshot ? 'This is a read-only snapshot.' : 'This is a read-only view.'; return false; }
+  if (snapshot || (readOnly && !requests)) { out.hidden = false; out.className = 'console no'; out.textContent = snapshot ? 'This is a read-only snapshot.' : 'This is a read-only view.'; return false; }
   if (anchor) {
     const target = anchor.matches('form')
       ? anchor.querySelector('.actions') || anchor.querySelector('[type="submit"]') || anchor
@@ -1217,25 +1270,30 @@ async function act(command, args, anchor) {
     target.insertAdjacentElement(anchor.matches('form') ? 'beforebegin' : 'afterend', out);
   }
   const run = (view.acting = (view.acting || 0) + 1);
-  const latest = () => run === view.acting;
+  const root = view.root;
+  const latest = () => run === view.acting && root === view.root;
+  view.request = null;
   clearTimeout(view.closing);
   out.hidden = false;
   out.className = 'console';
-  out.textContent = 'running…';
+  out.textContent = requests ? 'Request waiting…' : 'running…';
   out.scrollIntoView({ block: 'nearest' });
   try {
     const move = pageMove(command, args);
-    const result = await api(boardPath(view.root) + '/moves', move.body);
+    const result = requests ? await sendPersonRequest(root, move.body) : await api(boardPath(root) + '/moves', move.body);
+    const request = requests && result?.result?.request;
+    if (requests && (!request?.id || !['waiting', 'done', 'refused'].includes(request.status))) throw new Error('The request did not include its status; refresh the board to check it.');
     if (latest()) {
-      out.className = 'console ok';
-      out.textContent = '$ pullboard ' + move.label + '\\n' + moveMessage(move.body, result.result);
+      out.className = 'console' + (requests ? request.status === 'done' ? ' ok' : request.status === 'refused' ? ' no' : '' : ' ok');
+      out.textContent = requests ? requestNotice(request) : '$ pullboard ' + move.label + '\\n' + moveMessage(move.body, result.result);
+      if (requests) view.request = { root, id: request.id, run };
       out.scrollIntoView({ block: 'center' });
       // What went through says so and then steps aside; a refusal stays until the person closes it.
-      view.closing = setTimeout(() => { if (latest()) out.hidden = true; }, 6000);
+      if (!requests || request.status === 'done') view.closing = setTimeout(() => { if (latest()) out.hidden = true; }, 6000);
     }
     await refresh();
     if (latest()) out.scrollIntoView({ block: 'center' });
-    return true;
+    return !requests || request.status !== 'refused';
   } catch (error) {
     if (latest()) {
       out.className = 'console no';
