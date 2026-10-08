@@ -9,6 +9,7 @@ import { refusalDocument } from './json.js';
 import { relayLinked, relayOperation } from './relay.js';
 import { laneNames } from './lanes.js';
 import { listApiProjects } from './projects.js';
+import { milestoneRoadmap } from './roadmap.js';
 import { Refused } from './refused.js';
 import { codeAt, projectState } from './serve.js';
 import { createApiHandler } from './api-http.js';
@@ -195,7 +196,12 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     state: (board, who, seen) => {
       const state = projectState(board.root, { seen });
       state.board = board.id;
-      state.requests = withBoard(board.root, (db) => store.openRequests(db));
+      const projectData = withBoard(board.root, (db) => ({
+        requests: store.openRequests(db),
+        milestones: milestoneRoadmap(board.root, db),
+      }));
+      state.requests = projectData.requests;
+      state.milestones = projectData.milestones;
       return state;
     },
     code: (board, ref) => codeAt(board.root, ref),
