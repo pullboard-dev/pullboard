@@ -178,7 +178,10 @@ test('[H1,H7,H15] relay on snapshots and mirrors ciphertext, retries local moves
   const openedSnapshot = JSON.parse(new TextDecoder().decode(await unseal(
     key, Buffer.from(remoteState.body.state.sealed, 'base64url'), { boardId, kind: 'snapshot', sequence: 0 },
   )));
-  assert.deepEqual(openedSnapshot, beforeLink, 'the first sealed record is the exact native board snapshot');
+  assert.equal(openedSnapshot.version, beforeLink.version);
+  assert.deepEqual(openedSnapshot.tables, beforeLink.tables, 'the first sealed record preserves every native board row and counter');
+  assert.equal(openedSnapshot.presentation.version, 1);
+  assert.ok(openedSnapshot.presentation.state.items.some(item => item.criterion === marker), 'the optional encrypted API presentation has the same board contents');
 
   await cli(root, relayEnv, 'add', lane, 'mirrored private move');
   await cli(root, relayEnv, 'shout', 'person', 'mirrored private shout');
@@ -191,7 +194,8 @@ test('[H1,H7,H15] relay on snapshots and mirrors ciphertext, retries local moves
     const opened = JSON.parse(new TextDecoder().decode(await unseal(
       key, Buffer.from(event.sealed, 'base64url'), { boardId, kind: 'move', sequence: index + 1 },
     )));
-    assert.deepEqual(opened, { version: 1, engine: 1, event: firstMoves[index] });
+    assert.deepEqual({ version: opened.version, engine: opened.engine, event: opened.event }, { version: 1, engine: 1, event: firstMoves[index] });
+    assert.equal(opened.presentation.version, 1);
   }
 
   const linkFile = join(root, '.git', 'pullboard', 'relay.json');
@@ -224,7 +228,8 @@ test('[H1,H7,H15] relay on snapshots and mirrors ciphertext, retries local moves
     const openedQueued = JSON.parse(new TextDecoder().decode(await unseal(
       key, Buffer.from(queued.sealed, 'base64url'), { boardId, kind: 'move', sequence },
     )));
-    assert.deepEqual(openedQueued, { version: 1, engine: 1, event: allNewRows[offset + 2] }, 'queued records retain their local order');
+    assert.deepEqual({ version: openedQueued.version, engine: openedQueued.engine, event: openedQueued.event }, { version: 1, engine: 1, event: allNewRows[offset + 2] }, 'queued records retain their local order');
+    assert.equal(openedQueued.presentation.version, 1);
   }
   relay.dropNextReply();
   await cli(root, relayEnv, 'add', lane, 'committed reply lost');

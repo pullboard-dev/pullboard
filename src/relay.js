@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import * as store from './board.js';
-import { exportBoard } from './exchange.js';
+import { presentationDigest, relayPresentation, relaySnapshot } from './relay-presentation.js';
 import { repoInfo, tryGit } from './git.js';
 import { forgetBoardKey, readBoardKey, storeBoardKey } from './relay-key.js';
 import { encodeBoardKey, generateBoardKey, seal } from './seal.js';
@@ -178,9 +178,13 @@ async function flush(root, file, state, io) {
       !['move', 'request'].includes(event.kind) || typeof event.sealed !== 'string' || !/^[A-Za-z0-9_-]+$/.test(event.sealed))) {
     throw new Refused('RELAY_RESPONSE', 'the relay returned an invalid ordered event prefix; retry the configured relay');
   }
+  // A mirror-only client cannot attest a checkpoint covering another device's unseen moves.
+  if (received.some(event => !(state.pending && event.event_id === state.pending.sequence && event.sealed === state.pending.sealed && event.kind === 'move'))) {
+    throw new Refused('RELAY_REPLAY_REQUIRED', 'another device changed this board; upgrade to a relay-order client before publishing a checkpoint or further queued moves');
+  }
   if (state.pending) {
     const accepted = received.find((event) => event.event_id === state.pending.sequence && event.sealed === state.pending.sealed && event.kind === 'move');
-    if (accepted) { state.cursor = state.pending.localEvent; delete state.pending; }
+    if (accepted) { state.cursor = state.pending.localEvent; if (state.pending.presentationDigest) state.presentationDigest = state.pending.presentationDigest; delete state.pending; }
   }
   if (received.length) state.sequence = Math.max(state.sequence, ...received.map((event) => event.event_id));
   if (state.pending && state.pending.sequence <= state.sequence) delete state.pending;
@@ -189,8 +193,9 @@ async function flush(root, file, state, io) {
   for (const event of rows) {
     if (!state.pending) {
       const sequence = state.sequence + 1;
-      state.pending = { localEvent: event.event_id, sequence,
-        sealed: await sealedRecord(key, { version: 1, engine: 1, event }, state, 'move', sequence) };
+      const presentation = relayPresentation(root);
+      state.pending = { localEvent: event.event_id, sequence, presentationDigest: presentationDigest(presentation),
+        sealed: await sealedRecord(key, { version: 1, engine: 1, event, presentation }, state, 'move', sequence) };
       saveLink(file, state);
     }
     const { sequence, sealed } = state.pending;
@@ -198,7 +203,20 @@ async function flush(root, file, state, io) {
     if (reply.event?.event_id !== sequence || reply.event.sealed !== sealed) throw new Refused('RELAY_RESPONSE', 'the relay acknowledgement does not match the queued record; retry after checking the relay');
     state.sequence = sequence;
     state.cursor = event.event_id;
+    state.presentationDigest = state.pending.presentationDigest;
     delete state.pending;
+    saveLink(file, state);
+  }
+  const presentation = relayPresentation(root);
+  const digest = presentationDigest(presentation);
+  if (state.presentationDigest !== digest) {
+    const document = relaySnapshot(root);
+    state.snapshot = { sequence: state.sequence, sealed: await sealedRecord(key, document, state, 'snapshot', state.sequence) };
+    state.presentationDigest = presentationDigest(document.presentation);
+    saveLink(file, state);
+    const uploaded = await request(state, path + '/state', { method: 'PUT', body: state.snapshot }, io);
+    if (uploaded.state?.sequence !== state.snapshot.sequence || uploaded.state.sealed !== state.snapshot.sealed) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge the refreshed presentation; retry the configured relay');
+    delete state.snapshot;
     saveLink(file, state);
   }
   return summary(root, state);
@@ -260,11 +278,12 @@ export async function relayOn(root, address, io) {
     const key = state ? readBoardKey(state.board) : await generateBoardKey();
     const signed = await deviceSignIn(url, io);
     if (!state) {
-      const snapshot = localRecords(root, (board) => ({ board: store.boardId(board), document: exportBoard(board) }));
+      const document = relaySnapshot(root);
+      const snapshot = { board: document.tables.board_meta.find(row => row.meta_key === 'board_id').meta_value, document };
       // Save the device key before creating any remote link; a locked keychain cannot strand it.
       const keyStorage = storeBoardKey(snapshot.board, key);
       state = { version: 1, board: snapshot.board, url, repository, token: signed.token,
-        tokenId: signed.id, keyStorage, sequence: 0, cursor: snapshot.document.tables.event.at(-1)?.event_id ?? 0, linkPending: true };
+        tokenId: signed.id, keyStorage, presentationDigest: presentationDigest(snapshot.document.presentation), sequence: 0, cursor: snapshot.document.tables.event.at(-1)?.event_id ?? 0, linkPending: true };
       state.snapshot = { sequence: 0, sealed: await sealedRecord(key, snapshot.document, state, 'snapshot', 0) };
     } else { state.token = signed.token; state.tokenId = signed.id; }
     // Persist the exact sealed snapshot and a recoverable link intent before making the remote link.

@@ -62,8 +62,11 @@ export async function relayClientFixture(t) {
   let signIn;
   let api;
   const calls = [];
+  let privateKey = '';
+  let keyLeaked = false;
   const server = createServer(async (req, res) => {
-    calls.push({ method: req.method, path: req.url });
+    calls.push({ method: req.method, path: req.url, accept: req.headers.accept ?? '' });
+    if (privateKey && JSON.stringify({ url: req.url, headers: req.headers }).includes(privateKey)) keyLeaked = true;
     if (override && req.method === 'DELETE') {
       res.writeHead(override.status, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ version: override.version ?? 1, error: { code: override.code, message: 'fixture refusal' } }));
@@ -98,7 +101,10 @@ export async function relayClientFixture(t) {
   const keyFile = join(env.PULLBOARD_HOME, 'relay-keys', id + '.key');
 
   /** Start a saved real relay link without exposing the pairing fragment. */
-  async function link() { assert.equal((await cli('relay', 'on', '--url', origin)).code, 0, 'real device sign-in links the board'); }
+  async function link() {
+    assert.equal((await cli('relay', 'on', '--url', origin)).code, 0, 'real device sign-in links the board');
+    privateKey = readFileSync(keyFile, 'utf8').trim();
+  }
   /** Pair and unlink from a second real repository with its own private device home and key. */
   async function otherDeviceOff() {
     const otherRoot = join(scratch, 'other-device');
@@ -122,9 +128,10 @@ export async function relayClientFixture(t) {
     return childResult(root, env, ['--input-type=module', '-e', source]);
   }
   return {
-    root, env, lane, before, linkFile, keyFile, calls, cli, link, otherDeviceOff, script,
+    root, env, origin, lane, before, linkFile, keyFile, calls, cli, link, otherDeviceOff, script,
     advance(days) { time = Date.now() + days * 86400000; },
     overrideDelete(value) { override = value; },
     mainURL: new URL('../src/cli.js', import.meta.url).href,
+    keyInRequest() { return keyLeaked; },
   };
 }
