@@ -48,7 +48,7 @@ async function readResponse(response, signal, deliver) {
         await deliverPacket(packet);
       }
       if (done) {
-        if (buffer.trim()) await deliverPacket(buffer);
+        // EventSource dispatches only events terminated by a blank line; an EOF mid-frame is replayed.
         return;
       }
     }

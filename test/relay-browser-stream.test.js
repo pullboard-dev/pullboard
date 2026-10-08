@@ -44,6 +44,39 @@ test('clean SSE EOF reconnects after a bounded delay and resumes from the delive
   assert.deepEqual(failures, []);
 });
 
+test('an unterminated SSE event is discarded at EOF and replayed from the unchanged cursor [H16,H3]', async () => {
+  const controller = new AbortController();
+  const requests = [];
+  const cursor = { value: 0 };
+  const received = [];
+  const failures = [];
+  const partial = new Response(new ReadableStream({
+    start(stream) {
+      stream.enqueue(new TextEncoder().encode('id: 1\ndata: {"version":1,"event":'));
+      stream.close();
+    },
+  }), { headers: { 'content-type': 'text/event-stream' } });
+  await followStream({
+    url: () => '/events?after=' + cursor.value,
+    signal: controller.signal,
+    retryMs: 5,
+    request: async url => {
+      requests.push(url);
+      return requests.length === 1 ? partial : eventResponse(1);
+    },
+    onMessage: message => {
+      received.push(message);
+      cursor.value = JSON.parse(message.data).event.event_id;
+      controller.abort();
+    },
+    onFailure: error => failures.push(error.message),
+  });
+  assert.deepEqual(requests, ['/events?after=0', '/events?after=0'], 'partial bytes never advance the replay cursor');
+  assert.equal(received.length, 1, 'only the complete replayed event is delivered');
+  assert.equal(JSON.parse(received[0].data).event.event_id, 1);
+  assert.deepEqual(failures, [], 'an incomplete tail is ordinary EOF, not a fatal malformed message');
+});
+
 test('a rejected sealed-message handler stops the stream and does not poison the next board operation [H16,H3]', async () => {
   const controller = new AbortController();
   const entry = {};
