@@ -4,6 +4,7 @@ import * as store from './board.js';
 import { refusalDocument } from './json.js';
 import { ENGINE_VERSION } from './machine.js';
 import { Refused } from './refused.js';
+import { relayMoveActor, relaySenderProblem } from './relay-sender.js';
 
 /** Only these public board operations may be requested by an encrypted move. */
 export const ENGINE_OPERATIONS = Object.freeze([
@@ -41,6 +42,7 @@ export function checkpointSequence(board, sequence) {
 export function startRelayEpoch(board) {
   store.atomic(board, () => {
     board.db.prepare("DELETE FROM board_meta WHERE meta_key LIKE 'relay_receipt_%'").run();
+    board.db.prepare("DELETE FROM board_meta WHERE meta_key LIKE 'relay_refusal_%'").run();
     metadata(board, 'relay_applied_sequence', '0');
     metadata(board, 'relay_engine_version', String(ENGINE_VERSION));
   });
@@ -97,6 +99,39 @@ function executableArgs(move) {
 export function engineReceipt(board, id) {
   const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get('relay_receipt_' + id);
   return row ? JSON.parse(row.meta_value) : null;
+}
+
+/** Authorize each public relay position before replay, retaining refusals atomically with its cursor. */
+export function applyRelayMove(board, move, { sequence, at, sender, kind }) {
+  const problem = relaySenderProblem(move, sender, kind);
+  if (!problem) return applyEngineMove(board, move, { sequence, at });
+  if (!Number.isSafeInteger(sequence) || sequence < 1 || !Number.isFinite(Date.parse(at))) throw new Refused('RELAY_MOVE', 'supply a valid relay sequence and receipt timestamp');
+  return store.atomic(board, () => {
+    const cursor = appliedSequence(board);
+    const key = 'relay_refusal_' + sequence;
+    const encoded = JSON.stringify({ move, sender, kind });
+    const saved = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key);
+    if (sequence <= cursor) {
+      const receipt = saved && JSON.parse(saved.meta_value);
+      if (!receipt || receipt.record !== encoded) throw new Refused('RELAY_CURSOR', 'this earlier refused position has no matching receipt; fetch a consistent relay snapshot');
+      return receipt.outcome;
+    }
+    if (sequence !== cursor + 1) throw new Refused('RELAY_ORDER', `relay sequence ${sequence} does not follow applied sequence ${cursor}; fetch and apply the missing prefix first`);
+    const outcome = { error: refusalDocument(problem).error };
+    const clock = board.clock;
+    board.clock = { now: () => new Date(at) };
+    try {
+      store.recordRelayRefusal(board, {
+        by: sender?.kind === 'agent' && typeof sender.agent === 'string' ? sender.agent : 'relay',
+        sequence, kind, operation: typeof move?.operation === 'string' ? move.operation : null,
+        actor: typeof relayMoveActor(move) === 'string' ? relayMoveActor(move) : null, code: problem.code,
+      });
+    } finally { board.clock = clock; }
+    metadata(board, key, JSON.stringify({ record: encoded, outcome }));
+    metadata(board, 'relay_applied_sequence', String(sequence));
+    metadata(board, 'relay_engine_version', String(ENGINE_VERSION));
+    return outcome;
+  });
 }
 
 /**

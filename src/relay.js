@@ -4,7 +4,7 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, wri
 import { dirname, join } from 'node:path';
 import * as store from './board.js';
 import { exportBoard, restoreRelaySnapshot } from './exchange.js';
-import { appliedSequence, applyEngineMove, checkpointSequence, engineReceipt, prepareEngineMove, startRelayEpoch } from './engine.js';
+import { appliedSequence, applyRelayMove, checkpointSequence, engineReceipt, prepareEngineMove, startRelayEpoch } from './engine.js';
 import { ENGINE_VERSION } from './machine.js';
 import { presentationDigest, relayPresentation, relaySnapshot } from './relay-presentation.js';
 import { repoInfo, tryGit } from './git.js';
@@ -12,6 +12,7 @@ import { forgetBoardKey, readBoardKey, storeBoardKey } from './relay-key.js';
 import { encodeBoardKey, generateBoardKey, seal, unseal } from './seal.js';
 import { terminalQr } from './qr.js';
 import { Refused } from './refused.js';
+import { relaySenderProblem } from './relay-sender.js';
 
 export const DEFAULT_RELAY = 'https://app.pullboard.dev';
 const LINK_FILES = new WeakMap();
@@ -282,6 +283,8 @@ async function restoreCheckpoint(root, state, io, key) {
   const document = await request(state, '/api/v1/boards/' + state.board + '/state', {}, io);
   const snapshot = document.state;
   if (!snapshot || !Number.isSafeInteger(snapshot.sequence) || snapshot.sequence < 0) throw new Refused('RELAY_RESPONSE', 'the relay snapshot has no valid coverage sequence; fetch it again');
+  const senderProblem = relaySenderProblem(null, snapshot.sender, 'snapshot');
+  if (senderProblem) throw senderProblem;
   const native = await decoded(key, snapshot, state, 'snapshot', snapshot.sequence);
   localRecords(root, (board) => restoreRelaySnapshot(board, native, snapshot.sequence));
 }
@@ -304,7 +307,7 @@ async function catchUp(root, file, state, io) {
   for (const record of remote.events) {
     const move = await decoded(key, record, state, record.kind, record.event_id);
     localRecords(root, (board) => {
-      applyEngineMove(board, move, { sequence: record.event_id, at: record.event_at });
+      applyRelayMove(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender, kind: record.kind });
     });
   }
   state.sequence = localRecords(root, appliedSequence);
