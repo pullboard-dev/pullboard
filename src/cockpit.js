@@ -685,7 +685,7 @@ function renderSide() {
    * @param {boolean} allowLinks
    * @returns {string}
    */
-  function inline(text, titles, allowLinks = true) { return String(text ?? '').split(/(\`[^\`]*\`|[\\w./-]+\\.[A-Za-z0-9]+:\\d+(?:-\\d+)?@[0-9a-f]{7,40}|pullboard(?:\\s+\\w+)+|--[\\w-]+|(?:\\/|\\.\\.?\\/|[\\w.-]+\\/)\\w[\\w./-]*\\.[A-Za-z0-9]+|\\b[0-9a-fA-F]{7,40}\\b|#\\d+)/g).map((part, n, parts) => {
+  function inline(text, titles, allowLinks = true) { return String(text ?? '').split(/(\`[^\`]*\`|[^\\s:@()[\\]{}"'\`]+:\\d+(?:-\\d+)?@[0-9a-f]{7,40}|pullboard(?:\\s+\\w+)+|--[\\w-]+|(?:\\/|\\.\\.?\\/|[\\w.-]+\\/)\\w[\\w./-]*\\.[A-Za-z0-9]+|\\b[0-9a-fA-F]{7,40}\\b|#\\d+)/g).map((part, n, parts) => {
     if (part.startsWith('\`') && part.endsWith('\`')) return '<code class="inline">' + esc(part.slice(1, -1)) + '</code>';
     if (part.includes('@') && part.includes(':')) {
       const textBefore = parts.slice(0, n).join('');
