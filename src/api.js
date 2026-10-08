@@ -84,8 +84,8 @@ function agentPath(root, name = COORDINATOR) {
 const MOVES = {
   'spec-approve': { prefix: ['spec', 'approve'], positions: ['ids'], flags: ['by'] },
   'spec-decline': { prefix: ['spec', 'decline'], positions: ['ids'], flags: ['reason'] },
-  add: { positions: ['lane', 'title'], flags: ['criterion', 'specs', 'parent', 'after', 'brief', 'route', 'check'] },
-  edit: { item: true, flags: ['criterion', 'brief', 'route', 'check'] },
+  add: { positions: ['lane', 'title'], flags: ['criterion', 'specs', 'parent', 'after', 'brief', 'route', 'check'], booleans: ['wait'] },
+  edit: { item: true, flags: ['criterion', 'brief', 'route', 'check'], booleans: ['wait'] },
   claim: { item: true },
   release: { item: true },
   submit: { item: true },

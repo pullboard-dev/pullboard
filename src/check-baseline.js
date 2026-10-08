@@ -1,5 +1,6 @@
 /** Observe a proposed check on an isolated copy of main before recording its move [V2,H16]. */
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -13,12 +14,13 @@ import { CONFIG_FILE } from './config.js';
  *
  * @param {string} root
  * @param {string} command
+ * @param {{main?: string}} [options]
  * @returns {{command: string, main: string|null, result: string, reason?: string, seconds?: number}}
  */
-export function checkBaseline(root, command) {
-  const main = tryGit(root, ['rev-parse', '--verify', 'refs/heads/main^{commit}']);
-  if (main.status !== 0) return { command, main: null, result: 'unavailable', reason: 'no main' };
-  const base = { command, main: main.stdout };
+export function checkBaseline(root, command, { main = undefined } = {}) {
+  const captured = main === undefined ? prepareCheckBaseline(root, command) : { command, main, result: 'pending' };
+  if (captured.result !== 'pending') return captured;
+  const base = { command, main: captured.main };
   if (command === gateOnMain(root, base.main)) return { ...base, result: 'green', reason: 'repo gate' };
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-check-base-'));
   const checkout = join(directory, 'checkout');
@@ -32,6 +34,15 @@ export function checkBaseline(root, command) {
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+}
+
+/** Capture the authorized check's immutable base without running its shell command [V2,H16]. */
+export function prepareCheckBaseline(root, command) {
+  const main = tryGit(root, ['rev-parse', '--verify', 'refs/heads/main^{commit}']);
+  if (main.status !== 0) return { command, main: null, result: 'unavailable', reason: 'no main' };
+  const base = { command, main: main.stdout };
+  if (command === gateOnMain(root, base.main)) return { ...base, result: 'green', reason: 'repo gate' };
+  return { ...base, result: 'pending', request: randomUUID() };
 }
 
 /** Use main's committed gate for the shortcut; a dirty local config cannot manufacture a green base. */
@@ -48,6 +59,10 @@ function gateOnMain(root, main) {
 export function sayCheckBaseline(io, item) {
   const base = item.item_check_baseline;
   if (!base) return;
+  if (base.result === 'pending') {
+    io.say(`check baseline running in the background at main ${base.main}: ${base.command}`);
+    return;
+  }
   if (base.result === 'unavailable') {
     io.say(`check baseline unavailable: ${base.reason}`);
     return;
