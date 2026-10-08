@@ -6,7 +6,7 @@
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
+import { CONFIG_FILE, COORDINATOR, doctrineFile, loadConfig } from './config.js';
 import { loadDoctrine } from './doctrine.js';
 import { installHooks } from './hooks.js';
 import { Refused } from './refused.js';
@@ -168,11 +168,12 @@ export function initRepo({ info, openBoardHere, register, closeBoard }) {
     throw new Refused('NOT_MAIN', 'run init in the main checkout; worktrees join a lane instead');
   }
   const { root } = info;
+  const doctrine = existsSync(join(root, CONFIG_FILE)) ? loadConfig(root).practice : doctrineFile(root);
   const gate = detectGate(root);
   const notes = [
     writeNew(join(root, CONFIG_FILE), configTemplate(gate, detectFixers(root)), CONFIG_FILE),
     writeNew(join(root, 'SPEC.md'), specTemplate(basename(root)), 'SPEC.md'),
-    writeNew(join(root, 'PRACTICE.md'), practiceTemplate(), 'PRACTICE.md'),
+    writeNew(join(root, doctrine), practiceTemplate(), doctrine),
     ...writeAgentDocs(root),
     ...installHooks(root),
     ...installSkills(root),

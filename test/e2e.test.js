@@ -176,14 +176,14 @@ test('init writes config, spec, agent docs and hooks once, and never clobbers [I
   assert.equal(readFileSync(join(repo, 'CLAUDE.md'), 'utf8'), '@AGENTS.md\n');
   assert.equal(box.git(repo, 'config', '--get', 'core.hooksPath'), '.githooks');
   for (const hook of ['pre-commit', 'commit-msg', 'pre-push']) assert.ok(existsSync(join(repo, '.githooks', hook)));
-  const practice = readFileSync(join(repo, 'PRACTICE.md'), 'utf8');
-  assert.ok(practice.startsWith('# Practice'));
+  const practice = readFileSync(join(repo, 'DOCTRINE.md'), 'utf8');
+  assert.ok(practice.startsWith('# Doctrine'));
   assert.deepEqual(parseSpec(practice).rows, [], 'fresh init copies no standard rules [D4]');
   assert.equal(parseSpec(practice).sections.length, 6);
   assert.equal(practice.split('Inherits Pullboard standard doctrine version 1.').length, 2);
   assert.match(agents, /PB1 \(standard 1\)/, 'fresh guidance shows inherited rules [D3]');
   assert.ok(existsSync(join(repo, '.claude', 'skills', 'pullboard-decompose', 'SKILL.md')));
-  assert.match(second.out, /kept PRACTICE.md/);
+  assert.match(second.out, /kept DOCTRINE.md/);
   assert.match(second.out, /kept the Claude Code skills/);
 });
 
@@ -243,10 +243,10 @@ test("the coordinator's resume names its next step from the spec and the board, 
 
 test('spec check lints both files; spec view writes one page into the git dir [S6, S7]', () => {
   const box = project();
-  writeFileSync(join(box.repo, 'PRACTICE.md'), '# Practice\n\n## C · Code\n- C1 [approved, must] Functions under 60 lines.\n');
+  writeFileSync(join(box.repo, 'DOCTRINE.md'), '# Doctrine\n\n## C · Code\n- C1 [approved, must] Functions under 60 lines.\n');
   const check = box.run(box.repo, 'spec', 'check');
   assert.equal(check.code, 1);
-  assert.match(check.out, /PRACTICE.md:4 C1 error: an approved must-row names its gate/);
+  assert.match(check.out, /DOCTRINE.md:4 C1 error: an approved must-row names its gate/);
   assert.match(check.out, /SPEC.md: 2 rows, 0 errors/);
   const view = box.run(box.repo, 'spec', 'view');
   assert.equal(view.code, 0, view.err);
@@ -524,26 +524,26 @@ test("a worktree starts only from a commit that holds pullboard's files as the m
   const first = refused(/\[NOT_COMMITTED\] this repo has no commit yet, and a new worktree starts from one; not committed: /, [
     '.githooks/pre-commit',
     'AGENTS.md',
-    'PRACTICE.md',
+    'DOCTRINE.md',
     'SPEC.md',
     'pullboard.json',
   ]);
   sh(first);
-  for (const file of ['.githooks/pre-commit', 'AGENTS.md', 'PRACTICE.md', 'SPEC.md', 'pullboard.json']) {
+  for (const file of ['.githooks/pre-commit', 'AGENTS.md', 'DOCTRINE.md', 'SPEC.md', 'pullboard.json']) {
     assert.equal(box.git(repo, 'ls-tree', '--name-only', 'HEAD', '--', file), file, `${file} is committed`);
   }
   assert.equal(box.git(repo, 'ls-tree', '--name-only', 'HEAD', '--', 'notes.txt'), '', 'the command commits only those files');
 
   writeFileSync(join(repo, 'SPEC.md'), `${SPEC}- G3 [draft, aim] A third goal. | gate: test\n`);
   writeFileSync(join(repo, '.githooks', 'post-checkout'), '#!/bin/sh\n');
-  rmSync(join(repo, 'PRACTICE.md'));
+  rmSync(join(repo, 'DOCTRINE.md'));
   box.git(repo, 'add', 'notes.txt');
   refused(/\[NOT_COMMITTED\] a new worktree starts from the last commit, and these differ from it here: /, [
     '.githooks/post-checkout (not committed)',
-    'PRACTICE.md (deleted)',
+    'DOCTRINE.md (deleted)',
     'SPEC.md (changed)',
   ]);
-  box.git(repo, 'checkout', '--', 'PRACTICE.md');
+  box.git(repo, 'checkout', '--', 'DOCTRINE.md');
   sh(refused(/these differ from it here: \.githooks\/post-checkout \(not committed\), SPEC\.md \(changed\)\. /, []));
   assert.equal(box.git(repo, 'diff', '--cached', '--name-only'), 'notes.txt', "the person's staged file stays staged, and out of the commit");
 

@@ -81,7 +81,7 @@ function project() {
     ...config,
     gate: 'true',
     spec: 'SPEC.md',
-    practice: 'PRACTICE.md',
+    practice: 'DOCTRINE.md',
     lanes: {
       app: { owns: ['app/'], specs: ['G1'] },
       review: { owns: [] },
@@ -89,7 +89,7 @@ function project() {
     shared: [],
   }, null, 2)}\n`);
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
-  writeFileSync(join(repo, 'PRACTICE.md'), '');
+  writeFileSync(join(repo, 'DOCTRINE.md'), '');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: set up API fixture');
   return { ...box, repo, initialized };

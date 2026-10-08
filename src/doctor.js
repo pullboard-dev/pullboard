@@ -1,11 +1,19 @@
 /** Read-only integrity checks for a pullboard board file (A6). */
 import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { DOCTRINE_FILE, LEGACY_DOCTRINE_FILE } from './config.js';
 import { DatabaseSync } from 'node:sqlite';
 import { checkAtCommit, submissionPaths, dependencySnapshots } from './trusted-policy.js';
 import { BLANKS, STATES, storeTriggers } from './machine.js';
 
 import { readEventLogVersion, SCHEMA_VERSION } from './board.js';
 const blankCharacters = new Set(BLANKS.map((point) => String.fromCodePoint(point)));
+
+/** Offer the single rename that updates a legacy doctrine without rewriting the repo's rules. */
+export function doctrineProblems(root, config) {
+  if (config.practice !== LEGACY_DOCTRINE_FILE || !existsSync(join(root, LEGACY_DOCTRINE_FILE))) return [];
+  return [finding('DOCTRINE_LEGACY', `${LEGACY_DOCTRINE_FILE} is the legacy name for the repo doctrine`, `git mv -- ${LEGACY_DOCTRINE_FILE} ${DOCTRINE_FILE}`)];
+}
 
 /**
  * Check a board and its git pins without opening it through the migrator, which repairs boards on

@@ -10,7 +10,7 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import * as store from './board.js';
 import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
-import { loadDoctrine } from './doctrine.js';
+import { doctrineHistory, loadDoctrine } from './doctrine.js';
 import { digestOf, gateReport, runGate, runShell } from './gate.js';
 import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
@@ -50,7 +50,7 @@ import { listResources } from './resources.js';
 import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
 import { exportView, serveView } from './serve.js';
 import { serveApi } from './api.js';
-import { doctorProblems } from './doctor.js';
+import { doctorProblems, doctrineProblems } from './doctor.js';
 import { mainPolicy, itemPolicy, submissionPaths, frozenCheck, checkAtCommit, dependencySnapshots } from './trusted-policy.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
@@ -136,10 +136,10 @@ Receipts
   pullboard log [id]                    every move, in order
 
 Spec
-  pullboard spec --json                 parsed SPEC.md and PRACTICE.md rows as JSON
+  pullboard spec --json                 parsed SPEC.md and doctrine rows as JSON
   pullboard forget <path>               remove a repo from this machine's project list
-  pullboard spec check                  lint SPEC.md and PRACTICE.md
-  pullboard spec view [--out file]      the spec, open questions, sign-offs and practice as one page
+  pullboard spec check                  lint SPEC.md and the doctrine (house rules for agentic development)
+  pullboard spec view [--out file]      the spec, open questions, sign-offs and doctrine as one page
   pullboard spec show <id> | unmet [--must] | signoff <ids> [--by <principal>]
                                         signoff: --note "what was checked" stays with the receipt
   pullboard spec signers add [--key <path>] [--by <principal>]  opt into SSH-signed sign-offs
@@ -1055,7 +1055,7 @@ function readCommands(io, { first, second, rest, values }) {
         return 1;
       }
       const ctx = context(io);
-      const problems = doctorProblems(ctx.file, ctx.info.root, tryGit);
+      const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit), ...doctrineProblems(ctx.info.root, ctx.config)];
       io.result?.({ problems });
       if (!problems.length) {
         io.say('board is clean');
@@ -1668,7 +1668,7 @@ function specCommand(io, { first, second, rest, values }) {
     for (const [name, parsed] of files) {
       const findings = lintSpec(parsed);
       findings.forEach((finding) => messages.push(`${name}:${finding.line} ${finding.id ?? ''} ${finding.level}: ${finding.message}`.replace('  ', ' ')));
-      const history = committedIds(ctx.info.root, name);
+      const history = parsed === practice ? doctrineHistory(ctx.info.root, name) : committedIds(ctx.info.root, name);
       const cited = name === ctx.config.spec ? citations(ctx, history) : new Map();
       const lost = permanenceProblems(parsed === practice ? practice.repo : parsed, { committed: history.ids, cited });
       lost.forEach((problem) => messages.push(`${name}: ${problem.id} error: ${problem.message}`));
