@@ -29,13 +29,15 @@ export function gitChildEnv(root) {
  *
  * @param {string} cwd
  * @param {string[]} args
+ * @param {{ maxBuffer?: number }} [options] - Bound output captures for callers parsing larger diffs.
  * @returns {string}
  */
-export function git(cwd, args) {
+export function git(cwd, args, { maxBuffer } = {}) {
   return execFileSync('git', [...GIT_FLAGS, ...args], {
     cwd,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
+    ...(maxBuffer === undefined ? {} : { maxBuffer }),
   }).trim();
 }
 

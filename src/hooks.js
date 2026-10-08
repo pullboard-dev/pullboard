@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { git, gitChildEnv, tryGit } from './git.js';
+import { Refused } from './refused.js';
 import { outOfLane } from './lanes.js';
 import { citedIds, deletedIds, idProblems } from './spec.js';
 import { approvedRowProblems } from './approved-rows.js';
@@ -19,6 +20,7 @@ export const FIX_NOTE = 'Fix what each line names. Never work around a refusal w
 const EMOJI_RE = /\p{Extended_Pictographic}|\p{Regional_Indicator}|⃣|️/u;
 const EXEMPT_RE = /^(Merge |Revert "|fixup! |squash! |amend! )/;
 const ZERO_SHA = /^0+$/;
+const MAX_SECRET_DIFF_BYTES = 8 * 1024 * 1024;
 
 /**
  * Secrets by kind, most specific first, so a line is named once by what it most likely is.
@@ -205,7 +207,13 @@ export function preCommitProblems({ root, isMain, config, agent, boardFile }) {
     (path) => `${path} is a blocked file (env or secrets); keep it out of git`,
   );
   if (config.protect.secrets) {
-    const diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0']);
+    let diff;
+    try {
+      diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+    } catch (error) {
+      if (error.code !== 'ENOBUFS') throw error;
+      throw new Refused('DIFF_TOO_LARGE', 'the staged text diff exceeds the safe scan limit; split the change into smaller commits, then retry');
+    }
     problems.push(...secretsIn(addedLines(diff)).map((where) => `possible secret: ${where}`));
   }
   problems.push(...deletedRowProblems(root, [config.spec, config.practice]));
