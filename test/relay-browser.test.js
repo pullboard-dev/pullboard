@@ -113,7 +113,7 @@ test('real Chrome pairs, retains its device key, follows SSE without polling and
 
   assert.equal((await box.cli('add', box.lane, liveTitle)).code, 0);
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(liveTitle) + ')');
-  assert.equal(await chrome.evaluate("document.querySelector('#relay-notice').textContent.includes('Acting from the relay is coming')"), true);
+  assert.equal(await chrome.evaluate("document.querySelector('#relay-notice').textContent.includes('Requests from this device wait for a linked machine')"), true);
   await chrome.navigate(box.origin);
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(liveTitle) + ')');
   assert.equal(await chrome.evaluate('location.hash === ""'), true, 'a later visit needs no new pairing link');
