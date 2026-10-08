@@ -263,7 +263,7 @@ export function drawLifecycle(machine = MACHINE) {
 export function drawLayout() {
   const files = [
     ['SPEC.md', 'what to build, one row per id'],
-    ['PRACTICE.md', 'the house rules'],
+    ['DOCTRINE.md', 'the house rules'],
     ['pullboard.json', 'gate, lanes, commit rules'],
     ['AGENTS.md, .claude/', 'how agents work here'],
     ['.githooks/', 'commit and push checks'],
@@ -277,7 +277,7 @@ export function drawLayout() {
     width: 840,
     height: 404,
     title: 'Where things live',
-    desc: 'The main checkout is the coordinator. It holds SPEC.md, PRACTICE.md, pullboard.json, AGENTS.md and the git hooks. Inside .git, shared by every worktree, are the board, board.sqlite, and the pinned submitted commits. Beside it, each agent works in its own worktree: builders in their lanes and a verifier that built none of it, all on the same board. pullboard view lists every project on this machine.',
+    desc: 'The main checkout is the coordinator. It holds SPEC.md, DOCTRINE.md, pullboard.json, AGENTS.md and the git hooks. Inside .git, shared by every worktree, are the board, board.sqlite, and the pinned submitted commits. Beside it, each agent works in its own worktree: builders in their lanes and a verifier that built none of it, all on the same board. pullboard view lists every project on this machine.',
     body: [
       text(24, 34, 'Where things live', 'head'),
       '<rect class="frame" x="24" y="52" width="400" height="328" rx="10"/>',
