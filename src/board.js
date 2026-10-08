@@ -14,6 +14,7 @@ import { briefFiles, briefSections } from './brief.js';
 import { COORDINATOR } from './config.js';
 import { GUARDS, IN_STATE, MOVES, STATES, UNKNOWN_MOVE, effectiveGuards, storeTriggers } from './machine.js';
 import { Refused } from './refused.js';
+import { parseSpec } from './spec.js';
 
 export const ACCEPT_REASON = 'CRITERION_MET';
 export const PERSON = 'person';
@@ -1308,10 +1309,10 @@ export function verdictsFor(board, id) {
  * Insert a shout within the caller's transaction.
  *
  * @param {any} board
- * @param {{ from: string, to: string, text: string, lanes: string[], decision?: boolean, answers?: number | null, evidence?: any, request?: boolean }} message
+ * @param {{ from: string, to: string, text: string, lanes: string[], decision?: boolean, answers?: number | null, evidence?: any, request?: boolean, channel?: 'terminal' | 'view' }} message
  * @returns {number}
  */
-function insertShout(board, { from, to, text, lanes, decision = false, answers = null, evidence = null, request = false }) {
+function insertShout(board, { from, to, text, lanes, decision = false, answers = null, evidence = null, request = false, channel = 'terminal' }) {
   if (!text.trim()) throw new Refused('EMPTY_SHOUT', 'a shout needs text');
   if (request && (from !== 'person' || to !== COORDINATOR || decision || answers !== null)) {
     throw new Refused('BAD_REQUEST', 'a request goes from the person to the coordinator; use the board requests endpoint with its text');
@@ -1340,6 +1341,10 @@ function insertShout(board, { from, to, text, lanes, decision = false, answers =
     throw new Refused('NOT_A_DECISION', `shout #${answers} asked for no decision; reply with pullboard shout`);
   }
   if (evidence) checkEvidence(board, evidence);
+  const personAnswer = from === PERSON && answers !== null && !decision;
+  if (personAnswer && !['terminal', 'view'].includes(channel)) {
+    throw new Refused('B26_PERSON_CHANNEL', 'record the person answer through the terminal or the view; run pullboard view');
+  }
   const result = board.db
     .prepare(
       `INSERT INTO shout (shout_from, shout_to, shout_text, shout_at, shout_decision, shout_answers,
@@ -1349,7 +1354,7 @@ function insertShout(board, { from, to, text, lanes, decision = false, answers =
     )
     .run(from, to, text.trim(), now(board), decision ? 1 : 0, answers, evidence?.kind ?? null, evidence ? evidence.outcome.trim() : null, evidence?.item ?? null, evidence?.commit ?? null, request ? 1 : 0, outcome);
   const id = Number(result.lastInsertRowid);
-  logEvent(board, from, answers === null ? 'shout' : decision ? 'pass' : 'answer', null, { shout: id, to, decision: Boolean(decision), request: Boolean(request), answers, ...(outcome ? { outcome } : {}) });
+  logEvent(board, from, answers === null ? 'shout' : decision ? 'pass' : 'answer', null, { shout: id, to, decision: Boolean(decision), request: Boolean(request), answers, ...(outcome ? { outcome } : {}), ...(personAnswer ? { channel } : {}) });
   return id;
 }
 
@@ -1357,7 +1362,7 @@ function insertShout(board, { from, to, text, lanes, decision = false, answers =
  * Shout to a lane, an agent, `all`, or the person (B7, B25, B26). The caller passes declared lanes.
  *
  * @param {any} board
- * @param {{ from: string, to: string, text: string, lanes: string[], decision?: boolean, answers?: number | null, evidence?: any, request?: boolean }} message
+ * @param {{ from: string, to: string, text: string, lanes: string[], decision?: boolean, answers?: number | null, evidence?: any, request?: boolean, channel?: 'terminal' | 'view' }} message
  * @returns {number}
  */
 export function shout(board, message) {
@@ -1389,10 +1394,10 @@ export function passDecision(board, id, { agentId, note, lanes }) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, text: string, lanes: string[], asPerson?: boolean }} options
+ * @param {{ agentId: string, text: string, lanes: string[], asPerson?: boolean, channel?: 'terminal' | 'view' }} options
  * @returns {number}
  */
-export function answerDecision(board, id, { agentId, text, lanes, asPerson = false }) {
+export function answerDecision(board, id, { agentId, text, lanes, asPerson = false, channel = 'terminal' }) {
   return atomic(board, () => {
     const ask = getShout(board, id);
     if (ask.shout_request) {
@@ -1412,10 +1417,10 @@ export function answerDecision(board, id, { agentId, text, lanes, asPerson = fal
       throw new Refused('NOT_YOUR_DECISION', `shout #${id} is addressed to ${ask.shout_to}, not ${lane} (agent ${agentId})`);
     }
     const from = personAnswer ? PERSON : agentId;
-    const answerId = insertShout(board, { from, to: ask.shout_from, text, lanes, answers: id });
+    const answerId = insertShout(board, { from, to: ask.shout_from, text, lanes, answers: id, channel });
     if (personAnswer && ask.shout_answers !== null) {
       const original = getShout(board, ask.shout_answers);
-      insertShout(board, { from: PERSON, to: original.shout_from, text: `Person answered #${id}: ${String(text).trim()}`, lanes, answers: original.shout_id });
+      insertShout(board, { from: PERSON, to: original.shout_from, text: `Person answered #${id}: ${String(text).trim()}`, lanes, answers: original.shout_id, channel });
     }
     return answerId;
   });
@@ -1889,6 +1894,68 @@ export function removeMilestone(board, name, { agentId }) {
     saveMilestones(board, remaining);
     logEvent(board, agentId, 'milestone_remove', null, { name });
     return name;
+  });
+}
+
+/** Current person decisions, including applied receipts, stored without checkout-dependent state. */
+export function rowDecisions(board) {
+  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get('row_decisions');
+  return row ? JSON.parse(row.meta_value) : [];
+}
+
+/** Persist the current decision index inside its caller's board transaction. */
+function writeRowDecisions(board, records) {
+  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
+    .run('row_decisions', JSON.stringify(records));
+}
+
+/** Record one exact-row decision per event; sender-side channel checks precede deterministic replay. */
+export function recordRowDecisions(board, { agentId, channel, decisions }) {
+  if (agentId !== PERSON) throw new Refused('B26_PERSON_APPROVAL', 'only the person approves or declines rows; use pullboard view for the person to decide');
+  if (!['terminal', 'view'].includes(channel)) throw new Refused('B26_PERSON_CHANNEL', 'row decisions use the terminal or the view; use pullboard view');
+  if (!Array.isArray(decisions) || !decisions.length) throw new Refused('ROW_DECISION', 'name at least one row to approve or decline; use pullboard spec approve <ids>');
+  const keys = new Set();
+  for (const record of decisions) {
+    if (!record || !['approve', 'decline'].includes(record.decision) || !['spec', 'doctrine'].includes(record.kind)
+      || !['id', 'file', 'source', 'replacement', 'text'].every((key) => typeof record[key] === 'string' && record[key].trim())
+      || (record.decision === 'decline' && !String(record.reason ?? '').trim())) throw new Refused('ROW_DECISION', 'a row decision needs its id, file and exact text; use pullboard spec approve or decline');
+    const original = parseSpec(`## Decision\n${record.source}\n`).rows;
+    const replacement = parseSpec(`## Decision\n${record.replacement}\n`).rows;
+    const target = replacement[0];
+    if (original.length !== 1 || original[0].id !== record.id || replacement.length !== 1 || target.id !== record.id
+      || target.status !== (record.decision === 'approve' ? 'approved' : 'wont') || target.text !== record.text
+      || (record.decision === 'decline' && target.text !== record.reason)) throw new Refused('ROW_DECISION', 'the exact row must match its recorded approval or decline; use pullboard spec approve or decline');
+    const key = `${record.kind}:${record.id}`;
+    if (keys.has(key)) throw new Refused('ROW_DECISION', `${key} is named twice; use each row once`);
+    keys.add(key);
+  }
+  return atomic(board, () => {
+    let current = rowDecisions(board);
+    const recorded = decisions.map((record) => {
+      logEvent(board, PERSON, 'row_decision', null, { record, channel });
+      const entry = { ...record, event: board.lastEvent.event_id, at: board.lastEvent.event_at, applied: false };
+      current = [...current.filter((old) => old.kind !== record.kind || old.id !== record.id), entry];
+      return entry;
+    });
+    writeRowDecisions(board, current);
+    return recorded;
+  });
+}
+
+/** A coordinator records which exact decisions its local file changes applied, with no replay writes. */
+export function applyRowDecisions(board, { agentId, events }) {
+  if (agentId !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator applies row decisions; ask your coordinator to run pullboard spec apply');
+  if (!Array.isArray(events) || events.some((event) => !Number.isSafeInteger(event) || event < 1)) throw new Refused('ROW_DECISION', 'apply needs current decision event ids; use pullboard spec apply');
+  return atomic(board, () => {
+    const records = rowDecisions(board);
+    const found = events.map((event) => records.find((record) => record.event === event));
+    if (found.some((record) => !record)) throw new Refused('STALE_ROW_DECISION', 'a row decision was replaced; use pullboard spec apply with the current decisions');
+    const applied = found.filter((record) => !record.applied);
+    if (!applied.length) return [];
+    const at = now(board);
+    writeRowDecisions(board, records.map((record) => events.includes(record.event) ? { ...record, applied: true, appliedAt: at } : record));
+    logEvent(board, agentId, 'row_apply', null, { events: applied.map((record) => record.event) });
+    return applied.map((record) => ({ ...record, applied: true, appliedAt: at }));
   });
 }
 

@@ -81,6 +81,11 @@ test('default discovery runs one fixture and does not recurse into the runner [C
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
   const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
   copyFileSync(runner, join(bin, 'run-tests.js'));
+  const source = join(root, 'src');
+  mkdirSync(source);
+  for (const name of ['person.js', 'refused.js']) {
+    copyFileSync(fileURLToPath(new URL('../src/' + name, import.meta.url)), join(source, name));
+  }
   const marker = join(root, 'ran-once');
   writeFileSync(join(tests, 'one.test.js'), `import { test } from 'node:test';
 import { appendFileSync } from 'node:fs';
