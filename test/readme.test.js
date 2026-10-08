@@ -35,6 +35,53 @@ test('README has the approved centered header, logo and one-line facts [I10,I12]
   assert.ok(readFileSync(join(ROOT, 'docs/img/logo-dark.svg'), 'utf8').startsWith('<svg '), 'the approved dark logo is present');
 });
 
+test('README names DOCTRINE.md and explains doctrine once [I12]', () => {
+  const gloss = 'the house rules for agentic development';
+  const layout = FIGURES.layout();
+  const firstDoctrine = README.indexOf('Doctrine');
+  const firstGloss = README.indexOf(gloss);
+  assert.ok(firstDoctrine >= 0, 'the README introduces Doctrine');
+  assert.equal(README.slice(firstDoctrine, firstGloss), 'Doctrine (', 'the first doctrine mention carries its gloss');
+  assert.equal(README.split(gloss).length - 1, 1, 'the README glosses doctrine once, at its first mention');
+  assert.match(README, /`DOCTRINE\.md`/u, 'the README names the current doctrine file');
+  assert.doesNotMatch(README, /PRACTICE\.md/u, 'the README uses the current doctrine filename');
+  assert.match(layout, /<text class="mono label"[^>]*>DOCTRINE\.md<\/text>/u, 'the location figure names the current doctrine file');
+  assert.doesNotMatch(layout, /PRACTICE\.md/u, 'the location figure leaves the legacy filename to migration guidance');
+});
+
+test('current docs pages and shipped skills use DOCTRINE.md, reserving PRACTICE.md for history or fallback [I12]', () => {
+  /**
+   * List the current Markdown contracts recursively so newly added docs and shipped skills join the audit.
+   * @param {string} directory
+   * @returns {string[]}
+   */
+  function markdownFiles(directory) {
+    return readdirSync(join(ROOT, directory), { withFileTypes: true }).flatMap((entry) => {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) return markdownFiles(path);
+      return entry.isFile() && (entry.name.endsWith('.md') || entry.name === 'SKILL.md') ? [path] : [];
+    });
+  }
+
+  const files = [...markdownFiles('docs'), ...markdownFiles('skills')].sort();
+  assert.ok(files.includes('docs/rfcs/0001-standard-doctrine.md'));
+  const specProof = readFileSync(join(ROOT, 'docs/proof/spec.md'), 'utf8');
+  assert.match(specProof, /This checkout still uses legacy `PRACTICE\.md`; new repos use `DOCTRINE\.md`, and `PRACTICE\.md` remains a compatibility fallback/u, 'the proof table is anchored by its explicit legacy-fallback introduction');
+  for (const file of files) {
+    const text = readFileSync(join(ROOT, file), 'utf8');
+    for (const [index, line] of text.split('\n').entries()) {
+      if (!line.includes('PRACTICE.md')) continue;
+      if (file === 'docs/proof/spec.md' && line.startsWith('| S')) continue; // historical proof rows follow the page's legacy-fallback introduction
+      assert.match(line, /legacy|fallback|histor|at the time/i, `${file}:${index + 1} labels PRACTICE.md as legacy, fallback or history`);
+    }
+  }
+
+  const rfc = readFileSync(join(ROOT, 'docs/rfcs/0001-standard-doctrine.md'), 'utf8');
+  assert.match(rfc, /`DOCTRINE\.md`/u, 'the accepted RFC names the current file');
+  assert.match(rfc, /legacy `PRACTICE\.md` remains a compatibility fallback/u, 'the accepted RFC labels the old name only as a fallback');
+  assert.match(rfc, /At the time of this RFC, `pullboard init` copied/u, 'the RFC keeps its old filename in clearly historical context');
+});
+
 /**
  * Every text in a figure with the box it may take up, from its anchor, font size and length.
  *
@@ -125,7 +172,7 @@ test('README pins its approved Philosophy, Key concepts and Why structure [I10,I
   assert.ok(philosophy >= 0 && philosophy < concepts && concepts < whyStart && whyStart < nextTopLevel, 'Philosophy contains Key concepts and Why before the next top-level section');
   const section = README.slice(philosophy, nextTopLevel);
   for (const text of [
-    'You do not explain twice. You rule the agents. Hierarchy is enforced. Judgement is yours. Declare it, the Doctrine stands. **You speak the constraints, agents fill in the blanks.** The Spec is canon. Then code. Then proof.',
+    'You do not explain twice. You rule the agents. Hierarchy is enforced. Judgement is yours. Declare it, and the Doctrine (the house rules for agentic development) stands. **You speak the constraints, agents fill in the blanks.** The Spec is canon. Then code. Then proof.',
     'Five primitives. Everything else is built on them.',
     '**Items.**', '**Shouts.**', '**Spec.**', '**Doctrine.**', '**Activity.**',
     "**It said done. It wasn't.**", '**It forgot what you decided.**',

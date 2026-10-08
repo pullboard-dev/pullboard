@@ -1,11 +1,13 @@
 /** Device-only relay transport: cookie authorization, local keys and authenticated ciphertext [H5,H15]. */
-import { decodeBoardKey, unseal } from './seal.js';
+import { decodeBoardKey, seal, unseal } from './seal.js';
+import { preparePersonRequest, validatePersonRequest } from './person-request.js';
 import { snapshotState, presentationState } from './model.js';
 import { ENGINE_VERSION } from './engine.js';
 import { Refused } from './refused.js';
 
 const KEYS = 'pullboard.relay.keys.v1';
 const PENDING = 'pullboard.relay.pair.v1';
+const OUTBOX = 'pullboard.relay.requests.v1.';
 const BOARD = /^[0-9a-f]{32}$/;
 
 /** Read private browser storage without turning unavailable storage into a credential diagnostic. */
@@ -35,13 +37,14 @@ function transportBytes(value) {
 }
 
 /** Fetch only same-origin API documents, retaining stable refusal guidance and no provider details. */
-async function documentAt(path, onDenied) {
-  const response = await fetch(path, { credentials: 'same-origin', cache: 'no-store', redirect: 'error' });
+async function documentAt(path, onDenied, options = {}) {
+  const response = await fetch(path, { ...options, credentials: 'same-origin', cache: 'no-store', redirect: 'error' });
   const document = await response.json();
   if (!response.ok) {
     const error = document.error;
     if ([401, 403].includes(response.status) || error?.code === 'NO_BOARD') onDenied?.();
-    throw new Error(error ? '[' + error.code + '] ' + error.message : 'The relay did not answer. Sign in again or retry.');
+    if (error) throw new Refused(error.code, error.message);
+    throw new Refused('RELAY_UNAVAILABLE', 'The relay did not answer. Sign in again or retry.');
   }
   if (document.version !== 1) throw new Error('This relay API version is unsupported. Upgrade this browser client.');
   return document;
@@ -75,7 +78,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     const element = document.getElementById('relay-notice');
     if (!element) return;
     element.replaceChildren();
-    const lines = ['Read-only relay view. Acting from the relay is coming.'];
+    const lines = ['Requests from this device wait for a linked machine to run Pullboard.'];
     const unpaired = available.filter(board => !paired.has(board.id));
     for (const board of unpaired) lines.push(board.repository + ': pair this browser using a link or QR from a linked machine.');
     for (const warning of warnings) if (warning?.code === 'BOARD_INACTIVE' && Number.isInteger(warning.daysLeft)) {
@@ -149,6 +152,21 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     const plain = await unseal(entry.key, transportBytes(row.sealed), { boardId: entry.id, kind: row.kind, sequence: row.event_id });
     const move = JSON.parse(new TextDecoder().decode(plain));
     if (accessLost) throw new Error('Sign in again to read this board.');
+    if (row.kind === 'request') {
+      let request;
+      let error;
+      try {
+        request = validatePersonRequest(move);
+        if (row.sender?.kind !== 'person' || typeof row.sender.userId !== 'string' || !row.sender.userId) throw new Refused('RELAY_PERSON_ONLY', 'Only the authenticated person sends requests. Sign in with the person session.');
+      } catch (cause) { if (!(cause instanceof Refused)) throw cause; error = { code: cause.code, message: cause.message, next: 'Read the reason and send a revised request from the view.' }; }
+      const record = { id: request?.id ?? 'refused-' + row.event_id, sequence: row.event_id, at: row.event_at,
+        by: row.sender?.kind === 'person' ? 'person' : row.sender?.agent ?? '(unknown sender)',
+        move: request?.move ?? null, status: error ? 'refused' : 'waiting', ...(error ? { error } : {}) };
+      entry.state.personRequests ??= [];
+      if (!entry.state.personRequests.some(value => value.id === record.id)) entry.state.personRequests.push(record);
+      entry.cursor = row.event_id;
+      return;
+    }
     if (move.version !== 1 || !Number.isSafeInteger(move.engine) || move.engine < 1) throw new Error('This sealed move has an unsupported format. Refresh it from a linked machine.');
     if (move.engine !== ENGINE_VERSION) throw new Refused('RELAY_ENGINE_VERSION', 'This board needs engine ' + move.engine + '; this browser reads engine ' + ENGINE_VERSION + '. Upgrade the browser client.');
     if (move.presentation) {
@@ -179,7 +197,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     entry.stream?.close();
     const stream = new EventSource('/api/v1/boards/' + entry.id + '/events?after=' + entry.cursor);
     entry.stream = stream;
-    entry.queue = Promise.resolve();
+    entry.queue ??= Promise.resolve();
     stream.onmessage = event => {
       entry.queue = entry.queue.then(async () => {
         const document = JSON.parse(event.data);
@@ -221,7 +239,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
       const encoded = pair?.board === board.id ? pair.key : keys[board.id];
       if (!encoded) continue;
       try {
-        const entry = { id: board.id, key: decodeBoardKey(encoded), cursor: -1, state: null };
+        const entry = { id: board.id, key: decodeBoardKey(encoded), cursor: -1, state: null, outbox: null };
         await snapshot(entry);
         await catchUp(entry);
         if (accessLost) throw new Error('Sign in again to read this board.');
@@ -242,6 +260,94 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     };
   }
 
+  /** Save only ciphertext on the device so an interrupted send retains its stable request id. */
+  function saveOutbox(entry) {
+    try {
+      if (entry.outbox) localStorage.setItem(OUTBOX + entry.id + '.' + entry.outbox.id, JSON.stringify(entry.outbox));
+    } catch { throw new Refused('REQUEST_STORAGE', 'This browser cannot save the sealed request. Enable device storage before sending it.'); }
+  }
+
+  /** Read each independently saved request so another tab cannot overwrite or clear its intent. */
+  function pendingRequests(entry) {
+    const values = [];
+    try {
+      const prefix = OUTBOX + entry.id + '.';
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index);
+        if (key?.startsWith(prefix)) {
+          const value = stored(localStorage, key, null);
+          if (!value || typeof value.id !== 'string' || key !== prefix + value.id) throw new Error('invalid saved request');
+          values.push(value);
+        }
+      }
+    } catch { throw new Refused('REQUEST_STORAGE', 'The browser cannot read its saved sealed requests. Restore device storage before sending again.'); }
+    return values.sort((left, right) => left.sequence - right.sequence || left.id.localeCompare(right.id));
+  }
+
+  /** Remove only the acknowledged request's storage entry, preserving another tab's pending intent. */
+  function acknowledge(entry, id) {
+    try { localStorage.removeItem(OUTBOX + entry.id + '.' + id); }
+    catch { throw new Refused('REQUEST_STORAGE', 'The request was received, but device storage could not record that acknowledgement. Retry this board.'); }
+    entry.outbox = null;
+  }
+
+  /** Reconcile previously authorized sealed sends before returning state or accepting another action. */
+  async function flushOutbox(entry) {
+    for (const pending of pendingRequests(entry)) {
+      entry.outbox = pending;
+      await sendOutbox(entry);
+    }
+  }
+
+  /** Serialize browser reads, sends and live events through the same per-board cursor owner. */
+  function enqueue(entry, work) {
+    const task = (entry.queue ?? Promise.resolve()).then(work);
+    entry.queue = task.catch(() => {});
+    return task;
+  }
+
+  /** Seal an unchanged intent at its current public sequence after another client wins the order. */
+  async function requestEnvelope(entry, value, sequence) {
+    const bytes = await seal(entry.key, new TextEncoder().encode(JSON.stringify(value)), { boardId: entry.id, kind: 'request', sequence });
+    let binary = '';
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return { id: value.id, sequence, sealed: btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '') };
+  }
+
+  /** Send a durable opaque intent, repairing order collisions without creating another request. */
+  async function sendOutbox(entry) {
+    const pending = entry.outbox;
+    if (!pending) return null;
+    const plain = await unseal(entry.key, transportBytes(pending.sealed), { boardId: entry.id, kind: 'request', sequence: pending.sequence });
+    const value = validatePersonRequest(JSON.parse(new TextDecoder().decode(plain)));
+    if (value.id !== pending.id) throw new Refused('REQUEST_STORAGE', 'The saved request is inconsistent. Pair this browser again.');
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await snapshot(entry);
+      await catchUp(entry);
+      const received = entry.state.personRequests?.find(record => record.id === value.id);
+      if (received) { acknowledge(entry, value.id); return { version: 1, event: null, result: { request: received } }; }
+      if (entry.outbox.sequence !== entry.cursor + 1) {
+        entry.outbox = await requestEnvelope(entry, value, entry.cursor + 1);
+        saveOutbox(entry);
+      }
+      const envelope = entry.outbox;
+      let response;
+      try {
+        response = await documentAt('/api/v1/boards/' + entry.id + '/requests', denied, {
+          method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sequence: envelope.sequence, sealed: envelope.sealed }),
+        });
+      } catch (error) { if (['SEQUENCE_REPEAT', 'SEQUENCE_GAP'].includes(error.code)) continue; throw error; }
+      if (response.event?.event_id !== envelope.sequence || response.event.kind !== 'request' || response.event.sealed !== envelope.sealed) throw new Refused('RELAY_RESPONSE', 'The relay acknowledgement differs from this request. Retry this board.');
+      await receive(entry, response.event);
+      const record = entry.state.personRequests.find(request => request.id === value.id);
+      if (!record) throw new Refused('RELAY_RESPONSE', 'The request acknowledgement has no receipt. Retry this board.');
+      acknowledge(entry, value.id);
+      onUpdate();
+      return { version: 1, event: response.event, result: { request: structuredClone(record) } };
+    }
+    throw new Refused('RELAY_BUSY', 'Other clients kept winning the relay order. Retry this saved request.');
+  }
+
   /** Pair a link opened in this already-loaded page as well as one opened on a fresh visit. */
   async function pairingChanged() {
     try { pair = rememberPairing() ?? pair; await listing(); onUpdate(); }
@@ -251,21 +357,35 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
   addEventListener('pagehide', () => { for (const entry of paired.values()) entry.stream?.close(); });
   await listing();
   return {
-    /** Supply the same decoded API documents as the local view, refusing every browser action. */
+    /** Return decoded API state or seal narrow person intent; no board key or plaintext leaves the device. */
     async request(path, body) {
-      if (body !== undefined && body !== null) throw new Error('This is a read-only relay view. Acting from the relay is coming.');
       const url = new URL(path, location.origin);
       if (url.origin !== location.origin) throw new Error('Use this relay origin to read a board.');
-      if (url.pathname === '/api/v1/boards') return listing();
-      const match = /^\/api\/v1\/boards\/([0-9a-f]{32})\/(state|events)$/.exec(url.pathname);
+      if (url.pathname === '/api/v1/boards') { if (body !== undefined && body !== null) throw new Refused('BAD_REQUEST', 'Send person intent to a paired board.'); return listing(); }
+      const match = /^\/api\/v1\/boards\/([0-9a-f]{32})\/(state|events|moves|requests)$/.exec(url.pathname);
       const entry = match && paired.get(match[1]);
       if (!entry) throw new Error('Pair this browser to read that board.');
-      await entry.queue;
-      await snapshot(entry);
-      await catchUp(entry);
-      if (entry.stream?.readyState === EventSource.CLOSED) subscribe(entry);
-      if (match[2] === 'state') return { version: 1, state: entry.state };
-      return { version: 1, events: [...entry.state.events].reverse() };
+      if (body !== undefined && body !== null) {
+        if (!['moves', 'requests'].includes(match[2])) throw new Refused('BAD_REQUEST', 'Send person intent to this board’s moves endpoint.');
+        const value = preparePersonRequest(body);
+        const send = enqueue(entry, async () => {
+          await flushOutbox(entry);
+          await snapshot(entry); await catchUp(entry);
+          entry.outbox = await requestEnvelope(entry, value, entry.cursor + 1);
+          saveOutbox(entry);
+          return sendOutbox(entry);
+        });
+        return send;
+      }
+      if (!['state', 'events'].includes(match[2])) throw new Refused('BAD_REQUEST', 'Read this board’s state or events endpoint.');
+      return enqueue(entry, async () => {
+        await flushOutbox(entry);
+        await snapshot(entry);
+        await catchUp(entry);
+        if (entry.stream?.readyState === EventSource.CLOSED) subscribe(entry);
+        if (match[2] === 'state') return { version: 1, state: entry.state };
+        return { version: 1, events: [...entry.state.events].reverse() };
+      });
     },
   };
 }

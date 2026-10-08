@@ -4,6 +4,7 @@ import * as store from './board.js';
 import { refusalDocument } from './json.js';
 import { ENGINE_VERSION } from './machine.js';
 import { Refused } from './refused.js';
+import { requestMoveProblem, recordRequestMove } from './relay-requests.js';
 import { relayMoveActor, relaySenderProblem } from './relay-sender.js';
 
 /** Only these public board operations may be requested by an encrypted move. */
@@ -74,7 +75,7 @@ export function prepareEngineMove(board, operation, args, { id = randomUUID() } 
 }
 
 /** Stop before interpreting actors or operations that a newer engine may have changed. */
-function requireSupportedEngine(move) {
+export function requireSupportedEngine(move) {
   if (Number.isSafeInteger(move?.engine) && move.engine > ENGINE_VERSION) throw new Refused('ENGINE_VERSION', `move engine version ${move.engine} is newer than this pullboard engine version ${ENGINE_VERSION}; upgrade pullboard before applying the relay order`);
 }
 
@@ -167,12 +168,17 @@ export function applyEngineMove(board, move, { sequence, at }) {
       board.clock = { now: () => new Date(at) };
       const firstEvent = board.emittedEvents?.length ?? 0;
       try {
-        const result = store.atomic(board, () => store[move.operation](board, ...executableArgs(move)));
+        const result = store.atomic(board, () => {
+          const problem = requestMoveProblem(board, move);
+          if (problem) throw problem;
+          return store[move.operation](board, ...executableArgs(move));
+        });
         outcome = { result: result ?? null, events: (board.emittedEvents?.slice(firstEvent) ?? []).map((event) => ({ ...event })) };
       } catch (error) {
         if (!(error instanceof Refused)) throw error;
         outcome = { error: refusalDocument(error).error };
       } finally { board.clock = clock; }
+      recordRequestMove(board, move, outcome, sequence, at);
       metadata(board, 'relay_receipt_' + move.id, JSON.stringify({ sequence, move: encoded, outcome }));
     }
     metadata(board, 'relay_applied_sequence', String(sequence));
