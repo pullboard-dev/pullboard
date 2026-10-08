@@ -3346,6 +3346,7 @@ test('Roadmap and rule prose references stay inline and open the item on their o
   box.run(other.repo, 'add', 'web', 'Remote target', '--specs', 'G1', '--criterion', 'target');
   box.run(other.repo, 'add', 'web', 'Remote title links to #1', '--specs', 'G1', '--criterion', 'title');
   box.run(demo.repo, 'milestone', 'add', 'Choose #1', '--note', 'Review #1 next.', '--items', '2,beacon-prose#2');
+  box.run(demo.repo, 'shout', 'person', 'Choose #1 before shipping.', '--decision');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-prose-references-chrome-'));
   let chrome;
@@ -3391,6 +3392,10 @@ test('Roadmap and rule prose references stay inline and open the item on their o
       assert.equal(await chrome.evaluate("document.querySelectorAll('#detail .verdict .note .ref').length"), 1, 'verdict prose keeps its item reference');
       await chrome.evaluate("document.querySelector('#detail .verdict .note .ref').click()");
       await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Local target')");
+      await chrome.evaluate("document.querySelector('#needs .ny-open[data-go^=\"decide:\"]').click()");
+      assert.equal(await chrome.evaluate("document.querySelectorAll('#answering-q .ref').length"), 1, 'the answering question keeps its inline item reference');
+      await chrome.evaluate("document.querySelector('#answering-q .ref').click()");
+      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Local target') && document.querySelector('[data-tab=items].on')");
       await chrome.evaluate("document.querySelector('[data-tab=roadmap]').click(); document.querySelector('#roadmap .milestone-item[role=button]:not([data-board])').dispatchEvent(new KeyboardEvent('keydown', {key:'Enter',bubbles:true}))");
       await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Local title links to #1') && document.querySelector('[data-tab=items].on')");
     }

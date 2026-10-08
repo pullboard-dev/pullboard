@@ -1101,7 +1101,9 @@ function answer(id) {
   view.answering = ask ? { root: view.root, id: ask.shout_id } : null;
   $('answering').hidden = !ask;
   $('answering-who').textContent = ask ? ask.shout_from : '';
-  $('answering-q').innerHTML = ask ? rich(ask.shout_text, new Map(data.project.items.map((i) => [String(i.id), i.title]))) : '';
+  const question = ask ? linked(ask.shout_text, new Map(data.project.items.map((i) => [String(i.id), i.title]))) : '';
+  if (question.includes('<button class="ref"')) $('answering-q').innerHTML = question;
+  else $('answering-q').textContent = ask ? ask.shout_text : '';
   if (ask) $('shout-to').value = ask.shout_from;
   $('shout-to').disabled = Boolean(ask);
   $('shout-send').textContent = ask ? 'Answer' : 'Shout';
