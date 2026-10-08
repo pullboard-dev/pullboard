@@ -1800,7 +1800,7 @@ test('accept installs ignored dependencies from frozen policy and doctor audits 
   let item;
   try { item = store.getItem(board, 1); }
   finally { store.closeBoard(board); }
-  writeFileSync(join(box.web, 'pullboard.json'), JSON.stringify({ ...JSON.parse(readFileSync(join(box.web, 'pullboard.json'), 'utf8')), check: { install: 'echo malicious-install-ran; exit 7', timeout: '5m' } }));
+  writeFileSync(join(box.web, 'pullboard.json'), JSON.stringify({ ...JSON.parse(readFileSync(join(box.web, 'pullboard.json'), 'utf8')), check: { install: 'echo malicious-install-ran; exit 7', timeout: '1ms' } }));
   const changed = attackCommit(box, box.web);
   const proof = checkAtCommit(box.repo, { ...item, item_commit: changed });
   assert.equal(proof.state, 'pass');
@@ -1828,6 +1828,21 @@ test('accept reports failed install as CHECK_UNVERIFIED with an output digest [V
   assert.match(error.message, /install failed/);
   assert.match(error.message, /output digest/);
   assert.match(error.message, /install-failed/);
+});
+
+test('private check digest keeps install and noisy check output in separate sections [V18,V2]', () => {
+  const box = privateCheckSubmission({
+    install: 'echo install-marker',
+    check: 'i=0; while [ "$i" -lt 200 ]; do echo noisy-check-output-$i; i=$((i + 1)); done; echo check-failed; exit 1',
+  });
+  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  let item;
+  try { item = store.getItem(board, 1); }
+  finally { store.closeBoard(board); }
+  const proof = checkAtCommit(box.repo, item);
+  assert.equal(proof.state, 'red');
+  assert.match(proof.report, /install output:\ninstall-marker/);
+  assert.match(proof.report, /check output:[\s\S]*check-failed/);
 });
 
 test('accept reports a frozen check timeout as CHECK_UNVERIFIED [V18,V2]', () => {
@@ -1858,21 +1873,34 @@ test('private check timeout kills a TERM-resistant shell and its tracked child [
   const item = { item_frozen: JSON.stringify({ check }), item_claim_head: commit, item_commit: commit };
   const modulePath = resolve(import.meta.dirname, '../src/trusted-policy.js');
   const source = `import { checkAtCommit } from ${JSON.stringify(modulePath)}; console.log(JSON.stringify(checkAtCommit(process.argv[1], JSON.parse(process.argv[2]))));`;
-  const outer = spawnSync(process.execPath, ['--input-type=module', '-e', source, box.repo, JSON.stringify(item)], {
-    cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 3000, detached: true,
-  });
-  if (outer.pid) {
-    try { process.kill(-outer.pid, 'SIGKILL'); } catch { /* The outer proof process has exited. */ }
+  const shellPidFile = join(box.dir, 'private-check-shell.pid');
+  const trackedCheck = `echo $$ > '${shellPidFile}'; ${check}`;
+  const trackedItem = { ...item, item_frozen: JSON.stringify({ check: trackedCheck }) };
+  let outer;
+  try {
+    outer = spawnSync(process.execPath, ['--input-type=module', '-e', source, box.repo, JSON.stringify(trackedItem)], {
+      cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 3000, detached: true,
+    });
+    assert.equal(outer.error, undefined, outer.error?.message);
+    assert.equal(outer.status, 0, outer.stderr);
+    assert.equal(JSON.parse(outer.stdout).stage, 'check timed out');
+    const childPid = Number(readFileSync(pidFile, 'utf8').trim());
+    let childAlive = true;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      try { process.kill(childPid, 0); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10); }
+      catch { childAlive = false; break; }
+    }
+    assert.equal(childAlive, false, 'the tracked grandchild exits after its timeout');
+  } finally {
+    const fixturePids = [pidFile, shellPidFile].flatMap(path => {
+      try { return [Number(readFileSync(path, 'utf8').trim())]; }
+      catch { return []; }
+    }).filter(pid => Number.isSafeInteger(pid) && pid > 0 && pid !== process.pid);
+    if (outer?.error?.code === 'ETIMEDOUT' && outer.pid) fixturePids.push(outer.pid);
+    for (const pid of new Set(fixturePids)) {
+      try { process.kill(pid, 'SIGKILL'); } catch { /* This fixture process has already exited. */ }
+    }
   }
-  assert.equal(outer.error, undefined, outer.error?.message);
-  assert.equal(outer.status, 0, outer.stderr);
-  assert.equal(JSON.parse(outer.stdout).stage, 'check timed out');
-  const childPid = Number(readFileSync(pidFile, 'utf8').trim());
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    try { process.kill(childPid, 0); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10); }
-    catch { return; }
-  }
-  assert.throws(() => process.kill(childPid, 0), /ESRCH/);
 });
 
 test('the blind gate-bypass repro refuses submit and accept, and doctor audits pre-merge policy [V4,V16,L3,M3]', () => {
