@@ -87,8 +87,8 @@ export async function followStream({ url, signal, request, onMessage, onFailure,
       await readResponse(response, signal, onMessage);
     } catch (error) {
       if (signal.aborted) return;
-      if (error instanceof StreamMessageFailure) {
-        onFailure(error.cause, { fatal: true });
+      if (error instanceof StreamMessageFailure || error?.fatal === true) {
+        onFailure(error instanceof StreamMessageFailure ? error.cause : error, { fatal: true });
         return;
       }
       onFailure(error, { fatal: false });

@@ -69,6 +69,30 @@ test('a rejected sealed-message handler stops the stream and does not poison the
   assert.equal(nextOperationRan, true, 'the failed stream task is handled and later board work remains usable');
 });
 
+test('an HTTP engine-version refusal is shown once and stops reconnect attempts [H16,H3]', async () => {
+  const controller = new AbortController();
+  let requests = 0;
+  let notice = '';
+  let fatal = false;
+  await followStream({
+    url: () => '/events?after=0',
+    signal: controller.signal,
+    retryMs: 10,
+    request: async () => {
+      requests += 1;
+      const response = new Response(JSON.stringify({ error: { code: 'ENGINE_VERSION', message: 'Upgrade pullboard before reading relay records.' } }), { status: 400 });
+      const body = await response.json();
+      const error = Object.assign(new Error('[' + body.error.code + '] ' + body.error.message), { code: body.error.code, fatal: body.error.code === 'ENGINE_VERSION' });
+      throw error;
+    },
+    onMessage: async () => {},
+    onFailure: (error, state) => { notice = error.message; fatal = state.fatal; },
+  });
+  assert.equal(requests, 1, 'old-engine refusal is not retried as a transient network failure');
+  assert.equal(fatal, true);
+  assert.match(notice, /\[ENGINE_VERSION\].*Upgrade pullboard/u, 'upgrade guidance remains visible');
+});
+
 test('aborting a pending stream read prevents reconnect and closes its reader [H16,H3]', async () => {
   const controller = new AbortController();
   let requests = 0;

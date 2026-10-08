@@ -243,7 +243,9 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
           let document;
           try { document = await response.json(); } catch { document = null; }
           if ([401, 403].includes(response.status) || document?.error?.code === 'NO_BOARD') denied();
-          throw new Refused(document?.error?.code ?? 'RELAY_UNAVAILABLE', document?.error?.message ?? 'The relay stream ended. Refresh this board.');
+          const refusal = new Refused(document?.error?.code ?? 'RELAY_UNAVAILABLE', document?.error?.message ?? 'The relay stream ended. Refresh this board.');
+          if (refusal.code === 'ENGINE_VERSION') refusal.fatal = true;
+          throw refusal;
         }
         return response;
       },
@@ -283,7 +285,11 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
           try { sessionStorage.removeItem(PENDING); } catch { /* Device storage can be unavailable. */ }
         }
         subscribe(entry);
-      } catch (error) { failure = error.code === 'RELAY_ENGINE_VERSION' ? error.message : 'Could not open this board with its saved key. Pair this browser again from a linked machine.'; }
+      } catch (error) {
+        failure = ['ENGINE_VERSION', 'RELAY_ENGINE_VERSION'].includes(error.code) || /^\[(?:ENGINE_VERSION|RELAY_ENGINE_VERSION)\]/u.test(error.message)
+          ? error.message
+          : 'Could not open this board with its saved key. Pair this browser again from a linked machine.';
+      }
     }
     notice();
     return {
