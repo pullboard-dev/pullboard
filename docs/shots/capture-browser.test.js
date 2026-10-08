@@ -68,9 +68,10 @@ test('demo capture waits for the intended HTTP document and populated board in C
   } finally {
     document.release(); state.release(); stylesheet.release();
     if (!view) view = await opening.catch(() => null);
+    // close() waits for Chrome's process close before its profile can be removed.
     if (view) await view.close();
     server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
-    await rm(base, { recursive: true, force: true });
+    await rm(base, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 });
