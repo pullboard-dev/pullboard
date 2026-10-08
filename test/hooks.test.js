@@ -50,7 +50,7 @@ test('feat and fix cite ids; cited ids exist and are not retired [C2]', () => {
 
 test('doctrine citations are namespaced; a colliding bare id warns that it resolves to SPEC.md [A5]', () => {
   const doctrine = {
-    name: 'PRACTICE.md',
+    name: 'DOCTRINE.md',
     repo: { rows: [{ id: 'G1', line: 4 }] },
     rows: [{ id: 'G1', status: 'approved' }, { id: 'PB1', status: 'approved' }],
   };
@@ -58,7 +58,7 @@ test('doctrine citations are namespaced; a colliding bare id warns that it resol
   assert.deepEqual(commitMsgProblems('feat(web): add the rule [doctrine:G1]', { rules: RULES, spec: SPEC, doctrine }), []);
   assert.match(commitMsgProblems('fix(web): add the rule [doctrine:missing]', { rules: RULES, spec: SPEC, doctrine })[0], /doctrine:missing is not in doctrine/u);
   assert.deepEqual(commitCitationWarnings('feat(web): patch the rule [G1]', { spec: SPEC, doctrine }), [
-    'G1 is a known collision at SPEC.md:2 and PRACTICE.md:4; bare ids cite SPEC.md, use doctrine:G1 for a doctrine row',
+    'G1 is a known collision at SPEC.md:2 and DOCTRINE.md:4; bare ids cite SPEC.md, use doctrine:G1 for a doctrine row',
   ]);
 });
 
