@@ -461,6 +461,17 @@ test('[A1] refusals are one JSON document with exact public error fields', () =>
   assert.match(unknownDocument.error.message, /Unknown option '--not-a-real-flag'/);
   assert.equal(unknownDocument.error.next, 'run pullboard help');
 
+  const unknownCommand = box.run(repo, 'cliam', '--json');
+  assert.equal(unknownCommand.status, 2);
+  assert.equal(unknownCommand.stderr, '');
+  const unknownCommandDocument = JSON.parse(unknownCommand.stdout);
+  assert.equal(unknownCommandDocument.version, 1);
+  assertRequiredShape(unknownCommandDocument, JSON_SHAPES.error.required, 'error envelope');
+  assertRequiredShape(unknownCommandDocument.error, JSON_SHAPES.errorFields, 'error');
+  assert.equal(unknownCommandDocument.error.code, 'USAGE');
+  assert.match(unknownCommandDocument.error.message, /no command "cliam"; closest match is "claim"/);
+  assert.match(unknownCommandDocument.error.next, /pullboard help --all/);
+
   const valid = readFileSync(join(repo, 'SPEC.md'), 'utf8');
   writeFileSync(join(repo, 'SPEC.md'), `${valid}\n- G2 [maybe, must] Bad status.\n`);
   const textCheck = box.run(repo, 'spec', 'check');
