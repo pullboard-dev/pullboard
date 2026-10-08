@@ -4,7 +4,7 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, wri
 import { dirname, join } from 'node:path';
 import * as store from './board.js';
 import { exportBoard, restoreRelaySnapshot } from './exchange.js';
-import { appliedSequence, applyRelayMove, checkpointSequence, engineReceipt, prepareEngineMove, startRelayEpoch } from './engine.js';
+import { appliedSequence, applyRelayMove, checkpointSequence, engineReceipt, prepareEngineMove, requireSupportedEngine, startRelayEpoch } from './engine.js';
 import { ENGINE_VERSION } from './machine.js';
 import { presentationDigest, relayPresentation, relaySnapshot } from './relay-presentation.js';
 import { repoInfo, tryGit } from './git.js';
@@ -13,6 +13,7 @@ import { encodeBoardKey, generateBoardKey, seal, unseal } from './seal.js';
 import { terminalQr } from './qr.js';
 import { Refused } from './refused.js';
 import { relaySenderProblem } from './relay-sender.js';
+import { receivePersonRequest } from './relay-requests.js';
 
 export const DEFAULT_RELAY = 'https://app.pullboard.dev';
 const LINK_FILES = new WeakMap();
@@ -341,8 +342,11 @@ async function catchUp(root, file, state, io) {
   }
   for (const record of remote.events) {
     const move = await decoded(key, record, state, record.kind, record.event_id);
+    // Legacy executable documents in the request channel still fail closed before attribution.
+    if (record.kind === 'request' && move?.engine !== undefined) requireSupportedEngine(move);
     localRecords(root, (board) => {
-      applyRelayMove(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender, kind: record.kind });
+      if (record.kind === 'request') receivePersonRequest(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender });
+      else applyRelayMove(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender, kind: record.kind });
     });
   }
   state.sequence = localRecords(root, appliedSequence);
@@ -419,9 +423,20 @@ export async function relayOperation(root, operation, args, io, command) {
       delete state.pending;
       saveLink(file, state);
     }
+    const previousReceipt = io.personRequestMoveId && localRecords(root, board => engineReceipt(board, io.personRequestMoveId));
+    if (previousReceipt) {
+      if (state.recovered?.move?.id === io.personRequestMoveId) {
+        delete state.recovered;
+        saveLink(file, state);
+      }
+      if (previousReceipt.outcome.error) throw new Refused(previousReceipt.outcome.error.code, previousReceipt.outcome.error.message);
+      for (const event of previousReceipt.outcome.events ?? []) io.onEvent?.(event);
+      return previousReceipt.outcome.result;
+    }
     let move = recoveredMove(root, state, operation, args, command);
     if (!move) {
-      move = localRecords(root, (board) => prepareEngineMove(board, operation, args));
+      move = localRecords(root, (board) => prepareEngineMove(board, operation, args, io.personRequestMoveId ? { id: io.personRequestMoveId } : {}));
+      if (io.personRequest) move.personRequest = structuredClone(io.personRequest);
       const sequence = state.sequence + 1;
       state.pending = { move, intent: operationIntent(operation, args),
         ...(command ? { command, commandIntent: operationIntent('cli:' + command.cliOperation, command) } : {}), sequence,
@@ -435,6 +450,7 @@ export async function relayOperation(root, operation, args, io, command) {
         if (!localRecords(root, (board) => engineReceipt(board, move.id))) throw error;
       }
     }
+
     const receipt = localRecords(root, (board) => engineReceipt(board, move.id));
     if (!receipt) throw new Refused('RELAY_RESPONSE', 'the acknowledged operation has no replay receipt; fetch a consistent relay snapshot');
     delete state.recovered;
@@ -609,5 +625,18 @@ export async function relayOff(root, io) {
     rmSync(file, { force: true });
     return { linked: false, board: state.board, url: state.url, link: '', sequence: state.sequence, behind: 0,
       ...(state.alreadyDeleted ? { alreadyDeleted: true, notice: 'the relay had already deleted this board; this device is unlinked and the local board is complete' } : {}) };
+  });
+}
+
+
+/** Keep the elected native executor stable across processes while other worktrees share its link. */
+export async function relayRequestDevice(root) {
+  const file = linkFile(root);
+  if (!existsSync(file)) return null;
+  return locked(file, async () => {
+    const state = loadLink(file);
+    if (!state || state.unlinking) return null;
+    if (!state.requestDevice) { state.requestDevice = randomUUID(); saveLink(file, state); }
+    return state.requestDevice;
   });
 }

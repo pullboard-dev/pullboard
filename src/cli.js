@@ -61,6 +61,7 @@ import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
 import { relayCommandReceipt, relayCommandReceiptReported, relayLinked, relayOff, relayOn, relayOperation, relayRecovered, relayStatus, syncRelay } from './relay.js';
+import { executePersonRequests } from './relay-request-execution.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
@@ -1805,7 +1806,7 @@ function workCommands(io, args) {
       const after = idList(values.after).map((text) => idArg(text, 'an item id after --after'));
       const title = [second, ...rest].filter(Boolean).join(' ');
       const item = {
-        by: me.id,
+        by: io.personRequest?.phase === 'execute' ? store.PERSON : me.id,
         lane: first,
         title,
         criterion: values.criterion ?? '',
@@ -1904,10 +1905,10 @@ function workCommands(io, args) {
     hold: () => act(async (ctx, board, me) => {
       if (!first || !isLane(ctx.config, first)) throw new Refused('NO_LANE', `no lane "${first ?? ''}"; see: pullboard lanes`);
       if (values.off) {
-        await ordered(ctx, board, 'releaseLane', [first, { agentId: me.id }]);
+        await ordered(ctx, board, 'releaseLane', [first, { agentId: me.id, asPerson: io.personChannel === 'view', channel: io.personChannel ?? 'terminal' }]);
         io.say(`released the ${first} lane`);
       } else {
-        await ordered(ctx, board, 'holdLane', [first, { agentId: me.id, reason: values.reason ?? '' }]);
+        await ordered(ctx, board, 'holdLane', [first, { agentId: me.id, reason: values.reason ?? '', asPerson: io.personChannel === 'view', channel: io.personChannel ?? 'terminal' }]);
         io.say(`holding the ${first} lane: ${values.reason}. Release it with: pullboard hold ${first} --off`);
       }
       io.result?.({ lane: first, held: !values.off, reason: values.off ? null : values.reason });
@@ -1956,7 +1957,7 @@ function workCommands(io, args) {
       const hasRecipient = first && recipients.includes(first);
       const to = hasRecipient ? first : values.decision ? (me.id === COORDINATOR ? 'person' : COORDINATOR) : first ?? '';
       const text = [hasRecipient ? second : first, ...(hasRecipient ? rest : [second, ...rest])].filter(Boolean).join(' ');
-      const id = await ordered(ctx, board, 'shout', [{ from: me.id, to, text, lanes: laneNames(ctx.config), decision: Boolean(values.decision), evidence }]);
+      const id = await ordered(ctx, board, 'shout', [{ from: io.personRequest?.phase === 'execute' ? store.PERSON : me.id, to, text, lanes: laneNames(ctx.config), decision: Boolean(values.decision), evidence }]);
       io.result?.({ id, decision: Boolean(values.decision) });
       io.say(values.decision ? `asked ${to} for a decision as #${id}; it stays open until someone runs: pullboard answer ${id} "<the decision>"` : `shouted to ${to}`);
       return 0;
@@ -2353,7 +2354,7 @@ async function runCommand(argv, io) {
     if (command === 'relay') {
       if (second || rest.length || (first && !['on', 'off'].includes(first)) || (values.url && first !== 'on')) throw new Refused('USAGE', 'pullboard relay [on|off] [--url <address>]');
       const ctx = context(io);
-      if (!first) await syncRelay(ctx.info.root, io);
+      if (!first) { await syncRelay(ctx.info.root, io); await executePersonRequests(ctx.info.root, io, main); }
       const result = first === 'on' ? await relayOn(ctx.info.root, values.url, io)
         : first === 'off' ? await relayOff(ctx.info.root, io) : relayStatus(ctx.info.root);
       io.result?.(result);
@@ -2401,7 +2402,14 @@ export async function main(argv, streams) {
       if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
     }
   };
-  if (sync) await retry();
+  if (sync) {
+    await retry();
+    try { await executePersonRequests(io.cwd, io, main); }
+    catch (error) {
+      if (!(error instanceof Refused)) throw error;
+      if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err('pullboard: ' + error.message);
+    }
+  }
   const code = await runCommand(argv, io);
   if (sync && code === 0) await retry();
   io.flush(code);

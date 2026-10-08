@@ -899,7 +899,9 @@ test('an open decision counts in the sidebar and the tab title [B21, B26, N26]',
     box.run(beta.repo, 'answer', '3', 'after', '--as', 'person');
     await page.run('refresh()');
     assert.deepEqual(rows(), [['alpha', '', 'nothing open'], ['beta', '', 'nothing open']], 'answered, they need no one');
-    assert.match(box.run(beta.web, 'inbox'), /person -> web-1: answers \\?#1: Person answered \\?#2: yes/, "the person's answer reaches the agent that asked");
+    const replies = JSON.parse(box.run(beta.web, 'inbox', '--json')).shouts.filter((shout) => shout.shout_answers === 1);
+    assert.deepEqual(replies.map((shout) => [shout.shout_from, shout.shout_to, shout.shout_answers, shout.shout_text]),
+      [['person', 'web-1', 1, 'Person answered #2: yes']], "the person's answer reaches the agent that asked");
     assert.equal(page.run('document.title'), 'alpha · Pullboard');
     assert.equal(page.element('proj-elsewhere').hidden, true);
   } finally {
@@ -1484,7 +1486,9 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     await page.fire('shout-form', 'submit');
     assert.equal(page.element('console').textContent.split('\n')[0], '$ pullboard answer 42 French, then English --as person', 'the view answers as the person');
     assert.equal(page.element('console').className, 'console ok');
-    assert.match(box.run(alpha.web, 'inbox'), /person -> web-1: answers \\?#1: Person answered \\?#42: French, then English/, 'the answer reaches the agent that asked');
+    const replies = JSON.parse(box.run(alpha.web, 'inbox', '--json')).shouts.filter((shout) => shout.shout_answers === 1);
+    assert.deepEqual(replies.map((shout) => [shout.shout_from, shout.shout_to, shout.shout_answers, shout.shout_text]),
+      [['person', 'web-1', 1, 'Person answered #42: French, then English']], 'the answer reaches the agent that asked');
     assert.deepEqual(form(), { answering: false, who: '', question: '', to: 'web', locked: false, button: 'Shout' }, 'the form is a plain shout again');
     assert.equal(page.element('shout-text').value, '');
     assert.doesNotMatch(page.show('needs'), /decide:/, 'an answered decision leaves Needs-you');
@@ -1519,8 +1523,11 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     await page.fire('shout-form', 'submit');
     assert.deepEqual(form(), plain, 'an answer is never sent to another project');
     assert.equal(page.element('console').textContent.split('\n')[0], '$ pullboard answer 42 French, then English --as person', 'nothing ran');
-    assert.match(box.run(beta.repo, 'decisions', '--as', 'person'), /^#2 {2}coordinator -> person, [^:]+: Passed up from web-1: Beta asks too\?/m, "beta's ask still waits");
-    assert.match(box.run(alpha.repo, 'decisions', '--as', 'person'), /^#46 {2}coordinator -> person, [^:]+: Passed up from web-1: Ship today\?/m, "and so does alpha's");
+    /** Read the still-open decision by stable identity, independently of display-name formatting. */
+    const waiting = (repo, id) => JSON.parse(box.run(repo, 'decisions', '--as', 'person', '--json')).decisions
+      .filter((shout) => shout.shout_id === id).map((shout) => [shout.shout_from, shout.shout_to, shout.shout_text]);
+    assert.deepEqual(waiting(beta.repo, 2), [['coordinator', 'person', 'Passed up from web-1: Beta asks too?\nCoordinator note: yours too']], "beta's ask still waits");
+    assert.deepEqual(waiting(alpha.repo, 46), [['coordinator', 'person', 'Passed up from web-1: Ship today?\nCoordinator note: yours']], "and so does alpha's");
   } finally {
     await view.stop();
   }

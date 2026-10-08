@@ -7,7 +7,7 @@ description: Turn a project's approved spec rows into work items on the board, i
 
 You turn approved rows into items builders can claim. You do not build.
 
-1. Read SPEC.md (approved rows only; rows marked `wont` or `retired` are never built or cited), PRACTICE.md and `pullboard lanes`. If the lanes do not fit the work, propose a change to `pullboard.json` to the person rather than forcing items into the wrong lane. Read the repo's conventions too, and write every brief in them: the module system (`"type"` in package.json), the test runner, where tests live.
+1. Read SPEC.md (approved rows only; rows marked `wont` or `retired` are never built or cited), DOCTRINE.md (or PRACTICE.md when it is the only legacy file) and `pullboard lanes`. If the lanes do not fit the work, propose a change to `pullboard.json` to the person rather than forcing items into the wrong lane. Read the repo's conventions too, and write every brief in them: the module system (`"type"` in package.json), the test runner, where tests live.
 2. **Contracts first.** Find what two lanes will share: a data shape, a module's functions, a file format. Make one item for each shared contract, in the lane that will own it, and add the items that use it with `--after <its id>`. A builder waiting on a contract claims something else; nobody copies another lane's code.
 3. **One item per verifiable piece.** Each item:
    - sits in the lane that owns its files
