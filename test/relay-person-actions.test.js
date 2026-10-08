@@ -42,12 +42,31 @@ async function personAction(chrome, board, move) {
     + JSON.stringify('/api/v1/boards/' + board + '/moves') + ',' + JSON.stringify(move) + ')');
 }
 
-/** Wait until a native CLI visit has published the durable request status to the paired device. */
+/** Poll checkpoint completion separately from CDP's 15-second per-evaluation deadline. */
 async function waitRequest(chrome, board, id, status) {
   const path = '/api/v1/boards/' + board + '/state';
-  const testState = `(() => { const row = value.state?.personRequests?.find(entry => entry.id === ${JSON.stringify(id)}); return row?.status === ${JSON.stringify(status)}; })()`;
-  await chrome.waitFor(`(async () => { try { const value = await window.__personActionTransport.request(${JSON.stringify(path)}); return ${testState}; } catch { return false; } })()`);
-  return chrome.evaluate('window.__personActionTransport.request(' + JSON.stringify(path) + ')');
+  const predicate = `value.state?.personRequests?.some(entry => entry.id === ${JSON.stringify(id)} && entry.status === ${JSON.stringify(status)})`;
+  // A serialized stream task may wait up to 15 seconds for a checkpoint. Let the page finish
+  // that task and perform another state read, while each CDP evaluation remains synchronous.
+  await chrome.evaluate(`(() => {
+    window.__personActionReceipt = null;
+    (async () => {
+      const deadline = Date.now() + 30000;
+      while (Date.now() < deadline) {
+        try {
+          const value = await window.__personActionTransport.request(${JSON.stringify(path)});
+          if (${predicate}) { window.__personActionReceipt = { value }; return; }
+        } catch { /* A checkpoint still being uploaded leaves the request waiting. */ }
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      window.__personActionReceipt = { error: 'The native request status did not reach the paired browser.' };
+    })();
+    return true;
+  })()`);
+  await chrome.waitFor('window.__personActionReceipt !== null', 45000);
+  const receipt = await chrome.evaluate('window.__personActionReceipt');
+  assert.equal(receipt.error, undefined, receipt.error);
+  return receipt.value;
 }
 
 test('real paired person adds, answers a person decision, and holds then releases a lane [H12,H16,B26]', {
