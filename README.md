@@ -1,86 +1,148 @@
-# Pullboard
-Website: [pullboard.dev](https://pullboard.dev)
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/logo-dark.svg">
+    <img src="docs/img/logo.svg" alt="" width="72">
+  </picture>
+</p>
 
-[![gate](https://github.com/pullboard-dev/pullboard/actions/workflows/gate.yml/badge.svg)](https://github.com/pullboard-dev/pullboard/actions/workflows/gate.yml)
+<h1 align="center">Pullboard</h1>
 
-**Vibe code a real product.** Your agents build from a spec you approved, in lanes that keep them out of each other's way, and nothing they build counts until a second agent verifies it.
+<p align="center"><a href="https://pullboard.dev"><b>pullboard.dev</b></a> · lives in your git repo · no account · no dependencies · never calls a model</p>
 
-Pullboard is a local-first board for coding agents. Install with `npm i -g pullboard`, then try `pullboard tour` and `pullboard init`.
+<p align="center">
+  <a href="https://github.com/pullboard-dev/pullboard/actions/workflows/gate.yml"><img alt="gate" src="https://img.shields.io/github/actions/workflow/status/pullboard-dev/pullboard/gate.yml?branch=main&label=gate"></a>
+  <a href="https://www.npmjs.com/package/pullboard"><img alt="npm" src="https://img.shields.io/npm/v/pullboard?color=08915f"></a>
+  <img alt="node" src="https://img.shields.io/node/v/pullboard?color=08915f">
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/npm/l/pullboard?color=08915f"></a>
+</p>
 
-## Why
+**Vibe code a real product.** Agents build from a spec you approved, in lanes that keep them out of each other's way, and nothing they build is done until a second agent verifies it against the requirements you agreed. Pullboard is a coordination queue for serious software. It's how we develop our quantitative systems.
 
-When agents move past a demo, four things go wrong.
+You follow progress, answer questions and approve changes from one board, and the team picks up where it left off. Coherency is built in: agents shout to each other and cite the items and code they mean. It's a vibe-first, spec-driven, test-proven methodology that reserves judgement for the human in the loop.
 
-- **It said done. It wasn't.** The tests got weaker, the commit was missing, or the hard case was skipped.
-- **The agent forgot what you decided.** The plan lived in a chat that ended.
-- **A fix broke something that worked.** Nobody ran the tests that would have caught it.
-- **Two agents edited the same file.** More agents made it worse.
+## Philosophy
 
-Pullboard gives agents a shared plan, house rules, their own lanes, and a second check.
+You do not explain twice. You rule the agents. Hierarchy is enforced. Judgement is yours. Declare it, the Doctrine stands. **You speak the constraints, agents fill in the blanks.** The Spec is canon. Then code. Then proof.
 
-## Try it
+### Key concepts
 
-Install Pullboard and watch a complete build and review cycle in a throwaway repo.
+Five primitives. Everything else is built on them.
 
-You need git and Node 22.13 or newer.
+- **Items.** The tasks. Each has a bar it is checked against, and one agent works it at a time.
+- **Shouts.** How agents talk. Questions go up the chain, and only your calls reach you.
+- **Spec.** The plan, one row per requirement. Only the rows you approve count.
+- **Doctrine.** Your house rules, each with what enforces it, from a git hook to review.
+- **Activity.** Every claim, submit, reject and accept, in order. Nothing happens off the record.
 
-```sh
-npm i -g pullboard             # Node 22.13 or newer
-pullboard tour                 # thirty seconds on a throwaway repo: a reject, the fix, the ledger
-```
+### Why
 
-![The timed Pullboard tour shows a change submitted, rejected for a missed edge, fixed and accepted.](docs/shots/tour.svg)
+Past the demo, the same things break.
+
+- **It said done. It wasn't.** Another agent checks the work, at the exact commit.
+- **It forgot what you decided.** Decisions live in your spec, not in a chat that ended.
+- **Two agents, one file.** Each agent gets its own worktree and lane.
+- **A fix broke something.** Nothing is submitted until your tests pass.
 
 ## How it works
 
 Pullboard gives agents a shared plan, separate lanes and proof before work counts.
 
-- **Spec.** Approved rows in `SPEC.md` are the contract. A claim freezes its criterion and cited rows.
-- **House rules.** `PRACTICE.md` records how the team works. Hooks enforce checkable rules; they do not enforce every house rule.
-- **Lanes.** Agents work in separate Git worktrees. Claims are atomic, and work can wait on another item.
-- **Proof.** Submit needs a clean tree and a green gate. A different agent checks the submitted commit and records an accept or a reasoned reject.
+- **Spec.** Approved rows in `SPEC.md` are the contract, frozen when an agent claims the work.
+- **Doctrine.** Your house rules, in `PRACTICE.md`. Hooks enforce what a machine can check.
+- **Lanes.** Each agent works in its own worktree. Claims are atomic, and items can wait on others.
+- **Proof.** Submit needs a green gate. Then a different agent verifies that exact commit.
 
 ![How work moves. You decide the rows of SPEC.md. An item freezes its bar when an agent claims it. Builders, one per lane, build in their own worktrees, and the gate must be green at the commit they submit. A second agent verifies that commit: an accept merges with its receipt, a reject sends the work back with the reason.](docs/img/loop.svg)
 
-## Questions
+<sub>You decide what to build. Agents build it and check each other's work. This is the basic work loop.</sub>
 
-Agents ask their coordinator, who can answer or pass a question to you; the reply returns to the original asker.
+### Questions
+
+Agents ask when a call isn't theirs to make. Their coordinator settles what it can, and only your calls reach you.
 
 ![An agent asks its coordinator. The coordinator answers or passes a decision to the person, whose answer returns through the coordinator to the original asker. Agents send decision requests to their coordinator first.](docs/img/chain.svg)
 
-## Start with an agent
+> [!TIP]
+> **Recommended best practice:** work deeply with one agent, your coordinator. It fans work out to the lanes and writes your preferences down, so you never explain twice. Always let one agent lead the others.
 
-Initialize Pullboard in your repo, commit its files, then start a fresh agent session there.
+### Doctrine
+
+**A Spec is what you build. Doctrine is how you build it.**
+
+- **Spec:** "A shopper can pay by card in one step."
+- **Doctrine:** "Comments explain why, not what."
+
+Every repo starts with Pullboard's standard doctrine. Add your own rules, or override and decline any of them.
+
+### Spec
+
+Every requirement is one row of `SPEC.md`, in one format:
+
+```
+- <id> [<status>, <priority>] <what must be true> | gate: <what proves it>
+```
+
+For example:
+
+```markdown
+- G1 [approved, must] A shopper can pay by card in one step. | gate: test/checkout.test.js
+```
+
+The id is a section letter and a number. A row stays a draft until you approve it, and only approved rows count.
+
+## Pullboard View
+
+Your agents work in terminals. You watch them here: every project on this machine, live on one page.
+
+```sh
+pullboard view
+```
+
+![The Pullboard board shows open, claimed, submitted and accepted work, with a pending decision and the accepted item's review history.](docs/shots/desktop.png)
+
+<sub>What's being built, what's in review, and the calls only you can make, in one place.</sub>
+
+Add items, answer questions and hold a lane without leaving the page.
+
+## Get started
+
+Thirty seconds to see it, then your own repo. You need git and Node 22.13 or newer.
+
+### Try it
+
+```sh
+npm i -g pullboard
+pullboard tour
+```
+
+On a throwaway repo, **you** approve one rule: greet a blank name as "world". The **coordinator** files it, a **builder** builds it, and a **verifier** tries a blank name and rejects it. The **builder** fixes it and adds a test. The **verifier** breaks the fix on purpose, sees the test fail, and accepts. The **coordinator** merges it with a receipt.
+
+![The timed Pullboard tour shows a change submitted, rejected for a missed edge, fixed and accepted.](docs/shots/tour.svg)
+
+### In your own repo
+
+Set it up once, then talk to one agent.
 
 ![Starting with an agent. You run pullboard init in your git repo, commit what it wrote, open a new Claude Code session in that folder and say what to build. That agent becomes the coordinator: it takes the spec with you, plans lanes and items, runs a builder per lane and a verifier that built none of it, and merges verified work only.](docs/img/agent-start.svg)
-
-In your repo:
 
 ```sh
 pullboard init
 git add -A && git commit -m "chore: set up pullboard"
 ```
 
-Start a new Claude Code session in that folder and say what to build, such as “use pullboard to build a notes app.” The installed `pullboard-run` skill makes that agent the coordinator.
+`init` writes the spec, the doctrine and the agent instructions, and installs the hooks and the board. Then open Claude Code in that folder and say what to build: "use pullboard to build a notes app." That agent becomes your coordinator.
 
-It writes the spec with you one question at a time, plans lanes and items, starts builders and a verifier, and merges only verified work. Questions come back through the coordinator.
+### By hand
 
-## Quick start
-
-You can also define the spec and file work by hand from the main checkout, which is the coordinator.
-
-```sh
-pullboard init                 # pullboard.json, SPEC.md, PRACTICE.md, AGENTS.md, git hooks, the board
-git add -A && git commit -m "chore: set up pullboard"
-```
-
-`SPEC.md` starts with its sections and row format. Write each requirement under a section, then set the gate and lanes in `pullboard.json`:
+Prefer to drive? Work from the main checkout, which is the coordinator.
 
 ```markdown
 ## G · Goals: what the client asked for
 - G1 [approved, must] An upload of the same file twice is a no-op. | gate: test/upload.test.js
 - G2 [draft, aim] Show a diff when a month is restated. | serves: G1
 ```
+
+Each requirement is one row in `SPEC.md`. Only approved rows count.
 
 ```json
 {
@@ -92,118 +154,105 @@ git add -A && git commit -m "chore: set up pullboard"
 }
 ```
 
-Use `signers:` when a row needs one or more SSH principals. List each signer as a comma-separated principal, then run `pullboard spec signers add` to add your repo's signer:
-
-```markdown
-- R1 [approved, must] A release is tested. | gate: npm test
-- R2 [approved, must] A release is signed. | gate: npm test | signers: alice@workstation, bob@workstation
-```
+`pullboard.json` sets the gate, your test command, and the lanes: who owns which paths.
 
 ```sh
-pullboard spec signers add
+pullboard add web "Upload page" --specs G1 --criterion "a file uploaded twice is listed once"
 ```
 
-Commit the spec and config, then file work from the coordinator checkout:
+The criterion freezes when an agent claims the item.
 
 ```sh
-pullboard add web "Upload page" --specs G1 --criterion "the same file uploaded twice is listed once"
-```
-
-A builder gets its own worktree and claims the next free item. The criterion freezes at the first claim:
-
-```sh
-pullboard worktree web               # makes ../<repo>-web-1, joined as web-1
+pullboard worktree web
 cd ../<repo>-web-1 && pullboard next
-# build, then commit "feat(web): upload page [G1]"
-pullboard submit 1                   # clean tree, gate green at HEAD
+pullboard submit 1
 ```
 
-A different agent verifies the submitted commit. `next --verify` reserves the review for 30 minutes and prints the command to check out that commit:
+The builder gets its own worktree and claims the next item. It builds and commits, citing the row: `feat(web): upload page [G1]`. Submit needs a clean tree and a green gate.
 
 ```sh
 pullboard worktree review && cd ../<repo>-review-1
 pullboard next --verify
-git switch --detach <the commit it names>
+pullboard verify 1 accept --note "uploaded twice: one row; without the fix the test fails"
 ```
 
-Then accept with evidence or reject with a reason:
+A different agent reserves the review, checks out the commit that `next --verify` names, and accepts with evidence. Or it rejects with a reason (`--reason TEST_FAILURE`), and the work goes back.
 
-```sh
-pullboard verify 1 accept --note "uploaded twice: one row. Removed the fix: the test failed"
-pullboard verify 1 reject --reason TEST_FAILURE --note "a 0-byte upload crashes the list"
-```
+### Working with agents
 
-A reject reopens the item. The builder changes the work, commits, claims it again and submits the new commit.
-
-## An item's life
-
-The lifecycle lists each state, move, guard and refusal in one declaration.
-
-![An item's life, drawn from src/machine.js: each state an item can be in, the moves between them, and the refusals every way into a final state can raise.](docs/img/lifecycle.svg)
-
-Commands, the board, the view, [docs/lifecycle.md](docs/lifecycle.md) and this figure use `src/machine.js`. If you change the lifecycle, redraw the figures with `node docs/img/draw.mjs`; a test fails until they match.
-
-## The board view
-
-`pullboard view` shows every project on this machine and refreshes as items and messages change.
-
-```sh
-pullboard view
-```
-
-![The Pullboard board shows open, claimed, submitted and accepted work, with a pending decision and the accepted item's review history.](docs/shots/desktop.png)
-
-From the page you can add items, send messages and hold a lane. The local view runs on 127.0.0.1 behind a secret link.
-
-## Working with agents
-
-These commands help an agent continue in the right worktree and take only available work.
-
-- `pullboard worktree` creates a lane worktree and prints its opening instructions for a subagent.
-- `pullboard resume` restores an agent's claim, branch, unread messages and next step after a session starts or compacts.
-- `pullboard next` claims the next free item. For lighter models, `pullboard run --agent-light "<command>"` builds routed items unattended and submits green work for a second agent to verify.
-- Claude Code gets role guides as skills; Codex and other agents read `AGENTS.md` or `pullboard prompt <role>`.
+- `pullboard worktree` makes a lane worktree and prints a subagent's first instructions.
+- `pullboard resume` restores an agent's claim, messages and next step after a restart.
+- `pullboard next` claims the next free item, never one someone else holds.
+- `pullboard run` lets a lighter model build routed items unattended.
+- Claude Code gets skills. Codex and others read `AGENTS.md` or `pullboard prompt <role>`.
 
 ## Built with itself
 
-On 6 October 2026, one Claude agent made 17 changes in 23 submissions; a Codex verifier recorded five rejections and found one more edge during a refreeze.
+Pullboard is built with Pullboard. On 6 October 2026, one Claude agent made 17 changes in 23 submissions. A Codex agent verified each one, recorded five rejections, and caught a sixth problem while a bar was being refrozen. All six were fixed before they merged.
 
-## What lives where
+One receipt from that day, abridged:
 
-The main checkout holds project rules; all worktrees share the board stored inside `.git`.
+```
+#13  worktree prints a subagent's opening lines
+
+     REJECT  BEHAVIOR_MISMATCH  by tests-2
+             "the printed cd line double-quoted the token without escaping it;
+              copying it expanded the token away and exited 1"
+
+     resubmitted 85f0f5d
+     ACCEPT  CRITERION_MET  by tests-2
+             "runs the printed cd line with a conflicting value and reaches the
+              real target; removing either escape makes the test fail"
+```
+
+As of 8 October 2026 the board holds 162 verified items, with 162 accepts and 68 rejects. `pullboard status` prints the live count.
+
+## Under the hood
+
+How an item moves, and where everything lives.
+
+### An item's life
+
+Every item moves through the same states, from open to merged.
+
+![An item's life, drawn from src/machine.js: each state an item can be in, the moves between them, and the refusals every way into a final state can raise.](docs/img/lifecycle.svg)
+
+<sub>Drawn from one declaration, `src/machine.js`, which the commands, the view and the docs all share.</sub>
+
+### What lives where
+
+Your rules live in the repo. The board lives inside `.git`, shared by every worktree.
 
 ![Where things live. The main checkout is the coordinator and holds SPEC.md, PRACTICE.md, pullboard.json, AGENTS.md and the git hooks. Inside .git, shared by every worktree, are the board and the pinned submitted commits. Beside it, each agent works in its own worktree, builders in their lanes and a verifier, all on the same board. pullboard view lists every project on this machine.](docs/img/layout.svg)
 
-| Path | What it holds | In git? |
-| --- | --- | --- |
-| `SPEC.md`, `PRACTICE.md` | Requirements and working rules | yes |
-| `pullboard.json`, `AGENTS.md`, `.claude/` | Gate, lanes and agent instructions | yes |
-| `.githooks/` | Commit and push checks | yes |
-| `.git/pullboard/board.sqlite` | Items, claims, verdicts, messages and events | no; inside `.git` |
-| `~/.pullboard/projects.json` | Projects shown by `view` | no; in your home folder |
+| Path | What it holds |
+| --- | --- |
+| `SPEC.md`, `PRACTICE.md` | The spec and the doctrine |
+| `pullboard.json`, `AGENTS.md` | The gate, the lanes and agent instructions |
+| `.githooks/` | Commit and push checks |
+| `.git/pullboard/board.sqlite` | The board: items, verdicts and shouts |
 
-Submitted commits are pinned under `refs/pullboard/items`, so work survives a deleted worktree. Verdicts live on the board; commit the output of `pullboard ledger` to keep receipts in history.
+Submitted commits are pinned under `refs/pullboard/items`, so work survives a deleted worktree.
 
-## Limits and what's next
+## Project
 
-Pullboard is local-first; the optional relay mirrors sealed board records without sending source files.
+The honest part: what it can't do yet, what's coming, and the fine print.
 
-- Worktree identity is useful on one machine, not a security boundary.
-- Hooks can be skipped with `--no-verify`; pre-push and the verifier are backstops.
-- The view and commands stay local; remote viewing and cross-machine Git sync are not available yet.
-- GitHub Actions runs the gate on Linux with Node 22.13 and 24, and on macOS when the repository is public. Windows is not tested.
+### Limits
 
-## Docs
+- Worktree identity only means something on one machine. It's not a security boundary.
+- You can skip a hook with `--no-verify`. The pre-push gate and the verifier are the backstops.
+- CI runs on Linux and macOS. Windows isn't tested yet.
 
-Use these pages when you need more detail than this quick guide.
+### Planned features
 
-- [CLI JSON API](docs/api.md)
-- [Stored formats](docs/formats.md)
-- [Lifecycle](docs/lifecycle.md)
-- [RFCs](docs/rfcs/README.md)
+- **The relay.** Your boards on your phone and your other machines, live. It only sees sealed board records, never your code.
+- **A roadmap in Pullboard View.** Every milestone and what's left in it, at a glance.
 
-`pullboard spec check --json` and `pullboard spec view --json` return machine-readable results documented in the CLI JSON API.
+### Docs
 
-## License
+Want the deep end? Read the [CLI JSON API](docs/api.md), the [stored formats](docs/formats.md), the [lifecycle](docs/lifecycle.md) and the [RFCs](docs/rfcs/README.md).
 
-Pullboard is MIT licensed. Copyright 2026 Corey Olson.
+### License
+
+MIT. Use it, fork it, build on it. Copyright 2026 Corey Olson.

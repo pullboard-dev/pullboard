@@ -26,7 +26,7 @@ function linkedInSection(section, file, phrases) {
 }
 
 test('the README links the desktop board and timed tour with descriptive alt text [I11,I13]', () => {
-  linkedInSection('The board view', 'desktop.png', ['open', 'claimed', 'submitted', 'accepted']);
+  linkedInSection('Pullboard View', 'desktop.png', ['open', 'claimed', 'submitted', 'accepted']);
   linkedInSection('Try it', 'tour.svg', ['submitted', 'rejected', 'fixed', 'accepted']);
 });
 
