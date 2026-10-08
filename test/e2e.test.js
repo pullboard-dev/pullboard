@@ -180,6 +180,22 @@ test('init writes config, spec, agent docs and hooks once, and never clobbers [I
   assert.deepEqual(parseSpec(practice).rows, [], 'fresh init copies no standard rules [D4]');
   assert.equal(parseSpec(practice).sections.length, 6);
   assert.equal(practice.split('Inherits Pullboard standard doctrine version 1.').length, 2);
+  assert.equal(box.run(repo, 'spec', 'check').code, 0, 'fresh init has no repeated ids [A5]');
+  const specRows = parseSpec(readFileSync(join(repo, 'SPEC.md'), 'utf8'));
+  const practiceRows = parseSpec(practice);
+  const specPrefixes = specRows.sections.map(({ name }) => /^([A-Z])\s/u.exec(name)?.[1]).filter(Boolean);
+  const practicePrefixes = parseSpec(practice).sections.map(({ name }) => /^([A-Z])\s/u.exec(name)?.[1]).filter(Boolean);
+  assert.equal(specPrefixes.some((prefix) => practicePrefixes.includes(prefix)), false, 'init assigns distinct row prefixes to SPEC and PRACTICE');
+  for (const [file, parsed] of [['SPEC.md', specRows], ['PRACTICE.md', practiceRows]]) {
+    const source = readFileSync(join(repo, file), 'utf8');
+    const additions = parsed.sections.map(({ name }) => {
+      const prefix = /^([A-Z])\s/u.exec(name)?.[1];
+      return prefix ? `\n- ${prefix}1 [draft] A starter row.\n` : '';
+    }).join('');
+    writeFileSync(join(repo, file), `${source}${additions}`);
+  }
+  const representativeRows = box.run(repo, 'spec', 'check');
+  assert.equal(representativeRows.code, 0, representativeRows.err || representativeRows.out);
   assert.match(agents, /PB1 \(standard 1\)/, 'fresh guidance shows inherited rules [D3]');
   assert.ok(existsSync(join(repo, '.claude', 'skills', 'pullboard-decompose', 'SKILL.md')));
   assert.match(second.out, /kept PRACTICE.md/);

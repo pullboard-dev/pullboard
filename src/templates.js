@@ -72,7 +72,7 @@ Inherits Pullboard standard doctrine version 1.
 
 ## T · Tests
 
-## G · Git and the gate
+## P · Git and the gate
 
 ## D · Dependencies
 

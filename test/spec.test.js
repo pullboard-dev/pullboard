@@ -109,6 +109,26 @@ test('real spec check refuses future grammar in either configured file [A5]', (t
   assert.equal(box.run('check').status, 0);
 });
 
+test('spec check names both locations when ids repeat within or across configured files [A5]', (t) => {
+  const practiceRow = '# Practice\n\n## P\n- G1 [draft] A local rule.\n';
+  const crossFile = specBox(t, { practice: practiceRow });
+  const cross = crossFile.run('check');
+  assert.equal(cross.status, 1);
+  assert.match(cross.stdout, /SPEC\.md:6 G1 error: duplicate id; also appears at PRACTICE\.md:4/u);
+  assert.match(cross.stdout, /PRACTICE\.md:4 G1 error: duplicate id; also appears at SPEC\.md:6/u);
+
+  for (const [file, source, line] of [
+    ['SPEC.md', SPEC.replace('- G1.2 [draft, aim]', '- G1 [draft, aim]'), 7],
+    ['PRACTICE.md', '# Practice\n\n## P\n- P1 [draft] First.\n- P1 [draft] Second.\n', 5],
+  ]) {
+    const box = specBox(t, { practice: file === 'PRACTICE.md' ? source : undefined });
+    if (file === 'SPEC.md') writeFileSync(join(box.root, file), source);
+    const result = box.run('check');
+    assert.equal(result.status, 1);
+    assert.match(result.stdout, new RegExp(`${file}:${line} .*duplicate id; first on line`));
+  }
+});
+
 test('a grammar-1 repair can commit after grammar 2 was already recorded [A5,S8]', (t) => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-grammar-history-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));

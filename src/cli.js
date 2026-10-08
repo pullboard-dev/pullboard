@@ -1588,10 +1588,27 @@ function specCommand(io, { first, second, rest, values }) {
   if (first === 'check' || first === undefined) {
     const files = [[ctx.config.spec, spec], ...(practice.exists ? [[ctx.config.practice, practice]] : [])];
     for (const [, parsed] of files) assertRequiredSigners(ctx.info.root, parsed.rows);
+    const repeatedAcrossFiles = new Map(files.map(([name]) => [name, []]));
+    const firstLocation = new Map();
+    for (const [name, parsed] of files) {
+      for (const row of parsed.rows) {
+        const first = firstLocation.get(row.id);
+        if (first && first.name !== name) {
+          repeatedAcrossFiles.get(first.name).push({
+            level: 'error', line: first.line, id: row.id,
+            message: `duplicate id; also appears at ${name}:${row.line}`,
+          });
+          repeatedAcrossFiles.get(name).push({
+            level: 'error', line: row.line, id: row.id,
+            message: `duplicate id; also appears at ${first.name}:${first.line}`,
+          });
+        } else if (!first) firstLocation.set(row.id, { name, line: row.line });
+      }
+    }
     let errors = 0;
     const messages = [];
     for (const [name, parsed] of files) {
-      const findings = lintSpec(parsed);
+      const findings = [...lintSpec(parsed), ...repeatedAcrossFiles.get(name)];
       findings.forEach((finding) => messages.push(`${name}:${finding.line} ${finding.id ?? ''} ${finding.level}: ${finding.message}`.replace('  ', ' ')));
       const history = committedIds(ctx.info.root, name);
       const cited = name === ctx.config.spec ? citations(ctx, history) : new Map();
