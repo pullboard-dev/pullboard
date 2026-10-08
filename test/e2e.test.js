@@ -1612,10 +1612,14 @@ test('from the view the person adds items, shouts and holds lanes, through the C
     const held = await view.act(box.repo, { verb: 'hold', args: { lane: 'web', reason: 'G1 is changing' } });
     assert.equal(held.status, 200);
     assert.equal(held.document.event.event_kind, 'hold');
-    assert.match(box.run(box.web, 'next').err, /coordinator holds the web lane: G1 is changing/);
+    assert.equal(held.document.event.event_by, 'person');
+    assert.equal(JSON.parse(held.document.event.event_detail).channel, 'view');
+    assert.match(box.run(box.web, 'next').err, /person holds the web lane: G1 is changing/);
     const released = await view.act(box.repo, { verb: 'hold', args: { lane: 'web', off: true } });
     assert.equal(released.status, 200);
     assert.equal(released.document.event.event_kind, 'unhold');
+    assert.equal(released.document.event.event_by, 'person');
+    assert.equal(JSON.parse(released.document.event.event_detail).channel, 'view');
     const unknown = await view.act(box.dir, { verb: 'shout', args: { to: 'all', text: 'x' } });
     assert.equal(unknown.status, 404);
     assert.equal(unknown.document.error.code, 'NO_BOARD');

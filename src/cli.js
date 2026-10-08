@@ -2344,7 +2344,10 @@ export async function main(argv, streams) {
   if (sync) {
     await retry();
     try { await executePersonRequests(io.cwd, io, main); }
-    catch (error) { if (!(error instanceof Refused)) throw error; io.err('pullboard: ' + error.message); }
+    catch (error) {
+      if (!(error instanceof Refused)) throw error;
+      if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err('pullboard: ' + error.message);
+    }
   }
   const code = await runCommand(argv, io);
   if (sync && code === 0) await retry();
