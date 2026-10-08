@@ -228,6 +228,34 @@ test('[A2] real HTTP state, moves and refusals use the CLI and exact committed e
   assert.equal(badAgent.document.error.code, 'NO_AGENT');
 });
 
+test('[A2,V2] HTTP add and edit preserve explicit blocking baseline requests', async (t) => {
+  const box = await httpBox(t);
+  /** Build a finite check whose completion can be observed independently of the HTTP response. */
+  function completedCheck(marker) {
+    const script = `Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300); require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'finished')`;
+    return `${shellWord(process.execPath)} -e ${shellWord(script)}`;
+  }
+  const firstMarker = join(box.dir, 'add-finished');
+  const check = completedCheck(firstMarker);
+  const added = await box.call(box.path + '/moves', { verb: 'add', args: {
+    lane: 'app', title: 'Blocking API check', check, wait: true,
+  } });
+  assert.equal(added.status, 200, JSON.stringify(added.document));
+  const item = added.document.result.item;
+  assert.equal(item.item_check_baseline.result, 'green', '--wait returns a terminal observation in the add response');
+  assert.equal(item.item_check_baseline.warning, 'CRITERION_PROVES_NOTHING');
+  assert.equal(readFileSync(firstMarker, 'utf8'), 'finished');
+  const secondMarker = join(box.dir, 'edit-finished');
+  const editedCheck = completedCheck(secondMarker);
+  const edited = await box.call(box.path + '/moves', { verb: 'edit', item: item.item_id, args: {
+    check: editedCheck, wait: true,
+  } });
+  assert.equal(edited.status, 200, JSON.stringify(edited.document));
+  assert.equal(edited.document.result.item.item_check_baseline.command, editedCheck);
+  assert.equal(edited.document.result.item.item_check_baseline.result, 'green', '--wait also blocks edit until its new check finishes');
+  assert.equal(readFileSync(secondMarker, 'utf8'), 'finished');
+});
+
 test('[A2, H12, R2] requests and shouts append events and requests stay outside decisions', async (t) => {
   const box = await httpBox(t);
   const requested = await box.call(box.path + '/requests', { text: 'Please approve the fixture row.' });
