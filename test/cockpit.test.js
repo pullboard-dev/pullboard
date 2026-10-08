@@ -1923,7 +1923,7 @@ test('spec rows read across a phone [N26]', async () => {
   try {
     const page = await openPage(view, { width: 375 });
     const style = await styleOf(view);
-    assert.match(style, /\n\.srow \{ display: grid; grid-template-columns: 4\.4em 6\.2em minmax\(0, 1fr\);/, 'wider, a row keeps its three columns');
+    assert.match(style, /\n\.srow \{ display: grid; grid-template-columns: 4\.4em minmax\(6\.2em, max-content\) minmax\(0, 1fr\);/, 'wider, a row keeps its three columns');
     const phone = /\n@media ([^{]+) \{ \.srow \{ grid-template-columns: auto minmax\(0, 1fr\); \} \.srow > span:last-child \{ grid-column: 1 \/ -1; \} \}\n/.exec(style);
     assert.ok(phone, 'on a phone the text takes the full width below the id and status');
     assert.equal(phone[1], '(width < 480px)', 'under 480px only: at 480px itself the three columns stay');
