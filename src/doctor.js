@@ -7,6 +7,7 @@ import { BLANKS, STATES, storeTriggers } from './machine.js';
 import { readEventLogVersion, SCHEMA_VERSION } from './board.js';
 import { staleFrozenItems, staleItemFinding } from './approved-rows.js';
 import { loadSpec } from './spec.js';
+import { preMergeHookProblems } from './hooks.js';
 const blankCharacters = new Set(BLANKS.map((point) => String.fromCodePoint(point)));
 
 /**
@@ -32,6 +33,7 @@ export function doctorProblems(file, root, tryGit, config) {
     }
     const layout = layoutProblems(db);
     return [
+      ...preMergeHookProblems(root),
       ...triggerProblems(db),
       ...layout.problems,
       ...(layout.itemFields ? itemProblems(db) : []),

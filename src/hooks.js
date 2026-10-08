@@ -6,13 +6,14 @@
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { git, gitChildEnv, mainCheckout, tryGit } from './git.js';
+import { git, gitChildEnv, gitPath, mainCheckout, refuseGrafts, tryGit } from './git.js';
+import { CONFIG_FILE, configFromSource } from './config.js';
 import { Refused } from './refused.js';
 import { outOfLane } from './lanes.js';
 import { citedIds, deletedIds, idProblems } from './spec.js';
 import { approvedRowProblems } from './approved-rows.js';
 
-export const HOOKS = ['pre-commit', 'commit-msg', 'pre-push'];
+export const HOOKS = ['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push'];
 export const HOOKS_DIR = '.githooks';
 export const HOOK_MARK = 'Installed by pullboard';
 export const FIX_NOTE = 'Fix what each line names. Never work around a refusal with filler text.';
@@ -202,6 +203,7 @@ export function blockedPaths(paths, protect) {
  * @returns {string[]}
  */
 export function preCommitProblems({ root, isMain, config, agent, boardFile }) {
+  if (!isMain) refuseGrafts(root);
   const { touched, written } = stagedPaths(root);
   const problems = blockedPaths(written, config.protect).map(
     (path) => `${path} is a blocked file (env or secrets); keep it out of git`,
@@ -225,11 +227,24 @@ export function preCommitProblems({ root, isMain, config, agent, boardFile }) {
   }
   const mergeBase = mainMergeBase(root);
   const ownershipTouched = mergeBase ? stagedPaths(root, mergeBase).touched : touched;
-  const foreign = outOfLane(config, agent.agent_lane, ownershipTouched);
+  const foreign = outOfLane(committedLaneConfig(root), agent.agent_lane, ownershipTouched);
   problems.push(
     ...foreign.map((path) => `outside the ${agent.agent_lane} lane: ${path}; shout its owner instead`),
   );
   return problems;
+}
+
+/** Read lane ownership from the committed checkout, so unstaged settings cannot grant new folders [L1,L3]. */
+function committedLaneConfig(root) {
+  const source = tryGit(root, ['show', 'HEAD:' + CONFIG_FILE]);
+  if (source.status !== 0) throw new Refused('NO_POLICY', 'lane checks need pullboard.json committed at HEAD; restore the committed policy or ask the coordinator to initialize it');
+  return configFromSource(source.stdout);
+}
+
+/** Report a missing merge check at Git's effective hook path without changing files [L3,A6]. */
+export function preMergeHookProblems(root) {
+  const file = gitPath(root, 'hooks/pre-merge-commit');
+  return existsSync(file) ? [] : [{ code: 'HOOK_MISSING', message: `merge hook ${file} is missing`, next: 'run pullboard hooks to install pre-merge-commit, then commit the hook files' }];
 }
 
 /**
