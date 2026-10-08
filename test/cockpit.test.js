@@ -2179,25 +2179,58 @@ function browserPause(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Start Chrome, retry once, and wait for its DevTools port before giving up. */
+async function startSnapshotChrome(executable, profile, { timeoutMs = 30_000 } = {}) {
+  const args = ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
+    '--disable-background-networking', '--disable-sync', '--disable-extensions', '--no-proxy-server',
+    '--use-mock-keychain', '--password-store=basic', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'];
+  let lastFailure = '';
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    if (attempt > 1) rmSync(join(profile, 'DevToolsActivePort'), { force: true });
+    const child = spawn(executable, args, { detached: true, stdio: ['ignore', 'ignore', 'pipe'] });
+    const stopped = new Promise((resolve) => child.once('close', (code, signal) => resolve({ code, signal })));
+    let stderr = '';
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk) => { stderr = `${stderr}${chunk}`.slice(-8_192); });
+    let exit;
+    const deadline = Date.now() + timeoutMs;
+    let port;
+    while (Date.now() < deadline) {
+      try {
+        const candidate = readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0].trim();
+        if (/^\d+$/.test(candidate) && child.exitCode === null && child.signalCode === null) {
+          port = candidate;
+          break;
+        }
+      } catch { /* Chrome has not published its port yet. */ }
+      const remaining = Math.max(1, deadline - Date.now());
+      exit = await Promise.race([
+        stopped.then((status) => ({ status })),
+        browserPause(Math.min(100, remaining)).then(() => null),
+      ]);
+      if (exit) break;
+    }
+    if (port) return { child, stopped, port, stderr: () => stderr };
+    const details = [stderr.trim(), exit?.status?.signal && `signal ${exit.status.signal}`,
+      exit?.status && exit.status.code !== null && `exit ${exit.status.code}`].filter(Boolean).join('; ') || 'no stderr';
+    lastFailure = exit
+      ? `Chrome exited before publishing DevToolsActivePort (${details})`
+      : `Chrome did not publish DevToolsActivePort within ${timeoutMs}ms (${details})`;
+    await stopOwnedChrome(child, stopped);
+  }
+  throw new Error(`Chrome failed to start after 2 launches; final stderr: ${lastFailure}`);
+}
+
 /** Start one isolated headless Chrome and expose its page through a small CDP client. */
 async function openSnapshotChrome(executable, url, profile) {
-  const child = spawn(executable, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
-    '--disable-background-networking', '--disable-sync', '--disable-extensions', '--no-proxy-server',
-    '--use-mock-keychain', '--password-store=basic', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'],
-  { detached: true, stdio: ['ignore', 'ignore', 'ignore'] });
-  const stopped = new Promise((resolve) => child.once('close', resolve));
+  const launched = await startSnapshotChrome(executable, profile);
+  const { child, stopped, port } = launched;
   let socket;
   let id = 0;
   const pending = new Map();
   const requests = [];
   const exceptions = [];
   try {
-    let port;
-    for (let attempt = 0; attempt < 100 && !port; attempt++) {
-      try { port = readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0]; }
-      catch { await browserPause(100); }
-    }
-    assert.ok(port, 'isolated Chrome publishes its DevTools port');
     const target = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT', signal: AbortSignal.timeout(10_000) })).json();
     socket = new WebSocket(target.webSocketDebuggerUrl);
     await new Promise((resolve, reject) => {
@@ -2249,7 +2282,8 @@ async function openSnapshotChrome(executable, url, profile) {
   } catch (error) {
     socket?.close();
     await stopOwnedChrome(child, stopped);
-    throw error;
+    const chromeStderr = launched.stderr().trim();
+    throw new Error(chromeStderr ? `${error.message}; Chrome stderr: ${chromeStderr}` : error.message, { cause: error });
   }
 }
 
@@ -2275,6 +2309,62 @@ async function closeSnapshotChrome(chrome) {
   chrome.socket.close();
   await stopOwnedChrome(chrome.child, chrome.stopped);
 }
+
+test('Chrome startup waits past the old timeout, retries once, and reports final stderr [N26,A10]', { timeout: 45_000 }, async () => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-chrome-launch-')));
+  scratch.push(dir);
+  const profile = join(dir, 'slow-profile');
+  mkdirSync(profile);
+  const attempts = join(dir, 'slow-attempts');
+  const delayed = join(dir, 'delayed-chrome');
+  writeFileSync(delayed, `#!/usr/bin/env node
+const { readFileSync, writeFileSync, writeSync, mkdirSync } = require('node:fs');
+const { dirname, join } = require('node:path');
+const profile = process.argv.find((arg) => arg.startsWith('--user-data-dir=')).slice('--user-data-dir='.length);
+const attempts = join(dirname(profile), 'slow-attempts');
+let count = 0;
+try { count = Number(readFileSync(attempts, 'utf8')); } catch {}
+writeFileSync(attempts, String(++count));
+if (count === 1) { writeSync(2, 'first Chrome launch failed\\n'); process.exit(17); }
+setTimeout(() => {
+  mkdirSync(profile, { recursive: true });
+  writeFileSync(join(profile, 'DevToolsActivePort'), '9333\\n/devtools/browser/fake\\n');
+  setInterval(() => {}, 1000);
+}, 10_100);
+`);
+  chmodSync(delayed, 0o755);
+  const started = Date.now();
+  const chrome = await startSnapshotChrome(delayed, profile);
+  try {
+    assert.ok(Date.now() - started > 10_000, 'the helper waits beyond its former ten-second limit');
+    assert.equal(chrome.port, '9333');
+    assert.equal(readFileSync(attempts, 'utf8'), '2', 'the failed first launch is retried exactly once');
+  } finally {
+    await stopOwnedChrome(chrome.child, chrome.stopped);
+  }
+
+  const failedAttempts = join(dir, 'failed-attempts');
+  const failureProfile = join(dir, 'failure-profile');
+  mkdirSync(failureProfile);
+  const failing = join(dir, 'failing-chrome');
+  writeFileSync(failing, `#!/usr/bin/env node
+const { readFileSync, writeFileSync, writeSync } = require('node:fs');
+const { dirname, join } = require('node:path');
+const profile = process.argv.find((arg) => arg.startsWith('--user-data-dir=')).slice('--user-data-dir='.length);
+const attempts = join(dirname(profile), 'failed-attempts');
+let count = 0;
+try { count = Number(readFileSync(attempts, 'utf8')); } catch {}
+writeFileSync(attempts, String(++count));
+writeSync(2, 'Chrome final stderr marker\\n');
+process.exit(19);
+`);
+  chmodSync(failing, 0o755);
+  let failure;
+  try { await startSnapshotChrome(failing, failureProfile); }
+  catch (error) { failure = error; }
+  assert.match(failure?.message ?? '', /Chrome final stderr marker/, 'a real launch failure includes Chrome stderr');
+  assert.equal(readFileSync(failedAttempts, 'utf8'), '2', 'the failed launch is retried exactly once');
+});
 
 test('static export stays in its prefix and replays read-only in Chrome [A10,A3]', { timeout: 90_000 }, async (t) => {
   const executable = chromeExecutable();
