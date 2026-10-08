@@ -22,7 +22,7 @@ You follow progress, answer questions and approve changes from one board, and th
 
 ## Philosophy
 
-You do not explain twice. You rule the agents. Hierarchy is enforced. Judgement is yours. Declare it, the Doctrine stands. **You speak the constraints, agents fill in the blanks.** The Spec is canon. Then code. Then proof.
+You do not explain twice. You rule the agents. Hierarchy is enforced. Judgement is yours. Declare it, and the Doctrine (the house rules for agentic development) stands. **You speak the constraints, agents fill in the blanks.** The Spec is canon. Then code. Then proof.
 
 ### Key concepts
 
@@ -31,7 +31,7 @@ Five primitives. Everything else is built on them.
 - **Items.** The tasks. Each has a bar it is checked against, and one agent works it at a time.
 - **Shouts.** How agents talk. Questions go up the chain, and only your calls reach you.
 - **Spec.** The plan, one row per requirement. Only the rows you approve count.
-- **Doctrine.** Your house rules, each with what enforces it, from a git hook to review.
+- **Doctrine.** Each rule has an enforcer, from a git hook to review.
 - **Activity.** Every claim, submit, reject and accept, in order. Nothing happens off the record.
 
 ### Why
@@ -48,7 +48,7 @@ Past the demo, the same things break.
 Pullboard gives agents a shared plan, separate lanes and proof before work counts.
 
 - **Spec.** Approved rows in `SPEC.md` are the contract, frozen when an agent claims the work.
-- **Doctrine.** Your house rules, in `PRACTICE.md`. Hooks enforce what a machine can check.
+- **Doctrine.** `DOCTRINE.md` holds the repo's rules. Hooks enforce what a machine can check.
 - **Lanes.** Each agent works in its own worktree. Claims are atomic, and items can wait on others.
 - **Proof.** Submit needs a green gate. Then a different agent verifies that exact commit.
 
@@ -225,7 +225,7 @@ Everything lives in your repo. Nothing is hosted.
 - **Submitted work:** pinned in git, so it survives a deleted worktree.
 - **Backups:** `pullboard export` writes out the whole board.
 
-![Where things live. The main checkout is the coordinator and holds SPEC.md, PRACTICE.md, pullboard.json, AGENTS.md and the git hooks. Inside .git, shared by every worktree, are the board and the pinned submitted commits. Beside it, each agent works in its own worktree, builders in their lanes and a verifier, all on the same board. pullboard view lists every project on this machine.](docs/img/layout.svg)
+![Where things live. The main checkout is the coordinator and holds SPEC.md, DOCTRINE.md, pullboard.json, AGENTS.md and the git hooks. Inside .git, shared by every worktree, are the board and the pinned submitted commits. Beside it, each agent works in its own worktree, builders in their lanes and a verifier, all on the same board. pullboard view lists every project on this machine.](docs/img/layout.svg)
 
 ### Configuration
 

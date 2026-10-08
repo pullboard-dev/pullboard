@@ -9,7 +9,7 @@ Verification checks the work against the spec. This checks the spec, and what wa
 
 ## Read
 
-- The ask (`ask/`, or the brief), SPEC.md, PRACTICE.md and the README.
+- The ask (`ask/`, or the brief), SPEC.md, DOCTRINE.md (or PRACTICE.md when it is the only legacy file) and the README.
 - The product itself: run it, open it, use it as the client would.
 
 ## Look for
