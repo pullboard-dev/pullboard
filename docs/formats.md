@@ -40,7 +40,7 @@ The identifier expression, statuses and tiers below come from the parser:
 | `aim` | An aim; no gate is required. |
 <!-- tiers:end -->
 
-After the requirement text, `gate:` names the check, `serves:` names comma-separated ids, and `signers:` names comma-separated SSH principals; each field may be omitted. Signers must be unique and contain no spaces or commas, and list the exact principals required for signed sign-offs. Other trailing keys are recorded as unknown and rejected by `spec check`. A malformed row-like line is an error, and rows inside fenced code blocks are examples rather than input. IDs are permanent: mark a cut row `wont` or `retired` instead of deleting it.
+After the requirement text, `gate:` names the check, `serves:` names comma-separated ids, and `signers:` names comma-separated SSH principals; each field may be omitted. Each signer is one unique principal with no spaces, commas or leading `#`; the list names the exact principals required for signed sign-offs. An approved row is met only when every listed principal has a verified SSH receipt for its current text; missing, stale or unverified receipts leave it unmet. Other trailing keys are recorded as unknown and rejected by `spec check`. A malformed row-like line is an error, and rows inside fenced code blocks are examples rather than input. IDs are permanent: mark a cut row `wont` or `retired` instead of deleting it.
 
 The row object returned by `parseSpec` has these fields:
 
@@ -278,4 +278,22 @@ An approval of proposed new wording uses that same record: `source` is the exist
 
 Migration preserves event rows and adds only schema objects that are missing.
 
-The schema, trigger and parser tables in this guide are checked against live `openBoard(':memory:')` and `parseSpec` results by `docs/formats.test.js`.
+<!-- pass-rule:start -->
+The `pass` event is emitted by `passDecision` only for the coordinator; another agent receives `COORDINATOR_ONLY`. Its event actor is the coordinator. The person receives the passed decision, while the event table records who performed the pass.
+<!-- pass-rule:end -->
+
+## Static view export
+
+`pullboard view --export DIR` writes a read-only site from the same API v1 documents used by the live view. The page fetches these files without a session key and reads the events file to replay the snapshot. The export contains no server, credentials or writable board actions.
+
+<!-- snapshot-files:start -->
+| File below `DIR` | Contents and reader |
+| --- | --- |
+| `index.html` | Snapshot page; reads the JSON files below and drives event replay. |
+| `view.css` | Stylesheet linked by `index.html`. |
+| `api/v1/boards.json` | API v1 board listing; the page selects the board to show. |
+| `api/v1/boards/<board-id>/state.json` | API v1 state for that board; the page uses it as the final snapshot. |
+| `api/v1/boards/<board-id>/events.json` | API v1 event list; the page replays it from the selected board state. |
+<!-- snapshot-files:end -->
+
+The schema, trigger and parser tables are checked against live `openBoard(':memory:')` and `parseSpec` results. The static export is generated and its files, API v1 shapes and page readers are checked by `docs/formats.test.js`.
