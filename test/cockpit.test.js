@@ -2660,8 +2660,17 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
     });
     await chrome.send('Log.enable');
 
+    /** Wait for every matching element to render before using its geometry [N26]. */
+    const waitRendered = (selectors) => chrome.waitFor(`(() => {
+      const groups = ${JSON.stringify(selectors)}.map(selector => [...document.querySelectorAll(selector)]);
+      return groups.every(elements => elements.length > 0 && elements.every(element => {
+        const style = getComputedStyle(element), rect = element.getBoundingClientRect();
+        return !element.closest('[hidden]') && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+      }));
+    })()`);
     /** Click the actual control through Chrome input coordinates. */
     const click = async (selector) => {
+      await waitRendered([selector]);
       const point = JSON.parse(await chrome.evaluate(`(() => {
         const e=document.querySelector(${JSON.stringify(selector)});
         if(!e) throw Error('missing '+${JSON.stringify(selector)});
@@ -2682,10 +2691,13 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
     /** Resize Chrome and wait for the board layout. */
     const setViewport = async (width) => {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      await chrome.waitFor(`innerWidth === ${width} && document.readyState === 'complete' && !!document.querySelector('#chain .row')`);
+      await chrome.waitFor(`innerWidth === ${width} && document.readyState === 'complete'`);
+      await waitRendered(['[data-pane]:not([hidden])']);
     };
     /** Read actual visible target sizes and document geometry. */
-    const snapshot = async () => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+    const snapshot = async () => {
+      await waitRendered(['[data-pane]:not([hidden])']);
+      return JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
       const visible=e=>{const s=getComputedStyle(e),r=e.getBoundingClientRect();return !e.disabled&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&r.width>0&&r.height>0&&!e.closest('[hidden]')};
       const selector='button,a[href],input:not([type=hidden]),select,textarea,[role=button],[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-release],[data-shout],[data-new],[data-code]';
       const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,inlineReference:e.matches('.feed button.ref, .ask button.ref, .detail button.ref')||!!e.closest('#chain .meta .gate, #detail .kv dd.waits-on')}});
@@ -2697,6 +2709,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
         projectList:visible(document.querySelector('#proj-list')),needs:visible(document.querySelector('#needs')),
         detail:visible(document.querySelector('#detail')),controls,toast};
     })())`));
+    };
     /** Check document and body overflow against the actual layout viewport, excluding its scrollbar. */
     const fitsViewport = (layout) => layout.documentWidth <= layout.clientWidth && layout.bodyWidth <= layout.clientWidth;
     /** Assert the current pane fits and all its controls remain touchable. */
@@ -2718,6 +2731,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
         await chrome.waitFor("document.querySelector('#needs').innerText.includes('Should the desktop demo ship?')", 15_000);
       }
       await setViewport(width);
+      await click('[data-tab="items"]');
       if (width <= 900) {
         await click('#proj-switch');
         await chrome.waitFor("getComputedStyle(document.querySelector('#proj-list')).display !== 'none'");
@@ -2737,6 +2751,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
         await click(`[data-tab="${tab}"]`);
         await checkLayout(width, `${tab} tab`);
         if (tab === 'spec') {
+          await waitRendered(['#spec-chips button']);
           const chips = JSON.parse(await chrome.evaluate(`JSON.stringify([...document.querySelectorAll('#spec-chips button')].map(button => {
             const clone=button.cloneNode(true); clone.style.cssText += ';position:fixed;visibility:hidden;width:max-content;flex:none'; button.parentElement.append(clone);
             const naturalWidth=clone.getBoundingClientRect().width, actualWidth=button.getBoundingClientRect().width; clone.remove();
@@ -2746,6 +2761,10 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
           for (const chip of chips) assert.ok(Math.abs(chip.actualWidth - chip.naturalWidth) < 2, `${width}: ${chip.text} keeps its natural width: ${JSON.stringify(chip)}`);
         }
         if (tab === 'activity') {
+          await chrome.waitFor(`(() => {
+            const element = [...document.querySelectorAll('#activity .what')].find(node => node.textContent === ${JSON.stringify(wrapTitle)});
+            return element?.getBoundingClientRect().width > 0 && element.firstChild?.nodeType === Node.TEXT_NODE;
+          })()`);
           const wrap = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
             const element=[...document.querySelectorAll('#activity .what')].find(node=>node.textContent===${JSON.stringify(wrapTitle)});
             if(!element) return null;
@@ -2758,6 +2777,10 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
           assert.ok(wrap.tokenLines > 1, `${width}: only the overflowing unbroken token splits: ${JSON.stringify(wrap)}`);
         }
         if (tab === 'shouts') {
+          await waitRendered([
+            '#decisions .ask.other', '#decisions .ask.other p:first-child', '#decisions .ask.other p:nth-child(2)',
+            '#decisions .ask:not(.other) p:first-child', '#decisions .ask:not(.other) button',
+          ]);
           const asks = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
             const waiting = document.querySelector('#decisions .ask.other');
             const waitingMeta = waiting?.querySelector('p:first-child');
