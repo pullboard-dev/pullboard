@@ -640,6 +640,7 @@ test('verify runs at the submitted commit, against the criterion frozen at claim
   assert.match(box.run(box.repo, 'verify', '1', 'accept', '--as', 'coordinator').err, /NOT_AT_COMMIT/);
   box.git(box.repo, 'merge', '-q', '--ff-only', 'web/one');
   writeFileSync(join(box.repo, 'SPEC.md'), SPEC.replace('The page renders.', 'The page renders a heading.'));
+  assert.equal(box.run(box.repo, 'spec', 'approve', 'G1').code, 0);
   box.git(box.repo, 'commit', '-qam', 'docs: tighten G1');
   assert.match(box.run(box.repo, 'verify', '1', 'accept', '--as', 'coordinator').err, /CRITERIA_CHANGED/);
   assert.match(box.run(box.repo, 'refreeze', '1').out, /refrozen/);
@@ -1326,6 +1327,7 @@ test('submit refuses a bar that moved since the claim, before any verifier runs;
   box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--criterion', 'renders');
   box.run(box.web, 'claim', '1');
   writeFileSync(join(box.repo, 'SPEC.md'), SPEC.replace('The page renders.', 'The page renders a heading.'));
+  assert.equal(box.run(box.repo, 'spec', 'approve', 'G1').code, 0);
   box.git(box.repo, 'commit', '-qam', 'docs: tighten G1');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   commitFile(box, box.web, 'web/a.html', '<h1>Hi</h1>', 'feat(web): page [G1]');

@@ -356,3 +356,36 @@ test('[B26,S18,S19] signer-required approval signs the exact applied row and tam
   }
   writeFileSync(ledger, original);
 });
+
+test('[B26,S19,V3] a view approval binds proposed wording without changing the source before apply', async function approvedRewrite(t) {
+  const box = project();
+  const file = join(box.root, SPEC_FILE);
+  const before = readFileSync(file, 'utf8');
+  const text = 'The person approved this exact revised promise.';
+  const request = await startView(t, box);
+  const boardPath = await viewBoardPath(request, box.root);
+  const events = eventCount(box);
+  for (const args of [{ ids: 'G1 G3', text }, { ids: 'G3', text: '' }, { ids: 'G3', text: 'two\nlines' }, { ids: 'G3', text: 'text | gate: changed' }]) {
+    const response = await request(`${boardPath}/moves`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ verb: 'spec-approve', agent: 'coordinator', args }),
+    });
+    assert.equal(response.status, 409, 'proposed wording needs one valid exact text and one row');
+    assert.equal((await response.json()).error.code, 'ROW_DECISION');
+    assert.equal(eventCount(box), events, 'invalid text writes no person-decision event');
+    assert.equal(readFileSync(file, 'utf8'), before, 'invalid proposed text never changes source');
+  }
+  await viewDecision(request, boardPath, 'spec-approve', { ids: 'G3', text });
+  assert.equal(readFileSync(file, 'utf8'), before, 'the API decision writes no source bytes');
+  const state = await (await request(`${boardPath}/state`)).json();
+  const row = state.state.spec.find((entry) => entry.id === 'G3');
+  assert.equal(row.text, 'Keep this unaffected row.');
+  assert.equal(row.decision.text, text, 'the one existing decision record binds the proposed target');
+  assert.equal(row.stage, 'approved, pending apply');
+  const apply = command(box, box.root, 'spec', 'apply');
+  assert.equal(apply.status, 0, `${apply.stdout}${apply.stderr}`);
+  assert.equal(sourceRow(box, SPEC_FILE, 'G3').text, text);
+  box.git(box.root, 'add', SPEC_FILE);
+  box.git(box.root, 'commit', '-q', '-m', 'docs: apply the person-approved rewrite');
+  assert.ok(box.git(box.root, 'show', 'HEAD:SPEC.md').includes(text), 'the exact view-approved rewrite passes the real commit hook');
+});

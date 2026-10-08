@@ -263,6 +263,8 @@ Person answer events additionally record their `channel`, either `terminal` or `
 
 Person row decisions use one `row_decision` event per row. Its `record` holds `kind` (`spec` or `doctrine`), file, id, exact source and replacement lines, target text, decision, reason and identity. SSH approvals additionally hold the canonical signature and trust anchors. The current index is additive `board_meta` key `row_decisions`; each entry includes its event id, timestamp and applied state. Coordinator `row_apply` events name the exact decision event ids applied locally. Replica replay changes board metadata only and never writes checkout files.
 
+An approval of proposed new wording uses that same record: `source` is the existing exact line and `replacement` carries the approved target text. Pre-commit compares the staged target against the person decision or a verified staged signed receipt. No second approval format or event kind is needed.
+
 Migration preserves event rows and adds only schema objects that are missing.
 
 The schema, trigger and parser tables in this guide are checked against live `openBoard(':memory:')` and `parseSpec` results by `docs/formats.test.js`.

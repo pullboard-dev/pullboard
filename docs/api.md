@@ -21,7 +21,7 @@ When `add` or `edit` supplies a new nonempty check, Pullboard measures it once i
 | `hooks` | `version:number`, `notes:array` |
 | `join` | `version:number`, `agent:string`, `lane:string`, `route:string`, `path:string` |
 | `worktree` | `version:number`, `agent:string`, `lane:string`, `route:string`, `path:string`, `branch:string`, `prompt:string` |
-| `resume` | `version:number`, `me:object`, `all:array`, `requests:array`, `holding:array`, `sentBack:array`, `awaiting:array`, `toVerify:array`, `toMerge:array`, `open:array`, `holds:array`, `unread:number`, `newest:array`, `root:string`, `dirty:number`, `next:string` |
+| `resume` | `version:number`, `me:object`, `all:array`, `requests:array`, `holding:array`, `sentBack:array`, `awaiting:array`, `toVerify:array`, `toMerge:array`, `open:array`, `stale:array`, `holds:array`, `unread:number`, `newest:array`, `root:string`, `dirty:number`, `next:string` |
 | `whoami` | `version:number`, `id:string`, `lane:string`, `path:string` |
 | `lanes` | `version:number`, `lanes:object`, `shared:array`, `coordinator:string` |
 | `resources` | `version:number`, `resources:array` |
@@ -154,6 +154,10 @@ Decision moves keep the CLI's routing: `shout` with `args.decision: true` may om
 `spec approve <ids>` and `spec decline <ids> --reason "why"` record the person's exact row decision without writing repo files. Bare ids name SPEC.md rows; `doctrine:<id>` names a repo doctrine row. These commands refuse agent shells and agent worktrees. The authenticated local view uses moves `spec-approve` with `args: {ids: "G1 G2", by: "<optional SSH principal>"}` or `spec-decline` with `args: {ids: "G1", reason: "why"}`, acting through the main checkout. Pending rows keep their source `status` and add `decision` and `stage` (`approved, pending apply` or `declined, pending apply`) in `spec show` and the shared view/API state.
 
 Only the coordinator runs `spec apply`. It preflights every pending row against the exact source text, refusing stale decisions before writing any file. Approval changes the status to `approved`; decline changes it to `wont` with the person's reason as the row text, preserving trailing fields. SSH-enabled approvals carry one signed `row-decision` receipt binding the file, source, replacement, decision, reason and row text. Apply copies that same receipt into `.pullboard/signoffs.jsonl`; it remains a current exact-text sign-off. Commit the changed files and receipts together.
+
+To approve new wording, the person uses `spec approve <one-id> --text "exact proposed text"`, or `spec-approve` with `args: {ids: "G1", text: "exact proposed text"}`. This records the same exact-row receipt; files wait for coordinator apply. Text must be one nonempty line without a field separator. Pre-commit checks the staged row against that person decision or a verified staged SSH sign-off; unstaged receipts cannot authorize a commit.
+
+Doctor and resume report every stale frozen item after cited text changes. Open, claimed and submitted items suggest coordinator refreeze. Verified and merged items keep their receipts, report that they shipped against the old text, and suggest adding a follow-up citing the changed row. Resume JSON includes these findings in `stale`.
 
 The SQLite schema marker is now `PRAGMA user_version = 2`. Opening an older board upgrades it in place: `board_meta` stores the id as `meta_key = "board_id"` and a 32-character hexadecimal `meta_value`; `shout_request` and `shout_request_outcome` mark requests and their answers. Existing items, agents and events remain intact. The HTTP envelope stays at version 1 independently of the SQLite schema marker.
 

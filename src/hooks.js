@@ -11,6 +11,7 @@ import { git, gitChildEnv, tryGit } from './git.js';
 import { Refused } from './refused.js';
 import { outOfLane } from './lanes.js';
 import { citedIds, deletedIds, idProblems } from './spec.js';
+import { approvedRowProblems } from './approved-rows.js';
 
 export const HOOKS = ['pre-commit', 'commit-msg', 'pre-push'];
 export const HOOKS_DIR = '.githooks';
@@ -198,10 +199,10 @@ export function blockedPaths(paths, protect) {
  * changes outside its folders. The main checkout is the coordinator's and may change anything; any
  * other worktree must have joined a lane.
  *
- * @param {{ root: string, isMain: boolean, config: any, agent: any }} context
+ * @param {{ root: string, isMain: boolean, config: any, agent: any, boardFile?: string }} context
  * @returns {string[]}
  */
-export function preCommitProblems({ root, isMain, config, agent }) {
+export function preCommitProblems({ root, isMain, config, agent, boardFile }) {
   const { touched, written } = stagedPaths(root);
   const problems = blockedPaths(written, config.protect).map(
     (path) => `${path} is a blocked file (env or secrets); keep it out of git`,
@@ -217,6 +218,7 @@ export function preCommitProblems({ root, isMain, config, agent }) {
     problems.push(...secretsIn(addedLines(diff)).map((where) => `possible secret: ${where}`));
   }
   problems.push(...deletedRowProblems(root, [config.spec, config.practice]));
+  problems.push(...approvedRowProblems(root, config, boardFile));
   if (isMain) return problems;
   if (!agent) {
     problems.push('this worktree has not joined a lane: pullboard join <lane>');

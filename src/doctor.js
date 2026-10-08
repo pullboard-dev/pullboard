@@ -8,6 +8,8 @@ import { checkAtCommit, submissionPaths, dependencySnapshots } from './trusted-p
 import { BLANKS, STATES, storeTriggers } from './machine.js';
 
 import { readEventLogVersion, SCHEMA_VERSION } from './board.js';
+import { staleFrozenItems, staleItemFinding } from './approved-rows.js';
+import { loadSpec } from './spec.js';
 const blankCharacters = new Set(BLANKS.map((point) => String.fromCodePoint(point)));
 
 /** Offer a working tracked or untracked rename without rewriting the repo's doctrine [D1,D2]. */
@@ -25,9 +27,10 @@ export function doctrineProblems(root, config) {
  * @param {string} file
  * @param {string} root
  * @param {(root: string, args: string[]) => { status: number, stdout: string }} tryGit
+ * @param {any} [config] - Compare frozen rows with this checkout's current source when supplied.
  * @returns {{ code: string, message: string, next: string }[]}
  */
-export function doctorProblems(file, root, tryGit) {
+export function doctorProblems(file, root, tryGit, config) {
   if (!existsSync(file)) return [finding('BOARD_MISSING', 'board file is missing', 'run pullboard status to create a new board')];
   const db = new DatabaseSync(file, { readOnly: true });
   try {
@@ -46,6 +49,7 @@ export function doctorProblems(file, root, tryGit) {
       ...(layout.itemPins ? pinProblems(db, root, tryGit) : []),
       ...(layout.verdicts ? verdictProblems(db, root, tryGit) : []),
       ...(layout.itemAudit ? submissionProblems(db, root) : []),
+      ...(layout.itemAudit && config ? staleFrozenItems(db.prepare('SELECT * FROM item ORDER BY item_id').all(), loadSpec(root, config).rows).map(staleItemFinding) : []),
     ];
   } finally {
     db.close();
