@@ -11,6 +11,15 @@ import { githubFixture } from './relay-fixture.js';
 
 const SMOKE = resolve(import.meta.dirname, '../relay/smoke.mjs');
 const SERVER = resolve(import.meta.dirname, '../relay/server.mjs');
+const DOCKERFILE = resolve(import.meta.dirname, '../relay/Dockerfile');
+const README = resolve(import.meta.dirname, '../relay/README.md');
+
+/** Extract a documented setting so the checklist can be checked against executable config. */
+function setting(text, pattern, description) {
+  const match = pattern.exec(text);
+  assert.ok(match, `README deployment checklist must state ${description}`);
+  return match[1];
+}
 
 /** Run the checked-in smoke script in a private real repository without retaining its output. */
 function runSmoke(box, address) {
@@ -57,6 +66,45 @@ async function waitHealthy(child, origin) {
   }
   throw new Error('the relay container entry point did not become healthy');
 }
+
+test('[H5,H18] the Railway checklist matches the container and relay runtime settings', () => {
+  const readme = readFileSync(README, 'utf8');
+  const dockerfile = readFileSync(DOCKERFILE, 'utf8');
+  const server = readFileSync(SERVER, 'utf8');
+  const volume = setting(readme, /Attach one Railway\s+volume at `([^`]+)`/u, 'the persistent volume path');
+  const authDatabase = setting(readme, /auth database at\s+`([^`]+)`/u, 'the auth database path');
+  const boardsDirectory = setting(readme, /board journals under\s+`([^`]+)`/u, 'the board journal directory');
+  const backupsDirectory = setting(readme, /private backups under\s+`([^`]+)`/u, 'the private backup directory');
+  const startCommand = setting(readme, /set the start command to\s+`([^`]+)`/u, 'the start command');
+  const healthPath = setting(readme, /health check path to `([^`]+)`/u, 'the health check path');
+  const portVariable = setting(readme, /service listens on\s+Railway's `([^`]+)`/u, 'the assigned port variable');
+  const serverPort = /Number\(process\.env\.([A-Z_]+) \|\| (\d+)\)/u.exec(server);
+  const dockerPort = /process\.env\.([A-Z_]+)\|\|(\d+)/u.exec(dockerfile);
+
+  assert.equal(authDatabase, `${volume}/auth.sqlite`);
+  assert.equal(boardsDirectory.replace(/\/+$/u, ''), `${volume}/boards`);
+  assert.equal(backupsDirectory.replace(/\/+$/u, ''), `${volume}/backups`);
+  assert.ok(dockerfile.includes(`PULLBOARD_RELAY_DATA=${volume}`), 'Docker defaults storage to the documented volume');
+  assert.ok(server.includes(`resolve(process.env.PULLBOARD_RELAY_DATA || '${volume}')`), 'server reads the same volume path');
+  assert.ok(server.includes("database: join(data, 'auth.sqlite')"), 'auth database is inside the volume');
+  assert.ok(server.includes("directory: join(data, 'boards')"), 'board journals are inside the volume');
+  assert.ok(server.includes("backupsDirectory: join(data, 'backups')"), 'backups are inside the volume');
+
+  assert.equal(portVariable, 'PORT');
+  assert.ok(serverPort, 'server reads its assigned port and declares a numeric fallback');
+  assert.ok(dockerPort, 'container health probe reads the assigned port and declares a fallback');
+  const defaultPort = Number(serverPort[2]);
+  assert.equal(serverPort[1], portVariable);
+  assert.equal(dockerPort[1], portVariable);
+  assert.equal(Number(dockerPort[2]), defaultPort, 'container health probe and server share the same fallback port');
+  assert.ok(Number.isInteger(defaultPort));
+  assert.ok(dockerfile.includes(`EXPOSE ${defaultPort}`), 'container exposes the server fallback port');
+  assert.equal(healthPath, '/health');
+  assert.ok(server.includes(`pathname !== '${healthPath}'`), 'server serves the documented readiness path');
+  assert.ok(dockerfile.includes(`'${healthPath}'`), 'container probes the documented readiness path');
+  assert.equal(startCommand, 'node relay/server.mjs');
+  assert.ok(dockerfile.includes('CMD ["node", "relay/server.mjs"]'), 'container starts the documented entry point');
+});
 
 test('[H5,H18] the Railway smoke links, reads one unsealed move and unlinks locally', async (t) => {
   const box = await relayClientFixture(t);
