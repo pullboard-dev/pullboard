@@ -28,6 +28,7 @@ const NOT_MOVES = {
   ONE_COORDINATOR: 'registering who is asking, before any move',
   BAD_MACHINE_SETTINGS: 'machine-wide settings checked before a command runs',
   BAD_GATE_SLOTS: 'machine-wide gate capacity checked before a command runs',
+  NO_AGENT: 'a linked coordinator must already be registered before an item move',
   EVENT_LOG_VERSION: 'the local board format is checked before opening it for an item move',
 };
 
@@ -54,6 +55,12 @@ const CALLBACKS = { 'board.js': { freeze: 'cli.js#freezer' } };
  * cited row taken out of force as a changed criterion, CRITERIA_CHANGED.
  */
 const CAUGHT = { 'cli.js#submitHere': ['cli.js#freezer'], 'cli.js#verifyHere': ['cli.js#freezer'] };
+
+/**
+ * Encrypted transport authenticates/orders a move; its board operation is walked separately above.
+ * Keep walking the CLI dispatcher itself so a new item rule there cannot hide behind this boundary.
+ */
+const TRANSPORT_BOUNDARIES = new Set(['relay.js#relayLinked', 'relay.js#relayOperation']);
 
 /** A top-level function, or a top-level arrow function bound to a const. */
 const START = /^(?:export )?(?:(?:async )?function (\w+)\(|const (\w+) = (?:async )?(?:\([^)]*\)|\w+) =>)/;
@@ -113,7 +120,7 @@ function codeWalk(read) {
     return files.get(file);
   };
   const refusalsOf = (key, skip = new Set(), seen = new Set()) => {
-    if (seen.has(key) || skip.has(key)) return new Set();
+    if (seen.has(key) || skip.has(key) || TRANSPORT_BOUNDARIES.has(key)) return new Set();
     seen.add(key);
     const [file, name] = key.split('#');
     const { bodies, named, spaces } = load(file);
@@ -1252,4 +1259,14 @@ test('a helper added to the board that changes a status outside moveItem is refu
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+
+test('transport boundaries keep a new item refusal in ordered dispatch visible [M1,M4,H16]', () => {
+  const inDispatch = editedSource('cli.js', /^async function ordered\(ctx, board, operation, args\) \{$/m,
+    "$&\n  if (args[0] === 999) throw new Refused('MOON_PHASE', 'wait for the full moon');");
+  assert.deepEqual(codeProblems(MACHINE, inDispatch).sort(), [
+    'MOON_PHASE is raised by accept and reject but not declared there',
+    'MOON_PHASE is raised by submit but not declared there',
+  ], 'transport authentication is separate but a dispatcher item guard still belongs to the lifecycle');
 });

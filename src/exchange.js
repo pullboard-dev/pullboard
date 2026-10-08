@@ -3,7 +3,7 @@
  * continue producing the same ids after its rows are restored.
  */
 import { Refused } from './refused.js';
-import { storeTriggers } from './machine.js';
+import { ENGINE_VERSION, storeTriggers } from './machine.js';
 import { EVENT_LOG_VERSION } from './board.js';
 
 const VERSION = 1;
@@ -144,6 +144,29 @@ function hasOnlyInitCoordinator(db, names) {
  * @returns {{ tables: string[] }}
  */
 export function importBoard(board, document) {
+  return restoreDocument(board, document);
+}
+
+/**
+ * Restore an authenticated, newer checkpoint of this same relay board, preserving receipts.
+ * Ordinary CLI imports still require an empty board; only the ordered replica uses this path.
+ */
+export function restoreRelaySnapshot(board, document, sequence) {
+  validateDocument(board.db, document, tableNames(board.db));
+  const meta = new Map(document.tables.board_meta.map((row) => [row.meta_key, row.meta_value]));
+  const current = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get('board_id')?.meta_value;
+  const cursor = Number(board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get('relay_applied_sequence')?.meta_value ?? 0);
+  if (meta.get('board_id') !== current || !Number.isSafeInteger(sequence) || sequence < cursor || String(sequence) !== meta.get('relay_applied_sequence')) {
+    throw new Refused('RELAY_SNAPSHOT', 'this checkpoint does not cover the current board and prefix; fetch a consistent relay snapshot or join by pairing');
+  }
+  const engine = Number(meta.get('relay_engine_version'));
+  if (!Number.isSafeInteger(engine) || engine < 1) throw new Refused('RELAY_SNAPSHOT', 'this checkpoint has no supported engine version; upgrade pullboard or join by pairing');
+  if (engine > ENGINE_VERSION) throw new Refused('ENGINE_VERSION', `snapshot engine version ${engine} is newer than this pullboard engine version ${ENGINE_VERSION}; upgrade pullboard before applying the relay order`);
+  return restoreDocument(board, document, true);
+}
+
+/** Restore validated native rows with lifecycle guards suspended only inside the transaction. */
+function restoreDocument(board, document, replace = false) {
   const db = board.db;
   const names = tableNames(db);
   validateDocument(db, document, names);
@@ -152,15 +175,17 @@ export function importBoard(board, document) {
     const onlyIdentity = hasOnlyIdentity(db);
     const occupied = names.filter((table) => !(table === 'board_meta' && onlyIdentity) && db.prepare(`SELECT 1 FROM ${identifier(table)} LIMIT 1`).get());
     const initCoordinator = occupied.length > 0 && hasOnlyInitCoordinator(db, names);
-    if (occupied.length && !initCoordinator) {
+    if (occupied.length && !initCoordinator && !replace) {
       throw new Refused('IMPORT_NOT_EMPTY', `board tables already have rows (${occupied.join(', ')}); import into a repo with an empty board`);
     }
     const triggers = db.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'machine_%'").all();
     for (const { name } of triggers) db.exec(`DROP TRIGGER ${identifier(name)}`);
-    if (initCoordinator) {
+    if (replace) {
+      for (const table of [...names].reverse()) db.exec(`DELETE FROM ${identifier(table)}`);
+    } else if (initCoordinator) {
       db.exec('DELETE FROM event; DELETE FROM agent; DELETE FROM sqlite_sequence');
     }
-    if (onlyIdentity) db.exec('DELETE FROM board_meta');
+    if (onlyIdentity && !replace) db.exec('DELETE FROM board_meta');
     for (const table of names.filter((name) => name !== 'sqlite_sequence')) {
       const columns = columnsOf(db, table);
       const sql = `INSERT INTO ${identifier(table)} (${columns.map(identifier).join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`;

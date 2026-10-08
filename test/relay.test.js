@@ -352,6 +352,7 @@ test('relay off forgets expired and independently unlinked boards while preservi
   for (const cause of ['expired', 'other-client']) await t.test(cause, async (t) => {
     const box = await relayClientFixture(t);
     await box.link();
+    const localBeforeDeletion = (await box.cli('export')).document.tables;
     if (cause === 'expired') box.advance(90);
     else assert.equal(await box.otherDeviceOff(), 0, 'a second real CLI device unlinks the shared board');
     const off = await box.cli('relay', 'off');
@@ -361,7 +362,7 @@ test('relay off forgets expired and independently unlinked boards while preservi
     assert.match(off.document.notice, /already deleted/);
     assert.equal(existsSync(box.linkFile), false, 'local link metadata is forgotten');
     assert.equal(existsSync(box.keyFile), false, 'device-only fallback key is forgotten');
-    assert.deepEqual((await box.cli('export')).document.tables, box.before.tables, 'local board is complete after remote deletion');
+    assert.deepEqual((await box.cli('export')).document.tables, localBeforeDeletion, 'local board is complete after remote deletion');
     const count = box.calls.length;
     assert.equal((await box.cli('relay', 'off')).code, 0);
     assert.equal((await box.cli('status')).code, 0);

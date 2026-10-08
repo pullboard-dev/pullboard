@@ -6,6 +6,7 @@ import * as store from './board.js';
 import { COORDINATOR, loadConfig } from './config.js';
 import { repoInfo } from './git.js';
 import { refusalDocument } from './json.js';
+import { relayLinked, relayOperation } from './relay.js';
 import { laneNames } from './lanes.js';
 import { listApiProjects } from './projects.js';
 import { Refused } from './refused.js';
@@ -67,9 +68,11 @@ function afterEvents(root, after) {
 function agentPath(root, name = COORDINATOR) {
   if (typeof name !== 'string' || !name) throw new Refused('BAD_REQUEST', 'agent needs a registered name; omit it to act as the coordinator');
   return withBoard(root, (board, info) => {
-    if (name === COORDINATOR) store.ensureCoordinator(board, root);
+    if (name === COORDINATOR && !relayLinked(root)) store.ensureCoordinator(board, root);
     const agent = store.listAgents(board).find((entry) => entry.agent_id === name);
     if (!agent) throw new Refused('NO_AGENT', `no registered agent ${name}; use the agents in this board's state or join a worktree first`);
+    // A clone shares the coordinator identity, but resolves its main checkout locally.
+    if (name === COORDINATOR && relayLinked(root)) return root;
     if (repoInfo(agent.agent_path).commonDir !== info.commonDir) throw new Refused('WRONG_BOARD', `agent ${name}'s worktree belongs to another board; join the agent in this board's worktree`);
     return agent.agent_path;
   });
@@ -157,10 +160,17 @@ async function executeMove(root, body, runCommand) {
 }
 
 /** Create a person's coordinator request through the same shout transaction as the CLI. */
-function createRequest(root, body) {
+async function createRequest(root, body) {
   if (typeof body.text !== 'string' || !body.text.trim() || Object.keys(body).some((key) => key !== 'text')) throw new Refused('BAD_REQUEST', 'a request needs {text: "what the coordinator should do"}');
+  const message = { from: 'person', to: COORDINATOR, text: body.text, request: true, lanes: laneNames(loadConfig(root)) };
+  if (relayLinked(root)) {
+    const id = await relayOperation(root, 'shout', [message], { err: () => {} });
+    return withBoard(root, (board) => ({ version: VERSION,
+      event: store.events(board).find((event) => JSON.parse(event.event_detail).shout === id),
+      result: { id, request: true } }));
+  }
   return withBoard(root, (board) => {
-    const id = store.shout(board, { from: 'person', to: COORDINATOR, text: body.text, request: true, lanes: laneNames(loadConfig(root)) });
+    const id = store.shout(board, message);
     return { version: VERSION, event: board.lastEvent, result: { id, request: true } };
   });
 }
