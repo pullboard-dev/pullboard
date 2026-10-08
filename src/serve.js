@@ -149,16 +149,17 @@ function rememberPort(port) {
  * @template T
  * @param {string} root
  * @param {(board: any, info: any, config: any) => T} read
+ * @param {any | null} [providedBoard] Borrow a staged connection without closing it.
  * @returns {T}
  */
-function withProject(root, read) {
+function withProject(root, read, providedBoard = null) {
   const info = repoInfo(root);
   const config = loadConfig(info.root);
-  const board = store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'));
+  const board = providedBoard ?? store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'));
   try {
     return read(board, info, config);
   } finally {
-    store.closeBoard(board);
+    if (!providedBoard) store.closeBoard(board);
   }
 }
 
@@ -167,10 +168,10 @@ function withProject(root, read) {
  * it also counts every shout since, which the forty it sends cannot always show.
  *
  * @param {string} root
- * @param {{ seen?: number | null }} [options]
+ * @param {{ seen?: number | null, board?: any }} [options] A supplied board stays owned by its caller.
  * @returns {any}
  */
-export function projectState(root, { seen = null } = {}) {
+export function projectState(root, { seen = null, board: providedBoard = null } = {}) {
   return withProject(root, (board, info, config) => {
     const all = store.listItems(board, { all: true });
     const status = new Map(all.map((item) => [item.item_id, item.item_status]));
@@ -232,7 +233,7 @@ export function projectState(root, { seen = null } = {}) {
       // Each product's progress, counted as pullboard status counts it (N28).
       products: productSummaries(config, loadSpec(info.root, config), all),
     };
-  });
+  }, providedBoard);
 }
 
 /** The most lines one code reference shows (B23). */
