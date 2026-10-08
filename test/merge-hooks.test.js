@@ -44,6 +44,7 @@ function fixture(t, branch = 'main') {
 /** Build an isolated board with the candidate CLI's real installed hooks and a joined lane. */
 function nativeFixture(t) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-native-merge-hook-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
   const shims = join(dir, 'bin');
   const main = join(dir, 'main');
   const lane = join(dir, 'lane');
@@ -52,13 +53,14 @@ function nativeFixture(t) {
   writeFileSync(join(shims, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`);
   chmodSync(join(shims, 'pullboard'), 0o755);
   const env = { ...process.env };
+  delete env.PULLBOARD_RELAY_TOKEN;
   for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
   Object.assign(env, {
     PATH: `${shims}:${process.env.PATH}`,
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Merge Fixture', GIT_AUTHOR_EMAIL: 'merge@example.invalid',
     GIT_COMMITTER_NAME: 'Merge Fixture', GIT_COMMITTER_EMAIL: 'merge@example.invalid',
-    PULLBOARD_HOME: join(dir, 'pullboard-home'), PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
+    HOME: join(dir, 'home'), PULLBOARD_HOME: join(dir, 'pullboard-home'), PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
   });
   const git = (...args) => {
     const result = spawnSync('git', args, { cwd: main, env, encoding: 'utf8' });
@@ -86,7 +88,6 @@ function nativeFixture(t) {
   assert.equal(initial.status, 0, `the native fixture is committed through installed hooks: ${initial.stderr}`);
   git('worktree', 'add', '-q', '-b', 'core/fixture', lane);
   assert.equal(cli(lane, 'join', 'core').status, 0, 'the native CLI joins the lane');
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
   return { main, lane, env, git: gitAt };
 }
 
