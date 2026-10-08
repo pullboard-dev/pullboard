@@ -7,10 +7,15 @@ import { repoInfo } from './git.js';
 import { Refused } from './refused.js';
 import { loadConfig } from './config.js';
 import { projectState } from './serve.js';
+import { personRequestStatuses } from './relay-requests.js';
 
 /** Capture spec, doctrine, config and board presentation without sending plaintext to a relay. */
 export function relayPresentation(root) {
-  return { version: 1, state: projectState(root), config: loadConfig(root) };
+  const state = projectState(root);
+  const info = repoInfo(root);
+  const board = store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'));
+  try { return { version: 1, state: { ...store.projectItemThreads(board, state), personRequests: personRequestStatuses(board) }, config: loadConfig(root) }; }
+  finally { store.closeBoard(board); }
 }
 
 /** Notice presentation-only changes, including a spec or doctrine edit without a board move. */
