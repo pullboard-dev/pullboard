@@ -741,6 +741,14 @@ test('docs/lifecycle.md is the page the declaration generates, so a stale copy f
   for (const code of codes) assert.match(page, new RegExp(`^\\| ${code} \\|`, 'm'), `${code} is in the refusal table`);
 });
 
+test('the lifecycle page limits family matching to require and explains unknown families [O2, O3]', () => {
+  const page = lifecycleMarkdown();
+  assert.match(page, /^\| O2_FAMILY_MATCH \| the builder and verifier have different declared families; an undeclared family counts as a match, only when verify\.family is require \| ask the coordinator for a verifier from another declared family \|$/m);
+  for (const verb of ['reserve', 'accept', 'reject']) {
+    assert.match(page, new RegExp(`^\\| ${verb} \\| .*familyAllows \\(O2_FAMILY_MATCH\\)`, 'm'));
+  }
+});
+
 test('the page and the help follow the declaration: a new move appears in both [M1, P4]', () => {
   const machine = copy();
   machine.moves.push({ verb: 'shelve', from: ['open'], to: 'withdrawn', by: ['coordinator'], refuse: 'CLOSED', guards: ['joined', 'coordinatorOnly', 'noteGiven', 'itemExists', IN_STATE], sets: ['item_withdrawn_reason'] });
