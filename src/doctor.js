@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { BLANKS, STATES, storeTriggers } from './machine.js';
 
-import { SCHEMA_VERSION } from './board.js';
+import { readEventLogVersion, SCHEMA_VERSION } from './board.js';
 const blankCharacters = new Set(BLANKS.map((point) => String.fromCodePoint(point)));
 
 /**
@@ -21,6 +21,11 @@ export function doctorProblems(file, root, tryGit) {
   try {
     const schemaProblems = versionProblems(db);
     if (schemaProblems.length) return schemaProblems;
+    try { readEventLogVersion(db); }
+    catch (error) {
+      if (error.code !== 'EVENT_LOG_VERSION') throw error;
+      return [finding(error.code, error.message, 'upgrade pullboard to read this event log, or restore a compatible board')];
+    }
     const layout = layoutProblems(db);
     return [
       ...triggerProblems(db),

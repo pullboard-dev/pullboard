@@ -28,6 +28,7 @@ const NOT_MOVES = {
   ONE_COORDINATOR: 'registering who is asking, before any move',
   BAD_MACHINE_SETTINGS: 'machine-wide settings checked before a command runs',
   BAD_GATE_SLOTS: 'machine-wide gate capacity checked before a command runs',
+  EVENT_LOG_VERSION: 'the local board format is checked before opening it for an item move',
 };
 
 /**
