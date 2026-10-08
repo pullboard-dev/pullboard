@@ -1,16 +1,16 @@
 /** Merged receipts only record item work on the primary trunk, unless noted [R3,R1]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
-import { main } from '../src/cli.js';
 
 const TEMP_DIRS = [];
 const HOUR = 3_600_000;
+const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 
 /** Remove fixture repositories and their real SQLite boards after tests finish. */
 function cleanup() {
@@ -21,12 +21,8 @@ after(cleanup);
 
 /** Run a command and keep its actual output for useful assertion failures. */
 async function command(box, args, cwd = box.repo) {
-  let stdout = '';
-  let stderr = '';
-  const code = await main(args, { cwd,
-    stdout: { isTTY: false, write: (part) => { stdout += part; } },
-    stderr: { write: (part) => { stderr += part; } } });
-  return { code, stdout, stderr };
+  const result = spawnSync(process.execPath, [BIN, ...args], { cwd, env: box.env, encoding: 'utf8', timeout: 30_000 });
+  return { code: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
 }
 
 /** Create an initialized real repo with one verified item commit and its claim base. */
@@ -34,22 +30,31 @@ async function fixture(t) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-merged-'));
   TEMP_DIRS.push(dir);
   const repo = join(dir, 'repo');
+  const bin = join(dir, 'bin');
   mkdirSync(repo);
-  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+  mkdirSync(bin);
+  /** Quote executable paths used by the private hook shim. */
+  const shellWord = (value) => `'${String(value).replaceAll("'", "'\\''")}'`;
+  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec ${shellWord(process.execPath)} ${shellWord(BIN)} "$@"\n`);
+  chmodSync(join(bin, 'pullboard'), 0o755);
+  const env = { ...process.env };
+  for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
+  Object.assign(env, { HOME: join(dir, 'home'), PULLBOARD_HOME: join(dir, 'pullboard-home'),
+    PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Merged fixture', GIT_AUTHOR_EMAIL: 'merged@example.invalid',
-    GIT_COMMITTER_NAME: 'Merged fixture', GIT_COMMITTER_EMAIL: 'merged@example.invalid' };
+    GIT_COMMITTER_NAME: 'Merged fixture', GIT_COMMITTER_EMAIL: 'merged@example.invalid', PATH: `${bin}:${process.env.PATH}` });
   /** Run Git in this isolated fixture with its private identity. */
   const git = (...args) => execFileSync('git', args, { cwd: repo, env, encoding: 'utf8', stdio: 'pipe' }).trim();
   git('init', '-q', '-b', 'main');
-  const initialized = await main(['init'], { cwd: repo, stdout: { isTTY: false, write() {} }, stderr: { write() {} } });
-  assert.equal(initialized, 0, 'pullboard initializes the fixture');
+  const initialized = await command({ repo, env }, ['init']);
+  assert.equal(initialized.code, 0, `${initialized.stdout}${initialized.stderr}`);
   writeFileSync(join(repo, 'SPEC.md'), '# Fixture\n\n## G · Goals\n- G1 [approved, must] Work is tracked. | gate: true\n');
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true', verify: 'any', lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: [] }));
   git('add', '-A'); git('commit', '-q', '-m', 'chore: initialize fixture');
   const base = git('rev-parse', 'HEAD');
   const builder = join(dir, 'builder');
   git('worktree', 'add', '-q', builder, '-b', 'web/builder');
-  const joined = await command({ repo }, ['join', 'web'], builder);
+  const joined = await command({ repo, env }, ['join', 'web'], builder);
   assert.equal(joined.code, 0, `${joined.stdout}${joined.stderr}`);
   const board = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
