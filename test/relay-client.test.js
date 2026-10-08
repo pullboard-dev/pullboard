@@ -55,7 +55,7 @@ function cliResult(root, env, ...args) {
 /** Run a successful actual CLI command and retain refusal diagnostics on failure. */
 async function cli(root, env, ...args) {
   const result = await cliResult(root, env, ...args);
-  if (result.status !== 0) throw new Error(`pullboard ${args.join(' ')} exited ${result.status}: ${result.stderr}\n${JSON.stringify(result.document)}`);
+  assert.equal(result.status, 0, `pullboard ${args.join(' ')} exited ${result.status}: ${result.stderr}\n${JSON.stringify(result.document)}`);
   return result.document;
 }
 
@@ -131,6 +131,7 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   assert.ok(gitBinary, 'the fixture PATH contains git');
   symlinkSync(realpathSync(gitBinary), join(privateBin, 'git'));
   symlinkSync(realpathSync(process.execPath), join(privateBin, 'node'));
+  symlinkSync(realpathSync('/bin/sh'), join(privateBin, 'sh'));
   const env = {
     ...process.env,
     HOME: home,
@@ -162,6 +163,7 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   const git = spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, env, encoding: 'utf8' });
   assert.equal(git.status, 0, git.stderr);
   await cli(root, env, 'init');
+  writeFileSync(join(root, 'SPEC.md'), '# Spec\n\n## G · Goals\n- G1 [approved, must] A lost reply has one original outcome. | gate: review\n');
   const config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
   const originRemote = spawnSync('git', ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git'], { cwd: root, env, encoding: 'utf8' });
   assert.equal(originRemote.status, 0, originRemote.stderr);
@@ -258,8 +260,10 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   assert.equal(caughtUp.relay.behind, 0, 'the next reachable command recovers the durable send');
   const recoveredRows = localEvents(boardFile).slice(beforeOffline.length);
   assert.deepEqual(recoveredRows, [], 'offline refusal cannot become a later unsolicited move');
+  const lostBrief = join(root, 'lost-brief.md');
+  writeFileSync(lostBrief, 'The original lost-reply brief.\n');
   relay.dropNextReply({ offline: true });
-  await assert.rejects(cli(root, relayEnv, 'add', lane, 'committed reply lost'), /RELAY_UNAVAILABLE/);
+  await assert.rejects(cli(root, relayEnv, 'add', lane, 'committed reply lost', '--specs', 'G1', '--brief-file', lostBrief), /RELAY_UNAVAILABLE/);
   const durableId = JSON.parse(readFileSync(linkFile, 'utf8')).pending.move.id;
   await cli(root, relayEnv, 'status');
   assert.equal(JSON.parse(readFileSync(linkFile, 'utf8')).pending.move.id, durableId,
@@ -272,7 +276,11 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   assert.equal(different.status, 1);
   assert.equal(different.document.error.code, 'RELAY_RETRY_PENDING');
   const sentBeforeRetry = relay.uploads.length;
-  const repeated = await cli(root, relayEnv, 'add', lane, 'committed reply lost');
+  writeFileSync(join(root, 'SPEC.md'), '# Spec\n\n## G · Goals\n');
+  rmSync(lostBrief);
+  const repeated = await cli(root, relayEnv, 'add', lane, 'committed reply lost', '--specs', 'G1', '--brief-file', lostBrief);
+  assert.equal(repeated.item.item_brief, 'The original lost-reply brief.', 'an acknowledged retry does not re-read removed spec or brief files');
+  writeFileSync(join(root, 'SPEC.md'), '# Spec\n\n## G · Goals\n- G1 [approved, must] A lost reply has one original outcome. | gate: review\n');
   assert.equal(repeated.item.item_title, 'committed reply lost');
   assert.equal(repeated.item.item_id, 3, 'retry reports the original allocated item id');
   assert.equal(relay.uploads.length, sentBeforeRetry, 'retry never creates another relay position');
@@ -333,6 +341,7 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
   assert.ok(gitBinary, 'the fixture PATH contains git');
   symlinkSync(realpathSync(gitBinary), join(privateBin, 'git'));
   symlinkSync(realpathSync(process.execPath), join(privateBin, 'node'));
+  symlinkSync(realpathSync('/bin/sh'), join(privateBin, 'sh'));
   const envs = homes.map((home) => {
     const env = { ...process.env, HOME: home, USERPROFILE: home, PULLBOARD_HOME: join(home, '.pullboard'), PATH: privateBin };
     for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
@@ -622,6 +631,32 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
   const retriedVerify = await cli(worktrees[1], envs[1], 'verify', '2', 'accept', '--note', 'Lost verdict acknowledgement');
   assert.equal(retriedVerify.decision, 'ACCEPT');
   assert.equal(relay.uploads.length, beforeVerifyRetry, 'verified-state preconditions also preserve the original outcome');
+
+  const lostEditBrief = join(clones[0], 'lost-edit-brief.md');
+  writeFileSync(lostEditBrief, 'Files: web/README.md\nTest: the original edit is recovered once.\n');
+  const beforeEdit = relay.uploads.length;
+  relay.dropNextReply({ offline: true });
+  const lostEdit = await cliResult(clones[0], envs[0], 'edit', '1', '--brief-file', lostEditBrief);
+  assert.equal(lostEdit.document.error.code, 'RELAY_UNAVAILABLE');
+  relay.failReads(false);
+  await cli(clones[0], envs[0], 'status');
+  rmSync(lostEditBrief);
+  const editRetry = await cli(clones[0], envs[0], 'edit', '1', '--brief-file', lostEditBrief);
+  assert.equal(editRetry.item.item_brief, 'Files: web/README.md\nTest: the original edit is recovered once.');
+  assert.equal(relay.uploads.length, beforeEdit + 1, 'edit retries recover the original receipt after its brief disappears');
+
+  const lostRef = 'lost-merge-reference';
+  gitAt(clones[0], envs[0], 'tag', lostRef, originalCommit);
+  const beforeMerge = relay.uploads.length;
+  relay.dropNextReply({ offline: true });
+  const lostMerge = await cliResult(clones[0], envs[0], 'merged', '2', lostRef);
+  assert.equal(lostMerge.document.error.code, 'RELAY_UNAVAILABLE');
+  relay.failReads(false);
+  await cli(clones[0], envs[0], 'status');
+  gitAt(clones[0], envs[0], 'tag', '-d', lostRef);
+  const mergeRetry = await cli(clones[0], envs[0], 'merged', '2', lostRef);
+  assert.equal(mergeRetry.commit, originalCommit);
+  assert.equal(relay.uploads.length, beforeMerge + 1, 'merge retries report the original full commit after its ref disappears');
 
   const beforeAutomatic = relay.uploads.length;
   relay.dropNextReply();

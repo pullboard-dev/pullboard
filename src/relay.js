@@ -377,23 +377,26 @@ async function sendPending(root, file, state, io) {
 
 /** Compare caller intent without executing frozen callbacks or allocating another operation id. */
 function operationIntent(operation, args) {
-  const values = args.map((value, index) => {
+  const values = Array.isArray(args) ? args.map((value, index) => {
     if (!['claim', 'refreeze'].includes(operation) || index !== 1 || !value || typeof value !== 'object') return value;
     const options = { ...value };
     delete options.freeze;
     delete options.frozen;
     delete options.freezeError;
     return options;
-  });
+  }) : args;
   return JSON.stringify({ operation, args: values }, (_key, value) => typeof value === 'function' ? undefined : value);
 }
 
 /** Keep a recovered outcome until its caller repeats the interrupted operation to receive it. */
-function recoveredMove(root, state, operation, args) {
+function recoveredMove(root, state, operation, args, command) {
   if (!state.recovered) return null;
   const recovered = state.recovered;
   const intent = recovered.intent ?? operationIntent(recovered.move.operation, recovered.move.args);
-  if (intent !== operationIntent(operation, args)) {
+  const matches = recovered.commandIntent === undefined
+    ? intent === operationIntent(operation, args)
+    : recovered.move.operation === operation && recovered.commandIntent === operationIntent('cli:' + command?.cliOperation, command);
+  if (!matches) {
     throw new Refused('RELAY_RETRY_PENDING', 'the previous move reached the relay; repeat that interrupted command to receive its original outcome before sending a different move');
   }
   const receipt = localRecords(root, (board) => engineReceipt(board, recovered.move.id));
@@ -405,7 +408,7 @@ function recoveredMove(root, state, operation, args) {
 }
 
 /** Send one board operation before executing it locally, and report its canonical engine result. */
-export async function relayOperation(root, operation, args, io) {
+export async function relayOperation(root, operation, args, io, command) {
   const file = linkFile(root);
   return locked(file, async () => {
     const state = loadLink(file);
@@ -416,11 +419,12 @@ export async function relayOperation(root, operation, args, io) {
       delete state.pending;
       saveLink(file, state);
     }
-    let move = recoveredMove(root, state, operation, args);
+    let move = recoveredMove(root, state, operation, args, command);
     if (!move) {
       move = localRecords(root, (board) => prepareEngineMove(board, operation, args));
       const sequence = state.sequence + 1;
-      state.pending = { move, intent: operationIntent(operation, args), sequence,
+      state.pending = { move, intent: operationIntent(operation, args),
+        ...(command ? { command, commandIntent: operationIntent('cli:' + command.cliOperation, command) } : {}), sequence,
         sealed: await sealedRecord(readBoardKey(state.board), move, state, 'move', sequence) };
       saveLink(file, state);
       try { await sendPending(root, file, state, io); }
@@ -473,6 +477,43 @@ export async function syncRelay(root, io) {
       io.err(`pullboard: ${error.message}; run pullboard status to see pending uploads`);
       return { linked: true, board: state.board, url: state.url, sequence: state.sequence,
         behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)) };
+    }
+  });
+}
+
+/** Read an acknowledged exact CLI result before changed spec, brief or Git refs can block it. */
+export async function relayCommandReceipt(root, command) {
+  if (!command) return null;
+  const file = linkFile(root);
+  return locked(file, async () => {
+    const state = loadLink(file);
+    if (!state || state.unlinking) return null;
+    const recovered = state.recovered;
+    if (!recovered || recovered.commandIntent !== operationIntent('cli:' + command.cliOperation, command)) return null;
+    if (recovered.commandIntent !== operationIntent('cli:' + recovered.command?.cliOperation, recovered.command)) {
+      throw new Refused('RELAY_STORAGE', 'restore the interrupted command metadata before retrying');
+    }
+    const expected = { add: 'addItem', edit: 'editItem', merged: 'merged' }[command.cliOperation];
+    if (!recovered.move || recovered.move.operation !== expected) throw new Refused('RELAY_STORAGE', 'restore the interrupted command metadata before retrying');
+    const move = recoveredMove(root, state, recovered.move.operation, recovered.move.args, command);
+    const receipt = localRecords(root, board => engineReceipt(board, move.id));
+    if (receipt.outcome.error) {
+      delete state.recovered;
+      saveLink(file, state);
+      throw new Refused(receipt.outcome.error.code, receipt.outcome.error.message);
+    }
+    return { result: receipt.outcome.result, move };
+  });
+}
+
+/** Consume the exact cached result after its original CLI outcome has been formatted. */
+export async function relayCommandReceiptReported(root, moveId) {
+  const file = linkFile(root);
+  return locked(file, async () => {
+    const state = loadLink(file);
+    if (state?.recovered?.move?.id === moveId) {
+      delete state.recovered;
+      saveLink(file, state);
     }
   });
 }

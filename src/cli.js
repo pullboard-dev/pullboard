@@ -60,7 +60,7 @@ import { mainPolicy, itemPolicy, submissionPaths, frozenCheck, checkAtCommit, de
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
-import { relayLinked, relayOff, relayOn, relayOperation, relayRecovered, relayStatus, syncRelay } from './relay.js';
+import { relayCommandReceipt, relayCommandReceiptReported, relayLinked, relayOff, relayOn, relayOperation, relayRecovered, relayStatus, syncRelay } from './relay.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
@@ -640,8 +640,9 @@ function withBoard(ctx, work) {
 
 /** Dispatch a board mutation locally, or seal it before any linked replica applies it. */
 async function ordered(ctx, board, operation, args) {
+  const command = ['add', 'edit', 'merged'].includes(ctx.io.relayCommand?.cliOperation) ? ctx.io.relayCommand : undefined;
   return relayLinked(ctx.info.root)
-    ? relayOperation(ctx.info.root, operation, args, ctx.io)
+    ? relayOperation(ctx.info.root, operation, args, ctx.io, command)
     : store[operation](board, ...args);
 }
 
@@ -1787,6 +1788,15 @@ function workCommands(io, args) {
       return 0;
     }),
     add: () => act(async (ctx, board, me) => {
+      const recovered = await relayCommandReceipt(ctx.info.root, io.relayCommand);
+      if (recovered) {
+        const id = recovered.result;
+        io.result?.({ item: store.getItem(board, id) });
+        io.say(`#${id}`);
+        sayCheckBaseline(io, store.getItem(board, id));
+        await relayCommandReceiptReported(ctx.info.root, recovered.move.id);
+        return 0;
+      }
       if (!first || !isLane(ctx.config, first)) throw new Refused('NO_LANE', `no lane "${first ?? ''}"; see: pullboard lanes`);
       const specIds = idList(values.specs);
       const problems = idProblems(loadSpec(ctx.info.root, ctx.config), specIds);
@@ -1816,6 +1826,14 @@ function workCommands(io, args) {
     }),
     edit: () => act(async (ctx, board, me) => {
       const id = idArg(first);
+      const recovered = await relayCommandReceipt(ctx.info.root, io.relayCommand);
+      if (recovered) {
+        io.result?.({ item: store.getItem(board, id) });
+        io.say(`edited #${id}`);
+        sayCheckBaseline(io, store.getItem(board, id));
+        await relayCommandReceiptReported(ctx.info.root, recovered.move.id);
+        return 0;
+      }
       const brief = briefArg(io, values);
       const change = {
         agentId: me.id,
@@ -1905,6 +1923,14 @@ function workCommands(io, args) {
     done: async () => submitHere(context(io), idArg(first)),
     verify: () => verifyHere(context(io), idArg(first), args),
     merged: () => act(async (ctx, board, me) => {
+      const recovered = await relayCommandReceipt(ctx.info.root, io.relayCommand);
+      if (recovered) {
+        const commit = recovered.move.args[1].commit;
+        io.result?.({ id: idArg(first), commit });
+        io.say(`#${first} merged as ${commit.slice(0, 12)}`);
+        await relayCommandReceiptReported(ctx.info.root, recovered.move.id);
+        return 0;
+      }
       const commit = resolveCommit(ctx.info.root, second ?? '');
       if (!commit) throw new Refused('NO_COMMIT', `no commit "${second ?? ''}" in this repo`);
       await ordered(ctx, board, 'merged', [idArg(first), { agentId: me.id, commit }]);
@@ -2362,6 +2388,9 @@ export async function main(argv, streams) {
   try {
     const parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
     const command = parsed.positionals[0];
+    io.relayCommand = { cliOperation: command === 'done' ? 'submit' : command, cwd: resolve(io.cwd),
+      positionals: parsed.positionals.slice(1),
+      values: Object.fromEntries(Object.keys(parsed.values).filter(key => key !== 'json').sort().map(key => [key, parsed.values[key]])) };
     sync = Boolean(command) && !parsed.values.help && !parsed.values.version && !['help', 'version', 'hook', 'init', 'relay', 'tour'].includes(command);
   } catch { sync = false; }
   /** A network refusal preserves offline reads; linked mutation dispatch requires an acknowledgement. */
