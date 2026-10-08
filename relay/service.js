@@ -1,5 +1,6 @@
 /** Opt-in sealed API v1 relay: authorization, opaque persistence and ordered live delivery [A4,H7]. */
 import { createServer } from 'node:http';
+import { createHash } from 'node:crypto';
 import { lstatSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { createApiHandler, apiJson, apiRefusal, apiStatus, readApiBody } from '../src/api-http.js';
@@ -8,6 +9,7 @@ import { createRelayJournal } from './journal.js';
 import { createRelayRetention } from './retention.js';
 import { createPairingStore } from './pairing-store.js';
 import { createPairingHandler } from './pairing-http.js';
+import { createRelayBrowserHandler } from './browser-page.js';
 
 const SNAPSHOT_BODY = 14_000_000;
 const STORED_BYTES = 10_000_000;
@@ -141,6 +143,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
     });
   }
 
+  const browser = origin ? createRelayBrowserHandler({ authenticate: (req) => auth.authenticate(credential(req, origin)) }) : null;
   const common = createApiHandler({
     authenticate: async (req, { board, write }) => {
       const token = credential(req, origin, write);
@@ -172,11 +175,28 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
   async function handle(req, res) {
     if (await pairing(req, res)) return;
     try {
+      if (browser && await browser(req, res)) return;
       let url;
       try { url = new URL(req.url ?? '/', 'http://127.0.0.1'); }
       catch { throw new Refused('BAD_REQUEST', 'use a valid path under /api/v1/boards'); }
       const snapshot = /^\/api\/v1\/boards\/([^/]+)\/state$/.exec(url.pathname);
       const deletion = /^\/api\/v1\/boards\/([^/]+)$/.exec(url.pathname);
+      if (req.method === 'GET' && snapshot) {
+        const id = identity(snapshot[1]);
+        await authorized(credential(req, origin), id);
+        const saved = withJournal(id, journal => {
+          const row = journal.snapshot();
+          if (!row) throw new Refused('NO_SNAPSHOT', 'upload a sealed snapshot before reading this board');
+          return annotated(row, id);
+        });
+        const tag = '"' + createHash('sha256').update(JSON.stringify(saved)).digest('hex') + '"';
+        res.setHeader('etag', tag);
+        if (req.headers['if-none-match'] === tag) {
+          res.writeHead(304, { 'cache-control': 'no-store', 'referrer-policy': 'no-referrer', 'x-content-type-options': 'nosniff' });
+          return res.end();
+        }
+        return apiJson(res, 200, { state: saved });
+      }
       if (req.method === 'PUT' && snapshot) {
         const id = identity(snapshot[1]);
         sender(await authorized(credential(req, origin, true), id, true), true);

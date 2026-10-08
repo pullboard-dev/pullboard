@@ -55,18 +55,24 @@ export async function relayClientFixture(t) {
     GIT_AUTHOR_NAME: 'Relay Fixture', GIT_AUTHOR_EMAIL: 'relay-fixture@example.com',
     GIT_COMMITTER_NAME: 'Relay Fixture', GIT_COMMITTER_EMAIL: 'relay-fixture@example.com',
   };
+  for (const name of ['PULLBOARD_RELAY_KEY', 'PULLBOARD_RELAY_TOKEN']) delete env[name];
   const provider = await githubFixture(t);
   provider.state.deviceAuthorized = true;
   const authDatabase = join(scratch, 'auth.sqlite');
-  const auth = createRelayAuth({ database: authDatabase, github: createGitHubClient(provider.config) });
+  let auth;
   let time = Date.now();
   let override = null;
+  let refuseEventReads = false;
+  let refuseSnapshotWrites = false;
+  let refuseRequestWrites = false;
   let signIn;
   let api;
   const calls = [];
   const transit = [];
+  const moveAcks = [];
+  const privateKeys = new Set();
+  let keyLeaked = false;
   const server = createServer(async (req, res) => {
-    calls.push({ method: req.method, path: req.url });
     const requestChunks = [];
     const responseChunks = [];
     const request = new Transform({
@@ -84,12 +90,38 @@ export async function relayClientFixture(t) {
     const write = res.write.bind(res);
     res.write = (chunk, ...args) => { captureResponse(chunk); return write(chunk, ...args); };
     const end = res.end.bind(res);
-    res.end = (chunk, ...args) => { captureResponse(chunk); return end(chunk, ...args); };
+    res.end = (chunk, ...args) => {
+      captureResponse(chunk);
+      if (req.method === 'POST' && /\/api\/v1\/boards\/[0-9a-f]{32}\/moves$/.test(req.url ?? '') && (typeof chunk === 'string' || Buffer.isBuffer(chunk))) {
+        try {
+          const response = JSON.parse(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : chunk);
+          if (typeof response.event?.sealed === 'string') moveAcks.push(response.event);
+        } catch { /* Capture only valid move acknowledgements; the production response remains unchanged. */ }
+      }
+      return end(chunk, ...args);
+    };
     res.once('finish', () => transit.push({ method: req.method, path: req.url,
       request: Buffer.concat(requestChunks), response: Buffer.concat(responseChunks) }));
+    calls.push({ method: req.method, path: req.url, accept: req.headers.accept ?? '' });
+    if ([...privateKeys].some(key => JSON.stringify({ url: req.url, headers: req.headers }).includes(key))) keyLeaked = true;
+    if (refuseEventReads && req.method === 'GET' && /\/events(?:\?|$)/.test(req.url)) {
+      res.writeHead(503, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ version: 1, error: { code: 'RELAY_UNAVAILABLE', message: 'fixture read outage' } }));
+      return;
+    }
     if (override && req.method === 'DELETE') {
       res.writeHead(override.status, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ version: override.version ?? 1, error: { code: override.code, message: 'fixture refusal' } }));
+      return;
+    }
+    if (refuseRequestWrites && req.method === 'POST' && /\/api\/v1\/boards\/[0-9a-f]{32}\/requests$/.test(req.url ?? '')) {
+      res.writeHead(503, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ version: 1, error: { code: 'RELAY_UNAVAILABLE', message: 'fixture request outage' } }));
+      return;
+    }
+    if (refuseSnapshotWrites && req.method === 'PUT' && /\/api\/v1\/boards\/[0-9a-f]{32}\/state$/.test(req.url ?? '')) {
+      res.writeHead(503, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ version: 1, error: { code: 'RELAY_UNAVAILABLE', message: 'fixture snapshot outage' } }));
       return;
     }
     if (await signIn(request, res)) return;
@@ -99,6 +131,7 @@ export async function relayClientFixture(t) {
   await once(server, 'listening');
   const relayPort = server.address().port;
   const origin = 'http://127.0.0.1:' + relayPort;
+  auth = createRelayAuth({ database: authDatabase, github: createGitHubClient({ ...provider.config, callbackURL: origin + '/auth/github/callback' }) });
   signIn = createAuthHandler({ auth, publicOrigin: origin });
   api = createRelayHandler({ directory: join(scratch, 'relay'), auth, publicOrigin: origin, pollMs: 10, maintenanceMs: 0, now: () => time });
   t.after(async () => {
@@ -141,7 +174,10 @@ export async function relayClientFixture(t) {
   const keyFile = join(env.PULLBOARD_HOME, 'relay-keys', id + '.key');
 
   /** Start a saved real relay link without exposing the pairing fragment. */
-  async function link() { assert.equal((await cli('relay', 'on', '--url', origin)).code, 0, 'real device sign-in links the board'); }
+  async function link() {
+    assert.equal((await cli('relay', 'on', '--url', origin)).code, 0, 'real device sign-in links the board');
+    privateKeys.add(readFileSync(keyFile, 'utf8').trim());
+  }
   /** Pair and unlink from a second real repository with its own private device home and key. */
   async function otherDeviceOff() {
     const otherRoot = join(scratch, 'other-device');
@@ -191,16 +227,40 @@ export async function relayClientFixture(t) {
       /** Check that the paired clone still has no persisted board-key file. */
       keyFileExists() { return existsSync(otherKeyFile); } };
   }
+  /** Link another independently initialized synthetic board through the same real person account. */
+  async function additionalBoard(title) {
+    const nextRoot = join(scratch, 'additional-board');
+    const nextHome = join(scratch, 'additional-home');
+    mkdirSync(nextRoot);
+    mkdirSync(nextHome, { mode: 0o700 });
+    const nextEnv = { ...env, HOME: nextHome, PULLBOARD_HOME: join(nextHome, '.pullboard') };
+    /** Run this separate board without retaining credentials in diagnostic output. */
+    const run = (...args) => childResult(nextRoot, nextEnv, [CLI, ...args, '--json']);
+    assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: nextRoot, env: nextEnv }).status, 0);
+    assert.equal((await run('init')).code, 0);
+    assert.equal(spawnSync('git', ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git'], { cwd: nextRoot, env: nextEnv }).status, 0);
+    assert.equal((await run('add', lane, title)).code, 0);
+    assert.equal((await run('relay', 'on', '--url', origin)).code, 0);
+    const state = JSON.parse(readFileSync(join(nextRoot, '.git', 'pullboard', 'relay.json'), 'utf8'));
+    const encoded = readFileSync(join(nextEnv.PULLBOARD_HOME, 'relay-keys', state.board + '.key'), 'utf8').trim();
+    privateKeys.add(encoded);
+    return { id: state.board, encoded, cli: run };
+  }
   /** Run multiple production commands in one process, emitting only safe counters. */
   async function script(source) {
     return childResult(root, env, ['--input-type=module', '-e', source]);
   }
   return {
-    root, env, origin, lane, before, linkFile, keyFile, calls, transit,
-    relayDirectory: join(scratch, 'relay'), authDatabase,
-    cli, link, otherDeviceOff, otherDeviceJoin, script, stopRelay, restartRelay,
+    transit, relayDirectory: join(scratch, 'relay'), authDatabase, otherDeviceJoin,
+    root, env, origin, lane, before, linkFile, keyFile, calls, moveAcks, cli, link, otherDeviceOff, additionalBoard, script, stopRelay, restartRelay,
     advance(days) { time = Date.now() + days * 86400000; },
     overrideDelete(value) { override = value; },
+    refuseSnapshotWrites(value) { refuseSnapshotWrites = value; },
+    refuseRequestWrites(value) { refuseRequestWrites = value; },
     mainURL: new URL('../src/cli.js', import.meta.url).href,
+    keyInRequest() { return keyLeaked; },
+    /** Revoke the actual synthetic person session, including its current live streams. */
+    revokeSession() { const state = JSON.parse(readFileSync(linkFile, 'utf8')); return auth.revoke(state.token, state.tokenId); },
+    refuseReads(value) { refuseEventReads = value; },
   };
 }
