@@ -10,6 +10,8 @@ A successful command returns the fields listed below. `version` is always the nu
 
 `pullboard settings` reads machine-wide settings from `~/.pullboard/settings.json`; `pullboard settings gateSlots <n>` changes the gate queue capacity, which defaults to `2`. Capacity changes are refused while a gate is running or waiting, so existing holders and FIFO order remain intact.
 
+When `add` or `edit` supplies a new nonempty check, Pullboard measures it once in a temporary checkout of the current `main` commit. The item returned by `add`, `edit`, `show`, and `next --verify` may include `item_check_baseline`: `{command, main, result, seconds?, reason?, warning?}`. `main` is the commit id or `null`, and `result` is `green`, `red`, or `unavailable`. A green result carries `warning: "CRITERION_PROVES_NOTHING"`; text output names that warning when filing, showing, or reserving the item for review. An exact match with the project gate configured at that main commit records green with `reason: "repo gate"` without running it again. A missing main records unavailable with `reason: "no main"` and still files the item. Changing the check replaces this observation; clearing it removes the observation. The captured observation travels with the board move, so replicas store the result without executing the command.
+
 <!-- api-command-shapes:start -->
 | Command | Required top-level fields |
 | --- | --- |
@@ -26,6 +28,12 @@ A successful command returns the fields listed below. `version` is always the nu
 | `settings` | `version:number`, `settings:object` |
 | `relay` | `version:number`, `linked:boolean`, `board:string`, `url:string`, `link:string`, `sequence:number`, `behind:number` |
 | `list` | `version:number`, `items:array` |
+| `roadmap` | `version:number`, `milestones:array` |
+| `milestone add` | `version:number`, `milestone:object` |
+| `milestone items` | `version:number`, `milestone:object` |
+| `milestone move` | `version:number`, `milestone:object` |
+| `milestone edit` | `version:number`, `milestone:object` |
+| `milestone remove` | `version:number`, `milestone:object` |
 | `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array` |
 | `status` | `version:number`, `me:object`, `mine:array`, `stats:object`, `unread:number` |
 | `doctor` | `version:number`, `problems:array` |
@@ -122,6 +130,8 @@ The server checks any Origin against its own address and grants no CORS permissi
 The boards response keeps `boards` and may include `warnings` for registered entries that could not be opened. State `seen` must be a nonnegative safe integer; omitting it retains the `unseen: null` result. Code previews read only a registered repo's committed tree, use a plain commit SHA and at most 60 lines, and never read the working tree. The shared router lets adapters omit the optional code capability; such adapters return the versioned `CODE_NOT_AVAILABLE` refusal.
 
 The local board state and events responses include `eventLogVersion`, which identifies the persisted event-record format separately from the HTTP envelope's `version`. Static view exports keep this field in both state.json and events.json so a reader can refuse a format newer than it understands. Sealed relay events do not use this local board format marker.
+
+The coordinator maintains the roadmap with `milestone add <name> [--note ...] [--items 1,2,3]`, `milestone items <name> --add|--remove ids`, `milestone move <name> --before <other>`, `milestone edit <name> [--name <new>] [--note <text>]`, and `milestone remove <name>`. A milestone stores only its name, optional note, and ordered item ids in `board_meta`; removing a milestone leaves its items untouched. A `repo#id` reference uses a registered repo's display name (or its folder name) before `#`; its status is read from that board when the repo is registered on this machine. `pullboard roadmap` prints milestones in order with a verified-item done count. Its JSON results and API state use `{ name, note, items: [{ id, title, status }], done, total }` for each milestone.
 
 <!-- api-http-shapes:start -->
 | Response | Required top-level fields |

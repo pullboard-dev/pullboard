@@ -40,12 +40,14 @@ import {
   unmetRows,
 } from './spec.js';
 import { briefFiles } from './brief.js';
+import { checkBaseline, sayCheckBaseline } from './check-baseline.js';
 import { runItems } from './run.js';
 import { parseProblems, sweepItems } from './sweep.js';
 import { renderSpecView } from './view.js';
 import { tour } from './tour.js';
 import { commandOutput } from './json.js';
 import { forgetProject, registerProject } from './projects.js';
+import { milestoneRoadmap } from './roadmap.js';
 import { listResources } from './resources.js';
 import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
 import { exportView, serveView } from './serve.js';
@@ -97,6 +99,13 @@ Work
                                         $PULLBOARD_ATTEMPT, $PULLBOARD_TIER); green work is submitted, red escalated
                 [--agent-light "..."] [--agent-mid "..."] [--agent-strong "..."]   a command per tier
   pullboard list [lane] [--all] [--route light|mid|strong]   open and active items; --all adds closed ones
+  pullboard roadmap                     ordered milestones and each item's live status
+  pullboard milestone add <name> [--note ...] [--items 1,2,3]   create a milestone and optionally add items
+  pullboard milestone items <name> --add|--remove ids          append or remove item references
+  pullboard milestone move <name> --before <other>             reorder a milestone
+  pullboard milestone edit <name> [--name <new>] [--note <text>]
+                                        rename or update a milestone note
+  pullboard milestone remove <name>                            remove a milestone without changing its items
   pullboard doctor                     check board integrity without changing it
   pullboard show <id> [--history]       an item, the criterion frozen at claim, its verdicts: the latest in full,
                                         earlier ones as one line; --history prints every note in full
@@ -189,6 +198,10 @@ const OPTIONS = {
   run: { type: 'string' },
   max: { type: 'string' },
   'dry-run': { type: 'boolean' },
+  before: { type: 'string' },
+  add: { type: 'string' },
+  remove: { type: 'string' },
+  name: { type: 'string' },
   url: { type: 'string' },
   wait: { type: 'string' },
   verify: { type: 'boolean' },
@@ -792,10 +805,12 @@ function setupCommands(io, { first, values }) {
         closeBoard: store.closeBoard,
       });
       io.result?.({ root: info.root, notes });
-      notes.forEach((note) => io.say(note));
+      const staging = notes.at(-1)?.startsWith('git add -f -- ') ? notes.at(-1) : null;
+      (staging ? notes.slice(0, -1) : notes).forEach((note) => io.say(note));
       if (registerProject(info.root, new Date(), loadConfig(info.root))) io.say('registered this project on this machine, so pullboard view lists it');
       io.say('next: write SPEC.md rows, declare lanes in pullboard.json, then: pullboard add <lane> <title>');
       io.say('with an agent: start a new Claude Code session here, which loads the pullboard skills, then tell it what to build; the pullboard-run skill runs the team');
+      if (staging) io.say(staging);
       return 0;
     },
     hooks: () => {
@@ -980,6 +995,22 @@ function readCommands(io, { first, second, rest, values }) {
       else items.forEach((item) => io.say(itemLine(item)));
       return 0;
     },
+    roadmap: () => {
+      if (first || second || rest.length) throw new Refused('USAGE', 'pullboard roadmap takes no arguments');
+      const ctx = context(io);
+      const milestones = withBoard(ctx, (board) => milestoneRoadmap(ctx.info.root, board));
+      io.result?.({ milestones });
+      if (!milestones.length) io.say('no milestones yet; the coordinator can add one with pullboard milestone add');
+      for (const milestone of milestones) {
+        io.say(`${milestone.name}: ${milestone.done}/${milestone.total} done`);
+        if (milestone.note) io.say(`  ${milestone.note}`);
+        for (const item of milestone.items) {
+          const id = typeof item.id === 'number' ? `#${item.id}` : item.id;
+          io.say(`  ${id} ${item.title} — ${item.status}`);
+        }
+      }
+      return 0;
+    },
     show: () => {
       const ctx = context(io);
       const id = idArg(first);
@@ -997,6 +1028,7 @@ function readCommands(io, { first, second, rest, values }) {
       io.say(itemLine(item));
       if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
       if (item.item_check) io.say(`check: ${item.item_check}`);
+      sayCheckBaseline(io, item);
       sayBrief(io, item.item_brief);
       for (const { item: other, shared } of related) {
         io.say(`related: #${other.item_id} ${other.item_title}: ${shared.slice(0, 4).join(', ')}${shared.length > 4 ? ', ...' : ''} (git log -p -1 ${other.item_commit.slice(0, 12)} -- ${shared[0]})`);
@@ -1308,6 +1340,7 @@ async function nextHere(io, values) {
       const here = cdTo(ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (values.verify) {
+        sayCheckBaseline(io, item);
         io.say(`next to verify: #${item.item_id} ${item.item_title}, built by ${item.item_built_by} at ${item.item_commit.slice(0, 12)}`);
         io.say(`reserved for you until ${item.item_review_until}: another agent's verdict on it is refused until then; pullboard next --verify again renews it`);
         io.say(`check out exactly that commit, here: ${here} git switch --detach ${item.item_commit}`);
@@ -1403,6 +1436,54 @@ function workCommands(io, args) {
     return withBoard(ctx, (board) => work(ctx, board, whoAmI(ctx, board)));
   };
   return {
+    milestone: () => act(async (ctx, board, me) => {
+      const ids = (text) => (text ?? '').split(',').map((value) => value.trim()).filter(Boolean);
+      let name;
+      let entry;
+      if (first === 'add') {
+        if (!second || rest.length || values.before !== undefined || values.add !== undefined || values.remove !== undefined || values.name !== undefined) {
+          throw new Refused('USAGE', 'pullboard milestone add <name> [--note ...] [--items 1,2,3]');
+        }
+        name = await ordered(ctx, board, 'addMilestone', [{ agentId: me.id, name: second, note: values.note ?? null, items: ids(values.items) }]);
+      } else if (first === 'items') {
+        if (!second || rest.length || Boolean(values.add) === Boolean(values.remove) || values.items !== undefined || values.note !== undefined || values.before !== undefined || values.name !== undefined) {
+          throw new Refused('USAGE', 'pullboard milestone items <name> --add ids or --remove ids');
+        }
+        name = second;
+        const next = await ordered(ctx, board, 'editMilestoneItems', [name, {
+          agentId: me.id,
+          add: values.add === undefined ? [] : ids(values.add),
+          remove: values.remove === undefined ? [] : ids(values.remove),
+        }]);
+        entry = { ...store.milestones(board).find((value) => value.name === name), items: next };
+      } else if (first === 'move') {
+        if (!second || rest.length || !values.before || values.items !== undefined || values.note !== undefined || values.name !== undefined || values.add !== undefined || values.remove !== undefined) {
+          throw new Refused('USAGE', 'pullboard milestone move <name> --before <other>');
+        }
+        name = second;
+        await ordered(ctx, board, 'moveMilestone', [name, { agentId: me.id, before: values.before }]);
+        entry = store.milestones(board).find((value) => value.name === name);
+      } else if (first === 'edit') {
+        if (!second || rest.length || (values.name === undefined && values.note === undefined) || values.items !== undefined || values.before !== undefined || values.add !== undefined || values.remove !== undefined) {
+          throw new Refused('USAGE', 'pullboard milestone edit <name> [--name <new name>] [--note <text>]');
+        }
+        name = second;
+        entry = await ordered(ctx, board, 'editMilestone', [name, { agentId: me.id, newName: values.name, note: values.note }]);
+      } else if (first === 'remove') {
+        if (!second || rest.length || values.items !== undefined || values.note !== undefined || values.before !== undefined || values.name !== undefined || values.add !== undefined || values.remove !== undefined) {
+          throw new Refused('USAGE', 'pullboard milestone remove <name>');
+        }
+        name = second;
+        await ordered(ctx, board, 'removeMilestone', [name, { agentId: me.id }]);
+        entry = { name };
+      } else {
+        throw new Refused('USAGE', 'use pullboard milestone add, items, move, edit or remove');
+      }
+      entry ??= store.milestones(board).find((value) => value.name === name);
+      io.result?.({ milestone: entry });
+      io.say(`milestone ${first === 'remove' ? 'removed' : first === 'add' ? 'added' : 'updated'}: ${name}`);
+      return 0;
+    }),
     add: () => act(async (ctx, board, me) => {
       if (!first || !isLane(ctx.config, first)) throw new Refused('NO_LANE', `no lane "${first ?? ''}"; see: pullboard lanes`);
       const specIds = idList(values.specs);
@@ -1411,7 +1492,7 @@ function workCommands(io, args) {
       const parentId = values.parent ? idArg(values.parent, 'a parent item id') : null;
       const after = idList(values.after).map((text) => idArg(text, 'an item id after --after'));
       const title = [second, ...rest].filter(Boolean).join(' ');
-      const id = await ordered(ctx, board, 'addItem', [{
+      const item = {
         by: me.id,
         lane: first,
         title,
@@ -1422,23 +1503,31 @@ function workCommands(io, args) {
         brief: briefInLane(ctx, first, briefArg(io, values) ?? ''),
         route: values.route ?? 'strong',
         check: values.check,
-      }]);
+      };
+      const { command } = store.validateItemAddition(board, item);
+      if (command) item.checkBaseline = checkBaseline(ctx.info.root, command);
+      const id = await ordered(ctx, board, 'addItem', [item]);
       io.result?.({ item: store.getItem(board, id) });
       io.say(`#${id}`);
+      sayCheckBaseline(io, store.getItem(board, id));
       return 0;
     }),
     edit: () => act(async (ctx, board, me) => {
       const id = idArg(first);
       const brief = briefArg(io, values);
-      await ordered(ctx, board, 'editItem', [id, {
+      const change = {
         agentId: me.id,
         brief: brief === undefined ? undefined : briefInLane(ctx, store.getItem(board, id).item_lane, brief),
         route: values.route,
         criterion: values.criterion,
         check: values.check,
-      }]);
+      };
+      const { item, command } = store.validateItemEdit(board, id, change);
+      if (command && command !== item.item_check) change.checkBaseline = checkBaseline(ctx.info.root, command);
+      await ordered(ctx, board, 'editItem', [id, change]);
       io.result?.({ item: store.getItem(board, id) });
       io.say(`edited #${id}`);
+      sayCheckBaseline(io, store.getItem(board, id));
       return 0;
     }),
     escalate: () => act(async (ctx, board, me) => {
@@ -1853,6 +1942,7 @@ async function runCommand(argv, io) {
   }
   if (values.help || !command || command === 'help') {
     io.result?.({ help: HELP });
+    if (!command && !values.help) io.say('New here? pullboard tour, then pullboard init.');
     io.say(HELP);
     return 0;
   }
