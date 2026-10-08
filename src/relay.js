@@ -350,7 +350,10 @@ async function catchUp(root, file, state, io) {
     });
   }
   state.sequence = localRecords(root, appliedSequence);
-  if (state.pending?.move && localRecords(root, (board) => engineReceipt(board, state.pending.move.id))) delete state.pending;
+  if (state.pending?.move && localRecords(root, (board) => engineReceipt(board, state.pending.move.id))) {
+    state.recovered = state.pending;
+    delete state.pending;
+  }
   saveLink(file, state);
 }
 
@@ -376,8 +379,40 @@ async function sendPending(root, file, state, io) {
   if (state.pending) throw new Refused('RELAY_BUSY', 'the relay order stayed busy; retry this command after other clients finish');
 }
 
+/** Compare caller intent without executing frozen callbacks or allocating another operation id. */
+function operationIntent(operation, args) {
+  const values = Array.isArray(args) ? args.map((value, index) => {
+    if (!['claim', 'refreeze'].includes(operation) || index !== 1 || !value || typeof value !== 'object') return value;
+    const options = { ...value };
+    delete options.freeze;
+    delete options.frozen;
+    delete options.freezeError;
+    return options;
+  }) : args;
+  return JSON.stringify({ operation, args: values }, (_key, value) => typeof value === 'function' ? undefined : value);
+}
+
+/** Keep a recovered outcome until its caller repeats the interrupted operation to receive it. */
+function recoveredMove(root, state, operation, args, command) {
+  if (!state.recovered) return null;
+  const recovered = state.recovered;
+  const intent = recovered.intent ?? operationIntent(recovered.move.operation, recovered.move.args);
+  const matches = recovered.commandIntent === undefined
+    ? intent === operationIntent(operation, args)
+    : recovered.move.operation === operation && recovered.commandIntent === operationIntent('cli:' + command?.cliOperation, command);
+  if (!matches) {
+    throw new Refused('RELAY_RETRY_PENDING', 'the previous move reached the relay; repeat that interrupted command to receive its original outcome before sending a different move');
+  }
+  const receipt = localRecords(root, (board) => engineReceipt(board, recovered.move.id));
+  if (!receipt) throw new Refused('RELAY_RESPONSE', 'the recovered operation has no replay receipt; fetch a consistent relay snapshot before retrying');
+  if (receipt.move !== JSON.stringify(recovered.move)) {
+    throw new Refused('RELAY_MOVE', 'the recovered operation differs from its durable receipt; restore consistent relay metadata before retrying');
+  }
+  return recovered.move;
+}
+
 /** Send one board operation before executing it locally, and report its canonical engine result. */
-export async function relayOperation(root, operation, args, io) {
+export async function relayOperation(root, operation, args, io, command) {
   const file = linkFile(root);
   return locked(file, async () => {
     const state = loadLink(file);
@@ -390,18 +425,36 @@ export async function relayOperation(root, operation, args, io) {
     }
     const previousReceipt = io.personRequestMoveId && localRecords(root, board => engineReceipt(board, io.personRequestMoveId));
     if (previousReceipt) {
+      if (state.recovered?.move?.id === io.personRequestMoveId) {
+        delete state.recovered;
+        saveLink(file, state);
+      }
       if (previousReceipt.outcome.error) throw new Refused(previousReceipt.outcome.error.code, previousReceipt.outcome.error.message);
       for (const event of previousReceipt.outcome.events ?? []) io.onEvent?.(event);
       return previousReceipt.outcome.result;
     }
-    const move = localRecords(root, (board) => prepareEngineMove(board, operation, args, io.personRequestMoveId ? { id: io.personRequestMoveId } : {}));
-    if (io.personRequest) move.personRequest = structuredClone(io.personRequest);
-    const sequence = state.sequence + 1;
-    state.pending = { move, sequence, sealed: await sealedRecord(readBoardKey(state.board), move, state, 'move', sequence) };
-    saveLink(file, state);
-    await sendPending(root, file, state, io);
+    let move = recoveredMove(root, state, operation, args, command);
+    if (!move) {
+      move = localRecords(root, (board) => prepareEngineMove(board, operation, args, io.personRequestMoveId ? { id: io.personRequestMoveId } : {}));
+      if (io.personRequest) move.personRequest = structuredClone(io.personRequest);
+      const sequence = state.sequence + 1;
+      state.pending = { move, intent: operationIntent(operation, args),
+        ...(command ? { command, commandIntent: operationIntent('cli:' + command.cliOperation, command) } : {}), sequence,
+        sealed: await sealedRecord(readBoardKey(state.board), move, state, 'move', sequence) };
+      saveLink(file, state);
+      try { await sendPending(root, file, state, io); }
+      catch (error) {
+        if (!['RELAY_UNAVAILABLE', 'RELAY_RESPONSE'].includes(error.code)) throw error;
+        // A lost acknowledgement can be recovered now without asking the caller to retry side effects.
+        try { await catchUp(root, file, state, io); } catch { throw error; }
+        if (!localRecords(root, (board) => engineReceipt(board, move.id))) throw error;
+      }
+    }
+
     const receipt = localRecords(root, (board) => engineReceipt(board, move.id));
     if (!receipt) throw new Refused('RELAY_RESPONSE', 'the acknowledged operation has no replay receipt; fetch a consistent relay snapshot');
+    delete state.recovered;
+    saveLink(file, state);
     // A phone can read a compacted checkpoint; failed presentation uploads do not undo the move.
     try { await publishCheckpoint(root, file, state, io); }
     catch (error) { if (!(error instanceof Refused)) throw error; io.err(`pullboard: ${error.message}`); }
@@ -442,6 +495,48 @@ export async function syncRelay(root, io) {
         behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)) };
     }
   });
+}
+
+/** Read an acknowledged exact CLI result before changed spec, brief or Git refs can block it. */
+export async function relayCommandReceipt(root, command) {
+  if (!command) return null;
+  const file = linkFile(root);
+  return locked(file, async () => {
+    const state = loadLink(file);
+    if (!state || state.unlinking) return null;
+    const recovered = state.recovered;
+    if (!recovered || recovered.commandIntent !== operationIntent('cli:' + command.cliOperation, command)) return null;
+    if (recovered.commandIntent !== operationIntent('cli:' + recovered.command?.cliOperation, recovered.command)) {
+      throw new Refused('RELAY_STORAGE', 'restore the interrupted command metadata before retrying');
+    }
+    const expected = { add: 'addItem', edit: 'editItem', merged: 'merged' }[command.cliOperation];
+    if (!recovered.move || recovered.move.operation !== expected) throw new Refused('RELAY_STORAGE', 'restore the interrupted command metadata before retrying');
+    const move = recoveredMove(root, state, recovered.move.operation, recovered.move.args, command);
+    const receipt = localRecords(root, board => engineReceipt(board, move.id));
+    if (receipt.outcome.error) {
+      delete state.recovered;
+      saveLink(file, state);
+      throw new Refused(receipt.outcome.error.code, receipt.outcome.error.message);
+    }
+    return { result: receipt.outcome.result, events: receipt.outcome.events ?? [], move };
+  });
+}
+
+/** Consume the exact cached result after its original CLI outcome has been formatted. */
+export async function relayCommandReceiptReported(root, moveId) {
+  const file = linkFile(root);
+  return locked(file, async () => {
+    const state = loadLink(file);
+    if (state?.recovered?.move?.id === moveId) {
+      delete state.recovered;
+      saveLink(file, state);
+    }
+  });
+}
+
+/** Expose only an unreported operation descriptor so CLI preconditions cannot strand its outcome. */
+export function relayRecovered(root) {
+  return loadLink(linkFile(root))?.recovered?.move ?? null;
 }
 
 /** Read the local link and lag without opening a network connection or revealing its relay token. */
