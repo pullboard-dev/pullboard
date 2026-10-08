@@ -8,6 +8,8 @@ import { Refused } from './refused.js';
 
 export const CONFIG_FILE = 'pullboard.json';
 export const COORDINATOR = 'coordinator';
+export const DOCTRINE_FILE = 'DOCTRINE.md';
+export const LEGACY_DOCTRINE_FILE = 'PRACTICE.md';
 
 const LANE_NAME_RE = /^[a-z][a-z0-9-]{0,30}$/;
 const DURATION_RE = /^(\d+)(m|h|d)$/;
@@ -34,7 +36,7 @@ const COMMIT_TYPES = [
 export function defaults() {
   return {
     spec: 'SPEC.md',
-    practice: 'PRACTICE.md',
+    practice: DOCTRINE_FILE,
     gate: '',
     lease: '2h',
     reviewLease: '30m',
@@ -141,7 +143,7 @@ export function configProblems(config) {
     }
   }
   if (typeof config.spec !== 'string' || !config.spec) problems.push('"spec" names a file');
-  if (typeof config.practice !== 'string' || !config.practice) problems.push('"practice" names a file');
+  if (typeof config.practice !== 'string' || !config.practice) problems.push('"practice" names the doctrine file');
   if (typeof config.gate !== 'string') problems.push('"gate" is a shell command, like "npm test"');
   if (!['any', COORDINATOR].includes(config.verify?.policy)) {
     problems.push('"verify.policy" is "any" (any other agent) or "coordinator"');
@@ -190,7 +192,19 @@ export function loadConfig(root) {
   if (!existsSync(file)) {
     throw new Refused('NO_CONFIG', `no ${CONFIG_FILE} in ${root}; run: pullboard init`);
   }
-  return configFromSource(readFileSync(file, 'utf8'));
+  const config = configFromSource(readFileSync(file, 'utf8'));
+  return { ...config, practice: doctrineFile(root, config.practice) };
+}
+
+/** Resolve the doctrine's current name while preserving legacy and explicitly configured paths. */
+export function doctrineFile(root, name = DOCTRINE_FILE) {
+  if (![DOCTRINE_FILE, LEGACY_DOCTRINE_FILE].includes(name)) return name;
+  const current = existsSync(join(root, DOCTRINE_FILE));
+  const legacy = existsSync(join(root, LEGACY_DOCTRINE_FILE));
+  if (current && legacy) {
+    throw new Refused('BAD_CONFIG', `${DOCTRINE_FILE} and ${LEGACY_DOCTRINE_FILE} both define the repo doctrine; restore one doctrine file: merge their rules into ${DOCTRINE_FILE} and remove ${LEGACY_DOCTRINE_FILE}`);
+  }
+  return current ? DOCTRINE_FILE : legacy ? LEGACY_DOCTRINE_FILE : name;
 }
 
 /** Parse committed coordinator settings with the same defaults and validation as local settings. */
