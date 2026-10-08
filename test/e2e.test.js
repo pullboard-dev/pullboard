@@ -20,6 +20,7 @@ import { connect } from 'node:net';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { parseSpec } from '../src/spec.js';
+import { checkAtCommit } from '../src/trusted-policy.js';
 import * as store from '../src/board.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -53,6 +54,7 @@ function sandbox() {
     PULLBOARD_HOME: join(dir, 'pullboard-home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
   };
+  delete env.PULLBOARD_RELAY_TOKEN;
   const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
   const tryGit = (cwd, ...args) => spawnSync('git', args, { cwd, env, encoding: 'utf8' });
   const run = (cwd, ...args) => {
@@ -176,14 +178,14 @@ test('init writes config, spec, agent docs and hooks once, and never clobbers [I
   assert.equal(readFileSync(join(repo, 'CLAUDE.md'), 'utf8'), '@AGENTS.md\n');
   assert.equal(box.git(repo, 'config', '--get', 'core.hooksPath'), '.githooks');
   for (const hook of ['pre-commit', 'commit-msg', 'pre-push']) assert.ok(existsSync(join(repo, '.githooks', hook)));
-  const practice = readFileSync(join(repo, 'PRACTICE.md'), 'utf8');
-  assert.ok(practice.startsWith('# Practice'));
+  const practice = readFileSync(join(repo, 'DOCTRINE.md'), 'utf8');
+  assert.ok(practice.startsWith('# Doctrine'));
   assert.deepEqual(parseSpec(practice).rows, [], 'fresh init copies no standard rules [D4]');
   assert.equal(parseSpec(practice).sections.length, 6);
   assert.equal(practice.split('Inherits Pullboard standard doctrine version 1.').length, 2);
   assert.match(agents, /PB1 \(standard 1\)/, 'fresh guidance shows inherited rules [D3]');
   assert.ok(existsSync(join(repo, '.claude', 'skills', 'pullboard-decompose', 'SKILL.md')));
-  assert.match(second.out, /kept PRACTICE.md/);
+  assert.match(second.out, /kept DOCTRINE.md/);
   assert.match(second.out, /kept the Claude Code skills/);
 });
 
@@ -197,7 +199,17 @@ test("init's spec has its sections and no rows, and the README's example fits un
   assert.deepEqual(parseSpec(spec).rows, [], 'no placeholder row, so no placeholder id is ever committed and made permanent');
   assert.deepEqual(parseSpec(spec).sections.map((section) => section.name), ['G · Goals: what the client asked for', 'K · Constraints']);
   const readme = readFileSync(join(import.meta.dirname, '..', 'README.md'), 'utf8');
-  const example = /```markdown\n([\s\S]*?)```/.exec(readme.slice(readme.indexOf('## Quick start')))?.[1] ?? '';
+  const section = /^## (?:Quick start|By hand)\s*$/mu.exec(readme);
+  const markdownExamples = [...readme.matchAll(/```markdown\n([\s\S]*?)```/gu)];
+  /** Match the spec example rather than unrelated markdown examples.
+   * @param {RegExpMatchArray} block
+   * @returns {boolean}
+   */
+  const isGoalsExample = (block) => /^## G · Goals[^\n]*$/mu.test(block[1]);
+  const exampleBlock = markdownExamples.find((block) => isGoalsExample(block) && (!section || block.index > section.index))
+    ?? markdownExamples.find(isGoalsExample);
+  assert.ok(exampleBlock, "the README has a markdown block with its G rows under Quick start, By hand, or on its own");
+  const example = exampleBlock[1];
   const [heading, ...rows] = example.trim().split('\n');
   assert.ok(rows.length > 0 && spec.includes(`${heading}\n`), `the README's example heading is one init writes: ${heading}`);
   writeFileSync(join(repo, 'SPEC.md'), spec.replace(`${heading}\n`, `${heading}\n${rows.join('\n')}\n`));
@@ -243,10 +255,10 @@ test("the coordinator's resume names its next step from the spec and the board, 
 
 test('spec check lints both files; spec view writes one page into the git dir [S6, S7]', () => {
   const box = project();
-  writeFileSync(join(box.repo, 'PRACTICE.md'), '# Practice\n\n## C · Code\n- C1 [approved, must] Functions under 60 lines.\n');
+  writeFileSync(join(box.repo, 'DOCTRINE.md'), '# Doctrine\n\n## C · Code\n- C1 [approved, must] Functions under 60 lines.\n');
   const check = box.run(box.repo, 'spec', 'check');
   assert.equal(check.code, 1);
-  assert.match(check.out, /PRACTICE.md:4 C1 error: an approved must-row names its gate/);
+  assert.match(check.out, /DOCTRINE.md:4 C1 error: an approved must-row names its gate/);
   assert.match(check.out, /SPEC.md: 2 rows, 0 errors/);
   const view = box.run(box.repo, 'spec', 'view');
   assert.equal(view.code, 0, view.err);
@@ -524,26 +536,26 @@ test("a worktree starts only from a commit that holds pullboard's files as the m
   const first = refused(/\[NOT_COMMITTED\] this repo has no commit yet, and a new worktree starts from one; not committed: /, [
     '.githooks/pre-commit',
     'AGENTS.md',
-    'PRACTICE.md',
+    'DOCTRINE.md',
     'SPEC.md',
     'pullboard.json',
   ]);
   sh(first);
-  for (const file of ['.githooks/pre-commit', 'AGENTS.md', 'PRACTICE.md', 'SPEC.md', 'pullboard.json']) {
+  for (const file of ['.githooks/pre-commit', 'AGENTS.md', 'DOCTRINE.md', 'SPEC.md', 'pullboard.json']) {
     assert.equal(box.git(repo, 'ls-tree', '--name-only', 'HEAD', '--', file), file, `${file} is committed`);
   }
   assert.equal(box.git(repo, 'ls-tree', '--name-only', 'HEAD', '--', 'notes.txt'), '', 'the command commits only those files');
 
   writeFileSync(join(repo, 'SPEC.md'), `${SPEC}- G3 [draft, aim] A third goal. | gate: test\n`);
   writeFileSync(join(repo, '.githooks', 'post-checkout'), '#!/bin/sh\n');
-  rmSync(join(repo, 'PRACTICE.md'));
+  rmSync(join(repo, 'DOCTRINE.md'));
   box.git(repo, 'add', 'notes.txt');
   refused(/\[NOT_COMMITTED\] a new worktree starts from the last commit, and these differ from it here: /, [
     '.githooks/post-checkout (not committed)',
-    'PRACTICE.md (deleted)',
+    'DOCTRINE.md (deleted)',
     'SPEC.md (changed)',
   ]);
-  box.git(repo, 'checkout', '--', 'PRACTICE.md');
+  box.git(repo, 'checkout', '--', 'DOCTRINE.md');
   sh(refused(/these differ from it here: \.githooks\/post-checkout \(not committed\), SPEC\.md \(changed\)\. /, []));
   assert.equal(box.git(repo, 'diff', '--cached', '--name-only'), 'notes.txt', "the person's staged file stays staged, and out of the commit");
 
@@ -1247,6 +1259,37 @@ test('the tour runs a reject and its rework on a throwaway repo, in under thirty
   assert.match(stopped.stdout, /The tour stopped: git init -q -b main exited null/);
 });
 
+test('the tour registers a labelled demo that view lists and forget removes [N10, N26]', async () => {
+  const box = project();
+  const tourEnv = { ...box.env, TMPDIR: box.dir, HOME: box.dir };
+  delete tourEnv.PULLBOARD_MODEL;
+  const result = spawnSync(process.execPath, [BIN, 'tour'], {
+    cwd: box.dir,
+    env: tourEnv,
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  assert.equal(result.stdout.trimEnd().split('\n').at(-1), 'see it: pullboard view');
+  const demoRoot = /Look around: cd (\S+) && pullboard log/.exec(result.stdout)?.[1];
+  assert.ok(demoRoot, 'the retained demo path is printed');
+  const registered = JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'projects.json'), 'utf8')).projects;
+  assert.deepEqual(registered.map(({ root, name }) => [root, name]), [[box.repo, 'repo'], [demoRoot, 'demo']]);
+
+  const view = await startView(box, box.repo);
+  try {
+    const listing = await fetch(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': view.key } });
+    assert.equal(listing.status, 200);
+    assert.deepEqual((await listing.json()).boards.map(({ root, name }) => [root, name]), [[box.repo, 'repo'], [demoRoot, 'demo']]);
+    const forgotten = box.run(box.dir, 'forget', demoRoot);
+    assert.equal(forgotten.code, 0, forgotten.err);
+    assert.match(forgotten.out, /forgot/);
+    const after = await fetch(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': view.key } });
+    assert.deepEqual((await after.json()).boards.map(({ root, name }) => [root, name]), [[box.repo, 'repo']]);
+  } finally {
+    await view.stop();
+  }
+});
+
 test('the run pack names verified items that touched the same files, so a cold agent follows them [N21]', () => {
   const box = project();
   const script = (name, lines) => {
@@ -1291,11 +1334,11 @@ test('a fresh worktree with no install of its own runs pullboard from the main c
 
 test('the gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir [V10]', () => {
   const box = project();
-  // Let piped stdout drain before exiting; process.exit() can discard its last writes on Node 24.
   writeFileSync(join(box.repo, 'gate.cjs'), [
     "const red = require('node:fs').existsSync('RED');",
-    "for (let i = 0; i < 400; i++) console.log(`ok ${i} ${'x'.repeat(red ? 10 : 3000)}`);",
-    "if (red) { console.error('not ok 401 - the page renders a heading'); for (let i = 0; i < 100; i++) console.log(`# note ${i}`); process.exitCode = 1; }",
+    "const { writeSync } = require('node:fs');",
+    "for (let i = 0; i < 400; i++) writeSync(1, `ok ${i} ${'x'.repeat(red ? 10 : 3000)}\\n`);",
+    "if (red) { writeSync(2, 'not ok 401 - the page renders a heading\\n'); for (let i = 0; i < 100; i++) writeSync(1, `# note ${i}\\n`); process.exitCode = 1; }",
     '',
   ].join('\n'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: 'node gate.cjs # prints a lot' }));
@@ -1516,6 +1559,35 @@ async function startView(box, cwd) {
   const key = link.searchParams.get('k');
   const base = `http://127.0.0.1:${link.port}`;
   const headers = { 'x-pullboard-key': key };
+  /**
+   * Fetch the page through either the accepted printed-key response or the cookie exchange.
+   * Keeping these paths in one fixture lets the API assertions stay independent of page auth.
+   */
+  const page = async () => {
+    const response = await fetch(link, { redirect: 'manual' });
+    if (response.status === 200) return response;
+    assert.equal(response.status, 303, 'the printed link either serves the legacy page or exchanges its key');
+
+    const rawLocation = response.headers.get('location');
+    assert.ok(rawLocation, 'the cookie exchange has a redirect target');
+    const location = new URL(rawLocation, base);
+    assert.equal(location.origin, new URL(base).origin, 'the cookie exchange stays on this view origin');
+    assert.equal(location.pathname, '/', 'the cookie exchange returns to the clean page path');
+    assert.equal(location.search, '', 'the redirect does not keep credentials in the address');
+    assert.equal(location.hash, '', 'the redirect has no credential-bearing fragment');
+
+    const cookies = response.headers.getSetCookie?.() ?? [response.headers.get('set-cookie')].filter(Boolean);
+    assert.equal(cookies.length, 1, 'the exchange sets one session cookie');
+    const [pair, ...attributes] = cookies[0].split(';').map((part) => part.trim());
+    assert.match(pair, /^[A-Za-z0-9_-]+=[A-Za-z0-9._~-]+$/u, 'the session cookie has a valid nonempty name and value');
+    assert.ok(attributes.some((attribute) => /^httponly$/iu.test(attribute)), 'the session cookie is HttpOnly');
+    assert.ok(attributes.some((attribute) => /^samesite=strict$/iu.test(attribute)), 'the session cookie is SameSite=Strict');
+    assert.ok(attributes.some((attribute) => /^path=\/$/iu.test(attribute)), 'the session cookie is scoped to the view');
+
+    const pageResponse = await fetch(location, { headers: { cookie: pair }, redirect: 'manual' });
+    assert.equal(pageResponse.status, 200, 'the cookie jar fetches the page after the exchange');
+    return pageResponse;
+  };
   /** Read the public listing through the view's real authenticated API. */
   const boards = async () => {
     const response = await fetch(`${base}/api/v1/boards`, { headers });
@@ -1547,7 +1619,7 @@ async function startView(box, cwd) {
     child.once('exit', done);
     child.kill('SIGTERM');
   });
-  return { link, key, base, state, act, stop };
+  return { link, key, base, page, state, act, stop };
 }
 
 test('view serves every project on this machine, on loopback, behind its secret and its own Host [N26, I8]', async () => {
@@ -1562,8 +1634,7 @@ test('view serves every project on this machine, on loopback, behind its secret 
     const badSecret = await fetch(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': 'guess' } });
     assert.equal(badSecret.status, 401, 'a wrong secret');
     assert.equal((await badSecret.json()).error.code, 'AUTH_REQUIRED');
-    const page = await fetch(view.link);
-    assert.equal(page.status, 200);
+    const page = await view.page();
     assert.match(await page.text(), /<title>Pullboard<\/title>/);
     const { boards, warnings, project: shown } = await view.state(box.repo);
     assert.deepEqual(boards.map((entry) => [entry.root, entry.name]), [[box.repo, 'repo']]);
@@ -1601,10 +1672,14 @@ test('from the view the person adds items, shouts and holds lanes, through the C
     const held = await view.act(box.repo, { verb: 'hold', args: { lane: 'web', reason: 'G1 is changing' } });
     assert.equal(held.status, 200);
     assert.equal(held.document.event.event_kind, 'hold');
-    assert.match(box.run(box.web, 'next').err, /coordinator holds the web lane: G1 is changing/);
+    assert.equal(held.document.event.event_by, 'person');
+    assert.equal(JSON.parse(held.document.event.event_detail).channel, 'view');
+    assert.match(box.run(box.web, 'next').err, /person holds the web lane: G1 is changing/);
     const released = await view.act(box.repo, { verb: 'hold', args: { lane: 'web', off: true } });
     assert.equal(released.status, 200);
     assert.equal(released.document.event.event_kind, 'unhold');
+    assert.equal(released.document.event.event_by, 'person');
+    assert.equal(JSON.parse(released.document.event.event_detail).channel, 'view');
     const unknown = await view.act(box.dir, { verb: 'shout', args: { to: 'all', text: 'x' } });
     assert.equal(unknown.status, 404);
     assert.equal(unknown.document.error.code, 'NO_BOARD');
@@ -1634,7 +1709,7 @@ test('the view answers a request line no URL parser accepts with 403, and keeps 
       socket.on('close', () => done(text));
     });
     assert.match(reply, /^HTTP\/1\.1 403/);
-    assert.equal((await fetch(view.link)).status, 200, 'still serving');
+    assert.equal((await view.page()).status, 200, 'still serving');
   } finally {
     await view.stop();
   }
@@ -1662,7 +1737,7 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
   box.git(box.repo, 'switch', '-q', 'main');
   const view = await startView(box, box.repo);
   try {
-    const page = await (await fetch(view.link)).text();
+    const page = await (await view.page()).text();
     for (const region of ['id="proj-switch"', 'data-tab="items"', 'data-tab="shouts"', 'data-tab="spec"', 'data-tab="doctrine"', 'data-tab="activity"', 'id="chain"', 'id="detail"', 'id="add-form"', 'id="hold-form"']) {
       assert.ok(page.includes(region), region);
     }
@@ -1752,6 +1827,194 @@ function attackCommit(box, cwd) {
   box.git(cwd, 'update-ref', 'HEAD', commit);
   return commit;
 }
+
+/** Submit a fixture whose private check reads an ignored dependency folder. */
+function privateCheckSubmission({ install = '', timeout = '5m', check }) {
+  const box = project('true');
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  config.check = { install, timeout };
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: configure private check fixture');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  assert.equal(box.run(box.repo, 'add', 'web', 'Private check', '--specs', 'G1', '--criterion', 'the installed check passes', '--check', check).code, 0);
+  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  mkdirSync(join(box.web, 'web'));
+  writeFileSync(join(box.web, 'web/.gitignore'), '.deps/\n');
+  writeFileSync(join(box.web, 'web/index.html'), 'fixture');
+  const commit = attackCommit(box, box.web);
+  assert.equal(box.run(box.web, 'submit', '1').code, 0);
+  const review = join(box.dir, 'private-check-review');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
+  assert.equal(box.run(review, 'join', 'api').code, 0);
+  return { ...box, review, commit };
+}
+
+test('accept installs ignored dependencies from frozen policy and doctor audits the same private check [V18,V2]', () => {
+  const box = privateCheckSubmission({
+    install: 'echo frozen-install-ran; mkdir -p web/.deps; printf installed > web/.deps/ready',
+    check: 'test -f web/.deps/ready',
+  });
+  const accepted = box.run(box.review, 'verify', '1', 'accept', '--note', 'the private install created the ignored dependency folder', '--json');
+  assert.equal(accepted.code, 0, accepted.err);
+  const doctor = box.run(box.repo, 'doctor', '--json');
+  assert.equal(doctor.code, 0, doctor.out);
+
+  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  let item;
+  try { item = store.getItem(board, 1); }
+  finally { store.closeBoard(board); }
+  writeFileSync(join(box.web, 'pullboard.json'), JSON.stringify({ ...JSON.parse(readFileSync(join(box.web, 'pullboard.json'), 'utf8')), check: { install: 'echo malicious-install-ran; exit 7', timeout: '1ms' } }));
+  const changed = attackCommit(box, box.web);
+  const proof = checkAtCommit(box.repo, { ...item, item_commit: changed });
+  assert.equal(proof.state, 'pass');
+  assert.match(proof.output, /frozen-install-ran/);
+  assert.doesNotMatch(proof.output, /malicious-install-ran/);
+});
+
+test('accept without check.install keeps CHECK_RED and names the missing setting [V18,V2]', () => {
+  const box = privateCheckSubmission({ check: 'echo check-failed; test -f web/.deps/ready' });
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'checking missing private dependency', '--json');
+  assert.equal(refused.code, 1);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'CHECK_RED');
+  assert.match(error.message, /check\.install/);
+  assert.match(error.message, /output digest/);
+  assert.match(error.message, /check-failed/);
+  assert.match(error.next, /^reject with the failing behavior or ask the builder to fix and resubmit/);
+});
+
+test('accept reports failed install as CHECK_UNVERIFIED with an output digest [V18,V2]', () => {
+  const box = privateCheckSubmission({ install: 'echo install-failed; exit 9', check: 'true' });
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'install must complete before verification', '--json');
+  assert.equal(refused.code, 1);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'CHECK_UNVERIFIED');
+  assert.match(error.message, /install failed/);
+  assert.match(error.message, /output digest/);
+  assert.match(error.message, /install-failed/);
+  assert.match(error.next, /^restore the install or check environment, then retry verification/);
+});
+
+test('private check digest keeps install and noisy check output in separate sections [V18,V2]', () => {
+  const box = privateCheckSubmission({
+    install: 'echo install-marker',
+    check: 'i=0; while [ "$i" -lt 200 ]; do echo noisy-check-output-$i; i=$((i + 1)); done; echo check-failed; exit 1',
+  });
+  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  let item;
+  try { item = store.getItem(board, 1); }
+  finally { store.closeBoard(board); }
+  const proof = checkAtCommit(box.repo, item);
+  assert.equal(proof.state, 'red');
+  assert.match(proof.report, /install output:\ninstall-marker/);
+  assert.match(proof.report, /check output:[\s\S]*check-failed/);
+});
+
+test('accept runs a successful frozen check that writes a file larger than the log cap [V18,V2]', () => {
+  const box = privateCheckSubmission({ check: 'mkdir -p web/.deps; node -e \'require("node:fs").writeFileSync("web/.deps/check.bin", Buffer.alloc(20 * 1024 * 1024)); console.log("large-check-file-written")\'' });
+  const accepted = box.run(box.review, 'verify', '1', 'accept', '--note', 'the check wrote its real 20 MiB artifact', '--json');
+  assert.equal(accepted.code, 0, accepted.out);
+  assert.equal(JSON.parse(accepted.out).decision, 'ACCEPT');
+});
+
+test('accept installs a real dependency file larger than the log cap before checking [V18,V2]', () => {
+  const box = privateCheckSubmission({
+    install: 'mkdir -p web/.deps; node -e \'require("node:fs").writeFileSync("web/.deps/dependency.bin", Buffer.alloc(20 * 1024 * 1024)); console.log("large-install-file-written")\'',
+    check: 'node -e \'if (require("node:fs").statSync("web/.deps/dependency.bin").size !== 20 * 1024 * 1024) process.exit(1)\'',
+  });
+  const accepted = box.run(box.review, 'verify', '1', 'accept', '--note', 'the private install produced the complete 20 MiB dependency', '--json');
+  assert.equal(accepted.code, 0, accepted.out);
+  assert.equal(JSON.parse(accepted.out).decision, 'ACCEPT');
+  const doctor = box.run(box.repo, 'doctor', '--json');
+  assert.equal(doctor.code, 0, doctor.out);
+});
+
+test('a successful noisy check drains beyond the log cap and keeps bounded head and tail output [V18,V2]', () => {
+  const box = privateCheckSubmission({ check: 'node -e \'process.stdout.write("BEGIN-MARKER\\n"); process.stdout.write(Buffer.alloc(20 * 1024 * 1024, 120)); process.stdout.write("\\nEND-MARKER\\n")\'' });
+  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  let item;
+  try { item = store.getItem(board, 1); } finally { store.closeBoard(board); }
+  const proof = checkAtCommit(box.repo, item);
+  assert.equal(proof.state, 'pass', proof.report);
+  assert.ok(proof.output.length < 8 * 1024 * 1024 + 256, 'only a bounded capture reaches the caller');
+  assert.match(proof.output, /BEGIN-MARKER/);
+  assert.match(proof.output, /END-MARKER/);
+  assert.match(proof.output, /output capped at 8 MiB; middle omitted/);
+  const accepted = box.run(box.review, 'verify', '1', 'accept', '--note', 'a noisy successful check passes with bounded output', '--json');
+  assert.equal(accepted.code, 0, accepted.out);
+});
+
+test('accept reports a frozen check timeout as CHECK_UNVERIFIED [V18,V2]', () => {
+  const box = privateCheckSubmission({ timeout: '100ms', check: 'case "$PULLBOARD_HOME" in */pullboard-criterion-*/home/.pullboard) while :; do :; done;; *) exit 1;; esac' });
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'the frozen check exceeded its configured timeout', '--json');
+  assert.equal(refused.code, 1);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'CHECK_UNVERIFIED');
+  assert.match(error.message, /check timed out/);
+  assert.match(error.message, /output digest/);
+  assert.match(error.next, /^restore the install or check environment, then retry verification/);
+});
+
+test('accept reports a frozen install timeout before running the check [V18,V2]', () => {
+  const box = privateCheckSubmission({ timeout: '100ms', install: 'echo install-started; while :; do :; done', check: 'echo forbidden-check-ran' });
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'the install must finish within its frozen deadline', '--json');
+  assert.equal(refused.code, 1);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'CHECK_UNVERIFIED');
+  assert.match(error.message, /install timed out/);
+  assert.match(error.message, /install-started/);
+  assert.doesNotMatch(error.message, /forbidden-check-ran/);
+  assert.match(error.next, /^restore the install or check environment, then retry verification/);
+});
+
+test('private check timeout kills a TERM-resistant shell and its tracked child [V18,V2]', () => {
+  const box = project('true');
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  config.check = { install: '', timeout: '100ms' };
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: configure bounded check fixture');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  assert.equal(box.run(box.repo, 'add', 'web', 'Bounded check', '--specs', 'G1', '--criterion', 'the check stops within its timeout', '--check', 'true').code, 0);
+  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  mkdirSync(join(box.web, 'web'));
+  writeFileSync(join(box.web, 'web/index.html'), 'fixture');
+  const commit = attackCommit(box, box.web);
+  const pidFile = join(box.dir, 'private-check-child.pid');
+  const check = `sleep 30 & echo $! > '${pidFile}'; trap 'while :; do :; done' TERM; while :; do :; done`;
+  const item = { item_frozen: JSON.stringify({ check }), item_claim_head: commit, item_commit: commit };
+  const modulePath = resolve(import.meta.dirname, '../src/trusted-policy.js');
+  const source = `import { checkAtCommit } from ${JSON.stringify(modulePath)}; console.log(JSON.stringify(checkAtCommit(process.argv[1], JSON.parse(process.argv[2]))));`;
+  const shellPidFile = join(box.dir, 'private-check-shell.pid');
+  const trackedCheck = `echo $$ > '${shellPidFile}'; ${check}`;
+  const trackedItem = { ...item, item_frozen: JSON.stringify({ check: trackedCheck }) };
+  let outer;
+  try {
+    outer = spawnSync(process.execPath, ['--input-type=module', '-e', source, box.repo, JSON.stringify(trackedItem)], {
+      cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 3000, detached: true,
+    });
+    assert.equal(outer.error, undefined, outer.error?.message);
+    assert.equal(outer.status, 0, outer.stderr);
+    assert.equal(JSON.parse(outer.stdout).stage, 'check timed out');
+    const childPid = Number(readFileSync(pidFile, 'utf8').trim());
+    let childAlive = true;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      try { process.kill(childPid, 0); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10); }
+      catch { childAlive = false; break; }
+    }
+    assert.equal(childAlive, false, 'the tracked grandchild exits after its timeout');
+  } finally {
+    const fixturePids = [pidFile, shellPidFile].flatMap(path => {
+      try { return [Number(readFileSync(path, 'utf8').trim())]; }
+      catch { return []; }
+    }).filter(pid => Number.isSafeInteger(pid) && pid > 0 && pid !== process.pid);
+    if (outer?.error?.code === 'ETIMEDOUT' && outer.pid) fixturePids.push(outer.pid);
+    for (const pid of new Set(fixturePids)) {
+      try { process.kill(pid, 'SIGKILL'); } catch { /* This fixture process has already exited. */ }
+    }
+  }
+});
 
 test('the blind gate-bypass repro refuses submit and accept, and doctor audits pre-merge policy [V4,V16,L3,M3]', () => {
   const box = project('true');

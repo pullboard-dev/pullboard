@@ -29,14 +29,19 @@ function lifecycle() {
  * Its styles are src/view.css, which it links with the session's secret as every request carries it;
  * styles stay in that separate file so its policy can refuse inline styles. The serving host
  * supplies the API base and credential headers; clients need no loopback-specific connection.
+ * The Roadmap tab has its own address (N38): /roadmap on a host that serves the page there too,
+ * which `paths` declares, and a #roadmap fragment anywhere else, such as a snapshot hosted under a
+ * folder, where a path the host does not serve would leave a reload with nothing.
  *
  * @param {string} [key] - The session's secret.
- * @param {{snapshot?: boolean, apiBase?: string, apiHeaders?: Record<string, string>, stylesheet?: string}} [options] - Served API connection and assets, or a static, read-only page with event replay.
+ * @param {{snapshot?: boolean, readOnly?: boolean, transportModule?: string|null, apiBase?: string, apiHeaders?: Record<string, string>, stylesheet?: string, paths?: boolean}} [options] - Served API connection and assets, whether the host also serves the page at /roadmap, or a static, read-only page with event replay.
  * @returns {string}
  */
-export function cockpitPage(key = '', { snapshot = false, apiBase = '', apiHeaders = { 'x-pullboard-key': key }, stylesheet = null } = {}) {
-  const connection = JSON.stringify({ base: apiBase.replace(/\/$/, ''), headers: apiHeaders }).replace(/</g, '\\u003c');
-  const css = stylesheet ?? (snapshot ? 'view.css' : '/view.css?k=' + encodeURIComponent(key));
+export function cockpitPage(key = '', { snapshot = false, readOnly = false, transportModule = null, apiBase = '', apiHeaders = { 'x-pullboard-key': key }, stylesheet = null, paths = false } = {}) {
+  if (transportModule !== null && (typeof transportModule !== 'string' || !transportModule.trim())) throw new TypeError('transportModule must be a non-empty module URL or null');
+  const connection = JSON.stringify(transportModule ? { base: '', headers: {} } : { base: apiBase.replace(/\/$/, ''), headers: apiHeaders }).replace(/</g, '\\u003c');
+  const moduleOption = JSON.stringify(transportModule).replace(/</g, '\\u003c');
+  const css = stylesheet ?? (snapshot ? 'view.css' : transportModule ? '/view.css' : '/view.css?k=' + encodeURIComponent(key));
   const cssAttribute = css.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   return `<!doctype html>
 <html lang="en">
@@ -47,7 +52,7 @@ export function cockpitPage(key = '', { snapshot = false, apiBase = '', apiHeade
 <link rel="stylesheet" href="${cssAttribute}">
 <link rel="icon" href="data:,">
 </head>
-<body class="loading${snapshot ? ' snapshot' : ''}">
+<body class="loading${snapshot ? ' snapshot' : ''}${readOnly ? ' read-only' : ''}">
 <div class="shell">
 <aside class="side" id="side" aria-label="Projects">
   <div class="side-top">
@@ -69,6 +74,7 @@ export function cockpitPage(key = '', { snapshot = false, apiBase = '', apiHeade
     <button class="tab" data-tab="spec" type="button">Spec<b id="count-spec"></b></button>
     <button class="tab" data-tab="doctrine" type="button">Doctrine<b id="count-doctrine"></b></button>
     <button class="tab" data-tab="activity" type="button">Activity</button>
+    <button class="tab" data-tab="roadmap" type="button">Roadmap</button>
   </nav>
   <span class="live" id="live"></span>
 </header>
@@ -132,16 +138,34 @@ export function cockpitPage(key = '', { snapshot = false, apiBase = '', apiHeade
     <button class="ghost flow-show" id="flow-show" type="button" hidden>Show the lifecycle</button>
     <div class="card-panel feed" id="activity"></div>
   </section>
+  <section data-pane="roadmap" class="roadmap" id="roadmap" aria-label="Roadmap"></section>
 </main>
 </div>
 </div>
 <div class="console" id="console" title="Click to close" hidden></div>
 <script>
 const snapshot = ${JSON.stringify(snapshot)};
+const readOnly = ${JSON.stringify(readOnly)};
+const transportModule = ${moduleOption};
 const connection = ${connection};
+let transport = null;
+let transportLoadError = null;
 const snapshotReplay = { final: null, events: [], index: 0, playing: false, timer: null };
 const keep = (name, value) => { name = snapshot ? 'snapshot.' + name : name; try { if (value === undefined) return localStorage.getItem(name); localStorage.setItem(name, value); } catch { return null; } return value; };
-const view = { root: keep('pb.project'), tab: keep('pb.tab') || 'items', seen: {}, code: {}, item: null, adding: false, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null } };
+// Whether the host serves this page at /roadmap as well as at /, so the Roadmap's address is a path;
+// anywhere else it is a #roadmap fragment on the page's own address (N38).
+const routed = ${JSON.stringify(Boolean(paths) && !snapshot)};
+/** The tab the address names: the Roadmap at its own address, or null at the board's. */
+function addressTab() {
+  if (typeof location === 'undefined') return null;
+  return (routed ? location.pathname === '/roadmap' : location.hash === '#roadmap') ? 'roadmap' : null;
+}
+/** The tab the board's own address shows: the one last picked there, or Items. */
+function homeTab() {
+  const kept = keep('pb.tab');
+  return kept && kept !== 'roadmap' ? kept : 'items';
+}
+const view = { root: keep('pb.project'), tab: addressTab() || homeTab(), seen: {}, code: {}, item: null, adding: false, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null } };
 if (snapshot) view.state = 'all';
 let data = null;
 let seen = '';
@@ -175,7 +199,8 @@ const firstLine = (text) => String(text ?? '').split('\\n').map((line) => line.t
 // The latest verdict is a reject and no accept followed: open again, being reworked, resubmitted, or
 // withdrawn after it.
 const rejected = (i) => i.status !== 'verified' && !!i.verdict && i.verdict.decision === 'REJECT';
-const verdictHtml = (v) => '<div class="verdict ' + (v.decision === 'ACCEPT' ? 'yes' : 'no') + '"><b>' + esc(v.decision) + ' ' + esc(v.reason) + '</b><span class="by">' + esc(v.by) + ' · ' + when(v.at) + ' · at ' + esc(String(v.commit || '').slice(0, 12)) + '</span><div class="note">' + esc(v.note) + '</div></div>';
+/** Render a review note with escaped text and references bound to the selected board. */
+const verdictHtml = (v, titles) => '<div class="verdict ' + (v.decision === 'ACCEPT' ? 'yes' : 'no') + '"><b>' + esc(v.decision) + ' ' + esc(v.reason) + '</b><span class="by">' + esc(v.by) + ' · ' + when(v.at) + ' · at ' + esc(String(v.commit || '').slice(0, 12)) + '</span><div class="note">' + linked(v.note, titles) + '</div></div>';
 const stateOf = (i) => i.status === 'claimed' ? 'building' : i.status === 'submitted' ? 'verify' : i.status === 'verified' ? 'verified' : i.status === 'withdrawn' ? 'withdrawn' : i.verdict && i.verdict.decision === 'REJECT' ? 'back' : 'open';
 const STATES = { building: ['building', 'busy'], verify: ['to verify', 'warn'], back: ['sent back', 'no'], verified: ['verified', 'ok'], open: ['open', ''], withdrawn: ['withdrawn', ''] };
 const chip = (s) => '<span class="chip ' + STATES[s][1] + '">' + STATES[s][0] + '</span>';
@@ -426,7 +451,12 @@ function flowSvg(p) {
 
 /** Read or move through API v1, retaining the rule and repair guidance in a refusal. */
 async function api(path, body) {
-  if (snapshot && body) throw new Error('This is a read-only snapshot.');
+  if (body && (snapshot || readOnly)) throw new Error(snapshot ? 'This is a read-only snapshot.' : 'This is a read-only view.');
+  if (transportModule) {
+    if (transport) return transport.request(path, body);
+    if (transportLoadError) throw transportLoadError;
+    throw new Error('The browser transport is still loading.');
+  }
   path = snapshot ? path.split('?')[0].slice(1) + '.json' : connection.base + path;
   const res = await fetch(path, { method: body ? 'POST' : 'GET', headers: snapshot ? {} : { ...connection.headers, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
   const json = await res.json();
@@ -453,6 +483,9 @@ function boardSummary(board, state) {
     drafts: state.spec.filter((row) => row.status === 'draft').length,
     holds: state.holds.length,
     decisions: state.decisions.length,
+    // What each item's state reads from, so another repo's roadmap can show it as this board's
+    // Items tab does, sent back included, and open it here.
+    items: state.items.map((item) => ({ id: item.id, title: item.title, status: item.status, verdict: item.verdict && { decision: item.verdict.decision } })),
   };
 }
 
@@ -581,6 +614,8 @@ function replayProject(index) {
     const added = log.find((event) => event.item_id === item.id && event.event_kind === 'add');
     item.blockedBy = (JSON.parse(added.event_detail).after || []).filter((id) => statuses.get(id) !== 'verified');
   }
+  // A milestone lists only this board's items added by now; another repo's stay as the export read them.
+  p.milestones = (p.milestones || []).map((milestone) => ({ ...milestone, items: milestone.items.filter((entry) => typeof entry.id !== 'number' || statuses.has(entry.id)) }));
   const shouted = new Set(log.map((event) => JSON.parse(event.event_detail).shout).filter(Boolean));
   p.shouts = p.shouts.filter((shout) => shouted.has(shout.shout_id));
   p.decisions = p.decisions.filter((shout) => shouted.has(shout.shout_id));
@@ -734,13 +769,79 @@ function renderGroup(group) {
   const needs = group.repos.flatMap((repo) => projectNeeds(repo.board).map((row) => ({ ...row, repo })));
   $('group-needs').innerHTML = needs.length ? needs.map((row) => {
     const titles = new Map(row.repo.board.items.map((item) => [String(item.id), item.title]));
-    return '<button class="group-need" data-root="' + esc(row.repo.root) + '" type="button"><b>' + esc(row.repo.name) + '</b><code>' + esc(row.ref) + '</code><span>' + rich(row.text, titles, false) + '</span><em>' + esc(row.what) + (row.at ? ', ' + age(row.at) : '') + ' →</em></button>';
+    const text = rich(row.text, titles).replaceAll('<button class="ref" data-go=', '<button class="ref" data-root="' + esc(row.repo.root) + '" data-go=');
+    return '<div class="group-need"><b>' + esc(row.repo.name) + '</b><code>' + esc(row.ref) + '</code><span>' + text + '</span><button data-root="' + esc(row.repo.root) + '" type="button"><em>' + esc(row.what) + (row.at ? ', ' + age(row.at) : '') + ' →</em></button></div>';
   }).join('') : '<div class="empty">Nothing needs you across this project.</div>';
   const events = group.repos.flatMap((repo) => {
     const titles = new Map(repo.board.items.map((item) => [String(item.id), item.title]));
-    return repo.board.events.map((event) => ({ ...event, repo, title: event.item_id ? titles.get(String(event.item_id)) : null }));
+    return repo.board.events.map((event) => ({ ...event, repo, titles, title: event.item_id ? titles.get(String(event.item_id)) : null }));
   }).sort((a, b) => b.event_at.localeCompare(a.event_at)).slice(0, 80);
-  $('group-activity').innerHTML = events.length ? byDay(events, (event) => event.event_at, (event) => '<div><time>' + clock(event.event_at) + '</time><div class="act"><b class="repo-label">' + esc(event.repo.name) + '</b> <span>' + esc(event.event_by) + ' ' + esc(event.event_kind) + (event.item_id ? ' #' + event.item_id + (event.title ? ' ' + rich(event.title, new Map(), false) : '') : '') + '</span></div></div>') : '<div class="empty">No activity yet.</div>';
+  $('group-activity').innerHTML = events.length ? byDay(events, (event) => event.event_at, (event) => '<div><time>' + clock(event.event_at) + '</time><div class="act"><b class="repo-label">' + esc(event.repo.name) + '</b> <span>' + esc(event.event_by) + ' ' + esc(event.event_kind) + (event.item_id ? ' #' + event.item_id + (event.title ? ' ' + rich(event.title, event.titles).replaceAll('<button class="ref" data-go=', '<button class="ref" data-root="' + esc(event.repo.root) + '" data-go=') : '') : '') + '</span></div></div>') : '<div class="empty">No activity yet.</div>';
+}
+
+/**
+ * A milestone's item as the Items tab reads it (N26). This board's own come from its items, and
+ * another repo's, written repo#id, from that repo's board when the view lists one by that name or
+ * folder, as the roadmap resolves it: the same state, sent back included, and it opens there. An
+ * item no listed board holds keeps the status the roadmap read for it, and opens nowhere.
+ */
+function milestoneItem(entry, p) {
+  const local = typeof entry.id === 'number';
+  const ref = local ? null : /^(.+)#([1-9]\\d*)$/.exec(String(entry.id));
+  const named = ref ? data.projects.filter((x) => x.name === ref[1] || String(x.root).split('/').pop() === ref[1]) : [];
+  const root = local ? view.root : named.length === 1 && named[0].ok ? named[0].root : null;
+  const id = local ? entry.id : ref ? Number(ref[2]) : null;
+  const item = (root === view.root ? p.items : root ? named[0].items : []).find((i) => i.id === id) || null;
+  // A status the lifecycle declares; the roadmap says unavailable or missing for an item it could not read.
+  const read = item || (FLOW.states.some((state) => state.id === entry.status) ? { status: entry.status, verdict: null } : null);
+  return {
+    label: local ? '#' + entry.id : String(entry.id),
+    title: item ? item.title : read ? entry.title : '',
+    root,
+    titles: new Map((root === view.root ? p.items : root ? named[0].items : []).map((i) => [String(i.id), i.title])),
+    state: read ? stateOf(read) : null,
+    word: entry.status,
+    open: item ? { root, id } : null,
+    // Why an item does not open, short enough to read beside its id on a phone.
+    why: item ? '' : local ? 'not on this board' : root ? 'not on that board' : snapshot ? 'not in this snapshot'
+      : named.length > 1 ? 'board name not unique' : named.length ? 'board unreadable' : 'no such board',
+  };
+}
+
+/**
+ * One item's row on the Roadmap, laid out as the Items list lays one out: the dot of its state, its
+ * id and title on one line that ends in an ellipsis when cut, and the Items tab's chip. The whole
+ * title is the row's tooltip. An item that opens is a button; one that cannot says why instead.
+ */
+function milestoneRow(row, titles) {
+  const title = row.title ? inline(String(row.title).replace(/\\s+/g, ' '), row.titles || titles).replaceAll('<button class="ref" data-go=', '<button class="ref" data-board="' + esc(row.root) + '" data-go=') : '<span class="muted">' + esc(row.why) + '</span>';
+  const inner = '<span class="dot' + (row.state ? ' ' + row.state : '') + '"></span><span class="t"><span class="id">' + esc(row.label) + '</span>' + title + '</span>' + (row.state ? chip(row.state) : '<span class="chip">' + esc(row.word) + '</span>');
+  if (!row.open) return '<li><div class="milestone-item" title="' + esc(row.title ? row.title + ' (' + row.why + ')' : row.why) + '">' + inner + '</div></li>';
+  const attributes = 'class="milestone-item" data-go="item:' + row.open.id + '"' + (row.open.root === view.root ? '' : ' data-board="' + esc(row.open.root) + '"') + ' title="' + esc(row.title) + '"';
+  // A title with its own links needs a separate containing control, never a nested button.
+  return title.includes('class="ref"')
+    ? '<li><div ' + attributes + ' role="button" tabindex="0">' + inner + '</div></li>'
+    : '<li><button ' + attributes + ' type="button">' + inner + '</button></li>';
+}
+
+/**
+ * The Roadmap (N26, N38): a card for each milestone in the board's order, with how many of its
+ * items are verified as a count and a bar, a row for each, and the note to the person in its own
+ * highlighted line. A milestone with no items says so, rather than draw an empty bar.
+ */
+function roadmapCards(p, titles) {
+  const milestones = p.milestones || [];
+  if (!milestones.length) return '<div class="card-panel empty">No milestones yet. The coordinator adds one with <code class="inline">pullboard milestone add</code>.</div>';
+  return milestones.map((milestone) => {
+    const rows = milestone.items.map((entry) => milestoneItem(entry, p));
+    const done = rows.filter((row) => row.state === 'verified').length;
+    const name = esc(milestone.name);
+    return '<article class="card-panel milestone"><header><h2>' + linked(milestone.name, titles) + '</h2>' + (rows.length ? '<span class="milestone-count">' + done + '/' + rows.length + ' done</span>' : '') + '</header>'
+      + (rows.length
+        ? '<svg class="milestone-progress" viewBox="0 0 100 1" preserveAspectRatio="none" role="progressbar" aria-label="' + name + ': ' + done + ' of ' + rows.length + ' done" aria-valuemin="0" aria-valuemax="' + rows.length + '" aria-valuenow="' + done + '"><rect width="' + Math.round((100 * done) / rows.length) + '" height="1"/></svg><ul>' + rows.map((row) => milestoneRow(row, titles)).join('') + '</ul>'
+        : '<p class="milestone-empty">No items yet.</p>')
+      + (milestone.note ? '<p class="milestone-note">' + rich(milestone.note, titles) + '</p>' : '') + '</article>';
+  }).join('');
 }
 
 /** Draw the board shown: the sidebar, then every tab's panes from the project's board. */
@@ -771,6 +872,7 @@ function render() {
   $('count-spec').textContent = p.spec.filter((r) => ['pending', 'draft'].includes(r.status)).length || '';
   $('count-doctrine').textContent = p.practice.filter((r) => ['pending', 'draft'].includes(r.status)).length || '';
   const titles = new Map(p.items.map((i) => [String(i.id), i.title]));
+  $('roadmap').innerHTML = roadmapCards(p, titles);
 
   // What needs the person, first, and only the person's calls (B26): the decisions passed up to them,
   // questions in the spec, held lanes, then draft rows. Work waiting for a verdict or sent back shows
@@ -782,7 +884,7 @@ function render() {
   ];
   const drafts = p.spec.filter((r) => r.status === 'draft').length;
   $('needs').hidden = !needs.length && !drafts;
-  $('needs').innerHTML = '<div class="head"><i></i>Needs you</div>' + needs.slice(0, 6).map(([target, ref, text, what, at]) => '<button class="ny" data-go="' + esc(target) + '" type="button"><code>' + esc(ref) + '</code><span>' + rich(text, titles, false) + '</span><em>' + esc(what) + (at ? ', ' + age(at) : '') + ' →</em></button>').join('') + (needs.length > 6 ? '<div class="muted more">and ' + (needs.length - 6) + ' more</div>' : '') + (drafts ? '<button class="ny" data-go="tab:spec" type="button"><code>' + drafts + '</code><span>draft spec rows to approve or drop</span><em>review →</em></button>' : '');
+  $('needs').innerHTML = '<div class="head"><i></i>Needs you</div>' + needs.slice(0, 6).map(([target, ref, text, what, at]) => '<div class="ny"><code>' + esc(ref) + '</code><span class="ny-text">' + rich(text, titles) + '</span><button class="ny-open" data-go="' + esc(target) + '" type="button"><em>' + esc(what) + (at ? ', ' + age(at) : '') + ' →</em></button></div>').join('') + (needs.length > 6 ? '<div class="muted more">and ' + (needs.length - 6) + ' more</div>' : '') + (drafts ? '<div class="ny"><code>' + drafts + '</code><span class="ny-text">draft spec rows to approve or drop</span><button class="ny-open" data-go="tab:spec" type="button"><em>review →</em></button></div>' : '');
 
   const lanes = p.lanes;
   const working = lanes.filter((l) => l !== 'coordinator');
@@ -806,7 +908,8 @@ function render() {
   $('state-chips').innerHTML = Object.keys(names).map((s) => '<button data-state="' + s + '" class="' + (view.state === s ? 'on' : '') + '" type="button">' + names[s] + '<b>' + matching.filter(inState(s)).length + '</b></button>').join('');
   const shown = matching.filter(inState(view.state)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   // With nothing picked, the detail shows the first row, and keeps it when a refresh reorders the list.
-  if (!view.adding && !p.items.some((i) => i.id === view.item)) view.item = shown.length ? shown[0].id : null;
+  // While another project loads, the item picked there waits for its own board.
+  if (data.root === view.root && !view.adding && !p.items.some((i) => i.id === view.item)) view.item = shown.length ? shown[0].id : null;
   const heldLanes = new Map(p.holds.map((h) => [h.hold_lane, h]));
   $('chain').innerHTML = shown.length ? shown.map((i) => {
     const s = stateOf(i);
@@ -815,11 +918,11 @@ function render() {
     const hold = s === 'open' ? heldLanes.get(i.lane) : null;
     const waits = s === 'open' && i.blockedBy.length ? i.blockedBy : [];
     const gated = waits.length > 0 || !!hold;
-    const pills = (waits.length ? '<span class="gate">waits on ' + waits.map((id) => '<button class="ref" data-go="item:' + id + '" type="button">#' + id + '</button>').join(', ') + '</span>' : '') + (hold ? '<span class="gate">lane held: ' + esc(hold.hold_reason) + '</span>' : '');
+    const pills = (waits.length ? '<span class="gate">' + waits.map((id, index) => '<span class="wait-unit">' + (index ? '' : 'waits on ') + '<button class="ref" data-go="item:' + id + '" type="button">#' + id + '</button></span>').join(', ') + '</span>' : '') + (hold ? '<span class="gate">lane held: ' + linked(hold.hold_reason, titles) + '</span>' : '');
     const tag = s === 'building' && i.owner ? '<span class="chip busy" title="building, held by ' + esc(i.owner) + '">' + esc(i.owner) + '</span>'
       : s === 'verify' && i.reviewer ? '<span class="chip warn" title="reviewing until ' + esc(when(i.reviewUntil)) + '">' + esc(i.reviewer) + ' reviewing</span>'
       : s === 'open' ? (gated ? '<span class="chip gate">' + (waits.length ? 'gated' : 'lane held') + '</span>' : '<span class="chip free">unclaimed</span>') : chip(s);
-    return '<li class="row' + (view.item === i.id ? ' on' : '') + (gated ? ' gated' : '') + '" data-item="' + i.id + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + rich(i.title, titles) + '</div><div class="meta"><span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span>' + esc(i.specs.join(', ')) + '</span>' : '') + (who ? '<span>' + esc(who) + '</span>' : '') + pills + '<span>' + age(i.updatedAt) + '</span>' + (rejected(i) ? '<span class="why">' + esc(i.verdict.reason + ': ' + firstLine(i.verdict.note)) + '</span>' : '') + '</div></div>' + tag + '</li>';
+    return '<li class="row' + (view.item === i.id ? ' on' : '') + (gated ? ' gated' : '') + '" data-item="' + i.id + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + rich(i.title, titles) + '</div><div class="meta"><span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span>' + esc(i.specs.join(', ')) + '</span>' : '') + (who ? '<span>' + esc(who) + '</span>' : '') + pills + '<span>' + age(i.updatedAt) + '</span>' + (rejected(i) ? '<span class="why">' + linked(i.verdict.reason + ': ' + firstLine(i.verdict.note), titles) + '</span>' : '') + '</div></div>' + tag + '</li>';
   }).join('') : '<li class="empty">' + (items.length ? 'No items match.' : snapshot ? 'No items at this event.' : 'No items yet. Add the first one with New item.') + '</li>';
 
   const item = p.items.find((i) => i.id === view.item);
@@ -836,12 +939,12 @@ function render() {
     const back = rejected(item);
     const earlier = back ? item.verdicts.slice(0, -1) : item.verdicts;
     $('detail').innerHTML = '<div class="stack"><div><h2><span>#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="meta spaced">' + chip(s) + '<span class="chip">' + esc(item.lane) + '</span><span class="chip">' + esc(item.route) + '</span></div></div>'
-      + (back ? '<div class="sentback"><h3>Sent back' + (s === 'building' ? ', being reworked' : s === 'verify' ? ', resubmitted' : s === 'withdrawn' ? ', then withdrawn' : '') + '</h3>' + verdictHtml(item.verdict) + '</div>' : '')
+      + (back ? '<div class="sentback"><h3>Sent back' + (s === 'building' ? ', being reworked' : s === 'verify' ? ', resubmitted' : s === 'withdrawn' ? ', then withdrawn' : '') + '</h3>' + verdictHtml(item.verdict, titles) + '</div>' : '')
       + (item.criterion ? '<div><h3>Criterion</h3><div class="text">' + rich(item.criterion, titles) + '</div></div>' : '')
-      + (cited.length ? '<div><h3>Spec rows it serves</h3>' + cited.map((r) => '<div class="rowref"><code>' + esc(r.id) + '</code><div>' + esc(r.text) + ' <span class="chip ' + tone(r.status) + '">' + esc(r.status) + '</span></div></div>').join('') + '</div>' : '')
+      + (cited.length ? '<div><h3>Spec rows it serves</h3>' + cited.map((r) => '<div class="rowref"><code>' + esc(r.id) + '</code><div>' + linked(r.text, titles) + ' <span class="chip ' + tone(r.status) + '">' + esc(r.status) + '</span></div></div>').join('') + '</div>' : '')
       + (item.brief ? '<div><h3>Brief</h3><div class="text muted">' + rich(item.brief, titles) + '</div></div>' : '')
-      + '<div><h3>People and commits</h3><dl class="kv">' + (item.owner && s === 'building' ? '<dt>holding</dt><dd>' + esc(item.owner) + '</dd>' : '') + (item.builtBy ? '<dt>built by</dt><dd>' + esc(item.builtBy) + '</dd>' : '') + (item.verifiedBy ? '<dt>verified by</dt><dd>' + esc(item.verifiedBy) + '</dd>' : '') + (item.commit ? '<dt>commit</dt><dd><code>' + esc(item.commit.slice(0, 12)) + '</code></dd>' : '') + (item.merged ? '<dt>merged</dt><dd><code>' + esc(item.merged.slice(0, 12)) + '</code></dd>' : '') + (item.blockedBy.length ? '<dt>waits on</dt><dd>' + item.blockedBy.map((id) => '#' + id).join(', ') + '</dd>' : '') + '</dl></div>'
-      + (back && !earlier.length ? '' : '<div><h3>' + (back ? 'Earlier verdicts' : 'Verdicts') + '</h3>' + (earlier.length ? earlier.map(verdictHtml).join('') : '<div class="muted">None yet.</div>') + '</div>')
+      + '<div><h3>People and commits</h3><dl class="kv">' + (item.owner && s === 'building' ? '<dt>holding</dt><dd>' + esc(item.owner) + '</dd>' : '') + (item.builtBy ? '<dt>built by</dt><dd>' + esc(item.builtBy) + '</dd>' : '') + (item.verifiedBy ? '<dt>verified by</dt><dd>' + esc(item.verifiedBy) + '</dd>' : '') + (item.commit ? '<dt>commit</dt><dd><code>' + esc(item.commit.slice(0, 12)) + '</code></dd>' : '') + (item.merged ? '<dt>merged</dt><dd><code>' + esc(item.merged.slice(0, 12)) + '</code></dd>' : '') + (item.blockedBy.length ? '<dt>waits on</dt><dd class="waits-on">' + item.blockedBy.map((id) => '<span class="wait-unit"><button class="ref" data-go="item:' + id + '" type="button">#' + id + '</button></span>').join(', ') + '</dd>' : '') + '</dl></div>'
+      + (back && !earlier.length ? '' : '<div><h3>' + (back ? 'Earlier verdicts' : 'Verdicts') + '</h3>' + (earlier.length ? earlier.map((v) => verdictHtml(v, titles)).join('') : '<div class="muted">None yet.</div>') + '</div>')
       + '<div><h3>History</h3>' + timeline(item) + '</div>'
       + '<div class="links"><button data-shout="' + esc(item.lane) + '" data-about="' + item.id + '" type="button">Shout the ' + esc(item.lane) + ' lane about #' + item.id + '</button><button data-new type="button">New item</button></div></div>';
   }
@@ -870,10 +973,10 @@ function render() {
   $('agents').innerHTML = p.agents.length ? p.agents.map((a) => {
     const mine = holding(a);
     return '<div class="agent"><div><b title="' + esc(a.agent_path) + '">' + esc(a.agent_id) + '</b><span class="muted">' + esc(a.agent_lane) + ' · ' + esc(a.agent_route) + '</span>' + (a.lastMoveAt ? '<time data-ago="' + esc(a.lastMoveAt) + '" title="last moved ' + when(a.lastMoveAt) + '">' + ago(a.lastMoveAt) + '</time>' : '') + '</div>'
-      + (mine.length ? mine.map((i) => '<button data-go="item:' + i.id + '" type="button"><span>#' + i.id + ' ' + rich(i.title, titles, false) + '</span>' + (i.reviewer === a.agent_id ? '<span class="chip warn">reviewing</span>' : chip(stateOf(i))) + '</button>').join('') : '<small>idle</small>') + '</div>';
+      + (mine.length ? mine.map((i) => '<div class="agent-work" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span>' + (i.reviewer === a.agent_id ? '<span class="chip warn">reviewing</span>' : chip(stateOf(i))) + '</div>').join('') : '<small>idle</small>') + '</div>';
   }).join('') : '<div class="empty">No agents yet.</div>';
   const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
-  $('lanes').innerHTML = working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no">held by ' + esc(held.get(l).hold_by) + '</span> <span class="muted">' + esc(held.get(l).hold_reason) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join('');
+  $('lanes').innerHTML = working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no">held by ' + esc(held.get(l).hold_by) + '</span> <span class="muted">' + linked(held.get(l).hold_reason, titles) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join('');
 
   for (const kind of ['spec', 'doctrine']) {
     const rows = kind === 'spec' ? p.spec : p.practice;
@@ -887,23 +990,23 @@ function render() {
       const head = r.section !== section ? '<h4>' + esc(r.section) + '</h4>' : '';
       section = r.section;
       const declined = kind === 'doctrine' && r.status === 'wont';
-      const text = declined ? '<s>' + esc(r.standardText || r.text) + '</s>' : esc(r.text);
-      const reason = declined && r.reason ? '<small class="rule-reason">Reason: ' + esc(r.reason) + '</small>' : '';
+      const text = declined ? '<s>' + linked(r.standardText || r.text, titles) + '</s>' : linked(r.text, titles);
+      const reason = declined && r.reason ? '<small class="rule-reason">Reason: ' + linked(r.reason, titles) + '</small>' : '';
       const source = kind === 'doctrine' ? '<small class="rule-source">' + esc(ruleSource(r)) + '</small>' : '';
       return head + '<div class="srow' + (view.row[kind] === r.id ? ' on' : '') + '" data-row="' + kind + ':' + esc(r.id) + '"><code>' + esc(r.id) + '</code><span><span class="chip ' + tone(r.status) + '">' + esc(r.status) + '</span>' + source + '</span><span>' + text + reason + '</span></div>';
     }).join('') : '<div class="empty">' + (rows.length ? 'No rows match.' : kind === 'spec' ? 'No spec rows yet. Each requirement is one row in SPEC.md, such as G1 [draft, must] and a line; write them, or ask an agent to, and they show up here.' : 'No practice rows yet: they live in PRACTICE.md.') + '</div>';
     const row = rows.find((r) => r.id === view.row[kind]);
     const citing = row ? p.items.filter((i) => i.specs.includes(row.id)) : [];
     const declined = kind === 'doctrine' && row && row.status === 'wont';
-    const text = row ? declined ? '<s>' + esc(row.standardText || row.text) + '</s>' : esc(row.text) : '';
+    const text = row ? declined ? '<s>' + linked(row.standardText || row.text, titles) + '</s>' : linked(row.text, titles) : '';
     const source = kind === 'doctrine' && row ? '<span class="chip">' + esc(ruleSource(row)) + '</span>' : '';
-    const reason = declined && row.reason ? '<dt>reason</dt><dd>' + esc(row.reason) + '</dd>' : '';
+    const reason = declined && row.reason ? '<dt>reason</dt><dd>' + linked(row.reason, titles) + '</dd>' : '';
     const home = kind === 'doctrine' && row && row.origin === 'standard' ? 'Standard rules come with Pullboard; override or decline one in PRACTICE.md.' : 'Rows change in ' + (kind === 'spec' ? 'SPEC.md' : 'PRACTICE.md') + ', and only you approve them.';
-    $(kind + '-detail').innerHTML = row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(row.status) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div><dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<button data-go="item:' + i.id + '" type="button">#' + i.id + ' ' + rich(i.title, titles, false) + '</button>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div><div class="muted">' + home + '</div></div>' : '<div class="empty">Pick a row to see it, and the items that cite it.</div>';
+    $(kind + '-detail').innerHTML = row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(row.status) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div><dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<div class="links-item" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span></div>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div><div class="muted">' + home + '</div></div>' : '<div class="empty">Pick a row to see it, and the items that cite it.</div>';
   }
 
   if (keep('pb.flow') !== 'hidden') $('flow').innerHTML = flowSvg(p);
-  $('activity').innerHTML = p.events.length ? byDay(p.events, (e) => e.event_at, (e) => '<div><time>' + clock(e.event_at) + '</time><div class="act"><b>' + esc(e.event_by) + '</b> ' + esc(e.event_kind) + (e.item_id ? ' <button class="ref" data-go="item:' + e.item_id + '" type="button">#' + e.item_id + '</button>' + (titles.has(String(e.item_id)) ? ' <span class="what">' + esc(titles.get(String(e.item_id))) + '</span>' : '') : '') + '</div></div>') : '<div class="empty">No activity yet.</div>';
+  $('activity').innerHTML = p.events.length ? byDay(p.events, (e) => e.event_at, (e) => '<div><time>' + clock(e.event_at) + '</time><div class="act"><b>' + esc(e.event_by) + '</b> ' + esc(e.event_kind) + (e.item_id ? ' <button class="ref" data-go="item:' + e.item_id + '" type="button">#' + e.item_id + '</button>' + (titles.has(String(e.item_id)) ? ' <span class="what">' + rich(titles.get(String(e.item_id)), titles) + '</span>' : '') : '') + '</div></div>') : '<div class="empty">No activity yet.</div>';
   showTab();
 }
 
@@ -923,6 +1026,51 @@ function showTab() {
   document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = pane.dataset.pane !== view.tab; });
   document.querySelectorAll('.tab').forEach((button) => button.classList.toggle('on', button.dataset.tab === view.tab));
   countUnseen();
+}
+
+/** The address that names a tab: the Roadmap's own, or the board's, keeping the rest as it is. */
+function tabHref(tab) {
+  const own = tab === 'roadmap';
+  return routed ? (own ? '/roadmap' : '/') + location.search : location.pathname + location.search + (own ? '#roadmap' : '');
+}
+
+/**
+ * Keep the address naming what the page shows (N38). Moving between the Roadmap and another tab
+ * changes it and adds a history entry, so Back and Forward return there; anything else, or push
+ * false, only updates the entry. Each entry carries its project and item too, so returning to one
+ * shows that board as it was. A host that refuses the change still shows the tab.
+ */
+function address(push = true) {
+  if (typeof history === 'undefined' || typeof location === 'undefined') return;
+  const state = { tab: view.tab, root: view.root, item: view.item };
+  const href = tabHref(view.tab);
+  try {
+    if (push && href !== location.pathname + location.search + (routed ? '' : location.hash)) history.pushState(state, '', href);
+    else history.replaceState(state, '');
+  } catch { /* The tab shows all the same. */ }
+}
+
+/**
+ * Show what a history entry names, on Back, Forward or an edited #roadmap: the tab its address
+ * names, or at the board's address the tab the entry kept, and the project and item it kept.
+ */
+function fromAddress(event) {
+  const kept = (event && event.state) || {};
+  view.tab = addressTab() || (kept.tab && kept.tab !== 'roadmap' ? kept.tab : homeTab());
+  if (view.tab !== 'roadmap') keep('pb.tab', view.tab);
+  const item = typeof kept.item === 'number' ? kept.item : null;
+  if (kept.root && kept.root !== view.root && data && data.projects.some((x) => x.ok && x.root === kept.root)) return switchTo(kept.root, item, false);
+  if (item !== null && view.tab === 'items') view.item = item;
+  address(false);
+  if (data) render();
+  else showTab();
+}
+
+/** Pick a tab. The board's address keeps it for next time; the Roadmap has an address of its own. */
+function openTab(tab) {
+  view.tab = tab;
+  if (tab !== 'roadmap') keep('pb.tab', tab);
+  address();
 }
 
 /**
@@ -958,29 +1106,43 @@ function answer(id) {
   view.answering = ask ? { root: view.root, id: ask.shout_id } : null;
   $('answering').hidden = !ask;
   $('answering-who').textContent = ask ? ask.shout_from : '';
-  $('answering-q').textContent = ask ? ask.shout_text : '';
+  const question = ask ? linked(ask.shout_text, new Map(data.project.items.map((i) => [String(i.id), i.title]))) : '';
+  if (question.includes('<button class="ref"')) $('answering-q').innerHTML = question;
+  else $('answering-q').textContent = ask ? ask.shout_text : '';
   if (ask) $('shout-to').value = ask.shout_from;
   $('shout-to').disabled = Boolean(ask);
   $('shout-send').textContent = ask ? 'Answer' : 'Shout';
   if (ask) $('shout-text').focus();
 }
 
-function go(target) {
+/**
+ * Follow a link in the page: an item, a spec row, a tab or a decision to answer. An item can live on
+ * another project's board, root, which the page then switches to.
+ */
+function go(target, root = view.root) {
   const [kind, id] = target.split(':');
-  if (kind === 'item') { view.tab = 'items'; view.state = 'all'; view.before = null; }
-  else if (kind === 'spec') { view.tab = 'spec'; view.row.spec = id; view.rows.spec = 'all'; }
-  else if (kind === 'tab') view.tab = id;
-  else if (kind === 'decide') { view.tab = 'shouts'; answer(Number(id)); }
-  keep('pb.tab', view.tab);
-  if (kind === 'item') pick(Number(id));
+  let tab = view.tab;
+  if (kind === 'item') { tab = 'items'; view.state = 'all'; view.before = null; }
+  else if (kind === 'spec') { tab = 'spec'; view.row.spec = id; view.rows.spec = 'all'; }
+  else if (kind === 'tab') tab = id;
+  else if (kind === 'decide') { tab = 'shouts'; answer(Number(id)); }
+  openTab(tab);
+  if (kind === 'item') pick(Number(id), root);
   else render();
 }
 
-/** Show an item's detail. Where the list and the detail stack (under 900px), bring the detail into view. */
-function pick(id) {
-  view.item = id;
+/** Show an item's detail, on another project's board when root names one. */
+function pick(id, root = view.root) {
   view.adding = false;
+  if (root !== view.root) return switchTo(root, id);
+  view.item = id;
+  address(false);
   render();
+  reveal();
+}
+
+/** Where the list and the detail stack (under 900px), bring the detail into view. */
+function reveal() {
   if (matchMedia('(max-width: 900px)').matches) $('detail').scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
@@ -1047,7 +1209,7 @@ function moveMessage(move, result) {
 /** Run a public API move beside its action and let only the latest one own the console and timer. */
 async function act(command, args, anchor) {
   const out = $('console');
-  if (snapshot) { out.hidden = false; out.className = 'console no'; out.textContent = 'This is a read-only snapshot.'; return false; }
+  if (snapshot || readOnly) { out.hidden = false; out.className = 'console no'; out.textContent = snapshot ? 'This is a read-only snapshot.' : 'This is a read-only view.'; return false; }
   if (anchor) {
     const target = anchor.matches('form')
       ? anchor.querySelector('.actions') || anchor.querySelector('[type="submit"]') || anchor
@@ -1099,19 +1261,25 @@ function fold(open) {
   $('proj-switch').setAttribute('aria-expanded', String(open));
 }
 
-/** Show another project: mark it at once, dim the old one's panes until its board arrives. */
-function switchTo(root) {
+/** Show another project and its item; history restores keep the tab their entry named. */
+function switchTo(root, target = null, record = true) {
   answer(null);
   view.root = root;
-  view.item = null;
+  const item = typeof target === 'number' ? target : /^item:(\\d+)$/.exec(target || '');
+  view.item = typeof item === 'number' ? item : item ? Number(item[1]) : null;
   view.adding = false;
+  if (record && view.item !== null) { view.tab = 'items'; keep('pb.tab', view.tab); }
   keep('pb.project', root);
+  if (record) address(false);
   fold(false);
   // The board that arrives is drawn even if it matches the last one seen, so the pick is made from it.
   seen = '';
   if (data) renderSide();
   document.body.classList.add('switching');
-  refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }).finally(() => document.body.classList.remove('switching'));
+  refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }).finally(() => {
+    document.body.classList.remove('switching');
+    if (view.item !== null && view.root === root && view.tab === 'items') reveal();
+  });
 }
 
 document.addEventListener('click', (event) => {
@@ -1120,17 +1288,25 @@ document.addEventListener('click', (event) => {
   if (!t) return;
   if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
   if (t.id === 'console') { t.hidden = true; return; }
-  if (t.dataset.root) switchTo(t.dataset.root);
-  else if (t.dataset.tab) { view.tab = t.dataset.tab; keep('pb.tab', view.tab); showTab(); }
-  else if (t.dataset.go) go(t.dataset.go);
+  if (t.dataset.root) switchTo(t.dataset.root, t.dataset.go || '');
+  else if (t.dataset.tab) { openTab(t.dataset.tab); showTab(); }
+  else if (t.dataset.go) go(t.dataset.go, t.dataset.board);
   else if (t.dataset.item) pick(Number(t.dataset.item));
   else if (t.dataset.state) { view.state = t.dataset.state; render(); }
   else if (t.dataset.rows) { const [kind, f] = t.dataset.rows.split(':'); view.rows[kind] = f; render(); }
   else if (t.dataset.row) { const [kind, id] = t.dataset.row.split(':'); view.row[kind] = id; render(); }
   else if (t.dataset.code) code(t.dataset.code, t.dataset.before || '');
   else if (t.dataset.release) act('release', { lane: t.dataset.release }, t);
-  else if (t.dataset.shout) { answer(null); $('shout-to').value = t.dataset.shout; $('shout-text').value = '#' + t.dataset.about + ': '; view.tab = 'shouts'; showTab(); $('shout-text').focus(); }
+  else if (t.dataset.shout) { answer(null); $('shout-to').value = t.dataset.shout; $('shout-text').value = '#' + t.dataset.about + ': '; openTab('shouts'); showTab(); $('shout-text').focus(); }
   else if (t.dataset.new !== undefined) { view.adding = true; render(); $('add-title').focus(); }
+});
+/** Let a Roadmap row with independent inline links keep its keyboard button behavior. */
+document.addEventListener('keydown', (event) => {
+  if (!['Enter', ' '].includes(event.key)) return;
+  const row = event.target.closest('.milestone-item[role="button"]');
+  if (event.target !== row) return;
+  event.preventDefault();
+  go(row.dataset.go, row.dataset.board || view.root);
 });
 // The form covers the picked item rather than dropping it, so Cancel brings it back.
 $('new-item').addEventListener('click', () => { view.adding = true; render(); $('add-title').focus(); });
@@ -1169,6 +1345,9 @@ $('hold-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   if (await act('hold', { lane: $('hold-lane').value, reason: $('hold-reason').value }, event.currentTarget)) $('hold-reason').value = '';
 });
+// The first entry keeps the tab it opened on; Back and Forward show what each entry names.
+address(false);
+globalThis.addEventListener?.('popstate', fromAddress);
 showTab();
 if (snapshot) {
   $('replay-play').addEventListener('click', playReplay);
@@ -1177,8 +1356,24 @@ if (snapshot) {
     if (snapshotReplay.playing) { clearTimeout(snapshotReplay.timer); snapshotReplay.timer = setTimeout(advanceReplay, 1000 / Number($('replay-speed').value)); }
   });
 }
-refresh().catch((error) => { document.body.classList.remove('loading'); $('live').textContent = 'cannot reach the view: ' + error.message; });
-if (!snapshot) setInterval(() => { if (!document.hidden) refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }); }, 3000);
+/** Load an explicitly configured transport before the first read; its updates refresh this page. */
+async function startPage() {
+  if (transportModule) {
+    try {
+      const module = await import(transportModule);
+      if (typeof module.createTransport !== 'function') throw new Error('The browser transport must export createTransport({ onUpdate }).');
+      const configured = await module.createTransport({ onUpdate: () => transport ? refresh().catch((error) => { $('live').textContent = 'offline: ' + error.message; }) : Promise.resolve() });
+      if (!configured || typeof configured.request !== 'function') throw new Error('The browser transport must provide request(path, body).');
+      transport = configured;
+    } catch (error) {
+      transportLoadError = error;
+      throw error;
+    }
+  }
+  await refresh();
+}
+startPage().catch((error) => { document.body.classList.remove('loading'); $('live').textContent = 'cannot reach the view: ' + error.message; });
+if (!snapshot) setInterval(() => { if (!document.hidden && (!transportModule || transport)) refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }); }, 3000);
 setInterval(tickAges, 60000);
 </script>
 </body>

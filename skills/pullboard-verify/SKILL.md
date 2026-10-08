@@ -16,7 +16,7 @@ Work only in your own worktree, the one `pullboard worktree review` made. Your s
    - **Use the method the criterion names.** If it says "two real processes" or "after a restart", use exactly that; a weaker stand-in is not proof.
    - **Run the behavior** and read the output.
    - **Read the code** only when the criterion is about the code itself. It is the weakest proof.
-   - **Check the house rules too.** Read the approved rows of PRACTICE.md that the change touches. A broken one is a reject with reason OTHER, naming the row.
+   - **Check the house rules too.** Read the approved rows of DOCTRINE.md (or PRACTICE.md when it is the only legacy file) that the change touches. A broken one is a reject with reason OTHER, naming the row.
    - **Try the edges.** Today and yesterday for dates; zero, one and the limit for numbers; empty for lists; the first and the last. Most bugs live at an edge the builder's tests skipped.
    - **Keep checks contained.** Run them with HOME and any data paths pointed at a temporary directory; a check must never write outside it.
 4. Decide:

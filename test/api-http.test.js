@@ -53,7 +53,7 @@ function fixture(t) {
   const config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ ...config, gate: 'true', lanes: { app: { owns: ['app/'] }, review: { owns: [] } } }));
   writeFileSync(join(root, 'SPEC.md'), '# HTTP fixture\n\n## Goals\n- G1 [approved, must] Keep the board. | gate: true\n');
-  writeFileSync(join(root, 'PRACTICE.md'), '');
+  writeFileSync(join(root, 'DOCTRINE.md'), '');
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: private HTTP fixture');
   return { root, dir, env, cli, run, commit: git('rev-parse', 'HEAD').trim() };

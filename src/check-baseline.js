@@ -4,13 +4,13 @@ import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { gitChildEnv, tryGit } from './git.js';
+import { gitChildEnv, mainCheckout, tryGit } from './git.js';
 import { runShell } from './gate.js';
 import { CONFIG_FILE } from './config.js';
 
 /**
- * Capture the command and main commit once on the sender; replay only receives this observation.
- * A missing main cannot turn a warning into a new gate, and the repo gate is already green there.
+ * Capture the command and coordinator commit once on the sender; replay only receives this observation.
+ * A detached coordinator checkout cannot turn an unavailable baseline into a new gate.
  *
  * @param {string} root
  * @param {string} command
@@ -38,9 +38,10 @@ export function checkBaseline(root, command, { main = undefined } = {}) {
 
 /** Capture the authorized check's immutable base without running its shell command [V2,H16]. */
 export function prepareCheckBaseline(root, command) {
-  const main = tryGit(root, ['rev-parse', '--verify', 'refs/heads/main^{commit}']);
-  if (main.status !== 0) return { command, main: null, result: 'unavailable', reason: 'no main' };
-  const base = { command, main: main.stdout };
+  const primary = mainCheckout(root);
+  if (!primary) return { command, main: null, result: 'unavailable', reason: 'coordinator checkout is detached' };
+  if (!primary.commit) return { command, main: null, result: 'unavailable', reason: 'no main' };
+  const base = { command, main: primary.commit };
   if (command === gateOnMain(root, base.main)) return { ...base, result: 'green', reason: 'repo gate' };
   return { ...base, result: 'pending', request: randomUUID() };
 }

@@ -6,7 +6,7 @@
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
+import { CONFIG_FILE, COORDINATOR, doctrineFile, loadConfig } from './config.js';
 import { loadDoctrine } from './doctrine.js';
 import { installHooks } from './hooks.js';
 import { Refused } from './refused.js';
@@ -184,6 +184,7 @@ export function initRepo({ info, openBoardHere, register, closeBoard }) {
     throw new Refused('NOT_MAIN', 'run init in the main checkout; worktrees join a lane instead');
   }
   const { root } = info;
+  const doctrine = existsSync(join(root, CONFIG_FILE)) ? loadConfig(root).practice : doctrineFile(root);
   const gate = detectGate(root);
   const written = [];
   /** Record only paths setup actually writes; unrelated files never enter its staging command. */
@@ -191,7 +192,7 @@ export function initRepo({ info, openBoardHere, register, closeBoard }) {
   const notes = [
     writeNew(join(root, CONFIG_FILE), configTemplate(gate, detectFixers(root)), CONFIG_FILE, onWrite),
     writeNew(join(root, 'SPEC.md'), specTemplate(basename(root), gate), 'SPEC.md', onWrite),
-    writeNew(join(root, 'PRACTICE.md'), practiceTemplate(), 'PRACTICE.md', onWrite),
+    writeNew(join(root, doctrine), practiceTemplate(), doctrine, onWrite),
     ...writeAgentDocs(root, onWrite),
     ...installHooks(root, onWrite),
     ...installSkills(root, onWrite),
