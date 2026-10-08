@@ -368,6 +368,11 @@ function logEvent(board, by, kind, itemId, detail = {}) {
   (board.emittedEvents ??= []).push(board.lastEvent);
 }
 
+/** Log an authenticated relay refusal without making an item, shout or verdict move [H2,H16]. */
+export function recordRelayRefusal(board, { by, sequence, kind, operation, actor, code }) {
+  logEvent(board, by, 'relay_refused', null, { sequence, kind, operation, actor, code });
+}
+
 /**
  * The item with this id, or a refusal naming the id.
  *

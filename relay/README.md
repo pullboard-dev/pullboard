@@ -171,9 +171,16 @@ Sender is derived only from the freshly authenticated credential: a board token
 gives {kind: 'agent', userId, agent}; a person's session gives {kind: 'person', userId}.
 It contains no credential, token id, login or board key. This attribution is saved
 with every event and snapshot and returned unchanged through reads and streams.
-An agent's client must compare the unsealed move's agent with sender.agent before
-applying it; a mismatch is an impersonation attempt. The opaque relay cannot do
-that comparison itself. Snapshot replacement and deletion refuse agent tokens
+Each receiving client compares the unsealed operation's acting agent with
+sender.agent before applying moves or requests. Agent senders cannot answer as
+the person, approve or decline spec rows, or create the person's requests.
+Missing attribution and mismatched actors are refused. A refusal advances the
+replica's sequence atomically with a durable receipt and a `relay_refused` log
+entry naming the authenticated sender and attempted actor; it changes no item,
+shout or verdict. The opaque relay cannot do that comparison itself. Receivers
+also require a person sender before restoring a snapshot. This replay behavior
+uses engine version 3; the event-log format remains version 1.
+Snapshot replacement and deletion refuse agent tokens
 with HUMAN_REQUIRED (403), before reading their bodies or changing storage.
 Journal format 2 requires attribution; the unshipped format-1 prototype is refused
 rather than inventing an identity for historical records.
