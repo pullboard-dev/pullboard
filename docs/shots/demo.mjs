@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { browser, waitForDemoBoard } from './capture-browser.mjs';
-import { AGENT_SHELL_MARKERS } from '../../src/person.js';
+import { FIXED_TIME, isolatedEnv } from './demo-env.mjs';
 import { renderTour } from './tour-renderer.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
@@ -17,7 +17,6 @@ const BIN = join(ROOT, 'bin', 'pullboard.js');
 const OUTPUT = fileURLToPath(new URL('./', import.meta.url));
 const DEMO_OUTPUT = join(ROOT, 'docs', 'demo');
 const DEMO_BOARD_ID = 'demo-board';
-const FIXED_TIME = '2026-10-06T12:00:00.000Z';
 const CHROME = ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
 
 /** Run a pullboard or git command in the disposable demo environment. */
@@ -32,12 +31,6 @@ async function stop(child) {
   if (child.exitCode !== null || child.signalCode !== null) return;
   child.kill();
   await new Promise((resolveStop) => child.once('close', resolveStop));
-}
-
-/** Model a person terminal only inside the disposable demo, with a private home and no Git overrides. */
-function isolatedEnv(home, clockShim) {
-  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_') && key !== 'NODE_OPTIONS' && !AGENT_SHELL_MARKERS.includes(key)));
-  return { ...env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: home, NODE_OPTIONS: `--import ${JSON.stringify(clockShim)}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Pullboard demo', GIT_AUTHOR_EMAIL: 'demo@pullboard.invalid', GIT_COMMITTER_NAME: 'Pullboard demo', GIT_AUTHOR_DATE: FIXED_TIME, GIT_COMMITTER_DATE: FIXED_TIME };
 }
 
 /** Export the board, then replace its random storage id with a stable public snapshot id. */

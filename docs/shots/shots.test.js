@@ -93,7 +93,7 @@ test('the exported demo is synthetic and contains no machine paths or unrelated 
 test('the demo rebuild script uses a temporary repo and isolated home [I11,I13]', () => {
   const script = readFileSync(shots('demo.mjs'), 'utf8');
   assert.match(script, /mkdtemp\(join\(tmpdir\(\)/);
-  assert.match(script, /, HOME: home, PULLBOARD_HOME: home/);
+  assert.match(readFileSync(shots('demo-env.mjs'), 'utf8'), /, HOME: home, PULLBOARD_HOME: home/);
   assert.match(script, /process\.execPath, \[BIN, 'init'\]/);
 });
 
