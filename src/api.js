@@ -141,6 +141,7 @@ async function executeMove(root, body, runCommand) {
   const events = [];
   const status = await runCommand(argv, {
     cwd,
+    personChannel: 'view',
     stdout: { isTTY: false, write: (text) => { output += text; } },
     stderr: { write: (text) => { diagnostics += text; } },
     onEvent: (row) => { events.push(row); },

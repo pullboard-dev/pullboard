@@ -243,8 +243,10 @@ The `event` table is a SQLite schema object governed by `SCHEMA_VERSION`; its ap
 | `guards` | board | `missing`, `changed`, `stale` |
 | `shout` | sender | `shout`, `to`, `decision`, `request`, `answers` |
 | `pass` | coordinator | `shout`, `to`, `decision`, `request`, `answers` |
-| `answer` | answerer | `shout`, `to`, `decision`, `request`, `answers`, `outcome` |
+| `answer` | answerer | `shout`, `to`, `decision`, `request`, `answers`, `outcome`, `channel` |
 <!-- events:end -->
+
+Person answer events additionally record their `channel`, either `terminal` or `view`, including the forwarded answer to the original asker. Agent answers omit that field.
 
 Migration preserves event rows and adds only schema objects that are missing.
 

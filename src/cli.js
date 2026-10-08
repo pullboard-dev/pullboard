@@ -10,6 +10,7 @@ import { parseArgs } from 'node:util';
 import * as store from './board.js';
 import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
 import { loadDoctrine } from './doctrine.js';
+import { requirePersonChannel } from './person.js';
 import { digestOf, gateReport, runGate, runShell } from './gate.js';
 import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
@@ -308,6 +309,7 @@ function personMode(ctx, me, values) {
   if (!ctx.info.isMain || me.id !== COORDINATOR) {
     throw new Refused('B26_PERSON_ANSWER', 'only the main checkout can act as the person; ask your coordinator to answer or pass this decision');
   }
+  requirePersonChannel(ctx.io.personChannel);
   return true;
 }
 
@@ -1471,7 +1473,7 @@ function workCommands(io, args) {
     }),
     answer: () => act((ctx, board, me) => {
       const asPerson = personMode(ctx, me, values);
-      const id = store.answerDecision(board, idArg(first), { agentId: me.id, text: [second, ...rest].filter(Boolean).join(' '), lanes: laneNames(ctx.config), asPerson });
+      const id = store.answerDecision(board, idArg(first), { agentId: me.id, text: [second, ...rest].filter(Boolean).join(' '), lanes: laneNames(ctx.config), asPerson, channel: ctx.io.personChannel ?? 'terminal' });
       const ask = store.getShout(board, idArg(first));
       io.result?.({ id, answers: ask.shout_id });
       if (asPerson) {
@@ -1663,6 +1665,7 @@ function specCommand(io, { first, second, rest, values }) {
     return 0;
   }
   if (first === 'signoff') {
+    requirePersonChannel(io.personChannel);
     const ids = [second, ...rest].filter(Boolean).flatMap((text) => idList(text));
     if (!ids.length) throw new Refused('USAGE', 'pullboard spec signoff <ids> [--by <principal>] [--note "what was checked"]');
     const invalid = ids.filter((id) => spec.rows.find((row) => row.id === id)?.status !== 'approved');
