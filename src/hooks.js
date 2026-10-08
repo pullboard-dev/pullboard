@@ -112,12 +112,16 @@ export function commitMsgProblems(raw, { rules, spec, doctrine = null }) {
 export function commitCitationWarnings(raw, { spec, doctrine }) {
   const ids = citedIds(raw.split('\n')[0] ?? '').filter((id) => !id.startsWith('doctrine:'));
   return ids.flatMap((id) => {
-    const locations = [
-      ...spec.rows.filter((row) => row.id === id).map((row) => `${spec.name ?? 'SPEC.md'}:${row.line}`),
-      ...(doctrine?.repo?.rows ?? []).filter((row) => row.id === id).map((row) => `${doctrine.name}:${row.line}`),
-    ];
-    if (locations.length < 2) return [];
-    return [`${id} is a known collision at ${locations.slice(0, 2).join(' and ')}; bare ids cite SPEC.md, use doctrine:${id} for a doctrine row`];
+    const specRows = spec.rows.filter((row) => row.id === id);
+    const doctrineRows = (doctrine?.repo?.rows ?? []).filter((row) => row.id === id);
+    if (!specRows.length || specRows.length + doctrineRows.length < 2) return [];
+    const specLocations = specRows.map((row) => `${spec.name ?? 'SPEC.md'}:${row.line}`);
+    const doctrineLocations = doctrineRows.map((row) => `${doctrine.name}:${row.line}`);
+    const locations = [...specLocations, ...doctrineLocations].slice(0, 2);
+    const resolution = doctrineRows.length
+      ? `bare ids cite SPEC.md, use doctrine:${id} for a doctrine row`
+      : 'bare ids resolve to SPEC.md, which contains duplicate rows';
+    return [`${id} is a known collision at ${locations.join(' and ')}; ${resolution}`];
   });
 }
 

@@ -11,7 +11,7 @@ import * as store from './board.js';
 import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
 import { loadDoctrine } from './doctrine.js';
 import { digestOf, gateReport, runGate, runShell } from './gate.js';
-import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
+import { bareWorktreeFinding, contains, differFromHead, git, gitChildEnv, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
   FIX_NOTE,
   applyFixers,
@@ -59,6 +59,33 @@ import { relayOff, relayOn, relayStatus, syncRelay } from './relay.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
+
+/**
+ * Read the grandfather baseline from the primary checkout's attached branch, never a builder's head.
+ *
+ * @param {string} root
+ * @param {string} path
+ * @returns {{ status: number, stdout: string }}
+ */
+function coordinatorFile(root, path) {
+  const commonDir = git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+  const coordinatorRoot = dirname(commonDir);
+  const env = { ...gitChildEnv(root), GIT_NO_REPLACE_OBJECTS: '1' };
+  const branch = spawnSync('git', ['symbolic-ref', '--quiet', 'HEAD'], {
+    cwd: coordinatorRoot, env, encoding: 'utf8',
+  });
+  const ref = (branch.stdout ?? '').trim();
+  if (branch.status !== 0 || !ref.startsWith('refs/heads/')) {
+    throw new Refused(
+      'COORDINATOR_DETACHED',
+      'the primary checkout must be on its attached local branch to establish the collision baseline; the coordinator returns it to its branch',
+    );
+  }
+  const result = spawnSync('git', ['--no-replace-objects', 'show', `${ref}:${path}`], {
+    cwd: coordinatorRoot, env, encoding: 'utf8',
+  });
+  return { status: result.status ?? 1, stdout: result.stdout ?? '' };
+}
 
 export const HELP = `pullboard ${VERSION}: the local-first work board for teams of coding agents.
 Nothing ships until a second agent verifies it.
@@ -1592,7 +1619,7 @@ function specCommand(io, { first, second, rest, values }) {
     for (const [, parsed] of files) assertRequiredSigners(ctx.info.root, parsed.rows);
     const collisionFiles = [[ctx.config.spec, spec], ...(practice.repoExists ? [[ctx.config.practice, practice.repo]] : [])];
     const previousCounts = new Map(collisionFiles.map(([name]) => {
-      const previous = tryGit(ctx.info.root, ['show', `HEAD:${name}`]);
+      const previous = coordinatorFile(ctx.info.root, name);
       const rows = previous.status === 0 ? parseSpec(previous.stdout, { strictGrammarVersion: false }).rows : [];
       const counts = new Map();
       for (const row of rows) counts.set(row.id, (counts.get(row.id) ?? 0) + 1);

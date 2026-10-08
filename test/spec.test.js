@@ -131,13 +131,46 @@ test('spec check names both locations when ids repeat within or across configure
   assert.match(duplicatePracticeResult.stdout, /PRACTICE\.md:5 P1 error: duplicate id; also appears at PRACTICE\.md:4/u);
 });
 
-test('spec check lists collisions already present in HEAD as known warnings [A5]', (t) => {
+test('spec check lists primary-branch collisions as known warnings [A5]', (t) => {
   const practice = '# Practice\n\n## G\n- G1 [draft] A known local rule.\n';
   const box = specBox(t, { practice });
   const result = box.run('check');
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /SPEC\.md:6 G1 warning: known duplicate id; also appears at PRACTICE\.md:4/u);
   assert.match(result.stdout, /PRACTICE\.md:4 G1 warning: known duplicate id; also appears at SPEC\.md:6/u);
+});
+
+test('spec check refuses a collision committed on a linked builder after coordinator trunk [A5]', (t) => {
+  const practice = '# Practice\n\n## P\n- P1 [draft] A local rule.\n';
+  const box = specBox(t, { practice });
+  const gitAt = (cwd, ...args) => execFileSync('git', args, { cwd, env: box.env, encoding: 'utf8', stdio: 'pipe' });
+  const runAt = (cwd, ...args) => spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args], {
+    cwd, env: box.env, encoding: 'utf8',
+  });
+  gitAt(box.root, 'branch', '-m', 'trunk');
+  const configPath = join(box.root, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  config.lanes.spec = { owns: ['PRACTICE.md'] };
+  writeFileSync(configPath, JSON.stringify(config));
+  gitAt(box.root, 'add', 'pullboard.json');
+  gitAt(box.root, 'commit', '-q', '-m', 'chore: add the spec fixture lane');
+  const builder = join(box.root, 'builder');
+  gitAt(box.root, 'worktree', 'add', '-q', builder, '-b', 'builder');
+  const joined = spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), 'join', 'spec'], {
+    cwd: builder, env: box.env, encoding: 'utf8',
+  });
+  assert.equal(joined.status, 0, joined.stderr);
+  writeFileSync(join(builder, 'PRACTICE.md'), practice.replace('- P1 [draft] A local rule.', '- P1 [draft] A local rule.\n- G1 [draft] Duplicate.'));
+  gitAt(builder, 'add', 'PRACTICE.md');
+  gitAt(builder, 'commit', '-q', '-m', 'chore: add a colliding row');
+  const result = runAt(builder, 'spec', 'check');
+  assert.equal(result.status, 1);
+  assert.match(`${result.stdout}${result.stderr}`, /duplicate id; also appears at PRACTICE\.md:\d+/u);
+  gitAt(box.root, 'switch', '-q', '--detach');
+  const detached = runAt(builder, 'spec', 'check');
+  assert.equal(detached.status, 1);
+  assert.match(detached.stderr, /COORDINATOR_DETACHED/u);
+  gitAt(box.root, 'switch', '-q', 'trunk');
 });
 
 test('a grammar-1 repair can commit after grammar 2 was already recorded [A5,S8]', (t) => {
