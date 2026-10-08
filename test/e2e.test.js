@@ -182,6 +182,22 @@ test('init writes config, spec, agent docs and hooks once, and never clobbers [I
   assert.deepEqual(parseSpec(practice).rows, [], 'fresh init copies no standard rules [D4]');
   assert.equal(parseSpec(practice).sections.length, 6);
   assert.equal(practice.split('Inherits Pullboard standard doctrine version 1.').length, 2);
+  assert.equal(box.run(repo, 'spec', 'check').code, 0, 'fresh init has no repeated ids [A5]');
+  const specRows = parseSpec(readFileSync(join(repo, 'SPEC.md'), 'utf8'));
+  const practiceRows = parseSpec(practice);
+  const specPrefixes = specRows.sections.map(({ name }) => /^([A-Z])\s/u.exec(name)?.[1]).filter(Boolean);
+  const practicePrefixes = parseSpec(practice).sections.map(({ name }) => /^([A-Z])\s/u.exec(name)?.[1]).filter(Boolean);
+  assert.equal(specPrefixes.some((prefix) => practicePrefixes.includes(prefix)), false, 'init assigns distinct row prefixes to SPEC and PRACTICE');
+  for (const [file, parsed] of [['SPEC.md', specRows], ['PRACTICE.md', practiceRows]]) {
+    const source = readFileSync(join(repo, file), 'utf8');
+    const additions = parsed.sections.map(({ name }) => {
+      const prefix = /^([A-Z])\s/u.exec(name)?.[1];
+      return prefix ? `\n- ${prefix}1 [draft] A starter row.\n` : '';
+    }).join('');
+    writeFileSync(join(repo, file), `${source}${additions}`);
+  }
+  const representativeRows = box.run(repo, 'spec', 'check');
+  assert.equal(representativeRows.code, 0, representativeRows.err || representativeRows.out);
   assert.match(agents, /PB1 \(standard 1\)/, 'fresh guidance shows inherited rules [D3]');
   assert.ok(existsSync(join(repo, '.claude', 'skills', 'pullboard-decompose', 'SKILL.md')));
   assert.match(second.out, /kept DOCTRINE.md/);
@@ -264,6 +280,30 @@ test('spec check lints both files; spec view writes one page into the git dir [S
   const file = join(box.repo, '.git', 'pullboard', 'spec.html');
   assert.ok(readFileSync(file, 'utf8').includes('The page renders.'));
   assert.match(view.out, /open: file:\/\//);
+});
+
+test('items and commit headers cite doctrine rows by namespace; bare collisions warn [A5]', () => {
+  const box = project();
+  const added = box.run(box.repo, 'add', 'web', 'Use the inherited rule', '--specs', 'doctrine:PB1');
+  assert.equal(added.code, 0, added.err);
+  assert.match(box.run(box.repo, 'show', '1').out, /\[doctrine:PB1\]/u);
+
+  const message = join(box.dir, 'message.txt');
+  writeFileSync(message, 'feat(web): use the inherited rule [doctrine:PB1]\n');
+  const namespaced = box.run(box.repo, 'hook', 'commit-msg', message);
+  assert.equal(namespaced.code, 0, namespaced.err);
+  assert.doesNotMatch(namespaced.out, /warning:/u);
+
+  const practice = readFileSync(join(box.repo, 'PRACTICE.md'), 'utf8');
+  writeFileSync(join(box.repo, 'PRACTICE.md'), `${practice}\n## Local\n- G1 [draft] A local rule colliding with SPEC.md.\n`);
+  writeFileSync(message, 'feat(web): use the product rule [G1]\n');
+  const warning = box.run(box.repo, 'hook', 'commit-msg', message);
+  assert.equal(warning.code, 0, warning.err);
+  assert.match(warning.out, /warning: G1 is a known collision at SPEC\.md:4 and PRACTICE\.md:\d+; bare ids cite SPEC\.md/u);
+  assert.match(warning.out, /use doctrine:G1 for a doctrine row/u);
+  const check = box.run(box.repo, 'spec', 'check');
+  assert.equal(check.code, 1);
+  assert.match(check.out, /duplicate id; also appears at PRACTICE\.md:/u);
 });
 
 test('the board lives in the git common dir; every worktree sees it; nothing is committed [B1, B3]', () => {

@@ -14,11 +14,12 @@ import { doctrineHistory, loadDoctrine } from './doctrine.js';
 import { requirePersonChannel } from './person.js';
 import { decisionProjection, planRowApply, prepareRowDecisions, restoreRowApply, writeRowApply } from './row-decisions.js';
 import { digestOf, gateReport, runGate, runShell } from './gate.js';
-import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
+import { bareWorktreeFinding, contains, differFromHead, git, gitChildEnv, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
   FIX_NOTE,
   applyFixers,
   commitMsgProblems,
+  commitCitationWarnings,
   installHooks,
   preCommitProblems,
   prePushProblems,
@@ -36,6 +37,7 @@ import {
   lintSpec,
   loadSpec,
   permanenceProblems,
+  parseSpec,
   readSignoffs,
   signOff,
   standings,
@@ -65,6 +67,33 @@ import { relayJoin, relayPair } from './relay-pairing-client.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
+
+/**
+ * Read the grandfather baseline from the primary checkout's attached branch, never a builder's head.
+ *
+ * @param {string} root
+ * @param {string} path
+ * @returns {{ status: number, stdout: string }}
+ */
+function coordinatorFile(root, path) {
+  const commonDir = git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+  const coordinatorRoot = dirname(commonDir);
+  const env = { ...gitChildEnv(root), GIT_NO_REPLACE_OBJECTS: '1' };
+  const branch = spawnSync('git', ['symbolic-ref', '--quiet', 'HEAD'], {
+    cwd: coordinatorRoot, env, encoding: 'utf8',
+  });
+  const ref = (branch.stdout ?? '').trim();
+  if (branch.status !== 0 || !ref.startsWith('refs/heads/')) {
+    throw new Refused(
+      'COORDINATOR_DETACHED',
+      'the primary checkout must be on its attached local branch to establish the collision baseline; the coordinator returns it to its branch',
+    );
+  }
+  const result = spawnSync('git', ['--no-replace-objects', 'show', `${ref}:${path}`], {
+    cwd: coordinatorRoot, env, encoding: 'utf8',
+  });
+  return { status: result.status ?? 1, stdout: result.stdout ?? '' };
+}
 
 const ALL_HELP = `pullboard ${VERSION}: the local-first work board for teams of coding agents.
 Nothing ships until a second agent verifies it.
@@ -680,7 +709,7 @@ const freezer = (ctx) => (item) => {
   const prior = item.item_frozen ? JSON.parse(item.item_frozen) : null;
   const policy = prior?.policy ?? (!prior && !(ctx.info.isMain && !headCommit(ctx.info.root)) ? { version: 1, commit: mainPolicy(ctx.info.root).commit } : null);
   const config = policy ? itemPolicy(ctx.info.root, { ...item, item_frozen: JSON.stringify({ policy }) }).config : ctx.config;
-  const frozen = frozenCriterion(loadSpec(ctx.info.root, config), item);
+  const frozen = frozenCriterion(loadSpec(ctx.info.root, config), item, ctx.doctrine);
   if (!policy) return frozen; // Legacy criteria retain their original digest and committed claim base.
   const text = JSON.stringify({ ...JSON.parse(frozen.text), policy });
   return { text, digest: createHash('sha256').update(text).digest('hex') };
@@ -1759,7 +1788,7 @@ function workCommands(io, args) {
     add: () => act(async (ctx, board, me) => {
       if (!first || !isLane(ctx.config, first)) throw new Refused('NO_LANE', `no lane "${first ?? ''}"; see: pullboard lanes`);
       const specIds = idList(values.specs);
-      const problems = idProblems(loadSpec(ctx.info.root, ctx.config), specIds);
+      const problems = idProblems(loadSpec(ctx.info.root, ctx.config), specIds, ctx.doctrine);
       if (problems.length) throw new Refused('UNKNOWN_SPEC', `${problems.join('; ')}`);
       const parentId = values.parent ? idArg(values.parent, 'a parent item id') : null;
       const after = idList(values.after).map((text) => idArg(text, 'an item id after --after'));
@@ -2058,10 +2087,44 @@ async function specCommand(io, { first, second, rest, values }) {
   if (first === 'check' || first === undefined) {
     const files = [[ctx.config.spec, spec], ...(practice.exists ? [[ctx.config.practice, practice]] : [])];
     for (const [, parsed] of files) assertRequiredSigners(ctx.info.root, parsed.rows);
+    const collisionFiles = [[ctx.config.spec, spec], ...(practice.repoExists ? [[ctx.config.practice, practice.repo]] : [])];
+    const previousCounts = new Map(collisionFiles.map(([name]) => {
+      const previous = coordinatorFile(ctx.info.root, name);
+      const rows = previous.status === 0 ? parseSpec(previous.stdout, { strictGrammarVersion: false }).rows : [];
+      const counts = new Map();
+      for (const row of rows) counts.set(row.id, (counts.get(row.id) ?? 0) + 1);
+      return [name, counts];
+    }));
+    const locationsById = new Map();
+    for (const [name, parsed] of collisionFiles) {
+      for (const row of parsed.rows) {
+        const locations = locationsById.get(row.id) ?? [];
+        locations.push({ name, line: row.line });
+        locationsById.set(row.id, locations);
+      }
+    }
+    const collisionFindings = new Map(collisionFiles.map(([name]) => [name, []]));
+    for (const [id, locations] of locationsById) {
+      if (locations.length < 2) continue;
+      const currentCounts = new Map();
+      for (const location of locations) currentCounts.set(location.name, (currentCounts.get(location.name) ?? 0) + 1);
+      const known = [...currentCounts].every(([name, count]) => count <= (previousCounts.get(name)?.get(id) ?? 0));
+      for (let index = 0; index < locations.length; index++) {
+        const location = locations[index];
+        const other = locations[(index + 1) % locations.length];
+        collisionFindings.get(location.name).push({
+          level: known ? 'warning' : 'error', line: location.line, id,
+          message: `${known ? 'known duplicate id' : 'duplicate id'}; also appears at ${other.name}:${other.line}`,
+        });
+      }
+    }
     let errors = 0;
     const messages = [];
     for (const [name, parsed] of files) {
-      const findings = lintSpec(parsed);
+      const findings = [
+        ...lintSpec(parsed).filter((finding) => !finding.message.startsWith('duplicate id;')),
+        ...(collisionFindings.get(name) ?? []),
+      ];
       findings.forEach((finding) => messages.push(`${name}:${finding.line} ${finding.id ?? ''} ${finding.level}: ${finding.message}`.replace('  ', ' ')));
       const history = parsed === practice ? doctrineHistory(ctx.info.root, name) : committedIds(ctx.info.root, name);
       const cited = name === ctx.config.spec ? citations(ctx, history) : new Map();
@@ -2213,7 +2276,10 @@ async function hookCommand(io, { first, second }) {
     problems = preCommitProblems({ root: info.root, isMain: info.isMain, config: ctx.config, agent, boardFile: ctx.file });
   } else if (first === 'commit-msg') {
     const message = readFileSync(second ?? '', 'utf8');
-    problems = commitMsgProblems(message, { rules: ctx.config.commits, spec: loadSpec(info.root, ctx.config) });
+    const spec = loadSpec(info.root, ctx.config);
+    commitCitationWarnings(message, { spec, doctrine: ctx.doctrine })
+      .forEach((warning) => io.say(`pullboard commit-msg: warning: ${warning}`));
+    problems = commitMsgProblems(message, { rules: ctx.config.commits, spec, doctrine: ctx.doctrine });
   } else if (first === 'pre-push') {
     problems = prePushProblems(info.root, await readStdin(io.stdin));
     if (!problems.length) {
