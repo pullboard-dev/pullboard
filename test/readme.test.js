@@ -35,6 +35,20 @@ test('README has the approved centered header, logo and one-line facts [I10,I12]
   assert.ok(readFileSync(join(ROOT, 'docs/img/logo-dark.svg'), 'utf8').startsWith('<svg '), 'the approved dark logo is present');
 });
 
+test('README names DOCTRINE.md and explains doctrine once [I12]', () => {
+  const gloss = 'the house rules for agentic development';
+  const layout = FIGURES.layout();
+  const firstDoctrine = README.indexOf('Doctrine');
+  const firstGloss = README.indexOf(gloss);
+  assert.ok(firstDoctrine >= 0, 'the README introduces Doctrine');
+  assert.equal(README.slice(firstDoctrine, firstGloss), 'Doctrine (', 'the first doctrine mention carries its gloss');
+  assert.equal(README.split(gloss).length - 1, 1, 'the README glosses doctrine once, at its first mention');
+  assert.match(README, /`DOCTRINE\.md`/u, 'the README names the current doctrine file');
+  assert.doesNotMatch(README, /PRACTICE\.md/u, 'the README uses the current doctrine filename');
+  assert.match(layout, /<text class="mono label"[^>]*>DOCTRINE\.md<\/text>/u, 'the location figure names the current doctrine file');
+  assert.doesNotMatch(layout, /PRACTICE\.md/u, 'the location figure leaves the legacy filename to migration guidance');
+});
+
 /**
  * Every text in a figure with the box it may take up, from its anchor, font size and length.
  *
@@ -125,7 +139,7 @@ test('README pins its approved Philosophy, Key concepts and Why structure [I10,I
   assert.ok(philosophy >= 0 && philosophy < concepts && concepts < whyStart && whyStart < nextTopLevel, 'Philosophy contains Key concepts and Why before the next top-level section');
   const section = README.slice(philosophy, nextTopLevel);
   for (const text of [
-    'You do not explain twice. You rule the agents. Hierarchy is enforced. Judgement is yours. Declare it, the Doctrine stands. **You speak the constraints, agents fill in the blanks.** The Spec is canon. Then code. Then proof.',
+    'You do not explain twice. You rule the agents. Hierarchy is enforced. Judgement is yours. Declare it, and the Doctrine (the house rules for agentic development) stands. **You speak the constraints, agents fill in the blanks.** The Spec is canon. Then code. Then proof.',
     'Five primitives. Everything else is built on them.',
     '**Items.**', '**Shouts.**', '**Spec.**', '**Doctrine.**', '**Activity.**',
     "**It said done. It wasn't.**", '**It forgot what you decided.**',
