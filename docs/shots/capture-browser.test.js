@@ -57,7 +57,7 @@ test('demo capture waits for the intended HTTP document and populated board in C
     let ready = false;
     const populated = waitForDemoBoard(view, 'demo-board').then(() => { ready = true; });
     populated.catch(() => {});
-    await state.received;
+    await Promise.race([state.received, populated.then(() => state.received)]);
     await pause(150);
     assert.equal(ready, false, 'complete HTML must not count as populated board data');
     state.release();
