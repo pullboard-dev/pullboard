@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DOCTRINE_FILE, LEGACY_DOCTRINE_FILE } from './config.js';
-import { git, gitChildEnv, tryGit } from './git.js';
+import { git, gitChildEnv, mainCheckout, tryGit } from './git.js';
 import { Refused } from './refused.js';
 import { outOfLane } from './lanes.js';
 import { citedIds, deletedIds, idProblems } from './spec.js';
@@ -234,7 +234,7 @@ export function preCommitProblems({ root, isMain, config, agent, boardFile }) {
 }
 
 /**
- * The commit being merged, only when it is already part of main's history.
+ * The commit being merged, only when it is already part of the primary checkout's history.
  *
  * @param {string} root
  * @returns {string | null}
@@ -242,7 +242,10 @@ export function preCommitProblems({ root, isMain, config, agent, boardFile }) {
 function mainMergeBase(root) {
   const merge = tryGit(root, ['rev-parse', '--verify', 'MERGE_HEAD']);
   if (merge.status !== 0) return null;
-  return tryGit(root, ['merge-base', '--is-ancestor', merge.stdout, 'refs/heads/main']).status === 0
+  let main;
+  try { main = mainCheckout(root)?.commit; } catch { return null; }
+  if (!main) return null;
+  return tryGit(root, ['merge-base', '--is-ancestor', merge.stdout, main]).status === 0
     ? merge.stdout
     : null;
 }
