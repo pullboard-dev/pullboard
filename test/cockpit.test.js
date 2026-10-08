@@ -2979,7 +2979,7 @@ test('real Chrome styles shout code and item text without growing linked lines [
       if (message.method === 'Log.entryAdded' && message.params.entry.level === 'error') consoleErrors.push(message.params.entry.text);
     });
     await chrome.send('Log.enable');
-    await chrome.waitFor('data?.project?.shouts?.length >= 4 && document.querySelectorAll("#feed > div:not(.day)").length >= 4');
+    await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 4 && document.querySelectorAll("#feed > div:not(.day)").length >= 4');
     await chrome.evaluate(`document.querySelector('[data-tab="shouts"]').click()`);
 
     const rendered = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
@@ -3069,6 +3069,7 @@ test('real Chrome styles shout code and item text without growing linked lines [
     assert.ok(Math.abs(phoneMetrics.wrapLinked.height - phoneMetrics.wrapPlain.height) >= 1,
       'the old whole-text-box comparison would fail on the deliberately wrapped sample');
     assert.deepEqual(consoleErrors, []);
+    assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception on its first load');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     rmSync(profile, { recursive: true, force: true });
@@ -3088,21 +3089,73 @@ test('wait references stay on one line and link to every prerequisite at phone a
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, join(box.dir, 'waits-chrome'));
-    /** Click a rendered prerequisite link through the same Chrome input path as a person. */
+    /** Pick a visible click target only after scrolling and its hit-test position have settled. */
     const click = async (selector) => {
-      const point = JSON.parse(await chrome.evaluate(`(() => {
+      const point = JSON.parse(await chrome.evaluate(`(async () => {
         const element=document.querySelector(${JSON.stringify(selector)});
+        if (!element) throw Error('missing '+${JSON.stringify(selector)});
+        const visible=()=>{const style=getComputedStyle(element),rect=element.getBoundingClientRect();return style.display!=='none'&&style.visibility!=='hidden'&&rect.width>0&&rect.height>0&&!element.closest('[hidden]');};
+        if(!visible())throw Error('target is not visible: '+${JSON.stringify(selector)});
         element.scrollIntoView({block:'center'});
-        const rect=element.getBoundingClientRect();
-        return JSON.stringify({x:rect.x+rect.width/2,y:rect.y+rect.height/2});
+        const point=()=>{const currentElement=document.querySelector(${JSON.stringify(selector)});if(!currentElement)return null;const style=getComputedStyle(currentElement),rect=currentElement.getBoundingClientRect();if(style.display==='none'||style.visibility==='hidden'||rect.width<=0||rect.height<=0||currentElement.closest('[hidden]'))return null;const x=rect.x+rect.width/2,y=rect.y+rect.height/2,hit=document.elementFromPoint(x,y);return {x,y,scrollX,scrollY,rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height},hit:!!hit&&(hit===currentElement||currentElement.contains(hit))};};
+        const targets=[window,document,...(()=>{const nodes=[];for(let node=element.parentElement;node;node=node.parentElement)if(node.scrollHeight>node.clientHeight||node.scrollWidth>node.clientWidth)nodes.push(node);return nodes;})()];
+        let scrolled=false,scrollEnded=false;
+        const onScroll=()=>{scrolled=true;};
+        const onScrollEnd=()=>{scrollEnded=true;};
+        targets.forEach(target=>{target.addEventListener('scroll',onScroll,{passive:true});target.addEventListener('scrollend',onScrollEnd);});
+        try {
+          return JSON.stringify(await new Promise((resolve,reject)=>{
+            let previous=null,stable=0,frameId=0,finished=false;
+            const timeout=setTimeout(()=>{finished=true;cancelAnimationFrame(frameId);reject(Error('scroll did not settle for '+${JSON.stringify(selector)}+': '+JSON.stringify(previous)));},5000);
+            const frame=()=>{
+              if(finished)return;
+              const current=point();
+              if(!current){previous=null;stable=0;frameId=requestAnimationFrame(frame);return;}
+              const same=previous&&Math.abs(current.scrollX-previous.scrollX)<=.1&&Math.abs(current.scrollY-previous.scrollY)<=.1&&Math.abs(current.rect.x-previous.rect.x)<=.1&&Math.abs(current.rect.y-previous.rect.y)<=.1&&Math.abs(current.rect.width-previous.rect.width)<=.1&&Math.abs(current.rect.height-previous.rect.height)<=.1;
+              stable=same?stable+1:0;previous=current;
+              if(stable>=3&&current.hit&&(!scrolled||scrollEnded||stable>=12)){finished=true;clearTimeout(timeout);resolve(current);return;}
+              frameId=requestAnimationFrame(frame);
+            };
+            frameId=requestAnimationFrame(frame);
+          }));
+        } finally { targets.forEach(target=>{target.removeEventListener('scroll',onScroll);target.removeEventListener('scrollend',onScrollEnd);}); }
       })()`));
-      await chrome.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
-      await chrome.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
-      await chrome.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
+      const deadline = Date.now() + 5000;
+      let ready;
+      let settled = false;
+      while (Date.now() < deadline) {
+        ready = JSON.parse(await chrome.evaluate(`(async()=>{
+          const sample=()=>{const element=document.querySelector(${JSON.stringify(selector)});if(!element)return null;const style=getComputedStyle(element),rect=element.getBoundingClientRect();if(style.display==='none'||style.visibility==='hidden'||rect.width<=0||rect.height<=0||element.closest('[hidden]'))return null;const x=rect.x+rect.width/2,y=rect.y+rect.height/2,hit=document.elementFromPoint(x,y);return {x,y,scrollX,scrollY,rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height},hit:!!hit&&(hit===element||element.contains(hit))};};
+          let previous=null,stable=0,current=null,frameId=0,finished=false;
+          await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>{finished=true;cancelAnimationFrame(frameId);reject(Error('pointer target did not stabilize for '+${JSON.stringify(selector)}));},1500);const frame=()=>{if(finished)return;current=sample();const same=current&&previous&&Math.abs(current.scrollX-previous.scrollX)<=.1&&Math.abs(current.scrollY-previous.scrollY)<=.1&&Math.abs(current.rect.x-previous.rect.x)<=.1&&Math.abs(current.rect.y-previous.rect.y)<=.1&&Math.abs(current.rect.width-previous.rect.width)<=.1&&Math.abs(current.rect.height-previous.rect.height)<=.1;stable=same?stable+1:0;previous=current;if(stable>=2&&current.hit){finished=true;clearTimeout(timeout);resolve();}else frameId=requestAnimationFrame(frame);};frameId=requestAnimationFrame(frame);});
+          return JSON.stringify(current);
+        })()`));
+        await chrome.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: ready.x, y: ready.y });
+        const underPointer = JSON.parse(await chrome.evaluate(`(async()=>{
+          const sample=()=>{const element=document.querySelector(${JSON.stringify(selector)});if(!element)return null;const rect=element.getBoundingClientRect(),hit=document.elementFromPoint(${ready.x},${ready.y});return {scrollX,scrollY,rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height},hit:!!hit&&(hit===element||element.contains(hit))};};
+          let previous=null,stable=0,current=null,frameId=0,finished=false;
+          await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>{finished=true;cancelAnimationFrame(frameId);reject(Error('pointer target did not stabilize for '+${JSON.stringify(selector)}));},1000);const frame=()=>{if(finished)return;current=sample();const same=current&&previous&&Math.abs(current.scrollX-previous.scrollX)<=.1&&Math.abs(current.scrollY-previous.scrollY)<=.1&&Math.abs(current.rect.x-previous.rect.x)<=.1&&Math.abs(current.rect.y-previous.rect.y)<=.1&&Math.abs(current.rect.width-previous.rect.width)<=.1&&Math.abs(current.rect.height-previous.rect.height)<=.1;stable=same?stable+1:0;previous=current;if(stable>=2&&current.hit){finished=true;clearTimeout(timeout);resolve();}else frameId=requestAnimationFrame(frame);};frameId=requestAnimationFrame(frame);});return JSON.stringify({current,stable});
+        })()`));
+        if (underPointer?.current?.hit && underPointer.stable >= 2 && Math.abs(underPointer.current.scrollX-ready.scrollX)<=.1 && Math.abs(underPointer.current.scrollY-ready.scrollY)<=.1 && Math.abs(underPointer.current.rect.x-ready.rect.x)<=.1 && Math.abs(underPointer.current.rect.y-ready.rect.y)<=.1 && Math.abs(underPointer.current.rect.width-ready.rect.width)<=.1 && Math.abs(underPointer.current.rect.height-ready.rect.height)<=.1) {
+          point.x = ready.x;
+          point.y = ready.y;
+          point.scrollX = ready.scrollX;
+          point.scrollY = ready.scrollY;
+          point.rect = ready.rect;
+          settled = true;
+          break;
+        }
+      }
+      assert.ok(settled && ready && point.x === ready.x && point.y === ready.y,
+        `${selector}: scroll and target geometry settle under the pointer before press: ${JSON.stringify({ point, ready })}`);
+      await chrome.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount: 1 });
+      await chrome.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount: 1 });
     };
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      await chrome.waitFor(`innerWidth === ${width} && !!document.querySelector('#chain .row')`);
+      await chrome.waitFor(`innerWidth === ${width} && document.querySelector('#chain [data-item="3"] .meta .gate')?.getBoundingClientRect().width > 0`);
+      await click('#chain [data-item="1"] .t');
+      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Prerequisite one')");
       const itemIds = await chrome.evaluate('data.project.items.map(item => item.id + ":" + item.title + ":" + item.blockedBy.join(","))');
       assert.ok(await chrome.evaluate('!!document.querySelector(\'#chain [data-item="3"]\')'), `${width}: blocked item appears among ${itemIds.join('; ')}`);
       const list = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
