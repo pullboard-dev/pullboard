@@ -62,6 +62,7 @@ export async function relayClientFixture(t) {
   let override = null;
   let refuseEventReads = false;
   let refuseSnapshotWrites = false;
+  let refuseRequestWrites = false;
   let signIn;
   let api;
   const calls = [];
@@ -89,6 +90,11 @@ export async function relayClientFixture(t) {
     if (override && req.method === 'DELETE') {
       res.writeHead(override.status, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ version: override.version ?? 1, error: { code: override.code, message: 'fixture refusal' } }));
+      return;
+    }
+    if (refuseRequestWrites && req.method === 'POST' && /\/api\/v1\/boards\/[0-9a-f]{32}\/requests$/.test(req.url ?? '')) {
+      res.writeHead(503, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ version: 1, error: { code: 'RELAY_UNAVAILABLE', message: 'fixture request outage' } }));
       return;
     }
     if (refuseSnapshotWrites && req.method === 'PUT' && /\/api\/v1\/boards\/[0-9a-f]{32}\/state$/.test(req.url ?? '')) {
@@ -193,6 +199,7 @@ export async function relayClientFixture(t) {
     advance(days) { time = Date.now() + days * 86400000; },
     overrideDelete(value) { override = value; },
     refuseSnapshotWrites(value) { refuseSnapshotWrites = value; },
+    refuseRequestWrites(value) { refuseRequestWrites = value; },
     mainURL: new URL('../src/cli.js', import.meta.url).href,
     keyInRequest() { return keyLeaked; },
     /** Revoke the actual synthetic person session, including its current live streams. */
