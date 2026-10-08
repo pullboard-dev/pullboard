@@ -3349,9 +3349,9 @@ test('the roadmap reads every item as the Items tab does, opens each one, anothe
       await chrome.waitFor(`${showing('items', '/')} && document.querySelector('#detail h2')?.innerText.includes('Session timeout banner')`);
       assert.equal(await chrome.evaluate('location.search'), view.link.search, `${width}: the address keeps the rest of itself`);
       await travel(chrome, -1);
-      await chrome.waitFor(`${showing('roadmap', '/roadmap')} && document.querySelector('.tab.on')?.dataset.tab === 'roadmap'`);
+      await settled(chrome, `${showing('roadmap', '/roadmap')} && document.querySelector('.tab.on')?.dataset.tab === 'roadmap'`);
       await travel(chrome, 1);
-      await chrome.waitFor(`${showing('items', '/')} && document.querySelector('.tab.on')?.dataset.tab === 'items' && document.querySelector('#detail h2')?.innerText.includes('Session timeout banner')`);
+      await settled(chrome, `${showing('items', '/')} && document.querySelector('.tab.on')?.dataset.tab === 'items' && document.querySelector('#detail h2')?.innerText.includes('Session timeout banner')`);
       await press(chrome, `document.querySelector('[data-tab="roadmap"]')`);
       await chrome.waitFor(`${showing('roadmap', '/roadmap')} && location.search === ${JSON.stringify(view.link.search)}`);
     }
@@ -3365,11 +3365,11 @@ test('the roadmap reads every item as the Items tab does, opens each one, anothe
     const crossed = seen.cards[0].rows.find((row) => row.id === 'beacon#1');
     assert.deepEqual(there, { id: '#1', label: crossed.label, chip: crossed.chip, dot: crossed.dot }, "the other repo's Items tab shows that item with the Roadmap's word and colours");
     await travel(chrome, -1);
-    await chrome.waitFor(`document.querySelector('#proj-name').textContent === 'roadmap-demo' && ${showing('roadmap', '/roadmap')} && !!${roadmapRow('beacon#1')}`);
+    await settled(chrome, `document.querySelector('#proj-name').textContent === 'roadmap-demo' && ${showing('roadmap', '/roadmap')} && !!${roadmapRow('beacon#1')}`);
     await travel(chrome, 1);
-    await chrome.waitFor(`document.querySelector('#proj-name').textContent === 'beacon' && ${showing('items', '/')} && document.querySelector('#detail h2')?.innerText.includes('Billing webhook retries')`);
+    await settled(chrome, `document.querySelector('#proj-name').textContent === 'beacon' && ${showing('items', '/')} && document.querySelector('#detail h2')?.innerText.includes('Billing webhook retries')`);
     await travel(chrome, -1);
-    await chrome.waitFor(`document.querySelector('#proj-name').textContent === 'roadmap-demo' && ${showing('roadmap', '/roadmap')} && !!${roadmapRow('#1')}`);
+    await settled(chrome, `document.querySelector('#proj-name').textContent === 'roadmap-demo' && ${showing('roadmap', '/roadmap')} && !!${roadmapRow('#1')}`);
 
     // Each of this board's rows opens its item on the Items tab, which gives it the same word and
     // colours, its list dot included; a withdrawn item is left out of the list while browsing.
@@ -3382,7 +3382,7 @@ test('the roadmap reads every item as the Items tab does, opens each one, anothe
       })())`));
       assert.deepEqual(here, { label: row.label, chip: row.chip, dot: row.label === 'withdrawn' ? 'not listed' : row.dot }, `${row.id}: the Items tab shows it with the Roadmap's word and colours`);
       await travel(chrome, -1);
-      await chrome.waitFor(`${showing('roadmap', '/roadmap')} && !!${roadmapRow(row.id)}`);
+      await settled(chrome, `${showing('roadmap', '/roadmap')} && !!${roadmapRow(row.id)}`);
     }
 
     // It updates live as items move, here and on the other repo's board.
@@ -3449,17 +3449,18 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
     assert.equal(seen.cards[0].rows[2].tip, 'Billing webhook retries (not in this snapshot)', 'and says why');
     assert.deepEqual([seen.cards[1].name, seen.cards[1].empty], ['Later', 'No items yet.']);
 
-    // The address survives a reload on a static host, and Back and Forward show the tab it names.
+    // The address survives a reload on a static host, and Back and Forward show the tab it names,
+    // whether the browser keeps the page for an entry or loads it again.
     await chrome.send('Page.reload');
     await settled(chrome, `${ready} && ${showing('roadmap', '/demo/#roadmap')} && !!${roadmapRow('#1')}`);
     await travel(chrome, -1);
-    await chrome.waitFor(showing('items', '/demo/'));
+    await settled(chrome, `${ready} && ${showing('items', '/demo/')}`);
     await travel(chrome, 1);
-    await chrome.waitFor(showing('roadmap', '/demo/#roadmap'));
+    await settled(chrome, `${ready} && ${showing('roadmap', '/demo/#roadmap')} && !!${roadmapRow('#2')}`);
     await press(chrome, roadmapRow('#2'));
     await chrome.waitFor(`${showing('items', '/demo/')} && document.querySelector('#detail h2')?.innerText.includes('Open page')`);
     await travel(chrome, -1);
-    await chrome.waitFor(showing('roadmap', '/demo/#roadmap'));
+    await settled(chrome, `${ready} && ${showing('roadmap', '/demo/#roadmap')}`);
 
     // Opened afresh, the folder shows the board's tab, and its #roadmap address the Roadmap.
     for (const [address, pane] of [['/demo/', 'items'], ['/demo/#roadmap', 'roadmap']]) {
