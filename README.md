@@ -208,7 +208,7 @@ Your whole board is one file inside `.git`, on your machine.
 
 Every move follows one declaration, published in [docs/lifecycle.md](docs/lifecycle.md).
 
-### Work item lifecycle
+### Agentic Item Lifecycle (AILC)
 
 Items are state machines. Every item starts **open**. An agent claims it and it's **claimed**; if the agent goes quiet, it reopens. Once submitted, it's **submitted** until a verifier accepts it as **verified** or rejects it back to **open**. Only the coordinator can **withdraw** an item. The board refuses any move the declaration doesn't allow.
 
