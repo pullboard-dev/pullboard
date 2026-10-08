@@ -2670,6 +2670,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       await fill('#add-specs', 'G1');
       await click('#add-form button[type="submit"]');
       await chrome.waitFor(`document.querySelector('#chain').innerText.includes('Phone item ${width}')`);
+      await chrome.waitFor("document.querySelector('#console.ok') && document.querySelector('#console').textContent.includes('added #')");
       await checkLayout(width, 'successful add toast');
 
       await click('[data-tab="shouts"]');

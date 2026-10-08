@@ -1008,18 +1008,18 @@ async function act(command, args, anchor) {
     if (latest()) {
       out.className = 'console ok';
       out.textContent = '$ pullboard ' + move.label + '\\n' + moveMessage(move.body, result.result);
-      out.scrollIntoView({ block: 'nearest' });
+      out.scrollIntoView({ block: 'center' });
       // What went through says so and then steps aside; a refusal stays until the person closes it.
       view.closing = setTimeout(() => { if (latest()) out.hidden = true; }, 6000);
     }
     await refresh();
-    if (latest()) out.scrollIntoView({ block: 'nearest' });
+    if (latest()) out.scrollIntoView({ block: 'center' });
     return true;
   } catch (error) {
     if (latest()) {
       out.className = 'console no';
       out.textContent = String(error.message || error);
-      out.scrollIntoView({ block: 'nearest' });
+      out.scrollIntoView({ block: 'center' });
     }
     return false;
   }
