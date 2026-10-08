@@ -5,8 +5,8 @@ ENV NODE_ENV=production \
 
 WORKDIR /app
 COPY --chown=node:node package.json ./package.json
-COPY --chown=node:node src/api-http.js src/json.js src/refused.js ./src/
-COPY --chown=node:node relay/auth-http.js relay/auth.js relay/github.js relay/journal.js relay/retention.js relay/server.mjs relay/service.js ./relay/
+COPY --chown=node:node src/ ./src/
+COPY --chown=node:node relay/ ./relay/
 RUN mkdir -p /data && chown node:node /data && chmod 700 /data
 
 USER node
