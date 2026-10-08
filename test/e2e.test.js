@@ -1257,6 +1257,37 @@ test('the tour runs a reject and its rework on a throwaway repo, in under thirty
   assert.match(stopped.stdout, /The tour stopped: git init -q -b main exited null/);
 });
 
+test('the tour registers a labelled demo that view lists and forget removes [N10, N26]', async () => {
+  const box = project();
+  const tourEnv = { ...box.env, TMPDIR: box.dir, HOME: box.dir };
+  delete tourEnv.PULLBOARD_MODEL;
+  const result = spawnSync(process.execPath, [BIN, 'tour'], {
+    cwd: box.dir,
+    env: tourEnv,
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  assert.equal(result.stdout.trimEnd().split('\n').at(-1), 'see it: pullboard view');
+  const demoRoot = /Look around: cd (\S+) && pullboard log/.exec(result.stdout)?.[1];
+  assert.ok(demoRoot, 'the retained demo path is printed');
+  const registered = JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'projects.json'), 'utf8')).projects;
+  assert.deepEqual(registered.map(({ root, name }) => [root, name]), [[box.repo, 'repo'], [demoRoot, 'demo']]);
+
+  const view = await startView(box, box.repo);
+  try {
+    const listing = await fetch(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': view.key } });
+    assert.equal(listing.status, 200);
+    assert.deepEqual((await listing.json()).boards.map(({ root, name }) => [root, name]), [[box.repo, 'repo'], [demoRoot, 'demo']]);
+    const forgotten = box.run(box.dir, 'forget', demoRoot);
+    assert.equal(forgotten.code, 0, forgotten.err);
+    assert.match(forgotten.out, /forgot/);
+    const after = await fetch(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': view.key } });
+    assert.deepEqual((await after.json()).boards.map(({ root, name }) => [root, name]), [[box.repo, 'repo']]);
+  } finally {
+    await view.stop();
+  }
+});
+
 test('the run pack names verified items that touched the same files, so a cold agent follows them [N21]', () => {
   const box = project();
   const script = (name, lines) => {
