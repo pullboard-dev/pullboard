@@ -12,6 +12,12 @@ A successful command returns the fields listed below. `version` is always the nu
 
 When `add` or `edit` supplies a new nonempty check, Pullboard measures it once in a temporary checkout of the current `main` commit. The item returned by `add`, `edit`, `show`, and `next --verify` may include `item_check_baseline`: `{command, main, result, seconds?, reason?, warning?}`. `main` is the commit id or `null`, and `result` is `green`, `red`, or `unavailable`. A green result carries `warning: "CRITERION_PROVES_NOTHING"`; text output names that warning when filing, showing, or reserving the item for review. An exact match with the project gate configured at that main commit records green with `reason: "repo gate"` without running it again. A missing main records unavailable with `reason: "no main"` and still files the item. Changing the check replaces this observation; clearing it removes the observation. The captured observation travels with the board move, so replicas store the result without executing the command.
 
+`pullboard stats [--since <date>] --json` returns `{version: 1, stats: {...}}` from the append-only event log. `submissions` and `rejections` count moves, including repeated attempts; `rejectionShare` is rejections divided by submissions (zero when the window has no submissions). `merged` counts distinct items with a merge move; `mergedWithoutAccept` counts those whose merge lacks an earlier acceptance of the latest submitted commit. That audit uses earlier history even when the acceptance falls before the selected window. Current item and verdict rows do not replace event evidence.
+
+`firstEventAt` and `lastEventAt` are the first and latest dates in the selected window, or `null` when it is empty. `since` is the inclusive boundary as an ISO UTC timestamp, or `null` for the full history. Dates accept `YYYY-MM-DD` or an ISO UTC timestamp ending in `Z`; invalid dates return `BAD_SINCE` with repair guidance.
+
+`agentCount` counts distinct event actors other than `board` and `person`; the coordinator and join moves are included. `agents` lists `{id, moves, families}` for each actor. `families` lists `{name, agents, moves}` by recorded family label, and `familyCount` counts these buckets, including `unknown`. Labels are not inferred from a model name or current agent, item, or verdict rows. A family's first recorded event snapshot applies to that move and following moves, until another snapshot changes or clears it; earlier unattributed moves remain `unknown`. Date windows preserve earlier recorded declarations but count only selected moves. Arrays are sorted by identifier or label. Local HTTP board state carries the same full-history object as `state.proofStats`.
+
 <!-- api-command-shapes:start -->
 | Command | Required top-level fields |
 | --- | --- |
@@ -35,6 +41,7 @@ When `add` or `edit` supplies a new nonempty check, Pullboard measures it once i
 | `milestone edit` | `version:number`, `milestone:object` |
 | `milestone remove` | `version:number`, `milestone:object` |
 | `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array` |
+| `stats` | `version:number`, `stats:object` |
 | `status` | `version:number`, `me:object`, `mine:array`, `stats:object`, `reviewQueue:object`, `unread:number` |
 | `doctor` | `version:number`, `problems:array` |
 | `inbox` | `version:number`, `shouts:array` |

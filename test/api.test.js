@@ -237,6 +237,7 @@ test('[A1] command results match the catalog across roots and subcommands', () =
   assert.equal(existsSync(join(box.env.PULLBOARD_HOME, 'config.json')), false, 'machine settings use the separate settings.json file');
   json(box, repo, 'resume');
   json(box, repo, 'status');
+  json(box, repo, 'stats');
   json(box, repo, 'doctor');
   const plainStatus = box.run(repo, 'status');
   assert.equal(plainStatus.status, 0, plainStatus.stderr);
