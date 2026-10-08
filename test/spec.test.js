@@ -295,6 +295,7 @@ function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md', practi
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ ...config, spec: specName, practice: practiceName, gate: 'true', lanes: { review: { owns: [] } } }));
   rmSync(join(root, 'SPEC.md'), { force: true });
   rmSync(join(root, 'PRACTICE.md'), { force: true });
+  rmSync(join(root, 'DOCTRINE.md'), { force: true });
   writeFileSync(join(root, specName), SPEC);
   if (practice !== undefined) writeFileSync(join(root, practiceName), practice);
   git('add', '-A');

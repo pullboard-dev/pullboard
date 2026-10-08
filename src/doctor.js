@@ -1,5 +1,8 @@
 /** Read-only integrity checks for a pullboard board file (A6). */
 import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { DOCTRINE_FILE, LEGACY_DOCTRINE_FILE } from './config.js';
+import { tryGit } from './git.js';
 import { DatabaseSync } from 'node:sqlite';
 import { checkAtCommit, submissionPaths, dependencySnapshots } from './trusted-policy.js';
 import { BLANKS, STATES, storeTriggers } from './machine.js';
@@ -8,6 +11,14 @@ import { readEventLogVersion, SCHEMA_VERSION } from './board.js';
 import { staleFrozenItems, staleItemFinding } from './approved-rows.js';
 import { loadSpec } from './spec.js';
 const blankCharacters = new Set(BLANKS.map((point) => String.fromCodePoint(point)));
+
+/** Offer a working tracked or untracked rename without rewriting the repo's doctrine [D1,D2]. */
+export function doctrineProblems(root, config) {
+  if (config.practice !== LEGACY_DOCTRINE_FILE || !existsSync(join(root, LEGACY_DOCTRINE_FILE))) return [];
+  const tracked = tryGit(root, ['ls-files', '--error-unmatch', '--', LEGACY_DOCTRINE_FILE]).status === 0;
+  const command = tracked ? 'git mv' : 'mv';
+  return [finding('DOCTRINE_LEGACY', `${LEGACY_DOCTRINE_FILE} is the legacy name for the repo doctrine`, `${command} -- ${LEGACY_DOCTRINE_FILE} ${DOCTRINE_FILE}`)];
+}
 
 /**
  * Check a board and its git pins without opening it through the migrator, which repairs boards on
