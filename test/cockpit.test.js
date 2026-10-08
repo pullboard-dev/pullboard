@@ -3226,10 +3226,34 @@ test('real Chrome styles shout code and item text without growing linked lines [
     });
     await chrome.send('Log.enable');
     await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 4 && document.querySelectorAll("#feed > div:not(.day)").length >= 4');
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor('innerWidth === 1280 && document.querySelector("#detail .text.muted code.inline")?.getBoundingClientRect().width > 0');
+    const desktopBrief = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      const code=document.querySelector('#detail .text.muted code.inline'), line=code?.parentElement;
+      const rect=code?.getBoundingClientRect(), lineRect=line?.getBoundingClientRect();
+      return {display:code&&getComputedStyle(code).display,width:rect?.width,lineWidth:lineRect?.width};
+    })())`));
+    assert.equal(desktopBrief.display, 'inline', `1280px brief code computes inline: ${JSON.stringify(desktopBrief)}`);
+    assert.ok(desktopBrief.width > 0 && desktopBrief.width < desktopBrief.lineWidth / 2, `1280px brief code is a compact chip: ${JSON.stringify(desktopBrief)}`);
+    await chrome.evaluate("document.querySelector('#new-item').click()");
+    await chrome.waitFor("!document.querySelector('#add-form').hidden && getComputedStyle(document.querySelector('#add-form')).display === 'grid'");
+    const desktopForm = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      const form=document.querySelector('#add-form'), box=form.getBoundingClientRect();
+      const fields=[...form.querySelectorAll('label')].map(field=>{const r=field.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};});
+      return {display:getComputedStyle(form).display,box:{left:box.left,right:box.right,top:box.top,bottom:box.bottom,width:box.width,height:box.height},fields,actions:getComputedStyle(form.querySelector('.actions')).display};
+    })())`));
+    assert.equal(desktopForm.display, 'grid', `1280px add-item form keeps its grid: ${JSON.stringify(desktopForm)}`);
+    assert.equal(desktopForm.actions, 'flex', `1280px add-item actions keep their row: ${JSON.stringify(desktopForm)}`);
+    assert.equal(desktopForm.fields.length, 5, '1280px add-item form keeps all five fields');
+    assert.ok(desktopForm.fields.every((field, index, fields) => field.width > 0 && field.left >= desktopForm.box.left && field.right <= desktopForm.box.right && field.top >= desktopForm.box.top && field.bottom <= desktopForm.box.bottom && (index === 0 || field.top >= fields[index - 1].bottom)), `1280px add-item fields remain a non-overlapping grid: ${JSON.stringify(desktopForm)}`);
+    await chrome.evaluate("document.querySelector('#add-cancel').click()");
+    await chrome.waitFor("document.querySelector('#add-form').hidden");
     await chrome.evaluate(`document.querySelector('[data-tab="shouts"]').click()`);
 
     const rendered = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
       const shout = [...document.querySelectorAll('#feed > div:not(.day)')].find((row) => row.textContent.includes('Inline'));
+      const shoutCode=[...(shout?.querySelectorAll('code.inline')||[])].find(code=>code.textContent==='--flag'), shoutLine=shout?.children[1];
+      const shoutRect=shoutCode?.getBoundingClientRect(), shoutLineRect=shoutLine?.getBoundingClientRect();
       const ask = [...document.querySelectorAll('#decisions .ask')].find((row) => row.textContent.includes('Inline'));
       const titleNode = document.querySelector('#chain .row .t');
       const outside = [...document.querySelectorAll('#feed > div:not(.day)')].find((row) => row.textContent.includes('alert(2)'));
@@ -3248,6 +3272,7 @@ test('real Chrome styles shout code and item text without growing linked lines [
       };
       return {
         shoutHtml: shout.innerHTML, shoutScripts: shout.querySelectorAll('script').length,
+        shoutCodeMetrics: {display:shoutCode&&getComputedStyle(shoutCode).display,width:shoutRect?.width,lineWidth:shoutLineRect?.width},
         askHtml: ask.innerHTML, titleHtml: titleNode.innerHTML,
         linkedMetrics: lineMetrics('X #1'), plainMetrics: lineMetrics('X'),
         wrapLinked: lineMetrics(${JSON.stringify(wrappedLinkedText)}), wrapPlain: lineMetrics('OK'),
@@ -3260,6 +3285,9 @@ test('real Chrome styles shout code and item text without growing linked lines [
         agentItemHeight: agentItem?.getBoundingClientRect().height,
       };
     })())`));
+    assert.equal(rendered.shoutCodeMetrics.display, 'inline', `1280px shout code computes inline: ${JSON.stringify(rendered.shoutCodeMetrics)}`);
+    assert.ok(rendered.shoutCodeMetrics.width > 0 && rendered.shoutCodeMetrics.width < rendered.shoutCodeMetrics.lineWidth / 2,
+      `1280px shout code is a compact chip: ${JSON.stringify(rendered.shoutCodeMetrics)}`);
     assert.match(rendered.shoutHtml, /<code class="inline">code &lt;b&gt;safe&lt;\/b&gt;<\/code>/, 'backticks create escaped inline code');
     assert.match(rendered.shoutHtml, /<code class="inline">pullboard shout<\/code>/, 'pullboard commands are inline code');
     assert.match(rendered.shoutHtml, /<code class="inline">--decision<\/code>/, 'flags are inline code');
@@ -3292,6 +3320,30 @@ test('real Chrome styles shout code and item text without growing linked lines [
     assert.ok(Math.abs(rendered.linkedMetrics.height - rendered.linkedMetrics.lineHeight) < 1, 'the linked desktop box equals one computed line-height');
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 375 && document.querySelector("#feed > div:not(.day)")?.getBoundingClientRect().width > 0');
+    await chrome.evaluate("document.querySelector('[data-tab=items]').click()");
+    await chrome.waitFor('document.querySelector("[data-pane=items]:not([hidden])") && document.querySelector("#detail .text.muted code.inline")?.getBoundingClientRect().width > 0');
+    const phoneBrief = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      const code=document.querySelector('#detail .text.muted code.inline'), line=code?.parentElement;
+      const rect=code?.getBoundingClientRect(), lineRect=line?.getBoundingClientRect();
+      return {display:code&&getComputedStyle(code).display,width:rect?.width,lineWidth:lineRect?.width};
+    })())`));
+    assert.equal(phoneBrief.display, 'inline', `375px brief code computes inline: ${JSON.stringify(phoneBrief)}`);
+    assert.ok(phoneBrief.width > 0 && phoneBrief.width < phoneBrief.lineWidth / 2, `375px brief code is a compact chip: ${JSON.stringify(phoneBrief)}`);
+    await chrome.evaluate("document.querySelector('#new-item').click()");
+    await chrome.waitFor("!document.querySelector('#add-form').hidden && getComputedStyle(document.querySelector('#add-form')).display === 'grid'");
+    const phoneForm = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      const form=document.querySelector('#add-form'), box=form.getBoundingClientRect();
+      const fields=[...form.querySelectorAll('label')].map(field=>{const r=field.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};});
+      return {display:getComputedStyle(form).display,box:{left:box.left,right:box.right,top:box.top,bottom:box.bottom,width:box.width,height:box.height},fields,actions:getComputedStyle(form.querySelector('.actions')).display};
+    })())`));
+    assert.equal(phoneForm.display, 'grid', `375px add-item form keeps its grid: ${JSON.stringify(phoneForm)}`);
+    assert.equal(phoneForm.actions, 'flex', `375px add-item actions keep their row: ${JSON.stringify(phoneForm)}`);
+    assert.equal(phoneForm.fields.length, 5, '375px add-item form keeps all five fields');
+    assert.ok(phoneForm.fields.every((field, index, fields) => field.width > 0 && field.left >= phoneForm.box.left && field.right <= phoneForm.box.right && field.top >= phoneForm.box.top && field.bottom <= phoneForm.box.bottom && (index === 0 || field.top >= fields[index - 1].bottom)), `375px add-item fields remain a non-overlapping grid: ${JSON.stringify(phoneForm)}`);
+    await chrome.evaluate("document.querySelector('#add-cancel').click()");
+    await chrome.waitFor("document.querySelector('#add-form').hidden");
+    await chrome.evaluate("document.querySelector('[data-tab=shouts]').click()");
+    await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden])") && document.querySelector("#feed code.inline")?.getBoundingClientRect().width > 0');
     const phoneMetrics = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
       /** Measure the complete rendered content line box, including its item link. */
       const lineMetrics = (message) => {
@@ -3304,8 +3356,13 @@ test('real Chrome styles shout code and item text without growing linked lines [
         const lineHeight = parseFloat(getComputedStyle(content).lineHeight);
         return { height, lineHeight, lines: Math.round(height / lineHeight) };
       };
-      return { linked: lineMetrics('X #1'), plain: lineMetrics('X'), wrapLinked: lineMetrics(${JSON.stringify(wrappedLinkedText)}), wrapPlain: lineMetrics('OK') };
+      const row=[...document.querySelectorAll('#feed > div:not(.day)')].find(entry=>entry.textContent.includes('Inline'));
+      const code=[...(row?.querySelectorAll('code.inline')||[])].find(entry=>entry.textContent==='--flag'), line=row?.children[1], codeRect=code?.getBoundingClientRect(), lineRect=line?.getBoundingClientRect();
+      return { linked: lineMetrics('X #1'), plain: lineMetrics('X'), wrapLinked: lineMetrics(${JSON.stringify(wrappedLinkedText)}), wrapPlain: lineMetrics('OK'), shoutCode:{display:code&&getComputedStyle(code).display,width:codeRect?.width,lineWidth:lineRect?.width} };
     })())`));
+    assert.equal(phoneMetrics.shoutCode.display, 'inline', `375px shout code computes inline: ${JSON.stringify(phoneMetrics.shoutCode)}`);
+    assert.ok(phoneMetrics.shoutCode.width > 0 && phoneMetrics.shoutCode.width < phoneMetrics.shoutCode.lineWidth / 2,
+      `375px shout code is a compact chip: ${JSON.stringify(phoneMetrics.shoutCode)}`);
     assert.equal(phoneMetrics.linked.lines, 1, 'the short linked sample occupies one phone line');
     assert.equal(phoneMetrics.plain.lines, 1, 'the short plain sample occupies one phone line');
     assert.ok(Math.abs(phoneMetrics.linked.height - phoneMetrics.plain.height) < 1, 'the complete one-line phone boxes match within 1px');
