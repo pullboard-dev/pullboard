@@ -204,9 +204,14 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
         requests: store.openRequests(db),
         milestones: milestoneRoadmap(board.root, db),
         rowDecisions: store.rowDecisions(db),
+        checks: new Map(store.listItems(db, { all: true }).map((item) => store.getItem(db, item.item_id)).map((item) => [item.item_id, {
+          check: item.item_check,
+          ...(item.item_check_baseline ? { checkBaseline: item.item_check_baseline } : {}),
+        }])),
       }));
       state.requests = projectData.requests;
       state.milestones = projectData.milestones;
+      state.items = state.items.map((item) => ({ ...item, ...projectData.checks.get(item.id) }));
       state = projectRowDecisions(projectData.rowDecisions, state);
       return state;
     },

@@ -1,5 +1,6 @@
 /** Real HTTP calls against an isolated Git repo and the actual board engine (A2). */
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -228,6 +229,35 @@ test('[A2] real HTTP state, moves and refusals use the CLI and exact committed e
   assert.equal(badAgent.document.error.code, 'NO_AGENT');
 });
 
+test('[A2,V2,H16] board-state JSON retains pending and red baselines and removes cleared observations', async (t) => {
+  const box = await httpBox(t);
+  const pending = { command: 'true', main: box.commit, result: 'pending', request: randomUUID() };
+  const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  let id;
+  try {
+    id = store.addItem(board, { by: 'coordinator', lane: 'app', title: 'Captured API observation',
+      check: pending.command, checkBaseline: pending });
+  } finally { store.closeBoard(board); }
+  const initial = await box.call(box.path + '/state');
+  assert.deepEqual(initial.document.state.items.find((item) => item.id === id).checkBaseline, pending,
+    'a pending captured request reaches the public state endpoint before completion');
+  const completed = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    store.completeCheckBaseline(completed, id, { agentId: 'coordinator', expected: pending,
+      baseline: { command: pending.command, main: pending.main, result: 'red', seconds: 1 } });
+  } finally { store.closeBoard(completed); }
+  const redState = await box.call(box.path + '/state');
+  const red = redState.document.state.items.find((item) => item.id === id).checkBaseline;
+  assert.deepEqual(red, { command: pending.command, main: pending.main, result: 'red', seconds: 1, request: pending.request });
+  assert.equal(Object.hasOwn(red, 'warning'), false, 'a failing baseline has no proves-nothing warning');
+  const cleared = await box.call(box.path + '/moves', { verb: 'edit', item: id, args: { check: '' } });
+  assert.equal(cleared.status, 200, JSON.stringify(cleared.document));
+  const clearedState = await box.call(box.path + '/state');
+  const clearedItem = clearedState.document.state.items.find((item) => item.id === id);
+  assert.equal(clearedItem.check, '');
+  assert.equal(Object.hasOwn(clearedItem, 'checkBaseline'), false, 'clearing the check removes its old observation from API state');
+});
+
 test('[A2,V2] HTTP add and edit preserve explicit blocking baseline requests', async (t) => {
   const box = await httpBox(t);
   /** Build a finite check whose completion can be observed independently of the HTTP response. */
@@ -245,6 +275,10 @@ test('[A2,V2] HTTP add and edit preserve explicit blocking baseline requests', a
   assert.equal(item.item_check_baseline.result, 'green', '--wait returns a terminal observation in the add response');
   assert.equal(item.item_check_baseline.warning, 'CRITERION_PROVES_NOTHING');
   assert.equal(readFileSync(firstMarker, 'utf8'), 'finished');
+  const addedState = await box.call(box.path + '/state');
+  const projected = addedState.document.state.items.find((row) => row.id === item.item_id);
+  assert.equal(projected.check, check);
+  assert.deepEqual(projected.checkBaseline, item.item_check_baseline, 'board-state item JSON carries the same complete observation and warning');
   const secondMarker = join(box.dir, 'edit-finished');
   const editedCheck = completedCheck(secondMarker);
   const edited = await box.call(box.path + '/moves', { verb: 'edit', item: item.item_id, args: {
@@ -254,6 +288,10 @@ test('[A2,V2] HTTP add and edit preserve explicit blocking baseline requests', a
   assert.equal(edited.document.result.item.item_check_baseline.command, editedCheck);
   assert.equal(edited.document.result.item.item_check_baseline.result, 'green', '--wait also blocks edit until its new check finishes');
   assert.equal(readFileSync(secondMarker, 'utf8'), 'finished');
+  const editedState = await box.call(box.path + '/state');
+  const editedItem = edited.document.result.item;
+  assert.deepEqual(editedState.document.state.items.find((row) => row.id === item.item_id).checkBaseline,
+    editedItem.item_check_baseline, 'board-state JSON replaces the observation when the check changes');
 });
 
 test('[A2, H12, R2] requests and shouts append events and requests stay outside decisions', async (t) => {
