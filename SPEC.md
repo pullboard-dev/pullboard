@@ -40,6 +40,11 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - B26 [approved, must] Needs-you holds only the person's calls: decisions passed up, rows to approve, held lanes; agents ask their coordinator. | gate: test/board.test.js | serves: B25
 - B27 [approved, must] A coordinator answers a decision or passes it up with its note; the answer reaches whoever asked. | gate: test/board.test.js | serves: B25
 - B28 [draft, must] Work renews the lease: a commit, gate run or command from the holder's worktree renews its claim. | gate: test/board.test.js | serves: B4
+- B29 [draft, must] Every item carries a thread: any agent appends typed facts (capture, measurement, note, diff), and the board stamps each with its author, time and id. | gate: test/board.test.js | serves: B22
+- B30 [draft, must] Judgements on an item (decision, rejection, supersession, root cause) come only from its holder or the coordinator. | gate: test/board.test.js | serves: B29
+- B31 [draft, must] A thread is append-only: a correction is a new fact that supersedes the old one, and both stay visible. | gate: test/board.test.js | serves: B29
+- B32 [draft, must] A fact can bind code as path:lines@sha with the full sha, and show prints the thread and the moves as one timeline. | gate: test/board.test.js | serves: B29
+- B33 [draft, aim] The view shows an item's thread in its detail, with code references live. | gate: test/cockpit.test.js | serves: B29
 
 ## M · Machine
 - M1 [approved, must] One declaration holds every item state, move, guard and refusal; code, help and docs derive from it. | gate: test/machine.test.js
