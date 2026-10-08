@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 404" width="840" height="404" role="img" aria-labelledby="title desc">
-<title id="title">Where things live</title><desc id="desc">The main checkout is the coordinator. It holds SPEC.md, PRACTICE.md, pullboard.json, AGENTS.md and the git hooks. Inside .git, shared by every worktree, are the board, board.sqlite, and the pinned submitted commits. Beside it, each agent works in its own worktree: builders in their lanes and a verifier that built none of it, all on the same board. pullboard view lists every project on this machine.</desc>
+<title id="title">Where things live</title><desc id="desc">The main checkout is the coordinator. It holds SPEC.md, DOCTRINE.md, pullboard.json, AGENTS.md and the git hooks. Inside .git, shared by every worktree, are the board, board.sqlite, and the pinned submitted commits. Beside it, each agent works in its own worktree: builders in their lanes and a verifier that built none of it, all on the same board. pullboard view lists every project on this machine.</desc>
 <style>
 text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif; fill: #1f2328; }
 .mono { font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace; }
@@ -57,7 +57,7 @@ text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', 
 <text class="aside" x="44" y="98">the coordinator files, merges and talks with you</text>
 <text class="mono label" x="44" y="130">SPEC.md</text>
 <text class="label" x="204" y="130">what to build, one row per id</text>
-<text class="mono label" x="44" y="152">PRACTICE.md</text>
+<text class="mono label" x="44" y="152">DOCTRINE.md</text>
 <text class="label" x="204" y="152">the house rules</text>
 <text class="mono label" x="44" y="174">pullboard.json</text>
 <text class="label" x="204" y="174">gate, lanes, commit rules</text>

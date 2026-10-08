@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { git, gitChildEnv, gitPath, mainCheckout, refuseGrafts, tryGit } from './git.js';
-import { CONFIG_FILE, configFromSource } from './config.js';
+import { CONFIG_FILE, configFromSource, DOCTRINE_FILE, LEGACY_DOCTRINE_FILE } from './config.js';
 import { Refused } from './refused.js';
 import { outOfLane } from './lanes.js';
 import { citedIds, deletedIds, idProblems } from './spec.js';
@@ -318,12 +318,15 @@ export function applyFixers(root, fixers) {
  */
 export function deletedRowProblems(root, paths) {
   return paths.flatMap((path) => {
-    const before = tryGit(root, ['show', `HEAD:${path}`]);
-    if (before.status !== 0) return [];
-    const staged = tryGit(root, ['show', `:${path}`]);
-    if (staged.status !== 0) return [`${path} is deleted; ids are permanent: restore it`];
+    const names = [DOCTRINE_FILE, LEGACY_DOCTRINE_FILE].includes(path)
+      ? [path, path === DOCTRINE_FILE ? LEGACY_DOCTRINE_FILE : DOCTRINE_FILE]
+      : [path];
+    const before = names.map((name) => ({ ...tryGit(root, ['show', `HEAD:${name}`]), name })).find((file) => file.status === 0);
+    if (!before) return [];
+    const staged = names.map((name) => ({ ...tryGit(root, ['show', `:${name}`]), name })).find((file) => file.status === 0);
+    if (!staged) return [`${before.name} is deleted; ids are permanent: restore it`];
     return deletedIds(before.stdout, staged.stdout).map(
-      (id) => `${path}: ${id} is gone; ids are permanent: keep the row and mark it wont (won't build) or retired`,
+      (id) => `${staged.name}: ${id} is gone; ids are permanent: keep the row and mark it wont (won't build) or retired`,
     );
   });
 }

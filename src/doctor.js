@@ -1,5 +1,8 @@
 /** Read-only integrity checks for a pullboard board file (A6). */
 import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { DOCTRINE_FILE, LEGACY_DOCTRINE_FILE } from './config.js';
+import { tryGit } from './git.js';
 import { DatabaseSync } from 'node:sqlite';
 import { checkAtCommit, submissionPaths, dependencySnapshots } from './trusted-policy.js';
 import { BLANKS, STATES, storeTriggers } from './machine.js';
@@ -9,6 +12,14 @@ import { staleFrozenItems, staleItemFinding } from './approved-rows.js';
 import { loadSpec } from './spec.js';
 import { preMergeHookProblems } from './hooks.js';
 const blankCharacters = new Set(BLANKS.map((point) => String.fromCodePoint(point)));
+
+/** Offer a working tracked or untracked rename without rewriting the repo's doctrine [D1,D2]. */
+export function doctrineProblems(root, config) {
+  if (config.practice !== LEGACY_DOCTRINE_FILE || !existsSync(join(root, LEGACY_DOCTRINE_FILE))) return [];
+  const tracked = tryGit(root, ['ls-files', '--error-unmatch', '--', LEGACY_DOCTRINE_FILE]).status === 0;
+  const command = tracked ? 'git mv' : 'mv';
+  return [finding('DOCTRINE_LEGACY', `${LEGACY_DOCTRINE_FILE} is the legacy name for the repo doctrine`, `${command} -- ${LEGACY_DOCTRINE_FILE} ${DOCTRINE_FILE}`)];
+}
 
 /**
  * Check a board and its git pins without opening it through the migrator, which repairs boards on
@@ -188,7 +199,9 @@ function submissionProblems(db, root) {
     } catch (error) {
       problems.push(finding(error.code ?? 'SUBMISSION_POLICY', 'item #' + item.item_id + ': ' + (error.code === 'OUTSIDE_LANE' ? error.message : 'its committed submission policy or claim base cannot be checked'), 'ask the coordinator to restore the original policy and inspect this submission'));
     }
-    if (!checkAtCommit(root, item).green) problems.push(finding('CHECK_RED', 'item #' + item.item_id + ' has a red frozen check at ' + item.item_commit, 'ask the coordinator to record and repair the failing submission'));
+    const check = checkAtCommit(root, item);
+    if (check.state === 'unverified') problems.push(finding('CHECK_UNVERIFIED', 'item #' + item.item_id + ' has an unverified frozen ' + check.stage + ' at ' + item.item_commit + '; output digest: ' + check.report, 'restore the install or check environment, then rerun doctor'));
+    else if (check.state === 'red') problems.push(finding('CHECK_RED', 'item #' + item.item_id + ' has a red frozen check at ' + item.item_commit + '; output digest: ' + check.report, 'ask the coordinator to record and repair the failing submission'));
   }
   return problems;
 }

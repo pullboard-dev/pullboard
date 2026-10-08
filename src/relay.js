@@ -4,7 +4,7 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, wri
 import { dirname, join } from 'node:path';
 import * as store from './board.js';
 import { exportBoard, restoreRelaySnapshot } from './exchange.js';
-import { appliedSequence, applyEngineMove, checkpointSequence, engineReceipt, prepareEngineMove, startRelayEpoch } from './engine.js';
+import { appliedSequence, applyRelayMove, checkpointSequence, engineReceipt, prepareEngineMove, requireSupportedEngine, startRelayEpoch } from './engine.js';
 import { ENGINE_VERSION } from './machine.js';
 import { presentationDigest, relayPresentation, relaySnapshot } from './relay-presentation.js';
 import { repoInfo, tryGit } from './git.js';
@@ -12,6 +12,8 @@ import { forgetBoardKey, readBoardKey, storeBoardKey } from './relay-key.js';
 import { encodeBoardKey, generateBoardKey, seal, unseal } from './seal.js';
 import { terminalQr } from './qr.js';
 import { Refused } from './refused.js';
+import { relaySenderProblem } from './relay-sender.js';
+import { receivePersonRequest } from './relay-requests.js';
 
 export const DEFAULT_RELAY = 'https://app.pullboard.dev';
 const LINK_FILES = new WeakMap();
@@ -168,8 +170,12 @@ async function flushMirror(root, file, state, io) {
     saveLink(file, state);
   }
   if (state.snapshot) {
-    const uploaded = await request(state, path + '/state', { method: 'PUT', body: state.snapshot }, io);
-    if (uploaded.state?.sequence !== state.snapshot.sequence || uploaded.state.sealed !== state.snapshot.sealed) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge the queued snapshot; retry the configured relay');
+    const pendingSnapshot = state.snapshot;
+    const uploaded = await request(state, path + '/state', { method: 'PUT', body: pendingSnapshot }, io);
+    if (uploaded.state?.sequence !== pendingSnapshot.sequence || uploaded.state.sealed !== pendingSnapshot.sealed) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge the queued snapshot; retry the configured relay');
+    if (state.snapshotPresentationDigest) state.presentationDigest = state.snapshotPresentationDigest;
+    delete state.snapshotPresentationDigest;
+    state.needsPresentation = false;
     delete state.snapshot;
     saveLink(file, state);
   }
@@ -181,9 +187,18 @@ async function flushMirror(root, file, state, io) {
       !['move', 'request'].includes(event.kind) || typeof event.sealed !== 'string' || !/^[A-Za-z0-9_-]+$/.test(event.sealed))) {
     throw new Refused('RELAY_RESPONSE', 'the relay returned an invalid ordered event prefix; retry the configured relay');
   }
+  // A mirror-only client cannot attest a checkpoint covering another device's unseen moves.
+  if (received.some(event => !(state.pending && event.event_id === state.pending.sequence && event.sealed === state.pending.sealed && event.kind === 'move'))) {
+    throw new Refused('RELAY_REPLAY_REQUIRED', 'another device changed this board; upgrade to a relay-order client before publishing a checkpoint or further queued moves');
+  }
   if (state.pending) {
     const accepted = received.find((event) => event.event_id === state.pending.sequence && event.sealed === state.pending.sealed && event.kind === 'move');
-    if (accepted) { state.cursor = state.pending.localEvent; delete state.pending; }
+    if (accepted) {
+      state.cursor = state.pending.localEvent;
+      state.needsPresentation = Boolean(state.needsPresentation || state.pending.needsPresentation || !state.pending.presentationDigest);
+      if (state.pending.presentationDigest) state.presentationDigest = state.pending.presentationDigest;
+      delete state.pending;
+    }
   }
   if (received.length) state.sequence = Math.max(state.sequence, ...received.map((event) => event.event_id));
   if (state.pending && state.pending.sequence <= state.sequence) delete state.pending;
@@ -192,8 +207,11 @@ async function flushMirror(root, file, state, io) {
   for (const event of rows) {
     if (!state.pending) {
       const sequence = state.sequence + 1;
-      state.pending = { localEvent: event.event_id, sequence,
-        sealed: await sealedRecord(key, { version: 1, engine: ENGINE_VERSION, event }, state, 'move', sequence) };
+      const current = relayPresentation(root);
+      // Only a projection ending at this local record belongs to its relay position.
+      const presentation = current.state.events[0]?.event_id === event.event_id ? current : undefined;
+      state.pending = { localEvent: event.event_id, sequence, needsPresentation: Boolean(state.needsPresentation || !presentation), ...(presentation ? { presentationDigest: presentationDigest(presentation) } : {}),
+        sealed: await sealedRecord(key, { version: 1, engine: ENGINE_VERSION, event, presentation }, state, 'move', sequence) };
       saveLink(file, state);
     }
     const { sequence, sealed } = state.pending;
@@ -201,7 +219,26 @@ async function flushMirror(root, file, state, io) {
     if (reply.event?.event_id !== sequence || reply.event.sealed !== sealed) throw new Refused('RELAY_RESPONSE', 'the relay acknowledgement does not match the queued record; retry after checking the relay');
     state.sequence = sequence;
     state.cursor = event.event_id;
+    state.needsPresentation = Boolean(state.needsPresentation || state.pending.needsPresentation);
+    if (state.pending.presentationDigest) state.presentationDigest = state.pending.presentationDigest;
     delete state.pending;
+    saveLink(file, state);
+  }
+  const presentation = relayPresentation(root);
+  const digest = presentationDigest(presentation);
+  if (state.needsPresentation || state.presentationDigest !== digest) {
+    const document = relaySnapshot(root);
+    if ((document.tables.event.at(-1)?.event_id ?? 0) !== state.cursor) throw new Refused('RELAY_PRESENTATION_PENDING', 'new local moves arrived while syncing; run pullboard status again before publishing their presentation');
+    state.snapshot = { sequence: state.sequence, sealed: await sealedRecord(key, document, state, 'snapshot', state.sequence) };
+    state.snapshotPresentationDigest = presentationDigest(document.presentation);
+    saveLink(file, state);
+    const pendingSnapshot = state.snapshot;
+    const uploaded = await request(state, path + '/state', { method: 'PUT', body: pendingSnapshot }, io);
+    if (uploaded.state?.sequence !== pendingSnapshot.sequence || uploaded.state.sealed !== pendingSnapshot.sealed) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge the refreshed presentation; retry the configured relay');
+    state.presentationDigest = state.snapshotPresentationDigest;
+    delete state.snapshotPresentationDigest;
+    state.needsPresentation = false;
+    delete state.snapshot;
     saveLink(file, state);
   }
   return summary(root, state);
@@ -282,6 +319,8 @@ async function restoreCheckpoint(root, state, io, key) {
   const document = await request(state, '/api/v1/boards/' + state.board + '/state', {}, io);
   const snapshot = document.state;
   if (!snapshot || !Number.isSafeInteger(snapshot.sequence) || snapshot.sequence < 0) throw new Refused('RELAY_RESPONSE', 'the relay snapshot has no valid coverage sequence; fetch it again');
+  const senderProblem = relaySenderProblem(null, snapshot.sender, 'snapshot');
+  if (senderProblem) throw senderProblem;
   const native = await decoded(key, snapshot, state, 'snapshot', snapshot.sequence);
   localRecords(root, (board) => restoreRelaySnapshot(board, native, snapshot.sequence));
 }
@@ -303,8 +342,11 @@ async function catchUp(root, file, state, io) {
   }
   for (const record of remote.events) {
     const move = await decoded(key, record, state, record.kind, record.event_id);
+    // Legacy executable documents in the request channel still fail closed before attribution.
+    if (record.kind === 'request' && move?.engine !== undefined) requireSupportedEngine(move);
     localRecords(root, (board) => {
-      applyEngineMove(board, move, { sequence: record.event_id, at: record.event_at });
+      if (record.kind === 'request') receivePersonRequest(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender });
+      else applyRelayMove(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender, kind: record.kind });
     });
   }
   state.sequence = localRecords(root, appliedSequence);
@@ -346,7 +388,14 @@ export async function relayOperation(root, operation, args, io) {
       delete state.pending;
       saveLink(file, state);
     }
-    const move = localRecords(root, (board) => prepareEngineMove(board, operation, args));
+    const previousReceipt = io.personRequestMoveId && localRecords(root, board => engineReceipt(board, io.personRequestMoveId));
+    if (previousReceipt) {
+      if (previousReceipt.outcome.error) throw new Refused(previousReceipt.outcome.error.code, previousReceipt.outcome.error.message);
+      for (const event of previousReceipt.outcome.events ?? []) io.onEvent?.(event);
+      return previousReceipt.outcome.result;
+    }
+    const move = localRecords(root, (board) => prepareEngineMove(board, operation, args, io.personRequestMoveId ? { id: io.personRequestMoveId } : {}));
+    if (io.personRequest) move.personRequest = structuredClone(io.personRequest);
     const sequence = state.sequence + 1;
     state.pending = { move, sequence, sealed: await sealedRecord(readBoardKey(state.board), move, state, 'move', sequence) };
     saveLink(file, state);
@@ -481,5 +530,18 @@ export async function relayOff(root, io) {
     rmSync(file, { force: true });
     return { linked: false, board: state.board, url: state.url, link: '', sequence: state.sequence, behind: 0,
       ...(state.alreadyDeleted ? { alreadyDeleted: true, notice: 'the relay had already deleted this board; this device is unlinked and the local board is complete' } : {}) };
+  });
+}
+
+
+/** Keep the elected native executor stable across processes while other worktrees share its link. */
+export async function relayRequestDevice(root) {
+  const file = linkFile(root);
+  if (!existsSync(file)) return null;
+  return locked(file, async () => {
+    const state = loadLink(file);
+    if (!state || state.unlinking) return null;
+    if (!state.requestDevice) { state.requestDevice = randomUUID(); saveLink(file, state); }
+    return state.requestDevice;
   });
 }
