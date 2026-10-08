@@ -1,6 +1,6 @@
 # Proof audit: the spec rows
 
-S1 to S9 govern SPEC.md and PRACTICE.md themselves:
+S1 to S9 govern SPEC.md and the local doctrine file. This checkout still uses legacy `PRACTICE.md`; new repos use `DOCTRINE.md`, and `PRACTICE.md` remains a compatibility fallback:
 - the row format;
 - ids that are unique and permanent;
 - serves links;

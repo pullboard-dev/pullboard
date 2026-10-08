@@ -56,6 +56,7 @@ function sandbox() {
     PULLBOARD_HOME: join(dir, 'pullboard-home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
   };
+  delete env.PULLBOARD_RELAY_TOKEN;
   const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
   const tryGit = (cwd, ...args) => spawnSync('git', args, { cwd, env, encoding: 'utf8' });
   const run = (cwd, ...args) => {
@@ -1260,6 +1261,37 @@ test('the tour runs a reject and its rework on a throwaway repo, in under thirty
   assert.match(stopped.stdout, /The tour stopped: git init -q -b main exited null/);
 });
 
+test('the tour registers a labelled demo that view lists and forget removes [N10, N26]', async () => {
+  const box = project();
+  const tourEnv = { ...box.env, TMPDIR: box.dir, HOME: box.dir };
+  delete tourEnv.PULLBOARD_MODEL;
+  const result = spawnSync(process.execPath, [BIN, 'tour'], {
+    cwd: box.dir,
+    env: tourEnv,
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  assert.equal(result.stdout.trimEnd().split('\n').at(-1), 'see it: pullboard view');
+  const demoRoot = /Look around: cd (\S+) && pullboard log/.exec(result.stdout)?.[1];
+  assert.ok(demoRoot, 'the retained demo path is printed');
+  const registered = JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'projects.json'), 'utf8')).projects;
+  assert.deepEqual(registered.map(({ root, name }) => [root, name]), [[box.repo, 'repo'], [demoRoot, 'demo']]);
+
+  const view = await startView(box, box.repo);
+  try {
+    const listing = await fetch(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': view.key } });
+    assert.equal(listing.status, 200);
+    assert.deepEqual((await listing.json()).boards.map(({ root, name }) => [root, name]), [[box.repo, 'repo'], [demoRoot, 'demo']]);
+    const forgotten = box.run(box.dir, 'forget', demoRoot);
+    assert.equal(forgotten.code, 0, forgotten.err);
+    assert.match(forgotten.out, /forgot/);
+    const after = await fetch(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': view.key } });
+    assert.deepEqual((await after.json()).boards.map(({ root, name }) => [root, name]), [[box.repo, 'repo']]);
+  } finally {
+    await view.stop();
+  }
+});
+
 test('the run pack names verified items that touched the same files, so a cold agent follows them [N21]', () => {
   const box = project();
   const script = (name, lines) => {
@@ -1304,11 +1336,11 @@ test('a fresh worktree with no install of its own runs pullboard from the main c
 
 test('the gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir [V10]', () => {
   const box = project();
-  // Let piped stdout drain before exiting; process.exit() can discard its last writes on Node 24.
   writeFileSync(join(box.repo, 'gate.cjs'), [
     "const red = require('node:fs').existsSync('RED');",
-    "for (let i = 0; i < 400; i++) console.log(`ok ${i} ${'x'.repeat(red ? 10 : 3000)}`);",
-    "if (red) { console.error('not ok 401 - the page renders a heading'); for (let i = 0; i < 100; i++) console.log(`# note ${i}`); process.exitCode = 1; }",
+    "const { writeSync } = require('node:fs');",
+    "for (let i = 0; i < 400; i++) writeSync(1, `ok ${i} ${'x'.repeat(red ? 10 : 3000)}\\n`);",
+    "if (red) { writeSync(2, 'not ok 401 - the page renders a heading\\n'); for (let i = 0; i < 100; i++) writeSync(1, `# note ${i}\\n`); process.exitCode = 1; }",
     '',
   ].join('\n'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: 'node gate.cjs # prints a lot' }));
@@ -1529,6 +1561,35 @@ async function startView(box, cwd) {
   const key = link.searchParams.get('k');
   const base = `http://127.0.0.1:${link.port}`;
   const headers = { 'x-pullboard-key': key };
+  /**
+   * Fetch the page through either the accepted printed-key response or the cookie exchange.
+   * Keeping these paths in one fixture lets the API assertions stay independent of page auth.
+   */
+  const page = async () => {
+    const response = await fetch(link, { redirect: 'manual' });
+    if (response.status === 200) return response;
+    assert.equal(response.status, 303, 'the printed link either serves the legacy page or exchanges its key');
+
+    const rawLocation = response.headers.get('location');
+    assert.ok(rawLocation, 'the cookie exchange has a redirect target');
+    const location = new URL(rawLocation, base);
+    assert.equal(location.origin, new URL(base).origin, 'the cookie exchange stays on this view origin');
+    assert.equal(location.pathname, '/', 'the cookie exchange returns to the clean page path');
+    assert.equal(location.search, '', 'the redirect does not keep credentials in the address');
+    assert.equal(location.hash, '', 'the redirect has no credential-bearing fragment');
+
+    const cookies = response.headers.getSetCookie?.() ?? [response.headers.get('set-cookie')].filter(Boolean);
+    assert.equal(cookies.length, 1, 'the exchange sets one session cookie');
+    const [pair, ...attributes] = cookies[0].split(';').map((part) => part.trim());
+    assert.match(pair, /^[A-Za-z0-9_-]+=[A-Za-z0-9._~-]+$/u, 'the session cookie has a valid nonempty name and value');
+    assert.ok(attributes.some((attribute) => /^httponly$/iu.test(attribute)), 'the session cookie is HttpOnly');
+    assert.ok(attributes.some((attribute) => /^samesite=strict$/iu.test(attribute)), 'the session cookie is SameSite=Strict');
+    assert.ok(attributes.some((attribute) => /^path=\/$/iu.test(attribute)), 'the session cookie is scoped to the view');
+
+    const pageResponse = await fetch(location, { headers: { cookie: pair }, redirect: 'manual' });
+    assert.equal(pageResponse.status, 200, 'the cookie jar fetches the page after the exchange');
+    return pageResponse;
+  };
   /** Read the public listing through the view's real authenticated API. */
   const boards = async () => {
     const response = await fetch(`${base}/api/v1/boards`, { headers });
@@ -1560,7 +1621,7 @@ async function startView(box, cwd) {
     child.once('exit', done);
     child.kill('SIGTERM');
   });
-  return { link, key, base, state, act, stop };
+  return { link, key, base, page, state, act, stop };
 }
 
 test('view serves every project on this machine, on loopback, behind its secret and its own Host [N26, I8]', async () => {
@@ -1575,8 +1636,7 @@ test('view serves every project on this machine, on loopback, behind its secret 
     const badSecret = await fetch(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': 'guess' } });
     assert.equal(badSecret.status, 401, 'a wrong secret');
     assert.equal((await badSecret.json()).error.code, 'AUTH_REQUIRED');
-    const page = await fetch(view.link);
-    assert.equal(page.status, 200);
+    const page = await view.page();
     assert.match(await page.text(), /<title>Pullboard<\/title>/);
     const { boards, warnings, project: shown } = await view.state(box.repo);
     assert.deepEqual(boards.map((entry) => [entry.root, entry.name]), [[box.repo, 'repo']]);
@@ -1614,10 +1674,14 @@ test('from the view the person adds items, shouts and holds lanes, through the C
     const held = await view.act(box.repo, { verb: 'hold', args: { lane: 'web', reason: 'G1 is changing' } });
     assert.equal(held.status, 200);
     assert.equal(held.document.event.event_kind, 'hold');
-    assert.match(box.run(box.web, 'next').err, /coordinator holds the web lane: G1 is changing/);
+    assert.equal(held.document.event.event_by, 'person');
+    assert.equal(JSON.parse(held.document.event.event_detail).channel, 'view');
+    assert.match(box.run(box.web, 'next').err, /person holds the web lane: G1 is changing/);
     const released = await view.act(box.repo, { verb: 'hold', args: { lane: 'web', off: true } });
     assert.equal(released.status, 200);
     assert.equal(released.document.event.event_kind, 'unhold');
+    assert.equal(released.document.event.event_by, 'person');
+    assert.equal(JSON.parse(released.document.event.event_detail).channel, 'view');
     const unknown = await view.act(box.dir, { verb: 'shout', args: { to: 'all', text: 'x' } });
     assert.equal(unknown.status, 404);
     assert.equal(unknown.document.error.code, 'NO_BOARD');
@@ -1647,7 +1711,7 @@ test('the view answers a request line no URL parser accepts with 403, and keeps 
       socket.on('close', () => done(text));
     });
     assert.match(reply, /^HTTP\/1\.1 403/);
-    assert.equal((await fetch(view.link)).status, 200, 'still serving');
+    assert.equal((await view.page()).status, 200, 'still serving');
   } finally {
     await view.stop();
   }
@@ -1675,7 +1739,7 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
   box.git(box.repo, 'switch', '-q', 'main');
   const view = await startView(box, box.repo);
   try {
-    const page = await (await fetch(view.link)).text();
+    const page = await (await view.page()).text();
     for (const region of ['id="proj-switch"', 'data-tab="items"', 'data-tab="shouts"', 'data-tab="spec"', 'data-tab="doctrine"', 'data-tab="activity"', 'id="chain"', 'id="detail"', 'id="add-form"', 'id="hold-form"']) {
       assert.ok(page.includes(region), region);
     }
