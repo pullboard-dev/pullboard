@@ -476,7 +476,7 @@ test('[H3,H16] two cloned linked replicas order competing claims and retain the 
   relay.failMoves(true);
   const beforeWorktreeFailure = localEvents(replicaFiles[0]);
   const beforeWorktrees = gitAt(clones[0], envs[0], 'worktree', 'list', '--porcelain');
-  const failedWorktree = await cliResult(clones[0], envs[0], 'worktree', 'web');
+  const failedWorktree = await cliResult(clones[0], envs[0], 'worktree', 'web', '--model', 'Fixture Model');
   assert.equal(failedWorktree.status, 1);
   assert.equal(failedWorktree.document.error.code, 'TEMPORARY');
   assert.equal(gitAt(clones[0], envs[0], 'worktree', 'list', '--porcelain'), beforeWorktrees,
