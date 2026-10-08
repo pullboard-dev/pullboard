@@ -56,7 +56,7 @@ import { exportView, serveView } from './serve.js';
 import { serveApi } from './api.js';
 import { doctorProblems } from './doctor.js';
 import { staleFrozenItems, staleItemFinding } from './approved-rows.js';
-import { mainPolicy, itemPolicy, submissionPaths, frozenCheck, checkAtCommit, dependencySnapshots } from './trusted-policy.js';
+import { mainPolicy, policyAt, itemPolicy, submissionPaths, frozenCheck, checkAtCommit, dependencySnapshots } from './trusted-policy.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
@@ -664,20 +664,34 @@ function whoAmI(ctx, board) {
 }
 
 /**
- * The criterion an item is held to, frozen from the spec as it reads now.
+ * Freeze a criterion from committed policy, preserving legacy bytes except on an explicit refreeze.
  *
  * @param {any} ctx
+ * @param {{ captureVerifyPolicy?: boolean }} [options]
  * @returns {(item: any) => { text: string, digest: string }}
  */
-const freezer = (ctx) => (item) => {
-  const prior = item.item_frozen ? JSON.parse(item.item_frozen) : null;
-  const policy = prior?.policy ?? (!prior && !(ctx.info.isMain && !headCommit(ctx.info.root)) ? { version: 1, commit: mainPolicy(ctx.info.root).commit } : null);
-  const config = policy ? itemPolicy(ctx.info.root, { ...item, item_frozen: JSON.stringify({ policy }) }).config : ctx.config;
-  const frozen = frozenCriterion(loadSpec(ctx.info.root, config), item);
-  if (!policy) return frozen; // Legacy criteria retain their original digest and committed claim base.
-  const text = JSON.stringify({ ...JSON.parse(frozen.text), policy });
-  return { text, digest: createHash('sha256').update(text).digest('hex') };
-};
+function freezer(ctx, { captureVerifyPolicy = false } = {}) {
+  /** Freeze the item's criterion and, when requested, its committed verifier policy. */
+  return (item) => {
+    const prior = item.item_frozen ? JSON.parse(item.item_frozen) : null;
+    const needsPinnedPolicy = !prior || captureVerifyPolicy;
+    let policy = prior?.policy ?? (needsPinnedPolicy && !(ctx.info.isMain && !headCommit(ctx.info.root)) ? { version: 1, commit: mainPolicy(ctx.info.root).commit } : null);
+    let config;
+    if (policy && needsPinnedPolicy) {
+      const commit = /^[0-9a-f]{40,64}$/.test(policy.commit ?? '')
+        ? policy.commit
+        : (/^[0-9a-f]{40,64}$/.test(item.item_claim_head ?? '') ? item.item_claim_head : mainPolicy(ctx.info.root).commit);
+      config = policyAt(ctx.info.root, commit).config;
+      policy = { version: 1, commit, verify: { policy: config.verify.policy, family: config.verify.family } };
+    } else {
+      config = policy ? itemPolicy(ctx.info.root, { ...item, item_frozen: JSON.stringify({ policy }) }).config : ctx.config;
+    }
+    const frozen = frozenCriterion(loadSpec(ctx.info.root, config), item);
+    if (!policy) return frozen; // Legacy criteria retain their original digest and committed claim base.
+    const text = JSON.stringify({ ...JSON.parse(frozen.text), policy });
+    return { text, digest: createHash('sha256').update(text).digest('hex') };
+  };
+}
 
 /**
  * The evidence a shout carries, from its flags (B22). The commit is resolved here, in this repo,
@@ -1859,7 +1873,7 @@ function workCommands(io, args) {
       return 0;
     }),
     refreeze: () => act(async (ctx, board, me) => {
-      const result = await ordered(ctx, board, 'refreeze', [idArg(first), { agentId: me.id, freeze: freezer(ctx) }]);
+      const result = await ordered(ctx, board, 'refreeze', [idArg(first), { agentId: me.id, freeze: freezer(ctx, { captureVerifyPolicy: true }) }]);
       io.result?.({ id: idArg(first), ...result });
       io.say(`#${first} refrozen ${String(result.before).slice(0, 12)} -> ${result.after.slice(0, 12)}; open again`);
       return 0;

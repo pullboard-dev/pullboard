@@ -81,7 +81,7 @@ function validateMove(move) {
 }
 
 /** Restore only the frozen criterion callback; no receiver runs another machine's Git or shell. */
-function executableArgs(move) {
+function executableArgs(move, board) {
   const args = structuredClone(move.args);
   if (['claim', 'refreeze'].includes(move.operation)) {
     const options = args[1];
@@ -91,6 +91,21 @@ function executableArgs(move) {
       if (!options.frozen || typeof options.frozen.text !== 'string' || typeof options.frozen.digest !== 'string') throw new Refused('RELAY_MOVE', 'the frozen criterion is invalid; send it with the current pullboard engine');
       return options.frozen;
     };
+  }
+  if (move.operation === 'verify') {
+    const item = store.getItem(board, args[0]);
+    const options = args[1];
+    let frozen;
+    try { frozen = JSON.parse(item.item_frozen ?? 'null'); }
+    catch { throw new Refused('NO_POLICY', 'the frozen verify policy is invalid; ask the coordinator to refreeze this item before verifying it'); }
+    const capturedPolicy = frozen?.policy;
+    const captured = capturedPolicy?.verify;
+    if (!options || typeof options !== 'object' || Array.isArray(options) ||
+        capturedPolicy?.version !== 1 || !/^[0-9a-f]{40,64}$/.test(capturedPolicy.commit ?? '') ||
+        !['any', 'coordinator'].includes(captured?.policy) || !['off', 'prefer', 'require'].includes(captured?.family)) {
+      throw new Refused('NO_POLICY', 'the frozen verify policy is missing or invalid; ask the coordinator to refreeze this item before verifying it');
+    }
+    args[1] = { ...options, policy: captured.policy, familyPolicy: captured.family };
   }
   return args;
 }
@@ -157,7 +172,7 @@ export function applyEngineMove(board, move, { sequence, at }) {
       board.clock = { now: () => new Date(at) };
       const firstEvent = board.emittedEvents?.length ?? 0;
       try {
-        const result = store.atomic(board, () => store[move.operation](board, ...executableArgs(move)));
+        const result = store.atomic(board, () => store[move.operation](board, ...executableArgs(move, board)));
         outcome = { result: result ?? null, events: (board.emittedEvents?.slice(firstEvent) ?? []).map((event) => ({ ...event })) };
       } catch (error) {
         if (!(error instanceof Refused)) throw error;
