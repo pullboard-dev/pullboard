@@ -5,7 +5,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { git, gitChildEnv, tryGit } from './git.js';
 import { Refused } from './refused.js';
 import { outOfLane } from './lanes.js';
@@ -243,18 +243,26 @@ export function preCommitProblems({ root, isMain, config, agent, boardFile }) {
  * @returns {string | null}
  */
 function mainMergeBase(root) {
-  const merge = tryGit(root, ['rev-parse', '--verify', 'MERGE_HEAD']);
-  if (merge.status !== 0) return null;
+  const gitPath = tryGit(root, ['rev-parse', '--git-path', 'MERGE_HEAD']);
+  if (gitPath.status !== 0) return null;
+  let merge;
+  try { merge = readFileSync(resolve(root, gitPath.stdout.trim()), 'utf8').split(/\r?\n/u, 1)[0]; } catch { return null; }
+  if (!/^[0-9a-f]{40}$/i.test(merge ?? '')) return null;
+  if (tryGit(root, ['cat-file', '-e', `${merge}^{commit}`]).status !== 0) return null;
+  if (tryGit(root, ['merge-base', '--is-ancestor', merge, 'HEAD']).status === 0) return null;
   let main;
   try { main = mainPolicy(root).commit; } catch { return null; }
-  return tryGit(root, ['merge-base', '--is-ancestor', merge.stdout, main]).status === 0
-    ? merge.stdout
+  return tryGit(root, ['merge-base', '--is-ancestor', merge, main]).status === 0
+    ? merge
     : null;
 }
 
 /** Compare the staged mode and object, rejecting unresolved stages rather than treating them as deletions. */
 function stagedObject(root, path) {
-  const records = git(root, ['ls-files', '--stage', '-z', '--', ':(literal)' + path]).split('\0').filter(Boolean);
+  const records = git(root, ['ls-files', '--stage', '-z', '--', ':(literal)' + path]).split('\0').filter((record) => {
+    const separator = record.indexOf('\t');
+    return separator !== -1 && record.slice(separator + 1) === path;
+  });
   if (!records.length) return '';
   if (records.length !== 1) return null;
   const fields = /^(\d{6}) ([0-9a-f]{40,64}) 0\t/.exec(records[0]);
