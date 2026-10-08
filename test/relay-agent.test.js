@@ -183,6 +183,27 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
   assert.equal(apiRevoke.revoked, true);
   assertMetadataOnly(apiRevoke, [firstToken, secondToken, personState.token, boardKey], 'local API revocation response contains no credential');
 
+  // Capture authenticated journal records before a person command checkpoints their prefix.
+  const remoteState = await fetch(`${box.origin}/api/v1/boards/${personState.board}/state`, {
+    headers: { authorization: `Bearer ${secondToken}` },
+  });
+  assert.equal(remoteState.status, 200, 'the second scoped token can read the sealed relay snapshot');
+  const relayState = await remoteState.json();
+  const remote = await fetch(`${box.origin}/api/v1/boards/${personState.board}/events?after=${relayState.state.sequence}`, {
+    headers: { authorization: `Bearer ${secondToken}` },
+  });
+  assert.equal(remote.status, 200, 'the second scoped token can read the ordered relay events');
+  const remoteEvents = (await remote.json()).events;
+
+  const cachedMintCount = box.calls.filter((call) => call.method === 'POST' && call.path === '/auth/tokens').length;
+  const beforeCachedRefusal = nativeEvents(boardFile);
+  const cachedRefusal = await runCli(firstRoot, box.env, cli, ['shout', 'all', 'revoked cache must stay revoked']);
+  assert.equal(cachedRefusal.code, 1, 'a cached revoked credential refuses even while the person session remains valid');
+  assert.equal(cachedRefusal.document.error.code, 'AUTH_REQUIRED');
+  assert.deepEqual(nativeEvents(boardFile), beforeCachedRefusal, 'revoked cached credentials cannot write native board events');
+  assert.equal(box.calls.filter((call) => call.method === 'POST' && call.path === '/auth/tokens').length, cachedMintCount,
+    'a valid person session never silently re-mints its revoked agent cache');
+
   const linkAfterRevoke = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const personRevoked = await fetch(box.origin + '/auth/tokens/revoke', {
     method: 'POST', headers: { authorization: `Bearer ${linkAfterRevoke.token}`, 'content-type': 'application/json' },
@@ -223,16 +244,6 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
   assert.equal(crossBoard.status, 403, 'an agent token cannot cross to another board');
   assert.equal((await crossBoard.json()).error.code, 'TOKEN_BOARD');
 
-  const remoteState = await fetch(`${box.origin}/api/v1/boards/${personState.board}/state`, {
-    headers: { authorization: `Bearer ${secondToken}` },
-  });
-  assert.equal(remoteState.status, 200, 'the second scoped token can read the sealed relay snapshot');
-  const relayState = await remoteState.json();
-  const remote = await fetch(`${box.origin}/api/v1/boards/${personState.board}/events?after=${relayState.state.sequence}`, {
-    headers: { authorization: `Bearer ${secondToken}` },
-  });
-  assert.equal(remote.status, 200, 'the second scoped token can read the ordered relay events');
-  const remoteEvents = (await remote.json()).events;
   assert.ok(remoteEvents.some((event) => event.sender?.kind === 'agent' && event.sender.agent === firstAgent),
     'relay metadata attributes the first native move to its authenticated agent');
   assert.ok(remoteEvents.some((event) => event.sender?.kind === 'agent' && event.sender.agent === secondAgent),
