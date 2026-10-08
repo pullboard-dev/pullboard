@@ -126,6 +126,12 @@ test('no dependencies of any kind, and Node 22.13 or newer [P3]', () => {
   assert.equal(PACKAGE.engines.node, '>=22.13');
 });
 
+test('npm metadata points to the official site and keeps GitHub project links [I12]', () => {
+  assert.equal(PACKAGE.homepage, 'https://pullboard.dev');
+  assert.equal(PACKAGE.repository.url, 'git+https://github.com/pullboard-dev/pullboard.git');
+  assert.equal(PACKAGE.bugs.url, 'https://github.com/pullboard-dev/pullboard/issues');
+});
+
 test('the import scan finds a package however it is imported, and nothing that is not an import [P3]', () => {
   const forms = {
     "import pad from 'left-pad';": ['left-pad'],

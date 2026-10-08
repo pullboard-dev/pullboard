@@ -2455,7 +2455,8 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
     for (const [width, theme] of [[1280, 'light'], [375, 'dark']]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
       await evaluate(`document.documentElement.dataset.theme = '${theme}'`);
-      assert.equal(await evaluate('document.documentElement.scrollWidth'), width, 'snapshot controls fit the viewport');
+      assert.ok(await evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'),
+        'snapshot controls fit the viewport content area');
       if (process.env.PULLBOARD_SNAPSHOT_PROOF) {
         mkdirSync(process.env.PULLBOARD_SNAPSHOT_PROOF, { recursive: true });
         const shot = await chrome.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
@@ -2530,7 +2531,8 @@ test('served connection reaches an authenticated API on another origin and path 
     await chrome.waitFor('data.project.items.some(item => item.title === "Remote added")');
     assert.ok(seen.some((entry) => entry.method === 'POST' && entry.path.endsWith('/moves')), 'a real browser action reaches the configured API');
     assert.ok(seen.every((entry) => entry.authorization === `Bearer ${credential}` && entry.localKey === undefined && entry.path.startsWith('/mirror/api/v1/')), 'only the supplied credential and API base reach the stand-in');
-    assert.equal(await chrome.evaluate('document.documentElement.scrollWidth'), 375);
+    assert.ok(await chrome.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'),
+      'the remote phone page fits the viewport content area');
     assert.deepEqual(chrome.exceptions, []);
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
@@ -2593,14 +2595,16 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N
       const visible=e=>{const s=getComputedStyle(e),r=e.getBoundingClientRect();return !e.disabled&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&r.width>0&&r.height>0&&!e.closest('[hidden]')};
       const selector='button,a[href],input:not([type=hidden]),select,textarea,[role=button],[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-release],[data-shout],[data-new],[data-code]';
       const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),width:r.width,height:r.height}});
-      return {width:innerWidth,documentWidth:document.documentElement.scrollWidth,bodyWidth:document.body.scrollWidth,
+      return {width:innerWidth,clientWidth:document.documentElement.clientWidth,documentWidth:document.documentElement.scrollWidth,bodyWidth:document.body.scrollWidth,
         projectList:visible(document.querySelector('#proj-list')),needs:visible(document.querySelector('#needs')),
         detail:visible(document.querySelector('#detail')),controls};
     })())`));
+    /** Check document and body overflow against the actual layout viewport, excluding its scrollbar. */
+    const fitsViewport = (layout) => layout.documentWidth <= layout.clientWidth && layout.bodyWidth <= layout.clientWidth;
     /** Assert the current pane fits and all its controls remain touchable. */
     const checkLayout = async (width, place) => {
       const layout = await snapshot();
-      assert.ok(layout.documentWidth <= width && layout.bodyWidth <= width,
+      assert.ok(fitsViewport(layout),
         `${width} ${place}: no horizontal overflow: ${JSON.stringify(layout)}`);
       const short = layout.controls.filter((control) => control.height < 44);
       assert.deepEqual(short, [], `${width} ${place}: visible enabled actions are at least 44px high: ${JSON.stringify(short)}`);
@@ -2665,6 +2669,20 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N
       await click('#lanes [data-release="web"]');
       await chrome.waitFor("!document.querySelector('#lanes [data-release=web]')");
     }
+
+    await chrome.evaluate(`(() => {
+      const probe = document.createElement('div');
+      probe.dataset.scrollbarProof = '';
+      probe.style.cssText = 'position:absolute;left:0;top:0;width:2000px;height:1px;';
+      document.body.append(probe);
+    })()`);
+    const overflowingLayout = await snapshot();
+    assert.ok(overflowingLayout.documentWidth > overflowingLayout.clientWidth,
+      'the deliberate probe extends past the content viewport');
+    assert.equal(fitsViewport(overflowingLayout), false,
+      'the no-horizontal-overflow predicate detects deliberate content overflow');
+    await chrome.evaluate("document.querySelector('[data-scrollbar-proof]').remove()");
+    await checkLayout(1280, 'after removing the deliberate overflow probe');
 
     const posts = chrome.requests.filter((request) => request.method === 'POST' && new URL(request.url).pathname.endsWith('/moves'));
     assert.equal(posts.length, 10, 'each viewport sends add, shout, answer, hold and release through the public move endpoint');
