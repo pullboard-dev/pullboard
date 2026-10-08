@@ -46,6 +46,7 @@ test('init ends with a working staging line for exactly its own writes [I1,I2]',
     '.claude/skills/pullboard-spec-review/SKILL.md',
     '.claude/skills/pullboard-verify/SKILL.md',
     '.githooks/commit-msg', '.githooks/pre-push',
+    '.gitignore',
     'AGENTS.md', 'PRACTICE.md', 'SPEC.md', 'pullboard.json',
   ]);
   assert.equal(readFileSync(join(box.root, '.env.local'), 'utf8'), 'LOCAL=1\n');
@@ -54,9 +55,8 @@ test('init ends with a working staging line for exactly its own writes [I1,I2]',
   const rerun = box.run('init');
   assert.equal(rerun.status, 0, rerun.stderr);
   const secondStage = rerun.stdout.trimEnd().split('\n').at(-1);
-  assert.match(secondStage, /^git add -f -- /);
-  assert.equal(spawnSync('sh', ['-c', secondStage], { cwd: box.root, env: box.env }).status, 0);
-  assert.deepEqual(box.git('diff', '--cached', '--name-only').split('\n'), ['.githooks/commit-msg', '.githooks/pre-push']);
+  assert.doesNotMatch(secondStage, /^git add -f -- /, 'idempotent setup writes and stages nothing on its second run');
+  assert.equal(box.git('diff', '--cached', '--name-only'), '');
 });
 
 test('init detects language gates and gives an example in the same ecosystem [I1,I2]', (t) => {
