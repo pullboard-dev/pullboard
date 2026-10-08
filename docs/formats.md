@@ -75,6 +75,14 @@ The board file is in the repository's Git common directory at `.git/pullboard/bo
 
 Pullboard 0.6.1 released engine 1. The first change to released move semantics raises the engine once for the next release; later changes developed before that release keep the same version. Engine 2 records a fresh explicit-build claim's skipped-review snapshot. Older clients refuse engine-2 moves before changing rows or replay cursors; engine 2 still accepts engine-1 moves.
 
+The CLI declares its engine in every relay request's `X-Pullboard-Engine` header.
+A linked board requires at least engine 3 after issuing any agent token, including
+revoked or expired tokens. The minimum survives reopening the auth database;
+unlink removes the board and ends its lifetime. A missing declaration is legacy
+engine 1. Board-content requests below their minimum, and malformed declarations,
+receive `ENGINE_VERSION` with upgrade guidance before records are returned or
+changed. The service checks again under its board lock and on live-stream polls.
+
 Engine 3 checks each move or request against the relay's authenticated sender before replay. An agent token acts only as its named agent and cannot act as the person. Refused attribution attempts advance the sequence with a `relay_refusal_<sequence>` receipt and a `relay_refused` event naming the sender, attempted actor and refusal code. They change no item, shout or verdict and do not reserve the forged operation id. Snapshot restoration requires a person sender. The event log remains version 1.
 
 A board without `event_log_version` is a legacy version-0 event log. Opening an older board writes the current marker without replacing its events. Opening a newer event log refuses with `EVENT_LOG_VERSION`, naming the stored and supported versions and asking you to upgrade Pullboard. `doctor` reports that version conflict read-only.

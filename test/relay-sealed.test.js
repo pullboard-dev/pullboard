@@ -75,7 +75,7 @@ async function fixture(t) {
   async function call(path, { method = 'GET', body, token = one.token, headers = {} } = {}) {
     const response = await fetch(origin + path, {
       method,
-      headers: { ...(token ? { authorization: 'Bearer ' + token } : {}), ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
+      headers: { 'x-pullboard-engine': '3', ...(token ? { authorization: 'Bearer ' + token } : {}), ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     return { status: response.status, body: await response.json() };
@@ -327,7 +327,7 @@ test('[A4,H7] live streams follow the same order, resume by cursor and stop afte
     const controller = new AbortController();
     controllers.push(controller);
     const reply = await fetch(box.origin + box.path + '/events?after=0', {
-      headers: { authorization: 'Bearer ' + box.two.token, accept: 'text/event-stream', ...(last === null ? {} : { 'last-event-id': String(last) }) },
+      headers: { 'x-pullboard-engine': '3', authorization: 'Bearer ' + box.two.token, accept: 'text/event-stream', ...(last === null ? {} : { 'last-event-id': String(last) }) },
       signal: controller.signal,
     });
     assert.equal(reply.status, 200);

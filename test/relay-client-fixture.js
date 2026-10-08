@@ -63,7 +63,7 @@ export async function relayClientFixture(t) {
   let api;
   const calls = [];
   const server = createServer(async (req, res) => {
-    calls.push({ method: req.method, path: req.url });
+    calls.push({ method: req.method, path: req.url, engine: req.headers['x-pullboard-engine'] });
     if (override && req.method === 'DELETE') {
       res.writeHead(override.status, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ version: override.version ?? 1, error: { code: override.code, message: 'fixture refusal' } }));

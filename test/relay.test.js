@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
+import { ENGINE_VERSION } from '../src/machine.js';
 import { createGitHubClient } from '../relay/github.js';
 import { createRelayAuth, ACCESS_WINDOW_MS } from '../relay/auth.js';
 import { serveRelay } from '../relay/service.js';
@@ -150,7 +151,7 @@ test('revoking a board credential while its upload body is open stores nothing [
   const origin = `http://127.0.0.1:${service.port}`;
   const snapshot = await fetch(`${origin}/api/v1/boards/${board}/state`, {
     method: 'PUT',
-    headers: { authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
+    headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
     body: JSON.stringify({ sequence: 0, sealed: 'AQ' }),
   });
   assert.equal(snapshot.status, 200);
@@ -170,7 +171,7 @@ test('revoking a board credential while its upload body is open stores nothing [
   let stream;
   const upload = fetch(`${origin}/api/v1/boards/${board}/moves`, {
     method: 'POST',
-    headers: { authorization: `Bearer ${agent.token}`, 'content-type': 'application/json' },
+    headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${agent.token}`, 'content-type': 'application/json' },
     body: new ReadableStream({ start(controller) { stream = controller; controller.enqueue(Buffer.from('{"sequence":1,"sealed":"')); } }),
     duplex: 'half',
   });
@@ -186,7 +187,7 @@ test('revoking a board credential while its upload body is open stores nothing [
   assert.equal(response.status, 401, JSON.stringify(refusal));
   assert.equal(refusal.error.code, 'AUTH_REQUIRED');
   const events = await fetch(`${origin}/api/v1/boards/${board}/events?after=0`, {
-    headers: { authorization: `Bearer ${person.token}` },
+    headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}` },
   });
   assert.equal(events.status, 200);
   assert.deepEqual((await events.json()).events, [], 'the revoked upload never appends a move');
@@ -207,7 +208,7 @@ test('revoking a person token during snapshot upload preserves the prior snapsho
   const origin = `http://127.0.0.1:${service.port}`;
   const firstSnapshot = await fetch(`${origin}/api/v1/boards/${board}/state`, {
     method: 'PUT',
-    headers: { authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
+    headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
     body: JSON.stringify({ sequence: 0, sealed: 'AQ' }),
   });
   assert.equal(firstSnapshot.status, 200);
@@ -227,7 +228,7 @@ test('revoking a person token during snapshot upload preserves the prior snapsho
   let stream;
   const upload = fetch(`${origin}/api/v1/boards/${board}/state`, {
     method: 'PUT',
-    headers: { authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
+    headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
     body: new ReadableStream({ start(controller) { stream = controller; controller.enqueue(Buffer.from('{"sequence":0,"sealed":"')); } }),
     duplex: 'half',
   });
@@ -243,7 +244,7 @@ test('revoking a person token during snapshot upload preserves the prior snapsho
   assert.equal(response.status, 401, JSON.stringify(refusal));
   assert.equal(refusal.error.code, 'AUTH_REQUIRED');
   const current = await fetch(`${origin}/api/v1/boards/${board}/state`, {
-    headers: { authorization: `Bearer ${observer.token}` },
+    headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${observer.token}` },
   });
   assert.equal(current.status, 200);
   const saved = await current.json();
@@ -459,4 +460,19 @@ test('plain relay off explains an already-deleted board without printing credent
   `);
   assert.equal(result.code, 0);
   assert.deepEqual(result.document, { code: 0, explained: true, credential: false });
+});
+
+
+test('every real CLI relay request declares its engine including sign-in, reads, writes and unlink [H16,H3]', async t => {
+  const box = await relayClientFixture(t);
+  await box.link();
+  assert.equal((await box.cli('export')).code, 0);
+  assert.equal((await box.cli('add', box.lane, 'Declared-engine fixture move')).code, 0);
+  assert.equal((await box.cli('relay', 'off')).code, 0);
+  assert.ok(box.calls.some(call => call.path.startsWith('/auth/')));
+  assert.ok(box.calls.some(call => call.method === 'GET' && call.path.includes('/events')));
+  assert.ok(box.calls.some(call => call.method === 'POST' && call.path.endsWith('/moves')));
+  assert.ok(box.calls.some(call => call.method === 'PUT' && call.path.endsWith('/state')));
+  assert.ok(box.calls.some(call => call.method === 'DELETE'));
+  assert.ok(box.calls.every(call => call.engine === String(ENGINE_VERSION)), 'every request from the real CLI carries the current engine version');
 });

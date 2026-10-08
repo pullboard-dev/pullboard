@@ -118,7 +118,7 @@ async function request(state, path, { method = 'GET', body, allowMissing = false
   try {
     response = await fetch(relayOrigin(state.url) + path, {
       method, redirect: 'error', signal: AbortSignal.timeout(10000),
-      headers: { ...(state.token ? { authorization: 'Bearer ' + state.token } : {}), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      headers: { 'x-pullboard-engine': String(ENGINE_VERSION), ...(state.token ? { authorization: 'Bearer ' + state.token } : {}), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   } catch { throw new Refused('RELAY_UNAVAILABLE', `the relay ${state.url} did not answer; read the local board offline, then retry this move when the relay is reachable`); }
