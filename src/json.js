@@ -15,7 +15,7 @@ export const JSON_SHAPES = {
     hooks: shape({ notes: 'array' }),
     join: shape({ agent: 'string', lane: 'string', route: 'string', path: 'string' }),
     worktree: shape({ agent: 'string', lane: 'string', route: 'string', path: 'string', branch: 'string', prompt: 'string' }),
-    resume: shape({ me: 'object', all: 'array', requests: 'array', holding: 'array', sentBack: 'array', awaiting: 'array', toVerify: 'array', toMerge: 'array', open: 'array', holds: 'array', unread: 'number', newest: 'array', root: 'string', dirty: 'number', next: 'string' }),
+    resume: shape({ me: 'object', all: 'array', requests: 'array', holding: 'array', sentBack: 'array', awaiting: 'array', toVerify: 'array', toMerge: 'array', open: 'array', stale: 'array', holds: 'array', unread: 'number', newest: 'array', root: 'string', dirty: 'number', next: 'string' }),
     whoami: shape({ id: 'string', lane: 'string', path: 'string' }),
     lanes: shape({ lanes: 'object', shared: 'array', coordinator: 'string' }),
     resources: shape({ resources: 'array' }),

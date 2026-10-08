@@ -122,6 +122,7 @@ test('[S17,S18,S19,S20,S21] signed rows require every named principal and surviv
   writeFileSync(join(box.root, 'SPEC.md'), SPEC.replace('Exact row text is signed.', 'The exact approved row text is signed.'));
   const stale = JSON.parse(succeeds(box, 'show', 'G1', '--json').stdout);
   assert.equal(stale.standing.stale.length, 2, 'cryptographically valid records become stale when row text changes');
+  succeeds(box, 'signoff', 'G1', '--by', 'AB', '--note', 'approved the exact changed row');
 
   box.git('add', 'SPEC.md', '.pullboard/signers', '.pullboard/signers.initial', '.pullboard/first-commit', '.pullboard/signoffs.jsonl');
   box.git('commit', '-q', '-m', 'chore: record signed sign-offs');
