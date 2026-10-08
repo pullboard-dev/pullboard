@@ -165,6 +165,19 @@ test('sealed shouts cannot bypass addressee, already answered or person decision
   assert.deepEqual(exportBoard(copies[0]).tables, exportBoard(copies[1]).tables);
 });
 
+test('future engine relay records stop before every sender shape without changing a replica [H16]', t => {
+  const { copies, item } = engineCopies(t);
+  const move = { ...claimMove(copies[0], item, 'web-1'), engine: ENGINE_VERSION + 1 };
+  for (const sender of [undefined, {}, { kind: 'person', userId: 'fixture-user' }, { kind: 'agent', userId: 'fixture-user', agent: 'web-2' }]) {
+    for (const board of copies) {
+      const before = exportBoard(board);
+      assert.throws(() => applyRelayMove(board, move, { sequence: 1, at: CLAIM_AT, kind: 'request', sender }), error => error.code === 'ENGINE_VERSION');
+      assert.deepEqual(exportBoard(board), before);
+      assert.equal(appliedSequence(board), 0);
+    }
+  }
+});
+
 test('a relay refusal receipt failure rolls back its log and cursor together [H2,H16]', t => {
   const { copies, item } = engineCopies(t);
   const board = copies[0];

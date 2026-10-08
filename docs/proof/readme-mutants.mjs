@@ -11,7 +11,7 @@ const LINKED = ['test/readme.test.js', 'the README links every figure draw.mjs d
 const CARD = ['test/readme.test.js', 'each figure carries its own light and dark colors'];
 const DECLARED = ['test/readme.test.js', 'the lifecycle figure is drawn from the declaration'];
 const LAYOUT_ALT =
-  '![Where things live. The main checkout is the coordinator and holds SPEC.md, PRACTICE.md, pullboard.json, AGENTS.md and the git hooks. Inside .git, shared by every worktree, are the board and the pinned submitted commits. Beside it, each agent works in its own worktree, builders in their lanes and a verifier, all on the same board. pullboard view lists every project on this machine.](';
+  '![Where things live. The main checkout is the coordinator and holds SPEC.md, DOCTRINE.md, pullboard.json, AGENTS.md and the git hooks. Inside .git, shared by every worktree, are the board and the pinned submitted commits. Beside it, each agent works in its own worktree, builders in their lanes and a verifier, all on the same board. pullboard view lists every project on this machine.](';
 
 /** Row, the change, its edits as [file, from, to], the test that judges it, and the outcome expected. */
 const MUTANTS = [

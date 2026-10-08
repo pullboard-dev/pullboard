@@ -7,6 +7,7 @@ export function relayMoveActor(move) {
   if (!Array.isArray(args)) return null;
   if (move.operation === 'addItem') return args[0]?.by ?? null;
   if (move.operation === 'shout') return args[0]?.from ?? null;
+  if (['holdLane', 'releaseLane'].includes(move.operation) && args[1]?.asPerson) return 'person';
   if (move.operation === 'release') return args[1] ?? null;
   if (['reserveNextReview', 'addMilestone', 'recordRowDecisions', 'applyRowDecisions'].includes(move.operation)) return args[0]?.agentId ?? null;
   if (['appendFact', 'editItem', 'escalate', 'recordAttempt', 'claim', 'submit', 'reserveReview', 'verify', 'merged', 'withdraw', 'refreeze',

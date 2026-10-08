@@ -81,7 +81,7 @@ function project() {
     ...config,
     gate: 'true',
     spec: 'SPEC.md',
-    practice: 'PRACTICE.md',
+    practice: 'DOCTRINE.md',
     lanes: {
       app: { owns: ['app/'], specs: ['G1'] },
       review: { owns: [] },
@@ -89,7 +89,7 @@ function project() {
     shared: [],
   }, null, 2)}\n`);
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
-  writeFileSync(join(repo, 'PRACTICE.md'), '');
+  writeFileSync(join(repo, 'DOCTRINE.md'), '');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: set up API fixture');
   return { ...box, repo, initialized };
@@ -283,6 +283,7 @@ test('[A1] command results match the catalog across roots and subcommands', () =
 
   const added = json(box, repo, 'add', ['coordinator', 'API item', '--specs', 'G1', '--criterion', 'the API item is verified', '--check', 'true']);
   assert.equal(added.item.item_id, 1);
+  json(box, repo, 'fact', ['1', 'note', 'API fact']);
   json(box, repo, 'edit', ['1', '--criterion', 'the edited API item is verified', '--check', 'true']);
   json(box, repo, 'show', ['1']);
   json(box, repo, 'list', ['--all']);
