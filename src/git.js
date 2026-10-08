@@ -7,7 +7,7 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { Refused } from './refused.js';
 
-const GIT_FLAGS = ['-c', 'core.quotepath=false'];
+const GIT_FLAGS = ['--no-replace-objects', '-c', 'core.quotepath=false'];
 
 /**
  * The environment for a gate or fixer: keep the user's settings, but remove Git's repository-local
@@ -20,6 +20,7 @@ const GIT_FLAGS = ['-c', 'core.quotepath=false'];
 export function gitChildEnv(root) {
   const env = { ...process.env };
   for (const name of git(root, ['rev-parse', '--local-env-vars']).split('\n')) delete env[name];
+  env.GIT_NO_REPLACE_OBJECTS = '1'; // Exact-tree receipts must never resolve replacement refs.
   return env;
 }
 
