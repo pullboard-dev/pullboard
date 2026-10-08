@@ -10,7 +10,7 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import * as store from './board.js';
 import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
-import { loadDoctrine } from './doctrine.js';
+import { doctrineHistory, loadDoctrine } from './doctrine.js';
 import { requirePersonChannel } from './person.js';
 import { decisionProjection, planRowApply, prepareRowDecisions, restoreRowApply, writeRowApply } from './row-decisions.js';
 import { digestOf, gateReport, runGate, runShell } from './gate.js';
@@ -54,7 +54,7 @@ import { listResources } from './resources.js';
 import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
 import { exportView, serveView } from './serve.js';
 import { serveApi } from './api.js';
-import { doctorProblems } from './doctor.js';
+import { doctorProblems, doctrineProblems } from './doctor.js';
 import { staleFrozenItems, staleItemFinding } from './approved-rows.js';
 import { mainPolicy, itemPolicy, submissionPaths, frozenCheck, checkAtCommit, dependencySnapshots } from './trusted-policy.js';
 import { exportBoard, importBoard } from './exchange.js';
@@ -112,6 +112,8 @@ Work
   pullboard doctor                     check board integrity without changing it
   pullboard show <id> [--history]       an item, the criterion frozen at claim, its verdicts: the latest in full,
                                         earlier ones as one line; --history prints every note in full
+  pullboard fact <id> <kind> <text> [--supersedes <fact-id>] [--ref path:lines@full-sha]
+                                        append an observation or a holder/coordinator judgement to its thread
   pullboard next [--wait <minutes>]     offer an eligible review when reviews pile up, otherwise claim work
   pullboard next --build                claim a build explicitly, recording a skipped review offer
   pullboard next --verify               reserve the next submitted item you can check;
@@ -149,10 +151,10 @@ Receipts
   pullboard log [id]                    every move, in order
 
 Spec
-  pullboard spec --json                 parsed SPEC.md and PRACTICE.md rows as JSON
+  pullboard spec --json                 parsed SPEC.md and doctrine rows as JSON
   pullboard forget <path>               remove a repo from this machine's project list
-  pullboard spec check                  lint SPEC.md and PRACTICE.md
-  pullboard spec view [--out file]      the spec, open questions, sign-offs and practice as one page
+  pullboard spec check                  lint SPEC.md and the doctrine (house rules for agentic development)
+  pullboard spec view [--out file]      the spec, open questions, sign-offs and doctrine as one page
   pullboard spec show <id> | unmet [--must] | signoff <ids> [--by <principal>]
                                         signoff: --note "what was checked" stays with the receipt
   pullboard spec signers add [--key <path>] [--by <principal>]  opt into SSH-signed sign-offs
@@ -176,7 +178,7 @@ Reject reasons: TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HE
 const HELP_NAMES = [
   'tour', 'init', 'worktree', 'join', 'whoami', 'lanes', 'status', 'resources', 'settings', 'view', 'view export',
   'serve', 'relay', 'resume', 'hooks', 'add', 'edit', 'escalate', 'run', 'list', 'doctor', 'show', 'next',
-  'check', 'claim', 'release', 'submit', 'done', 'verify', 'shout', 'answer', 'pass', 'decisions', 'inbox', 'export', 'import',
+  'check', 'claim', 'release', 'submit', 'done', 'verify', 'fact', 'shout', 'answer', 'pass', 'decisions', 'inbox', 'export', 'import',
   'sweep', 'merged', 'withdraw', 'refreeze', 'hold', 'ledger', 'log', 'spec', 'spec check', 'spec view',
   'spec show', 'spec unmet', 'spec signoff', 'spec signers', 'spec signers add', 'forget', 'prompt', 'gate', 'hook',
   'hook pre-commit', 'hook commit-msg', 'hook pre-push', 'view export', 'version', 'lifecycle', 'help',
@@ -194,6 +196,7 @@ const HELP_EXAMPLES = {
   tour: 'pullboard tour', init: 'pullboard init', worktree: 'pullboard worktree web', resume: 'pullboard resume',
   add: 'pullboard add web "Upload page" --specs G1', list: 'pullboard list web', show: 'pullboard show 12',
   claim: 'pullboard claim 12', submit: 'pullboard submit 12', 'next --verify': 'pullboard next --verify',
+  fact: 'pullboard fact 12 measurement "The check passes in 8 seconds"',
   verify: 'pullboard verify 12 accept --note "removed the fix; the test failed"',
   answer: 'pullboard answer 12 "done"', pass: 'pullboard pass 12 "please decide"',
   status: 'pullboard status', view: 'pullboard view', log: 'pullboard log 12', ledger: 'pullboard ledger',
@@ -428,6 +431,8 @@ const OPTIONS = {
   outcome: { type: 'string' },
   item: { type: 'string' },
   commit: { type: 'string' },
+  ref: { type: 'string' },
+  supersedes: { type: 'string' },
   help: { type: 'boolean', short: 'h' },
   version: { type: 'boolean', short: 'v' },
 };
@@ -1230,15 +1235,16 @@ function readCommands(io, { first, second, rest, values }) {
     show: () => {
       const ctx = context(io);
       const id = idArg(first);
-      const { item, verdicts, moves, related, reviewer } = withBoard(ctx, (board) => ({
+      const { item, verdicts, moves, thread, related, reviewer } = withBoard(ctx, (board) => ({
         item: store.getItem(board, id),
         verdicts: store.verdictsFor(board, id),
         moves: store.events(board, { itemId: id }).filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
+        thread: store.itemThread(board, id),
         related: store.relatedItems(board, store.getItem(board, id)),
         reviewer: store.reviewHolder(board, store.getItem(board, id)),
       }));
       if (values.json) {
-        io.result({ ...item, verdicts });
+        io.result({ ...item, verdicts, thread });
         return 0;
       }
       io.say(itemLine(item));
@@ -1270,6 +1276,17 @@ function readCommands(io, { first, second, rest, values }) {
       if (notes.some((note, index) => note !== verdicts[index].verdict_note)) io.say(`(earlier verdicts shortened; every note in full: pullboard show ${id} --history)`);
       if (item.item_merged_commit) io.say(`merged as ${item.item_merged_commit}`);
       if (item.item_withdrawn_reason) io.say(`withdrawn: ${item.item_withdrawn_reason}`);
+      io.say('thread:');
+      for (const entry of thread) {
+        const stamp = `  ${entry.at}  ${entry.by}  `;
+        if (entry.type === 'fact') {
+          io.say(`${stamp}fact ${entry.kind} ${entry.id}${entry.supersedes ? ' (supersedes ' + entry.supersedes + ')' : ''}: ${entry.text}`);
+          if (entry.ref) io.say(`    ref: ${entry.ref.path}:${entry.ref.start}${entry.ref.end === entry.ref.start ? '' : '-' + entry.ref.end}@${entry.ref.commit}`);
+        } else {
+          const detail = entry.detail;
+          io.say(`${stamp}${entry.kind}${detail.commit ? ' at ' + detail.commit : ''}${detail.reason ? ': ' + detail.reason : ''}`);
+        }
+      }
       return 0;
     },
     status: () => {
@@ -1304,7 +1321,7 @@ function readCommands(io, { first, second, rest, values }) {
         return 1;
       }
       const ctx = context(io);
-      const problems = doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config);
+      const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config), ...doctrineProblems(ctx.info.root, ctx.config)];
       io.result?.({ problems });
       if (!problems.length) {
         io.say('board is clean');
@@ -1476,7 +1493,9 @@ async function verifyHere(ctx, id, { second, values }) {
     }
     if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
-      if (!checkAtCommit(root, item).green) throw new Refused('CHECK_RED', 'the frozen item check is red at the submitted commit; reject with the failing behavior or ask the builder to fix and resubmit');
+      const check = checkAtCommit(root, item);
+      if (check.state === 'unverified') throw new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the submitted commit; restore the install or check environment, then retry verification; output digest:\n${check.report.replace(/^/gm, '  ')}`);
+      if (check.state === 'red') throw new Refused('CHECK_RED', `the frozen item check is red at the submitted commit; check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit; output digest:\n${check.report.replace(/^/gm, '  ')}`);
       const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
       submissionPaths(root, item, commit, { mainCommit: receipt?.policyCommit, dependencies: dependencySnapshots(board.db, item) });
     }
@@ -1678,6 +1697,15 @@ function workCommands(io, args) {
     return withBoard(ctx, (board) => work(ctx, board, whoAmI(ctx, board)));
   };
   return {
+    fact: () => act(async (ctx, board, me) => {
+      if (!first || !second || rest.length !== 1) throw new Refused('USAGE', 'pullboard fact <id> <kind> <text> [--supersedes <fact-id>] [--ref path:lines@full-sha]');
+      const id = idArg(first);
+      const fact = await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: second,
+        text: rest[0], supersedes: values.supersedes ?? null, ref: values.ref ?? null }]);
+      io.result?.({ item: id, fact });
+      io.say(`fact ${fact.id} appended to #${id} as ${fact.kind}`);
+      return 0;
+    }),
     milestone: () => act(async (ctx, board, me) => {
       const ids = (text) => (text ?? '').split(',').map((value) => value.trim()).filter(Boolean);
       let name;
@@ -2033,7 +2061,7 @@ async function specCommand(io, { first, second, rest, values }) {
     for (const [name, parsed] of files) {
       const findings = lintSpec(parsed);
       findings.forEach((finding) => messages.push(`${name}:${finding.line} ${finding.id ?? ''} ${finding.level}: ${finding.message}`.replace('  ', ' ')));
-      const history = committedIds(ctx.info.root, name);
+      const history = parsed === practice ? doctrineHistory(ctx.info.root, name) : committedIds(ctx.info.root, name);
       const cited = name === ctx.config.spec ? citations(ctx, history) : new Map();
       const lost = permanenceProblems(parsed === practice ? practice.repo : parsed, { committed: history.ids, cited });
       lost.forEach((problem) => messages.push(`${name}: ${problem.id} error: ${problem.message}`));

@@ -10,10 +10,10 @@
 <p align="center"><a href="https://pullboard.dev"><b>pullboard.dev</b></a> · lives in your git repo · no account · no dependencies · never calls a model</p>
 
 <p align="center">
-  <a href="https://github.com/pullboard-dev/pullboard/actions/workflows/gate.yml"><img alt="gate" src="https://img.shields.io/github/actions/workflow/status/pullboard-dev/pullboard/gate.yml?branch=main&label=gate"></a>
-  <a href="https://www.npmjs.com/package/pullboard"><img alt="npm" src="https://img.shields.io/npm/v/pullboard?color=08915f"></a>
-  <img alt="node" src="https://img.shields.io/node/v/pullboard?color=08915f">
-  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/npm/l/pullboard?color=08915f"></a>
+  <a href="https://github.com/pullboard-dev/pullboard/actions/workflows/gate.yml"><img alt="gate" src="https://img.shields.io/github/actions/workflow/status/pullboard-dev/pullboard/gate.yml?branch=main&label=gate&style=flat-square"></a>
+  <a href="https://www.npmjs.com/package/pullboard"><img alt="npm" src="https://img.shields.io/npm/v/pullboard?style=flat-square&color=121a17"></a>
+  <img alt="node" src="https://img.shields.io/node/v/pullboard?style=flat-square&color=121a17">
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/npm/l/pullboard?style=flat-square&color=6b4fc8"></a>
 </p>
 
 **Vibe code a real product.** Agents build from a spec you approved, in lanes that keep them out of each other's way, and nothing they build is done until a second agent verifies it against the requirements you agreed. Pullboard is a coordination queue for serious software. It's how we develop our quantitative systems.
@@ -54,7 +54,7 @@ Pullboard gives agents a shared plan, separate lanes and proof before work count
 
 ![How work moves. You decide the rows of SPEC.md. An item freezes its bar when an agent claims it. Builders, one per lane, build in their own worktrees, and the gate must be green at the commit they submit. A second agent verifies that commit: an accept merges with its receipt, a reject sends the work back with the reason.](docs/img/loop.svg)
 
-<sub>You decide what to build. Agents build it and check each other's work. This is the basic work loop.</sub>
+<sub>You decide what to build. Agents build it and check each other's work. This is the Agentic Development Lifecycle (ADLC).</sub>
 
 ### Questions
 
@@ -69,8 +69,8 @@ Agents ask when a call isn't theirs to make. Their coordinator settles what it c
 
 **A Spec is what you build. Doctrine is how you build it.**
 
+- **Doctrine:** "We keep only the data we need."
 - **Spec:** "A shopper can pay by card in one step."
-- **Doctrine:** "Comments explain why, not what."
 
 Every repo starts with Pullboard's standard doctrine. Add to it, override it, or decline any part of it.
 
@@ -130,7 +130,7 @@ pullboard view
 
 Thirty seconds to see it, then your own repo. You need git and Node 22.13 or newer.
 
-### Try it
+### Installation
 
 ```sh
 npm i -g pullboard
@@ -141,24 +141,22 @@ On a throwaway repo, **you** approve one rule: greet a blank name as "world". Th
 
 ![The timed Pullboard tour shows a change submitted, rejected for a missed edge, fixed and accepted.](docs/shots/tour.svg)
 
-### In your own repo
+### Project setup
 
 Set it up once, then talk to one agent.
 
 ![Starting with an agent. You run pullboard init in your git repo, commit what it wrote, open a new Claude Code session in that folder and say what to build. That agent becomes the coordinator: it takes the spec with you, plans lanes and items, runs a builder per lane and a verifier that built none of it, and merges verified work only.](docs/img/agent-start.svg)
 
+`init` writes your spec, doctrine and agent instructions, and installs the hooks and the board. Commit what it wrote, then open Claude Code in the repo and say what to build. That agent becomes your coordinator.
+
 ```sh
 pullboard init
-git add -A && git commit -m "chore: set up pullboard"
+git add -A && git commit -m "chore(repo): set up pullboard"
 ```
 
-`init` writes the spec, doctrine and agent instructions, and installs the hooks and the board.
+### Manual workflow
 
-Now open Claude Code there and say what to build. That agent becomes your coordinator.
-
-### By hand
-
-Rather drive it yourself? Work from your repo's main checkout, which makes you the coordinator.
+Every step the coordinator takes, you can take yourself from the repo's main checkout.
 
 ```markdown
 ## G · Goals: what the client asked for
@@ -166,19 +164,9 @@ Rather drive it yourself? Work from your repo's main checkout, which makes you t
 - G2 [draft, aim] Saved carts follow a shopper across devices. | serves: G1
 ```
 
-Write the spec in `SPEC.md`. Only approved rows count.
+<sub>Write the spec in <code>SPEC.md</code>.</sub>
 
-```json
-{
-  "gate": "npm test",
-  "lanes": {
-    "web": { "owns": ["apps/web/"], "specs": ["G"] },
-    "review": { "owns": [] }
-  }
-}
-```
-
-Set the gate (your test command) and the lanes (who owns which paths) in `pullboard.json`.
+Then set the gate and the lanes in `pullboard.json`, as in [Configuration](#configuration).
 
 ```sh
 pullboard add web "Checkout" --specs G1 --criterion "card payment takes one step"
@@ -188,14 +176,16 @@ File the work. Its bar freezes when an agent claims it.
 
 ```sh
 pullboard worktree web
-cd ../<repo>-web-1 && pullboard next
+cd ../myapp-web-1
+pullboard next
 pullboard submit 1
 ```
 
 A **builder** claims it, commits citing the row as `feat(web): pay by card [G1]`, and submits green.
 
 ```sh
-pullboard worktree review && cd ../<repo>-review-1
+pullboard worktree review
+cd ../myapp-review-1
 pullboard next --verify
 pullboard verify 1 accept --note "paid in one step; without the fix the test fails"
 ```
@@ -218,7 +208,7 @@ Your whole board is one file inside `.git`, on your machine.
 
 Every move follows one declaration, published in [docs/lifecycle.md](docs/lifecycle.md).
 
-### Work item lifecycle
+### Agentic Item Lifecycle (AILC)
 
 Items are state machines. Every item starts **open**. An agent claims it and it's **claimed**; if the agent goes quiet, it reopens. Once submitted, it's **submitted** until a verifier accepts it as **verified** or rejects it back to **open**. Only the coordinator can **withdraw** an item. The board refuses any move the declaration doesn't allow.
 
@@ -236,6 +226,36 @@ Everything lives in your repo. Nothing is hosted.
 - **Backups:** `pullboard export` writes out the whole board.
 
 ![Where things live. The main checkout is the coordinator and holds SPEC.md, PRACTICE.md, pullboard.json, AGENTS.md and the git hooks. Inside .git, shared by every worktree, are the board and the pinned submitted commits. Beside it, each agent works in its own worktree, builders in their lanes and a verifier, all on the same board. pullboard view lists every project on this machine.](docs/img/layout.svg)
+
+### Configuration
+
+`pullboard.json` sets the gate and the lanes.
+
+```json
+{
+  "gate": "npm test",
+  "lanes": {
+    "web": { "owns": ["apps/web/"], "specs": ["G"] },
+    "review": { "owns": [] }
+  }
+}
+```
+
+The **gate** is any command that proves your code, like `npm test` or `pytest`, and it runs before every submit and push. Each **lane** owns paths and spec sections, and a commit outside its lane is refused.
+
+#### Multi-language support
+
+Pick the gate for your stack. Chain checks with `&&`, like `ruff check . && pytest`.
+
+| Stack | Gate |
+| --- | --- |
+| JavaScript, TypeScript | `npm test` |
+| Python | `pytest` |
+| Go | `go test ./...` |
+| Rust | `cargo test` |
+| Java | `mvn test` or `gradle test` |
+| Ruby | `bundle exec rspec` |
+| C#, .NET | `dotnet test` |
 
 ## Purpose
 
@@ -264,3 +284,9 @@ The reference docs, in reading order.
 ### License
 
 Pullboard is released under the [MIT License](LICENSE).
+
+---
+
+<p align="center"><b>Vibe hard. Verify harder.</b></p>
+
+<p align="center"><img alt="yolo: verified" src="https://img.shields.io/badge/yolo-verified-dfb317?style=flat-square"></p>
