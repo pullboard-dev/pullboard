@@ -909,7 +909,7 @@ test('each row says what it waits on [N26]', async () => {
     }]));
     assert.deepEqual(rows['1'], { chip: 'free: unclaimed', edge: false, waits: [] }, 'free to claim');
     assert.deepEqual(rows['2'], { chip: 'busy: web-1', edge: false, waits: [] }, 'a claim names its holder');
-    assert.deepEqual(rows['3'], { chip: 'gate: gated', edge: true, waits: ['waits on <button class="ref" data-go="item:2" type="button">#2</button>'] }, 'gated on #2, which is still being built');
+    assert.deepEqual(rows['3'], { chip: 'gate: gated', edge: true, waits: ['<span class="wait-unit">waits on <button class="ref" data-go="item:2" type="button">#2</button>'] }, 'gated on #2, which is still being built');
     assert.deepEqual(rows['4'], { chip: 'gate: lane held', edge: true, waits: ['lane held: API &lt;freeze&gt; until Friday'] });
     assert.deepEqual(rows['5'], { chip: 'warn: to verify', edge: false, waits: [] });
     assert.deepEqual(rows['6'], { chip: 'no: sent back', edge: false, waits: [] });
