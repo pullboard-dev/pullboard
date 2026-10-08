@@ -1,7 +1,7 @@
 /** Person terminal identity and immutable channel receipts on real repositories [B26]. */
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -255,5 +255,32 @@ test('[B26,S5] an agent shell cannot append a person sign-off but a plain shell 
     assert.equal(inspected.status, 0, 'read-only inspection does not approve a person call');
     assert.match(error.next, /pullboard view/iu, name);
     assert.equal(readFileSync(file, 'utf8'), original, name + ' preserves every existing sign-off byte');
+  }
+});
+
+test('[B26,S18] signer enrollment refuses agent shells without creating or changing trust files', (t) => {
+  const box = project();
+  t.after(() => rmSync(box.dir, { recursive: true, force: true }));
+  const key = join(box.dir, 'fixture-signing-key');
+  const generated = spawnSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', key], { env: box.env, stdio: 'ignore' });
+  assert.equal(generated.status, 0, 'the fixture creates a disposable signing identity');
+  const files = ['signers', 'signers.initial', 'first-commit', 'signoffs.jsonl'].map(name => join(box.repo, '.pullboard', name));
+  /** Read only private fixture trust bytes; assertions never print key contents. */
+  const trustBytes = () => files.map(file => existsSync(file) ? readFileSync(file).toString('base64') : null);
+  const absent = trustBytes();
+  for (const [name, value] of Object.entries(MARKERS)) {
+    const refused = box.run(box.repo, ['spec', 'signers', 'add', '--key', key + '.pub', '--by', 'fixture-person', '--json'], { [name]: value });
+    assert.equal(refused.status, 1, name);
+    assert.equal(JSON.parse(refused.stdout).error.code, 'B26_PERSON_CHANNEL', name);
+    assert.equal(JSON.stringify(trustBytes()) === JSON.stringify(absent), true, 'refused enrollment creates no trust files');
+  }
+  const plain = box.run(box.repo, ['spec', 'signers', 'add', '--key', key + '.pub', '--by', 'fixture-person', '--json']);
+  assert.equal(plain.status, 0);
+  assert.equal(JSON.parse(plain.stdout).added, true);
+  const enrolled = trustBytes();
+  for (const [name, value] of Object.entries(MARKERS)) {
+    const refused = box.run(box.repo, ['spec', 'signers', 'add', '--key', key + '.pub', '--by', 'another-person', '--json'], { [name]: value });
+    assert.equal(refused.status, 1, name);
+    assert.equal(JSON.stringify(trustBytes()) === JSON.stringify(enrolled), true, 'refused enrollment preserves every trust byte');
   }
 });

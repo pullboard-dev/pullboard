@@ -1645,6 +1645,7 @@ function specCommand(io, { first, second, rest, values }) {
     return errors ? 1 : 0;
   }
   if (first === 'signers' && second === 'add') {
+    requirePersonChannel(io.personChannel);
     const signer = addSigner(ctx.info.root, { by: values.by, key: values.key });
     io.result?.(signer);
     io.say(signer.added
