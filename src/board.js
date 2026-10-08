@@ -1253,10 +1253,10 @@ export function verdictsFor(board, id) {
  * Insert a shout within the caller's transaction.
  *
  * @param {any} board
- * @param {{ from: string, to: string, text: string, lanes: string[], decision?: boolean, answers?: number | null, evidence?: any, request?: boolean }} message
+ * @param {{ from: string, to: string, text: string, lanes: string[], decision?: boolean, answers?: number | null, evidence?: any, request?: boolean, channel?: 'terminal' | 'view' }} message
  * @returns {number}
  */
-function insertShout(board, { from, to, text, lanes, decision = false, answers = null, evidence = null, request = false }) {
+function insertShout(board, { from, to, text, lanes, decision = false, answers = null, evidence = null, request = false, channel = 'terminal' }) {
   if (!text.trim()) throw new Refused('EMPTY_SHOUT', 'a shout needs text');
   if (request && (from !== 'person' || to !== COORDINATOR || decision || answers !== null)) {
     throw new Refused('BAD_REQUEST', 'a request goes from the person to the coordinator; use the board requests endpoint with its text');
@@ -1285,6 +1285,10 @@ function insertShout(board, { from, to, text, lanes, decision = false, answers =
     throw new Refused('NOT_A_DECISION', `shout #${answers} asked for no decision; reply with pullboard shout`);
   }
   if (evidence) checkEvidence(board, evidence);
+  const personAnswer = from === PERSON && answers !== null && !decision;
+  if (personAnswer && !['terminal', 'view'].includes(channel)) {
+    throw new Refused('B26_PERSON_CHANNEL', 'record the person answer through the terminal or the view; run pullboard view');
+  }
   const result = board.db
     .prepare(
       `INSERT INTO shout (shout_from, shout_to, shout_text, shout_at, shout_decision, shout_answers,
@@ -1294,7 +1298,7 @@ function insertShout(board, { from, to, text, lanes, decision = false, answers =
     )
     .run(from, to, text.trim(), now(board), decision ? 1 : 0, answers, evidence?.kind ?? null, evidence ? evidence.outcome.trim() : null, evidence?.item ?? null, evidence?.commit ?? null, request ? 1 : 0, outcome);
   const id = Number(result.lastInsertRowid);
-  logEvent(board, from, answers === null ? 'shout' : decision ? 'pass' : 'answer', null, { shout: id, to, decision: Boolean(decision), request: Boolean(request), answers, ...(outcome ? { outcome } : {}) });
+  logEvent(board, from, answers === null ? 'shout' : decision ? 'pass' : 'answer', null, { shout: id, to, decision: Boolean(decision), request: Boolean(request), answers, ...(outcome ? { outcome } : {}), ...(personAnswer ? { channel } : {}) });
   return id;
 }
 
@@ -1302,7 +1306,7 @@ function insertShout(board, { from, to, text, lanes, decision = false, answers =
  * Shout to a lane, an agent, `all`, or the person (B7, B25, B26). The caller passes declared lanes.
  *
  * @param {any} board
- * @param {{ from: string, to: string, text: string, lanes: string[], decision?: boolean, answers?: number | null, evidence?: any, request?: boolean }} message
+ * @param {{ from: string, to: string, text: string, lanes: string[], decision?: boolean, answers?: number | null, evidence?: any, request?: boolean, channel?: 'terminal' | 'view' }} message
  * @returns {number}
  */
 export function shout(board, message) {
@@ -1334,10 +1338,10 @@ export function passDecision(board, id, { agentId, note, lanes }) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, text: string, lanes: string[], asPerson?: boolean }} options
+ * @param {{ agentId: string, text: string, lanes: string[], asPerson?: boolean, channel?: 'terminal' | 'view' }} options
  * @returns {number}
  */
-export function answerDecision(board, id, { agentId, text, lanes, asPerson = false }) {
+export function answerDecision(board, id, { agentId, text, lanes, asPerson = false, channel = 'terminal' }) {
   return atomic(board, () => {
     const ask = getShout(board, id);
     if (ask.shout_request) {
@@ -1357,10 +1361,10 @@ export function answerDecision(board, id, { agentId, text, lanes, asPerson = fal
       throw new Refused('NOT_YOUR_DECISION', `shout #${id} is addressed to ${ask.shout_to}, not ${lane} (agent ${agentId})`);
     }
     const from = personAnswer ? PERSON : agentId;
-    const answerId = insertShout(board, { from, to: ask.shout_from, text, lanes, answers: id });
+    const answerId = insertShout(board, { from, to: ask.shout_from, text, lanes, answers: id, channel });
     if (personAnswer && ask.shout_answers !== null) {
       const original = getShout(board, ask.shout_answers);
-      insertShout(board, { from: PERSON, to: original.shout_from, text: `Person answered #${id}: ${String(text).trim()}`, lanes, answers: original.shout_id });
+      insertShout(board, { from: PERSON, to: original.shout_from, text: `Person answered #${id}: ${String(text).trim()}`, lanes, answers: original.shout_id, channel });
     }
     return answerId;
   });

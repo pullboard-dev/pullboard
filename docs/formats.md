@@ -250,10 +250,12 @@ The `event` table is a SQLite schema object governed by `SCHEMA_VERSION`; its ap
 | `guards` | board | `missing`, `changed`, `stale` |
 | `shout` | sender | `shout`, `to`, `decision`, `request`, `answers` |
 | `pass` | coordinator | `shout`, `to`, `decision`, `request`, `answers` |
-| `answer` | answerer | `shout`, `to`, `decision`, `request`, `answers`, `outcome` |
+| `answer` | answerer | `shout`, `to`, `decision`, `request`, `answers`, `outcome`, `channel` |
 <!-- events:end -->
 
 New CLI claims include a `policy` object (`version: 1`, `commit`) in the frozen criterion. It pins the coordinator checkout’s committed configuration on its attached main branch. A temporary detached review checkout refuses new policy-dependent claims or project gates with `NO_POLICY`; the coordinator returns to its main branch. Existing frozen submissions remain verifiable. Legacy claims use their recorded claim-base commit. A CLI `submit` records the pre-merge coordinator HEAD as optional `policyCommit`; historical doctor and acceptance checks use this snapshot when allowing unchanged foreign files brought in from MAIN. Verified dependencies may also contribute unchanged files in their own lanes before a MAIN merge; foreign deletion or replacement is not authorized by an unrelated dependency’s tree. The complete candidate diff against both claim base and frozen MAIN is checked with rename detection disabled, preserving deleted paths and whitespace in names. Frozen item checks run against the exact submitted commit in an isolated checkout when accepting and auditing; repairing a reviewer’s checkout cannot make a red submission green.
+
+Person answer events additionally record their `channel`, either `terminal` or `view`, including the forwarded answer to the original asker. Agent answers omit that field.
 
 Migration preserves event rows and adds only schema objects that are missing.
 

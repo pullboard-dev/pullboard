@@ -7,6 +7,7 @@ import { delimiter, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
+import { AGENT_SHELL_MARKERS } from '../src/person.js';
 
 const runner = fileURLToPath(import.meta.url);
 
@@ -29,6 +30,8 @@ function testEnvironment(sandbox) {
   for (const key of Object.keys(env)) {
     if (key.startsWith('GIT_')) delete env[key];
   }
+  // Model a plain user terminal; person-boundary tests inject agent markers explicitly.
+  for (const key of AGENT_SHELL_MARKERS) delete env[key];
   env.HOME = home;
   env.USERPROFILE = home;
   env.PULLBOARD_HOME = home;
