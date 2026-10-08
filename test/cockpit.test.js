@@ -3194,6 +3194,117 @@ test('real Chrome styles shout code and item text without growing linked lines [
   }
 });
 
+test("item detail merges API facts and moves in one responsive timeline [B33,B29]", { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for item-thread rendering checks.');
+
+  const box = machine();
+  const alpha = project(box, 'item-thread');
+  box.run(alpha.repo, 'add', 'web', 'Thread fixture', '--specs', 'G1', '--criterion', 'The item keeps its evidence.');
+  box.run(alpha.web, 'claim', '1');
+  const sourceHead = box.git(alpha.repo, 'rev-parse', 'HEAD');
+  /** Append a real board fact and return the identity the correction must name. */
+  const addFact = (kind, text, ...flags) => JSON.parse(box.run(alpha.web, 'fact', '1', kind, text, ...flags, '--json')).fact;
+  const oldNote = addFact('note', 'Earlier observation, now replaced.');
+  addFact('capture', 'Captured the rendered page.', '--ref', `SPEC.md:1-2@${sourceHead}`);
+  box.run(alpha.web, 'release', '1');
+  addFact('measurement', 'The view settles in 8 seconds.');
+  box.run(alpha.web, 'claim', '1');
+  addFact('diff', 'The detail gained a thread.');
+  addFact('decision', 'Keep the thread in the item.');
+  addFact('rejection', 'The first layout wrapped poorly.');
+  const replacement = addFact('supersession', 'Correction: the note is replaced.', '--supersedes', oldNote.id);
+  addFact('root-cause', 'The missing projection hid the facts.');
+
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-item-thread-chrome-'));
+  let chrome;
+  try {
+    const apiState = await boardOf(view, alpha.repo);
+    const expected = apiState.items.find((item) => item.id === 1).thread;
+    assert.deepEqual(expected.filter((entry) => entry.type === 'fact').map((entry) => entry.kind),
+      ['note', 'capture', 'measurement', 'diff', 'decision', 'rejection', 'supersession', 'root-cause'],
+      'the API provides every fact in append order');
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor('typeof data !== "undefined" && data?.project?.items?.find((item) => item.id === 1)?.thread?.length === ' + expected.length);
+    await chrome.waitFor('document.querySelectorAll("#detail .tl [data-event-id]").length === ' + expected.length);
+    const expectedIds = expected.map((entry) => entry.eventId);
+    for (const width of [375, 1280]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
+      await chrome.waitFor(`innerWidth === ${width} && document.querySelector('#detail .tl')?.getBoundingClientRect().width > 0`);
+      const rendered = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+        const timeline = document.querySelector('#detail .tl');
+        const old = document.querySelector('#detail #fact-${oldNote.id}');
+        const replacement = document.querySelector('#detail #fact-${replacement.id}');
+        const live = document.querySelector('#detail #fact-${expected.find((entry) => entry.type === 'fact' && entry.kind === 'capture').id}');
+        const plain = document.querySelector('#detail .tl-fact:not(.tl-judgement):not(.tl-superseded)');
+        const judgementColors = Object.fromEntries(['decision', 'rejection', 'supersession', 'root-cause'].map((kind) => {
+          const row = [...timeline.querySelectorAll('.tl-fact')].find((entry) => entry.querySelector('.tl-fact-head .chip')?.textContent === kind);
+          return [kind, row ? getComputedStyle(row, '::before').backgroundColor : null];
+        }));
+        return {
+          ids: [...timeline.querySelectorAll('[data-event-id]')].map((row) => Number(row.dataset.eventId)),
+          rows: timeline.querySelectorAll('li').length,
+          kinds: [...timeline.querySelectorAll('.tl-fact-head .chip')].map((chip) => chip.textContent),
+          authors: [...timeline.querySelectorAll('.tl-fact-head b')].map((name) => name.textContent),
+          ages: timeline.querySelectorAll('.tl-fact small time[data-ago]').length,
+          oldClass: old?.className,
+          replacementHref: old?.querySelector('.thread-replacement')?.getAttribute('href'),
+          oldOpacity: Number(old && getComputedStyle(old).opacity),
+          replacementOpacity: Number(replacement && getComputedStyle(replacement).opacity),
+          liveOpacity: Number(live && getComputedStyle(live).opacity),
+          plainMarker: plain ? getComputedStyle(plain, '::before').backgroundColor : null,
+          judgementColors,
+          judgementKinds: Object.keys(judgementColors).filter((kind) => judgementColors[kind] !== null),
+          ref: timeline.querySelector('.tl-fact button[data-code]')?.dataset.code,
+          viewport: document.documentElement.clientWidth,
+          pageWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+        };
+      })())`));
+      assert.deepEqual(rendered.ids, expectedIds, `${width}px: moves and facts follow the API's event order`);
+      assert.equal(rendered.rows, expected.length, `${width}px: each API event appears exactly once`);
+      const expectedFacts = expected.filter((entry) => entry.type === 'fact');
+      assert.deepEqual(rendered.kinds, expectedFacts.map((entry) => entry.kind), `${width}px: every fact kind is a visible chip`);
+      assert.deepEqual(rendered.authors, expectedFacts.map((entry) => entry.by), `${width}px: each fact names its API author`);
+      assert.equal(rendered.ages, expectedFacts.length, `${width}px: each fact shows its age`);
+      assert.match(rendered.oldClass, /tl-superseded/, `${width}px: the earlier fact is visibly dimmed`);
+      assert.equal(rendered.replacementHref, `#fact-${replacement.id}`, `${width}px: the earlier fact links to its replacement`);
+      assert.ok(rendered.oldOpacity < rendered.replacementOpacity && rendered.oldOpacity < rendered.liveOpacity,
+        `${width}px: computed opacity dims the superseded fact`);
+      assert.deepEqual(rendered.judgementKinds, ['decision', 'rejection', 'supersession', 'root-cause'], `${width}px: all judgement kinds appear`);
+      for (const [kind, color] of Object.entries(rendered.judgementColors)) {
+        assert.notEqual(color, rendered.plainMarker, `${width}px: ${kind} uses a distinct computed marker color`);
+      }
+      assert.equal(rendered.ref, `SPEC.md:1-2@${sourceHead}`, `${width}px: the committed code reference is actionable`);
+      assert.equal(rendered.pageWidth, rendered.viewport, `${width}px: the timeline causes no sideways page scroll`);
+    }
+    const scrollBefore = JSON.parse(await chrome.evaluate(`JSON.stringify({ page: document.documentElement.scrollTop, detail: document.querySelector('#detail').scrollTop })`));
+    await chrome.evaluate(`document.querySelector('#detail #fact-${oldNote.id} .thread-replacement').click()`);
+    await chrome.waitFor(`location.hash === '#fact-${replacement.id}' && document.querySelector('#detail #fact-${replacement.id}')`);
+    const target = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      const detail = document.querySelector('#detail'), fact = document.querySelector('#detail #fact-${replacement.id}');
+      const box = fact.getBoundingClientRect(), panel = detail.getBoundingClientRect();
+      return { item: view.item, id: fact.id, text: document.querySelector('#detail h2')?.textContent,
+        page: document.documentElement.scrollTop, detail: detail.scrollTop,
+        visible: box.top >= panel.top && box.bottom <= panel.bottom };
+    })())`));
+    assert.equal(target.id, `fact-${replacement.id}`, 'the replacement anchor resolves to a visible fact');
+    assert.equal(target.item, 1, 'following the link keeps the same item selected');
+    assert.equal(target.text, '#1Thread fixture', 'the item detail stays open after following the replacement link');
+    assert.ok(target.page > scrollBefore.page || target.detail > scrollBefore.detail,
+      'following the replacement anchor scrolls to its existing target');
+    assert.equal(target.visible, true, 'the replacement is visible after following its link');
+    await chrome.evaluate(`document.querySelector('#detail .tl-fact button[data-code]').click()`);
+    await chrome.waitFor(`document.querySelector('#detail .tl-fact button[data-code]')?.getAttribute('aria-expanded') === 'true'`);
+    await chrome.waitFor(`document.querySelector('#detail .tl-fact .code')?.textContent.includes('Demo spec')`);
+    assert.match(await chrome.evaluate(`document.querySelector('#detail .tl-fact .code')?.textContent || ''`), /Demo spec/, 'the code reference opens the committed lines');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    await view.stop();
+    rmSync(profile, { recursive: true, force: true });
+  }
+});
+
 test('wait references stay on one line and link to every prerequisite at phone and desktop widths [N26]', { timeout: 90_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for prerequisite layout checks.');

@@ -212,6 +212,12 @@ const codeRef = (ref, before) => {
     : '<span class="code">' + c.lines.map((line, n) => '<span><i>' + (c.from + n) + '</i>' + esc(line) + '</span>').join('') + (c.more ? '<span class="more">the first ' + c.lines.length + ' lines</span>' : '') + '</span>';
   return '<button class="ref" data-code="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' type="button" aria-expanded="' + open + '">' + esc(ref) + '</button>' + shown;
 };
+/** Format the API's structured fact binding as the live reference the code preview accepts. */
+function factCodeRef(ref) {
+  if (!ref || typeof ref !== 'object') return String(ref ?? '');
+  const lines = ref.start === ref.end ? String(ref.start) : ref.start + '-' + ref.end;
+  return ref.path + ':' + lines + '@' + ref.commit;
+}
 const tone = (s) => s === 'approved' ? 'ok' : s === 'pending' ? 'no' : s === 'draft' ? 'warn' : '';
 /** A doctrine rule's source, with a version only when it comes from the shipped standard. */
 const ruleSource = (row) => row.origin === 'standard' ? 'standard ' + row.version : 'repo';
@@ -251,6 +257,7 @@ function replay(item) {
   };
   for (const e of item.history) {
     const verb = e.kind === 'renew' ? 'claim' : e.kind;
+    if (e.kind !== 'add' && !FLOW.moves.some((move) => move.verb === verb)) continue;
     // A renew is the claim that stays claimed; a claim logged as such is the one that arrives.
     const fits = (s) => FLOW.moves.find((m) => m.verb === verb && m.from.includes(s) && (verb !== 'claim' || (e.kind === 'renew') === (m.to === s)));
     const lapse = fits(at) ? null : clock.find((m) => m.from.includes(at) && fits(m.to));
@@ -289,19 +296,49 @@ const span = (ms) => {
  */
 function timeline(item) {
   const steps = replay(item);
-  return '<ol class="tl">' + steps.map((s, i) => {
+  const entries = Array.isArray(item.thread) && item.thread.length
+    ? item.thread
+    : item.history.map((entry, eventId) => ({ type: 'move', eventId: eventId + 1, ...entry }));
+  const facts = entries.filter((entry) => entry.type === 'fact');
+  const replacements = new Map(facts.filter((fact) => fact.supersedes).map((fact) => [fact.supersedes, fact]));
+  const rows = [];
+  let stepIndex = 0;
+  /** Render a lifecycle step, keeping inferred clock lapses between recorded moves. */
+  const moveRow = (s, event, index) => {
     const enters = s.move ? s.move.to : s.kind === 'add' ? FLOW.initial : null;
     const state = enters || s.from;
     const final = FLOW.states.some((f) => f.id === state && f.final);
-    const next = steps.slice(i + 1).find((n) => n.move);
+    const next = steps.slice(index + 1).find((n) => n.move);
     const named = s.kind === 'reject' ? 'sent back' : state;
     const stay = !enters || final ? ''
       : !s.at ? esc(named + (next ? ' after the ' : ' so far since the ') + s.kind + ', length not logged')
       : !next ? esc(named) + ' for ' + age(s.at) + ' so far'
       : !next.at ? esc(named + ' until the ' + next.kind + ', length not logged')
       : esc(named + ' for ' + span(Date.parse(next.at) - Date.parse(s.at)));
-    return '<li class="tl-' + esc(state) + (s.kind === 'reject' ? ' tl-back' : '') + (enters ? '' : ' tl-quiet') + '"><time>' + (s.at ? when(s.at) : '') + '</time><span><b>' + esc(s.kind) + '</b> ' + esc(s.by) + '</span>' + (stay ? '<small>' + stay + '</small>' : '') + '</li>';
-  }).join('') + '</ol>';
+    rows.push('<li class="tl-' + esc(state) + (s.kind === 'reject' ? ' tl-back' : '') + (enters ? '' : ' tl-quiet') + '"' + (event ? ' data-event-id="' + event.eventId + '"' : '') + '><time>' + (s.at ? when(s.at) : '') + '</time><span><b>' + esc(s.kind) + '</b> ' + esc(s.by) + '</span>' + (stay ? '<small>' + stay + '</small>' : '') + '</li>');
+  };
+  /** Render one API fact with its identity, replacement and committed code binding. */
+  const factRow = (fact) => {
+    const replacement = replacements.get(fact.id);
+    const judgement = ['decision', 'rejection', 'supersession', 'root-cause'].includes(fact.kind);
+    rows.push('<li id="fact-' + esc(fact.id) + '" class="tl-fact' + (judgement ? ' tl-judgement' : '') + (replacement ? ' tl-superseded' : '') + '" data-event-id="' + fact.eventId + '"><time>' + when(fact.at) + '</time><span class="tl-fact-head"><span class="chip">' + esc(fact.kind) + '</span> <b>' + esc(fact.by) + '</b></span><span class="tl-body">' + esc(fact.text) + '</span><small>' + age(fact.at) + (replacement ? ' · <a class="thread-replacement" href="#fact-' + esc(replacement.id) + '">replaced by ' + esc(replacement.kind) + '</a>' : '') + '</small>' + (fact.ref ? '<div class="tl-code">' + codeRef(factCodeRef(fact.ref), '') + '</div>' : '') + '</li>');
+  };
+  for (const entry of entries) {
+    if (entry.type === 'fact') { factRow(entry); continue; }
+    while (stepIndex < steps.length && !(steps[stepIndex].kind === entry.kind && steps[stepIndex].by === entry.by && steps[stepIndex].at === entry.at)) {
+      moveRow(steps[stepIndex], null, stepIndex);
+      stepIndex += 1;
+    }
+    if (stepIndex < steps.length) {
+      moveRow(steps[stepIndex], entry, stepIndex);
+      stepIndex += 1;
+    }
+  }
+  while (stepIndex < steps.length) {
+    moveRow(steps[stepIndex], null, stepIndex);
+    stepIndex += 1;
+  }
+  return '<ol class="tl">' + rows.join('') + '</ol>';
 }
 
 /**
