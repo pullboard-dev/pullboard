@@ -24,6 +24,12 @@ test('older native snapshots project into read-only API state and reject wrong b
   const state = snapshotState(box.before, id);
   assert.equal(state.items[0].title, box.before.tables.item[0].item_title);
   assert.equal(Array.isArray(state.products), true);
+  const held = structuredClone(box.before);
+  held.tables.hold = [{ hold_lane: box.lane, hold_reason: 'fixture hold', hold_by: 'coordinator', hold_at: '2026-01-01T00:00:00.000Z' }];
+  Object.assign(held.tables.item[0], { item_status: 'submitted', item_review_by: 'expired-reviewer', item_review_until: '2000-01-01T00:00:00.000Z' });
+  const projected = snapshotState(held, id);
+  assert.deepEqual(projected.holds, held.tables.hold);
+  assert.equal(projected.items[0].reviewer, null);
   assert.throws(() => snapshotState(box.before, '0'.repeat(32)), { code: 'RELAY_SNAPSHOT' });
   assert.throws(() => snapshotState({ ...box.before, version: 2 }, id), { code: 'RELAY_SNAPSHOT' });
   assert.throws(() => presentationState({ version: 2, state }, id), { code: 'RELAY_PRESENTATION' });
@@ -62,10 +68,12 @@ test('real Chrome pairs, retains its device key, follows SSE without polling and
   const box = await relayClientFixture(t);
   const firstTitle = 'SEALED_BROWSER_INITIAL_108';
   const liveTitle = 'SEALED_BROWSER_LIVE_108';
+  const secondTitle = 'SECOND_LINKED_BOARD_108';
   assert.equal((await box.cli('add', box.lane, firstTitle)).code, 0);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const encoded = readFileSync(box.keyFile, 'utf8').trim();
+  const second = await box.additionalBoard(secondTitle);
   const unauthenticated = await fetch(box.origin + '/');
   const signInPage = await unauthenticated.text();
   assert.equal(signInPage.includes('Sign in with GitHub'), true);
@@ -91,6 +99,14 @@ test('real Chrome pairs, retains its device key, follows SSE without polling and
   assert.equal(await chrome.evaluate("JSON.parse(localStorage.getItem('pullboard.relay.keys.v1'))[" + JSON.stringify(link.board) + '].length === 43'), true);
   assert.equal(await chrome.evaluate("getComputedStyle(document.querySelector('#new-item')).display === 'none'"), true, 'the relay page hides action controls');
   assert.equal(box.calls.some(call => call.accept.includes('text/event-stream')), true, 'the page opened a real authorized event stream');
+  await chrome.navigate(box.origin + '/#board=' + second.id + '&key=' + second.encoded);
+  await chrome.waitFor("document.querySelectorAll('#proj-list .proj.repo').length === 2");
+  assert.equal(await chrome.evaluate("Object.keys(JSON.parse(localStorage.getItem('pullboard.relay.keys.v1'))).length === 2"), true,
+    'pairing another board retains both device-only keys');
+  const firstSelector = '#proj-list .proj.repo[data-root="' + link.board + '"]';
+  await chrome.evaluate('document.querySelector(' + JSON.stringify(firstSelector) + ').click()');
+  await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(firstTitle) + ')');
+
 
   assert.equal((await box.cli('add', box.lane, liveTitle)).code, 0);
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(liveTitle) + ')');
@@ -101,6 +117,8 @@ test('real Chrome pairs, retains its device key, follows SSE without polling and
   box.advance(80);
   await chrome.waitFor("document.querySelector('#relay-notice')?.textContent.includes('BOARD_INACTIVE') && document.querySelector('#relay-notice').textContent.includes('10 days left')");
   assert.equal(box.keyInRequest(), false, 'the key was never in an HTTP URL or header');
+  await box.revokeSession();
+  await chrome.waitFor("document.body.textContent.includes('Sign in with GitHub') && !document.body.textContent.includes(" + JSON.stringify(liveTitle) + ')');
 });
 
 test('an unauthenticated pairing link stays device-only through sign-in and a wrong key shows no contents [H5,H15]', {
@@ -117,8 +135,7 @@ test('an unauthenticated pairing link stays device-only through sign-in and a wr
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + encoded);
   await chrome.waitFor("document.body.textContent.includes('Sign in with GitHub') && location.hash === ''");
   assert.equal(await chrome.evaluate('document.body.textContent.includes(' + JSON.stringify(marker) + ')'), false);
-  await signIn(chrome, box);
-  await chrome.navigate(box.origin);
+  await chrome.navigate(box.origin + '/auth/github/start');
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(marker) + ')');
 
   const wrong = await startChrome();
@@ -128,4 +145,25 @@ test('an unauthenticated pairing link stays device-only through sign-in and a wr
   await wrong.waitFor("document.querySelector('#relay-notice')?.textContent.includes('Could not open')");
   assert.equal(await wrong.evaluate('document.body.textContent.includes(' + JSON.stringify(marker) + ')'), false);
   assert.equal(box.keyInRequest(), false);
+});
+
+/** A read outage can accumulate moves before any exact pending record has been sealed. */
+test('legacy queued presentations never disclose later unacknowledged moves [H5,H15]', async t => {
+  const box = await relayClientFixture(t);
+  await box.link();
+  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  box.refuseReads(true);
+  assert.equal((await box.cli('add', box.lane, 'FIRST_QUEUED_108')).code, 0);
+  assert.equal((await box.cli('add', box.lane, 'SECOND_QUEUED_108')).code, 0);
+  box.refuseReads(false);
+  assert.equal((await box.cli('status')).code, 0);
+  const response = await fetch(box.origin + '/api/v1/boards/' + link.board + '/events?after=0', { headers: { authorization: 'Bearer ' + link.token } });
+  assert.equal(response.status, 200);
+  const rows = (await response.json()).events;
+  assert.equal(rows.length, 2);
+  const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
+  const moves = await Promise.all(rows.map(async row => JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(row.sealed, 'base64url'), { boardId: link.board, kind: row.kind, sequence: row.event_id })))));
+  assert.equal(moves[0].presentation, undefined, 'the earlier record cannot attest the already-advanced whole board');
+  assert.equal(moves[1].presentation.state.events[0].event_id, moves[1].event.event_id);
+  assert.equal(moves[1].presentation.state.items.some(item => item.title === 'SECOND_QUEUED_108'), true);
 });

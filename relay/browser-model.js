@@ -24,7 +24,7 @@ export function snapshotState(document, boardId) {
       const verdicts = tables.verdict.filter(row => row.item_id === item.item_id).map(verdict);
       return {
         id: item.item_id, title: item.item_title, lane: item.item_lane, status: item.item_status,
-        route: item.item_route, owner: item.item_owner, reviewer: item.item_review_by,
+        route: item.item_route, owner: item.item_owner, reviewer: item.item_status === 'submitted' && item.item_review_by && item.item_review_until > new Date().toISOString() ? item.item_review_by : null,
         reviewUntil: item.item_review_until, builtBy: item.item_built_by, verifiedBy: item.item_verified_by,
         specs: item.item_spec_ids ? item.item_spec_ids.split(',') : [], criterion: item.item_criterion,
         brief: item.item_brief, commit: item.item_commit, merged: item.item_merged_commit,
@@ -35,7 +35,7 @@ export function snapshotState(document, boardId) {
     }),
     agents: tables.agent.map(agent => ({ ...agent, lastMoveAt: log.filter(event => event.event_by === agent.agent_id).at(-1)?.event_at ?? null })),
     shouts, decisions: decisions.filter(row => row.shout_to === 'person'), asked: decisions.filter(row => row.shout_to !== 'person'),
-    events: log.slice(-80).reverse(), holds: tables.lane_hold ?? [], spec: [], practice: [], products: [], unseen: null,
+    events: log.slice(-80).reverse(), holds: tables.hold ?? [], spec: [], practice: [], products: [], unseen: null,
   };
 }
 

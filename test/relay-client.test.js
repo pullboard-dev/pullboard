@@ -229,7 +229,10 @@ test('[H1,H7,H15] relay on snapshots and mirrors ciphertext, retries local moves
       key, Buffer.from(queued.sealed, 'base64url'), { boardId, kind: 'move', sequence },
     )));
     assert.deepEqual({ version: openedQueued.version, engine: openedQueued.engine, event: openedQueued.event }, { version: 1, engine: 1, event: allNewRows[offset + 2] }, 'queued records retain their local order');
-    assert.equal(openedQueued.presentation.version, 1);
+    if (openedQueued.presentation) {
+      assert.equal(openedQueued.presentation.version, 1);
+      assert.equal(openedQueued.presentation.state.events[0].event_id, openedQueued.event.event_id, 'a queued projection never contains later unacknowledged local moves');
+    }
   }
   relay.dropNextReply();
   await cli(root, relayEnv, 'add', lane, 'committed reply lost');

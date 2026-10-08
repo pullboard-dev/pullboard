@@ -193,8 +193,10 @@ async function flush(root, file, state, io) {
   for (const event of rows) {
     if (!state.pending) {
       const sequence = state.sequence + 1;
-      const presentation = relayPresentation(root);
-      state.pending = { localEvent: event.event_id, sequence, presentationDigest: presentationDigest(presentation),
+      const current = relayPresentation(root);
+      // Only a projection ending at this local record belongs to its relay position.
+      const presentation = current.state.events[0]?.event_id === event.event_id ? current : undefined;
+      state.pending = { localEvent: event.event_id, sequence, ...(presentation ? { presentationDigest: presentationDigest(presentation) } : {}),
         sealed: await sealedRecord(key, { version: 1, engine: 1, event, presentation }, state, 'move', sequence) };
       saveLink(file, state);
     }
@@ -203,7 +205,7 @@ async function flush(root, file, state, io) {
     if (reply.event?.event_id !== sequence || reply.event.sealed !== sealed) throw new Refused('RELAY_RESPONSE', 'the relay acknowledgement does not match the queued record; retry after checking the relay');
     state.sequence = sequence;
     state.cursor = event.event_id;
-    state.presentationDigest = state.pending.presentationDigest;
+    if (state.pending.presentationDigest) state.presentationDigest = state.pending.presentationDigest;
     delete state.pending;
     saveLink(file, state);
   }
@@ -211,6 +213,7 @@ async function flush(root, file, state, io) {
   const digest = presentationDigest(presentation);
   if (state.presentationDigest !== digest) {
     const document = relaySnapshot(root);
+    if ((document.tables.event.at(-1)?.event_id ?? 0) !== state.cursor) throw new Refused('RELAY_PRESENTATION_PENDING', 'new local moves arrived while syncing; run pullboard status again before publishing their presentation');
     state.snapshot = { sequence: state.sequence, sealed: await sealedRecord(key, document, state, 'snapshot', state.sequence) };
     state.presentationDigest = presentationDigest(document.presentation);
     saveLink(file, state);

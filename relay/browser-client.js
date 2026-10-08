@@ -64,6 +64,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     accessLost = true;
     for (const entry of paired.values()) { entry.stream?.close(); entry.state = null; }
     paired.clear();
+    document.querySelector('main')?.replaceChildren();
     location.replace('/');
   }
 
@@ -114,6 +115,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     const plain = await unseal(entry.key, transportBytes(row.sealed), { boardId: entry.id, kind: 'snapshot', sequence: row.sequence });
     const value = JSON.parse(new TextDecoder().decode(plain));
     const state = snapshotState(value, entry.id);
+    if (accessLost) throw new Error('Sign in again to read this board.');
     entry.snapshotTag = response.headers.get('etag');
     if (row.sequence >= entry.cursor) {
       entry.state = state;
@@ -133,6 +135,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     }
     const plain = await unseal(entry.key, transportBytes(row.sealed), { boardId: entry.id, kind: row.kind, sequence: row.event_id });
     const move = JSON.parse(new TextDecoder().decode(plain));
+    if (accessLost) throw new Error('Sign in again to read this board.');
     if (move.version !== 1 || !Number.isSafeInteger(move.engine) || move.engine < 1) throw new Error('This sealed move has an unsupported format. Refresh it from a linked machine.');
     if (move.engine !== 1) throw new Error('This board needs engine ' + move.engine + '; this browser reads engine 1. Upgrade the browser client.');
     if (move.presentation) {
@@ -140,7 +143,9 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
       entry.cursor = row.event_id;
     } else {
       await snapshot(entry);
-      if (entry.cursor < row.event_id) throw new Error('This move needs a refreshed presentation from a linked machine. Run pullboard status there.');
+      // Earlier records in a legacy batch have no complete projection. Consume their position
+      // without exposing later local moves; its final record/checkpoint supplies the presentation.
+      if (entry.cursor < row.event_id) entry.cursor = row.event_id;
     }
   }
 
@@ -199,7 +204,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     const visible = new Set(available.map(board => board.id));
     for (const [id, entry] of paired) if (!visible.has(id)) { entry.stream?.close(); paired.delete(id); }
     for (const board of available) {
-      if (paired.has(board.id)) continue;
+      if (paired.has(board.id) && pair?.board !== board.id) continue;
       Object.assign(keys, stored(localStorage, KEYS, {}));
       const encoded = pair?.board === board.id ? pair.key : keys[board.id];
       if (!encoded) continue;
@@ -207,6 +212,8 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
         const entry = { id: board.id, key: decodeBoardKey(encoded), cursor: -1, state: null };
         await snapshot(entry);
         await catchUp(entry);
+        if (accessLost) throw new Error('Sign in again to read this board.');
+        paired.get(board.id)?.stream?.close();
         paired.set(board.id, entry);
         keys[board.id] = encoded;
         try { localStorage.setItem(KEYS, JSON.stringify({ ...stored(localStorage, KEYS, {}), [board.id]: encoded })); } catch { failure = 'This browser cannot save pairing. Use the pairing link again on your next visit.'; }
@@ -223,6 +230,12 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     };
   }
 
+  /** Pair a link opened in this already-loaded page as well as one opened on a fresh visit. */
+  async function pairingChanged() {
+    try { pair = rememberPairing() ?? pair; await listing(); onUpdate(); }
+    catch { failure = 'The pairing link is invalid. Get a new link from a linked machine.'; notice(); }
+  }
+  addEventListener('hashchange', pairingChanged);
   addEventListener('pagehide', () => { for (const entry of paired.values()) entry.stream?.close(); });
   await listing();
   return {
