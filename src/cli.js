@@ -853,7 +853,7 @@ async function worktreeFor(io, lane, route, family = null) {
   catch (error) {
     const registered = withBoard(ctx, (board) => store.agentAt(board, root));
     if (registered) {
-      io.err('pullboard: registration is already ordered; the worktree is preserved. Retry enrollment to obtain its credential: ' + cdTo(root) + ' pullboard join ' + lane);
+      io.err('pullboard: registration is already ordered; the worktree is preserved. Retry enrollment to obtain its credential: ' + cdTo(root) + ' pullboard join ' + lane + (route === 'strong' ? '' : ' --route ' + route) + (family ? ' --family ' + shellWord(family) : ''));
       throw error;
     }
     // Only remove the clean worktree just created here; preserve it if another process changed it.

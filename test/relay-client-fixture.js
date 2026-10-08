@@ -59,11 +59,19 @@ export async function relayClientFixture(t) {
   const auth = createRelayAuth({ database: join(scratch, 'auth.sqlite'), github: createGitHubClient(provider.config) });
   let time = Date.now();
   let override = null;
+  let mintFailures = 0;
   let signIn;
   let api;
   const calls = [];
   const server = createServer(async (req, res) => {
     calls.push({ method: req.method, path: req.url });
+    if (mintFailures > 0 && req.method === 'POST' && req.url === '/auth/tokens') {
+      mintFailures -= 1;
+      req.resume();
+      res.writeHead(503, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ version: 1, error: { code: 'TEMPORARY', message: 'fixture refusal' } }));
+      return;
+    }
     if (override && req.method === 'DELETE') {
       res.writeHead(override.status, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ version: override.version ?? 1, error: { code: override.code, message: 'fixture refusal' } }));
@@ -122,9 +130,10 @@ export async function relayClientFixture(t) {
     return childResult(root, env, ['--input-type=module', '-e', source]);
   }
   return {
-    root, env, lane, before, linkFile, keyFile, calls, cli, link, otherDeviceOff, script,
+    root, env, origin, lane, before, linkFile, keyFile, calls, cli, link, otherDeviceOff, script,
     advance(days) { time = Date.now() + days * 86400000; },
     overrideDelete(value) { override = value; },
+    failTokenMints(count) { mintFailures = count; },
     mainURL: new URL('../src/cli.js', import.meta.url).href,
   };
 }
