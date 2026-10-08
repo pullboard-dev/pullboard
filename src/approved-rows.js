@@ -76,7 +76,8 @@ export function approvedRowProblems(root, config, boardFile) {
     const staged = rowSourceAt(root, '', stagedPolicy[key], kind);
     if (before.text === null || before.text === staged.text) continue;
     const rows = parseSpec(staged.text ?? '');
-    for (const old of parseSpec(before.text).rows.filter((row) => row.status === 'approved')) {
+    // Historical grammar declarations must not prevent a repair to the supported staged grammar.
+    for (const old of parseSpec(before.text, { strictGrammarVersion: false }).rows.filter((row) => row.status === 'approved')) {
       const matches = rows.rows.filter((row) => row.id === old.id);
       if (matches.length === 1 && matches[0].text === old.text) continue;
       changes.push({ kind, file: staged.file, files: [before.file, staged.file], row: matches[0] ?? old, ambiguous: matches.length !== 1,
