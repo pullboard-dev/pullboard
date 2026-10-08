@@ -2551,6 +2551,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N
   const other = project(box, 'other-demo');
   box.run(demo.repo, 'add', 'web', 'Starter item', '--specs', 'G1', '--criterion', 'visible in the detail pane');
   box.run(demo.repo, 'shout', 'person', 'Should the phone demo ship?', '--decision');
+  box.run(demo.web, 'shout', 'coordinator', 'Should this waiting ask span the full row?', '--decision');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-phone-'));
   let chrome;
@@ -2636,6 +2637,32 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N
       for (const tab of ['shouts', 'spec', 'doctrine', 'activity']) {
         await click(`[data-tab="${tab}"]`);
         await checkLayout(width, `${tab} tab`);
+        if (tab === 'shouts') {
+          const asks = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+            const waiting = document.querySelector('#decisions .ask.other');
+            const waitingMeta = waiting?.querySelector('p:first-child');
+            const waitingText = waiting?.querySelector('p:nth-child(2)');
+            const answer = document.querySelector('#decisions .ask:not(.other)');
+            const answerMeta = answer?.querySelector('p:first-child');
+            const button = answer?.querySelector('button');
+            const rect = e => { const r=e.getBoundingClientRect(); return {left:r.left,right:r.right,width:r.width,height:r.height}; };
+            return {
+              waitingIsNeedsYou: document.querySelector('#decisions').classList.contains('needs-you'),
+              waitingHasNoButton: !!waiting && !waiting.querySelector('button'),
+              waitingMeta: waitingMeta && rect(waitingMeta),
+              waitingMetaLine: waitingMeta && parseFloat(getComputedStyle(waitingMeta).lineHeight),
+              waitingAsk: waiting && rect(waiting), waitingText: waitingText && rect(waitingText),
+              answerMeta: answerMeta && rect(answerMeta), button: button && rect(button),
+            };
+          })())`));
+          assert.ok(asks.waitingIsNeedsYou && asks.waitingHasNoButton, `${width}: the waiting ask is shown in the Needs-you card without an answer button`);
+          assert.ok(asks.waitingMeta.width > 0 && asks.waitingMeta.height <= asks.waitingMetaLine + 1,
+            `${width}: waiting ask who/when stays on one line: ${JSON.stringify(asks)}`);
+          assert.ok(asks.waitingText.width >= asks.waitingAsk.width - 24,
+            `${width}: waiting ask text spans the row: ${JSON.stringify(asks)}`);
+          assert.ok(asks.button.left > asks.answerMeta.right,
+            `${width}: an answer button keeps its own grid column: ${JSON.stringify(asks)}`);
+        }
       }
       await click('[data-tab="items"]');
 
