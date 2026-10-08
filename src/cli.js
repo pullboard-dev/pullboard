@@ -309,7 +309,6 @@ function personMode(ctx, me, values) {
   if (!ctx.info.isMain || me.id !== COORDINATOR) {
     throw new Refused('B26_PERSON_ANSWER', 'only the main checkout can act as the person; ask your coordinator to answer or pass this decision');
   }
-  requirePersonChannel(ctx.io.personChannel);
   return true;
 }
 
@@ -1473,6 +1472,7 @@ function workCommands(io, args) {
     }),
     answer: () => act((ctx, board, me) => {
       const asPerson = personMode(ctx, me, values);
+      if (asPerson) requirePersonChannel(ctx.io.personChannel);
       const id = store.answerDecision(board, idArg(first), { agentId: me.id, text: [second, ...rest].filter(Boolean).join(' '), lanes: laneNames(ctx.config), asPerson, channel: ctx.io.personChannel ?? 'terminal' });
       const ask = store.getShout(board, idArg(first));
       io.result?.({ id, answers: ask.shout_id });

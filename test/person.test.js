@@ -251,6 +251,8 @@ test('[B26,S5] an agent shell cannot append a person sign-off but a plain shell 
     assert.equal(refused.status, 1, name + ': ' + refused.stdout + refused.stderr);
     const error = JSON.parse(refused.stdout).error;
     assert.equal(error.code, 'B26_PERSON_CHANNEL', name);
+    const inspected = box.run(box.repo, ['decisions', '--as', 'person', '--json'], { [name]: value });
+    assert.equal(inspected.status, 0, 'read-only inspection does not approve a person call');
     assert.match(error.next, /pullboard view/iu, name);
     assert.equal(readFileSync(file, 'utf8'), original, name + ' preserves every existing sign-off byte');
   }
