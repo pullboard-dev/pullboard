@@ -53,7 +53,7 @@ import { doctorProblems } from './doctor.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
-import { relayLinked, relayOff, relayOn, relayOperation, relayStatus, syncRelay } from './relay.js';
+import { relayLinked, relayOff, relayOn, relayOperation, relayRevoke, relayStatus, relayTokens, syncRelay } from './relay.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
@@ -77,6 +77,8 @@ Set up
                                         behind the session secret in its printed address
   pullboard relay [on|off] [--url <address>]  link, inspect or unlink this board's sealed relay mirror
                                         on signs in through GitHub; the address defaults to https://app.pullboard.dev
+  pullboard relay tokens                list this board's agent token ids, agents and expiry, never credentials
+  pullboard relay revoke <token-id>     revoke one token from that list; other agents keep working
   pullboard resume                      where you are: your claim, branch, uncommitted work, what came back,
                                         unread shouts, what to do next; run it to start any session
   pullboard hooks                       reinstall the git hooks (e.g. after a fresh clone)
@@ -1834,6 +1836,19 @@ async function runCommand(argv, io) {
     if (command === 'hook') return await hookCommand(io, args);
     if (command === 'settings') return settingsCommand(io, args);
     if (command === 'relay') {
+      if (['tokens', 'revoke'].includes(first)) {
+        if (rest.length || values.url || (first === 'tokens' && second) || (first === 'revoke' && !second)) {
+          throw new Refused('USAGE', 'pullboard relay tokens, or pullboard relay revoke <token-id>');
+        }
+        const ctx = context(io);
+        const result = first === 'tokens' ? await relayTokens(ctx.info.root, io) : await relayRevoke(ctx.info.root, second, io);
+        io.result?.(result);
+        if (first === 'tokens') {
+          if (!result.tokens.length) io.say('no agent tokens on this board');
+          for (const row of result.tokens) io.say(row.id + '  ' + row.agent + '  ' + (row.revoked ? 'revoked' : 'expires ' + new Date(row.expires).toISOString()));
+        } else io.say('revoked token ' + result.id + '; other agent tokens are unchanged');
+        return 0;
+      }
       if (second || rest.length || (first && !['on', 'off'].includes(first)) || (values.url && first !== 'on')) throw new Refused('USAGE', 'pullboard relay [on|off] [--url <address>]');
       const ctx = context(io);
       if (!first) await syncRelay(ctx.info.root, io);

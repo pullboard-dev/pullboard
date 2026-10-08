@@ -58,6 +58,55 @@ function boardRows(board, itemId) {
   };
 }
 
+test('authenticated relay senders bind every move and refusals preserve replica prefixes [H2,H9,H3,H16]', (t) => {
+  const { copies, item } = engineCopies(t);
+  const [one, two] = copies;
+  const claim = claimMove(one, item, 'web-1');
+  const actorlessClaim = { ...claim, id: 'actorless-person-claim' };
+  delete actorlessClaim.actor;
+  const mismatchedArgs = prepareEngineMove(one, 'claim', claim.args, {
+    id: 'sealed-actor-mismatch', actor: 'web-2',
+  });
+  const personalAnswer = prepareEngineMove(one, 'answerDecision', [1, {
+    asPerson: true, agentId: 'coordinator', text: 'fixture answer', lanes: ['web'],
+  }], { id: 'agent-person-answer' });
+  const cases = [
+    { move: actorlessClaim, sender: { kind: 'person', userId: 'fixture-user' } },
+    { move: claim, sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-2' } },
+    { move: mismatchedArgs, sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } },
+    { move: prepareEngineMove(one, 'register', [{ lane: 'web', path: '/fixture/enroll' }], { id: 'agent-enrollment' }), sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } },
+    { move: personalAnswer, sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } },
+    { move: prepareEngineMove(one, 'shout', [{ from: 'web-2', agentId: 'web-1', to: 'all', text: 'spoof', lanes: ['web'] }], { id: 'shadowed-shout', actor: 'web-1' }), sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } },
+    { move: prepareEngineMove(one, 'addItem', [{ by: 'coordinator', agentId: 'web-1', lane: 'web', title: 'spoof' }], { id: 'shadowed-add', actor: 'web-1' }), sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } },
+  ];
+
+  cases.forEach(({ move, sender }, index) => {
+    const sequence = index + 1;
+    for (const board of copies) {
+      const before = boardRows(board, item);
+      const outcome = applyEngineMove(board, move, { sequence, at: CLAIM_AT, sender });
+      assert.equal(outcome.error?.code, 'RELAY_ACTOR', `case ${index + 1} must refuse before native writes`);
+      assert.deepEqual(boardRows(board, item), before, `case ${index + 1} leaves native rows/events unchanged`);
+      assert.equal(replayCursor(board), sequence, `case ${index + 1} commits the refusal prefix`);
+    }
+  });
+
+  const validClaim = { ...claim, id: 'valid-claim-after-refusals' };
+  const agent = { kind: 'agent', userId: 'fixture-user', agent: 'web-1' };
+  const claimOne = applyEngineMove(one, validClaim, { sequence: cases.length + 1, at: CLAIM_AT, sender: agent });
+  const claimTwo = applyEngineMove(two, validClaim, { sequence: cases.length + 1, at: CLAIM_AT, sender: agent });
+  assert.deepEqual(claimOne, claimTwo);
+  assert.equal(store.getItem(one, item).item_owner, 'web-1');
+
+  const shout = prepareEngineMove(one, 'shout', [{ from: 'web-1', to: 'all', text: 'authenticated fixture', lanes: ['web'] }], { id: 'valid-shout-after-refusals' });
+  const shoutOne = applyEngineMove(one, shout, { sequence: cases.length + 2, at: CLAIM_AT, sender: agent });
+  const shoutTwo = applyEngineMove(two, shout, { sequence: cases.length + 2, at: CLAIM_AT, sender: agent });
+  assert.deepEqual(shoutOne, shoutTwo);
+  assert.deepEqual(boardRows(one, item), boardRows(two, item), 'valid claim and shout replay identically after refusal prefix');
+  assert.equal(replayCursor(one), cases.length + 2);
+  assert.equal(replayCursor(two), cases.length + 2);
+});
+
 test('the same sealed claim replays to identical rows and sequence retries are idempotent [H3,H16]', (t) => {
   const { copies, item } = engineCopies(t);
   const [one, two] = copies;

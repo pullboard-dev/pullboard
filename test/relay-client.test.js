@@ -503,7 +503,8 @@ test('[H3,H16] two cloned linked replicas order competing claims and retain the 
   const earlierSealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(earlier)), {
     boardId, kind: 'move', sequence: next,
   })).toString('base64url');
-  const headers = { authorization: `Bearer ${person.token}`, 'content-type': 'application/json' };
+  const coordinatorCredential = await auth.issueToken(person.token, { board: boardId, agent: 'coordinator' });
+  const headers = { authorization: 'Bearer ' + coordinatorCredential.token, 'content-type': 'application/json' };
   assert.equal((await fetch(`${relay.origin}/api/v1/boards/${boardId}/moves`, {
     method: 'POST', headers, body: JSON.stringify({ sequence: next, sealed: earlierSealed }),
   })).status, 200);

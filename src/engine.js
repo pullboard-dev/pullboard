@@ -45,7 +45,7 @@ export function startRelayEpoch(board) {
 }
 
 /** Turn caller-only callbacks into deterministic values before sealing an executable operation. */
-export function prepareEngineMove(board, operation, args, { id = randomUUID() } = {}) {
+export function prepareEngineMove(board, operation, args, { id = randomUUID(), actor } = {}) {
   if (!ENGINE_OPERATIONS.includes(operation) || !Array.isArray(args)) throw new Refused('RELAY_MOVE', 'use a supported board-engine operation with its argument array');
   const values = args.map((value) => value && typeof value === 'object' ? { ...value } : value);
   if (['claim', 'refreeze'].includes(operation)) {
@@ -64,7 +64,7 @@ export function prepareEngineMove(board, operation, args, { id = randomUUID() } 
       options.freezeError = error ?? null;
     }
   }
-  const move = { version: 1, engine: ENGINE_VERSION, id, operation, args: values };
+  const move = { version: 1, engine: ENGINE_VERSION, id, operation, args: values, ...(actor === undefined ? {} : { actor }) };
   // JSON is the wire format: optional undefined fields become absent on every replica alike.
   return JSON.parse(JSON.stringify(move));
 }
@@ -74,6 +74,29 @@ function validateMove(move) {
   if (!move || move.version !== 1 || !Number.isSafeInteger(move.engine) || move.engine < 1) throw new Refused('RELAY_MOVE', 'this executable move format is invalid; upgrade pullboard or restore a consistent relay snapshot');
   if (move.engine > ENGINE_VERSION) throw new Refused('ENGINE_VERSION', `move engine version ${move.engine} is newer than this pullboard engine version ${ENGINE_VERSION}; upgrade pullboard before applying the relay order`);
   if (typeof move.id !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(move.id) || !ENGINE_OPERATIONS.includes(move.operation) || !Array.isArray(move.args)) throw new Refused('RELAY_MOVE', 'this sealed operation is invalid; use a supported board-engine operation');
+}
+
+/** Resolve the native operation's actor, excluding person-only enrollment and answers. */
+export function engineActor(operation, args) {
+  if (['register', 'ensureCoordinator'].includes(operation)) return 'person';
+  if (operation === 'answerDecision' && args[1]?.asPerson) return 'person';
+  if (operation === 'release') return args[1];
+  if (operation === 'addItem') return args[0]?.by;
+  if (operation === 'shout') return args[0]?.from;
+  if (operation === 'reserveNextReview') return args[0]?.agentId;
+  return args[1]?.agentId;
+}
+
+/** Bind sealed operation identity to authenticated relay metadata before any native write. */
+function bindSender(move, sender) {
+  if (sender === undefined) return; // Pure local replay fixtures have no transport principal.
+  const actor = engineActor(move.operation, move.args);
+  if (!sender || !['person', 'agent'].includes(sender.kind) || !actor ||
+      (move.actor !== undefined && move.actor !== actor) ||
+      (sender.kind === 'agent' && (actor === 'person' || actor !== sender.agent)) ||
+      (sender.kind === 'person' && actor !== 'person')) {
+    throw new Refused('RELAY_ACTOR', 'the sealed actor differs from the authenticated sender; use that agent’s board token and retry the intended move');
+  }
 }
 
 /** Restore only the frozen criterion callback; no receiver runs another machine's Git or shell. */
@@ -101,7 +124,7 @@ export function engineReceipt(board, id) {
  * Apply one relay position with the same board functions as the CLI, preserving its refusal.
  * A receipt and prefix commit atomically; duplicate ids return that receipt without another move.
  */
-export function applyEngineMove(board, move, { sequence, at }) {
+export function applyEngineMove(board, move, { sequence, at, sender }) {
   validateMove(move);
   if (!Number.isSafeInteger(sequence) || sequence < 1 || !Number.isFinite(Date.parse(at))) throw new Refused('RELAY_MOVE', 'supply a valid relay sequence and receipt timestamp');
   return store.atomic(board, () => {
@@ -120,6 +143,7 @@ export function applyEngineMove(board, move, { sequence, at }) {
       board.clock = { now: () => new Date(at) };
       const firstEvent = board.emittedEvents?.length ?? 0;
       try {
+        bindSender(move, sender);
         const result = store.atomic(board, () => store[move.operation](board, ...executableArgs(move)));
         outcome = { result: result ?? null, events: (board.emittedEvents?.slice(firstEvent) ?? []).map((event) => ({ ...event })) };
       } catch (error) {

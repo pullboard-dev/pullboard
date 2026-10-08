@@ -104,7 +104,7 @@ export function createApiHandler(adapter, { pollMs = 200 } = {}) {
     try {
       let url;
       try { url = new URL(req.url ?? '/', 'http://127.0.0.1'); } catch { throw new Refused('BAD_REQUEST', 'use a valid path under /api/v1/boards'); }
-      const route = /^\/api\/v1\/boards\/([^/]+)\/(state|events|moves|requests|code)$/.exec(url.pathname);
+      const route = /^\/api\/v1\/boards\/([^/]+)\/(state|events|moves|requests|code|tokens)$/.exec(url.pathname);
       const who = await adapter.authenticate(req, { board: route?.[1] ?? null, write: req.method === 'POST' });
       if (req.method === 'GET' && url.pathname === '/api/v1/boards') {
         const listing = await adapter.boards(who);
@@ -112,6 +112,19 @@ export function createApiHandler(adapter, { pollMs = 200 } = {}) {
       }
       if (!route) return json(res, 404, refusal(new Refused('NO_ENDPOINT', 'no API v1 endpoint here; use /api/v1/boards and a board state, code, events, moves or requests path')));
       const board = await adapter.board(route[1], who);
+      if (route[2] === 'tokens') {
+        if (typeof adapter.tokens !== 'function' || typeof adapter.revokeToken !== 'function') {
+          throw new Refused('TOKENS_NOT_AVAILABLE', "manage this board's agent tokens in its local view or signed-in relay account");
+        }
+        if (req.method === 'GET') return json(res, 200, { tokens: await adapter.tokens(board, who) });
+        if (req.method === 'POST') {
+          const body = await readBody(req);
+          if (Object.keys(body).some((key) => key !== 'id') || typeof body.id !== 'string') {
+            throw new Refused('BAD_REQUEST', "token revocation takes only the opaque id from this board's token list");
+          }
+          return json(res, 200, await adapter.revokeToken(board, body.id, who));
+        }
+      }
       if (req.method === 'GET' && route[2] === 'state') {
         const seen = url.searchParams.has('seen') ? seenCursor(url.searchParams.get('seen')) : null;
         const state = await adapter.state(board, who, seen);

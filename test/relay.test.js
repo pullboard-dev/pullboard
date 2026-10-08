@@ -112,7 +112,7 @@ test('person token management lists only owned scoped metadata and preserves ind
   assert.equal(listed.length, 2);
   assert.deepEqual(listed.map((row) => row.agent), ['worker-one', 'worker-two']);
   for (const row of listed) {
-    assert.deepEqual(Object.keys(row).sort(), ['agent', 'board', 'expires', 'id', 'revoked']);
+    assert.deepEqual(Object.keys(row).sort(), ['agent', 'board', 'created', 'expires', 'id', 'revoked']);
     assert.equal(row.board, 'alpha');
     assert.equal(row.revoked, false);
   }

@@ -4,7 +4,7 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, wri
 import { dirname, join } from 'node:path';
 import * as store from './board.js';
 import { exportBoard, restoreRelaySnapshot } from './exchange.js';
-import { appliedSequence, applyEngineMove, checkpointSequence, engineReceipt, prepareEngineMove, startRelayEpoch } from './engine.js';
+import { appliedSequence, applyEngineMove, checkpointSequence, engineReceipt, engineActor, prepareEngineMove, startRelayEpoch } from './engine.js';
 import { ENGINE_VERSION } from './machine.js';
 import { presentationDigest, relayPresentation, relaySnapshot } from './relay-presentation.js';
 import { repoInfo, tryGit } from './git.js';
@@ -59,7 +59,7 @@ function loadLink(file) {
   if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077)) throw new Refused('RELAY_STORAGE', 'restore relay.json as an owner-only regular file with mode 600');
   let state;
   try { state = JSON.parse(readFileSync(file, 'utf8')); } catch { throw new Refused('RELAY_STORAGE', 'restore valid relay link metadata before syncing this board'); }
-  if (!state || typeof state !== 'object' || state.version !== 1 || !/^[0-9a-f]{32}$/.test(state.board) || !/^ps_[A-Za-z0-9_-]{43}$/.test(state.token) ||
+  if (!state || typeof state !== 'object' || state.version !== 1 || !/^[0-9a-f]{32}$/.test(state.board) || !/^(ps_|pa_)[A-Za-z0-9_-]{43}$/.test(state.token) ||
       !Number.isSafeInteger(state.sequence) || state.sequence < 0 || !Number.isSafeInteger(state.cursor) || state.cursor < 0) {
     throw new Refused('RELAY_STORAGE', 'restore supported relay link metadata before syncing this board');
   }
@@ -113,11 +113,15 @@ function notices(document, io) {
 
 /** The sole outbound transport in the CLI: explicit sign-in or a saved, opted-in board link. */
 async function request(state, path, { method = 'GET', body, allowMissing = false } = {}, io) {
+  const supplied = process.env.PULLBOARD_RELAY_TOKEN;
+  const readToken = method === 'GET' && path.startsWith('/api/v1/boards/') ? supplied : undefined;
+  if (readToken !== undefined && !/^pa_[A-Za-z0-9_-]{43}$/.test(readToken)) throw new Refused('AUTH_REQUIRED', 'supply a current scoped board token without including it in command arguments');
+  const token = readToken ?? state.token;
   let response;
   try {
     response = await fetch(relayOrigin(state.url) + path, {
       method, redirect: 'error', signal: AbortSignal.timeout(10000),
-      headers: { ...(state.token ? { authorization: 'Bearer ' + state.token } : {}), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      headers: { ...(token ? { authorization: 'Bearer ' + token } : {}), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   } catch { throw new Refused('RELAY_UNAVAILABLE', `the relay ${state.url} did not answer; read the local board offline, then retry this move when the relay is reachable`); }
@@ -126,7 +130,7 @@ async function request(state, path, { method = 'GET', body, allowMissing = false
   notices(document, io);
   // Only off can forget a link after a supported API reports that the board is gone.
   if (allowMissing && method === 'DELETE' && response.status === 404 && document.version === 1) return { alreadyDeleted: true };
-  if (!response.ok) throw new Refused(document.error?.code || 'RELAY_UNAVAILABLE', (document.error?.code === 'AUTH_REQUIRED' ? 'the relay sign-in expired or was revoked; run pullboard relay on to sign in again without changing the board key' : (document.error?.message ? `the relay ${state.url}: ${document.error.message}` : null)) || 'the relay refused this send; retry this command explicitly when reachable');
+  if (!response.ok) throw new Refused(document.error?.code || 'RELAY_UNAVAILABLE', (document.error?.code === 'AUTH_REQUIRED' ? (state.agent ? 'this agent token is expired or revoked; ask the person to issue a new token for this agent, then retry with PULLBOARD_RELAY_TOKEN' : 'the relay sign-in expired or was revoked; run pullboard relay on to sign in again without changing the board key') : (document.error?.message ? `the relay ${state.url}: ${document.error.message}` : null)) || 'the relay refused this send; retry this command explicitly when reachable');
   if (document.version !== 1) throw new Refused('RELAY_VERSION', 'the relay API version is unsupported; upgrade Pullboard before syncing');
   return document;
 }
@@ -221,6 +225,7 @@ async function decoded(key, record, state, kind, sequence) {
 
 /** Persist the exact checkpoint before uploading, so a lost reply retries identical ciphertext. */
 async function publishCheckpoint(root, file, state, io) {
+  if (!state.token.startsWith('ps_') || process.env.PULLBOARD_RELAY_TOKEN) return;
   const document = relaySnapshot(root);
   const sequence = Number(document.tables.board_meta.find((row) => row.meta_key === 'relay_applied_sequence')?.meta_value ?? 0);
   const digest = presentationDigest(document.presentation);
@@ -298,13 +303,13 @@ async function catchUp(root, file, state, io) {
     if (localRecords(root, appliedSequence) <= after) throw new Refused('RELAY_RESPONSE', 'the relay checkpoint did not advance the missing prefix; fetch a consistent newer snapshot');
     return catchUp(root, file, state, io);
   }
-  if (!Array.isArray(remote.events) || remote.events.some((record, index) => !record || record.event_id !== after + index + 1 || !['move', 'request'].includes(record.kind) || typeof record.sealed !== 'string')) {
+  if (!Array.isArray(remote.events) || remote.events.some((record, index) => !record || record.event_id !== after + index + 1 || !['move', 'request'].includes(record.kind) || typeof record.sealed !== 'string' || !record.sender || !['person', 'agent'].includes(record.sender.kind) || typeof record.sender.userId !== 'string' || (record.sender.kind === 'agent' && typeof record.sender.agent !== 'string'))) {
     throw new Refused('RELAY_RESPONSE', 'the relay returned an invalid ordered prefix; fetch a consistent relay snapshot');
   }
   for (const record of remote.events) {
     const move = await decoded(key, record, state, record.kind, record.event_id);
     localRecords(root, (board) => {
-      applyEngineMove(board, move, { sequence: record.event_id, at: record.event_at });
+      applyEngineMove(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender });
     });
   }
   state.sequence = localRecords(root, appliedSequence);
@@ -317,7 +322,8 @@ async function sendPending(root, file, state, io) {
   for (let tries = 0; state.pending && tries < 100; tries += 1) {
     const pending = state.pending;
     try {
-      const reply = await request(state, '/api/v1/boards/' + state.board + '/moves', { method: 'POST', body: { sequence: pending.sequence, sealed: pending.sealed } }, io);
+      const transport = await actorTransport(root, file, state, engineActor(pending.move.operation, pending.move.args), io);
+      const reply = await request(transport, '/api/v1/boards/' + state.board + '/moves', { method: 'POST', body: { sequence: pending.sequence, sealed: pending.sealed } }, io);
       if (reply.event?.event_id !== pending.sequence || reply.event.sealed !== pending.sealed) throw new Refused('RELAY_RESPONSE', 'the relay acknowledgement differs from this executable send; fetch the configured relay');
     } catch (error) {
       if (!['SEQUENCE_REPEAT', 'SEQUENCE_GAP'].includes(error.code)) throw error;
@@ -334,6 +340,44 @@ async function sendPending(root, file, state, io) {
   if (state.pending) throw new Refused('RELAY_BUSY', 'the relay order stayed busy; retry this command after other clients finish');
 }
 
+/** Select one scoped credential without renewing a revoked or expired agent cache. */
+async function actorTransport(root, file, state, actor, io) {
+  if (typeof actor !== 'string' || !/^[A-Za-z0-9_.-]{1,128}$/.test(actor)) {
+    throw new Refused('RELAY_ACTOR', 'name the registered agent performing this move before sending it');
+  }
+  const supplied = process.env.PULLBOARD_RELAY_TOKEN;
+  if (supplied !== undefined) {
+    if (!/^pa_[A-Za-z0-9_-]{43}$/.test(supplied)) throw new Refused('AUTH_REQUIRED', 'supply a current scoped board token, without including it in command arguments');
+    const transport = { ...state, token: supplied, agent: actor };
+    const identity = await request(transport, '/auth/session?board=' + state.board, {}, io);
+    if (identity.session?.kind !== 'board' || identity.session.agent !== actor) throw new Refused('RELAY_ACTOR', 'use the scoped token belonging to this move’s registered agent');
+    return transport;
+  }
+  if (actor === 'person') {
+    if (!state.token.startsWith('ps_')) throw new Refused('HUMAN_REQUIRED', 'sign in as a person to enroll an agent or answer as the person');
+    return state;
+  }
+  if (state.token.startsWith('pa_')) {
+    const identity = await request(state, '/auth/session?board=' + state.board, {}, io);
+    if (identity.session?.agent !== actor) throw new Refused('RELAY_ACTOR', 'use the scoped token belonging to this move’s registered agent');
+    return { ...state, agent: actor };
+  }
+  state.agentTokens ??= {};
+  if (!state.agentTokens[actor]) {
+    if (!localRecords(root, (board) => store.listAgents(board).some((agent) => agent.agent_id === actor))) {
+      throw new Refused('RELAY_ACTOR', 'register this agent in the ordered board before obtaining its scoped token');
+    }
+    const issued = await request(state, '/auth/tokens', { method: 'POST', body: { board: state.board, agent: actor } }, io);
+    if (!/^pa_[A-Za-z0-9_-]{43}$/.test(issued.token) || issued.board !== state.board || issued.agent !== actor ||
+        typeof issued.id !== 'string' || !Number.isSafeInteger(issued.expires)) {
+      throw new Refused('RELAY_RESPONSE', 'the relay did not issue this agent’s scoped credential; ask the person to retry enrollment');
+    }
+    state.agentTokens[actor] = { id: issued.id, token: issued.token, expires: issued.expires };
+    saveLink(file, state);
+  }
+  return { ...state, token: state.agentTokens[actor].token, agent: actor };
+}
+
 /** Send one board operation before executing it locally, and report its canonical engine result. */
 export async function relayOperation(root, operation, args, io) {
   const file = linkFile(root);
@@ -346,7 +390,8 @@ export async function relayOperation(root, operation, args, io) {
       delete state.pending;
       saveLink(file, state);
     }
-    const move = localRecords(root, (board) => prepareEngineMove(board, operation, args));
+    const move = localRecords(root, (board) => prepareEngineMove(board, operation, args, { actor: engineActor(operation, args) }));
+    await actorTransport(root, file, state, move.actor, io);
     const sequence = state.sequence + 1;
     state.pending = { move, sequence, sealed: await sealedRecord(readBoardKey(state.board), move, state, 'move', sequence) };
     saveLink(file, state);
@@ -357,6 +402,7 @@ export async function relayOperation(root, operation, args, io) {
     try { await publishCheckpoint(root, file, state, io); }
     catch (error) { if (!(error instanceof Refused)) throw error; io.err(`pullboard: ${error.message}`); }
     if (receipt.outcome.error) throw new Refused(receipt.outcome.error.code, receipt.outcome.error.message);
+    if (['register', 'ensureCoordinator'].includes(operation)) await actorTransport(root, file, state, receipt.outcome.result, io);
     for (const event of receipt.outcome.events ?? []) io.onEvent?.(event);
     return receipt.outcome.result;
   });
@@ -392,6 +438,53 @@ export async function syncRelay(root, io) {
       return { linked: true, board: state.board, url: state.url, sequence: state.sequence,
         behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)) };
     }
+  });
+}
+
+/** Return token-management context without opening a board-key pairing link or exposing any credential. */
+function tokenContext(state) {
+  return { linked: true, board: state.board, url: state.url, link: '', sequence: state.sequence, behind: 0 };
+}
+
+/** Require the signed-in person's existing link before listing or revoking scoped agent credentials. */
+function managementLink(file) {
+  const state = loadLink(file);
+  if (!state || state.unlinking) throw new Refused('RELAY_OFF', 'link this board with pullboard relay on before managing its agent tokens');
+  return state;
+}
+
+/** List only this person's current board-token metadata, never bearer values or the board key. */
+export async function relayTokens(root, io) {
+  const file = linkFile(root);
+  return locked(file, async () => {
+    const state = managementLink(file);
+    const listed = await request(state, '/auth/tokens?board=' + state.board, {}, io);
+    if (!Array.isArray(listed.tokens) || listed.tokens.some((row) => !row || row.board !== state.board ||
+        typeof row.id !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(row.id) ||
+        typeof row.agent !== 'string' || !/^[A-Za-z0-9_.-]{1,128}$/.test(row.agent) ||
+        !Number.isSafeInteger(row.expires) || (row.created !== null && !Number.isSafeInteger(row.created)) ||
+        typeof row.revoked !== 'boolean')) throw new Refused('RELAY_RESPONSE', 'the relay token inventory is invalid; retry its configured address');
+    const tokens = listed.tokens.map(({ id, board, agent, created, expires, revoked }) => ({ id, board, agent, created, expires, revoked }));
+    return { ...tokenContext(state), tokens };
+  });
+}
+
+/** Revoke one credential listed on this board while retaining its cache so it cannot be silently reminted. */
+export async function relayRevoke(root, id, io) {
+  if (typeof id !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) {
+    throw new Refused('TOKEN_NOT_OWNED', 'name an opaque token id from pullboard relay tokens, never a credential value');
+  }
+  const file = linkFile(root);
+  return locked(file, async () => {
+    const state = managementLink(file);
+    const listed = await request(state, '/auth/tokens?board=' + state.board, {}, io);
+    if (!Array.isArray(listed.tokens) || !listed.tokens.some((row) => row.id === id)) {
+      throw new Refused('TOKEN_NOT_OWNED', 'choose a token listed on this board by pullboard relay tokens');
+    }
+    const result = await request(state, '/auth/tokens/revoke', { method: 'POST', body: { id } }, io);
+    for (const credential of Object.values(state.agentTokens ?? {})) if (credential.id === id) credential.revoked = true;
+    saveLink(file, state);
+    return { ...tokenContext(state), id: result.id, revoked: result.revoked };
   });
 }
 

@@ -113,7 +113,7 @@ test('HTTP person controls expose only scoped token metadata, and agent identity
   assert.equal(document.tokens.length, 1);
   assert.equal(document.tokens[0].id, scoped.id);
   assert.equal(document.tokens[0].agent, 'worker-one');
-  assert.deepEqual(Object.keys(document.tokens[0]).sort(), ['agent', 'board', 'expires', 'id', 'revoked']);
+  assert.deepEqual(Object.keys(document.tokens[0]).sort(), ['agent', 'board', 'created', 'expires', 'id', 'revoked']);
   assert.equal(JSON.stringify(document).includes(scoped.token), false, 'HTTP listing never exposes bearer values');
   const agentHeaders = { authorization: 'Bearer ' + scoped.token };
   const identity = await fetch(box.origin + '/auth/session?board=alpha', { headers: agentHeaders });

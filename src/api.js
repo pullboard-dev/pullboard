@@ -6,7 +6,7 @@ import * as store from './board.js';
 import { COORDINATOR, loadConfig } from './config.js';
 import { repoInfo } from './git.js';
 import { refusalDocument } from './json.js';
-import { relayLinked, relayOperation } from './relay.js';
+import { relayLinked, relayOperation, relayRevoke, relayTokens } from './relay.js';
 import { laneNames } from './lanes.js';
 import { listApiProjects } from './projects.js';
 import { Refused } from './refused.js';
@@ -203,6 +203,8 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     eventLogVersion: () => store.EVENT_LOG_VERSION,
     move: (board, body) => executeMove(board.root, body, runCommand),
     request: (board, body) => createRequest(board.root, body),
+    tokens: async (board) => (await relayTokens(board.root, { err() {} })).tokens,
+    revokeToken: (board, id) => relayRevoke(board.root, id, { err() {} }),
   });
 }
 
