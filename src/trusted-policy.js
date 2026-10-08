@@ -23,8 +23,23 @@ export function mainPolicy(root) {
   return policyAt(root, checkout.commit);
 }
 
+/** Retain the local primary branch outside replicated board data and read-only diagnostics [B34,V6]. */
+export function trunkRef(root, branch) {
+  const read = spawnSync('git', ['--no-replace-objects', 'config', '--local', '--get', 'pullboard.trunk'], {
+    cwd: root, env: cleanGitEnvironment(), encoding: 'utf8',
+  });
+  if (read.status !== 0 && read.status !== 1) throw new Refused('NO_POLICY', 'the retained trunk cannot be read; restore the local Git configuration and retry');
+  const current = read.status === 0 ? read.stdout.trim() : null;
+  if (branch === undefined || branch === current) return current;
+  const saved = spawnSync('git', ['--no-replace-objects', 'config', '--local', '--replace-all', 'pullboard.trunk', branch], {
+    cwd: root, env: cleanGitEnvironment(), encoding: 'utf8',
+  });
+  if (saved.status !== 0) throw new Refused('NO_POLICY', 'the trunk branch cannot be recorded; restore writable local Git configuration and retry');
+  return branch;
+}
+
 /** Refuse a candidate that conflicts with the current primary branch, without touching an index or worktree [B34,V6]. */
-export function requireTrunkMerge(root, commit, retainedRef = null) {
+export function requireTrunkMerge(root, commit, retainedRef = trunkRef(root)) {
   const checkout = mainCheckout(root);
   const branchRef = checkout?.branch ?? retainedRef;
   if (!branchRef?.startsWith('refs/heads/')) throw new Refused('NO_TRUNK', 'no trunk branch was recorded; check out the trunk branch in the main checkout once and run pullboard inbox');

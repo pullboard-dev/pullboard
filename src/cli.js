@@ -56,7 +56,7 @@ import { exportView, serveView } from './serve.js';
 import { serveApi } from './api.js';
 import { doctorProblems, doctrineProblems } from './doctor.js';
 import { staleFrozenItems, staleItemFinding } from './approved-rows.js';
-import { mainPolicy, itemPolicy, submissionPaths, frozenCheck, checkAtCommit, dependencySnapshots, requireTrunkMerge } from './trusted-policy.js';
+import { mainPolicy, itemPolicy, submissionPaths, frozenCheck, checkAtCommit, dependencySnapshots, requireTrunkMerge, trunkRef } from './trusted-policy.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
@@ -631,13 +631,7 @@ function withBoard(ctx, work) {
     store.closeBoard(board);
   };
   let result;
-  try {
-    if (ctx.info.isMain) {
-      const primary = mainCheckout(ctx.info.root);
-      if (primary?.branch) store.trunkRef(board, primary.branch);
-    }
-    result = work(board);
-  }
+  try { result = work(board); }
   catch (error) { finish(); throw error; }
   if (result && typeof result.then === 'function') return result.finally(finish);
   finish();
@@ -1443,7 +1437,7 @@ async function submitHere(ctx, id) {
   if (stray.length) throw new Refused('UNTRACKED', `commit or ignore ${stray.length} untracked file(s), e.g. ${stray[0]}`);
   const commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
-  withBoard(ctx, board => requireTrunkMerge(root, commit, store.trunkRef(board)));
+  requireTrunkMerge(root, commit);
   // Submit runs the gate itself, every time: a stamp from an earlier run is a file any agent can
   // write, so it never stands in for this run (V16). It starts on the commit submitted, and must end
   // on it too. What the gate's own code does in between is the submitted tree's, under review.
@@ -1455,7 +1449,7 @@ async function submitHere(ctx, id) {
       `when the gate ended, HEAD or a tracked file differed from ${commit.slice(0, 12)}, the commit it started on, so the gate did not end on what you would submit; leave the worktree alone until the gate finishes, then submit again`,
     );
   }
-  withBoard(ctx, board => requireTrunkMerge(root, commit, store.trunkRef(board))); // The trunk may have moved while the gate ran.
+  requireTrunkMerge(root, commit); // The trunk may have moved while the gate ran.
   await withBoard(ctx, async (board) => await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit }]));
   const pin = `refs/pullboard/items/${id}/${commit.slice(0, 12)}`;
   git(root, ['update-ref', pin, commit]);
@@ -1501,11 +1495,11 @@ async function verifyHere(ctx, id, { second, values }) {
     }
     if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
-      requireTrunkMerge(root, commit, store.trunkRef(board));
+      requireTrunkMerge(root, commit);
       if (!checkAtCommit(root, item).green) throw new Refused('CHECK_RED', 'the frozen item check is red at the submitted commit; reject with the failing behavior or ask the builder to fix and resubmit');
       const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
       submissionPaths(root, item, commit, { mainCommit: receipt?.policyCommit, dependencies: dependencySnapshots(board.db, item) });
-      requireTrunkMerge(root, commit, store.trunkRef(board)); // Re-read after the frozen check, before accepting.
+      requireTrunkMerge(root, commit); // Re-read after the frozen check, before accepting.
     }
     return await ordered(ctx, board, 'verify', [id, {
       agentId: me.id,
@@ -2340,13 +2334,8 @@ function rememberTrunk(io) {
     throw error;
   }
   if (!info.isMain) return;
-  const file = join(info.commonDir, 'pullboard', 'board.sqlite');
-  if (!existsSync(file)) return;
   const primary = mainCheckout(info.root);
-  if (!primary?.branch) return;
-  const board = store.openBoard(file, io.clock ?? store.systemClock);
-  try { store.trunkRef(board, primary.branch); }
-  finally { store.closeBoard(board); }
+  if (primary?.branch) trunkRef(info.root, primary.branch);
 }
 
 /** Run one command and emit its single versioned JSON result when requested (A1). */

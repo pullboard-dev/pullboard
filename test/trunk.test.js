@@ -242,8 +242,10 @@ test('[B34,V6] a detached coordinator accept checks the retained non-main trunk 
 test('[B34,V6] an unrecorded detached trunk refuses with NO_TRUNK and its repair', () => {
   const box = project('trunk');
   const commit = box.git(box.repo, 'rev-parse', 'HEAD');
-  box.git(box.repo, 'switch', '-q', '--detach', commit);
-  const before = checkoutState(box, box.repo);
-  assert.throws(() => requireTrunkMerge(box.repo, commit), error => error.code === 'NO_TRUNK' && /check out the trunk branch in the main checkout once/.test(error.message));
-  assert.deepEqual(checkoutState(box, box.repo), before);
+  const clone = join(box.dir, 'unrecorded-clone');
+  box.git(box.repo, 'clone', '-q', box.repo, clone);
+  box.git(clone, 'switch', '-q', '--detach', commit);
+  const before = checkoutState(box, clone);
+  assert.throws(() => requireTrunkMerge(clone, commit), error => error.code === 'NO_TRUNK' && /check out the trunk branch in the main checkout once/.test(error.message));
+  assert.deepEqual(checkoutState(box, clone), before);
 });
