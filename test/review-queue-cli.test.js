@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { main } from '../src/cli.js';
 import { serveApi } from '../src/api.js';
+import { loadConfig } from '../src/config.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const HOUR = 3_600_000;
@@ -48,7 +49,7 @@ async function project(t, ratio = 3) {
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', verify: { reviewRatio: ratio },
     lanes: { web: { owns: ['web/'], specs: ['G1'] }, review: { owns: [], specs: ['G1'] } }, shared: [] }));
   writeFileSync(join(root, 'SPEC.md'), '# Review fixture\n## G\n- G1 [approved, must] Every move keeps its evidence. | gate: true\n');
-  writeFileSync(join(root, 'PRACTICE.md'), '');
+  writeFileSync(join(root, loadConfig(root).practice), '');
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'chore: initialize review fixture');
   box.builder = join(dir, 'builder'); box.peer = join(dir, 'peer'); box.reviewer = join(dir, 'reviewer');
   for (const [path, branch] of [[box.builder, 'web/one'], [box.peer, 'web/two'], [box.reviewer, 'review/one']]) {

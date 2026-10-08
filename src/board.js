@@ -6,7 +6,7 @@
  * every move lands in an append-only event log (R2). The caller supplies what only git and the
  * spec know: the commit, the verifier's checkout, the frozen criterion.
  */
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -363,6 +363,11 @@ function logEvent(board, by, kind, itemId, detail = {}) {
     .run(now(board), by, kind, itemId, JSON.stringify(detail));
   board.lastEvent = board.db.prepare('SELECT * FROM event WHERE event_id = ?').get(inserted.lastInsertRowid);
   (board.emittedEvents ??= []).push(board.lastEvent);
+}
+
+/** Log an authenticated relay refusal without making an item, shout or verdict move [H2,H16]. */
+export function recordRelayRefusal(board, { by, sequence, kind, operation, actor, code }) {
+  logEvent(board, by, 'relay_refused', null, { sequence, kind, operation, actor, code });
 }
 
 /**
@@ -1151,10 +1156,10 @@ function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'of
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, decision: string, reason?: string, note?: string, head: string, digest: string, policy: string, familyPolicy?: string }} verdict
- * @returns {{ decision: string, reason: string }}
+ * @param {{ agentId: string, decision: string, reason?: string, note?: string, head: string, digest: string, policy: string, familyPolicy?: string, check?: 'none' | 'green' }} verdict
+ * @returns {{ decision: string, reason: string, check?: 'none' | 'green' }}
  */
-export function verify(board, id, { agentId, decision, reason, note = '', head, digest, policy, familyPolicy = 'off' }) {
+export function verify(board, id, { agentId, decision, reason, note = '', head, digest, policy, familyPolicy = 'off', check }) {
   const verb = { ACCEPT: 'accept', REJECT: 'reject' }[decision];
   if (!verb) throw new Refused('BAD_DECISION', 'the decision is accept or reject');
   const isAccept = verb === 'accept';
@@ -1192,8 +1197,10 @@ export function verify(board, id, { agentId, decision, reason, note = '', head, 
       },
       set: (found) => ({ item_verdict: decision, item_verified_by: isAccept ? agentId : null, item_owner: isAccept ? found.item_owner : null }),
     });
-    logEvent(board, agentId, verb, id, { reason: code, commit: item.item_commit });
-    return { decision, reason: code };
+    const detail = { reason: code, commit: item.item_commit };
+    if (isAccept && check !== undefined) detail.check = check;
+    logEvent(board, agentId, verb, id, detail);
+    return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}) };
   });
 }
 
@@ -1321,7 +1328,13 @@ export function getItem(board, id) {
  * @returns {any[]}
  */
 export function verdictsFor(board, id) {
-  return board.db.prepare('SELECT * FROM verdict WHERE item_id = ? ORDER BY verdict_id').all(id);
+  const verdicts = board.db.prepare('SELECT * FROM verdict WHERE item_id = ? ORDER BY verdict_id').all(id);
+  const receipts = board.db.prepare("SELECT event_kind, event_detail FROM event WHERE item_id = ? AND event_kind IN ('accept', 'reject') ORDER BY event_id").all(id);
+  return verdicts.map((verdict, index) => {
+    let detail = {};
+    try { detail = JSON.parse(receipts[index]?.event_detail ?? '{}'); } catch { /* Malformed legacy details remain unknown. */ }
+    return { ...verdict, check: detail.check ?? 'unknown' };
+  });
 }
 
 /**
@@ -1564,6 +1577,67 @@ export function events(board, { itemId } = {}) {
     .all(itemId ?? null, itemId ?? null);
 }
 
+/** Fact labels distinguish observations from judgements reserved to an item's live holder [B29,B30]. */
+export const FACT_KINDS = Object.freeze(['capture', 'measurement', 'note', 'diff', 'decision', 'rejection', 'supersession', 'root-cause']);
+const FACT_JUDGEMENTS = new Set(['decision', 'rejection', 'supersession', 'root-cause']);
+
+/** Validate a portable code binding without reading source on replicas that hold only board data [B32,H7]. */
+export function factReference(ref) {
+  if (ref === null || ref === undefined) return null;
+  const parts = typeof ref === 'string' && /^([^\r\n\0]+):(\d+)(?:-(\d+))?@([0-9a-f]{40})$/iu.exec(ref);
+  if (!parts) throw new Refused('BAD_FACT_REF', 'a fact reference needs path:line[-line]@full-sha with all 40 hexadecimal characters; use the full git commit id');
+  const [, path, first, last, commit] = parts;
+  const start = Number(first), end = Number(last ?? first);
+  if (path.startsWith('/') || path.includes('\\') || /^[A-Za-z]:/u.test(path) || path.split('/').some((part) => !part || part === '.' || part === '..') || !Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 1 || end < start) {
+    throw new Refused('BAD_FACT_REF', 'a fact reference needs a relative repo path and a positive ascending line range; use path:line[-line]@full-sha');
+  }
+  return { path, start, end, commit: commit.toLowerCase() };
+}
+
+/** Give facts the same stamped identity on CLI, API, export and replica reads [B29,B31]. */
+function factFromEvent(event) {
+  const detail = JSON.parse(event.event_detail);
+  return { id: detail.id, eventId: event.event_id, kind: detail.kind, text: detail.text,
+    by: event.event_by, at: event.event_at, ref: detail.ref ?? null, supersedes: detail.supersedes ?? null };
+}
+
+/** Read every move and fact in append order, including superseded facts and full original text [B31,B32]. */
+export function itemThread(board, id) {
+  itemById(board, id);
+  return events(board, { itemId: id }).map((event) => event.event_kind === 'fact'
+    ? { type: 'fact', ...factFromEvent(event) }
+    : { type: 'move', eventId: event.event_id, kind: event.event_kind, by: event.event_by,
+      at: event.event_at, detail: JSON.parse(event.event_detail) });
+}
+
+/** Add threads to public item projections without changing their existing fields [A1,A2,B32]. */
+export function projectItemThreads(board, state) {
+  return { ...state, items: state.items.map((item) => ({ ...item, thread: itemThread(board, item.id) })) };
+}
+
+/** Append a typed fact atomically; a correction never edits the original event [B29,B30,B31,B32].
+ * The internal factId is set from a sealed move's identity during replay, rather than replica-local sequence ids.
+ */
+export function appendFact(board, id, { agentId, kind, text, ref = null, supersedes = null, factId = randomUUID() }) {
+  return atomic(board, () => {
+    const item = current(board, itemById(board, id));
+    if (!board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(agentId)) throw new Refused('NO_AGENT', `no registered agent ${agentId}; join a worktree before appending a fact`);
+    if (!FACT_KINDS.includes(kind)) throw new Refused('BAD_FACT_KIND', `unknown fact kind ${String(kind)}; use ${FACT_KINDS.join(', ')}`);
+    if (typeof text !== 'string' || !text.trim()) throw new Refused('EMPTY_FACT', 'a fact needs nonempty text; supply the observation or judgement');
+    if ((FACT_JUDGEMENTS.has(kind) || supersedes !== null) && agentId !== COORDINATOR && (!isHeld(board, item) || item.item_owner !== agentId)) {
+      throw new Refused('FACT_JUDGEMENT', `only the item's live holder${isHeld(board, item) ? ' (' + item.item_owner + ')' : ''} or the coordinator may append a judgement or supersede a fact; append an observation or ask the coordinator`);
+    }
+    if (typeof factId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/u.test(factId)) throw new Refused('BAD_FACT_ID', 'a fact identity is invalid; retry with the current Pullboard engine');
+    if (board.db.prepare("SELECT 1 FROM event WHERE event_kind = 'fact' AND json_extract(event_detail, '$.id') = ?").get(factId)) throw new Refused('BAD_FACT_ID', 'this fact identity is already recorded; retry the original sealed move instead of appending it again');
+    if (supersedes !== null && (typeof supersedes !== 'string' || !itemThread(board, id).some((entry) => entry.type === 'fact' && entry.id === supersedes))) {
+      throw new Refused('NO_FACT', `no fact ${String(supersedes)} on item #${id}; use a fact id from pullboard show ${id} --json`);
+    }
+    const binding = factReference(ref);
+    logEvent(board, agentId, 'fact', id, { id: factId, kind, text, ref: binding, supersedes });
+    return factFromEvent(board.lastEvent);
+  });
+}
+
 /**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
  * dependencies are verified; for a verifier, the oldest submitted item it did not build. An agent
@@ -1696,10 +1770,12 @@ export function relatedItems(board, item, limit = 3) {
  *
  * @param {any} board
  * @param {string} lane
- * @param {{ agentId: string, reason: string }} hold
+ * @param {{ agentId: string, reason: string, asPerson?: boolean, channel?: string }} hold
  */
-export function holdLane(board, lane, { agentId, reason }) {
+export function holdLane(board, lane, { agentId, reason, asPerson = false, channel = 'terminal' }) {
   coordinatorOnly(agentId, 'holds a lane');
+  if (asPerson && !['terminal', 'view'].includes(channel)) throw new Refused('B26_PERSON_CHANNEL', 'record the person hold through the terminal or the view; run pullboard view');
+  const by = asPerson ? PERSON : agentId;
   if (!String(reason ?? '').trim()) throw new Refused('USAGE', `a hold needs a reason: pullboard hold ${lane} --reason "why"`);
   atomic(board, () => {
     board.db
@@ -1707,8 +1783,8 @@ export function holdLane(board, lane, { agentId, reason }) {
         `INSERT INTO hold (hold_lane, hold_reason, hold_by, hold_at) VALUES (?, ?, ?, ?)
            ON CONFLICT (hold_lane) DO UPDATE SET hold_reason = excluded.hold_reason, hold_by = excluded.hold_by, hold_at = excluded.hold_at`,
       )
-      .run(lane, reason.trim(), agentId, now(board));
-    logEvent(board, agentId, 'hold', null, { lane, reason: reason.trim() });
+      .run(lane, reason.trim(), by, now(board));
+    logEvent(board, by, 'hold', null, { lane, reason: reason.trim(), ...(asPerson ? { channel } : {}) });
   });
 }
 
@@ -1717,14 +1793,16 @@ export function holdLane(board, lane, { agentId, reason }) {
  *
  * @param {any} board
  * @param {string} lane
- * @param {{ agentId: string }} who
+ * @param {{ agentId: string, asPerson?: boolean, channel?: string }} who
  */
-export function releaseLane(board, lane, { agentId }) {
+export function releaseLane(board, lane, { agentId, asPerson = false, channel = 'terminal' }) {
   coordinatorOnly(agentId, 'releases a lane');
+  if (asPerson && !['terminal', 'view'].includes(channel)) throw new Refused('B26_PERSON_CHANNEL', 'record the person release through the terminal or the view; run pullboard view');
+  const by = asPerson ? PERSON : agentId;
   atomic(board, () => {
     const { changes } = board.db.prepare('DELETE FROM hold WHERE hold_lane = ?').run(lane);
     if (!changes) throw new Refused('NOT_HELD', `the ${lane} lane is not held`);
-    logEvent(board, agentId, 'unhold', null, { lane });
+    logEvent(board, by, 'unhold', null, { lane, ...(asPerson ? { channel } : {}) });
   });
 }
 

@@ -34,7 +34,7 @@ When `add` or `edit` supplies a new nonempty check, Pullboard measures it once i
 | `milestone move` | `version:number`, `milestone:object` |
 | `milestone edit` | `version:number`, `milestone:object` |
 | `milestone remove` | `version:number`, `milestone:object` |
-| `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array` |
+| `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array`, `thread:array` |
 | `status` | `version:number`, `me:object`, `mine:array`, `stats:object`, `reviewQueue:object`, `unread:number` |
 | `doctor` | `version:number`, `problems:array` |
 | `inbox` | `version:number`, `shouts:array` |
@@ -43,6 +43,7 @@ When `add` or `edit` supplies a new nonempty check, Pullboard measures it once i
 | `log` | `version:number`, `events:array` |
 | `add` | `version:number`, `item:object` |
 | `edit` | `version:number`, `item:object` |
+| `fact` | `version:number`, `item:number`, `fact:object` |
 | `escalate` | `version:number`, `id:number`, `from:string`, `to:string` |
 | `run` | `version:number`, `messages:array` |
 | `sweep` | `version:number`, `messages:array` |
@@ -92,6 +93,20 @@ When `add` or `edit` supplies a new nonempty check, Pullboard measures it once i
 When outstanding reviews reach `verify.reviewRatio` times the active reviewers (default 3, with zero reviewers counting as one), `next` first offers a review the agent may take. This creates no claim or reservation. Its additive v1 `offer` has the review's `item` id, exact `command` to reserve it, `queue` and `ratio`; `build` previews the otherwise available build or is `null`. `next --verify <id>` reserves explicitly. `next --build` claims explicitly; a fresh claim's event detail records `reviewSkipped` with the offered id (or `null`), ratio and queue snapshot. Renewing an existing claim creates no new skip.
 
 For HTTP `next`, a review offer returns success with `event: null`, `offer` and the ordinary CLI `result`. Send `args.build: true` to claim as before and receive the actual claim event. The unattended `run` command always supplies explicit build intent, records it on fresh claims, and prints the review backlog each iteration.
+
+## Item threads
+
+`pullboard fact <id> <kind> "<text>"` appends a fact to an existing item. The observation kinds are `capture`, `measurement`, `note` and `diff`; any registered agent may append them. The judgement kinds are `decision`, `rejection`, `supersession` and `root-cause`; only the item's live lease holder or the coordinator may append them. An expired lease gives no judgement permission. Facts do not change the item's status or its claim.
+
+The result is `{version: 1, item: <item-id>, fact: {...}}`. A fact has `id` (stable string identity), `eventId` (board-local event sequence), `kind`, exact `text`, `by` (registered author), `at` (UTC timestamp), `ref` and `supersedes`. The board supplies identity, author and time. `ref` and `supersedes` are `null` when omitted.
+
+Use `--ref src/file.js:12-30@<full-40-character-sha>` to bind a fact to a committed code range. A single line is `:12@...`. The reference becomes `{path, start, end, commit}`; paths are relative to the repo, line numbers are positive and ascending, and the commit is lowercase hexadecimal. Short hashes are refused with `BAD_FACT_REF`. Replicas validate this binding without fetching source code.
+
+A correction is a new fact with `--supersedes <fact-id>`. It requires the live holder or coordinator even when its kind is an observation. The earlier fact remains visible; supersession must name a fact on the same item. A missing or cross-item identity is refused with `NO_FACT`. Unsupported kinds receive `BAD_FACT_KIND`, empty text receives `EMPTY_FACT`, and unauthorized judgements or corrections receive `FACT_JUDGEMENT`.
+
+`show --json` retains its existing item fields and verdicts and adds `thread`. The HTTP state item's additive `thread` field has the same array. Entries are oldest first, ordered by the append-only event sequence. A fact entry is `{type: "fact", ...fact}`. A move entry is `{type: "move", eventId, kind, by, at, detail}`, with `detail` holding the original move's structured event detail. Text `show` prints these moves and facts as one timeline, including full references and both sides of a correction. Ordinary verdict summaries and `--history` remain available.
+
+The HTTP move is `{verb: "fact", item: 12, agent: "web-1", args: {kind: "measurement", text: "The check takes 8 seconds", ref: "src/file.js:12-30@<full-sha>"}}`. Omit `agent` to act as the coordinator; `args.supersedes` supplies a correction's earlier fact identity. The response carries the committed `fact` event and the CLI result. The event-log format stays at version 1 because facts use its existing immutable event rows; exports and imports preserve those rows. The sealed move engine advances to version 3 for this release so older engines refuse the new operation before replay.
 
 ## Refusals
 
@@ -182,3 +197,28 @@ HTTP refusals use the same versioned error envelope above: 400 for malformed cal
 The initial command output names `.pullboard/signers`, `.pullboard/first-commit` and `.pullboard/signers.initial` for staging and committing. Later sign-offs and signed signer-list changes are recorded in `.pullboard/signoffs.jsonl`; commit that file with the corresponding signer-list change.
 
 Every signed row and signer-list change binds the initial signer-list hash in its canonical text. Rewriting `.pullboard/signers.initial`, or relabelling that hash in earlier receipts, invalidates those receipts.
+
+## Sealed person requests
+
+A paired relay browser translates `add`, `shout`, `answer`, `hold` (including `args.off: true`), `spec-approve` and `spec-decline` into literal CLI intent. Its transport accepts `{verb, item?, args}` at the paired board's moves address and seals a separate request document before posting `{sequence, sealed}` to `/api/v1/boards/:board/requests`. It never sends plaintext arguments, an engine operation or the board key. The relay stores and orders that opaque envelope; it neither executes a command nor writes a repository. Agent credentials cannot submit person intent or person-attributed holds and releases.
+
+The device-only request format is `{version: 1, type: "person-request", id, move: {verb, item?, args}}`. This request version is independent of the ordinary move engine version. The stable `id` survives interrupted sends and sequence collisions. Browser storage keeps each pending request's ciphertext separately, so another tab cannot replace or clear it. A later board read reconciles pending sends with the relay's acknowledged prefix before retrying.
+
+The next ordinary local Pullboard command receives requests in relay order. One linked native device claims each request for ten minutes, measured exclusively from relay receipt timestamps, and runs its literal arguments through the actual CLI in the coordinator's primary checkout, outside the relay lock. Lane, brief, spec, person-channel and other CLI checks run there. Receiving a request never calls an engine operation directly. Its committed result travels as an ordinary move; durable request and move receipts prevent command retries from applying that result twice. A restarted device resumes its durable stages. After the executor lease expires, another linked device may claim the waiting request; each executor has distinct move ids, while the request’s atomic result and status prevent a late executor from creating another effect. Network or sign-in failures leave the request waiting.
+
+Local `GET /api/v1/boards/:board/state` and the device-decrypted relay presentation expose additive `state.personRequests`. Each entry has:
+
+| Field | Meaning |
+| --- | --- |
+| `id` | Stable request identity |
+| `sequence`, `at` | Original relay position and timestamp |
+| `by` | `person` for authenticated person intent; a refused sender names its authenticated actor |
+| `move` | Literal `{verb, item?, args}`, or `null` for refused malformed input |
+| `status` | `waiting`, `done` or `refused` |
+| `error` | Present for refusal: the original `{code, message, next}` CLI guidance, or a typed format/sender refusal |
+| `result`, `resultSequence` | Optional committed ordinary-move result and its relay position |
+| `coordinatorRequest` | Optional local shout id for a repository-change request |
+
+A browser action's decoded response is `{version: 1, event, result: {request}}`; `request` has the same status shape. `event` is the opaque acknowledgement, or `null` when reconciliation finds the earlier acknowledgement already in a sealed checkpoint. Direct actions become `done` when their actual CLI move commits. A refused add, for example, retains `UNKNOWN_SPEC` and the same explanation and next step as the terminal command, without creating an item. Answers always use the person channel; holds and releases keep the coordinator's execution guard while attributing the decision and event to the person.
+
+Row approval and decline first record the person's exact decision through the same authenticated view boundary as the local view, without editing any file. They then create a person-to-coordinator request to run `spec apply`. That request is first in coordinator `resume` and `inbox`. Its status stays `waiting` until the coordinator applies it and answers `done`, or answers `declined <reason>`. Decline resolves the request as `refused` with `REQUEST_DECLINED`, the coordinator's reason and a next step. The browser and relay never run `spec apply`.

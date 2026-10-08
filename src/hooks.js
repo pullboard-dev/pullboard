@@ -6,12 +6,12 @@
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { git, gitChildEnv, tryGit } from './git.js';
+import { DOCTRINE_FILE, LEGACY_DOCTRINE_FILE } from './config.js';
+import { git, gitChildEnv, mainCheckout, tryGit } from './git.js';
 import { Refused } from './refused.js';
 import { outOfLane } from './lanes.js';
 import { citedIds, deletedIds, idProblems } from './spec.js';
 import { approvedRowProblems } from './approved-rows.js';
-import { mainPolicy } from './trusted-policy.js';
 
 export const HOOKS = ['pre-commit', 'commit-msg', 'pre-push'];
 export const HOOKS_DIR = '.githooks';
@@ -237,7 +237,7 @@ export function preCommitProblems({ root, isMain, config, agent, boardFile }) {
 }
 
 /**
- * The commit being merged, only when it is already part of main's history.
+ * The commit being merged, only when it is already part of the primary checkout's history.
  *
  * @param {string} root
  * @returns {string | null}
@@ -251,7 +251,8 @@ function mainMergeBase(root) {
   if (tryGit(root, ['cat-file', '-e', `${merge}^{commit}`]).status !== 0) return null;
   if (tryGit(root, ['merge-base', '--is-ancestor', merge, 'HEAD']).status === 0) return null;
   let main;
-  try { main = mainPolicy(root).commit; } catch { return null; }
+  try { main = mainCheckout(root)?.commit; } catch { return null; }
+  if (!main) return null;
   return tryGit(root, ['merge-base', '--is-ancestor', merge, main]).status === 0
     ? merge
     : null;
@@ -338,12 +339,15 @@ export function applyFixers(root, fixers) {
  */
 export function deletedRowProblems(root, paths) {
   return paths.flatMap((path) => {
-    const before = tryGit(root, ['show', `HEAD:${path}`]);
-    if (before.status !== 0) return [];
-    const staged = tryGit(root, ['show', `:${path}`]);
-    if (staged.status !== 0) return [`${path} is deleted; ids are permanent: restore it`];
+    const names = [DOCTRINE_FILE, LEGACY_DOCTRINE_FILE].includes(path)
+      ? [path, path === DOCTRINE_FILE ? LEGACY_DOCTRINE_FILE : DOCTRINE_FILE]
+      : [path];
+    const before = names.map((name) => ({ ...tryGit(root, ['show', `HEAD:${name}`]), name })).find((file) => file.status === 0);
+    if (!before) return [];
+    const staged = names.map((name) => ({ ...tryGit(root, ['show', `:${name}`]), name })).find((file) => file.status === 0);
+    if (!staged) return [`${before.name} is deleted; ids are permanent: restore it`];
     return deletedIds(before.stdout, staged.stdout).map(
-      (id) => `${path}: ${id} is gone; ids are permanent: keep the row and mark it wont (won't build) or retired`,
+      (id) => `${staged.name}: ${id} is gone; ids are permanent: keep the row and mark it wont (won't build) or retired`,
     );
   });
 }

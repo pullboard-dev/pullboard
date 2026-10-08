@@ -173,7 +173,7 @@ export function renderSpecView({ title, spec, practice, signoffs, generatedAt, f
   const search = '<input class="search" type="search" placeholder="Filter rows" aria-label="Filter rows">';
   const practicePanel = practice?.exists
     ? sectionsHtml(practice, new Map(), false)
-    : `<p class="empty">No ${esc(files.practice)} yet. Run pullboard init to start from the standard practice.</p>`;
+    : `<p class="empty">No ${esc(files.practice)} yet. Run pullboard init to start from the standard doctrine.</p>`;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title || 'Spec')}</title><style>${STYLE}</style></head>
@@ -183,7 +183,7 @@ ${spec.intro.length ? `<p class="intro">${esc(spec.intro[0])}</p>` : ''}
 ${summaryHtml(spec, by)}
 <div class="tabs">
 <input type="radio" name="tab" id="t-spec" checked><input type="radio" name="tab" id="t-questions"><input type="radio" name="tab" id="t-signoff"><input type="radio" name="tab" id="t-practice">
-<nav><label for="t-spec">Spec</label><label for="t-questions">Open questions (${pending.length})</label><label for="t-signoff">Sign-off</label><label for="t-practice">Practice</label></nav>
+<nav><label for="t-spec">Spec</label><label for="t-questions">Open questions (${pending.length})</label><label for="t-signoff">Sign-off</label><label for="t-practice">Doctrine</label></nav>
 <section class="panel" id="p-spec">${search}${sectionsHtml(spec, by, true)}</section>
 <section class="panel" id="p-questions">${pending.length ? tableHtml('Waiting on the person', pending, by, false) : '<p class="empty">No open questions.</p>'}</section>
 <section class="panel" id="p-signoff">${search}${approved.length ? tableHtml('Approved rows, unsigned first', bySignoff, by, true) : '<p class="empty">No approved rows yet.</p>'}</section>
