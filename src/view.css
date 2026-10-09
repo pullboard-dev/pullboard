@@ -271,8 +271,22 @@ code.inline { padding: 0 3px; border-radius: 3px; background: color-mix(in srgb,
 .lane { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); font-size: 13px; }
 .lane:first-child { border-top: 0; }
 .rows { padding: 4px 10px 10px; }
-.rows h4 { margin: 12px 0 4px; font-size: 12.5px; color: var(--ink-muted); }
-.srow { display: grid; grid-template-columns: 4.4em 6.2em minmax(0, 1fr); gap: 8px; padding: 6px 4px; border-top: 1px solid var(--line); align-items: baseline; cursor: pointer; border-radius: 6px; }
+.spec-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0 4px; }
+.rows h4 { margin: 0; font-size: 12.5px; color: var(--ink-muted); }
+.spec-section-approve, .approve-row, .decline-row { min-height: 44px; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); cursor: pointer; }
+.spec-section-approve { color: var(--accent-strong); }
+.approve-row { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; }
+.decline-row { border-color: var(--reject); color: var(--reject); }
+.spec-decision-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin-top: 8px; cursor: default; }
+.detail-decision-actions { margin: 0 0 12px; }
+.spec-reason-backdrop { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; padding: 16px; background: rgb(15 23 42 / 45%); }
+.spec-reason-dialog { width: min(100%, 420px); display: grid; gap: 12px; padding: 18px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); box-shadow: 0 18px 60px rgb(0 0 0 / 24%); }
+.spec-reason-dialog h2 { margin: 0; font-size: 17px; }
+.spec-reason-dialog label { display: grid; gap: 5px; color: var(--ink-muted); font-size: 12px; }
+.spec-reason-dialog input { width: 100%; min-height: 44px; padding: 7px 9px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 13px; }
+.spec-reason-dialog .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.spec-reason-dialog .actions button { min-height: 44px; }
+.srow { display: grid; grid-template-columns: 4.4em minmax(6.2em, max-content) minmax(0, 1fr); gap: 8px; padding: 6px 4px; border-top: 1px solid var(--line); align-items: baseline; cursor: pointer; border-radius: 6px; }
 .srow:hover { background: var(--surface-2); }
 .srow.on { background: var(--accent-soft); }
 .srow code { font: 600 12px var(--mono); }
@@ -315,3 +329,7 @@ button, input, select, textarea, [data-item], [data-row] { min-height: 44px; }
 @media (width < 480px) {
   .toolbar .seg { flex: 1 1 100%; }
 }
+
+.spec-feedback { margin: 8px 0; padding: 8px; border: 1px solid var(--line-strong); border-radius: 8px; overflow-wrap: anywhere; font-size: 13px; }
+.spec-feedback.ok { color: var(--accent-strong); }
+.spec-feedback.no { color: var(--reject); }

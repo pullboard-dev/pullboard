@@ -1971,7 +1971,7 @@ test('spec rows read across a phone [N26,D1]', async () => {
     assert.match(doctrineRows, /data-row="doctrine:W1"[^]*?Numbers over adjectives\./, 'W1 from the configured doctrine is shown');
     assert.match(doctrineRows, /data-row="doctrine:W2"[^]*?One record per decision\./, 'W2 from the configured doctrine is shown');
     const style = await styleOf(view);
-    assert.match(style, /\n\.srow \{ display: grid; grid-template-columns: 4\.4em 6\.2em minmax\(0, 1fr\);/, 'wider, a row keeps its three columns');
+    assert.match(style, /\n\.srow \{ display: grid; grid-template-columns: 4\.4em minmax\(6\.2em, max-content\) minmax\(0, 1fr\);/, 'wider, a row keeps its three columns');
     const phone = /\n@media ([^{]+) \{ \.srow \{ grid-template-columns: auto minmax\(0, 1fr\); \} \.srow > span:last-child \{ grid-column: 1 \/ -1; \} \}\n/.exec(style);
     assert.ok(phone, 'on a phone the text takes the full width below the id and status');
     assert.equal(phone[1], '(width < 480px)', 'under 480px only: at 480px itself the three columns stay');
@@ -3140,6 +3140,138 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
   }
 });
 
+test('real Chrome records Spec row decisions from the row, detail and confirmed section controls [B26,N26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for Spec decision checks.');
+
+  /** Click a visible control through Chrome's input path without scrolling the result away. */
+  const click = async (chrome, selector) => {
+    const point = JSON.parse(await chrome.evaluate(`(() => {
+      const e = document.querySelector(${JSON.stringify(selector)});
+      if (!e) throw Error('missing ' + ${JSON.stringify(selector)});
+      e.scrollIntoView({block:'center'});
+      const r = e.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0 || r.top < 0 || r.bottom > innerHeight) throw Error('control is not visible: ' + ${JSON.stringify(selector)});
+      return JSON.stringify({x:r.x+r.width/2,y:r.y+r.height/2});
+    })()`));
+    await chrome.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
+    await chrome.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
+    await chrome.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
+  };
+
+  /** Run the full decision story in a fresh real board and browser at one viewport width. */
+  const runWidth = async (width) => {
+    const rows = Array.from({ length: 29 }, (_, index) => `- G${index + 1} [draft, must] Goal ${index + 1}. | gate: web test`);
+    const spec = `# Decisions\n\n## G · Goals\n${rows.join('\n')}\n\n## K · Follow-up\n- K1 [draft, must] Follow-up one. | gate: web test\n- K2 [draft, must] Follow-up two. | gate: web test\n`;
+    const box = machine();
+    const demo = project(box, `spec-decisions-${width}`, spec);
+    const view = await startView(box);
+    const profile = mkdtempSync(join(tmpdir(), `pullboard-spec-decisions-${width}-`));
+    let chrome;
+    try {
+      chrome = await openSnapshotChrome(executable, view.link.href, profile);
+      await chrome.waitFor("typeof data === 'object' && !!data && !!data.project");
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.evaluate("document.querySelector('[data-tab=spec]').click()");
+      await chrome.waitFor(`innerWidth === ${width} && !!document.querySelector('#spec-list [data-row="spec:G1"]')`);
+      await chrome.evaluate("document.querySelector('#spec-chips [data-rows=\"spec:all\"]').click()");
+      await chrome.waitFor("document.querySelector('#spec-list [data-row=\"spec:G2\"]') && document.querySelector('#count-spec').textContent === '31'");
+
+      const geometry = JSON.parse(await chrome.evaluate(`JSON.stringify({
+        overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        controls: [...document.querySelectorAll('#spec-list button[data-row-decision],#spec-list button[data-section-approve]')].map(e=>({height:e.getBoundingClientRect().height})),
+        rows: [...document.querySelectorAll('#spec-list .srow')].map(row=>{
+          const chip=row.querySelector(':scope > span:nth-child(2) .chip');
+          const text=row.querySelector(':scope > span:nth-child(3)');
+          if (!chip || !text) return {id:row.dataset.row, missing:true};
+          const a=chip.getBoundingClientRect(), b=text.getBoundingClientRect();
+          return {id:row.dataset.row, intersects:a.right>b.left && a.left<b.right && a.bottom>b.top && a.top<b.bottom};
+        })
+      })`));
+      assert.equal(geometry.overflow, false, `${width}: Spec has no horizontal overflow`);
+      assert.deepEqual(geometry.controls.filter((control) => control.height < 44), [], `${width}: row and section controls meet the 44px target`);
+      assert.deepEqual(geometry.rows.filter((row) => row.missing), [], `${width}: row status and text are present for every fixture row`);
+      if (width === 1280) assert.deepEqual(geometry.rows.filter((row) => row.intersects), [], '1280: stage chips never cover row text');
+
+      await chrome.evaluate("document.querySelector('#spec-list [data-row=\"spec:G2\"]').click()");
+      await chrome.waitFor("document.querySelector('#spec-detail h2 span')?.textContent === 'G2'");
+      assert.ok(await chrome.evaluate("document.querySelector('#spec-detail [data-row-decision=approve]') && document.querySelector('#spec-detail [data-row-decision=decline]')"), `${width}: selected G2 has both detail decisions`);
+      await click(chrome, '#spec-list [data-row="spec:G1"] [data-row-decision="approve"]');
+      await chrome.waitFor("!!document.querySelector('.spec-feedback.ok,.spec-feedback.no')");
+      let state = await boardOf(view, demo.repo);
+      assert.equal(state.spec.find((row) => row.id === 'G1')?.stage, 'approved, pending apply', `${width}: clicked G1 is approved`);
+      assert.equal(state.spec.find((row) => row.id === 'G2')?.decision, undefined, `${width}: selecting G2 does not redirect the clicked G1 decision`);
+      assert.ok(await chrome.evaluate(`(() => { const e=document.querySelector('#spec-list [data-row="spec:G2"]'); const r=e.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; })()`), `${width}: next undecided G2 stays in the viewport after G1 approval`);
+      assert.equal(await chrome.evaluate("document.querySelector('#count-spec').textContent"), '30', `${width}: Spec badge excludes the decided row`);
+      if (width === 1280) assert.ok(await chrome.evaluate(`(() => {
+        const row=document.querySelector('#spec-list [data-row="spec:G1"]');
+        const chip=row.querySelector(':scope > span:nth-child(2) .chip').getBoundingClientRect();
+        const text=row.querySelector(':scope > span:nth-child(3)').getBoundingClientRect();
+        return chip.right <= text.left || chip.bottom <= text.top || chip.top >= text.bottom;
+      })()`), '1280: the approved pending stage does not cover row text');
+
+      await chrome.evaluate("document.querySelector('#spec-chips [data-rows=\"spec:decide\"]').click()");
+      assert.equal(await chrome.evaluate("!!document.querySelector('#spec-list [data-row=\"spec:G1\"]')"), false, `${width}: approval immediately leaves Needs your decision`);
+      await chrome.evaluate("document.querySelector('#spec-chips [data-rows=\"spec:all\"]').click()");
+
+      await click(chrome, '#spec-detail [data-row-decision="decline"]');
+      assert.ok(await chrome.evaluate("!document.querySelector('#spec-decline-dialog').hidden && document.querySelector('#spec-decline-title').textContent === 'Decline G2'"), `${width}: G2 decline opens the reason form`);
+      assert.ok(await chrome.evaluate("[...document.querySelectorAll('#spec-decline-dialog input,#spec-decline-dialog button')].every(e => e.getBoundingClientRect().height >= 44)"), `${width}: decline reason and controls meet the 44px target`);
+      await click(chrome, '#spec-decline-cancel');
+      state = await boardOf(view, demo.repo);
+      assert.equal(state.events.filter((event) => event.event_kind === 'row_decision').length, 1, `${width}: cancelling decline records no event`);
+      assert.equal(state.spec.find((row) => row.id === 'G2')?.decision, undefined, `${width}: cancelling leaves G2 undecided`);
+
+      await click(chrome, '#spec-detail [data-row-decision="decline"]');
+      await chrome.evaluate("document.querySelector('#spec-decline-reason').value = 'Needs a clearer outcome'");
+      box.run(demo.repo, 'shout', 'person', `refresh probe ${width}`);
+      await chrome.waitFor(`data.project.shouts.some(shout => shout.shout_text === 'refresh probe ${width}')`);
+      assert.equal(await chrome.evaluate("document.querySelector('#spec-decline-reason').value"), 'Needs a clearer outcome', `${width}: typed reason survives a live refresh`);
+      await click(chrome, '#spec-decline-submit');
+      await chrome.waitFor("!!document.querySelector('#spec-detail .spec-feedback.ok,#spec-detail .spec-feedback.no')");
+
+      await chrome.evaluate("window.__sectionConfirm = null; window.confirm = message => { window.__sectionConfirm = message; return false; }");
+      const sectionSelector = `#spec-list [data-section-approve]`;
+      await chrome.evaluate(`(() => { const button=[...document.querySelectorAll(${JSON.stringify(sectionSelector)})].find(e=>e.parentElement.querySelector('h4')?.textContent.includes('Follow-up')); if(!button) throw Error('missing K section approval'); button.click(); })()`);
+      state = await boardOf(view, demo.repo);
+      assert.match(await chrome.evaluate('window.__sectionConfirm'), /Approve all 2 undecided rows in/, `${width}: section approval asks for confirmation`);
+      assert.equal(await chrome.evaluate("!!document.querySelector('#spec-list .spec-feedback')"), false, `${width}: dismissing the confirmation starts no move`);
+      assert.equal(state.events.filter((event) => event.event_kind === 'row_decision').length, 2, `${width}: dismissing section confirmation records no events`);
+      assert.equal(state.spec.find((row) => row.id === 'K1')?.decision, undefined, `${width}: dismissed section approval leaves K1 undecided`);
+
+      await chrome.evaluate("window.confirm = () => true");
+      await chrome.evaluate(`(() => { const button=[...document.querySelectorAll(${JSON.stringify(sectionSelector)})].find(e=>e.parentElement.querySelector('h4')?.textContent.includes('Follow-up')); if(!button) throw Error('missing K section approval'); button.click(); })()`);
+      await chrome.waitFor("document.querySelector('#spec-list [data-row=\"spec:K1\"]').innerText.includes('approved, pending apply') && document.querySelector('#spec-list [data-row=\"spec:K2\"]').innerText.includes('approved, pending apply')");
+      state = await boardOf(view, demo.repo);
+      const decisions = state.events.filter((event) => event.event_kind === 'row_decision');
+      assert.equal(decisions.length, 4, `${width}: approve, decline and two section rows produce four events`);
+      assert.deepEqual(decisions.map((event) => event.event_by), ['person', 'person', 'person', 'person'], `${width}: every decision is recorded by the person`);
+      assert.deepEqual(decisions.map((event) => JSON.parse(event.event_detail).channel), ['view', 'view', 'view', 'view'], `${width}: every decision uses the view channel`);
+      assert.equal(state.spec.find((row) => row.id === 'G2')?.stage, 'declined, pending apply', `${width}: G2 shows its pending decline stage`);
+      assert.equal(state.spec.find((row) => row.id === 'G2')?.decision?.reason, 'Needs a clearer outcome', `${width}: decline reason is in board state`);
+      assert.equal(state.spec.find((row) => row.id === 'K1')?.stage, 'approved, pending apply', `${width}: K1 was approved`);
+      assert.equal(state.spec.find((row) => row.id === 'K2')?.stage, 'approved, pending apply', `${width}: K2 was approved`);
+      assert.equal(state.spec.find((row) => row.id === 'G3')?.decision, undefined, `${width}: other section rows remain undecided`);
+      if (width === 1280) assert.ok(await chrome.evaluate(`['G1','G2','K1','K2'].every(id => {
+        const row=document.querySelector('#spec-list [data-row="spec:'+id+'"]');
+        const chip=row.querySelector(':scope > span:nth-child(2) .chip').getBoundingClientRect();
+        const text=row.querySelector(':scope > span:nth-child(3)').getBoundingClientRect();
+        return chip.right <= text.left || chip.bottom <= text.top || chip.top >= text.bottom;
+      })`), '1280: every pending decision stage has room beside its row text');
+      await chrome.evaluate("document.querySelector('#spec-chips [data-rows=\"spec:decide\"]').click()");
+      await chrome.waitFor("document.querySelector('#spec-list [data-row=\"spec:G3\"]') && !document.querySelector('#spec-list [data-row=\"spec:G1\"]') && !document.querySelector('#spec-list [data-row=\"spec:G2\"]') && !document.querySelector('#spec-list [data-row=\"spec:K1\"]') && !document.querySelector('#spec-list [data-row=\"spec:K2\"]')");
+      assert.ok(await chrome.evaluate("document.querySelector('#spec-chips [data-rows=\"spec:decide\"]').innerText.includes('27')"), `${width}: Needs your decision excludes all four decided rows`);
+      assert.deepEqual(chrome.exceptions, [], `${width}: Chrome reports no uncaught exceptions`);
+    } finally {
+      if (chrome) await closeSnapshotChrome(chrome);
+      await view.stop();
+      rmSync(profile, { recursive: true, force: true });
+    }
+  };
+
+  await runWidth(375);
+  await runWidth(1280);
+});
 test('static export redacts structured checkout paths but preserves paths people wrote [A10]', async () => {
   const box = machine();
   const alpha = project(box, 'private-project');
