@@ -1087,7 +1087,13 @@ export function reviewHolder(board, item) {
  */
 export function reviewReleaseNoteProblem(board, itemId, agentId, note) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < 5) return null;
-  const item = getItem(board, itemId);
+  let item;
+  try { item = getItem(board, itemId); }
+  catch (error) {
+    // Missing items keep their native, ordered refusal; this preflight only validates review notes.
+    if (error instanceof Refused && error.code === 'NO_ITEM') return null;
+    throw error;
+  }
   if (item.item_status !== 'submitted' || reviewHolder(board, item) !== agentId) return null;
   const reason = typeof note === 'string' ? note.trim() : '';
   if (!reason || /[\r\n\u2028\u2029]/u.test(reason)) {

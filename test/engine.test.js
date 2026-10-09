@@ -281,8 +281,10 @@ test('released engine 3 stops a background completion before changing rows or it
   for (const board of copies) {
     store.editItem(board, item, { agentId: 'coordinator', check: expected.command, checkBaseline: { ...expected, result: 'pending' } });
     checkpointSequence(board, 7);
-    const move = prepareEngineMove(board, 'completeCheckBaseline', [item, { agentId: 'coordinator', expected, baseline }]);
-    assert.equal(move.engine, 4);
+    const currentMove = prepareEngineMove(board, 'completeCheckBaseline', [item, { agentId: 'coordinator', expected, baseline }]);
+    assert.equal(currentMove.engine, ENGINE_VERSION);
+    assert.ok(ENGINE_VERSION >= 4, 'the current engine supports background completions');
+    const move = { ...currentMove, engine: 4 }; // Keep the actual v4-versus-released-v3 compatibility boundary.
     const before = exportBoard(board);
     assert.throws(() => released.applyRelayMove(board, move, { sequence: 8, at: CLAIM_AT, kind: 'move', sender }), error => {
       assert.equal(error.code, 'ENGINE_VERSION');
