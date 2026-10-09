@@ -14,19 +14,35 @@ import { createGitHubClient } from '../relay/github.js';
 import { githubFixture } from './relay-fixture.js';
 
 const CLI = resolve(import.meta.dirname, '../bin/pullboard.js');
+const CLI_PRODUCT_DEADLINE_MS = 15_000;
+const SNAPSHOT_UPLOAD_BOUND_MS = 10_000;
+const STATUS_SNAPSHOT_UPLOADS = 3;
+const CLI_DEADLINE_MARGIN_MS = 10_000;
+
+/** Derive a private CLI child deadline from the product bound and its asserted upload count. */
+export function cliChildDeadlineMs(snapshotUploads) {
+  assert.ok(Number.isSafeInteger(snapshotUploads) && snapshotUploads >= 0, 'snapshot upload count is a nonnegative integer');
+  return Math.max(CLI_PRODUCT_DEADLINE_MS, snapshotUploads * SNAPSHOT_UPLOAD_BOUND_MS) + CLI_DEADLINE_MARGIN_MS;
+}
 
 /** Capture a real child result without exposing its private output in failure diagnostics. */
-function childResult(root, env, argv) {
+function childResult(root, env, argv, snapshotUploads = STATUS_SNAPSHOT_UPLOADS) {
   return new Promise((resolveResult, reject) => {
+    const startedAt = Date.now();
+    const command = argv[0] === CLI ? (argv[1] ?? 'CLI') : (argv[0] ?? 'script');
+    const childDeadlineMs = cliChildDeadlineMs(snapshotUploads);
     const child = spawn(process.execPath, argv, { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
-    const timer = setTimeout(() => child.kill('SIGKILL'), 25000);
+    let exceededDeadline = false;
+    const timer = setTimeout(() => { exceededDeadline = true; child.kill('SIGKILL'); }, childDeadlineMs);
     child.stdout.setEncoding('utf8').on('data', part => { stdout += part; });
     child.stderr.resume();
     child.once('error', error => { clearTimeout(timer); reject(error); });
     child.once('close', (code, signal) => {
       clearTimeout(timer);
-      if (signal) return reject(new Error('private relay fixture child exceeded its deadline'));
+      if (signal) return reject(new Error(exceededDeadline
+        ? `Private relay fixture ${command} exceeded its ${childDeadlineMs}ms deadline after ${Date.now() - startedAt}ms.`
+        : `Private relay fixture ${command} ended with signal ${signal} after ${Date.now() - startedAt}ms.`));
       let document;
       try { document = JSON.parse(stdout); }
       catch { return reject(new Error('private relay fixture child did not return JSON')); }
@@ -36,7 +52,7 @@ function childResult(root, env, argv) {
 }
 
 /** Start an isolated board with fallback-file keys and a real authorized loopback relay. */
-export async function relayClientFixture(t) {
+export async function relayClientFixture(t, { cliChildren } = {}) {
   const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-relay-cleanup-')));
   const root = join(scratch, 'repo');
   const home = join(scratch, 'home');
@@ -64,6 +80,14 @@ export async function relayClientFixture(t) {
   let override = null;
   let mintFailures = 0;
   let refuseEventReads = false;
+  const injectedSnapshotWriteDelayMs = Number(process.env.PULLBOARD_TEST_SNAPSHOT_WRITE_DELAY_MS ?? 0);
+  assert.ok(Number.isSafeInteger(injectedSnapshotWriteDelayMs) && injectedSnapshotWriteDelayMs >= 0 && injectedSnapshotWriteDelayMs <= 15000,
+    'injected snapshot delay is within the product wait bound');
+  let snapshotWriteDelayMs = 0;
+  let snapshotWriteCount = 0;
+  const snapshotWriteDelays = [];
+  let stateReadDelayMs = 0;
+  let stateReadStarted = 0;
   let refuseSnapshotWrites = false;
   let refuseRequestWrites = false;
   let signIn;
@@ -74,6 +98,7 @@ export async function relayClientFixture(t) {
   const privateKeys = new Set();
   let keyLeaked = false;
   const server = createServer(async (req, res) => {
+    if (req.method === 'PUT' && /\/api\/v1\/boards\/[0-9a-f]{32}\/state$/.test(req.url ?? '')) snapshotWriteCount += 1;
     const requestChunks = [];
     const responseChunks = [];
     const request = new Transform({
@@ -132,6 +157,17 @@ export async function relayClientFixture(t) {
       res.end(JSON.stringify({ version: 1, error: { code: 'RELAY_UNAVAILABLE', message: 'fixture snapshot outage' } }));
       return;
     }
+    const stateSnapshotDelayMs = Math.max(snapshotWriteDelayMs, injectedSnapshotWriteDelayMs);
+    if (stateSnapshotDelayMs && req.method === 'PUT' && /\/api\/v1\/boards\/[0-9a-f]{32}\/state$/.test(req.url ?? '')) {
+      const delay = stateSnapshotDelayMs;
+      const delayedAt = Date.now();
+      await new Promise(resolveDelay => setTimeout(resolveDelay, delay));
+      snapshotWriteDelays.push(Date.now() - delayedAt);
+    }
+    if (stateReadDelayMs && req.method === 'GET' && /\/api\/v1\/boards\/[0-9a-f]{32}\/state$/.test(req.url ?? '')) {
+      stateReadStarted += 1;
+      await new Promise(resolveDelay => setTimeout(resolveDelay, stateReadDelayMs));
+    }
     if (await signIn(request, res)) return;
     await api(request, res);
   });
@@ -167,7 +203,39 @@ export async function relayClientFixture(t) {
     });
   }
   /** Invoke the production CLI in this private repository. */
-  async function cli(...args) { return childResult(root, env, [CLI, ...args, '--json']); }
+  let cliChildIndex = 0;
+  /** Verify and consume the next optional test-flow child descriptor. */
+  function plannedSnapshotUploads(args) {
+    if (!cliChildren) return undefined;
+    const step = cliChildren[cliChildIndex++];
+    assert.ok(step, `unexpected private CLI child: ${args.slice(0, 2).join(' ')}`);
+    assert.deepEqual(args.slice(0, step.command.length), step.command, `private CLI child ${cliChildIndex} matches its budget descriptor`);
+    return step.snapshotUploads;
+  }
+  /** Run one CLI child and verify its observed uploads against the plan when the test supplied one. */
+  async function runCliChild(args, requestedUploads) {
+    const plannedUploads = plannedSnapshotUploads(args);
+    const snapshotUploads = plannedUploads ?? requestedUploads;
+    const writesBefore = snapshotWriteCount;
+    const result = await childResult(root, env, [CLI, ...args, '--json'], snapshotUploads);
+    if (cliChildren) {
+      assert.equal(snapshotWriteCount - writesBefore, snapshotUploads,
+        `private CLI child ${cliChildIndex} uploads its declared number of snapshots`);
+    }
+    if (cliChildren && requestedUploads !== undefined) {
+      assert.equal(requestedUploads, snapshotUploads, `private CLI child ${cliChildIndex} uses its declared upload count`);
+    }
+    return result;
+  }
+  /** Invoke the production CLI in this private repository under its planned budget, when present. */
+  async function cli(...args) {
+    return runCliChild(args);
+  }
+  /** Bound a CLI child using the exact snapshot count asserted by its fixture flow. */
+  async function cliWithSnapshotUploads(snapshotUploads, ...args) {
+    cliChildDeadlineMs(snapshotUploads);
+    return runCliChild(args, snapshotUploads);
+  }
   assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, env }).status, 0);
   writeFileSync(join(root, 'README.md'), 'private relay fixture project\n', { mode: 0o600 });
   assert.equal(spawnSync('git', ['add', 'README.md'], { cwd: root, env }).status, 0);
@@ -266,11 +334,29 @@ export async function relayClientFixture(t) {
   }
   return {
     transit, relayDirectory: join(scratch, 'relay'), authDatabase, otherDeviceJoin,
-    root, env, origin, lane, before, linkFile, keyFile, calls, moveAcks, cli, link, requireEngineThree, otherDeviceOff, additionalBoard, script, stopRelay, restartRelay,
+    root, env, origin, lane, before, linkFile, keyFile, calls, moveAcks, cli, cliWithSnapshotUploads, link, requireEngineThree, otherDeviceOff, additionalBoard, script, stopRelay, restartRelay,
+    /** Assert the test consumed every declared child budget, with no hidden CLI calls. */
+    assertCliChildrenComplete() {
+      if (cliChildren) assert.equal(cliChildIndex, cliChildren.length, 'every planned private CLI child ran exactly once');
+    },
     advance(days) { time = Date.now() + days * 86400000; },
     overrideDelete(value) { override = value; },
     failTokenMints(count) { mintFailures = count; },
     refuseSnapshotWrites(value) { refuseSnapshotWrites = value; },
+    /** Delay each real relay snapshot upload until disabled to model late native checkpoints. */
+    delaySnapshotWrites(ms) {
+      assert.ok(Number.isSafeInteger(ms) && ms >= 0 && ms <= 15000, 'snapshot delay is within the product wait bound');
+      snapshotWriteDelayMs = ms;
+    },
+    /** Return observed delays for the fixture's real snapshot endpoint. */
+    snapshotWriteDelays() { return [...snapshotWriteDelays]; },
+    /** Hold real state reads long enough to observe their pending-request diagnostic. */
+    delayStateReads(ms) {
+      assert.ok(Number.isSafeInteger(ms) && ms >= 0 && ms <= 30000, 'state read hold is bounded');
+      stateReadDelayMs = ms;
+    },
+    /** Return how many state reads reached the private relay. */
+    stateReadStarted() { return stateReadStarted; },
     refuseRequestWrites(value) { refuseRequestWrites = value; },
     mainURL: new URL('../src/cli.js', import.meta.url).href,
     keyInRequest() { return keyLeaked; },
