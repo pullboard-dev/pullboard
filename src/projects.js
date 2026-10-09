@@ -203,12 +203,12 @@ export function listProjects({ pruneMissing = true } = {}) {
 }
 
 /**
- * Read the API's registered projects while preserving unreadable entries for warnings.
+ * Read API projects, pruning missing folders while preserving existing unreadable entries for warnings.
  *
  * @returns {{ root: string, name: string, project: string, added: string }[]}
  */
 export function listApiProjects() {
-  return listProjects({ pruneMissing: false });
+  return listProjects();
 }
 
 /**
