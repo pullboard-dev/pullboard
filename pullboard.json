@@ -63,7 +63,8 @@
         "src/cockpit.js",
         "src/serve.js",
         "src/view.css",
-        "test/cockpit.test.js"
+        "test/cockpit.test.js",
+        "test/journeys.test.js"
       ],
       "specs": [
         "N26",
