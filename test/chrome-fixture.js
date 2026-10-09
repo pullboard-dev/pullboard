@@ -2,6 +2,7 @@
 import { spawn } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { join, resolve } from 'node:path';
 
 const STARTUP_TIMEOUT_MS = 30_000;
@@ -128,34 +129,60 @@ export async function startChrome({
     const port = await readDevToolsPort(profile, launched, deadline);
     const target = await createPageTarget(port, deadline);
     socket = await connectDevTools(target.webSocketDebuggerUrl, deadline);
-    const send = createSender(socket, pending, () => ++id, commandTimeoutMs);
+    const loopDelay = monitorEventLoopDelay({ resolution: 10 });
+    loopDelay.enable();
+    const relayRequests = new Set();
+    const send = createSender(socket, pending, () => ++id, commandTimeoutMs, loopDelay, relayRequests);
     const evaluate = createEvaluator(send);
     let closed = false;
+    let taskSequence = 0;
     /** Navigate the existing isolated browser profile to a local or test-owned URL. */
     async function navigate(nextUrl) {
-      await send('Page.navigate', { url: nextUrl });
+      await send('Page.navigate', { url: nextUrl }, 'navigate page');
     }
     /** Wait until a page expression becomes truthy before its command deadline. */
-    async function waitFor(expression, timeoutMs = commandTimeoutMs) {
+    async function waitFor(expression, timeoutMs = commandTimeoutMs, label = 'wait for page condition') {
       const waitDeadline = Date.now() + timeoutMs;
       while (Date.now() < waitDeadline) {
-        if (await evaluate(expression)) return;
+        if (await evaluate(expression, label)) return;
         await pause(50);
       }
-      throw new Error('Browser condition did not arrive before its deadline.');
+      throw new Error(`Browser condition "${label}" did not arrive within ${timeoutMs}ms.`);
+    }
+    /** Start asynchronous page work without holding a CDP Runtime.evaluate command open. */
+    async function startTask(expression, label) {
+      const taskId = '__pullboardFixtureTask' + ++taskSequence;
+      const key = JSON.stringify(taskId);
+      await evaluate(`(() => { window[${key}] = null; Promise.resolve().then(() => (${expression}))
+        .then(value => { window[${key}] = { value }; }, error => { window[${key}] = { error: { code: error?.code ?? null, message: error?.message ?? 'page operation failed' } }; }); return true; })()`, label);
+      return taskId;
+    }
+    /** Poll asynchronous page work while each DevTools command stays short. */
+    async function pollTask(taskId, timeoutMs = 25_000, label = 'poll page operation') {
+      const key = JSON.stringify(taskId);
+      await waitFor(`window[${key}] !== null && window[${key}] !== undefined`, timeoutMs, label);
+      const result = await evaluate(`window[${key}]`, label + ' result');
+      if (result?.error) {
+        const error = new Error(`${label} failed${result.error.code ? ' [' + result.error.code + ']' : ''}: ${result.error.message}`);
+        if (result.error.code) error.code = result.error.code;
+        throw error;
+      }
+      return result?.value;
     }
     /** Close once; remove an owned profile only after the full Chrome process group is gone. */
     async function close() {
       if (closed) return;
       closed = true;
       try { socket.close(); } catch { /* The DevTools socket already closed. */ }
+      loopDelay.disable();
       rejectPending(pending, 'Isolated Chrome closed before a command completed.');
       await launched.close();
       if (ownedProfile) rmSync(profile, { recursive: true, force: true });
     }
-    await send('Page.enable');
-    await send('Runtime.enable');
-    await send('Page.navigate', { url });
+    await send('Network.enable', {}, 'enable network diagnostics');
+    await send('Page.enable', {}, 'enable page diagnostics');
+    await send('Runtime.enable', {}, 'enable runtime diagnostics');
+    await send('Page.navigate', { url }, 'open initial page');
     const launchDurationMs = launched.launchDurationMs;
     process.stderr.write(`Chrome ready in ${launchDurationMs}ms (${startupTimeoutMs}ms DevTools budget)\n`);
     return {
@@ -165,6 +192,8 @@ export async function startChrome({
       navigate,
       evaluate,
       waitFor,
+      startTask,
+      pollTask,
       send,
       close,
     };
@@ -222,11 +251,22 @@ async function connectDevTools(debuggerUrl, deadline) {
 }
 
 /** Create a CDP command sender that correlates responses and bounds every request. */
-function createSender(socket, pending, nextId, timeoutMs) {
+function createSender(socket, pending, nextId, timeoutMs, loopDelay, relayRequests) {
   /** Resolve or reject the request matching one CDP response without logging its payload. */
   function onMessage(event) {
     let message;
     try { message = JSON.parse(String(event.data)); } catch { return; }
+    if (message.method === 'Page.frameNavigated' && !message.params?.frame?.parentId) relayRequests.clear();
+    if (message.method === 'Network.requestWillBeSent') {
+      const request = message.params?.request;
+      const url = request?.url ?? '';
+      const eventStream = /\/api\/v1\/boards\/[0-9a-f]{32}\/events(?:\?|$)/.test(url)
+        && /text\/event-stream/i.test(request?.headers?.Accept ?? request?.headers?.accept ?? '');
+      if (/\/api\/v1\/boards\//.test(url) && !eventStream) relayRequests.add(message.params.requestId);
+    }
+    if (['Network.loadingFinished', 'Network.loadingFailed'].includes(message.method)) {
+      relayRequests.delete(message.params?.requestId);
+    }
     const waiter = pending.get(message.id);
     if (!waiter) return;
     pending.delete(message.id);
@@ -235,13 +275,19 @@ function createSender(socket, pending, nextId, timeoutMs) {
     else waiter.resolve(message.result);
   }
   socket.addEventListener('message', onMessage);
-  return (method, params = {}) => new Promise((resolveResult, rejectResult) => {
+  return (method, params = {}, label = method) => new Promise((resolveResult, rejectResult) => {
     const requestId = nextId();
+    const startedAt = Date.now();
+    const maxDelayAtSend = loopDelay.max;
+    const timeoutMessage = () => {
+      const maxDelayRise = Math.max(0, loopDelay.max - maxDelayAtSend);
+      return `DevTools ${method} "${label}" timed out after ${Date.now() - startedAt}ms; maximum event-loop delay ${Math.round(maxDelayRise / 1e6)}ms; relay request pending: ${relayRequests.size > 0}.`;
+    };
     const timer = setTimeout(() => {
       pending.delete(requestId);
-      rejectResult(new Error(`DevTools command timed out: ${method}.`));
+      rejectResult(new Error(timeoutMessage()));
     }, timeoutMs);
-    pending.set(requestId, { resolve: resolveResult, reject: rejectResult, timer, method });
+    pending.set(requestId, { resolve: resolveResult, reject: rejectResult, timer, method, label });
     try { socket.send(JSON.stringify({ id: requestId, method, params })); }
     catch {
       clearTimeout(timer);
@@ -253,8 +299,8 @@ function createSender(socket, pending, nextId, timeoutMs) {
 
 /** Evaluate a page expression by value, without including page content in failures. */
 function createEvaluator(send) {
-  return async (expression) => {
-    const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+  return async (expression, label = 'evaluate page expression') => {
+    const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, label);
     if (result.exceptionDetails) throw new Error('Browser evaluation failed.');
     return result.result?.value;
   };

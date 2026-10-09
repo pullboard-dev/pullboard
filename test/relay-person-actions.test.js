@@ -28,45 +28,46 @@ async function pairedTransport(chrome, box, title) {
   await signIn(chrome, box);
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + key);
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')');
-  await chrome.evaluate(`(async () => {
+  const task = await chrome.startTask(`(async () => {
     const { createTransport } = await import('/relay/client.js');
     window.__personActionTransport = await createTransport({ onUpdate: () => {} });
     return true;
-  })()`);
+  })()`, 'initialize paired person transport');
+  await chrome.pollTask(task, 25000, 'initialize paired person transport');
   return link;
 }
 
 /** Submit literal person intent through the browser-owned transport. */
 async function personAction(chrome, board, move) {
-  return chrome.evaluate('window.__personActionTransport.request('
-    + JSON.stringify('/api/v1/boards/' + board + '/moves') + ',' + JSON.stringify(move) + ')');
+  const task = await chrome.startTask('window.__personActionTransport.request('
+    + JSON.stringify('/api/v1/boards/' + board + '/moves') + ',' + JSON.stringify(move) + ')', 'send person action');
+  return chrome.pollTask(task, 25000, 'send person action');
 }
 
-/** Poll checkpoint completion separately from CDP's 15-second per-evaluation deadline. */
+/** Poll checkpoint completion separately from CDP's bounded evaluation deadline. */
 async function waitRequest(chrome, board, id, status) {
   const path = '/api/v1/boards/' + board + '/state';
   const predicate = `value.state?.personRequests?.some(entry => entry.id === ${JSON.stringify(id)} && entry.status === ${JSON.stringify(status)})`;
-  // A serialized stream task may wait up to 15 seconds for a checkpoint. Let the page finish
-  // that task and perform another state read, while each CDP evaluation remains synchronous.
-  await chrome.evaluate(`(() => {
-    window.__personActionReceipt = null;
-    (async () => {
-      const deadline = Date.now() + 30000;
+  // Product checkpoint work is bounded at 15 seconds; ten seconds remain for scheduling and polling.
+  const task = await chrome.startTask(`(async () => {
+      const deadline = Date.now() + 25000;
       while (Date.now() < deadline) {
         try {
           const value = await window.__personActionTransport.request(${JSON.stringify(path)});
-          if (${predicate}) { window.__personActionReceipt = { value }; return; }
+          if (${predicate}) return value;
         } catch { /* A checkpoint still being uploaded leaves the request waiting. */ }
         await new Promise(resolve => setTimeout(resolve, 50));
       }
-      window.__personActionReceipt = { error: 'The native request status did not reach the paired browser.' };
-    })();
-    return true;
-  })()`);
-  await chrome.waitFor('window.__personActionReceipt !== null', 45000);
-  const receipt = await chrome.evaluate('window.__personActionReceipt');
-  assert.equal(receipt.error, undefined, receipt.error);
-  return receipt.value;
+      throw new Error('The native request status did not reach the paired browser.');
+    })()`, 'wait for native person request status');
+  return chrome.pollTask(task, 30000, 'wait for native person request status');
+}
+
+/** Read the final relay state without holding Runtime.evaluate open across network work. */
+async function finalState(chrome, board) {
+  const task = await chrome.startTask('window.__personActionTransport.request('
+    + JSON.stringify('/api/v1/boards/' + board + '/state') + ')', 'read final person-action state');
+  return chrome.pollTask(task, 25000, 'read final person-action state');
 }
 
 test('real paired person adds, answers a person decision, and holds then releases a lane [H12,H16,B26]', {
@@ -136,7 +137,7 @@ test('real paired person adds, answers a person decision, and holds then release
   });
   assert.equal((await box.cli('status')).code, 0);
   await waitRequest(chrome, link.board, invalid.result.request.id, 'refused');
-  const state = await chrome.evaluate('window.__personActionTransport.request(' + JSON.stringify('/api/v1/boards/' + link.board + '/state') + ')');
+  const state = await finalState(chrome, link.board);
   const refusal = state.state.personRequests.find(row => row.id === invalid.result.request.id).error;
   assert.equal(refusal.code, 'NO_LANE');
   exported = (await box.cli('export')).document;
@@ -144,13 +145,44 @@ test('real paired person adds, answers a person decision, and holds then release
   const brief = 'Files:\n- ../foreign.js\nTest:\n- Keep the file in its own lane';
   const foreign = await personAction(chrome, link.board, { verb: 'add', args: { lane: box.lane, title: 'PERSON_ACTION_FOREIGN_BRIEF', brief } });
   assert.equal((await box.cli('status')).code, 0);
-  const rejected = (await chrome.evaluate('window.__personActionTransport.request(' + JSON.stringify('/api/v1/boards/' + link.board + '/state') + ')')).state.personRequests.find(row => row.id === foreign.result.request.id);
+  const rejected = (await finalState(chrome, link.board)).state.personRequests.find(row => row.id === foreign.result.request.id);
   assert.equal(rejected.status, 'refused');
   assert.equal(rejected.error.code, 'BRIEF_LANE');
   const terminal = await box.cli('add', box.lane, 'PERSON_ACTION_FOREIGN_BRIEF', '--brief', brief);
   assert.equal(terminal.code, 1);
   assert.deepEqual(rejected.error, terminal.document.error, 'lane preflight retains the ordinary CLI refusal and repair');
 
+});
+
+test('a person action completes with late native snapshots after 8 seconds [H12,H16]', {
+  skip: !findChromeExecutable() && 'Chrome is not installed',
+}, async t => {
+  const box = await relayClientFixture(t);
+  const title = 'PERSON_ACTION_LATE_SNAPSHOT_READY';
+  assert.equal((await box.cli('add', box.lane, title)).code, 0);
+  await box.link();
+  const chrome = await startChrome();
+  t.after(() => chrome.close());
+  const link = await pairedTransport(chrome, box, title);
+  const action = await personAction(chrome, link.board, {
+    verb: 'shout', args: { to: 'coordinator', text: 'PERSON_ACTION_LATE_SNAPSHOT' },
+  });
+  assert.equal(action.result.request.status, 'waiting');
+
+  const delayedBefore = box.snapshotWriteDelays().length;
+  box.delaySnapshotWrites(8000);
+  const native = box.cliWithSnapshotUploads(3, 'status').then(result => ({ result }), error => ({ error }));
+  const status = await native;
+  box.delaySnapshotWrites(0);
+  assert.equal(status.error, undefined, 'the real native CLI completes within its product deadline plus margin');
+  assert.equal(status.result.code, 0, 'the real native CLI reports success');
+  const delays = box.snapshotWriteDelays().slice(delayedBefore);
+  assert.equal(delays.length, 3, 'this three-upload status flow uploads exactly three snapshots');
+  assert.ok(delays.every(delay => delay >= 7900), 'the relay delayed every native snapshot by 8 seconds');
+  const completed = await waitRequest(chrome, link.board, action.result.request.id, 'done');
+  assert.equal(completed.state.personRequests.find(row => row.id === action.result.request.id).status, 'done');
+  const exported = (await box.cli('export')).document;
+  assert.equal(exported.tables.shout.filter(row => row.shout_text === 'PERSON_ACTION_LATE_SNAPSHOT').length, 1);
 });
 
 test('local view attribution is person-only and an agent token cannot seal person-attributed holds [H12,H16,B26]', async t => {
