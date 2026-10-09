@@ -65,7 +65,7 @@ export function assertSnapshotCheckpoints(trace, expected) {
 function childResult(root, env, argv, observedSnapshotUploads, initialSnapshotUploads = DEFAULT_SNAPSHOT_UPLOADS) {
   return new Promise((resolveResult, reject) => {
     const startedAt = performance.now();
-    let deadlineAt = startedAt + cliChildDeadlineMs(initialSnapshotUploads);
+    let deadlineMs = cliChildDeadlineMs(initialSnapshotUploads);
     const child = spawn(process.execPath, argv, { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';
@@ -78,8 +78,8 @@ function childResult(root, env, argv, observedSnapshotUploads, initialSnapshotUp
         child.kill('SIGKILL');
         return;
       }
-      deadlineAt = Math.max(deadlineAt, startedAt + cliChildDeadlineMs(count));
-      if (performance.now() >= deadlineAt) { exceededDeadline = true; child.kill('SIGKILL'); }
+      deadlineMs = Math.max(deadlineMs, cliChildDeadlineMs(count));
+      if (performance.now() - startedAt >= deadlineMs) { exceededDeadline = true; child.kill('SIGKILL'); }
     }, 20);
     child.stdout.setEncoding('utf8').on('data', part => { stdout += part; });
     child.stderr.setEncoding('utf8').on('data', part => { stderr += part; });
@@ -99,13 +99,13 @@ function childResult(root, env, argv, observedSnapshotUploads, initialSnapshotUp
       settled = true;
       clearInterval(timer);
       if (signal) return reject(new Error(reportFailure(code, signal, exceededDeadline
-        ? `upload-derived child deadline ${deadlineAt - startedAt}ms exceeded` : '')));
+        ? `upload-derived child deadline ${deadlineMs}ms exceeded` : '')));
       const failure = code === 0 ? null : reportFailure(code, signal);
       let document;
       try { document = JSON.parse(stdout); }
       catch (error) { return reject(new Error(reportFailure(code, signal, `private relay fixture child did not return JSON: ${error.message}`))); }
       resolveResult({ code, document, failure, snapshotUploads: observedSnapshotUploads?.() ?? initialSnapshotUploads,
-        snapshotDeadlineMs: deadlineAt - startedAt });
+        snapshotDeadlineMs: deadlineMs });
     });
   });
 }
