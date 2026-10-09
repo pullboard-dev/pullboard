@@ -14,7 +14,7 @@ import { doctrineHistory, loadDoctrine } from './doctrine.js';
 import { requirePersonChannel } from './person.js';
 import { decisionProjection, planRowApply, prepareRowDecisions, restoreRowApply, writeRowApply } from './row-decisions.js';
 import { digestOf, gateReport, runGate, runShell, withGateSlot } from './gate.js';
-import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, isClean, mainCheckout, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
+import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, invalidateGitFacts, isClean, mainCheckout, repoInfo, resolveCommit, tryGit, untracked, withGitFacts } from './git.js';
 import {
   FIX_NOTE,
   applyFixers,
@@ -1717,6 +1717,7 @@ async function sweepHere(ctx, board, me, values) {
   }
   const max = values.max === undefined ? 20 : idArg(values.max, 'a number after --max');
   const ran = spawnSync(report, { cwd: ctx.info.root, shell: true, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  invalidateGitFacts();
   const problems = parseProblems(`${ran.stdout ?? ''}\n${ran.stderr ?? ''}`, ctx.info.root);
   if (!problems.length) {
     ctx.io.say(`the checker reported no problems I can read (exit ${ran.status}); nothing to file`);
@@ -1734,6 +1735,7 @@ async function sweepHere(ctx, board, me, values) {
   const blind = [];
   for (const item of items) {
     const canary = spawnSync(item.check, { cwd: ctx.info.root, shell: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    invalidateGitFacts();
     if (canary.status === 0) {
       blind.push(item.file);
       continue;
@@ -2440,8 +2442,14 @@ function rememberTrunk(io) {
 
 /** Run one command and emit its single versioned JSON result when requested (A1). */
 export async function main(argv, streams) {
+  return withGitFacts(() => runMain(argv, streams));
+}
+
+/** Parse, synchronize and execute one command inside its isolated Git-fact cache. */
+async function runMain(argv, streams) {
   const io = commandOutput(argv, streams);
   let sync = true;
+  let needsRepo = true;
   try {
     const parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
     const command = parsed.positionals[0];
@@ -2449,7 +2457,8 @@ export async function main(argv, streams) {
       positionals: parsed.positionals.slice(1),
       values: Object.fromEntries(Object.keys(parsed.values).filter(key => key !== 'json').sort().map(key => [key, parsed.values[key]])) };
     sync = Boolean(command) && !parsed.values.help && !parsed.values.version && !['help', 'version', 'hook', 'init', 'relay', 'tour'].includes(command);
-  } catch { sync = false; }
+    needsRepo = !(parsed.values.help || parsed.values.version || command === 'help' || command === 'version');
+  } catch { sync = false; needsRepo = false; }
   /** A network refusal preserves offline reads; linked mutation dispatch requires an acknowledgement. */
   const retry = async () => {
     try { await syncRelay(io.cwd, io); }
@@ -2458,7 +2467,7 @@ export async function main(argv, streams) {
       if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
     }
   };
-  rememberTrunk(io);
+  if (needsRepo) rememberTrunk(io);
   if (sync) {
     await retry();
     try { await executePersonRequests(io.cwd, io, main); }
