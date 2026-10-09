@@ -1,6 +1,14 @@
 import { effectiveGuards, IN_STATE, MACHINE } from './machine.js';
 
 /**
+ * The command phrases the CLI declares in HELP, longest first. Inline text chips "pullboard" only with one of
+ * these (test/cockpit.test.js keeps the list equal to HELP), so the words after a command stay prose.
+ */
+export const PULLBOARD_COMMANDS = Object.freeze(["spec signers add","hook commit-msg","hook pre-commit","hook pre-merge-commit","hook pre-push","relay join","relay off","relay on","relay pair","spec check","spec show","spec signoff","spec unmet","spec view","add","answer","check","claim","decisions","doctor","done","edit","escalate","export","fact","forget","gate","help","hold","hook","hooks","import","inbox","init","join","lanes","ledger","lifecycle","list","log","merged","milestone","next","pass","prompt","refreeze","relay","release","resources","resume","roadmap","run","serve","settings","shout","show","spec","stats","status","submit","sweep","takeover","tour","verify","version","view","whoami","withdraw","worktree"]);
+/** A command in prose: its phrase, then only flags, numbers, #ids, quoted text, CAPS names, paths and agent ids. */
+const COMMAND_SOURCE = 'pullboard (?:' + PULLBOARD_COMMANDS.join('|') + ')(?![\\w-])(?: (?:--?[\\w-]+|\\d+|#\\d+|"[^"\\n]*"|[A-Z][A-Z0-9_]*|[\\w-]*[\\/.:@][^\\s"]*|[a-z]+-\\d+)(?![\\w-]))*';
+
+/**
  * The item lifecycle as the page draws it (M1): each state with what it means and, for a final
  * state, what every way in checks; each move with who makes it, its command or the clock's
  * condition, and the rules it checks in order, each with the code it refuses with. The page lays
@@ -836,7 +844,7 @@ function renderSide() {
    * @param {boolean} allowLinks
    * @returns {string}
    */
-  function inline(text, titles, allowLinks = true) { return String(text ?? '').split(/(\`[^\`]*\`|[^\\s:@()[\\]{}"'\`]+:\\d+(?:-\\d+)?@[0-9a-f]{7,40}|pullboard(?:\\s+\\w+)+|--[\\w-]+|(?:\\/|\\.\\.?\\/|[\\w.-]+\\/)\\w[\\w./-]*\\.[A-Za-z0-9]+|\\b[0-9a-fA-F]{7,40}\\b|#\\d+)/g).map((part, n, parts) => {
+  function inline(text, titles, allowLinks = true) { return String(text ?? '').split(/(\`[^\`]*\`|[^\\s:@()[\\]{}"'\`]+:\\d+(?:-\\d+)?@[0-9a-f]{7,40}|${COMMAND_SOURCE}|--[\\w-]+|(?:\\/|\\.\\.?\\/|[\\w.-]+\\/)\\w[\\w./-]*\\.[A-Za-z0-9]+|\\b[0-9a-fA-F]{7,40}\\b|#\\d+)/g).map((part, n, parts) => {
     if (part.startsWith('\`') && part.endsWith('\`')) return codeChip(part.slice(1, -1));
     if (part.includes('@') && part.includes(':')) {
       const textBefore = parts.slice(0, n).join('');
@@ -848,7 +856,7 @@ function renderSide() {
       if (allowLinks && validRef) return codeRef(part, textBefore.slice(-2000));
       return codeChip(part);
     }
-    if (/^(?:pullboard(?:\\s+\\w+)+|--[\\w-]+|(?:\\/|\\.\\.?\\/|[\\w.-]+\\/)\\w[\\w./-]*\\.[A-Za-z0-9]+|\\b[0-9a-fA-F]{7,40}\\b)$/.test(part)) return codeChip(part);
+    if (/^(?:${COMMAND_SOURCE}|--[\\w-]+|(?:\\/|\\.\\.?\\/|[\\w.-]+\\/)\\w[\\w./-]*\\.[A-Za-z0-9]+|\\b[0-9a-fA-F]{7,40}\\b)$/.test(part)) return codeChip(part);
     return linked(part, titles, allowLinks);
   }).join(''); }
   /** Render inline text and fenced or shell command blocks with escaped contents.
