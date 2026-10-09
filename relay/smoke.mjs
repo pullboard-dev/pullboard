@@ -1,8 +1,10 @@
-/** Exercise a real CLI-to-relay round trip without printing device or board secrets [H5,H18]. */
+/** Exercise a real CLI-to-relay round trip without printing device or board secrets [H5,H17,H18]. */
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gunzipSync } from 'node:zlib';
+import { Refused } from '../src/refused.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { readBoardKey } from '../src/relay-key.js';
 import { unseal } from '../src/seal.js';
@@ -46,6 +48,18 @@ function cliGit(root, args) {
   });
 }
 
+/** Read an authenticated gzip checkpoint or its legacy JSON representation without printing contents. */
+function snapshotDocument(bytes) {
+  try {
+    if (bytes[0] === 0x1f && bytes[1] === 0x8b) return JSON.parse(gunzipSync(bytes).toString('utf8'));
+    if (bytes[0] !== 0x7b) throw new Refused('SNAPSHOT_FORMAT', `the sealed snapshot starts with ${Buffer.from(bytes.subarray(0, 4)).toString('hex') || 'no bytes'}; expected gzip magic 1f8b or legacy JSON starting with 7b`);
+    return JSON.parse(Buffer.from(bytes).toString('utf8'));
+  } catch (error) {
+    if (error instanceof Refused) throw error;
+    throw new Refused('SNAPSHOT_FORMAT', 'the sealed snapshot cannot be read; refresh it from a linked machine');
+  }
+}
+
 /** Read one authenticated event and prove that the smoke-created item reached the relay. */
 async function readMirroredMove({ address, board, token, key, after, item, title }) {
   const path = `/api/v1/boards/${board}/events?after=${after}`;
@@ -70,7 +84,7 @@ async function readMirroredMove({ address, board, token, key, after, item, title
     const checkpointBytes = await unseal(key, Buffer.from(saved.state.sealed, 'base64url'), {
       boardId: board, kind: 'snapshot', sequence: saved.state.sequence,
     });
-    const checkpoint = JSON.parse(new TextDecoder().decode(checkpointBytes));
+    const checkpoint = snapshotDocument(checkpointBytes);
     const row = checkpoint.tables?.item?.find((candidate) => candidate.item_id === item.item_id && candidate.item_title === title);
     const applied = checkpoint.tables?.board_meta?.find((candidate) => candidate.meta_key === 'relay_applied_sequence')?.meta_value;
     if (saved.state.sequence !== event.event_id || Number(applied) !== event.event_id || !row) {
@@ -94,7 +108,7 @@ async function readMirroredCheckpoint({ address, board, token, key, after, item,
   const bytes = await unseal(key, Buffer.from(saved.state.sealed, 'base64url'), {
     boardId: board, kind: 'snapshot', sequence,
   });
-  const checkpoint = JSON.parse(new TextDecoder().decode(bytes));
+  const checkpoint = snapshotDocument(bytes);
   const row = checkpoint.tables?.item?.find((candidate) => candidate.item_id === item.item_id && candidate.item_title === title);
   const applied = checkpoint.tables?.board_meta?.find((candidate) => candidate.meta_key === 'relay_applied_sequence')?.meta_value;
   if (Number(applied) !== sequence || !row) throw new Error('the authenticated checkpoint does not contain the smoke move');
