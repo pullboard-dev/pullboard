@@ -210,8 +210,13 @@ test('[H5,H18] the Railway checklist matches the container and relay runtime set
 test('[H5,H18] the Railway smoke links, reads one unsealed move and unlinks locally', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
-  assert.equal(await box.requireEngineThree(), ENGINE_VERSION, 'the real relay fixture now refuses legacy declarations for this board');
+  assert.equal(await box.requireEngineThree(), 3, 'minting an agent token raises the durable relay minimum to engine 3');
   const previous = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const legacy = await fetch(`${previous.url}/api/v1/boards/${previous.board}/state`, {
+    headers: { authorization: `Bearer ${previous.token}`, 'x-pullboard-engine': '2' },
+  });
+  assert.equal(legacy.status, 400, 'the durable agent-token minimum refuses an engine-2 reader');
+  assert.equal((await legacy.json()).error.code, 'ENGINE_VERSION');
   assert.equal((await box.cli('relay', 'off')).code, 0);
   const beforeSmoke = box.calls.length;
 
