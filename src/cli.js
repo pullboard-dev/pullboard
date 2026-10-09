@@ -14,7 +14,7 @@ import { doctrineHistory, loadDoctrine } from './doctrine.js';
 import { agentSessionDigest, requirePersonChannel } from './person.js';
 import { bindLocalSession } from './agent-session.js';
 import { decisionProjection, planRowApply, prepareRowDecisions, restoreRowApply, writeRowApply } from './row-decisions.js';
-import { digestOf, gateReport, runGate, runShell, withGateSlot } from './gate.js';
+import { digestOf, gateReport, runGate, runShell, runSubmitGate, submitGateReport, withGateSlot } from './gate.js';
 import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, isClean, mainCheckout, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
   FIX_NOTE,
@@ -129,7 +129,7 @@ Work
                                         the command and its author print first; the project gate is pullboard gate
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
   pullboard release <id>                hand it back
-  pullboard submit <id>                 needs a clean tree and the gate green at HEAD (alias: done)
+  pullboard submit <id>                 needs a clean tree, item check and affected tests green at HEAD (alias: done)
   pullboard verify <id> accept --note "what you broke or which edge you tried, and what happened"
   pullboard verify <id> reject --reason TEST_FAILURE --note "what failed"
                                         any --note can be --note-file <file>, which keeps quotes, $ and backticks intact
@@ -862,7 +862,7 @@ function dirtyFiles(root) {
 function filesSince(root, id, from, to) {
   if (!from) return [];
   const others = [`--exclude=refs/pullboard/items/${id}/*`, '--glob=refs/pullboard/items/*'];
-  const result = tryGit(root, ['log', '--first-parent', '--no-merges', '--format=', '--name-only', to, '--not', from, ...others]);
+  const result = tryGit(root, ['log', '--first-parent', '--no-merges', '--no-renames', '--format=', '--name-only', to, '--not', from, ...others]);
   return result.status === 0 ? [...new Set(result.stdout.split('\n').filter(Boolean))].sort() : [];
 }
 
@@ -1548,11 +1548,10 @@ async function submitHere(ctx, id) {
   const commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
   requireTrunkMerge(root, commit);
-  // Submit runs the gate itself, every time: a stamp from an earlier run is a file any agent can
-  // write, so it never stands in for this run (V16). It starts on the commit submitted, and must end
-  // on it too. What the gate's own code does in between is the submitted tree's, under review.
-  const gate = await runGate(root, ctx.config, { trustStamp: false, onWait: gateWaitReporter(ctx.io) });
-  if (!gate.isGreen) throw new Refused('GATE_RED', `the gate is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${gateReport(gate)}`);
+  // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
+  // A full-gate stamp never substitutes for either proof; only an actual full fallback may stamp.
+  const gate = await runSubmitGate(root, ctx.config, { base: claimHead, changed: filesSince(root, id, claimHead, commit), check: frozenCheck(held), onWait: gateWaitReporter(ctx.io) });
+  if (!gate.isGreen) throw new Refused('GATE_RED', `the submission proof is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${submitGateReport(gate)}`);
   if (headCommit(root) !== commit || !isClean(root)) {
     throw new Refused(
       'MOVED_DURING_GATE',
@@ -1561,7 +1560,7 @@ async function submitHere(ctx, id) {
   }
   requireTrunkMerge(root, commit); // The trunk may have moved while the gate ran.
   await withBoard(ctx, async (board) => await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit }]));
-  return reportSubmission(ctx, id, commit, { green: gate.isGreen, report: gateReport(gate) });
+  return reportSubmission(ctx, id, commit, { green: gate.isGreen, report: submitGateReport(gate), files: gate.files, full: gate.full, reason: gate.reason, check: gate.check });
 }
 
 /** Report and pin the original submitted commit, including a recovered acknowledged outcome. */

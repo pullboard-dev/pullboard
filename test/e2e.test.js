@@ -362,7 +362,7 @@ test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [
   rmSync(join(box.web, 'web', 'stray.txt'));
   const submitted = box.run(box.web, 'submit', '1');
   assert.equal(submitted.code, 0, submitted.err);
-  assert.match(submitted.out, /submitted #1 at [0-9a-f]{12}; gate green/);
+  assert.match(submitted.out, /submitted #1 at [0-9a-f]{12}; no item check; full gate: no committed Node test files can be selected; gate green in \d+s/);
   const head = box.git(box.web, 'rev-parse', 'HEAD');
   assert.equal(box.git(box.repo, 'rev-parse', `refs/pullboard/items/1/${head.slice(0, 12)}`), head, 'submit pins the commit');
 });
@@ -1912,7 +1912,15 @@ function attackCommit(box, cwd) {
   return commit;
 }
 
-/** Submit a fixture whose private check reads an ignored dependency folder. */
+/** Seed a legacy receipt from the old full-gate-only submit rule, for independent verifier audits. */
+function historicalCheckSubmission(box, commit) {
+  box.git(box.web, 'update-ref', `refs/pullboard/items/1/${commit.slice(0, 12)}`, commit);
+  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  try { store.submit(board, 1, { agentId: 'web-1', commit, tree: box.git(box.web, 'rev-parse', `${commit}^{tree}`) }); }
+  finally { store.closeBoard(board); }
+}
+
+/** Retain historical submissions whose private check needs an install, fails, or times out. */
 function privateCheckSubmission({ install = '', timeout = '5m', check }) {
   const box = project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
@@ -1927,7 +1935,7 @@ function privateCheckSubmission({ install = '', timeout = '5m', check }) {
   writeFileSync(join(box.web, 'web/.gitignore'), '.deps/\n');
   writeFileSync(join(box.web, 'web/index.html'), 'fixture');
   const commit = attackCommit(box, box.web);
-  assert.equal(box.run(box.web, 'submit', '1').code, 0);
+  historicalCheckSubmission(box, commit);
   const review = join(box.dir, 'private-check-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
   assert.equal(box.run(review, 'join', 'api').code, 0);
@@ -2233,7 +2241,10 @@ test('accept reruns the frozen check at the submission even when the reviewer re
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web/RED_CHECK'), 'red');
   const commit = attackCommit(box, box.web);
-  assert.equal(box.run(box.web, 'submit', '1').code, 0, 'the project gate passes while the separate item check is red');
+  const blocked = box.run(box.web, 'submit', '1');
+  assert.equal(blocked.code, 1, 'current submit refuses the red frozen check even when the project gate passes');
+  assert.match(blocked.err, /GATE_RED/);
+  historicalCheckSubmission(box, commit); // Legacy receipts must still be independently checked.
   const review = join(box.dir, 'exact-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
   assert.equal(box.run(review, 'join', 'api').code, 0);
