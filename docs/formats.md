@@ -292,6 +292,10 @@ An approval of proposed new wording uses that same record: `source` is the exist
 
 Migration preserves event rows and adds only schema objects that are missing.
 
+## Submit test selection
+
+`pullboard.json` may set `affectedTests` to a command prefix that runs selected test files. When it is absent, `submit` runs the configured `gate` in full. When present and the import graph can safely select a subset, Pullboard appends the selected file paths to this prefix; an uncertain selection still runs the full gate. For example, this repository opts in with `"affectedTests": "node bin/run-tests.js"`. Projects using another test framework can leave the setting out and keep their configured gate, such as `npm test`.
+
 <!-- pass-rule:start -->
 The `pass` event is emitted by `passDecision` only for the coordinator; another agent receives `COORDINATOR_ONLY`. Its event actor is the coordinator. The person receives the passed decision, while the event table records who performed the pass.
 <!-- pass-rule:end -->
