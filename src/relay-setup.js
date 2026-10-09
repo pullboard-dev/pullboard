@@ -1,8 +1,13 @@
 /** Set up a machine once, enroll its phone in the foreground and link later registrations [H5,H17]. */
+import { join } from 'node:path';
+import * as store from './board.js';
+import { phoneProposal } from './relay-phone.js';
+import { openApproval, restoreLinkReply } from './relay-approval.js';
+import { requirePersonChannel } from './person.js';
 import { repoInfo } from './git.js';
 import { listApiProjects } from './projects.js';
-import { acceptDeviceEnrollment, beginDeviceEnrollment, readRelayMachine, removeRecordedDevice, updateRelayMachine } from './relay-machine.js';
-import { deliverDeviceWraps, relayDeviceRequest, relayMachineSignIn, relayOn, relayOrigin, relayStatus } from './relay.js';
+import { acceptDeviceEnrollment, beginDeviceEnrollment, readRelayMachine, updateRelayMachine } from './relay-machine.js';
+import { deliverDeviceWraps, relayDeviceRequest, relayMachineSignIn, relayMachineContext, relayRevokeDevice, relayOn, relayStatus, originRepository } from './relay.js';
 import { terminalQr } from './qr.js';
 import { Refused } from './refused.js';
 
@@ -12,42 +17,84 @@ export function unlinkedRelayProjects() {
   if (!machine.autoLink) return [];
   return listApiProjects().filter(project => !machine.excluded.includes(project.root)).flatMap(project => {
     try { if (relayStatus(project.root).linked) return []; } catch { /* Preserve the registered project as a named finding. */ }
-    return [{ code: 'RELAY_NOT_LINKED', message: `not linked: ${project.name} (sign in again: pullboard relay on --all)`, next: 'pullboard relay on --all' }];
+    const pending = machine.approvals.find(entry => entry.root === project.root);
+    return [{ code: pending ? 'PHONE_APPROVAL_PENDING' : 'RELAY_NOT_LINKED', message: pending ? 'waiting for phone approval: ' + project.name + '; expires ' + new Date(pending.context.expires).toISOString() : 'not linked: ' + project.name + '; run pullboard relay on --all', next: pending && Date.now() < pending.context.expires ? 'Approve the named link on your paired phone.' : 'pullboard relay on --all' }];
   });
 }
 
-/** Link one registered project through the previously authorized machine session, with no prompt. */
+/** Read the registered local board identity without executing any person action. */
+function projectBoard(root) {
+  const board = store.openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite'));
+  try { return store.boardId(board); } finally { store.closeBoard(board); }
+}
+
+/** Link a new project only after the paired phone explicitly approves its one durable proposal. */
 export async function autoLinkProject(root, io) {
   const machine = readRelayMachine();
   if (!machine.autoLink) return;
   const project = repoInfo(root).root;
-  if (machine.excluded.includes(project)) return;
+  if (machine.excluded.includes(project) || relayStatus(project).linked) return;
   const name = listApiProjects().find(entry => entry.root === project)?.name ?? project;
   try {
-    if (!machine.session) throw new Refused('RELAY_SESSION', 'sign in again: pullboard relay on --all');
-    await relayOn(project, machine.session.url, io, { session: machine.session, quiet: true, strict: true });
+    let pending = machine.approvals.find(entry => entry.root === project);
+    if (pending && Date.now() >= pending.context.expires) throw new Refused('PHONE_APPROVAL_EXPIRED', 'Link approval expired; run pullboard relay on --all explicitly to link this project.');
+    let source;
+    if (pending) source = relayMachineContext(pending.publisherRoot);
+    else {
+      const candidate = listApiProjects().map(entry => ({ ...entry, state: relayMachineContext(entry.root) }))
+        .find(entry => entry.state?.token?.startsWith('pm_') && entry.state.account === machine.owner?.account && entry.state.url === machine.owner?.url);
+      if (!candidate) throw new Refused('RELAY_SESSION', 'Run pullboard relay on --all to link this project and pair the phone.');
+      source = candidate.state;
+      const proposal = await phoneProposal(source, 'link', originRepository(project),
+        { board: projectBoard(project), command: 'Link ' + name + '? (pullboard init)', link: true });
+      const value = { root: project, publisherRoot: candidate.root, context: proposal.context, sealed: proposal.sealed, replyKey: proposal.reply.storedKey, published: false };
+      pending = updateRelayMachine(state => {
+        const existing = state.approvals.find(entry => entry.root === project);
+        if (existing) return existing;
+        state.approvals.push(value); return value;
+      });
+      source = relayMachineContext(pending.publisherRoot);
+    }
+    if (!source?.token?.startsWith('pm_')) throw new Refused('RELAY_SESSION', 'Restore the publishing board link or run pullboard relay on --all.');
+    if (!pending.published) {
+      await relayDeviceRequest(source, '/api/v1/devices/approvals', { method: 'POST', body: { context: pending.context, sealed: pending.sealed } }, io);
+      updateRelayMachine(state => { const entry = state.approvals.find(value => value.context.id === pending.context.id); if (entry) entry.published = true; });
+    }
+    const document = await relayDeviceRequest(source, '/api/v1/devices/approvals/' + pending.context.id, {}, io);
+    if (document.approval.state !== 'approved') {
+      io.err('waiting for phone approval: ' + name + '; expires ' + new Date(pending.context.expires).toISOString() + '; local work continues.'); return;
+    }
+    const privateKey = await restoreLinkReply(pending.replyKey);
+    const result = await openApproval(privateKey, JSON.parse(Buffer.from(document.approval.response, 'base64url').toString('utf8')), pending.context, 'reply');
+    const credential = { ...result.credential, account: pending.context.account, url: source.url };
+    await relayOn(project, source.url, io, { credential, quiet: true, strict: true });
+    updateRelayMachine(state => { state.approvals = state.approvals.filter(entry => entry.context.id !== pending.context.id); });
   } catch (error) {
-    io.err(`not linked: ${name} (sign in again: pullboard relay on --all); ${error instanceof Refused ? error.message : 'restore the registered project and retry'}`);
+    io.err('not linked: ' + name + '; ' + (error instanceof Refused ? error.message : 'Restore the pending phone approval or run pullboard relay on --all.'));
   }
 }
 
-/** Retry durable revocation intents using only the corresponding saved account session. */
-async function flushRevocations(io) {
-  const machine = readRelayMachine();
-  for (const intent of machine.revocations) {
-    if (!machine.session || machine.session.account !== intent.account || machine.session.url !== intent.url) {
-      throw new Refused('RELAY_SESSION', 'Sign in to the paired account with pullboard relay on --all to finish device revocation.');
-    }
-    await relayDeviceRequest(machine.session, '/api/v1/devices/' + intent.deviceId, { method: 'DELETE' }, io);
+/** Retry only old deletion intents during an explicit foreground sign-in; never retain that session. */
+async function flushRevocations(session, io) {
+  for (const intent of readRelayMachine().revocations) {
+    if (session.account !== intent.account || session.url !== intent.url) continue;
+    await relayDeviceRequest(session, '/api/v1/devices/' + intent.deviceId, { method: 'DELETE' }, io);
     updateRelayMachine(state => { state.revocations = state.revocations.filter(entry => entry.deviceId !== intent.deviceId); });
   }
 }
 
-/** Revoke locally first; a remote outage leaves a durable deletion intent instead of future wraps. */
+/** The native device revocation uses the same one-tap grant path as token revocation. */
 export async function revokeRelayDevice(deviceId, io) {
-  removeRecordedDevice(deviceId);
-  await flushRevocations(io);
-  return { deviceId, revoked: true, notice: 'Revoked device; keys it already received remain known. Board key rotation is separate.' };
+  requirePersonChannel(io.personChannel);
+  const device = readRelayMachine().devices.find(entry => entry.deviceId === deviceId);
+  if (!device) throw new Refused('DEVICE_NOT_ENROLLED', 'Name a paired device from pullboard relay devices.');
+  const roots = [io.cwd, ...listApiProjects().map(entry => entry.root)];
+  for (const root of roots) {
+    let state;
+    try { state = relayMachineContext(root); } catch { continue; }
+    if (state?.token?.startsWith('pm_') && state.account === device.account && state.url === device.url) return relayRevokeDevice(root, deviceId, io);
+  }
+  throw new Refused('RELAY_NOT_LINKED', 'Link a board and pair the phone with pullboard relay on --all.');
 }
 
 /** Link every non-excluded registry entry, collecting project-specific partial failures. */
@@ -108,21 +155,15 @@ async function pairFirstDevice(session, board, linked, io) {
   }
 }
 
-/** Save the account session once, link all projects and only wait when this Mac has no paired phone. */
+/** Explicit foreground sign-in repairs links; only board machine credentials survive this command. */
 export async function relayOnAll(address, io) {
+  requirePersonChannel(io.personChannel);
   const prior = readRelayMachine();
-  let session = prior.session;
-  const requestedOrigin = address ? relayOrigin(address) : undefined;
-  if (requestedOrigin && session?.url !== requestedOrigin) session = null;
-  if (session) {
-    try {
-      const identity = await relayDeviceRequest(session, '/api/v1/devices/session', {}, io);
-      if (identity.account !== session.account) throw new Refused('RELAY_SESSION', 'Sign in again to this account.');
-    } catch (error) { if (error.code !== 'AUTH_REQUIRED') throw error; session = null; }
-  }
-  session ??= await relayMachineSignIn(address || prior.session?.url, io);
-  updateRelayMachine(state => { state.autoLink = true; state.session = session; });
-  await flushRevocations(io);
+  // Scrub every registered legacy link before asking for or using fresh person authority.
+  for (const project of listApiProjects()) { try { relayMachineContext(project.root); } catch { /* linkProjects reports invalid projects. */ } }
+  const session = await relayMachineSignIn(address || prior.owner?.url, io);
+  updateRelayMachine(state => { state.autoLink = true; state.owner = { account: session.account, url: session.url }; state.approvals = []; });
+  await flushRevocations(session, io);
   const result = await linkProjects(session, io);
   const devices = readRelayMachine().devices.filter(device => device.account === session.account && device.url === session.url);
   const pairing = devices.length || !result.linked.length ? { paired: devices.length > 0 }

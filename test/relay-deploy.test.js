@@ -236,7 +236,7 @@ test('[H5,H18] the Railway checklist matches the container and relay runtime set
 test('[H5,H18] the Railway smoke links, reads one unsealed move and unlinks locally', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
-  assert.equal(await box.requireEngineThree(), 3, 'minting an agent token raises the durable relay minimum to engine 3');
+  assert.equal(await box.requireEngineThree(), 6, 'a machine-linked board requires the machine-aware replay engine');
   const previous = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const legacy = await fetch(`${previous.url}/api/v1/boards/${previous.board}/state`, {
     headers: { authorization: `Bearer ${previous.token}`, 'x-pullboard-engine': '2' },
@@ -244,6 +244,11 @@ test('[H5,H18] the Railway smoke links, reads one unsealed move and unlinks loca
   assert.equal(legacy.status, 400, 'the durable agent-token minimum refuses an engine-2 reader');
   assert.equal((await legacy.json()).error.code, 'ENGINE_VERSION');
   assert.equal((await box.cli('relay', 'off')).code, 0);
+  const phone = await box.phoneSession();
+  const removed = await fetch(`${previous.url}/api/v1/boards/${previous.board}`, {
+    method: 'DELETE', headers: { authorization: `Bearer ${phone.token}`, 'x-pullboard-engine': String(ENGINE_VERSION) },
+  });
+  assert.equal(removed.status, 200, 'the signed-in phone explicitly deletes the earlier disposable board before relinking');
   const beforeSmoke = box.calls.length;
 
   const smoke = await runSmoke(box, previous.url);
@@ -254,8 +259,14 @@ test('[H5,H18] the Railway smoke links, reads one unsealed move and unlinks loca
   assert.equal(result.sequence, 1);
   assert.equal(existsSync(box.linkFile), false, 'relay off forgets the private link metadata');
   assert.equal(existsSync(box.keyFile), false, 'relay off forgets the device-only board key');
-  assert.ok(box.calls.slice(beforeSmoke).some((call) => call.method === 'DELETE' && call.path === `/api/v1/boards/${previous.board}`),
-    'the smoke sends relay off to the supplied local relay');
+  assert.equal(box.calls.slice(beforeSmoke).some(call => call.method === 'DELETE'), false,
+    'the smoke only unlinks locally and cannot delete the relay copy without phone approval');
+  assert.equal(result.remoteCopyRetained, true);
+  assert.match(result.notice, /relay copy stays until you approve deleting it on your phone/u);
+  const retained = await fetch(`${previous.url}/api/v1/boards/${previous.board}/state`, {
+    headers: { authorization: `Bearer ${phone.token}`, 'x-pullboard-engine': String(ENGINE_VERSION) },
+  });
+  assert.equal(retained.status, 200, 'local smoke cleanup retains the sealed relay copy for explicit phone deletion');
   const smokeReads = box.calls.slice(beforeSmoke).filter((call) => call.method === 'GET'
     && new RegExp(`^/api/v1/boards/${previous.board}/(?:events|state)(?:\\?|$)`, 'u').test(call.path));
   assert.ok(smokeReads.length >= 2, 'the smoke reads the mirrored event and its native checkpoint over the real HTTP API');
@@ -277,7 +288,7 @@ test('[H5,H18] a linked repository is refused before the smoke can unlink its bo
   assert.equal(existsSync(box.linkFile), true, 'the existing private link remains intact');
   assert.equal(existsSync(box.keyFile), true, 'the existing device key remains intact');
   const state = await fetch(`${previous.url}/api/v1/boards/${previous.board}/state`, {
-    headers: { authorization: `Bearer ${previous.token}` },
+    headers: { authorization: `Bearer ${previous.token}`, 'x-pullboard-engine': String(ENGINE_VERSION) },
   });
   assert.equal(state.status, 200, 'the linked remote board was not deleted');
 });

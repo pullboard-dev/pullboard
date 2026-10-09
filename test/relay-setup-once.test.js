@@ -90,7 +90,7 @@ test('set up once links three registered boards, later registration and a persis
 
   const profileDirectory = join(dirname(box.root), 'phone-profile');
   chrome = await startChrome({ profileDirectory });
-  assert.equal((await chrome.send('Network.setCookie', { name: 'pb_session', value: link(box.root).token, url: box.origin, httpOnly: true, sameSite: 'Lax' })).success, true);
+  assert.equal((await chrome.send('Network.setCookie', { name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax' })).success, true);
   await chrome.navigate(box.origin + '/#device=' + pending.locator + '.' + pending.secret);
   const completed = await setup.done;
   assert.equal(completed.code, 0);
@@ -105,16 +105,55 @@ test('set up once links three registered boards, later registration and a persis
 
   const fourth = await project(box, 'fourth-project');
   const allRoots = [...roots, fourth];
-  assert.equal(existsSync(join(fourth, '.git/pullboard/relay.json')), true, 'registration actually creates the future relay link');
-  assert.equal(link(fourth).account, '7', 'registration alone linked the fourth project with the saved account');
-  assert.equal(box.calls.filter(call => call.path === '/auth/device/start').length, 1, 'no second machine sign-in');
+  const approvalFile = join(box.env.PULLBOARD_HOME, 'relay-machine/state.json');
+  const waitingState = JSON.parse(readFileSync(approvalFile, 'utf8'));
+  const linkProposal = waitingState.approvals.find(entry => entry.root === fourth);
+  assert.ok(linkProposal, 'the fourth project stays local with one persisted phone-link proposal');
+  const fourthBoard = linkProposal.context.board;
+  assert.equal(existsSync(join(fourth, '.git/pullboard/relay.json')), false, 'registration does not grant itself a board credential');
+  assert.equal(linkProposal.context.action, 'link');
+  assert.equal(linkProposal.context.target, 'fixture/repository');
+  assert.ok(linkProposal.context.expires > Date.now(), 'the proposal carries a visible future expiry');
+  assert.equal(typeof linkProposal.sealed, 'string', 'the queued link intent is sealed for the paired phone');
+  assert.equal(linkProposal.published, true);
+  const approvalPosts = () => box.calls.filter(call => call.method === 'POST' && call.path === '/api/v1/devices/approvals').length;
+  assert.equal(approvalPosts(), 1, 'registration publishes one proposal');
+  const pendingMessage = 'waiting for phone approval: fourth-project; expires ' + new Date(linkProposal.context.expires).toISOString();
+  const statusPending = await command(fourth, box.env, ['status']).done;
+  assert.equal(statusPending.code, 0, 'status remains available while a new board awaits phone approval');
+  const doctor = await command(fourth, box.env, ['doctor']).done;
+  assert.equal(doctor.document.problems.some(problem => problem.message === pendingMessage), true);
+  const resumedPending = await command(fourth, box.env, ['resume']).done;
+  assert.equal(resumedPending.document.relayProblems.some(problem => problem.message === pendingMessage), true);
+  const repeatedPending = JSON.parse(readFileSync(approvalFile, 'utf8')).approvals.find(entry => entry.root === fourth);
+  assert.equal(repeatedPending.context.id, linkProposal.context.id, 'read-only status and diagnosis keep the same proposal');
+  assert.equal(approvalPosts(), 1, 'status and doctor do not replace or duplicate the request');
   await chrome.navigate(box.origin);
+  const approveLinkButton = '#phone-approve-' + linkProposal.context.id;
+  await chrome.waitFor(`document.querySelector(${JSON.stringify(approveLinkButton)}) !== null`);
+  const linkCard = await chrome.evaluate(`({text: document.querySelector('.phone-approval[data-request="${linkProposal.context.id}"]').innerText,
+    action: document.querySelector(${JSON.stringify(approveLinkButton)}).innerText})`);
+  assert.match(linkCard.text, /Link fourth-project\?/u);
+  assert.match(linkCard.text, /fixture\/repository/u);
+  assert.match(linkCard.text, new RegExp(new Date(linkProposal.context.expires).toISOString().replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')));
+  assert.equal(linkCard.action, 'Link project', 'the paired phone presents an explicit one-tap link action');
+  const approvalsBeforeLinkTap = box.calls.filter(call => call.path.endsWith('/authorize')).length;
+  await chrome.evaluate(`document.querySelector(${JSON.stringify(approveLinkButton)}).click()`);
+  await chrome.waitFor(`document.querySelector(${JSON.stringify(approveLinkButton)}) === null`);
+  assert.equal(box.calls.filter(call => call.path.endsWith('/authorize')).length, approvalsBeforeLinkTap + 1,
+    'one explicit phone tap authorizes the link proposal once');
+  const linkedFourth = await command(fourth, box.env, ['status']).done;
+  assert.equal(linkedFourth.code, 0);
+  assert.equal(link(fourth).account, '7', 'a fresh native status consumes the phone-approved link reply');
+  assert.equal(JSON.parse(readFileSync(approvalFile, 'utf8')).approvals.some(entry => entry.root === fourth), false);
+  assert.equal(approvalPosts(), 1, 'consuming the phone reply does not submit another proposal');
+  assert.equal(box.calls.filter(call => call.path === '/auth/device/start').length, 1, 'no second machine sign-in');
   await chrome.waitFor("document.querySelectorAll('#proj-list .proj.repo').length === 4");
   assert.deepEqual(await chrome.evaluate(browserDeviceExpression()), device, 'a new page retrieves the same private device key');
   await chrome.close();
   rmSync(join(profileDirectory, 'DevToolsActivePort'), { force: true });
   chrome = await startChrome({ profileDirectory });
-  assert.equal((await chrome.send('Network.setCookie', { name: 'pb_session', value: link(box.root).token, url: box.origin, httpOnly: true, sameSite: 'Lax' })).success, true);
+  assert.equal((await chrome.send('Network.setCookie', { name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax' })).success, true);
   await chrome.navigate(box.origin);
   await chrome.waitFor("document.querySelectorAll('#proj-list .proj.repo').length === 4");
   assert.deepEqual(await chrome.evaluate(browserDeviceExpression()), device, 'a new browser process retrieves the original non-extractable key');
@@ -124,13 +163,63 @@ test('set up once links three registered boards, later registration and a persis
       'the actual browser unwrapped each board key, including the later board');
   }
 
-  // Every CLI invocation is a new process. The saved settings and device eliminate renewed setup.
+  // Explicit --all always signs in again, while retaining the paired phone key and avoiding re-pairing.
   const resumed = await command(box.root, box.env, ['relay', 'on', '--all']).done;
   assert.equal(resumed.code, 0);
   assert.equal(resumed.document.linked.length, 4);
   assert.equal(resumed.document.paired, true);
-  assert.equal(box.calls.filter(call => call.path === '/auth/device/start').length, 1);
+  assert.equal(box.calls.filter(call => call.path === '/auth/device/start').length, 2, 'explicit relay on --all performs a fresh foreground sign-in');
+  assert.equal(box.calls.filter(call => call.method === 'POST' && call.path.startsWith('/api/v1/devices/enrollments/')).length, 1,
+    'the existing paired phone is retained without another pairing enrollment');
   assert.deepEqual(await chrome.evaluate(browserDeviceExpression()), device);
+
+  const off = await command(fourth, box.env, ['relay', 'off']).done;
+  assert.equal(off.code, 0);
+  assert.match(off.document.notice, /Local link removed\. The relay copy stays until you approve deleting it on your phone\./u);
+  assert.equal(existsSync(join(fourth, '.git/pullboard/relay.json')), false, 'relay off immediately removes the local link');
+  assert.equal(JSON.parse(readFileSync(machineFile, 'utf8')).excluded.includes(fourth), true, 'the local opt-out is durable');
+  const deletePost = box.transit.findLast(record => record.method === 'POST' && record.path === '/api/v1/devices/approvals');
+  const deleteApproval = JSON.parse(deletePost.request.toString('utf8')).context;
+  assert.equal(deleteApproval.action, 'delete-board', 'remote deletion is a separate phone-approved action');
+  assert.equal(deleteApproval.target, fourthBoard);
+  await chrome.waitFor(`document.querySelector('.phone-approval[data-request="${deleteApproval.id}"]') !== null`);
+  const deleteCard = await chrome.evaluate(`({text: document.querySelector('.phone-approval[data-request="${deleteApproval.id}"]').innerText,
+    action: document.querySelector('.phone-approval[data-request="${deleteApproval.id}"] button').innerText})`);
+  assert.match(deleteCard.text, new RegExp(deleteApproval.target));
+  assert.equal(deleteCard.action, 'Delete relay copy');
+  const phone = await box.phoneSession();
+  const boardsBeforeDeleteTap = await fetch(box.origin + '/auth/boards', { headers: { cookie: 'pb_session=' + phone.token } });
+  assert.equal(boardsBeforeDeleteTap.status, 200);
+  assert.equal((await boardsBeforeDeleteTap.json()).boards.some(board => board.id === fourthBoard), true,
+    'relay off leaves the remote board in place while its phone approval is pending');
+  const beforeDeleteTap = box.calls.filter(call => call.path.endsWith('/authorize')).length;
+  await chrome.evaluate(`document.querySelector('.phone-approval[data-request="${deleteApproval.id}"] button').click()`);
+  await chrome.waitFor(`document.querySelector('.phone-approval[data-request="${deleteApproval.id}"]') === null`);
+  assert.equal(box.calls.filter(call => call.path.endsWith('/authorize')).length, beforeDeleteTap + 1,
+    'the remote copy is deleted only after the deliberate phone tap');
+  const boardsAfterDeleteTap = await fetch(box.origin + '/auth/boards', { headers: { cookie: 'pb_session=' + phone.token } });
+  assert.equal(boardsAfterDeleteTap.status, 200);
+  assert.equal((await boardsAfterDeleteTap.json()).boards.some(board => board.id === fourthBoard), false,
+    'the explicit phone approval removes the relay copy before relinking');
+
+  assert.equal((await command(fourth, box.env, ['init']).done).code, 0);
+  assert.equal(existsSync(join(fourth, '.git/pullboard/relay.json')), false, 'registration respects the explicit local opt-out');
+  const excludedSetup = await command(box.root, box.env, ['relay', 'on', '--all']).done;
+  assert.equal(excludedSetup.code, 0);
+  assert.equal(excludedSetup.document.linked.length, 3, 'explicit machine setup does not undo the fourth-board opt-out');
+  assert.equal(box.calls.filter(call => call.path === '/auth/device/start').length, 3,
+    'each explicit relay on --all performs a fresh foreground sign-in');
+  assert.equal(box.calls.filter(call => call.method === 'POST' && call.path.startsWith('/api/v1/devices/enrollments/')).length, 1,
+    'the paired phone is not enrolled again while excluding a board');
+  assert.equal((await command(fourth, box.env, ['relay', 'on', '--url', box.origin]).done).code, 0,
+    'explicitly linking the board again requires a foreground sign-in');
+  assert.equal(JSON.parse(readFileSync(machineFile, 'utf8')).excluded.includes(fourth), false,
+    'explicit board linking clears its opt-out');
+  await chrome.waitFor("document.querySelectorAll('#proj-list .proj.repo').length === 4");
+  assert.deepEqual(await chrome.evaluate(browserDeviceExpression()), device,
+    'relinking wraps the board for the same paired phone key');
+  assert.equal(box.calls.filter(call => call.path === '/auth/device/start').length, 4);
+  assert.equal(box.calls.filter(call => call.method === 'POST' && call.path.startsWith('/api/v1/devices/enrollments/')).length, 1);
 
   const publicBytes = Buffer.concat(box.transit.flatMap(record => [record.request, record.response]));
   const durableBytes = readFileSync(join(box.relayDirectory, 'devices.sqlite'));
@@ -141,20 +230,21 @@ test('set up once links three registered boards, later registration and a persis
     assert.equal(durableBytes.includes(raw), false, 'no clear board key in relay device records');
     assert.equal(durableBytes.includes(Buffer.from(raw, 'base64url')), false, 'no raw board-key bytes in relay records');
   }
-  assert.equal((await command(fourth, box.env, ['relay', 'off']).done).code, 0);
-  assert.equal((await command(fourth, box.env, ['init']).done).code, 0);
-  assert.equal(existsSync(join(fourth, '.git/pullboard/relay.json')), false, 'an excluded board stays off on later registration');
-  const stillExcluded = await command(box.root, box.env, ['relay', 'on', '--all']).done;
-  assert.equal(stillExcluded.code, 0);
-  assert.equal(stillExcluded.document.linked.length, 3, 'machine setup does not undo an explicit board opt-out');
-  assert.equal((await command(fourth, box.env, ['relay', 'on', '--url', box.origin]).done).code, 0);
-  assert.equal(JSON.parse(readFileSync(machineFile, 'utf8')).excluded.includes(fourth), false, 'explicit board linking clears its opt-out');
-  await chrome.navigate(box.origin);
-  await chrome.waitFor("document.querySelectorAll('#proj-list .proj.repo').length === 4");
-  assert.deepEqual(await chrome.evaluate(browserDeviceExpression()), device, 'the paired phone opens a relinked board with its new wrapped key');
-  const revoked = await command(box.root, box.env, ['relay', 'revoke', device.id]).done;
+
+  const revokeCommand = command(box.root, box.env, ['relay', 'revoke', device.id]);
+  t.after(async () => { if (revokeCommand.child.exitCode === null) revokeCommand.child.kill('SIGTERM'); await revokeCommand.done.catch(() => {}); });
+  await chrome.waitFor(`[...document.querySelectorAll('.phone-approval')].some(node => node.textContent.includes(${JSON.stringify(device.id)}))`);
+  const revocationCard = await chrome.evaluate(`({text: [...document.querySelectorAll('.phone-approval')].find(node => node.textContent.includes(${JSON.stringify(device.id)})).innerText,
+    action: [...document.querySelectorAll('.phone-approval')].find(node => node.textContent.includes(${JSON.stringify(device.id)})).querySelector('button').innerText})`);
+  assert.match(revocationCard.text, new RegExp(device.id));
+  assert.equal(revocationCard.action, 'Approve revocation');
+  const beforeRevokeTap = box.calls.filter(call => call.path.endsWith('/authorize')).length;
+  await chrome.evaluate(`[...document.querySelectorAll('.phone-approval')].find(node => node.textContent.includes(${JSON.stringify(device.id)})).querySelector('button').click()`);
+  const revoked = await revokeCommand.done;
   assert.equal(revoked.code, 0);
   assert.match(revoked.document.notice, /already received remain known/u);
+  assert.equal(box.calls.filter(call => call.path.endsWith('/authorize')).length, beforeRevokeTap + 1,
+    'the named-device revocation uses exactly one explicit phone tap');
   assert.equal(JSON.parse(readFileSync(machineFile, 'utf8')).devices.length, 0);
 });
 
@@ -189,7 +279,8 @@ test('set up once keeps completed links on interruption and names partial failur
   assert.equal(completed.code, 0, 'successful links exit zero even when phone pairing was interrupted');
   assert.equal(completed.document.linked.length, 2);
   assert.equal(link(box.root).board, retained, 'rerunning setup keeps the existing board and key');
-  assert.equal(box.calls.filter(call => call.path === '/auth/device/start').length, 1);
+  assert.equal(box.calls.filter(call => call.path === '/auth/device/start').length, 2,
+    'retrying explicit relay on --all signs in again before starting a fresh pairing');
 });
 
 test('set up once reports a newly registered project when its stored session is gone [H5,H17]', async t => {
@@ -200,7 +291,7 @@ test('set up once reports a newly registered project when its stored session is 
   assert.equal(saved.code, 0);
   const unlinked = await project(box, 'needs-signin-project');
   assert.equal(existsSync(join(unlinked, '.git/pullboard/relay.json')), false);
-  const message = 'not linked: needs-signin-project (sign in again: pullboard relay on --all)';
+  const message = 'not linked: needs-signin-project; run pullboard relay on --all';
   const doctor = await command(unlinked, box.env, ['doctor']).done;
   assert.equal(doctor.document.problems.some(problem => problem.message === message), true);
   const resume = await command(unlinked, box.env, ['resume']).done;

@@ -1,7 +1,7 @@
 /** Device-only board keys, kept outside repositories and relay requests [H1,H15,H17]. */
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { decodeBoardKey, encodeBoardKey } from './seal.js';
@@ -115,4 +115,17 @@ export function forgetBoardKey(boardId, storage) {
     if (removed.status !== 0 && !absent) throw new Refused('RELAY_KEYCHAIN', 'unlock the system keychain and run pullboard relay off again to finish forgetting its key');
   }
   rmSync(file, { force: true });
+}
+
+/** Delete the retired same-user person-session files without ever reading or hydrating a credential. */
+export function scrubLegacyPersonSessions() {
+  const directory = join(keyFile('0'.repeat(32)), '..');
+  if (!existsSync(directory)) return;
+  const parent = lstatSync(directory);
+  if (!parent.isDirectory() || parent.isSymbolicLink() || (parent.mode & 0o077)) {
+    throw new Refused('RELAY_KEY_STORAGE', 'Restore the owner-only relay-keys directory before removing retired person sessions.');
+  }
+  for (const name of readdirSync(directory)) {
+    if (/^[0-9a-f]{32}\.session\.json(?:\.[0-9a-f-]+\.tmp)?$/u.test(name)) rmSync(join(directory, name), { force: true });
+  }
 }

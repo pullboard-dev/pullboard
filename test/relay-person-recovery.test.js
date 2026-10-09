@@ -8,7 +8,8 @@ import { test } from 'node:test';
 import { cleanupFixtureChildren, runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
 import * as store from '../src/board.js';
 import { preparePersonRequest } from '../src/person-request.js';
-import { personRequestRecords, personRequestStatuses } from '../src/relay-requests.js';
+import { personRequestRecords, personRequestStatuses, requestIntentDigest } from '../src/relay-requests.js';
+import { ENGINE_VERSION } from '../src/machine.js';
 import { decodeBoardKey, seal } from '../src/seal.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 
@@ -17,6 +18,7 @@ const BOARD_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/board.js
 const EXCHANGE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/exchange.js')).href;
 const RELAY_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/relay.js')).href;
 const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/config.js')).href;
+const REQUESTS_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/relay-requests.js')).href;
 const LANES_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/lanes.js')).href;
 after(cleanupFixtureChildren);
 
@@ -37,16 +39,22 @@ function claimOnly(root, env, requestId) {
   const source = `
     const root = process.cwd();
     const { syncRelay, relayRequestDevice, relayOperation } = await import(${JSON.stringify(RELAY_MODULE)});
+    const { personRequestRecords, requestIntentDigest, requestStageText } = await import(${JSON.stringify(REQUESTS_MODULE)});
+    const { openBoard, closeBoard } = await import(${JSON.stringify(BOARD_MODULE)});
     const { loadConfig } = await import(${JSON.stringify(CONFIG_MODULE)});
     const { laneNames } = await import(${JSON.stringify(LANES_MODULE)});
     const sink = { isTTY: false, write() {} };
     const io = { cwd: root, stdout: sink, stderr: sink, say() {}, err() {}, onEvent() {} };
     await syncRelay(root, io);
     const executor = await relayRequestDevice(root);
-    const message = { from: 'person', to: 'coordinator', text: ${JSON.stringify(`View request ${requestId}: Received a request from the paired view.`)}, lanes: laneNames(loadConfig(root)) };
+    const board = openBoard(${JSON.stringify(join(root, '.git', 'pullboard', 'board.sqlite'))});
+    let record;
+    try { record = personRequestRecords(board).find(entry => entry.id === ${JSON.stringify(requestId)} && !entry.duplicateOf); }
+    finally { closeBoard(board); }
+    const message = { from: 'person', to: 'coordinator', text: requestStageText(record, 'claim'), lanes: laneNames(loadConfig(root)) };
     const result = await relayOperation(root, 'shout', [message], {
       ...io,
-      personRequest: { id: ${JSON.stringify(requestId)}, executor, phase: 'claim' },
+      personRequest: { id: ${JSON.stringify(requestId)}, executor, phase: 'claim', digest: requestIntentDigest(record) },
       personRequestMoveId: 'recovery-' + ${JSON.stringify(requestId)} + '-' + executor,
     });
     process.stdout.write(JSON.stringify({ executor, result: Number.isSafeInteger(result) }));
@@ -69,6 +77,7 @@ test('[H12,H16] an expired native executor lease transfers once and the old devi
   const box = await relayClientFixture(t);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const phone = await box.phoneSession();
   const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
   const requestId = 'takeover-request-1';
   const intent = preparePersonRequest({ verb: 'shout', args: { to: 'coordinator', text: 'RECOVERY_SHOUT_ONCE' } }, requestId);
@@ -78,7 +87,7 @@ test('[H12,H16] an expired native executor lease transfers once and the old devi
   const envelope = Buffer.from(envelopeBytes).toString('base64url');
   const posted = await fetch(box.origin + '/api/v1/boards/' + link.board + '/requests', {
     method: 'POST',
-    headers: { authorization: 'Bearer ' + link.token, 'content-type': 'application/json' },
+    headers: { authorization: 'Bearer ' + phone.token, 'content-type': 'application/json', 'x-pullboard-engine': String(ENGINE_VERSION) },
     body: JSON.stringify({ sequence: 1, sealed: envelope }),
   });
   assert.equal(posted.status, 200, 'the relay accepts the browser-format sealed request through the fixture person session');
@@ -112,6 +121,17 @@ test('[H12,H16] an expired native executor lease transfers once and the old devi
 
   const secondState = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   delete secondState.requestDevice;
+  const secondMachine = await fetch(box.origin + '/auth/machines', {
+    method: 'POST', headers: { authorization: 'Bearer ' + phone.token, 'content-type': 'application/json' },
+    body: JSON.stringify({ board: link.board, machine: 'request-recovery-second-machine' }),
+  });
+  assert.equal(secondMachine.status, 201, 'the phone provisions an independently bound machine delegate');
+  const delegate = await secondMachine.json();
+  secondState.token = delegate.token;
+  secondState.tokenId = delegate.id;
+  secondState.machine = delegate.machine;
+  assert.notEqual(secondState.machine, link.machine);
+  assert.notEqual(secondState.token, link.token, 'the second device never copies the first machine credential');
   const secondLinkFile = join(secondRoot, '.git', 'pullboard', 'relay.json');
   mkdirSync(join(secondRoot, '.git', 'pullboard'), { recursive: true, mode: 0o700 });
   writeFileSync(secondLinkFile, JSON.stringify(secondState) + '\n', { mode: 0o600 });
@@ -145,11 +165,15 @@ test('[H12,H16] an expired native executor lease transfers once and the old devi
 
   // The original device catches up to the committed execution, sees a terminal request, and cannot
   // emit a second person shout even though its native identity is still present in its link file.
+  board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  let originalDigest;
+  try { originalDigest = requestIntentDigest(personRequestRecords(board).find(record => record.id === requestId)); }
+  finally { store.closeBoard(board); }
   const late = await box.script(`
     const { main } = await import(${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../src/cli.js')).href)});
     const code = await main(['shout', 'coordinator', 'RECOVERY_SHOUT_ONCE', '--json'], {
       cwd: process.cwd(), stdout: process.stdout, stderr: process.stderr, personChannel: 'view', skipPersonRequests: true,
-      personRequest: { id: ${JSON.stringify(requestId)}, executor: ${JSON.stringify(originalExecutor)}, phase: 'execute' },
+      personRequest: { id: ${JSON.stringify(requestId)}, executor: ${JSON.stringify(originalExecutor)}, phase: 'execute', digest: ${JSON.stringify(originalDigest)} },
       personRequestMoveId: 'late-original-${originalExecutor}',
     });
     process.exitCode = code;
