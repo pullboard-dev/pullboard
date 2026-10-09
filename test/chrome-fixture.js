@@ -145,18 +145,21 @@ export async function startChrome({
     async function navigate(nextUrl) {
       await send('Page.navigate', { url: nextUrl }, 'navigate page');
     }
-    /** Wait until a page expression becomes truthy before its command deadline. */
+    /** Wait until a page expression becomes truthy, treating document-transition evaluation errors as pending. */
     async function waitFor(expression, timeoutMs = commandTimeoutMs, label = 'wait for page condition') {
       const waitDeadline = Date.now() + timeoutMs;
+      let lastEvaluationError = null;
       while (Date.now() < waitDeadline) {
         try {
           if (await evaluate(expression, label, waitDeadline - Date.now())) return;
         } catch (error) {
-          if (error.code !== 'CDP_TIMEOUT' || Date.now() < waitDeadline) throw error;
+          if (error instanceof Error && error.message.startsWith('Browser evaluation failed:')) lastEvaluationError = error;
+          else if (error.code !== 'CDP_TIMEOUT' || Date.now() < waitDeadline) throw error;
         }
         await pause(Math.max(0, Math.min(50, waitDeadline - Date.now())));
       }
-      throw new Error(`Browser condition "${label}" did not arrive within ${timeoutMs}ms.`);
+      const exception = lastEvaluationError instanceof Error ? `; last evaluation failed: ${lastEvaluationError.message}` : '';
+      throw new Error(`Browser condition "${label}" did not arrive within ${timeoutMs}ms; expression: ${expression.slice(0, 200)}${exception}.`);
     }
     /** Wait for non-stream relay traffic to finish before an idle-network assertion. */
     async function waitForRelayIdle(timeoutMs = commandTimeoutMs) {

@@ -1,6 +1,8 @@
 /** The shared Chrome fixture bounds startup and removes profiles only after the owned process group exits [C7]. */
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -183,4 +185,67 @@ test('a stalled condition uses its remaining operation budget [C7]', {
     /Browser condition "bounded condition" did not arrive within 250ms/u);
   assert.ok(Date.now() - started < 10_000, 'the 250ms operation never consumes the 15000ms command allowance');
   assert.equal(await chrome.evaluate('1 + 1'), 2, 'timing out one command leaves the real DevTools connection usable');
+});
+
+test('a wait that throws while the page changes keeps waiting [C7]', async (t) => {
+  let replacementResponse;
+  const server = createServer((request, response) => {
+    if (request.url === '/before') {
+      response.writeHead(200, { 'content-type': 'text/html' });
+      response.end('<!doctype html><body><script>window.goNext = () => location.replace("/next")</script>before</body>');
+      return;
+    }
+    if (request.url === '/next') {
+      response.writeHead(200, { 'content-type': 'text/html' });
+      response.write('<!doctype html><html><head><title>loading');
+      replacementResponse = response;
+      return;
+    }
+    if (request.url === '/observed-null') {
+      response.writeHead(204);
+      response.end();
+      server.emit('document-gap-observed');
+      replacementResponse?.end('</title></head><body>ready</body></html>');
+      return;
+    }
+    response.writeHead(404);
+    response.end();
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const documentGapObserved = new Promise((resolveGap) => server.once('document-gap-observed', resolveGap));
+  t.after(() => {
+    server.closeAllConnections();
+    if (server.listening) server.close();
+  });
+
+  const chrome = await startChrome({ url: `http://127.0.0.1:${server.address().port}/before` });
+  try {
+    await chrome.waitFor("typeof window.goNext === 'function'", 5_000, 'initial document ready');
+    await chrome.evaluate('setTimeout(() => window.goNext(), 0); true');
+    const expression = "location.pathname === '/next' && document.body === null ? (() => { if (!window.__gapNotified) { window.__gapNotified = true; fetch('/observed-null'); } return document.body.textContent.includes('ready'); })() : document.body?.textContent.includes('ready') === true";
+    const waiting = chrome.waitFor(expression, 5_000, 'wait for the replacement document')
+      .then(() => ({ error: null }), (error) => ({ error }));
+    const first = await Promise.race([
+      documentGapObserved.then(() => ({ gapObserved: true })),
+      waiting.then((result) => ({ result })),
+    ]);
+    assert.equal(first.gapObserved, true, 'the real page expression observed its document without a body');
+    const waitResult = await waiting;
+    assert.equal(waitResult.error, null, 'the document-transition exception stays pending until the next page is ready');
+    assert.equal(await chrome.evaluate('document.body.textContent'), 'ready', 'the replacement document completed');
+
+    const alwaysThrows = '(() => { throw new Error("persistent evaluation failure"); })()';
+    const startedAt = Date.now();
+    await assert.rejects(chrome.waitFor(alwaysThrows, 350, 'always-throwing expression'), (error) => {
+      assert.match(error.message, /did not arrive within 350ms/u);
+      assert.match(error.message, /persistent evaluation failure/u);
+      assert.ok(error.message.includes(alwaysThrows), 'deadline diagnostic names the expression');
+      assert.ok(Date.now() - startedAt >= 350, 'the wait polls through its requested deadline');
+      return true;
+    });
+
+  } finally {
+    await chrome.close();
+  }
 });
