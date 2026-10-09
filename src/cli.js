@@ -730,7 +730,7 @@ async function ordered(ctx, board, operation, args) {
   const command = ['add', 'edit', 'merged'].includes(ctx.io.relayCommand?.cliOperation) ? ctx.io.relayCommand : undefined;
   /** Dispatch while this session holds the checkout, including long-running next/run loops. */
   const execute = () => relayLinked(ctx.info.root)
-    ? relayOperation(ctx.info.root, operation, args, ctx.io, command) : store[operation](board, ...args);
+    ? relayOperation(ctx.info.root, operation, args, ctx.io, command, () => store[operation](board, ...args)) : store[operation](board, ...args);
   const digest = agentSessionDigest();
   if (CHECKOUT_LEASES.has(ctx.io) || !digest || ctx.io.personChannel === 'view' || ctx.io.personRequest) return execute();
   const agent = ctx.info.isMain ? COORDINATOR : store.agentAt(board, ctx.info.root)?.agent_id ?? 'unjoined agent';
@@ -770,7 +770,7 @@ async function bindCheckoutSession(io, positionals, values) {
         const me = whoAmI(ctx, board);
         const message = { from: me.id, to: info.isMain ? 'person' : COORDINATOR,
           text: `${me.id} took over this checkout in a new agent session.`, lanes: laneNames(ctx.config) };
-        if (relayLinked(info.root)) await relayOperation(info.root, 'shout', [message], io);
+        if (relayLinked(info.root)) await relayOperation(info.root, 'shout', [message], io, undefined, () => store.shout(board, message));
         else store.shout(board, message);
       });
     },
