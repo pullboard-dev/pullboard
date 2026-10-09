@@ -32,7 +32,7 @@ export function storedOwnedRequestState(storage, key, requests) {
 }
 
 /** Build truthful device notices from authorized boards and their decrypted pending requests. */
-export function noticeLines({ available, paired, ownedRequestIds = new Map(), warnings = [], failure = '' }) {
+export function noticeLines({ available, paired, ownedRequestIds = new Map(), waitingBoards = new Map(), warnings = [], failure = '' }) {
   const lines = [];
   const waiting = [...paired.entries()].reduce((count, [id, entry]) => {
     const owned = ownedRequestIds.get(id) ?? new Set();
@@ -41,6 +41,10 @@ export function noticeLines({ available, paired, ownedRequestIds = new Map(), wa
   if (waiting) lines.push(`${waiting} request${waiting === 1 ? '' : 's'} from this device ${waiting === 1 ? 'is' : 'are'} waiting for a linked machine to run Pullboard.`);
   const pairedRepositories = new Set(available.filter(board => paired.has(board.id)).map(board => board.repository));
   for (const board of available.filter(value => !paired.has(value.id))) {
+    if (waitingBoards.has(board.id)) {
+      lines.push(`${board.repository} · board ${board.id.slice(0, 8)}: waiting for its first snapshot from a linked machine.`);
+      continue;
+    }
     if (!pairedRepositories.has(board.repository)) {
       lines.push(board.repository + ': pair this browser using a link or QR from a linked machine.');
       continue;

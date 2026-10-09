@@ -202,6 +202,63 @@ test('real Chrome pairs, retains its device key, declares its engine on every re
   await chrome.waitFor("document.body.textContent.includes('Sign in with GitHub') && !document.body.textContent.includes(" + JSON.stringify(liveTitle) + ')');
 });
 
+test('a board without a snapshot waits without reloading the page [H5,H16]', {
+  skip: !findChromeExecutable() && 'Chrome is not installed',
+}, async t => {
+  const box = await relayClientFixture(t);
+  const healthyTitle = 'NO_BOARD_HEALTHY_BOARD_339';
+  const healthyUpdate = 'NO_BOARD_HEALTHY_BOARD_UPDATE_339';
+  const missingTitle = 'NO_BOARD_WAITING_BOARD_339';
+  const missingEventsTitle = 'NO_BOARD_WAITING_EVENTS_339';
+  assert.equal((await box.cli('add', box.lane, healthyTitle)).code, 0);
+  await box.link();
+  const healthy = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const healthyKey = readFileSync(box.keyFile, 'utf8').trim();
+  const waiting = await box.additionalBoard(missingTitle);
+  const waitingEvents = await box.additionalBoard(missingEventsTitle);
+  box.noBoardOnReads(waiting.id, ['state']);
+  box.noBoardOnReads(waitingEvents.id, ['events']);
+
+  const chrome = await startChrome();
+  t.after(() => chrome.close());
+  await chrome.send('Page.addScriptToEvaluateOnNewDocument', {
+    source: 'sessionStorage.setItem("pullboard.test.page-starts", String(Number(sessionStorage.getItem("pullboard.test.page-starts") || 0) + 1)); localStorage.setItem("pullboard.relay.keys.v1", ' +
+      JSON.stringify(JSON.stringify({ [healthy.board]: healthyKey, [waiting.id]: waiting.encoded, [waitingEvents.id]: waitingEvents.encoded })) + ');',
+  });
+  await signIn(chrome, box);
+  await chrome.navigate(box.origin);
+  const pageStarts = await chrome.evaluate("Number(sessionStorage.getItem('pullboard.test.page-starts'))");
+  await chrome.waitFor("(document.querySelector('#relay-notice')?.textContent.includes(" + JSON.stringify(waiting.id.slice(0, 8)) + ") && document.querySelector('#relay-notice')?.textContent.includes(" + JSON.stringify(waitingEvents.id.slice(0, 8)) + ") && document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(healthyTitle) + ")) || Number(sessionStorage.getItem('pullboard.test.page-starts')) > " + pageStarts);
+  assert.equal(await chrome.evaluate("document.querySelector('#relay-notice')?.textContent.includes(" + JSON.stringify(waiting.id.slice(0, 8)) + ') ?? false'), true,
+    'the notice identifies the board whose first snapshot is missing');
+  assert.equal(await chrome.evaluate("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(healthyTitle) + ')'), true,
+    'the other linked board still renders its actual snapshot');
+  assert.equal(await chrome.evaluate("document.querySelector('#relay-notice')?.textContent.includes(" + JSON.stringify(waitingEvents.id.slice(0, 8)) + ') ?? false'), true,
+    'an events endpoint with no board snapshot also gets its own waiting notice');
+  const healthySelector = '#proj-list .proj.repo[data-root="' + healthy.board + '"]';
+  await chrome.evaluate('document.querySelector(' + JSON.stringify(healthySelector) + ').click()');
+  await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(healthyTitle) + ')');
+  assert.equal(box.calls.some(call => call.method === 'GET' && call.path === '/api/v1/boards/' + waiting.id + '/state'), true,
+    'the real browser requests the listed board snapshot over HTTP');
+  assert.equal(box.calls.some(call => call.method === 'GET' && call.path.startsWith('/api/v1/boards/' + waitingEvents.id + '/events')), true,
+    'the real browser requests the other listed board event stream over HTTP');
+
+  assert.equal((await box.cli('add', box.lane, healthyUpdate)).code, 0);
+  await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(healthyUpdate) + ')');
+
+  const pageLoads = () => box.calls.filter(call => call.method === 'GET' && call.path === '/').length;
+  const beforeWait = pageLoads();
+  await new Promise(resolveWait => setTimeout(resolveWait, 10_000));
+  assert.equal(pageLoads(), beforeWait, 'the missing snapshot does not reload the real page during ten seconds');
+
+  const listingsBeforeRevocation = box.calls.filter(call => call.method === 'GET' && call.path === '/api/v1/boards').length;
+  box.revokeSessionOnNextListing();
+  await chrome.evaluate("location.hash = '#refresh-listing'");
+  await chrome.waitFor("document.body.textContent.includes('Sign in with GitHub')");
+  assert.ok(box.calls.filter(call => call.method === 'GET' && call.path === '/api/v1/boards').length > listingsBeforeRevocation,
+    'a real unauthorized listing still sends the page back to sign in');
+});
+
 /** Append an authenticated synthetic sealed move without writing it to the private local board. */
 async function appendEngineMove(box, link, key, sequence, engine, presentation) {
   const event = { event_id: sequence, event_kind: 'add', event_by: 'fixture', event_at: new Date().toISOString(), event_detail: '{}' };
