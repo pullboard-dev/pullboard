@@ -183,9 +183,21 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .row.on { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line-strong); }
 .dot.building { background: var(--blue); } .dot.verify { background: var(--warn); } .dot.back { background: var(--reject); } .dot.verified { background: var(--accent); }
-.row .t { font-weight: 600; overflow-wrap: anywhere; }
+/* A row holds its shape: the title takes the whole first line and the meta and chip share the second,
+ * each line cut with an ellipsis, so every row in a list is as tall as the next. The whole title is the
+ * row's tooltip and opens in the detail. */
+.row { grid-template-areas: "dot t t" "dot meta chip"; row-gap: 3px; }
+.row > div { display: contents; }
+.row > .dot { grid-area: dot; }
+.row .t { grid-area: t; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .t code { white-space: nowrap; }
 .row .t span { color: var(--ink-faint); font: 500 12px var(--mono); margin-right: 5px; }
 .meta { display: flex; flex-wrap: wrap; gap: 4px 8px; color: var(--ink-muted); font-size: 12px; margin-top: 2px; }
+.row .meta { grid-area: meta; min-width: 0; margin-top: 0; flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
+.row .meta > * { flex: none; }
+.row .meta > .who, .row .meta > .gate, .row .meta > .why { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.row .meta > .why { flex-grow: 1; }
+.row > .chip { grid-area: chip; justify-self: end; max-width: 10rem; overflow: hidden; text-overflow: ellipsis; }
 .chip { font: 600 10.5px/1 var(--mono); letter-spacing: .03em; padding: 4px 6px; border-radius: 5px; background: var(--surface-2); color: var(--ink-muted); white-space: nowrap; }
 .chip.ok { background: var(--accent-soft); color: var(--accent-strong); }
 .chip.warn { background: var(--warn-soft); color: var(--warn); }
