@@ -30,6 +30,8 @@ const NOT_MOVES = {
   BAD_GATE_SLOTS: 'machine-wide gate capacity checked before a command runs',
   NO_AGENT: 'a linked coordinator must already be registered before an item move',
   EVENT_LOG_VERSION: 'the local board format is checked before opening it for an item move',
+  NOT_YOUR_CHECKOUT: 'the caller owns the checkout session, checked before any item move',
+  CHECKOUT_SESSION: 'the checkout-local session binding is readable before any item move',
 };
 
 /**

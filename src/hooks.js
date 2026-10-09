@@ -4,7 +4,7 @@
  * Each check returns its problems; an empty list lets git go on.
  */
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { git, gitChildEnv, gitPath, mainCheckout, refuseGrafts, tryGit } from './git.js';
 import { CONFIG_FILE, configFromSource, DOCTRINE_FILE, LEGACY_DOCTRINE_FILE } from './config.js';
@@ -471,7 +471,16 @@ export function installHooks(root, onWrite = () => {}) {
       );
       continue;
     }
-    writeFileSync(file, hookScript(hook));
+    const script = hookScript(hook);
+    if (existing === script) {
+      if ((statSync(file).mode & 0o777) !== 0o755) {
+        chmodSync(file, 0o755);
+        onWrite(`${HOOKS_DIR}/${hook}`);
+        notes.push(`restored executable mode for ${HOOKS_DIR}/${hook}`);
+      } else notes.push(`kept ${HOOKS_DIR}/${hook}`);
+      continue;
+    }
+    writeFileSync(file, script);
     chmodSync(file, 0o755);
     onWrite(`${HOOKS_DIR}/${hook}`);
     notes.push(`wrote ${HOOKS_DIR}/${hook}`);
@@ -479,6 +488,8 @@ export function installHooks(root, onWrite = () => {}) {
   const current = tryGit(root, ['config', '--get', 'core.hooksPath']).stdout;
   if (current && current !== HOOKS_DIR) {
     notes.push(`core.hooksPath is ${current}; left as is. Call pullboard hook <name> from those hooks`);
+  } else if (current === HOOKS_DIR) {
+    notes.push(`kept core.hooksPath at ${HOOKS_DIR}`);
   } else {
     git(root, ['config', 'core.hooksPath', HOOKS_DIR]);
     notes.push(`set core.hooksPath to ${HOOKS_DIR}`);
