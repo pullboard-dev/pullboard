@@ -964,6 +964,71 @@ function coordinatorNext(card, rows) {
   return 'nothing open: report what was built to the person, or curate the queue: pullboard add, edit, hold';
 }
 
+/** Read each actor's newest structured integration attempt unless their later receipt closes it. */
+function integrationClaims(root, item, shouts, now) {
+  const actors = new Map();
+  for (const shout of shouts) {
+    if (shout.shout_evidence_item !== item.item_id) continue;
+    if (shout.shout_evidence_kind === 'receipt') actors.delete(shout.shout_from);
+    else if (shout.shout_evidence_kind === 'attempt' && shout.shout_evidence_outcome === 'integrating'
+      && contains(root, item.item_commit, shout.shout_evidence_commit)) {
+      actors.set(shout.shout_from, shout);
+    }
+  }
+  const claims = [...actors.values()].map((shout) => ({ type: 'shout', by: shout.shout_from, at: shout.shout_at,
+      text: shout.shout_text, commit: shout.shout_evidence_commit, id: shout.shout_id,
+      expired: now - Date.parse(shout.shout_at) > 24 * 60 * 60 * 1000 }))
+    .sort((a, b) => b.id - a.id);
+  return { live: claims.find((claim) => !claim.expired) ?? null,
+    expired: claims.find((claim) => claim.expired) ?? null };
+}
+
+/** Check verified, unmerged heads against the trunk without changing a worktree or trusting prose. */
+function verifiedMergeGroups(root, items, shouts, now) {
+  const groups = { clean: [], conflicts: [], integrating: [] };
+  const staleIntegrations = [];
+  for (const item of [...items].sort((a, b) => a.item_id - b.item_id)) {
+    const claimed = integrationClaims(root, item, shouts, now);
+    if (claimed.live) {
+      const { expired, ...claim } = claimed.live;
+      groups.integrating.push({ item, ...claim });
+      continue;
+    }
+    if (claimed.expired) staleIntegrations.push({ item, ...claimed.expired });
+    try {
+      requireTrunkMerge(root, item.item_commit);
+      groups.clean.push(item);
+    } catch (error) {
+      if (error.code !== 'MERGE_CONFLICT') throw error;
+      const detail = / in ([\s\S]*); merge the trunk into/u.exec(error.message)?.[1] ?? '';
+      let files = [];
+      try { files = JSON.parse(`[${detail}]`); } catch { files = []; }
+      groups.conflicts.push({ item, files });
+    }
+  }
+  return { verifiedNotMerged: groups, staleIntegrations };
+}
+
+/** Capture coordinator-only decision sections with stable ages and answers from the board. */
+function coordinatorDecisionSections(board, ctx) {
+  const shouts = store.allShouts(board);
+  const openDecisions = store.openDecisions(board, COORDINATOR).map((ask) => ({
+    id: ask.shout_id, asker: ask.shout_from, question: ask.shout_text, at: ask.shout_at, age: span(ctx, ask.shout_at),
+  }));
+  const recentAnswers = shouts.filter((ask) => ask.shout_decision).flatMap((ask) => {
+    const answer = store.shoutDetails(board, ask.shout_id).decision_answer;
+    if (!answer) return [];
+    const ageMs = ctx.clock.now().getTime() - Date.parse(answer.shout_at);
+    if (ageMs < 0 || ageMs > 24 * 60 * 60 * 1000) return [];
+    return [{ id: ask.shout_id, asker: ask.shout_from, question: ask.shout_text,
+      answeredBy: answer.shout_from, answer: answer.shout_text, at: answer.shout_at, age: span(ctx, answer.shout_at) }];
+  }).sort((a, b) => b.at.localeCompare(a.at));
+  const personQuestions = store.openDecisions(board, 'person').map((ask) => ({
+    id: ask.shout_id, asker: ask.shout_from, question: ask.shout_text, at: ask.shout_at, age: span(ctx, ask.shout_at),
+  }));
+  return { openDecisions, recentAnswers, personQuestions, shouts };
+}
+
 /**
  * `pullboard resume` (N19): one short card that puts an agent back to work after a fresh start,
  * a restart or a compaction, from the board rather than from a summary.
@@ -977,9 +1042,13 @@ function resumeHere(io) {
   const card = withBoard(ctx, (board) => {
     const me = whoAmI(ctx, board);
     const all = store.listItems(board, { all: true });
+    const toMerge = all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit);
+    const decisionSections = isMain ? coordinatorDecisionSections(board, ctx) : null;
+    const { shouts = [], ...decisions } = decisionSections ?? {};
     return {
       me,
       all,
+      ...(decisionSections ? { ...decisions, ...verifiedMergeGroups(root, toMerge, shouts, ctx.clock.now().getTime()) } : {}),
       requests: me.id === COORDINATOR ? store.openRequests(board) : [],
       holding: all.filter((item) => item.item_status === 'claimed' && item.item_owner === me.id),
       sentBack: all
@@ -987,7 +1056,7 @@ function resumeHere(io) {
         .map((item) => ({ item, verdict: store.verdictsFor(board, item.item_id).at(-1) })),
       awaiting: all.filter((item) => item.item_status === 'submitted' && item.item_built_by === me.id),
       toVerify: all.filter((item) => item.item_status === 'submitted' && item.item_built_by !== me.id),
-      toMerge: all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit),
+      toMerge,
       open: all.filter((item) => item.item_status === 'open'),
       hold: store.laneHold(board, me.lane),
       holds: store.laneHolds(board),
@@ -997,6 +1066,12 @@ function resumeHere(io) {
   });
   const { me } = card;
   card.stale = staleFrozenItems(card.all, loadSpec(root, ctx.config).rows, ctx.doctrine.rows).map((item) => ({ ...item, ...staleItemFinding(item) }));
+  if (isMain) {
+    card.staleFollowUps = { count: card.stale.length + card.staleIntegrations.length,
+      list: 'pullboard resume --json', items: card.stale, integrations: card.staleIntegrations };
+    delete card.staleIntegrations;
+    card.reviewQueue = { items: card.toVerify, awaiting: card.awaiting };
+  }
   const say = (line) => io.say(line);
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
   say(`resume: ${me.id}${me.family ? ` (${me.family})` : ''}, ${me.lane} lane${isMain ? ', the main checkout' : ''}, at ${root}`);
@@ -1020,11 +1095,30 @@ function resumeHere(io) {
   for (const { item, verdict } of card.sentBack) {
     say(`sent back: #${item.item_id} ${verdict ? `${verdict.verdict_reason} by ${verdict.verdict_by}: ${firstLine(verdict.verdict_note)}` : 'rejected'}`);
   }
-  for (const item of card.stale) say(`stale: ${item.message}; next: ${item.next}`);
+  if (isMain && card.staleFollowUps.count) say(`${plural(card.staleFollowUps.count, 'stale follow-up')}; list them with ${card.staleFollowUps.list}`);
+  else if (!isMain) for (const item of card.stale) say(`stale: ${item.message}; next: ${item.next}`);
   if (card.awaiting.length) say(`awaiting a verdict: ${card.awaiting.map((item) => `#${item.item_id} (${span(ctx, item.item_updated_at)})`).join(', ')}`);
   if (isMain) {
-    if (card.toVerify.length) say(`to verify: ${card.toVerify.map((item) => `#${item.item_id} ${item.item_lane} (${span(ctx, item.item_updated_at)})`).join(', ')}`);
-    if (card.toMerge.length) say(`verified, not merged: ${card.toMerge.map((item) => `#${item.item_id} at ${item.item_commit.slice(0, 12)}`).join(', ')}; pullboard merged <id> <commit> records each`);
+    /** Limit each text section; JSON keeps every record for a complete handoff. */
+    const section = (entries, line) => {
+      for (const entry of entries.slice(0, 3)) say(line(entry));
+      if (entries.length > 3) say(`  ${entries.length - 3} more; list them with pullboard resume --json`);
+    };
+    section(card.openDecisions, (ask) => `open decision #${ask.id} from ${ask.asker} (${ask.age}): ${firstLine(ask.question)}`);
+    section(card.recentAnswers, (answer) => `recent decision #${answer.id}: ${answer.answeredBy} answered ${answer.asker} (${answer.age} ago): ${firstLine(answer.answer)}`);
+    if (card.toMerge.length) {
+      const groups = card.verifiedNotMerged;
+      /** Keep merge groups on one line while retaining all entries in JSON. */
+      const listed = (entries, line) => entries.slice(0, 3).map(line).join(', ')
+        + (entries.length > 3 ? `, +${entries.length - 3} more (pullboard resume --json)` : '') || 'none';
+      say(`verified, not merged — merges cleanly: ${listed(groups.clean, (item) => `#${item.item_id} ${firstLine(item.item_title)}`)}`);
+      say(`verified, not merged — conflicts: ${listed(groups.conflicts, ({ item, files }) => `#${item.item_id} ${firstLine(item.item_title)} (${files.join(', ') || 'files unavailable'})`)}`);
+      say(`verified, not merged — claimed for integration: ${listed(groups.integrating, ({ item, by, at, commit }) => `#${item.item_id} by ${by} at ${at} (${commit.slice(0, 12)})`)}`);
+    }
+    section(card.personQuestions, (ask) => `waiting on the person: #${ask.id} from ${ask.asker} (${ask.age}): ${firstLine(ask.question)}`);
+    if (card.toVerify.length) say('review queue:');
+    section(card.toVerify, (item) => `  to verify: #${item.item_id} ${item.item_lane} (${span(ctx, item.item_updated_at)})`);
+    if (card.toMerge.length) say('merge verified work, run the gate, then record each with pullboard merged <id> <commit>');
     for (const hold of card.holds) say(`held: the ${hold.hold_lane} lane, ${hold.hold_reason}`);
     const byLane = Object.entries(Map.groupBy(card.open, (item) => item.item_lane)).map(([lane, items]) => `${lane} ${items.length}`);
     say(`open: ${card.open.length}${byLane.length ? ` (${byLane.join(', ')})` : ''}`);
