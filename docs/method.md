@@ -1,5 +1,7 @@
 # The Pullboard method
 
+_The README is canon. Where this page and the README differ, the README wins._
+
 A way to run a team of coding agents on one codebase so that the work they report as done is done. It fits on one page because it is mostly one rule.
 
 > **Nothing ships until a second agent turns its key.**

@@ -159,6 +159,16 @@ byte JSON-body limit. Snapshots allow a bounded 14,000,000 byte JSON body and
 identity, format, head cursor, receive times, public sender identities and sealed payloads. Compaction
 keeps the head cursor, so the next move never reuses an earlier sequence.
 
+Every CLI relay request carries `X-Pullboard-Engine` with its executable engine
+version. Board-content requests require engine 3 once the board has issued any
+agent token. Revocation, expiry and a service restart do not lower that minimum;
+unlink ends that board lifetime. Boards without agent tokens remain compatible
+with engine 1 and 2. An omitted header means legacy engine 1; a malformed or
+older declaration receives `ENGINE_VERSION` with upgrade guidance before any
+record is read, accepted or deleted. Live streams recheck this minimum between
+polls. Listing board identities and signing in do not expose sealed records and
+remain available to older clients.
+
 Bearer credentials work for agents and CLI calls. Browser session-cookie reads
 require a configured trusted publicOrigin; cookie writes require that exact
 Origin. Duplicate cookies are refused, and neither credentials nor board keys

@@ -80,7 +80,7 @@ export async function relayClientFixture(t) {
       }
       return end(chunk, ...args);
     };
-    calls.push({ method: req.method, path: req.url, accept: req.headers.accept ?? '' });
+    calls.push({ method: req.method, path: req.url, accept: req.headers.accept ?? '', engine: req.headers['x-pullboard-engine'] });
     if ([...privateKeys].some(key => JSON.stringify({ url: req.url, headers: req.headers }).includes(key))) keyLeaked = true;
     if (refuseEventReads && req.method === 'GET' && /\/events(?:\?|$)/.test(req.url)) {
       res.writeHead(503, { 'content-type': 'application/json' });
@@ -153,6 +153,12 @@ export async function relayClientFixture(t) {
     assert.equal((await cli('relay', 'on', '--url', origin)).code, 0, 'real device sign-in links the board');
     privateKeys.add(readFileSync(keyFile, 'utf8').trim());
   }
+  /** Raise this fixture board's durable minimum to the current engine before compatibility checks. */
+  async function requireEngineThree() {
+    const state = JSON.parse(readFileSync(linkFile, 'utf8'));
+    await auth.issueToken(state.token, { board: state.board, agent: 'fixture-engine-minimum' });
+    return auth.minimumEngineVersion(state.board);
+  }
   /** Pair and unlink from a second real repository with its own private device home and key. */
   async function otherDeviceOff() {
     const otherRoot = join(scratch, 'other-device');
@@ -195,7 +201,7 @@ export async function relayClientFixture(t) {
     return childResult(root, env, ['--input-type=module', '-e', source]);
   }
   return {
-    root, env, origin, lane, before, linkFile, keyFile, calls, moveAcks, cli, link, otherDeviceOff, additionalBoard, script, stopRelay, restartRelay,
+    root, env, origin, lane, before, linkFile, keyFile, calls, moveAcks, cli, link, requireEngineThree, otherDeviceOff, additionalBoard, script, stopRelay, restartRelay,
     advance(days) { time = Date.now() + days * 86400000; },
     overrideDelete(value) { override = value; },
     refuseSnapshotWrites(value) { refuseSnapshotWrites = value; },
