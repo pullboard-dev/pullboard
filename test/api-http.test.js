@@ -13,6 +13,7 @@ import { createApiHandler } from '../src/api-http.js';
 import { registryFile, registerProject } from '../src/projects.js';
 import { Refused } from '../src/refused.js';
 import * as store from '../src/board.js';
+import { fetchFresh } from './http-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 
@@ -69,7 +70,7 @@ async function httpBox(t, { includeMissing = false } = {}) {
   const origin = url.origin;
   /** Make a real HTTP call and decode its single versioned response. */
   async function call(path, value, headers = {}) {
-    const response = await fetch(origin + path, {
+    const response = await fetchFresh(origin + path, {
       method: value === undefined ? 'GET' : 'POST',
       headers: { 'x-pullboard-key': key, ...(value === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
       ...(value === undefined ? {} : { body: JSON.stringify(value) }),
@@ -151,7 +152,7 @@ test('[A2, N33, N35] API listing refreshes live labels and preserves missing-ent
   const key = url.searchParams.get('k');
   /** Fetch the authenticated board catalog through the real local HTTP server. */
   async function listing() {
-    const response = await fetch(url.origin + '/api/v1/boards', { headers: { 'x-pullboard-key': key } });
+    const response = await fetchFresh(url.origin + '/api/v1/boards', { headers: { 'x-pullboard-key': key } });
     assert.equal(response.status, 200);
     return response.json();
   }
@@ -322,7 +323,7 @@ test('[A2] a live HTTP stream follows CLI writes and reconnects after Last-Event
   const initial = await box.call(box.path + '/events');
   const after = initial.document.events.at(-1).event_id;
   const controller = new AbortController();
-  const response = await fetch(box.origin + box.path + '/events?after=' + after, { headers: { 'x-pullboard-key': box.key, accept: 'text/event-stream' }, signal: controller.signal });
+  const response = await fetchFresh(box.origin + box.path + '/events?after=' + after, { headers: { 'x-pullboard-key': box.key, accept: 'text/event-stream' }, signal: controller.signal });
   assert.match(response.headers.get('content-type'), /text\/event-stream/);
   const reader = response.body.getReader();
   let buffered = '';
@@ -349,7 +350,7 @@ test('[A2] a live HTTP stream follows CLI writes and reconnects after Last-Event
   assert.equal(live.id, live.document.event.event_id);
   await reader.cancel();
   controller.abort();
-  const replay = await fetch(box.origin + box.path + '/events?after=0', { headers: { 'x-pullboard-key': box.key, 'last-event-id': String(live.id) } });
+  const replay = await fetchFresh(box.origin + box.path + '/events?after=0', { headers: { 'x-pullboard-key': box.key, 'last-event-id': String(live.id) } });
   assert.deepEqual((await replay.json()).events, []);
   const invalid = await box.call(box.path + '/events?after=1.5');
   assert.equal(invalid.status, 400);
@@ -358,7 +359,7 @@ test('[A2] a live HTTP stream follows CLI writes and reconnects after Last-Event
 
 test('[A2] local auth, origin, unknown board and malformed calls refuse without moving', async (t) => {
   const box = await httpBox(t);
-  const unauthenticated = await fetch(box.origin + '/api/v1/boards');
+  const unauthenticated = await fetchFresh(box.origin + '/api/v1/boards');
   assert.equal(unauthenticated.status, 401);
   assert.equal((await unauthenticated.json()).error.code, 'AUTH_REQUIRED');
   const badSecret = await box.call('/api/v1/boards', undefined, { 'x-pullboard-key': 'incorrect-private-fixture-key' });
@@ -369,7 +370,7 @@ test('[A2] local auth, origin, unknown board and malformed calls refuse without 
   assert.equal(unknown.status, 404);
   const unknownStream = await box.call('/api/v1/boards/' + '0'.repeat(32) + '/events', undefined, { accept: 'text/event-stream' });
   assert.equal(unknownStream.status, 404);
-  const malformed = await fetch(box.origin + box.path + '/moves', { method: 'POST', headers: { 'x-pullboard-key': box.key, 'content-type': 'application/json' }, body: '{broken' });
+  const malformed = await fetchFresh(box.origin + box.path + '/moves', { method: 'POST', headers: { 'x-pullboard-key': box.key, 'content-type': 'application/json' }, body: '{broken' });
   assert.equal(malformed.status, 400);
   assert.equal((await malformed.json()).error.code, 'BAD_REQUEST');
   const unsupported = await box.call(box.path + '/moves', { verb: 'run', args: { agent: 'unsafe' } });
@@ -438,7 +439,7 @@ test('[A2] shared transport stops a live stream when its caller loses access', a
   t.after(() => controller.abort());
   const timeout = setTimeout(() => controller.abort(), 10_000);
   t.after(() => clearTimeout(timeout));
-  const response = await fetch('http://127.0.0.1:' + server.address().port + '/api/v1/boards/' + id + '/events?after=' + records().at(-1).event_id, { headers: { accept: 'text/event-stream' }, signal: controller.signal });
+  const response = await fetchFresh('http://127.0.0.1:' + server.address().port + '/api/v1/boards/' + id + '/events?after=' + records().at(-1).event_id, { headers: { accept: 'text/event-stream' }, signal: controller.signal });
   const reader = response.body.getReader();
   await reader.read();
   authorized = false;
@@ -468,7 +469,7 @@ test('[A2] adapters without a committed-code capability return a versioned refus
   await new Promise((done) => server.listen(0, '127.0.0.1', done));
   t.after(() => new Promise((done) => { handler.close(); server.close(done); }));
   const id = 'fixture-board';
-  const response = await fetch('http://127.0.0.1:' + server.address().port + '/api/v1/boards/' + id + '/code?ref=secret.txt%3A1%40abcdef0');
+  const response = await fetchFresh('http://127.0.0.1:' + server.address().port + '/api/v1/boards/' + id + '/code?ref=secret.txt%3A1%40abcdef0');
   const document = await response.json();
   assert.equal(response.status, 400);
   assert.equal(document.version, 1);

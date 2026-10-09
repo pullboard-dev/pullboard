@@ -8,6 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { once } from 'node:events';
 import { test } from 'node:test';
 import { SSH_SHELL_MARKERS } from '../src/person.js';
+import { fetchFresh } from './http-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const MARKERS = {
@@ -196,7 +197,7 @@ async function startView(t, box, extraEnv = {}) {
   const secret = address.searchParams.get('k');
   assert.ok(secret, 'the actual view starts with its private session credentials');
   /** Send bounded authenticated requests through the same adapter the view uses. */
-  const request = (path, options = {}) => fetch(new URL(path, address.origin), {
+  const request = (path, options = {}) => fetchFresh(new URL(path, address.origin), {
     ...options, headers: { 'x-pullboard-key': secret, ...options.headers }, signal: AbortSignal.timeout(10_000),
   });
   return request;

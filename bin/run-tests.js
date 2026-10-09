@@ -139,13 +139,16 @@ function testEnvironment(sandbox) {
  * @returns {import('node:child_process').SpawnSyncReturns<string>}
  */
 function runTests(args, env) {
-  return spawnSync(process.execPath, [
+  const reporter = args.some((argument) => argument === '--test-reporter' || argument.startsWith('--test-reporter='));
+  const nodeArgs = [
     '--disable-warning=ExperimentalWarning',
     '--test',
+    ...(!reporter ? ['--test-reporter=tap'] : []),
     '--import',
     runner,
     ...args,
-  ], { env, stdio: 'inherit' });
+  ];
+  return spawnSync(process.execPath, nodeArgs, { env, stdio: 'inherit' });
 }
 
 /**

@@ -10,6 +10,7 @@ import * as store from '../src/board.js';
 import { main } from '../src/cli.js';
 import { serveApi } from '../src/api.js';
 import { loadConfig } from '../src/config.js';
+import { fetchFresh } from './http-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const HOUR = 3_600_000;
@@ -142,9 +143,9 @@ test('[Q1,V15,A2] authenticated API next returns a real unreserved offer and exp
     runCommand: (args, io) => main(args, { ...io, clock: box.clock }) });
   t.after(() => api.close());
   const boardId = store.boardId(box.board);
-  /** Send one bounded authenticated move through the real local HTTP adapter. */
+  /** Send one bounded authenticated move through the real local HTTP adapter, on its own connection. */
   async function next(args) {
-    const response = await fetch(`${new URL(api.url).origin}/api/v1/boards/${boardId}/moves`, { method: 'POST',
+    const response = await fetchFresh(`${new URL(api.url).origin}/api/v1/boards/${boardId}/moves`, { method: 'POST',
       headers: { 'x-pullboard-key': apiKey, 'content-type': 'application/json' },
       body: JSON.stringify({ verb: 'next', agent: box.builderId, args }), signal: AbortSignal.timeout(30_000) });
     assert.equal(response.status, 200, await response.clone().text());

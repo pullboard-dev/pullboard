@@ -8,6 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { after, test } from 'node:test';
 import { parseSpec } from '../src/spec.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import { fetchFresh } from './http-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const SPEC_FILE = 'SPEC.md';
@@ -215,7 +216,7 @@ async function startView(t, box, extraEnv = {}) {
   /** Send a bounded authenticated request to the live view adapter. */
   async function request(path, options = {}) {
     try {
-      return await fetch(new URL(path, address.origin), {
+      return await fetchFresh(new URL(path, address.origin), {
         ...options,
         headers: { 'x-pullboard-key': key, ...options.headers },
         signal: AbortSignal.timeout(10_000),
@@ -224,14 +225,18 @@ async function startView(t, box, extraEnv = {}) {
       let timer;
       await Promise.race([closed, new Promise((resolveStatus) => { timer = setTimeout(resolveStatus, 500); })]);
       clearTimeout(timer);
-      const causeCode = error?.cause?.code ?? error?.code ?? 'no-code';
+      const causeCode = error?.cause?.cause?.code ?? error?.cause?.code ?? error?.code ?? 'no-code';
+      const causeChain = [];
+      for (let current = error; current !== undefined && current !== null && causeChain.length < 8; current = current.cause) {
+        causeChain.push([current.code ?? current.name, current.message].filter(Boolean).join(': '));
+      }
       const processStatus = child.exitCode !== null
         ? `exit code=${child.exitCode}`
         : child.signalCode !== null ? `signal=${child.signalCode}`
           : spawnError ? `spawn error code=${spawnError.code ?? spawnError.name}` : 'still running';
       const stderr = [...stderrTail, ...(stderrPartial ? [stderrPartial] : [])].slice(-20);
       const lines = stderr.length ? stderr.join('\n') : '<no stderr output>';
-      throw new Error(`view request failed after 1 attempt (no retry): fetch cause code=${causeCode}; child ${processStatus}; stderr last 20 lines:\n${lines}`, { cause: error });
+      throw new Error(`view request failed after 1 attempt (no retry): fetch cause code=${causeCode}; cause chain ${causeChain.join(' <- ')}; child ${processStatus}; stderr last 20 lines:\n${lines}`, { cause: error });
     }
   }
   request.stopView = stopView;

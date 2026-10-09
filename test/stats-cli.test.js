@@ -9,6 +9,7 @@ import * as store from '../src/board.js';
 import { main } from '../src/cli.js';
 import { proofStats } from '../src/stats.js';
 import { serveApi } from '../src/api.js';
+import { fetchFresh } from './http-fixture.js';
 
 /** Capture the real CLI without spawning a second model or changing the machine's registry. */
 async function run(root, args) {
@@ -91,7 +92,7 @@ test('[R1,R2,A2] local HTTP state exposes exactly the command statistics', async
   t.after(() => api.close());
   const url = new URL(api.url);
   const headers = { 'x-pullboard-key': url.searchParams.get('k') };
-  const response = await fetch(`${url.origin}/api/v1/boards/${store.boardId(board)}/state`, { headers });
+  const response = await fetchFresh(`${url.origin}/api/v1/boards/${store.boardId(board)}/state`, { headers });
   assert.equal(response.status, 200);
   const document = await response.json();
   const command = await run(root, ['stats', '--json']);
