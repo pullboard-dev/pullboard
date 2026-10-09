@@ -3987,6 +3987,92 @@ test('in-text item references stay inline and open their target at phone and des
   }
 });
 
+test('list rows hold their shape: one-line titles end in an ellipsis, every row as tall as the next [N26]', { timeout: 90_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for list row checks.');
+
+  const box = machine();
+  const demo = project(box, 'row-shape');
+  const long = 'A title far too long for one line of the list: it names `pullboard land` and #1, then keeps on going past every width a phone or a laptop gives a row, so only an ellipsis can end it';
+  const titles = { 1: 'Short title', 2: long, 3: 'Waits on the short one', 4: 'Built, then sent back with a long reason', 5: 'Being built right now' };
+  box.run(demo.repo, 'add', 'web', titles[1], '--specs', 'G1', '--criterion', 'short');
+  box.run(demo.repo, 'add', 'web', titles[2], '--specs', 'G1', '--criterion', 'long');
+  box.run(demo.repo, 'add', 'web', titles[3], '--specs', 'G1', '--criterion', 'gated', '--after', '1');
+  box.run(demo.repo, 'add', 'web', titles[4], '--specs', 'G1', '--criterion', 'back');
+  box.run(demo.repo, 'add', 'web', titles[5], '--specs', 'G1', '--criterion', 'busy');
+  build(box, demo, 4, 'four.txt');
+  sendBack(box, demo, 4, `It misses the edge: ${'the criterion names a blank name and the page still greets it, '.repeat(4)}`);
+  box.run(demo.web, 'claim', '5');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-row-shape-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor('document.querySelectorAll("#chain .row").length === 5');
+    for (const width of [375, 1280]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.waitFor(`innerWidth === ${width}`);
+      const rows = JSON.parse(await chrome.evaluate(`JSON.stringify([...document.querySelectorAll('#chain .row')].map((row) => {
+        const box = (node) => node.getBoundingClientRect();
+        const lines = (node) => Math.round(box(node).height / parseFloat(getComputedStyle(node).lineHeight));
+        const apart = (a, b) => a.right <= b.left + 0.5 || b.right <= a.left + 0.5 || a.bottom <= b.top + 0.5 || b.bottom <= a.top + 0.5;
+        const title = row.querySelector('.t'), meta = row.querySelector('.meta'), chip = row.querySelector(':scope > .chip');
+        return { id: row.dataset.item, tip: row.title, height: Math.round(box(row).height),
+          titleLines: lines(title), ellipsis: getComputedStyle(title).textOverflow === 'ellipsis' && getComputedStyle(title).whiteSpace === 'nowrap',
+          cut: title.scrollWidth > title.clientWidth, metaLines: lines(meta), chip: chip.className + ': ' + chip.textContent,
+          chipHeight: Math.round(box(chip).height), chipClear: apart(box(chip), box(meta)) && apart(box(chip), box(title)),
+          code: [...title.querySelectorAll('code')].map((code) => getComputedStyle(code).display) };
+      }))`));
+      const place = (row) => `${width}, #${row.id}: ${JSON.stringify(row)}`;
+      assert.deepEqual(rows.map((row) => row.id).sort(), ['1', '2', '3', '4', '5'], `${width}: every item has a row`);
+      for (const row of rows) {
+        assert.equal(row.tip, titles[row.id], `${width}: the row's tooltip is its whole title`);
+        assert.ok(row.titleLines === 1 && row.ellipsis, `title is one line, set to end in an ellipsis at ${place(row)}`);
+        assert.equal(row.metaLines, 1, `the meta line never wraps, a long verdict reason included, at ${place(row)}`);
+        assert.ok(row.chipHeight < 24 && row.chipClear, `the chip is one line and nothing runs over it at ${place(row)}`);
+      }
+      assert.ok(rows.find((row) => row.id === '2').cut, `${width}: the long title is cut, so its ellipsis shows`);
+      assert.deepEqual(rows.find((row) => row.id === '2').code, ['inline'], `${width}: inline code in a title stays a word in the line, not a block`);
+      assert.equal(new Set(rows.map((row) => row.height)).size, 1, `${width}: every row is as tall as the next: ${JSON.stringify(rows.map((row) => [row.id, row.height]))}`);
+      assert.equal(new Set(rows.map((row) => row.chipHeight)).size, 1, `${width}: every chip is the same size`);
+      const chips = Object.fromEntries(rows.map((row) => [row.id, row.chip]));
+      assert.deepEqual([chips[1], chips[2], chips[3], chips[4]], ['chip free: unclaimed', 'chip free: unclaimed', 'chip gate: gated', 'chip no: sent back'], `${width}: each state's chip in the list`);
+      assert.match(chips[5], /^chip busy: web-\d+$/, `${width}: a claimed item names who builds it, in the building colour`);
+      // The same state wears the same chip in the item's detail as in its row.
+      for (const row of rows) {
+        await chrome.evaluate(`document.querySelector('#chain .row[data-item="${row.id}"]').click()`);
+        await chrome.waitFor(`document.querySelector('#detail h2')?.textContent.startsWith('#${row.id}')`);
+        const detail = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+          const chip = document.querySelector('#detail .meta.spaced .chip'), listed = document.querySelector('#chain .row[data-item="${row.id}"] > .chip');
+          const paint = (node) => [getComputedStyle(node).backgroundColor, getComputedStyle(node).color, getComputedStyle(node).outlineStyle];
+          return { chip: chip.className + ': ' + chip.textContent, samePaint: JSON.stringify(paint(chip)) === JSON.stringify(paint(listed)) };
+        })())`));
+        assert.ok(detail.samePaint, `${width}: #${row.id}'s chip has its row's colours in the detail: ${JSON.stringify(detail)} vs ${row.chip}`);
+        if (row.id !== '5') assert.equal(detail.chip, row.chip, `${width}: #${row.id}'s detail says what its row says`);
+        else assert.equal(detail.chip, 'chip busy: building', `${width}: the detail says building, in the colour of its row's builder chip`);
+      }
+    }
+    // A builder's name can be long; its chip stops at its cap and ends in an ellipsis, leaving the title its line.
+    await chrome.evaluate("data.project.items.find((item) => item.id === 5).owner = 'claude-opus-designer-on-the-studio-7'; render();");
+    for (const width of [375, 1280]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.waitFor(`innerWidth === ${width} && document.querySelector('#chain .row[data-item="5"] > .chip')?.textContent.startsWith('claude-opus')`);
+      const named = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+        const row = document.querySelector('#chain .row[data-item="5"]'), chip = row.querySelector(':scope > .chip'), meta = row.querySelector('.meta');
+        const a = chip.getBoundingClientRect(), b = meta.getBoundingClientRect();
+        return { chipWidth: a.width, cap: 10 * parseFloat(getComputedStyle(document.documentElement).fontSize), cut: chip.scrollWidth > chip.clientWidth,
+          ellipsis: getComputedStyle(chip).textOverflow === 'ellipsis', clear: b.right <= a.left + 0.5, heights: [...new Set([...document.querySelectorAll('#chain .row')].map((r) => Math.round(r.getBoundingClientRect().height)))] };
+      })())`));
+      assert.ok(named.chipWidth <= named.cap + 0.5 && named.cut && named.ellipsis, `${width}: a long builder name stops at the chip's cap, cut with an ellipsis: ${JSON.stringify(named)}`);
+      assert.ok(named.clear && named.heights.length === 1, `${width}: and the row keeps its meta clear and its height: ${JSON.stringify(named)}`);
+    }
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
 test('Roadmap and rule prose references stay inline and open the item on their own board [N26,N38]', { timeout: 90_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for prose-reference checks.');
@@ -4357,7 +4443,7 @@ test('the roadmap reads every item as the Items tab does, opens each one, anothe
     { id: '#4', label: 'to verify', tone: 'warn' },
     { id: 'beacon#1', label: 'sent back', tone: 'no' },
     { id: '#5', label: 'building', tone: 'busy' },
-    { id: '#6', label: 'open', tone: '' },
+    { id: '#6', label: 'unclaimed', tone: 'free' },
     { id: '#7', label: 'withdrawn', tone: '' },
   ];
   const view = await startView(box);
@@ -4507,8 +4593,8 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
     const seen = await readRoadmap(chrome);
     assert.deepEqual(seen.cards[0].rows.map(({ id, label, tone, button }) => ({ id, label, tone, button })), [
       { id: '#1', label: 'verified', tone: 'ok', button: true },
-      { id: '#2', label: 'open', tone: '', button: true },
-      { id: 'beacon#1', label: 'open', tone: '', button: false },
+      { id: '#2', label: 'unclaimed', tone: 'free', button: true },
+      { id: 'beacon#1', label: 'unclaimed', tone: 'free', button: false },
     ], "the snapshot's rows read as its Items tab does; another repo's item, not in the snapshot, opens nothing");
     assert.equal(seen.cards[0].rows[2].tip, 'Billing webhook retries (not in this snapshot)', 'and says why');
     assert.deepEqual([seen.cards[1].name, seen.cards[1].empty], ['Later', 'No items yet.']);

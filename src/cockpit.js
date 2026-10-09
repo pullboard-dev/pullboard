@@ -212,7 +212,7 @@ const rejected = (i) => i.status !== 'verified' && !!i.verdict && i.verdict.deci
 /** Render a review note with escaped text and references bound to the selected board. */
 const verdictHtml = (v, titles) => '<div class="verdict ' + (v.decision === 'ACCEPT' ? 'yes' : 'no') + '"><b>' + esc(v.decision) + ' ' + esc(v.reason) + '</b><span class="by">' + esc(v.by) + ' · ' + when(v.at) + ' · at ' + esc(String(v.commit || '').slice(0, 12)) + '</span><div class="note">' + linked(v.note, titles) + '</div></div>';
 const stateOf = (i) => i.status === 'claimed' ? 'building' : i.status === 'submitted' ? 'verify' : i.status === 'verified' ? 'verified' : i.status === 'withdrawn' ? 'withdrawn' : i.verdict && i.verdict.decision === 'REJECT' ? 'back' : 'open';
-const STATES = { building: ['building', 'busy'], verify: ['to verify', 'warn'], back: ['sent back', 'no'], verified: ['verified', 'ok'], open: ['open', ''], withdrawn: ['withdrawn', ''] };
+const STATES = { building: ['building', 'busy'], verify: ['to verify', 'warn'], back: ['sent back', 'no'], verified: ['verified', 'ok'], open: ['unclaimed', 'free'], withdrawn: ['withdrawn', ''] };
 const chip = (s) => '<span class="chip ' + STATES[s][1] + '">' + STATES[s][0] + '</span>';
 // A shout's path:lines@commit reference (B23): a button, and under it, once opened, that code as it
 // was at that commit, with its line numbers. The text before it on its line goes with it, so the view
@@ -1012,6 +1012,8 @@ function render() {
   // While another project loads, the item picked there waits for its own board.
   if (data.root === view.root && !view.adding && !p.items.some((i) => i.id === view.item)) view.item = shown.length ? shown[0].id : null;
   const heldLanes = new Map(p.holds.map((h) => [h.hold_lane, h]));
+  // An open item's chip, the same in its row and its detail: gated, its lane held, or unclaimed.
+  const openChip = (i) => i.blockedBy.length || heldLanes.has(i.lane) ? '<span class="chip gate">' + (i.blockedBy.length ? 'gated' : 'lane held') + '</span>' : chip('open');
   $('chain').innerHTML = shown.length ? shown.map((i) => {
     const s = stateOf(i);
     const who = s === 'building' ? i.owner : [i.builtBy, i.verifiedBy].filter(Boolean).join(' → ');
@@ -1022,8 +1024,8 @@ function render() {
     const pills = (waits.length ? '<span class="gate">' + waits.map((id, index) => '<span class="wait-unit">' + (index ? '' : 'waits on ') + '<button class="ref" data-go="item:' + id + '" type="button">#' + id + '</button></span>').join(', ') + '</span>' : '') + (hold ? '<span class="gate">lane held: ' + linked(hold.hold_reason, titles) + '</span>' : '');
     const tag = s === 'building' && i.owner ? '<span class="chip busy" title="building, held by ' + esc(i.owner) + '">' + esc(i.owner) + '</span>'
       : s === 'verify' && i.reviewer ? '<span class="chip warn" title="reviewing until ' + esc(when(i.reviewUntil)) + '">' + esc(i.reviewer) + ' reviewing</span>'
-      : s === 'open' ? (gated ? '<span class="chip gate">' + (waits.length ? 'gated' : 'lane held') + '</span>' : '<span class="chip free">unclaimed</span>') : chip(s);
-    return '<li class="row' + (view.item === i.id ? ' on' : '') + (gated ? ' gated' : '') + '" data-item="' + i.id + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + rich(i.title, titles) + '</div><div class="meta"><span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span>' + esc(i.specs.join(', ')) + '</span>' : '') + (who ? '<span>' + esc(who) + '</span>' : '') + pills + '<span>' + age(i.updatedAt) + '</span>' + (rejected(i) ? '<span class="why">' + linked(i.verdict.reason + ': ' + firstLine(i.verdict.note), titles) + '</span>' : '') + '</div></div>' + tag + '</li>';
+      : s === 'open' ? openChip(i) : chip(s);
+    return '<li class="row' + (view.item === i.id ? ' on' : '') + (gated ? ' gated' : '') + '" data-item="' + i.id + '" title="' + esc(i.title) + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + rich(i.title, titles) + '</div><div class="meta"><span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span>' + esc(i.specs.join(', ')) + '</span>' : '') + (who ? '<span class="who">' + esc(who) + '</span>' : '') + pills + '<span>' + age(i.updatedAt) + '</span>' + (rejected(i) ? '<span class="why">' + linked(i.verdict.reason + ': ' + firstLine(i.verdict.note), titles) + '</span>' : '') + '</div></div>' + tag + '</li>';
   }).join('') : '<li class="empty">' + (items.length ? 'No items match.' : snapshot ? 'No items at this event.' : 'No items yet. Add the first one with New item.') + '</li>';
 
   const item = p.items.find((i) => i.id === view.item);
@@ -1039,7 +1041,7 @@ function render() {
     // Why it came back is the first thing the person reads; the verdicts before it stay below.
     const back = rejected(item);
     const earlier = back ? item.verdicts.slice(0, -1) : item.verdicts;
-    $('detail').innerHTML = '<div class="stack"><div><h2><span>#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="meta spaced">' + chip(s) + '<span class="chip">' + esc(item.lane) + '</span><span class="chip">' + esc(item.route) + '</span></div></div>'
+    $('detail').innerHTML = '<div class="stack"><div><h2><span>#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="meta spaced">' + (s === 'open' ? openChip(item) : chip(s)) + '<span class="chip">' + esc(item.lane) + '</span><span class="chip">' + esc(item.route) + '</span></div></div>'
       + (back ? '<div class="sentback"><h3>Sent back' + (s === 'building' ? ', being reworked' : s === 'verify' ? ', resubmitted' : s === 'withdrawn' ? ', then withdrawn' : '') + '</h3>' + verdictHtml(item.verdict, titles) + '</div>' : '')
       + (item.criterion ? '<div><h3>Criterion</h3><div class="text">' + rich(item.criterion, titles) + '</div></div>' : '')
       + (cited.length ? '<div><h3>Spec rows it serves</h3>' + cited.map((r) => '<div class="rowref"><code>' + esc(r.id) + '</code><div>' + linked(r.text, titles) + ' <span class="chip ' + tone(r.status) + '">' + esc(r.status) + '</span></div></div>').join('') + '</div>' : '')
