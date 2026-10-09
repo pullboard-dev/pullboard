@@ -93,6 +93,54 @@ test('CLI device HTTP flow returns a one-time session and individually revocable
   assert.equal((await revoked.json()).error.code, 'AUTH_REQUIRED');
 });
 
+test('HTTP person controls expose only scoped token metadata, and agent identity stays board-bound [H2,H9]', async (t) => {
+  const box = await relay(t);
+  const signed = await browserLogin(box);
+  const headers = { cookie: signed.cookie, origin: box.origin, 'content-type': 'application/json' };
+  for (const board of ['alpha', 'beta']) {
+    const linked = await fetch(box.origin + '/auth/boards/link', { method: 'POST', headers,
+      body: JSON.stringify({ board, repository: 'fixture/repository' }) });
+    assert.equal(linked.status, 200);
+  }
+  const issued = await fetch(box.origin + '/auth/tokens', { method: 'POST', headers,
+    body: JSON.stringify({ board: 'alpha', agent: 'worker-one' }) });
+  assert.equal(issued.status, 201);
+  const scoped = await issued.json();
+  const listed = await fetch(box.origin + '/auth/tokens?board=alpha', { headers: { cookie: signed.cookie } });
+  assert.equal(listed.status, 200);
+  assert.equal(listed.headers.get('cache-control'), 'no-store');
+  const document = await listed.json();
+  assert.equal(document.tokens.length, 1);
+  assert.equal(document.tokens[0].id, scoped.id);
+  assert.equal(document.tokens[0].agent, 'worker-one');
+  assert.deepEqual(Object.keys(document.tokens[0]).sort(), ['agent', 'board', 'created', 'expires', 'id', 'revoked']);
+  assert.equal(JSON.stringify(document).includes(scoped.token), false, 'HTTP listing never exposes bearer values');
+  const agentHeaders = { authorization: 'Bearer ' + scoped.token };
+  const identity = await fetch(box.origin + '/auth/session?board=alpha', { headers: agentHeaders });
+  assert.equal(identity.status, 200);
+  const session = (await identity.json()).session;
+  assert.equal(session.kind, 'board');
+  assert.equal(session.agent, 'worker-one');
+  assert.equal(session.board, 'alpha');
+  const wrong = await fetch(box.origin + '/auth/session?board=beta', { headers: agentHeaders });
+  assert.equal(wrong.status, 403);
+  assert.equal((await wrong.json()).error.code, 'TOKEN_BOARD');
+  const forbidden = await fetch(box.origin + '/auth/tokens?board=alpha', { headers: agentHeaders });
+  assert.equal(forbidden.status, 403);
+  assert.equal((await forbidden.json()).error.code, 'HUMAN_REQUIRED');
+  const deniedOrigin = await fetch(box.origin + '/auth/tokens/revoke', {
+    method: 'POST', headers: { ...headers, origin: 'http://elsewhere.invalid' },
+    body: JSON.stringify({ id: scoped.id }),
+  });
+  assert.equal(deniedOrigin.status, 403);
+  const revoked = await fetch(box.origin + '/auth/tokens/revoke', { method: 'POST', headers,
+    body: JSON.stringify({ id: scoped.id }) });
+  assert.equal(revoked.status, 200);
+  const immediately = await fetch(box.origin + '/auth/session?board=alpha', { headers: agentHeaders });
+  assert.equal(immediately.status, 401);
+  assert.equal((await immediately.json()).error.code, 'AUTH_REQUIRED');
+});
+
 test('HTTP errors are versioned and bounded; production cookies are Secure [H8, H1]', async (t) => {
   const box = await relay(t);
   const malformed = await fetch(box.origin + '/auth/device/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '[' });

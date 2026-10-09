@@ -6,6 +6,35 @@
 
 const LABEL_RE = /^(files|change|test|out of scope)\s*:\s*(.*)$/i;
 
+/** Remove closed parenthetical notes while leaving an unmatched note visible to path checks.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+function withoutParentheticalNotes(text) {
+  let depth = 0;
+  let noteStart = -1;
+  let output = '';
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (character === '(') {
+      if (depth === 0) {
+        noteStart = index;
+        output += ' ';
+      }
+      depth += 1;
+    } else if (character === ')' && depth > 0) {
+      depth -= 1;
+      if (depth === 0) {
+        noteStart = -1;
+        output += ' ';
+      }
+    } else if (depth === 0) output += character;
+  }
+  if (depth > 0) output += text.slice(noteStart);
+  return output;
+}
+
 /**
  * The brief split into its labelled sections, each a list of non-empty lines without bullets.
  *
@@ -37,7 +66,9 @@ export function briefSections(brief) {
  */
 export function briefFiles(brief) {
   return (briefSections(brief).files ?? [])
-    .flatMap((entry) => entry.split(/[,\s]+/))
+    .flatMap((entry) => withoutParentheticalNotes(entry).split(/[,\s]+/))
     .map((token) => token.replace(/^[(`'"]+|[)\]'".,;:!?]+$/g, ''))
-    .filter((token) => !/^[a-z]+:\/\//i.test(token) && (token.includes('/') || /\.[a-z0-9]+(?:\.[a-z0-9]+)*$/i.test(token)));
+    .filter((token) => !/^[\d.]+$/.test(token)
+      && !/^[a-z]+:\/\//i.test(token)
+      && (token.includes('/') || /\.[a-z0-9]+(?:\.[a-z0-9]+)*$/i.test(token)));
 }

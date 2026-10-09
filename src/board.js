@@ -621,9 +621,15 @@ export function validateItemAddition(board, { by, lane, title, criterion = '', p
  */
 export function editItem(board, id, { agentId, brief, route, criterion, check, checkBaseline }) {
   atomic(board, () => {
+    const stored = itemById(board, id);
+    const expiredHolder = stored.item_status === 'claimed' && !isHeld(board, stored) ? stored.item_owner : null;
     const { item, next, command, unfreeze } = validateItemEdit(board, id, { agentId, brief, route, criterion, check });
     const baseline = normalizeCheckBaseline(agentId, command, checkBaseline);
-    setItem(board, id, { ...next, ...(unfreeze ? { item_frozen: null, item_frozen_digest: null } : {}) });
+    const clearFrozen = unfreeze || Boolean(expiredHolder);
+    if (expiredHolder) {
+      moveItem(board, id, 'lapse', { checks: {}, set: () => ({ item_owner: null, item_lease_until: null }) });
+    }
+    setItem(board, id, { ...next, ...(clearFrozen ? { item_frozen: null, item_frozen_digest: null } : {}) });
     if (baseline || next.item_check !== item.item_check) saveCheckBaseline(board, id, baseline);
     logEvent(board, agentId, 'edit', id, {
       ...(next.item_brief !== item.item_brief ? { brief: `${next.item_brief.length} characters` } : {}),
@@ -631,7 +637,8 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, c
       ...(next.item_criterion !== item.item_criterion ? { criterion: next.item_criterion } : {}),
       ...(command !== undefined ? { check: next.item_check } : {}),
       ...(baseline ? { checkBaseline: baseline } : {}),
-      ...(unfreeze && item.item_frozen_digest ? { unfrozen: item.item_frozen_digest } : {}),
+      ...(clearFrozen && item.item_frozen_digest ? { unfrozen: item.item_frozen_digest } : {}),
+      ...(expiredHolder ? { expiredHolder } : {}),
     });
   });
 }
@@ -680,19 +687,40 @@ function normalizeCheckBaseline(agentId, command, baseline) {
   if (baseline === undefined) return undefined;
   coordinatorCheck(agentId, command ?? '');
   if (!command || !baseline || typeof baseline !== 'object' || Array.isArray(baseline)
-    || baseline.command !== command || !['green', 'red', 'unavailable'].includes(baseline.result)
+    || baseline.command !== command || !['green', 'red', 'unavailable', 'pending'].includes(baseline.result)
     || !(baseline.main === null || typeof baseline.main === 'string' && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(baseline.main))
     || (baseline.result !== 'unavailable' && baseline.main === null)
+    || (baseline.result === 'pending' && !baseline.request)
+    || (baseline.request !== undefined && (typeof baseline.request !== 'string' || !/^[a-f0-9-]{36}$/.test(baseline.request)))
     || (baseline.reason !== undefined && typeof baseline.reason !== 'string')
     || (baseline.seconds !== undefined && (!Number.isSafeInteger(baseline.seconds) || baseline.seconds < 0))) {
     throw new Refused('BAD_CHECK_BASELINE', 'the check baseline must describe this command at a main commit; set --check again from the coordinator');
   }
   return {
     command, main: baseline.main, result: baseline.result,
+    ...(baseline.request === undefined ? {} : { request: baseline.request }),
     ...(baseline.reason === undefined ? {} : { reason: baseline.reason }),
     ...(baseline.seconds === undefined ? {} : { seconds: baseline.seconds }),
     ...(baseline.result === 'green' ? { warning: 'CRITERION_PROVES_NOTHING' } : {}),
   };
+}
+
+/** Record a captured result only for the still-current authorized background request [V2,H16]. */
+export function completeCheckBaseline(board, id, { agentId, expected, baseline }) {
+  return atomic(board, () => {
+    const result = normalizeCheckBaseline(agentId, baseline?.command, baseline);
+    if (!expected || !result || result.result === 'pending' || result.command !== expected.command || result.main !== expected.main
+      || typeof expected.request !== 'string' || !/^[a-f0-9-]{36}$/.test(expected.request)) {
+      throw new Refused('BAD_CHECK_BASELINE', 'a completed baseline must match its authorized request; set --check again from the coordinator');
+    }
+    const item = itemById(board, id);
+    const current = itemCheckBaseline(board, item);
+    if (current?.result !== 'pending' || current.request !== expected.request || current.command !== expected.command || current.main !== expected.main) return false;
+    const recorded = { ...result, request: expected.request };
+    saveCheckBaseline(board, id, recorded);
+    logEvent(board, agentId, 'check-baseline', id, { checkBaseline: recorded });
+    return true;
+  });
 }
 
 /** Store or clear an item's observation atomically with its check and immutable audit event. */

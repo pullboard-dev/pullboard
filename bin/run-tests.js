@@ -7,7 +7,7 @@ import { delimiter, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { AGENT_SHELL_MARKERS } from '../src/person.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
 
 const runner = fileURLToPath(import.meta.url);
 
@@ -41,6 +41,7 @@ function testEnvironment(sandbox) {
   }
   // Model a plain user terminal; person-boundary tests inject agent markers explicitly.
   for (const key of AGENT_SHELL_MARKERS) delete env[key];
+  for (const key of SSH_SHELL_MARKERS) delete env[key];
   env.HOME = home;
   env.USERPROFILE = home;
   env.PULLBOARD_HOME = home;
@@ -53,6 +54,7 @@ function testEnvironment(sandbox) {
   env.GIT_CONFIG_KEY_0 = 'user.useConfigOnly';
   env.GIT_CONFIG_VALUE_0 = 'true';
   env.PATH = [shims, process.env.PATH].filter(Boolean).join(delimiter);
+  delete env.PULLBOARD_RELAY_TOKEN; // Fixtures must supply their own scoped credentials, never an agent’s live bearer.
   delete env.NODE_TEST_CONTEXT;
   delete env.PULLBOARD_TEST_FILE;
   return env;

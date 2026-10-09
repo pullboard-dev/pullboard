@@ -9,13 +9,13 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import * as store from './board.js';
-import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
+import { CONFIG_FILE, COORDINATOR, DOCTRINE_FILE, LEGACY_DOCTRINE_FILE, loadConfig } from './config.js';
 import { doctrineHistory, loadDoctrine } from './doctrine.js';
 import { agentSessionDigest, requirePersonChannel } from './person.js';
 import { bindLocalSession } from './agent-session.js';
 import { decisionProjection, planRowApply, prepareRowDecisions, restoreRowApply, writeRowApply } from './row-decisions.js';
-import { digestOf, gateReport, runGate, runShell, withGateSlot } from './gate.js';
-import { bareWorktreeFinding, contains, differFromHead, git, gitChildEnv, headCommit, headTree, isClean, mainCheckout, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
+import { digestOf, gateReport, runGate, runShell, runSubmitGate, submitGateReport, withGateSlot } from './gate.js';
+import { bareWorktreeFinding, contains, differFromHead, git, gitChildEnv, headCommit, headTree, invalidateGitFacts, isClean, mainCheckout, repoInfo, resolveCommit, tryGit, untracked, withGitFacts } from './git.js';
 import {
   FIX_NOTE,
   applyFixers,
@@ -38,6 +38,7 @@ import {
   idProblems,
   lintSpec,
   loadSpec,
+  legacyDoctrineRenameBase,
   permanenceProblems,
   parseSpec,
   readSignoffs,
@@ -46,7 +47,8 @@ import {
   unmetRows,
 } from './spec.js';
 import { briefFiles } from './brief.js';
-import { checkBaseline, sayCheckBaseline } from './check-baseline.js';
+import { checkBaseline, prepareCheckBaseline, sayCheckBaseline } from './check-baseline.js';
+import { retryCheckBaselines, startCheckBaseline } from './check-baseline-worker.js';
 import { runItems } from './run.js';
 import { parseProblems, sweepItems } from './sweep.js';
 import { renderSpecView } from './view.js';
@@ -65,7 +67,7 @@ import { proofStats } from './stats.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
-import { relayCommandReceipt, relayCommandReceiptReported, relayLinked, relayOff, relayOn, relayOperation, relayRecovered, relayStatus, syncRelay } from './relay.js';
+import { relayCommandReceipt, relayCommandReceiptReported, relayLinked, relayOff, relayOn, relayOperation, relayRecovered, relayRevoke, relayStatus, relayTokens, syncRelay } from './relay.js';
 import { relayJoin, relayPair } from './relay-pairing-client.js';
 import { executePersonRequests } from './relay-request-execution.js';
 
@@ -78,9 +80,10 @@ const CHECKOUT_LEASES = new WeakMap();
  *
  * @param {string} root
  * @param {string} path
+ * @param {string} [revision]
  * @returns {{ status: number, stdout: string }}
  */
-function coordinatorFile(root, path) {
+function coordinatorFile(root, path, revision) {
   const commonDir = git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
   const coordinatorRoot = dirname(commonDir);
   const env = { ...gitChildEnv(root), GIT_NO_REPLACE_OBJECTS: '1' };
@@ -94,7 +97,7 @@ function coordinatorFile(root, path) {
       'the primary checkout must be on its attached local branch to establish the collision baseline; the coordinator returns it to its branch',
     );
   }
-  const result = spawnSync('git', ['--no-replace-objects', 'show', `${ref}:${path}`], {
+  const result = spawnSync('git', ['--no-replace-objects', 'show', `${revision ?? ref}:${path}`], {
     cwd: coordinatorRoot, env, encoding: 'utf8',
   });
   return { status: result.status ?? 1, stdout: result.stdout ?? '' };
@@ -121,6 +124,8 @@ Set up
   pullboard relay [on|off|pair|join <code>] [--url <address>]  link, inspect or unlink this board's sealed relay
                                         on signs in through GitHub; the address defaults to https://app.pullboard.dev
                                         pair prints a one-use machine code; join stores it in another clone
+  pullboard relay tokens                list this board's agent token ids, agents and expiry, never credentials
+  pullboard relay revoke <token-id>     revoke one token from that list; other agents keep working
   pullboard resume                      where you are: your claim, branch, uncommitted work, what came back,
                                         unread shouts, what to do next; run it to start any session
   pullboard hooks                       reinstall the git hooks (e.g. after a fresh clone)
@@ -130,8 +135,10 @@ Work
                 [--brief "..." | --brief-file <file>] [--route light|mid]
                                         --after: claiming waits until those items are verified
                                         --brief: what a cold agent needs; --route light: any model can build it
-                [--check "<command>"]  the command that proves it; with --criterion and a brief, needed below strong
+                [--check "<command>"] [--wait]   the command that proves it; --wait waits for its main baseline
+                                        with --criterion and a brief, --check is needed below strong
   pullboard edit <id> [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."]
+                [--wait]                wait for a new check's baseline; otherwise it runs in the background
   pullboard escalate <id> --note "what was tried and how it failed"   hand it one tier up
   pullboard run --agent "<command>" [--attempts 3] [--minutes 15] [--items N] [--wait M]
                                         build routed items unattended in this worktree: the agent command reads
@@ -160,7 +167,7 @@ Work
                                         the command and its author print first; the project gate is pullboard gate
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
   pullboard release <id>                hand it back
-  pullboard submit <id>                 needs a clean tree and the gate green at HEAD (alias: done)
+  pullboard submit <id>                 needs a clean tree, item check and affected tests green at HEAD (alias: done)
   pullboard verify <id> accept --note "what you broke or which edge you tried, and what happened"
   pullboard verify <id> reject --reason TEST_FAILURE --note "what failed"
                                         any --note can be --note-file <file>, which keeps quotes, $ and backticks intact
@@ -478,6 +485,28 @@ const OPTIONS = {
   help: { type: 'boolean', short: 'h' },
   version: { type: 'boolean', short: 'v' },
 };
+
+/** Parse --wait as a switch for add/edit and as minutes for next/run, preserving all other options. */
+function parseCommandArgs(argv) {
+  let command;
+  for (const wait of [{ type: 'boolean' }, OPTIONS.wait]) {
+    try {
+      command = parseArgs({ args: argv, options: { ...OPTIONS, wait }, allowPositionals: true }).positionals[0];
+      if (['add', 'edit'].includes(command)) break;
+    } catch { /* The final parser supplies the existing actionable usage error. */ }
+  }
+  const options = ['add', 'edit'].includes(command) ? { ...OPTIONS, wait: { type: 'boolean' } } : OPTIONS;
+  return parseArgs({ args: argv, options, allowPositionals: true });
+}
+
+/** Start an already-recorded request, recording an unavailable result if its child cannot start. */
+async function launchBaseline(ctx, board, id, baseline) {
+  try { await startCheckBaseline(ctx.info.root, id, baseline); }
+  catch {
+    await ordered(ctx, board, 'completeCheckBaseline', [id, { agentId: COORDINATOR, expected: baseline,
+      baseline: { command: baseline.command, main: baseline.main, result: 'unavailable', reason: 'background worker could not start; set --check again from the coordinator' } }]);
+  }
+}
 
 /**
  * A positive whole number from an argument, or a refusal naming what was expected.
@@ -893,7 +922,7 @@ function dirtyFiles(root) {
 function filesSince(root, id, from, to) {
   if (!from) return [];
   const others = [`--exclude=refs/pullboard/items/${id}/*`, '--glob=refs/pullboard/items/*'];
-  const result = tryGit(root, ['log', '--first-parent', '--no-merges', '--format=', '--name-only', to, '--not', from, ...others]);
+  const result = tryGit(root, ['log', '--first-parent', '--no-merges', '--no-renames', '--format=', '--name-only', to, '--not', from, ...others]);
   return result.status === 0 ? [...new Set(result.stdout.split('\n').filter(Boolean))].sort() : [];
 }
 
@@ -1200,6 +1229,11 @@ async function worktreeFor(io, lane, route, family = null) {
   let id;
   try { id = await withBoard(ctx, async (board) => await ordered(ctx, board, 'register', [{ lane, path: root, route, family }])); }
   catch (error) {
+    const registered = withBoard(ctx, (board) => store.agentAt(board, root));
+    if (registered) {
+      io.err('pullboard: registration is already ordered; the worktree is preserved. Retry enrollment to obtain its credential: ' + cdTo(root) + ' pullboard join ' + lane + (route === 'strong' ? '' : ' --route ' + route) + (family ? ' --family ' + shellWord(family) : ''));
+      throw error;
+    }
     // Only remove the clean worktree just created here; preserve it if another process changed it.
     const removed = tryGit(mainRoot, ['worktree', 'remove', root]);
     if (removed.status === 0) tryGit(mainRoot, ['branch', '-d', `${lane}/${n}`]);
@@ -1579,11 +1613,10 @@ async function submitHere(ctx, id) {
   const commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
   requireTrunkMerge(root, commit);
-  // Submit runs the gate itself, every time: a stamp from an earlier run is a file any agent can
-  // write, so it never stands in for this run (V16). It starts on the commit submitted, and must end
-  // on it too. What the gate's own code does in between is the submitted tree's, under review.
-  const gate = await runGate(root, ctx.config, { trustStamp: false, onWait: gateWaitReporter(ctx.io) });
-  if (!gate.isGreen) throw new Refused('GATE_RED', `the gate is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${gateReport(gate)}`);
+  // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
+  // A full-gate stamp never substitutes for either proof; only an actual full fallback may stamp.
+  const gate = await runSubmitGate(root, ctx.config, { base: claimHead, trunk: acceptedMain.commit, check: frozenCheck(held), onWait: gateWaitReporter(ctx.io) });
+  if (!gate.isGreen) throw new Refused('GATE_RED', `the submission proof is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${submitGateReport(gate)}`);
   if (headCommit(root) !== commit || !isClean(root)) {
     throw new Refused(
       'MOVED_DURING_GATE',
@@ -1592,7 +1625,7 @@ async function submitHere(ctx, id) {
   }
   requireTrunkMerge(root, commit); // The trunk may have moved while the gate ran.
   await withBoard(ctx, async (board) => await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit }]));
-  return reportSubmission(ctx, id, commit, { green: gate.isGreen, report: gateReport(gate) });
+  return reportSubmission(ctx, id, commit, { green: gate.isGreen, report: submitGateReport(gate), files: gate.files, full: gate.full, reason: gate.reason, check: gate.check });
 }
 
 /** Report and pin the original submitted commit, including a recovered acknowledged outcome. */
@@ -1811,6 +1844,7 @@ async function sweepHere(ctx, board, me, values) {
   }
   const max = values.max === undefined ? 20 : idArg(values.max, 'a number after --max');
   const ran = spawnSync(report, { cwd: ctx.info.root, shell: true, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  invalidateGitFacts();
   const problems = parseProblems(`${ran.stdout ?? ''}\n${ran.stderr ?? ''}`, ctx.info.root);
   if (!problems.length) {
     ctx.io.say(`the checker reported no problems I can read (exit ${ran.status}); nothing to file`);
@@ -1828,6 +1862,7 @@ async function sweepHere(ctx, board, me, values) {
   const blind = [];
   for (const item of items) {
     const canary = spawnSync(item.check, { cwd: ctx.info.root, shell: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    invalidateGitFacts();
     if (canary.status === 0) {
       blind.push(item.file);
       continue;
@@ -1950,8 +1985,9 @@ function workCommands(io, args) {
         check: values.check,
       };
       const { command } = store.validateItemAddition(board, item);
-      if (command) item.checkBaseline = checkBaseline(ctx.info.root, command);
+      if (command) item.checkBaseline = values.wait ? checkBaseline(ctx.info.root, command) : prepareCheckBaseline(ctx.info.root, command);
       const id = await ordered(ctx, board, 'addItem', [item]);
+      if (item.checkBaseline?.result === 'pending') await launchBaseline(ctx, board, id, item.checkBaseline);
       io.result?.({ item: store.getItem(board, id) });
       io.say(`#${id}`);
       sayCheckBaseline(io, store.getItem(board, id));
@@ -1977,8 +2013,9 @@ function workCommands(io, args) {
         check: values.check,
       };
       const { item, command } = store.validateItemEdit(board, id, change);
-      if (command && command !== item.item_check) change.checkBaseline = checkBaseline(ctx.info.root, command);
+      if (command && command !== item.item_check) change.checkBaseline = values.wait ? checkBaseline(ctx.info.root, command) : prepareCheckBaseline(ctx.info.root, command);
       await ordered(ctx, board, 'editItem', [id, change]);
+      if (change.checkBaseline?.result === 'pending') await launchBaseline(ctx, board, id, change.checkBaseline);
       io.result?.({ item: store.getItem(board, id) });
       io.say(`edited #${id}`);
       sayCheckBaseline(io, store.getItem(board, id));
@@ -2250,8 +2287,14 @@ async function specCommand(io, { first, second, rest, values }) {
     const files = [[ctx.config.spec, spec], ...(practice.exists ? [[practice.name, practice]] : [])];
     for (const [, parsed] of files) assertRequiredSigners(ctx.info.root, parsed.rows);
     const collisionFiles = [[ctx.config.spec, spec], ...(practice.repoExists ? [[practice.name, practice.repo]] : [])];
+    const renameBase = collisionFiles.some(([name]) => name === DOCTRINE_FILE)
+      ? legacyDoctrineRenameBase(ctx.info.root, DOCTRINE_FILE)
+      : null;
     const previousCounts = new Map(collisionFiles.map(([name]) => {
-      const previous = coordinatorFile(ctx.info.root, name);
+      const baselineName = renameBase && name === DOCTRINE_FILE ? LEGACY_DOCTRINE_FILE : name;
+      const previous = name === DOCTRINE_FILE && !renameBase
+        ? { status: 1, stdout: '' }
+        : coordinatorFile(ctx.info.root, baselineName, renameBase ?? undefined);
       const rows = previous.status === 0 ? parseSpec(previous.stdout, { strictGrammarVersion: false }).rows : [];
       const counts = new Map();
       for (const row of rows) counts.set(row.id, (counts.get(row.id) ?? 0) + 1);
@@ -2470,7 +2513,7 @@ async function hookCommand(io, { first, second }) {
 async function runCommand(argv, io) {
   let parsed;
   try {
-    parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
+    parsed = parseCommandArgs(argv);
   } catch (error) {
     io.refusal?.(new Refused('USAGE', `${error.message}; run pullboard help`));
     io.err(`pullboard: ${error.message}\nRun pullboard help --all for the full list.`);
@@ -2526,6 +2569,19 @@ async function runCommand(argv, io) {
     if (command === 'hook') return await hookCommand(io, args);
     if (command === 'settings') return settingsCommand(io, args);
     if (command === 'relay') {
+      if (['tokens', 'revoke'].includes(first)) {
+        if (rest.length || values.url || (first === 'tokens' && second) || (first === 'revoke' && !second)) {
+          throw new Refused('USAGE', 'pullboard relay tokens, or pullboard relay revoke <token-id>');
+        }
+        const ctx = context(io);
+        const result = first === 'tokens' ? await relayTokens(ctx.info.root, io) : await relayRevoke(ctx.info.root, second, io);
+        io.result?.(result);
+        if (first === 'tokens') {
+          if (!result.tokens.length) io.say('no agent tokens on this board');
+          for (const row of result.tokens) io.say(row.id + '  ' + row.agent + '  ' + (row.revoked ? 'revoked' : 'expires ' + new Date(row.expires).toISOString()));
+        } else io.say('revoked token ' + result.id + '; other agent tokens are unchanged');
+        return 0;
+      }
       if (first === 'pair') {
         if (second || rest.length || values.url) throw new Refused('USAGE', 'pullboard relay pair');
         const ctx = context(io);
@@ -2581,24 +2637,30 @@ function rememberTrunk(io) {
 
 /** Run one command and emit its single versioned JSON result when requested (A1). */
 export async function main(argv, streams) {
+  return withGitFacts(() => runMain(argv, streams));
+}
+
+/** Parse and execute one CLI command, binding its checkout session and Git-fact scope. */
+async function runMain(argv, streams) {
   const io = commandOutput(argv, streams);
   let sync = true;
+  let needsRepo = true;
   let parsed;
   let checkoutSession;
   try {
-    parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
+    parsed = parseCommandArgs(argv);
     const command = parsed.positionals[0];
     io.relayCommand = { cliOperation: command === 'done' ? 'submit' : command, cwd: resolve(io.cwd),
       positionals: parsed.positionals.slice(1),
       values: Object.fromEntries(Object.keys(parsed.values).filter(key => key !== 'json').sort().map(key => [key, parsed.values[key]])) };
     sync = Boolean(command) && !parsed.values.help && !parsed.values.version && !['help', 'version', 'hook', 'init', 'relay', 'tour'].includes(command);
-  } catch { sync = false; }
+    needsRepo = !(parsed.values.help || parsed.values.version || command === 'help' || command === 'version');
+  } catch { sync = false; needsRepo = false; }
   if (parsed) {
     try {
       checkoutSession = await bindCheckoutSession(io, parsed.positionals, parsed.values);
       if (checkoutSession?.lease) CHECKOUT_LEASES.set(io, checkoutSession.lease);
-    }
-    catch (error) {
+    } catch (error) {
       if (!(error instanceof Refused)) throw error;
       io.refusal(error);
       io.err(`pullboard: ${error.message}`);
@@ -2609,19 +2671,22 @@ export async function main(argv, streams) {
   try {
     /** A network refusal preserves offline reads; linked mutation dispatch requires an acknowledgement. */
     const retry = async () => {
-      try { await syncRelay(io.cwd, io); }
+      try {
+        await syncRelay(io.cwd, io);
+        await retryCheckBaselines(io.cwd, io);
+      }
       catch (error) {
         if (!(error instanceof Refused)) throw error;
         if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
       }
     };
-    rememberTrunk(io);
+    if (needsRepo) rememberTrunk(io);
     if (sync) {
       await retry();
       try { await executePersonRequests(io.cwd, io, main); }
       catch (error) {
         if (!(error instanceof Refused)) throw error;
-        if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err('pullboard: ' + error.message);
+        if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
       }
     }
     const code = await runCommand(argv, io);
