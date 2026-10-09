@@ -95,6 +95,81 @@ test('the API prunes a project whose folder is gone and keeps one unreadable-boa
   } finally { await view.close(); }
 });
 
+test('the API prunes a registered root replaced by a file and stays idempotent [N35]', async (t) => {
+  const f = fleet(t);
+  const root = f.repo('replaced-root', 'Replaced root');
+  const view = await serveView({ port: 0 });
+  try {
+    const link = new URL(view.url);
+    /** Read the public board listing and return its validated document. */
+    const boards = async () => {
+      const response = await fetchFresh(`${link.origin}/api/v1/boards`, { headers: { 'x-pullboard-key': link.searchParams.get('k') } });
+      assert.equal(response.status, 200);
+      const document = await response.json();
+      assert.equal(document.version, 1);
+      assert.ok(Array.isArray(document.boards));
+      assert.ok(Array.isArray(document.warnings));
+      return document;
+    };
+    const before = await boards();
+    assert.deepEqual(before.boards.map(({ root: listedRoot }) => listedRoot), [root]);
+    assert.deepEqual(before.warnings, []);
+
+    rmSync(root, { recursive: true, force: true });
+    writeFileSync(root, 'the registered folder was replaced by a regular file');
+    assert.equal(statSync(root).isFile(), true);
+
+    const first = await boards();
+    assert.deepEqual(first.boards, [], 'a regular file is not a project folder');
+    assert.deepEqual(first.warnings, [], 'a gone folder is pruned instead of reported as unreadable');
+    const registry = join(f.home, 'projects.json');
+    const afterPruning = readFileSync(registry, 'utf8');
+    assert.deepEqual(JSON.parse(afterPruning).projects, [], 'the replaced root is removed from the registry');
+
+    const second = await boards();
+    assert.deepEqual(second, first, 'the second API listing is unchanged');
+    assert.equal(readFileSync(registry, 'utf8'), afterPruning, 'the second listing makes no registry change');
+  } finally { await view.close(); }
+});
+
+test('the API keeps a board behind an unreadable parent without changing its registry [N35]', async (t) => {
+  const f = fleet(t);
+  const parent = join(f.dir, 'blocked-parent');
+  mkdirSync(parent);
+  const root = f.repo('blocked-parent/unreadable', 'Unreadable parent label');
+  const view = await serveView({ port: 0 });
+  const link = new URL(view.url);
+  /** Read the public board listing and return its validated document. */
+  const boards = async () => {
+    const response = await fetchFresh(`${link.origin}/api/v1/boards`, { headers: { 'x-pullboard-key': link.searchParams.get('k') } });
+    assert.equal(response.status, 200);
+    return response.json();
+  };
+  const registry = join(f.home, 'projects.json');
+  const before = readFileSync(registry, 'utf8');
+  try {
+    chmodSync(parent, 0);
+    assert.throws(() => statSync(root), { code: 'EACCES' }, 'mode 000 must make the project inaccessible');
+    const first = await boards();
+    assert.deepEqual(first.boards, []);
+    assert.equal(first.warnings.length, 1);
+    assert.equal(first.warnings[0].root, root);
+    assert.equal(first.warnings[0].name, 'Unreadable parent label');
+    assert.equal(first.warnings[0].error.error.code, 'BOARD_UNAVAILABLE');
+    assert.equal(readFileSync(registry, 'utf8'), before, 'an access error must not prune the registered root');
+    const second = await boards();
+    assert.deepEqual(second, first, 'repeated listing preserves the same one-warning result');
+    assert.equal(readFileSync(registry, 'utf8'), before, 'repeated listing leaves the registry unchanged');
+    chmodSync(parent, 0o700);
+    const restored = await boards();
+    assert.deepEqual(restored.boards.map(({ root: listedRoot, name }) => ({ root: listedRoot, name })), [{ root, name: 'Unreadable parent label' }]);
+    assert.deepEqual(restored.warnings, [], 'restoring parent access makes the board readable again');
+  } finally {
+    chmodSync(parent, 0o700);
+    await view.close();
+  }
+});
+
 test('config refusals name bad project/display values and an unknown forget path [N33, N35, N36]', (t) => {
   const f = fleet(t);
   const root = f.repo('local', 'Local label');

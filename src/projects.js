@@ -86,16 +86,16 @@ function withRegistry(mutate) {
 }
 
 /**
- * Whether a path currently names a directory.
+ * Whether registry pruning should keep this root as a directory or inaccessible entry.
  *
  * @param {string} path
- * @returns {boolean}
+ * @returns {boolean} True for directories and non-missing stat errors; false for files or missing roots.
  */
 function isDirectory(path) {
   try {
     return statSync(path).isDirectory();
-  } catch {
-    return false;
+  } catch (error) {
+    return error.code !== 'ENOENT' && error.code !== 'ENOTDIR';
   }
 }
 
