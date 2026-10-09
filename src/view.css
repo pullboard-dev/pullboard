@@ -244,6 +244,7 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .detail h3 { margin: 0 0 6px; font: 600 11px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
 .detail .text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .detail .muted, .muted { color: var(--ink-muted); }
+.check-warning { margin: 6px 0 0; color: var(--warn); font-size: 13px; }
 .kv { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); gap: 4px 10px; font-size: 13px; margin: 0; }
 .kv dt { color: var(--ink-faint); } .kv dd { margin: 0; overflow-wrap: anywhere; }
 .kv dd.waits-on button.ref { border: 0; background: none; padding: 0; font: inherit; color: var(--accent-strong); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
