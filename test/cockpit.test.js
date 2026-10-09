@@ -2436,7 +2436,9 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
   try {
     const page = await openPage(view);
     // A button carries the text written before it on its line.
-    const button = (ref, open, before = '') => `<button class="ref" data-code="${ref}"${before ? ` data-before="${before}"` : ''} type="button" aria-expanded="${open}">${ref}</button>`;
+    // Its label: the path, then the lines and the commit's first ten characters; the whole reference on hover.
+    const label = (ref) => `<span class="ref-path">${ref.slice(0, ref.indexOf(':'))}</span><span class="ref-at">${ref.slice(ref.indexOf(':'), ref.lastIndexOf('@') + 11)}</span>`;
+    const button = (ref, open, before = '') => `<button class="ref" data-code="${ref}"${before ? ` data-before="${before}"` : ''} title="${ref}" type="button" aria-expanded="${open}">${label(ref)}</button>`;
     const prior = (text, ref) => text.slice(0, text.indexOf(ref));
     const [b1, b2, b3] = [was, now, long].map((ref) => prior(first_, ref));
     assert.ok(page.show('feed').includes(`#1</button> was ${button(was, false, b1)}, is ${button(now, false, b2)}; see ${button(long, false, b3)}.`), 'each reference is a button in the text');
@@ -4466,6 +4468,12 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
   const second = join(box.dir, 'cards-web-2');
   box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/cards2');
   box.run(second, 'join', 'web');
+  // A committed page at a path too long for a phone, for a code reference to name.
+  const deep = 'docs/a/very/long/path/that/keeps/going/past/a/phone/screen.md';
+  mkdirSync(join(alpha.repo, deep, '..'), { recursive: true });
+  writeFileSync(join(alpha.repo, deep), 'Deep line one\n');
+  box.git(alpha.repo, 'add', deep);
+  box.git(alpha.repo, 'commit', '-q', '-m', 'docs: a deep page');
   const head = box.git(alpha.repo, 'rev-parse', 'HEAD');
   const sha = '0123456789abcdef0123456789abcdef01234567';
   const lines = (first, n) => [first, ...Array.from({ length: n - 1 }, (_, k) => `Line ${k + 2} of the note.`)].join('\n');
@@ -4478,6 +4486,8 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
   const longCommand = 'node bin/run-tests.js test/relay-person-requests.test.js', longPath = 'test/relay-person-requests.test.js';
   const longerPath = 'docs/a/very/long/path/that/keeps/going/well/past/any/phone/screen/width.md';
   const longChips = `Ran \`${longCommand}\` on ${longPath} and ${longerPath} today.`;
+  const sourceRefs = [`SPEC.md:1-2@${head}`, `${deep}:1@${head}`];
+  const refsShout = `Check ${sourceRefs[0]} and ${sourceRefs[1]} before you merge.`;
   const twoDays = new Date(); twoDays.setDate(twoDays.getDate() - 2); twoDays.setHours(12, 0, 0, 0);
   earlier(alpha.repo, twoDays, (board) => shoutOnBoard(board, { from: 'web-1', to: 'coordinator', text: older, lanes: ['web'] }));
   earlier(alpha.repo, Date.now() - 65 * 60e3, (board) => shoutOnBoard(board, { from: 'web-2', to: 'coordinator', text: colour, decision: true, lanes: ['web'] }));
@@ -4488,6 +4498,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
   box.run(alpha.web, 'shout', 'all', chips);
   box.run(alpha.web, 'shout', 'all', mixed, '--evidence', 'receipt', '--outcome', 'moved', '--item', '1', '--commit', head);
   box.run(alpha.web, 'shout', 'all', longChips);
+  box.run(alpha.web, 'shout', 'all', refsShout);
   box.run(alpha.repo, 'shout', 'person', 'Launch on Friday?', '--decision');
   box.run(alpha.web, 'shout', 'all', long);
 
@@ -4496,7 +4507,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 10');
+    await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 11');
     await chrome.evaluate("document.querySelector('[data-tab=shouts]').click()");
     await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
     const ids = JSON.parse(await chrome.evaluate('JSON.stringify(Object.fromEntries(data.project.shouts.map((s) => [s.shout_text, s.shout_id])))'));
@@ -4537,6 +4548,11 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
         longs: [...document.querySelectorAll('#feed #shout-${ids[longChips]} .text code.inline')].map((e) => {
           const c = e.getBoundingClientRect(), t = e.closest('.text').getBoundingClientRect();
           return { text: e.textContent, title: e.title, rects: e.getClientRects().length, inside: c.left >= t.left - 0.5 && c.right <= t.right + 0.5, cut: e.scrollWidth > e.clientWidth + 1, ends: getComputedStyle(e).textOverflow };
+        }),
+        refs: [...document.querySelectorAll('#feed #shout-${ids[refsShout]} .text button[data-code]')].map((e) => {
+          const c = e.getBoundingClientRect(), t = e.closest('.text').getBoundingClientRect(), path = e.querySelector('.ref-path'), tail = e.querySelector('.ref-at').getBoundingClientRect();
+          return { text: e.textContent, title: e.title, code: e.dataset.code, rects: e.getClientRects().length, inside: c.left >= t.left - 0.5 && c.right <= t.right + 0.5,
+            tail: tail.width > 0 && tail.left >= c.left - 0.5 && tail.right <= c.right + 0.5, cut: path.scrollWidth > path.clientWidth + 1, ends: getComputedStyle(path).textOverflow };
         }),
         asks: { friday: card('#decisions', ${ids['Launch on Friday?']}), colour: card('#decisions', ${ids[colour]}) },
         answerTarget: !!document.getElementById('shout-${answerId}'),
@@ -4586,6 +4602,10 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
         assert.deepEqual(r.longs.map((c) => [c.text, c.title, c.rects, c.inside]), [longCommand, longPath, longerPath].map((text) => [text, text, 1, true]),
           `${at}: a long command, path and code stay one chip each: ${JSON.stringify(r.longs)}`);
         if (width === 375) assert.ok(r.longs[2].cut && r.longs[2].ends === 'ellipsis', `${at}: a chip longer than its line is cut short with an ellipsis: ${JSON.stringify(r.longs)}`);
+        // A code reference reads path:lines@ten characters as one piece, the whole reference on hover and in its action.
+        assert.deepEqual(r.refs.map((c) => [c.text, c.title, c.code, c.rects, c.inside, c.tail]), sourceRefs.map((ref) => [ref.replace(head, head.slice(0, 10)), ref, ref, 1, true, true]),
+          `${at}: each code reference is one piece with its lines and short commit in view: ${JSON.stringify(r.refs)}`);
+        if (width === 375) assert.ok(r.refs[1].cut && r.refs[1].ends === 'ellipsis', `${at}: a path too long for the line is cut short first: ${JSON.stringify(r.refs)}`);
 
         // Decisions: a band until answered, then who answered and a link to the answer.
         assert.deepEqual(asking.band, { text: 'Decision needed', done: false, href: null }, `${at}: an open ask carries a Decision needed band`);
@@ -4626,6 +4646,11 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
     assert.deepEqual(await foldOf(), ['less', 12], 'an open shout stays open across a refresh');
     await chrome.evaluate(`document.querySelector('#feed #shout-${ids[long]} .more').click()`);
     assert.deepEqual(await foldOf(), ['more', 6], 'less folds it again');
+
+    // The short label still opens the code it names, at that commit.
+    const deepRef = `[...document.querySelectorAll('#feed #shout-${ids[refsShout]} button[data-code]')][1]`;
+    await chrome.evaluate(`${deepRef}.click()`);
+    await chrome.waitFor(`${deepRef}.getAttribute('aria-expanded') === 'true' && ${deepRef}.nextElementSibling?.textContent.includes('Deep line one')`, 15_000);
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);

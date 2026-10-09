@@ -254,7 +254,11 @@ const codeRef = (ref, before) => {
   const open = Boolean(c && c.open);
   const shown = !open ? '' : c.error ? '<span class="code no">' + esc(c.error) + '</span>' : !c.lines ? '<span class="code more">loading…</span>'
     : '<span class="code">' + c.lines.map((line, n) => '<span><i>' + (c.from + n) + '</i>' + esc(line) + '</span>').join('') + (c.more ? '<span class="more">the first ' + c.lines.length + ' lines</span>' : '') + '</span>';
-  return '<button class="ref" data-code="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' type="button" aria-expanded="' + open + '">' + esc(ref) + '</button>' + shown;
+  // Its label is one piece: the path, cut short first where the line is narrow, then the lines and the commit's first
+  // ten characters; the whole reference is on hover.
+  const colon = ref.indexOf(':'), at = ref.lastIndexOf('@');
+  const label = '<span class="ref-path">' + esc(ref.slice(0, colon)) + '</span><span class="ref-at">' + esc(ref.slice(colon, at + 1) + ref.slice(at + 1, at + 11)) + '</span>';
+  return '<button class="ref" data-code="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' title="' + esc(ref) + '" type="button" aria-expanded="' + open + '">' + label + '</button>' + shown;
 };
 /** Format the API's structured fact binding as the live reference the code preview accepts. */
 function factCodeRef(ref) {
