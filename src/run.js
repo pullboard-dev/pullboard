@@ -203,16 +203,20 @@ function commitHeader(item, rules, plain) {
  * @param {any} item
  * @param {any} config
  * @param {string[]} paths
- * @returns {{ ok: boolean, output: string }}
+ * @returns {{ ok: boolean, output: string, commit?: string }}
  */
-function commitWork(root, item, config, paths) {
+export function commitWork(root, item, config, paths) {
   git(root, ['add', '-A', '--', ...paths]);
+  const previousHead = headCommit(root);
   let output = '';
   for (const plain of [false, true]) {
     const result = spawnSync('git', ['commit', '-q', '-m', commitHeader(item, config.commits, plain)], { cwd: root, encoding: 'utf8' });
     invalidateGitFacts();
     if (result.status === 0) {
-      return { ok: true, output: '' };
+      const commit = headCommit(root);
+      return commit === previousHead
+        ? { ok: false, output: 'git commit succeeded without advancing HEAD' }
+        : { ok: true, output: '', commit };
     }
     output = `${result.stdout}${result.stderr}`;
   }

@@ -5,9 +5,15 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { delimiter, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
+import { main } from '../src/cli.js';
 import { headCommit, withGitFacts } from '../src/git.js';
+import { serveApi } from '../src/api.js';
+import { pathToFileURL } from 'node:url';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
+const RUN_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/run.js')).href;
+const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/config.js')).href;
+const GIT_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/git.js')).href;
 
 /** Find the real Git executable before the fixture adds its counting shim to PATH. */
 function realGitPath() {
@@ -115,15 +121,71 @@ function deferred() {
 }
 
 /** Advance the fixture branch using real Git plumbing without running its checkout hooks. */
-function advanceHead(box, label) {
+function advanceHead(box, label, branch = 'main') {
   const parent = box.git(box.repo, 'rev-parse', 'HEAD');
   const tree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}');
   const commit = execFileSync(box.env.PULLBOARD_REAL_GIT, ['commit-tree', tree, '-p', parent], {
     cwd: box.repo, env: box.env, input: label, encoding: 'utf8',
   }).trim();
-  box.git(box.repo, 'update-ref', 'refs/heads/main', commit);
+  box.git(box.repo, 'update-ref', `refs/heads/${branch}`, commit);
   return commit;
 }
+
+/** Read a code reference through the running local API using a SHA-shaped current branch name. */
+async function readServedBranchCode(api, branch) {
+  const address = new URL(api.url);
+  const headers = { 'x-pullboard-key': address.searchParams.get('k') };
+  const listing = await fetch(address, { headers });
+  assert.equal(listing.status, 200);
+  const board = (await listing.json()).boards[0];
+  assert.ok(board?.id, 'the fixture board is listed');
+  const path = `${address.pathname}/${encodeURIComponent(board.id)}/code?ref=${encodeURIComponent(`SPEC.md:1@${branch}`)}`;
+  const response = await fetch(address.origin + path, { headers });
+  const document = await response.json();
+  assert.equal(response.status, 200, JSON.stringify(document));
+  return document.code.commit;
+}
+
+test('a live serve request sees a commit made while the server stays open [C7]', async (t) => {
+  const box = fixture(t);
+  const branch = 'a1b2c3d4e5f6';
+  box.git(box.repo, 'branch', '-m', branch);
+  const original = box.git(box.repo, 'rev-parse', 'HEAD');
+  await withGitFacts(async () => {
+    assert.equal(headCommit(box.repo), original, 'the long-lived command has an initial cached HEAD');
+    const api = await serveApi({ secret: 'git-facts-test-key', runCommand: main, projects: () => [{ root: box.repo, name: 'Git facts fixture' }] });
+    try {
+      assert.equal(await readServedBranchCode(api, branch), original);
+      const advanced = advanceHead(box, 'advance the served branch', branch);
+      assert.notEqual(advanced, original);
+      assert.equal(await readServedBranchCode(api, branch), advanced, 'the next HTTP request resolves the branch after its commit');
+    } finally {
+      await api.close();
+    }
+  });
+});
+
+test('the runner invalidates cached HEAD immediately after its own commit [C7]', (t) => {
+  const box = fixture(t);
+  const before = box.git(box.worker, 'rev-parse', 'HEAD');
+  mkdirSync(join(box.worker, 'src'));
+  writeFileSync(join(box.worker, 'src', 'runner-result.txt'), 'built\n');
+  const item = { item_id: 1, item_title: 'runner commit refreshes HEAD', item_lane: 'core', item_spec_ids: 'C7' };
+  const script = `import { commitWork } from ${JSON.stringify(RUN_MODULE)};
+import { loadConfig } from ${JSON.stringify(CONFIG_MODULE)};
+import { withGitFacts } from ${JSON.stringify(GIT_MODULE)};
+const root = process.cwd();
+const item = JSON.parse(process.env.PULLBOARD_TEST_ITEM);
+const result = await withGitFacts(() => commitWork(root, item, loadConfig(root), ['src/runner-result.txt']));
+console.log(JSON.stringify(result));`;
+  const env = { ...box.env, PULLBOARD_TEST_ITEM: JSON.stringify(item) };
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], { cwd: box.worker, env, encoding: 'utf8' });
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  const committed = JSON.parse(result.stdout.trim());
+  assert.equal(committed.ok, true, committed.output);
+  assert.notEqual(committed.commit, before, 'the runner reports the HEAD created by its commit');
+  assert.equal(committed.commit, box.git(box.worker, 'rev-parse', 'HEAD'));
+});
 
 test('settled and concurrent commands do not share Git-fact caches [C7]', async (t) => {
   const box = fixture(t);
