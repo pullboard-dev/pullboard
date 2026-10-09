@@ -93,14 +93,33 @@ export function isStampedGreen(root) {
  *
  * @param {string} root
  * @param {string} command
+ * @param {{ pipefail?: boolean }} [options] - Enable every-stage failures only for the configured repo gate.
  * @returns {{ isGreen: boolean, output: string, seconds: number }}
  */
-export function runShell(root, command) {
+export function runShell(root, command, { pipefail = false } = {}) {
   const started = Date.now();
+  const options = { cwd: root, env: gitChildEnv(root), shell: true, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', maxBuffer: 2 ** 30 };
+  let prefix = '';
+  if (pipefail) {
+    // Probe the same shell as the command, with no load-sensitive deadline or alternate shell.
+    const probe = spawnSync('set -o pipefail', options);
+    if (probe.status === 0) prefix = 'set -o pipefail\n';
+    else if (hasPipeline(command)) {
+      throw new Refused('PIPEFAIL_UNAVAILABLE', 'the repo gate shell cannot enable pipefail; rewrite the gate without a pipe');
+    }
+  }
   // Newlines, not spaces, around the command, so a trailing comment in it cannot swallow the `)`.
-  const result = spawnSync(`(\n${command}\n) 2>&1`, { cwd: root, env: gitChildEnv(root), shell: true, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', maxBuffer: 2 ** 30 });
+  const result = spawnSync(`${prefix}(\n${command}\n) 2>&1`, options);
   invalidateGitFacts();
   return { isGreen: result.status === 0, output: `${result.stdout ?? ''}${result.stderr ?? ''}`, seconds: Math.round((Date.now() - started) / 1000) };
+}
+
+/** Conservatively detect a pipe when the configured gate shell cannot enforce every stage's status. */
+function hasPipeline(command) {
+  for (let index = 0; index < command.length; index += 1) {
+    if (command[index] === '|' && command[index + 1] !== '|' && command[index - 1] !== '|') return true;
+  }
+  return false;
 }
 
 /** Run work under the machine gate queue, keeping landing gates ahead of ordinary gates and item checks last.
@@ -156,7 +175,7 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
 function fullGateRun(root, config, trustStamp = false) {
   if (trustStamp && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
   const before = committedTree(root);
-  const { isGreen, output, seconds } = runShell(root, config.gate);
+  const { isGreen, output, seconds } = runShell(root, config.gate, { pipefail: true });
   const log = gitPath(root, LOG);
   writeFileSync(log, output);
   if (isGreen && before !== null && committedTree(root) === before) writeFileSync(gitPath(root, STAMP), `${before}\n`);
