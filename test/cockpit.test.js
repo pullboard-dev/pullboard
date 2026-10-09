@@ -623,7 +623,7 @@ test('the project list collapses into the tab bar and stays collapsed [N26]', { 
   const read = async () => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
     const box = (s) => { const e = document.querySelector(s); const r = e.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height, shown: getComputedStyle(e).display !== 'none' && r.width > 0 }; };
     const logo = document.querySelector('#side-toggle');
-    return { width: innerWidth, logo: box('#side-toggle'), side: box('.side'), top: box('.top'), main: box('main'), switcher: box('#proj-switch'), list: box('#side-body'), theme: box('#theme'), live: box('#live'),
+    return { width: document.documentElement.clientWidth, logo: box('#side-toggle'), side: box('.side'), top: box('.top'), main: box('main'), switcher: box('#proj-switch'), list: box('#side-body'), theme: box('#theme'), live: box('#live'),
       columns: box('.two > :first-child').width + box('#detail').width, collapsed: document.documentElement.dataset.side || '', pressed: logo.getAttribute('aria-pressed'), title: logo.title,
       listPosition: getComputedStyle(document.querySelector('#side-body')).position, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth };
   })())`));
@@ -631,6 +631,9 @@ test('the project list collapses into the tab bar and stays collapsed [N26]', { 
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 1280 && !!document.querySelector("#chain .row") && !!document.querySelector("#detail h2")');
+    // A classic 15px scrollbar, as Linux draws one, so every edge is measured against the content width.
+    await chrome.evaluate("document.styleSheets[0].insertRule('html { overflow-y: scroll; }', 0); document.styleSheets[0].insertRule('::-webkit-scrollbar { width: 15px; }', 0)");
+    await chrome.waitFor('document.documentElement.clientWidth === innerWidth - 15');
     const open = await read();
     assert.ok(open.side.width >= 200 && open.side.height >= 800 && !open.collapsed && open.pressed === 'false', `the sidebar starts open: ${JSON.stringify(open)}`);
     assert.ok(open.theme.right >= open.width - 16 && open.theme.top < open.top.bottom && open.live.right <= open.theme.left, `the light/dark button sits at the right end of the tab bar, clear of the live status: ${JSON.stringify(open)}`);
@@ -2362,11 +2365,14 @@ test('activity rows say what each shout and answer said [N26]', { timeout: 120_0
 
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor('!!document.querySelector(\'[data-tab="activity"]\')');
+    await chrome.waitFor("typeof data === 'object' && !!data && !!data.project");
     await chrome.evaluate('document.querySelector(\'[data-tab="activity"]\').click()');
     await chrome.waitFor(`[...document.querySelectorAll('#activity .act')].some((row) => row.textContent.startsWith('coordinator answered'))`);
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      await chrome.waitFor(`innerWidth === ${width}`);
+      // Measure only laid-out previews: on Activity, at this width, each preview with a box of its own.
+      const laidOut = `innerWidth === ${width} && !document.querySelector('[data-pane="activity"]').hidden && [...document.querySelectorAll('#activity .said')].every((said) => said.getBoundingClientRect().height > 0)`;
+      await chrome.waitFor(laidOut).catch(async (error) => { throw new Error(`${error.message}; showing ${await chrome.evaluate("[...document.querySelectorAll('[data-pane]')].filter((pane) => !pane.hidden).map((pane) => pane.dataset.pane).join()")}`); });
       const rows = JSON.parse(await chrome.evaluate(`JSON.stringify([...document.querySelectorAll('#activity .act')].map((row) => {
         const said = row.querySelector('.said');
         const lines = said ? Math.round(said.getBoundingClientRect().height / parseFloat(getComputedStyle(said).lineHeight)) : 0;
