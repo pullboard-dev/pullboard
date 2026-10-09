@@ -149,6 +149,12 @@ test('[B26] person answers refuse agent environments without writes and record t
   const answer = JSON.parse(terminal.stdout);
   assert.equal(answer.version, 1);
   assert.equal(lastAnswerDetail(database).channel, 'terminal');
+  const db = new DatabaseSync(database, { readOnly: true });
+  try {
+    const replies = db.prepare("SELECT event_detail FROM event WHERE event_kind = 'answer' AND event_by = 'person' ORDER BY event_id").all();
+    assert.equal(replies.length, 2, 'both the person decision and its forwarded reply have receipts');
+    assert.deepEqual(replies.map((row) => JSON.parse(row.event_detail).channel), ['terminal', 'terminal']);
+  } finally { db.close(); }
 });
 
 
@@ -283,4 +289,65 @@ test('[B26,S18] signer enrollment refuses agent shells without creating or chang
     assert.equal(refused.status, 1, name);
     assert.equal(JSON.stringify(trustBytes()) === JSON.stringify(enrolled), true, 'refused enrollment preserves every trust byte');
   }
+});
+
+
+test('[B26,S19] row approvals and declines refuse agent shells and preserve terminal or view channels', async (t) => {
+  const box = project();
+  t.after(() => rmSync(box.dir, { recursive: true, force: true }));
+  const file = join(box.repo, 'SPEC.md');
+  const rows = ['G2', 'G3', 'G4', 'G5'].map((id) => `- ${id} [draft, aim] The person decides ${id}. | gate: review`).join('\n');
+  writeFileSync(file, SPEC + rows + '\n');
+  box.git(box.repo, 'add', 'SPEC.md');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: add draft person decision rows');
+  const beforeFile = readFileSync(file, 'utf8');
+  const database = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  const before = boardCounts(database);
+  for (const [marker, value] of Object.entries(MARKERS)) {
+    for (const decision of ['approve', 'decline']) {
+      const args = ['spec', decision, 'G2', '--json'];
+      if (decision === 'decline') args.push('--reason', 'The person declines this draft.');
+      const refused = box.run(box.repo, args, { [marker]: value });
+      assert.equal(refused.status, 1, `${marker} ${decision}: ${refused.stdout}${refused.stderr}`);
+      const error = JSON.parse(refused.stdout).error;
+      assert.equal(error.code, 'B26_PERSON_CHANNEL');
+      assert.match(error.next, /pullboard view/iu);
+      assert.deepEqual(boardCounts(database), before, 'refused row decisions append no board events');
+      assert.equal(readFileSync(file, 'utf8'), beforeFile, 'refused row decisions preserve the spec bytes');
+    }
+  }
+  for (const [decision, id] of [['approve', 'G2'], ['decline', 'G3']]) {
+    const args = ['spec', decision, id, '--json'];
+    if (decision === 'decline') args.push('--reason', 'The person declines this draft.');
+    const result = box.run(box.repo, args);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    const receipt = JSON.parse(result.stdout).decisions[0];
+    assert.equal(receipt.id, id);
+    assert.equal(receipt.decision, decision);
+  }
+  const request = await startView(t, box);
+  const listing = await (await request('/api/v1/boards')).json();
+  const board = listing.boards.find((entry) => entry.root === box.repo);
+  assert.ok(board);
+  for (const [decision, id] of [['approve', 'G4'], ['decline', 'G5']]) {
+    const args = { ids: id };
+    if (decision === 'decline') args.reason = 'The person declines from the view.';
+    const response = await request(`/api/v1/boards/${board.id}/moves`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ verb: 'spec-' + decision, args }),
+    });
+    assert.equal(response.status, 200, await response.clone().text());
+    const document = await response.json();
+    assert.equal(document.event.event_by, 'person');
+    assert.equal(JSON.parse(document.event.event_detail).channel, 'view');
+    assert.equal(document.result.decisions[0].id, id);
+    assert.equal(document.result.decisions[0].decision, decision);
+  }
+  const db = new DatabaseSync(database, { readOnly: true });
+  try {
+    const events = db.prepare("SELECT event_detail FROM event WHERE event_kind = 'row_decision' ORDER BY event_id").all();
+    assert.equal(events.length, 4);
+    assert.deepEqual(events.map((event) => JSON.parse(event.event_detail).channel), ['terminal', 'terminal', 'view', 'view']);
+  } finally { db.close(); }
+  assert.equal(readFileSync(file, 'utf8'), beforeFile, 'approval receipts await coordinator apply; neither channel edits the row file');
 });
