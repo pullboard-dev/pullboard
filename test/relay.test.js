@@ -13,6 +13,7 @@ import { serveRelay } from '../relay/service.js';
 import { githubFixture } from './relay-fixture.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { serveView } from '../src/serve.js';
+import { fetchFresh } from './http-fixture.js';
 
 /** Use real private SQLite and an actual HTTP provider with a controllable expiry clock. */
 async function fixture(t, options = {}) {
@@ -500,7 +501,7 @@ test('offline linked reads use the local board, moves refuse, and the same relay
   let view;
   try {
     view = await serveView({ port: 0 });
-    const page = await fetch(view.url);
+    const page = await fetchFresh(view.url);
     assert.equal(page.status, 200, 'the real local view page remains available');
     assert.match(page.headers.get('content-type') ?? '', /text\/html/);
 
@@ -517,14 +518,14 @@ test('offline linked reads use the local board, moves refuse, and the same relay
     const viewKey = new URL(view.url).searchParams.get('k');
     const localBoardsUrl = new URL('/api/v1/boards', view.url);
     localBoardsUrl.searchParams.set('k', viewKey);
-    const localBoardsResponse = await fetch(localBoardsUrl);
+    const localBoardsResponse = await fetchFresh(localBoardsUrl);
     assert.equal(localBoardsResponse.status, 200, 'the local view API remains available offline');
     const localBoards = await localBoardsResponse.json();
     const localBoard = localBoards.boards.find(board => board.root === box.root);
     assert.ok(localBoard, 'the local view still lists the linked project from its local registry');
     const localStateUrl = new URL(`/api/v1/boards/${localBoard.id}/state`, view.url);
     localStateUrl.searchParams.set('k', viewKey);
-    const localStateResponse = await fetch(localStateUrl);
+    const localStateResponse = await fetchFresh(localStateUrl);
     assert.equal(localStateResponse.status, 200);
     const localState = await localStateResponse.json();
     assert.ok(localState.state.items.some(item => item.title === 'private cleanup fixture item'),
@@ -542,7 +543,7 @@ test('offline linked reads use the local board, moves refuse, and the same relay
     }
     const viewMoveUrl = new URL(`/api/v1/boards/${localBoard.id}/moves`, view.url);
     viewMoveUrl.searchParams.set('k', viewKey);
-    const viewMove = await fetch(viewMoveUrl, {
+    const viewMove = await fetchFresh(viewMoveUrl, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ verb: 'add', args: { lane: box.lane, title: 'refused offline view move' } }),
     });

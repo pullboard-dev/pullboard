@@ -26,6 +26,7 @@ import { checkAtCommit } from '../src/trusted-policy.js';
 import * as store from '../src/board.js';
 
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fetchFresh } from './http-fixture.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
@@ -42,8 +43,8 @@ test('view serves every project on this machine, on loopback, behind its secret 
   assert.deepEqual(registry.projects.map((entry) => entry.root), [box.repo]);
   const view = await startView(box, box.repo);
   try {
-    assert.equal((await fetch(`${view.base}/`)).status, 403, 'no secret');
-    const badSecret = await fetch(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': 'guess' } });
+    assert.equal((await fetchFresh(`${view.base}/`)).status, 403, 'no secret');
+    const badSecret = await fetchFresh(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': 'guess' } });
     assert.equal(badSecret.status, 401, 'a wrong secret');
     assert.equal((await badSecret.json()).error.code, 'AUTH_REQUIRED');
     const page = await view.page();
@@ -97,7 +98,7 @@ test('from the view the person adds items, shouts and holds lanes, through the C
     assert.equal(unknown.document.error.code, 'NO_BOARD');
     const before = await view.state(box.repo);
     const target = before.boards.find((entry) => entry.root === box.repo);
-    const stranger = await fetch(`${view.base}/api/v1/boards/${encodeURIComponent(target.id)}/moves`, {
+    const stranger = await fetchFresh(`${view.base}/api/v1/boards/${encodeURIComponent(target.id)}/moves`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ verb: 'shout', args: { to: 'all', text: 'unauthorized move' } }),
