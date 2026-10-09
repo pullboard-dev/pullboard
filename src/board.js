@@ -1021,6 +1021,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
         nothingUntracked: null,
         hasCommit: null,
         withinLane: null,
+        trunkMergeClean: null,
         gateConfigured: null,
         gateGreen: null,
         treeStillDuringGate: null,
@@ -1198,6 +1199,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', head, 
             ? null
             : new Refused('CRITERIA_CHANGED', `the criterion for #${id} changed after it was claimed; the coordinator runs: pullboard refreeze ${id}`),
         reasonIsMet: () => (reason && reason !== ACCEPT_REASON ? new Refused('BAD_REASON', `accept means ${ACCEPT_REASON}; a failed criterion is a reject`) : null),
+        trunkMergeClean: null,
         itemCheckGreen: null,
         proofNoted: () =>
           note.trim()
@@ -1509,6 +1511,20 @@ export function getShout(board, id) {
   const found = board.db.prepare('SELECT * FROM shout WHERE shout_id = ?').get(id);
   if (!found) throw new Refused('NO_SHOUT', `no shout #${id}`);
   return found;
+}
+
+/** Read every shout in creation order without marking it read, for addressed history and exports. */
+export function allShouts(board) {
+  return board.db.prepare('SELECT * FROM shout ORDER BY shout_id').all();
+}
+
+/** Read one shout with the current open or answered state of its decision, if it is one. */
+export function shoutDetails(board, id) {
+  const shout = getShout(board, id);
+  const answer = shout.shout_decision
+    ? board.db.prepare('SELECT * FROM shout WHERE shout_answers = ? ORDER BY shout_id LIMIT 1').get(id) ?? null
+    : null;
+  return { ...shout, decision_state: shout.shout_decision ? (answer ? 'answered' : 'open') : null, decision_answer: answer };
 }
 
 /**

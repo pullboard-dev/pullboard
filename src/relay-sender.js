@@ -1,4 +1,4 @@
-/** Compare sealed actors with the relay's independently authenticated sender [H2,H16]. */
+/** Compare sealed actors with the relay's independently authenticated sender [H2,H16,B26]. */
 import { Refused } from './refused.js';
 
 /** Read only the actor field used by each public engine operation; unknown operations fail closed. */
@@ -20,6 +20,9 @@ export function relaySenderProblem(move, sender, kind) {
   if (!sender || !['person', 'agent'].includes(sender.kind) || typeof sender.userId !== 'string' || !sender.userId.length || sender.userId.length > 256 ||
     (sender.kind === 'agent' && (typeof sender.agent !== 'string' || !sender.agent.length || sender.agent.length > 256))) {
     return new Refused('RELAY_SENDER', 'this relay record has no authenticated sender; restore attribution before replaying it');
+  }
+  if (move?.operation === 'shout' && move.args?.[0]?.answers != null) {
+    return new Refused('RELAY_ANSWER', 'a sealed shout cannot answer or pass a decision; use pullboard answer <id> "<answer>" or pullboard pass <id> --note "<reason>" so the decision rules are checked');
   }
   if (sender.kind === 'person') return null;
   if (kind === 'snapshot' || move?.operation === 'recordRowDecisions' || move?.operation === 'answerDecision' && move.args?.[1]?.asPerson ||

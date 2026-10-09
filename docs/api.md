@@ -14,6 +14,12 @@ When `add` or `edit` supplies a new nonempty check, it records the item before m
 
 The board-state API's item projection includes `check` and, when recorded, `checkBaseline` with the same observation fields. A green result carries `warning: "CRITERION_PROVES_NOTHING"`; text output names that warning when showing or reserving the item for review, and when filing it with `--wait`. An exact match with the project gate configured at that main commit records green with `reason: "repo gate"` without running it again. A missing main records unavailable with `reason: "no main"` and still files the item. Changing the check replaces this observation; clearing it removes the observation. Captured observations and completions travel through ordered board moves, so replicas store results without executing commands. A completed result awaiting relay delivery stays on the measuring device and is retried by the next normal CLI command.
 
+`pullboard stats [--since <date>] --json` returns `{version: 1, stats: {...}}` from the append-only event log. `submissions` and `rejections` count moves, including repeated attempts; `rejectionShare` is rejections divided by submissions (zero when the window has no submissions). `merged` counts distinct items with a merge move; `mergedWithoutAccept` counts those whose merge lacks an earlier acceptance of the latest submitted commit. That audit uses earlier history even when the acceptance falls before the selected window. Current item and verdict rows do not replace event evidence.
+
+`firstEventAt` and `lastEventAt` are the first and latest dates in the selected window, or `null` when it is empty. `since` is the inclusive boundary as an ISO UTC timestamp, or `null` for the full history. Dates accept `YYYY-MM-DD` or an ISO UTC timestamp ending in `Z`; invalid dates return `BAD_SINCE` with repair guidance.
+
+`agentCount` counts distinct event actors other than `board` and `person`; the coordinator and join moves are included. `agents` lists `{id, moves, families}` for each actor. `families` lists `{name, agents, moves}` by recorded family label, and `familyCount` counts these buckets, including `unknown`. Labels are not inferred from a model name or current agent, item, or verdict rows. A family's first recorded event snapshot applies to that move and following moves, until another snapshot changes or clears it; earlier unattributed moves remain `unknown`. Date windows preserve earlier recorded declarations but count only selected moves. Arrays are sorted by identifier or label. Local HTTP board state carries the same full-history object as `state.proofStats`.
+
 <!-- api-command-shapes:start -->
 | Command | Required top-level fields |
 | --- | --- |
@@ -37,6 +43,7 @@ The board-state API's item projection includes `check` and, when recorded, `chec
 | `milestone edit` | `version:number`, `milestone:object` |
 | `milestone remove` | `version:number`, `milestone:object` |
 | `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array`, `thread:array` |
+| `stats` | `version:number`, `stats:object` |
 | `status` | `version:number`, `me:object`, `mine:array`, `stats:object`, `reviewQueue:object`, `unread:number` |
 | `doctor` | `version:number`, `problems:array` |
 | `inbox` | `version:number`, `shouts:array` |
@@ -148,12 +155,15 @@ The server checks any Origin against its own address and grants no CORS permissi
 | --- | --- |
 | `GET /api/v1/boards` | Registered boards with their project details and ids |
 | `GET /api/v1/boards/:board/state?seen=N` | The view's board state, including open coordinator requests and the unseen shout count since N |
+| `GET /api/v1/boards/:board/shouts/:id` | One shout from any point in the board's history, including its decision and answer fields |
 | `GET /api/v1/boards/:board/code?ref=path:lines@commit&before=...` | A bounded preview of committed file lines from that registered board |
 | `GET /api/v1/boards/:board/events?after=N` | Events after sequence N, in order, and their event-log format version |
 | `POST /api/v1/boards/:board/moves` | One CLI move and its emitted event |
 | `POST /api/v1/boards/:board/requests` | A person's request for the coordinator |
 
-The boards response keeps `boards` and may include `warnings` for registered entries that could not be opened. State `seen` must be a nonnegative safe integer; omitting it retains the `unseen: null` result. Code previews read only a registered repo's committed tree, use a plain commit SHA and at most 60 lines, and never read the working tree. The shared router lets adapters omit the optional code capability; such adapters return the versioned `CODE_NOT_AVAILABLE` refusal.
+The boards response keeps `boards` and may include `warnings` for registered entries that could not be opened. State `seen` must be a nonnegative safe integer; omitting it retains the `unseen: null` result. State continues to include only the newest 40 shouts. Use `GET /api/v1/boards/:board/shouts/:id` to resolve an older address; its `{ shout }` result contains the complete stored shout row, including sender, recipient, text, timestamp, decision flag and reply relationship. Decision shouts also include `decision_state` (`open` or `answered`) and `decision_answer` (the reply row or `null`); other shouts use `null` for both fields. A missing id returns `NO_SHOUT` with HTTP 404; malformed ids are refused with HTTP 400. Code previews read only a registered repo's committed tree, use a plain commit SHA and at most 60 lines, and never read the working tree. The shared router lets adapters omit the optional code capability; such adapters return the versioned `CODE_NOT_AVAILABLE` refusal.
+
+Core readers can call `allShouts(board)` for every stored shout, oldest first, without advancing any agent's unread cursor. Static exports can use that read to retain text for old shout addresses. Relay snapshots carry the same history only inside their authenticated, encrypted presentation; the relay service receives no plaintext shout history. Older presentations without complete history return `SHOUT_NOT_AVAILABLE`; refresh them with a current CLI.
 
 The local board state and events responses include `eventLogVersion`, which identifies the persisted event-record format separately from the HTTP envelope's `version`. Static view exports keep this field in both state.json and events.json so a reader can refuse a format newer than it understands. Sealed relay events do not use this local board format marker.
 
@@ -164,6 +174,7 @@ The coordinator maintains the roadmap with `milestone add <name> [--note ...] [-
 | --- | --- |
 | `boards` | `version:number`, `boards:array` |
 | `state` | `version:number`, `state:object` |
+| `shout` | `version:number`, `shout:object` |
 | `events` | `version:number`, `events:array` |
 | `move` | `version:number`, `event:object`, `result:object` |
 | `request` | `version:number`, `event:object`, `result:object` |
@@ -190,7 +201,7 @@ For live events, send `Accept: text/event-stream` to the events path. Each messa
 
 The local server uses a shared HTTP router. Streams recheck access before each poll and close with a versioned refusal if access ends. Slow readers pause delivery and resume from the last delivered sequence.
 
-HTTP refusals use the same versioned error envelope above: 400 for malformed calls, 401 for a missing or wrong session secret, 403 for an agent belonging to another board, 404 for an unknown board or path, and 409 for the CLI engine's refusal. Shouts and answers append their events in the same transaction as their records. A move returns its own event, including when it also sends a coordinator shout.
+HTTP refusals use the same versioned error envelope above: 400 for malformed calls, 401 for a missing or wrong session secret, 403 for an agent belonging to another board, 404 for an unknown board, path or shout, and 409 for the CLI engine's refusal. Shouts and answers append their events in the same transaction as their records. A move returns its own event, including when it also sends a coordinator shout.
 
 ## SSH spec sign-offs
 
