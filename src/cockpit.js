@@ -860,8 +860,17 @@ function renderSide() {
   /**
    * A run of '- ' lines as one bulleted list, indented lines nested under the bullet above them. A bullet
    * that is a whole command (npm, npx, pnpm, yarn, bun, git, node, python, pytest, pullboard) is one code
-   * chip; any other bullet is prose, with its paths, flags and backticks as chips.
+   * chip; any other bullet is prose, with its paths, flags and backticks as chips. A whole command is the
+   * command alone: no sentence end, no comma outside quotes, and at most two plain words after it (spec
+   * check, merge main); everything else in it is a path, flag, number or quoted string. A bullet that only
+   * starts with a command is a sentence (#232: all nine such bullets on the board were).
    */
+  function wholeCommand(text) {
+    if (!/^(?:npm|npx|pnpm|yarn|bun|git|node|python(?:\\d+(?:\\.\\d+)?)?|pytest|pullboard)\\s+\\S/.test(text) || /[.!?:;,]$/.test(text.trim())) return false;
+    const bare = text.replace(/"[^"]*"|'[^']*'|\`[^\`]*\`/g, ' ');
+    return !/[,;]\\s/.test(bare) && bare.trim().split(/\\s+/).slice(1).filter((word) => /^[A-Za-z]+$/.test(word)).length <= 2;
+  }
+
   function bullets(lines, titles, allowLinks) {
     const roots = [], open = [];
     for (const line of lines) {
@@ -872,7 +881,7 @@ function renderSide() {
       open.push({ indent: indent.length, node });
     }
     const list = (nodes) => '<ul class="text-list">' + nodes.map((node) => '<li>'
-      + (/^(?:npm|npx|pnpm|yarn|bun|git|node|python(?:\\d+(?:\\.\\d+)?)?|pytest|pullboard)\\s+\\S/.test(node.text) ? codeChip(node.text) : inline(node.text, titles, allowLinks))
+      + (wholeCommand(node.text) ? codeChip(node.text) : inline(node.text, titles, allowLinks))
       + (node.children.length ? list(node.children) : '') + '</li>').join('') + '</ul>';
     return list(roots);
   }

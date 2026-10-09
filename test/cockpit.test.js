@@ -779,7 +779,8 @@ test('real Chrome renders brief lists with inline paths [N26]', { timeout: 90_00
   const demo = project(box, 'briefs');
   const brief = ['The person called the old rendering ugly.', '', 'Files:', '- web/index.html', '- web/app.js', '- web/style.css', '- web/api.md', '',
     'Test:', '- node bin/run-tests.js --test-name-pattern "brief lists" test/cockpit.test.js', '- make test stays prose', '- a parent bullet',
-    '  - capture, measurement, `note`', '  - decision, rejection'].join('\n');
+    '  - capture, measurement, `note`', '  - decision, rejection', '', 'Sentences:',
+    '- pullboard spec check prints a DOCTRINE.md line with 0 errors, and no PRACTICE.md remains at the root.', '- npm test runs the suite before every push', '- git merge main'].join('\n');
   box.run(demo.repo, 'add', 'web', 'A brief with lists', '--specs', 'G1', '--criterion', 'lists', '--brief', brief);
   box.run(demo.repo, 'shout', 'all', 'A fence still reads as code:\n```\nconst greeting = "hello";\n```');
   const view = await startView(box);
@@ -804,13 +805,18 @@ test('real Chrome renders brief lists with inline paths [N26]', { timeout: 90_00
           gap: (testLabelTop - lists[0].getBoundingClientRect().bottom) / line, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth };
       })())`));
       const place = `${width}: ${JSON.stringify(seen)}`;
-      assert.deepEqual(seen.lists.map((list) => list.label), ['Files:', 'Test:'], `${width}: each label stays a plain line above its own list`);
+      assert.deepEqual(seen.lists.map((list) => list.label), ['Files:', 'Test:', 'Sentences:'], `${width}: each label stays a plain line above its own list`);
       assert.deepEqual(seen.lists[0].items.map((li) => li.codes), [[['web/index.html', 'inline']], [['web/app.js', 'inline']], [['web/style.css', 'inline']], [['web/api.md', 'inline']]],
         `each path is a bullet holding one inline chip at ${place}`);
       const [command, prose, parent] = seen.lists[1].items;
       assert.deepEqual(command.codes, [['node bin/run-tests.js --test-name-pattern "brief lists" test/cockpit.test.js', 'inline']], `${width}: a whole command bullet is one chip`);
       assert.deepEqual([prose.text, prose.codes], ['make test stays prose', []], `${width}: any other command, unmarked, stays prose`);
       assert.deepEqual(parent.nested, ['capture, measurement, note', 'decision, rejection'], `${width}: indented bullets nest under the bullet above them`);
+      // A bullet that only starts with a command is a sentence, never one chip; the command alone is.
+      const [sentence, runs, merge] = seen.lists[2].items;
+      assert.ok(!sentence.codes.some(([code]) => code === sentence.text) && /0 errors, and no/.test(sentence.text), `${width}: a sentence that starts with pullboard stays prose: ${JSON.stringify(sentence)}`);
+      assert.ok(!runs.codes.some(([code]) => code === runs.text), `${width}: so does one that starts with npm and goes on in words: ${JSON.stringify(runs)}`);
+      assert.deepEqual(merge.codes, [['git merge main', 'inline']], `${width}: a short command alone is one chip`);
       assert.deepEqual([seen.blocks, seen.dashes], [0, 0], `${width}: no code block and no stray dash in the brief`);
       assert.ok(seen.gap > 0.4 && seen.gap < 1.6, `${width}: one blank line between a list and the next label, as written: ${seen.gap.toFixed(2)} lines`);
       assert.ok(!seen.overflow, `${width}: nothing runs off the screen`);
