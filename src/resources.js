@@ -32,13 +32,14 @@ function open(file) {
     db.exec('BEGIN IMMEDIATE');
     transaction = true;
     db.exec(`CREATE TABLE IF NOT EXISTS resource (name TEXT PRIMARY KEY, capacity INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS holder (token TEXT PRIMARY KEY, name TEXT NOT NULL, pid INTEGER NOT NULL, started TEXT NOT NULL DEFAULT '', agent TEXT NOT NULL, repo TEXT NOT NULL, since TEXT NOT NULL, heartbeat INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS holder (token TEXT PRIMARY KEY, name TEXT NOT NULL, pid INTEGER NOT NULL, started TEXT NOT NULL DEFAULT '', agent TEXT NOT NULL, repo TEXT NOT NULL, since TEXT NOT NULL, heartbeat INTEGER NOT NULL, landing INTEGER NOT NULL DEFAULT 0);
       CREATE INDEX IF NOT EXISTS holder_name ON holder(name);
-      CREATE TABLE IF NOT EXISTS waiter (ticket INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE NOT NULL, name TEXT NOT NULL, pid INTEGER NOT NULL, started TEXT NOT NULL DEFAULT '', agent TEXT NOT NULL, repo TEXT NOT NULL, since TEXT NOT NULL, heartbeat INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS waiter (ticket INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE NOT NULL, name TEXT NOT NULL, pid INTEGER NOT NULL, started TEXT NOT NULL DEFAULT '', agent TEXT NOT NULL, repo TEXT NOT NULL, since TEXT NOT NULL, heartbeat INTEGER NOT NULL, landing INTEGER NOT NULL DEFAULT 0);
       CREATE INDEX IF NOT EXISTS waiter_name_ticket ON waiter(name, ticket);`);
     for (const table of ['holder', 'waiter']) {
       const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(({ name }) => name);
       if (!columns.includes('started')) db.exec(`ALTER TABLE ${table} ADD COLUMN started TEXT NOT NULL DEFAULT ''`);
+      if (!columns.includes('landing')) db.exec(`ALTER TABLE ${table} ADD COLUMN landing INTEGER NOT NULL DEFAULT 0`);
     }
     db.exec('COMMIT');
     transaction = false;
@@ -126,9 +127,29 @@ function update(db, action) {
 
 /** Current holders and FIFO line for one resource. */
 function snapshot(db, name) {
-  const holders = db.prepare('SELECT agent, repo, since FROM holder WHERE name = ? ORDER BY since, token').all(name);
-  const line = db.prepare('SELECT agent, repo, since FROM waiter WHERE name = ? ORDER BY ticket').all(name);
+  const holders = db.prepare('SELECT agent, repo, since, landing FROM holder WHERE name = ? ORDER BY since, token').all(name)
+    .map((holder) => ({ ...holder, landing: holder.landing === 1 }));
+  const line = db.prepare('SELECT agent, repo, since, landing FROM waiter WHERE name = ? ORDER BY landing DESC, ticket').all(name)
+    .map((waiter) => ({ ...waiter, landing: waiter.landing === 1 }));
   return { holders, line };
+}
+
+/** Count eligible waiters ahead of a ticket; a run holding a slot cannot monopolize a landing. */
+function waiterPosition(db, name, ticket) {
+  const waiters = db.prepare('SELECT ticket, pid, agent, repo, landing FROM waiter WHERE name = ? ORDER BY ticket').all(name);
+  const holders = db.prepare('SELECT pid, agent, repo FROM holder WHERE name = ?').all(name);
+  const holdsSlot = (waiter) => holders.some((holder) => holder.pid === waiter.pid && holder.agent === waiter.agent && holder.repo === waiter.repo);
+  const blockedByLanding = (waiter) => holdsSlot(waiter)
+    && waiters.some((other) => other.landing === 1 && other.pid !== waiter.pid);
+  const eligible = waiters.filter((waiter) => !blockedByLanding(waiter));
+  const current = waiters.find((waiter) => waiter.ticket === ticket);
+  if (!current) return eligible.length + 1;
+  const currentIndex = eligible.findIndex((waiter) => waiter.ticket === ticket);
+  if (currentIndex < 0) return eligible.length + 1;
+  if (current.landing === 1) return eligible.slice(0, currentIndex + 1).filter((waiter) => waiter.landing === 1).length;
+  const landings = eligible.filter((waiter) => waiter.landing === 1).length;
+  const earlierOrdinary = eligible.filter((waiter) => waiter.landing !== 1 && waiter.ticket <= ticket).length;
+  return landings + earlierOrdinary;
 }
 
 /** Pause briefly between durable queue checks. */
@@ -137,7 +158,7 @@ function pause(ms) { return new Promise((resolvePromise) => setTimeout(resolvePr
 /**
  * Join a resource's FIFO queue and resolve with a renewable lease when capacity is available.
  *
- * @param {{ name: string, capacity: number, capacityProvider?: () => number, scope?: 'machine'|'repo'|'board', root?: string, agent?: string, repo?: string, onWait?: (state: object) => void, allowIdleCapacityUpdate?: boolean }} options
+ * @param {{ name: string, capacity: number, capacityProvider?: () => number, scope?: 'machine'|'repo'|'board', root?: string, agent?: string, repo?: string, landing?: boolean, onWait?: (state: object) => void, allowIdleCapacityUpdate?: boolean }} options
  * @returns {Promise<{ name: string, scope: string, token: string, release: () => void, renew: () => void }>}
  */
 export async function takeResource(options) {
@@ -151,6 +172,7 @@ export async function takeResource(options) {
   const agent = options.agent ?? process.env.PULLBOARD_AGENT ?? `pid-${pid}`;
   const started = processStarted(pid);
   const repo = options.repo ?? repoRoot(root);
+  const landing = options.landing === true;
   let queuedAt = new Date().toISOString();
   try {
     update(db, () => {
@@ -165,24 +187,24 @@ export async function takeResource(options) {
         db.prepare('UPDATE resource SET capacity = ? WHERE name = ?').run(currentCapacity, name);
       }
       db.prepare('INSERT INTO resource(name, capacity) VALUES (?, ?) ON CONFLICT(name) DO NOTHING').run(name, currentCapacity);
-      db.prepare('INSERT INTO waiter(token, name, pid, started, agent, repo, since, heartbeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(token, name, pid, started, agent, repo, queuedAt, Date.now());
+      db.prepare('INSERT INTO waiter(token, name, pid, started, agent, repo, since, heartbeat, landing) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(token, name, pid, started, agent, repo, queuedAt, Date.now(), Number(landing));
     });
     while (true) {
       const acquired = update(db, () => {
-        const waiter = db.prepare('SELECT ticket FROM waiter WHERE token = ?').get(token);
+        const waiter = db.prepare('SELECT ticket, landing FROM waiter WHERE token = ?').get(token);
         if (!waiter) {
           queuedAt = new Date().toISOString();
-          db.prepare('INSERT INTO waiter(token, name, pid, started, agent, repo, since, heartbeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(token, name, pid, started, agent, repo, queuedAt, Date.now());
+          db.prepare('INSERT INTO waiter(token, name, pid, started, agent, repo, since, heartbeat, landing) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(token, name, pid, started, agent, repo, queuedAt, Date.now(), Number(landing));
           return { acquired: false, state: { ...snapshot(db, name), position: db.prepare('SELECT count(*) AS count FROM waiter WHERE name = ?').get(name).count, rejoined: true } };
         }
         db.prepare('UPDATE waiter SET heartbeat = ? WHERE token = ?').run(Date.now(), token);
         const spot = snapshot(db, name);
-        const position = db.prepare('SELECT count(*) AS count FROM waiter WHERE name = ? AND ticket <= ?').get(name, waiter.ticket).count;
+        const position = waiterPosition(db, name, waiter.ticket);
         const limit = db.prepare('SELECT capacity FROM resource WHERE name = ?').get(name).capacity;
         if (position === 1 && spot.holders.length < limit) {
           db.prepare('DELETE FROM waiter WHERE token = ?').run(token);
           const acquiredAt = new Date().toISOString();
-          db.prepare('INSERT INTO holder(token, name, pid, started, agent, repo, since, heartbeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(token, name, pid, started, agent, repo, acquiredAt, Date.now());
+          db.prepare('INSERT INTO holder(token, name, pid, started, agent, repo, since, heartbeat, landing) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(token, name, pid, started, agent, repo, acquiredAt, Date.now(), Number(landing));
           return { acquired: true, state: { ...spot, position: 0 } };
         }
         return { acquired: false, state: { ...spot, position } };
