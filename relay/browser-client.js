@@ -1,5 +1,6 @@
 /** Device-only relay transport: cookie authorization, local keys and authenticated ciphertext [H5,H15]. */
-import { decodeBoardKey, seal, unseal } from './seal.js';
+import { rememberDevicePairing, enrollPhone, deviceBoardKeys } from './browser-devices.js';
+import { decodeBoardKey, encodeBoardKey, seal, unseal } from './seal.js';
 import { preparePersonRequest, validatePersonRequest } from './person-request.js';
 import { snapshotState, presentationState } from './model.js';
 import { ENGINE_VERSION } from './engine.js';
@@ -20,6 +21,7 @@ function stored(storage, name, fallback) {
 
 /** Keep an unauthenticated pairing fragment on the device through the GitHub redirect. */
 export function rememberPairing() {
+  rememberDevicePairing();
   const fragment = new URLSearchParams(location.hash.slice(1));
   if (!fragment.has('board') && !fragment.has('key')) return null;
   const board = fragment.get('board');
@@ -263,14 +265,15 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
   /** Reauthorize the listing, pair only visible boards, and close streams for lost access. */
   async function listing() {
     const document = await documentAt('/api/v1/boards', denied);
+    Object.assign(keys, stored(localStorage, KEYS, {}));
+    Object.assign(keys, await deviceBoardKeys((path, options) => documentAt(path, denied, options)));
     available = document.boards.filter(board => BOARD.test(board.id) && typeof board.repository === 'string');
     warnings = document.warnings ?? [];
     const visible = new Set(available.map(board => board.id));
     for (const [id, entry] of paired) if (!visible.has(id)) { entry.stream?.close(); paired.delete(id); }
     for (const board of available) {
-      if (paired.has(board.id) && pair?.board !== board.id) continue;
-      Object.assign(keys, stored(localStorage, KEYS, {}));
       const encoded = pair?.board === board.id ? pair.key : keys[board.id];
+      if (paired.has(board.id) && pair?.board !== board.id && encodeBoardKey(paired.get(board.id).key) === encoded) continue;
       if (!encoded) continue;
       try {
         const entry = { id: board.id, key: decodeBoardKey(encoded), cursor: -1, state: null, outbox: null };
@@ -390,11 +393,12 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
 
   /** Pair a link opened in this already-loaded page as well as one opened on a fresh visit. */
   async function pairingChanged() {
-    try { pair = rememberPairing() ?? pair; await listing(); onUpdate(); }
+    try { pair = rememberPairing() ?? pair; await enrollPhone((path, options) => documentAt(path, denied, options)); await listing(); onUpdate(); }
     catch { failure = 'The pairing link is invalid. Get a new link from a linked machine.'; notice(); }
   }
   addEventListener('hashchange', pairingChanged);
   addEventListener('pagehide', () => { for (const entry of paired.values()) entry.stream?.close(); });
+  await enrollPhone((path, options) => documentAt(path, denied, options));
   await listing();
   return {
     /** Return decoded API state or seal narrow person intent; no board key or plaintext leaves the device. */

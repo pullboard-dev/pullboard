@@ -99,6 +99,12 @@ Linked clients seal an executable operation and its deterministic inputs. The re
 
 A sealed checkpoint keeps the native export tables importable and may carry the local API presentation beside them. Its public sequence equals `relay_applied_sequence`, so clients can restore a compacted prefix and continue after it. The older local-first mirror drains only its already-durable outbox, then publishes a checkpoint covering the acknowledged prefix without executing those events again. A divergent old outbox is refused with the relay and local sequences; re-link from that machine or join by pairing.
 
+Machine relay setup lives outside repositories in `$PULLBOARD_HOME/relay-machine/state.json` (default `~/.pullboard/relay-machine/state.json`), format `v: 1`. The directory is mode 700; state and the SQLite serialization lock are mode 600. State retains the auto-link setting, saved account session, excluded project roots, device roster, one pending ten-minute enrollment, and pending remote revocations. Each roster entry contains `deviceId`, public P-256 JWK, SHA-256 fingerprint, label, creation timestamp, account and relay origin. No device private key is stored on the Mac. The phone retains its non-extractable ECDH P-256 private CryptoKey in IndexedDB database `pullboard-relay-device-v1`, store `keys`, key `device`.
+
+Enrollment HMAC-SHA256 uses an HKDF-SHA256 key derived from the QR-only 32-byte secret, locator-byte salt and UTF-8 JSON info `["pullboard-device-auth",1,account,locator]`. The authenticated enrollment is UTF-8 JSON `["pullboard-device-enroll",1,account,locator,deviceId,{kty,crv,x,y},label,createdAt]`. The Mac consumes its local secret atomically after checking the MAC; relay-supplied public keys are never used as wrapping recipients.
+
+Device wraps are `{v:1,board,device,engine,ephemeral,nonce,ciphertext}`. `ephemeral` is a fresh public P-256 JWK; `nonce` is 12 bytes and `ciphertext` is the 32-byte board key plus its 16-byte AES-GCM tag, both canonical base64url. ECDH yields HKDF-SHA256 input, the raw 65-byte ephemeral public point is salt, and UTF-8 JSON `["pullboard-wrap-v1",board,device]` is info. AES-256-GCM AAD is UTF-8 JSON `["pullboard-device-wrap",1,board,device,engine]`. The relay's private `devices.sqlite` stores only account/device identifiers, opaque wraps, expiring public enrollment transports and durable revocation tombstones. Unlink removes board grants; a device revocation atomically deletes all its grants and blocks stale uploads.
+
 The in-place upgrade behavior is exercised by `exerciseUpgrade` in `docs/formats.test.js`:
 
 <!-- upgrade-rules:start -->
@@ -291,6 +297,10 @@ Person row decisions use one `row_decision` event per row. Its `record` holds `k
 An approval of proposed new wording uses that same record: `source` is the existing exact line and `replacement` carries the approved target text. Pre-commit compares the staged target against the person decision or a verified staged signed receipt. No second approval format or event kind is needed.
 
 Migration preserves event rows and adds only schema objects that are missing.
+
+## Submit test selection
+
+`pullboard.json` may set `affectedTests` to a command prefix that runs selected test files. When it is absent, `submit` runs the configured `gate` in full. When present and the import graph can safely select a subset, Pullboard appends the selected file paths to this prefix; an uncertain selection still runs the full gate. For example, this repository opts in with `"affectedTests": "node bin/run-tests.js"`. Projects using another test framework can leave the setting out and keep their configured gate, such as `npm test`.
 
 <!-- pass-rule:start -->
 The `pass` event is emitted by `passDecision` only for the coordinator; another agent receives `COORDINATOR_ONLY`. Its event actor is the coordinator. The person receives the passed decision, while the event table records who performed the pass.

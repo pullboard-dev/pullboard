@@ -315,11 +315,22 @@ function createSender(socket, pending, nextId, timeoutMs, loopDelay, relayReques
   });
 }
 
-/** Evaluate a page expression by value, without including page content in failures. */
+/** Evaluate a page expression by value and retain bounded diagnostics for page exceptions. */
 function createEvaluator(send) {
   return async (expression, label = 'evaluate page expression') => {
     const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, label);
-    if (result.exceptionDetails) throw new Error('Browser evaluation failed.');
+    if (result.exceptionDetails) {
+      const details = result.exceptionDetails;
+      const exception = details.exception;
+      const description = exception?.description || (exception && Object.hasOwn(exception, 'value')
+        ? String(exception.value) : (details.text || 'page expression threw'));
+      const frame = details.stackTrace?.callFrames?.[0];
+      const lineNumber = Number.isInteger(frame?.lineNumber) ? frame.lineNumber : details.lineNumber;
+      const columnNumber = Number.isInteger(frame?.columnNumber) ? frame.columnNumber : details.columnNumber;
+      const line = Number.isInteger(lineNumber) ? lineNumber + 1 : 'unknown';
+      const column = Number.isInteger(columnNumber) ? columnNumber + 1 : 'unknown';
+      throw new Error(`Browser evaluation failed: ${description} (line ${line}, column ${column}); expression: ${expression.slice(0, 200)}`);
+    }
     return result.result?.value;
   };
 }

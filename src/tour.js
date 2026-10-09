@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from './config.js';
-import { registerProject } from './projects.js';
+import { registerProjectAndLink } from './projects.js';
 
 const BIN = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
 
@@ -79,9 +79,9 @@ function pause(ms) {
  * Run the tour. Pauses only when a person is watching a terminal.
  *
  * @param {{ say: (line: string) => void, stdout: any }} io
- * @returns {number}
+ * @returns {Promise<number>}
  */
-export function tour(io) {
+export async function tour(io) {
   const color = colorEnabled(io);
   const pace = io.stdout.isTTY ? 1 : 0;
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-tour-')));
@@ -188,7 +188,7 @@ export function tour(io) {
     io.say(`The repo is at ${repo}`);
     return 1;
   }
-  registerProject(repo, new Date(), loadConfig(repo));
+  await registerProjectAndLink(repo, new Date(), loadConfig(repo), io);
   io.say('\nNothing shipped until a second agent verified it.');
   io.say(`Look around: cd ${repo} && pullboard log`);
   io.say('see it: pullboard view');

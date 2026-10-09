@@ -1,4 +1,4 @@
-/** Opt-in, sealed relay ordering, with crash-safe migration from the older mirror [H1,H3,H16,P5]. */
+/** Opt-in, sealed relay ordering, with crash-safe migration from the older mirror [H1,H3,H5,H16,H17,P5]. */
 import { randomUUID } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -14,6 +14,7 @@ import { encodeBoardKey, generateBoardKey, seal, unseal } from './seal.js';
 import { terminalQr } from './qr.js';
 import { Refused } from './refused.js';
 import { relaySenderProblem } from './relay-sender.js';
+import { readRelayMachine, updateRelayMachine, wrapForRecordedDevice } from './relay-machine.js';
 import { receivePersonRequest } from './relay-requests.js';
 
 export const DEFAULT_RELAY = 'https://app.pullboard.dev';
@@ -22,7 +23,7 @@ const WARNED_COMMANDS = new WeakSet();
 const KEY_WARNED_COMMANDS = new WeakSet();
 
 /** Require a trusted origin; HTTP exists only for loopback development and test relays. */
-function relayOrigin(address) {
+export function relayOrigin(address) {
   let url;
   try { url = new URL(address); } catch { throw new Refused('RELAY_URL', 'use an HTTPS relay address, such as https://app.pullboard.dev'); }
   if (url.username || url.password || url.search || url.hash || url.pathname !== '/' ||
@@ -543,6 +544,7 @@ export async function syncRelay(root, io) {
         io.err(`pullboard: the relay ${state.url} did not sequence the previous move; retry that move explicitly if still wanted`);
       }
       if (state.checkpoint || state.presentationDigest !== presentationDigest(relayPresentation(root))) await publishCheckpoint(root, file, state, io);
+      await deliverDeviceWraps(root, io);
       return summary(root, state);
     }
     catch (error) {
@@ -671,7 +673,7 @@ async function deviceSignIn(url, io) {
 }
 
 /** Explicitly sign in through the relay and persist a sealed initial snapshot before uploading it. */
-export async function relayOn(root, address, io) {
+export async function relayOn(root, address, io, { session, quiet = false, strict = false } = {}) {
   const repository = originRepository(root);
   const file = linkFile(root);
   return locked(file, async () => {
@@ -680,7 +682,8 @@ export async function relayOn(root, address, io) {
     const url = relayOrigin(address || state?.url || DEFAULT_RELAY);
     if (state && (state.url !== url || state.repository !== repository)) throw new Refused('RELAY_LINKED', 'this board is linked to another relay or repository; run relay off before changing its link');
     const key = state ? readBoardKey(state.board) : await generateBoardKey();
-    const signed = await deviceSignIn(url, io);
+    const signed = session ?? await deviceSignIn(url, io);
+    if (session && session.url !== url) throw new Refused('RELAY_SESSION', 'Sign in again to this relay with pullboard relay on --all.');
     if (!state) {
       const snapshot = localRecords(root, (board) => {
         startRelayEpoch(board);
@@ -693,6 +696,7 @@ export async function relayOn(root, address, io) {
         tokenId: signed.id, keyStorage, presentationDigest: presentationDigest(snapshot.document.presentation), sequence: 0, cursor: snapshot.document.tables.event.at(-1)?.event_id ?? 0, linkPending: true };
       state.snapshot = { sequence: 0, sealed: await sealedRecord(key, snapshot.document, state, 'snapshot', 0) };
     } else { state.token = signed.token; state.tokenId = signed.id; }
+    state.account = signed.account ?? signed.user?.id;
     // Persist the exact sealed snapshot and a recoverable link intent before making the remote link.
     saveLink(file, state);
     if (state.linkPending) {
@@ -710,16 +714,19 @@ export async function relayOn(root, address, io) {
       }
       await ensureOrdered(root, file, state, io);
       await catchUp(root, file, state, io);
-      result = summary(root, state, { pairing: true });
+      await deliverDeviceWraps(root, io);
+      updateRelayMachine(machine => { machine.excluded = machine.excluded.filter(entry => entry !== repoInfo(root).root); });
+      result = summary(root, state, { pairing: !quiet });
     }
-    catch (error) { if (!(error instanceof Refused)) throw error; io.err(`pullboard: ${error.message}; pending records are queued for the next command`); result = summary(root, state, { pairing: true }); }
-    io.say(terminalQr(result.link));
+    catch (error) { if (strict || !(error instanceof Refused)) throw error; io.err(`pullboard: ${error.message}; pending records are queued for the next command`); result = summary(root, state, { pairing: !quiet }); }
+    if (!quiet) io.say(terminalQr(result.link));
     return result;
   });
 }
 
 /** Remove the remote board and its link before forgetting this device's private key and metadata. */
 export async function relayOff(root, io) {
+  updateRelayMachine(machine => { const project = repoInfo(root).root; if (!machine.excluded.includes(project)) machine.excluded.push(project); });
   const file = linkFile(root);
   return locked(file, async () => {
     const state = loadLink(file);
@@ -748,4 +755,34 @@ export async function relayRequestDevice(root) {
     if (!state.requestDevice) { state.requestDevice = randomUUID(); saveLink(file, state); }
     return state.requestDevice;
   });
+}
+
+/** Sign in once for machine setup; the saved account is the provider-authenticated identity. */
+export async function relayMachineSignIn(address, io) {
+  const url = relayOrigin(address || DEFAULT_RELAY);
+  const signed = await deviceSignIn(url, io);
+  if (typeof signed.user?.id !== 'string') throw new Refused('RELAY_RESPONSE', 'Sign in again to receive an authenticated account identity.');
+  return { token: signed.token, id: signed.id, account: signed.user.id, url };
+}
+
+/** Share the existing bounded transport only with fixed account/device endpoints. */
+export async function relayDeviceRequest(session, path, options, io) {
+  if (!path.startsWith('/api/v1/devices/')) throw new Refused('DEVICE_ENDPOINT', 'Use a supported relay device action.');
+  return await request(session, path, options, io);
+}
+
+/** Deliver wraps only from the private local roster, rechecking revocation before each upload. */
+export async function deliverDeviceWraps(root, io) {
+  const state = loadLink(linkFile(root));
+  if (!state || state.unlinking || !state.account) return;
+  const devices = readRelayMachine().devices.filter(device => device.account === state.account && device.url === state.url);
+  if (!devices.length) return;
+  const key = readBoardKey(state.board);
+  for (const device of devices) {
+    const context = { board: state.board, device: device.deviceId, engine: ENGINE_VERSION };
+    const wrapped = await wrapForRecordedDevice(key, context, state);
+    await relayDeviceRequest(state, '/api/v1/devices/' + device.deviceId, { method: 'POST', body: {} }, io);
+    await relayDeviceRequest(state, '/api/v1/devices/' + device.deviceId + '/boards/' + state.board,
+      { method: 'PUT', body: { engine: ENGINE_VERSION, wrapped: Buffer.from(JSON.stringify(wrapped)).toString('base64url') } }, io);
+  }
 }
