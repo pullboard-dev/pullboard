@@ -1,6 +1,8 @@
 /** Real Chrome reads and follows device-sealed boards; the relay never receives its key [H5,H15,H18]. */
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { snapshotState, presentationState } from '../relay/browser-model.js';
@@ -10,6 +12,77 @@ import { ENGINE_VERSION } from '../src/machine.js';
 import { addItem, closeBoard, openBoard } from '../src/board.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
+
+/** Write an executable that fails its first launch, then optionally delegates to real Chrome. */
+function writeLaunchWrapper(directory, { chrome, failEveryLaunch = false, publishPort }) {
+  const counter = join(directory, 'launches');
+  const wrapper = join(directory, 'chrome-wrapper');
+  /** Quote one generated shell argument without interpreting its contents. */
+  const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
+  const retry = failEveryLaunch ? 'exit 23' : chrome ? '[ "$launches" -ne 1 ] || exit 23' : ':';
+  const launch = publishPort ? `profile=''
+for argument in "$@"; do
+  case "$argument" in --user-data-dir=*) profile="\${argument#--user-data-dir=}" ;; esac
+done
+printf '%s\\n' ${quote(publishPort)} > "$profile/DevToolsActivePort"
+sleep 30`
+    : chrome ? `exec ${quote(chrome)} "$@"` : 'exit 23';
+  const script = `#!/bin/sh
+launches=0
+if [ -f ${quote(counter)} ]; then launches=$(cat ${quote(counter)}); fi
+launches=$((launches + 1))
+printf '%s' "$launches" > ${quote(counter)}
+${retry}
+${launch}
+`;
+  writeFileSync(wrapper, script);
+  chmodSync(wrapper, 0o700);
+  return { wrapper, counter };
+}
+
+test('relay fixture relaunches once when Chrome does not publish a DevTools port [H5]', {
+  skip: !findChromeExecutable() && 'Chrome is not installed',
+}, async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-relay-relaunch-'));
+  let chrome;
+  t.after(async () => {
+    await chrome?.close();
+    rmSync(directory, { recursive: true, force: true });
+  });
+  const { wrapper, counter } = writeLaunchWrapper(directory, { chrome: findChromeExecutable() });
+  await assert.doesNotReject((async () => { chrome = await startChrome({ executable: wrapper }); })(),
+    'the fixture retries once after the first launch fails');
+  assert.equal(await chrome.evaluate('1 + 1'), 2, 'the second real browser reaches its local DevTools endpoint');
+  assert.equal(Number(readFileSync(counter, 'utf8')), 2, 'the wrapper launched once unsuccessfully and once successfully');
+});
+
+test('relay fixture keeps the startup refusal after its second failed launch [H5]', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-relay-failure-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const { wrapper, counter } = writeLaunchWrapper(directory, { failEveryLaunch: true });
+  await assert.rejects(startChrome({ executable: wrapper }), /Isolated Chrome exited during startup\./u);
+  assert.equal(Number(readFileSync(counter, 'utf8')), 2, 'a second failure does not trigger a third launch');
+});
+
+/** Reserve and release an ephemeral loopback port so the wrapper can publish an unavailable endpoint. */
+async function unusedLoopbackPort() {
+  const server = createServer();
+  await new Promise((resolveListen, rejectListen) => {
+    server.once('error', rejectListen);
+    server.listen(0, '127.0.0.1', resolveListen);
+  });
+  const { port } = server.address();
+  await new Promise((resolveClose, rejectClose) => server.close(error => error ? rejectClose(error) : resolveClose()));
+  return port;
+}
+
+test('relay fixture does not relaunch after Chrome publishes its DevTools port [H5]', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-relay-target-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const { wrapper, counter } = writeLaunchWrapper(directory, { publishPort: await unusedLoopbackPort() });
+  await assert.rejects(startChrome({ executable: wrapper }), /Isolated Chrome could not start or connect/u);
+  assert.equal(Number(readFileSync(counter, 'utf8')), 1, 'a target connection failure does not retry the launched browser');
+});
 
 /** Sign a browser in with the real stand-in device grant, without exposing its credential. */
 async function signIn(chrome, box) {
@@ -43,7 +116,7 @@ test('conditional sealed snapshots reauthorize before 304 and refresh spec-only 
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const endpoint = box.origin + '/api/v1/boards/' + link.board + '/state';
-  const headers = { authorization: 'Bearer ' + link.token };
+  const headers = { authorization: 'Bearer ' + link.token, 'x-pullboard-engine': String(ENGINE_VERSION) };
   const first = await fetch(endpoint, { headers });
   assert.equal(first.status, 200);
   const tag = first.headers.get('etag');
@@ -65,7 +138,7 @@ test('conditional sealed snapshots reauthorize before 304 and refresh spec-only 
   assert.equal(document.presentation.state.spec.some(rule => rule.text === 'SPEC_PRESENTATION_ONLY_108'), true);
 });
 
-test('real Chrome pairs, retains its device key, follows SSE without polling and shows inactivity [H5,H15,H18]', {
+test('real Chrome pairs, retains its device key, declares its engine on every relay request and shows inactivity [H5,H15,H18,H16,H3]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
   const box = await relayClientFixture(t);
@@ -89,6 +162,7 @@ test('real Chrome pairs, retains its device key, follows SSE without polling and
     source: 'window.setInterval = () => 0;',
   });
   await signIn(chrome, box);
+  const firstBrowserCall = box.calls.length;
   const beforeUnpaired = box.calls.length;
   await chrome.navigate(box.origin);
   await chrome.waitFor("document.querySelector('#relay-notice')?.textContent.includes('pair this browser')");
@@ -102,6 +176,11 @@ test('real Chrome pairs, retains its device key, follows SSE without polling and
   assert.equal(await chrome.evaluate("JSON.parse(localStorage.getItem('pullboard.relay.keys.v1'))[" + JSON.stringify(link.board) + '].length === 43'), true);
   assert.equal(await chrome.evaluate("getComputedStyle(document.querySelector('#new-item')).display === 'none'"), true, 'the relay page hides action controls');
   assert.equal(box.calls.some(call => call.accept.includes('text/event-stream')), true, 'the page opened a real authorized event stream');
+  const browserApiCalls = box.calls.slice(firstBrowserCall).filter(call => call.path.startsWith('/api/v1/'));
+  assert.ok(browserApiCalls.length > 0, 'the browser made authenticated relay API requests');
+  assert.ok(browserApiCalls.every(call => call.engine === String(ENGINE_VERSION)), 'every browser API request, including catch-up and the live stream, declares the current engine');
+  const browserEngine = await fetch(box.origin + '/relay/engine.js');
+  assert.equal(await browserEngine.text(), 'export const ENGINE_VERSION = ' + ENGINE_VERSION + ';\n', 'the served browser engine matches the current relay engine');
   await chrome.navigate(box.origin + '/#board=' + second.id + '&key=' + second.encoded);
   await chrome.waitFor("document.querySelectorAll('#proj-list .proj.repo').length === 2");
   assert.equal(await chrome.evaluate("Object.keys(JSON.parse(localStorage.getItem('pullboard.relay.keys.v1'))).length === 2"), true,
@@ -131,7 +210,7 @@ async function appendEngineMove(box, link, key, sequence, engine, presentation) 
     boardId: link.board, kind: 'move', sequence,
   })).toString('base64url');
   const response = await fetch(box.origin + '/api/v1/boards/' + link.board + '/moves', {
-    method: 'POST', headers: { authorization: 'Bearer ' + link.token, 'content-type': 'application/json' },
+    method: 'POST', headers: { authorization: 'Bearer ' + link.token, 'x-pullboard-engine': String(ENGINE_VERSION), 'content-type': 'application/json' },
     body: JSON.stringify({ sequence, sealed }),
   });
   assert.equal(response.status, 200, 'the private stand-in accepts the synthetic sealed sequence');
@@ -213,12 +292,12 @@ test('real Chrome waits for and installs the late snapshot that compacts a legac
     boardId: link.board, kind: 'snapshot', sequence: 1,
   })).toString('base64url');
   const uploaded = await fetch(box.origin + '/api/v1/boards/' + link.board + '/state', {
-    method: 'PUT', headers: { authorization: 'Bearer ' + link.token, 'content-type': 'application/json' },
+    method: 'PUT', headers: { authorization: 'Bearer ' + link.token, 'x-pullboard-engine': String(ENGINE_VERSION), 'content-type': 'application/json' },
     body: JSON.stringify({ sequence: 1, sealed: bytes }),
   });
   assert.equal(uploaded.status, 200, 'the stand-in acknowledges a snapshot covering the move');
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(finalTitle) + ')');
-  const replay = await fetch(box.origin + '/api/v1/boards/' + link.board + '/events?after=0', { headers: { authorization: 'Bearer ' + link.token } });
+  const replay = await fetch(box.origin + '/api/v1/boards/' + link.board + '/events?after=0', { headers: { authorization: 'Bearer ' + link.token, 'x-pullboard-engine': String(ENGINE_VERSION) } });
   assert.equal(replay.status, 409, 'the relay compacted the covered event and requires the new snapshot cursor');
   assert.equal(box.keyInRequest(), false, 'the key remains absent from browser requests');
 });
@@ -274,7 +353,7 @@ test('legacy queued presentations never disclose later unacknowledged moves [H5,
   const pendingLink = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   assert.equal(pendingLink.needsPresentation, true);
   assert.equal(Boolean(pendingLink.snapshot), true);
-  const oldState = await fetch(box.origin + '/api/v1/boards/' + link.board + '/state', { headers: { authorization: 'Bearer ' + link.token } });
+  const oldState = await fetch(box.origin + '/api/v1/boards/' + link.board + '/state', { headers: { authorization: 'Bearer ' + link.token, 'x-pullboard-engine': String(ENGINE_VERSION) } });
   assert.equal((await oldState.json()).state.sequence, 0, 'the relay did not acknowledge the refused checkpoint');
 
   box.refuseSnapshotWrites(false);
@@ -290,13 +369,13 @@ test('legacy queued presentations never disclose later unacknowledged moves [H5,
   assert.equal(moves[0].presentation, undefined, 'the earlier record cannot attest the already-advanced whole board');
   assert.equal(moves[1].presentation.state.events[0].event_id, moves[1].event.event_id);
   assert.equal(moves[1].presentation.state.items.some(item => item.title === 'SECOND_QUEUED_108'), true);
-  const response = await fetch(box.origin + '/api/v1/boards/' + link.board + '/state', { headers: { authorization: 'Bearer ' + link.token } });
+  const response = await fetch(box.origin + '/api/v1/boards/' + link.board + '/state', { headers: { authorization: 'Bearer ' + link.token, 'x-pullboard-engine': String(ENGINE_VERSION) } });
   assert.equal(response.status, 200);
   const checkpoint = (await response.json()).state;
   assert.equal(checkpoint.sequence, box.moveAcks[1].event_id, 'the acknowledged final checkpoint covers the omitted presentation');
   const document = JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(checkpoint.sealed, 'base64url'), { boardId: link.board, kind: 'snapshot', sequence: checkpoint.sequence })));
   assert.equal(document.presentation.state.items.some(item => item.title === 'FIRST_QUEUED_108'), true);
   assert.equal(document.presentation.state.items.some(item => item.title === 'SECOND_QUEUED_108'), true);
-  const compacted = await fetch(box.origin + '/api/v1/boards/' + link.board + '/events?after=0', { headers: { authorization: 'Bearer ' + link.token } });
+  const compacted = await fetch(box.origin + '/api/v1/boards/' + link.board + '/events?after=0', { headers: { authorization: 'Bearer ' + link.token, 'x-pullboard-engine': String(ENGINE_VERSION) } });
   assert.equal(compacted.status, 409, 'the relay compacted the moves only after acknowledging their final checkpoint');
 });
