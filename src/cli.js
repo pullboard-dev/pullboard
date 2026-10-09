@@ -47,7 +47,8 @@ import {
   unmetRows,
 } from './spec.js';
 import { briefFiles } from './brief.js';
-import { checkBaseline, sayCheckBaseline } from './check-baseline.js';
+import { checkBaseline, prepareCheckBaseline, sayCheckBaseline } from './check-baseline.js';
+import { retryCheckBaselines, startCheckBaseline } from './check-baseline-worker.js';
 import { runItems } from './run.js';
 import { parseProblems, sweepItems } from './sweep.js';
 import { renderSpecView } from './view.js';
@@ -132,8 +133,10 @@ Work
                 [--brief "..." | --brief-file <file>] [--route light|mid]
                                         --after: claiming waits until those items are verified
                                         --brief: what a cold agent needs; --route light: any model can build it
-                [--check "<command>"]  the command that proves it; with --criterion and a brief, needed below strong
+                [--check "<command>"] [--wait]   the command that proves it; --wait waits for its main baseline
+                                        with --criterion and a brief, --check is needed below strong
   pullboard edit <id> [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."]
+                [--wait]                wait for a new check's baseline; otherwise it runs in the background
   pullboard escalate <id> --note "what was tried and how it failed"   hand it one tier up
   pullboard run --agent "<command>" [--attempts 3] [--minutes 15] [--items N] [--wait M]
                                         build routed items unattended in this worktree: the agent command reads
@@ -480,6 +483,28 @@ const OPTIONS = {
   help: { type: 'boolean', short: 'h' },
   version: { type: 'boolean', short: 'v' },
 };
+
+/** Parse --wait as a switch for add/edit and as minutes for next/run, preserving all other options. */
+function parseCommandArgs(argv) {
+  let command;
+  for (const wait of [{ type: 'boolean' }, OPTIONS.wait]) {
+    try {
+      command = parseArgs({ args: argv, options: { ...OPTIONS, wait }, allowPositionals: true }).positionals[0];
+      if (['add', 'edit'].includes(command)) break;
+    } catch { /* The final parser supplies the existing actionable usage error. */ }
+  }
+  const options = ['add', 'edit'].includes(command) ? { ...OPTIONS, wait: { type: 'boolean' } } : OPTIONS;
+  return parseArgs({ args: argv, options, allowPositionals: true });
+}
+
+/** Start an already-recorded request, recording an unavailable result if its child cannot start. */
+async function launchBaseline(ctx, board, id, baseline) {
+  try { await startCheckBaseline(ctx.info.root, id, baseline); }
+  catch {
+    await ordered(ctx, board, 'completeCheckBaseline', [id, { agentId: COORDINATOR, expected: baseline,
+      baseline: { command: baseline.command, main: baseline.main, result: 'unavailable', reason: 'background worker could not start; set --check again from the coordinator' } }]);
+  }
+}
 
 /**
  * A positive whole number from an argument, or a refusal naming what was expected.
@@ -1954,8 +1979,9 @@ function workCommands(io, args) {
         check: values.check,
       };
       const { command } = store.validateItemAddition(board, item);
-      if (command) item.checkBaseline = checkBaseline(ctx.info.root, command);
+      if (command) item.checkBaseline = values.wait ? checkBaseline(ctx.info.root, command) : prepareCheckBaseline(ctx.info.root, command);
       const id = await ordered(ctx, board, 'addItem', [item]);
+      if (item.checkBaseline?.result === 'pending') await launchBaseline(ctx, board, id, item.checkBaseline);
       io.result?.({ item: store.getItem(board, id) });
       io.say(`#${id}`);
       sayCheckBaseline(io, store.getItem(board, id));
@@ -1981,8 +2007,9 @@ function workCommands(io, args) {
         check: values.check,
       };
       const { item, command } = store.validateItemEdit(board, id, change);
-      if (command && command !== item.item_check) change.checkBaseline = checkBaseline(ctx.info.root, command);
+      if (command && command !== item.item_check) change.checkBaseline = values.wait ? checkBaseline(ctx.info.root, command) : prepareCheckBaseline(ctx.info.root, command);
       await ordered(ctx, board, 'editItem', [id, change]);
+      if (change.checkBaseline?.result === 'pending') await launchBaseline(ctx, board, id, change.checkBaseline);
       io.result?.({ item: store.getItem(board, id) });
       io.say(`edited #${id}`);
       sayCheckBaseline(io, store.getItem(board, id));
@@ -2480,7 +2507,7 @@ async function hookCommand(io, { first, second }) {
 async function runCommand(argv, io) {
   let parsed;
   try {
-    parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
+    parsed = parseCommandArgs(argv);
   } catch (error) {
     io.refusal?.(new Refused('USAGE', `${error.message}; run pullboard help`));
     io.err(`pullboard: ${error.message}\nRun pullboard help --all for the full list.`);
@@ -2602,7 +2629,7 @@ async function runMain(argv, streams) {
   let parsed;
   let checkoutSession;
   try {
-    parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
+    parsed = parseCommandArgs(argv);
     const command = parsed.positionals[0];
     io.relayCommand = { cliOperation: command === 'done' ? 'submit' : command, cwd: resolve(io.cwd),
       positionals: parsed.positionals.slice(1),
@@ -2625,7 +2652,10 @@ async function runMain(argv, streams) {
   try {
     /** A network refusal preserves offline reads; linked mutation dispatch requires an acknowledgement. */
     const retry = async () => {
-      try { await syncRelay(io.cwd, io); }
+      try {
+        await syncRelay(io.cwd, io);
+        await retryCheckBaselines(io.cwd, io);
+      }
       catch (error) {
         if (!(error instanceof Refused)) throw error;
         if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);

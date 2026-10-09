@@ -88,7 +88,7 @@ function checkProject(box) {
   const joined = spawnSync(process.execPath, [BIN, 'join', 'web'], { cwd: runner, env: box.env, encoding: 'utf8' });
   assert.equal(joined.status, 0, joined.stderr);
   writeFileSync(script, `const fs = require('node:fs'); fs.appendFileSync(${JSON.stringify(box.events)}, 'item check\\n'); process.exitCode = fs.existsSync('web/result.txt') ? 0 : 1;\n`);
-  const added = spawnSync(process.execPath, [BIN, 'add', 'web', 'Check item', '--specs', 'G1', '--route', 'light', '--criterion', 'the item check runs', '--check', `node '${script}'`, '--brief', 'Files: web/result.txt\nTest: run the item check and observe its result.'], { cwd: root, env: box.env, encoding: 'utf8' });
+  const added = spawnSync(process.execPath, [BIN, 'add', 'web', 'Check item', '--specs', 'G1', '--route', 'light', '--criterion', 'the item check runs', '--check', `node '${script}'`, '--wait', '--brief', 'Files: web/result.txt\nTest: run the item check and observe its result.'], { cwd: root, env: box.env, encoding: 'utf8' });
   assert.equal(added.status, 0, added.stderr);
   assert.equal(spawnSync(process.execPath, [BIN, 'claim', '1'], { cwd: runner, env: box.env }).status, 0);
   writeFileSync(box.events, '');
