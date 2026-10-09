@@ -1,11 +1,13 @@
 /** Approved-row edits need an exact person decision or staged SSH receipt [S19,V3]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
+import { once } from 'node:events';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import { removeFixtureDirectory } from './cleanup-diagnostics.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -19,7 +21,16 @@ const SPEC = `# Approved row edit fixture
 
 /** Delete every private repo, key and home created by this file. */
 function cleanup() {
-  for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
+  for (const dir of TEMP_DIRS) removeFixtureDirectory(dir);
+}
+
+/** Wait for an owned child to close, clearing the timeout as soon as it settles. */
+function waitForClose(closePromise, timeoutMs) {
+  let timer;
+  return Promise.race([
+    closePromise,
+    new Promise(resolvePromise => { timer = setTimeout(() => resolvePromise(false), timeoutMs); }),
+  ]).finally(() => clearTimeout(timer));
 }
 
 after(cleanup);
@@ -42,7 +53,7 @@ function shellWord(value) {
 function fixture(t, { signer = false, doctrine = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-approved-row-'));
   TEMP_DIRS.push(dir);
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  t.after(() => removeFixtureDirectory(dir));
   const root = join(dir, 'repo');
   const bin = join(dir, 'bin');
   mkdirSync(root);
@@ -57,6 +68,13 @@ function fixture(t, { signer = false, doctrine = false } = {}) {
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_COUNT: '3',
+    GIT_CONFIG_KEY_0: 'user.useConfigOnly',
+    GIT_CONFIG_VALUE_0: 'true',
+    GIT_CONFIG_KEY_1: 'gc.auto',
+    GIT_CONFIG_VALUE_1: '0',
+    GIT_CONFIG_KEY_2: 'maintenance.auto',
+    GIT_CONFIG_VALUE_2: 'false',
   };
   /** Run Git while preserving this fixture's local identity and the hook's active index. */
   function git(...args) {
@@ -94,6 +112,60 @@ function fixture(t, { signer = false, doctrine = false } = {}) {
   }
   return { dir, root, env, git, pullboard };
 }
+
+test('[C7] cleanup diagnostics capture a forced late writer without hiding ENOTEMPTY', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-cleanup-control-'));
+  t.after(() => removeFixtureDirectory(directory));
+  const target = join(directory, 'repo');
+  mkdirSync(target);
+  writeFileSync(join(target, 'initial'), 'force a real non-empty-directory error');
+  const lateFile = join(target, 'late-write');
+  const source = `const fs = require('node:fs'); let descriptor; process.stdin.setEncoding('utf8'); process.stdin.on('data', data => { if (data.includes('write')) { descriptor = fs.openSync(${JSON.stringify(lateFile)}, 'w'); fs.writeSync(descriptor, 'written after the cleanup failure'); console.log('late-write-ready'); } if (data.includes('exit')) { if (descriptor !== undefined) fs.closeSync(descriptor); process.exit(0); } }); console.log('writer-ready');`;
+  const writer = spawn(process.execPath, ['-e', source], { stdio: ['pipe', 'pipe', 'pipe'], env: { PATH: process.env.PATH } });
+  const writerClosed = once(writer, 'close').then(() => true, () => true);
+  let output = '';
+  writer.stdout.setEncoding('utf8');
+  writer.stdout.on('data', chunk => { output += chunk; });
+  /** Wait for a child control handshake while keeping the owning test responsible for cleanup. */
+  const waitForOutput = async (text) => {
+    const deadline = Date.now() + 5_000;
+    while (!output.includes(text) && Date.now() < deadline) await new Promise(resolvePromise => setTimeout(resolvePromise, 10));
+    assert.ok(output.includes(text), `writer output did not include ${text}: ${output}`);
+  };
+  try {
+    await waitForOutput('writer-ready');
+    let report = '';
+    let failure;
+    try {
+      removeFixtureDirectory(target, {
+        remove: () => {
+          try { rmdirSync(target); } catch (error) { failure = error; }
+          assert.equal(failure?.code, 'ENOTEMPTY', 'the control uses a real filesystem cleanup failure');
+          writer.stdin.write('write\n');
+          const deadline = Date.now() + 5_000;
+          while (!existsSync(lateFile) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+          assert.ok(existsSync(lateFile), 'the child made a real late file after cleanup failed');
+          throw failure;
+        },
+        emit: message => { report += message; },
+      });
+    } catch (error) { failure = error; }
+    assert.equal(failure?.code, 'ENOTEMPTY', 'diagnostic capture preserves the original cleanup error');
+    assert.match(report, /late-write/);
+    const lateMtime = new Date(statSync(lateFile).mtimeMs).toISOString();
+    assert.ok(report.includes(lateMtime), `the report records the actual late-file mtime ${lateMtime}`);
+    const owners = report.split('open-file owners:\n')[1] ?? '';
+    if (process.platform === 'darwin') assert.match(owners, new RegExp(`pid=${writer.pid}\\b`));
+    else assert.ok(owners.includes(`pid=${writer.pid}`) || owners.startsWith('unavailable'), owners);
+  } finally {
+    if (writer.exitCode === null && writer.signalCode === null) writer.stdin.end('exit\n');
+    let closed = await waitForClose(writerClosed, 2_000);
+    if (!closed) writer.kill('SIGTERM');
+    if (!closed) closed = await waitForClose(writerClosed, 2_000);
+    if (!closed) writer.kill('SIGKILL');
+    if (!closed) await writerClosed;
+  }
+});
 
 /** Replace one row's prose while preserving status, tier and every trailing field. */
 function setRowText(box, id, text) {

@@ -53,7 +53,7 @@ export function createRelayBrowserHandler({ authenticate }) {
       respond(res, 'text/html', SIGN_IN, [createHash('sha256').update(script).digest('base64')]);
       return true;
     }
-    const page = cockpitPage('', { readOnly: true, transportModule: '/relay/client.js', apiHeaders: {}, stylesheet: '/view.css' })
+    const page = cockpitPage('', { readOnly: true, requests: true, transportModule: '/relay/client.js', apiHeaders: {}, stylesheet: '/view.css' })
       .replace('<main>', '<main><section class="card-panel" id="relay-notice" role="status"><p>Pairing this browser…</p></section>');
     const scripts = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(match => createHash('sha256').update(match[1]).digest('base64'));
     respond(res, 'text/html', page, scripts);
