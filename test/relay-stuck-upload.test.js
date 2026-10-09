@@ -515,3 +515,44 @@ test('a refused later checkpoint names its repair once on every native agent com
   assert.equal(JSON.parse(readFileSync(box.linkFile, 'utf8')).checkpointRefusal, undefined);
   assert.equal((await uploadedState(box)).sequence, baselineSequence + records.length + 1);
 });
+
+/** One long-lived caller can acknowledge several distinct moves without hiding later warnings. */
+test('a refused later checkpoint names each distinct ordered move with the same io [H16,B26]', async t => {
+  const box = await relayClientFixture(t);
+  await box.link();
+  box.rejectSnapshots({ status: 400, code: 'BAD_UPLOAD', message: 'malformed sealed snapshot' });
+  assert.equal((await box.cli('shout', 'all', 'seed the per-move checkpoint refusal')).code, 0);
+  assert.ok(JSON.parse(readFileSync(box.linkFile, 'utf8')).checkpointRefusal);
+  const before = box.moveAcks.length;
+  const result = await box.script(`
+    const { relayOperation, syncRelay } = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
+    const root = process.cwd();
+    const lines = [];
+    const io = { cwd: root, say(value) { lines.push(value); }, err(value) { lines.push(value); } };
+    const notices = () => lines.filter(line => line.includes('relay checkpoint refused for '));
+    await syncRelay(root, io);
+    const first = await relayOperation(root, 'shout', [{ from: 'coordinator', to: 'all', text: 'same io first ordered move', lanes: [] }], io);
+    await syncRelay(root, io);
+    const firstCount = notices().length;
+    const second = await relayOperation(root, 'shout', [{ from: 'coordinator', to: 'all', text: 'same io second ordered move', lanes: [] }], io);
+    await syncRelay(root, io);
+    await syncRelay(root, io);
+    console.log(JSON.stringify({ first: Number.isSafeInteger(first), second: Number.isSafeInteger(second), firstCount, lines: notices() }));
+  `);
+  assert.equal(result.code, 0);
+  assert.equal(result.document.first, true);
+  assert.equal(result.document.second, true);
+  assert.equal(box.moveAcks.length - before, 2, 'both distinct moves are acknowledged through the real ordered relay');
+  assert.equal(result.document.firstCount, 1, 'preflight, one move and repeated synchronization share one diagnostic');
+  assert.equal(result.document.lines.length, 2, 'two distinct acknowledged moves sharing io each name the refused checkpoint');
+  for (const line of result.document.lines) {
+    assert.match(line, /relay checkpoint refused for [0-9a-f]{32}: BAD_UPLOAD malformed sealed snapshot/u);
+    assert.match(line, /moves still sync in order.*npm i -g pullboard.*relay off then relay on --all/u);
+  }
+  const exported = await box.cli('export');
+  assert.equal(exported.code, 0);
+  for (const text of ['same io first ordered move', 'same io second ordered move']) {
+    assert.equal(exported.document.tables.shout.filter(row => row.shout_text === text).length, 1,
+      'each acknowledged move has exactly one committed native effect');
+  }
+});

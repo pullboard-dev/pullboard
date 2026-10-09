@@ -26,6 +26,7 @@ const KEY_WARNED_COMMANDS = new WeakSet();
 const BASELINE_ATTEMPTS = new WeakMap();
 const BASELINE_NOTICES = new WeakSet();
 const CHECKPOINT_NOTICES = new WeakMap();
+const CHECKPOINT_MOVES = new WeakMap();
 const BASELINE_LOCAL_MOVES = new WeakSet();
 const BASELINE_FAILURES = new WeakMap();
 
@@ -242,7 +243,7 @@ export function pendingCheckpointProblem(root) {
   return state?.checkpointRefusal ? checkpointProblem(state) : null;
 }
 
-/** Deduplicate permanent checkpoint diagnostics across the same command's preflight and retries. */
+/** Deduplicate within one move, retaining its preflight notice and allowing later moves to warn. */
 function reportCheckpointRefusal(state, io) {
   let boards = CHECKPOINT_NOTICES.get(io);
   if (!boards) { boards = new Set(); CHECKPOINT_NOTICES.set(io, boards); }
@@ -747,6 +748,10 @@ export async function relayOperation(root, operation, args, io, command, applyLo
   return locked(file, async () => {
     const state = loadLink(file);
     if (!state || state.unlinking) throw new Refused('RELAY_UNLINK_PENDING', 'finish unlinking this device with pullboard relay off before sending a move');
+    let moves = CHECKPOINT_MOVES.get(io);
+    if (!moves) { moves = new Set(); CHECKPOINT_MOVES.set(io, moves); }
+    if (moves.has(state.board)) CHECKPOINT_NOTICES.get(io)?.delete(state.board);
+    moves.add(state.board);
     /** Apply through the CLI's existing board handle so local events and guards remain unchanged. */
     const applyPausedMoveLocally = () => typeof applyLocally === 'function'
       ? applyLocally()
