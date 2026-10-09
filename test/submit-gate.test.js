@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { selectAffectedTests } from '../src/affected-tests.js';
 
@@ -58,6 +58,25 @@ function privateRepo(t) {
   put(root, 'SPEC.md', SPEC);
   put(root, 'package.json', '{"type":"module"}\n');
   return { dir, root, env, git, run };
+}
+
+/** Create a real joined builder while the coordinator stays on its unchanged trunk. */
+function builderRepo(box) {
+  const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
+  config.lanes = { build: { owns: ['src/', 'test/'], specs: ['G'] } };
+  put(box.root, 'pullboard.json', JSON.stringify(config));
+  commitAll(box);
+  const made = box.run('worktree', 'build', '--json');
+  assert.equal(made.code, 0, made.err);
+  const root = JSON.parse(made.out).path;
+  /** Run Git only in the joined builder. */
+  const git = (...args) => execFileSync('git', args, { cwd: root, env: box.env, encoding: 'utf8', stdio: 'pipe' }).trim();
+  /** Run the real CLI with the joined builder identity. */
+  const run = (...args) => {
+    const result = spawnSync(process.execPath, [BIN, ...args], { cwd: root, env: box.env, encoding: 'utf8', timeout: 90_000 });
+    return { code: result.status, out: result.stdout ?? '', err: result.stderr ?? '' };
+  };
+  return { ...box, root, git, run, coordinator: box.run };
 }
 
 /** Write a fixture file, creating its parent directory when needed. */
@@ -140,7 +159,7 @@ test('unknown imports and broad inputs fall back explicitly, while an all-test c
 });
 
 test('submit runs the frozen check and affected test only; landing and explicit gate remain full [V4,C7,V16]', (t) => {
-  const box = privateRepo(t);
+  let box = privateRepo(t);
   const checkCommand = 'node -e "require(\'node:fs\').appendFileSync(process.env.ITEM_CHECK_MARKER, \'check\')"';
   const checkMarker = join(box.dir, 'item-check.log');
   box.env.ITEM_CHECK_MARKER = checkMarker;
@@ -159,7 +178,8 @@ test('submit runs the frozen check and affected test only; landing and explicit 
     "assert.fail('independent test must not block this submit');",
   ].join('\n'));
   commitAll(box);
-  const added = box.run('add', 'coordinator', 'Source change', '--check', checkCommand);
+  box = builderRepo(box);
+  const added = box.coordinator('add', 'build', 'Source change', '--check', checkCommand);
   assert.equal(added.code, 0, added.err);
   assert.equal(box.run('claim', '1').code, 0);
 
@@ -168,7 +188,7 @@ test('submit runs the frozen check and affected test only; landing and explicit 
   const marker = join(box.dir, 'affected-ran.log');
   box.env.AFFECTED_MARKER = marker;
   rmSync(checkMarker, { force: true });
-  const stamp = join(box.root, box.git('rev-parse', '--git-path', 'pullboard-gate-green'));
+  const stamp = resolve(box.root, box.git('rev-parse', '--git-path', 'pullboard-gate-green'));
   writeFileSync(stamp, 'forged-stamp-must-not-change\n');
 
   const submitted = box.run('submit', '1', '--json');
@@ -195,20 +215,21 @@ test('submit runs the frozen check and affected test only; landing and explicit 
   const remote = join(box.dir, 'remote.git');
   box.git('init', '-q', '--bare', remote);
   box.git('remote', 'add', 'origin', remote);
-  const landing = spawnSync('git', ['push', '-q', 'origin', 'main'], { cwd: box.root, env: box.env, encoding: 'utf8', timeout: 90_000 });
+  const landing = spawnSync('git', ['push', '-q', 'origin', 'HEAD:main'], { cwd: box.root, env: box.env, encoding: 'utf8', timeout: 90_000 });
   assert.notEqual(landing.status, 0, 'the landing pre-push hook still runs the full gate');
   assert.match(`${landing.stdout ?? ''}\n${landing.stderr ?? ''}`, /gate is red|not ok 2/);
   assert.equal(existsSync(stamp), false, 'neither subset nor red full gate leaves a green full-gate stamp');
 });
 
 test('submit without a frozen check reports no item check and still runs affected tests [V4,C7,V16]', (t) => {
-  const box = privateRepo(t);
+  let box = privateRepo(t);
   put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test' }));
   put(box.root, 'src/a.js', 'export const value = 1;\n');
   put(box.root, 'test/a.test.js', "import '../src/a.js'; import { appendFileSync } from 'node:fs'; appendFileSync(process.env.AFFECTED_MARKER, 'ran');\n");
   put(box.root, 'test/b.test.js', "import assert from 'node:assert/strict'; assert.fail('unrelated');\n");
   commitAll(box);
-  assert.equal(box.run('add', 'coordinator', 'No frozen command').code, 0);
+  box = builderRepo(box);
+  assert.equal(box.coordinator('add', 'build', 'No frozen command').code, 0);
   assert.equal(box.run('claim', '1').code, 0);
   put(box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(box, 'feat(core): update selected source [G1]');
@@ -226,10 +247,11 @@ test('submit without a frozen check reports no item check and still runs affecte
 });
 
 test('a red frozen item check refuses submit before affected tests run [V4,C7,V16]', (t) => {
-  const box = privateRepo(t);
+  let box = privateRepo(t);
   put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test' }));
   seedGraph(box);
-  const added = box.run('add', 'coordinator', 'Frozen check', '--check', 'node -e "process.exit(process.env.CHECK_REFUSE ? 1 : 0)"');
+  box = builderRepo(box);
+  const added = box.coordinator('add', 'build', 'Frozen check', '--check', 'node -e "process.exit(process.env.CHECK_REFUSE ? 1 : 0)"');
   assert.equal(added.code, 0, added.err);
   assert.equal(box.run('claim', '1').code, 0);
   put(box.root, 'src/a.js', 'export const value = 2;\n');
@@ -273,4 +295,111 @@ test('CommonJS and nested package scopes fall back instead of silently missing r
   const loader = selectAffectedTests(esm.root, { base: esmBase, commit: esmCommit });
   assert.equal(loader.full, true, 'a reached CommonJS loader also makes the ESM import graph incomplete');
   assert.match(loader.reason, /CommonJS/u);
+});
+
+
+for (const mode of ['topic parent', 'merge commit']) {
+  test(`affected tests include source changes carried by a ${mode} [V4,C7,V16]`, (t) => {
+    let box = privateRepo(t);
+    put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test' }));
+    seedGraph(box);
+    put(box.root, 'test/a.test.js', [
+      "import assert from 'node:assert/strict';",
+      "import { appendFileSync } from 'node:fs';",
+      "import { value } from '../src/middle.js';",
+      "appendFileSync(process.env.AFFECTED_MARKER, 'ran\\n');",
+      'assert.equal(value, 1);',
+    ].join('\n'));
+    box = builderRepo(box);
+    assert.equal(box.coordinator('add', 'build', 'Merged source', '--check', 'true').code, 0);
+    assert.equal(box.run('claim', '1').code, 0);
+    const branch = box.git('branch', '--show-current');
+    box.git('checkout', '-q', '-b', 'topic');
+    put(box.root, mode === 'topic parent' ? 'src/a.js' : 'src/notes.js', 'export const value = 2;\n');
+    commitAll(box, 'feat(core): topic source [G1]');
+    box.git('checkout', '-q', branch);
+    if (mode === 'merge commit') {
+      put(box.root, 'src/other.js', 'export const other = false;\n');
+      commitAll(box, 'feat(core): unrelated source [G1]');
+      box.git('merge', '--no-ff', '--no-commit', 'topic');
+      put(box.root, 'src/a.js', 'export const value = 2;\n');
+      commitAll(box, 'feat(core): resolve merged source [G1]');
+    } else box.git('merge', '--no-ff', '-q', 'topic', '-m', 'feat(core): merge topic source [G1]');
+    assert.equal(box.git('rev-list', '--parents', '-n', '1', 'HEAD').split(' ').length, 3, 'the candidate really has two parents');
+    const marker = join(box.dir, 'merged-test-ran.log');
+    box.env.AFFECTED_MARKER = marker;
+    const standalone = spawnSync(process.execPath, ['--test', 'test/a.test.js'], { cwd: box.root, env: box.env, encoding: 'utf8' });
+    assert.equal(standalone.status, 1, 'the unchanged importer detects the merged source regression');
+    assert.match(standalone.stdout, /ERR_ASSERTION/u);
+    rmSync(marker);
+    const refused = box.run('submit', '1');
+    assert.equal(refused.code, 1, refused.out || refused.err);
+    assert.match(refused.err, /GATE_RED/u);
+    assert.match(refused.err, /affected tests:.*test\/a\.test\.js/u);
+    assert.match(refused.err, /ERR_ASSERTION/u);
+    assert.equal(readFileSync(marker, 'utf8'), 'ran\n', 'submit actually executed the transitive importer');
+  });
+}
+
+test('computed imports in test files are always selected in both graphs without forcing full [V4,C7]', (t) => {
+  const box = privateRepo(t);
+  const original = seedGraph(box);
+  put(box.root, 'test/c.test.js', "export const load = path => import(path);\n");
+  const base = commitAll(box);
+  const added = selectAffectedTests(box.root, { base: original, commit: base, changed: ['src/a.js'] });
+  assert.equal(added.full, false);
+  assert.deepEqual(added.files, ['test/a.test.js', 'test/c.test.js'], 'the new graph also always selects its computed-import test');
+  put(box.root, 'src/a.js', 'export const value = 2;\n');
+  let commit = commitAll(box, 'feat(core): source change [G1]');
+  let selection = selectAffectedTests(box.root, { base, commit });
+  assert.equal(selection.full, false);
+  assert.deepEqual(selection.files, ['test/a.test.js', 'test/c.test.js'], 'an unrelated computed-import test is always selected');
+  selection = selectAffectedTests(box.root, { base, commit, changed: ['test/c.test.js'] });
+  assert.equal(selection.full, false, 'reaching a computed-import test does not force full');
+  assert.deepEqual(selection.files, ['test/c.test.js']);
+  put(box.root, 'test/c.test.js', "import 'node:assert/strict';\n");
+  commit = commitAll(box, 'test(core): remove computed loader [G1]');
+  selection = selectAffectedTests(box.root, { base, commit, changed: ['src/a.js'] });
+  assert.equal(selection.full, false);
+  assert.deepEqual(selection.files, ['test/a.test.js', 'test/c.test.js'], 'the old graph keeps its computed-import test selected');
+});
+
+test('affected selection says explicitly when no claim head was recorded [V4,C7]', (t) => {
+  const box = privateRepo(t);
+  seedGraph(box);
+  const selection = selectAffectedTests(box.root, { base: null, trunk: 'refs/heads/main' });
+  assert.equal(selection.full, true);
+  assert.match(selection.reason, /no claim head recorded/u);
+});
+
+
+test('affected selection reads old edges and all changes at the trunk merge base [V4,C7]', (t) => {
+  const box = privateRepo(t);
+  const trunk = seedGraph(box);
+  box.git('rm', 'src/a.js');
+  const claim = commitAll(box, 'refactor(core): remove old source [G1]');
+  // A claim made after the deletion and an empty receipt must not hide the trunk-relative change.
+  const selection = selectAffectedTests(box.root, { base: claim, trunk, changed: [] });
+  assert.equal(selection.full, false);
+  assert.deepEqual(selection.files, ['test/a.test.js']);
+});
+
+
+test('affected submit includes branch changes made before the item claim [V4,C7,V16]', (t) => {
+  let box = privateRepo(t);
+  put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test' }));
+  seedGraph(box);
+  put(box.root, 'test/a.test.js', "import assert from 'node:assert/strict'; import { value } from '../src/middle.js'; assert.equal(value, 1);\n");
+  box = builderRepo(box);
+  put(box.root, 'src/a.js', 'export const value = 2;\n');
+  commitAll(box, 'feat(core): source before claim [G1]');
+  assert.equal(box.coordinator('add', 'build', 'Existing source change', '--check', 'true').code, 0);
+  assert.equal(box.run('claim', '1').code, 0);
+  put(box.root, 'src/other.js', 'export const other = false;\n');
+  commitAll(box, 'feat(core): source after claim [G1]');
+  const refused = box.run('submit', '1');
+  assert.equal(refused.code, 1, refused.out || refused.err);
+  assert.match(refused.err, /GATE_RED/u);
+  assert.match(refused.err, /affected tests:.*test\/a\.test\.js/u);
+  assert.match(refused.err, /ERR_ASSERTION/u);
 });

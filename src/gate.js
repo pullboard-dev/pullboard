@@ -173,12 +173,12 @@ function commandWord(value) {
  *
  * @param {string} root
  * @param {any} config
- * @param {{base:string, changed:string[], check:string, onWait?:(state:object)=>void}} options
+ * @param {{base:string|null, trunk?:string, changed?:string[], check:string, onWait?:(state:object)=>void}} options
  * @returns {Promise<any>}
  */
-export async function runSubmitGate(root, config, { base, changed, check, onWait }) {
+export async function runSubmitGate(root, config, { base, trunk, changed, check, onWait }) {
   if (!config.gate.trim()) throw new Refused('NO_GATE', 'no gate configured; set "gate" in pullboard.json, e.g. "npm test"');
-  const selection = selectAffectedTests(root, { base, changed });
+  const selection = selectAffectedTests(root, { base, trunk, changed });
   return await withGateSlot(root, () => {
     const criterion = check ? runShell(root, check) : { isGreen: true, output: '', seconds: 0 };
     const receipt = { command: check, green: criterion.isGreen, seconds: criterion.seconds, checked: Boolean(check) };

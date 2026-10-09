@@ -62,10 +62,12 @@ function graphAt(root, commit) {
   const imports = importsIn([...modules.values()]);
   const reverse = new Map();
   const unknown = new Map();
+  const always = new Set();
   paths.forEach((path, index) => {
     for (const target of imports[index]) {
       if (target === 'node:module') { unknown.set(path, 'a reached module may create CommonJS imports'); continue; }
       if (target.startsWith('node:')) continue;
+      if (target === '(computed)' && TEST.test(path)) { always.add(path); continue; }
       if (!target.startsWith('.')) {
         unknown.set(path, target === '(computed)' ? 'non-literal dynamic import' : 'unresolved package import');
         continue;
@@ -76,7 +78,7 @@ function graphAt(root, commit) {
       reverse.get(dependency).add(path);
     }
   });
-  return { paths, reverse, unknown };
+  return { paths, reverse, unknown, always };
 }
 
 /**
@@ -84,12 +86,18 @@ function graphAt(root, commit) {
  * deletions and renames; process launches and filesystem reads are deliberately not import edges.
  *
  * @param {string} root
- * @param {{base:string, commit?:string, changed?:string[]}} options
+ * @param {{base:string|null, trunk?:string, commit?:string, changed?:string[]}} options
  * @returns {{full:boolean, reason:string, files:string[]}}
  */
-export function selectAffectedTests(root, { base, commit = 'HEAD', changed }) {
+export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', changed }) {
   let files = [];
   try {
+    if (!base) return { full: true, reason: 'no claim head recorded; the change cannot be selected', files };
+    // The merge base includes topic parents and merge resolutions that receipt history omits.
+    if (trunk) {
+      base = selectionGit(root, ['merge-base', trunk, commit]).trim();
+      changed = undefined;
+    }
     changed ??= selectionGit(root, ['diff', '--no-renames', '--name-only', '-z', base, commit]).split('\0').filter(Boolean);
     const after = graphAt(root, commit);
     files = after.paths.filter(path => TEST.test(path)).sort();
@@ -110,7 +118,7 @@ export function selectAffectedTests(root, { base, commit = 'HEAD', changed }) {
         }
       }
     }
-    const selected = files.filter(path => reached.has(path));
+    const selected = files.filter(path => reached.has(path) || before.always.has(path) || after.always.has(path));
     if (selected.length === files.length) return { full: true, reason: 'the change reaches every test file', files };
     return { full: false, reason: '', files: selected };
   } catch (error) {

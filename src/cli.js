@@ -1581,7 +1581,7 @@ async function submitHere(ctx, id) {
   requireTrunkMerge(root, commit);
   // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
   // A full-gate stamp never substitutes for either proof; only an actual full fallback may stamp.
-  const gate = await runSubmitGate(root, ctx.config, { base: claimHead, changed: filesSince(root, id, claimHead, commit), check: frozenCheck(held), onWait: gateWaitReporter(ctx.io) });
+  const gate = await runSubmitGate(root, ctx.config, { base: claimHead, trunk: acceptedMain.commit, check: frozenCheck(held), onWait: gateWaitReporter(ctx.io) });
   if (!gate.isGreen) throw new Refused('GATE_RED', `the submission proof is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${submitGateReport(gate)}`);
   if (headCommit(root) !== commit || !isClean(root)) {
     throw new Refused(
