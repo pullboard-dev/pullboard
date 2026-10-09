@@ -218,7 +218,12 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
     }
   }
   const resumeText = succeeds(box, box.root, 'resume');
-  for (const id of expected) assert.match(resumeText.stdout, new RegExp(`item #${id}\\b`));
+  assert.match(resumeText.stdout, new RegExp(`${expected.length} stale follow-ups; list them with pullboard resume --json`));
+  assert.equal((resumeText.stdout.match(/^stale:/gmu) ?? []).length, 0, 'the coordinator sees one counted line, with details in JSON');
+  assert.equal(resumeDocument.staleFollowUps.count, expected.length);
+  assert.equal(resumeDocument.staleFollowUps.list, 'pullboard resume --json');
+  assert.deepEqual(resumeDocument.staleFollowUps.items.map((item) => item.id).sort((a, b) => a - b), expected,
+    'the named listing retains every stale item across every lifecycle state');
   assert.deepEqual(receiptSnapshot(box), afterResumeBaseline, 'resume leaves frozen fields, merge receipts and accepted verdicts unchanged');
   assert.deepEqual(receiptSnapshot(box), before, 'diagnostics do not alter accepted receipts or frozen bars');
   assert.ok(!findings.some((finding) => finding.message.includes(`item #${ids.unaffected} `)), 'the item frozen on G3 remains unaffected');
