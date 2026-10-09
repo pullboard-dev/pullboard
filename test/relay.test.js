@@ -1,9 +1,9 @@
 /** Relay identity, expiry, permission freshness and scoped credential isolation [H8, H1]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { createGitHubClient } from '../relay/github.js';
@@ -538,6 +538,8 @@ test('offline linked reads use the local board, moves refuse, and the same relay
 
 test('a linked device without its key reads locally and refuses moves with both repairs [H10,H17]', async (t) => {
   const box = await relayClientFixture(t);
+  // The isolated PATH must install the real CLI for Git's generated hooks in the new worktree.
+  symlinkSync(resolve(import.meta.dirname, '../bin/pullboard.js'), join(box.env.PATH, 'pullboard'));
   const staged = spawnSync('git', ['add', '-A'], { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.equal(staged.status, 0, staged.stderr);
   const seeded = spawnSync('git', ['commit', '-m', 'chore(test): seed fixture'], { cwd: box.root, env: box.env, encoding: 'utf8' });
