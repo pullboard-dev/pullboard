@@ -375,6 +375,16 @@ export function prePushProblems(root, refsText) {
   return problems;
 }
 
+/** Whether Git's pre-push updates advance the configured trunk rather than another remote branch. */
+export function pushesTrunk(refsText, trunk) {
+  if (!trunk) return false;
+  const remoteTrunk = trunk.startsWith('refs/heads/') ? trunk : `refs/heads/${trunk}`;
+  return refsText.split('\n').some((line) => {
+    const [, localSha = '', remoteRef = ''] = line.trim().split(/\s+/u);
+    return remoteRef === remoteTrunk && !ZERO_SHA.test(localSha);
+  });
+}
+
 /**
  * The shell script for one hook: it runs pullboard from this checkout's install, else the main
  * checkout's, which a fresh agent worktree shares, else the PATH.
