@@ -226,6 +226,19 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - H17 [approved, must] A phone or machine joins a board by pairing once, from a code or QR a linked machine prints. | gate: test/relay.test.js | serves: H15
 - H18 [approved, must] The relay keeps a board only while linked: unlinking deletes it; 90 idle days delete it; backups last 14 days. | gate: test/relay.test.js | serves: H7
 
+## E · Teams: many people, one board
+
+- E1 [draft, must] A team shares one board: every person's clones, machines and phones show the same items in one order. | gate: test/team.test.js
+- E2 [draft, must] Two people adding or claiming at once never make two #1s or two holders; the relay's order decides. | gate: test/team.test.js
+- E3 [draft, must] Each person signs in as themselves; every move records the person, and the agent if one made it. | gate: test/team.test.js
+- E4 [draft, must] A board names its people: its linker adds or removes them; only they approve rows or answer person decisions. | gate: test/team.test.js
+- E5 [draft, must] Every agent acts with its own token under the person running it; removing a person stops their agents. | gate: test/team.test.js
+- E6 [draft, must] Removing a person rotates the board key, so their devices read nothing made after it. | gate: test/team.test.js
+- E7 [draft, must] Main moves in one landing order: a second landing builds on the first or is refused, never conflicting. | gate: test/team.test.js
+- E8 [draft, must] A verdict reads stale on every machine once main moves under it, until re-verified or merged. | gate: test/team.test.js
+- E9 [draft, must] Every session on a paired machine works the board alike: terminal, SSH, agent or scheduled job. | gate: test/team.test.js
+- E10 [draft, must] A CI drill proves it: two people, two machines and a keyless session share one board through a local relay. | gate: test/team.test.js
+
 ## Q · Queues and procedures
 - Q1 [approved, must] A resource has a name, a capacity, a scope (machine, repo or board) and a queue. | gate: test/resources.test.js
 - Q2 [approved, must] Taking a full resource queues the taker in order, and it says what it waits behind. | gate: test/resources.test.js | serves: Q1

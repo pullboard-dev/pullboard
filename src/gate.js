@@ -110,10 +110,10 @@ export function runShell(root, command) {
  *
  * @param {string} root
  * @param {any} config
- * @param {{ trustStamp?: boolean, onWait?: (state: object) => void }} [options]
+ * @param {{ trustStamp?: boolean, onWait?: (state: object) => void, landing?: boolean }} [options]
  * @returns {Promise<{ isGreen: boolean, isCached: boolean, output: string, seconds: number, log: string }>}
  */
-export async function runGate(root, config, { trustStamp = true, onWait } = {}) {
+export async function runGate(root, config, { trustStamp = true, onWait, landing = false } = {}) {
   if (!config.gate.trim()) {
     throw new Refused('NO_GATE', 'no gate configured; set "gate" in pullboard.json, e.g. "npm test"');
   }
@@ -126,6 +126,7 @@ export async function runGate(root, config, { trustStamp = true, onWait } = {}) 
     scope: 'machine',
     root,
     repo: root,
+    landing,
     allowIdleCapacityUpdate: true,
     onWait,
   });
