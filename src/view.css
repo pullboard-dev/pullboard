@@ -270,6 +270,8 @@ code.inline { padding: 0 3px; border-radius: 3px; background: color-mix(in srgb,
 .code.no { color: var(--reject); }
 .feed .act { display: flex; gap: 0 5px; align-items: baseline; min-width: 0; }
 .feed .act .what { flex: 1 1 auto; min-width: 0; overflow-wrap: break-word; color: var(--ink-muted); }
+.feed .act .said { flex: 1 1 0; min-width: 0; margin-left: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); }
+.feed .act .said code { white-space: nowrap; }
 .agent { display: grid; gap: 2px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; }
 .agent:first-child { border-top: 0; }
 .agent small { color: var(--ink-faint); font: 11.5px var(--mono); overflow-wrap: anywhere; }
