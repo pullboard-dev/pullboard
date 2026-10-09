@@ -3319,14 +3319,16 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
     const click = async (selector) => {
       await waitRendered([selector]);
       const point = JSON.parse(await chrome.evaluate(`(async () => {
-        const e=document.querySelector(${JSON.stringify(selector)});
-        if(!e) throw Error('missing '+${JSON.stringify(selector)});
-        e.scrollIntoView({block:'center'});
+        const find=()=>document.querySelector(${JSON.stringify(selector)});
+        if(!find()) throw Error('missing '+${JSON.stringify(selector)});
+        find().scrollIntoView({block:'center'});
         // Centering the sticky tab bar scrolls the page on for a few frames, so measure only once the
         // target has held still for two frames; a point read mid-scroll lands on whatever slid under it.
+        // Find it afresh each frame: a refresh can redraw it, and a detached element measures as 0,0.
         const frame=()=>new Promise((done)=>requestAnimationFrame(()=>done()));
         let last='', still=0;
-        for (let n=0; n<120 && still<2; n++) { await frame(); const b=e.getBoundingClientRect(), now=[b.x,b.y,b.width,b.height,scrollX,scrollY].join(); still=now===last?still+1:0; last=now; }
+        for (let n=0; n<120 && still<2; n++) { await frame(); const e=find(); const b=e?e.getBoundingClientRect():null, now=b?[b.x,b.y,b.width,b.height,scrollX,scrollY].join():''; still=now&&now===last?still+1:0; last=now; }
+        const e=find(); if(!e) throw Error('gone before the click: '+${JSON.stringify(selector)});
         const r=e.getBoundingClientRect(); return JSON.stringify({x:r.x+r.width/2,y:r.y+r.height/2});
       })()`));
       await chrome.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
