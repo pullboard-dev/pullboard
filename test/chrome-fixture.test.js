@@ -6,7 +6,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { launchChromeProcess, startChrome } from './chrome-fixture.js';
+import { findChromeExecutable, launchChromeProcess, startChrome } from './chrome-fixture.js';
 
 /** Pause between checks while waiting for a fixture helper's readiness marker. */
 function pause(ms) {
@@ -111,6 +111,31 @@ test('a missing DevTools port fails once with stderr and elapsed launch time [C7
   assert.equal(readFileSync(launches, 'utf8'), 'launch\n', 'the shared launcher never retries');
 });
 
+
+/** Prove an unrelated process inheriting stderr cannot keep an exited owned Chrome open. */
+test('Chrome close releases inherited stderr after its owned process group exits [C7]', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-chrome-inherited-pipe-'));
+  const ready = join(directory, 'holder-ready');
+  const holder = `const fs = require('node:fs'); fs.writeFileSync(process.argv[1], String(process.pid)); setInterval(() => {}, 1000);`;
+  const leader = `const { spawn } = require('node:child_process');
+    const child = spawn(process.execPath, ['-e', process.argv[1], process.argv[2]], { detached: true, stdio: ['ignore', 'ignore', 'inherit'] });
+    child.unref(); process.on('SIGTERM', () => process.exit(0)); setInterval(() => {}, 1000);`;
+  const chrome = launchChromeProcess({ executable: process.execPath, args: ['-e', leader, holder, ready] });
+  let holderPid;
+  t.after(async () => {
+    try { await chrome.close(); } catch { /* Retain the original close assertion on a broken implementation. */ }
+    if (!holderPid && existsSync(ready)) holderPid = Number(readFileSync(ready, 'utf8'));
+    if (holderPid) { try { process.kill(holderPid, 'SIGKILL'); } catch { /* The private stand-in already stopped. */ } }
+    rmSync(directory, { recursive: true, force: true });
+  });
+  await waitForFile(ready);
+  holderPid = Number(readFileSync(ready, 'utf8'));
+  const failure = await chrome.close().then(() => null, error => error);
+  assert.equal(failure, null, 'an inherited stderr holder must not prevent owned Chrome cleanup');
+  assert.doesNotThrow(() => process.kill(holderPid, 0), 'cleanup closes its pipe without killing an independent process');
+  assert.ok(chrome.child.exitCode !== null || chrome.child.signalCode !== null, 'the owned leader exited before close resolved');
+});
+
 /** Prove Runtime.evaluate reports page exceptions without changing successful values. */
 test('a failed browser evaluation names what the page threw [C7]', async () => {
   const expression = '(() => { throw new Error("boom"); })();\n// ' + 'x'.repeat(240);
@@ -147,6 +172,19 @@ test('a failed browser evaluation names what the page threw [C7]', async () => {
   } finally {
     await chrome.close();
   }
+});
+
+/** Prove a page condition cannot spend the much longer general command allowance. */
+test('a stalled condition uses its remaining operation budget [C7]', {
+  skip: !findChromeExecutable() && 'Chrome is not installed',
+}, async t => {
+  const chrome = await startChrome();
+  t.after(() => chrome.close());
+  const started = Date.now();
+  await assert.rejects(chrome.waitFor('new Promise(() => {})', 250, 'bounded condition'),
+    /Browser condition "bounded condition" did not arrive within 250ms/u);
+  assert.ok(Date.now() - started < 10_000, 'the 250ms operation never consumes the 15000ms command allowance');
+  assert.equal(await chrome.evaluate('1 + 1'), 2, 'timing out one command leaves the real DevTools connection usable');
 });
 
 test('a wait that throws while the page changes keeps waiting [C7]', async (t) => {
