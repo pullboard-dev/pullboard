@@ -30,6 +30,8 @@ const NOT_MOVES = {
   BAD_GATE_SLOTS: 'machine-wide gate capacity checked before a command runs',
   NO_AGENT: 'a linked coordinator must already be registered before an item move',
   EVENT_LOG_VERSION: 'the local board format is checked before opening it for an item move',
+  NOT_YOUR_CHECKOUT: 'the caller owns the checkout session, checked before any item move',
+  CHECKOUT_SESSION: 'the checkout-local session binding is readable before any item move',
 };
 
 /**
@@ -451,7 +453,7 @@ test('a broken copy of the declaration fails the check against the code, both wa
 });
 
 test('a broken copy of the code fails the check: a refusal added wherever a move reaches [M1, M4]', () => {
-  const inFreeze = editedSource('spec.js', /^export function frozenCriterion\(spec, item\) \{$/m, "$&\n  if (item.item_title === 'moon') throw new Refused('MOON_PHASE', 'wait for the full moon');");
+  const inFreeze = editedSource('spec.js', /^export function frozenCriterion\(spec, item, doctrine = null\) \{$/m, "$&\n  if (item.item_title === 'moon') throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(MACHINE, inFreeze).sort(), [
     'MOON_PHASE is raised by claim but not declared there',
     'MOON_PHASE is raised by refreeze but not declared there',
