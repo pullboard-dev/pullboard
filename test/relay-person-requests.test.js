@@ -25,12 +25,17 @@ async function pairedTransport(chrome, box, title) {
   await signIn(chrome, box);
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + encoded);
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')');
+  await installRequestTransport(chrome);
+  return link;
+}
+
+/** Attach a transport handle for the existing test actions after either pairing or a reload. */
+async function installRequestTransport(chrome) {
   await chrome.evaluate(`(async () => {
     const { createTransport } = await import('/relay/client.js');
     window.__personRequestTransport = await createTransport({ onUpdate: () => {} });
     return true;
   })()`);
-  return link;
 }
 
 /** Send one exact person intent through the browser transport rather than constructing a move. */
@@ -74,6 +79,9 @@ test('real paired Chrome transports one person shout, and native status makes on
   assert.equal(receipt.result.request.status, 'waiting');
   assert.deepEqual(receipt.result.request.move, move);
   assert.equal(typeof receipt.result.request.id, 'string');
+  assert.equal(await chrome.evaluate("document.querySelector('#relay-notice').textContent"),
+    '1 request from this device is waiting for a linked machine to run Pullboard.',
+    'the paired browser identifies only its own acknowledged waiting request');
   assert.equal(box.calls.some(call => call.method === 'POST' && call.path === `/api/v1/boards/${link.board}/requests`), true,
     'the browser posts a sealed request document, not an executable engine move');
   assert.equal(box.keyInRequest(), false, 'the device key never enters an HTTP request');
@@ -85,9 +93,17 @@ test('real paired Chrome transports one person shout, and native status makes on
   const sealedRequest = raw.events.find(row => row.kind === 'request');
   assert.ok(sealedRequest && typeof sealedRequest.sealed === 'string');
 
+  await chrome.send('Page.reload');
+  await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')');
+  assert.equal(await chrome.evaluate("document.querySelector('#relay-notice').textContent"),
+    '1 request from this device is waiting for a linked machine to run Pullboard.',
+    'the device-local request id survives a page reload without storing its text');
+  await installRequestTransport(chrome);
 
   assert.equal((await box.cli('status')).code, 0, 'the next native status receives and executes the queued intent');
   const latest = await waitForRequest(chrome, link.board, receipt.result.request.id, 'done');
+  assert.equal(await chrome.evaluate("document.querySelector('#relay-notice').textContent"), '',
+    'the completed local request no longer appears as waiting');
   const personShouts = latest.state.shouts.filter(shout => shout.shout_from === 'person' && shout.shout_text === move.args.text);
   assert.equal(personShouts.length, 1, 'the authored person shout occurs exactly once');
   const exported = (await box.cli('export')).document;

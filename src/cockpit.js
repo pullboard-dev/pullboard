@@ -34,13 +34,14 @@ function lifecycle() {
  * folder, where a path the host does not serve would leave a reload with nothing.
  *
  * @param {string} [key] - The session's secret.
- * @param {{snapshot?: boolean, readOnly?: boolean, transportModule?: string|null, apiBase?: string, apiHeaders?: Record<string, string>, stylesheet?: string, paths?: boolean}} [options] - Served API connection and assets, whether the host also serves the page at /roadmap, or a static, read-only page with event replay.
+ * @param {{snapshot?: boolean, readOnly?: boolean, requests?: boolean, transportModule?: string|null, apiBase?: string, apiHeaders?: Record<string, string>, stylesheet?: string, paths?: boolean}} [options] - Served connection and assets, optional person requests over a read-only transport, host routes, or a static page with event replay.
  * @returns {string}
  */
-export function cockpitPage(key = '', { snapshot = false, readOnly = false, transportModule = null, apiBase = '', apiHeaders = { 'x-pullboard-key': key }, stylesheet = null, paths = false } = {}) {
+export function cockpitPage(key = '', { snapshot = false, readOnly = false, requests = false, transportModule = null, apiBase = '', apiHeaders = { 'x-pullboard-key': key }, stylesheet = null, paths = false } = {}) {
   if (transportModule !== null && (typeof transportModule !== 'string' || !transportModule.trim())) throw new TypeError('transportModule must be a non-empty module URL or null');
   const connection = JSON.stringify(transportModule ? { base: '', headers: {} } : { base: apiBase.replace(/\/$/, ''), headers: apiHeaders }).replace(/</g, '\\u003c');
   const moduleOption = JSON.stringify(transportModule).replace(/</g, '\\u003c');
+  const requestMode = Boolean(readOnly && requests && !snapshot && transportModule);
   const css = stylesheet ?? (snapshot ? 'view.css' : transportModule ? '/view.css' : '/view.css?k=' + encodeURIComponent(key));
   const cssAttribute = css.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   return `<!doctype html>
@@ -52,7 +53,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, tran
 <link rel="stylesheet" href="${cssAttribute}">
 <link rel="icon" href="data:,">
 </head>
-<body class="loading${snapshot ? ' snapshot' : ''}${readOnly ? ' read-only' : ''}">
+<body class="loading${snapshot ? ' snapshot' : ''}${readOnly ? ' read-only' : ''}${requestMode ? ' requests' : ''}">
 <div class="shell">
 <aside class="side" id="side" aria-label="Projects">
   <div class="side-top">
@@ -94,6 +95,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, tran
     <section class="card-panel group-panel"><h2>Needs you</h2><div id="group-needs"></div></section>
     <section class="card-panel group-panel"><h2>Activity</h2><div class="feed" id="group-activity"></div></section>
   </section>
+  <section class="card-panel person-requests" id="person-requests" aria-label="Your requests" aria-live="polite" hidden></section>
   <section data-pane="items" class="two">
     <div class="primary">
       <div class="card-panel toolbar"><div class="seg" id="state-chips" role="group" aria-label="Show"></div><input id="q" type="search" placeholder="Search" aria-label="Search titles, lanes or ids"><button class="go" id="new-item" type="button">New item</button></div>
@@ -153,6 +155,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, tran
 <script>
 const snapshot = ${JSON.stringify(snapshot)};
 const readOnly = ${JSON.stringify(readOnly)};
+const requests = ${JSON.stringify(requestMode)};
 const transportModule = ${moduleOption};
 const connection = ${connection};
 let transport = null;
@@ -509,6 +512,60 @@ async function api(path, body) {
     throw new Error(message);
   }
   return json;
+}
+
+/** Send only literal person intent; the transport seals it and generic API writes stay refused. */
+async function sendPersonRequest(root, move) {
+  if (!requests || snapshot || !readOnly) throw new Error('This view cannot send person requests.');
+  if (!['add', 'shout', 'answer', 'hold', 'spec-approve', 'spec-decline'].includes(move.verb)) throw new Error('Choose a person action from the view controls.');
+  if (!transport) throw transportLoadError || new Error('The browser transport is still loading.');
+  return transport.request(boardPath(root) + '/moves', move);
+}
+
+/** Name a person request using its public literal intent, without exposing its sealed document. */
+function requestLabel(request) {
+  const move = request.move;
+  const args = move?.args || {};
+  if (move?.verb === 'add') return 'New item: ' + (args.title || 'Untitled');
+  if (move?.verb === 'shout') return 'Shout to ' + (args.to || 'coordinator') + ': ' + (args.text || '');
+  if (move?.verb === 'answer') return 'Answer #' + move.item + ': ' + (args.text || '');
+  if (move?.verb === 'hold') return (args.off ? 'Release ' : 'Hold ') + (args.lane || '') + ' lane' + (!args.off && args.reason ? ': ' + args.reason : '');
+  if (move?.verb === 'spec-approve') return 'Approve row ' + (args.ids || '');
+  if (move?.verb === 'spec-decline') return 'Decline row ' + (args.ids || '');
+  return 'Person request';
+}
+
+/** Retain the native request status and the CLI's complete refusal guidance beside an action. */
+function requestNotice(request) {
+  const label = { waiting: 'Waiting', done: 'Done', refused: 'Refused' }[request.status] || 'Unknown status';
+  const error = request.status === 'refused' && request.error;
+  return label + ' · ' + requestLabel(request) + (error ? '\\n' + (error.code ? '[' + error.code + '] ' : '') + (error.message || '') + (error.next ? '\\n' + error.next : '') : '');
+}
+
+/** Show the public request receipts on every board tab and update the latest action's status. */
+function renderPersonRequests(project) {
+  const entries = project?.personRequests || [];
+  const panel = $('person-requests');
+  panel.hidden = !entries.length;
+  panel.innerHTML = entries.length ? '<h2>Your requests</h2><ul class="request-list">' + [...entries].sort((a, b) => b.sequence - a.sequence).map((request) => {
+    const status = { waiting: 'Waiting', done: 'Done', refused: 'Refused' }[request.status] || 'Unknown status';
+    const error = request.status === 'refused' && request.error;
+    const reason = error ? '<p class="request-error">' + (error.code ? '<b>' + esc(error.code) + '</b> ' : '') + esc(error.message || '') + '</p>' + (error.next ? '<p class="request-next">' + esc(error.next) + '</p>' : '') : '';
+    return '<li data-person-request="' + esc(request.id) + '"><span class="request-label">' + esc(requestLabel(request)) + '</span><span class="chip request-status ' + (request.status === 'done' ? 'ok' : request.status === 'refused' ? 'no' : 'warn') + '">' + status + '</span>' + reason + '</li>';
+  }).join('') + '</ul>' : '';
+  const active = view.request;
+  const current = active && active.root === view.root && active.run === view.acting && entries.find((request) => request.id === active.id);
+  if (current && !$('console').hidden) {
+    $('console').className = 'console' + (current.status === 'done' ? ' ok' : current.status === 'refused' ? ' no' : '');
+    $('console').textContent = requestNotice(current);
+  }
+  const feedback = view.specFeedback;
+  const rowRequest = feedback?.root === view.root && feedback.requestId && entries.find((request) => request.id === feedback.requestId);
+  if (rowRequest) {
+    feedback.status = rowRequest.status;
+    feedback.tone = rowRequest.status === 'done' ? 'ok' : rowRequest.status === 'refused' ? 'no' : '';
+    feedback.text = requestNotice(rowRequest);
+  }
 }
 
 /** A board's sidebar counts, derived from the same API state the page displays. */
@@ -901,6 +958,7 @@ function render() {
   $('tabs').hidden = Boolean(group);
   document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = Boolean(group) || pane.dataset.pane !== view.tab; });
   $('products').hidden = !p || !p.products.length;
+  renderPersonRequests(p);
   if (group) { renderGroup(group); return; }
   if (!p) return;
   // Each product's progress (N28): the rows an accepted item cites, and its items by state.
@@ -1034,7 +1092,7 @@ function render() {
     const feedbackId = feedback && (shownRows.some((r) => r.id === feedback.id) ? feedback.id : shownRows.some((r) => r.id === feedback.next) ? feedback.next : shownRows[0]?.id);
     let section = null;
     $(kind + '-list').innerHTML = shownRows.length ? shownRows.map((r) => {
-      const sectionRows = !snapshot && !readOnly && kind === 'spec' && r.section !== section ? rows.filter((entry) => entry.section === r.section && undecided(entry)) : [];
+      const sectionRows = !snapshot && (!readOnly || requests) && kind === 'spec' && r.section !== section ? rows.filter((entry) => entry.section === r.section && undecided(entry)) : [];
       const head = r.section !== section ? '<div class="spec-section-head"><h4>' + esc(r.section) + '</h4>' + (sectionRows.length ? '<button class="spec-section-approve" data-section-approve="' + esc(r.section) + '" type="button">Approve all ' + sectionRows.length + ' in this section</button>' : '') + '</div>' : '';
       section = r.section;
       const declined = kind === 'doctrine' && r.status === 'wont';
@@ -1043,11 +1101,11 @@ function render() {
       const source = kind === 'doctrine' ? '<small class="rule-source">' + esc(ruleSource(r)) + '</small>' : '';
       const status = r.stage || r.status;
       /** Render person-only row decisions in both the list and its detail pane. */
-      const decisionActions = (!snapshot && !readOnly && kind === 'spec' && undecided(r))
+      const decisionActions = (!snapshot && (!readOnly || requests) && kind === 'spec' && undecided(r))
         ? '<div class="spec-decision-actions"><button class="approve-row" data-row-decision="approve" data-row-id="' + esc(r.id) + '" type="button">Approve</button><button class="decline-row" data-row-decision="decline" data-row-id="' + esc(r.id) + '" type="button">Decline</button></div>'
         : '';
       return head + (feedback && feedbackId === r.id ? specFeedback(feedback) : '') + '<div class="srow' + (view.row[kind] === r.id ? ' on' : '') + '" data-row="' + kind + ':' + esc(r.id) + '"><code>' + esc(r.id) + '</code><span><span class="chip ' + tone(r.status) + '">' + esc(status) + '</span>' + source + '</span><span>' + text + reason + decisionActions + '</span></div>';
-    }).join('') : '<div class="empty">' + (rows.length ? 'No rows match.' : kind === 'spec' ? 'No spec rows yet. Each requirement is one row in SPEC.md, such as G1 [draft, must] and a line; write them, or ask an agent to, and they show up here.' : 'No practice rows yet: they live in PRACTICE.md.') + '</div>';
+    }).join('') : '<div class="empty">' + (rows.length ? 'No rows match.' : kind === 'spec' ? 'No spec rows yet. Each requirement is one row in SPEC.md, such as G1 [draft, must] and a line; write them, or ask an agent to, and they show up here.' : 'No doctrine rows yet: they live in DOCTRINE.md.') + '</div>';
     if (feedback && !shownRows.length) $(kind + '-list').innerHTML += specFeedback(feedback);
     const row = rows.find((r) => r.id === view.row[kind]);
     const citing = row ? p.items.filter((i) => i.specs.includes(row.id)) : [];
@@ -1055,9 +1113,9 @@ function render() {
     const text = row ? declined ? '<s>' + linked(row.standardText || row.text, titles) + '</s>' : linked(row.text, titles) : '';
     const source = kind === 'doctrine' && row ? '<span class="chip">' + esc(ruleSource(row)) + '</span>' : '';
     const reason = declined && row.reason ? '<dt>reason</dt><dd>' + linked(row.reason, titles) + '</dd>' : '';
-    const home = kind === 'doctrine' && row && row.origin === 'standard' ? 'Standard rules come with Pullboard; override or decline one in PRACTICE.md.' : 'Rows change in ' + (kind === 'spec' ? 'SPEC.md' : 'PRACTICE.md') + ', and only you approve them.';
+    const home = kind === 'doctrine' && row && row.origin === 'standard' ? 'Standard rules come with Pullboard; override or decline one in DOCTRINE.md.' : 'Rows change in ' + (kind === 'spec' ? 'SPEC.md' : 'DOCTRINE.md') + ', and only you approve them.';
     const rowStatus = row?.stage || row?.status;
-    const rowDecisionActions = !snapshot && !readOnly && row && kind === 'spec' && undecided(row)
+    const rowDecisionActions = !snapshot && (!readOnly || requests) && row && kind === 'spec' && undecided(row)
       ? '<div class="spec-decision-actions detail-decision-actions"><button class="approve-row" data-row-decision="approve" data-row-id="' + esc(row.id) + '" type="button">Approve</button><button class="decline-row" data-row-decision="decline" data-row-id="' + esc(row.id) + '" type="button">Decline</button></div>'
       : '';
     $(kind + '-detail').innerHTML = row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div>' + rowDecisionActions + (kind === 'spec' && view.specFeedback?.root === view.root && view.specFeedback.from === 'detail' && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '') + '<dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<div class="links-item" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span></div>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div><div class="muted">' + home + '</div></div>' : '<div class="empty">Pick a row to see it, and the items that cite it.</div>';
@@ -1239,7 +1297,7 @@ async function code(ref, before) {
   render();
 }
 
-/** Translate the page's five actions into the public move shape and a familiar command label. */
+/** Translate person actions into their public literal intent and a familiar command label. */
 function pageMove(command, args = {}) {
   /** Trim form values before constructing the move and its display label. */
   const text = (value) => String(value || '').trim();
@@ -1283,7 +1341,7 @@ function specFeedback(feedback) {
 
 /** Record a Spec decision beside its row and retain the list's reading position (B26, N26). */
 async function decideSpec(command, args, anchor) {
-  if (snapshot) return false;
+  if (snapshot || (readOnly && !requests)) return false;
   const root = view.root, scroll = window.scrollY;
   const ids = String(args.ids).split(/\s+/);
   const rows = [...$('spec-list').querySelectorAll('[data-row]')];
@@ -1295,9 +1353,12 @@ async function decideSpec(command, args, anchor) {
   window.scrollTo({ top: scroll, behavior: 'instant' });
   try {
     const move = pageMove(command, args);
-    const result = await api(boardPath(root) + '/moves', move.body);
-    feedback.tone = 'ok';
-    feedback.text = moveMessage(move.body, result.result);
+    const result = requests ? await sendPersonRequest(root, move.body) : await api(boardPath(root) + '/moves', move.body);
+    const request = requests && result?.result?.request;
+    if (requests && (!request?.id || !['waiting', 'done', 'refused'].includes(request.status))) throw new Error('The request did not include its status; refresh the board to check it.');
+    feedback.tone = requests ? request.status === 'done' ? 'ok' : request.status === 'refused' ? 'no' : '' : 'ok';
+    feedback.text = requests ? requestNotice(request) : moveMessage(move.body, result.result);
+    if (requests) { feedback.requestId = request.id; feedback.status = request.status; }
     await refresh();
   } catch (error) {
     feedback.tone = 'no';
@@ -1306,15 +1367,15 @@ async function decideSpec(command, args, anchor) {
   if (root === view.root && view.specFeedback === feedback) {
     render();
     window.scrollTo({ top: scroll, behavior: 'instant' });
-    setTimeout(() => { if (view.specFeedback === feedback) { view.specFeedback = null; render(); } }, 6000);
+    if (!requests || feedback.status === 'done') setTimeout(() => { if (view.specFeedback === feedback) { view.specFeedback = null; render(); } }, 6000);
   }
-  return feedback.tone === 'ok';
+  return requests ? Boolean(feedback.requestId) && feedback.status !== 'refused' : feedback.tone === 'ok';
 }
 
 /** Run a public API move beside its action and let only the latest one own the console and timer. */
 async function act(command, args, anchor) {
   const out = $('console');
-  if (snapshot || readOnly) { out.hidden = false; out.className = 'console no'; out.textContent = snapshot ? 'This is a read-only snapshot.' : 'This is a read-only view.'; return false; }
+  if (snapshot || (readOnly && !requests)) { out.hidden = false; out.className = 'console no'; out.textContent = snapshot ? 'This is a read-only snapshot.' : 'This is a read-only view.'; return false; }
   if (anchor) {
     const target = anchor.matches('form')
       ? anchor.querySelector('.actions') || anchor.querySelector('[type="submit"]') || anchor
@@ -1322,25 +1383,30 @@ async function act(command, args, anchor) {
     target.insertAdjacentElement(anchor.matches('form') ? 'beforebegin' : 'afterend', out);
   }
   const run = (view.acting = (view.acting || 0) + 1);
-  const latest = () => run === view.acting;
+  const root = view.root;
+  const latest = () => run === view.acting && root === view.root;
+  view.request = null;
   clearTimeout(view.closing);
   out.hidden = false;
   out.className = 'console';
-  out.textContent = 'running…';
+  out.textContent = requests ? 'Request waiting…' : 'running…';
   out.scrollIntoView({ block: 'nearest' });
   try {
     const move = pageMove(command, args);
-    const result = await api(boardPath(view.root) + '/moves', move.body);
+    const result = requests ? await sendPersonRequest(root, move.body) : await api(boardPath(root) + '/moves', move.body);
+    const request = requests && result?.result?.request;
+    if (requests && (!request?.id || !['waiting', 'done', 'refused'].includes(request.status))) throw new Error('The request did not include its status; refresh the board to check it.');
     if (latest()) {
-      out.className = 'console ok';
-      out.textContent = '$ pullboard ' + move.label + '\\n' + moveMessage(move.body, result.result);
+      out.className = 'console' + (requests ? request.status === 'done' ? ' ok' : request.status === 'refused' ? ' no' : '' : ' ok');
+      out.textContent = requests ? requestNotice(request) : '$ pullboard ' + move.label + '\\n' + moveMessage(move.body, result.result);
+      if (requests) view.request = { root, id: request.id, run };
       out.scrollIntoView({ block: 'center' });
       // What went through says so and then steps aside; a refusal stays until the person closes it.
-      view.closing = setTimeout(() => { if (latest()) out.hidden = true; }, 6000);
+      if (!requests || request.status === 'done') view.closing = setTimeout(() => { if (latest()) out.hidden = true; }, 6000);
     }
     await refresh();
     if (latest()) out.scrollIntoView({ block: 'center' });
-    return true;
+    return !requests || request.status !== 'refused';
   } catch (error) {
     if (latest()) {
       out.className = 'console no';

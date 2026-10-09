@@ -13,7 +13,7 @@ import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
 import { doctrineHistory, loadDoctrine } from './doctrine.js';
 import { requirePersonChannel } from './person.js';
 import { decisionProjection, planRowApply, prepareRowDecisions, restoreRowApply, writeRowApply } from './row-decisions.js';
-import { digestOf, gateReport, runGate, runShell } from './gate.js';
+import { digestOf, gateReport, runGate, runShell, withGateSlot } from './gate.js';
 import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, isClean, mainCheckout, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
   FIX_NOTE,
@@ -172,7 +172,7 @@ Role guides
 
 Gate and hooks
   pullboard gate [--landing]            run the configured gate; prioritize a trunk landing in the machine queue
-  pullboard hook pre-commit|commit-msg|pre-push   git runs these
+  pullboard hook pre-commit|pre-merge-commit|commit-msg|pre-push   git runs these
 
 ${lifecycleHelp()}
 
@@ -185,7 +185,7 @@ const HELP_NAMES = [
   'check', 'claim', 'release', 'submit', 'done', 'verify', 'fact', 'shout', 'answer', 'pass', 'decisions', 'inbox', 'export', 'import',
   'sweep', 'merged', 'withdraw', 'refreeze', 'hold', 'stats', 'ledger', 'log', 'spec', 'spec check', 'spec view',
   'spec show', 'spec unmet', 'spec signoff', 'spec signers', 'spec signers add', 'forget', 'prompt', 'gate', 'hook',
-  'hook pre-commit', 'hook commit-msg', 'hook pre-push', 'view export', 'version', 'lifecycle', 'help',
+  'hook pre-commit', 'hook pre-merge-commit', 'hook commit-msg', 'hook pre-push', 'view export', 'version', 'lifecycle', 'help',
   'roadmap', 'milestone',
 ];
 
@@ -230,8 +230,9 @@ const HELP_ALIASES = {
   'spec signoff': { usage: 'pullboard spec signoff <ids> [--by <principal>] [--note "..."] [--note-file <file>]', source: 'spec show', onlyFlags: ['--by', '--note', '--note-file'], extraFlags: ['--note-file <file>'] },
   'spec signers': { usage: 'pullboard spec signers add [--key <path>] [--by <principal>]', source: 'spec signers add' },
   'spec signers add': { usage: 'pullboard spec signers add [--key <path>] [--by <principal>]', source: 'spec signers add' },
-  hook: { usage: 'pullboard hook pre-commit|commit-msg|pre-push', source: 'hook' },
+  hook: { usage: 'pullboard hook pre-commit|pre-merge-commit|commit-msg|pre-push', source: 'hook' },
   'hook pre-commit': { usage: 'pullboard hook pre-commit', source: 'hook' },
+  'hook pre-merge-commit': { usage: 'pullboard hook pre-merge-commit', source: 'hook' },
   'hook commit-msg': { usage: 'pullboard hook commit-msg <file>', source: 'hook' },
   'hook pre-push': { usage: 'pullboard hook pre-push', source: 'hook' },
 };
@@ -1204,8 +1205,8 @@ function readCommands(io, { first, second, rest, values }) {
       if (!resources.length) io.say('no resources have been used');
       for (const resource of resources) {
         io.say(`${resource.name} (${resource.scope}, capacity ${resource.capacity})`);
-        for (const holder of resource.holders) io.say(`  held by ${holder.agent}${holder.repo ? ` in ${holder.repo}` : ''}${holder.landing ? ' (landing)' : ''} since ${holder.since}`);
-        resource.line.forEach((waiter, index) => io.say(`  ${index + 1}. waiting: ${waiter.agent}${waiter.repo ? ` in ${waiter.repo}` : ''}${waiter.landing ? ' (landing)' : ''}`));
+        for (const holder of resource.holders) io.say(`  held by ${holder.agent}${holder.repo ? ` in ${holder.repo}` : ''}${holder.landing ? ' (landing)' : holder.itemCheck ? ' (item check)' : ''} since ${holder.since}`);
+        resource.line.forEach((waiter, index) => io.say(`  ${index + 1}. waiting: ${waiter.agent}${waiter.repo ? ` in ${waiter.repo}` : ''}${waiter.landing ? ' (landing)' : waiter.itemCheck ? ' (item check)' : ''}`));
       }
       return 0;
     },
@@ -1558,7 +1559,7 @@ async function verifyHere(ctx, id, { second, values }) {
     if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
       requireTrunkMerge(root, commit);
-      check = checkAtCommit(root, item);
+      check = await withGateSlot(root, () => checkAtCommit(root, item), { itemCheck: true, onWait: gateWaitReporter(ctx.io) });
       if (check.state === 'unverified') throw new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the submitted commit; restore the install or check environment, then retry verification; output digest:\n${check.report.replace(/^/gm, '  ')}`);
       if (check.state === 'red') throw new Refused('CHECK_RED', `the frozen item check is red at the submitted commit; check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit; output digest:\n${check.report.replace(/^/gm, '  ')}`);
 
@@ -1928,7 +1929,7 @@ function workCommands(io, args) {
           throw new Refused('CHECK_CONFIRM', `the check set by ${by} was not run: ${check}; run pullboard check ${item.item_id} --yes after reading the command, or answer yes at the prompt`);
         }
       }
-      const run = runShell(ctx.info.root, check);
+      const run = await withGateSlot(ctx.info.root, () => runShell(ctx.info.root, check), { itemCheck: true, onWait: gateWaitReporter(io) });
       io.result?.({ id: item.item_id, green: run.isGreen, seconds: run.seconds, check, by, report: run.isGreen ? '' : digestOf(run.output) });
       io.say(`check ${run.isGreen ? 'green' : 'red'} in ${run.seconds}s: ${check}`);
       if (!run.isGreen) io.say(digestOf(run.output).replace(/^/gm, '  '));
@@ -2304,7 +2305,7 @@ async function hookCommand(io, { first, second }) {
     throw error;
   }
   let problems = [];
-  if (first === 'pre-commit') {
+  if (first === 'pre-commit' || first === 'pre-merge-commit') {
     applyFixers(info.root, ctx.config.fix).forEach((note) => io.err(`pullboard pre-commit: ${note}`));
     const agent = info.isMain ? null : withBoard(ctx, (board) => store.agentAt(board, info.root));
     problems = preCommitProblems({ root: info.root, isMain: info.isMain, config: ctx.config, agent, boardFile: ctx.file });
@@ -2321,7 +2322,7 @@ async function hookCommand(io, { first, second }) {
       if (!gate.isGreen) problems = [`the gate is red; fix it before pushing. ${gateReport(gate)}`];
     }
   } else {
-    throw new Refused('USAGE', 'pullboard hook pre-commit | commit-msg <file> | pre-push');
+    throw new Refused('USAGE', 'pullboard hook pre-commit | pre-merge-commit | commit-msg <file> | pre-push');
   }
   if (!problems.length) return 0;
   io.err(`pullboard ${first}: blocked\n${problems.map((problem) => `  - ${problem}`).join('\n')}\n${FIX_NOTE}`);
