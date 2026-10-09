@@ -142,6 +142,13 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, tran
 </main>
 </div>
 </div>
+<div class="spec-reason-backdrop" id="spec-decline-dialog" hidden>
+  <form class="spec-reason-dialog" id="spec-decline-form" aria-labelledby="spec-decline-title">
+    <h2 id="spec-decline-title">Decline spec row</h2>
+    <label>Reason<input id="spec-decline-reason" required maxlength="240" placeholder="Why this row needs changes"></label>
+    <div class="actions"><button class="go" id="spec-decline-submit" type="submit">Decline row</button><button class="ghost" id="spec-decline-cancel" type="button">Cancel</button></div>
+  </form>
+</div>
 <div class="console" id="console" title="Click to close" hidden></div>
 <script>
 const snapshot = ${JSON.stringify(snapshot)};
@@ -165,7 +172,7 @@ function homeTab() {
   const kept = keep('pb.tab');
   return kept && kept !== 'roadmap' ? kept : 'items';
 }
-const view = { root: keep('pb.project'), tab: addressTab() || homeTab(), seen: {}, code: {}, item: null, adding: false, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null } };
+const view = { root: keep('pb.project'), tab: addressTab() || homeTab(), seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null } };
 if (snapshot) view.state = 'all';
 let data = null;
 let seen = '';
@@ -214,6 +221,12 @@ const codeRef = (ref, before) => {
     : '<span class="code">' + c.lines.map((line, n) => '<span><i>' + (c.from + n) + '</i>' + esc(line) + '</span>').join('') + (c.more ? '<span class="more">the first ' + c.lines.length + ' lines</span>' : '') + '</span>';
   return '<button class="ref" data-code="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' type="button" aria-expanded="' + open + '">' + esc(ref) + '</button>' + shown;
 };
+/** Format the API's structured fact binding as the live reference the code preview accepts. */
+function factCodeRef(ref) {
+  if (!ref || typeof ref !== 'object') return String(ref ?? '');
+  const lines = ref.start === ref.end ? String(ref.start) : ref.start + '-' + ref.end;
+  return ref.path + ':' + lines + '@' + ref.commit;
+}
 const tone = (s) => s === 'approved' ? 'ok' : s === 'pending' ? 'no' : s === 'draft' ? 'warn' : '';
 /** A doctrine rule's source, with a version only when it comes from the shipped standard. */
 const ruleSource = (row) => row.origin === 'standard' ? 'standard ' + row.version : 'repo';
@@ -228,9 +241,9 @@ const doing = (x) => [x.decisions && count(x.decisions, 'decision', 'decisions')
 function projectNeeds(p) {
   return [
     ...p.decisions.map((d) => ({ ref: d.shout_from, text: d.shout_text, what: 'decision', at: d.shout_at })),
-    ...p.spec.filter((row) => row.status === 'pending').map((row) => ({ ref: row.id, text: row.text, what: 'answer in SPEC.md' })),
+    ...p.spec.filter((row) => row.status === 'pending' && !row.decision).map((row) => ({ ref: row.id, text: row.text, what: 'answer in SPEC.md' })),
     ...p.holds.map((hold) => ({ ref: hold.hold_lane, text: hold.hold_reason, what: 'lane held by ' + hold.hold_by })),
-    ...(p.spec.some((row) => row.status === 'draft') ? [{ ref: String(p.spec.filter((row) => row.status === 'draft').length), text: 'draft spec rows to approve or drop', what: 'review in SPEC.md', target: 'tab:spec' }] : []),
+    ...(p.spec.some((row) => row.status === 'draft' && !row.decision) ? [{ ref: String(p.spec.filter((row) => row.status === 'draft' && !row.decision).length), text: 'draft spec rows to approve or drop', what: 'review in SPEC.md', target: 'tab:spec' }] : []),
   ];
 }
 // The item lifecycle as pullboard declares it in src/machine.js, embedded when the page is served.
@@ -290,20 +303,50 @@ const span = (ms) => {
  * ends or begins at one says its length was not logged rather than guess it.
  */
 function timeline(item) {
-  const steps = replay(item);
-  return '<ol class="tl">' + steps.map((s, i) => {
+  const entries = Array.isArray(item.thread) && item.thread.length
+    ? item.thread
+    : item.history.filter((entry) => entry.kind !== 'fact').map((entry, eventId) => ({ type: 'move', eventId: eventId + 1, ...entry }));
+  const steps = replay({ ...item, history: entries.filter((entry) => entry.type === 'move').map(({ kind, by, at }) => ({ kind, by, at })) });
+  const facts = entries.filter((entry) => entry.type === 'fact');
+  const replacements = new Map(facts.filter((fact) => fact.supersedes).map((fact) => [fact.supersedes, fact]));
+  const rows = [];
+  let stepIndex = 0;
+  /** Render a lifecycle step, keeping inferred clock lapses between recorded moves. */
+  const moveRow = (s, event, index) => {
     const enters = s.move ? s.move.to : s.kind === 'add' ? FLOW.initial : null;
     const state = enters || s.from;
     const final = FLOW.states.some((f) => f.id === state && f.final);
-    const next = steps.slice(i + 1).find((n) => n.move);
+    const next = steps.slice(index + 1).find((n) => n.move);
     const named = s.kind === 'reject' ? 'sent back' : state;
     const stay = !enters || final ? ''
       : !s.at ? esc(named + (next ? ' after the ' : ' so far since the ') + s.kind + ', length not logged')
       : !next ? esc(named) + ' for ' + age(s.at) + ' so far'
       : !next.at ? esc(named + ' until the ' + next.kind + ', length not logged')
       : esc(named + ' for ' + span(Date.parse(next.at) - Date.parse(s.at)));
-    return '<li class="tl-' + esc(state) + (s.kind === 'reject' ? ' tl-back' : '') + (enters ? '' : ' tl-quiet') + '"><time>' + (s.at ? when(s.at) : '') + '</time><span><b>' + esc(s.kind) + '</b> ' + esc(s.by) + '</span>' + (stay ? '<small>' + stay + '</small>' : '') + '</li>';
-  }).join('') + '</ol>';
+    rows.push('<li class="tl-' + esc(state) + (s.kind === 'reject' ? ' tl-back' : '') + (enters ? '' : ' tl-quiet') + '"' + (event ? ' data-event-id="' + event.eventId + '"' : '') + '><time>' + (s.at ? when(s.at) : '') + '</time><span><b>' + esc(s.kind) + '</b> ' + esc(s.by) + '</span>' + (stay ? '<small>' + stay + '</small>' : '') + '</li>');
+  };
+  /** Render one API fact with its identity, replacement and committed code binding. */
+  const factRow = (fact) => {
+    const replacement = replacements.get(fact.id);
+    const judgement = ['decision', 'rejection', 'supersession', 'root-cause'].includes(fact.kind);
+    rows.push('<li id="fact-' + esc(fact.id) + '" class="tl-fact' + (judgement ? ' tl-judgement' : '') + (replacement ? ' tl-superseded' : '') + '" data-event-id="' + fact.eventId + '"><time>' + when(fact.at) + '</time><span class="tl-fact-head"><span class="chip">' + esc(fact.kind) + '</span> <b>' + esc(fact.by) + '</b></span><span class="tl-body">' + esc(fact.text) + '</span><small>' + age(fact.at) + (replacement ? ' · <a class="thread-replacement" href="#fact-' + esc(replacement.id) + '">replaced by ' + esc(replacement.kind) + '</a>' : '') + '</small>' + (fact.ref ? '<div class="tl-code">' + codeRef(factCodeRef(fact.ref), '') + '</div>' : '') + '</li>');
+  };
+  for (const entry of entries) {
+    if (entry.type === 'fact') { factRow(entry); continue; }
+    while (stepIndex < steps.length && !(steps[stepIndex].kind === entry.kind && steps[stepIndex].by === entry.by && steps[stepIndex].at === entry.at)) {
+      moveRow(steps[stepIndex], null, stepIndex);
+      stepIndex += 1;
+    }
+    if (stepIndex < steps.length) {
+      moveRow(steps[stepIndex], entry, stepIndex);
+      stepIndex += 1;
+    }
+  }
+  while (stepIndex < steps.length) {
+    moveRow(steps[stepIndex], null, stepIndex);
+    stepIndex += 1;
+  }
+  return '<ol class="tl">' + rows.join('') + '</ol>';
 }
 
 /**
@@ -479,8 +522,8 @@ function boardSummary(board, state) {
     sentBack: count((item) => item.status === 'open' && item.verdict && item.verdict.decision === 'REJECT'),
     open: count((item) => item.status === 'open'),
     verified: count((item) => item.status === 'verified'),
-    pending: state.spec.filter((row) => row.status === 'pending').length,
-    drafts: state.spec.filter((row) => row.status === 'draft').length,
+    pending: state.spec.filter((row) => row.status === 'pending' && !row.decision).length,
+    drafts: state.spec.filter((row) => row.status === 'draft' && !row.decision).length,
     holds: state.holds.length,
     decisions: state.decisions.length,
     // What each item's state reads from, so another repo's roadmap can show it as this board's
@@ -869,7 +912,7 @@ function render() {
   const items = p.items.filter((i) => i.status !== 'withdrawn');
   const active = items.filter((i) => stateOf(i) !== 'verified');
   $('count-items').textContent = active.length || '';
-  $('count-spec').textContent = p.spec.filter((r) => ['pending', 'draft'].includes(r.status)).length || '';
+  $('count-spec').textContent = p.spec.filter((r) => ['pending', 'draft'].includes(r.status) && !r.decision).length || '';
   $('count-doctrine').textContent = p.practice.filter((r) => ['pending', 'draft'].includes(r.status)).length || '';
   const titles = new Map(p.items.map((i) => [String(i.id), i.title]));
   $('roadmap').innerHTML = roadmapCards(p, titles);
@@ -879,10 +922,10 @@ function render() {
   // on the board with who holds it; it is the agents' to move.
   const needs = [
     ...p.decisions.map((d) => ['decide:' + d.shout_id, d.shout_from, d.shout_text, 'decide', d.shout_at]),
-    ...p.spec.filter((r) => r.status === 'pending').map((r) => ['spec:' + r.id, r.id, r.text, 'answer in SPEC.md']),
+    ...p.spec.filter((r) => r.status === 'pending' && !r.decision).map((r) => ['spec:' + r.id, r.id, r.text, 'answer in SPEC.md']),
     ...p.holds.map((h) => ['tab:shouts', h.hold_lane, h.hold_reason, 'lane held by ' + h.hold_by]),
   ];
-  const drafts = p.spec.filter((r) => r.status === 'draft').length;
+  const drafts = p.spec.filter((r) => r.status === 'draft' && !r.decision).length;
   $('needs').hidden = !needs.length && !drafts;
   $('needs').innerHTML = '<div class="head"><i></i>Needs you</div>' + needs.slice(0, 6).map(([target, ref, text, what, at]) => '<div class="ny"><code>' + esc(ref) + '</code><span class="ny-text">' + rich(text, titles) + '</span><button class="ny-open" data-go="' + esc(target) + '" type="button"><em>' + esc(what) + (at ? ', ' + age(at) : '') + ' →</em></button></div>').join('') + (needs.length > 6 ? '<div class="muted more">and ' + (needs.length - 6) + ' more</div>' : '') + (drafts ? '<div class="ny"><code>' + drafts + '</code><span class="ny-text">draft spec rows to approve or drop</span><button class="ny-open" data-go="tab:spec" type="button"><em>review →</em></button></div>' : '');
 
@@ -982,19 +1025,30 @@ function render() {
     const rows = kind === 'spec' ? p.spec : p.practice;
     const filter = view.rows[kind];
     const labels = { decide: 'Needs your decision', all: 'All rows', approved: 'Approved' };
-    const n = { decide: rows.filter((r) => ['pending', 'draft'].includes(r.status)).length, all: rows.length, approved: rows.filter((r) => r.status === 'approved').length };
+    /** A source row stays in Needs your decision until its person decision is recorded. */
+    const undecided = (r) => ['pending', 'draft'].includes(r.status) && !r.decision;
+    const n = { decide: rows.filter(undecided).length, all: rows.length, approved: rows.filter((r) => r.status === 'approved').length };
     $(kind + '-chips').innerHTML = Object.keys(labels).map((f) => '<button data-rows="' + kind + ':' + f + '" class="' + (filter === f ? 'on' : '') + '" type="button">' + labels[f] + '<b>' + n[f] + '</b></button>').join('');
-    const shownRows = rows.filter((r) => filter === 'all' || (filter === 'decide' ? ['pending', 'draft'].includes(r.status) : r.status === 'approved'));
+    const shownRows = rows.filter((r) => filter === 'all' || (filter === 'decide' ? undecided(r) : r.status === 'approved'));
+    const feedback = kind === 'spec' && view.specFeedback?.root === view.root && view.specFeedback.from === 'list' ? view.specFeedback : null;
+    const feedbackId = feedback && (shownRows.some((r) => r.id === feedback.id) ? feedback.id : shownRows.some((r) => r.id === feedback.next) ? feedback.next : shownRows[0]?.id);
     let section = null;
     $(kind + '-list').innerHTML = shownRows.length ? shownRows.map((r) => {
-      const head = r.section !== section ? '<h4>' + esc(r.section) + '</h4>' : '';
+      const sectionRows = !snapshot && !readOnly && kind === 'spec' && r.section !== section ? rows.filter((entry) => entry.section === r.section && undecided(entry)) : [];
+      const head = r.section !== section ? '<div class="spec-section-head"><h4>' + esc(r.section) + '</h4>' + (sectionRows.length ? '<button class="spec-section-approve" data-section-approve="' + esc(r.section) + '" type="button">Approve all ' + sectionRows.length + ' in this section</button>' : '') + '</div>' : '';
       section = r.section;
       const declined = kind === 'doctrine' && r.status === 'wont';
       const text = declined ? '<s>' + linked(r.standardText || r.text, titles) + '</s>' : linked(r.text, titles);
       const reason = declined && r.reason ? '<small class="rule-reason">Reason: ' + linked(r.reason, titles) + '</small>' : '';
       const source = kind === 'doctrine' ? '<small class="rule-source">' + esc(ruleSource(r)) + '</small>' : '';
-      return head + '<div class="srow' + (view.row[kind] === r.id ? ' on' : '') + '" data-row="' + kind + ':' + esc(r.id) + '"><code>' + esc(r.id) + '</code><span><span class="chip ' + tone(r.status) + '">' + esc(r.status) + '</span>' + source + '</span><span>' + text + reason + '</span></div>';
+      const status = r.stage || r.status;
+      /** Render person-only row decisions in both the list and its detail pane. */
+      const decisionActions = (!snapshot && !readOnly && kind === 'spec' && undecided(r))
+        ? '<div class="spec-decision-actions"><button class="approve-row" data-row-decision="approve" data-row-id="' + esc(r.id) + '" type="button">Approve</button><button class="decline-row" data-row-decision="decline" data-row-id="' + esc(r.id) + '" type="button">Decline</button></div>'
+        : '';
+      return head + (feedback && feedbackId === r.id ? specFeedback(feedback) : '') + '<div class="srow' + (view.row[kind] === r.id ? ' on' : '') + '" data-row="' + kind + ':' + esc(r.id) + '"><code>' + esc(r.id) + '</code><span><span class="chip ' + tone(r.status) + '">' + esc(status) + '</span>' + source + '</span><span>' + text + reason + decisionActions + '</span></div>';
     }).join('') : '<div class="empty">' + (rows.length ? 'No rows match.' : kind === 'spec' ? 'No spec rows yet. Each requirement is one row in SPEC.md, such as G1 [draft, must] and a line; write them, or ask an agent to, and they show up here.' : 'No practice rows yet: they live in PRACTICE.md.') + '</div>';
+    if (feedback && !shownRows.length) $(kind + '-list').innerHTML += specFeedback(feedback);
     const row = rows.find((r) => r.id === view.row[kind]);
     const citing = row ? p.items.filter((i) => i.specs.includes(row.id)) : [];
     const declined = kind === 'doctrine' && row && row.status === 'wont';
@@ -1002,7 +1056,11 @@ function render() {
     const source = kind === 'doctrine' && row ? '<span class="chip">' + esc(ruleSource(row)) + '</span>' : '';
     const reason = declined && row.reason ? '<dt>reason</dt><dd>' + linked(row.reason, titles) + '</dd>' : '';
     const home = kind === 'doctrine' && row && row.origin === 'standard' ? 'Standard rules come with Pullboard; override or decline one in PRACTICE.md.' : 'Rows change in ' + (kind === 'spec' ? 'SPEC.md' : 'PRACTICE.md') + ', and only you approve them.';
-    $(kind + '-detail').innerHTML = row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(row.status) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div><dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<div class="links-item" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span></div>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div><div class="muted">' + home + '</div></div>' : '<div class="empty">Pick a row to see it, and the items that cite it.</div>';
+    const rowStatus = row?.stage || row?.status;
+    const rowDecisionActions = !snapshot && !readOnly && row && kind === 'spec' && undecided(row)
+      ? '<div class="spec-decision-actions detail-decision-actions"><button class="approve-row" data-row-decision="approve" data-row-id="' + esc(row.id) + '" type="button">Approve</button><button class="decline-row" data-row-decision="decline" data-row-id="' + esc(row.id) + '" type="button">Decline</button></div>'
+      : '';
+    $(kind + '-detail').innerHTML = row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div>' + rowDecisionActions + (kind === 'spec' && view.specFeedback?.root === view.root && view.specFeedback.from === 'detail' && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '') + '<dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<div class="links-item" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span></div>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div><div class="muted">' + home + '</div></div>' : '<div class="empty">Pick a row to see it, and the items that cite it.</div>';
   }
 
   if (keep('pb.flow') !== 'hidden') $('flow').innerHTML = flowSvg(p);
@@ -1195,6 +1253,16 @@ function pageMove(command, args = {}) {
   if (command === 'answer') return { body: { verb: 'answer', item: Number(args.id), args: { text: text(args.text), as: 'person' } }, label: ['answer', text(args.id), text(args.text), '--as', 'person'].join(' ') };
   if (command === 'hold') return { body: { verb: 'hold', args: { lane: text(args.lane), reason: text(args.reason) } }, label: ['hold', text(args.lane), '--reason', text(args.reason)].join(' ') };
   if (command === 'release') return { body: { verb: 'hold', args: { lane: text(args.lane), off: true } }, label: ['hold', text(args.lane), '--off'].join(' ') };
+  if (command === 'spec-approve') {
+    const ids = text(args.ids);
+    if (!ids) throw new Error('Choose at least one spec row to approve.');
+    return { body: { verb: 'spec-approve', args: { ids } }, label: 'spec approve ' + ids };
+  }
+  if (command === 'spec-decline') {
+    const ids = text(args.ids), reason = text(args.reason);
+    if (!ids || !reason) throw new Error('Choose a spec row and enter a reason to decline it.');
+    return { body: { verb: 'spec-decline', args: { ids, reason } }, label: 'spec decline ' + ids + ' --reason ' + reason };
+  }
   throw new Error('No view action ' + String(command) + '; choose add, shout, answer, hold or release.');
 }
 
@@ -1203,7 +1271,44 @@ function moveMessage(move, result) {
   if (move.verb === 'add') return 'added #' + result.item.item_id;
   if (move.verb === 'shout') return 'shouted to ' + move.args.to;
   if (move.verb === 'answer') return 'answered #' + move.item;
+  if (move.verb === 'spec-approve') return 'approved rows ' + move.args.ids + ' (pending apply)';
+  if (move.verb === 'spec-decline') return 'declined rows ' + move.args.ids + ' (pending apply)';
   return move.args.off ? 'released the ' + move.args.lane + ' lane' : 'holding the ' + move.args.lane + ' lane: ' + move.args.reason;
+}
+
+/** Render escaped decision feedback beside the affected Spec row (B26, N26). */
+function specFeedback(feedback) {
+  return '<div class="spec-feedback ' + feedback.tone + '" role="status">' + esc(feedback.text) + '</div>';
+}
+
+/** Record a Spec decision beside its row and retain the list's reading position (B26, N26). */
+async function decideSpec(command, args, anchor) {
+  if (snapshot) return false;
+  const root = view.root, scroll = window.scrollY;
+  const ids = String(args.ids).split(/\s+/);
+  const rows = [...$('spec-list').querySelectorAll('[data-row]')];
+  const index = rows.findIndex((row) => row.dataset.row === 'spec:' + ids[0]);
+  const next = rows.slice(index + 1).find((row) => !ids.includes(row.dataset.row.slice(5)))?.dataset.row.slice(5);
+  const feedback = { root, id: ids[0], next, from: anchor?.closest('#spec-detail') ? 'detail' : 'list', tone: '', text: 'Recording decision…' };
+  view.specFeedback = feedback;
+  render();
+  window.scrollTo({ top: scroll, behavior: 'instant' });
+  try {
+    const move = pageMove(command, args);
+    const result = await api(boardPath(root) + '/moves', move.body);
+    feedback.tone = 'ok';
+    feedback.text = moveMessage(move.body, result.result);
+    await refresh();
+  } catch (error) {
+    feedback.tone = 'no';
+    feedback.text = String(error.message || error);
+  }
+  if (root === view.root && view.specFeedback === feedback) {
+    render();
+    window.scrollTo({ top: scroll, behavior: 'instant' });
+    setTimeout(() => { if (view.specFeedback === feedback) { view.specFeedback = null; render(); } }, 6000);
+  }
+  return feedback.tone === 'ok';
 }
 
 /** Run a public API move beside its action and let only the latest one own the console and timer. */
@@ -1283,7 +1388,7 @@ function switchTo(root, target = null, record = true) {
 }
 
 document.addEventListener('click', (event) => {
-  const t = event.target.closest('[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-release],[data-shout],[data-new],[data-code],#proj-switch,#console');
+  const t = event.target.closest('[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],#proj-switch,#console');
   if (!event.target.closest('.side')) fold(false);
   if (!t) return;
   if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
@@ -1294,6 +1399,23 @@ document.addEventListener('click', (event) => {
   else if (t.dataset.item) pick(Number(t.dataset.item));
   else if (t.dataset.state) { view.state = t.dataset.state; render(); }
   else if (t.dataset.rows) { const [kind, f] = t.dataset.rows.split(':'); view.rows[kind] = f; render(); }
+  else if (t.dataset.rowDecision) {
+    const id = t.dataset.rowId;
+    if (t.dataset.rowDecision === 'approve') decideSpec('spec-approve', { ids: id }, t);
+    else {
+      view.declining = id;
+      view.declineFrom = t.closest('#spec-detail') ? 'detail' : 'list';
+      $('spec-decline-title').textContent = 'Decline ' + id;
+      $('spec-decline-reason').value = '';
+      $('spec-decline-dialog').hidden = false;
+      $('spec-decline-reason').focus();
+    }
+  }
+  else if (t.dataset.sectionApprove) {
+    const section = t.dataset.sectionApprove;
+    const ids = data.project.spec.filter((row) => row.section === section && ['pending', 'draft'].includes(row.status) && !row.decision).map((row) => row.id);
+    if (ids.length && window.confirm('Approve all ' + ids.length + ' undecided rows in “' + section + '”?')) decideSpec('spec-approve', { ids: ids.join(' ') }, t);
+  }
   else if (t.dataset.row) { const [kind, id] = t.dataset.row.split(':'); view.row[kind] = id; render(); }
   else if (t.dataset.code) code(t.dataset.code, t.dataset.before || '');
   else if (t.dataset.release) act('release', { lane: t.dataset.release }, t);
@@ -1311,6 +1433,17 @@ document.addEventListener('keydown', (event) => {
 // The form covers the picked item rather than dropping it, so Cancel brings it back.
 $('new-item').addEventListener('click', () => { view.adding = true; render(); $('add-title').focus(); });
 $('add-cancel').addEventListener('click', () => { view.adding = false; render(); });
+$('spec-decline-cancel').addEventListener('click', () => { view.declining = null; $('spec-decline-dialog').hidden = true; });
+$('spec-decline-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const id = view.declining;
+  const reason = $('spec-decline-reason').value.trim();
+  if (!id || !reason) return;
+  view.declining = null;
+  $('spec-decline-dialog').hidden = true;
+  const anchor = view.declineFrom === 'detail' ? $('spec-detail') : [...$('spec-list').querySelectorAll('[data-row]')].find((row) => row.dataset.row === 'spec:' + id);
+  decideSpec('spec-decline', { ids: id, reason }, anchor);
+});
 $('answer-cancel').addEventListener('click', () => answer(null));
 $('flow-hide').addEventListener('click', () => showFlow(false));
 $('flow-show').addEventListener('click', () => showFlow(true));

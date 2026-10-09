@@ -57,7 +57,8 @@ import { exportView, serveView } from './serve.js';
 import { serveApi } from './api.js';
 import { doctorProblems, doctrineProblems } from './doctor.js';
 import { staleFrozenItems, staleItemFinding } from './approved-rows.js';
-import { mainPolicy, itemPolicy, submissionPaths, frozenCheck, checkAtCommit, dependencySnapshots, requireTrunkMerge, trunkRef } from './trusted-policy.js';
+import { mainPolicy, policyAt, itemPolicy, submissionPaths, frozenCheck, checkAtCommit, dependencySnapshots, requireTrunkMerge, trunkRef } from './trusted-policy.js';
+import { proofStats } from './stats.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
@@ -151,6 +152,7 @@ Coordinator
   pullboard hold <lane> --off           release it
 
 Receipts
+  pullboard stats [--since <date>]      proof numbers from the event log; --json for sites and tools
   pullboard ledger                      markdown: what was built, by whom, verified by whom
   pullboard log [id]                    every move, in order
 
@@ -183,7 +185,7 @@ const HELP_NAMES = [
   'tour', 'init', 'worktree', 'join', 'takeover', 'whoami', 'lanes', 'status', 'resources', 'settings', 'view', 'view export',
   'serve', 'relay', 'resume', 'hooks', 'add', 'edit', 'escalate', 'run', 'list', 'doctor', 'show', 'next',
   'check', 'claim', 'release', 'submit', 'done', 'verify', 'fact', 'shout', 'answer', 'pass', 'decisions', 'inbox', 'export', 'import',
-  'sweep', 'merged', 'withdraw', 'refreeze', 'hold', 'ledger', 'log', 'spec', 'spec check', 'spec view',
+  'sweep', 'merged', 'withdraw', 'refreeze', 'hold', 'stats', 'ledger', 'log', 'spec', 'spec check', 'spec view',
   'spec show', 'spec unmet', 'spec signoff', 'spec signers', 'spec signers add', 'forget', 'prompt', 'gate', 'hook',
   'hook pre-commit', 'hook commit-msg', 'hook pre-push', 'view export', 'version', 'lifecycle', 'help',
   'roadmap', 'milestone',
@@ -203,7 +205,7 @@ const HELP_EXAMPLES = {
   fact: 'pullboard fact 12 measurement "The check passes in 8 seconds"',
   verify: 'pullboard verify 12 accept --note "removed the fix; the test failed"',
   answer: 'pullboard answer 12 "done"', pass: 'pullboard pass 12 "please decide"',
-  status: 'pullboard status', view: 'pullboard view', log: 'pullboard log 12', ledger: 'pullboard ledger',
+  status: 'pullboard status', view: 'pullboard view', stats: 'pullboard stats --since 2026-10-08', log: 'pullboard log 12', ledger: 'pullboard ledger',
   roadmap: 'pullboard roadmap', milestone: 'pullboard milestone add "0.7.0" --items 12,13',
   edit: 'pullboard edit 12 --brief "Add the upload page"', release: 'pullboard release 12',
   escalate: 'pullboard escalate 12 --note "needs a manual step"', next: 'pullboard next',
@@ -430,6 +432,7 @@ const OPTIONS = {
   must: { type: 'boolean' },
   json: { type: 'boolean' },
   history: { type: 'boolean' },
+  since: { type: 'string' },
   decision: { type: 'boolean' },
   evidence: { type: 'string' },
   outcome: { type: 'string' },
@@ -725,20 +728,34 @@ function whoAmI(ctx, board) {
 }
 
 /**
- * The criterion an item is held to, frozen from the spec as it reads now.
+ * Freeze a criterion from committed policy, preserving legacy bytes except on an explicit refreeze.
  *
  * @param {any} ctx
+ * @param {{ captureVerifyPolicy?: boolean }} [options]
  * @returns {(item: any) => { text: string, digest: string }}
  */
-const freezer = (ctx) => (item) => {
-  const prior = item.item_frozen ? JSON.parse(item.item_frozen) : null;
-  const policy = prior?.policy ?? (!prior && !(ctx.info.isMain && !headCommit(ctx.info.root)) ? { version: 1, commit: mainPolicy(ctx.info.root).commit } : null);
-  const config = policy ? itemPolicy(ctx.info.root, { ...item, item_frozen: JSON.stringify({ policy }) }).config : ctx.config;
-  const frozen = frozenCriterion(loadSpec(ctx.info.root, config), item);
-  if (!policy) return frozen; // Legacy criteria retain their original digest and committed claim base.
-  const text = JSON.stringify({ ...JSON.parse(frozen.text), policy });
-  return { text, digest: createHash('sha256').update(text).digest('hex') };
-};
+function freezer(ctx, { captureVerifyPolicy = false } = {}) {
+  /** Freeze the item's criterion and, when requested, its committed verifier policy. */
+  return (item) => {
+    const prior = item.item_frozen ? JSON.parse(item.item_frozen) : null;
+    const needsPinnedPolicy = !prior || captureVerifyPolicy;
+    let policy = prior?.policy ?? (needsPinnedPolicy && !(ctx.info.isMain && !headCommit(ctx.info.root)) ? { version: 1, commit: mainPolicy(ctx.info.root).commit } : null);
+    let config;
+    if (policy && needsPinnedPolicy) {
+      const commit = /^[0-9a-f]{40,64}$/.test(policy.commit ?? '')
+        ? policy.commit
+        : (/^[0-9a-f]{40,64}$/.test(item.item_claim_head ?? '') ? item.item_claim_head : mainPolicy(ctx.info.root).commit);
+      config = policyAt(ctx.info.root, commit).config;
+      policy = { version: 1, commit, verify: { policy: config.verify.policy, family: config.verify.family } };
+    } else {
+      config = policy ? itemPolicy(ctx.info.root, { ...item, item_frozen: JSON.stringify({ policy }) }).config : ctx.config;
+    }
+    const frozen = frozenCriterion(loadSpec(ctx.info.root, config), item);
+    if (!policy) return frozen; // Legacy criteria retain their original digest and committed claim base.
+    const text = JSON.stringify({ ...JSON.parse(frozen.text), policy });
+    return { text, digest: createHash('sha256').update(text).digest('hex') };
+  };
+}
 
 /**
  * The evidence a shout carries, from its flags (B22). The commit is resolved here, in this repo,
@@ -1421,6 +1438,17 @@ function readCommands(io, { first, second, rest, values }) {
       for (const ask of asks) io.say(`#${ask.shout_id}  ${ask.shout_from} -> ${ask.shout_to}, ${span(ctx, ask.shout_at)} ago: ${firstLine(ask.shout_text)}`);
       return 0;
     },
+    stats: () => {
+      const ctx = context(io);
+      const stats = withBoard(ctx, (board) => proofStats(board, { since: values.since }));
+      io.result?.({ stats });
+      io.say(`${stats.submissions} submissions · ${stats.rejections} rejections · ${(stats.rejectionShare * 100).toFixed(1)}% sent back`);
+      io.say(`${stats.merged} items merged · ${stats.mergedWithoutAccept} merged without an accept`);
+      io.say(`${stats.agentCount} agents · ${stats.familyCount} family buckets: ${stats.families.map((family) => `${family.name} (${family.agents} agents, ${family.moves} moves)`).join('; ') || 'none'}`);
+      io.say(`agents: ${stats.agents.map((agent) => `${agent.id} (${agent.families.join('/')}; ${agent.moves} moves)`).join(', ') || 'none'}`);
+      io.say(`events: ${stats.firstEventAt ?? 'none'} to ${stats.lastEventAt ?? 'none'}${stats.since ? ` (since ${stats.since})` : ''}`);
+      return 0;
+    },
     ledger: () => {
       const ctx = context(io);
       const { items, stats } = withBoard(ctx, (board) => ({
@@ -2015,7 +2043,7 @@ function workCommands(io, args) {
       return 0;
     }),
     refreeze: () => act(async (ctx, board, me) => {
-      const result = await ordered(ctx, board, 'refreeze', [idArg(first), { agentId: me.id, freeze: freezer(ctx) }]);
+      const result = await ordered(ctx, board, 'refreeze', [idArg(first), { agentId: me.id, freeze: freezer(ctx, { captureVerifyPolicy: true }) }]);
       io.result?.({ id: idArg(first), ...result });
       io.say(`#${first} refrozen ${String(result.before).slice(0, 12)} -> ${result.after.slice(0, 12)}; open again`);
       return 0;

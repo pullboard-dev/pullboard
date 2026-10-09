@@ -1493,6 +1493,20 @@ export function getShout(board, id) {
   return found;
 }
 
+/** Read every shout in creation order without marking it read, for addressed history and exports. */
+export function allShouts(board) {
+  return board.db.prepare('SELECT * FROM shout ORDER BY shout_id').all();
+}
+
+/** Read one shout with the current open or answered state of its decision, if it is one. */
+export function shoutDetails(board, id) {
+  const shout = getShout(board, id);
+  const answer = shout.shout_decision
+    ? board.db.prepare('SELECT * FROM shout WHERE shout_answers = ? ORDER BY shout_id LIMIT 1').get(id) ?? null
+    : null;
+  return { ...shout, decision_state: shout.shout_decision ? (answer ? 'answered' : 'open') : null, decision_answer: answer };
+}
+
 /**
  * Shouts that asked for a decision nobody has answered yet, oldest first (B21). An optional
  * recipient limits the queue; an array matches any listed recipient. Without one this returns
