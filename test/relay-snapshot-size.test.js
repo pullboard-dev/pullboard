@@ -85,7 +85,7 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
   const chrome = await startChrome();
   t.after(() => chrome.close());
   await chrome.send('Network.setCookie', {
-    name: 'pb_session', value: sourceState.token, url: box.origin, httpOnly: true, sameSite: 'Lax',
+    name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax',
   });
   const encodedKey = readFileSync(box.keyFile, 'utf8').trim();
   await chrome.navigate(box.origin + '/#board=' + sourceState.board + '&key=' + encodedKey);

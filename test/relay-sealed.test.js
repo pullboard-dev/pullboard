@@ -38,7 +38,7 @@ function unseal(key, value, binding) {
 }
 
 /** Create a real private CLI board, actual stand-in GitHub sign-in, and an ephemeral relay server. */
-async function fixture(t) {
+async function fixture(t, { machineCredentials = true } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-sealed-http-')));
   const root = join(directory, 'repo');
   const home = join(directory, 'home');
@@ -74,8 +74,13 @@ async function fixture(t) {
   const callback = new URL(redirect.headers.get('location'));
   const person = await auth.finishWeb(callback.searchParams.get('state'), callback.searchParams.get('code'), flow.binding);
   await auth.linkBoard(person.token, id, 'fixture/repository');
-  const one = await auth.issueToken(person.token, { board: id, agent: 'client-one' });
-  const two = await auth.issueToken(person.token, { board: id, agent: 'client-two' });
+  const machines = machineCredentials ? await Promise.all([
+    auth.issueMachine(person.token, { board: id, machine: 'client-one' }),
+    auth.issueMachine(person.token, { board: id, machine: 'client-two' }),
+  ]) : [];
+  const tokenIssuer = machines[0]?.token ?? person.token;
+  const one = await auth.issueToken(tokenIssuer, { board: id, agent: 'client-one' });
+  const two = await auth.issueToken(machines[1]?.token ?? tokenIssuer, { board: id, agent: 'client-two' });
   const relay = await serveRelay({ directory: data, auth, port: 0, pollMs: 20, publicOrigin: 'http://127.0.0.1:44444' });
   t.after(async () => { await relay.close(); auth.close(); rmSync(directory, { recursive: true, force: true }); });
   const origin = 'http://127.0.0.1:' + relay.port;
@@ -85,7 +90,7 @@ async function fixture(t) {
   async function call(path, { method = 'GET', body, token = one.token, headers = {} } = {}) {
     const response = await fetch(origin + path, {
       method,
-      headers: { 'x-pullboard-engine': '3', ...(token ? { authorization: 'Bearer ' + token } : {}), ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
+      headers: { 'x-pullboard-engine': String(ENGINE_VERSION), ...(token ? { authorization: 'Bearer ' + token } : {}), ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     return { status: response.status, body: await response.json() };
@@ -94,7 +99,7 @@ async function fixture(t) {
   function clientSeal(value, kind, sequence, board = id) { return seal(key, value, { board, kind, sequence }); }
   /** Unseal received records at their actual committed position, never the client's old proposal. */
   function clientOpen(value, kind, sequence, board = id) { return unseal(key, value, { board, kind, sequence }); }
-  return { directory, root, home, env, data, cli, document, id, marker, auth, person, one, two, relay, origin, key, call, clientSeal, clientOpen, path: '/api/v1/boards/' + id };
+  return { directory, root, home, env, data, cli, document, id, marker, auth, person, machines, tokenIssuer, one, two, relay, origin, key, call, clientSeal, clientOpen, path: '/api/v1/boards/' + id };
 }
 
 /** Run a linked CLI asynchronously so the real relay can serve it, keeping credentials out of diagnostics. */
@@ -218,7 +223,7 @@ test('sealed agent shout cannot answer a person decision on either independent c
     document = JSON.parse(JSON.stringify(exportBoard(source)));
   } finally { store.closeBoard(source); }
 
-  const remote = await box.auth.issueToken(box.person.token, { board: box.id, agent: 'remote-1' });
+  const remote = await box.auth.issueToken(box.machines[0].token, { board: box.id, agent: 'remote-1' });
   const roots = [box.root, join(box.directory, 'second-client')];
   const homes = [box.home, join(box.directory, 'second-home')];
   const envs = homes.map(home => ({ ...box.env, HOME: home, PULLBOARD_HOME: home }));
@@ -235,7 +240,7 @@ test('sealed agent shout cannot answer a person decision on either independent c
     const url = await independentReplayOrigin(t, box.origin);
     writeFileSync(join(roots[i], '.git/pullboard/relay.json'), JSON.stringify({
       version: 1, mode: 'ordered', board: box.id, url, repository: 'fixture/repository',
-      token: box.person.token, sequence: 0, cursor: document.tables.event.at(-1).event_id,
+      token: box.machines[i].token, sequence: 0, cursor: document.tables.event.at(-1).event_id,
     }) + '\n', { mode: 0o600 });
   }
 
@@ -316,7 +321,7 @@ test('two real clients stop before sender checks for newer operations and actor 
         checkpointSequence(source, 0);
         document = JSON.parse(JSON.stringify(exportBoard(source)));
       } finally { store.closeBoard(source); }
-      const remote = await box.auth.issueToken(box.person.token, { board: box.id, agent: 'remote-1' });
+      const remote = await box.auth.issueToken(box.machines[0].token, { board: box.id, agent: 'remote-1' });
       const roots = [box.root, join(box.directory, 'second-client')];
       const homes = [box.home, join(box.directory, 'second-home')];
       const envs = homes.map(home => ({ ...box.env, HOME: home, PULLBOARD_HOME: home }));
@@ -332,7 +337,7 @@ test('two real clients stop before sender checks for newer operations and actor 
         mkdirSync(keyDirectory, { mode: 0o700 });
         writeFileSync(join(keyDirectory, box.id + '.key'), box.key.toString('base64url') + '\n', { mode: 0o600 });
         const replayOrigin = await independentReplayOrigin(sub, box.origin);
-        writeFileSync(links[index], JSON.stringify({ version: 1, mode: 'ordered', board: box.id, url: replayOrigin, repository: 'fixture/repository', token: box.person.token, sequence: 0, cursor: document.tables.event.at(-1).event_id }) + '\n', { mode: 0o600 });
+        writeFileSync(links[index], JSON.stringify({ version: 1, mode: 'ordered', board: box.id, url: replayOrigin, repository: 'fixture/repository', token: box.machines[index].token, sequence: 0, cursor: document.tables.event.at(-1).event_id }) + '\n', { mode: 0o600 });
       }
       const originalLinks = links.map(file => readFileSync(file, 'utf8'));
       const initialSnapshot = Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(document)), { boardId: box.id, kind: 'snapshot', sequence: 0 })).toString('base64url');
@@ -405,7 +410,7 @@ test('two real clients refuse forged relay actors and person-only requests while
     ];
     document = JSON.parse(JSON.stringify(exportBoard(source)));
   } finally { store.closeBoard(source); }
-  const remote = await box.auth.issueToken(box.person.token, { board: box.id, agent: 'remote-1' });
+  const remote = await box.auth.issueToken(box.machines[0].token, { board: box.id, agent: 'remote-1' });
   const roots = [box.root, join(box.directory, 'second-client')];
   const homes = [box.home, join(box.directory, 'second-home')];
   const envs = homes.map(home => ({ ...box.env, HOME: home, PULLBOARD_HOME: home }));
@@ -419,7 +424,7 @@ test('two real clients refuse forged relay actors and person-only requests while
     const keyDirectory = join(homes[index], 'relay-keys');
     mkdirSync(keyDirectory, { mode: 0o700 });
     writeFileSync(join(keyDirectory, box.id + '.key'), box.key.toString('base64url') + '\n', { mode: 0o600 });
-    writeFileSync(join(roots[index], '.git/pullboard/relay.json'), JSON.stringify({ version: 1, mode: 'ordered', board: box.id, url: box.origin, repository: 'fixture/repository', token: box.person.token, sequence: 0, cursor: document.tables.event.at(-1).event_id }) + '\n', { mode: 0o600 });
+    writeFileSync(join(roots[index], '.git/pullboard/relay.json'), JSON.stringify({ version: 1, mode: 'ordered', board: box.id, url: box.origin, repository: 'fixture/repository', token: box.machines[index].token, sequence: 0, cursor: document.tables.event.at(-1).event_id }) + '\n', { mode: 0o600 });
   }
   /** Seal production-format records on this client; the relay stores only their opaque envelopes. */
   async function upload(value, kind, sequence, token = remote.token) {
@@ -562,13 +567,13 @@ test('two real clients enforce the verify policy captured in the item freeze [H1
     const keyDirectory = join(homes[index], 'relay-keys');
     mkdirSync(keyDirectory, { mode: 0o700 });
     writeFileSync(join(keyDirectory, box.id + '.key'), box.key.toString('base64url') + '\n', { mode: 0o600 });
-    writeFileSync(join(roots[index], '.git/pullboard/relay.json'), JSON.stringify({ version: 1, mode: 'ordered', board: box.id, url: box.origin, repository: 'fixture/repository', token: box.person.token, sequence: 0, cursor: document.tables.event.at(-1).event_id }) + '\n', { mode: 0o600 });
+    writeFileSync(join(roots[index], '.git/pullboard/relay.json'), JSON.stringify({ version: 1, mode: 'ordered', board: box.id, url: box.origin, repository: 'fixture/repository', token: box.machines[index].token, sequence: 0, cursor: document.tables.event.at(-1).event_id }) + '\n', { mode: 0o600 });
   }
   const snapshotSealed = Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(document)), { boardId: box.id, kind: 'snapshot', sequence: 0 })).toString('base64url');
   const savedSnapshot = await box.call(box.path + '/state', { method: 'PUT', token: box.person.token, body: { sequence: 0, sealed: snapshotSealed } });
   assert.equal(savedSnapshot.status, 200, 'person session installs the initial encrypted snapshot');
   const verifierTokens = new Map();
-  for (const agent of new Set([verifierSame, verifierOther])) verifierTokens.set(agent, await box.auth.issueToken(box.person.token, { board: box.id, agent }));
+  for (const agent of new Set([verifierSame, verifierOther])) verifierTokens.set(agent, await box.auth.issueToken(box.machines[0].token, { board: box.id, agent }));
   for (let index = 0; index < moves.length; index += 1) {
     const agent = moves[index].args[1].agentId;
     const sequence = index + 1;
@@ -609,7 +614,7 @@ test('two real clients enforce the verify policy captured in the item freeze [H1
 });
 
 test('relay accepts engine 4 clients carrying sealed background completions [V2,H16]', async t => {
-  const box = await fixture(t);
+  const box = await fixture(t, { machineCredentials: false });
   const headers = { 'x-pullboard-engine': '4' };
   assert.ok(ENGINE_VERSION >= 4, 'engine-4 background completions remain supported');
   const snapshot = await box.call(box.path + '/state', {
@@ -800,7 +805,7 @@ test('[A4,H7] live streams follow the same order, resume by cursor and stop afte
     const controller = new AbortController();
     controllers.push(controller);
     const reply = await fetch(box.origin + box.path + '/events?after=0', {
-      headers: { 'x-pullboard-engine': '3', authorization: 'Bearer ' + box.two.token, accept: 'text/event-stream', ...(last === null ? {} : { 'last-event-id': String(last) }) },
+      headers: { 'x-pullboard-engine': String(ENGINE_VERSION), authorization: 'Bearer ' + box.two.token, accept: 'text/event-stream', ...(last === null ? {} : { 'last-event-id': String(last) }) },
       signal: controller.signal,
     });
     assert.equal(reply.status, 200);

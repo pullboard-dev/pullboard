@@ -41,7 +41,7 @@ test('paired Chrome excludes idle event streams and reports only held state requ
   const chrome = await startChrome({ commandTimeoutMs: 15000 });
   t.after(() => chrome.close());
   const cookie = await chrome.send('Network.setCookie', {
-    name: 'pb_session', value: link.token, url: box.origin, httpOnly: true, sameSite: 'Lax',
+    name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax',
   });
   assert.equal(cookie.success, true);
   // A static same-origin document has no cockpit refresh timer to start ordinary reads mid-probe.

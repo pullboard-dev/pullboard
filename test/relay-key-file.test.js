@@ -5,6 +5,7 @@ import { chmodSync, existsSync, readFileSync, rmSync, statSync, writeFileSync } 
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { relayClientFixture } from './relay-client-fixture.js';
+import { ENGINE_VERSION } from '../src/machine.js';
 
 /** Install an isolated `security` command without consulting the host keychain. */
 function securityStandIn(box) {
@@ -106,6 +107,11 @@ test('owner-only key file links and reads with a locked keychain, migrates once,
   assert.equal((await box.cli('relay', 'off')).code, 0,
     'unlink uses the migrated file even when legacy metadata still says keychain');
   assert.equal(existsSync(box.keyFile), false, 'unlink forgets the migrated owner-only file');
+  const phone = await box.phoneSession();
+  const deleted = await fetch(box.origin + '/api/v1/boards/' + legacyLink.board, {
+    method: 'DELETE', headers: { authorization: 'Bearer ' + phone.token, 'x-pullboard-engine': String(ENGINE_VERSION) },
+  });
+  assert.equal(deleted.status, 200, 'the phone explicitly removes the old relay copy before linking with a new key');
   assert.equal((await box.cli('relay', 'on', '--url', box.origin)).code, 0,
     'the board can link again while the keychain remains locked');
 

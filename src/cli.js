@@ -68,7 +68,7 @@ import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
 import { formatSnapshotLimit, pendingSnapshotSize, pendingCheckpointProblem, relayCommandReceipt, relayCommandReceiptReported, relayLinked, relayOff, relayOn, relayOperation, relayRecovered, relayRevoke, relayStatus, relayTokens, syncRelay } from './relay.js';
-import { relayOnAll, revokeRelayDevice, unlinkedRelayProjects } from './relay-setup.js';
+import { autoLinkProject, relayOnAll, revokeRelayDevice, unlinkedRelayProjects } from './relay-setup.js';
 import { readRelayMachine } from './relay-machine.js';
 import { relayJoin, relayPair } from './relay-pairing-client.js';
 import { executePersonRequests } from './relay-request-execution.js';
@@ -2805,6 +2805,9 @@ async function runMain(argv, streams) {
   } catch { sync = false; needsRepo = false; }
   if (parsed) {
     try {
+      const [command, verb] = parsed.positionals;
+      if (!parsed.values.help && !parsed.values.version &&
+          (parsed.values.as === 'person' && command !== 'decisions' || command === 'relay' && ['on', 'join', 'revoke'].includes(verb))) requirePersonChannel(io.personChannel);
       checkoutSession = await bindCheckoutSession(io, parsed.positionals, parsed.values);
       if (checkoutSession?.lease) CHECKOUT_LEASES.set(io, checkoutSession.lease);
     } catch (error) {
@@ -2829,6 +2832,7 @@ async function runMain(argv, streams) {
     };
     if (needsRepo) rememberTrunk(io);
     if (sync) {
+      try { await autoLinkProject(io.cwd, io); } catch (error) { if (!(error instanceof Refused)) throw error; }
       await retry();
       try { await executePersonRequests(io.cwd, io, main); }
       catch (error) {
