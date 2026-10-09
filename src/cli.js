@@ -2806,7 +2806,8 @@ async function runMain(argv, streams) {
   if (parsed) {
     try {
       const [command, verb] = parsed.positionals;
-      if (parsed.values.as === 'person' || command === 'relay' && ['on', 'join', 'revoke'].includes(verb)) requirePersonChannel(io.personChannel);
+      if (!parsed.values.help && !parsed.values.version &&
+          (parsed.values.as === 'person' && command !== 'decisions' || command === 'relay' && ['on', 'join', 'revoke'].includes(verb))) requirePersonChannel(io.personChannel);
       checkoutSession = await bindCheckoutSession(io, parsed.positionals, parsed.values);
       if (checkoutSession?.lease) CHECKOUT_LEASES.set(io, checkoutSession.lease);
     } catch (error) {
