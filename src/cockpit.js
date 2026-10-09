@@ -1,10 +1,11 @@
 import { effectiveGuards, IN_STATE, MACHINE } from './machine.js';
 
 /**
- * The command phrases the CLI declares in HELP, longest first. Inline text chips "pullboard" only with one of
+ * The command phrases the CLI declares, as help --all prints them (HELP.all) and as each command's usage
+ * lines do, longest first. Inline text chips "pullboard" only with one of
  * these (test/cockpit.test.js keeps the list equal to HELP), so the words after a command stay prose.
  */
-export const PULLBOARD_COMMANDS = Object.freeze(["spec signers add","hook commit-msg","hook pre-commit","hook pre-merge-commit","hook pre-push","relay join","relay off","relay on","relay pair","spec check","spec show","spec signoff","spec unmet","spec view","add","answer","check","claim","decisions","doctor","done","edit","escalate","export","fact","forget","gate","help","hold","hook","hooks","import","inbox","init","join","lanes","ledger","lifecycle","list","log","merged","milestone","next","pass","prompt","refreeze","relay","release","resources","resume","roadmap","run","serve","settings","shout","show","spec","stats","status","submit","sweep","takeover","tour","verify","version","view","whoami","withdraw","worktree"]);
+export const PULLBOARD_COMMANDS = Object.freeze(["spec signers add","hook commit-msg","hook pre-commit","hook pre-merge-commit","hook pre-push","milestone add","milestone edit","milestone items","milestone move","milestone remove","prompt decompose","prompt plan","prompt review","prompt signoff","prompt verify","relay join","relay off","relay on","relay pair","relay revoke","relay tokens","spec apply","spec approve","spec check","spec show","spec signoff","spec unmet","spec view","add","answer","check","claim","decisions","doctor","done","edit","escalate","export","fact","forget","gate","help","hold","hook","hooks","import","inbox","init","join","lanes","ledger","lifecycle","list","log","merged","milestone","next","pass","prompt","refreeze","relay","release","resources","resume","roadmap","run","serve","settings","shout","show","spec","stats","status","submit","sweep","takeover","tour","verify","version","view","whoami","withdraw","worktree"]);
 /** A command in prose: its phrase, then only flags, numbers, #ids, quoted text, CAPS names, paths and agent ids. */
 const COMMAND_SOURCE = 'pullboard (?:' + PULLBOARD_COMMANDS.join('|') + ')(?![\\w-])(?: (?:--?[\\w-]+|\\d+|#\\d+|"[^"\\n]*"|[A-Z][A-Z0-9_]*|[\\w-]*[\\/.:@][^\\s"]*|[a-z]+-\\d+)(?![\\w-]))*';
 

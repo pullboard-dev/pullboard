@@ -811,18 +811,29 @@ test('the tabs fit one row on a phone [N26]', async () => {
   }
 });
 test('a pullboard command in prose chips only the command [N26]', async () => {
-  // The page's command list is the CLI's: every phrase HELP declares, from its usage lines, and nothing else.
+  // The page's command list is the CLI's: every "pullboard ..." that help --all prints (HELP.all) or a usage line
+  // declares, choices in [a|b] or a|b, and commands after " | ", and nothing else.
   const declared = new Set();
-  for (const row of Object.values(HELP.commands)) for (const usage of row.usages) {
-    const phrase = [];
-    for (const word of usage.split(/\s+/).slice(1)) {
-      if (/^[a-z][a-zA-Z-]*$/.test(word)) { phrase.push(word); continue; }
-      const choices = /^\[?([a-z][a-zA-Z-]*(?:\|[a-z][a-zA-Z-]*)+)\]?$/.exec(word);
-      if (choices) for (const choice of choices[1].split('|')) declared.add([...phrase, choice].join(' '));
-      break;
+  const read = (text) => {
+    for (const found of text.matchAll(/(?:^|[\s(`'"])pullboard ((?:\S+ ?)+?)(?= {2}|$|[;,.)](?:\s|$))/gm)) {
+      const tokens = found[1].trim().split(' ');
+      const phrase = [];
+      for (let n = 0; n < tokens.length; n++) {
+        const token = tokens[n];
+        if (/^[a-z][a-zA-Z-]*$/.test(token)) { phrase.push(token); continue; }
+        const choices = /^\[?([a-z][a-zA-Z-]*(?:\|[a-z][a-zA-Z-]*)+)\]?$/.exec(token);
+        if (choices) for (const choice of choices[1].split('|')) declared.add([...phrase, choice].join(' '));
+        else if (token === '|' && phrase.length === 1) {
+          for (let k = n + 1; k < tokens.length; k += 2) { if (!/^[a-z][a-zA-Z-]*$/.test(tokens[k])) break; declared.add(tokens[k]); if (tokens[k + 1] !== '|') break; }
+        }
+        break;
+      }
+      if (phrase.length) declared.add(phrase.join(' '));
     }
-    if (phrase.length) declared.add(phrase.join(' '));
-  }
+  };
+  read(HELP.all);
+  for (const row of Object.values(HELP.commands)) for (const usage of row.usages) read(usage);
+  for (const sub of ['milestone add', 'relay tokens', 'spec approve', 'prompt review']) assert.ok(declared.has(sub), `help --all declares ${sub}`);
   assert.deepEqual([...PULLBOARD_COMMANDS].sort(), [...declared].sort(), 'the view chips exactly the commands the CLI declares');
   assert.deepEqual(PULLBOARD_COMMANDS, [...PULLBOARD_COMMANDS].sort((a, b) => b.split(' ').length - a.split(' ').length), 'longest phrases first, so spec check wins over spec');
 
@@ -835,6 +846,7 @@ test('a pullboard command in prose chips only the command [N26]', async () => {
     'pullboard verify 235 reject goes on in words.',
     'Turn pullboard relay on now, and pullboard hold web --reason "a pause" after that.',
     "pullboard's own page has no command.",
+    'Then pullboard milestone add Launch for the person, and pullboard prompt review prints a guide.',
   ].join(' '));
   const view = await startView(box);
   try {
@@ -842,10 +854,10 @@ test('a pullboard command in prose chips only the command [N26]', async () => {
     page.run("view.tab = 'shouts'; render();");
     const feed = page.show('feed');
     const chips = [...feed.matchAll(/<code class="inline(?: long)?">([^<]*)<\/code>/g)].map((match) => match[1].replaceAll('&quot;', '"'));
-    assert.deepEqual(chips.filter((chip) => chip.startsWith('pullboard')), ['pullboard spec check', 'pullboard view', 'pullboard next --verify 235', 'pullboard verify 235', 'pullboard relay on', 'pullboard hold'],
+    assert.deepEqual(chips.filter((chip) => chip.startsWith('pullboard')), ['pullboard spec check', 'pullboard view', 'pullboard next --verify 235', 'pullboard verify 235', 'pullboard relay on', 'pullboard hold', 'pullboard milestone add', 'pullboard prompt review'],
       `each chip is the command and its arguments, never the words after it: ${JSON.stringify(chips)}`);
     assert.ok(chips.includes('docs/api.md') && chips.includes('--reason'), 'a path and a flag in the prose after a command still chip on their own');
-    for (const word of ['prints', 'serves', 'then', 'goes', 'now', 'after', 'own']) assert.ok(!chips.some((chip) => chip.split(' ').includes(word)), `"${word}" stays prose`);
+    for (const word of ['prints', 'serves', 'then', 'goes', 'now', 'after', 'own', 'for', 'a']) assert.ok(!chips.some((chip) => chip.split(' ').includes(word)), `"${word}" stays prose`);
   } finally {
     await view.stop();
   }
