@@ -125,7 +125,7 @@ function update(db, action) {
   }
 }
 
-/** Current holders and FIFO line for one resource. */
+/** Current holders and the landing-first line, with FIFO within each class. */
 function snapshot(db, name) {
   const holders = db.prepare('SELECT agent, repo, since, landing FROM holder WHERE name = ? ORDER BY since, token').all(name)
     .map((holder) => ({ ...holder, landing: holder.landing === 1 }));
@@ -138,14 +138,16 @@ function snapshot(db, name) {
 function waiterPosition(db, name, ticket) {
   const waiters = db.prepare('SELECT ticket, pid, agent, repo, landing FROM waiter WHERE name = ? ORDER BY ticket').all(name);
   const holders = db.prepare('SELECT pid, agent, repo FROM holder WHERE name = ?').all(name);
-  const holdsSlot = (waiter) => holders.some((holder) => holder.pid === waiter.pid && holder.agent === waiter.agent && holder.repo === waiter.repo);
+  /** A live process owns its leases even if it changes descriptive agent or repository labels. */
+  const holdsSlot = (waiter) => holders.some((holder) => holder.pid === waiter.pid);
+  /** Leave a waiting independent landing a slot before a holder takes another lease. */
   const blockedByLanding = (waiter) => holdsSlot(waiter)
     && waiters.some((other) => other.landing === 1 && other.pid !== waiter.pid);
   const eligible = waiters.filter((waiter) => !blockedByLanding(waiter));
   const current = waiters.find((waiter) => waiter.ticket === ticket);
   if (!current) return eligible.length + 1;
   const currentIndex = eligible.findIndex((waiter) => waiter.ticket === ticket);
-  if (currentIndex < 0) return eligible.length + 1;
+  if (currentIndex < 0) return Math.max(2, eligible.length + 1);
   if (current.landing === 1) return eligible.slice(0, currentIndex + 1).filter((waiter) => waiter.landing === 1).length;
   const landings = eligible.filter((waiter) => waiter.landing === 1).length;
   const earlierOrdinary = eligible.filter((waiter) => waiter.landing !== 1 && waiter.ticket <= ticket).length;

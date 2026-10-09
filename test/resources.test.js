@@ -27,17 +27,24 @@ const lease = await takeResource({ name, capacity: Number(capacity), scope, root
   if (!lastWait || rejoined) { lastWait = state; console.log(state); }
 } });
 console.log(JSON.stringify({acquired:agent}));
+let secondLease;
 if (Number(stallMs) > 0) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Number(stallMs));
   console.log(JSON.stringify({resumed:true}));
 }
 process.stdin.setEncoding('utf8');
 for await (const line of process.stdin) {
+  if (line.trim() === 'second') {
+    takeResource({ name, capacity: Number(capacity), scope, root, agent, landing: true }).then((nextLease) => {
+      secondLease = nextLease;
+      console.log(JSON.stringify({secondAcquired: agent}));
+    });
+  }
   if (line.trim() === 'renew') {
     try { lease.renew(); console.log(JSON.stringify({renewed:true})); }
     catch (error) { console.log(JSON.stringify({renewError:error.code})); }
   }
-  if (line.trim() === 'release') { lease.release(); break; }
+  if (line.trim() === 'release') { lease.release(); secondLease?.release(); break; }
 }
 `;
 
@@ -311,14 +318,14 @@ test('[Q1,Q2] a holder cannot queue a landing second slot ahead of another landi
     first = await takeResource({ name: 'gate', capacity: 2, root: box.first, agent: 'same-run' });
     other = worker(box, { capacity: 2, agent: 'other-run' });
     assert.equal((await acquired(other)).acquired, 'other-run');
-    extraPromise = takeResource({ name: 'gate', capacity: 2, root: box.first, agent: 'same-run', landing: true })
+    extraPromise = takeResource({ name: 'gate', capacity: 2, root: box.second, agent: 'second-label', landing: true })
       .then((lease) => { extraLease = lease; return lease; });
-    await waitUntil(() => privateList(box)[0].line.some(({ agent, landing: isLanding }) => agent === 'same-run' && isLanding), 'the same process second slot to queue');
+    await waitUntil(() => privateList(box)[0].line.some(({ agent, landing: isLanding }) => agent === 'second-label' && isLanding), 'the same process second slot to queue');
 
     landing = worker(box, { capacity: 2, agent: 'next-landing', landing: true });
     assert.equal((await event(landing)).waiting, 1, 'the later landing is the first eligible landing');
     assert.deepEqual(privateList(box)[0].line.map(({ agent, landing: isLanding }) => [agent, isLanding]), [
-      ['same-run', true], ['next-landing', true],
+      ['second-label', true], ['next-landing', true],
     ]);
 
     await release(other);
@@ -329,7 +336,7 @@ test('[Q1,Q2] a holder cannot queue a landing second slot ahead of another landi
     await release(landing);
     landing = null;
     second = await extraPromise;
-    assert.deepEqual(privateList(box)[0].holders.map(({ agent }) => agent), ['same-run', 'same-run']);
+    assert.deepEqual(privateList(box)[0].holders.map(({ agent }) => agent), ['same-run', 'second-label']);
   } finally {
     if (other && !other.exitResult) await release(other);
     if (landing && !landing.exitResult) {
@@ -344,6 +351,65 @@ test('[Q1,Q2] a holder cannot queue a landing second slot ahead of another landi
     if (extraPromise && !extraLease) {
       await Promise.race([extraPromise.then((lease) => lease.release()), delay(500)]);
     }
+    if (previousHome === undefined) delete process.env.PULLBOARD_HOME;
+    else process.env.PULLBOARD_HOME = previousHome;
+  }
+});
+
+/** A capacity-three queue must not grant an empty slot to holders queued for their own second slot. */
+test('[Q1,Q2] landing holders leave an empty slot for the next eligible landing [Q1,Q2]', async () => {
+  const box = fixture();
+  const previousHome = process.env.PULLBOARD_HOME;
+  process.env.PULLBOARD_HOME = box.home;
+  let firstA;
+  let secondA;
+  let holderB;
+  let holderC;
+  let secondAPromise;
+  let secondAAcquired = false;
+  try {
+    firstA = await takeResource({ name: 'gate', capacity: 3, root: box.first, agent: 'holder-a' });
+    holderB = worker(box, { capacity: 3, agent: 'holder-b' });
+    holderC = worker(box, { capacity: 3, agent: 'holder-c' });
+    assert.equal((await acquired(holderB)).acquired, 'holder-b');
+    assert.equal((await acquired(holderC)).acquired, 'holder-c');
+
+    secondAPromise = takeResource({ name: 'gate', capacity: 3, root: box.first, agent: 'holder-a', landing: true })
+      .then((lease) => { secondAAcquired = true; secondA = lease; return lease; });
+    await waitUntil(() => privateList(box)[0].line.some(({ agent, landing }) => agent === 'holder-a' && landing), 'holder A second landing to queue');
+    holderB.stdin.write('second\n');
+    await waitUntil(() => privateList(box)[0].line.filter(({ landing }) => landing).length === 2, 'holder B second landing to join');
+
+    await release(holderC);
+    holderC = null;
+    await delay(300);
+    assert.deepEqual(privateList(box)[0].holders.map(({ agent }) => agent).sort(), ['holder-a', 'holder-b'], 'neither holder takes the free third slot while the other holder landing waits');
+    assert.equal(secondAAcquired, false, 'A second slot remains queued');
+    assert.deepEqual(holderB.pendingLines.filter((line) => line.includes('secondAcquired')), [], 'B second slot remains queued');
+
+    firstA.release();
+    firstA = null;
+    await secondAPromise;
+    assert.ok(secondAAcquired, 'releasing A first makes its landing the next eligible landing');
+    assert.equal((await event(holderB)).secondAcquired, 'holder-b', 'B can finish after A no longer waits');
+    holderB.stdin.end('release\n');
+    assert.equal((await holderB.finished).code, 0, holderB.errors);
+    holderB.lines.close();
+    holderB = null;
+    secondA.release();
+    secondA = null;
+  } finally {
+    for (const child of [holderB, holderC]) if (child && !child.exitResult) child.kill('SIGKILL');
+    await Promise.all([holderB, holderC].filter(Boolean).map((child) => child.finished));
+    for (const child of [holderB, holderC]) child?.lines.close();
+    firstA?.release();
+    secondA?.release();
+    privateList(box); // Purge any dead child holder/waiter rows before dropping the private database.
+    if (secondAPromise && !secondA) {
+      await secondAPromise;
+    }
+    secondA?.release();
+    privateList(box);
     if (previousHome === undefined) delete process.env.PULLBOARD_HOME;
     else process.env.PULLBOARD_HOME = previousHome;
   }
@@ -364,7 +430,9 @@ test('[Q1,Q2] landing priority preserves tickets while an older resource databas
     }
   } finally { db.close(); }
 
-  assert.deepEqual(privateList(box)[0].line.map(({ agent, landing }) => [agent, landing]), [['old-first', false], ['old-second', false]]);
+  let retainedLine;
+  assert.doesNotThrow(() => { retainedLine = privateList(box)[0].line; }, 'the previous queue schema opens without losing its waiting runs');
+  assert.deepEqual(retainedLine.map(({ agent, landing }) => [agent, landing]), [['old-first', false], ['old-second', false]]);
   const migrated = new DatabaseSync(join(box.home, 'resources.sqlite'));
   try {
     assert.deepEqual(migrated.prepare('SELECT ticket, landing FROM waiter ORDER BY ticket').all().map(({ ticket, landing }) => ({ ticket, landing })), [
