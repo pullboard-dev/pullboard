@@ -9,13 +9,13 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import * as store from './board.js';
-import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
+import { CONFIG_FILE, COORDINATOR, DOCTRINE_FILE, LEGACY_DOCTRINE_FILE, loadConfig } from './config.js';
 import { doctrineHistory, loadDoctrine } from './doctrine.js';
 import { agentSessionDigest, requirePersonChannel } from './person.js';
 import { bindLocalSession } from './agent-session.js';
 import { decisionProjection, planRowApply, prepareRowDecisions, restoreRowApply, writeRowApply } from './row-decisions.js';
 import { digestOf, gateReport, runGate, runShell, withGateSlot } from './gate.js';
-import { bareWorktreeFinding, contains, differFromHead, git, gitChildEnv, headCommit, headTree, isClean, mainCheckout, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
+import { bareWorktreeFinding, contains, differFromHead, git, gitChildEnv, headCommit, headTree, invalidateGitFacts, isClean, mainCheckout, repoInfo, resolveCommit, tryGit, untracked, withGitFacts } from './git.js';
 import {
   FIX_NOTE,
   applyFixers,
@@ -38,6 +38,7 @@ import {
   idProblems,
   lintSpec,
   loadSpec,
+  legacyDoctrineRenameBase,
   permanenceProblems,
   parseSpec,
   readSignoffs,
@@ -78,9 +79,10 @@ const CHECKOUT_LEASES = new WeakMap();
  *
  * @param {string} root
  * @param {string} path
+ * @param {string} [revision]
  * @returns {{ status: number, stdout: string }}
  */
-function coordinatorFile(root, path) {
+function coordinatorFile(root, path, revision) {
   const commonDir = git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
   const coordinatorRoot = dirname(commonDir);
   const env = { ...gitChildEnv(root), GIT_NO_REPLACE_OBJECTS: '1' };
@@ -94,7 +96,7 @@ function coordinatorFile(root, path) {
       'the primary checkout must be on its attached local branch to establish the collision baseline; the coordinator returns it to its branch',
     );
   }
-  const result = spawnSync('git', ['--no-replace-objects', 'show', `${ref}:${path}`], {
+  const result = spawnSync('git', ['--no-replace-objects', 'show', `${revision ?? ref}:${path}`], {
     cwd: coordinatorRoot, env, encoding: 'utf8',
   });
   return { status: result.status ?? 1, stdout: result.stdout ?? '' };
@@ -1811,6 +1813,7 @@ async function sweepHere(ctx, board, me, values) {
   }
   const max = values.max === undefined ? 20 : idArg(values.max, 'a number after --max');
   const ran = spawnSync(report, { cwd: ctx.info.root, shell: true, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  invalidateGitFacts();
   const problems = parseProblems(`${ran.stdout ?? ''}\n${ran.stderr ?? ''}`, ctx.info.root);
   if (!problems.length) {
     ctx.io.say(`the checker reported no problems I can read (exit ${ran.status}); nothing to file`);
@@ -1828,6 +1831,7 @@ async function sweepHere(ctx, board, me, values) {
   const blind = [];
   for (const item of items) {
     const canary = spawnSync(item.check, { cwd: ctx.info.root, shell: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    invalidateGitFacts();
     if (canary.status === 0) {
       blind.push(item.file);
       continue;
@@ -2250,8 +2254,14 @@ async function specCommand(io, { first, second, rest, values }) {
     const files = [[ctx.config.spec, spec], ...(practice.exists ? [[practice.name, practice]] : [])];
     for (const [, parsed] of files) assertRequiredSigners(ctx.info.root, parsed.rows);
     const collisionFiles = [[ctx.config.spec, spec], ...(practice.repoExists ? [[practice.name, practice.repo]] : [])];
+    const renameBase = collisionFiles.some(([name]) => name === DOCTRINE_FILE)
+      ? legacyDoctrineRenameBase(ctx.info.root, DOCTRINE_FILE)
+      : null;
     const previousCounts = new Map(collisionFiles.map(([name]) => {
-      const previous = coordinatorFile(ctx.info.root, name);
+      const baselineName = renameBase && name === DOCTRINE_FILE ? LEGACY_DOCTRINE_FILE : name;
+      const previous = name === DOCTRINE_FILE && !renameBase
+        ? { status: 1, stdout: '' }
+        : coordinatorFile(ctx.info.root, baselineName, renameBase ?? undefined);
       const rows = previous.status === 0 ? parseSpec(previous.stdout, { strictGrammarVersion: false }).rows : [];
       const counts = new Map();
       for (const row of rows) counts.set(row.id, (counts.get(row.id) ?? 0) + 1);
@@ -2581,8 +2591,14 @@ function rememberTrunk(io) {
 
 /** Run one command and emit its single versioned JSON result when requested (A1). */
 export async function main(argv, streams) {
+  return withGitFacts(() => runMain(argv, streams));
+}
+
+/** Parse and execute one CLI command, binding its checkout session and Git-fact scope. */
+async function runMain(argv, streams) {
   const io = commandOutput(argv, streams);
   let sync = true;
+  let needsRepo = true;
   let parsed;
   let checkoutSession;
   try {
@@ -2592,13 +2608,13 @@ export async function main(argv, streams) {
       positionals: parsed.positionals.slice(1),
       values: Object.fromEntries(Object.keys(parsed.values).filter(key => key !== 'json').sort().map(key => [key, parsed.values[key]])) };
     sync = Boolean(command) && !parsed.values.help && !parsed.values.version && !['help', 'version', 'hook', 'init', 'relay', 'tour'].includes(command);
-  } catch { sync = false; }
+    needsRepo = !(parsed.values.help || parsed.values.version || command === 'help' || command === 'version');
+  } catch { sync = false; needsRepo = false; }
   if (parsed) {
     try {
       checkoutSession = await bindCheckoutSession(io, parsed.positionals, parsed.values);
       if (checkoutSession?.lease) CHECKOUT_LEASES.set(io, checkoutSession.lease);
-    }
-    catch (error) {
+    } catch (error) {
       if (!(error instanceof Refused)) throw error;
       io.refusal(error);
       io.err(`pullboard: ${error.message}`);
@@ -2615,13 +2631,13 @@ export async function main(argv, streams) {
         if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
       }
     };
-    rememberTrunk(io);
+    if (needsRepo) rememberTrunk(io);
     if (sync) {
       await retry();
       try { await executePersonRequests(io.cwd, io, main); }
       catch (error) {
         if (!(error instanceof Refused)) throw error;
-        if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err('pullboard: ' + error.message);
+        if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
       }
     }
     const code = await runCommand(argv, io);

@@ -621,9 +621,15 @@ export function validateItemAddition(board, { by, lane, title, criterion = '', p
  */
 export function editItem(board, id, { agentId, brief, route, criterion, check, checkBaseline }) {
   atomic(board, () => {
+    const stored = itemById(board, id);
+    const expiredHolder = stored.item_status === 'claimed' && !isHeld(board, stored) ? stored.item_owner : null;
     const { item, next, command, unfreeze } = validateItemEdit(board, id, { agentId, brief, route, criterion, check });
     const baseline = normalizeCheckBaseline(agentId, command, checkBaseline);
-    setItem(board, id, { ...next, ...(unfreeze ? { item_frozen: null, item_frozen_digest: null } : {}) });
+    const clearFrozen = unfreeze || Boolean(expiredHolder);
+    if (expiredHolder) {
+      moveItem(board, id, 'lapse', { checks: {}, set: () => ({ item_owner: null, item_lease_until: null }) });
+    }
+    setItem(board, id, { ...next, ...(clearFrozen ? { item_frozen: null, item_frozen_digest: null } : {}) });
     if (baseline || next.item_check !== item.item_check) saveCheckBaseline(board, id, baseline);
     logEvent(board, agentId, 'edit', id, {
       ...(next.item_brief !== item.item_brief ? { brief: `${next.item_brief.length} characters` } : {}),
@@ -631,7 +637,8 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, c
       ...(next.item_criterion !== item.item_criterion ? { criterion: next.item_criterion } : {}),
       ...(command !== undefined ? { check: next.item_check } : {}),
       ...(baseline ? { checkBaseline: baseline } : {}),
-      ...(unfreeze && item.item_frozen_digest ? { unfrozen: item.item_frozen_digest } : {}),
+      ...(clearFrozen && item.item_frozen_digest ? { unfrozen: item.item_frozen_digest } : {}),
+      ...(expiredHolder ? { expiredHolder } : {}),
     });
   });
 }
