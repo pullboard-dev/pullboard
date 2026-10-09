@@ -289,7 +289,8 @@ form.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; paddin
 .feed > .empty { display: block; }
 .feed > div:first-child, .feed > .day + div { border-top: 0; }
 /* The shout composer: one bar, to on the left, the message growing with what is typed, send on the right. */
-.shout-form { padding: 8px; }
+.shout-form { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px; }
+.shout-form > .composer { flex: 1 1 100%; min-width: 0; }
 .composer { display: flex; align-items: flex-end; gap: 6px; padding: 4px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); }
 .composer:focus-within { border-color: var(--accent); }
 .composer .to { display: flex; flex: none; align-items: center; gap: 4px; padding: 0 4px 0 10px; border-right: 1px solid var(--line); color: var(--ink-faint); font-size: 12px; }
