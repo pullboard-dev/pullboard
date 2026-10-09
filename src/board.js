@@ -680,19 +680,40 @@ function normalizeCheckBaseline(agentId, command, baseline) {
   if (baseline === undefined) return undefined;
   coordinatorCheck(agentId, command ?? '');
   if (!command || !baseline || typeof baseline !== 'object' || Array.isArray(baseline)
-    || baseline.command !== command || !['green', 'red', 'unavailable'].includes(baseline.result)
+    || baseline.command !== command || !['green', 'red', 'unavailable', 'pending'].includes(baseline.result)
     || !(baseline.main === null || typeof baseline.main === 'string' && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(baseline.main))
     || (baseline.result !== 'unavailable' && baseline.main === null)
+    || (baseline.result === 'pending' && !baseline.request)
+    || (baseline.request !== undefined && (typeof baseline.request !== 'string' || !/^[a-f0-9-]{36}$/.test(baseline.request)))
     || (baseline.reason !== undefined && typeof baseline.reason !== 'string')
     || (baseline.seconds !== undefined && (!Number.isSafeInteger(baseline.seconds) || baseline.seconds < 0))) {
     throw new Refused('BAD_CHECK_BASELINE', 'the check baseline must describe this command at a main commit; set --check again from the coordinator');
   }
   return {
     command, main: baseline.main, result: baseline.result,
+    ...(baseline.request === undefined ? {} : { request: baseline.request }),
     ...(baseline.reason === undefined ? {} : { reason: baseline.reason }),
     ...(baseline.seconds === undefined ? {} : { seconds: baseline.seconds }),
     ...(baseline.result === 'green' ? { warning: 'CRITERION_PROVES_NOTHING' } : {}),
   };
+}
+
+/** Record a captured result only for the still-current authorized background request [V2,H16]. */
+export function completeCheckBaseline(board, id, { agentId, expected, baseline }) {
+  return atomic(board, () => {
+    const result = normalizeCheckBaseline(agentId, baseline?.command, baseline);
+    if (!expected || !result || result.result === 'pending' || result.command !== expected.command || result.main !== expected.main
+      || typeof expected.request !== 'string' || !/^[a-f0-9-]{36}$/.test(expected.request)) {
+      throw new Refused('BAD_CHECK_BASELINE', 'a completed baseline must match its authorized request; set --check again from the coordinator');
+    }
+    const item = itemById(board, id);
+    const current = itemCheckBaseline(board, item);
+    if (current?.result !== 'pending' || current.request !== expected.request || current.command !== expected.command || current.main !== expected.main) return false;
+    const recorded = { ...result, request: expected.request };
+    saveCheckBaseline(board, id, recorded);
+    logEvent(board, agentId, 'check-baseline', id, { checkBaseline: recorded });
+    return true;
+  });
 }
 
 /** Store or clear an item's observation atomically with its check and immutable audit event. */

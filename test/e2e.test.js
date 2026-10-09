@@ -1086,7 +1086,7 @@ test('an item carries a brief to whoever claims it; a light agent sees only its 
   assert.match(box.run(box.repo, 'add', 'web', 'Copy', '--brief', 'x', '--brief-file', 'y').err, /USAGE.*give the brief once/);
   const foreign = box.run(box.repo, 'add', 'web', 'Copy', '--route', 'light', '--criterion', 'c', '--check', 'true', '--brief', LIGHT_BRIEF.replace('web/page.js', 'api/server.js'));
   assert.match(foreign.err, /BRIEF_LANE.*api\/server.js \(api's\)/);
-  const added = box.run(box.repo, 'add', 'web', 'Copy', 'the', 'header', '--route', 'light', '--criterion', 'the page shows the header', '--check', 'test -f web/page.js', '--brief-file', join(box.dir, 'brief.md'));
+  const added = box.run(box.repo, 'add', 'web', 'Copy', 'the', 'header', '--route', 'light', '--criterion', 'the page shows the header', '--check', 'test -f web/page.js', '--brief-file', join(box.dir, 'brief.md'), '--wait');
   assert.equal(added.code, 0, added.err);
   assert.equal(added.out.trim(), `#2\ncheck baseline red at main ${box.git(box.repo, 'rev-parse', 'main')}: test -f web/page.js`);
   assert.match(box.run(box.repo, 'list').out, /#2 {2}open {2}web {2}Copy the header {2}light/);

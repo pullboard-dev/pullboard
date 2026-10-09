@@ -157,6 +157,10 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
         personRequests: personRequestStatuses(db),
         milestones: milestoneRoadmap(board.root, db),
         rowDecisions: store.rowDecisions(db),
+        checks: new Map(store.listItems(db, { all: true }).map((item) => store.getItem(db, item.item_id)).map((item) => [item.item_id, {
+          check: item.item_check,
+          ...(item.item_check_baseline ? { checkBaseline: item.item_check_baseline } : {}),
+        }])),
         proofStats: proofStats(db),
         threads: new Map(store.listItems(db, { all: true }).map((item) => [item.item_id, store.itemThread(db, item.item_id)])),
       }));
@@ -164,6 +168,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       state.requests = projectData.requests;
       state.personRequests = projectData.personRequests;
       state.milestones = projectData.milestones;
+      state.items = state.items.map((item) => ({ ...item, ...projectData.checks.get(item.id) }));
       state = projectRowDecisions(projectData.rowDecisions, state);
       state.items = state.items.map((item) => ({ ...item, thread: projectData.threads.get(item.id) ?? [] }));
       return state;
