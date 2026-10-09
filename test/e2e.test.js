@@ -12,6 +12,8 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -22,6 +24,7 @@ import { after, test } from 'node:test';
 import { parseSpec } from '../src/spec.js';
 import { checkAtCommit } from '../src/trusted-policy.js';
 import * as store from '../src/board.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const cockpitSource = () => readFileSync(resolve(import.meta.dirname, '../src/cockpit.js'), 'utf8');
@@ -54,6 +57,7 @@ function sandbox() {
     PULLBOARD_HOME: join(dir, 'pullboard-home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
   };
+  for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
   delete env.PULLBOARD_RELAY_TOKEN;
   const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
   const tryGit = (cwd, ...args) => spawnSync('git', args, { cwd, env, encoding: 'utf8' });
@@ -178,11 +182,27 @@ test('init writes config, spec, agent docs and hooks once, and never clobbers [I
   assert.equal(readFileSync(join(repo, 'CLAUDE.md'), 'utf8'), '@AGENTS.md\n');
   assert.equal(box.git(repo, 'config', '--get', 'core.hooksPath'), '.githooks');
   for (const hook of ['pre-commit', 'commit-msg', 'pre-push']) assert.ok(existsSync(join(repo, '.githooks', hook)));
-  const practice = readFileSync(join(repo, 'DOCTRINE.md'), 'utf8');
-  assert.ok(practice.startsWith('# Doctrine'));
-  assert.deepEqual(parseSpec(practice).rows, [], 'fresh init copies no standard rules [D4]');
-  assert.equal(parseSpec(practice).sections.length, 6);
-  assert.equal(practice.split('Inherits Pullboard standard doctrine version 1.').length, 2);
+  const doctrine = readFileSync(join(repo, 'DOCTRINE.md'), 'utf8');
+  assert.ok(doctrine.startsWith('# Doctrine'));
+  assert.deepEqual(parseSpec(doctrine).rows, [], 'fresh init copies no standard rules [D4]');
+  assert.equal(parseSpec(doctrine).sections.length, 6);
+  assert.equal(doctrine.split('Inherits Pullboard standard doctrine version 1.').length, 2);
+  assert.equal(box.run(repo, 'spec', 'check').code, 0, 'fresh init has no repeated ids [A5]');
+  const specRows = parseSpec(readFileSync(join(repo, 'SPEC.md'), 'utf8'));
+  const doctrineRows = parseSpec(doctrine);
+  const specPrefixes = specRows.sections.map(({ name }) => /^([A-Z])\s/u.exec(name)?.[1]).filter(Boolean);
+  const doctrinePrefixes = doctrineRows.sections.map(({ name }) => /^([A-Z])\s/u.exec(name)?.[1]).filter(Boolean);
+  assert.equal(specPrefixes.some((prefix) => doctrinePrefixes.includes(prefix)), false, 'init assigns distinct row prefixes to SPEC and DOCTRINE');
+  for (const [file, parsed] of [['SPEC.md', specRows], ['DOCTRINE.md', doctrineRows]]) {
+    const source = readFileSync(join(repo, file), 'utf8');
+    const additions = parsed.sections.map(({ name }) => {
+      const prefix = /^([A-Z])\s/u.exec(name)?.[1];
+      return prefix ? `\n- ${prefix}1 [draft] A starter row.\n` : '';
+    }).join('');
+    writeFileSync(join(repo, file), `${source}${additions}`);
+  }
+  const representativeRows = box.run(repo, 'spec', 'check');
+  assert.equal(representativeRows.code, 0, representativeRows.err || representativeRows.out);
   assert.match(agents, /PB1 \(standard 1\)/, 'fresh guidance shows inherited rules [D3]');
   assert.ok(existsSync(join(repo, '.claude', 'skills', 'pullboard-decompose', 'SKILL.md')));
   assert.match(second.out, /kept DOCTRINE.md/);
@@ -265,6 +285,38 @@ test('spec check lints both files; spec view writes one page into the git dir [S
   const file = join(box.repo, '.git', 'pullboard', 'spec.html');
   assert.ok(readFileSync(file, 'utf8').includes('The page renders.'));
   assert.match(view.out, /open: file:\/\//);
+});
+
+test('items and commit headers cite doctrine rows by namespace; bare collisions warn [A5]', () => {
+  const box = project();
+  const added = box.run(box.repo, 'add', 'web', 'Use the inherited rule', '--specs', 'doctrine:PB1');
+  assert.equal(added.code, 0, added.err);
+  assert.match(box.run(box.repo, 'show', '1').out, /\[doctrine:PB1\]/u);
+
+  const message = join(box.dir, 'message.txt');
+  writeFileSync(message, 'feat(web): use the inherited rule [doctrine:PB1]\n');
+  const namespaced = box.run(box.repo, 'hook', 'commit-msg', message);
+  assert.equal(namespaced.code, 0, namespaced.err);
+  assert.doesNotMatch(namespaced.out, /warning:/u);
+
+  const doctrine = readFileSync(join(box.repo, 'DOCTRINE.md'), 'utf8');
+  writeFileSync(join(box.repo, 'DOCTRINE.md'), `${doctrine}\n## Local\n- G1 [draft] A local rule colliding with SPEC.md.\n`);
+  writeFileSync(message, 'feat(web): use the product rule [G1]\n');
+  const warning = box.run(box.repo, 'hook', 'commit-msg', message);
+  assert.equal(warning.code, 0, warning.err);
+  assert.match(warning.out, /warning: G1 is a known collision at SPEC\.md:4 and DOCTRINE\.md:\d+; bare ids cite SPEC\.md/u);
+  assert.match(warning.out, /use doctrine:G1 for a doctrine row/u);
+  const check = box.run(box.repo, 'spec', 'check');
+  assert.equal(check.code, 1);
+  assert.match(check.out, /duplicate id; also appears at DOCTRINE\.md:/u);
+  const legacy = readFileSync(join(box.repo, 'DOCTRINE.md'), 'utf8');
+  rmSync(join(box.repo, 'DOCTRINE.md'));
+  writeFileSync(join(box.repo, 'PRACTICE.md'), legacy);
+  const legacyCheck = box.run(box.repo, 'spec', 'check');
+  assert.equal(legacyCheck.code, 1);
+  assert.match(legacyCheck.out, /SPEC\.md:4 G1 error: duplicate id; also appears at PRACTICE\.md:\d+/u);
+  assert.match(legacyCheck.out, /PRACTICE\.md:\d+ G1 error: duplicate id; also appears at SPEC\.md:4/u);
+  assert.doesNotMatch(legacyCheck.out, /DOCTRINE\.md:/u);
 });
 
 test('the board lives in the git common dir; every worktree sees it; nothing is committed [B1, B3]', () => {
@@ -720,7 +772,7 @@ test('a red gate refuses submit [V4]', () => {
   assert.match(refused.err, /GATE_RED/);
 });
 
-test('verify runs at the submitted commit, against the criterion frozen at claim [V3, V7, V9]', () => {
+test('verify runs at the submitted commit, against the criterion frozen at claim [V3, V7, V9, V19]', () => {
   const box = project();
   box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
   box.run(box.web, 'claim', '1');
@@ -1968,6 +2020,114 @@ test('accept without check.install keeps CHECK_RED and names the missing setting
   assert.match(error.next, /^reject with the failing behavior or ask the builder to fix and resubmit/);
 });
 
+test('check refusal shows secret-scanned failure lines and a durable full-output file [V18,V2]', () => {
+  const planted = 'sk-proj-' + 'a'.repeat(40);
+  const box = privateCheckSubmission({ check: `i=1; while [ "$i" -le 45 ]; do echo "CHECK-LINE-$i"; i=$((i + 1)); done; printf '%s\\n' 'ASSERTION: expected 4, received 3' 'OPENAI_KEY=${planted}'; exit 1` });
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'the frozen assertion fails', '--json');
+  assert.equal(refused.code, 1, refused.err);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'CHECK_RED');
+  assert.match(error.message, /check failed \(exit 1\)/);
+  assert.match(error.message, /ASSERTION: expected 4, received 3/);
+  assert.match(error.message, /redacted OpenAI key/);
+  assert.doesNotMatch(error.message, new RegExp(planted));
+  assert.match(error.message, /last output lines \(up to 40\)/);
+  const tail = /last output lines \(up to 40\):\n([\s\S]*?)\nfull output file:/.exec(error.message)?.[1] ?? '';
+  assert.match(tail, /CHECK-LINE-9/);
+  assert.doesNotMatch(tail, /CHECK-LINE-8/);
+  assert.match(tail, /CHECK-LINE-45/);
+  const artifact = /full output file: ([^\n]+)/.exec(error.message)?.[1];
+  assert.ok(artifact && existsSync(artifact), `missing diagnostic artifact: ${artifact}`);
+  const saved = readFileSync(artifact, 'utf8');
+  assert.match(saved, /ASSERTION: expected 4, received 3/);
+  assert.match(saved, /redacted OpenAI key/);
+  assert.doesNotMatch(saved, new RegExp(planted));
+  assert.equal((statSync(artifact).mode & 0o777), 0o600, 'private verifier artifacts are owner-readable only');
+});
+
+test('check refusal stays typed and includes bounded diagnostics when artifact storage is unavailable [V18,V19]', () => {
+  const box = privateCheckSubmission({ check: 'echo diagnostic-tail-marker; exit 1' });
+  const gitDir = box.git(box.repo, 'rev-parse', '--git-common-dir');
+  const outputDirectory = join(box.repo, gitDir, 'pullboard');
+  mkdirSync(outputDirectory, { recursive: true });
+  writeFileSync(join(outputDirectory, 'check-output'), 'blocks the diagnostic directory');
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'the failing check cannot save a full artifact', '--json');
+  assert.equal(refused.code, 1);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'CHECK_RED');
+  assert.match(error.message, /diagnostic-tail-marker/);
+  assert.match(error.message, /full output file: \(unavailable: EEXIST\)/);
+  assert.match(error.next, /^reject with the failing behavior/);
+});
+
+test('private worker drains noisy output and reports a failed log path instead of timing out [V18,V19]', () => {
+  const box = project();
+  const worker = resolve(import.meta.dirname, '../src/private-check-worker.js');
+  const output = spawnSync(process.execPath, [worker], {
+    input: JSON.stringify({ command: `node -e 'process.stdout.write("START-WORKER\\n"); process.stdout.write(Buffer.alloc(20 * 1024 * 1024, 120)); process.stdout.write("\\nEND-WORKER\\n")'`,
+      timeout: 10_000, pidFile: join(box.dir, 'worker.pid'), logPath: join(box.dir, 'missing', 'check.log') }),
+    encoding: 'utf8', timeout: 15_000, maxBuffer: 64 * 1024 * 1024,
+  });
+  assert.equal(output.status, 0, output.stderr);
+  const result = JSON.parse(output.stdout);
+  assert.equal(result.status, 0);
+  assert.deepEqual(result.error, null);
+  assert.deepEqual(result.logError, { code: 'ENOENT' });
+  assert.match(result.output, /START-WORKER/);
+  assert.match(result.output, /END-WORKER/);
+  assert.match(result.output, /output capped at 8 MiB; middle omitted/);
+});
+
+test('full multiline output artifact streams beyond the bounded capture under a constrained heap [V18,V2]', () => {
+  const box = privateCheckSubmission({ check: `node -e 'const fs=require("node:fs"); const line=Buffer.alloc(1023,120); fs.writeSync(1,"START-FULL\\n"); for(let i=0;i<9000;i++){fs.writeSync(1,line);fs.writeSync(1,"\\n")} fs.writeSync(1,"TAIL-FULL-OUTPUT\\n"); process.exitCode=1'` });
+  box.env.NODE_OPTIONS = '--max-old-space-size=96';
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'the full failing check output is retained', '--json');
+  assert.equal(refused.code, 1, refused.err);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'CHECK_RED');
+  assert.match(error.message, /TAIL-FULL-OUTPUT/);
+  const artifact = /full output file: ([^\n]+)/.exec(error.message)?.[1];
+  assert.ok(artifact && existsSync(artifact));
+  const saved = readFileSync(artifact, 'utf8');
+  assert.ok(Buffer.byteLength(saved) > 8 * 1024 * 1024);
+  assert.match(saved, /START-FULL/);
+  assert.match(saved, /TAIL-FULL-OUTPUT/);
+  assert.equal((statSync(artifact).mode & 0o777), 0o600);
+});
+
+test('oversized single output lines are discarded with an explicit safe-scan marker [V18,V2]', () => {
+  const planted = 'sk-proj-' + 'z'.repeat(40);
+  const box = privateCheckSubmission({ check: `node -e 'process.stdout.write("BEGIN-LONG\\n"+"😀".repeat(17*1024)+"${planted}\\nTAIL-LONG\\n");process.exitCode=1'` });
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'the oversized diagnostic line must fail closed', '--json');
+  assert.equal(refused.code, 1, refused.err);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'CHECK_RED');
+  assert.match(error.message, /redacted output line exceeds 64 KiB safe-scan limit/);
+  assert.match(error.message, /TAIL-LONG/);
+  const artifact = /full output file: ([^\n]+)/.exec(error.message)?.[1];
+  assert.ok(artifact && existsSync(artifact));
+  const saved = readFileSync(artifact, 'utf8');
+  assert.match(saved, /redacted output line exceeds 64 KiB safe-scan limit/);
+  assert.doesNotMatch(saved, new RegExp(planted));
+});
+
+test('stream scanning handles UTF-8 and a secret split across read chunks [V18,V2]', () => {
+  const planted = 'sk-proj-' + 'b'.repeat(40);
+  const box = privateCheckSubmission({ check: `node -e 'const fs=require("node:fs"); fs.writeSync(1,"x".repeat(32766)+"😀\\n"); fs.writeSync(1,"x".repeat(32762)+"${planted}\\nTAIL-CHUNK\\n"); process.exitCode=1'` });
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'the streamed scanner handles chunk boundaries', '--json');
+  assert.equal(refused.code, 1, refused.err);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'CHECK_RED');
+  assert.match(error.message, /redacted OpenAI key/);
+  const artifact = /full output file: ([^\n]+)/.exec(error.message)?.[1];
+  assert.ok(artifact && existsSync(artifact));
+  const saved = readFileSync(artifact, 'utf8');
+  assert.match(saved, /😀/);
+  assert.match(saved, /redacted OpenAI key/);
+  assert.doesNotMatch(saved, new RegExp(planted));
+  assert.match(saved, /TAIL-CHUNK/);
+});
+
 test('accept reports failed install as CHECK_UNVERIFIED with an output digest [V18,V2]', () => {
   const box = privateCheckSubmission({ install: 'echo install-failed; exit 9', check: 'true' });
   const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'install must complete before verification', '--json');
@@ -1993,6 +2153,12 @@ test('private check digest keeps install and noisy check output in separate sect
   assert.equal(proof.state, 'red');
   assert.match(proof.report, /install output:\ninstall-marker/);
   assert.match(proof.report, /check output:[\s\S]*check-failed/);
+});
+
+test('a submission without a frozen check keeps the no-check pass path [V18,V2]', () => {
+  assert.deepEqual(checkAtCommit('/missing/private/repository', {}), {
+    state: 'pass', green: true, checked: false, report: '',
+  });
 });
 
 test('accept runs a successful frozen check that writes a file larger than the log cap [V18,V2]', () => {
@@ -2030,14 +2196,32 @@ test('a successful noisy check drains beyond the log cap and keeps bounded head 
 });
 
 test('accept reports a frozen check timeout as CHECK_UNVERIFIED [V18,V2]', () => {
-  const box = privateCheckSubmission({ timeout: '100ms', check: 'case "$PULLBOARD_HOME" in */pullboard-criterion-*/home/.pullboard) while :; do :; done;; *) exit 1;; esac' });
+  const box = privateCheckSubmission({ timeout: '100ms', check: 'echo timeout-marker; case "$PULLBOARD_HOME" in */pullboard-criterion-*/home/.pullboard) while :; do :; done;; *) exit 1;; esac' });
   const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'the frozen check exceeded its configured timeout', '--json');
   assert.equal(refused.code, 1);
   const error = JSON.parse(refused.out).error;
   assert.equal(error.code, 'CHECK_UNVERIFIED');
   assert.match(error.message, /check timed out/);
+  assert.match(error.message, /timeout-marker/);
+  assert.match(error.message, /full output file:/);
   assert.match(error.message, /output digest/);
   assert.match(error.next, /^restore the install or check environment, then retry verification/);
+});
+
+test('a frozen check whose shell cannot start is identified as a startup failure [V18,V2]', () => {
+  const box = privateCheckSubmission({ check: 'echo forbidden-shell-ran' });
+  const isolatedPath = join(box.dir, 'git-only-path');
+  mkdirSync(isolatedPath);
+  const gitPath = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+  symlinkSync(gitPath, join(isolatedPath, 'git'));
+  box.env.PATH = isolatedPath;
+  const refused = box.run(box.review, 'verify', '1', 'accept', '--note', 'the shell is unavailable', '--json');
+  assert.equal(refused.code, 1, refused.err);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'CHECK_UNVERIFIED');
+  assert.match(error.message, /check could not start \(ENOENT\)/);
+  assert.doesNotMatch(error.message, /forbidden-shell-ran/);
+  assert.match(error.message, /full output file:/);
 });
 
 test('accept reports a frozen install timeout before running the check [V18,V2]', () => {

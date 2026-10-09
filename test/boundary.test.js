@@ -34,8 +34,9 @@ test('the core names no model, engine or vendor; secret patterns may name the ke
   assert.deepEqual(found, []);
 });
 
-test('only opted-in relay sync opens outbound connections; the view and API stay on loopback [P5, N26, A2]', () => {
+test('only explicit relay commands open outbound connections; the view and API stay on loopback [P5, H15, H17, N26, A2]', () => {
   const allowed = (file, line) => file === 'src/relay.js' ||
+    (file === 'src/relay-pairing-client.js' && line.trim() === 'response = await fetch(new URL(path, url), {') ||
     (['src/serve.js', 'src/api.js'].includes(file) && line.trim() === "import { createServer } from 'node:http';") ||
     (file === 'src/serve.js' && line.trim() === "const reply = await fetch(address.origin + path, { headers: { 'x-pullboard-key': address.searchParams.get('k') } });") ||
     (file === 'src/cockpit.js' && /^\s*const res = await fetch\(path, /.test(line));

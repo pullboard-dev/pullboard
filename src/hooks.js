@@ -78,7 +78,7 @@ function headerProblems(header, rules) {
  * @param {{ rules: any, spec: any }} context
  * @returns {string[]}
  */
-export function commitMsgProblems(raw, { rules, spec }) {
+export function commitMsgProblems(raw, { rules, spec, doctrine = null }) {
   const lines = raw.split('\n').filter((line) => !line.startsWith('#'));
   while (lines.length && !lines.at(-1)?.trim()) lines.pop();
   const [header = '', second, ...body] = lines;
@@ -86,7 +86,7 @@ export function commitMsgProblems(raw, { rules, spec }) {
   const { problems, type } = headerProblems(header, rules);
   const ids = citedIds(header);
   problems.push(
-    ...idProblems(spec, ids).map(
+    ...idProblems(spec, ids, doctrine).map(
       (problem) => `cite only rows that exist and are live, separated by commas like [G1,G2] (${problem})`,
     ),
   );
@@ -104,6 +104,29 @@ export function commitMsgProblems(raw, { rules, spec }) {
   if (rules.noEmoji && EMOJI_RE.test(all)) problems.push('remove the emoji');
   if (rules.noCoAuthor && /^\s*co-authored-by\s*:/im.test(all)) problems.push('remove the Co-Authored-By trailer');
   return problems;
+}
+
+/**
+ * Colliding bare citations keep their SPEC.md meaning, but tell the author how to name doctrine.
+ *
+ * @param {string} raw
+ * @param {{ spec: any, doctrine: any }} context
+ * @returns {string[]}
+ */
+export function commitCitationWarnings(raw, { spec, doctrine }) {
+  const ids = citedIds(raw.split('\n')[0] ?? '').filter((id) => !id.startsWith('doctrine:'));
+  return ids.flatMap((id) => {
+    const specRows = spec.rows.filter((row) => row.id === id);
+    const doctrineRows = (doctrine?.repo?.rows ?? []).filter((row) => row.id === id);
+    if (!specRows.length || specRows.length + doctrineRows.length < 2) return [];
+    const specLocations = specRows.map((row) => `${spec.name ?? 'SPEC.md'}:${row.line}`);
+    const doctrineLocations = doctrineRows.map((row) => `${doctrine.name}:${row.line}`);
+    const locations = [...specLocations, ...doctrineLocations].slice(0, 2);
+    const resolution = doctrineRows.length
+      ? `bare ids cite SPEC.md, use doctrine:${id} for a doctrine row`
+      : 'bare ids resolve to SPEC.md, which contains duplicate rows';
+    return [`${id} is a known collision at ${locations.join(' and ')}; ${resolution}`];
+  });
 }
 
 /**
