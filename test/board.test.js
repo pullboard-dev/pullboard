@@ -84,7 +84,7 @@ beforeEach(() => {
   store.register(board, { lane: 'api', path: '/repo-api-1' });
 });
 
-test('[B14] brief paths ignore sentence punctuation but still refuse a foreign path', async (t) => {
+test('[B14] notes in parentheses are not paths, and a foreign path still refuses', async (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-brief-files-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const repo = join(directory, 'repo');
@@ -101,6 +101,8 @@ test('[B14] brief paths ignore sentence punctuation but still refuse a foreign p
   }));
   const brief = 'Files:\n- src/x.js, README.md, docs/, make. folders). api/server.js.\nChange: add a page\nTest: check the page';
   assert.deepEqual(briefFiles(brief), ['src/x.js', 'README.md', 'docs/', 'api/server.js']);
+  const noted = 'Files:\n- src/a.js (only where a checked claim changed in 0.8.1 (see api/v1.js)) .8.1 1..2 0.8.1\n- src/b.js (main.moved and skills/ stay as they are)';
+  assert.deepEqual(briefFiles(noted), ['src/a.js', 'src/b.js']);
 
   let stdout = '';
   let stderr = '';
