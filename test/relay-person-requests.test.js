@@ -7,7 +7,44 @@ import { test } from 'node:test';
 import { decodeBoardKey, seal } from '../src/seal.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
-import { relayClientFixture } from './relay-client-fixture.js';
+import { cliChildDeadlineMs, relayClientFixture } from './relay-client-fixture.js';
+
+const CHROME_START_BUDGET_MS = 30_000;
+const CLI_SETUP_MARGIN_MS = 20_000;
+const FIXTURE_SETUP_CLI_CHILDREN = [
+  { command: ['init'], snapshotUploads: 0 },
+  { command: ['add'], snapshotUploads: 0 },
+  { command: ['export'], snapshotUploads: 0 },
+];
+const APPROVAL_FLOW_CLI_CHILDREN = [
+  ...FIXTURE_SETUP_CLI_CHILDREN,
+  { command: ['add'], snapshotUploads: 0 },
+  { command: ['relay', 'on'], snapshotUploads: 1 },
+  { command: ['status'], snapshotUploads: 4 },
+  { command: ['export'], snapshotUploads: 0 },
+  { command: ['resume'], snapshotUploads: 0 },
+  { command: ['spec', 'apply'], snapshotUploads: 1 },
+  { command: ['answer'], snapshotUploads: 1 },
+  { command: ['status'], snapshotUploads: 3 },
+  { command: ['export'], snapshotUploads: 0 },
+  { command: ['add'], snapshotUploads: 0 },
+  { command: ['export'], snapshotUploads: 0 },
+];
+const DECLINE_FLOW_CLI_CHILDREN = [
+  ...FIXTURE_SETUP_CLI_CHILDREN,
+  { command: ['add'], snapshotUploads: 0 },
+  { command: ['relay', 'on'], snapshotUploads: 1 },
+  { command: ['status'], snapshotUploads: 4 },
+  { command: ['answer'], snapshotUploads: 1 },
+  { command: ['answer'], snapshotUploads: 1 },
+  { command: ['resume'], snapshotUploads: 0 },
+];
+
+/** Budget all actual CLI children in a flow, plus one Chrome launch and stated setup margin. */
+function approvalFlowTimeoutMs(cliChildren) {
+  const childrenBudgetMs = cliChildren.reduce((total, child) => total + cliChildDeadlineMs(child.snapshotUploads), 0);
+  return CHROME_START_BUDGET_MS + childrenBudgetMs + CLI_SETUP_MARGIN_MS;
+}
 
 /** Install the fixture's person session without exposing its cookie in browser diagnostics. */
 async function signIn(chrome, box) {
@@ -31,26 +68,46 @@ async function pairedTransport(chrome, box, title) {
 
 /** Attach a transport handle for the existing test actions after either pairing or a reload. */
 async function installRequestTransport(chrome) {
-  await chrome.evaluate(`(async () => {
+  const task = await chrome.startTask(`(async () => {
     const { createTransport } = await import('/relay/client.js');
     window.__personRequestTransport = await createTransport({ onUpdate: () => {} });
     return true;
-  })()`);
+  })()`, 'initialize person request transport');
+  await chrome.pollTask(task, 25000, 'initialize person request transport');
 }
 
 /** Send one exact person intent through the browser transport rather than constructing a move. */
 async function sendPersonIntent(chrome, board, move) {
   const path = '/api/v1/boards/' + board + '/moves';
-  return chrome.evaluate('window.__personRequestTransport.request('
-    + JSON.stringify(path) + ',' + JSON.stringify(move) + ')');
+  const task = await chrome.startTask('window.__personRequestTransport.request('
+    + JSON.stringify(path) + ',' + JSON.stringify(move) + ')', 'send person request');
+  return chrome.pollTask(task, 25000, 'send person request');
 }
 
 /** Poll the browser's authenticated, device-decrypted presentation for one durable receipt. */
 async function waitForRequest(chrome, board, id, status, requireCoordinatorRequest = false) {
   const path = '/api/v1/boards/' + board + '/state';
   const predicate = `(() => { const row = documentValue.state?.personRequests?.find(entry => entry.id === ${JSON.stringify(id)}); return row?.status === ${JSON.stringify(status)}${requireCoordinatorRequest ? ' && Number.isSafeInteger(row.coordinatorRequest)' : ''}; })()`;
-  await chrome.waitFor(`(async () => { try { const documentValue = await window.__personRequestTransport.request(${JSON.stringify(path)}); return ${predicate}; } catch { return false; } })()`);
-  return chrome.evaluate('window.__personRequestTransport.request(' + JSON.stringify(path) + ')');
+  // Native processing can take 15 seconds; allow ten seconds for relay transport and polling.
+  const task = await chrome.startTask(`(async () => {
+    const deadline = Date.now() + 25000;
+    while (Date.now() < deadline) {
+      try {
+        const documentValue = await window.__personRequestTransport.request(${JSON.stringify(path)});
+        if (${predicate}) return documentValue;
+      } catch { /* The native checkpoint may still be arriving. */ }
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    throw new Error('The native person request did not reach the expected status.');
+  })()`, 'wait for person request status');
+  return chrome.pollTask(task, 30000, 'wait for person request status');
+}
+
+/** Read final request state by starting the fetch in the page and polling its completion. */
+async function finalState(chrome, board) {
+  const task = await chrome.startTask('window.__personRequestTransport.request('
+    + JSON.stringify('/api/v1/boards/' + board + '/state') + ')', 'read final person request state');
+  return chrome.pollTask(task, 25000, 'read final person request state');
 }
 
 /** Add a private pending spec row without changing shared or submitted repository files. */
@@ -62,7 +119,7 @@ function addPendingSpecRow(box, id) {
   return { path, original };
 }
 
-test('real paired Chrome transports one person shout, and native status makes one authored shout [H12,H16]', {
+test('real paired Chrome transports a person shout while its native snapshot is 8 seconds late [H12,H16]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
   const box = await relayClientFixture(t);
@@ -100,7 +157,16 @@ test('real paired Chrome transports one person shout, and native status makes on
     'the device-local request id survives a page reload without storing its text');
   await installRequestTransport(chrome);
 
-  assert.equal((await box.cli('status')).code, 0, 'the next native status receives and executes the queued intent');
+  const delayedBefore = box.snapshotWriteDelays().length;
+  box.delaySnapshotWrites(8000);
+  const native = box.cliWithSnapshotUploads(3, 'status').then(result => ({ result }), error => ({ error }));
+  const status = await native;
+  box.delaySnapshotWrites(0);
+  assert.equal(status.error, undefined, 'the next native status receives and executes the queued intent');
+  assert.equal(status.result.code, 0, 'the next native status reports success');
+  const delays = box.snapshotWriteDelays().slice(delayedBefore);
+  assert.equal(delays.length, 3, 'this three-upload status flow uploads exactly three snapshots');
+  assert.ok(delays.every(delay => delay >= 7900), 'the relay delayed every native snapshot by 8 seconds');
   const latest = await waitForRequest(chrome, link.board, receipt.result.request.id, 'done');
   assert.equal(await chrome.evaluate("document.querySelector('#relay-notice').textContent"), '',
     'the completed local request no longer appears as waiting');
@@ -112,8 +178,9 @@ test('real paired Chrome transports one person shout, and native status makes on
 
 test('real paired Chrome approval remains pending until coordinator applies and answers; invalid add keeps its CLI refusal [H12,H16,B26]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
+  timeout: approvalFlowTimeoutMs(APPROVAL_FLOW_CLI_CHILDREN),
 }, async t => {
-  const box = await relayClientFixture(t);
+  const box = await relayClientFixture(t, { cliChildren: APPROVAL_FLOW_CLI_CHILDREN });
   const title = 'PERSON_REQUEST_APPROVAL_FIXTURE';
   const id = 'G98';
   const row = addPendingSpecRow(box, id);
@@ -127,7 +194,15 @@ test('real paired Chrome approval remains pending until coordinator applies and 
   const approval = await sendPersonIntent(chrome, link.board, { verb: 'spec-approve', args: { ids: id } });
   assert.equal(approval.result.request.status, 'waiting');
   assert.deepEqual(approval.result.request.move, { verb: 'spec-approve', args: { ids: id } });
-  assert.equal((await box.cli('status')).code, 0);
+  const delayedBefore = box.snapshotWriteDelays().length;
+  box.delaySnapshotWrites(8000);
+  const native = await box.cliWithSnapshotUploads(4, 'status').then(result => ({ result }), error => ({ error }));
+  box.delaySnapshotWrites(0);
+  assert.equal(native.error, undefined, 'the four-upload approval status fits its derived deadline');
+  assert.equal(native.result.code, 0);
+  const delays = box.snapshotWriteDelays().slice(delayedBefore);
+  assert.equal(delays.length, 4, 'the approval status flow uploads exactly four snapshots');
+  assert.ok(delays.every(delay => delay >= 7900), 'the relay delayed every approval snapshot by 8 seconds');
   const pendingState = await waitForRequest(chrome, link.board, approval.result.request.id, 'waiting', true);
   assert.equal(readFileSync(row.path, 'utf8'), before, 'the received approval records a row decision but does not edit SPEC.md');
   const decisionEvents = (await box.cli('export')).document.tables.event.filter(event => event.event_kind === 'row_decision' && event.event_by === 'person');
@@ -162,6 +237,7 @@ test('real paired Chrome approval remains pending until coordinator applies and 
   const local = (await box.cli('export')).document;
   assert.equal(local.tables.item.some(item => item.item_title === 'PERSON_REQUEST_INVALID_SPEC'), false);
   assert.equal(local.tables.event.some(event => event.event_kind === 'row_decision' && JSON.parse(event.event_detail).record.id === 'G999'), false);
+  box.assertCliChildrenComplete();
 });
 
 test('an agent-sealed row approval is refused before any row receipt or spec edit [H12,H16,B26]', async t => {
@@ -205,8 +281,9 @@ test('an agent-sealed row approval is refused before any row receipt or spec edi
 
 test('coordinator decline resolves a paired approval request with a reason and leaves repo files unchanged [H12,H16,B26]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
+  timeout: approvalFlowTimeoutMs(DECLINE_FLOW_CLI_CHILDREN),
 }, async t => {
-  const box = await relayClientFixture(t);
+  const box = await relayClientFixture(t, { cliChildren: DECLINE_FLOW_CLI_CHILDREN });
   const row = addPendingSpecRow(box, 'G96');
   const before = readFileSync(row.path, 'utf8');
   const title = 'PERSON_REQUEST_DECLINE_FIXTURE';
@@ -216,9 +293,16 @@ test('coordinator decline resolves a paired approval request with a reason and l
   t.after(() => chrome.close());
   const link = await pairedTransport(chrome, box, title);
   const queued = await sendPersonIntent(chrome, link.board, { verb: 'spec-approve', args: { ids: 'G96' } });
-  assert.equal((await box.cli('status')).code, 0);
-  const statePath = '/api/v1/boards/' + link.board + '/state';
-  const pending = (await chrome.evaluate('window.__personRequestTransport.request(' + JSON.stringify(statePath) + ')')).state.personRequests.find(record => record.id === queued.result.request.id);
+  const delayedBefore = box.snapshotWriteDelays().length;
+  box.delaySnapshotWrites(8000);
+  const native = await box.cliWithSnapshotUploads(4, 'status').then(result => ({ result }), error => ({ error }));
+  box.delaySnapshotWrites(0);
+  assert.equal(native.error, undefined, 'the four-upload decline status fits its derived deadline');
+  assert.equal(native.result.code, 0);
+  const delays = box.snapshotWriteDelays().slice(delayedBefore);
+  assert.equal(delays.length, 4, 'the decline status flow uploads exactly four snapshots');
+  assert.ok(delays.every(delay => delay >= 7900), 'the relay delayed every decline snapshot by 8 seconds');
+  const pending = (await finalState(chrome, link.board)).state.personRequests.find(record => record.id === queued.result.request.id);
   assert.equal(pending.status, 'waiting');
   assert.ok(Number.isSafeInteger(pending.coordinatorRequest));
   const missingReason = await box.cli('answer', String(pending.coordinatorRequest), 'declined');
@@ -226,9 +310,10 @@ test('coordinator decline resolves a paired approval request with a reason and l
   assert.equal(missingReason.document.error.code, 'REQUEST_OUTCOME');
   const reason = 'Waiting for a revised requirement';
   assert.equal((await box.cli('answer', String(pending.coordinatorRequest), 'declined ' + reason)).code, 0);
-  const completed = (await chrome.evaluate('window.__personRequestTransport.request(' + JSON.stringify(statePath) + ')')).state.personRequests.find(record => record.id === queued.result.request.id);
+  const completed = (await finalState(chrome, link.board)).state.personRequests.find(record => record.id === queued.result.request.id);
   assert.equal(completed.status, 'refused');
   assert.deepEqual(completed.error, { code: 'REQUEST_DECLINED', message: reason, next: 'Read the coordinator reason and send a revised request from the view.' });
   assert.equal(readFileSync(row.path, 'utf8'), before, 'declining the repository request does not edit any row');
   assert.deepEqual((await box.cli('resume')).document.requests, [], 'the declined request leaves the open coordinator queue');
+  box.assertCliChildrenComplete();
 });
