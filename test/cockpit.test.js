@@ -4402,6 +4402,10 @@ async function press(chrome, find) {
     if (!element) throw new Error(${JSON.stringify(`nothing to press: ${find}`)});
     element.scrollIntoView({ block: 'center' });
     const rect = element.getBoundingClientRect();
+    // Keep where the press really lands, so a wait that follows it can say so when it fails.
+    const name = (node) => node ? node.tagName.toLowerCase() + (node.id ? '#' + node.id : '') + (typeof node.className === 'string' && node.className ? '.' + node.className.trim().split(/\\s+/).join('.') : '') : 'nothing';
+    window.__pressed = { meant: name(element), at: Math.round(rect.y + rect.height / 2), scrollY: Math.round(scrollY) };
+    document.addEventListener('mousedown', (event) => Object.assign(window.__pressed, { landed: name(event.target), landedAt: Math.round(event.clientY), scrolledTo: Math.round(scrollY) }), { capture: true, once: true });
     return JSON.stringify({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 });
   })()`));
   await chrome.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
@@ -4413,6 +4417,16 @@ async function press(chrome, find) {
 async function travel(chrome, step) {
   const { currentIndex, entries } = await chrome.send('Page.getNavigationHistory');
   await chrome.send('Page.navigateToHistoryEntry', { entryId: entries[currentIndex + step].id });
+}
+
+/** Wait for a condition after a press; if it never arrives, say what the page shows and where the press landed. */
+async function pressedInto(chrome, expression, timeoutMs = 10_000) {
+  try {
+    await chrome.waitFor(expression, timeoutMs);
+  } catch (error) {
+    const shows = await chrome.evaluate(`JSON.stringify({ panes: [...document.querySelectorAll('[data-pane]')].filter((each) => !each.hidden).map((each) => each.dataset.pane), address: location.pathname + location.search + location.hash, lit: document.querySelector('.tab.on')?.dataset.tab ?? null, viewTab: typeof view === 'object' ? view.tab : null, item: typeof view === 'object' ? view.item : null, scrollY: Math.round(scrollY), pressed: window.__pressed ?? null, entries: history.length })`).catch((failure) => 'an unreadable page: ' + failure.message);
+    throw new Error(`${error.message}; the page shows ${shows}`, { cause: error });
+  }
 }
 
 /** Wait for a page condition that may span a page load, when the page asked may still be loading. */
@@ -4622,14 +4636,14 @@ test('the roadmap reads every item as the Items tab does, opens each one, anothe
 
       // An item opens on the Items tab; Back shows the Roadmap at its address again, Forward the item.
       await press(chrome, roadmapRow('#3'));
-      await chrome.waitFor(`${showing('items', '/')} && document.querySelector('#detail h2')?.innerText.includes('Session timeout banner')`);
+      await pressedInto(chrome, `${showing('items', '/')} && document.querySelector('#detail h2')?.innerText.includes('Session timeout banner')`);
       assert.equal(await chrome.evaluate('location.search'), view.link.search, `${width}: the address keeps the rest of itself`);
       await travel(chrome, -1);
       await settled(chrome, `${showing('roadmap', '/roadmap')} && document.querySelector('.tab.on')?.dataset.tab === 'roadmap'`);
       await travel(chrome, 1);
       await settled(chrome, `${showing('items', '/')} && document.querySelector('.tab.on')?.dataset.tab === 'items' && document.querySelector('#detail h2')?.innerText.includes('Session timeout banner')`);
       await press(chrome, `document.querySelector('[data-tab="roadmap"]')`);
-      await chrome.waitFor(`${showing('roadmap', '/roadmap')} && location.search === ${JSON.stringify(view.link.search)}`);
+      await pressedInto(chrome, `${showing('roadmap', '/roadmap')} && location.search === ${JSON.stringify(view.link.search)}`);
     }
 
     // Another repo's item opens on its own board, and Back and Forward move between the two boards.
