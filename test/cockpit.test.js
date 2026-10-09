@@ -608,6 +608,80 @@ test('projects group repos with combined needs and activity, while ungrouped and
   }
 });
 
+test('the project list collapses into the tab bar and stays collapsed [N26]', { timeout: 90_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for sidebar checks.');
+
+  const box = machine();
+  const demo = project(box, 'collapse-demo');
+  const other = project(box, 'collapse-other');
+  box.run(demo.repo, 'add', 'web', 'An item to show', '--specs', 'G1', '--criterion', 'shown');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-collapse-chrome-'));
+  let chrome;
+  /** Read the sidebar, the tab bar and the board's columns as the person sees them. */
+  const read = async () => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+    const box = (s) => { const e = document.querySelector(s); const r = e.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height, shown: getComputedStyle(e).display !== 'none' && r.width > 0 }; };
+    const logo = document.querySelector('#side-toggle');
+    return { width: innerWidth, logo: box('#side-toggle'), side: box('.side'), top: box('.top'), main: box('main'), switcher: box('#proj-switch'), list: box('#side-body'), theme: box('#theme'), live: box('#live'),
+      columns: box('.two > :first-child').width + box('#detail').width, collapsed: document.documentElement.dataset.side || '', pressed: logo.getAttribute('aria-pressed'), title: logo.title,
+      listPosition: getComputedStyle(document.querySelector('#side-body')).position, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth };
+  })())`));
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor('innerWidth === 1280 && !!document.querySelector("#chain .row") && !!document.querySelector("#detail h2")');
+    const open = await read();
+    assert.ok(open.side.width >= 200 && open.side.height >= 800 && !open.collapsed && open.pressed === 'false', `the sidebar starts open: ${JSON.stringify(open)}`);
+    assert.ok(open.theme.right >= open.width - 16 && open.theme.top < open.top.bottom && open.live.right <= open.theme.left, `the light/dark button sits at the right end of the tab bar, clear of the live status: ${JSON.stringify(open)}`);
+
+    await chrome.evaluate('document.querySelector("#side-toggle").click()');
+    await chrome.waitFor('document.documentElement.dataset.side === "collapsed"');
+    const collapsed = await read();
+    assert.deepEqual([collapsed.pressed, collapsed.title], ['true', 'Show the project list'], 'the logo says it brings the list back');
+    assert.ok(collapsed.side.height <= collapsed.top.height + 0.5 && collapsed.switcher.shown && Math.abs(collapsed.switcher.top - collapsed.top.top) < collapsed.top.height && collapsed.switcher.right <= collapsed.top.left + 0.5,
+      `the sidebar is one switcher at the left of the tab bar, in its row: ${JSON.stringify(collapsed)}`);
+    assert.ok(!collapsed.list.shown, 'the project list folds away until asked for');
+    assert.ok(Math.abs(collapsed.logo.width - collapsed.logo.height) < 1 && collapsed.logo.height >= 44, `the logo alone is a square control, so its hover is a square: ${JSON.stringify(collapsed.logo)}`);
+    assert.ok(collapsed.main.left <= 0.5 && collapsed.main.width >= collapsed.width - 0.5 && collapsed.columns >= open.columns + 200 && !collapsed.overflow,
+      `the board takes the whole width: the list and detail gain at least 200px: ${JSON.stringify({ open: open.columns, collapsed: collapsed.columns, main: collapsed.main })}`);
+    assert.ok(collapsed.theme.right >= collapsed.width - 16 && collapsed.live.right <= collapsed.theme.left, 'the light/dark button stays at the right end');
+
+    await chrome.evaluate('document.querySelector("#proj-switch").click()');
+    const dropdown = await read();
+    assert.ok(dropdown.list.shown && dropdown.listPosition === 'absolute' && dropdown.list.top >= dropdown.top.bottom - 0.5 && dropdown.list.right <= dropdown.width, `the switcher opens the project list as a dropdown: ${JSON.stringify(dropdown.list)}`);
+    await chrome.evaluate('document.querySelector("main").click()');
+    assert.equal((await read()).list.shown, false, 'a click outside closes it');
+    await chrome.evaluate('document.querySelector("#proj-switch").click()');
+    await chrome.evaluate(`document.querySelector('#proj-list [data-root="${other.repo}"]').click()`);
+    await chrome.waitFor(`document.querySelector('#proj-name').textContent === 'collapse-other'`);
+    assert.equal((await read()).list.shown, false, 'a pick closes it and shows that project');
+
+    await chrome.send('Page.reload');
+    await chrome.waitFor('document.readyState === "complete" && !!document.querySelector("#proj-switch")');
+    assert.equal((await read()).collapsed, 'collapsed', 'the choice is kept in this browser across a reload');
+
+    await chrome.evaluate('document.querySelector("#side-toggle").click()');
+    await chrome.waitFor('!document.documentElement.dataset.side');
+    const back = await read();
+    assert.ok(back.side.width >= 200 && back.list.shown && back.pressed === 'false' && back.title === 'Collapse the project list', `the logo brings the sidebar back as it was: ${JSON.stringify(back)}`);
+
+    await chrome.evaluate('document.querySelector("#side-toggle").click()');
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor('innerWidth === 375');
+    const phone = await read();
+    await chrome.evaluate('document.querySelector("#side-toggle").click()');
+    const tapped = await read();
+    assert.ok(phone.switcher.shown && !phone.list.shown && phone.theme.right >= phone.width - 16 && phone.theme.top < phone.side.bottom, `a phone keeps its switcher, the light/dark button at the right of its top row: ${JSON.stringify(phone)}`);
+    assert.equal(tapped.collapsed, phone.collapsed, 'on a phone the logo is only the logo');
+    assert.ok(!phone.overflow, 'and nothing runs off the phone');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
 test('a project with one repo shows once in the project list [N33, N26]', async () => {
   const box = machine();
   const solo = project(box, 'solo', SPEC, { name: 'Solo board', project: 'Solo' });
@@ -630,6 +704,52 @@ test('a project with one repo shows once in the project list [N33, N26]', async 
     await page.click({ root: solo.repo });
     assert.deepEqual([page.element('group-view').hidden, page.element('tabs').hidden], [true, false], 'the lone repo opens on its own board');
   } finally {
+    await view.stop();
+  }
+});
+
+test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for the 320px check.');
+
+  const box = machine();
+  const demo = project(box, 'narrow');
+  box.run(demo.repo, 'add', 'web', 'A title long enough to need every bit of a narrow phone row, and then some more words', '--specs', 'G1', '--criterion', 'fits');
+  box.run(demo.repo, 'add', 'web', 'Built, then sent back', '--specs', 'G1', '--criterion', 'back');
+  build(box, demo, 2, 'two.txt');
+  sendBack(box, demo, 2, 'It misses the edge the criterion names, a reason long enough to wrap on a phone.');
+  const sha = box.git(demo.repo, 'rev-parse', 'HEAD').trim();
+  box.run(demo.repo, 'shout', 'web', `Run \`pullboard next --verify\` and read SPEC.md:1-2@${sha} before you take #1.`);
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-sideways-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor('document.querySelectorAll("#chain .row").length === 2');
+    // This machine's fonts first, then a wide one (Verdana here, DejaVu Sans on Linux) at 320 and at 305,
+    // the room a 320px screen leaves beside a classic 15px scrollbar: Linux CI measured 324px of tabs there.
+    for (const [width, font] of [[320, ''], [320, 'Verdana, "DejaVu Sans", sans-serif'], [305, 'Verdana, "DejaVu Sans", sans-serif']]) {
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: false });
+    await chrome.evaluate(`document.documentElement.style.setProperty('--sans', ${JSON.stringify(font || 'system-ui, sans-serif')})`);
+    await chrome.waitFor(`innerWidth === ${width}`);
+    for (const tab of ['items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap']) {
+      await chrome.evaluate(`document.querySelector('[data-tab="${tab}"]').click()`);
+      await chrome.waitFor(`!document.querySelector('[data-pane="${tab}"]').hidden`);
+      const seen = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+        const edge = document.documentElement.clientWidth;
+        // Name each element that runs past the edge with nothing above it to clip or scroll it.
+        const clipped = (e) => { for (let p = e.parentElement; p && p !== document.body; p = p.parentElement) if (!['visible', ''].includes(getComputedStyle(p).overflowX)) return true; return false; };
+        const name = (e) => e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (typeof e.className === 'string' && e.className ? '.' + e.className.trim().split(/\\s+/).join('.') : '');
+        const past = [...document.querySelectorAll('body *')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > edge + 0.5 && !clipped(e); })
+          .map((e) => name(e) + ' right ' + Math.round(e.getBoundingClientRect().right) + ': ' + (e.textContent || '').trim().slice(0, 40));
+        return { scrollWidth: document.documentElement.scrollWidth, clientWidth: edge, past: past.slice(0, 8), more: Math.max(0, past.length - 8) };
+      })())`));
+      assert.ok(seen.scrollWidth <= seen.clientWidth, `${width}${font ? ' in a wide font' : ''}, ${tab}: the page scrolls sideways, ${seen.scrollWidth} wide in ${seen.clientWidth}; past the edge: ${seen.past.join(' | ')}${seen.more ? ` (+${seen.more} more)` : ''}`);
+    }
+    }
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
     await view.stop();
   }
 });
@@ -1317,6 +1437,7 @@ test("the view's styles live in their own file [N26]", async () => {
 
     // Nothing the script draws carries a style either: products, the list, a picked item, a spec row.
     await page.click({ go: 'item:1' });
+    await page.click({ rows: 'spec:all' });
     await page.click({ row: 'spec:G1' });
     assert.match(page.show('prod-list'), /<svg class="bar" viewBox="0 0 100 1" preserveAspectRatio="none" aria-hidden="true"><rect width="50" height="1"\/><\/svg>/, 'a product bar is drawn, half full');
     // Each layout keeps its own spacing: an item's meta line sits 6px under its title, a spec row's 2px.
@@ -2051,9 +2172,9 @@ test('spec rows read across a phone [N26,D1]', async () => {
     assert.match(doctrineRows, /data-row="doctrine:W1"[^]*?Numbers over adjectives\./, 'W1 from the configured doctrine is shown');
     assert.match(doctrineRows, /data-row="doctrine:W2"[^]*?One record per decision\./, 'W2 from the configured doctrine is shown');
     const style = await styleOf(view);
-    assert.match(style, /\n\.srow \{ display: grid; grid-template-columns: 4\.4em minmax\(6\.2em, max-content\) minmax\(0, 1fr\);/, 'wider, a row keeps its three columns');
-    const phone = /\n@media ([^{]+) \{ \.srow \{ grid-template-columns: auto minmax\(0, 1fr\); \} \.srow > span:last-child \{ grid-column: 1 \/ -1; \} \}\n/.exec(style);
-    assert.ok(phone, 'on a phone the text takes the full width below the id and status');
+    assert.match(style, /\n\.srow \{ display: grid; grid-template-columns: 4\.4em minmax\(6\.2em, max-content\) minmax\(0, 1fr\) auto;/, 'wider, a row keeps its columns: id, status, text, and its decision when it has one');
+    const phone = /\n@media ([^{]+) \{ \.srow \{ grid-template-columns: auto minmax\(0, 1fr\); \} \.srow > span:nth-child\(3\), \.srow > \.spec-decision-actions \{ grid-column: 1 \/ -1; \}/.exec(style);
+    assert.ok(phone, 'on a phone the text, and the decision under it, take the full width below the id and status');
     assert.equal(phone[1], '(width < 480px)', 'under 480px only: at 480px itself the three columns stay');
 
     // The rule holds because every row is the id, then the status, then the text.
@@ -2216,6 +2337,63 @@ test('a shout shows the evidence it carries [B22]', async () => {
     await view.stop();
   }
 });
+test('activity rows say what each shout and answer said [N26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for activity checks.');
+
+  const box = machine();
+  const demo = project(box, 'said');
+  box.run(demo.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1', '--criterion', 'greets');
+  box.run(demo.repo, 'shout', 'web', 'The oldest note, from before the forty shouts the view loads');
+  for (let n = 1; n <= 40; n++) box.run(demo.repo, 'shout', 'web', `Filler ${n}`);
+  const long = 'Please take #1 next, run `pullboard next` in your worktree, and keep going until the greeting reads right on every width the view supports';
+  box.run(demo.repo, 'shout', 'web', `${long}\nA second line the row leaves out.`);
+  box.run(demo.web, 'shout', 'coordinator', 'Ship the greeting today?', '--decision');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-said-chrome-'));
+  let chrome;
+  try {
+    const headers = { 'x-pullboard-key': view.key };
+    const [board] = (await (await fetch(`${view.base}/api/v1/boards`, { headers })).json()).boards;
+    const state = (await (await fetch(`${view.base}/api/v1/boards/${encodeURIComponent(board.id)}/state`, { headers })).json()).state;
+    const ask = state.asked.find((row) => row.shout_text === 'Ship the greeting today?');
+    box.run(demo.repo, 'answer', String(ask.shout_id), 'Yes, ship it once the phone width reads right too');
+    const asker = ask.shout_from;
+
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor('!!document.querySelector(\'[data-tab="activity"]\')');
+    await chrome.evaluate('document.querySelector(\'[data-tab="activity"]\').click()');
+    await chrome.waitFor(`[...document.querySelectorAll('#activity .act')].some((row) => row.textContent.startsWith('coordinator answered'))`);
+    for (const width of [375, 1280]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.waitFor(`innerWidth === ${width}`);
+      const rows = JSON.parse(await chrome.evaluate(`JSON.stringify([...document.querySelectorAll('#activity .act')].map((row) => {
+        const said = row.querySelector('.said');
+        const lines = said ? Math.round(said.getBoundingClientRect().height / parseFloat(getComputedStyle(said).lineHeight)) : 0;
+        return { text: row.textContent, said: said?.textContent ?? null, tip: said?.title ?? null, lines, refs: said ? said.querySelectorAll('button.ref').length : 0,
+          code: said ? [...said.querySelectorAll('code')].map((code) => code.textContent) : [], ellipsis: said ? getComputedStyle(said).textOverflow === 'ellipsis' : null,
+          cut: said ? said.scrollWidth > said.clientWidth : null };
+      }))`));
+      const find = (start) => rows.find((row) => row.text.startsWith(start) && (row.said ?? '').length > 0);
+      const told = find('coordinator shouted to web' + 'Please take');
+      assert.ok(told, `${width}: a shout reads sender, shouted to, recipient, then what it said: ${JSON.stringify(rows.slice(0, 4))}`);
+      assert.deepEqual([told.said, told.tip], [long.replaceAll("`", ""), long], `${width}: its first line, as written in the tooltip and rendered in the row, never its second`);
+      assert.ok(told.lines === 1 && told.ellipsis, `${width}: on one line, set to end in an ellipsis: ${JSON.stringify(told)}`);
+      if (width === 375) assert.ok(told.cut, `${width}: cut on a phone, so the ellipsis shows`);
+      assert.deepEqual([told.refs, told.code], [1, ['pullboard next']], `${width}: keeping the item link and the inline code`);
+      assert.ok(find(`${asker} asked coordinator` + 'Ship the greeting today?'), `${width}: a decision reads asked`);
+      assert.ok(find(`coordinator answered ${asker}` + 'Yes, ship it once'), `${width}: an answer reads who answered whom, then the answer`);
+      const oldest = rows.filter((row) => row.text.startsWith('coordinator shouted to web')).at(-1);
+      assert.deepEqual([oldest.text, oldest.said], ['coordinator shouted to web', null], `${width}: a shout older than the forty on hand still names who it went to`);
+      assert.ok(rows.some((row) => row.text === 'coordinator add #1 Greet the visitor'), `${width}: other rows read as before`);
+    }
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
 test('activity names the item each event moved [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
@@ -3318,10 +3496,17 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
     /** Click the actual control through Chrome input coordinates. */
     const click = async (selector) => {
       await waitRendered([selector]);
-      const point = JSON.parse(await chrome.evaluate(`(() => {
-        const e=document.querySelector(${JSON.stringify(selector)});
-        if(!e) throw Error('missing '+${JSON.stringify(selector)});
-        e.scrollIntoView({block:'center'});
+      const point = JSON.parse(await chrome.evaluate(`(async () => {
+        const find=()=>document.querySelector(${JSON.stringify(selector)});
+        if(!find()) throw Error('missing '+${JSON.stringify(selector)});
+        find().scrollIntoView({block:'center'});
+        // Centering the sticky tab bar scrolls the page on for a few frames, so measure only once the
+        // target has held still for two frames; a point read mid-scroll lands on whatever slid under it.
+        // Find it afresh each frame: a refresh can redraw it, and a detached element measures as 0,0.
+        const frame=()=>new Promise((done)=>requestAnimationFrame(()=>done()));
+        let last='', still=0;
+        for (let n=0; n<120 && still<2; n++) { await frame(); const e=find(); const b=e?e.getBoundingClientRect():null, now=b?[b.x,b.y,b.width,b.height,scrollX,scrollY].join():''; still=now&&now===last?still+1:0; last=now; }
+        const e=find(); if(!e) throw Error('gone before the click: '+${JSON.stringify(selector)});
         const r=e.getBoundingClientRect(); return JSON.stringify({x:r.x+r.width/2,y:r.y+r.height/2});
       })()`));
       await chrome.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
@@ -3522,6 +3707,70 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
     if (chrome) await closeSnapshotChrome(chrome);
     await view.stop();
     rmSync(profile, { recursive: true, force: true });
+  }
+});
+
+test('Spec and Doctrine line up, open on a row and decide with quiet controls [N26, B26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for Spec layout checks.');
+
+  const spec = '# Demo spec\n\n## G · Goals\n- G1 [draft, must] One short line. | gate: web test\n- G2 [draft, must] A second draft row. | gate: web test\n- G3 [approved, must] An approved row. | gate: web test\n';
+  const box = machine();
+  project(box, 'spec-layout', spec);
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-spec-layout-chrome-'));
+  let chrome;
+  /** Where the list and detail cards start, what is picked, and how a row's decision sits beside its text. */
+  const read = async (kind) => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+    const pane = document.querySelector('[data-pane="${kind}"]');
+    const box = (e) => { const r = e.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: r.height }; };
+    const row = document.querySelector('#${kind}-list .srow[data-row="${kind}:G1"]');
+    const text = row?.querySelector(':scope > span:nth-child(3)');
+    const buttons = row ? [...row.querySelectorAll('[data-row-decision]')] : [];
+    const quiet = (e) => { const s = getComputedStyle(e); return s.borderTopWidth === '0px' && s.backgroundColor === 'rgba(0, 0, 0, 0)'; };
+    const line = text ? parseFloat(getComputedStyle(text).lineHeight) : 0;
+    return { list: box(pane.querySelector('.rows-card')), detail: box(pane.querySelector('.detail')), picked: document.querySelector('#${kind}-list .srow.on')?.dataset.row ?? null,
+      shown: document.querySelector('#${kind}-detail h2 span')?.textContent ?? null, first: document.querySelector('#${kind}-list .srow')?.dataset.row ?? null,
+      row: row && box(row), text: text && box(text), line, buttons: buttons.map((e) => ({ ...box(e), quiet: quiet(e), word: e.textContent })),
+      section: [...document.querySelectorAll('#${kind}-list [data-section-approve], #${kind}-detail [data-row-decision]')].map((e) => quiet(e)),
+      overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth };
+  })())`));
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("typeof data === 'object' && !!data && !!data.project");
+    for (const width of [1280, 375]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.evaluate("document.querySelector('[data-tab=spec]').click(); document.querySelector('#spec-chips [data-rows=\"spec:decide\"]').click(); view.row.spec = null; render();");
+      await chrome.waitFor(`innerWidth === ${width} && !!document.querySelector('#spec-list [data-row="spec:G1"]')`);
+      const spec = await read('spec');
+      if (width === 1280) assert.ok(Math.abs(spec.list.top - spec.detail.top) < 0.5, `${width}: the list and the detail start on one line: ${JSON.stringify([spec.list, spec.detail])}`);
+      assert.deepEqual([spec.picked, spec.shown], ['spec:G1', 'G1'], `${width}: with nothing picked, the detail opens on the first row shown`);
+      assert.deepEqual(spec.buttons.map((b) => b.word), ['Approve', 'Decline'], `${width}: an undecided row offers its decision`);
+      assert.ok(spec.buttons.every((b) => b.quiet && b.height >= 44), `${width}: quiet words, no box or fill until hovered, each a 44px target: ${JSON.stringify(spec.buttons)}`);
+      assert.ok(spec.section.length >= 3 && spec.section.every(Boolean), `${width}: Approve all and the detail's decision are quiet too`);
+      if (width === 1280) {
+        assert.ok(spec.buttons.every((b) => b.left >= spec.text.right && Math.abs((b.top + b.bottom) / 2 - (spec.text.top + spec.line / 2)) < spec.line), `${width}: the decision sits beside the text, on its first line: ${JSON.stringify(spec)}`);
+        assert.ok(spec.row.height <= 60, `${width}: so a one-line undecided row is at most 60px tall: ${spec.row.height}`);
+      } else {
+        assert.ok(spec.buttons.every((b) => b.top >= spec.text.bottom - 12), `${width}: on a phone the decision sits under the text: ${JSON.stringify(spec)}`);
+      }
+      assert.ok(!spec.overflow, `${width}: nothing runs off the screen`);
+      // A filter that hides the pick moves it to the new first row; one that keeps it keeps it.
+      await chrome.evaluate("document.querySelector('#spec-list [data-row=\"spec:G2\"]').click()");
+      await chrome.evaluate("document.querySelector('#spec-chips [data-rows=\"spec:all\"]').click()");
+      assert.equal((await read('spec')).picked, 'spec:G2', `${width}: a filter that still shows the pick keeps it`);
+      await chrome.evaluate("document.querySelector('#spec-chips [data-rows=\"spec:approved\"]').click()");
+      const moved = await read('spec');
+      assert.deepEqual([moved.picked, moved.shown], ['spec:G3', 'G3'], `${width}: a filter that hides the pick moves it to the first row shown`);
+      await chrome.evaluate("document.querySelector('[data-tab=doctrine]').click(); view.row.doctrine = null; render();");
+      const doctrine = await read('doctrine');
+      if (width === 1280) assert.ok(Math.abs(doctrine.list.top - doctrine.detail.top) < 0.5, `${width}: Doctrine's cards start on one line too`);
+      assert.ok(doctrine.picked && doctrine.picked === doctrine.first && doctrine.shown === doctrine.first.split(':')[1], `${width}: and Doctrine opens on its first row: ${JSON.stringify([doctrine.picked, doctrine.shown])}`);
+    }
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
   }
 });
 
@@ -4199,6 +4448,92 @@ test('in-text item references stay inline and open their target at phone and des
   }
 });
 
+test('list rows hold their shape: one-line titles end in an ellipsis, every row as tall as the next [N26]', { timeout: 90_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for list row checks.');
+
+  const box = machine();
+  const demo = project(box, 'row-shape');
+  const long = 'A title far too long for one line of the list: it names `pullboard land` and #1, then keeps on going past every width a phone or a laptop gives a row, so only an ellipsis can end it';
+  const titles = { 1: 'Short title', 2: long, 3: 'Waits on the short one', 4: 'Built, then sent back with a long reason', 5: 'Being built right now' };
+  box.run(demo.repo, 'add', 'web', titles[1], '--specs', 'G1', '--criterion', 'short');
+  box.run(demo.repo, 'add', 'web', titles[2], '--specs', 'G1', '--criterion', 'long');
+  box.run(demo.repo, 'add', 'web', titles[3], '--specs', 'G1', '--criterion', 'gated', '--after', '1');
+  box.run(demo.repo, 'add', 'web', titles[4], '--specs', 'G1', '--criterion', 'back');
+  box.run(demo.repo, 'add', 'web', titles[5], '--specs', 'G1', '--criterion', 'busy');
+  build(box, demo, 4, 'four.txt');
+  sendBack(box, demo, 4, `It misses the edge: ${'the criterion names a blank name and the page still greets it, '.repeat(4)}`);
+  box.run(demo.web, 'claim', '5');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-row-shape-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor('document.querySelectorAll("#chain .row").length === 5');
+    for (const width of [375, 1280]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.waitFor(`innerWidth === ${width}`);
+      const rows = JSON.parse(await chrome.evaluate(`JSON.stringify([...document.querySelectorAll('#chain .row')].map((row) => {
+        const box = (node) => node.getBoundingClientRect();
+        const lines = (node) => Math.round(box(node).height / parseFloat(getComputedStyle(node).lineHeight));
+        const apart = (a, b) => a.right <= b.left + 0.5 || b.right <= a.left + 0.5 || a.bottom <= b.top + 0.5 || b.bottom <= a.top + 0.5;
+        const title = row.querySelector('.t'), meta = row.querySelector('.meta'), chip = row.querySelector(':scope > .chip');
+        return { id: row.dataset.item, tip: row.title, height: Math.round(box(row).height),
+          titleLines: lines(title), ellipsis: getComputedStyle(title).textOverflow === 'ellipsis' && getComputedStyle(title).whiteSpace === 'nowrap',
+          cut: title.scrollWidth > title.clientWidth, metaLines: lines(meta), chip: chip.className + ': ' + chip.textContent,
+          chipHeight: Math.round(box(chip).height), chipClear: apart(box(chip), box(meta)) && apart(box(chip), box(title)),
+          code: [...title.querySelectorAll('code')].map((code) => getComputedStyle(code).display) };
+      }))`));
+      const place = (row) => `${width}, #${row.id}: ${JSON.stringify(row)}`;
+      assert.deepEqual(rows.map((row) => row.id).sort(), ['1', '2', '3', '4', '5'], `${width}: every item has a row`);
+      for (const row of rows) {
+        assert.equal(row.tip, titles[row.id], `${width}: the row's tooltip is its whole title`);
+        assert.ok(row.titleLines === 1 && row.ellipsis, `title is one line, set to end in an ellipsis at ${place(row)}`);
+        assert.equal(row.metaLines, 1, `the meta line never wraps, a long verdict reason included, at ${place(row)}`);
+        assert.ok(row.chipHeight < 24 && row.chipClear, `the chip is one line and nothing runs over it at ${place(row)}`);
+      }
+      assert.ok(rows.find((row) => row.id === '2').cut, `${width}: the long title is cut, so its ellipsis shows`);
+      assert.deepEqual(rows.find((row) => row.id === '2').code, ['inline'], `${width}: inline code in a title stays a word in the line, not a block`);
+      assert.equal(new Set(rows.map((row) => row.height)).size, 1, `${width}: every row is as tall as the next: ${JSON.stringify(rows.map((row) => [row.id, row.height]))}`);
+      assert.equal(new Set(rows.map((row) => row.chipHeight)).size, 1, `${width}: every chip is the same size`);
+      const chips = Object.fromEntries(rows.map((row) => [row.id, row.chip]));
+      assert.deepEqual([chips[1], chips[2], chips[3], chips[4]], ['chip free: unclaimed', 'chip free: unclaimed', 'chip gate: gated', 'chip no: sent back'], `${width}: each state's chip in the list`);
+      assert.match(chips[5], /^chip busy: web-\d+$/, `${width}: a claimed item names who builds it, in the building colour`);
+      // The same state wears the same chip in the item's detail as in its row.
+      for (const row of rows) {
+        await chrome.evaluate(`document.querySelector('#chain .row[data-item="${row.id}"]').click()`);
+        await chrome.waitFor(`document.querySelector('#detail h2')?.textContent.startsWith('#${row.id}')`);
+        const detail = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+          const chip = document.querySelector('#detail .meta.spaced .chip'), listed = document.querySelector('#chain .row[data-item="${row.id}"] > .chip');
+          const paint = (node) => [getComputedStyle(node).backgroundColor, getComputedStyle(node).color, getComputedStyle(node).outlineStyle];
+          return { chip: chip.className + ': ' + chip.textContent, samePaint: JSON.stringify(paint(chip)) === JSON.stringify(paint(listed)) };
+        })())`));
+        assert.ok(detail.samePaint, `${width}: #${row.id}'s chip has its row's colours in the detail: ${JSON.stringify(detail)} vs ${row.chip}`);
+        if (row.id !== '5') assert.equal(detail.chip, row.chip, `${width}: #${row.id}'s detail says what its row says`);
+        else assert.equal(detail.chip, 'chip busy: building', `${width}: the detail says building, in the colour of its row's builder chip`);
+      }
+    }
+    // A builder's name can be long; its chip stops at its cap and ends in an ellipsis, leaving the title its line.
+    await chrome.evaluate("data.project.items.find((item) => item.id === 5).owner = 'claude-opus-designer-on-the-studio-7'; render();");
+    for (const width of [375, 1280]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.waitFor(`innerWidth === ${width} && document.querySelector('#chain .row[data-item="5"] > .chip')?.textContent.startsWith('claude-opus')`);
+      const named = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+        const row = document.querySelector('#chain .row[data-item="5"]'), chip = row.querySelector(':scope > .chip'), meta = row.querySelector('.meta');
+        const a = chip.getBoundingClientRect(), b = meta.getBoundingClientRect();
+        return { chipWidth: a.width, cap: 10 * parseFloat(getComputedStyle(document.documentElement).fontSize), cut: chip.scrollWidth > chip.clientWidth,
+          ellipsis: getComputedStyle(chip).textOverflow === 'ellipsis', clear: b.right <= a.left + 0.5, heights: [...new Set([...document.querySelectorAll('#chain .row')].map((r) => Math.round(r.getBoundingClientRect().height)))] };
+      })())`));
+      assert.ok(named.chipWidth <= named.cap + 0.5 && named.cut && named.ellipsis, `${width}: a long builder name stops at the chip's cap, cut with an ellipsis: ${JSON.stringify(named)}`);
+      assert.ok(named.clear && named.heights.length === 1, `${width}: and the row keeps its meta clear and its height: ${JSON.stringify(named)}`);
+    }
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
 test('Roadmap and rule prose references stay inline and open the item on their own board [N26,N38]', { timeout: 90_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for prose-reference checks.');
@@ -4583,7 +4918,7 @@ test('the roadmap reads every item as the Items tab does, opens each one, anothe
     { id: '#4', label: 'to verify', tone: 'warn' },
     { id: 'beacon#1', label: 'sent back', tone: 'no' },
     { id: '#5', label: 'building', tone: 'busy' },
-    { id: '#6', label: 'open', tone: '' },
+    { id: '#6', label: 'unclaimed', tone: 'free' },
     { id: '#7', label: 'withdrawn', tone: '' },
   ];
   const view = await startView(box);
@@ -4733,8 +5068,8 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
     const seen = await readRoadmap(chrome);
     assert.deepEqual(seen.cards[0].rows.map(({ id, label, tone, button }) => ({ id, label, tone, button })), [
       { id: '#1', label: 'verified', tone: 'ok', button: true },
-      { id: '#2', label: 'open', tone: '', button: true },
-      { id: 'beacon#1', label: 'open', tone: '', button: false },
+      { id: '#2', label: 'unclaimed', tone: 'free', button: true },
+      { id: 'beacon#1', label: 'unclaimed', tone: 'free', button: false },
     ], "the snapshot's rows read as its Items tab does; another repo's item, not in the snapshot, opens nothing");
     assert.equal(seen.cards[0].rows[2].tip, 'Billing webhook retries (not in this snapshot)', 'and says why');
     assert.deepEqual([seen.cards[1].name, seen.cards[1].empty], ['Later', 'No items yet.']);

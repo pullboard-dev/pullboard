@@ -44,6 +44,9 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
       CREATE TABLE IF NOT EXISTS relay_cleanup (board TEXT PRIMARY KEY);
       CREATE TABLE IF NOT EXISTS relay_credentials (id TEXT PRIMARY KEY, hash TEXT UNIQUE NOT NULL, kind TEXT NOT NULL, user_id TEXT NOT NULL REFERENCES relay_users(id), board TEXT REFERENCES relay_boards(id), agent TEXT, expires INTEGER NOT NULL, revoked INTEGER NOT NULL DEFAULT 0);
     `);
+    if (!db.prepare('PRAGMA table_info(relay_credentials)').all().some((column) => column.name === 'created')) {
+      db.exec('ALTER TABLE relay_credentials ADD COLUMN created INTEGER');
+    }
     // Older unshipped links receive a full retention grace period, rather than guessing their age.
     if (!db.prepare('PRAGMA table_info(relay_boards)').all().some((column) => column.name === 'linked_at')) {
       db.exec('ALTER TABLE relay_boards ADD COLUMN linked_at INTEGER');
@@ -87,9 +90,10 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
     open();
     const token = random(kind === 'session' ? 'ps_' : 'pa_');
     const id = randomUUID();
-    const expires = now() + ttl;
-    db.prepare('INSERT INTO relay_credentials (id,hash,kind,user_id,board,agent,expires) VALUES (?,?,?,?,?,?,?)').run(id, hash(token), kind, user.id, board ?? null, agent ?? null, expires);
-    return { token, id, expires };
+    const created = now();
+    const expires = created + ttl;
+    db.prepare('INSERT INTO relay_credentials (id,hash,kind,user_id,board,agent,created,expires) VALUES (?,?,?,?,?,?,?,?)').run(id, hash(token), kind, user.id, board ?? null, agent ?? null, created, expires);
+    return { token, id, created, expires };
   }
 
   /** Learn the immutable GitHub identity, then drop the user access credential immediately. */
@@ -288,6 +292,15 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
       if (principal.kind !== 'session') throw new Refused('HUMAN_REQUIRED', 'sign in as a person to issue a board token');
       credential(token);
       return { ...issue(principal.user, 'board', board, agent, expiresIn), board, agent };
+    },
+    /** List only owned board-token metadata after a fresh person permission check, never bearer values or hashes. */
+    async listTokens(token, board) {
+      identifier(board, 'BAD_BOARD');
+      const principal = await auth.authenticate(token, { board, write: true });
+      if (principal.kind !== 'session') throw new Refused('HUMAN_REQUIRED', 'sign in as a person to list agent tokens');
+      credential(token);
+      return db.prepare('SELECT id,board,agent,created,expires,revoked FROM relay_credentials WHERE user_id=? AND kind=? AND board=? ORDER BY agent,id')
+        .all(principal.user.id, 'board', board).map((row) => ({ ...row, revoked: Boolean(row.revoked) }));
     },
     /** Revoke one owned credential; this never revokes an unrelated session or board token. */
     async revoke(token, id) {

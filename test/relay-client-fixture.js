@@ -62,6 +62,7 @@ export async function relayClientFixture(t) {
   let auth;
   let time = Date.now();
   let override = null;
+  let mintFailures = 0;
   let refuseEventReads = false;
   let refuseSnapshotWrites = false;
   let refuseRequestWrites = false;
@@ -104,6 +105,13 @@ export async function relayClientFixture(t) {
       request: Buffer.concat(requestChunks), response: Buffer.concat(responseChunks) }));
     calls.push({ method: req.method, path: req.url, accept: req.headers.accept ?? '', engine: req.headers['x-pullboard-engine'] });
     if ([...privateKeys].some(key => JSON.stringify({ url: req.url, headers: req.headers }).includes(key))) keyLeaked = true;
+    if (mintFailures > 0 && req.method === 'POST' && req.url === '/auth/tokens') {
+      mintFailures -= 1;
+      req.resume();
+      res.writeHead(503, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ version: 1, error: { code: 'TEMPORARY', message: 'fixture refusal' } }));
+      return;
+    }
     if (refuseEventReads && req.method === 'GET' && /\/events(?:\?|$)/.test(req.url)) {
       res.writeHead(503, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ version: 1, error: { code: 'RELAY_UNAVAILABLE', message: 'fixture read outage' } }));
@@ -261,6 +269,7 @@ export async function relayClientFixture(t) {
     root, env, origin, lane, before, linkFile, keyFile, calls, moveAcks, cli, link, requireEngineThree, otherDeviceOff, additionalBoard, script, stopRelay, restartRelay,
     advance(days) { time = Date.now() + days * 86400000; },
     overrideDelete(value) { override = value; },
+    failTokenMints(count) { mintFailures = count; },
     refuseSnapshotWrites(value) { refuseSnapshotWrites = value; },
     refuseRequestWrites(value) { refuseRequestWrites = value; },
     mainURL: new URL('../src/cli.js', import.meta.url).href,

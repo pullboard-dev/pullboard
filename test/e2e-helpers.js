@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { request } from 'node:http';
 import { connect } from 'node:net';
 import { join, resolve } from 'node:path';
+import * as store from '../src/board.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
 
 /** Create isolated real-repository helpers for one parallel end-to-end test file. */
@@ -232,7 +233,15 @@ function attackCommit(box, cwd) {
   return commit;
 }
 
-/** Submit a fixture whose private check reads an ignored dependency folder. */
+/** Seed a legacy receipt from the old full-gate-only submit rule, for independent verifier audits. */
+function historicalCheckSubmission(box, commit) {
+  box.git(box.web, 'update-ref', `refs/pullboard/items/1/${commit.slice(0, 12)}`, commit);
+  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  try { store.submit(board, 1, { agentId: 'web-1', commit, tree: box.git(box.web, 'rev-parse', `${commit}^{tree}`) }); }
+  finally { store.closeBoard(board); }
+}
+
+/** Retain historical submissions whose private check needs an install, fails, or times out. */
 function privateCheckSubmission({ install = '', timeout = '5m', check }) {
   const box = project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
@@ -247,7 +256,7 @@ function privateCheckSubmission({ install = '', timeout = '5m', check }) {
   writeFileSync(join(box.web, 'web/.gitignore'), '.deps/\n');
   writeFileSync(join(box.web, 'web/index.html'), 'fixture');
   const commit = attackCommit(box, box.web);
-  assert.equal(box.run(box.web, 'submit', '1').code, 0);
+  historicalCheckSubmission(box, commit);
   const review = join(box.dir, 'private-check-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
   assert.equal(box.run(review, 'join', 'api').code, 0);
@@ -257,7 +266,7 @@ function privateCheckSubmission({ install = '', timeout = '5m', check }) {
 
   return {
     BIN, cockpitSource, sandboxes, cleanup, sandbox, CONFIG, SPEC, project,
-    holdingGate, launch, waitFor, gateEvents, commitFile, attackCommit, privateCheckSubmission,
+    holdingGate, launch, waitFor, gateEvents, commitFile, attackCommit, historicalCheckSubmission, privateCheckSubmission,
     startView, LIGHT_BRIEF,
   };
 }

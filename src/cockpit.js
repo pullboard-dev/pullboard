@@ -57,7 +57,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
 <div class="shell">
 <aside class="side" id="side" aria-label="Projects">
   <div class="side-top">
-    <div class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg><span>Pullboard</span></div>
+    <button class="brand" id="side-toggle" type="button" aria-pressed="false" aria-controls="side-body" aria-label="Collapse the project list" title="Collapse the project list"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg><span>Pullboard</span></button>
     <button class="switch-btn" id="proj-switch" type="button" aria-expanded="false" aria-controls="side-body"><span id="proj-name">Projects</span><b class="need" id="proj-elsewhere" title="Needs you in other projects" hidden></b><small>▾</small></button>
     <button class="theme-btn" id="theme" type="button" title="Theme: system"><svg class="sys" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="currentColor" d="M8 2a6 6 0 0 1 0 12Z"/></svg><svg class="sun" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M8 1.5v1.2M8 13.3v1.2M1.5 8h1.2M13.3 8h1.2M3.4 3.4l.85.85M11.75 11.75l.85.85M3.4 12.6l.85-.85M11.75 4.25l.85-.85"/></svg><svg class="moon" viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M13.6 9.6A6 6 0 1 1 6.4 2.4a5.2 5.2 0 0 0 7.2 7.2Z"/></svg></button>
   </div>
@@ -128,11 +128,11 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
     </aside>
   </section>
   <section data-pane="spec" class="two">
-    <div class="primary"><div class="chips" id="spec-chips"></div><div class="card-panel rows" id="spec-list"></div></div>
+    <div class="primary"><div class="card-panel rows-card"><div class="rows-filter"><div class="seg" id="spec-chips" role="group" aria-label="Show"></div></div><div class="rows" id="spec-list"></div></div></div>
     <aside class="card-panel detail" aria-label="Spec row"><div id="spec-detail"></div></aside>
   </section>
   <section data-pane="doctrine" class="two">
-    <div class="primary"><div class="chips" id="doctrine-chips"></div><div class="card-panel rows" id="doctrine-list"></div></div>
+    <div class="primary"><div class="card-panel rows-card"><div class="rows-filter"><div class="seg" id="doctrine-chips" role="group" aria-label="Show"></div></div><div class="rows" id="doctrine-list"></div></div></div>
     <aside class="card-panel detail" aria-label="Practice row"><div id="doctrine-detail"></div></aside>
   </section>
   <section data-pane="activity">
@@ -190,6 +190,15 @@ function theme(pick) {
   $('theme').title = 'Theme: ' + (document.documentElement.dataset.theme || 'system');
 }
 theme(keep('pb.theme'));
+/** Collapse the sidebar into the tab bar on a wide screen, or bring it back, as the person last chose. */
+function collapseSide(collapsed) {
+  if (collapsed) document.documentElement.dataset.side = 'collapsed';
+  else delete document.documentElement.dataset.side;
+  $('side-toggle').setAttribute('aria-pressed', String(collapsed));
+  $('side-toggle').title = collapsed ? 'Show the project list' : 'Collapse the project list';
+  $('side-toggle').setAttribute('aria-label', $('side-toggle').title);
+}
+collapseSide(keep('pb.side') === 'collapsed');
 const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 // Inline code: a short chip stays whole on its line; one wider than a phone line's worth may wrap. Width
 // is in columns, as a terminal counts them: CJK, full-width and emoji characters take two.
@@ -217,7 +226,7 @@ const rejected = (i) => i.status !== 'verified' && !!i.verdict && i.verdict.deci
 /** Render a review note with escaped text and references bound to the selected board. */
 const verdictHtml = (v, titles) => '<div class="verdict ' + (v.decision === 'ACCEPT' ? 'yes' : 'no') + '"><b>' + esc(v.decision) + ' ' + esc(v.reason) + '</b><span class="by">' + esc(v.by) + ' · ' + when(v.at) + ' · at ' + esc(String(v.commit || '').slice(0, 12)) + '</span><div class="note">' + linked(v.note, titles) + '</div></div>';
 const stateOf = (i) => i.status === 'claimed' ? 'building' : i.status === 'submitted' ? 'verify' : i.status === 'verified' ? 'verified' : i.status === 'withdrawn' ? 'withdrawn' : i.verdict && i.verdict.decision === 'REJECT' ? 'back' : 'open';
-const STATES = { building: ['building', 'busy'], verify: ['to verify', 'warn'], back: ['sent back', 'no'], verified: ['verified', 'ok'], open: ['open', ''], withdrawn: ['withdrawn', ''] };
+const STATES = { building: ['building', 'busy'], verify: ['to verify', 'warn'], back: ['sent back', 'no'], verified: ['verified', 'ok'], open: ['unclaimed', 'free'], withdrawn: ['withdrawn', ''] };
 const chip = (s) => '<span class="chip ' + STATES[s][1] + '">' + STATES[s][0] + '</span>';
 // A shout's path:lines@commit reference (B23): a button, and under it, once opened, that code as it
 // was at that commit, with its line numbers. The text before it on its line goes with it, so the view
@@ -1025,6 +1034,8 @@ function render() {
   // While another project loads, the item picked there waits for its own board.
   if (data.root === view.root && !view.adding && !p.items.some((i) => i.id === view.item)) view.item = shown.length ? shown[0].id : null;
   const heldLanes = new Map(p.holds.map((h) => [h.hold_lane, h]));
+  // An open item's chip, the same in its row and its detail: gated, its lane held, or unclaimed.
+  const openChip = (i) => i.blockedBy.length || heldLanes.has(i.lane) ? '<span class="chip gate">' + (i.blockedBy.length ? 'gated' : 'lane held') + '</span>' : chip('open');
   $('chain').innerHTML = shown.length ? shown.map((i) => {
     const s = stateOf(i);
     const who = s === 'building' ? i.owner : [i.builtBy, i.verifiedBy].filter(Boolean).join(' → ');
@@ -1035,8 +1046,8 @@ function render() {
     const pills = (waits.length ? '<span class="gate">' + waits.map((id, index) => '<span class="wait-unit">' + (index ? '' : 'waits on ') + '<button class="ref" data-go="item:' + id + '" type="button">#' + id + '</button></span>').join(', ') + '</span>' : '') + (hold ? '<span class="gate">lane held: ' + linked(hold.hold_reason, titles) + '</span>' : '');
     const tag = s === 'building' && i.owner ? '<span class="chip busy" title="building, held by ' + esc(i.owner) + '">' + esc(i.owner) + '</span>'
       : s === 'verify' && i.reviewer ? '<span class="chip warn" title="reviewing until ' + esc(when(i.reviewUntil)) + '">' + esc(i.reviewer) + ' reviewing</span>'
-      : s === 'open' ? (gated ? '<span class="chip gate">' + (waits.length ? 'gated' : 'lane held') + '</span>' : '<span class="chip free">unclaimed</span>') : chip(s);
-    return '<li class="row' + (view.item === i.id ? ' on' : '') + (gated ? ' gated' : '') + '" data-item="' + i.id + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + rich(i.title, titles) + '</div><div class="meta"><span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span>' + esc(i.specs.join(', ')) + '</span>' : '') + (who ? '<span>' + esc(who) + '</span>' : '') + pills + '<span>' + age(i.updatedAt) + '</span>' + (rejected(i) ? '<span class="why">' + linked(i.verdict.reason + ': ' + firstLine(i.verdict.note), titles) + '</span>' : '') + '</div></div>' + tag + '</li>';
+      : s === 'open' ? openChip(i) : chip(s);
+    return '<li class="row' + (view.item === i.id ? ' on' : '') + (gated ? ' gated' : '') + '" data-item="' + i.id + '" title="' + esc(i.title) + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + rich(i.title, titles) + '</div><div class="meta"><span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span>' + esc(i.specs.join(', ')) + '</span>' : '') + (who ? '<span class="who">' + esc(who) + '</span>' : '') + pills + '<span>' + age(i.updatedAt) + '</span>' + (rejected(i) ? '<span class="why">' + linked(i.verdict.reason + ': ' + firstLine(i.verdict.note), titles) + '</span>' : '') + '</div></div>' + tag + '</li>';
   }).join('') : '<li class="empty">' + (items.length ? 'No items match.' : snapshot ? 'No items at this event.' : 'No items yet. Add the first one with New item.') + '</li>';
 
   const item = p.items.find((i) => i.id === view.item);
@@ -1052,7 +1063,7 @@ function render() {
     // Why it came back is the first thing the person reads; the verdicts before it stay below.
     const back = rejected(item);
     const earlier = back ? item.verdicts.slice(0, -1) : item.verdicts;
-    $('detail').innerHTML = '<div class="stack"><div><h2><span>#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="meta spaced">' + chip(s) + '<span class="chip">' + esc(item.lane) + '</span><span class="chip">' + esc(item.route) + '</span></div></div>'
+    $('detail').innerHTML = '<div class="stack"><div><h2><span>#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="meta spaced">' + (s === 'open' ? openChip(item) : chip(s)) + '<span class="chip">' + esc(item.lane) + '</span><span class="chip">' + esc(item.route) + '</span></div></div>'
       + (back ? '<div class="sentback"><h3>Sent back' + (s === 'building' ? ', being reworked' : s === 'verify' ? ', resubmitted' : s === 'withdrawn' ? ', then withdrawn' : '') + '</h3>' + verdictHtml(item.verdict, titles) + '</div>' : '')
       + (item.criterion ? '<div><h3>Criterion</h3><div class="text">' + rich(item.criterion, titles) + '</div></div>' : '')
       + (cited.length ? '<div><h3>Spec rows it serves</h3>' + cited.map((r) => '<div class="rowref"><code>' + esc(r.id) + '</code><div>' + linked(r.text, titles) + ' <span class="chip ' + tone(r.status) + '">' + esc(r.status) + '</span></div></div>').join('') + '</div>' : '')
@@ -1101,6 +1112,8 @@ function render() {
     const n = { decide: rows.filter(undecided).length, all: rows.length, approved: rows.filter((r) => r.status === 'approved').length };
     $(kind + '-chips').innerHTML = Object.keys(labels).map((f) => '<button data-rows="' + kind + ':' + f + '" class="' + (filter === f ? 'on' : '') + '" type="button">' + labels[f] + '<b>' + n[f] + '</b></button>').join('');
     const shownRows = rows.filter((r) => filter === 'all' || (filter === 'decide' ? undecided(r) : r.status === 'approved'));
+    // With no row picked, or the pick filtered out, the detail opens on the first row shown, as Items does.
+    if (!shownRows.some((r) => r.id === view.row[kind])) view.row[kind] = shownRows[0]?.id ?? null;
     const feedback = kind === 'spec' && view.specFeedback?.root === view.root && view.specFeedback.from === 'list' ? view.specFeedback : null;
     const feedbackId = feedback && (shownRows.some((r) => r.id === feedback.id) ? feedback.id : shownRows.some((r) => r.id === feedback.next) ? feedback.next : shownRows[0]?.id);
     let section = null;
@@ -1115,9 +1128,9 @@ function render() {
       const status = r.stage || r.status;
       /** Render person-only row decisions in both the list and its detail pane. */
       const decisionActions = (!snapshot && (!readOnly || requests) && kind === 'spec' && undecided(r))
-        ? '<div class="spec-decision-actions"><button class="approve-row" data-row-decision="approve" data-row-id="' + esc(r.id) + '" type="button">Approve</button><button class="decline-row" data-row-decision="decline" data-row-id="' + esc(r.id) + '" type="button">Decline</button></div>'
+        ? '<span class="spec-decision-actions"><button class="approve-row" data-row-decision="approve" data-row-id="' + esc(r.id) + '" type="button">Approve</button><button class="decline-row" data-row-decision="decline" data-row-id="' + esc(r.id) + '" type="button">Decline</button></span>'
         : '';
-      return head + (feedback && feedbackId === r.id ? specFeedback(feedback) : '') + '<div class="srow' + (view.row[kind] === r.id ? ' on' : '') + '" data-row="' + kind + ':' + esc(r.id) + '"><code>' + esc(r.id) + '</code><span><span class="chip ' + tone(r.status) + '">' + esc(status) + '</span>' + source + '</span><span>' + text + reason + decisionActions + '</span></div>';
+      return head + (feedback && feedbackId === r.id ? specFeedback(feedback) : '') + '<div class="srow' + (view.row[kind] === r.id ? ' on' : '') + '" data-row="' + kind + ':' + esc(r.id) + '"><code>' + esc(r.id) + '</code><span><span class="chip ' + tone(r.status) + '">' + esc(status) + '</span>' + source + '</span><span>' + text + reason + '</span>' + decisionActions + '</div>';
     }).join('') : '<div class="empty">' + (rows.length ? 'No rows match.' : kind === 'spec' ? 'No spec rows yet. Each requirement is one row in SPEC.md, such as G1 [draft, must] and a line; write them, or ask an agent to, and they show up here.' : 'No doctrine rows yet: they live in DOCTRINE.md.') + '</div>';
     if (feedback && !shownRows.length) $(kind + '-list').innerHTML += specFeedback(feedback);
     const row = rows.find((r) => r.id === view.row[kind]);
@@ -1135,7 +1148,18 @@ function render() {
   }
 
   if (keep('pb.flow') !== 'hidden') $('flow').innerHTML = flowSvg(p);
-  $('activity').innerHTML = p.events.length ? byDay(p.events, (e) => e.event_at, (e) => '<div><time>' + clock(e.event_at) + '</time><div class="act"><b>' + esc(e.event_by) + '</b> ' + esc(e.event_kind) + (e.item_id ? ' <button class="ref" data-go="item:' + e.item_id + '" type="button">#' + e.item_id + '</button>' + (titles.has(String(e.item_id)) ? ' <span class="what">' + rich(titles.get(String(e.item_id)), titles) + '</span>' : '') : '') + '</div></div>') : '<div class="empty">No activity yet.</div>';
+  // A shout or an answer says what it said: who to whom, then its first line, from the shouts on hand.
+  // One older than those still names who it went to.
+  const said = new Map(p.shouts.map((x) => [x.shout_id, x]));
+  const spoke = (e) => {
+    let detail = {};
+    try { detail = JSON.parse(e.event_detail || '{}') || {}; } catch { /* an unreadable detail names the sender alone */ }
+    const x = said.get(detail.shout) || { shout_to: detail.to, shout_decision: detail.decision, shout_answers: detail.answers };
+    const verb = e.event_kind === 'answer' || x.shout_answers ? 'answered' : x.shout_decision ? 'asked' : 'shouted to';
+    const line = firstLine(x.shout_text);
+    return '<b>' + esc(e.event_by) + '</b> ' + verb + (x.shout_to ? ' <b>' + esc(x.shout_to) + '</b>' : '') + (line ? '<span class="said" title="' + esc(line) + '">' + inline(line, titles) + '</span>' : '');
+  };
+  $('activity').innerHTML = p.events.length ? byDay(p.events, (e) => e.event_at, (e) => '<div><time>' + clock(e.event_at) + '</time><div class="act">' + (e.event_kind === 'shout' || e.event_kind === 'answer' ? spoke(e) : '<b>' + esc(e.event_by) + '</b> ' + esc(e.event_kind) + (e.item_id ? ' <button class="ref" data-go="item:' + e.item_id + '" type="button">#' + e.item_id + '</button>' + (titles.has(String(e.item_id)) ? ' <span class="what">' + rich(titles.get(String(e.item_id)), titles) + '</span>' : '') : '')) + '</div></div>') : '<div class="empty">No activity yet.</div>';
   showTab();
 }
 
@@ -1529,6 +1553,14 @@ $('flow-show').addEventListener('click', () => showFlow(true));
 $('flow-panel').hidden = keep('pb.flow') === 'hidden';
 $('flow-show').hidden = !$('flow-panel').hidden;
 // Each press moves on one, from the system's theme to light, then dark, and back; this browser keeps it.
+$('side-toggle').addEventListener('click', () => {
+  // A phone always shows the switcher, so there the logo is only the logo.
+  if (!matchMedia('(width > 900px)').matches) return;
+  const collapsed = !document.documentElement.dataset.side;
+  collapseSide(collapsed);
+  fold(false);
+  keep('pb.side', collapsed ? 'collapsed' : 'open');
+});
 $('theme').addEventListener('click', () => {
   const next = { light: 'dark', dark: 'system' }[document.documentElement.dataset.theme] || 'light';
   keep('pb.theme', next);

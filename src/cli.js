@@ -9,12 +9,12 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import * as store from './board.js';
-import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
+import { CONFIG_FILE, COORDINATOR, DOCTRINE_FILE, LEGACY_DOCTRINE_FILE, loadConfig } from './config.js';
 import { doctrineHistory, loadDoctrine } from './doctrine.js';
 import { agentSessionDigest, requirePersonChannel } from './person.js';
 import { bindLocalSession } from './agent-session.js';
 import { decisionProjection, planRowApply, prepareRowDecisions, restoreRowApply, writeRowApply } from './row-decisions.js';
-import { digestOf, gateReport, runGate, runShell, withGateSlot } from './gate.js';
+import { digestOf, gateReport, runGate, runShell, runSubmitGate, submitGateReport, withGateSlot } from './gate.js';
 import { bareWorktreeFinding, contains, differFromHead, git, gitChildEnv, headCommit, headTree, invalidateGitFacts, isClean, mainCheckout, repoInfo, resolveCommit, tryGit, untracked, withGitFacts } from './git.js';
 import {
   FIX_NOTE,
@@ -38,6 +38,7 @@ import {
   idProblems,
   lintSpec,
   loadSpec,
+  legacyDoctrineRenameBase,
   permanenceProblems,
   parseSpec,
   readSignoffs,
@@ -46,7 +47,8 @@ import {
   unmetRows,
 } from './spec.js';
 import { briefFiles } from './brief.js';
-import { checkBaseline, sayCheckBaseline } from './check-baseline.js';
+import { checkBaseline, prepareCheckBaseline, sayCheckBaseline } from './check-baseline.js';
+import { retryCheckBaselines, startCheckBaseline } from './check-baseline-worker.js';
 import { runItems } from './run.js';
 import { parseProblems, sweepItems } from './sweep.js';
 import { renderSpecView } from './view.js';
@@ -65,7 +67,7 @@ import { proofStats } from './stats.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
-import { relayCommandReceipt, relayCommandReceiptReported, relayLinked, relayOff, relayOn, relayOperation, relayRecovered, relayStatus, syncRelay } from './relay.js';
+import { relayCommandReceipt, relayCommandReceiptReported, relayLinked, relayOff, relayOn, relayOperation, relayRecovered, relayRevoke, relayStatus, relayTokens, syncRelay } from './relay.js';
 import { relayJoin, relayPair } from './relay-pairing-client.js';
 import { executePersonRequests } from './relay-request-execution.js';
 
@@ -78,9 +80,10 @@ const CHECKOUT_LEASES = new WeakMap();
  *
  * @param {string} root
  * @param {string} path
+ * @param {string} [revision]
  * @returns {{ status: number, stdout: string }}
  */
-function coordinatorFile(root, path) {
+function coordinatorFile(root, path, revision) {
   const commonDir = git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
   const coordinatorRoot = dirname(commonDir);
   const env = { ...gitChildEnv(root), GIT_NO_REPLACE_OBJECTS: '1' };
@@ -94,7 +97,7 @@ function coordinatorFile(root, path) {
       'the primary checkout must be on its attached local branch to establish the collision baseline; the coordinator returns it to its branch',
     );
   }
-  const result = spawnSync('git', ['--no-replace-objects', 'show', `${ref}:${path}`], {
+  const result = spawnSync('git', ['--no-replace-objects', 'show', `${revision ?? ref}:${path}`], {
     cwd: coordinatorRoot, env, encoding: 'utf8',
   });
   return { status: result.status ?? 1, stdout: result.stdout ?? '' };
@@ -121,6 +124,8 @@ Set up
   pullboard relay [on|off|pair|join <code>] [--url <address>]  link, inspect or unlink this board's sealed relay
                                         on signs in through GitHub; the address defaults to https://app.pullboard.dev
                                         pair prints a one-use machine code; join stores it in another clone
+  pullboard relay tokens                list this board's agent token ids, agents and expiry, never credentials
+  pullboard relay revoke <token-id>     revoke one token from that list; other agents keep working
   pullboard resume                      where you are: your claim, branch, uncommitted work, what came back,
                                         unread shouts, what to do next; run it to start any session
   pullboard hooks                       reinstall the git hooks (e.g. after a fresh clone)
@@ -130,8 +135,10 @@ Work
                 [--brief "..." | --brief-file <file>] [--route light|mid]
                                         --after: claiming waits until those items are verified
                                         --brief: what a cold agent needs; --route light: any model can build it
-                [--check "<command>"]  the command that proves it; with --criterion and a brief, needed below strong
+                [--check "<command>"] [--wait]   the command that proves it; --wait waits for its main baseline
+                                        with --criterion and a brief, --check is needed below strong
   pullboard edit <id> [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."]
+                [--wait]                wait for a new check's baseline; otherwise it runs in the background
   pullboard escalate <id> --note "what was tried and how it failed"   hand it one tier up
   pullboard run --agent "<command>" [--attempts 3] [--minutes 15] [--items N] [--wait M]
                                         build routed items unattended in this worktree: the agent command reads
@@ -160,7 +167,7 @@ Work
                                         the command and its author print first; the project gate is pullboard gate
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
   pullboard release <id>                hand it back
-  pullboard submit <id>                 needs a clean tree and the gate green at HEAD (alias: done)
+  pullboard submit <id>                 needs a clean tree, item check and affected tests green at HEAD (alias: done)
   pullboard verify <id> accept --note "what you broke or which edge you tried, and what happened"
   pullboard verify <id> reject --reason TEST_FAILURE --note "what failed"
                                         any --note can be --note-file <file>, which keeps quotes, $ and backticks intact
@@ -478,6 +485,28 @@ const OPTIONS = {
   help: { type: 'boolean', short: 'h' },
   version: { type: 'boolean', short: 'v' },
 };
+
+/** Parse --wait as a switch for add/edit and as minutes for next/run, preserving all other options. */
+function parseCommandArgs(argv) {
+  let command;
+  for (const wait of [{ type: 'boolean' }, OPTIONS.wait]) {
+    try {
+      command = parseArgs({ args: argv, options: { ...OPTIONS, wait }, allowPositionals: true }).positionals[0];
+      if (['add', 'edit'].includes(command)) break;
+    } catch { /* The final parser supplies the existing actionable usage error. */ }
+  }
+  const options = ['add', 'edit'].includes(command) ? { ...OPTIONS, wait: { type: 'boolean' } } : OPTIONS;
+  return parseArgs({ args: argv, options, allowPositionals: true });
+}
+
+/** Start an already-recorded request, recording an unavailable result if its child cannot start. */
+async function launchBaseline(ctx, board, id, baseline) {
+  try { await startCheckBaseline(ctx.info.root, id, baseline); }
+  catch {
+    await ordered(ctx, board, 'completeCheckBaseline', [id, { agentId: COORDINATOR, expected: baseline,
+      baseline: { command: baseline.command, main: baseline.main, result: 'unavailable', reason: 'background worker could not start; set --check again from the coordinator' } }]);
+  }
+}
 
 /**
  * A positive whole number from an argument, or a refusal naming what was expected.
@@ -893,7 +922,7 @@ function dirtyFiles(root) {
 function filesSince(root, id, from, to) {
   if (!from) return [];
   const others = [`--exclude=refs/pullboard/items/${id}/*`, '--glob=refs/pullboard/items/*'];
-  const result = tryGit(root, ['log', '--first-parent', '--no-merges', '--format=', '--name-only', to, '--not', from, ...others]);
+  const result = tryGit(root, ['log', '--first-parent', '--no-merges', '--no-renames', '--format=', '--name-only', to, '--not', from, ...others]);
   return result.status === 0 ? [...new Set(result.stdout.split('\n').filter(Boolean))].sort() : [];
 }
 
@@ -962,6 +991,71 @@ function coordinatorNext(card, rows) {
   return 'nothing open: report what was built to the person, or curate the queue: pullboard add, edit, hold';
 }
 
+/** Read each actor's newest structured integration attempt unless their later receipt closes it. */
+function integrationClaims(root, item, shouts, now) {
+  const actors = new Map();
+  for (const shout of shouts) {
+    if (shout.shout_evidence_item !== item.item_id) continue;
+    if (shout.shout_evidence_kind === 'receipt') actors.delete(shout.shout_from);
+    else if (shout.shout_evidence_kind === 'attempt' && shout.shout_evidence_outcome === 'integrating'
+      && contains(root, item.item_commit, shout.shout_evidence_commit)) {
+      actors.set(shout.shout_from, shout);
+    }
+  }
+  const claims = [...actors.values()].map((shout) => ({ type: 'shout', by: shout.shout_from, at: shout.shout_at,
+      text: shout.shout_text, commit: shout.shout_evidence_commit, id: shout.shout_id,
+      expired: now - Date.parse(shout.shout_at) > 24 * 60 * 60 * 1000 }))
+    .sort((a, b) => b.id - a.id);
+  return { live: claims.find((claim) => !claim.expired) ?? null,
+    expired: claims.find((claim) => claim.expired) ?? null };
+}
+
+/** Check verified, unmerged heads against the trunk without changing a worktree or trusting prose. */
+function verifiedMergeGroups(root, items, shouts, now) {
+  const groups = { clean: [], conflicts: [], integrating: [] };
+  const staleIntegrations = [];
+  for (const item of [...items].sort((a, b) => a.item_id - b.item_id)) {
+    const claimed = integrationClaims(root, item, shouts, now);
+    if (claimed.live) {
+      const { expired, ...claim } = claimed.live;
+      groups.integrating.push({ item, ...claim });
+      continue;
+    }
+    if (claimed.expired) staleIntegrations.push({ item, ...claimed.expired });
+    try {
+      requireTrunkMerge(root, item.item_commit);
+      groups.clean.push(item);
+    } catch (error) {
+      if (error.code !== 'MERGE_CONFLICT') throw error;
+      const detail = / in ([\s\S]*); merge the trunk into/u.exec(error.message)?.[1] ?? '';
+      let files = [];
+      try { files = JSON.parse(`[${detail}]`); } catch { files = []; }
+      groups.conflicts.push({ item, files });
+    }
+  }
+  return { verifiedNotMerged: groups, staleIntegrations };
+}
+
+/** Capture coordinator-only decision sections with stable ages and answers from the board. */
+function coordinatorDecisionSections(board, ctx) {
+  const shouts = store.allShouts(board);
+  const openDecisions = store.openDecisions(board, COORDINATOR).map((ask) => ({
+    id: ask.shout_id, asker: ask.shout_from, question: ask.shout_text, at: ask.shout_at, age: span(ctx, ask.shout_at),
+  }));
+  const recentAnswers = shouts.filter((ask) => ask.shout_decision).flatMap((ask) => {
+    const answer = store.shoutDetails(board, ask.shout_id).decision_answer;
+    if (!answer) return [];
+    const ageMs = ctx.clock.now().getTime() - Date.parse(answer.shout_at);
+    if (ageMs < 0 || ageMs > 24 * 60 * 60 * 1000) return [];
+    return [{ id: ask.shout_id, asker: ask.shout_from, question: ask.shout_text,
+      answeredBy: answer.shout_from, answer: answer.shout_text, at: answer.shout_at, age: span(ctx, answer.shout_at) }];
+  }).sort((a, b) => b.at.localeCompare(a.at));
+  const personQuestions = store.openDecisions(board, 'person').map((ask) => ({
+    id: ask.shout_id, asker: ask.shout_from, question: ask.shout_text, at: ask.shout_at, age: span(ctx, ask.shout_at),
+  }));
+  return { openDecisions, recentAnswers, personQuestions, shouts };
+}
+
 /**
  * `pullboard resume` (N19): one short card that puts an agent back to work after a fresh start,
  * a restart or a compaction, from the board rather than from a summary.
@@ -975,9 +1069,13 @@ function resumeHere(io) {
   const card = withBoard(ctx, (board) => {
     const me = whoAmI(ctx, board);
     const all = store.listItems(board, { all: true });
+    const toMerge = all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit);
+    const decisionSections = isMain ? coordinatorDecisionSections(board, ctx) : null;
+    const { shouts = [], ...decisions } = decisionSections ?? {};
     return {
       me,
       all,
+      ...(decisionSections ? { ...decisions, ...verifiedMergeGroups(root, toMerge, shouts, ctx.clock.now().getTime()) } : {}),
       requests: me.id === COORDINATOR ? store.openRequests(board) : [],
       holding: all.filter((item) => item.item_status === 'claimed' && item.item_owner === me.id),
       sentBack: all
@@ -985,7 +1083,7 @@ function resumeHere(io) {
         .map((item) => ({ item, verdict: store.verdictsFor(board, item.item_id).at(-1) })),
       awaiting: all.filter((item) => item.item_status === 'submitted' && item.item_built_by === me.id),
       toVerify: all.filter((item) => item.item_status === 'submitted' && item.item_built_by !== me.id),
-      toMerge: all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit),
+      toMerge,
       open: all.filter((item) => item.item_status === 'open'),
       hold: store.laneHold(board, me.lane),
       holds: store.laneHolds(board),
@@ -995,6 +1093,12 @@ function resumeHere(io) {
   });
   const { me } = card;
   card.stale = staleFrozenItems(card.all, loadSpec(root, ctx.config).rows, ctx.doctrine.rows).map((item) => ({ ...item, ...staleItemFinding(item) }));
+  if (isMain) {
+    card.staleFollowUps = { count: card.stale.length + card.staleIntegrations.length,
+      list: 'pullboard resume --json', items: card.stale, integrations: card.staleIntegrations };
+    delete card.staleIntegrations;
+    card.reviewQueue = { items: card.toVerify, awaiting: card.awaiting };
+  }
   const say = (line) => io.say(line);
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
   say(`resume: ${me.id}${me.family ? ` (${me.family})` : ''}, ${me.lane} lane${isMain ? ', the main checkout' : ''}, at ${root}`);
@@ -1018,11 +1122,30 @@ function resumeHere(io) {
   for (const { item, verdict } of card.sentBack) {
     say(`sent back: #${item.item_id} ${verdict ? `${verdict.verdict_reason} by ${verdict.verdict_by}: ${firstLine(verdict.verdict_note)}` : 'rejected'}`);
   }
-  for (const item of card.stale) say(`stale: ${item.message}; next: ${item.next}`);
+  if (isMain && card.staleFollowUps.count) say(`${plural(card.staleFollowUps.count, 'stale follow-up')}; list them with ${card.staleFollowUps.list}`);
+  else if (!isMain) for (const item of card.stale) say(`stale: ${item.message}; next: ${item.next}`);
   if (card.awaiting.length) say(`awaiting a verdict: ${card.awaiting.map((item) => `#${item.item_id} (${span(ctx, item.item_updated_at)})`).join(', ')}`);
   if (isMain) {
-    if (card.toVerify.length) say(`to verify: ${card.toVerify.map((item) => `#${item.item_id} ${item.item_lane} (${span(ctx, item.item_updated_at)})`).join(', ')}`);
-    if (card.toMerge.length) say(`verified, not merged: ${card.toMerge.map((item) => `#${item.item_id} at ${item.item_commit.slice(0, 12)}`).join(', ')}; pullboard merged <id> <commit> records each`);
+    /** Limit each text section; JSON keeps every record for a complete handoff. */
+    const section = (entries, line) => {
+      for (const entry of entries.slice(0, 3)) say(line(entry));
+      if (entries.length > 3) say(`  ${entries.length - 3} more; list them with pullboard resume --json`);
+    };
+    section(card.openDecisions, (ask) => `open decision #${ask.id} from ${ask.asker} (${ask.age}): ${firstLine(ask.question)}`);
+    section(card.recentAnswers, (answer) => `recent decision #${answer.id}: ${answer.answeredBy} answered ${answer.asker} (${answer.age} ago): ${firstLine(answer.answer)}`);
+    if (card.toMerge.length) {
+      const groups = card.verifiedNotMerged;
+      /** Keep merge groups on one line while retaining all entries in JSON. */
+      const listed = (entries, line) => entries.slice(0, 3).map(line).join(', ')
+        + (entries.length > 3 ? `, +${entries.length - 3} more (pullboard resume --json)` : '') || 'none';
+      say(`verified, not merged — merges cleanly: ${listed(groups.clean, (item) => `#${item.item_id} ${firstLine(item.item_title)}`)}`);
+      say(`verified, not merged — conflicts: ${listed(groups.conflicts, ({ item, files }) => `#${item.item_id} ${firstLine(item.item_title)} (${files.join(', ') || 'files unavailable'})`)}`);
+      say(`verified, not merged — claimed for integration: ${listed(groups.integrating, ({ item, by, at, commit }) => `#${item.item_id} by ${by} at ${at} (${commit.slice(0, 12)})`)}`);
+    }
+    section(card.personQuestions, (ask) => `waiting on the person: #${ask.id} from ${ask.asker} (${ask.age}): ${firstLine(ask.question)}`);
+    if (card.toVerify.length) say('review queue:');
+    section(card.toVerify, (item) => `  to verify: #${item.item_id} ${item.item_lane} (${span(ctx, item.item_updated_at)})`);
+    if (card.toMerge.length) say('merge verified work, run the gate, then record each with pullboard merged <id> <commit>');
     for (const hold of card.holds) say(`held: the ${hold.hold_lane} lane, ${hold.hold_reason}`);
     const byLane = Object.entries(Map.groupBy(card.open, (item) => item.item_lane)).map(([lane, items]) => `${lane} ${items.length}`);
     say(`open: ${card.open.length}${byLane.length ? ` (${byLane.join(', ')})` : ''}`);
@@ -1200,6 +1323,11 @@ async function worktreeFor(io, lane, route, family = null) {
   let id;
   try { id = await withBoard(ctx, async (board) => await ordered(ctx, board, 'register', [{ lane, path: root, route, family }])); }
   catch (error) {
+    const registered = withBoard(ctx, (board) => store.agentAt(board, root));
+    if (registered) {
+      io.err('pullboard: registration is already ordered; the worktree is preserved. Retry enrollment to obtain its credential: ' + cdTo(root) + ' pullboard join ' + lane + (route === 'strong' ? '' : ' --route ' + route) + (family ? ' --family ' + shellWord(family) : ''));
+      throw error;
+    }
     // Only remove the clean worktree just created here; preserve it if another process changed it.
     const removed = tryGit(mainRoot, ['worktree', 'remove', root]);
     if (removed.status === 0) tryGit(mainRoot, ['branch', '-d', `${lane}/${n}`]);
@@ -1579,11 +1707,10 @@ async function submitHere(ctx, id) {
   const commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
   requireTrunkMerge(root, commit);
-  // Submit runs the gate itself, every time: a stamp from an earlier run is a file any agent can
-  // write, so it never stands in for this run (V16). It starts on the commit submitted, and must end
-  // on it too. What the gate's own code does in between is the submitted tree's, under review.
-  const gate = await runGate(root, ctx.config, { trustStamp: false, onWait: gateWaitReporter(ctx.io) });
-  if (!gate.isGreen) throw new Refused('GATE_RED', `the gate is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${gateReport(gate)}`);
+  // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
+  // A full-gate stamp never substitutes for either proof; only an actual full fallback may stamp.
+  const gate = await runSubmitGate(root, ctx.config, { base: claimHead, trunk: acceptedMain.commit, check: frozenCheck(held), onWait: gateWaitReporter(ctx.io) });
+  if (!gate.isGreen) throw new Refused('GATE_RED', `the submission proof is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${submitGateReport(gate)}`);
   if (headCommit(root) !== commit || !isClean(root)) {
     throw new Refused(
       'MOVED_DURING_GATE',
@@ -1592,7 +1719,7 @@ async function submitHere(ctx, id) {
   }
   requireTrunkMerge(root, commit); // The trunk may have moved while the gate ran.
   await withBoard(ctx, async (board) => await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit }]));
-  return reportSubmission(ctx, id, commit, { green: gate.isGreen, report: gateReport(gate) });
+  return reportSubmission(ctx, id, commit, { green: gate.isGreen, report: submitGateReport(gate), files: gate.files, full: gate.full, reason: gate.reason, check: gate.check });
 }
 
 /** Report and pin the original submitted commit, including a recovered acknowledged outcome. */
@@ -1952,8 +2079,9 @@ function workCommands(io, args) {
         check: values.check,
       };
       const { command } = store.validateItemAddition(board, item);
-      if (command) item.checkBaseline = checkBaseline(ctx.info.root, command);
+      if (command) item.checkBaseline = values.wait ? checkBaseline(ctx.info.root, command) : prepareCheckBaseline(ctx.info.root, command);
       const id = await ordered(ctx, board, 'addItem', [item]);
+      if (item.checkBaseline?.result === 'pending') await launchBaseline(ctx, board, id, item.checkBaseline);
       io.result?.({ item: store.getItem(board, id) });
       io.say(`#${id}`);
       sayCheckBaseline(io, store.getItem(board, id));
@@ -1979,8 +2107,9 @@ function workCommands(io, args) {
         check: values.check,
       };
       const { item, command } = store.validateItemEdit(board, id, change);
-      if (command && command !== item.item_check) change.checkBaseline = checkBaseline(ctx.info.root, command);
+      if (command && command !== item.item_check) change.checkBaseline = values.wait ? checkBaseline(ctx.info.root, command) : prepareCheckBaseline(ctx.info.root, command);
       await ordered(ctx, board, 'editItem', [id, change]);
+      if (change.checkBaseline?.result === 'pending') await launchBaseline(ctx, board, id, change.checkBaseline);
       io.result?.({ item: store.getItem(board, id) });
       io.say(`edited #${id}`);
       sayCheckBaseline(io, store.getItem(board, id));
@@ -2252,8 +2381,14 @@ async function specCommand(io, { first, second, rest, values }) {
     const files = [[ctx.config.spec, spec], ...(practice.exists ? [[practice.name, practice]] : [])];
     for (const [, parsed] of files) assertRequiredSigners(ctx.info.root, parsed.rows);
     const collisionFiles = [[ctx.config.spec, spec], ...(practice.repoExists ? [[practice.name, practice.repo]] : [])];
+    const renameBase = collisionFiles.some(([name]) => name === DOCTRINE_FILE)
+      ? legacyDoctrineRenameBase(ctx.info.root, DOCTRINE_FILE)
+      : null;
     const previousCounts = new Map(collisionFiles.map(([name]) => {
-      const previous = coordinatorFile(ctx.info.root, name);
+      const baselineName = renameBase && name === DOCTRINE_FILE ? LEGACY_DOCTRINE_FILE : name;
+      const previous = name === DOCTRINE_FILE && !renameBase
+        ? { status: 1, stdout: '' }
+        : coordinatorFile(ctx.info.root, baselineName, renameBase ?? undefined);
       const rows = previous.status === 0 ? parseSpec(previous.stdout, { strictGrammarVersion: false }).rows : [];
       const counts = new Map();
       for (const row of rows) counts.set(row.id, (counts.get(row.id) ?? 0) + 1);
@@ -2472,7 +2607,7 @@ async function hookCommand(io, { first, second }) {
 async function runCommand(argv, io) {
   let parsed;
   try {
-    parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
+    parsed = parseCommandArgs(argv);
   } catch (error) {
     io.refusal?.(new Refused('USAGE', `${error.message}; run pullboard help`));
     io.err(`pullboard: ${error.message}\nRun pullboard help --all for the full list.`);
@@ -2528,6 +2663,19 @@ async function runCommand(argv, io) {
     if (command === 'hook') return await hookCommand(io, args);
     if (command === 'settings') return settingsCommand(io, args);
     if (command === 'relay') {
+      if (['tokens', 'revoke'].includes(first)) {
+        if (rest.length || values.url || (first === 'tokens' && second) || (first === 'revoke' && !second)) {
+          throw new Refused('USAGE', 'pullboard relay tokens, or pullboard relay revoke <token-id>');
+        }
+        const ctx = context(io);
+        const result = first === 'tokens' ? await relayTokens(ctx.info.root, io) : await relayRevoke(ctx.info.root, second, io);
+        io.result?.(result);
+        if (first === 'tokens') {
+          if (!result.tokens.length) io.say('no agent tokens on this board');
+          for (const row of result.tokens) io.say(row.id + '  ' + row.agent + '  ' + (row.revoked ? 'revoked' : 'expires ' + new Date(row.expires).toISOString()));
+        } else io.say('revoked token ' + result.id + '; other agent tokens are unchanged');
+        return 0;
+      }
       if (first === 'pair') {
         if (second || rest.length || values.url) throw new Refused('USAGE', 'pullboard relay pair');
         const ctx = context(io);
@@ -2594,7 +2742,7 @@ async function runMain(argv, streams) {
   let parsed;
   let checkoutSession;
   try {
-    parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
+    parsed = parseCommandArgs(argv);
     const command = parsed.positionals[0];
     io.relayCommand = { cliOperation: command === 'done' ? 'submit' : command, cwd: resolve(io.cwd),
       positionals: parsed.positionals.slice(1),
@@ -2617,7 +2765,10 @@ async function runMain(argv, streams) {
   try {
     /** A network refusal preserves offline reads; linked mutation dispatch requires an acknowledgement. */
     const retry = async () => {
-      try { await syncRelay(io.cwd, io); }
+      try {
+        await syncRelay(io.cwd, io);
+        await retryCheckBaselines(io.cwd, io);
+      }
       catch (error) {
         if (!(error instanceof Refused)) throw error;
         if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
