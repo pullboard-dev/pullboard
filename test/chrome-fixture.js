@@ -140,14 +140,21 @@ export async function startChrome({
     async function navigate(nextUrl) {
       await send('Page.navigate', { url: nextUrl }, 'navigate page');
     }
-    /** Wait until a page expression becomes truthy before its command deadline. */
+    /** Wait until a page expression becomes truthy, treating document-transition evaluation errors as pending. */
     async function waitFor(expression, timeoutMs = commandTimeoutMs, label = 'wait for page condition') {
       const waitDeadline = Date.now() + timeoutMs;
+      let lastEvaluationError = null;
       while (Date.now() < waitDeadline) {
-        if (await evaluate(expression, label)) return;
+        try {
+          if (await evaluate(expression, label)) return;
+        } catch (error) {
+          if (!(error instanceof Error) || !error.message.startsWith('Browser evaluation failed:')) throw error;
+          lastEvaluationError = error;
+        }
         await pause(50);
       }
-      throw new Error(`Browser condition "${label}" did not arrive within ${timeoutMs}ms.`);
+      const exception = lastEvaluationError instanceof Error ? `; last evaluation failed: ${lastEvaluationError.message}` : '';
+      throw new Error(`Browser condition "${label}" did not arrive within ${timeoutMs}ms; expression: ${expression.slice(0, 200)}${exception}.`);
     }
     /** Start asynchronous page work without holding a CDP Runtime.evaluate command open. */
     async function startTask(expression, label) {
