@@ -611,7 +611,7 @@ test('two real clients enforce the verify policy captured in the item freeze [H1
 test('relay accepts engine 4 clients carrying sealed background completions [V2,H16]', async t => {
   const box = await fixture(t);
   const headers = { 'x-pullboard-engine': '4' };
-  assert.equal(ENGINE_VERSION, 4);
+  assert.ok(ENGINE_VERSION >= 4, 'engine-4 background completions remain supported');
   const snapshot = await box.call(box.path + '/state', {
     method: 'PUT', token: box.person.token, headers,
     body: { sequence: 0, sealed: box.clientSeal(box.document, 'snapshot', 0) },
@@ -621,9 +621,12 @@ test('relay accepts engine 4 clients carrying sealed background completions [V2,
   let move;
   try {
     const expected = { command: 'true', main: 'a'.repeat(40), request: '12345678-1234-1234-1234-123456789abc' };
-    move = prepareEngineMove(board, 'completeCheckBaseline', [1, {
+    const prepared = prepareEngineMove(board, 'completeCheckBaseline', [1, {
       agentId: 'client-one', expected, baseline: { ...expected, result: 'green' },
     }]);
+    assert.equal(prepared.engine, ENGINE_VERSION, 'new operations declare the current engine');
+    move = { ...prepared, engine: 4 }; // Keep exercising the original engine-4 client.
+    assert.equal(move.engine, 4);
   } finally { store.closeBoard(board); }
   const uploaded = await box.call(box.path + '/moves', {
     method: 'POST', headers, body: { sequence: 1, sealed: box.clientSeal(move, 'move', 1) },

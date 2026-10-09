@@ -928,11 +928,14 @@ test('reserve refuses in the declared order, one failure peeled at a time [V15, 
     const built = submittedItem(board);
     const open = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
     const reserveAs = (id, agentId, policy = 'coordinator', familyPolicy = 'off') => outcome(() => store.reserveReview(board, id, { agentId, leaseMs: 3_600_000, policy, familyPolicy }));
-    const fired = [reserveAs(999, 'web-2'), reserveAs(open, 'web-2'), reserveAs(built, 'web-1'), reserveAs(built, light), reserveAs(built, 'web-2')];
+    const cooling = submittedItem(board);
+    store.reserveReview(board, cooling, { agentId: 'web-2', leaseMs: 3_600_000, policy: 'any' });
+    store.release(board, cooling, 'web-2', 'another reviewer should take it');
+    const fired = [reserveAs(999, 'web-2'), reserveAs(open, 'web-2'), reserveAs(cooling, 'web-2'), reserveAs(built, 'web-1'), reserveAs(built, light), reserveAs(built, 'web-2')];
     store.reserveReview(board, built, { agentId: other, leaseMs: 3_600_000, policy: 'any' });
     fired.push(reserveAs(built, other, 'any', 'require'), reserveAs(built, 'web-2', 'any'), reserveAs(built, other, 'any'));
     assert.deepEqual(fired, [...declaredBoardOrder('reserve'), 'ok']);
-    assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'O2_FAMILY_MATCH', 'REVIEW_HELD', 'ok']);
+    assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'REVIEW_COOLDOWN', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'O2_FAMILY_MATCH', 'REVIEW_HELD', 'ok']);
   } finally {
     lab.done();
   }

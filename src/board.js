@@ -1002,6 +1002,7 @@ export function release(board, id, agentId, note = '') {
         joined: null,
         [IN_STATE]: () => new Refused('NOT_YOURS', `item #${id} is not claimed by you`),
         isHolder: (found) => (found.item_owner === agentId ? null : new Refused('NOT_YOURS', `item #${id} is not claimed by you`)),
+        reviewReleaseExplained: null, // Claimed releases do not free a submitted review.
       },
       set: () => ({ item_owner: null, item_lease_until: null }),
     });
@@ -1226,15 +1227,17 @@ export function reserveNextReview(board, { agentId, lane, leaseMs, policy, famil
  * @returns {any}
  */
 function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'off' }) {
-  const currentItem = getItem(board, id);
-  const cooldown = currentItem.item_status === 'submitted' ? reviewReleaseCooldown(board, id, agentId) : null;
-  if (cooldown) throw new Refused('REVIEW_COOLDOWN', `you released the review of #${id}; try again after ${cooldown}, or let another reviewer take it`);
   const until = new Date(board.clock.now().getTime() + leaseMs).toISOString();
   moveItem(board, id, 'reserve', {
     checks: {
       coordinatorSaysAs: null,
       joined: null,
       [IN_STATE]: (found) => new Refused('NOT_SUBMITTED', `item #${id} is ${current(board, found).item_status}, not submitted`),
+      /** Enforce the cooldown after state validation and before reviewer eligibility [V1]. */
+      reviewCooldownElapsed: () => {
+        const cooldown = reviewReleaseCooldown(board, id, agentId);
+        return cooldown ? new Refused('REVIEW_COOLDOWN', `you released the review of #${id}; try again after ${cooldown}, or let another reviewer take it`) : null;
+      },
       ...reviewerChecks(board, { agentId, policy, familyPolicy }),
     },
     set: () => ({ item_review_by: agentId, item_review_until: until }),

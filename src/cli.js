@@ -166,7 +166,7 @@ Work
   pullboard check [id] [--yes]          show and run your item's check; --yes confirms a check set by someone else
                                         the command and its author print first; the project gate is pullboard gate
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
-  pullboard release <id> [--note "why"] hand it back; a review release needs a one-line reason
+  pullboard release <id> [--note "why"]  hand it back; a review release needs a one-line reason
   pullboard submit <id>                 needs a clean tree and the gate green at HEAD (alias: done)
   pullboard verify <id> accept --note "what you broke or which edge you tried, and what happened"
   pullboard verify <id> reject --reason TEST_FAILURE --note "what failed"
@@ -711,10 +711,6 @@ function withBoard(ctx, work) {
 
 /** Dispatch a board mutation locally, or seal it before any linked replica applies it. */
 async function ordered(ctx, board, operation, args) {
-  if (operation === 'release') {
-    const problem = store.reviewReleaseNoteProblem(board, args[0], args[1], args[2]);
-    if (problem) throw problem;
-  }
   const command = ['add', 'edit', 'merged'].includes(ctx.io.relayCommand?.cliOperation) ? ctx.io.relayCommand : undefined;
   /** Dispatch while this session holds the checkout, including long-running next/run loops. */
   const execute = () => relayLinked(ctx.info.root)
@@ -2094,7 +2090,10 @@ function workCommands(io, args) {
       return 0;
     }),
     release: () => act(async (ctx, board, me) => {
-      const review = await ordered(ctx, board, 'release', [idArg(first), me.id, textArg(io, values, 'note') ?? '']);
+      const args = [idArg(first), me.id, textArg(io, values, 'note') ?? ''];
+      const problem = store.reviewReleaseNoteProblem(board, ...args);
+      if (problem) throw problem;
+      const review = await ordered(ctx, board, 'release', args);
       io.result?.({ id: idArg(first) });
       io.say(review ? `released the review of #${first}; the review is free again` : `released #${first}`);
       return 0;

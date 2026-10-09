@@ -9,7 +9,7 @@
  * broken copy, and checks the declaration against the refusals board.js and cli.js raise today.
  */
 
-/** Executable move semantics; bump once per release after a released move's meaning changes [H16]. */
+/** Executable move semantics, carried by every sealed move and retained during replay [H16]. */
 export const ENGINE_VERSION = 5;
 
 /** @typedef {'agent' | 'coordinator' | 'clock'} Role */
@@ -130,6 +130,8 @@ export const GUARDS = [
   { id: 'reasonIsMet', refuse: 'BAD_REASON', rule: 'an accept gives CRITERION_MET as its reason', next: 'a failed criterion is a reject: pullboard verify <id> reject --reason CODE', source: 'board' },
   { id: 'proofNoted', refuse: 'PROOF_REQUIRED', rule: 'an accept notes how it was proved', next: '--note "what you broke or which edge you tried, and what happened"', source: 'board' },
   { id: 'reasonCoded', refuse: 'BAD_REASON', rule: 'a reject names one of the reject reasons', next: '--reason TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD or OTHER', source: 'board' },
+  { id: 'reviewReleaseExplained', refuse: 'NOTE_REQUIRED', rule: 'a review release gives a nonempty one-line reason', next: 'release with --note "why", or --note-file <file>', source: 'board', when: 'engine 5 or newer, only when freeing a submitted review reservation' },
+  { id: 'reviewCooldownElapsed', refuse: 'REVIEW_COOLDOWN', rule: 'the reviewer has not released this submission within the past hour', next: 'let another reviewer take it, or wait an hour or for a new submission', source: 'board', when: 'engine 5 or newer, only for the same reviewer and current submission' },
   { id: 'noteGiven', refuse: 'NOTE_REQUIRED', rule: 'the move carries a note: what failed, what was tried, or why', next: '--note "..." or --note-file <file>', source: 'board' },
 ];
 
@@ -142,7 +144,7 @@ export const MOVES = [
   },
   {
     verb: 'release', from: ['claimed'], to: 'open', by: ['agent', 'coordinator'], refuse: 'NOT_YOURS',
-    guards: ['joined', 'itemExists', IN_STATE, 'isHolder'], command: 'pullboard release <id>',
+    guards: ['joined', 'itemExists', IN_STATE, 'isHolder', 'reviewReleaseExplained'], command: 'pullboard release <id>',
   },
   { verb: 'lapse', from: ['claimed'], to: 'open', by: ['clock'], guards: [], when: 'its lease runs out' },
   {
@@ -152,7 +154,7 @@ export const MOVES = [
   },
   {
     verb: 'reserve', from: ['submitted'], to: 'submitted', by: ['agent', 'coordinator'], refuse: 'NOT_SUBMITTED',
-    guards: ['coordinatorSaysAs', 'joined', 'itemExists', IN_STATE, 'notBuilder', 'routeAllows', 'policyAllows', 'familyAllows', 'reviewFree'],
+    guards: ['coordinatorSaysAs', 'joined', 'itemExists', IN_STATE, 'reviewCooldownElapsed', 'notBuilder', 'routeAllows', 'policyAllows', 'familyAllows', 'reviewFree'],
     sets: ['item_review_by', 'item_review_until'], command: 'pullboard next --verify',
   },
   {
