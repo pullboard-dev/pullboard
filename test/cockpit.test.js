@@ -2368,14 +2368,29 @@ async function openSnapshotChrome(executable, url, profile) {
       if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
       return result.result.value;
     };
-    /** Poll a page expression with a fixed deadline, without leaving a live interval behind. */
+    /**
+     * Poll a page expression with a fixed deadline, without leaving a live interval behind. A condition that
+     * throws, as one does while the next document is still parsing, is not ready yet, so polling goes on; one
+     * that never holds fails at the deadline, naming the last error it threw. Exceptions the page throws by
+     * itself still reach exceptions: an evaluation's own exception is never reported there.
+     */
     const waitFor = async (expression, timeoutMs = 10_000) => {
       const deadline = Date.now() + timeoutMs;
+      let lastError = '';
       while (Date.now() < deadline) {
-        if (await evaluate(expression)) return;
+        try {
+          const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+          if (!result.exceptionDetails && result.result.value) return;
+          if (result.exceptionDetails) {
+            const details = result.exceptionDetails;
+            lastError = String(details.exception?.description ?? details.text).split('\n')[0];
+          }
+        } catch (error) {
+          lastError = error.message;
+        }
         await browserPause(50);
       }
-      throw new Error(`Browser condition did not arrive: ${expression}`);
+      throw new Error(`Browser condition did not arrive: ${expression}${lastError ? `; it last threw: ${lastError}` : ''}`);
     };
     await send('Page.enable');
     await send('Runtime.enable');
@@ -2467,6 +2482,46 @@ process.exit(19);
   catch (error) { failure = error; }
   assert.match(failure?.message ?? '', /Chrome final stderr marker/, 'a real launch failure includes Chrome stderr');
   assert.equal(readFileSync(failedAttempts, 'utf8'), '2', 'the failed launch is retried exactly once');
+});
+
+test('a Chrome wait whose condition throws while the next document loads keeps polling, and names its last error [N26,C7]', { timeout: 60_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to run the browser wait proof.');
+  const server = createServer((request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+    if (request.url === '/late') {
+      // The head arrives now and the body 1.5 s later, so the next document parses without #late for a while.
+      response.write('<!doctype html><html><head><title>late</title></head>');
+      setTimeout(() => response.end('<body><p id="late">the late body arrived</p></body></html>'), 1500);
+      return;
+    }
+    if (request.url === '/fault') {
+      response.end('<!doctype html><script>window.__faultRan = true; throw new Error("page fault fixture");</script>');
+      return;
+    }
+    response.end('<!doctype html><p id="first">first page</p>');
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-wait-chrome-'));
+  let chrome;
+  try {
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    chrome = await openSnapshotChrome(executable, `${origin}/first`, profile);
+    await chrome.waitFor("document.querySelector('#first')?.textContent === 'first page'");
+    await chrome.send('Page.navigate', { url: `${origin}/late` });
+    await chrome.waitFor("document.querySelector('#late').textContent.includes('the late body arrived')");
+    await assert.rejects(chrome.waitFor("document.querySelector('#never').textContent === 'never'", 1000),
+      /^Error: Browser condition did not arrive: .*#never.*; it last threw: TypeError: Cannot read properties of null/u);
+    assert.deepEqual(chrome.exceptions, [], 'a condition that throws is not a page exception');
+    await chrome.send('Page.navigate', { url: `${origin}/fault` });
+    await chrome.waitFor('window.__faultRan === true');
+    assert.equal(chrome.exceptions.length, 1, 'an exception the page throws by itself is still collected');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    rmSync(profile, { recursive: true, force: true });
+  }
 });
 
 test('static export stays in its prefix and replays read-only in Chrome [A10,A3]', { timeout: 90_000 }, async (t) => {
