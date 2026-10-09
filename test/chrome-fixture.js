@@ -71,6 +71,9 @@ async function stopProcessGroup(child, stopped, timeoutMs = CLEANUP_TIMEOUT_MS) 
     try { process.kill(-pid, 'SIGKILL'); } catch { /* The owned process group already exited. */ }
     if (!await waitForProcessGroupExit(pid, timeoutMs)) throw new Error('Isolated Chrome process group did not exit after cleanup.');
   }
+  // Crash reporters/updaters may inherit stderr outside Chrome's detached group.
+  // Once every owned process is gone, stop owning that pipe rather than their lifetime.
+  child.stderr?.destroy();
   if (!await waitForLeaderExit(stopped, timeoutMs)) throw new Error('Isolated Chrome did not close after its process group exited.');
 }
 
@@ -108,6 +111,7 @@ export async function startChrome({
   profileDirectory,
   startupTimeoutMs = STARTUP_TIMEOUT_MS,
   commandTimeoutMs = COMMAND_TIMEOUT_MS,
+  taskTimeoutMs = 25_000,
   cleanupTimeoutMs = CLEANUP_TIMEOUT_MS,
   env = process.env,
 } = {}) {
@@ -149,6 +153,19 @@ export async function startChrome({
       }
       throw new Error(`Browser condition "${label}" did not arrive within ${timeoutMs}ms.`);
     }
+    /** Wait for non-stream relay traffic to finish before an idle-network assertion. */
+    async function waitForRelayIdle(timeoutMs = commandTimeoutMs) {
+      const deadline = Date.now() + timeoutMs;
+      let quietSince = null;
+      while (Date.now() < deadline) {
+        if (relayRequests.size === 0) {
+          quietSince ??= Date.now();
+          if (Date.now() - quietSince >= 100) return;
+        } else quietSince = null;
+        await pause(20);
+      }
+      throw new Error(`Relay requests did not become idle within ${timeoutMs}ms.`);
+    }
     /** Start asynchronous page work without holding a CDP Runtime.evaluate command open. */
     async function startTask(expression, label) {
       const taskId = '__pullboardFixtureTask' + ++taskSequence;
@@ -158,7 +175,7 @@ export async function startChrome({
       return taskId;
     }
     /** Poll asynchronous page work while each DevTools command stays short. */
-    async function pollTask(taskId, timeoutMs = 25_000, label = 'poll page operation') {
+    async function pollTask(taskId, timeoutMs = taskTimeoutMs, label = 'poll page operation') {
       const key = JSON.stringify(taskId);
       await waitFor(`window[${key}] !== null && window[${key}] !== undefined`, timeoutMs, label);
       const result = await evaluate(`window[${key}]`, label + ' result');
@@ -192,6 +209,7 @@ export async function startChrome({
       navigate,
       evaluate,
       waitFor,
+      waitForRelayIdle,
       startTask,
       pollTask,
       send,

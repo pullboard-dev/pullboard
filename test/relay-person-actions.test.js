@@ -9,8 +9,8 @@ import { executeMove } from '../src/api.js';
 import { main } from '../src/cli.js';
 import { decodeBoardKey, seal } from '../src/seal.js';
 import { ENGINE_VERSION } from '../src/machine.js';
-import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
-import { relayClientFixture } from './relay-client-fixture.js';
+import { findChromeExecutable, relayWorkBudgetMs, startChrome } from './relay-browser-fixture.js';
+import { assertSnapshotCheckpoints, relayClientFixture } from './relay-client-fixture.js';
 
 /** Install only the private fixture's person cookie in the real browser. */
 async function signIn(chrome, box) {
@@ -28,12 +28,10 @@ async function pairedTransport(chrome, box, title) {
   await signIn(chrome, box);
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + key);
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')');
-  const task = await chrome.startTask(`(async () => {
-    const { createTransport } = await import('/relay/client.js');
-    window.__personActionTransport = await createTransport({ onUpdate: () => {} });
-    return true;
-  })()`, 'initialize paired person transport');
-  await chrome.pollTask(task, 25000, 'initialize paired person transport');
+  await chrome.waitFor('typeof transport?.request === "function"', relayWorkBudgetMs(), 'real page transport ready');
+  assert.equal(await chrome.evaluate(`(() => { window.__personActionTransport = transport;
+    return window.__personActionTransport === transport; })()`, 'use real paired person transport'), true,
+    'fixture commands use the page-owned transport and its single stream queue');
   return link;
 }
 
@@ -41,7 +39,7 @@ async function pairedTransport(chrome, box, title) {
 async function personAction(chrome, board, move) {
   const task = await chrome.startTask('window.__personActionTransport.request('
     + JSON.stringify('/api/v1/boards/' + board + '/moves') + ',' + JSON.stringify(move) + ')', 'send person action');
-  return chrome.pollTask(task, 25000, 'send person action');
+  return chrome.pollTask(task, relayWorkBudgetMs(), 'send person action');
 }
 
 /** Poll checkpoint completion separately from CDP's bounded evaluation deadline. */
@@ -50,7 +48,7 @@ async function waitRequest(chrome, board, id, status) {
   const predicate = `value.state?.personRequests?.some(entry => entry.id === ${JSON.stringify(id)} && entry.status === ${JSON.stringify(status)})`;
   // Product checkpoint work is bounded at 15 seconds; ten seconds remain for scheduling and polling.
   const task = await chrome.startTask(`(async () => {
-      const deadline = Date.now() + 25000;
+      const deadline = Date.now() + ${relayWorkBudgetMs()};
       while (Date.now() < deadline) {
         try {
           const value = await window.__personActionTransport.request(${JSON.stringify(path)});
@@ -60,14 +58,14 @@ async function waitRequest(chrome, board, id, status) {
       }
       throw new Error('The native request status did not reach the paired browser.');
     })()`, 'wait for native person request status');
-  return chrome.pollTask(task, 30000, 'wait for native person request status');
+  return chrome.pollTask(task, relayWorkBudgetMs() + relayWorkBudgetMs(0), 'wait for native person request status');
 }
 
 /** Read the final relay state without holding Runtime.evaluate open across network work. */
 async function finalState(chrome, board) {
   const task = await chrome.startTask('window.__personActionTransport.request('
     + JSON.stringify('/api/v1/boards/' + board + '/state') + ')', 'read final person-action state');
-  return chrome.pollTask(task, 25000, 'read final person-action state');
+  return chrome.pollTask(task, relayWorkBudgetMs(), 'read final person-action state');
 }
 
 test('real paired person adds, answers a person decision, and holds then releases a lane [H12,H16,B26]', {
@@ -177,7 +175,7 @@ test('a person action completes with late native snapshots after 8 seconds [H12,
   assert.equal(status.error, undefined, 'the real native CLI completes within its product deadline plus margin');
   assert.equal(status.result.code, 0, 'the real native CLI reports success');
   const delays = box.snapshotWriteDelays().slice(delayedBefore);
-  assert.equal(delays.length, 3, 'this three-upload status flow uploads exactly three snapshots');
+  assertSnapshotCheckpoints(status.result.snapshotTrace, 3);
   assert.ok(delays.every(delay => delay >= 7900), 'the relay delayed every native snapshot by 8 seconds');
   const completed = await waitRequest(chrome, link.board, action.result.request.id, 'done');
   assert.equal(completed.state.personRequests.find(row => row.id === action.result.request.id).status, 'done');

@@ -108,3 +108,27 @@ test('a missing DevTools port fails once with stderr and elapsed launch time [C7
   });
   assert.equal(readFileSync(launches, 'utf8'), 'launch\n', 'the shared launcher never retries');
 });
+
+
+/** Prove an unrelated process inheriting stderr cannot keep an exited owned Chrome open. */
+test('Chrome close releases inherited stderr after its owned process group exits [C7]', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-chrome-inherited-pipe-'));
+  const ready = join(directory, 'holder-ready');
+  const holder = `const fs = require('node:fs'); fs.writeFileSync(process.argv[1], String(process.pid)); setInterval(() => {}, 1000);`;
+  const leader = `const { spawn } = require('node:child_process');
+    const child = spawn(process.execPath, ['-e', process.argv[1], process.argv[2]], { detached: true, stdio: ['ignore', 'ignore', 'inherit'] });
+    child.unref(); process.on('SIGTERM', () => process.exit(0)); setInterval(() => {}, 1000);`;
+  const chrome = launchChromeProcess({ executable: process.execPath, args: ['-e', leader, holder, ready] });
+  let holderPid;
+  t.after(async () => {
+    if (holderPid) { try { process.kill(holderPid, 'SIGKILL'); } catch { /* The private stand-in already stopped. */ } }
+    try { await chrome.close(); } catch { /* Retain the original close assertion on a broken implementation. */ }
+    rmSync(directory, { recursive: true, force: true });
+  });
+  await waitForFile(ready);
+  holderPid = Number(readFileSync(ready, 'utf8'));
+  const failure = await chrome.close().then(() => null, error => error);
+  assert.equal(failure, null, 'an inherited stderr holder must not prevent owned Chrome cleanup');
+  assert.doesNotThrow(() => process.kill(holderPid, 0), 'cleanup closes its pipe without killing an independent process');
+  assert.ok(chrome.child.exitCode !== null || chrome.child.signalCode !== null, 'the owned leader exited before close resolved');
+});

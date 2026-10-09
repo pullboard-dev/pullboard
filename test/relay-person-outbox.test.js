@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
-import { cliChildDeadlineMs, relayClientFixture } from './relay-client-fixture.js';
+import { findChromeExecutable, relayWorkBudgetMs, startChrome } from './relay-browser-fixture.js';
+import { assertSnapshotCheckpoints, cliChildDeadlineMs, relayClientFixture } from './relay-client-fixture.js';
 
 /** Install only the private fixture's person cookie in the real browser. */
 async function signIn(chrome, box) {
@@ -27,26 +27,24 @@ async function pairedTransport(chrome, box, title) {
 
 /** Initialize the real transport on the currently loaded document. */
 async function installTransport(chrome) {
-  const task = await chrome.startTask(`(async () => {
-    const { createTransport } = await import('/relay/client.js');
-    window.__personOutboxTransport = await createTransport({ onUpdate: () => {} });
-    return true;
-  })()`, 'initialize person outbox transport');
-  await chrome.pollTask(task, 25000, 'initialize person outbox transport');
+  await chrome.waitFor('typeof transport?.request === "function"', relayWorkBudgetMs(), 'real page transport ready');
+  assert.equal(await chrome.evaluate(`(() => { window.__personOutboxTransport = transport;
+    return window.__personOutboxTransport === transport; })()`, 'use real person outbox transport'), true,
+    'fixture commands use the page-owned transport and its single stream queue');
 }
 
 /** Read a final state without keeping a single DevTools evaluation open during relay work. */
 async function finalState(chrome, board) {
   const task = await chrome.startTask('window.__personOutboxTransport.request('
     + JSON.stringify('/api/v1/boards/' + board + '/state') + ')', 'read person outbox state');
-  return chrome.pollTask(task, 25000, 'read person outbox state');
+  return chrome.pollTask(task, relayWorkBudgetMs(), 'read person outbox state');
 }
 
 /** Poll the device-decrypted outbox receipt while native status publishes its snapshot. */
 async function waitForRequest(chrome, board, id, status) {
   const path = '/api/v1/boards/' + board + '/state';
   const task = await chrome.startTask(`(async () => {
-    const deadline = Date.now() + 25000;
+    const deadline = Date.now() + ${relayWorkBudgetMs()};
     while (Date.now() < deadline) {
       try {
         const state = await window.__personOutboxTransport.request(${JSON.stringify(path)});
@@ -56,7 +54,7 @@ async function waitForRequest(chrome, board, id, status) {
     }
     throw new Error('The person outbox receipt did not reach its expected status.');
   })()`, 'wait for person outbox receipt');
-  return chrome.pollTask(task, 30000, 'wait for person outbox receipt');
+  return chrome.pollTask(task, relayWorkBudgetMs() + relayWorkBudgetMs(0), 'wait for person outbox receipt');
 }
 
 test('real Chrome keeps an interrupted person request sealed and retries it once after reload [H12,H16,H17]', {
@@ -78,7 +76,7 @@ test('real Chrome keeps an interrupted person request sealed and retries it once
     ${JSON.stringify({ verb: 'shout', args: { to: 'coordinator', text } })}
   )`, 'submit interrupted person request');
   let interrupted;
-  try { interrupted = await chrome.pollTask(interruptedTask, 25000, 'submit interrupted person request'); }
+  try { interrupted = await chrome.pollTask(interruptedTask, relayWorkBudgetMs(), 'submit interrupted person request'); }
   catch (error) { interrupted = { code: error.code }; }
   assert.equal(interrupted.code, 'RELAY_UNAVAILABLE');
   let outbox = await chrome.evaluate(`(() => {
@@ -129,7 +127,7 @@ test('real Chrome keeps an interrupted person request sealed and retries it once
   assert.ok(trace.every(write => write.callers.some(line => line.includes('publishCheckpoint'))), 'each traced upload came from checkpoint publication');
   assert.equal(status.result.snapshotUploads, trace.length);
   assert.equal(status.result.snapshotDeadlineMs, cliChildDeadlineMs(trace.length), 'the child deadline follows this run’s observed upload count');
-  assert.equal(delays.length, 3, 'this three-upload status flow uploads exactly three snapshots');
+  assertSnapshotCheckpoints(trace, 3);
   assert.ok(delays.every(delay => delay >= 7900), 'the relay delayed every native snapshot by 8 seconds');
   const completed = await waitForRequest(chrome, link.board, requestId, 'done');
   const exported = (await box.cli('export')).document;

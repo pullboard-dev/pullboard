@@ -14,12 +14,13 @@ import { createRelayAuth } from '../relay/auth.js';
 import { createRelayHandler } from '../relay/service.js';
 import { createGitHubClient } from '../relay/github.js';
 import { githubFixture } from './relay-fixture.js';
+import { RELAY_REQUEST_BOUND_MS, NATIVE_COMMAND_BOUND_MS, FIXTURE_SCHEDULING_MARGIN_MS, MAX_SNAPSHOT_ATTEMPTS } from './relay-budget.js';
 
 const CLI = resolve(import.meta.dirname, '../bin/pullboard.js');
-const CLI_PRODUCT_DEADLINE_MS = 15_000;
-const SNAPSHOT_UPLOAD_BOUND_MS = 10_000;
-const CLI_DEADLINE_MARGIN_MS = 10_000;
-const MAX_OBSERVED_SNAPSHOT_UPLOADS = 6;
+const CLI_PRODUCT_DEADLINE_MS = NATIVE_COMMAND_BOUND_MS;
+const SNAPSHOT_UPLOAD_BOUND_MS = RELAY_REQUEST_BOUND_MS;
+const CLI_DEADLINE_MARGIN_MS = FIXTURE_SCHEDULING_MARGIN_MS;
+const MAX_OBSERVED_SNAPSHOT_UPLOADS = MAX_SNAPSHOT_ATTEMPTS;
 const DEFAULT_SNAPSHOT_UPLOADS = 3;
 
 /** Derive a private CLI child deadline from observed uploads, with a finite runaway guard. */
@@ -27,6 +28,24 @@ export function cliChildDeadlineMs(observedUploads) {
   assert.ok(Number.isSafeInteger(observedUploads) && observedUploads >= 0 && observedUploads <= MAX_OBSERVED_SNAPSHOT_UPLOADS,
     'observed snapshot upload count is within the finite fixture bound');
   return Math.max(CLI_PRODUCT_DEADLINE_MS, observedUploads * SNAPSHOT_UPLOAD_BOUND_MS) + CLI_DEADLINE_MARGIN_MS;
+}
+
+/** Count durable checkpoints, permitting only byte-identical retries of aborted PUTs. */
+export function assertSnapshotCheckpoints(trace, expected) {
+  const checkpoints = new Map();
+  for (const write of trace) {
+    assert.ok(Number.isSafeInteger(write.sequence) && /^[0-9a-f]{64}$/u.test(write.ciphertext ?? ''), 'checkpoint metadata is complete');
+    const previous = checkpoints.get(write.sequence);
+    if (previous) {
+      assert.equal(write.ciphertext, previous.ciphertext, 'a retried sequence preserves its exact ciphertext');
+      assert.equal(previous.abort?.name, 'TimeoutError', 'only a timed-out PUT can add a transport attempt');
+      assert.ok(write.callers.some(caller => caller.includes('async retry@cli.js:')), 'syncRelay retries the persisted checkpoint');
+    }
+    checkpoints.set(write.sequence, write);
+  }
+  assert.equal(checkpoints.size, expected, 'the flow publishes its exact number of distinct checkpoints');
+  assert.ok([...checkpoints.values()].every(write => write.status === 200), 'every checkpoint eventually receives an acknowledgement');
+  return checkpoints.size;
 }
 
 /** Capture a real child result without exposing its private output in failure diagnostics. */
@@ -149,10 +168,12 @@ globalThis.fetch = function tracedFetch(input, init) {
   assert.ok(Number.isSafeInteger(injectedSnapshotWriteDelayMs) && injectedSnapshotWriteDelayMs >= 0 && injectedSnapshotWriteDelayMs <= 15000,
     'injected snapshot delay is within the product wait bound');
   let snapshotWriteDelayMs = 0;
+  let oneSnapshotDelay = null;
   let snapshotWriteCount = 0;
   const snapshotWriteDelays = [];
   const snapshotWriteRecords = [];
   let stateReadDelayMs = 0;
+  let stateReadHold = null;
   let stateReadStarted = 0;
   let refuseSnapshotWrites = false;
   let refuseRequestWrites = false;
@@ -244,15 +265,16 @@ globalThis.fetch = function tracedFetch(input, init) {
       return;
     }
     const stateSnapshotDelayMs = Math.max(snapshotWriteDelayMs, injectedSnapshotWriteDelayMs);
-    if (stateSnapshotDelayMs && req.method === 'PUT' && /\/api\/v1\/boards\/[0-9a-f]{32}\/state$/.test(req.url ?? '')) {
-      const delay = stateSnapshotDelayMs;
+    if ((stateSnapshotDelayMs || oneSnapshotDelay?.count === snapshotWriteCount) && req.method === 'PUT' && /\/api\/v1\/boards\/[0-9a-f]{32}\/state$/.test(req.url ?? '')) {
+      const delay = oneSnapshotDelay?.count === snapshotWriteCount ? oneSnapshotDelay.ms : stateSnapshotDelayMs;
       const delayedAt = Date.now();
       await new Promise(resolveDelay => setTimeout(resolveDelay, delay));
       snapshotWriteDelays.push(Date.now() - delayedAt);
     }
-    if (stateReadDelayMs && req.method === 'GET' && /\/api\/v1\/boards\/[0-9a-f]{32}\/state$/.test(req.url ?? '')) {
+    if ((stateReadDelayMs || stateReadHold) && req.method === 'GET' && /\/api\/v1\/boards\/[0-9a-f]{32}\/state$/.test(req.url ?? '')) {
       stateReadStarted += 1;
-      await new Promise(resolveDelay => setTimeout(resolveDelay, stateReadDelayMs));
+      if (stateReadHold) await stateReadHold;
+      else await new Promise(resolveDelay => setTimeout(resolveDelay, stateReadDelayMs));
     }
     if (await signIn(request, res)) return;
     await api(request, res);
@@ -331,8 +353,13 @@ globalThis.fetch = function tracedFetch(input, init) {
       const observedUploads = snapshotWriteCount - writesBefore;
       const observedWrites = snapshotWriteRecords.slice(writesBefore);
       const safeTrace = result.snapshotTrace ?? [];
-      assert.equal(observedUploads, snapshotUploads,
-        `private CLI child ${cliChildIndex} uploads its declared number of snapshots; client fetches: ${JSON.stringify(safeTrace)}; relay receives: ${JSON.stringify(observedWrites)}`);
+      try {
+        if (traceSnapshotWrites) assertSnapshotCheckpoints(safeTrace, snapshotUploads);
+        else assert.equal(observedUploads, snapshotUploads, 'untraced setup uploads match the plan');
+      } catch (error) {
+        error.message += `; private CLI child ${cliChildIndex}; client fetches: ${JSON.stringify(safeTrace)}; relay receives: ${JSON.stringify(observedWrites)}`;
+        throw error;
+      }
     }
     if (cliChildren && requestedUploads !== undefined) {
       assert.equal(requestedUploads, snapshotUploads, `private CLI child ${cliChildIndex} uses its declared upload count`);
@@ -465,6 +492,11 @@ globalThis.fetch = function tracedFetch(input, init) {
       assert.ok(Number.isSafeInteger(ms) && ms >= 0 && ms <= 15000, 'snapshot delay is within the product wait bound');
       snapshotWriteDelayMs = ms;
     },
+    /** Delay exactly one upcoming PUT to exercise the real product abort and persisted retry. */
+    delaySnapshotWriteOnce(offset, ms) {
+      assert.ok(Number.isSafeInteger(offset) && offset > 0 && Number.isSafeInteger(ms) && ms > 10000 && ms <= 15000);
+      oneSnapshotDelay = { count: snapshotWriteCount + offset, ms };
+    },
     /** Return observed delays for the fixture's real snapshot endpoint. */
     snapshotWriteDelays() { return [...snapshotWriteDelays]; },
     /** Return sanitized per-child transport callsites and checkpoint fingerprints. */
@@ -473,6 +505,12 @@ globalThis.fetch = function tracedFetch(input, init) {
     delayStateReads(ms) {
       assert.ok(Number.isSafeInteger(ms) && ms >= 0 && ms <= 30000, 'state read hold is bounded');
       stateReadDelayMs = ms;
+    },
+    /** Hold reads until the test explicitly releases them, avoiding load-sensitive short sleeps. */
+    holdStateReads() {
+      let release;
+      stateReadHold = new Promise(resolveHold => { release = resolveHold; });
+      return () => { stateReadHold = null; release(); };
     },
     /** Return how many state reads reached the private relay. */
     stateReadStarted() { return stateReadStarted; },

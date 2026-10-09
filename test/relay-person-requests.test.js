@@ -6,11 +6,11 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { decodeBoardKey, seal } from '../src/seal.js';
 import { ENGINE_VERSION } from '../src/machine.js';
-import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
-import { cliChildDeadlineMs, relayClientFixture } from './relay-client-fixture.js';
+import { findChromeExecutable, relayWorkBudgetMs, startChrome } from './relay-browser-fixture.js';
+import { assertSnapshotCheckpoints, cliChildDeadlineMs, relayClientFixture } from './relay-client-fixture.js';
 
-const CHROME_START_BUDGET_MS = 30_000;
-const CLI_SETUP_MARGIN_MS = 20_000;
+const CHROME_START_BUDGET_MS = relayWorkBudgetMs(2);
+const CLI_SETUP_MARGIN_MS = relayWorkBudgetMs(0);
 const FIXTURE_SETUP_CLI_CHILDREN = [
   { command: ['init'], snapshotUploads: 0 },
   { command: ['add'], snapshotUploads: 0 },
@@ -68,12 +68,10 @@ async function pairedTransport(chrome, box, title) {
 
 /** Attach a transport handle for the existing test actions after either pairing or a reload. */
 async function installRequestTransport(chrome) {
-  const task = await chrome.startTask(`(async () => {
-    const { createTransport } = await import('/relay/client.js');
-    window.__personRequestTransport = await createTransport({ onUpdate: () => {} });
-    return true;
-  })()`, 'initialize person request transport');
-  await chrome.pollTask(task, 25000, 'initialize person request transport');
+  await chrome.waitFor('typeof transport?.request === "function"', relayWorkBudgetMs(), 'real page transport ready');
+  assert.equal(await chrome.evaluate(`(() => { window.__personRequestTransport = transport;
+    return window.__personRequestTransport === transport; })()`, 'use real person request transport'), true,
+    'fixture commands use the page-owned transport and its single stream queue');
 }
 
 /** Send one exact person intent through the browser transport rather than constructing a move. */
@@ -81,16 +79,16 @@ async function sendPersonIntent(chrome, board, move) {
   const path = '/api/v1/boards/' + board + '/moves';
   const task = await chrome.startTask('window.__personRequestTransport.request('
     + JSON.stringify(path) + ',' + JSON.stringify(move) + ')', 'send person request');
-  return chrome.pollTask(task, 25000, 'send person request');
+  return chrome.pollTask(task, relayWorkBudgetMs(), 'send person request');
 }
 
 /** Poll the browser's authenticated, device-decrypted presentation for one durable receipt. */
 async function waitForRequest(chrome, board, id, status, requireCoordinatorRequest = false) {
   const path = '/api/v1/boards/' + board + '/state';
   const predicate = `(() => { const row = documentValue.state?.personRequests?.find(entry => entry.id === ${JSON.stringify(id)}); return row?.status === ${JSON.stringify(status)}${requireCoordinatorRequest ? ' && Number.isSafeInteger(row.coordinatorRequest)' : ''}; })()`;
-  // Native processing can take 15 seconds; allow ten seconds for relay transport and polling.
+  // Share the native command, bounded snapshot attempts and scheduling allowance.
   const task = await chrome.startTask(`(async () => {
-    const deadline = Date.now() + 25000;
+    const deadline = Date.now() + ${relayWorkBudgetMs()};
     while (Date.now() < deadline) {
       try {
         const documentValue = await window.__personRequestTransport.request(${JSON.stringify(path)});
@@ -100,14 +98,14 @@ async function waitForRequest(chrome, board, id, status, requireCoordinatorReque
     }
     throw new Error('The native person request did not reach the expected status.');
   })()`, 'wait for person request status');
-  return chrome.pollTask(task, 30000, 'wait for person request status');
+  return chrome.pollTask(task, relayWorkBudgetMs() + relayWorkBudgetMs(0), 'wait for person request status');
 }
 
 /** Read final request state by starting the fetch in the page and polling its completion. */
 async function finalState(chrome, board) {
   const task = await chrome.startTask('window.__personRequestTransport.request('
     + JSON.stringify('/api/v1/boards/' + board + '/state') + ')', 'read final person request state');
-  return chrome.pollTask(task, 25000, 'read final person request state');
+  return chrome.pollTask(task, relayWorkBudgetMs(), 'read final person request state');
 }
 
 /** Add a private pending spec row without changing shared or submitted repository files. */
@@ -178,7 +176,7 @@ test('real paired Chrome transports a person shout while its native snapshot is 
   assert.ok(trace.every(write => write.callers.some(line => line.includes('publishCheckpoint'))), 'each traced upload came from checkpoint publication');
   assert.equal(status.result.snapshotUploads, trace.length);
   assert.equal(status.result.snapshotDeadlineMs, cliChildDeadlineMs(trace.length), 'the child deadline follows this run’s observed upload count');
-  assert.equal(delays.length, 3, 'this three-upload status flow uploads exactly three snapshots');
+  assertSnapshotCheckpoints(trace, 3);
   assert.ok(delays.every(delay => delay >= 7900), 'the relay delayed every native snapshot by 8 seconds');
   const latest = await waitForRequest(chrome, link.board, receipt.result.request.id, 'done');
   assert.equal(await chrome.evaluate("document.querySelector('#relay-notice').textContent"), '',
@@ -214,7 +212,7 @@ test('real paired Chrome approval remains pending until coordinator applies and 
   assert.equal(native.error, undefined, 'the four-upload approval status fits its derived deadline');
   assert.equal(native.result.code, 0);
   const delays = box.snapshotWriteDelays().slice(delayedBefore);
-  assert.equal(delays.length, 4, 'the approval status flow uploads exactly four snapshots');
+  assertSnapshotCheckpoints(native.result.snapshotTrace, 4);
   assert.ok(delays.every(delay => delay >= 7900), 'the relay delayed every approval snapshot by 8 seconds');
   const pendingState = await waitForRequest(chrome, link.board, approval.result.request.id, 'waiting', true);
   assert.equal(readFileSync(row.path, 'utf8'), before, 'the received approval records a row decision but does not edit SPEC.md');
@@ -328,7 +326,7 @@ test('coordinator decline resolves a paired approval request with a reason and l
   assert.equal(native.result.snapshotUploads, trace.length);
   assert.equal(native.result.snapshotDeadlineMs, cliChildDeadlineMs(trace.length),
     'the decline status deadline follows its observed uploads');
-  assert.equal(delays.length, 4, 'the decline status flow uploads exactly four snapshots');
+  assertSnapshotCheckpoints(trace, 4);
   assert.ok(delays.every(delay => delay >= 7900), 'the relay delayed every decline snapshot by 8 seconds');
   const pending = (await finalState(chrome, link.board)).state.personRequests.find(record => record.id === queued.result.request.id);
   assert.equal(pending.status, 'waiting');
@@ -344,4 +342,42 @@ test('coordinator decline resolves a paired approval request with a reason and l
   assert.equal(readFileSync(row.path, 'utf8'), before, 'declining the repository request does not edit any row');
   assert.deepEqual((await box.cli('resume')).document.requests, [], 'the declined request leaves the open coordinator queue');
   box.assertCliChildrenComplete();
+});
+
+
+test('a timed-out checkpoint PUT retries identical ciphertext through the native status flow [H16,C7]', async t => {
+  const box = await relayClientFixture(t);
+  await box.link();
+  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
+  const intent = { version: 1, type: 'person-request', id: randomUUID(),
+    move: { verb: 'shout', args: { to: 'coordinator', text: 'RETRY_CHECKPOINT_CONTROL' } } };
+  const sealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(intent)), {
+    boardId: link.board, kind: 'request', sequence: 1,
+  })).toString('base64url');
+  const response = await fetch(box.origin + '/api/v1/boards/' + link.board + '/requests', {
+    method: 'POST', headers: { authorization: 'Bearer ' + link.token,
+      'x-pullboard-engine': String(ENGINE_VERSION), 'content-type': 'application/json' },
+    body: JSON.stringify({ sequence: 1, sealed }),
+  });
+  assert.equal(response.status, 200);
+  const before = box.snapshotWriteRecords().length;
+  // The claim receipt times out; the nested CLI sync must resend its persisted bytes.
+  box.delaySnapshotWriteOnce(2, 10100);
+  const result = await box.cliWithSnapshotTrace(3, 'status');
+  assert.equal(result.code, 0);
+  const trace = result.snapshotTrace;
+  t.diagnostic('controlled checkpoint abort/retry: ' + JSON.stringify({ fetches: trace,
+    relayReceives: box.snapshotWriteRecords().slice(before) }));
+  assertSnapshotCheckpoints(trace, 3);
+  assert.equal(trace.length, 4, 'one product abort adds exactly one transport attempt');
+  assert.equal(trace[1].abort?.name, 'TimeoutError');
+  assert.ok(trace[1].elapsedMs >= 9900, 'the actual ten-second product request bound expired');
+  assert.equal(trace[2].sequence, trace[1].sequence);
+  assert.equal(trace[2].ciphertext, trace[1].ciphertext);
+  assert.equal(trace[2].status, 200);
+  assert.equal(result.snapshotDeadlineMs, cliChildDeadlineMs(trace.length));
+  const exported = (await box.cli('export')).document;
+  assert.equal(exported.tables.shout.filter(row => row.shout_text === 'RETRY_CHECKPOINT_CONTROL').length, 1,
+    'the identical checkpoint retry does not execute the person intent twice');
 });
