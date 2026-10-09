@@ -77,6 +77,7 @@ export const JSON_SHAPES = {
     'spec decline': shape({ decisions: 'array' }),
     'spec apply': shape({ applied: 'array', files: 'array' }),
     'hook pre-commit': shape({ messages: 'array' }),
+    'hook pre-merge-commit': shape({ messages: 'array' }),
     'hook commit-msg': shape({ messages: 'array' }),
     'hook pre-push': shape({ messages: 'array' }),
   },

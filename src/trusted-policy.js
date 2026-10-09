@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath } from 'node:url';
 import { configFromSource } from './config.js';
-import { cleanGitEnvironment, mainCheckout } from './git.js';
+import { cleanGitEnvironment, mainCheckout, refuseGrafts } from './git.js';
 import { secretsIn } from './hooks.js';
 import { outOfLane } from './lanes.js';
 import { Refused } from './refused.js';
@@ -84,6 +84,7 @@ function pathObject(root, commit, path) {
 
 /** Enforce the complete claim-base diff; accepted-main merges may carry only identical foreign objects. */
 export function submissionPaths(root, item, commit, { config, mainCommit, dependencies = [] } = {}) {
+  refuseGrafts(root);
   const policy = itemPolicy(root, item);
   const base = item.item_claim_head;
   if (!/^[0-9a-f]{40,64}$/.test(base ?? '')) throw new Refused('NO_POLICY', 'this item has no claim base; ask the coordinator to refreeze it and claim again');

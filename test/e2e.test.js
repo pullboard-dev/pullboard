@@ -428,6 +428,88 @@ test('pre-push keeps its machine gate slot until the hook check finishes [C3,Q4]
   }
 });
 
+test('explicit and trunk pre-push landings jump the machine gate line and show in resources [Q1,Q2]', async () => {
+  const box = sandbox();
+  const gate = holdingGate(box);
+  const projectBox = project(gate.command, box);
+  assert.equal(projectBox.run(projectBox.repo, 'settings', 'gateSlots', '1').code, 0);
+  writeFileSync(gate.mode, 'armed');
+
+  const ordinary = launch(projectBox, projectBox.repo, process.execPath, [BIN, 'gate']);
+  const children = [ordinary];
+  let explicitLanding;
+  try {
+    await waitFor(() => gateEvents(gate).length === 1, 'ordinary gate to hold the sole machine slot');
+    explicitLanding = launch(projectBox, projectBox.web, process.execPath, [BIN, 'gate', '--landing']);
+    children.push(explicitLanding);
+    let latestResources = '';
+    await waitFor(() => {
+      const result = projectBox.run(projectBox.repo, 'resources', '--json');
+      assert.equal(result.code, 0, result.err);
+      latestResources = result.out;
+      const resource = JSON.parse(result.out).resources.find((entry) => entry.scope === 'machine' && entry.name === 'gate');
+      return resource?.line.length > 0;
+    }, 'explicit gate run to appear in the resource listing').catch((error) => {
+      throw new Error(`${error.message}\nresources: ${latestResources}\nlanding stdout: ${explicitLanding.stdoutText}\nlanding stderr: ${explicitLanding.stderrText}\nevents: ${gateEvents(gate).join(',')}`);
+    });
+    const json = projectBox.run(projectBox.repo, 'resources', '--json');
+    assert.equal(json.code, 0, json.err);
+    const queued = JSON.parse(json.out).resources.find((resource) => resource.scope === 'machine' && resource.name === 'gate');
+    assert.deepEqual(queued.line.map(({ landing }) => landing), [true]);
+    const humanQueue = projectBox.run(projectBox.repo, 'resources');
+    assert.equal(humanQueue.code, 0, humanQueue.err);
+    assert.match(humanQueue.out, /waiting: .* \(landing\)/u);
+    writeFileSync(gate.release, 'released');
+    const results = await Promise.all(children.map((child) => child.closed));
+    assert.deepEqual(results.map(({ code }) => code), [0, 0]);
+    assert.deepEqual(gateEvents(gate), ['start', 'end', 'start', 'end']);
+  } finally {
+    writeFileSync(gate.release, 'released');
+    await Promise.all(children.map((child) => child.closed));
+  }
+
+  const pushBox = sandbox();
+  const pushGate = holdingGate(pushBox);
+  const pushProject = project(pushGate.command, pushBox);
+  const remote = join(pushBox.dir, 'remote.git');
+  pushProject.git(pushBox.dir, 'init', '-q', '--bare', remote);
+  pushProject.git(pushProject.repo, 'remote', 'add', 'origin', remote);
+  assert.equal(pushProject.run(pushProject.repo, 'settings', 'gateSlots', '1').code, 0);
+  writeFileSync(pushGate.mode, 'armed');
+  const holder = launch(pushProject, pushProject.web, process.execPath, [BIN, 'gate']);
+  const pushChildren = [holder];
+  let push;
+  try {
+    await waitFor(() => gateEvents(pushGate).length === 1, 'gate holder to start before trunk push');
+    push = launch(pushProject, pushProject.repo, 'git', ['push', '-q', 'origin', 'main']);
+    pushChildren.push(push);
+    let latestPushResources = '';
+    await waitFor(() => {
+      const result = pushProject.run(pushProject.repo, 'resources', '--json');
+      assert.equal(result.code, 0, result.err);
+      latestPushResources = result.out;
+      const resource = JSON.parse(result.out).resources.find((entry) => entry.scope === 'machine' && entry.name === 'gate');
+      return resource?.line.length > 0;
+    }, 'trunk pre-push gate to appear in the resource listing').catch((error) => {
+      throw new Error(`${error.message}\nresources: ${latestPushResources}\npush stdout: ${push.stdoutText}\npush stderr: ${push.stderrText}\nevents: ${gateEvents(pushGate).join(',')}`);
+    });
+    const json = pushProject.run(pushProject.repo, 'resources', '--json');
+    assert.equal(json.code, 0, json.err);
+    const queued = JSON.parse(json.out).resources.find((resource) => resource.scope === 'machine' && resource.name === 'gate');
+    assert.deepEqual(queued.line.map(({ landing }) => landing), [true], 'the hook marks its trunk update as a landing');
+    const humanQueue = pushProject.run(pushProject.repo, 'resources');
+    assert.equal(humanQueue.code, 0, humanQueue.err);
+    assert.match(humanQueue.out, /waiting: .* \(landing\)/u);
+    writeFileSync(pushGate.release, 'released');
+    const results = await Promise.all(pushChildren.map((child) => child.closed));
+    assert.deepEqual(results.map(({ code }) => code), [0, 0]);
+    assert.deepEqual(gateEvents(pushGate), ['start', 'end', 'start', 'end']);
+  } finally {
+    writeFileSync(pushGate.release, 'released');
+    await Promise.all(pushChildren.map((child) => child.closed));
+  }
+});
+
 test('decisions are asked, listed and answered, and evidence attached, from the command line [B21, B22, B26]', () => {
   const box = project();
   box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');
@@ -1242,7 +1324,9 @@ test('the tour runs a reject and its rework on a throwaway repo, in under thirty
   const normalizeTourRoot = (text) => text
     .replace(/Look around: cd .* && pullboard log/, 'Look around: cd <tour> && pullboard log')
     .replace(/\b[0-9a-f]{12}\b/g, '<sha>')
-    .replace(/claimed #1 until \S+ criterion frozen/g, 'claimed #1 until <time> criterion frozen');
+    .replace(/claimed #1 until \S+ criterion frozen/g, 'claimed #1 until <time> criterion frozen')
+    // A gate's rounded wall time is not output NO_COLOR could change, so a slower gate must still compare equal.
+    .replace(/gate (green|red) in \d+s/g, 'gate $1 in <n>s');
   assert.equal(normalizeTourRoot(noColor.stdout), normalizeTourRoot(shown.stdout), 'NO_COLOR preserves the plain tour output');
 
   const repo = /Look around: cd (\S+) && pullboard log/.exec(shown.stdout)[1];
@@ -2105,7 +2189,9 @@ test('accept reports a frozen install timeout before running the check [V18,V2]'
 test('private check timeout kills a TERM-resistant shell and its tracked child [V18,V2]', () => {
   const box = project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  config.check = { install: '', timeout: '100ms' };
+  // The shell must start and write both pid files inside this budget; on a loaded machine that takes seconds.
+  const budget = '2s';
+  config.check = { install: '', timeout: budget };
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure bounded check fixture');
@@ -2126,11 +2212,16 @@ test('private check timeout kills a TERM-resistant shell and its tracked child [
   let outer;
   try {
     outer = spawnSync(process.execPath, ['--input-type=module', '-e', source, box.repo, JSON.stringify(trackedItem)], {
-      cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 3000, detached: true,
+      cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 15_000, detached: true,
     });
     assert.equal(outer.error, undefined, outer.error?.message);
     assert.equal(outer.status, 0, outer.stderr);
     assert.equal(JSON.parse(outer.stdout).stage, 'check timed out');
+    if (!existsSync(pidFile)) {
+      assert.fail(existsSync(shellPidFile)
+        ? `the check was killed before it forked its tracked child: its shell started, but ${pidFile} never appeared within the ${budget} check budget`
+        : `the check was killed before its shell started, so it never forked: ${shellPidFile} never appeared within the ${budget} check budget`);
+    }
     const childPid = Number(readFileSync(pidFile, 'utf8').trim());
     let childAlive = true;
     for (let attempt = 0; attempt < 20; attempt += 1) {

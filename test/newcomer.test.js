@@ -45,7 +45,7 @@ test('init ends with a working staging line for exactly its own writes [I1,I2,D1
     '.claude/skills/pullboard-signoff/SKILL.md',
     '.claude/skills/pullboard-spec-review/SKILL.md',
     '.claude/skills/pullboard-verify/SKILL.md',
-    '.githooks/commit-msg', '.githooks/pre-push',
+    '.githooks/commit-msg', '.githooks/pre-merge-commit', '.githooks/pre-push',
     'AGENTS.md', 'DOCTRINE.md', 'SPEC.md', 'pullboard.json',
   ]);
   assert.equal(readFileSync(join(box.root, '.env.local'), 'utf8'), 'LOCAL=1\n');
@@ -56,7 +56,7 @@ test('init ends with a working staging line for exactly its own writes [I1,I2,D1
   const secondStage = rerun.stdout.trimEnd().split('\n').at(-1);
   assert.match(secondStage, /^git add -f -- /);
   assert.equal(spawnSync('sh', ['-c', secondStage], { cwd: box.root, env: box.env }).status, 0);
-  assert.deepEqual(box.git('diff', '--cached', '--name-only').split('\n'), ['.githooks/commit-msg', '.githooks/pre-push']);
+  assert.deepEqual(box.git('diff', '--cached', '--name-only').split('\n'), ['.githooks/commit-msg', '.githooks/pre-merge-commit', '.githooks/pre-push']);
 });
 
 test('init detects language gates and gives an example in the same ecosystem [I1,I2]', (t) => {

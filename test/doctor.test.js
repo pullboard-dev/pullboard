@@ -1,12 +1,13 @@
 /** Integrity checks use throwaway git repositories and real board databases (A6). */
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { SCHEMA_VERSION } from '../src/board.js';
+import { hookScript } from '../src/hooks.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const sandboxes = [];
@@ -37,6 +38,10 @@ function boardBox({ initialize = true, repoName = 'repo' } = {}) {
   const git = (...args) => execFileSync('git', args, { cwd: root, env, encoding: 'utf8' }).trim();
   const run = (...args) => spawnSync(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
+  const mergeHook = join(root, '.git', 'hooks', 'pre-merge-commit');
+  mkdirSync(join(root, '.git', 'hooks'), { recursive: true });
+  writeFileSync(mergeHook, hookScript('pre-merge-commit'));
+  chmodSync(mergeHook, 0o755);
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', lanes: {} }, null, 2));
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: setup');

@@ -196,7 +196,8 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   assert.ok(!relay.calls.some((call) => call.path === '/auth/boards/link'));
   chmodSync(keysDirectory, 0o700);
   const on = await cli(root, relayEnv, 'relay', 'on', '--url', relay.origin);
-  assert.deepEqual(await auth.boardsFor(person.token), [{ id: boardId, repository: 'fixture/repository' }]);
+  const linkedAt = auth.linkedBoards().find(link => link.id === boardId).linkedAt;
+  assert.deepEqual(await auth.boardsFor(person.token), [{ id: boardId, repository: 'fixture/repository', linkedAt }]);
   assert.equal(on.version, 1);
   assert.equal(on.linked, true);
   assert.equal(on.board, boardId);
