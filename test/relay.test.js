@@ -5,6 +5,7 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync }
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
+import { DatabaseSync } from 'node:sqlite';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { createGitHubClient } from '../relay/github.js';
 import { createRelayAuth, ACCESS_WINDOW_MS } from '../relay/auth.js';
@@ -94,6 +95,42 @@ test('lost GitHub read access takes effect at ten minutes and before every board
   box.state.access = false;
   await assert.rejects(box.auth.authenticate(signed.token, { board: 'alpha', write: true }), { code: 'NO_REPO_ACCESS' });
   assert.deepEqual(await box.auth.boardsFor(signed.token), [], 'a denied write invalidates an earlier allowed read');
+});
+
+test('person token management lists only owned scoped metadata and preserves independent revocation [H2,H9]', async (t) => {
+  const box = await fixture(t);
+  const person = await login(box);
+  await box.auth.linkBoard(person.token, 'alpha', 'fixture/repository');
+  await box.auth.linkBoard(person.token, 'beta', 'fixture/repository');
+  const first = await box.auth.issueToken(person.token, { board: 'alpha', agent: 'worker-one' });
+  const second = await box.auth.issueToken(person.token, { board: 'alpha', agent: 'worker-two' });
+  const other = await box.auth.issueToken(person.token, { board: 'beta', agent: 'worker-one' });
+  const foreign = new DatabaseSync(box.database);
+  try {
+    foreign.prepare('INSERT INTO relay_users(id,login) VALUES (?,?)').run('8', 'other-person');
+    foreign.prepare('INSERT INTO relay_credentials(id,hash,kind,user_id,board,agent,expires) VALUES (?,?,?,?,?,?,?)')
+      .run('foreign-private-fixture', 'f'.repeat(64), 'board', '8', 'alpha', 'foreign-worker', Date.now() + 60_000);
+  } finally { foreign.close(); }
+  const listed = await box.auth.listTokens(person.token, 'alpha');
+  assert.equal(listed.length, 2);
+  assert.deepEqual(listed.map((row) => row.agent), ['worker-one', 'worker-two']);
+  for (const row of listed) {
+    assert.deepEqual(Object.keys(row).sort(), ['agent', 'board', 'created', 'expires', 'id', 'revoked']);
+    assert.equal(row.board, 'alpha');
+    assert.equal(row.revoked, false);
+  }
+  for (const secret of [person.token, first.token, second.token, other.token]) {
+    assert.equal(JSON.stringify(listed).includes(secret), false, 'listing never includes a credential value');
+  }
+  await assert.rejects(box.auth.listTokens(first.token, 'alpha'), { code: 'HUMAN_REQUIRED' });
+  await assert.rejects(box.auth.listTokens(first.token, 'beta'), { code: 'TOKEN_BOARD' });
+  await box.auth.revoke(person.token, first.id);
+  assert.equal((await box.auth.listTokens(person.token, 'alpha')).find((row) => row.id === first.id).revoked, true);
+  await assert.rejects(box.auth.authenticate(first.token, { board: 'alpha', write: true }), { code: 'AUTH_REQUIRED' });
+  assert.equal((await box.auth.authenticate(second.token, { board: 'alpha', write: true })).agent, 'worker-two');
+  assert.equal((await box.auth.authenticate(other.token, { board: 'beta', write: true })).agent, 'worker-one');
+  box.state.permission = 'read';
+  await assert.rejects(box.auth.listTokens(person.token, 'alpha'), { code: 'WRITE_REQUIRED' });
 });
 
 test('credentials are hash-only, expire, revoke individually and survive relay restart [H8, H1]', async (t) => {
@@ -523,7 +560,7 @@ test('offline linked reads use the local board, moves refuse, and the same relay
     assert.equal(afterTables.event.length, beforeEvents.length + 1, 'only the acknowledged recovery move is recorded locally');
     assert.equal(afterTables.event.at(-1).event_kind, 'add');
     const remoteStateResponse = await fetch(`${box.origin}/api/v1/boards/${link.board}/state`, {
-      headers: { authorization: `Bearer ${link.token}` },
+      headers: { authorization: `Bearer ${link.token}`, 'x-pullboard-engine': String(ENGINE_VERSION) },
     });
     assert.equal(remoteStateResponse.status, 200);
     assert.equal((await remoteStateResponse.json()).state.sequence, 1, 'the resumed move has exactly one relay position');

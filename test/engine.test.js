@@ -61,6 +61,92 @@ function boardRows(board, itemId) {
   };
 }
 
+test('authenticated relay senders bind every move and refusals preserve replica prefixes [H2,H9,H3,H16]', (t) => {
+  const { copies, item } = engineCopies(t);
+  const [one, two] = copies;
+  const claim = claimMove(one, item, 'web-1');
+  const actorlessClaim = { ...claim, id: 'actorless-person-claim' };
+  delete actorlessClaim.actor;
+  const mismatchedArgs = prepareEngineMove(one, 'claim', [item, { ...claim.args[1], agentId: 'web-2' }], {
+    id: 'sealed-actor-mismatch', actor: 'web-1',
+  });
+  const personalAnswer = prepareEngineMove(one, 'answerDecision', [1, {
+    asPerson: true, agentId: 'coordinator', text: 'fixture answer', lanes: ['web'],
+  }], { id: 'agent-person-answer' });
+  const cases = [
+    { move: actorlessClaim, sender: undefined, expected: 'RELAY_SENDER' },
+    { move: claim, sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-2' } },
+    { move: mismatchedArgs, sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } },
+    { move: prepareEngineMove(one, 'register', [{ lane: 'web', path: '/fixture/enroll' }], { id: 'agent-enrollment' }), sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } },
+    { move: personalAnswer, sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' }, expected: 'RELAY_PERSON_ONLY' },
+    { move: prepareEngineMove(one, 'shout', [{ from: 'web-2', agentId: 'web-1', to: 'all', text: 'spoof', lanes: ['web'] }], { id: 'shadowed-shout', actor: 'web-1' }), sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } },
+    { move: prepareEngineMove(one, 'addItem', [{ by: 'coordinator', agentId: 'web-1', lane: 'web', title: 'spoof' }], { id: 'shadowed-add', actor: 'web-1' }), sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } },
+  ];
+
+  cases.forEach(({ move, sender, expected = 'RELAY_SENDER_MISMATCH' }, index) => {
+    const sequence = index + 1;
+    for (const board of copies) {
+      const before = boardRows(board, item);
+      const outcome = applyRelayMove(board, move, { sequence, at: CLAIM_AT, kind: 'move', sender });
+      assert.equal(outcome.error?.code, expected, `case ${index + 1} must refuse before native writes`);
+      const after = boardRows(board, item);
+      assert.deepEqual(after.item, before.item, `case ${index + 1} leaves native item rows unchanged`);
+      assert.deepEqual(after.events.slice(0, -1), before.events, `case ${index + 1} preserves every prior event`);
+      assert.equal(after.events.length, before.events.length + 1, 'only the mandated refusal event is appended');
+      assert.equal(after.events.at(-1).event_kind, 'relay_refused');
+      assert.equal(after.events.at(-1).event_by, sender?.kind === 'agent' ? sender.agent : 'relay');
+      assert.equal(replayCursor(board), sequence, `case ${index + 1} commits the refusal prefix`);
+    }
+  });
+
+  const validClaim = { ...claim, id: 'valid-claim-after-refusals' };
+  const agent = { kind: 'agent', userId: 'fixture-user', agent: 'web-1' };
+  const claimOne = applyRelayMove(one, validClaim, { sequence: cases.length + 1, at: CLAIM_AT, kind: 'move', sender: agent });
+  const claimTwo = applyRelayMove(two, validClaim, { sequence: cases.length + 1, at: CLAIM_AT, kind: 'move', sender: agent });
+  assert.deepEqual(claimOne, claimTwo);
+  assert.equal(store.getItem(one, item).item_owner, 'web-1');
+
+  const shout = prepareEngineMove(one, 'shout', [{ from: 'web-1', to: 'all', text: 'authenticated fixture', lanes: ['web'] }], { id: 'valid-shout-after-refusals' });
+  const shoutOne = applyRelayMove(one, shout, { sequence: cases.length + 2, at: CLAIM_AT, kind: 'move', sender: agent });
+  const shoutTwo = applyRelayMove(two, shout, { sequence: cases.length + 2, at: CLAIM_AT, kind: 'move', sender: agent });
+  assert.deepEqual(shoutOne, shoutTwo);
+  assert.deepEqual(boardRows(one, item), boardRows(two, item), 'valid claim and shout replay identically after refusal prefix');
+  assert.equal(replayCursor(one), cases.length + 2);
+  assert.equal(replayCursor(two), cases.length + 2);
+});
+
+test('person sessions delegate native agent moves under the shared sender policy [H2,H9,H16]', (t) => {
+  const { copies, item } = engineCopies(t);
+  const move = claimMove(copies[0], item, 'web-1');
+  delete move.actor;
+  const outcomes = copies.map(board => applyRelayMove(board, move, {
+    sequence: 1, at: CLAIM_AT, kind: 'move', sender: { kind: 'person', userId: 'fixture-user' },
+  }));
+  assert.deepEqual(outcomes[0], outcomes[1]);
+  assert.equal(outcomes[0].error, undefined);
+  for (const board of copies) assert.equal(store.getItem(board, item).item_owner, 'web-1');
+});
+
+test('authenticated coordinator milestones replay and reject foreign sender identity [H2,H9,H3,H16]', (t) => {
+  const { copies, item } = engineCopies(t);
+  const [one, two] = copies;
+  const move = prepareEngineMove(one, 'addMilestone', [{ agentId: 'coordinator', name: 'Fixture milestone', items: [item] }], { id: 'coordinator-milestone', actor: 'coordinator' });
+  for (const board of copies) {
+    const before = store.milestones(board);
+    const refused = applyRelayMove(board, move, { sequence: 1, at: CLAIM_AT, kind: 'move', sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } });
+    assert.equal(refused.error?.code, 'RELAY_SENDER_MISMATCH');
+    assert.deepEqual(store.milestones(board), before, 'a foreign scoped token cannot change milestone metadata');
+  }
+  const valid = { ...move, id: 'valid-coordinator-milestone' };
+  const sender = { kind: 'agent', userId: 'fixture-user', agent: 'coordinator' };
+  const outcomes = copies.map((board) => applyRelayMove(board, valid, { sequence: 2, at: CLAIM_AT, kind: 'move', sender }));
+  assert.deepEqual(outcomes[0], outcomes[1]);
+  assert.equal(outcomes[0].error, undefined, 'the coordinator scoped token binds the native milestone actor');
+  assert.deepEqual(store.milestones(one), [{ name: 'Fixture milestone', note: null, items: [item] }]);
+  assert.deepEqual(store.milestones(one), store.milestones(two));
+  assert.deepEqual(store.events(one), store.events(two));
+});
+
 test('person answer channel replays identically on agent and plain replicas [B26,H16]', t => {
   const questions = [];
   const { copies } = engineCopies(t, source => {

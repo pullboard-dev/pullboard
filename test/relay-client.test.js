@@ -552,7 +552,8 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
   const earlierSealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(earlier)), {
     boardId, kind: 'move', sequence: next,
   })).toString('base64url');
-  const headers = { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}`, 'content-type': 'application/json' };
+  const coordinatorCredential = await auth.issueToken(person.token, { board: boardId, agent: 'coordinator' });
+  const headers = { 'x-pullboard-engine': '3', authorization: 'Bearer ' + coordinatorCredential.token, 'content-type': 'application/json' };
   assert.equal((await fetch(`${relay.origin}/api/v1/boards/${boardId}/moves`, {
     method: 'POST', headers, body: JSON.stringify({ sequence: next, sealed: earlierSealed }),
   })).status, 200);
