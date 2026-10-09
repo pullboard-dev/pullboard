@@ -90,6 +90,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
   let waitingBoards = new Map();
   let warnings = [];
   let failure = '';
+  let failureBoard = null;
   let accessLost = false;
   let pair = rememberPairing() ?? stored(sessionStorage, PENDING, null);
   if (pair && (!BOARD.test(pair.board ?? '') || typeof pair.key !== 'string')) pair = null;
@@ -264,6 +265,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
         }
         if (['AUTH_REQUIRED', 'NO_REPO_ACCESS', 'TOKEN_BOARD'].includes(error?.code)) await documentAt('/api/v1/devices/session', denied);
         failure = error ? '[' + error.code + '] ' + error.message : 'The relay stream ended. Refresh this board.';
+        failureBoard = entry.id;
         notice();
       }
       return;
@@ -271,6 +273,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     if (document.version !== 1) throw new Error('Upgrade this browser client to read the relay API.');
     await receive(entry, document.event);
     failure = '';
+    failureBoard = null;
     notice();
     onUpdate();
   }
@@ -308,6 +311,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
         if (controller.signal.aborted || accessLost) return;
         if (['NO_BOARD', 'NO_SNAPSHOT'].includes(error?.code)) { waitForFirstSnapshot(entry); return; }
         failure = error.message;
+        failureBoard = entry.id;
         notice();
         if (fatal) stream.close();
       },
@@ -337,7 +341,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
         paired.set(board.id, entry);
         waitingBoards.delete(board.id);
         keys[board.id] = encoded;
-        try { localStorage.setItem(KEYS, JSON.stringify({ ...stored(localStorage, KEYS, {}), [board.id]: encoded })); } catch { failure = 'This browser cannot save pairing. Use the pairing link again on your next visit.'; }
+        try { localStorage.setItem(KEYS, JSON.stringify({ ...stored(localStorage, KEYS, {}), [board.id]: encoded })); } catch { failure = 'This browser cannot save pairing. Use the pairing link again on your next visit.'; failureBoard = null; }
         if (pair?.board === board.id) {
           pair = null;
           try { sessionStorage.removeItem(PENDING); } catch { /* Device storage can be unavailable. */ }
@@ -351,6 +355,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
         failure = ['ENGINE_VERSION', 'RELAY_ENGINE_VERSION'].includes(error.code) || /^\[(?:ENGINE_VERSION|RELAY_ENGINE_VERSION)\]/u.test(error.message)
           ? error.message
           : 'Could not open this board with its saved key. Pair this browser again from a linked machine.';
+        failureBoard = board.id;
       }
     }
     notice();
@@ -452,7 +457,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
   /** Pair a link opened in this already-loaded page as well as one opened on a fresh visit. */
   async function pairingChanged() {
     try { pair = rememberPairing() ?? pair; await enrollPhone((path, options) => documentAt(path, denied, options)); await listing(); onUpdate(); }
-    catch { failure = 'The pairing link is invalid. Get a new link from a linked machine.'; notice(); }
+    catch { failure = 'The pairing link is invalid. Get a new link from a linked machine.'; failureBoard = null; notice(); }
   }
   addEventListener('hashchange', pairingChanged);
   addEventListener('pagehide', () => { for (const entry of paired.values()) entry.stream?.close(); });
@@ -484,6 +489,8 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
         await flushOutbox(entry);
         await snapshot(entry);
         await catchUp(entry);
+        // A read has authenticated the checkpoint and complete prefix before clearing its failure.
+        if (failureBoard === entry.id) { failure = ''; failureBoard = null; }
         if (entry.stream?.closed) subscribe(entry);
         notice();
         if (match[2] === 'state') return { version: 1, state: entry.state };
