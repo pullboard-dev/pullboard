@@ -14,9 +14,11 @@ import { after, test } from 'node:test';
 import vm from 'node:vm';
 import { loadConfig } from '../src/config.js';
 import { loadDoctrine } from '../src/doctrine.js';
+import { addItem, closeBoard, openBoard } from '../src/board.js';
+import { exportBoard, importBoard } from '../src/exchange.js';
 import { MACHINE } from '../src/machine.js';
 import { cockpitPage } from '../src/cockpit.js';
-import { portableSnapshot } from '../src/serve.js';
+import { portableSnapshot, projectState } from '../src/serve.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const scratch = [];
@@ -52,6 +54,7 @@ function machine() {
     GIT_COMMITTER_NAME: 'Test Agent',
     GIT_COMMITTER_EMAIL: 'agent@example.com',
     PULLBOARD_HOME: join(dir, 'home'),
+    PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
   };
   const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
   const run = (cwd, ...args) => {
@@ -82,6 +85,29 @@ function project(box, name, spec = SPEC, extra = {}) {
   box.run(web, 'join', 'web');
   return { repo, web, branch };
 }
+
+test('borrowed board presentation keeps parity, shows staged rows, and leaves the caller connection open [N26,H16]', () => {
+  const box = machine();
+  const p = project(box, 'projector');
+  box.run(p.repo, 'add', 'web', 'Existing projection row', '--criterion', 'same native data');
+  const source = openBoard(join(p.repo, '.git', 'pullboard', 'board.sqlite'));
+  const staged = openBoard(':memory:');
+  try {
+    importBoard(staged, exportBoard(source));
+    const ordinary = projectState(p.repo);
+    assert.deepEqual(projectState(p.repo, { board: staged }), ordinary, 'borrowed and ordinary projections share the same fields and values');
+    const before = exportBoard(source);
+    const stagedId = addItem(staged, { by: 'coordinator', lane: 'web', title: 'Staged recovery row', criterion: 'visible only in staged snapshot' });
+    const stagedState = projectState(p.repo, { board: staged });
+    assert.ok(stagedState.items.some(item => item.id === stagedId && item.title === 'Staged recovery row'));
+    assert.ok(!projectState(p.repo).items.some(item => item.title === 'Staged recovery row'), 'staged-only rows never change the native board');
+    assert.deepEqual(exportBoard(source), before, 'projection from the staged connection does not mutate source rows');
+    assert.equal(staged.db.prepare('SELECT 1 AS open').get().open, 1, 'the caller-owned staged connection stays open');
+  } finally {
+    closeBoard(staged);
+    closeBoard(source);
+  }
+});
 
 /**
  * web-1 builds an item: claims it, commits a file in its lane through the hooks, and submits it.

@@ -22,6 +22,7 @@ import {
   installHooks,
   preCommitProblems,
   prePushProblems,
+  pushesTrunk,
 } from './hooks.js';
 import { initRepo } from './init.js';
 import { lifecycleHelp, lifecycleMarkdown } from './machine.js';
@@ -170,7 +171,7 @@ Role guides
   pullboard prompt decompose|plan|signoff|review|verify   how to do each role; Claude Code gets them as skills
 
 Gate and hooks
-  pullboard gate                        run the configured gate
+  pullboard gate [--landing]            run the configured gate; prioritize a trunk landing in the machine queue
   pullboard hook pre-commit|pre-merge-commit|commit-msg|pre-push   git runs these
 
 ${lifecycleHelp()}
@@ -241,6 +242,7 @@ const HELP_FLAG_EXPLANATIONS = {
   '--brief': 'what a cold agent needs',
   '--check': 'the command that proves it',
   '--family': 'records the family name',
+  '--landing': 'prioritizes a trunk landing in the machine gate queue',
   '--json': 'prints one versioned document',
   '--note': 'what was checked stays with the receipt',
   '--note-file': 'keeps quotes, $ and backticks intact',
@@ -408,6 +410,7 @@ const OPTIONS = {
   as: { type: 'string' },
   check: { type: 'string' },
   yes: { type: 'boolean' },
+  landing: { type: 'boolean' },
   agent: { type: 'string' },
   'agent-light': { type: 'string' },
   'agent-mid': { type: 'string' },
@@ -1202,8 +1205,8 @@ function readCommands(io, { first, second, rest, values }) {
       if (!resources.length) io.say('no resources have been used');
       for (const resource of resources) {
         io.say(`${resource.name} (${resource.scope}, capacity ${resource.capacity})`);
-        for (const holder of resource.holders) io.say(`  held by ${holder.agent}${holder.repo ? ` in ${holder.repo}` : ''} since ${holder.since}`);
-        resource.line.forEach((waiter, index) => io.say(`  ${index + 1}. waiting: ${waiter.agent}${waiter.repo ? ` in ${waiter.repo}` : ''}`));
+        for (const holder of resource.holders) io.say(`  held by ${holder.agent}${holder.repo ? ` in ${holder.repo}` : ''}${holder.landing ? ' (landing)' : ''} since ${holder.since}`);
+        resource.line.forEach((waiter, index) => io.say(`  ${index + 1}. waiting: ${waiter.agent}${waiter.repo ? ` in ${waiter.repo}` : ''}${waiter.landing ? ' (landing)' : ''}`));
       }
       return 0;
     },
@@ -2245,7 +2248,8 @@ async function specCommand(io, { first, second, rest, values }) {
     if (missing.length) throw new Refused('NO_EVIDENCE', `${missing.join(', ')} has no evidence; build it or cite its id in a test first`);
     for (const row of evidence) {
       io.say(`evidence for ${row.id}:`);
-      for (const file of row.files) io.say(`  test: ${file}`);
+      if (row.files.length) io.say('  cited by tests (none run by pullboard):');
+      for (const file of row.files) io.say(`    ${file}`);
       for (const item of row.verified) io.say(`  verified #${item.id}: ${item.note || '(no accepting note)'}`);
     }
     const note = textArg(io, values, 'note') ?? '';
@@ -2309,9 +2313,11 @@ async function hookCommand(io, { first, second }) {
     const message = readFileSync(second ?? '', 'utf8');
     problems = commitMsgProblems(message, { rules: ctx.config.commits, spec: loadSpec(info.root, ctx.config) });
   } else if (first === 'pre-push') {
-    problems = prePushProblems(info.root, await readStdin(io.stdin));
+    const refsText = await readStdin(io.stdin);
+    problems = prePushProblems(info.root, refsText);
     if (!problems.length) {
-      const gate = await runGate(info.root, ctx.config, { onWait: gateWaitReporter(io) });
+      const landing = pushesTrunk(refsText, trunkRef(info.root));
+      const gate = await runGate(info.root, ctx.config, { landing, onWait: gateWaitReporter(io) });
       if (gate.isCached) io.say('pre-push: the gate passed on this exact tree; not running it twice');
       if (!gate.isGreen) problems = [`the gate is red; fix it before pushing. ${gateReport(gate)}`];
     }
@@ -2400,7 +2406,7 @@ async function runCommand(argv, io) {
     }
     if (command === 'gate') {
       const ctx = context(io);
-      const gate = await runGate(ctx.info.root, mainPolicy(ctx.info.root).config, { onWait: gateWaitReporter(io) });
+      const gate = await runGate(ctx.info.root, mainPolicy(ctx.info.root).config, { landing: values.landing, onWait: gateWaitReporter(io) });
       io.result?.({ green: gate.isGreen, report: gateReport(gate) });
       io.say(gateReport(gate));
       return gate.isGreen ? 0 : 1;
