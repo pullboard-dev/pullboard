@@ -95,7 +95,10 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
     if (!base) return { full: true, reason: 'no claim head recorded; the change cannot be selected', files };
     // The merge base includes topic parents and merge resolutions that receipt history omits.
     if (trunk) {
-      base = selectionGit(root, ['merge-base', trunk, commit]).trim();
+      const mergeBase = selectionGit(root, ['merge-base', trunk, commit]).trim();
+      const submitted = selectionGit(root, ['rev-parse', '--verify', `${commit}^{commit}`]).trim();
+      // A trunk submission has no distinct branch base; its claim bounds the submitted work.
+      if (mergeBase !== submitted) base = mergeBase;
       changed = undefined;
     }
     changed ??= selectionGit(root, ['diff', '--no-renames', '--name-only', '-z', base, commit]).split('\0').filter(Boolean);
