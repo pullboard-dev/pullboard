@@ -8,6 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
+import { listResources } from '../src/resources.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const DIRS = [];
@@ -264,9 +265,7 @@ test('takeover waits for an active write and then refuses the old session [B3,B7
   }
   /** Observe the takeover waiting on this checkout's resource rather than depending on a sleep. */
   function queued() {
-    const db = new DatabaseSync(join(box.repo, '.git', 'pullboard', 'resources.sqlite'), { readOnly: true });
-    try { return db.prepare("SELECT COUNT(*) AS count FROM waiter WHERE name LIKE 'checkout-session:%'").get().count > 0; }
-    finally { db.close(); }
+    return listResources({ scope: 'repo', root: box.repo }).some((resource) => resource.name.startsWith('checkout-session:') && resource.line.length > 0);
   }
   const submission = launch('active-write-273', 'submit', '1');
   let takeover;
