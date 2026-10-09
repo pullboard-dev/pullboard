@@ -54,7 +54,7 @@ import { parseProblems, sweepItems } from './sweep.js';
 import { renderSpecView } from './view.js';
 import { tour } from './tour.js';
 import { commandOutput } from './json.js';
-import { forgetProject, registerProject } from './projects.js';
+import { forgetProject, registerProjectAndLink } from './projects.js';
 import { milestoneRoadmap } from './roadmap.js';
 import { listResources } from './resources.js';
 import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
@@ -68,6 +68,8 @@ import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
 import { relayCommandReceipt, relayCommandReceiptReported, relayLinked, relayOff, relayOn, relayOperation, relayRecovered, relayRevoke, relayStatus, relayTokens, syncRelay } from './relay.js';
+import { relayOnAll, revokeRelayDevice, unlinkedRelayProjects } from './relay-setup.js';
+import { readRelayMachine } from './relay-machine.js';
 import { relayJoin, relayPair } from './relay-pairing-client.js';
 import { executePersonRequests } from './relay-request-execution.js';
 
@@ -128,6 +130,10 @@ Set up
   pullboard relay [on|off|pair|join <code>] [--url <address>]  link, inspect or unlink this board's sealed relay
                                         on signs in through GitHub; the address defaults to https://app.pullboard.dev
                                         pair prints a one-use machine code; join stores it in another clone
+  pullboard relay on --all [--url <address>]  link every registered project after one sign-in; pair the phone once
+                                        keep this command open until pairing finishes; later projects link on registration
+  pullboard relay devices               list paired device ids and their public-key fingerprints
+  pullboard relay revoke <device>       stop future key delivery; already received keys remain known
   pullboard relay tokens                list this board's agent token ids, agents and expiry, never credentials
   pullboard relay revoke <token-id>     revoke one token from that list; other agents keep working
   pullboard resume                      where you are: your claim, branch, uncommitted work, what came back,
@@ -1095,6 +1101,7 @@ function resumeHere(io) {
       newest: store.peekShouts(board, me.id, 1),
     };
   });
+  card.relayProblems = unlinkedRelayProjects();
   const { me } = card;
   card.stale = staleFrozenItems(card.all, loadSpec(root, ctx.config).rows, ctx.doctrine.rows).map((item) => ({ ...item, ...staleItemFinding(item) }));
   if (isMain) {
@@ -1104,6 +1111,7 @@ function resumeHere(io) {
     card.reviewQueue = { items: card.toVerify, awaiting: card.awaiting };
   }
   const say = (line) => io.say(line);
+  for (const problem of card.relayProblems) say(problem.message);
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
   say(`resume: ${me.id}${me.family ? ` (${me.family})` : ''}, ${me.lane} lane${isMain ? ', the main checkout' : ''}, at ${root}`);
   const dirty = dirtyFiles(root).length;
@@ -1192,7 +1200,7 @@ async function viewHere(io, values) {
   }
   try {
     const info = repoInfo(io.cwd);
-    if (info.isMain && existsSync(join(info.root, CONFIG_FILE))) registerProject(info.root, new Date(), loadConfig(info.root));
+    if (info.isMain && existsSync(join(info.root, CONFIG_FILE))) await registerProjectAndLink(info.root, new Date(), loadConfig(info.root), io);
   } catch (error) {
     if (!(error instanceof Refused)) throw error;
   }
@@ -1219,7 +1227,7 @@ async function viewHere(io, values) {
 async function serveHere(io, values) {
   const ctx = context(io);
   const mainRoot = git(ctx.info.root, ['worktree', 'list', '--porcelain']).split('\n')[0].slice('worktree '.length);
-  registerProject(mainRoot, new Date(), loadConfig(mainRoot));
+  await registerProjectAndLink(mainRoot, new Date(), loadConfig(mainRoot), io);
   const port = values.port === undefined ? 0 : Number(values.port);
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Refused('USAGE', '--port is a number from 0 to 65535; use 0 to choose a free one');
   const api = await serveApi({ port, runCommand: main });
@@ -1241,11 +1249,11 @@ async function serveHere(io, values) {
  *
  * @param {any} io
  * @param {{ first?: string }} args
- * @returns {Record<string, () => number>}
+ * @returns {Record<string, () => number | Promise<number>>}
  */
 function setupCommands(io, { first, values }) {
   return {
-    init: () => {
+    init: async () => {
       const info = repoInfo(io.cwd);
       const notes = initRepo({
         info,
@@ -1263,7 +1271,7 @@ function setupCommands(io, { first, values }) {
       io.result?.({ root: info.root, notes });
       const staging = notes.at(-1)?.startsWith('git add -f -- ') ? notes.at(-1) : null;
       (staging ? notes.slice(0, -1) : notes).forEach((note) => io.say(note));
-      if (registerProject(info.root, new Date(), loadConfig(info.root))) io.say('registered this project on this machine, so pullboard view lists it');
+      if (await registerProjectAndLink(info.root, new Date(), loadConfig(info.root), io)) io.say('registered this project on this machine, so pullboard view lists it');
       io.say('next: write SPEC.md rows, declare lanes in pullboard.json, then: pullboard add <lane> <title>');
       io.say('with an agent: start a new Claude Code session here, which loads the pullboard skills, then tell it what to build; the pullboard-run skill runs the team');
       if (staging) io.say(staging);
@@ -1571,7 +1579,7 @@ function readCommands(io, { first, second, rest, values }) {
         return 1;
       }
       const ctx = context(io);
-      const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config), ...doctrineProblems(ctx.info.root, ctx.config)];
+      const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects()];
       io.result?.({ problems });
       if (!problems.length) {
         io.say('board is clean');
@@ -2674,6 +2682,24 @@ async function runCommand(argv, io) {
     if (command === 'hook') return await hookCommand(io, args);
     if (command === 'settings') return settingsCommand(io, args);
     if (command === 'relay') {
+      if (first === 'devices') {
+        if (second || rest.length || values.url || values.all) throw new Refused('USAGE', 'pullboard relay devices');
+        const devices = readRelayMachine().devices.map(({ deviceId, label, fingerprint, createdAt }) => ({ deviceId, label, fingerprint, createdAt }));
+        io.result?.({ devices });
+        for (const device of devices) io.say(`${device.deviceId}  ${device.label}  ${device.fingerprint}`);
+        if (!devices.length) io.say('no paired devices; run pullboard relay on --all');
+        return 0;
+      }
+      if (first === 'revoke' && /^device-[0-9a-f]{32}$/u.test(second ?? '')) {
+        if (rest.length || values.url || values.all) throw new Refused('USAGE', 'pullboard relay revoke <device>');
+        const result = await revokeRelayDevice(second, io);
+        io.result?.(result); io.say(result.notice); return 0;
+      }
+      if (values.all) {
+        if (first !== 'on' || second || rest.length) throw new Refused('USAGE', 'pullboard relay on --all [--url <address>]');
+        const result = await relayOnAll(values.url, io);
+        io.result?.(result); return result.failed.length ? 1 : 0;
+      }
       if (['tokens', 'revoke'].includes(first)) {
         if (rest.length || values.url || (first === 'tokens' && second) || (first === 'revoke' && !second)) {
           throw new Refused('USAGE', 'pullboard relay tokens, or pullboard relay revoke <token-id>');

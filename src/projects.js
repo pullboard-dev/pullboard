@@ -259,3 +259,11 @@ export function forgetProject(path) {
     return true;
   });
 }
+
+/** Register locally and complete opted-in automatic relay linking before the CLI returns. */
+export async function registerProjectAndLink(root, now, config, io) {
+  const added = registerProject(root, now, config);
+  const { autoLinkProject } = await import('./relay-setup.js');
+  await autoLinkProject(root, io);
+  return added;
+}
