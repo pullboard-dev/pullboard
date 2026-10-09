@@ -46,6 +46,13 @@ import { sha256, signRows } from '../src/signature.js';
 
 const guide = readFileSync(new URL('./formats.md', import.meta.url), 'utf8');
 
+test('formats guide documents collision grandfathering and doctrine citations [A5]', () => {
+  assert.match(guide, /A bare id names a row in `SPEC\.md`/u);
+  assert.match(guide, /`doctrine:<id>` in item spec ids and commit headers/u);
+  assert.match(guide, /Collisions already present in the primary checkout's attached branch are reported as known warnings/u);
+  assert.match(guide, /adding a colliding row is an error that names both file paths and line numbers/u);
+});
+
 /** Return the text inside a named marked documentation block. */
 function block(start, end) {
   const begin = guide.indexOf(start);
