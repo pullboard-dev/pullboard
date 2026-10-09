@@ -146,13 +146,13 @@ function behind(root, state) {
   return localRecords(root, (board) => board.db.prepare('SELECT COUNT(*) AS count FROM event WHERE event_id > ?').get(state.cursor).count);
 }
 
-/** Expose pairing information while keeping the human relay credential out of output. */
-function summary(root, state) {
+/** Expose key-free link status; only an explicit link operation includes its pairing carrier. */
+function summary(root, state, { pairing = false } = {}) {
   if (!state) return { linked: false, board: '', url: '', link: '', sequence: 0, behind: 0 };
   if (state.unlinking) return { linked: false, board: state.board, url: state.url, link: '', sequence: state.sequence, behind: 0, cleanup: true };
-  const key = encodeBoardKey(readBoardKey(state.board));
+  const fragment = pairing ? '&key=' + encodeBoardKey(readBoardKey(state.board)) : '';
   return { linked: true, board: state.board, url: state.url,
-    link: 'https://app.pullboard.dev/#board=' + state.board + '&key=' + key,
+    link: 'https://app.pullboard.dev/#board=' + state.board + fragment,
     sequence: state.sequence, behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)) };
 }
 
@@ -545,16 +545,8 @@ export function relayRecovered(root) {
   return loadLink(linkFile(root))?.recovered?.move ?? null;
 }
 
-/** Read relay status without a connection or key, since its cursor is local metadata. */
-export function relayStatus(root) {
-  const state = loadLink(linkFile(root));
-  try { return summary(root, state); }
-  catch (error) {
-    if (!(error instanceof Refused) || error.code !== 'RELAY_KEY_MISSING') throw error;
-    return { linked: true, board: state.board, url: state.url, link: '', sequence: state.sequence,
-      behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)) };
-  }
-}
+/** Read the local link and lag without opening a network connection or revealing its relay token. */
+export function relayStatus(root) { return summary(root, loadLink(linkFile(root))); }
 
 /** Renew a person session through the relay without changing this device's board key or cursors. */
 async function deviceSignIn(url, io) {
@@ -615,9 +607,9 @@ export async function relayOn(root, address, io) {
       }
       await ensureOrdered(root, file, state, io);
       await catchUp(root, file, state, io);
-      result = summary(root, state);
+      result = summary(root, state, { pairing: true });
     }
-    catch (error) { if (!(error instanceof Refused)) throw error; io.err(`pullboard: ${error.message}; pending records are queued for the next command`); result = summary(root, state); }
+    catch (error) { if (!(error instanceof Refused)) throw error; io.err(`pullboard: ${error.message}; pending records are queued for the next command`); result = summary(root, state, { pairing: true }); }
     io.say(terminalQr(result.link));
     return result;
   });

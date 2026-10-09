@@ -196,7 +196,8 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   assert.ok(!relay.calls.some((call) => call.path === '/auth/boards/link'));
   chmodSync(keysDirectory, 0o700);
   const on = await cli(root, relayEnv, 'relay', 'on', '--url', relay.origin);
-  assert.deepEqual(await auth.boardsFor(person.token), [{ id: boardId, repository: 'fixture/repository' }]);
+  const linkedAt = auth.linkedBoards().find(link => link.id === boardId).linkedAt;
+  assert.deepEqual(await auth.boardsFor(person.token), [{ id: boardId, repository: 'fixture/repository', linkedAt }]);
   assert.equal(on.version, 1);
   assert.equal(on.linked, true);
   assert.equal(on.board, boardId);
@@ -389,7 +390,7 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
     gate: 'true', lanes: { web: { owns: ['web/'], specs: ['G'] } },
   }, null, 2) + '\n');
   writeFileSync(join(seed, 'SPEC.md'), '# Spec\n\n## G · Goals: relay claim fixture\n- G1 [approved, must] A linked claim is applied once in relay order. | gate: review\n');
-  writeFileSync(join(seed, 'PRACTICE.md'), readFileSync(resolve(import.meta.dirname, '../PRACTICE.md')));
+  writeFileSync(join(seed, 'PRACTICE.md'), readFileSync(resolve(import.meta.dirname, '..', existsSync(resolve(import.meta.dirname, '../DOCTRINE.md')) ? 'DOCTRINE.md' : 'PRACTICE.md')));
   mkdirSync(join(seed, 'web'));
   writeFileSync(join(seed, 'web', 'README.md'), 'relay claim fixture\n');
   gitAt(seed, envs[0], 'add', '-A');

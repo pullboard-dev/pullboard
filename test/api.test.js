@@ -20,6 +20,7 @@ import { resultCommands } from '../src/cli.js';
 import { allShouts, closeBoard, EVENT_LOG_VERSION, openBoard } from '../src/board.js';
 import { presentationShout, relayPresentation } from '../src/relay-presentation.js';
 import { JSON_SHAPES } from '../src/json.js';
+import { SSH_SHELL_MARKERS } from '../src/person.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -64,6 +65,7 @@ function sandbox() {
     GIT_COMMITTER_EMAIL: 'api@example.invalid',
     PULLBOARD_HOME: join(dir, 'home'),
   };
+  for (const marker of SSH_SHELL_MARKERS) delete env[marker];
   const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
   const run = (cwd, ...args) => spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   return { dir, env, git, run };
@@ -274,6 +276,7 @@ test('[A1] command results match the catalog across roots and subcommands', () =
   const messageFile = join(box.dir, 'commit-message.txt');
   writeFileSync(messageFile, 'chore: valid fixture\n');
   json(box, repo, 'hook', ['pre-commit'], 'pre-commit');
+  json(box, repo, 'hook', ['pre-merge-commit'], 'pre-merge-commit');
   json(box, repo, 'hook', ['commit-msg', messageFile], 'commit-msg');
   json(box, repo, 'hook', ['pre-push'], 'pre-push');
 
@@ -372,7 +375,7 @@ test('[A1,B21,B27] decisions shows an agent its direct and lane asks only', () =
   const app1Ask = json(box, box.repo, 'shout', ['app-1', 'App one decision?', '--decision']).id;
   const app2Ask = json(box, box.repo, 'shout', ['app-2', 'App two decision?', '--decision']).id;
   const reviewAsk = json(box, box.repo, 'shout', ['review', 'Review decision?', '--decision']).id;
-  const coordinatorAsk = json(box, box.repo, 'shout', ['coordinator', 'Coordinator decision?', '--decision']).id;
+  const coordinatorAsk = json(box, app1, 'shout', ['coordinator', 'Coordinator decision?', '--decision']).id;
 
   const app1Queue = json(box, app1, 'decisions').decisions.map(({ shout_id }) => shout_id);
   assert.deepEqual(app1Queue, [laneAsk, app1Ask]);
@@ -588,6 +591,9 @@ test('[A1] every catalog command and subcommand has a real CLI exercise', () => 
   json(source, source.repo, 'spec', ['approve', 'G1'], 'approve');
   json(source, source.repo, 'spec', ['decline', 'G1', '--reason', 'Catalog decline'], 'decline');
   json(source, source.repo, 'spec', ['apply'], 'apply');
+  /** Exercise the agent-only takeover with a private explicit session, leaving later terminal calls markerless. */
+  const sessionSource = { ...source, run: (cwd, ...args) => spawnSync(process.execPath, [BIN, ...args], { cwd, env: { ...source.env, CODEX_SESSION_ID: 'api-catalog-session' }, encoding: 'utf8' }) };
+  json(sessionSource, source.repo, 'takeover');
   const missing = Object.keys(JSON_SHAPES.commands).filter((key) => !covered.has(key));
   assert.deepEqual(missing, [], `add real-repo invocations for undocumented coverage gaps: ${missing.join(', ')}`);
   assert.deepEqual([...coveredRoots].sort(), resultCommands(), 'every actual root/factory command has an invocation');

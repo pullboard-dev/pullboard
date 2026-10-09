@@ -17,6 +17,9 @@ test('tests run without inherited Git identity or config and refuse ambient pull
   assert.equal(process.env.GIT_AUTHOR_EMAIL, undefined);
   assert.equal(process.env.GIT_COMMITTER_NAME, undefined);
   assert.equal(process.env.GIT_COMMITTER_EMAIL, undefined);
+  assert.equal(process.env.SSH_CONNECTION, undefined);
+  assert.equal(process.env.SSH_CLIENT, undefined);
+  assert.equal(process.env.SSH_TTY, undefined);
   assert.equal(process.env.HOME, process.env.PULLBOARD_HOME);
   assert.ok(process.env.PULLBOARD_TEST_FILE.endsWith('test/test-runner.test.js'));
 
@@ -53,15 +56,22 @@ test('runner removes its private home after test workers exit [C7, S13]', (t) =>
   const report = join(scratch, 'sandbox-path');
   writeFileSync(probe, `import { test } from 'node:test';
 import { writeFileSync } from 'node:fs';
-test('reports its sandbox', () => writeFileSync(${JSON.stringify(report)}, process.env.TMPDIR));
+test('reports its sandbox and person-terminal markers', () => writeFileSync(${JSON.stringify(report)}, JSON.stringify({ sandbox: process.env.TMPDIR, ssh: [process.env.SSH_CONNECTION, process.env.SSH_CLIENT, process.env.SSH_TTY] })));
 `);
   const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
   const launchEnv = { ...process.env };
+  Object.assign(launchEnv, {
+    SSH_CONNECTION: '192.0.2.1 1234 192.0.2.2 22',
+    SSH_CLIENT: '192.0.2.1 1234 22',
+    SSH_TTY: '/dev/pts/4',
+  });
   delete launchEnv.NODE_TEST_CONTEXT;
   const result = spawnSync(process.execPath, [runner, probe], { encoding: 'utf8', env: launchEnv });
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   assert.ok(existsSync(report), `${result.stdout}${result.stderr}`);
-  const sandbox = readFileSync(report, 'utf8');
+  const resultEnv = JSON.parse(readFileSync(report, 'utf8'));
+  const sandbox = resultEnv.sandbox;
+  assert.deepEqual(resultEnv.ssh, [null, null, null], 'the runner removes every SSH transport marker before test workers act as the person');
   assert.equal(existsSync(sandbox), false, 'the private sandbox is removed after Node exits');
 
   const failingProbe = join(scratch, 'runner-failure.test.js');

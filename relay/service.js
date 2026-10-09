@@ -7,6 +7,8 @@ import { createApiHandler, apiJson, apiRefusal, apiStatus, readApiBody } from '.
 import { Refused } from '../src/refused.js';
 import { createRelayJournal } from './journal.js';
 import { createRelayRetention } from './retention.js';
+import { createPairingStore } from './pairing-store.js';
+import { createPairingHandler } from './pairing-http.js';
 import { createRelayBrowserHandler } from './browser-page.js';
 
 const SNAPSHOT_BODY = 14_000_000;
@@ -100,6 +102,11 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
     return who;
   }
 
+  const pairingStore = createPairingStore({ now });
+  const pairing = createPairingHandler({
+    authenticate: (req, { board, write }) => authorizedRequest(req, board, write),
+    pairings: pairingStore,
+  });
   /** Refuse an old or ambiguous client before the opaque journal can return or accept board records. */
   async function authorizedRequest(req, id, write = false) {
     const who = await authorized(credential(req, origin, write), id, write);
@@ -183,6 +190,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
 
   /** Add authenticated snapshot replacement and deletion to the common versioned read/move paths. */
   async function handle(req, res) {
+    if (await pairing(req, res)) return;
     try {
       if (browser && await browser(req, res)) return;
       let url;
