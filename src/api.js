@@ -14,6 +14,7 @@ import { proofStats } from './stats.js';
 import { projectRowDecisions } from './row-decisions.js';
 import { Refused } from './refused.js';
 import { codeAt, projectState } from './serve.js';
+import { relayPresentationShout } from './relay-presentation.js';
 import { createApiHandler } from './api-http.js';
 import { moveArgs } from './api-moves.js';
 import { personRequestStatuses } from './relay-requests.js';
@@ -167,6 +168,9 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       state.items = state.items.map((item) => ({ ...item, thread: projectData.threads.get(item.id) ?? [] }));
       return state;
     },
+    shout: (board, id) => relayLinked(board.root)
+      ? relayPresentationShout(board.root, id)
+      : withBoard(board.root, (db) => store.shoutDetails(db, id)),
     code: (board, ref) => codeAt(board.root, ref),
     events: (board, after) => afterEvents(board.root, after),
     eventLogVersion: () => store.EVENT_LOG_VERSION,

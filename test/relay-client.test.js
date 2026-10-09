@@ -21,6 +21,7 @@ import { main } from '../src/cli.js';
 import { appliedSequence, prepareEngineMove } from '../src/engine.js';
 import { storeBoardKey } from '../src/relay-key.js';
 import { ENGINE_VERSION } from '../src/machine.js';
+import { presentationShout } from '../src/relay-presentation.js';
 
 const SIGN_INS = new Map();
 
@@ -170,7 +171,19 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   const marker = 'RELAY_CLIENT_KNOWN_PRIVATE_CRITERION';
   const lane = Object.keys(config.lanes)[0];
   await cli(root, env, 'add', lane, 'initial private item', '--criterion', marker);
+  const oldHistoryText = 'RELAY_PRIVATE_OLD_HISTORY_SHOUT_000';
   const boardFile = join(root, '.git', 'pullboard', 'board.sqlite');
+  const board = store.openBoard(boardFile);
+  const lanes = Object.keys(config.lanes);
+  let oldestShoutId;
+  try {
+    for (let index = 0; index < 41; index += 1) {
+      const id = store.shout(board, { from: 'coordinator', to: 'person', text: index === 0 ? oldHistoryText : `old private history ${index}`, lanes });
+      if (index === 0) oldestShoutId = id;
+    }
+  } finally {
+    store.closeBoard(board);
+  }
   const beforeLink = await cli(root, env, 'export');
   const boardId = beforeLink.tables.board_meta.find((row) => row.meta_key === 'board_id').meta_value;
 
@@ -211,6 +224,11 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   const linkedExport = await cli(root, env, 'export');
   assert.deepEqual(openedSnapshot.tables, linkedExport.tables, 'the first sealed record is the exact native board snapshot');
   assert.ok(openedSnapshot.presentation.state.items.some((item) => item.title === 'initial private item'));
+  assert.equal(openedSnapshot.presentation.state.shouts.length, 40, 'the view state remains bounded to the recent forty');
+  assert.equal(openedSnapshot.presentation.shouts.length, 41, 'the sealed presentation retains full history for addressed reads');
+  assert.equal(openedSnapshot.presentation.shouts[0].shout_text, oldHistoryText, 'the sealed history includes the oldest addressed shout');
+  assert.equal(presentationShout(openedSnapshot.presentation, oldestShoutId).shout_text, oldHistoryText,
+    'a receiver can resolve an old shout from decoded presentation data without opening the repository');
   for (const [table, rows] of Object.entries(beforeLink.tables)) {
     if (table !== 'board_meta') assert.deepEqual(openedSnapshot.tables[table], rows, 'linking preserves every existing board row');
   }
@@ -302,7 +320,7 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   relay.advance(0);
 
   const stored = Buffer.concat(readdirSync(relayDirectory).map((name) => readFileSync(join(relayDirectory, name))));
-  for (const secret of [marker, 'initial private item', 'mirrored private move', 'mirrored private shout', 'queued private move', 'second queued private move', 'committed reply lost', root]) {
+  for (const secret of [marker, 'initial private item', oldHistoryText, 'mirrored private move', 'mirrored private shout', 'queued private move', 'second queued private move', 'committed reply lost', root]) {
     assert.equal(stored.includes(Buffer.from(secret)), false, `relay journal does not contain known plaintext ${secret}`);
   }
   assert.equal(stored.includes(key), false, 'relay journal does not contain raw key bytes');
