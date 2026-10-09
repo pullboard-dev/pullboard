@@ -22,6 +22,7 @@ import { after, test } from 'node:test';
 import { parseSpec } from '../src/spec.js';
 import { checkAtCommit } from '../src/trusted-policy.js';
 import * as store from '../src/board.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const cockpitSource = () => readFileSync(resolve(import.meta.dirname, '../src/cockpit.js'), 'utf8');
@@ -54,6 +55,7 @@ function sandbox() {
     PULLBOARD_HOME: join(dir, 'pullboard-home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
   };
+  for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
   delete env.PULLBOARD_RELAY_TOKEN;
   const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
   const tryGit = (cwd, ...args) => spawnSync('git', args, { cwd, env, encoding: 'utf8' });

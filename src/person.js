@@ -7,6 +7,9 @@ export const AGENT_SHELL_MARKERS = Object.freeze([
   'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL',
 ]);
 
+/** SSH transport markers removed from test child environments that act as the person. */
+export const SSH_SHELL_MARKERS = Object.freeze(['SSH_CONNECTION', 'SSH_CLIENT', 'SSH_TTY']);
+
 /** Refuse terminal person actions in an agent shell; only the authenticated view adapter supplies view. */
 export function requirePersonChannel(channel = 'terminal', environment = process.env) {
   if (!['terminal', 'view'].includes(channel)) {

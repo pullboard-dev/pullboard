@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { standardDoctrine } from '../src/doctrine.js';
-import { AGENT_SHELL_MARKERS } from '../src/person.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
 import {
   citedIds,
   deletedIds,
@@ -286,7 +286,7 @@ function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md', practi
   };
   delete env.PULLBOARD_RELAY_TOKEN;
   // These isolated signoff fixtures model the same person terminal as the suite runner.
-  for (const marker of AGENT_SHELL_MARKERS) delete env[marker];
+  for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
   const git = (...args) => execFileSync('git', args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' });
   const command = (...args) => spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args], { cwd: root, env, encoding: 'utf8' });
   const run = (...args) => command('spec', ...args);

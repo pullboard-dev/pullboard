@@ -7,6 +7,7 @@ import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { once } from 'node:events';
 import { test } from 'node:test';
+import { SSH_SHELL_MARKERS } from '../src/person.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const MARKERS = {
@@ -29,8 +30,7 @@ const TEMP_DIRS = [];
 function cleanEnvironment(source) {
   const env = { ...source };
   for (const key of Object.keys(MARKERS)) delete env[key];
-  delete env.SSH_CONNECTION;
-  delete env.SSH_TTY;
+  for (const key of SSH_SHELL_MARKERS) delete env[key];
   return env;
 }
 

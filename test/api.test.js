@@ -20,6 +20,7 @@ import { resultCommands } from '../src/cli.js';
 import { allShouts, closeBoard, EVENT_LOG_VERSION, openBoard } from '../src/board.js';
 import { presentationShout, relayPresentation } from '../src/relay-presentation.js';
 import { JSON_SHAPES } from '../src/json.js';
+import { SSH_SHELL_MARKERS } from '../src/person.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -64,6 +65,7 @@ function sandbox() {
     GIT_COMMITTER_EMAIL: 'api@example.invalid',
     PULLBOARD_HOME: join(dir, 'home'),
   };
+  for (const marker of SSH_SHELL_MARKERS) delete env[marker];
   const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
   const run = (cwd, ...args) => spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   return { dir, env, git, run };
