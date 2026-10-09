@@ -634,6 +634,46 @@ test('a project with one repo shows once in the project list [N33, N26]', async 
   }
 });
 
+test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for the 320px check.');
+
+  const box = machine();
+  const demo = project(box, 'narrow');
+  box.run(demo.repo, 'add', 'web', 'A title long enough to need every bit of a narrow phone row, and then some more words', '--specs', 'G1', '--criterion', 'fits');
+  box.run(demo.repo, 'add', 'web', 'Built, then sent back', '--specs', 'G1', '--criterion', 'back');
+  build(box, demo, 2, 'two.txt');
+  sendBack(box, demo, 2, 'It misses the edge the criterion names, a reason long enough to wrap on a phone.');
+  const sha = box.git(demo.repo, 'rev-parse', 'HEAD').trim();
+  box.run(demo.repo, 'shout', 'web', `Run \`pullboard next --verify\` and read SPEC.md:1-2@${sha} before you take #1.`);
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-sideways-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor('innerWidth === 320 && document.querySelectorAll("#chain .row").length === 2');
+    for (const tab of ['items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap']) {
+      await chrome.evaluate(`document.querySelector('[data-tab="${tab}"]').click()`);
+      await chrome.waitFor(`!document.querySelector('[data-pane="${tab}"]').hidden`);
+      const seen = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+        const edge = document.documentElement.clientWidth;
+        // Name each element that runs past the edge with nothing above it to clip or scroll it.
+        const clipped = (e) => { for (let p = e.parentElement; p && p !== document.body; p = p.parentElement) if (!['visible', ''].includes(getComputedStyle(p).overflowX)) return true; return false; };
+        const name = (e) => e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (typeof e.className === 'string' && e.className ? '.' + e.className.trim().split(/\\s+/).join('.') : '');
+        const past = [...document.querySelectorAll('body *')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > edge + 0.5 && !clipped(e); })
+          .map((e) => name(e) + ' right ' + Math.round(e.getBoundingClientRect().right) + ': ' + (e.textContent || '').trim().slice(0, 40));
+        return { scrollWidth: document.documentElement.scrollWidth, clientWidth: edge, past: past.slice(0, 8), more: Math.max(0, past.length - 8) };
+      })())`));
+      assert.ok(seen.scrollWidth <= seen.clientWidth, `320, ${tab}: the page scrolls sideways, ${seen.scrollWidth} wide in ${seen.clientWidth}; past the edge: ${seen.past.join(' | ')}${seen.more ? ` (+${seen.more} more)` : ''}`);
+    }
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
 test('the tabs fit one row on a phone [N26]', async () => {
   const view = await startView(machine());
   try {

@@ -262,6 +262,8 @@ form.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; paddin
 .feed .day { margin: 0; padding: 12px 0 4px; font: 600 11px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
 .feed .day:first-child { padding-top: 6px; }
 button.ref { width: auto; min-height: 0; border: 0; border-radius: 0; background: none; padding: 0; color: var(--accent-strong); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; display: inline; vertical-align: baseline; line-height: inherit; font: inherit; }
+/* A code reference (path:lines@sha) is one long token: wider than its line, it breaks anywhere rather than push the page sideways. */
+button.ref[data-code] { max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: left; }
 code.inline { padding: 0 3px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 8%, var(--surface)); font: .92em var(--mono); white-space: break-spaces; }
 .code { display: block; margin: 6px 0 2px; padding: 6px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); font: 12px/1.55 var(--mono); white-space: pre; overflow-x: auto; overflow-wrap: normal; }
 .code > span { display: block; padding-right: 12px; }
