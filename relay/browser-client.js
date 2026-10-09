@@ -4,6 +4,7 @@ import { preparePersonRequest, validatePersonRequest } from './person-request.js
 import { snapshotState, presentationState } from './model.js';
 import { ENGINE_VERSION } from './engine.js';
 import { Refused } from './refused.js';
+import { enqueueStream, followStream } from './browser-stream.js';
 
 const KEYS = 'pullboard.relay.keys.v1';
 const PENDING = 'pullboard.relay.pair.v1';
@@ -38,7 +39,9 @@ function transportBytes(value) {
 
 /** Fetch only same-origin API documents, retaining stable refusal guidance and no provider details. */
 async function documentAt(path, onDenied, options = {}) {
-  const response = await fetch(path, { ...options, credentials: 'same-origin', cache: 'no-store', redirect: 'error' });
+  const headers = new Headers(options.headers ?? {});
+  headers.set('x-pullboard-engine', String(ENGINE_VERSION));
+  const response = await fetch(path, { ...options, headers, credentials: 'same-origin', cache: 'no-store', redirect: 'error' });
   const document = await response.json();
   if (!response.ok) {
     const error = document.error;
@@ -105,7 +108,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
   async function snapshot(entry) {
     const response = await fetch('/api/v1/boards/' + entry.id + '/state', {
       credentials: 'same-origin', cache: 'no-store', redirect: 'error',
-      headers: entry.state && entry.snapshotTag ? { 'if-none-match': entry.snapshotTag } : {},
+      headers: { 'x-pullboard-engine': String(ENGINE_VERSION), ...(entry.state && entry.snapshotTag ? { 'if-none-match': entry.snapshotTag } : {}) },
     });
     if (response.status === 304 && entry.state) return;
     const document = await response.json();
@@ -192,37 +195,67 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     for (const row of document.events) await receive(entry, row, true);
   }
 
-  /** Subscribe to real relay events and retention warnings without sending a key or bearer token. */
+  /** Handle a relay stream message in sequence, matching EventSource behavior with an engine header. */
+  async function streamMessage(entry, message, stream) {
+    if (!message.data) return;
+    const document = JSON.parse(message.data);
+    if (message.event === 'warning') { warning(document.warning, entry.id); return; }
+    if (message.event === 'error') {
+      stream.close();
+      const error = document.error;
+      if (error?.code === 'SNAPSHOT_REQUIRED') {
+        await snapshot(entry);
+        await catchUp(entry);
+        subscribe(entry);
+        onUpdate();
+      } else {
+        if (['AUTH_REQUIRED', 'NO_REPO_ACCESS', 'TOKEN_BOARD', 'NO_BOARD'].includes(error?.code)) denied();
+        failure = error ? '[' + error.code + '] ' + error.message : 'The relay stream ended. Refresh this board.';
+        notice();
+      }
+      return;
+    }
+    if (document.version !== 1) throw new Error('Upgrade this browser client to read the relay API.');
+    await receive(entry, document.event);
+    failure = '';
+    notice();
+    onUpdate();
+  }
+
+  /** Subscribe to real relay events with an explicit engine declaration and no bearer token or key. */
   function subscribe(entry) {
     entry.stream?.close();
-    const stream = new EventSource('/api/v1/boards/' + entry.id + '/events?after=' + entry.cursor);
+    const controller = new AbortController();
+    const stream = { closed: false, close: closeStream };
+    /** Abort this stream once so pagehide and authorization loss stop network reads promptly. */
+    function closeStream() { stream.closed = true; controller.abort(); }
     entry.stream = stream;
     entry.queue ??= Promise.resolve();
-    stream.onmessage = event => {
-      entry.queue = entry.queue.then(async () => {
-        const document = JSON.parse(event.data);
-        if (document.version !== 1) throw new Error('Upgrade this browser client to read the relay API.');
-        await receive(entry, document.event);
-        failure = '';
+    void followStream({
+      url: () => '/api/v1/boards/' + entry.id + '/events?after=' + entry.cursor,
+      signal: controller.signal,
+      request: async (url, signal) => {
+        const response = await fetch(url, {
+          credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal,
+          headers: { 'x-pullboard-engine': String(ENGINE_VERSION), accept: 'text/event-stream' },
+        });
+        if (!response.ok) {
+          let document;
+          try { document = await response.json(); } catch { document = null; }
+          if ([401, 403].includes(response.status) || document?.error?.code === 'NO_BOARD') denied();
+          const refusal = new Refused(document?.error?.code ?? 'RELAY_UNAVAILABLE', document?.error?.message ?? 'The relay stream ended. Refresh this board.');
+          if (refusal.code === 'ENGINE_VERSION') refusal.fatal = true;
+          throw refusal;
+        }
+        return response;
+      },
+      onMessage: message => enqueueStream(entry, () => streamMessage(entry, message, stream)),
+      onFailure: (error, { fatal }) => {
+        if (controller.signal.aborted || accessLost) return;
+        failure = error.message;
         notice();
-        onUpdate();
-      }).catch(error => { stream.close(); failure = error.message; notice(); });
-    };
-    stream.addEventListener('warning', event => {
-      try { warning(JSON.parse(event.data).warning, entry.id); } catch { /* Malformed warnings never become board content. */ }
-    });
-    stream.addEventListener('error', event => {
-      if (!event.data) return;
-      stream.close();
-      entry.queue = entry.queue.then(async () => {
-        const error = JSON.parse(event.data).error;
-        if (error?.code === 'SNAPSHOT_REQUIRED') {
-          await snapshot(entry);
-          await catchUp(entry);
-          subscribe(entry);
-          onUpdate();
-        } else { if (['AUTH_REQUIRED', 'NO_REPO_ACCESS', 'TOKEN_BOARD', 'NO_BOARD'].includes(error?.code)) denied(); failure = error ? '[' + error.code + '] ' + error.message : 'The relay stream ended. Refresh this board.'; notice(); }
-      }).catch(error => { failure = error.message; notice(); });
+        if (fatal) stream.close();
+      },
     });
   }
 
@@ -252,7 +285,11 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
           try { sessionStorage.removeItem(PENDING); } catch { /* Device storage can be unavailable. */ }
         }
         subscribe(entry);
-      } catch (error) { failure = error.code === 'RELAY_ENGINE_VERSION' ? error.message : 'Could not open this board with its saved key. Pair this browser again from a linked machine.'; }
+      } catch (error) {
+        failure = ['ENGINE_VERSION', 'RELAY_ENGINE_VERSION'].includes(error.code) || /^\[(?:ENGINE_VERSION|RELAY_ENGINE_VERSION)\]/u.test(error.message)
+          ? error.message
+          : 'Could not open this board with its saved key. Pair this browser again from a linked machine.';
+      }
     }
     notice();
     return {
@@ -301,9 +338,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
 
   /** Serialize browser reads, sends and live events through the same per-board cursor owner. */
   function enqueue(entry, work) {
-    const task = (entry.queue ?? Promise.resolve()).then(work);
-    entry.queue = task.catch(() => {});
-    return task;
+    return enqueueStream(entry, work);
   }
 
   /** Seal an unchanged intent at its current public sequence after another client wins the order. */
@@ -382,7 +417,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
         await flushOutbox(entry);
         await snapshot(entry);
         await catchUp(entry);
-        if (entry.stream?.readyState === EventSource.CLOSED) subscribe(entry);
+        if (entry.stream?.closed) subscribe(entry);
         if (match[2] === 'state') return { version: 1, state: entry.state };
         return { version: 1, events: [...entry.state.events].reverse() };
       });
