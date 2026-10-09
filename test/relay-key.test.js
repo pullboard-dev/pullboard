@@ -6,7 +6,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, st
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { generateBoardKey, seal, unseal } from '../src/seal.js';
+import { decodeBoardKey, encodeBoardKey, generateBoardKey, seal, unseal } from '../src/seal.js';
 import { forgetBoardKey, readBoardKey, storeBoardKey } from '../src/relay-key.js';
 
 /**
@@ -23,9 +23,10 @@ function privateFallback(t) {
   mkdirSync(noCommands, { mode: 0o700 });
   chmodSync(home, 0o700);
   chmodSync(noCommands, 0o700);
-  const prior = Object.fromEntries(['HOME', 'PULLBOARD_HOME', 'PATH'].map((name) => [name, process.env[name]]));
+  const prior = Object.fromEntries(['HOME', 'PULLBOARD_HOME', 'PULLBOARD_RELAY_KEY', 'PATH'].map((name) => [name, process.env[name]]));
   process.env.HOME = home;
   process.env.PULLBOARD_HOME = pullboardHome;
+  delete process.env.PULLBOARD_RELAY_KEY;
   process.env.PATH = noCommands;
   t.after(() => {
     for (const [name, value] of Object.entries(prior)) {
@@ -86,4 +87,52 @@ test('fallback refuses missing or wrong board identities, invalid/corrupt keys, 
   await forgetBoardKey(boardId);
   assert.equal(existsSync(corrupt), false, 'forget removes the local key file');
   assert.throws(() => readBoardKey(boardId), { code: 'RELAY_KEY_MISSING' });
+});
+
+test('PULLBOARD_RELAY_KEY is a canonical device-only fallback when no stored key exists [H1,H15,H17]', async (t) => {
+  const box = privateFallback(t);
+  const boardId = 'd'.repeat(32);
+  const raw = await generateBoardKey();
+  const encoded = encodeBoardKey(raw);
+
+  process.env.PULLBOARD_RELAY_KEY = encoded;
+  assert.deepEqual(readBoardKey(boardId), raw, 'the local environment key opens the same board key');
+  assert.equal(existsSync(join(box.keyDirectory, `${boardId}.key`)), false, 'reading the environment fallback does not persist another copy');
+  assert.deepEqual(decodeBoardKey(process.env.PULLBOARD_RELAY_KEY), raw, 'the accepted representation is canonical unpadded base64url');
+
+  process.env.PULLBOARD_RELAY_KEY = `${encoded}=`;
+  let refusal;
+  assert.throws(() => readBoardKey(boardId), (error) => {
+    refusal = error;
+    return error.code === 'SEAL_KEY';
+  }, 'padding aliases are refused instead of silently normalized');
+  assert.equal(refusal.message.includes(encoded), false, 'a malformed environment secret is never echoed in the refusal');
+});
+
+
+test('owner-only key file refuses mismatched environment keys without exposing either source [H15,H17]', async (t) => {
+  const box = privateFallback(t);
+  const boardId = 'e'.repeat(32);
+  const raw = await generateBoardKey();
+  storeBoardKey(boardId, raw);
+  const file = join(box.keyDirectory, `${boardId}.key`);
+  const before = readFileSync(file);
+  const encoded = encodeBoardKey(raw);
+  process.env.PULLBOARD_RELAY_KEY = encoded;
+  assert.deepEqual(readBoardKey(boardId), raw, 'matching device sources remain usable');
+  const wrong = encodeBoardKey(await generateBoardKey());
+  process.env.PULLBOARD_RELAY_KEY = wrong;
+  assert.throws(() => readBoardKey(boardId), error => {
+    assert.equal(error.code, 'RELAY_KEY_FILE_ENV_MISMATCH');
+    assert.match(error.message, /PULLBOARD_RELAY_KEY.*file.*unset/u);
+    for (const key of [encoded, wrong]) assert.equal(error.message.includes(key), false);
+    return true;
+  });
+  assert.deepEqual(readFileSync(file), before, 'refusal leaves the stored key unchanged');
+  process.env.PULLBOARD_RELAY_KEY = '';
+  assert.throws(() => readBoardKey(boardId), { code: 'RELAY_KEY_FILE_ENV_MISMATCH' }, 'an explicitly empty environment value also conflicts with the file');
+  rmSync(file);
+  assert.throws(() => readBoardKey(boardId), { code: 'SEAL_KEY' }, 'an explicitly empty fallback is validated rather than silently ignored');
+  delete process.env.PULLBOARD_RELAY_KEY;
+  assert.throws(() => readBoardKey(boardId), error => error.code === 'RELAY_KEY_MISSING' && /set PULLBOARD_RELAY_KEY from your local secret store/u.test(error.message), 'missing-key guidance from main remains intact');
 });

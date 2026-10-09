@@ -61,16 +61,20 @@ function removeKeychainValue(service, id) {
   if (removed.status !== 0 && !absent) throw new Refused('RELAY_KEYCHAIN', 'unlock the system keychain to finish moving this board key');
 }
 
-/** Read a board key only from this device's private file or operating-system keychain. */
+/** Read device storage first, migrating legacy keychain values before using an environment fallback. */
 export function readBoardKey(boardId) {
   const id = identity(boardId);
   const file = keyFile(id);
   if (existsSync(file)) {
     const stat = lstatSync(file);
     if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077)) throw new Refused('RELAY_KEY_STORAGE', 'restore the board key as an owner-only regular file with mode 600');
-    return decodeBoardKey(readFileSync(file, 'utf8').trim());
+    const encoded = readFileSync(file, 'utf8').trim();
+    const key = decodeBoardKey(encoded);
+    if (process.env.PULLBOARD_RELAY_KEY !== undefined && process.env.PULLBOARD_RELAY_KEY !== encoded) {
+      throw new Refused('RELAY_KEY_FILE_ENV_MISMATCH', 'PULLBOARD_RELAY_KEY differs from this board key file; unset PULLBOARD_RELAY_KEY or set it to the key from this device file');
+    }
+    return key;
   }
-  if (process.env.PULLBOARD_RELAY_KEY) return decodeBoardKey(process.env.PULLBOARD_RELAY_KEY);
   const service = keychain();
   if (service) {
     const args = service === 'security'
@@ -87,7 +91,8 @@ export function readBoardKey(boardId) {
       return key;
     }
   }
-  throw new Refused('RELAY_KEY_MISSING', 'the board key is missing on this device; pair this device again, or run pullboard relay off then relay on to upload a new sealed snapshot');
+  if (process.env.PULLBOARD_RELAY_KEY !== undefined) return decodeBoardKey(process.env.PULLBOARD_RELAY_KEY);
+  throw new Refused('RELAY_KEY_MISSING', 'the board key is missing on this device; set PULLBOARD_RELAY_KEY from your local secret store, pair this device again, or run pullboard relay off then relay on to upload a new sealed snapshot');
 }
 
 /** Remove the device key after a successful unlink, leaving all local board records untouched. */

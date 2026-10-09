@@ -147,7 +147,7 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .needs-you .ask + .head.quiet { margin-top: 12px; }
 .needs-you .more { padding: 2px 4px; }
 .ny { display: grid; grid-template-columns: auto minmax(5em, 1fr) minmax(0, max-content); gap: 10px; align-items: baseline; text-align: left; border: 0; background: none; padding: 6px 4px; border-radius: 8px; width: 100%; min-height: 44px; }
-.ny:hover { background: color-mix(in srgb, var(--warn) 10%, var(--surface)); }
+.ny:has(.ny-open):hover { background: color-mix(in srgb, var(--warn) 10%, var(--surface)); }
 .ny code { font: 600 12px var(--mono); }
 .ny .ny-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); }
 .ny .ny-open { min-height: 44px; border: 0; padding: 0; background: none; color: var(--warn); cursor: pointer; text-align: right; }

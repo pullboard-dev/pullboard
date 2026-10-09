@@ -1,5 +1,6 @@
 /** Owner-only relay key files and legacy keychain migration [H15,H17]. */
 import assert from 'node:assert/strict';
+import { randomBytes } from 'node:crypto';
 import { chmodSync, existsSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -72,6 +73,20 @@ test('owner-only key file links and reads with a locked keychain, migrates once,
   assert.equal(text.code, 0, 'the real text-output probe completes without printing its captured key');
   assert.deepEqual(text.document, { version: 1, linkedCode: 0, statusCode: 0, refusalCode: 1,
     pairingOnly: true, ordinaryLeak: false, errorLeak: false }, 'text output shows the key once in its pairing link and nowhere in ordinary output or errors');
+  box.env.PULLBOARD_RELAY_KEY = encoded;
+  assert.equal((await box.cli('status')).code, 0, 'matching file and environment keys remain usable');
+  const wrongEnvironmentKey = randomBytes(32).toString('base64url');
+  box.env.PULLBOARD_RELAY_KEY = wrongEnvironmentKey;
+  const callsBeforeMismatch = box.calls.length;
+  const mismatch = await box.cli('add', box.lane, 'Refused mismatched key move');
+  assert.equal(mismatch.code, 1, 'a move refuses conflicting device key sources');
+  assert.equal(mismatch.document.error.code, 'RELAY_KEY_FILE_ENV_MISMATCH');
+  assert.match(mismatch.document.error.message, /PULLBOARD_RELAY_KEY.*file.*unset/u);
+  for (const key of [encoded, wrongEnvironmentKey]) {
+    assert.equal(JSON.stringify(mismatch.document).includes(key), false, 'the mismatch never exposes either key');
+  }
+  assert.equal(box.calls.length, callsBeforeMismatch, 'a mismatched key never reaches the relay');
+  box.env.PULLBOARD_RELAY_KEY = encoded;
   writeFileSync(legacyStore, encoded, { mode: 0o600 });
   rmSync(box.keyFile);
   box.env.SECURITY_MODE = 'available';
@@ -80,9 +95,11 @@ test('owner-only key file links and reads with a locked keychain, migrates once,
   writeFileSync(box.linkFile, JSON.stringify(legacyLink), { mode: 0o600 });
   assert.equal((await box.cli('relay')).code, 0,
     'an existing keychain key still opens the linked board');
+  assert.ok(existsSync(box.keyFile), 'legacy migration runs before the matching environment fallback');
   assert.equal(readFileSync(box.keyFile, 'utf8').trim(), encoded,
     'the legacy keychain key is copied into the owner-only file');
   assert.equal(existsSync(legacyStore), false, 'the old keychain copy is removed after migration');
+  delete box.env.PULLBOARD_RELAY_KEY;
   box.env.SECURITY_MODE = 'locked';
   assert.equal((await box.cli('relay')).code, 0,
     'reads continue after migration when the keychain is locked again');
