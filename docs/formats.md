@@ -75,7 +75,7 @@ The board file is in the repository's Git common directory at `.git/pullboard/bo
 | `move engine` | `3` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
-Pullboard 0.6.1 released engine 1. The first change to released move semantics raises the engine once for the next release; later changes developed before that release keep the same version. Engine 2 records a fresh explicit-build claim's skipped-review snapshot. Older clients refuse engine-2 moves before changing rows or replay cursors; engine 2 still accepts engine-1 moves.
+Pullboard 0.6.1 released engine 1. The first change to released move semantics raises the engine once for the next release; later changes developed before that release keep the same version. Engine 2 records a fresh explicit-build claim's skipped-review snapshot. Older clients refuse engine-2 moves before changing rows or replay cursors; engine 2 still accepts engine-1 moves. Engine 3 includes lane-sensitive graft refusals; it retains support for older moves. This next-release version is shared by all unreleased move changes.
 
 The CLI declares its engine in every relay request's `X-Pullboard-Engine` header.
 A linked board requires at least engine 3 after issuing any agent token, including

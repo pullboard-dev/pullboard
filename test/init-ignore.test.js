@@ -45,7 +45,7 @@ test('init appends only the agent-worktree ignore rule and the second init write
     const expected = previous?.split(/\r?\n/u).includes('.claude/worktrees/') ? previous : (previous ?? '') + (previous && !previous.endsWith('\n') ? '\n' : '') + '.claude/worktrees/\n';
     assert.equal(readFileSync(file, 'utf8'), expected, 'every previous byte stays intact');
     assert.ok(first.document.notes.some(note => note.includes('.gitignore')));
-    const setupFiles = ['.gitignore', '.git/config', 'AGENTS.md', '.githooks/pre-commit', '.githooks/commit-msg', '.githooks/pre-push'];
+    const setupFiles = ['.gitignore', '.git/config', 'AGENTS.md', '.githooks/pre-commit', '.githooks/pre-merge-commit', '.githooks/commit-msg', '.githooks/pre-push'];
     const before = setupFiles.map(name => statSync(join(box.root, name), { bigint: true }).mtimeNs);
     const second = box.cli('init');
     assert.equal(second.code, 0, second.stderr);

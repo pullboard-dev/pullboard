@@ -45,7 +45,7 @@ test('init ends with a working staging line for exactly its own writes [I1,I2,D1
     '.claude/skills/pullboard-signoff/SKILL.md',
     '.claude/skills/pullboard-spec-review/SKILL.md',
     '.claude/skills/pullboard-verify/SKILL.md',
-    '.githooks/commit-msg', '.githooks/pre-push',
+    '.githooks/commit-msg', '.githooks/pre-merge-commit', '.githooks/pre-push',
     '.gitignore',
     'AGENTS.md', 'DOCTRINE.md', 'SPEC.md', 'pullboard.json',
   ]);

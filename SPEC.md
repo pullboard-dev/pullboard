@@ -117,7 +117,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - D1 [approved, must] Pullboard ships a standard doctrine, versioned, with PB ids; every repo inherits it, Pullboard's own included. | gate: test/practice.test.js
 - D2 [approved, must] A repo's PRACTICE.md adds rules, overrides one by its PB id, or declines one with a wont row and reason. | gate: test/practice.test.js | serves: D1
 - D3 [draft, must] Agents and the view see the merged doctrine, each rule marked standard, with its version, or the repo's. | gate: test/practice.test.js | serves: D1
-- D4 [draft, must] Init writes a PRACTICE.md for the repo's own rules only; the standard needs no copy. | gate: test/e2e.test.js | serves: D1
+- D4 [draft, must] Init writes a DOCTRINE.md for the repo's own rules only; the standard needs no copy. | gate: test/e2e.test.js | serves: D1
 - D5 [draft, aim] `pullboard practice` prints the merged doctrine and what the standard changed since the repo last looked. | gate: test/practice.test.js | serves: D1
 - D6 [draft, must] The standard changes only by an accepted RFC in docs/rfcs, and each change bumps its version. | gate: review | serves: D1
 
@@ -225,6 +225,19 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - H16 [approved, must] Every client applies moves in the relay's order with the CLI's engine, refusing what the CLI refuses. | gate: test/relay.test.js | serves: H3
 - H17 [approved, must] A phone or machine joins a board by pairing once, from a code or QR a linked machine prints. | gate: test/relay.test.js | serves: H15
 - H18 [approved, must] The relay keeps a board only while linked: unlinking deletes it; 90 idle days delete it; backups last 14 days. | gate: test/relay.test.js | serves: H7
+
+## E · Teams: many people, one board
+
+- E1 [draft, must] A team shares one board: every person's clones, machines and phones show the same items in one order. | gate: test/team.test.js
+- E2 [draft, must] Two people adding or claiming at once never make two #1s or two holders; the relay's order decides. | gate: test/team.test.js
+- E3 [draft, must] Each person signs in as themselves; every move records the person, and the agent if one made it. | gate: test/team.test.js
+- E4 [draft, must] A board names its people: its linker adds or removes them; only they approve rows or answer person decisions. | gate: test/team.test.js
+- E5 [draft, must] Every agent acts with its own token under the person running it; removing a person stops their agents. | gate: test/team.test.js
+- E6 [draft, must] Removing a person rotates the board key, so their devices read nothing made after it. | gate: test/team.test.js
+- E7 [draft, must] Main moves in one landing order: a second landing builds on the first or is refused, never conflicting. | gate: test/team.test.js
+- E8 [draft, must] A verdict reads stale on every machine once main moves under it, until re-verified or merged. | gate: test/team.test.js
+- E9 [draft, must] Every session on a paired machine works the board alike: terminal, SSH, agent or scheduled job. | gate: test/team.test.js
+- E10 [draft, must] A CI drill proves it: two people, two machines and a keyless session share one board through a local relay. | gate: test/team.test.js
 
 ## Q · Queues and procedures
 - Q1 [approved, must] A resource has a name, a capacity, a scope (machine, repo or board) and a queue. | gate: test/resources.test.js
