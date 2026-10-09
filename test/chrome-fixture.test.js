@@ -108,3 +108,41 @@ test('a missing DevTools port fails once with stderr and elapsed launch time [C7
   });
   assert.equal(readFileSync(launches, 'utf8'), 'launch\n', 'the shared launcher never retries');
 });
+
+/** Prove Runtime.evaluate reports page exceptions without changing successful values. */
+test('a failed browser evaluation names what the page threw [C7]', async () => {
+  const expression = '(() => { throw new Error("boom"); })();\n// ' + 'x'.repeat(240);
+  const asyncExpression = '(async () => { throw new TypeError("async boom"); })()';
+  const chrome = await startChrome();
+  try {
+    await assert.rejects(chrome.evaluate(expression), (error) => {
+      assert.match(error.message, /Error: boom/u);
+      assert.match(error.message, /line 1, column \d+/u);
+      assert.ok(error.message.includes('expression: ' + expression.slice(0, 200)), 'diagnostic includes the evaluated expression prefix');
+      assert.ok(!error.message.includes(expression.slice(0, 201)), 'diagnostic stops after 200 expression characters');
+      assert.notEqual(error.message, 'Browser evaluation failed.');
+      return true;
+    });
+    await assert.rejects(chrome.evaluate(asyncExpression), (error) => {
+      assert.match(error.message, /TypeError: async boom/u);
+      assert.match(error.message, /line 1, column 22/u);
+      assert.ok(error.message.includes('expression: ' + asyncExpression), 'async rejection includes the evaluated expression');
+      return true;
+    });
+    await assert.rejects(chrome.evaluate('throw "a plain string"'), (error) => {
+      assert.match(error.message, /^Browser evaluation failed: a plain string \(line /u);
+      return true;
+    });
+    await assert.rejects(chrome.evaluate('throw null'), (error) => {
+      assert.match(error.message, /^Browser evaluation failed: null \(line /u);
+      return true;
+    });
+    await assert.rejects(chrome.evaluate('throw ""'), (error) => {
+      assert.match(error.message, /^Browser evaluation failed:  \(line /u);
+      return true;
+    });
+    assert.equal(await chrome.evaluate('1 + 1'), 2, 'successful values remain unchanged');
+  } finally {
+    await chrome.close();
+  }
+});
