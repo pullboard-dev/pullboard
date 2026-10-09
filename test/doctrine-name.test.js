@@ -198,3 +198,75 @@ test('[D1,D2,A5] explicit custom practice paths remain authoritative beside DOCT
   assert.equal(rows.some((row) => row.id === 'L1'), false, 'custom path remains the configured source');
   assert.ok(projectState(repo.root).practice.some((row) => row.id === 'C1'));
 });
+
+/** Make a committed pre-init rename fixture, optionally adding a later collision on main. */
+function renamedDoctrineFixture(box, name, { laterCollision = false, commitRename = true } = {}) {
+  const root = join(box.dir, name);
+  mkdirSync(root);
+  box.git(root, 'init', '-q', '-b', 'main');
+  const originalSpec = '# Requirements\n\n## G · Goals\n- G1 [draft, aim] Existing requirement.\n';
+  const originalPractice = '# Legacy rules\n\n## G · Goals\n- G1 [draft] Existing collision.\n- G2 [draft] Legacy id without a collision.\n';
+  writeFileSync(join(root, 'SPEC.md'), originalSpec);
+  writeFileSync(join(root, PRACTICE), originalPractice);
+  box.git(root, 'add', 'SPEC.md', PRACTICE);
+  box.git(root, 'commit', '-q', '-m', 'docs: seed legacy doctrine collision');
+  box.git(root, 'mv', PRACTICE, DOCTRINE);
+  if (commitRename) box.git(root, 'commit', '-q', '-m', 'docs: rename practice to doctrine');
+  if (laterCollision) {
+    const updatedSpec = `${originalSpec.trimEnd()}\n- G2 [draft, aim] Added after the doctrine rename.\n`;
+    writeFileSync(join(root, 'SPEC.md'), updatedSpec);
+    box.git(root, 'add', 'SPEC.md');
+    box.git(root, 'commit', '-q', '-m', 'docs: add post-rename collision');
+  }
+  return root;
+}
+
+test('[D4,A5] rename keeps known duplicates while a later collision remains an error', function renameKeepsKnownDuplicates() {
+  const box = sandbox();
+  const beforeCollision = renamedDoctrineFixture(box, 'legacy-before-collision');
+  const initialized = box.run(beforeCollision, 'init');
+  assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
+  const knownOnly = box.run(beforeCollision, 'spec', 'check');
+  assert.equal(knownOnly.status, 0, `${knownOnly.stdout}${knownOnly.stderr}`);
+  assert.match(knownOnly.stdout, /SPEC\.md:4 G1 warning: known duplicate id; also appears at DOCTRINE\.md:4/u);
+  assert.match(knownOnly.stdout, /DOCTRINE\.md:4 G1 warning: known duplicate id; also appears at SPEC\.md:4/u);
+
+  const afterCollision = renamedDoctrineFixture(box, 'legacy-after-collision', { laterCollision: true });
+  const laterInitialized = box.run(afterCollision, 'init');
+  assert.equal(laterInitialized.status, 0, `${laterInitialized.stdout}${laterInitialized.stderr}`);
+  const later = box.run(afterCollision, 'spec', 'check');
+  assert.equal(later.status, 1, later.stdout);
+  assert.match(later.stdout, /SPEC\.md:4 G1 warning: known duplicate id; also appears at DOCTRINE\.md:4/u);
+  assert.match(later.stdout, /DOCTRINE\.md:4 G1 warning: known duplicate id; also appears at SPEC\.md:4/u);
+  assert.match(later.stdout, /SPEC\.md:5 G2 error: duplicate id; also appears at DOCTRINE\.md:5/u);
+  assert.match(later.stdout, /DOCTRINE\.md:5 G2 error: duplicate id; also appears at SPEC\.md:5/u);
+});
+
+test('[D4,A5] canonical collisions stay errors without legacy rename history', function canonicalCollisionNeedsLegacyHistory() {
+  const box = sandbox();
+  const root = join(box.dir, 'never-legacy');
+  mkdirSync(root);
+  box.git(root, 'init', '-q', '-b', 'main');
+  writeFileSync(join(root, 'SPEC.md'), '# Requirements\n\n## G · Goals\n- G1 [draft, aim] Existing requirement.\n');
+  writeFileSync(join(root, DOCTRINE), '# Doctrine\n\n## G · Goals\n- G1 [draft] Existing collision.\n');
+  box.git(root, 'add', 'SPEC.md', DOCTRINE);
+  box.git(root, 'commit', '-q', '-m', 'docs: add canonical doctrine collision');
+  const initialized = box.run(root, 'init');
+  assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
+  const check = box.run(root, 'spec', 'check');
+  assert.equal(check.status, 1, check.stdout);
+  assert.match(check.stdout, /SPEC\.md:4 G1 error: duplicate id; also appears at DOCTRINE\.md:4/u);
+  assert.match(check.stdout, /DOCTRINE\.md:4 G1 error: duplicate id; also appears at SPEC\.md:4/u);
+});
+
+
+test('[D4,A5] a staged rename keeps known duplicates before its rename commit', function stagedRenameKeepsKnownDuplicates() {
+  const box = sandbox();
+  const root = renamedDoctrineFixture(box, 'staged-legacy-rename', { commitRename: false });
+  const initialized = box.run(root, 'init');
+  assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
+  const check = box.run(root, 'spec', 'check');
+  assert.equal(check.status, 0, `${check.stdout}${check.stderr}`);
+  assert.match(check.stdout, /SPEC\.md:4 G1 warning: known duplicate id; also appears at DOCTRINE\.md:4/u);
+  assert.match(check.stdout, /DOCTRINE\.md:4 G1 warning: known duplicate id; also appears at SPEC\.md:4/u);
+});

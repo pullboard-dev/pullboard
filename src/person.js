@@ -1,4 +1,4 @@
-/** Person actions use the view when the terminal belongs to an agent [B26]. */
+/** Person actions use the view when a terminal is remote or belongs to an agent [B26]. */
 import { createHash } from 'node:crypto';
 import { Refused } from './refused.js';
 
@@ -7,6 +7,9 @@ export const AGENT_SHELL_MARKERS = Object.freeze([
   'CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID', 'AI_AGENT',
   'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL',
 ]);
+
+/** SSH transport markers removed from test child environments that act as the person. */
+export const SSH_SHELL_MARKERS = Object.freeze(['SSH_CONNECTION', 'SSH_CLIENT', 'SSH_TTY']);
 
 /** Session identifiers belong beside the shell markers; only their digest reaches the local checkout binding. */
 export const AGENT_SESSION_IDS = Object.freeze(['CLAUDE_CODE_SESSION_ID', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID']);
@@ -26,6 +29,9 @@ export function requirePersonChannel(channel = 'terminal', environment = process
   }
   if (channel === 'terminal' && AGENT_SHELL_MARKERS.some((name) => Boolean(environment[name]))) {
     throw new Refused('B26_PERSON_CHANNEL', 'this terminal belongs to an agent; run pullboard view, the person’s channel, and let the person act there');
+  }
+  if (channel === 'terminal' && (environment.SSH_CONNECTION || environment.SSH_TTY)) {
+    throw new Refused('B26_PERSON_CHANNEL', 'this is a remote SSH shell, not the person’s terminal; run pullboard view, the person’s channel, and let the person act there');
   }
   return channel;
 }

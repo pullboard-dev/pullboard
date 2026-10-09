@@ -18,6 +18,7 @@ import { receivePersonRequest } from './relay-requests.js';
 export const DEFAULT_RELAY = 'https://app.pullboard.dev';
 const LINK_FILES = new WeakMap();
 const WARNED_COMMANDS = new WeakSet();
+const KEY_WARNED_COMMANDS = new WeakSet();
 
 /** Require a trusted origin; HTTP exists only for loopback development and test relays. */
 function relayOrigin(address) {
@@ -145,13 +146,13 @@ function behind(root, state) {
   return localRecords(root, (board) => board.db.prepare('SELECT COUNT(*) AS count FROM event WHERE event_id > ?').get(state.cursor).count);
 }
 
-/** Expose pairing information while keeping the human relay credential out of output. */
-function summary(root, state) {
+/** Expose key-free link status; only an explicit link operation includes its pairing carrier. */
+function summary(root, state, { pairing = false } = {}) {
   if (!state) return { linked: false, board: '', url: '', link: '', sequence: 0, behind: 0 };
   if (state.unlinking) return { linked: false, board: state.board, url: state.url, link: '', sequence: state.sequence, behind: 0, cleanup: true };
-  const key = encodeBoardKey(readBoardKey(state.board));
+  const fragment = pairing ? '&key=' + encodeBoardKey(readBoardKey(state.board)) : '';
   return { linked: true, board: state.board, url: state.url,
-    link: 'https://app.pullboard.dev/#board=' + state.board + '&key=' + key,
+    link: 'https://app.pullboard.dev/#board=' + state.board + fragment,
     sequence: state.sequence, behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)) };
 }
 
@@ -490,7 +491,12 @@ export async function syncRelay(root, io) {
     }
     catch (error) {
       if (!(error instanceof Refused)) throw error;
-      io.err(`pullboard: ${error.message}; run pullboard status to see pending uploads`);
+      if (error.code === 'RELAY_KEY_MISSING') {
+        if (!KEY_WARNED_COMMANDS.has(io)) {
+          KEY_WARNED_COMMANDS.add(io);
+          io.err(`pullboard: ${error.message}; moves are off until the key is reachable`);
+        }
+      } else io.err(`pullboard: ${error.message}; run pullboard status to see pending uploads`);
       return { linked: true, board: state.board, url: state.url, sequence: state.sequence,
         behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)) };
     }
@@ -601,9 +607,9 @@ export async function relayOn(root, address, io) {
       }
       await ensureOrdered(root, file, state, io);
       await catchUp(root, file, state, io);
-      result = summary(root, state);
+      result = summary(root, state, { pairing: true });
     }
-    catch (error) { if (!(error instanceof Refused)) throw error; io.err(`pullboard: ${error.message}; pending records are queued for the next command`); result = summary(root, state); }
+    catch (error) { if (!(error instanceof Refused)) throw error; io.err(`pullboard: ${error.message}; pending records are queued for the next command`); result = summary(root, state, { pairing: true }); }
     io.say(terminalQr(result.link));
     return result;
   });
