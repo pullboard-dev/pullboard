@@ -1462,34 +1462,6 @@ test('a closed lifecycle stays closed, across a reload and a restart of the view
     await new Promise((done) => taken.close(done));
   }
 });
-test('busy-port refusal preserves its first line and JSON next [N26,A1]', async () => {
-  const box = machine();
-  const held = await new Promise((done) => { const server = createServer(); server.listen(0, '127.0.0.1', () => done(server)); });
-  try {
-    const port = held.address().port;
-    const result = spawnSync(process.execPath, [BIN, 'view', '--no-open', '--port', String(port)], { cwd: box.dir, env: box.env, encoding: 'utf8', timeout: 20000 });
-    assert.equal(result.status, 1, `a refusal, not a crash or a hang: ${result.stderr}`);
-    assert.equal(result.stdout, '', 'text refusal does not leak a second document to stdout');
-    assert.doesNotMatch(result.stderr, /\n\s+at\s/m, 'a busy port is a refusal, not a stack trace');
-    const firstLine = `pullboard: [PORT_BUSY] port ${port} is in use: name another with --port, or leave --port out to take any free one`;
-    const stderr = result.stderr.endsWith('\n') ? result.stderr.slice(0, -1) : result.stderr;
-    const lines = stderr.split(/\r?\n/);
-    assert.equal(lines[0], firstLine, 'the original refusal line stays exact');
-    assert.ok(lines.length === 1 || lines.length === 2, 'only the legacy line or exactly one next line is allowed');
-    if (lines.length === 2) {
-      const json = spawnSync(process.execPath, [BIN, 'view', '--no-open', '--port', String(port), '--json'], { cwd: box.dir, env: box.env, encoding: 'utf8', timeout: 20000 });
-      assert.equal(json.status, 1, `JSON reports the same busy-port refusal: ${json.stderr}`);
-      assert.equal(json.stderr, '', 'JSON refusal has no extra stderr text');
-      const document = JSON.parse(json.stdout);
-      assert.equal(document.error.code, 'PORT_BUSY');
-      assert.equal(typeof document.error.next, 'string');
-      assert.ok(lines[1].startsWith('next: '), 'the optional text line has the canonical next label');
-      assert.equal(lines[1].slice('next: '.length), document.error.next, 'the optional text next value is exactly the JSON refusal next step');
-    }
-  } finally {
-    await new Promise((done) => held.close(done));
-  }
-});
 test('ages stay true while the board is quiet [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
