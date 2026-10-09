@@ -127,7 +127,9 @@ main { padding: 16px 18px 28px; }
   .group-need > code { grid-column: 2; }
   .group-need > span, .group-need > button { grid-column: 1 / -1; }
   .tabs { flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: auto; gap: 0; }
-  .tab { display: grid; grid-template-rows: auto 13px; justify-items: center; align-content: center; padding: 7px 2px 5px; font-size: 13.5px; }
+  /* Six labels share the bar, so they scale with the screen: 13.5px at 375, 11px at the narrowest, where a
+   * classic scrollbar and wide fonts leave about 290px of bar. */
+  .tab { display: grid; grid-template-rows: auto 13px; justify-items: center; align-content: center; padding: 7px 2px 5px; font-size: clamp(11px, 3.6vw, 13.5px); }
   .tab b { margin: 0; line-height: 13px; }
 }
 .primary { display: grid; gap: 12px; min-width: 0; }

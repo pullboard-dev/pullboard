@@ -651,8 +651,13 @@ test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, asy
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: false });
-    await chrome.waitFor('innerWidth === 320 && document.querySelectorAll("#chain .row").length === 2');
+    await chrome.waitFor('document.querySelectorAll("#chain .row").length === 2');
+    // This machine's fonts first, then a wide one (Verdana here, DejaVu Sans on Linux) at 320 and at 305,
+    // the room a 320px screen leaves beside a classic 15px scrollbar: Linux CI measured 324px of tabs there.
+    for (const [width, font] of [[320, ''], [320, 'Verdana, "DejaVu Sans", sans-serif'], [305, 'Verdana, "DejaVu Sans", sans-serif']]) {
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: false });
+    await chrome.evaluate(`document.documentElement.style.setProperty('--sans', ${JSON.stringify(font || 'system-ui, sans-serif')})`);
+    await chrome.waitFor(`innerWidth === ${width}`);
     for (const tab of ['items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap']) {
       await chrome.evaluate(`document.querySelector('[data-tab="${tab}"]').click()`);
       await chrome.waitFor(`!document.querySelector('[data-pane="${tab}"]').hidden`);
@@ -665,7 +670,8 @@ test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, asy
           .map((e) => name(e) + ' right ' + Math.round(e.getBoundingClientRect().right) + ': ' + (e.textContent || '').trim().slice(0, 40));
         return { scrollWidth: document.documentElement.scrollWidth, clientWidth: edge, past: past.slice(0, 8), more: Math.max(0, past.length - 8) };
       })())`));
-      assert.ok(seen.scrollWidth <= seen.clientWidth, `320, ${tab}: the page scrolls sideways, ${seen.scrollWidth} wide in ${seen.clientWidth}; past the edge: ${seen.past.join(' | ')}${seen.more ? ` (+${seen.more} more)` : ''}`);
+      assert.ok(seen.scrollWidth <= seen.clientWidth, `${width}${font ? ' in a wide font' : ''}, ${tab}: the page scrolls sideways, ${seen.scrollWidth} wide in ${seen.clientWidth}; past the edge: ${seen.past.join(' | ')}${seen.more ? ` (+${seen.more} more)` : ''}`);
+    }
     }
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
