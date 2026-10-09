@@ -15,11 +15,12 @@ import { agentSessionDigest, requirePersonChannel } from './person.js';
 import { bindLocalSession } from './agent-session.js';
 import { decisionProjection, planRowApply, prepareRowDecisions, restoreRowApply, writeRowApply } from './row-decisions.js';
 import { digestOf, gateReport, runGate, runShell, withGateSlot } from './gate.js';
-import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, isClean, mainCheckout, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
+import { bareWorktreeFinding, contains, differFromHead, git, gitChildEnv, headCommit, headTree, isClean, mainCheckout, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
   FIX_NOTE,
   applyFixers,
   commitMsgProblems,
+  commitCitationWarnings,
   installHooks,
   preCommitProblems,
   prePushProblems,
@@ -38,6 +39,7 @@ import {
   lintSpec,
   loadSpec,
   permanenceProblems,
+  parseSpec,
   readSignoffs,
   signOff,
   standings,
@@ -64,11 +66,39 @@ import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
 import { relayCommandReceipt, relayCommandReceiptReported, relayLinked, relayOff, relayOn, relayOperation, relayRecovered, relayStatus, syncRelay } from './relay.js';
+import { relayJoin, relayPair } from './relay-pairing-client.js';
 import { executePersonRequests } from './relay-request-execution.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
 const CHECKOUT_LEASES = new WeakMap();
+
+/**
+ * Read the grandfather baseline from the primary checkout's attached branch, never a builder's head.
+ *
+ * @param {string} root
+ * @param {string} path
+ * @returns {{ status: number, stdout: string }}
+ */
+function coordinatorFile(root, path) {
+  const commonDir = git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+  const coordinatorRoot = dirname(commonDir);
+  const env = { ...gitChildEnv(root), GIT_NO_REPLACE_OBJECTS: '1' };
+  const branch = spawnSync('git', ['symbolic-ref', '--quiet', 'HEAD'], {
+    cwd: coordinatorRoot, env, encoding: 'utf8',
+  });
+  const ref = (branch.stdout ?? '').trim();
+  if (branch.status !== 0 || !ref.startsWith('refs/heads/')) {
+    throw new Refused(
+      'COORDINATOR_DETACHED',
+      'the primary checkout must be on its attached local branch to establish the collision baseline; the coordinator returns it to its branch',
+    );
+  }
+  const result = spawnSync('git', ['--no-replace-objects', 'show', `${ref}:${path}`], {
+    cwd: coordinatorRoot, env, encoding: 'utf8',
+  });
+  return { status: result.status ?? 1, stdout: result.stdout ?? '' };
+}
 
 const ALL_HELP = `pullboard ${VERSION}: the local-first work board for teams of coding agents.
 Nothing ships until a second agent verifies it.
@@ -88,8 +118,9 @@ Set up
   pullboard view --export <dir>         a read-only snapshot with event replay, for any static host
   pullboard serve [--port N]           local API v1: boards, state, moves, requests and live events,
                                         behind the session secret in its printed address
-  pullboard relay [on|off] [--url <address>]  link, inspect or unlink this board's sealed relay mirror
+  pullboard relay [on|off|pair|join <code>] [--url <address>]  link, inspect or unlink this board's sealed relay
                                         on signs in through GitHub; the address defaults to https://app.pullboard.dev
+                                        pair prints a one-use machine code; join stores it in another clone
   pullboard resume                      where you are: your claim, branch, uncommitted work, what came back,
                                         unread shouts, what to do next; run it to start any session
   pullboard hooks                       reinstall the git hooks (e.g. after a fresh clone)
@@ -754,7 +785,7 @@ function freezer(ctx, { captureVerifyPolicy = false } = {}) {
     } else {
       config = policy ? itemPolicy(ctx.info.root, { ...item, item_frozen: JSON.stringify({ policy }) }).config : ctx.config;
     }
-    const frozen = frozenCriterion(loadSpec(ctx.info.root, config), item);
+    const frozen = frozenCriterion(loadSpec(ctx.info.root, config), item, loadDoctrine(ctx.info.root, config));
     if (!policy) return frozen; // Legacy criteria retain their original digest and committed claim base.
     const text = JSON.stringify({ ...JSON.parse(frozen.text), policy });
     return { text, digest: createHash('sha256').update(text).digest('hex') };
@@ -963,7 +994,7 @@ function resumeHere(io) {
     };
   });
   const { me } = card;
-  card.stale = staleFrozenItems(card.all, loadSpec(root, ctx.config).rows).map((item) => ({ ...item, ...staleItemFinding(item) }));
+  card.stale = staleFrozenItems(card.all, loadSpec(root, ctx.config).rows, ctx.doctrine.rows).map((item) => ({ ...item, ...staleItemFinding(item) }));
   const say = (line) => io.say(line);
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
   say(`resume: ${me.id}${me.family ? ` (${me.family})` : ''}, ${me.lane} lane${isMain ? ', the main checkout' : ''}, at ${root}`);
@@ -1899,7 +1930,7 @@ function workCommands(io, args) {
       }
       if (!first || !isLane(ctx.config, first)) throw new Refused('NO_LANE', `no lane "${first ?? ''}"; see: pullboard lanes`);
       const specIds = idList(values.specs);
-      const problems = idProblems(loadSpec(ctx.info.root, ctx.config), specIds);
+      const problems = idProblems(loadSpec(ctx.info.root, ctx.config), specIds, ctx.doctrine);
       if (problems.length) throw new Refused('UNKNOWN_SPEC', `${problems.join('; ')}`);
       const parentId = values.parent ? idArg(values.parent, 'a parent item id') : null;
       const after = idList(values.after).map((text) => idArg(text, 'an item id after --after'));
@@ -2214,12 +2245,46 @@ async function specCommand(io, { first, second, rest, values }) {
     });
   }
   if (first === 'check' || first === undefined) {
-    const files = [[ctx.config.spec, spec], ...(practice.exists ? [[ctx.config.practice, practice]] : [])];
+    const files = [[ctx.config.spec, spec], ...(practice.exists ? [[practice.name, practice]] : [])];
     for (const [, parsed] of files) assertRequiredSigners(ctx.info.root, parsed.rows);
+    const collisionFiles = [[ctx.config.spec, spec], ...(practice.repoExists ? [[practice.name, practice.repo]] : [])];
+    const previousCounts = new Map(collisionFiles.map(([name]) => {
+      const previous = coordinatorFile(ctx.info.root, name);
+      const rows = previous.status === 0 ? parseSpec(previous.stdout, { strictGrammarVersion: false }).rows : [];
+      const counts = new Map();
+      for (const row of rows) counts.set(row.id, (counts.get(row.id) ?? 0) + 1);
+      return [name, counts];
+    }));
+    const locationsById = new Map();
+    for (const [name, parsed] of collisionFiles) {
+      for (const row of parsed.rows) {
+        const locations = locationsById.get(row.id) ?? [];
+        locations.push({ name, line: row.line });
+        locationsById.set(row.id, locations);
+      }
+    }
+    const collisionFindings = new Map(collisionFiles.map(([name]) => [name, []]));
+    for (const [id, locations] of locationsById) {
+      if (locations.length < 2) continue;
+      const currentCounts = new Map();
+      for (const location of locations) currentCounts.set(location.name, (currentCounts.get(location.name) ?? 0) + 1);
+      const known = [...currentCounts].every(([name, count]) => count <= (previousCounts.get(name)?.get(id) ?? 0));
+      for (let index = 0; index < locations.length; index++) {
+        const location = locations[index];
+        const other = locations[(index + 1) % locations.length];
+        collisionFindings.get(location.name).push({
+          level: known ? 'warning' : 'error', line: location.line, id,
+          message: `${known ? 'known duplicate id' : 'duplicate id'}; also appears at ${other.name}:${other.line}`,
+        });
+      }
+    }
     let errors = 0;
     const messages = [];
     for (const [name, parsed] of files) {
-      const findings = lintSpec(parsed);
+      const findings = [
+        ...lintSpec(parsed).filter((finding) => !finding.message.startsWith('duplicate id;')),
+        ...(collisionFindings.get(name) ?? []),
+      ];
       findings.forEach((finding) => messages.push(`${name}:${finding.line} ${finding.id ?? ''} ${finding.level}: ${finding.message}`.replace('  ', ' ')));
       const history = parsed === practice ? doctrineHistory(ctx.info.root, name) : committedIds(ctx.info.root, name);
       const cited = name === ctx.config.spec ? citations(ctx, history) : new Map();
@@ -2372,7 +2437,10 @@ async function hookCommand(io, { first, second }) {
     problems = preCommitProblems({ root: info.root, isMain: info.isMain, config: ctx.config, agent, boardFile: ctx.file });
   } else if (first === 'commit-msg') {
     const message = readFileSync(second ?? '', 'utf8');
-    problems = commitMsgProblems(message, { rules: ctx.config.commits, spec: loadSpec(info.root, ctx.config) });
+    const spec = loadSpec(info.root, ctx.config);
+    commitCitationWarnings(message, { spec, doctrine: ctx.doctrine })
+      .forEach((warning) => io.say(`pullboard commit-msg: warning: ${warning}`));
+    problems = commitMsgProblems(message, { rules: ctx.config.commits, spec, doctrine: ctx.doctrine });
   } else if (first === 'pre-push') {
     const refsText = await readStdin(io.stdin);
     problems = prePushProblems(info.root, refsText);
@@ -2456,6 +2524,16 @@ async function runCommand(argv, io) {
     if (command === 'hook') return await hookCommand(io, args);
     if (command === 'settings') return settingsCommand(io, args);
     if (command === 'relay') {
+      if (first === 'pair') {
+        if (second || rest.length || values.url) throw new Refused('USAGE', 'pullboard relay pair');
+        const ctx = context(io);
+        return await relayPair(ctx.info.root, io);
+      }
+      if (first === 'join') {
+        if (!second || rest.length) throw new Refused('USAGE', 'pullboard relay join <code> [--url <address>]');
+        const ctx = context(io);
+        return await relayJoin(ctx.info.root, second, values.url, io);
+      }
       if (second || rest.length || (first && !['on', 'off'].includes(first)) || (values.url && first !== 'on')) throw new Refused('USAGE', 'pullboard relay [on|off] [--url <address>]');
       const ctx = context(io);
       if (!first) { await syncRelay(ctx.info.root, io); await executePersonRequests(ctx.info.root, io, main); }
