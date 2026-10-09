@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { gitConfig } from './git.js';
 import { Refused } from './refused.js';
 
 export const SIGNERS_FILE = '.pullboard/signers';
@@ -36,8 +37,8 @@ function runTool(command, args, { cwd, input, inherit = false } = {}) {
 
 /** Read Git's configured identity or signing key from its normal config chain. */
 function gitSetting(root, key) {
-  const result = spawnSync('git', ['config', '--get', key], { cwd: root, encoding: 'utf8' });
-  return result.status === 0 ? result.stdout.trim() : '';
+  const result = gitConfig(root, key, { flags: false });
+  return result.status === 0 ? result.stdout : '';
 }
 
 /** Resolve the public or private key path supplied by the caller or the repo's Git settings. */
