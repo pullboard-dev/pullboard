@@ -857,6 +857,35 @@ function renderSide() {
    * @param {boolean} allowLinks
    * @returns {string}
    */
+  /**
+   * A run of '- ' lines as one bulleted list, indented lines nested under the bullet above them. A bullet
+   * that is a whole command (npm, npx, pnpm, yarn, bun, git, node, python, pytest, pullboard) is one code
+   * chip; any other bullet is prose, with its paths, flags and backticks as chips. A whole command is the
+   * command alone: no sentence end, no comma outside quotes, and at most two plain words after it (spec
+   * check, merge main); everything else in it is a path, flag, number or quoted string. A bullet that only
+   * starts with a command is a sentence (#232: all nine such bullets on the board were).
+   */
+  function wholeCommand(text) {
+    if (!/^(?:npm|npx|pnpm|yarn|bun|git|node|python(?:\\d+(?:\\.\\d+)?)?|pytest|pullboard)\\s+\\S/.test(text) || /[.!?:;,]$/.test(text.trim())) return false;
+    const bare = text.replace(/"[^"]*"|'[^']*'|\`[^\`]*\`/g, ' ');
+    return !/[,;]\\s/.test(bare) && bare.trim().split(/\\s+/).slice(1).filter((word) => /^[A-Za-z]+$/.test(word)).length <= 2;
+  }
+
+  function bullets(lines, titles, allowLinks) {
+    const roots = [], open = [];
+    for (const line of lines) {
+      const [, indent, text] = /^(\\s*)- (.*)$/.exec(line);
+      const node = { text, children: [] };
+      while (open.length && indent.length <= open.at(-1).indent) open.pop();
+      (open.length ? open.at(-1).node.children : roots).push(node);
+      open.push({ indent: indent.length, node });
+    }
+    const list = (nodes) => '<ul class="text-list">' + nodes.map((node) => '<li>'
+      + (wholeCommand(node.text) ? codeChip(node.text) : inline(node.text, titles, allowLinks))
+      + (node.children.length ? list(node.children) : '') + '</li>').join('') + '</ul>';
+    return list(roots);
+  }
+
   function rich(text, titles, allowLinks = true) {
     const lines = String(text ?? '').split('\\n');
     const output = [];
@@ -871,13 +900,18 @@ function renderSide() {
         const block = [];
         while (i < lines.length && lines[i].startsWith('$ ')) block.push(lines[i++]);
         output.push('<code class="code block">' + esc(block.join('\\n')) + '</code>');
+      } else if (/^\\s*- /.test(lines[i])) {
+        const run = [];
+        while (i < lines.length && /^\\s*- /.test(lines[i])) run.push(lines[i++]);
+        output.push({ list: bullets(run, titles, allowLinks) });
       } else {
         const block = [];
-        while (i < lines.length && !lines[i].startsWith('\`\`\`') && !lines[i].startsWith('$ ')) block.push(inline(lines[i++], titles, allowLinks));
+        while (i < lines.length && !lines[i].startsWith('\`\`\`') && !lines[i].startsWith('$ ') && !/^\\s*- /.test(lines[i])) block.push(inline(lines[i++], titles, allowLinks));
         output.push(block.join('<br>'));
       }
     }
-    return output.join('<br>');
+    // A list ends its own line, so no break goes beside one: a blank line in the text stays one blank line.
+    return output.map((part, n) => (n && typeof part === 'string' && typeof output[n - 1] === 'string' ? '<br>' : '') + (typeof part === 'string' ? part : part.list)).join('');
   }
 
 /** Draw a project's cross-repo Needs-you list and one activity feed. */
