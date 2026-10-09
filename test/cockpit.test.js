@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, request } from 'node:http';
+import diagnosticsChannel from 'node:diagnostics_channel';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
@@ -19,6 +20,7 @@ import { exportBoard, importBoard } from '../src/exchange.js';
 import { MACHINE } from '../src/machine.js';
 import { cockpitPage } from '../src/cockpit.js';
 import { portableSnapshot, projectState } from '../src/serve.js';
+import { fetchFresh } from './http-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const scratch = [];
@@ -155,6 +157,11 @@ async function fetchView(url, init = {}) {
   throw new Error(`${method} ${address.origin}${address.pathname} failed after ${attempts} attempt${attempts === 1 ? '' : 's'}; ${failures.join('; ')}`);
 }
 
+/** Send a single request to the real view server on a fresh connection, without replaying it. */
+function fetchLive(url, init = {}) {
+  return fetchFresh(url, init);
+}
+
 /** Start the real view and wait for a complete HTTP answer, rather than just its printed link. */
 async function startView(box) {
   const child = spawn(process.execPath, [BIN, 'view', '--no-open'], { cwd: box.dir, env: box.env });
@@ -173,7 +180,7 @@ async function startView(box) {
     child.kill('SIGTERM');
   });
   try {
-    const ready = await fetchView(link);
+    const ready = await fetchLive(link, { signal: AbortSignal.timeout(30_000) });
     assert.equal(ready.status, 200, 'the view answers before the test fetches its page');
     await ready.arrayBuffer();
   } catch (error) {
@@ -187,8 +194,36 @@ async function startView(box) {
  * The page's stylesheet as the view serves it, behind its secret.
  */
 async function styleOf(view) {
-  return (await fetch(`${view.base}/view.css`, { headers: { 'x-pullboard-key': view.key } })).text();
+  return (await fetchLive(`${view.base}/view.css`, { headers: { 'x-pullboard-key': view.key } })).text();
 }
+
+test('[N38,C7] real cockpit fixture reads close API and stylesheet connections', async (t) => {
+  const box = machine();
+  const fixtureProject = project(box, 'wire proof');
+  const channel = diagnosticsChannel.channel('undici:client:sendHeaders');
+  const sent = [];
+  let origin = null;
+  /** Record the headers Undici is actually about to send to this fixture's view origin. */
+  function recordHeaders({ request: outgoing, headers }) {
+    if (origin && String(outgoing?.origin) === origin) sent.push({ path: outgoing.path, headers: String(headers) });
+  }
+  channel.subscribe(recordHeaders);
+  let view;
+  try {
+    view = await startView(box);
+    origin = new URL(view.base).origin;
+    await styleOf(view);
+    assert.notEqual(await boardId(view, fixtureProject.repo), 'not-registered');
+  } finally {
+    channel.unsubscribe(recordHeaders);
+    await view?.stop();
+  }
+  const closes = (request) => /(?:^|\r?\n)connection:\s*close(?:\r?\n|$)/iu.test(request.headers);
+  assert.ok(sent.some((request) => request.path.startsWith('/view.css') && closes(request)),
+    'the real stylesheet request sends Connection: close');
+  assert.ok(sent.some((request) => request.path.startsWith('/api/v1/boards') && closes(request)),
+    'the real API listing request sends Connection: close');
+});
 
 /**
  * An element as the page's script uses one: what it writes, how often it rewrote its markup, its
@@ -307,7 +342,7 @@ function daysOn(days) {
  * is what that region holds; click() and type() act as the person would.
  */
 async function openPage(view, { width = 1280, later = 0, store = null, hold = false } = {}) {
-  const html = await (await fetchView(view.link)).text();
+  const html = await (await fetchLive(view.link, { signal: AbortSignal.timeout(30_000) })).text();
   const script = html.slice(html.indexOf('<script>') + '<script>'.length, html.lastIndexOf('</script>'));
   const known = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
   const elements = new Map();
@@ -343,9 +378,9 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
     ...(store ? { localStorage: store } : {}),
     setTimeout,
     clearTimeout,
-    fetch: (path, init) => {
+    fetch: (path, init = {}) => {
       requests.push({ path, method: init?.method ?? 'GET', body: init?.body ? JSON.parse(init.body) : null });
-      const answer = held.then(() => fetchView(`${view.base}${path}`, init)).then(async (res) => {
+      const answer = held.then(() => fetchLive(`${view.base}${path}`, { ...init, signal: init.signal ?? AbortSignal.timeout(30_000) })).then(async (res) => {
         const body = await res.json();
         return { ok: res.ok, status: res.status, json: async () => body };
       });
@@ -440,15 +475,15 @@ test('the page uses only API v1 for state, code and every offered move [A3,N26,N
 
     const headers = { 'x-pullboard-key': view.key };
     for (const path of ['/api/state', '/api/code', '/api/act']) {
-      const response = await fetch(`${view.base}${path}`, { headers });
+      const response = await fetchLive(`${view.base}${path}`, { headers });
       assert.equal(response.status, 404, `${path} remains unavailable`);
       const refused = await response.json();
       assert.equal(refused.version, 1);
       assert.equal(refused.error.code, 'NO_ENDPOINT');
     }
-    assert.equal((await fetch(`${view.base}/api/v1/boards`)).status, 401);
-    assert.equal((await fetch(`${view.base}/api/v1/boards`, { headers: { ...headers, origin: 'http://other.invalid' } })).status, 403);
-    const events = await fetch(`${view.base}/api/v1/boards/${id}/events`, { headers });
+    assert.equal((await fetchLive(`${view.base}/api/v1/boards`)).status, 401);
+    assert.equal((await fetchLive(`${view.base}/api/v1/boards`, { headers: { ...headers, origin: 'http://other.invalid' } })).status, 403);
+    const events = await fetchLive(`${view.base}/api/v1/boards/${id}/events`, { headers });
     assert.equal(events.status, 200, 'any app can read the same event endpoint on the view address');
     assert.ok((await events.json()).events.some((event) => event.event_kind === 'shout'));
   } finally {
@@ -543,11 +578,11 @@ test('projects group repos with combined needs and activity, while ungrouped and
   const view = await startView(box);
   try {
     const headers = { 'x-pullboard-key': view.key };
-    let response = await fetch(`${view.base}/api/v1/boards`, { headers });
+    let response = await fetchLive(`${view.base}/api/v1/boards`, { headers });
     let state = await response.json();
     assert.deepEqual(state.boards.filter((repo) => repo.project === 'Atlas').map((repo) => repo.name), ['Core API', 'Web UI', 'Broken repo']);
     writeFileSync(join(broken.repo, 'pullboard.json'), '{not valid json');
-    response = await fetch(`${view.base}/api/v1/boards`, { headers });
+    response = await fetchLive(`${view.base}/api/v1/boards`, { headers });
     state = await response.json();
     const unreadable = state.warnings.find((repo) => repo.root === broken.repo);
     assert.equal(unreadable.error.version, 1);
@@ -760,7 +795,7 @@ test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, asy
 test('the tabs fit one row on a phone [N26]', async () => {
   const view = await startView(machine());
   try {
-    const html = await (await fetch(view.link)).text();
+    const html = await (await fetchLive(view.link)).text();
     const style = await styleOf(view);
     const phone = /@media \(width < 480px\) \{\n([^@]*?)\n\}/.exec(style)?.[1] ?? '';
     assert.doesNotMatch(style, /max-width: 480px/, 'at 480px itself the tabs keep their row');
@@ -1379,7 +1414,7 @@ function itemRow(html, id) {
  * The persistent API identity for a registered project, or an intentionally absent test identity.
  */
 async function boardId(view, root) {
-  const response = await fetch(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': view.key } });
+  const response = await fetchLive(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': view.key } });
   assert.equal(response.status, 200);
   return (await response.json()).boards.find((board) => board.root === root)?.id ?? 'not-registered';
 }
@@ -1387,7 +1422,7 @@ async function boardId(view, root) {
 /** The board as the shared API serves it for one project. */
 async function boardOf(view, root) {
   const id = await boardId(view, root);
-  const res = await fetch(`${view.base}/api/v1/boards/${id}/state`, { headers: { 'x-pullboard-key': view.key } });
+  const res = await fetchLive(`${view.base}/api/v1/boards/${id}/state`, { headers: { 'x-pullboard-key': view.key } });
   assert.equal(res.status, 200);
   return (await res.json()).state;
 }
@@ -1426,16 +1461,16 @@ test("the view's styles live in their own file [N26]", async () => {
     const page = await openPage(view);
     assert.doesNotMatch(page.html, /<style|style=/, 'the page holds no styles');
     assert.match(page.html, new RegExp(`\n<link rel="stylesheet" href="/view\\.css\\?k=${view.key}">\n`), 'it links its own, with the secret');
-    const css = await fetch(`${view.base}/view.css?k=${view.key}`);
+    const css = await fetchLive(`${view.base}/view.css?k=${view.key}`);
     assert.equal(css.status, 200);
     assert.equal(css.headers.get('content-type'), 'text/css; charset=utf-8');
     assert.equal(await css.text(), readFileSync(new URL('../src/view.css', import.meta.url), 'utf8'), 'src/view.css, as it is');
-    assert.equal((await fetch(`${view.base}/view.css`)).status, 403, 'nothing without the secret');
+    assert.equal((await fetchLive(`${view.base}/view.css`)).status, 403, 'nothing without the secret');
     const stranger = await new Promise((done, fail) => {
       request({ host: '127.0.0.1', port: view.link.port, path: `/view.css?k=${view.key}`, headers: { host: 'pullboard.example' } }, (res) => done(res.statusCode)).on('error', fail).end();
     });
     assert.equal(stranger, 403, 'nor under another Host');
-    const policy = (await fetch(view.link)).headers.get('content-security-policy');
+    const policy = (await fetchLive(view.link)).headers.get('content-security-policy');
     assert.equal(/(?:^|; )style-src ([^;]*)/.exec(policy)?.[1], "'self'", 'styles come from the view alone, never inline');
 
     // Nothing the script draws carries a style either: products, the list, a picked item, a spec row.
@@ -2026,7 +2061,7 @@ test('the view runs no init [N27]', async () => {
     const act = async ({ root = alpha.repo, command, args }) => {
       const id = await boardId(view, root);
       const body = command === 'release' ? { verb: 'hold', args: { lane: args.lane, off: true } } : { verb: command, args };
-      const res = await fetch(`${view.base}/api/v1/boards/${id}/moves`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-pullboard-key': view.key }, body: JSON.stringify(body) });
+      const res = await fetchLive(`${view.base}/api/v1/boards/${id}/moves`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-pullboard-key': view.key }, body: JSON.stringify(body) });
       return { status: res.status, ...(await res.json()) };
     };
     for (const root of [undefined, alpha.repo]) {
@@ -2042,7 +2077,7 @@ test('the view runs no init [N27]', async () => {
       assert.equal(refused.status, 404, `${command} runs only inside a registered board`);
       assert.equal(refused.error.code, 'NO_BOARD');
     }
-    const state = await (await fetch(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': view.key } })).json();
+    const state = await (await fetchLive(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': view.key } })).json();
     assert.deepEqual(state.boards.map((entry) => entry.name), ['alpha'], 'the machine has no new board');
     const shout = await act({ root: alpha.repo, command: 'shout', args: { to: 'all', text: 'still here' } });
     assert.equal(shout.status, 200);
@@ -2272,7 +2307,7 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
 
     const ask = async (ref, { root = alpha.repo, key = view.key, before = '' } = {}) => {
       const id = await boardId(view, root);
-      const res = await fetch(`${view.base}/api/v1/boards/${id}/code?ref=${encodeURIComponent(ref)}&before=${encodeURIComponent(before)}`, { headers: { 'x-pullboard-key': key } });
+      const res = await fetchLive(`${view.base}/api/v1/boards/${id}/code?ref=${encodeURIComponent(ref)}&before=${encodeURIComponent(before)}`, { headers: { 'x-pullboard-key': key } });
       const result = await res.json();
       return [res.status, result.error ? `[${result.error.code}] ${result.error.message}` : ''];
     };
@@ -2357,8 +2392,8 @@ test('activity rows say what each shout and answer said [N26]', { timeout: 120_0
   let chrome;
   try {
     const headers = { 'x-pullboard-key': view.key };
-    const [board] = (await (await fetch(`${view.base}/api/v1/boards`, { headers })).json()).boards;
-    const state = (await (await fetch(`${view.base}/api/v1/boards/${encodeURIComponent(board.id)}/state`, { headers })).json()).state;
+    const [board] = (await (await fetchLive(`${view.base}/api/v1/boards`, { headers })).json()).boards;
+    const state = (await (await fetchLive(`${view.base}/api/v1/boards/${encodeURIComponent(board.id)}/state`, { headers })).json()).state;
     const ask = state.asked.find((row) => row.shout_text === 'Ship the greeting today?');
     box.run(demo.repo, 'answer', String(ask.shout_id), 'Yes, ship it once the phone width reads right too');
     const asker = ask.shout_from;
@@ -2964,7 +2999,7 @@ test('served connection reaches an authenticated API on another origin and path 
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
     try {
-      const upstream = await fetch(view.base + req.url.slice('/mirror'.length), {
+      const upstream = await fetchLive(view.base + req.url.slice('/mirror'.length), {
         method: req.method, headers: { 'x-pullboard-key': view.key, ...(req.method === 'POST' ? { 'content-type': 'application/json' } : {}) },
         ...(req.method === 'POST' ? { body: Buffer.concat(chunks) } : {}), signal: AbortSignal.timeout(10_000),
       });
@@ -3075,7 +3110,7 @@ test('relay person requests stay explicit, read-only and visible [H12,H5]', { ti
     }
     if (url.pathname.startsWith('/fixture/')) {
       if (request.method !== 'GET') return response.writeHead(405, { 'content-type': 'application/json' }).end(JSON.stringify({ error: { message: 'The read-only fixture accepts GET only.' } }));
-      const upstream = await fetch(live.base + url.pathname.slice('/fixture'.length) + url.search, { headers: { 'x-pullboard-key': live.key } });
+      const upstream = await fetchLive(live.base + url.pathname.slice('/fixture'.length) + url.search, { headers: { 'x-pullboard-key': live.key } });
       return response.writeHead(upstream.status, { 'content-type': 'application/json' }).end(await upstream.text());
     }
     response.writeHead(404).end();
@@ -3093,7 +3128,7 @@ test('relay person requests stay explicit, read-only and visible [H12,H5]', { ti
     }
     if (url.pathname.startsWith('/api/v1/') && url.pathname.endsWith('.json')) {
       const target = url.pathname.slice(0, -'.json'.length) + url.search;
-      const upstream = await fetch(live.base + target, { headers: { 'x-pullboard-key': live.key } });
+      const upstream = await fetchLive(live.base + target, { headers: { 'x-pullboard-key': live.key } });
       return response.writeHead(upstream.status, { 'content-type': 'application/json' }).end(await upstream.text());
     }
     if (url.pathname === '/transport.js') return response.writeHead(200, { 'content-type': 'text/javascript' }).end(transportModule);
@@ -3221,7 +3256,7 @@ test('relay person requests stay explicit, read-only and visible [H12,H5]', { ti
       ...otherActions.map(([, , expected]) => expected),
     ]);
     const privatePath = await chrome.evaluate('boardPath(view.root)');
-    const privateState = await (await fetch(live.base + privatePath + '/state', { headers: { 'x-pullboard-key': live.key } })).json();
+    const privateState = await (await fetchLive(live.base + privatePath + '/state', { headers: { 'x-pullboard-key': live.key } })).json();
     assert.equal(privateState.state.items.length, 1, 'the stand-in request transport never executes an item move on the real board');
     assert.equal(privateState.state.holds.length, 0, 'the request transport never changes a real lane hold');
     assert.equal(privateState.state.shouts.length, 1, 'the request transport never posts a direct shout');
@@ -3295,7 +3330,7 @@ test('read-only Needs-you preserves each entry as text while its transport stays
       return;
     }
     forwarded.push(request.method);
-    fetch(live.base + target, { headers }).then(async (reply) => {
+    fetchLive(live.base + target, { headers }).then(async (reply) => {
       response.writeHead(reply.status, { 'content-type': 'application/json' });
       response.end(await reply.text());
     }).catch((error) => {
@@ -3414,7 +3449,7 @@ test('a configured transport never falls back while loading or after import fail
       const path = url.pathname.slice('/relay'.length) + url.search;
       relayRequests.push(path);
       try {
-        const reply = await fetch(live.base + path, { headers: { 'x-pullboard-key': live.key } });
+        const reply = await fetchLive(live.base + path, { headers: { 'x-pullboard-key': live.key } });
         response.writeHead(reply.status, { 'content-type': 'application/json' });
         response.end(await reply.text());
       } catch (error) {
@@ -3921,7 +3956,7 @@ test('static export redacts structured checkout paths but preserves paths people
   const commonGitDir = box.git(alpha.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir');
   const live = await startView(box);
   try {
-    const listingResponse = await fetch(`${live.base}/api/v1/boards`, { headers: { 'x-pullboard-key': live.key } });
+    const listingResponse = await fetchLive(`${live.base}/api/v1/boards`, { headers: { 'x-pullboard-key': live.key } });
     assert.equal(listingResponse.status, 200);
     const listing = await listingResponse.json();
     const board = listing.boards.find((entry) => entry.root === projectRoot);
@@ -3934,7 +3969,7 @@ test('static export redacts structured checkout paths but preserves paths people
     assert.equal(agent.agent_path, worktreeRoot, 'live state keeps the agent worktree path');
     assert.equal(box.git(alpha.web, 'rev-parse', '--path-format=absolute', '--git-common-dir'), commonGitDir,
       'the linked worktree still shares the repository common Git directory');
-    const boardEvents = await fetch(`${live.base}/api/v1/boards/${board.id}/events`, { headers: { 'x-pullboard-key': live.key } });
+    const boardEvents = await fetchLive(`${live.base}/api/v1/boards/${board.id}/events`, { headers: { 'x-pullboard-key': live.key } });
     assert.equal(boardEvents.status, 200);
     const events = await boardEvents.json();
     assert.ok(events.events.length > 0);
@@ -4932,9 +4967,9 @@ test('the roadmap reads every item as the Items tab does, opens each one, anothe
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-roadmap-chrome-'));
   let chrome;
   try {
-    const direct = await fetch(new URL(roadmap, view.link));
+    const direct = await fetchLive(new URL(roadmap, view.link));
     assert.equal(direct.status, 200, 'the view serves its page at /roadmap, behind its secret');
-    assert.equal((await fetch(new URL('/roadmap', view.link))).status, 403, 'and nothing there without the secret');
+    assert.equal((await fetchLive(new URL('/roadmap', view.link))).status, 403, 'and nothing there without the secret');
     chrome = await openSnapshotChrome(executable, new URL(roadmap, view.link).href, profile);
     const consoleErrors = [];
     chrome.socket.addEventListener('message', ({ data }) => {
