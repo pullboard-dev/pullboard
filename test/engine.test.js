@@ -117,6 +117,54 @@ test('missing relay senders are refused deterministically without poisoning a la
   assert.deepEqual(exportBoard(one).tables, exportBoard(two).tables);
 });
 
+test('sealed shouts cannot bypass addressee, already answered or person decision rules [H16,B26]', t => {
+  const questions = [];
+  const { copies } = engineCopies(t, source => {
+    const lanes = ['web'];
+    questions.push(store.shout(source, { from: 'coordinator', to: 'person', text: 'Person decision', decision: true, lanes }));
+    questions.push(store.shout(source, { from: 'coordinator', to: 'web-2', text: 'Another agent decision', decision: true, lanes }));
+    const closed = store.shout(source, { from: 'coordinator', to: 'web-1', text: 'Already answered decision', decision: true, lanes });
+    store.answerDecision(source, closed, { agentId: 'web-1', text: 'Original answer', lanes });
+    questions.push(closed);
+    questions.push(store.shout(source, { from: 'web-1', to: 'coordinator', text: 'Needs passing', decision: true, lanes }));
+  });
+  for (const board of copies) {
+    const original = exportBoard(board);
+    let sequence = 0;
+    for (const sender of [{ kind: 'agent', userId: 'fixture-user', agent: 'web-1' }, { kind: 'person', userId: 'fixture-user' }]) {
+      for (const answers of questions.slice(0, 3)) {
+        const move = prepareEngineMove(board, 'shout', [{ from: 'web-1', to: 'coordinator', text: 'Bypass attempted', answers, lanes: ['web'] }], { id: 'bypass-' + ++sequence });
+        const refused = applyRelayMove(board, move, { sequence, at: CLAIM_AT, kind: 'move', sender });
+        assert.equal(refused.error?.code, 'RELAY_ANSWER');
+        assert.match(refused.error.next, /pullboard answer.*pullboard pass/);
+        assert.deepEqual(exportBoard(board).tables.shout, original.tables.shout);
+        assert.deepEqual(exportBoard(board).tables.item, original.tables.item);
+      }
+    }
+    const agentSender = { kind: 'agent', userId: 'fixture-user', agent: 'web-1' };
+    for (const [index, expected] of ['NOT_YOUR_DECISION', 'NOT_YOUR_DECISION', 'ALREADY_ANSWERED'].entries()) {
+      const move = prepareEngineMove(board, 'answerDecision', [questions[index], { agentId: 'web-1', text: 'Guarded attempt', lanes: ['web'] }], { id: 'answer-' + ++sequence });
+      assert.equal(applyRelayMove(board, move, { sequence, at: CLAIM_AT, kind: 'move', sender: agentSender }).error.code, expected);
+      assert.deepEqual(exportBoard(board).tables.shout, original.tables.shout);
+    }
+    assert.deepEqual(store.openDecisions(board, 'person').map(row => row.shout_id), [questions[0]]);
+    const permitted = prepareEngineMove(board, 'answerDecision', [questions[0], { agentId: 'coordinator', asPerson: true, text: 'Person answered', lanes: ['web'], channel: 'view' }], { id: 'person-answer' });
+    assert.equal(Boolean(applyRelayMove(board, permitted, { sequence: ++sequence, at: CLAIM_AT, kind: 'move', sender: { kind: 'person', userId: 'fixture-user' } }).error), false);
+    assert.deepEqual(store.openDecisions(board, 'person'), []);
+    const personSender = { kind: 'person', userId: 'fixture-user' };
+    const pass = prepareEngineMove(board, 'passDecision', [questions[3], { agentId: 'coordinator', note: 'Needs the person', lanes: ['web'] }], { id: 'guarded-pass' });
+    const passed = applyRelayMove(board, pass, { sequence: ++sequence, at: CLAIM_AT, kind: 'move', sender: personSender });
+    assert.equal(Boolean(passed.error), false);
+    assert.deepEqual(store.openDecisions(board, 'person').map(row => row.shout_id), [passed.result]);
+    const response = prepareEngineMove(board, 'answerDecision', [passed.result, { agentId: 'coordinator', asPerson: true, text: 'Passed decision answered', lanes: ['web'] }], { id: 'passed-answer' });
+    assert.equal(Boolean(applyRelayMove(board, response, { sequence: ++sequence, at: CLAIM_AT, kind: 'move', sender: personSender }).error), false);
+    assert.deepEqual(store.openDecisions(board, 'person'), []);
+    assert.deepEqual(store.openDecisions(board, 'coordinator'), []);
+    assert.ok(exportBoard(board).tables.shout.some(row => row.shout_answers === questions[3] && row.shout_from === 'person'), 'guarded person answers reach the original asker');
+  }
+  assert.deepEqual(exportBoard(copies[0]).tables, exportBoard(copies[1]).tables);
+});
+
 test('future engine relay records stop before every sender shape without changing a replica [H16]', t => {
   const { copies, item } = engineCopies(t);
   const move = { ...claimMove(copies[0], item, 'web-1'), engine: ENGINE_VERSION + 1 };

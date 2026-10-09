@@ -173,7 +173,7 @@ test('local view attribution is person-only and an agent token cannot seal perso
   assert.equal(tokenResponse.status, 201);
   const agentToken = (await tokenResponse.json()).token;
   const stateResponse = await fetch(box.origin + '/api/v1/boards/' + link.board + '/state', {
-    headers: { authorization: 'Bearer ' + link.token },
+    headers: { authorization: 'Bearer ' + link.token, 'x-pullboard-engine': String(ENGINE_VERSION) },
   });
   assert.equal(stateResponse.status, 200);
   let sequence = (await stateResponse.json()).state.sequence;
@@ -190,7 +190,7 @@ test('local view attribution is person-only and an agent token cannot seal perso
     const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
     const sealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(move)), { boardId: link.board, kind: 'move', sequence })).toString('base64url');
     const response = await fetch(box.origin + '/api/v1/boards/' + link.board + '/moves', {
-      method: 'POST', headers: { authorization: 'Bearer ' + agentToken, 'content-type': 'application/json' },
+      method: 'POST', headers: { authorization: 'Bearer ' + agentToken, 'x-pullboard-engine': String(ENGINE_VERSION), 'content-type': 'application/json' },
       body: JSON.stringify({ sequence, sealed }),
     });
     assert.equal(response.status, 200, 'the relay stores the opaque agent-authenticated envelope');
