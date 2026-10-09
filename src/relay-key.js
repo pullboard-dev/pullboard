@@ -70,7 +70,12 @@ export function readBoardKey(boardId) {
   if (existsSync(file)) {
     const stat = lstatSync(file);
     if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077)) throw new Refused('RELAY_KEY_STORAGE', 'restore the board key as an owner-only regular file with mode 600');
-    return decodeBoardKey(readFileSync(file, 'utf8').trim());
+    try {
+      return decodeBoardKey(readFileSync(file, 'utf8').trim());
+    } catch (error) {
+      if (!['EACCES', 'EPERM'].includes(error.code)) throw error;
+      throw new Refused('RELAY_KEY_MISSING', 'the board key is unreadable in this shell (' + error.code + '); run this command where the key is available, or pair this device');
+    }
   }
   const service = keychain();
   if (service) {
