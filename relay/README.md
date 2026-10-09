@@ -38,8 +38,10 @@ For #113, the person completes these account steps:
 The smoke command is `node relay/smoke.mjs <address>`. It uses the current
 repository as a disposable smoke board: it links, creates one uniquely named
 item, reads and unseals its mirrored move, then unlinks. Use a throwaway
-repository and relay when running it against a live deployment; unlink deletes
-the remote board. Tests run the same script against a private loopback relay.
+repository and relay when running it against a live deployment. Unlink removes
+the local link and key; the sealed relay copy remains until you approve deleting
+it on the paired phone. The smoke prints this cleanup notice. Tests run the same
+script against a private loopback relay.
 
 Railway's current Infrastructure as Code uses the `railway/iac` package. This
 dependency-free project keeps the deployment settings in the service checklist

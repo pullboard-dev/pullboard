@@ -44,7 +44,7 @@ test('paired Chrome excludes idle event streams and reports only held state requ
   const chrome = await startChrome();
   t.after(() => chrome.close());
   const cookie = await chrome.send('Network.setCookie', {
-    name: 'pb_session', value: link.token, url: box.origin, httpOnly: true, sameSite: 'Lax',
+    name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax',
   });
   assert.equal(cookie.success, true);
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + key);

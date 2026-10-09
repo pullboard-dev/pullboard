@@ -1,3 +1,4 @@
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
 /** Private real CLI, auth and relay fixture; credentials never enter assertion messages [H1,H7,H18]. */
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
@@ -71,7 +72,7 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
     GIT_AUTHOR_NAME: 'Relay Fixture', GIT_AUTHOR_EMAIL: 'relay-fixture@example.com',
     GIT_COMMITTER_NAME: 'Relay Fixture', GIT_COMMITTER_EMAIL: 'relay-fixture@example.com',
   };
-  for (const name of ['PULLBOARD_RELAY_KEY', 'PULLBOARD_RELAY_TOKEN']) delete env[name];
+  for (const name of ['PULLBOARD_RELAY_KEY', 'PULLBOARD_RELAY_TOKEN', ...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[name];
   const provider = await githubFixture(t);
   provider.state.deviceAuthorized = true;
   const authDatabase = join(scratch, 'auth.sqlite');
@@ -97,6 +98,8 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
   let refuseRequestWrites = false;
   let signIn;
   let api;
+  let phone;
+  let beforeMove;
   const calls = [];
   const transit = [];
   const moveAcks = [];
@@ -133,11 +136,12 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
     };
     res.once('finish', () => transit.push({ method: req.method, path: req.url,
       request: Buffer.concat(requestChunks), response: Buffer.concat(responseChunks) }));
-    calls.push({ method: req.method, path: req.url, accept: req.headers.accept ?? '', engine: req.headers['x-pullboard-engine'] });
+    calls.push({ method: req.method, path: req.url, accept: req.headers.accept ?? '', engine: req.headers['x-pullboard-engine'],
+      browser: String(req.headers.cookie ?? '').includes('pb_session=') });
     if (revokeOnNextListing && req.method === 'GET' && req.url === '/api/v1/boards') {
       revokeOnNextListing = false;
-      const state = JSON.parse(readFileSync(linkFile, 'utf8'));
-      await auth.revoke(state.token, state.tokenId);
+      const session = await phoneSession();
+      await auth.revoke(session.token, session.id);
     }
     if ([...privateKeys].some(key => JSON.stringify({ url: req.url, headers: req.headers }).includes(key))) keyLeaked = true;
     const missingSnapshot = /^\/api\/v1\/boards\/([0-9a-f]{32})\/(state|events)(?:\?|$)/u.exec(req.url ?? '');
@@ -201,6 +205,9 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
       stateReadStarted += 1;
       await new Promise(resolveDelay => setTimeout(resolveDelay, stateReadDelayMs));
     }
+    if (beforeMove && req.method === 'POST' && /\/api\/v1\/boards\/[0-9a-f]{32}\/moves$/.test(req.url ?? '')) {
+      const action = beforeMove; beforeMove = null; await action();
+    }
     if (await signIn(request, res)) return;
     await api(request, res);
   });
@@ -211,6 +218,20 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
   auth = createRelayAuth({ database: authDatabase, github: createGitHubClient({ ...provider.config, callbackURL: origin + '/auth/github/callback' }) });
   signIn = createAuthHandler({ auth, publicOrigin: origin });
   api = createRelayHandler({ directory: join(scratch, 'relay'), auth, publicOrigin: origin, pollMs: 10, maintenanceMs: 0, now: () => time });
+  /** Sign a separate phone in over actual OAuth HTTP; its person session stays only in fixture RAM. */
+  async function phoneSession() {
+    if (phone) return phone;
+    const start = await fetch(origin + '/auth/github/start', { redirect: 'manual' });
+    const binding = start.headers.getSetCookie().find(value => value.startsWith('pb_oauth_binding=')).split(';')[0];
+    const approved = await fetch(start.headers.get('location'), { redirect: 'manual' });
+    const callback = await fetch(approved.headers.get('location'), { redirect: 'manual', headers: { cookie: binding } });
+    assert.equal(callback.status, 303, 'independent phone OAuth completes');
+    const cookie = callback.headers.getSetCookie().find(value => value.startsWith('pb_session=')).split(';')[0];
+    const token = cookie.slice('pb_session='.length);
+    const principal = await auth.authenticate(token);
+    phone = { token, id: principal.id };
+    return phone;
+  }
   t.after(async () => {
     api.close();
     server.closeAllConnections();
@@ -369,11 +390,13 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
   }
   return {
     transit, relayDirectory: join(scratch, 'relay'), authDatabase, otherDeviceJoin,
-    root, env, origin, lane, before, linkFile, keyFile, calls, moveAcks, cli, cliAt, cliWithSnapshotUploads, link, requireEngineThree, otherDeviceOff, additionalBoard, script, stopRelay, restartRelay,
+    root, env, origin, lane, before, linkFile, keyFile, calls, moveAcks, cli, cliAt, cliWithSnapshotUploads, link, phoneSession, requireEngineThree, otherDeviceOff, additionalBoard, script, stopRelay, restartRelay,
     /** Assert the test consumed every declared child budget, with no hidden CLI calls. */
     assertCliChildrenComplete() {
       if (cliChildren) assert.equal(cliChildIndex, cliChildren.length, 'every planned private CLI child ran exactly once');
     },
+    /** Interleave one real authenticated relay write immediately before the next native move. */
+    beforeNextMove(action) { beforeMove = action; },
     advance(days) { time = Date.now() + days * 86400000; },
     overrideDelete(value) { override = value; },
     failTokenMints(count) { mintFailures = count; },
@@ -402,7 +425,7 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
     mainURL: new URL('../src/cli.js', import.meta.url).href,
     keyInRequest() { return keyLeaked; },
     /** Revoke the actual synthetic person session, including its current live streams. */
-    revokeSession() { const state = JSON.parse(readFileSync(linkFile, 'utf8')); return auth.revoke(state.token, state.tokenId); },
+    async revokeSession() { const session = await phoneSession(); return auth.revoke(session.token, session.id); },
     /** Revoke the real session when the next listing arrives so its HTTP authorization refusal is exercised. */
     revokeSessionOnNextListing() { revokeOnNextListing = true; },
     refuseReads(value) { refuseEventReads = value; },

@@ -50,7 +50,7 @@ function approvalFlowTimeoutMs(cliChildren) {
 async function signIn(chrome, box) {
   const state = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const result = await chrome.send('Network.setCookie', {
-    name: 'pb_session', value: state.token, url: box.origin, httpOnly: true, sameSite: 'Lax',
+    name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax',
   });
   assert.equal(result.success, true, 'the real person session is installed in the isolated browser');
 }

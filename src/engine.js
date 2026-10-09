@@ -133,7 +133,8 @@ export function engineReceipt(board, id) {
 /** Authorize each public relay position before replay, retaining refusals atomically with its cursor. */
 export function applyRelayMove(board, move, { sequence, at, sender, kind }) {
   requireSupportedEngine(move);
-  const problem = relaySenderProblem(move, sender, kind);
+  const phoneReceipt = sender?.kind === 'machine' && move?.engine >= 6 && Boolean(move.personRequest) && !requestMoveProblem(board, move, { checkExecutorLease: false });
+  const problem = relaySenderProblem(move, sender, kind, { phoneReceipt });
   if (!problem) return applyEngineMove(board, move, { sequence, at });
   if (!Number.isSafeInteger(sequence) || sequence < 1 || !Number.isFinite(Date.parse(at))) throw new Refused('RELAY_MOVE', 'supply a valid relay sequence and receipt timestamp');
   return store.atomic(board, () => {

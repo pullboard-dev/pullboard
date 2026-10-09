@@ -9,7 +9,7 @@ import { relayClientFixture } from './relay-client-fixture.js';
 async function signIn(chrome, box) {
   const session = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const result = await chrome.send('Network.setCookie', {
-    name: 'pb_session', value: session.token, url: box.origin, httpOnly: true, sameSite: 'Lax',
+    name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax',
   });
   assert.equal(result.success, true);
 }
