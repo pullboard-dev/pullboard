@@ -631,6 +631,46 @@ test('changing a criterion or a check drops the frozen bar, in the open; the nex
   assert.equal(claimAs(id, 'web-1', 'web').digest, 'digest:Page');
 });
 
+test('edit after an expired claim reopens it and names its holder [B13]', () => {
+  const edits = [
+    { title: 'Criterion', change: { criterion: 'the new criterion' } },
+    { title: 'Check', change: { check: 'node --test' } },
+    { title: 'Route', change: { route: 'mid' } },
+  ];
+  for (const { title, change } of edits) {
+    const id = store.addItem(board, {
+      by: 'coordinator', lane: 'web', title, route: 'light', brief: BRIEF,
+      criterion: 'the old criterion', check: 'true',
+    });
+    claimAs(id, 'web-1', 'web');
+    clock.advance(2 * HOUR + 1);
+    assert.doesNotThrow(
+      () => store.editItem(board, id, { agentId: 'coordinator', ...change }),
+      `an expired ${title.toLowerCase()} edit must reopen the item before writing its fields`,
+    );
+    const stored = store.itemById(board, id);
+    assert.deepEqual([stored.item_status, stored.item_owner, stored.item_lease_until], ['open', null, null]);
+    assert.equal(stored.item_frozen_digest, null);
+    const event = store.events(board, { itemId: id }).findLast((entry) => entry.event_kind === 'edit');
+    assert.equal(event.event_by, 'coordinator');
+    assert.equal(JSON.parse(event.event_detail).expiredHolder, 'web-1');
+    assert.equal(JSON.parse(event.event_detail).unfrozen, `digest:${title}`);
+  }
+
+  const live = store.addItem(board, {
+    by: 'coordinator', lane: 'web', title: 'Live', route: 'light', brief: BRIEF,
+    criterion: 'the old criterion', check: 'true',
+  });
+  claimAs(live, 'web-1', 'web');
+  const digest = store.itemById(board, live).item_frozen_digest;
+  assert.throws(() => store.editItem(board, live, { agentId: 'coordinator', criterion: 'not yet' }), /HELD/);
+  assert.deepEqual(
+    [store.itemById(board, live).item_status, store.itemById(board, live).item_owner, store.itemById(board, live).item_frozen_digest],
+    ['claimed', 'web-1', digest],
+  );
+  assert.equal(store.events(board, { itemId: live }).some((entry) => entry.event_kind === 'edit'), false);
+});
+
 test('escalate frees an item one tier up, with what was tried attached [B15]', () => {
   store.register(board, { lane: 'web', path: '/repo-web-3', route: 'light' });
   const id = routed('Rename', 'light');
