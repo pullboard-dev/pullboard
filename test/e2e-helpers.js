@@ -10,6 +10,7 @@ import { connect } from 'node:net';
 import { join, resolve } from 'node:path';
 import * as store from '../src/board.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import { fetchFresh } from './http-fixture.js';
 
 /** Create isolated real-repository helpers for one parallel end-to-end test file. */
 export function createE2eHelpers() {
@@ -167,7 +168,7 @@ async function startView(box, cwd) {
    * Keeping these paths in one fixture lets the API assertions stay independent of page auth.
    */
   const page = async () => {
-    const response = await fetch(link, { redirect: 'manual' });
+    const response = await fetchFresh(link, { redirect: 'manual' });
     if (response.status === 200) return response;
     assert.equal(response.status, 303, 'the printed link either serves the legacy page or exchanges its key');
 
@@ -187,13 +188,13 @@ async function startView(box, cwd) {
     assert.ok(attributes.some((attribute) => /^samesite=strict$/iu.test(attribute)), 'the session cookie is SameSite=Strict');
     assert.ok(attributes.some((attribute) => /^path=\/$/iu.test(attribute)), 'the session cookie is scoped to the view');
 
-    const pageResponse = await fetch(location, { headers: { cookie: pair }, redirect: 'manual' });
+    const pageResponse = await fetchFresh(location, { headers: { cookie: pair }, redirect: 'manual' });
     assert.equal(pageResponse.status, 200, 'the cookie jar fetches the page after the exchange');
     return pageResponse;
   };
   /** Read the public listing through the view's real authenticated API. */
   const boards = async () => {
-    const response = await fetch(`${base}/api/v1/boards`, { headers });
+    const response = await fetchFresh(`${base}/api/v1/boards`, { headers });
     return { status: response.status, document: await response.json() };
   };
   /** Resolve a registered board id and read its public state. */
@@ -202,7 +203,7 @@ async function startView(box, cwd) {
     if (listing.status !== 200) return listing;
     const board = listing.document.boards.find((entry) => entry.root === root);
     if (!board) return { ...listing.document, project: null };
-    const response = await fetch(`${base}/api/v1/boards/${encodeURIComponent(board.id)}/state`, { headers });
+    const response = await fetchFresh(`${base}/api/v1/boards/${encodeURIComponent(board.id)}/state`, { headers });
     return { ...listing.document, project: (await response.json()).state };
   };
   /** Send a public move to the registered board or a deliberately unknown id. */
@@ -210,7 +211,7 @@ async function startView(box, cwd) {
     const listing = await boards();
     const board = listing.document.boards?.find((entry) => entry.root === root);
     const id = board?.id ?? '0'.repeat(32);
-    const response = await fetch(`${base}/api/v1/boards/${encodeURIComponent(id)}/moves`, {
+    const response = await fetchFresh(`${base}/api/v1/boards/${encodeURIComponent(id)}/moves`, {
       method: 'POST',
       headers: { ...headers, 'content-type': 'application/json' },
       body: JSON.stringify(body),

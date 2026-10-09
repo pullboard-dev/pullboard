@@ -22,6 +22,7 @@ import { appliedSequence, prepareEngineMove } from '../src/engine.js';
 import { storeBoardKey } from '../src/relay-key.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { presentationShout } from '../src/relay-presentation.js';
+import { fetchFresh } from './http-fixture.js';
 
 const SIGN_INS = new Map();
 
@@ -574,7 +575,7 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
   const localApi = await serveApi({ runCommand: apiCommand, projects: () => [{ root: clones[0], name: 'Clone API' }] });
   try {
     const address = new URL(localApi.url);
-    const response = await fetch(`${address.origin}/api/v1/boards/${boardId}/moves`, {
+    const response = await fetchFresh(`${address.origin}/api/v1/boards/${boardId}/moves`, {
       method: 'POST', headers: { 'x-pullboard-key': address.searchParams.get('k'), 'content-type': 'application/json' },
       body: JSON.stringify({ verb: 'add', args: { lane: 'web', title: 'This API item' } }),
     });
@@ -589,7 +590,7 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
     const apiLostHeaders = { 'x-pullboard-key': address.searchParams.get('k'), 'content-type': 'application/json' };
     const beforeLostApi = relay.uploads.length;
     relay.dropNextReply({ offline: true });
-    const lostApi = await fetch(`${address.origin}/api/v1/boards/${boardId}/moves`, {
+    const lostApi = await fetchFresh(`${address.origin}/api/v1/boards/${boardId}/moves`, {
       method: 'POST', headers: apiLostHeaders, body: apiLostBody,
     });
     const lostApiResult = await lostApi.json();
@@ -597,7 +598,7 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
     assert.equal(lostApiResult.error.code, 'RELAY_UNAVAILABLE');
     relay.failReads(false);
     await cli(clones[0], envs[0], 'status');
-    const apiRetry = await fetch(`${address.origin}/api/v1/boards/${boardId}/moves`, {
+    const apiRetry = await fetchFresh(`${address.origin}/api/v1/boards/${boardId}/moves`, {
       method: 'POST', headers: apiLostHeaders, body: apiLostBody,
     });
     const apiRetryResult = await apiRetry.json();

@@ -21,6 +21,7 @@ import { allShouts, closeBoard, EVENT_LOG_VERSION, openBoard } from '../src/boar
 import { presentationShout, relayPresentation } from '../src/relay-presentation.js';
 import { JSON_SHAPES } from '../src/json.js';
 import { SSH_SHELL_MARKERS } from '../src/person.js';
+import { fetchFresh } from './http-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -692,11 +693,11 @@ async function startApi(t, box) {
   return { child, document, origin: parsed.origin, secret, stderr: () => stderr };
 }
 
-/** Send one bounded HTTP request to the fixture API, authenticating by header unless overridden. */
+/** Send one bounded HTTP request to the fixture API on its own connection, authenticating by header unless overridden. */
 function apiFetch(api, path, options = {}) {
   const { noSecret = false, ...requestOptions } = options;
   const headers = { ...(noSecret ? {} : { 'x-pullboard-key': api.secret }), ...requestOptions.headers };
-  return fetch(new URL(path, api.origin), { ...requestOptions, headers, signal: requestOptions.signal ?? AbortSignal.timeout(10_000) });
+  return fetchFresh(new URL(path, api.origin), { ...requestOptions, headers, signal: requestOptions.signal ?? AbortSignal.timeout(10_000) });
 }
 
 /** Parse and validate a versioned API refusal. */

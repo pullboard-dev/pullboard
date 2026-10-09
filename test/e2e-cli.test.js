@@ -26,6 +26,7 @@ import { checkAtCommit } from '../src/trusted-policy.js';
 import * as store from '../src/board.js';
 
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fetchFresh } from './http-fixture.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
@@ -128,13 +129,13 @@ test('the tour registers a labelled demo that view lists and forget removes [N10
 
   const view = await startView(box, box.repo);
   try {
-    const listing = await fetch(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': view.key } });
+    const listing = await fetchFresh(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': view.key } });
     assert.equal(listing.status, 200);
     assert.deepEqual((await listing.json()).boards.map(({ root, name }) => [root, name]), [[box.repo, 'repo'], [demoRoot, 'demo']]);
     const forgotten = box.run(box.dir, 'forget', demoRoot);
     assert.equal(forgotten.code, 0, forgotten.err);
     assert.match(forgotten.out, /forgot/);
-    const after = await fetch(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': view.key } });
+    const after = await fetchFresh(`${view.base}/api/v1/boards`, { headers: { 'x-pullboard-key': view.key } });
     assert.deepEqual((await after.json()).boards.map(({ root, name }) => [root, name]), [[box.repo, 'repo']]);
   } finally {
     await view.stop();
