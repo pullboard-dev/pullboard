@@ -200,7 +200,7 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
 
   /** Fetch a public sealed document and authenticate it locally with the device-only key. */
   async function get(path) {
-    const response = await fetch(relay.origin + path, { headers: { authorization: `Bearer ${person.token}` } });
+    const response = await fetch(relay.origin + path, { headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}` } });
     return { status: response.status, body: await response.json() };
   }
   const remoteState = await get(`/api/v1/boards/${boardId}/state`);
@@ -315,7 +315,7 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   assert.equal(off.linked, false);
   assert.deepEqual((await cli(root, env, 'export')).tables, localBeforeOff.tables, 'unlink leaves local rows and counters unchanged');
   assert.deepEqual(await auth.boardsFor(person.token), [], 'unlink removes the repository link');
-  const session = await fetch(relay.origin + '/auth/session', { headers: { authorization: `Bearer ${person.token}` } });
+  const session = await fetch(relay.origin + '/auth/session', { headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}` } });
   assert.equal(session.status, 200, 'unlink preserves the person session');
   assert.equal((await get(`/api/v1/boards/${boardId}/state`)).status, 404);
   assert.equal(readdirSync(relayDirectory).some((name) => name.startsWith(boardId + '.journal.sqlite')), false,
@@ -446,7 +446,7 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
     boardId, kind: 'snapshot', sequence: 0,
   })).toString('base64url');
   const uploaded = await fetch(`${relay.origin}/api/v1/boards/${boardId}/state`, {
-    method: 'PUT', headers: { authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
+    method: 'PUT', headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
     body: JSON.stringify({ sequence: 0, sealed }),
   });
   assert.equal(uploaded.status, 200, await uploaded.text());
@@ -533,7 +533,7 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
   const earlierSealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(earlier)), {
     boardId, kind: 'move', sequence: next,
   })).toString('base64url');
-  const headers = { authorization: `Bearer ${person.token}`, 'content-type': 'application/json' };
+  const headers = { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}`, 'content-type': 'application/json' };
   assert.equal((await fetch(`${relay.origin}/api/v1/boards/${boardId}/moves`, {
     method: 'POST', headers, body: JSON.stringify({ sequence: next, sealed: earlierSealed }),
   })).status, 200);
@@ -765,7 +765,7 @@ async function legacyMirrorQueueFragment({
   assert.equal(openedLegacy[0].presentation, undefined, 'the historical first move cannot attest the later row');
   assert.equal(openedLegacy[1].presentation.state.events[0].event_id, queuedEvents.at(-1).event_id, 'the final legacy move carries only its matching projection');
 
-  const authorization = { authorization: `Bearer ${currentPersonToken}` };
+  const authorization = { 'x-pullboard-engine': '3', authorization: `Bearer ${currentPersonToken}` };
   const stateResponse = await fetch(`${relay.origin}/api/v1/boards/${boardId}/state`, { headers: authorization });
   assert.equal(stateResponse.status, 200);
   const stateDocument = await stateResponse.json();
@@ -800,7 +800,7 @@ async function legacyForeignPrefixFragment({
 
   const foreign = await fetch(`${relay.origin}/api/v1/boards/${boardId}/moves`, {
     method: 'POST',
-    headers: { authorization: `Bearer ${currentPersonToken}`, 'content-type': 'application/json' },
+    headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${currentPersonToken}`, 'content-type': 'application/json' },
     body: JSON.stringify({ sequence: link.sequence + 1, sealed: 'AQ' }),
   });
   assert.equal(foreign.status, 200, await foreign.text());
