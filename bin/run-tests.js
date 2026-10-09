@@ -7,9 +7,80 @@ import { delimiter, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
+import { after, afterEach, beforeEach } from 'node:test';
+import { Worker } from 'node:worker_threads';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
 
 const runner = fileURLToPath(import.meta.url);
+export const DEFAULT_TEST_TIMEOUT_MS = 660_000;
+
+const watchdogSource = `
+const { parentPort } = require('node:worker_threads');
+const { writeSync } = require('node:fs');
+const timers = new Map();
+parentPort.on('message', (message) => {
+  if (message.type === 'stop') {
+    const active = timers.get(message.id);
+    if (active) clearTimeout(active.timer);
+    timers.delete(message.id);
+    return;
+  }
+  if (message.type !== 'start') return;
+  const startedAt = Date.now();
+  const timer = setTimeout(() => {
+    const elapsedMs = Date.now() - startedAt;
+    writeSync(2, 'run-tests: test "' + message.name + '" in ' + message.file +
+      ' failed: it ran ' + (elapsedMs / 1000).toFixed(1) + 's, past the ' +
+      message.timeoutMs + 'ms per-test timeout\\n');
+    try { process.kill(message.pid, 'SIGKILL'); } catch { /* The timed-out test process already exited. */ }
+  }, message.timeoutMs);
+  timers.set(message.id, { timer });
+});
+`;
+
+/**
+ * Read the per-test timeout and reject malformed overrides before tests start.
+ *
+ * @param {string | undefined} value
+ * @returns {number}
+ */
+function testTimeoutMs(value = process.env.PULLBOARD_TEST_TIMEOUT_MS) {
+  if (value === undefined) return DEFAULT_TEST_TIMEOUT_MS;
+  if (!/^[1-9][0-9]*$/u.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) > 2_147_483_647) {
+    throw new Error('PULLBOARD_TEST_TIMEOUT_MS must be a positive integer no greater than 2147483647 milliseconds');
+  }
+  return Number(value);
+}
+
+/**
+ * Keep an independent watchdog for every active test in this test-file process.
+ *
+ * @returns {void}
+ */
+function installTestWatchdog() {
+  const timeoutMs = testTimeoutMs();
+  const file = process.env.PULLBOARD_TEST_FILE ?? process.argv[1] ?? '<unknown test file>';
+  const watchdog = new Worker(watchdogSource, { eval: true });
+  watchdog.unref();
+  const activeTests = new WeakMap();
+  let nextTestId = 0;
+
+  beforeEach((context) => {
+    const id = `${process.pid}:${++nextTestId}`;
+    const name = String(context.name).replace(/[\r\n\t\u0000-\u001f]/gu, ' ').slice(0, 200);
+    activeTests.set(context, id);
+    watchdog.postMessage({ type: 'start', id, name, file, timeoutMs, pid: process.pid });
+  });
+
+  afterEach((context) => {
+    const id = activeTests.get(context);
+    if (id !== undefined) watchdog.postMessage({ type: 'stop', id });
+  });
+
+  after(async () => {
+    await watchdog.terminate();
+  });
+}
 
 /** Quote a path for the private Git shim without interpreting shell metacharacters. */
 function shellWord(value) {
@@ -84,6 +155,13 @@ function runTests(args, env) {
  * @returns {void}
  */
 function main(args) {
+  try {
+    testTimeoutMs();
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
   const sandbox = mkdtempSync(join(tmpdir(), 'pullboard-test-run-'));
   let signal = null;
   try {
@@ -101,4 +179,5 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
   main(process.argv.slice(2));
 } else if (process.argv[1]) {
   process.env.PULLBOARD_TEST_FILE = process.argv[1];
+  installTestWatchdog();
 }
