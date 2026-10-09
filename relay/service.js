@@ -232,7 +232,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
         if (!Number.isSafeInteger(body.sequence) || body.sequence < 0) throw new Refused('BAD_SEQUENCE', 'name the nonnegative sequence covered by the sealed snapshot');
         const who = await authorizedRequest(req, id, true);
         const principal = sender(who, true);
-        const saved = withJournal(id, (journal) => journal.saveSnapshot(body.sequence, bytes, principal), true, who.engineVersion);
+        const saved = withJournal(id, (journal) => journal.saveSnapshot(body.sequence, bytes, principal, { initialOnly: req.headers['if-none-match'] === '*' }), true, who.engineVersion);
         return apiJson(res, 200, { state: annotated(saved, id) });
       }
       if (req.method === 'DELETE' && deletion) {

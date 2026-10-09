@@ -91,6 +91,9 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
   let stateReadDelayMs = 0;
   let stateReadStarted = 0;
   let refuseSnapshotWrites = false;
+  let rejectSnapshotWrites = null;
+  let rejectedStateReads = null;
+  let beforeSnapshotWrite = null;
   let refuseRequestWrites = false;
   let signIn;
   let api;
@@ -143,6 +146,12 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
       res.end(JSON.stringify({ version: 1, error: { code: 'NO_BOARD', message: 'upload the sealed snapshot for this linked board first' } }));
       return;
     }
+    if (rejectedStateReads && req.method === 'GET' && missingSnapshot?.[2] === 'state') {
+      res.writeHead(rejectedStateReads.status, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ version: rejectedStateReads.version ?? 1,
+        error: { code: rejectedStateReads.code, message: 'fixture uncertain remote state' } }));
+      return;
+    }
     if (mintFailures > 0 && req.method === 'POST' && req.url === '/auth/tokens') {
       mintFailures -= 1;
       req.resume();
@@ -169,6 +178,17 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
       res.writeHead(503, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ version: 1, error: { code: 'RELAY_UNAVAILABLE', message: 'fixture snapshot outage' } }));
       return;
+    }
+    if (rejectSnapshotWrites && req.method === 'PUT' && /\/api\/v1\/boards\/[0-9a-f]{32}\/state$/.test(req.url ?? '')) {
+      req.resume();
+      res.writeHead(rejectSnapshotWrites.status, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ version: 1, error: { code: rejectSnapshotWrites.code, message: rejectSnapshotWrites.message } }));
+      return;
+    }
+    if (beforeSnapshotWrite && req.method === 'PUT' && /\/api\/v1\/boards\/[0-9a-f]{32}\/state$/.test(req.url ?? '')) {
+      const before = beforeSnapshotWrite;
+      beforeSnapshotWrite = null;
+      await before(req.headers);
     }
     const stateSnapshotDelayMs = Math.max(snapshotWriteDelayMs, injectedSnapshotWriteDelayMs);
     if (stateSnapshotDelayMs && req.method === 'PUT' && /\/api\/v1\/boards\/[0-9a-f]{32}\/state$/.test(req.url ?? '')) {
@@ -243,6 +263,10 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
   /** Invoke the production CLI in this private repository under its planned budget, when present. */
   async function cli(...args) {
     return runCliChild(args);
+  }
+  /** Invoke the production CLI from another worktree sharing this fixture's repository and home. */
+  async function cliAt(cwd, ...args) {
+    return childResult(cwd, env, [CLI, ...args, '--json']);
   }
   /** Bound a CLI child using the exact snapshot count asserted by its fixture flow. */
   async function cliWithSnapshotUploads(snapshotUploads, ...args) {
@@ -345,7 +369,7 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
   }
   return {
     transit, relayDirectory: join(scratch, 'relay'), authDatabase, otherDeviceJoin,
-    root, env, origin, lane, before, linkFile, keyFile, calls, moveAcks, cli, cliWithSnapshotUploads, link, requireEngineThree, otherDeviceOff, additionalBoard, script, stopRelay, restartRelay,
+    root, env, origin, lane, before, linkFile, keyFile, calls, moveAcks, cli, cliAt, cliWithSnapshotUploads, link, requireEngineThree, otherDeviceOff, additionalBoard, script, stopRelay, restartRelay,
     /** Assert the test consumed every declared child budget, with no hidden CLI calls. */
     assertCliChildrenComplete() {
       if (cliChildren) assert.equal(cliChildIndex, cliChildren.length, 'every planned private CLI child ran exactly once');
@@ -354,6 +378,12 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
     overrideDelete(value) { override = value; },
     failTokenMints(count) { mintFailures = count; },
     refuseSnapshotWrites(value) { refuseSnapshotWrites = value; },
+    /** Return a chosen HTTP refusal for snapshot writes, without inspecting the sealed body. */
+    rejectSnapshots(value) { rejectSnapshotWrites = value ? { ...value } : null; },
+    /** Order a competing real HTTP upload before the next native snapshot reaches the journal. */
+    beforeNextSnapshot(value) { beforeSnapshotWrite = value; },
+    /** Return a chosen real HTTP state refusal to exercise uncertain-baseline safety. */
+    rejectStateReads(value) { rejectedStateReads = value ? { ...value } : null; },
     /** Delay each real relay snapshot upload until disabled to model late native checkpoints. */
     delaySnapshotWrites(ms) {
       assert.ok(Number.isSafeInteger(ms) && ms >= 0 && ms <= 15000, 'snapshot delay is within the product wait bound');

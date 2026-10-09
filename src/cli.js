@@ -67,7 +67,7 @@ import { proofStats } from './stats.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
-import { formatSnapshotLimit, pendingSnapshotSize, relayCommandReceipt, relayCommandReceiptReported, relayLinked, relayOff, relayOn, relayOperation, relayRecovered, relayRevoke, relayStatus, relayTokens, syncRelay } from './relay.js';
+import { formatSnapshotLimit, pendingSnapshotSize, pendingCheckpointProblem, relayCommandReceipt, relayCommandReceiptReported, relayLinked, relayOff, relayOn, relayOperation, relayRecovered, relayRevoke, relayStatus, relayTokens, syncRelay } from './relay.js';
 import { relayOnAll, revokeRelayDevice, unlinkedRelayProjects } from './relay-setup.js';
 import { readRelayMachine } from './relay-machine.js';
 import { relayJoin, relayPair } from './relay-pairing-client.js';
@@ -730,7 +730,7 @@ async function ordered(ctx, board, operation, args) {
   const command = ['add', 'edit', 'merged'].includes(ctx.io.relayCommand?.cliOperation) ? ctx.io.relayCommand : undefined;
   /** Dispatch while this session holds the checkout, including long-running next/run loops. */
   const execute = () => relayLinked(ctx.info.root)
-    ? relayOperation(ctx.info.root, operation, args, ctx.io, command) : store[operation](board, ...args);
+    ? relayOperation(ctx.info.root, operation, args, ctx.io, command, () => store[operation](board, ...args)) : store[operation](board, ...args);
   const digest = agentSessionDigest();
   if (CHECKOUT_LEASES.has(ctx.io) || !digest || ctx.io.personChannel === 'view' || ctx.io.personRequest) return execute();
   const agent = ctx.info.isMain ? COORDINATOR : store.agentAt(board, ctx.info.root)?.agent_id ?? 'unjoined agent';
@@ -770,7 +770,7 @@ async function bindCheckoutSession(io, positionals, values) {
         const me = whoAmI(ctx, board);
         const message = { from: me.id, to: info.isMain ? 'person' : COORDINATOR,
           text: `${me.id} took over this checkout in a new agent session.`, lanes: laneNames(ctx.config) };
-        if (relayLinked(info.root)) await relayOperation(info.root, 'shout', [message], io);
+        if (relayLinked(info.root)) await relayOperation(info.root, 'shout', [message], io, undefined, () => store.shout(board, message));
         else store.shout(board, message);
       });
     },
@@ -1565,7 +1565,7 @@ function readCommands(io, { first, second, rest, values }) {
         return 0;
       }
       if (summary.relay.linked) io.say(`relay: sequence ${summary.relay.sequence}; ${summary.relay.behind} pending uploads`);
-      if (summary.relay.oversizedSnapshot) io.say(formatSnapshotLimit(summary.relay.oversizedSnapshot));
+      if (summary.relay.oversizedSnapshot && !summary.relay.refusedCheckpoint) io.say(formatSnapshotLimit(summary.relay.oversizedSnapshot));
       const { items, accepted, rejected } = summary.stats;
       io.say(`${summary.me.id}: ${summary.unread} unread shouts; holding ${summary.mine.map((item) => `#${item.item_id}`).join(', ') || 'nothing'}`);
       io.say(`board: ${items.open} open, ${items.claimed} claimed, ${items.submitted} awaiting verification, ${items.verified} verified, ${items.withdrawn} withdrawn`);
@@ -1587,7 +1587,9 @@ function readCommands(io, { first, second, rest, values }) {
       }
       const ctx = context(io);
       const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects()];
-      const oversizedSnapshot = pendingSnapshotSize(ctx.info.root);
+      const checkpointProblem = pendingCheckpointProblem(ctx.info.root);
+      if (checkpointProblem) problems.push(checkpointProblem);
+      const oversizedSnapshot = checkpointProblem ? null : pendingSnapshotSize(ctx.info.root);
       if (oversizedSnapshot) problems.push({ code: 'RELAY_SNAPSHOT_LIMIT',
         message: formatSnapshotLimit(oversizedSnapshot),
         next: 'reduce the sealed board snapshot below the relay limit, then run pullboard status' });
@@ -1596,7 +1598,7 @@ function readCommands(io, { first, second, rest, values }) {
         io.say('board is clean');
         return 0;
       }
-      for (const problem of problems) io.say(`problem: ${problem.message}; repair: ${problem.next}`);
+      for (const problem of problems) if (problem !== checkpointProblem) io.say(`problem: ${problem.message}; repair: ${problem.next}`);
       return 1;
     },
     inbox: () => {
@@ -2794,6 +2796,7 @@ async function runMain(argv, streams) {
   try {
     parsed = parseCommandArgs(argv);
     const command = parsed.positionals[0];
+    io.relayJson = Boolean(parsed.values.json);
     io.relayCommand = { cliOperation: command === 'done' ? 'submit' : command, cwd: resolve(io.cwd),
       positionals: parsed.positionals.slice(1),
       values: Object.fromEntries(Object.keys(parsed.values).filter(key => key !== 'json').sort().map(key => [key, parsed.values[key]])) };
