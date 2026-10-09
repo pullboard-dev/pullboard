@@ -223,6 +223,8 @@ Every signed row and signer-list change binds the initial signer-list hash in it
 
 ## Sealed person requests
 
+The authenticated relay page calls `cockpitPage` with `readOnly: true` and the separate `requests: true` capability. This enables only the person's literal intents through the sealing transport; generic API writes remain refused. Local read-only pages and exported snapshots omit this capability and refuse every action.
+
 A paired relay browser translates `add`, `shout`, `answer`, `hold` (including `args.off: true`), `spec-approve` and `spec-decline` into literal CLI intent. Its transport accepts `{verb, item?, args}` at the paired board's moves address and seals a separate request document before posting `{sequence, sealed}` to `/api/v1/boards/:board/requests`. It never sends plaintext arguments, an engine operation or the board key. The relay stores and orders that opaque envelope; it neither executes a command nor writes a repository. Agent credentials cannot submit person intent or person-attributed holds and releases.
 
 The device-only request format is `{version: 1, type: "person-request", id, move: {verb, item?, args}}`. This request version is independent of the ordinary move engine version. The stable `id` survives interrupted sends and sequence collisions. Browser storage keeps each pending request's ciphertext separately, so another tab cannot replace or clear it. A later board read reconciles pending sends with the relay's acknowledged prefix before retrying.

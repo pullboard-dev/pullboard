@@ -166,7 +166,7 @@ test('real Chrome pairs, retains its device key, declares its engine on every re
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(firstTitle) + ')');
   assert.equal(await chrome.evaluate('location.hash === ""'), true, 'the pairing key is removed from browser history');
   assert.equal(await chrome.evaluate("JSON.parse(localStorage.getItem('pullboard.relay.keys.v1'))[" + JSON.stringify(link.board) + '].length === 43'), true);
-  assert.equal(await chrome.evaluate("getComputedStyle(document.querySelector('#new-item')).display === 'none'"), true, 'the relay page hides action controls');
+  assert.equal(await chrome.evaluate("getComputedStyle(document.querySelector('#new-item')).display !== 'none' && readOnly && requests"), true, 'the relay page exposes person request controls while keeping direct moves read-only');
   assert.equal(box.calls.some(call => call.accept.includes('text/event-stream')), true, 'the page opened a real authorized event stream');
   const browserApiCalls = box.calls.slice(firstBrowserCall).filter(call => call.path.startsWith('/api/v1/'));
   assert.ok(browserApiCalls.length > 0, 'the browser made authenticated relay API requests');
