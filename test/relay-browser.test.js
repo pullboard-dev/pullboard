@@ -1,6 +1,8 @@
 /** Real Chrome reads and follows device-sealed boards; the relay never receives its key [H5,H15,H18]. */
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { snapshotState, presentationState } from '../relay/browser-model.js';
@@ -10,6 +12,77 @@ import { ENGINE_VERSION } from '../src/machine.js';
 import { addItem, closeBoard, openBoard } from '../src/board.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
+
+/** Write an executable that fails its first launch, then optionally delegates to real Chrome. */
+function writeLaunchWrapper(directory, { chrome, failEveryLaunch = false, publishPort }) {
+  const counter = join(directory, 'launches');
+  const wrapper = join(directory, 'chrome-wrapper');
+  /** Quote one generated shell argument without interpreting its contents. */
+  const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
+  const retry = failEveryLaunch ? 'exit 23' : chrome ? '[ "$launches" -ne 1 ] || exit 23' : ':';
+  const launch = publishPort ? `profile=''
+for argument in "$@"; do
+  case "$argument" in --user-data-dir=*) profile="\${argument#--user-data-dir=}" ;; esac
+done
+printf '%s\\n' ${quote(publishPort)} > "$profile/DevToolsActivePort"
+sleep 30`
+    : chrome ? `exec ${quote(chrome)} "$@"` : 'exit 23';
+  const script = `#!/bin/sh
+launches=0
+if [ -f ${quote(counter)} ]; then launches=$(cat ${quote(counter)}); fi
+launches=$((launches + 1))
+printf '%s' "$launches" > ${quote(counter)}
+${retry}
+${launch}
+`;
+  writeFileSync(wrapper, script);
+  chmodSync(wrapper, 0o700);
+  return { wrapper, counter };
+}
+
+test('relay fixture relaunches once when Chrome does not publish a DevTools port [H5]', {
+  skip: !findChromeExecutable() && 'Chrome is not installed',
+}, async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-relay-relaunch-'));
+  let chrome;
+  t.after(async () => {
+    await chrome?.close();
+    rmSync(directory, { recursive: true, force: true });
+  });
+  const { wrapper, counter } = writeLaunchWrapper(directory, { chrome: findChromeExecutable() });
+  await assert.doesNotReject((async () => { chrome = await startChrome({ executable: wrapper }); })(),
+    'the fixture retries once after the first launch fails');
+  assert.equal(await chrome.evaluate('1 + 1'), 2, 'the second real browser reaches its local DevTools endpoint');
+  assert.equal(Number(readFileSync(counter, 'utf8')), 2, 'the wrapper launched once unsuccessfully and once successfully');
+});
+
+test('relay fixture keeps the startup refusal after its second failed launch [H5]', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-relay-failure-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const { wrapper, counter } = writeLaunchWrapper(directory, { failEveryLaunch: true });
+  await assert.rejects(startChrome({ executable: wrapper }), /Isolated Chrome exited during startup\./u);
+  assert.equal(Number(readFileSync(counter, 'utf8')), 2, 'a second failure does not trigger a third launch');
+});
+
+/** Reserve and release an ephemeral loopback port so the wrapper can publish an unavailable endpoint. */
+async function unusedLoopbackPort() {
+  const server = createServer();
+  await new Promise((resolveListen, rejectListen) => {
+    server.once('error', rejectListen);
+    server.listen(0, '127.0.0.1', resolveListen);
+  });
+  const { port } = server.address();
+  await new Promise((resolveClose, rejectClose) => server.close(error => error ? rejectClose(error) : resolveClose()));
+  return port;
+}
+
+test('relay fixture does not relaunch after Chrome publishes its DevTools port [H5]', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-relay-target-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const { wrapper, counter } = writeLaunchWrapper(directory, { publishPort: await unusedLoopbackPort() });
+  await assert.rejects(startChrome({ executable: wrapper }), /Isolated Chrome could not start or connect/u);
+  assert.equal(Number(readFileSync(counter, 'utf8')), 1, 'a target connection failure does not retry the launched browser');
+});
 
 /** Sign a browser in with the real stand-in device grant, without exposing its credential. */
 async function signIn(chrome, box) {
