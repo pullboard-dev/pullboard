@@ -1,0 +1,110 @@
+/** The shared Chrome fixture bounds startup and removes profiles only after the owned process group exits [C7]. */
+import assert from 'node:assert/strict';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { test } from 'node:test';
+import { launchChromeProcess, startChrome } from './chrome-fixture.js';
+
+/** Pause between checks while waiting for a fixture helper's readiness marker. */
+function pause(ms) {
+  return new Promise((resolvePause) => setTimeout(resolvePause, ms));
+}
+
+/** Wait a finite time for a private marker, reporting only its fixture path on timeout. */
+async function waitForFile(path, timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (existsSync(path)) return;
+    await pause(20);
+  }
+  assert.fail(`stand-in Chrome did not create its readiness marker: ${path}`);
+}
+
+/** Create an executable stand-in that writes after its leader exits, keeping both in one process group. */
+function delayedHelperScripts(profile) {
+  const helperReady = join(profile, 'helper-ready');
+  const lateWrite = join(profile, 'helper-finished');
+  const helper = [
+    "const fs = require('node:fs');",
+    'const [ready, late] = process.argv.slice(1);',
+    "process.on('SIGTERM', () => { setTimeout(() => { fs.writeFileSync(late, 'finished'); process.exit(0); }, 1500); });",
+    "fs.writeFileSync(ready, 'ready');",
+    'setInterval(() => {}, 1000);',
+  ].join('\n');
+  const leader = [
+    "const { spawn } = require('node:child_process');",
+    "const fs = require('node:fs');",
+    'const [profile, helperCode] = process.argv.slice(1);',
+    "process.on('SIGTERM', () => process.exit(0));",
+    "spawn(process.execPath, ['-e', helperCode, profile + '/helper-ready', profile + '/helper-finished'], { stdio: 'ignore' });",
+    "fs.writeFileSync(profile + '/leader-ready', 'ready');",
+    'setInterval(() => {}, 1000);',
+  ].join('\n');
+  return { helperReady, lateWrite, leader, helper };
+}
+
+/** Prove close waits for a surviving process-group helper before a single profile removal. */
+test('removes the profile only after every Chrome process exits [C7]', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-chrome-group-'));
+  const profile = join(directory, 'profile');
+  mkdirSync(profile, { mode: 0o700 });
+  let removed = false;
+  let chrome;
+  t.after(async () => {
+    try { await chrome?.close(); }
+    finally {
+      // A deliberately broken close must not leave the stand-in helper alive.
+      const pid = chrome?.child.pid;
+      if (pid) {
+        try { process.kill(-pid, 'SIGKILL'); } catch { /* The owned fixture group is already gone. */ }
+        const deadline = Date.now() + 5_000;
+        while (Date.now() < deadline) {
+          try { process.kill(-pid, 0); } catch (error) { if (error.code === 'ESRCH') break; }
+          await pause(20);
+        }
+      }
+    }
+    if (!removed) rmSync(profile, { recursive: true, force: true });
+    rmSync(directory, { recursive: true, force: true });
+  });
+
+  const scripts = delayedHelperScripts(profile);
+  chrome = launchChromeProcess({ executable: process.execPath, args: ['-e', scripts.leader, profile, scripts.helper] });
+  await waitForFile(scripts.helperReady);
+  const closedAt = Date.now();
+  await chrome.close();
+  assert.ok(Date.now() - closedAt >= 1_300, 'close waited while the helper kept writing after the leader exited');
+  assert.equal(readFileSync(scripts.lateWrite, 'utf8'), 'finished', 'the helper finished its delayed profile write');
+  assert.doesNotThrow(() => rmSync(profile, { recursive: true }), 'one profile removal succeeds after the group is empty');
+  removed = true;
+});
+
+/** Prove a missing DevTools port is a single diagnostic failure, with stderr and elapsed time. */
+test('a missing DevTools port fails once with stderr and elapsed launch time [C7]', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-chrome-no-port-'));
+  const launches = join(directory, 'launches');
+  const wrapper = join(directory, 'chrome-no-port');
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  writeFileSync(wrapper, [
+    '#!/usr/bin/env node',
+    "const fs = require('node:fs');",
+    "fs.appendFileSync(process.env.CHROME_LAUNCHES, 'launch\\n');",
+    "process.stderr.write('NO_PORT_STAND_IN_STDERR\\n');",
+    "process.on('SIGTERM', () => process.exit(0));",
+    'setInterval(() => {}, 1000);',
+  ].join('\n'));
+  chmodSync(wrapper, 0o700);
+
+  await assert.rejects(startChrome({
+    executable: wrapper,
+    env: { ...process.env, CHROME_LAUNCHES: launches },
+  }), (error) => {
+    assert.match(error.message, /did not publish its DevTools port/u);
+    assert.match(error.message, /elapsed \d+ms; 30000ms DevTools budget/u);
+    assert.ok(Number(/elapsed (\d+)ms/u.exec(error.message)[1]) >= 30_000, 'the stand-in exercised the actual default startup budget');
+    assert.match(error.message, /NO_PORT_STAND_IN_STDERR/u);
+    return true;
+  });
+  assert.equal(readFileSync(launches, 'utf8'), 'launch\n', 'the shared launcher never retries');
+});

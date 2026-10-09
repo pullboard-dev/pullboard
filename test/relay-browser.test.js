@@ -40,28 +40,20 @@ ${launch}
   return { wrapper, counter };
 }
 
-test('relay fixture relaunches once when Chrome does not publish a DevTools port [H5]', {
-  skip: !findChromeExecutable() && 'Chrome is not installed',
-}, async t => {
+test('relay fixture fails once when Chrome exits during startup [C7]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-relay-relaunch-'));
-  let chrome;
-  t.after(async () => {
-    await chrome?.close();
-    rmSync(directory, { recursive: true, force: true });
-  });
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
   const { wrapper, counter } = writeLaunchWrapper(directory, { chrome: findChromeExecutable() });
-  await assert.doesNotReject((async () => { chrome = await startChrome({ executable: wrapper }); })(),
-    'the fixture retries once after the first launch fails');
-  assert.equal(await chrome.evaluate('1 + 1'), 2, 'the second real browser reaches its local DevTools endpoint');
-  assert.equal(Number(readFileSync(counter, 'utf8')), 2, 'the wrapper launched once unsuccessfully and once successfully');
+  await assert.rejects(startChrome({ executable: wrapper }), /exited during startup/u);
+  assert.equal(Number(readFileSync(counter, 'utf8')), 1, 'the relay fixture never retries a failed Chrome launch');
 });
 
-test('relay fixture keeps the startup refusal after its second failed launch [H5]', async t => {
+test('relay fixture reports its first failed launch [C7]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-relay-failure-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const { wrapper, counter } = writeLaunchWrapper(directory, { failEveryLaunch: true });
-  await assert.rejects(startChrome({ executable: wrapper }), /Isolated Chrome exited during startup\./u);
-  assert.equal(Number(readFileSync(counter, 'utf8')), 2, 'a second failure does not trigger a third launch');
+  await assert.rejects(startChrome({ executable: wrapper }), /exited during startup/u);
+  assert.equal(Number(readFileSync(counter, 'utf8')), 1, 'one startup failure means exactly one browser launch');
 });
 
 /** Reserve and release an ephemeral loopback port so the wrapper can publish an unavailable endpoint. */
@@ -76,7 +68,7 @@ async function unusedLoopbackPort() {
   return port;
 }
 
-test('relay fixture does not relaunch after Chrome publishes its DevTools port [H5]', async t => {
+test('relay fixture does not retry after Chrome publishes an unavailable DevTools port [C7]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-relay-target-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const { wrapper, counter } = writeLaunchWrapper(directory, { publishPort: await unusedLoopbackPort() });
