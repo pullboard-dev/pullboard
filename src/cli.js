@@ -15,7 +15,7 @@ import { agentSessionDigest, requirePersonChannel } from './person.js';
 import { bindLocalSession } from './agent-session.js';
 import { decisionProjection, planRowApply, prepareRowDecisions, restoreRowApply, writeRowApply } from './row-decisions.js';
 import { digestOf, gateReport, runGate, runShell } from './gate.js';
-import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
+import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, isClean, mainCheckout, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
   FIX_NOTE,
   applyFixers,
@@ -57,11 +57,11 @@ import { exportView, serveView } from './serve.js';
 import { serveApi } from './api.js';
 import { doctorProblems, doctrineProblems } from './doctor.js';
 import { staleFrozenItems, staleItemFinding } from './approved-rows.js';
-import { mainPolicy, itemPolicy, submissionPaths, frozenCheck, checkAtCommit, dependencySnapshots } from './trusted-policy.js';
+import { mainPolicy, itemPolicy, submissionPaths, frozenCheck, checkAtCommit, dependencySnapshots, requireTrunkMerge, trunkRef } from './trusted-policy.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
-import { relayLinked, relayOff, relayOn, relayOperation, relayStatus, syncRelay } from './relay.js';
+import { relayCommandReceipt, relayCommandReceiptReported, relayLinked, relayOff, relayOn, relayOperation, relayRecovered, relayStatus, syncRelay } from './relay.js';
 import { executePersonRequests } from './relay-request-execution.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -645,8 +645,9 @@ function withBoard(ctx, work) {
 /** Dispatch a board mutation locally, or seal it before any linked replica applies it. */
 async function ordered(ctx, board, operation, args) {
   /** Dispatch while this session holds the checkout, including long-running next/run loops. */
+  const command = ['add', 'edit', 'merged'].includes(ctx.io.relayCommand?.cliOperation) ? ctx.io.relayCommand : undefined;
   const execute = () => relayLinked(ctx.info.root)
-    ? relayOperation(ctx.info.root, operation, args, ctx.io) : store[operation](board, ...args);
+    ? relayOperation(ctx.info.root, operation, args, ctx.io, command) : store[operation](board, ...args);
   const digest = agentSessionDigest();
   if (CHECKOUT_LEASES.has(ctx.io) || !digest || ctx.io.personChannel === 'view' || ctx.io.personRequest) return execute();
   const agent = ctx.info.isMain ? COORDINATOR : store.agentAt(board, ctx.info.root)?.agent_id ?? 'unjoined agent';
@@ -1463,6 +1464,15 @@ function readCommands(io, { first, second, rest, values }) {
  */
 async function submitHere(ctx, id) {
   const { root } = ctx.info;
+  const recovered = relayRecovered(root);
+  if (recovered?.operation === 'submit' && recovered.args[0] === id) {
+    const me = withBoard(ctx, (board) => whoAmI(ctx, board));
+    if (recovered.args[1]?.agentId === me.id) {
+      await withBoard(ctx, async (board) => await ordered(ctx, board, 'submit', recovered.args));
+      return reportSubmission(ctx, id, recovered.args[1].commit,
+        { green: true, report: 'recovered the original submission; its gate ran before the original send' });
+    }
+  }
   const held = withBoard(ctx, (board) => {
     const me = whoAmI(ctx, board);
     const item = store.getItem(board, id);
@@ -1505,6 +1515,7 @@ async function submitHere(ctx, id) {
   if (stray.length) throw new Refused('UNTRACKED', `commit or ignore ${stray.length} untracked file(s), e.g. ${stray[0]}`);
   const commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
+  requireTrunkMerge(root, commit);
   // Submit runs the gate itself, every time: a stamp from an earlier run is a file any agent can
   // write, so it never stands in for this run (V16). It starts on the commit submitted, and must end
   // on it too. What the gate's own code does in between is the submitted tree's, under review.
@@ -1516,11 +1527,18 @@ async function submitHere(ctx, id) {
       `when the gate ended, HEAD or a tracked file differed from ${commit.slice(0, 12)}, the commit it started on, so the gate did not end on what you would submit; leave the worktree alone until the gate finishes, then submit again`,
     );
   }
+  requireTrunkMerge(root, commit); // The trunk may have moved while the gate ran.
   await withBoard(ctx, async (board) => await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit }]));
+  return reportSubmission(ctx, id, commit, { green: gate.isGreen, report: gateReport(gate) });
+}
+
+/** Report and pin the original submitted commit, including a recovered acknowledged outcome. */
+function reportSubmission(ctx, id, commit, gate) {
+  const { root } = ctx.info;
   const pin = `refs/pullboard/items/${id}/${commit.slice(0, 12)}`;
   git(root, ['update-ref', pin, commit]);
-  ctx.io.result?.({ id, commit, pin, gate: { green: gate.isGreen, report: gateReport(gate) } });
-  ctx.io.say(`submitted #${id} at ${commit.slice(0, 12)}; ${gateReport(gate)}`);
+  ctx.io.result?.({ id, commit, pin, gate });
+  ctx.io.say(`submitted #${id} at ${commit.slice(0, 12)}; ${gate.report}`);
   ctx.io.say(`pinned as ${pin}, so this work can't be lost; keep your worktree until it is merged`);
   ctx.io.say(`next: another agent checks out ${commit.slice(0, 12)} and runs: pullboard verify ${id} accept|reject`);
   return 0;
@@ -1542,6 +1560,13 @@ async function verifyHere(ctx, id, { second, values }) {
   const result = await withBoard(ctx, async (board) => {
     checkMainVerifier(ctx, board, values);
     const me = whoAmI(ctx, board);
+    const recovered = relayRecovered(root);
+    const previous = recovered?.args[1];
+    if (recovered?.operation === 'verify' && recovered.args[0] === id && previous?.agentId === me.id &&
+        previous.decision === decision && previous.reason === values.reason &&
+        previous.note === (textArg(ctx.io, values, 'note') ?? '')) {
+      return await ordered(ctx, board, 'verify', recovered.args);
+    }
     const item = store.getItem(board, id);
     if (item.item_status !== 'submitted') {
       throw new Refused('NOT_SUBMITTED', `item #${id} is ${item.item_status}, not submitted`);
@@ -1562,11 +1587,14 @@ async function verifyHere(ctx, id, { second, values }) {
     }
     if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
+      requireTrunkMerge(root, commit);
       check = checkAtCommit(root, item);
       if (check.state === 'unverified') throw new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the submitted commit; restore the install or check environment, then retry verification; output digest:\n${check.report.replace(/^/gm, '  ')}`);
       if (check.state === 'red') throw new Refused('CHECK_RED', `the frozen item check is red at the submitted commit; check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit; output digest:\n${check.report.replace(/^/gm, '  ')}`);
+
       const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
       submissionPaths(root, item, commit, { mainCommit: receipt?.policyCommit, dependencies: dependencySnapshots(board.db, item) });
+      requireTrunkMerge(root, commit); // Re-read after the frozen check, before accepting.
     }
     return await ordered(ctx, board, 'verify', [id, {
       agentId: me.id,
@@ -1827,6 +1855,16 @@ function workCommands(io, args) {
       return 0;
     }),
     add: () => act(async (ctx, board, me) => {
+      const recovered = await relayCommandReceipt(ctx.info.root, io.relayCommand);
+      if (recovered) {
+        for (const event of recovered.events) io.onEvent?.(event);
+        const id = recovered.result;
+        io.result?.({ item: store.getItem(board, id) });
+        io.say(`#${id}`);
+        sayCheckBaseline(io, store.getItem(board, id));
+        await relayCommandReceiptReported(ctx.info.root, recovered.move.id);
+        return 0;
+      }
       if (!first || !isLane(ctx.config, first)) throw new Refused('NO_LANE', `no lane "${first ?? ''}"; see: pullboard lanes`);
       const specIds = idList(values.specs);
       const problems = idProblems(loadSpec(ctx.info.root, ctx.config), specIds);
@@ -1856,6 +1894,15 @@ function workCommands(io, args) {
     }),
     edit: () => act(async (ctx, board, me) => {
       const id = idArg(first);
+      const recovered = await relayCommandReceipt(ctx.info.root, io.relayCommand);
+      if (recovered) {
+        for (const event of recovered.events) io.onEvent?.(event);
+        io.result?.({ item: store.getItem(board, id) });
+        io.say(`edited #${id}`);
+        sayCheckBaseline(io, store.getItem(board, id));
+        await relayCommandReceiptReported(ctx.info.root, recovered.move.id);
+        return 0;
+      }
       const brief = briefArg(io, values);
       const change = {
         agentId: me.id,
@@ -1945,6 +1992,15 @@ function workCommands(io, args) {
     done: async () => submitHere(context(io), idArg(first)),
     verify: () => verifyHere(context(io), idArg(first), args),
     merged: () => act(async (ctx, board, me) => {
+      const recovered = await relayCommandReceipt(ctx.info.root, io.relayCommand);
+      if (recovered) {
+        for (const event of recovered.events) io.onEvent?.(event);
+        const commit = recovered.move.args[1].commit;
+        io.result?.({ id: idArg(first), commit });
+        io.say(`#${first} merged as ${commit.slice(0, 12)}`);
+        await relayCommandReceiptReported(ctx.info.root, recovered.move.id);
+        return 0;
+      }
       const commit = resolveCommit(ctx.info.root, second ?? '');
       if (!commit) throw new Refused('NO_COMMIT', `no commit "${second ?? ''}" in this repo`);
       await ordered(ctx, board, 'merged', [idArg(first), { agentId: me.id, commit }]);
@@ -2395,6 +2451,19 @@ async function runCommand(argv, io) {
   }
 }
 
+/** Retain the primary branch on every command without creating a board for global help. */
+function rememberTrunk(io) {
+  let info;
+  try { info = repoInfo(io.cwd); }
+  catch (error) {
+    if (error instanceof Refused && ['NOT_A_REPO', 'NO_REPO', 'CORE_BARE'].includes(error.code)) return;
+    throw error;
+  }
+  if (!info.isMain) return;
+  const primary = mainCheckout(info.root);
+  if (primary?.branch) trunkRef(info.root, primary.branch);
+}
+
 /** Run one command and emit its single versioned JSON result when requested (A1). */
 export async function main(argv, streams) {
   const io = commandOutput(argv, streams);
@@ -2404,6 +2473,9 @@ export async function main(argv, streams) {
   try {
     parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
     const command = parsed.positionals[0];
+    io.relayCommand = { cliOperation: command === 'done' ? 'submit' : command, cwd: resolve(io.cwd),
+      positionals: parsed.positionals.slice(1),
+      values: Object.fromEntries(Object.keys(parsed.values).filter(key => key !== 'json').sort().map(key => [key, parsed.values[key]])) };
     sync = Boolean(command) && !parsed.values.help && !parsed.values.version && !['help', 'version', 'hook', 'init', 'relay', 'tour'].includes(command);
   } catch { sync = false; }
   if (parsed) {
@@ -2428,6 +2500,7 @@ export async function main(argv, streams) {
         if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
       }
     };
+    rememberTrunk(io);
     if (sync) {
       await retry();
       try { await executePersonRequests(io.cwd, io, main); }
