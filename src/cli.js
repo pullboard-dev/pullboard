@@ -76,7 +76,7 @@ export const VERSION = PACKAGE.version;
 const CHECKOUT_LEASES = new WeakMap();
 
 /**
- * Read the grandfather baseline from the primary checkout's attached branch, never a builder's head.
+ * Read the collision baseline from the primary branch, or its retained trunk when detached.
  *
  * @param {string} root
  * @param {string} path
@@ -87,15 +87,19 @@ function coordinatorFile(root, path, revision) {
   const commonDir = git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
   const coordinatorRoot = dirname(commonDir);
   const env = { ...gitChildEnv(root), GIT_NO_REPLACE_OBJECTS: '1' };
-  const branch = spawnSync('git', ['symbolic-ref', '--quiet', 'HEAD'], {
-    cwd: coordinatorRoot, env, encoding: 'utf8',
-  });
-  const ref = (branch.stdout ?? '').trim();
-  if (branch.status !== 0 || !ref.startsWith('refs/heads/')) {
-    throw new Refused(
-      'COORDINATOR_DETACHED',
-      'the primary checkout must be on its attached local branch to establish the collision baseline; the coordinator returns it to its branch',
-    );
+  const primary = mainCheckout(coordinatorRoot);
+  let ref = primary?.branch ?? trunkRef(coordinatorRoot);
+  if (!ref?.startsWith('refs/heads/')) {
+    throw new Refused('NO_TRUNK', 'no trunk branch was recorded; check out the trunk branch in the main checkout once and run pullboard inbox');
+  }
+  if (!primary) {
+    const tip = spawnSync('git', ['--no-replace-objects', 'rev-parse', '--verify', '--quiet', `${ref}^{commit}`], {
+      cwd: coordinatorRoot, env, encoding: 'utf8',
+    });
+    if (tip.status !== 0) {
+      throw new Refused('NO_TRUNK', 'the recorded trunk branch has no readable tip; check out the trunk branch in the main checkout once and run pullboard inbox');
+    }
+    ref = tip.stdout.trim();
   }
   const result = spawnSync('git', ['--no-replace-objects', 'show', `${revision ?? ref}:${path}`], {
     cwd: coordinatorRoot, env, encoding: 'utf8',
