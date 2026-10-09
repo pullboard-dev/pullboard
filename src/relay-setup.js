@@ -19,8 +19,9 @@ export function unlinkedRelayProjects() {
 /** Link one registered project through the previously authorized machine session, with no prompt. */
 export async function autoLinkProject(root, io) {
   const machine = readRelayMachine();
+  if (!machine.autoLink) return;
   const project = repoInfo(root).root;
-  if (!machine.autoLink || machine.excluded.includes(project)) return;
+  if (machine.excluded.includes(project)) return;
   const name = listApiProjects().find(entry => entry.root === project)?.name ?? project;
   try {
     if (!machine.session) throw new Refused('RELAY_SESSION', 'sign in again: pullboard relay on --all');
