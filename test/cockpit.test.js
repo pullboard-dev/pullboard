@@ -3700,6 +3700,54 @@ test('static export redacts structured checkout paths but preserves paths people
   }
 });
 
+test('a short code chip at a line end stays whole, and long code still wraps inside the screen [N26]', { timeout: 90_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for code chip checks.');
+
+  const box = machine();
+  const demo = project(box, 'chip-ends');
+  const long = 'docs/a/very/long/path/that/keeps/going/well/past/any/phone/screen/width.md';
+  box.run(demo.repo, 'shout', 'all', `Pass the --flag option, then read ${long} before you submit.`);
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-chip-end-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor('!!document.querySelector(\'[data-tab="shouts"]\')');
+    await chrome.evaluate('document.querySelector(\'[data-tab="shouts"]\').click()');
+    await chrome.waitFor(`[...document.querySelectorAll('#feed code.inline')].some((code) => code.textContent === ${JSON.stringify(long)})`);
+    for (const width of [375, 1280]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.waitFor(`innerWidth === ${width}`);
+      const seen = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+        const chips = [...document.querySelectorAll('#feed code.inline')];
+        const flag = chips.find((code) => code.textContent === '--flag'), path = chips.find((code) => code.textContent === ${JSON.stringify(long)});
+        const text = flag.parentElement.closest('div');
+        // Long code wraps where the fonts put it, and stays inside the screen.
+        const pathRects = [...path.getClientRects()];
+        const longCode = { fragments: pathRects.length, right: Math.max(...pathRects.map((r) => r.right)), screen: document.documentElement.clientWidth,
+          overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth };
+        // Then end the chip's line three pixels inside the chip, whatever this machine's fonts measure.
+        const start = text.getBoundingClientRect().left, end = flag.getBoundingClientRect().right;
+        text.style.width = (end - start - 3) + 'px';
+        const rects = [...flag.getClientRects()], line = end - start - 3;
+        const atEnd = { fragments: rects.length, display: getComputedStyle(flag).display, width: Math.max(...rects.map((r) => r.width)), line };
+        text.style.width = '';
+        return { atEnd, longCode };
+      })())`));
+      assert.equal(seen.atEnd.fragments, 1, `${width}: a short chip at a line's end moves to the next line whole, never broken after its "--": ${JSON.stringify(seen)}`);
+      assert.equal(seen.atEnd.display, 'inline', `${width}: and it is still inline code, not a bar`);
+      assert.ok(seen.atEnd.width < seen.atEnd.line / 2, `${width}: and compact: ${JSON.stringify(seen.atEnd)}`);
+      if (width === 375) assert.ok(seen.longCode.fragments > 1, `${width}: code longer than its line wraps: ${JSON.stringify(seen.longCode)}`);
+      assert.ok(seen.longCode.right <= seen.longCode.screen + 0.5 && !seen.longCode.overflow, `${width}: and never runs past the screen: ${JSON.stringify(seen.longCode)}`);
+    }
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
 test('real Chrome styles shout code and item text without growing linked lines [N26]', { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for rendered shout checks.');
@@ -3799,14 +3847,14 @@ test('real Chrome styles shout code and item text without growing linked lines [
     assert.match(rendered.shoutHtml, /<code class="inline">pullboard shout<\/code>/, 'pullboard commands are inline code');
     assert.match(rendered.shoutHtml, /<code class="inline">--decision<\/code>/, 'flags are inline code');
     assert.match(rendered.shoutHtml, /<code class="inline">src\/cockpit\.js<\/code>/, 'slash paths are inline code');
-    assert.match(rendered.shoutHtml, /<code class="inline">0123456789abcdef0123456789abcdef01234567<\/code>/, 'hex SHAs are inline code');
+    assert.match(rendered.shoutHtml, /<code class="inline long">0123456789abcdef0123456789abcdef01234567<\/code>/, 'hex SHAs are inline code, long enough to wrap');
     assert.ok((rendered.shoutHtml.match(/<code class="code block">/g) ?? []).length >= 2, 'fences and dollar-prefixed lines are code blocks');
     assert.match(rendered.shoutHtml, /<code class="code block">\$ pullboard claim 1<\/code>/, 'the shell prompt stays visible in command blocks');
     assert.match(rendered.shoutHtml, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/, 'script text is escaped inside code');
     assert.equal(rendered.shoutScripts, 0, 'a shout cannot create a script element');
     assert.match(rendered.outsideHtml, /&lt;script&gt;alert\(2\)&lt;\/script&gt; outside code/, 'script text outside code is escaped too');
     assert.equal(rendered.previewLinks, 1, 'only a path:lines@SHA reference with the original whole-word boundaries becomes an actionable preview');
-    assert.match(rendered.shoutHtml, /Invalid prefix:<code class="inline">SPEC\.md:1-2@/, 'a path:lines@SHA suffix after a colon stays plain inline code');
+    assert.match(rendered.shoutHtml, /Invalid prefix:<code class="inline long">SPEC\.md:1-2@/, 'a path:lines@SHA suffix after a colon stays plain inline code');
     await chrome.evaluate(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"]').click()`);
     await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"]').getAttribute('aria-expanded') === 'true'`);
     await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"] + .code')?.textContent.includes('Demo spec')`);
