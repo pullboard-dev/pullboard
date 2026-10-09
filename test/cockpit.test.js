@@ -608,70 +608,6 @@ test('projects group repos with combined needs and activity, while ungrouped and
   }
 });
 
-test('Spec and Doctrine line up, open on a row and decide with quiet controls [N26, B26]', { timeout: 120_000 }, async (t) => {
-  const executable = chromeExecutable();
-  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for Spec layout checks.');
-
-  const spec = '# Demo spec\n\n## G · Goals\n- G1 [draft, must] One short line. | gate: web test\n- G2 [draft, must] A second draft row. | gate: web test\n- G3 [approved, must] An approved row. | gate: web test\n';
-  const box = machine();
-  project(box, 'spec-layout', spec);
-  const view = await startView(box);
-  const profile = mkdtempSync(join(tmpdir(), 'pullboard-spec-layout-chrome-'));
-  let chrome;
-  /** Where the list and detail cards start, what is picked, and how a row's decision sits beside its text. */
-  const read = async (kind) => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
-    const pane = document.querySelector('[data-pane="${kind}"]');
-    const box = (e) => { const r = e.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: r.height }; };
-    const row = document.querySelector('#${kind}-list .srow[data-row="${kind}:G1"]');
-    const text = row?.querySelector(':scope > span:nth-child(3)');
-    const buttons = row ? [...row.querySelectorAll('[data-row-decision]')] : [];
-    const quiet = (e) => { const s = getComputedStyle(e); return s.borderTopWidth === '0px' && s.backgroundColor === 'rgba(0, 0, 0, 0)'; };
-    const line = text ? parseFloat(getComputedStyle(text).lineHeight) : 0;
-    return { list: box(pane.querySelector('.rows-card')), detail: box(pane.querySelector('.detail')), picked: document.querySelector('#${kind}-list .srow.on')?.dataset.row ?? null,
-      shown: document.querySelector('#${kind}-detail h2 span')?.textContent ?? null, first: document.querySelector('#${kind}-list .srow')?.dataset.row ?? null,
-      row: row && box(row), text: text && box(text), line, buttons: buttons.map((e) => ({ ...box(e), quiet: quiet(e), word: e.textContent })),
-      section: [...document.querySelectorAll('#${kind}-list [data-section-approve], #${kind}-detail [data-row-decision]')].map((e) => quiet(e)),
-      overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth };
-  })())`));
-  try {
-    chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.waitFor("typeof data === 'object' && !!data && !!data.project");
-    for (const width of [1280, 375]) {
-      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      await chrome.evaluate("document.querySelector('[data-tab=spec]').click(); document.querySelector('#spec-chips [data-rows=\"spec:decide\"]').click(); view.row.spec = null; render();");
-      await chrome.waitFor(`innerWidth === ${width} && !!document.querySelector('#spec-list [data-row="spec:G1"]')`);
-      const spec = await read('spec');
-      if (width === 1280) assert.ok(Math.abs(spec.list.top - spec.detail.top) < 0.5, `${width}: the list and the detail start on one line: ${JSON.stringify([spec.list, spec.detail])}`);
-      assert.deepEqual([spec.picked, spec.shown], ['spec:G1', 'G1'], `${width}: with nothing picked, the detail opens on the first row shown`);
-      assert.deepEqual(spec.buttons.map((b) => b.word), ['Approve', 'Decline'], `${width}: an undecided row offers its decision`);
-      assert.ok(spec.buttons.every((b) => b.quiet && b.height >= 44), `${width}: quiet words, no box or fill until hovered, each a 44px target: ${JSON.stringify(spec.buttons)}`);
-      assert.ok(spec.section.length >= 3 && spec.section.every(Boolean), `${width}: Approve all and the detail's decision are quiet too`);
-      if (width === 1280) {
-        assert.ok(spec.buttons.every((b) => b.left >= spec.text.right && Math.abs((b.top + b.bottom) / 2 - (spec.text.top + spec.line / 2)) < spec.line), `${width}: the decision sits beside the text, on its first line: ${JSON.stringify(spec)}`);
-        assert.ok(spec.row.height <= 60, `${width}: so a one-line undecided row is at most 60px tall: ${spec.row.height}`);
-      } else {
-        assert.ok(spec.buttons.every((b) => b.top >= spec.text.bottom - 12), `${width}: on a phone the decision sits under the text: ${JSON.stringify(spec)}`);
-      }
-      assert.ok(!spec.overflow, `${width}: nothing runs off the screen`);
-      // A filter that hides the pick moves it to the new first row; one that keeps it keeps it.
-      await chrome.evaluate("document.querySelector('#spec-list [data-row=\"spec:G2\"]').click()");
-      await chrome.evaluate("document.querySelector('#spec-chips [data-rows=\"spec:all\"]').click()");
-      assert.equal((await read('spec')).picked, 'spec:G2', `${width}: a filter that still shows the pick keeps it`);
-      await chrome.evaluate("document.querySelector('#spec-chips [data-rows=\"spec:approved\"]').click()");
-      const moved = await read('spec');
-      assert.deepEqual([moved.picked, moved.shown], ['spec:G3', 'G3'], `${width}: a filter that hides the pick moves it to the first row shown`);
-      await chrome.evaluate("document.querySelector('[data-tab=doctrine]').click(); view.row.doctrine = null; render();");
-      const doctrine = await read('doctrine');
-      if (width === 1280) assert.ok(Math.abs(doctrine.list.top - doctrine.detail.top) < 0.5, `${width}: Doctrine's cards start on one line too`);
-      assert.ok(doctrine.picked && doctrine.picked === doctrine.first && doctrine.shown === doctrine.first.split(':')[1], `${width}: and Doctrine opens on its first row: ${JSON.stringify([doctrine.picked, doctrine.shown])}`);
-    }
-  } finally {
-    if (chrome) await closeSnapshotChrome(chrome);
-    rmSync(profile, { recursive: true, force: true });
-    await view.stop();
-  }
-});
-
 test('a project with one repo shows once in the project list [N33, N26]', async () => {
   const box = machine();
   const solo = project(box, 'solo', SPEC, { name: 'Solo board', project: 'Solo' });
@@ -3640,6 +3576,70 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
     if (chrome) await closeSnapshotChrome(chrome);
     await view.stop();
     rmSync(profile, { recursive: true, force: true });
+  }
+});
+
+test('Spec and Doctrine line up, open on a row and decide with quiet controls [N26, B26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for Spec layout checks.');
+
+  const spec = '# Demo spec\n\n## G · Goals\n- G1 [draft, must] One short line. | gate: web test\n- G2 [draft, must] A second draft row. | gate: web test\n- G3 [approved, must] An approved row. | gate: web test\n';
+  const box = machine();
+  project(box, 'spec-layout', spec);
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-spec-layout-chrome-'));
+  let chrome;
+  /** Where the list and detail cards start, what is picked, and how a row's decision sits beside its text. */
+  const read = async (kind) => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+    const pane = document.querySelector('[data-pane="${kind}"]');
+    const box = (e) => { const r = e.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: r.height }; };
+    const row = document.querySelector('#${kind}-list .srow[data-row="${kind}:G1"]');
+    const text = row?.querySelector(':scope > span:nth-child(3)');
+    const buttons = row ? [...row.querySelectorAll('[data-row-decision]')] : [];
+    const quiet = (e) => { const s = getComputedStyle(e); return s.borderTopWidth === '0px' && s.backgroundColor === 'rgba(0, 0, 0, 0)'; };
+    const line = text ? parseFloat(getComputedStyle(text).lineHeight) : 0;
+    return { list: box(pane.querySelector('.rows-card')), detail: box(pane.querySelector('.detail')), picked: document.querySelector('#${kind}-list .srow.on')?.dataset.row ?? null,
+      shown: document.querySelector('#${kind}-detail h2 span')?.textContent ?? null, first: document.querySelector('#${kind}-list .srow')?.dataset.row ?? null,
+      row: row && box(row), text: text && box(text), line, buttons: buttons.map((e) => ({ ...box(e), quiet: quiet(e), word: e.textContent })),
+      section: [...document.querySelectorAll('#${kind}-list [data-section-approve], #${kind}-detail [data-row-decision]')].map((e) => quiet(e)),
+      overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth };
+  })())`));
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("typeof data === 'object' && !!data && !!data.project");
+    for (const width of [1280, 375]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.evaluate("document.querySelector('[data-tab=spec]').click(); document.querySelector('#spec-chips [data-rows=\"spec:decide\"]').click(); view.row.spec = null; render();");
+      await chrome.waitFor(`innerWidth === ${width} && !!document.querySelector('#spec-list [data-row="spec:G1"]')`);
+      const spec = await read('spec');
+      if (width === 1280) assert.ok(Math.abs(spec.list.top - spec.detail.top) < 0.5, `${width}: the list and the detail start on one line: ${JSON.stringify([spec.list, spec.detail])}`);
+      assert.deepEqual([spec.picked, spec.shown], ['spec:G1', 'G1'], `${width}: with nothing picked, the detail opens on the first row shown`);
+      assert.deepEqual(spec.buttons.map((b) => b.word), ['Approve', 'Decline'], `${width}: an undecided row offers its decision`);
+      assert.ok(spec.buttons.every((b) => b.quiet && b.height >= 44), `${width}: quiet words, no box or fill until hovered, each a 44px target: ${JSON.stringify(spec.buttons)}`);
+      assert.ok(spec.section.length >= 3 && spec.section.every(Boolean), `${width}: Approve all and the detail's decision are quiet too`);
+      if (width === 1280) {
+        assert.ok(spec.buttons.every((b) => b.left >= spec.text.right && Math.abs((b.top + b.bottom) / 2 - (spec.text.top + spec.line / 2)) < spec.line), `${width}: the decision sits beside the text, on its first line: ${JSON.stringify(spec)}`);
+        assert.ok(spec.row.height <= 60, `${width}: so a one-line undecided row is at most 60px tall: ${spec.row.height}`);
+      } else {
+        assert.ok(spec.buttons.every((b) => b.top >= spec.text.bottom - 12), `${width}: on a phone the decision sits under the text: ${JSON.stringify(spec)}`);
+      }
+      assert.ok(!spec.overflow, `${width}: nothing runs off the screen`);
+      // A filter that hides the pick moves it to the new first row; one that keeps it keeps it.
+      await chrome.evaluate("document.querySelector('#spec-list [data-row=\"spec:G2\"]').click()");
+      await chrome.evaluate("document.querySelector('#spec-chips [data-rows=\"spec:all\"]').click()");
+      assert.equal((await read('spec')).picked, 'spec:G2', `${width}: a filter that still shows the pick keeps it`);
+      await chrome.evaluate("document.querySelector('#spec-chips [data-rows=\"spec:approved\"]').click()");
+      const moved = await read('spec');
+      assert.deepEqual([moved.picked, moved.shown], ['spec:G3', 'G3'], `${width}: a filter that hides the pick moves it to the first row shown`);
+      await chrome.evaluate("document.querySelector('[data-tab=doctrine]').click(); view.row.doctrine = null; render();");
+      const doctrine = await read('doctrine');
+      if (width === 1280) assert.ok(Math.abs(doctrine.list.top - doctrine.detail.top) < 0.5, `${width}: Doctrine's cards start on one line too`);
+      assert.ok(doctrine.picked && doctrine.picked === doctrine.first && doctrine.shown === doctrine.first.split(':')[1], `${width}: and Doctrine opens on its first row: ${JSON.stringify([doctrine.picked, doctrine.shown])}`);
+    }
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
   }
 });
 
