@@ -46,18 +46,30 @@ export async function startChrome({ url = 'about:blank', executable = findChrome
   const profile = resolve(profileDirectory ?? mkdtempSync(join(tmpdir(), 'pullboard-relay-chrome-')));
   mkdirSync(profile, { recursive: true, mode: 0o700 });
   chmodSync(profile, 0o700);
-  const child = spawn(executable, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
+  const args = ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
     '--disable-background-networking', '--disable-sync', '--disable-extensions', '--no-proxy-server',
-    '--use-mock-keychain', '--password-store=basic', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'],
-  { detached: true, stdio: ['ignore', 'ignore', 'ignore'] });
-  const stopped = new Promise((resolveStopped) => child.once('close', resolveStopped));
-  let startupFailed = false;
-  child.once('error', () => { startupFailed = true; });
+    '--use-mock-keychain', '--password-store=basic', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'];
+  let child;
+  let stopped;
+  let port;
   let socket;
   let id = 0;
   const pending = new Map();
   try {
-    const port = await readDevToolsPort(profile, child, () => startupFailed);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      if (attempt > 0) rmSync(join(profile, 'DevToolsActivePort'), { force: true });
+      child = spawn(executable, args, { detached: true, stdio: ['ignore', 'ignore', 'ignore'] });
+      stopped = new Promise((resolveStopped) => child.once('close', resolveStopped));
+      let startupFailed = false;
+      child.once('error', () => { startupFailed = true; });
+      try {
+        port = await readDevToolsPort(profile, child, () => startupFailed);
+        break;
+      } catch (error) {
+        await stopOwnedChrome(child, stopped);
+        if (attempt === 1) throw error;
+      }
+    }
     const target = await createPageTarget(port);
     socket = await connectDevTools(target.webSocketDebuggerUrl);
     const send = createSender(socket, pending, () => ++id);
@@ -96,7 +108,7 @@ export async function startChrome({ url = 'about:blank', executable = findChrome
     socket?.close();
     rejectPending(pending, 'Isolated Chrome stopped before startup completed.');
     try {
-      await stopOwnedChrome(child, stopped);
+      if (child && stopped) await stopOwnedChrome(child, stopped);
     } finally {
       if (ownedProfile) rmSync(profile, { recursive: true, force: true });
     }
@@ -108,12 +120,12 @@ export async function startChrome({ url = 'about:blank', executable = findChrome
 async function readDevToolsPort(profile, child, hasStartupFailed) {
   const deadline = Date.now() + STARTUP_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    if (hasStartupFailed()) throw new Error('Isolated Chrome could not start.');
-    if (child.exitCode !== null || child.signalCode !== null) throw new Error('Isolated Chrome exited during startup.');
     try {
       const port = Number(readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0]);
       if (Number.isInteger(port) && port > 0 && port <= 65_535) return port;
     } catch { /* Chrome has not published the local DevTools port yet. */ }
+    if (hasStartupFailed()) throw new Error('Isolated Chrome could not start.');
+    if (child.exitCode !== null || child.signalCode !== null) throw new Error('Isolated Chrome exited during startup.');
     await pause(50);
   }
   throw new Error('Isolated Chrome did not publish its DevTools port.');
