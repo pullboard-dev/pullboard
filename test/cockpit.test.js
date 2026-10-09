@@ -3708,6 +3708,9 @@ test('a short code chip at a line end stays whole, and long code still wraps ins
   const demo = project(box, 'chip-ends');
   const long = 'docs/a/very/long/path/that/keeps/going/well/past/any/phone/screen/width.md';
   box.run(demo.repo, 'shout', 'all', `Pass the --flag option, then read ${long} before you submit.`);
+  // Twenty-four wide characters are short by count but take two columns each: about 320px of one chip.
+  const wide = '中文'.repeat(12);
+  box.run(demo.repo, 'shout', 'all', 'Wide code `' + wide + '` wraps too.');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-chip-end-chrome-'));
   let chrome;
@@ -3715,8 +3718,8 @@ test('a short code chip at a line end stays whole, and long code still wraps ins
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor('!!document.querySelector(\'[data-tab="shouts"]\')');
     await chrome.evaluate('document.querySelector(\'[data-tab="shouts"]\').click()');
-    await chrome.waitFor(`[...document.querySelectorAll('#feed code.inline')].some((code) => code.textContent === ${JSON.stringify(long)})`);
-    for (const width of [375, 1280]) {
+    await chrome.waitFor(`[...document.querySelectorAll('#feed code.inline')].some((code) => code.textContent === ${JSON.stringify(wide)})`);
+    for (const width of [320, 375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor(`innerWidth === ${width}`);
       const seen = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
@@ -3727,18 +3730,21 @@ test('a short code chip at a line end stays whole, and long code still wraps ins
         const pathRects = [...path.getClientRects()];
         const longCode = { fragments: pathRects.length, right: Math.max(...pathRects.map((r) => r.right)), screen: document.documentElement.clientWidth,
           overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth };
+        const wideRects = [...chips.find((code) => code.textContent === ${JSON.stringify(wide)}).getClientRects()];
+        const wideCode = { fragments: wideRects.length, right: Math.max(...wideRects.map((r) => r.right)), screen: document.documentElement.clientWidth };
         // Then end the chip's line three pixels inside the chip, whatever this machine's fonts measure.
-        const start = text.getBoundingClientRect().left, end = flag.getBoundingClientRect().right;
+        const start = text.getBoundingClientRect().left, end = flag.getBoundingClientRect().right, line = text.getBoundingClientRect().width;
         text.style.width = (end - start - 3) + 'px';
-        const rects = [...flag.getClientRects()], line = end - start - 3;
+        const rects = [...flag.getClientRects()];
         const atEnd = { fragments: rects.length, display: getComputedStyle(flag).display, width: Math.max(...rects.map((r) => r.width)), line };
         text.style.width = '';
-        return { atEnd, longCode };
+        return { atEnd, longCode, wideCode };
       })())`));
       assert.equal(seen.atEnd.fragments, 1, `${width}: a short chip at a line's end moves to the next line whole, never broken after its "--": ${JSON.stringify(seen)}`);
       assert.equal(seen.atEnd.display, 'inline', `${width}: and it is still inline code, not a bar`);
       assert.ok(seen.atEnd.width < seen.atEnd.line / 2, `${width}: and compact: ${JSON.stringify(seen.atEnd)}`);
       if (width === 375) assert.ok(seen.longCode.fragments > 1, `${width}: code longer than its line wraps: ${JSON.stringify(seen.longCode)}`);
+      assert.ok(seen.wideCode.right <= seen.wideCode.screen + 0.5, `${width}: so does code of wide characters, by the columns it takes: ${JSON.stringify(seen.wideCode)}`);
       assert.ok(seen.longCode.right <= seen.longCode.screen + 0.5 && !seen.longCode.overflow, `${width}: and never runs past the screen: ${JSON.stringify(seen.longCode)}`);
     }
   } finally {

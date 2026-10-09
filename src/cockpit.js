@@ -191,8 +191,11 @@ function theme(pick) {
 }
 theme(keep('pb.theme'));
 const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-// Inline code: a short chip stays whole on its line; one longer than a phone line's worth may wrap.
-const codeChip = (text) => '<code class="inline' + (String(text).length > 24 ? ' long' : '') + '">' + esc(text) + '</code>';
+// Inline code: a short chip stays whole on its line; one wider than a phone line's worth may wrap. Width
+// is in columns, as a terminal counts them: CJK, full-width and emoji characters take two.
+const wideChar = (c) => { const p = c.codePointAt(0); return (p >= 0x1100 && p <= 0x115f) || (p >= 0x2e80 && p <= 0xa4cf) || (p >= 0xac00 && p <= 0xd7a3) || (p >= 0xf900 && p <= 0xfaff) || (p >= 0xfe30 && p <= 0xfe4f) || (p >= 0xff00 && p <= 0xff60) || (p >= 0xffe0 && p <= 0xffe6) || (p >= 0x1f300 && p <= 0x1faff) || (p >= 0x20000 && p <= 0x3fffd); };
+const columns = (text) => [...String(text)].reduce((n, c) => n + (wideChar(c) ? 2 : 1), 0);
+const codeChip = (text) => '<code class="inline' + (columns(text) > 24 ? ' long' : '') + '">' + esc(text) + '</code>';
 const ago = (iso) => { const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 1 ? 'now' : m < 60 ? m + 'm' : m < 2880 ? Math.round(m / 60) + 'h' : Math.round(m / 1440) + 'd'; };
 // An age as the page shows it: the moment it counts from stays on it, so tickAges can move it on.
 const age = (iso) => '<time data-ago="' + esc(iso) + '">' + ago(iso) + '</time>';
