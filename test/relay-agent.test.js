@@ -73,15 +73,50 @@ async function waitForPhoneProposal(box, start, target) {
     if (!record) return null;
     try {
       const context = JSON.parse(record.request.toString('utf8')).context;
-      return context?.action === 'revoke-token' && context.target === target ? context : null;
-    } catch { return null; }
+      if (context?.action !== 'revoke-token' || context.target !== target) return null;
+      const response = JSON.parse(record.response.toString('utf8'));
+      assert.equal(response.error?.code, undefined, 'the relay accepts the exact native approval proposal');
+      assert.equal(response.approval?.state, 'waiting', 'the proposal is durably waiting before any phone tap');
+      assert.equal(response.approval?.context?.id, context.id, 'the relay acknowledges the same proposal id');
+      return context;
+    } catch (error) {
+      if (error?.code === 'ERR_ASSERTION') throw error;
+      return null;
+    }
   }, 'the revocation publishes one exact phone approval request');
 }
 
 /** Read and click only the paired-phone card for this opaque target id. */
-async function approvePhoneProposal(chrome, proposal) {
+async function approvePhoneProposal(box, chrome, proposal) {
   const selector = `.phone-approval[data-request="${proposal.id}"]`;
-  await chrome.waitFor(`Boolean(document.querySelector(${JSON.stringify(selector)})?.querySelector('button'))`);
+  try {
+    await chrome.waitFor(`Boolean(document.querySelector(${JSON.stringify(selector)})?.querySelector('button'))`);
+  } catch (error) {
+    let page = { capture: 'unavailable' };
+    try {
+      page = await chrome.evaluate(`(() => {
+        const panel = document.getElementById('phone-approvals');
+        let boardKeyKnown = false;
+        try { boardKeyKnown = Object.hasOwn(JSON.parse(localStorage.getItem('pullboard.relay.keys.v1') || '{}'), ${JSON.stringify(proposal.publisher)}); } catch {}
+        return { readyState: document.readyState, path: location.pathname, panel: Boolean(panel),
+          panelError: (panel?.getAttribute('data-error') || '').slice(0, 200),
+          cards: panel?.children.length ?? 0, boardKeyKnown,
+          signIn: Boolean(document.querySelector('a[href="/auth/github/start"]')) };
+      })()`, 'redacted phone approval failure capture', 1000);
+    } catch { /* Preserve the original failure when the renderer cannot answer diagnostics. */ }
+    const inboxPath = '/api/v1/devices/' + proposal.device + '/approvals';
+    const inbox = box.transit.findLast(row => row.method === 'GET' && row.path === inboxPath);
+    let response = null;
+    try {
+      const document = JSON.parse(inbox?.response.toString('utf8') || '{}');
+      const row = document.approvals?.find(value => value.context?.id === proposal.id);
+      response = { error: document.error?.code ?? null, pending: document.approvals?.length ?? null,
+        targetPresent: Boolean(row), state: row?.state ?? null };
+    } catch { /* Transport diagnostics retain only known metadata, never ciphertext or credentials. */ }
+    error.message += '; redacted approval evidence: ' + JSON.stringify({ page, response,
+      inboxReads: box.calls.filter(row => row.method === 'GET' && row.path === inboxPath).length });
+    throw error;
+  }
   const card = await chrome.evaluate(`(() => {
     const node = document.querySelector(${JSON.stringify(selector)});
     return { text: node.querySelector('p')?.textContent, action: node.querySelector('button')?.textContent };
@@ -274,7 +309,7 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
   const nativeProposal = await waitForPhoneProposal(box, nativeRevokeStart, firstTokenRow.id);
   assert.equal(box.calls.filter((call) => call.path.endsWith('/authorize')).length, firstApprovalCount,
     'native revocation waits for a phone tap');
-  await approvePhoneProposal(chrome, nativeProposal);
+  await approvePhoneProposal(box, chrome, nativeProposal);
   const revoke = await nativeRevoke.done;
   assert.equal(revoke.code, 0, 'CLI revokes one listed opaque token id');
   assert.equal(box.calls.filter((call) => call.path.endsWith('/authorize')).length, firstApprovalCount + 1,
@@ -288,7 +323,7 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
   const apiProposal = await waitForPhoneProposal(box, apiRevokeStart, firstTokenRow.id);
   assert.equal(box.calls.filter((call) => call.path.endsWith('/authorize')).length, apiApprovalCount,
     'local API revocation waits for a phone tap');
-  await approvePhoneProposal(chrome, apiProposal);
+  await approvePhoneProposal(box, chrome, apiProposal);
   const apiRevokeResponse = await apiRevokePending;
   assert.equal(apiRevokeResponse.status, 200, 'local API accepts the opaque id-only revocation body');
   assert.equal(box.calls.filter((call) => call.path.endsWith('/authorize')).length, apiApprovalCount + 1,
