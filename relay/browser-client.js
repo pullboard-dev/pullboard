@@ -5,6 +5,7 @@ import { snapshotState, presentationState } from './model.js';
 import { ENGINE_VERSION } from './engine.js';
 import { Refused } from './refused.js';
 import { enqueueStream, followStream } from './browser-stream.js';
+import { noticeLines } from './browser-notice.js';
 
 const KEYS = 'pullboard.relay.keys.v1';
 const PENDING = 'pullboard.relay.pair.v1';
@@ -81,15 +82,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     const element = document.getElementById('relay-notice');
     if (!element) return;
     element.replaceChildren();
-    const lines = ['Requests from this device wait for a linked machine to run Pullboard.'];
-    const unpaired = available.filter(board => !paired.has(board.id));
-    for (const board of unpaired) lines.push(board.repository + ': pair this browser using a link or QR from a linked machine.');
-    for (const warning of warnings) if (warning?.code === 'BOARD_INACTIVE' && Number.isInteger(warning.daysLeft)) {
-      lines.push('BOARD_INACTIVE: ' + warning.daysLeft + ' days left before this relay board is deleted. Make a board move from a linked machine to keep it.');
-    }
-    if (failure) lines.push(failure);
-    if (!available.length) lines.push('No linked boards are available for this account.');
-    for (const text of lines) {
+    for (const text of noticeLines({ available, paired, warnings, failure })) {
       const paragraph = document.createElement('p');
       paragraph.textContent = text;
       element.append(paragraph);
