@@ -10,9 +10,13 @@ import { test } from 'node:test';
 test('tests run without inherited Git identity or config and refuse ambient pullboard [C7, S13]', (t) => {
   assert.equal(process.env.GIT_CONFIG_GLOBAL, '/dev/null');
   assert.equal(process.env.GIT_CONFIG_NOSYSTEM, '1');
-  assert.equal(process.env.GIT_CONFIG_COUNT, '1');
+  assert.equal(process.env.GIT_CONFIG_COUNT, '3');
   assert.equal(process.env.GIT_CONFIG_KEY_0, 'user.useConfigOnly');
   assert.equal(process.env.GIT_CONFIG_VALUE_0, 'true');
+  assert.equal(process.env.GIT_CONFIG_KEY_1, 'gc.auto');
+  assert.equal(process.env.GIT_CONFIG_VALUE_1, '0');
+  assert.equal(process.env.GIT_CONFIG_KEY_2, 'maintenance.auto');
+  assert.equal(process.env.GIT_CONFIG_VALUE_2, 'false');
   assert.equal(process.env.GIT_AUTHOR_NAME, undefined);
   assert.equal(process.env.GIT_AUTHOR_EMAIL, undefined);
   assert.equal(process.env.GIT_COMMITTER_NAME, undefined);
@@ -29,6 +33,12 @@ test('tests run without inherited Git identity or config and refuse ambient pull
   const identity = spawnSync('git', ['var', 'GIT_AUTHOR_IDENT'], { cwd: root, encoding: 'utf8' });
   assert.notEqual(identity.status, 0, 'Git refuses to infer an author identity from the machine');
   assert.match(identity.stderr, /author identity unknown/i);
+  const autoGc = spawnSync('git', ['config', '--get', 'gc.auto'], { cwd: root, encoding: 'utf8' });
+  const autoMaintenance = spawnSync('git', ['config', '--get', 'maintenance.auto'], { cwd: root, encoding: 'utf8' });
+  assert.equal(autoGc.status, 0, autoGc.stderr);
+  assert.equal(autoGc.stdout.trim(), '0');
+  assert.equal(autoMaintenance.status, 0, autoMaintenance.stderr);
+  assert.equal(autoMaintenance.stdout.trim(), 'false');
 
   const refused = spawnSync('pullboard', ['init'], { cwd: root, encoding: 'utf8' });
   assert.equal(refused.status, 1);
