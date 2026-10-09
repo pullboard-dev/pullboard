@@ -1,10 +1,10 @@
 /** A paired browser seals person intent; only native Pullboard executes it [H12,H16,B26]. */
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { decodeBoardKey, seal } from '../src/seal.js';
+import { decodeBoardKey, seal, unseal } from '../src/seal.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { findChromeExecutable, relayWorkBudgetMs, startChrome } from './relay-browser-fixture.js';
 import { assertSnapshotCheckpoints, cliChildDeadlineMs, relayClientFixture } from './relay-client-fixture.js';
@@ -55,7 +55,7 @@ async function signIn(chrome, box) {
   assert.equal(result.success, true, 'the real person session is installed in the isolated browser');
 }
 
-/** Pair a real browser, then create the same transport module used by the relay cockpit. */
+/** Pair a real browser and retain the transport already owned by its cockpit. */
 async function pairedTransport(chrome, box, title) {
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const encoded = readFileSync(box.keyFile, 'utf8').trim();
@@ -344,7 +344,7 @@ test('coordinator decline resolves a paired approval request with a reason and l
   box.assertCliChildrenComplete();
 });
 
-
+/** Exercise the real product abort and require the persisted checkpoint to keep its sealed bytes. */
 test('a timed-out checkpoint PUT retries identical ciphertext through the native status flow [H16,C7]', async t => {
   const box = await relayClientFixture(t);
   await box.link();
@@ -380,4 +380,55 @@ test('a timed-out checkpoint PUT retries identical ciphertext through the native
   const exported = (await box.cli('export')).document;
   assert.equal(exported.tables.shout.filter(row => row.shout_text === 'RETRY_CHECKPOINT_CONTROL').length, 1,
     'the identical checkpoint retry does not execute the person intent twice');
+});
+
+/** Prove that a newer committed snapshot covers a timed-out earlier projection. */
+test('a newer acknowledged checkpoint covers an earlier timed-out PUT [H16,C7]', async t => {
+  const box = await relayClientFixture(t);
+  await box.link();
+  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
+  const intent = { version: 1, type: 'person-request', id: randomUUID(),
+    move: { verb: 'shout', args: { to: 'coordinator', text: 'COVERED_CHECKPOINT_CONTROL' } } };
+  const sealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(intent)), {
+    boardId: link.board, kind: 'request', sequence: 1,
+  })).toString('base64url');
+  const response = await fetch(box.origin + '/api/v1/boards/' + link.board + '/requests', {
+    method: 'POST', headers: { authorization: 'Bearer ' + link.token,
+      'x-pullboard-engine': String(ENGINE_VERSION), 'content-type': 'application/json' },
+    body: JSON.stringify({ sequence: 1, sealed }),
+  });
+  assert.equal(response.status, 200);
+  const before = box.snapshotWriteRecords().length;
+  // The initial checkpoint times out before newer committed receipt checkpoints replace it.
+  box.delaySnapshotWriteOnce(1, 10100);
+  const result = await box.cliWithSnapshotTrace(3, 'status');
+  assert.equal(result.code, 0);
+  const trace = result.snapshotTrace;
+  t.diagnostic('controlled superseded checkpoint: ' + JSON.stringify({ fetches: trace,
+    relayReceives: box.snapshotWriteRecords().slice(before) }));
+  assertSnapshotCheckpoints(trace, 3);
+  assert.equal(trace.length, 3, 'a newer committed checkpoint supersedes the timed-out projection');
+  assert.equal(trace[0].abort?.name, 'TimeoutError');
+  assert.ok(trace[0].elapsedMs >= 9900, 'the actual ten-second product request bound expired');
+  assert.ok(trace[1].sequence > trace[0].sequence);
+  assert.ok(trace[2].sequence > trace[1].sequence);
+  assert.equal(trace[2].status, 200);
+  assert.equal(result.snapshotDeadlineMs, cliChildDeadlineMs(trace.length));
+  const stateResponse = await fetch(box.origin + '/api/v1/boards/' + link.board + '/state', {
+    headers: { authorization: 'Bearer ' + link.token, 'x-pullboard-engine': String(ENGINE_VERSION) },
+  });
+  assert.equal(stateResponse.status, 200);
+  const saved = (await stateResponse.json()).state;
+  assert.equal(saved.sequence, trace.at(-1).sequence, 'the relay retains the newest acknowledged checkpoint');
+  assert.equal(createHash('sha256').update(saved.sealed).digest('hex'), trace.at(-1).ciphertext);
+  const restored = JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(saved.sealed, 'base64url'), {
+    boardId: link.board, kind: 'snapshot', sequence: saved.sequence,
+  })));
+  const exported = (await box.cli('export')).document;
+  assert.equal(Number(exported.tables.board_meta.find(row => row.meta_key === 'relay_applied_sequence').meta_value), saved.sequence);
+  assert.equal(Number(restored.tables.board_meta.find(row => row.meta_key === 'relay_applied_sequence').meta_value), saved.sequence);
+  assert.equal(restored.tables.shout.filter(row => row.shout_text === 'COVERED_CHECKPOINT_CONTROL').length, 1);
+  assert.equal(exported.tables.shout.filter(row => row.shout_text === 'COVERED_CHECKPOINT_CONTROL').length, 1,
+    'the covering checkpoint does not execute the person intent twice');
 });

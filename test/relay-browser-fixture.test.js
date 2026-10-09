@@ -36,20 +36,33 @@ test('paired Chrome excludes idle event streams and reports only held state requ
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
   const box = await relayClientFixture(t);
-  const title = 'RELAY_BROWSER_PENDING_DIAGNOSTIC';
-  assert.equal((await box.cli('add', box.lane, title)).code, 0);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
-  const key = readFileSync(box.keyFile, 'utf8').trim();
   const chrome = await startChrome({ commandTimeoutMs: 15000 });
   t.after(() => chrome.close());
   const cookie = await chrome.send('Network.setCookie', {
     name: 'pb_session', value: link.token, url: box.origin, httpOnly: true, sameSite: 'Lax',
   });
   assert.equal(cookie.success, true);
-  await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + key);
-  await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')', relayWorkBudgetMs());
-  await chrome.waitForRelayIdle();
+  // A static same-origin document has no cockpit refresh timer to start ordinary reads mid-probe.
+  await chrome.navigate(box.origin + '/view.css');
+  await chrome.waitFor('document.readyState === "complete"');
+  const stateResponse = await fetch(box.origin + '/api/v1/boards/' + link.board + '/state', {
+    headers: { authorization: 'Bearer ' + link.token, 'x-pullboard-engine': String(ENGINE_VERSION) },
+  });
+  assert.equal(stateResponse.status, 200);
+  const snapshot = (await stateResponse.json()).state;
+  const streamPath = '/api/v1/boards/' + link.board + '/events?after=' + snapshot.sequence;
+  const streamTask = await chrome.startTask(`fetch(${JSON.stringify(streamPath)}, {
+    credentials: 'same-origin', headers: { 'x-pullboard-engine': ${ENGINE_VERSION}, accept: 'text/event-stream' }
+  }).then(response => { window.__diagnosticStream = response.body.getReader();
+    return { status: response.status, type: response.headers.get('content-type') }; })`, 'authenticated idle event stream');
+  const stream = await chrome.pollTask(streamTask);
+  assert.equal(stream.status, 200);
+  assert.match(stream.type, /text\/event-stream/);
+  assert.ok(box.calls.some(call => call.path === streamPath && call.accept === 'text/event-stream'),
+    'the real relay accepted the idle event stream before the stalled probe');
+  await assert.doesNotReject(chrome.waitForRelayIdle(), 'a real idle event stream is excluded from ordinary pending requests');
   await stalledCommand(chrome, 'idle paired stream probe', false);
 
   const before = box.stateReadStarted();

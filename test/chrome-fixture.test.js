@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { launchChromeProcess, startChrome } from './chrome-fixture.js';
+import { findChromeExecutable, launchChromeProcess, startChrome } from './chrome-fixture.js';
 
 /** Pause between checks while waiting for a fixture helper's readiness marker. */
 function pause(ms) {
@@ -121,8 +121,9 @@ test('Chrome close releases inherited stderr after its owned process group exits
   const chrome = launchChromeProcess({ executable: process.execPath, args: ['-e', leader, holder, ready] });
   let holderPid;
   t.after(async () => {
-    if (holderPid) { try { process.kill(holderPid, 'SIGKILL'); } catch { /* The private stand-in already stopped. */ } }
     try { await chrome.close(); } catch { /* Retain the original close assertion on a broken implementation. */ }
+    if (!holderPid && existsSync(ready)) holderPid = Number(readFileSync(ready, 'utf8'));
+    if (holderPid) { try { process.kill(holderPid, 'SIGKILL'); } catch { /* The private stand-in already stopped. */ } }
     rmSync(directory, { recursive: true, force: true });
   });
   await waitForFile(ready);
@@ -169,4 +170,17 @@ test('a failed browser evaluation names what the page threw [C7]', async () => {
   } finally {
     await chrome.close();
   }
+});
+
+/** Prove a page condition cannot spend the much longer general command allowance. */
+test('a stalled condition uses its remaining operation budget [C7]', {
+  skip: !findChromeExecutable() && 'Chrome is not installed',
+}, async t => {
+  const chrome = await startChrome();
+  t.after(() => chrome.close());
+  const started = Date.now();
+  await assert.rejects(chrome.waitFor('new Promise(() => {})', 250, 'bounded condition'),
+    /Browser condition "bounded condition" did not arrive within 250ms/u);
+  assert.ok(Date.now() - started < 10_000, 'the 250ms operation never consumes the 15000ms command allowance');
+  assert.equal(await chrome.evaluate('1 + 1'), 2, 'timing out one command leaves the real DevTools connection usable');
 });

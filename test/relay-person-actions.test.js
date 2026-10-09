@@ -46,7 +46,7 @@ async function personAction(chrome, board, move) {
 async function waitRequest(chrome, board, id, status) {
   const path = '/api/v1/boards/' + board + '/state';
   const predicate = `value.state?.personRequests?.some(entry => entry.id === ${JSON.stringify(id)} && entry.status === ${JSON.stringify(status)})`;
-  // Product checkpoint work is bounded at 15 seconds; ten seconds remain for scheduling and polling.
+  // Share the native command, bounded snapshot attempts and scheduling allowance.
   const task = await chrome.startTask(`(async () => {
       const deadline = Date.now() + ${relayWorkBudgetMs()};
       while (Date.now() < deadline) {
@@ -172,7 +172,7 @@ test('a person action completes with late native snapshots after 8 seconds [H12,
   const native = box.cliWithSnapshotUploads(3, 'status').then(result => ({ result }), error => ({ error }));
   const status = await native;
   box.delaySnapshotWrites(0);
-  assert.equal(status.error, undefined, 'the real native CLI completes within its product deadline plus margin');
+  assert.equal(status.error, undefined, 'the real native CLI completes within its upload-derived fixture budget');
   assert.equal(status.result.code, 0, 'the real native CLI reports success');
   const delays = box.snapshotWriteDelays().slice(delayedBefore);
   assertSnapshotCheckpoints(status.result.snapshotTrace, 3);

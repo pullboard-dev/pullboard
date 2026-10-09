@@ -125,6 +125,7 @@ export async function startChrome({
     '--use-mock-keychain', '--password-store=basic', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'];
   let launched;
   let socket;
+  let loopDelay;
   let id = 0;
   const pending = new Map();
   try {
@@ -133,7 +134,7 @@ export async function startChrome({
     const port = await readDevToolsPort(profile, launched, deadline);
     const target = await createPageTarget(port, deadline);
     socket = await connectDevTools(target.webSocketDebuggerUrl, deadline);
-    const loopDelay = monitorEventLoopDelay({ resolution: 10 });
+    loopDelay = monitorEventLoopDelay({ resolution: 10 });
     loopDelay.enable();
     const relayRequests = new Set();
     const send = createSender(socket, pending, () => ++id, commandTimeoutMs, loopDelay, relayRequests);
@@ -148,8 +149,12 @@ export async function startChrome({
     async function waitFor(expression, timeoutMs = commandTimeoutMs, label = 'wait for page condition') {
       const waitDeadline = Date.now() + timeoutMs;
       while (Date.now() < waitDeadline) {
-        if (await evaluate(expression, label)) return;
-        await pause(50);
+        try {
+          if (await evaluate(expression, label, waitDeadline - Date.now())) return;
+        } catch (error) {
+          if (error.code !== 'CDP_TIMEOUT' || Date.now() < waitDeadline) throw error;
+        }
+        await pause(Math.max(0, Math.min(50, waitDeadline - Date.now())));
       }
       throw new Error(`Browser condition "${label}" did not arrive within ${timeoutMs}ms.`);
     }
@@ -177,8 +182,9 @@ export async function startChrome({
     /** Poll asynchronous page work while each DevTools command stays short. */
     async function pollTask(taskId, timeoutMs = taskTimeoutMs, label = 'poll page operation') {
       const key = JSON.stringify(taskId);
+      const deadline = Date.now() + timeoutMs;
       await waitFor(`window[${key}] !== null && window[${key}] !== undefined`, timeoutMs, label);
-      const result = await evaluate(`window[${key}]`, label + ' result');
+      const result = await evaluate(`window[${key}]`, label + ' result', deadline - Date.now());
       if (result?.error) {
         const error = new Error(`${label} failed${result.error.code ? ' [' + result.error.code + ']' : ''}: ${result.error.message}`);
         if (result.error.code) error.code = result.error.code;
@@ -196,10 +202,10 @@ export async function startChrome({
       await launched.close();
       if (ownedProfile) rmSync(profile, { recursive: true, force: true });
     }
-    await send('Network.enable', {}, 'enable network diagnostics');
-    await send('Page.enable', {}, 'enable page diagnostics');
-    await send('Runtime.enable', {}, 'enable runtime diagnostics');
-    await send('Page.navigate', { url }, 'open initial page');
+    await send('Network.enable', {}, 'enable network diagnostics', deadline - Date.now());
+    await send('Page.enable', {}, 'enable page diagnostics', deadline - Date.now());
+    await send('Runtime.enable', {}, 'enable runtime diagnostics', deadline - Date.now());
+    await send('Page.navigate', { url }, 'open initial page', deadline - Date.now());
     const launchDurationMs = launched.launchDurationMs;
     process.stderr.write(`Chrome ready in ${launchDurationMs}ms (${startupTimeoutMs}ms DevTools budget)\n`);
     return {
@@ -216,6 +222,7 @@ export async function startChrome({
       close,
     };
   } catch (error) {
+    loopDelay?.disable();
     socket?.close();
     rejectPending(pending, 'Isolated Chrome stopped before startup completed.');
     const launchDurationMs = launched?.launchDurationMs ?? 0;
@@ -293,7 +300,7 @@ function createSender(socket, pending, nextId, timeoutMs, loopDelay, relayReques
     else waiter.resolve(message.result);
   }
   socket.addEventListener('message', onMessage);
-  return (method, params = {}, label = method) => new Promise((resolveResult, rejectResult) => {
+  return (method, params = {}, label = method, remainingMs = timeoutMs) => new Promise((resolveResult, rejectResult) => {
     const requestId = nextId();
     const startedAt = Date.now();
     const maxDelayAtSend = loopDelay.max;
@@ -303,8 +310,10 @@ function createSender(socket, pending, nextId, timeoutMs, loopDelay, relayReques
     };
     const timer = setTimeout(() => {
       pending.delete(requestId);
-      rejectResult(new Error(timeoutMessage()));
-    }, timeoutMs);
+      const error = new Error(timeoutMessage());
+      error.code = 'CDP_TIMEOUT';
+      rejectResult(error);
+    }, Math.max(1, Math.min(timeoutMs, remainingMs)));
     pending.set(requestId, { resolve: resolveResult, reject: rejectResult, timer, method, label });
     try { socket.send(JSON.stringify({ id: requestId, method, params })); }
     catch {
@@ -317,8 +326,8 @@ function createSender(socket, pending, nextId, timeoutMs, loopDelay, relayReques
 
 /** Evaluate a page expression by value and retain bounded diagnostics for page exceptions. */
 function createEvaluator(send) {
-  return async (expression, label = 'evaluate page expression') => {
-    const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, label);
+  return async (expression, label = 'evaluate page expression', remainingMs) => {
+    const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, label, remainingMs);
     if (result.exceptionDetails) {
       const details = result.exceptionDetails;
       const exception = details.exception;

@@ -14,12 +14,9 @@ import { createRelayAuth } from '../relay/auth.js';
 import { createRelayHandler } from '../relay/service.js';
 import { createGitHubClient } from '../relay/github.js';
 import { githubFixture } from './relay-fixture.js';
-import { RELAY_REQUEST_BOUND_MS, NATIVE_COMMAND_BOUND_MS, FIXTURE_SCHEDULING_MARGIN_MS, MAX_SNAPSHOT_ATTEMPTS } from './relay-budget.js';
+import { relayWorkBudgetMs, MAX_SNAPSHOT_ATTEMPTS } from './relay-budget.js';
 
 const CLI = resolve(import.meta.dirname, '../bin/pullboard.js');
-const CLI_PRODUCT_DEADLINE_MS = NATIVE_COMMAND_BOUND_MS;
-const SNAPSHOT_UPLOAD_BOUND_MS = RELAY_REQUEST_BOUND_MS;
-const CLI_DEADLINE_MARGIN_MS = FIXTURE_SCHEDULING_MARGIN_MS;
 const MAX_OBSERVED_SNAPSHOT_UPLOADS = MAX_SNAPSHOT_ATTEMPTS;
 const DEFAULT_SNAPSHOT_UPLOADS = 3;
 
@@ -27,25 +24,40 @@ const DEFAULT_SNAPSHOT_UPLOADS = 3;
 export function cliChildDeadlineMs(observedUploads) {
   assert.ok(Number.isSafeInteger(observedUploads) && observedUploads >= 0 && observedUploads <= MAX_OBSERVED_SNAPSHOT_UPLOADS,
     'observed snapshot upload count is within the finite fixture bound');
-  return Math.max(CLI_PRODUCT_DEADLINE_MS, observedUploads * SNAPSHOT_UPLOAD_BOUND_MS) + CLI_DEADLINE_MARGIN_MS;
+  return relayWorkBudgetMs(observedUploads);
 }
 
-/** Count durable checkpoints, permitting only byte-identical retries of aborted PUTs. */
+/** Count exact checkpoints; a newer acknowledged snapshot may cover a superseded timeout. */
 export function assertSnapshotCheckpoints(trace, expected) {
-  const checkpoints = new Map();
-  for (const write of trace) {
-    assert.ok(Number.isSafeInteger(write.sequence) && /^[0-9a-f]{64}$/u.test(write.ciphertext ?? ''), 'checkpoint metadata is complete');
-    const previous = checkpoints.get(write.sequence);
-    if (previous) {
-      assert.equal(write.ciphertext, previous.ciphertext, 'a retried sequence preserves its exact ciphertext');
-      assert.equal(previous.abort?.name, 'TimeoutError', 'only a timed-out PUT can add a transport attempt');
-      assert.ok(write.callers.some(caller => caller.includes('async retry@cli.js:')), 'syncRelay retries the persisted checkpoint');
+  try {
+    const checkpoints = new Map();
+    let priorSequence = -1;
+    for (const write of trace) {
+      assert.ok(Number.isSafeInteger(write.sequence) && /^[0-9a-f]{64}$/u.test(write.ciphertext ?? ''), 'checkpoint metadata is complete');
+      assert.ok(write.sequence >= priorSequence, 'checkpoint attempts never regress the covered sequence');
+      priorSequence = write.sequence;
+      const previous = checkpoints.get(write.sequence);
+      if (previous) {
+        assert.equal(write.ciphertext, previous.ciphertext, 'a retried sequence preserves its exact ciphertext');
+        assert.equal(previous.abort?.name, 'TimeoutError', 'only a timed-out PUT can add a transport attempt');
+        assert.ok(write.callers.some(caller => caller.includes('async retry@cli.js:')), 'syncRelay retries the persisted checkpoint');
+      }
+      checkpoints.set(write.sequence, write);
     }
-    checkpoints.set(write.sequence, write);
+    assert.equal(checkpoints.size, expected, 'the flow publishes its exact number of distinct checkpoints');
+    if (expected === 0) return checkpoints.size;
+    const latest = trace.at(-1);
+    assert.equal(latest?.status, 200, 'the latest checkpoint receives an acknowledgement');
+    for (const write of checkpoints.values()) {
+      if (write.status === 200) continue;
+      assert.equal(write.abort?.name, 'TimeoutError', 'only a timed-out checkpoint can be superseded');
+      assert.ok(latest.sequence > write.sequence, 'the acknowledged checkpoint covers the superseded sequence');
+    }
+    return checkpoints.size;
+  } catch (error) {
+    error.message += '; sanitized checkpoint fetches: ' + JSON.stringify(trace);
+    throw error;
   }
-  assert.equal(checkpoints.size, expected, 'the flow publishes its exact number of distinct checkpoints');
-  assert.ok([...checkpoints.values()].every(write => write.status === 200), 'every checkpoint eventually receives an acknowledgement');
-  return checkpoints.size;
 }
 
 /** Capture a real child result without exposing its private output in failure diagnostics. */
