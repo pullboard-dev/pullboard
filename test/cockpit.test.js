@@ -3219,10 +3219,15 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
     /** Click the actual control through Chrome input coordinates. */
     const click = async (selector) => {
       await waitRendered([selector]);
-      const point = JSON.parse(await chrome.evaluate(`(() => {
+      const point = JSON.parse(await chrome.evaluate(`(async () => {
         const e=document.querySelector(${JSON.stringify(selector)});
         if(!e) throw Error('missing '+${JSON.stringify(selector)});
         e.scrollIntoView({block:'center'});
+        // Centering the sticky tab bar scrolls the page on for a few frames, so measure only once the
+        // target has held still for two frames; a point read mid-scroll lands on whatever slid under it.
+        const frame=()=>new Promise((done)=>requestAnimationFrame(()=>done()));
+        let last='', still=0;
+        for (let n=0; n<120 && still<2; n++) { await frame(); const b=e.getBoundingClientRect(), now=[b.x,b.y,b.width,b.height,scrollX,scrollY].join(); still=now===last?still+1:0; last=now; }
         const r=e.getBoundingClientRect(); return JSON.stringify({x:r.x+r.width/2,y:r.y+r.height/2});
       })()`));
       await chrome.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
