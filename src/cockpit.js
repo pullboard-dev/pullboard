@@ -127,7 +127,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   <section data-pane="shouts" class="two narrow" id="shouts-pane">
     <div class="primary">
       <section class="needs-you" id="decisions" aria-label="Decisions needed" hidden></section>
-      <form id="shout-form" class="card-panel shout-form"><p class="answering" id="answering" hidden><span>Answering <b id="answering-who"></b>: <span id="answering-q"></span></span><button class="ghost" id="answer-cancel" type="button">Cancel</button></p><div class="composer"><label class="to"><span>to</span><input id="shout-to" list="shout-targets" required placeholder="all" aria-label="To: all, a lane or an agent"></label><datalist id="shout-targets"></datalist><textarea id="shout-text" required rows="1" placeholder="Shout to the board" aria-label="Message"></textarea><button class="send" id="shout-send" type="submit" aria-label="Shout" title="Shout (Enter; Shift+Enter for a new line)"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button></div></form>
+      <form id="shout-form" class="card-panel shout-form"><p class="answering" id="answering" hidden><span>Answering <b id="answering-who"></b>: <span id="answering-q"></span></span><button class="ghost" id="answer-cancel" type="button">Cancel</button></p><div class="composer"><input id="shout-to" type="hidden" value="coordinator"><span class="to-chip" id="shout-to-chip" hidden></span><textarea id="shout-text" required rows="1" placeholder="Shout to the coordinator" aria-label="Message"></textarea><button class="send" id="shout-send" type="submit" aria-label="Shout" title="Shout (Enter; Shift+Enter for a new line)"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button></div></form>
       <div class="card-panel feed" id="feed"></div>
     </div>
     <aside class="card-panel detail" aria-label="Agents and lanes">
@@ -1163,12 +1163,24 @@ function render() {
   const bar = '<div class="feed-bar">' + (view.agent ? '<span>Shouts with <b>' + esc(view.agent) + '</b> <button class="link" data-agent="" type="button">show all</button></span>' : '<span></span>')
     + '<button class="link" data-agents-toggle type="button">' + (view.agentsHidden ? 'Show agents' : 'Hide agents') + '</button></div>';
   $('shouts-pane').classList.toggle('bare', view.agentsHidden);
+  // Who has heard a shout of the person's: the agents it reached whose inbox has read past it. Each agent's read
+  // cursor is already on the board, so this is presentation only; reading is all it says, not acting on it.
+  const reached = (x, a) => a.agent_id !== x.shout_from && ['all', a.agent_id, a.agent_lane].includes(x.shout_to);
+  const dot = (a) => '<span class="heard-face h' + hue(a.agent_id) + (lead(a.agent_id) ? ' lead' : '') + '">' + (lead(a.agent_id) ? LEAD : esc(initials(a.agent_id))) + '</span>';
+  const heardBy = (x) => {
+    if (x.shout_from !== 'person') return '';
+    const to = p.agents.filter((a) => reached(x, a)), by = to.filter((a) => (a.agent_last_shout_id ?? 0) >= x.shout_id);
+    if (!to.length) return '';
+    if (!by.length) return '<div class="heard not">Not heard yet</div>';
+    const first = by.find((a) => lead(a.agent_id)) || by[0], rest = by.length - 1;
+    return '<div class="heard" title="Heard by ' + esc(by.map((a) => a.agent_id).join(', ')) + '"><span class="heard-faces">' + [first, ...by.filter((a) => a !== first)].slice(0, 4).map(dot).join('') + '</span>Heard by ' + esc(first.agent_id) + (rest ? ' and ' + rest + (rest === 1 ? ' agent' : ' agents') : '') + '</div>';
+  };
   // One card for a shout, in the feed and among the asks; tail adds what the place needs, such as Answer. Only the
   // feed's copy carries the band and the id an answer's link lands on, so an ask shown twice never repeats an id.
   const card = (x, tail = '', inFeed = true) => '<article class="shout h' + hue(x.shout_from) + (lead(x.shout_from) ? ' lead' : '') + (openShouts.has(x.shout_id) ? ' open' : '') + '"' + (inFeed ? ' id="shout-' + x.shout_id + '"' : '') + ' data-shout-id="' + x.shout_id + '">'
     + (lead(x.shout_from) ? '<span class="avatar">' + LEAD + '</span>' : '<span class="avatar' + (initials(x.shout_from).length > 3 ? ' wide' : '') + '" aria-hidden="true">' + esc(initials(x.shout_from)) + '</span>') + '<div class="shout-main"><header><b class="who">' + esc(x.shout_from) + '</b><span class="to">→ ' + esc(x.shout_to) + '</span>'
     + (itemOf(x) ? '<span class="item">#' + esc(itemOf(x)) + '</span>' : '') + mark(x) + '<time class="long" data-ago="' + esc(x.shout_at) + '" title="' + esc(when(x.shout_at)) + '">' + agoLong(x.shout_at) + '</time></header>'
-    + '<div class="text">' + rich(x.shout_text, titles) + '</div><button class="more" data-more type="button">' + (openShouts.has(x.shout_id) ? 'less' : 'more') + '</button>' + (inFeed ? band(x) : '') + evidence(x) + tail + '</div></article>';
+    + '<div class="text">' + rich(x.shout_text, titles) + '</div><button class="more" data-more type="button">' + (openShouts.has(x.shout_id) ? 'less' : 'more') + '</button>' + (inFeed ? band(x) + heardBy(x) : '') + evidence(x) + tail + '</div></article>';
   $('feed').innerHTML = bar + (heard.length ? dayRules(heard, (x) => x.shout_at, card) : '<div class="empty">' + (view.agent ? 'No shouts with ' + esc(view.agent) + ' among the last forty.' : 'No shouts yet.') + '</div>');
   foldShouts();
   // Each ask waits here until it is answered (B21); the answer itself is typed in the form below. The
@@ -1178,7 +1190,6 @@ function render() {
   $('decisions').innerHTML = (p.decisions.length ? '<div class="head"><i></i>Decision needed</div>' + p.decisions.map((d) => card(d, '<button class="ghost answer" data-go="decide:' + d.shout_id + '" type="button">Answer</button>', false)).join('') : '')
     + (p.asked.length ? '<div class="head quiet">Waiting on others</div>' + p.asked.map((d) => card(d, '', false)).join('') : '');
   foldShouts();
-  $('shout-targets').innerHTML = ['all', ...lanes, ...p.agents.map((a) => a.agent_id)].map((t) => '<option value="' + esc(t) + '">').join('');
   // Each agent with what it holds: its claim, then its work sent back, then its work waiting for a
   // verdict. The worktree path is there on hover; what the person reads is who is doing what.
   // A review an agent holds (V15) comes right after its claim.
@@ -1189,11 +1200,24 @@ function render() {
   const recent = (a) => p.items.some((i) => (i.status === 'claimed' && i.owner === a.agent_id) || (i.status === 'submitted' && i.reviewer === a.agent_id))
     || (a.lastMoveAt && Date.now() - Date.parse(a.lastMoveAt) < 36e5);
   const listed = view.allAgents ? p.agents : p.agents.filter(recent);
-  $('agents').innerHTML = (listed.length ? listed.map((a) => {
-    const mine = holding(a);
-    return '<div class="agent' + (view.agent === a.agent_id ? ' on' : '') + '"><div><button class="agent-name" data-agent="' + esc(a.agent_id) + '" title="Shouts with ' + esc(a.agent_id) + ' (' + esc(a.agent_path) + ')" type="button">' + esc(a.agent_id) + '</button><span class="muted">' + esc(a.agent_lane) + ' · ' + esc(a.agent_route) + '</span>' + (a.lastMoveAt ? '<time data-ago="' + esc(a.lastMoveAt) + '" title="last moved ' + when(a.lastMoveAt) + '">' + ago(a.lastMoveAt) + '</time>' : '') + '</div>'
-      + (mine.length ? mine.map((i) => '<div class="agent-work" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span>' + (i.reviewer === a.agent_id ? '<span class="chip warn">reviewing</span>' : chip(stateOf(i))) + '</div>').join('') : '<small>idle</small>') + '</div>';
-  }).join('') : '<div class="empty">' + (p.agents.length ? 'No agent has moved today.' : 'No agents yet.') + '</div>')
+  // As little room as the panel can take: an agent holding work is one row, with its avatar and colour from the feed,
+  // the age of its latest move and what it holds; an agent holding nothing is a pill. A row or a pill filters the feed
+  // to that agent's shouts, its lane and route on hover, and the picked agent's row opens out to each thing it holds.
+  const busy = listed.filter((a) => holding(a).length), idle = listed.filter((a) => !holding(a).length);
+  const face = (a) => lead(a.agent_id) ? '<span class="avatar">' + LEAD + '</span>' : '<span class="avatar' + (initials(a.agent_id).length > 3 ? ' wide' : '') + '" aria-hidden="true">' + esc(initials(a.agent_id)) + '</span>';
+  const tip = (a) => 'Shouts with ' + a.agent_id + ' · ' + a.agent_lane + ' · ' + a.agent_route + ' (' + a.agent_path + ')';
+  const state = (a, i) => i.reviewer === a.agent_id ? '<span class="chip warn">reviewing</span>' : chip(stateOf(i));
+  const marks = (a) => ' h' + hue(a.agent_id) + (lead(a.agent_id) ? ' lead' : '') + (view.agent === a.agent_id ? ' on' : '');
+  const row = (a) => {
+    const mine = holding(a), first = mine[0];
+    return '<div class="agent-card' + marks(a) + '"><button class="agent-row" data-agent="' + esc(a.agent_id) + '" title="' + esc(tip(a)) + '" type="button">' + face(a)
+      + '<span class="agent-who"><b>' + esc(a.agent_id) + '</b>' + (a.lastMoveAt ? '<time data-ago="' + esc(a.lastMoveAt) + '">' + ago(a.lastMoveAt) + '</time>' : '') + '</span>'
+      + '<span class="agent-doing"><span class="agent-what"><i>#' + first.id + '</i> ' + esc(first.title) + '</span>' + state(a, first) + (mine.length > 1 ? '<span class="agent-more">+' + (mine.length - 1) + '</span>' : '') + '</span></button>'
+      + (view.agent === a.agent_id ? mine.map((i) => '<div class="agent-work" data-item="' + i.id + '" data-go="item:' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span>' + state(a, i) + '</div>').join('') : '') + '</div>';
+  };
+  const pill = (a) => '<button class="agent-pill' + marks(a) + '" data-agent="' + esc(a.agent_id) + '" title="' + esc(tip(a)) + '" type="button"><span>' + face(a) + esc(a.agent_id) + '</span></button>';
+  $('agents').innerHTML = (listed.length ? busy.map(row).join('') + (idle.length ? '<div class="agents-idle"><span class="agents-label">Idle</span>' + idle.map(pill).join('') + '</div>' : '')
+    : '<div class="empty">' + (p.agents.length ? 'No agent has moved today.' : 'No agents yet.') + '</div>')
     + (p.agents.length > p.agents.filter(recent).length ? '<button class="link all-agents" data-all-agents type="button">' + (view.allAgents ? 'show only agents at work' : 'show all ' + p.agents.length) + '</button>' : '');
   const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
   $('lanes').innerHTML = working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no">held by ' + esc(held.get(l).hold_by) + '</span> <span class="muted">' + linked(held.get(l).hold_reason, titles) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join('');
@@ -1348,18 +1372,30 @@ function countUnseen() {
  * its To and its button change. The To the person had comes back when the answer is done. An answer
  * belongs to the project whose question it shows: leaving that project leaves answer mode.
  */
+/**
+ * Address the composer: the coordinator unless someone else is named, who then shows as a chip the person can clear.
+ */
+function addressTo(to) {
+  const who = to || 'coordinator';
+  $('shout-to').value = who;
+  $('shout-to-chip').hidden = who === 'coordinator';
+  $('shout-to-chip').innerHTML = who === 'coordinator' ? '' : 'to <b>' + esc(who) + '</b><button class="to-clear" data-to-clear type="button" aria-label="Shout to the coordinator instead">×</button>';
+  $('shout-text').placeholder = 'Shout to ' + (who === 'coordinator' ? 'the coordinator' : who);
+}
+
 function answer(id) {
   const ask = id === null ? null : data.project.decisions.find((d) => d.shout_id === id) || null;
   if (ask && !view.answering) view.to = $('shout-to').value;
-  if (!ask && view.answering) $('shout-to').value = view.to || '';
+  if (!ask && view.answering) addressTo(view.to);
   view.answering = ask ? { root: view.root, id: ask.shout_id } : null;
   $('answering').hidden = !ask;
   $('answering-who').textContent = ask ? ask.shout_from : '';
   const question = ask ? linked(ask.shout_text, new Map(data.project.items.map((i) => [String(i.id), i.title]))) : '';
   if (question.includes('<button class="ref"')) $('answering-q').innerHTML = question;
   else $('answering-q').textContent = ask ? ask.shout_text : '';
-  if (ask) $('shout-to').value = ask.shout_from;
+  if (ask) addressTo(ask.shout_from);
   $('shout-to').disabled = Boolean(ask);
+  $('shout-to-chip').hidden = Boolean(ask) || $('shout-to').value === 'coordinator';
   const verb = ask ? 'Answer' : 'Shout';
   $('shout-send').setAttribute('aria-label', verb);
   $('shout-send').title = verb + ' (Enter; Shift+Enter for a new line)';
@@ -1528,13 +1564,17 @@ async function act(command, args, anchor) {
   out.textContent = requests ? 'Request waiting…' : 'running…';
   out.scrollIntoView({ block: 'nearest' });
   try {
-    const move = pageMove(command, args);
-    const result = requests ? await sendPersonRequest(root, move.body) : await api(boardPath(root) + '/moves', move.body);
+    // On the local view the person's word to the coordinator is the person's own request, not a shout the
+    // coordinator sends itself; through the relay every action is already a sealed request.
+    const asked = command === 'request' && !requests;
+    const move = asked ? null : pageMove(command === 'request' ? 'shout' : command, command === 'request' ? { to: 'coordinator', text: args.text } : args);
+    const result = asked ? await api(boardPath(root) + '/requests', { text: String(args.text || '').trim() })
+      : requests ? await sendPersonRequest(root, move.body) : await api(boardPath(root) + '/moves', move.body);
     const request = requests && result?.result?.request;
     if (requests && (!request?.id || !['waiting', 'done', 'refused'].includes(request.status))) throw new Error('The request did not include its status; refresh the board to check it.');
     if (latest()) {
       out.className = 'console' + (requests ? request.status === 'done' ? ' ok' : request.status === 'refused' ? ' no' : '' : ' ok');
-      out.textContent = requests ? requestNotice(request) : '$ pullboard ' + move.label + '\\n' + moveMessage(move.body, result.result);
+      out.textContent = requests ? requestNotice(request) : asked ? 'Sent to the coordinator.' : '$ pullboard ' + move.label + '\\n' + moveMessage(move.body, result.result);
       if (requests) view.request = { root, id: request.id, run };
       out.scrollIntoView({ block: 'center' });
       // What went through says so and then steps aside; a refusal stays until the person closes it.
@@ -1613,11 +1653,12 @@ $('shouts-pane').addEventListener('click', (event) => {
     more.textContent = openShouts.has(id) ? 'less' : 'more';
     return;
   }
+  if (event.target.closest('[data-to-clear]')) { addressTo('coordinator'); $('shout-text').focus(); return; }
   if (event.target.closest('[data-all-agents]')) { view.allAgents = !view.allAgents; render(); return; }
   if (event.target.closest('[data-agents-toggle]')) { view.agentsHidden = !view.agentsHidden; keep('pb.agents', view.agentsHidden ? 'hidden' : 'shown'); render(); return; }
   if (!pick) return;
   view.agent = pick.dataset.agent && pick.dataset.agent !== view.agent ? pick.dataset.agent : null;
-  if (view.agent && !view.answering) $('shout-to').value = view.agent;
+  if (!view.answering) addressTo(view.agent);
   render();
 });
 // Enter shouts; Shift+Enter starts a new line.
@@ -1654,7 +1695,7 @@ document.addEventListener('click', (event) => {
   else if (t.dataset.row) { const [kind, id] = t.dataset.row.split(':'); view.row[kind] = id; render(); }
   else if (t.dataset.code) code(t.dataset.code, t.dataset.before || '');
   else if (t.dataset.release) act('release', { lane: t.dataset.release }, t);
-  else if (t.dataset.shout) { answer(null); $('shout-to').value = t.dataset.shout; $('shout-text').value = '#' + t.dataset.about + ': '; openTab('shouts'); showTab(); $('shout-text').focus(); }
+  else if (t.dataset.shout) { answer(null); addressTo(t.dataset.shout); $('shout-text').value = '#' + t.dataset.about + ': '; openTab('shouts'); showTab(); $('shout-text').focus(); }
   else if (t.dataset.new !== undefined) { view.adding = true; render(); $('add-title').focus(); }
 });
 /** Let a Roadmap row with independent inline links keep its keyboard button behavior. */
@@ -1713,7 +1754,7 @@ $('shout-form').addEventListener('submit', async (event) => {
   const text = $('shout-text').value;
   const ask = view.answering;
   if (ask && ask.root !== view.root) return answer(null);
-  if (!(await (ask ? act('answer', { id: ask.id, text }, event.currentTarget) : act('shout', { to: $('shout-to').value, text }, event.currentTarget)))) return;
+  if (!(await (ask ? act('answer', { id: ask.id, text }, event.currentTarget) : ($('shout-to').value === 'coordinator' ? act('request', { text }, event.currentTarget) : act('shout', { to: $('shout-to').value, text }, event.currentTarget))))) return;
   $('shout-text').value = '';
   answer(null);
 });

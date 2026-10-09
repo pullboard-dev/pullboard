@@ -293,8 +293,6 @@ form.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; paddin
 .shout-form > .composer { flex: 1 1 100%; min-width: 0; }
 .composer { display: flex; align-items: flex-end; gap: 6px; padding: 4px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); }
 .composer:focus-within { border-color: var(--accent); }
-.composer .to { display: flex; flex: none; align-items: center; gap: 4px; padding: 0 4px 0 10px; border-right: 1px solid var(--line); color: var(--ink-faint); font-size: 12px; }
-.composer .to input { width: 7.5em; min-height: 44px; border: 0; padding: 0 4px; background: none; color: var(--ink); font-weight: 600; }
 .composer textarea { flex: 1; min-width: 0; min-height: 44px; max-height: 12em; padding: 11px 8px; border: 0; background: none; resize: none; field-sizing: content; line-height: 1.5; }
 .composer input:focus-visible, .composer textarea:focus-visible { outline: 0; }
 .composer .send { display: grid; place-items: center; flex: none; width: 44px; height: 44px; border: 0; border-radius: 9px; background: var(--ink); color: var(--surface); cursor: pointer; }
@@ -312,24 +310,21 @@ form.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; paddin
 #decisions .shout.clamp:not(.open) .text { -webkit-line-clamp: 3; }
 #decisions .answer { margin-top: 6px; }
 .all-agents { margin-top: 2px; font-size: 13px; }
-.agent-name { display: inline-flex; align-items: center; min-height: 44px; padding: 0; border: 0; background: none; font: inherit; font-weight: 700; color: var(--ink); cursor: pointer; }
-.agent-name:hover { color: var(--accent-strong); text-decoration: underline; text-underline-offset: 2px; }
-.agent.on .agent-name { color: var(--accent-strong); }
 /* Shouts as cards (#250): who and when on top, what was said below, each agent in a colour of its own. No
  * card carries a coloured edge; colour lives in the avatar, the name and the chips. */
 :root { --hue-0: light-dark(#0f766e, #5eead4); --hue-1: light-dark(#1d4ed8, #93b4f8); --hue-2: light-dark(#6d28d9, #c4b5fd); --hue-3: light-dark(#be185d, #f9a8d4);
   --hue-4: light-dark(#b45309, #fcd34d); --hue-5: light-dark(#15803d, #86efac); --hue-6: light-dark(#b91c1c, #fca5a5); --hue-7: light-dark(#475569, #cbd5e1); }
-.shout.h0 { --h: var(--hue-0); } .shout.h1 { --h: var(--hue-1); } .shout.h2 { --h: var(--hue-2); } .shout.h3 { --h: var(--hue-3); }
-.shout.h4 { --h: var(--hue-4); } .shout.h5 { --h: var(--hue-5); } .shout.h6 { --h: var(--hue-6); } .shout.h7 { --h: var(--hue-7); }
+.shout.h0, .agent-card.h0, .agent-pill.h0, .heard-face.h0 { --h: var(--hue-0); } .shout.h1, .agent-card.h1, .agent-pill.h1, .heard-face.h1 { --h: var(--hue-1); } .shout.h2, .agent-card.h2, .agent-pill.h2, .heard-face.h2 { --h: var(--hue-2); } .shout.h3, .agent-card.h3, .agent-pill.h3, .heard-face.h3 { --h: var(--hue-3); }
+.shout.h4, .agent-card.h4, .agent-pill.h4, .heard-face.h4 { --h: var(--hue-4); } .shout.h5, .agent-card.h5, .agent-pill.h5, .heard-face.h5 { --h: var(--hue-5); } .shout.h6, .agent-card.h6, .agent-pill.h6, .heard-face.h6 { --h: var(--hue-6); } .shout.h7, .agent-card.h7, .agent-pill.h7, .heard-face.h7 { --h: var(--hue-7); }
 #feed > .shout { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 0 12px; align-items: start; padding: 14px 4px; border-top: 1px solid var(--line); }
 #feed > .shout:first-child, #feed > .day-rule + .shout { border-top: 0; }
 #feed > .day-rule { display: flex; align-items: center; gap: 12px; margin: 10px 0 2px; color: var(--ink-faint); font: 600 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
 #feed > .day-rule::before, #feed > .day-rule::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
 #feed > .day-rule:first-child { margin-top: 2px; }
-.shout.lead .avatar { border-radius: 9px; background: var(--ink); color: var(--surface); }
+.shout.lead .avatar, .agent-card.lead .avatar, .agent-pill.lead .avatar { border-radius: 9px; background: var(--ink); color: var(--surface); }
 .shout.lead .avatar svg { width: 18px; height: 18px; }
 .shout.lead .who { color: var(--ink); }
-.shout .avatar { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: color-mix(in srgb, var(--h) 16%, var(--surface)); color: var(--h); font: 700 11px var(--mono); }
+.shout .avatar, .agent-card .avatar, .agent-pill .avatar { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: color-mix(in srgb, var(--h) 16%, var(--surface)); color: var(--h); font: 700 11px var(--mono); }
 .shout .avatar.wide { font-size: 9px; letter-spacing: -.02em; }
 .shout-main { min-width: 0; }
 .shout header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 7px; }
@@ -376,12 +371,6 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .feed .act .what { flex: 1 1 auto; min-width: 0; overflow-wrap: break-word; color: var(--ink-muted); }
 .feed .act .said { flex: 1 1 0; min-width: 0; margin-left: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); }
 .feed .act .said code { white-space: nowrap; }
-.agent { display: grid; gap: 2px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; }
-.agent:first-child { border-top: 0; }
-.agent small { color: var(--ink-faint); font: 11.5px var(--mono); overflow-wrap: anywhere; }
-.agent > div { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
-.agent > div > .muted { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.agent time { margin-left: auto; color: var(--ink-faint); font: 12px var(--mono); }
 .agent-work { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; width: 100%; border: 0; background: none; padding: 2px 0; text-align: left; cursor: pointer; }
 .agent-work > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agent-work:hover > span:first-child { color: var(--accent-strong); text-decoration: underline; text-underline-offset: 2px; }
@@ -464,3 +453,43 @@ button, input, select, textarea, [data-item], [data-row] { min-height: 44px; }
 .spec-feedback { margin: 8px 0; padding: 8px; border: 1px solid var(--line-strong); border-radius: 8px; overflow-wrap: anywhere; font-size: 13px; }
 .spec-feedback.ok { color: var(--accent-strong); }
 .spec-feedback.no { color: var(--reject); }
+
+/* The agents panel: a row for each agent holding work, a pill for each holding none. */
+.agent-card { border-radius: 10px; }
+.agent-card.on { background: color-mix(in srgb, var(--h) 9%, transparent); }
+.agent-row { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 1px 10px; align-items: center; width: 100%; min-height: 48px; padding: 6px 8px; border: 0; border-radius: 10px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.agent-row:hover { background: var(--surface-2); }
+.agent-row .avatar { grid-row: 1 / span 2; width: 28px; height: 28px; font-size: 10px; }
+.agent-row .avatar.wide { font-size: 8px; }
+.agent-card.lead .avatar svg, .agent-pill.lead .avatar svg { width: 60%; height: 60%; }
+.agent-who { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.agent-who b { color: var(--h); font-size: 13.5px; }
+.agent-card.lead .agent-who b, .agent-pill.lead > span { color: var(--ink); }
+.agent-who time { margin-left: auto; color: var(--ink-faint); font: 11.5px var(--mono); }
+.agent-doing { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12.5px; color: var(--ink-muted); }
+.agent-what { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-what i { font: normal 11.5px var(--mono); color: var(--ink-faint); }
+.agent-doing .chip { flex: none; font-size: 10.5px; padding-block: 0; }
+.agent-more { flex: none; font: 11px var(--mono); color: var(--ink-faint); }
+.agent-card .agent-work { padding: 0 8px 0 46px; font-size: 12.5px; }
+.agents-idle { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; margin-top: 4px; padding: 2px 4px 0; border-top: 1px solid var(--line); }
+.agents-label { width: 100%; padding: 8px 4px 0; color: var(--ink-faint); font: 600 10.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+.agent-pill { display: inline-flex; align-items: center; min-height: 44px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.agent-pill > span { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink-muted); font-size: 12.5px; }
+.agent-pill:hover > span, .agent-pill.on > span { border-color: var(--h); color: var(--h); }
+.agent-pill .avatar { width: 20px; height: 20px; font-size: 8px; }
+.agent-pill .avatar.wide { font-size: 6.5px; }
+
+/* The composer's address, when it is not the coordinator: a chip the person can clear. */
+.composer .to-chip { display: inline-flex; flex: none; align-items: center; align-self: center; gap: 2px; margin-left: 6px; padding-left: 10px; border-radius: 999px; background: var(--violet-soft); color: var(--violet); font-size: 12.5px; white-space: nowrap; }
+.composer .to-chip[hidden] { display: none; }
+.to-clear { width: 36px; min-height: 44px; margin: -8px 0; padding: 0; border: 0; background: none; color: inherit; font-size: 16px; cursor: pointer; }
+/* Heard: which agents a shout of the person's has reached. */
+.shout .heard { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: var(--ink-muted); font-size: 12px; }
+.shout .heard::before { content: "✓"; color: var(--accent-strong); font-weight: 700; }
+.shout .heard.not { color: var(--ink-faint); }
+.shout .heard.not::before { content: "…"; color: var(--ink-faint); }
+.heard-faces { display: inline-flex; padding-right: 5px; }
+.heard-face { display: grid; place-items: center; width: 18px; height: 18px; margin-right: -5px; border: 1.5px solid var(--surface); border-radius: 50%; background: color-mix(in srgb, var(--h) 16%, var(--surface)); color: var(--h); font: 700 7px var(--mono); }
+.heard-face.lead { border-radius: 5px; background: var(--ink); color: var(--surface); }
+.heard-face svg { width: 11px; height: 11px; }
