@@ -4044,7 +4044,11 @@ test('the roadmap reads every item as the Items tab does, opens each one, anothe
   // One item in each state: verified and merged, verified, sent back, to verify, building, open, withdrawn.
   build(box, alpha, 1, 'one.txt');
   accept(box, alpha, 1);
-  box.run(alpha.repo, 'merged', '1', box.git(alpha.repo, 'rev-parse', alpha.branch));
+  const itemCommit = box.git(alpha.repo, 'rev-parse', alpha.branch);
+  box.git(alpha.repo, 'merge', '--no-ff', '--no-edit', alpha.branch);
+  const trunkCommit = box.git(alpha.repo, 'rev-parse', 'HEAD');
+  assert.notEqual(trunkCommit, itemCommit, 'the Roadmap receipt names the trunk merge commit');
+  box.run(alpha.repo, 'merged', '1', trunkCommit);
   build(box, alpha, 2, 'two.txt');
   accept(box, alpha, 2);
   build(box, alpha, 3, 'three.txt');
