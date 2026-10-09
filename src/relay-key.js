@@ -68,7 +68,12 @@ export function readBoardKey(boardId) {
   if (existsSync(file)) {
     const stat = lstatSync(file);
     if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077)) throw new Refused('RELAY_KEY_STORAGE', 'restore the board key as an owner-only regular file with mode 600');
-    const encoded = readFileSync(file, 'utf8').trim();
+    let encoded;
+    try { encoded = readFileSync(file, 'utf8').trim(); }
+    catch (error) {
+      if (!['EACCES', 'EPERM'].includes(error.code)) throw error;
+      throw new Refused('RELAY_KEY_MISSING', 'the board key is unreadable in this shell (' + error.code + '); run this command where the key is available, or pair this device');
+    }
     const key = decodeBoardKey(encoded);
     if (process.env.PULLBOARD_RELAY_KEY !== undefined && process.env.PULLBOARD_RELAY_KEY !== encoded) {
       throw new Refused('RELAY_KEY_FILE_ENV_MISMATCH', 'PULLBOARD_RELAY_KEY differs from this board key file; unset PULLBOARD_RELAY_KEY or set it to the key from this device file');
@@ -92,7 +97,7 @@ export function readBoardKey(boardId) {
     }
   }
   if (process.env.PULLBOARD_RELAY_KEY !== undefined) return decodeBoardKey(process.env.PULLBOARD_RELAY_KEY);
-  throw new Refused('RELAY_KEY_MISSING', 'the board key is missing on this device; set PULLBOARD_RELAY_KEY from your local secret store, pair this device again, or run pullboard relay off then relay on to upload a new sealed snapshot');
+  throw new Refused('RELAY_KEY_MISSING', 'the board key is missing on this device; set PULLBOARD_RELAY_KEY from your local secret store, pair this device again, or run pullboard relay off then relay on to upload a new sealed snapshot; run this command where the key is available, or pair this device');
 }
 
 /** Remove the device key after a successful unlink, leaving all local board records untouched. */
