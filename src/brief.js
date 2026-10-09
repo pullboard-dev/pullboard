@@ -6,23 +6,32 @@
 
 const LABEL_RE = /^(files|change|test|out of scope)\s*:\s*(.*)$/i;
 
-/** Remove balanced parenthetical notes so their words cannot be mistaken for file paths.
+/** Remove closed parenthetical notes while leaving an unmatched note visible to path checks.
  *
  * @param {string} text
  * @returns {string}
  */
 function withoutParentheticalNotes(text) {
   let depth = 0;
+  let noteStart = -1;
   let output = '';
-  for (const character of text) {
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
     if (character === '(') {
-      if (depth === 0) output += ' ';
+      if (depth === 0) {
+        noteStart = index;
+        output += ' ';
+      }
       depth += 1;
     } else if (character === ')' && depth > 0) {
       depth -= 1;
-      if (depth === 0) output += ' ';
+      if (depth === 0) {
+        noteStart = -1;
+        output += ' ';
+      }
     } else if (depth === 0) output += character;
   }
+  if (depth > 0) output += text.slice(noteStart);
   return output;
 }
 
