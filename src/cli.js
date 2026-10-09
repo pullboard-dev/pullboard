@@ -647,8 +647,8 @@ function withBoard(ctx, work) {
 
 /** Dispatch a board mutation locally, or seal it before any linked replica applies it. */
 async function ordered(ctx, board, operation, args) {
-  /** Dispatch while this session holds the checkout, including long-running next/run loops. */
   const command = ['add', 'edit', 'merged'].includes(ctx.io.relayCommand?.cliOperation) ? ctx.io.relayCommand : undefined;
+  /** Dispatch while this session holds the checkout, including long-running next/run loops. */
   const execute = () => relayLinked(ctx.info.root)
     ? relayOperation(ctx.info.root, operation, args, ctx.io, command) : store[operation](board, ...args);
   const digest = agentSessionDigest();
