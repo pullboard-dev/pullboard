@@ -10,7 +10,7 @@
  */
 
 /** Executable move semantics; bump once per release after a released move's meaning changes [H16]. */
-export const ENGINE_VERSION = 3;
+export const ENGINE_VERSION = 4;
 
 /** @typedef {'agent' | 'coordinator' | 'clock'} Role */
 

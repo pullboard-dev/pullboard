@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { after, test } from 'node:test';
 import { parseSpec } from '../src/spec.js';
-import { AGENT_SHELL_MARKERS } from '../src/person.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const SPEC_FILE = 'SPEC.md';
@@ -45,7 +45,7 @@ after(cleanup);
 function personEnvironment(source) {
   const env = { ...source };
   for (const key of Object.keys(env)) {
-    if (key.startsWith('GIT_') || AGENT_SHELL_MARKERS.includes(key)) delete env[key];
+    if (key.startsWith('GIT_') || AGENT_SHELL_MARKERS.includes(key) || SSH_SHELL_MARKERS.includes(key)) delete env[key];
   }
   return env;
 }

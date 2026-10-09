@@ -1,6 +1,7 @@
 /** API v1's shared HTTP boundary; local and relay adapters supply the same board operations (A2). */
 import { Refused } from './refused.js';
 import { refusalDocument } from './json.js';
+import { withGitFacts } from './git.js';
 
 const BODY_BYTES = 100_000;
 
@@ -70,27 +71,29 @@ export function createApiHandler(adapter, { pollMs = 200 } = {}) {
     }
     /** Deliver only records after the latest delivered sequence, with no overlapping polls. */
     async function send() {
-      if (closed || busy || blocked) return;
-      busy = true;
-      try {
-        who = await adapter.authenticate(req, { board: board.id, write: false });
-        const warning = await adapter.warning?.(board, who);
-        const serialized = warning ? JSON.stringify({ version: 1, warning }) : null;
-        if (serialized !== lastWarning) {
-          lastWarning = serialized;
-          if (serialized && !res.write('event: warning\ndata: ' + serialized + '\n\n')) { blocked = true; return; }
-        }
-        const records = initial ?? await adapter.events(board, after, who);
-        initial = null;
-        for (const event of records) {
-          if (closed) break;
-          after = event.event_id;
-          if (!res.write('id: ' + after + '\ndata: ' + JSON.stringify({ version: 1, event }) + '\n\n')) { blocked = true; break; }
-        }
-      } catch (error) {
-        if (!closed) res.write('event: error\ndata: ' + JSON.stringify(refusal(error)) + '\n\n');
-        stop();
-      } finally { busy = false; }
+      return withGitFacts(async () => {
+        if (closed || busy || blocked) return;
+        busy = true;
+        try {
+          who = await adapter.authenticate(req, { board: board.id, write: false });
+          const warning = await adapter.warning?.(board, who);
+          const serialized = warning ? JSON.stringify({ version: 1, warning }) : null;
+          if (serialized !== lastWarning) {
+            lastWarning = serialized;
+            if (serialized && !res.write('event: warning\ndata: ' + serialized + '\n\n')) { blocked = true; return; }
+          }
+          const records = initial ?? await adapter.events(board, after, who);
+          initial = null;
+          for (const event of records) {
+            if (closed) break;
+            after = event.event_id;
+            if (!res.write('id: ' + after + '\ndata: ' + JSON.stringify({ version: 1, event }) + '\n\n')) { blocked = true; break; }
+          }
+        } catch (error) {
+          if (!closed) res.write('event: error\ndata: ' + JSON.stringify(refusal(error)) + '\n\n');
+          stop();
+        } finally { busy = false; }
+      });
     }
     res.once('close', stop);
     res.on('drain', () => { blocked = false; void send(); });
@@ -101,10 +104,15 @@ export function createApiHandler(adapter, { pollMs = 200 } = {}) {
 
   /** Route a request through the adapter and keep every HTTP response inside API v1. */
   async function handle(req, res) {
+    return withGitFacts(() => route(req, res));
+  }
+
+  /** Handle one request under a fresh Git-fact scope so a long-lived server observes later refs. */
+  async function route(req, res) {
     try {
       let url;
       try { url = new URL(req.url ?? '/', 'http://127.0.0.1'); } catch { throw new Refused('BAD_REQUEST', 'use a valid path under /api/v1/boards'); }
-      const route = /^\/api\/v1\/boards\/([^/]+)\/(state|events|moves|requests|code)$/.exec(url.pathname);
+      const route = /^\/api\/v1\/boards\/([^/]+)\/(state|events|moves|requests|code|tokens)$/.exec(url.pathname);
       const shoutRoute = /^\/api\/v1\/boards\/([^/]+)\/shouts\/([^/]+)$/.exec(url.pathname);
       const boardId = route?.[1] ?? shoutRoute?.[1] ?? null;
       const who = await adapter.authenticate(req, { board: boardId, write: req.method === 'POST' });
@@ -121,6 +129,19 @@ export function createApiHandler(adapter, { pollMs = 200 } = {}) {
         return json(res, 200, { shout: await adapter.shout(board, Number(rawId), who) });
       }
       if (shoutRoute) throw new Refused('BAD_REQUEST', 'read an addressed shout with GET; use a board move to create or answer shouts');
+      if (route[2] === 'tokens') {
+        if (typeof adapter.tokens !== 'function' || typeof adapter.revokeToken !== 'function') {
+          throw new Refused('TOKENS_NOT_AVAILABLE', "manage this board's agent tokens in its local view or signed-in relay account");
+        }
+        if (req.method === 'GET') return json(res, 200, { tokens: await adapter.tokens(board, who) });
+        if (req.method === 'POST') {
+          const body = await readBody(req);
+          if (Object.keys(body).some((key) => key !== 'id') || typeof body.id !== 'string') {
+            throw new Refused('BAD_REQUEST', "token revocation takes only the opaque id from this board's token list");
+          }
+          return json(res, 200, await adapter.revokeToken(board, body.id, who));
+        }
+      }
       if (req.method === 'GET' && route[2] === 'state') {
         const seen = url.searchParams.has('seen') ? seenCursor(url.searchParams.get('seen')) : null;
         const state = await adapter.state(board, who, seen);

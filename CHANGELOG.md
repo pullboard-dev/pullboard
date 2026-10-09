@@ -4,6 +4,10 @@ Notable changes to Pullboard, for people using it. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- Background check results replay with move engine 4. Upgrade every linked device before using these moves; older clients stop replay with upgrade guidance before changing their board or cursor.
+
 ## [0.8.1] - 2026-10-09
 
 ### Added

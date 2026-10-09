@@ -149,7 +149,9 @@ main { padding: 16px 18px 28px; }
   .group-need > code { grid-column: 2; }
   .group-need > span, .group-need > button { grid-column: 1 / -1; }
   .tabs { flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: auto; gap: 0; }
-  .tab { display: grid; grid-template-rows: auto 13px; justify-items: center; align-content: center; padding: 7px 2px 5px; font-size: 13.5px; }
+  /* Six labels share the bar, so they scale with the screen: 13.5px at 375, 11px at the narrowest, where a
+   * classic scrollbar and wide fonts leave about 290px of bar. */
+  .tab { display: grid; grid-template-rows: auto 13px; justify-items: center; align-content: center; padding: 7px 2px 5px; font-size: clamp(11px, 3.6vw, 13.5px); }
   .tab b { margin: 0; line-height: 13px; }
 }
 .primary { display: grid; gap: 12px; min-width: 0; }
@@ -203,9 +205,21 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .row.on { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line-strong); }
 .dot.building { background: var(--blue); } .dot.verify { background: var(--warn); } .dot.back { background: var(--reject); } .dot.verified { background: var(--accent); }
-.row .t { font-weight: 600; overflow-wrap: anywhere; }
+/* A row holds its shape: the title takes the whole first line and the meta and chip share the second,
+ * each line cut with an ellipsis, so every row in a list is as tall as the next. The whole title is the
+ * row's tooltip and opens in the detail. */
+.row { grid-template-areas: "dot t t" "dot meta chip"; row-gap: 3px; }
+.row > div { display: contents; }
+.row > .dot { grid-area: dot; }
+.row .t { grid-area: t; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .t code { white-space: nowrap; }
 .row .t span { color: var(--ink-faint); font: 500 12px var(--mono); margin-right: 5px; }
 .meta { display: flex; flex-wrap: wrap; gap: 4px 8px; color: var(--ink-muted); font-size: 12px; margin-top: 2px; }
+.row .meta { grid-area: meta; min-width: 0; margin-top: 0; flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
+.row .meta > * { flex: none; }
+.row .meta > .who, .row .meta > .gate, .row .meta > .why { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.row .meta > .why { flex-grow: 1; }
+.row > .chip { grid-area: chip; justify-self: end; max-width: 10rem; overflow: hidden; text-overflow: ellipsis; }
 .chip { font: 600 10.5px/1 var(--mono); letter-spacing: .03em; padding: 4px 6px; border-radius: 5px; background: var(--surface-2); color: var(--ink-muted); white-space: nowrap; }
 .chip.ok { background: var(--accent-soft); color: var(--accent-strong); }
 .chip.warn { background: var(--warn-soft); color: var(--warn); }
@@ -284,7 +298,10 @@ form.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; paddin
 .feed .day { margin: 0; padding: 12px 0 4px; font: 600 11px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
 .feed .day:first-child { padding-top: 6px; }
 button.ref { width: auto; min-height: 0; border: 0; border-radius: 0; background: none; padding: 0; color: var(--accent-strong); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; display: inline; vertical-align: baseline; line-height: inherit; font: inherit; }
-code.inline { padding: 0 3px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 8%, var(--surface)); font: .92em var(--mono); white-space: break-spaces; }
+/* A code reference (path:lines@sha) is one long token: wider than its line, it breaks anywhere rather than push the page sideways. */
+button.ref[data-code] { max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: left; }
+code.inline { padding: 0 3px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 8%, var(--surface)); font: .92em var(--mono); white-space: nowrap; }
+code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .code { display: block; margin: 6px 0 2px; padding: 6px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); font: 12px/1.55 var(--mono); white-space: pre; overflow-x: auto; overflow-wrap: normal; }
 .code > span { display: block; padding-right: 12px; }
 .code i { display: inline-block; min-width: 3.2em; padding: 0 10px 0 6px; text-align: right; font-style: normal; color: var(--ink-faint); user-select: none; }

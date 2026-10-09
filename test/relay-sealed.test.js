@@ -303,9 +303,11 @@ test('sealed agent shout cannot answer a person decision on either independent c
 });
 
 test('two real clients stop before sender checks for newer operations and actor layouts without advancing [H16]', async t => {
-  const unknown = { version: 1, engine: 4, id: 'future-operation', operation: 'futureOp', args: [{ agentId: 'remote-1' }] };
-  const shifted = { version: 1, engine: 4, id: 'future-claim', operation: 'claim', args: [1, {}, { agentId: 'remote-1' }] };
-  for (const [name, moves] of [['new operation', [unknown]], ['new actor layout', [shifted]], ['current engine sender checks', [unknown, shifted].map(move => ({ ...move, engine: 3 }))]]) {
+  const futureEngine = ENGINE_VERSION + 1;
+  const versionMessage = new RegExp(`engine version ${futureEngine}.*engine version ${ENGINE_VERSION}`);
+  const unknown = { version: 1, engine: futureEngine, id: 'future-operation', operation: 'futureOp', args: [{ agentId: 'remote-1' }] };
+  const shifted = { version: 1, engine: futureEngine, id: 'future-claim', operation: 'claim', args: [1, {}, { agentId: 'remote-1' }] };
+  for (const [name, moves] of [['new operation', [unknown]], ['new actor layout', [shifted]], ['current engine sender checks', [unknown, shifted].map(move => ({ ...move, engine: ENGINE_VERSION }))]]) {
     await t.test(name, async sub => {
       const box = await fixture(sub);
       const source = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
@@ -347,8 +349,8 @@ test('two real clients stop before sender checks for newer operations and actor 
         const result = await replayResult(roots[index], envs[index], 'export');
         assert.equal(result.status, 0);
         results.push(result.document);
-        if (moves[0].engine === 4) {
-          assert.match((result.document.diagnostics ?? []).join('\n'), /\[ENGINE_VERSION\].*engine version 4.*engine version 3.*upgrade pullboard/, 'future records stop before interpreting the sending agent');
+        if (moves[0].engine === futureEngine) {
+          assert.match((result.document.diagnostics ?? []).join('\n'), new RegExp(`\\[ENGINE_VERSION\\].*${versionMessage.source}.*upgrade pullboard`), 'future records stop before interpreting the sending agent');
           assert.deepEqual(result.document.tables, document.tables, 'no board row, receipt or persisted cursor changes');
           assert.equal(readFileSync(links[index], 'utf8'), originalLinks[index], 'the saved transport cursor is unchanged');
           const retried = await replayResult(roots[index], envs[index], 'export');
@@ -358,7 +360,7 @@ test('two real clients stop before sender checks for newer operations and actor 
           const attempted = await replayResult(roots[index], envs[index], 'add', document.tables.item[0].item_lane, 'Later local move must wait');
           assert.equal(attempted.status, 1);
           assert.equal(attempted.document.error.code, 'ENGINE_VERSION');
-          assert.match(attempted.document.error.message, /engine version 4.*engine version 3/);
+          assert.match(attempted.document.error.message, versionMessage);
           assert.equal(readFileSync(links[index], 'utf8'), originalLinks[index]);
           const board = store.openBoard(join(roots[index], '.git/pullboard/board.sqlite'));
           try { assert.deepEqual(JSON.parse(JSON.stringify(exportBoard(board))).tables, document.tables, 'a later local mutation cannot pass the future record'); }
@@ -604,6 +606,35 @@ test('two real clients enforce the verify policy captured in the item freeze [H1
     ['COORDINATOR_VERIFIES', 'NO_POLICY', 'O2_FAMILY_MATCH', 'NO_POLICY', 'NO_POLICY'],
     ['COORDINATOR_VERIFIES', 'NO_POLICY', 'O2_FAMILY_MATCH', 'NO_POLICY', 'NO_POLICY'],
   ]);
+});
+
+test('relay accepts engine 4 clients carrying sealed background completions [V2,H16]', async t => {
+  const box = await fixture(t);
+  const headers = { 'x-pullboard-engine': '4' };
+  assert.equal(ENGINE_VERSION, 4);
+  const snapshot = await box.call(box.path + '/state', {
+    method: 'PUT', token: box.person.token, headers,
+    body: { sequence: 0, sealed: box.clientSeal(box.document, 'snapshot', 0) },
+  });
+  assert.equal(snapshot.status, 200);
+  const board = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  let move;
+  try {
+    const expected = { command: 'true', main: 'a'.repeat(40), request: '12345678-1234-1234-1234-123456789abc' };
+    move = prepareEngineMove(board, 'completeCheckBaseline', [1, {
+      agentId: 'client-one', expected, baseline: { ...expected, result: 'green' },
+    }]);
+  } finally { store.closeBoard(board); }
+  const uploaded = await box.call(box.path + '/moves', {
+    method: 'POST', headers, body: { sequence: 1, sealed: box.clientSeal(move, 'move', 1) },
+  });
+  assert.equal(uploaded.status, 200);
+  const read = await box.call(box.path + '/events?after=0', { token: box.two.token, headers });
+  assert.equal(read.status, 200);
+  assert.equal(read.body.events.length, 1);
+  const [record] = read.body.events;
+  assert.deepEqual(record.sender, { kind: 'agent', userId: box.person.user.id, agent: 'client-one' });
+  assert.deepEqual(box.clientOpen(record.sealed, record.kind, record.event_id), move);
 });
 
 test('[A4,H7] two clients append sealed moves in one order and no plaintext or client key reaches storage', async (t) => {

@@ -8,8 +8,11 @@
  * that a row is met, kept with the text they read (S5).
  */
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { DOCTRINE_FILE, LEGACY_DOCTRINE_FILE } from './config.js';
+import { cleanGitEnvironment } from './git.js';
 import { Refused } from './refused.js';
 import { hasSignerFile, isVerifiedSignoff, signRows, verifySignedRecords } from './signature.js';
 
@@ -116,6 +119,41 @@ export function loadSpec(root, config) {
   const name = config.spec;
   if (!existsSync(file)) return { ...parseSpec(''), file, name, exists: false };
   return { ...parseSpec(readFileSync(file, 'utf8')), file, name, exists: true };
+}
+
+/**
+ * Return the commit immediately before the canonical doctrine file was renamed from its legacy
+ * path. A staged rename uses HEAD; a committed rename uses that rename commit's first parent.
+ * Reading both files at this revision prevents later coordinator edits from becoming grandfathered.
+ *
+ * @param {string} root
+ * @param {string} name
+ * @returns {string | null}
+ */
+export function legacyDoctrineRenameBase(root, name) {
+  if (name !== DOCTRINE_FILE) return null;
+  const options = {
+    cwd: root,
+    env: cleanGitEnvironment(),
+    encoding: 'utf8',
+    maxBuffer: 8 * 1024 * 1024,
+    stdio: 'pipe',
+  };
+  const changed = spawnSync('git', [
+    '--no-replace-objects', '-c', 'core.quotepath=false',
+    'diff', '--name-status', '--find-renames', 'HEAD', '--', LEGACY_DOCTRINE_FILE, DOCTRINE_FILE,
+  ], options);
+  if (changed.status === 0 && /^R\d*\tPRACTICE\.md\tDOCTRINE\.md$/mu.test(changed.stdout)) {
+    const head = spawnSync('git', ['rev-parse', '--verify', 'HEAD'], options);
+    return head.status === 0 ? head.stdout.trim() : null;
+  }
+  const history = spawnSync('git', [
+    '--no-replace-objects', '-c', 'core.quotepath=false',
+    'log', '--follow', '--name-status', '--find-renames', '--format=%H %P', '--', DOCTRINE_FILE,
+  ], options);
+  if (history.status !== 0) return null;
+  const rename = history.stdout.match(/^([0-9a-f]{40}) ([0-9a-f]{40})(?: [0-9a-f]{40})?\n\nR\d*\tPRACTICE\.md\tDOCTRINE\.md$/mu);
+  return rename?.[2] ?? null;
 }
 
 /**

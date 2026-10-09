@@ -1,9 +1,11 @@
 /** Relay identity, expiry, permission freshness and scoped credential isolation [H8, H1]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
+import { DatabaseSync } from 'node:sqlite';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { createGitHubClient } from '../relay/github.js';
 import { createRelayAuth, ACCESS_WINDOW_MS } from '../relay/auth.js';
@@ -93,6 +95,42 @@ test('lost GitHub read access takes effect at ten minutes and before every board
   box.state.access = false;
   await assert.rejects(box.auth.authenticate(signed.token, { board: 'alpha', write: true }), { code: 'NO_REPO_ACCESS' });
   assert.deepEqual(await box.auth.boardsFor(signed.token), [], 'a denied write invalidates an earlier allowed read');
+});
+
+test('person token management lists only owned scoped metadata and preserves independent revocation [H2,H9]', async (t) => {
+  const box = await fixture(t);
+  const person = await login(box);
+  await box.auth.linkBoard(person.token, 'alpha', 'fixture/repository');
+  await box.auth.linkBoard(person.token, 'beta', 'fixture/repository');
+  const first = await box.auth.issueToken(person.token, { board: 'alpha', agent: 'worker-one' });
+  const second = await box.auth.issueToken(person.token, { board: 'alpha', agent: 'worker-two' });
+  const other = await box.auth.issueToken(person.token, { board: 'beta', agent: 'worker-one' });
+  const foreign = new DatabaseSync(box.database);
+  try {
+    foreign.prepare('INSERT INTO relay_users(id,login) VALUES (?,?)').run('8', 'other-person');
+    foreign.prepare('INSERT INTO relay_credentials(id,hash,kind,user_id,board,agent,expires) VALUES (?,?,?,?,?,?,?)')
+      .run('foreign-private-fixture', 'f'.repeat(64), 'board', '8', 'alpha', 'foreign-worker', Date.now() + 60_000);
+  } finally { foreign.close(); }
+  const listed = await box.auth.listTokens(person.token, 'alpha');
+  assert.equal(listed.length, 2);
+  assert.deepEqual(listed.map((row) => row.agent), ['worker-one', 'worker-two']);
+  for (const row of listed) {
+    assert.deepEqual(Object.keys(row).sort(), ['agent', 'board', 'created', 'expires', 'id', 'revoked']);
+    assert.equal(row.board, 'alpha');
+    assert.equal(row.revoked, false);
+  }
+  for (const secret of [person.token, first.token, second.token, other.token]) {
+    assert.equal(JSON.stringify(listed).includes(secret), false, 'listing never includes a credential value');
+  }
+  await assert.rejects(box.auth.listTokens(first.token, 'alpha'), { code: 'HUMAN_REQUIRED' });
+  await assert.rejects(box.auth.listTokens(first.token, 'beta'), { code: 'TOKEN_BOARD' });
+  await box.auth.revoke(person.token, first.id);
+  assert.equal((await box.auth.listTokens(person.token, 'alpha')).find((row) => row.id === first.id).revoked, true);
+  await assert.rejects(box.auth.authenticate(first.token, { board: 'alpha', write: true }), { code: 'AUTH_REQUIRED' });
+  assert.equal((await box.auth.authenticate(second.token, { board: 'alpha', write: true })).agent, 'worker-two');
+  assert.equal((await box.auth.authenticate(other.token, { board: 'beta', write: true })).agent, 'worker-one');
+  box.state.permission = 'read';
+  await assert.rejects(box.auth.listTokens(person.token, 'alpha'), { code: 'WRITE_REQUIRED' });
 });
 
 test('credentials are hash-only, expire, revoke individually and survive relay restart [H8, H1]', async (t) => {
@@ -522,7 +560,7 @@ test('offline linked reads use the local board, moves refuse, and the same relay
     assert.equal(afterTables.event.length, beforeEvents.length + 1, 'only the acknowledged recovery move is recorded locally');
     assert.equal(afterTables.event.at(-1).event_kind, 'add');
     const remoteStateResponse = await fetch(`${box.origin}/api/v1/boards/${link.board}/state`, {
-      headers: { authorization: `Bearer ${link.token}` },
+      headers: { authorization: `Bearer ${link.token}`, 'x-pullboard-engine': String(ENGINE_VERSION) },
     });
     assert.equal(remoteStateResponse.status, 200);
     assert.equal((await remoteStateResponse.json()).state.sequence, 1, 'the resumed move has exactly one relay position');
@@ -533,6 +571,195 @@ test('offline linked reads use the local board, moves refuse, and the same relay
       else process.env[name] = value;
     }
   }
+});
+
+test('a linked device without its key reads locally and refuses moves with both repairs [H10,H17]', async (t) => {
+  const box = await relayClientFixture(t);
+  // The isolated PATH must install the real CLI for Git's generated hooks in the new worktree.
+  symlinkSync(resolve(import.meta.dirname, '../bin/pullboard.js'), join(box.env.PATH, 'pullboard'));
+  const staged = spawnSync('git', ['add', '-A'], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  assert.equal(staged.status, 0, staged.stderr);
+  const seeded = spawnSync('git', ['commit', '-m', 'chore(test): seed fixture'], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  assert.equal(seeded.status, 0, seeded.stderr);
+  const agentRoot = join(box.root, '..', 'missing-key-agent');
+  const worktree = spawnSync('git', ['worktree', 'add', '-b', 'fixture-missing-key-agent', agentRoot, 'HEAD'], {
+    cwd: box.root, env: box.env, encoding: 'utf8',
+  });
+  assert.equal(worktree.status, 0, worktree.stderr);
+  const prepare = await box.script(`
+    import { main } from ${JSON.stringify(box.mainURL)};
+    for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
+    /** Run a real CLI command from the fixture worktree and capture its JSON result. */
+    async function command(cwd, args) {
+      let output = '';
+      const code = await main([...args, '--json'], { cwd, stdout: { isTTY: false, write: value => { output += value; } }, stderr: { write() {} }, stdin: process.stdin });
+      return { code, document: JSON.parse(output) };
+    }
+    const joined = await command(${JSON.stringify(agentRoot)}, ['join', ${JSON.stringify(box.lane)}, '--route', 'mid']);
+    const asked = await command(${JSON.stringify(agentRoot)}, ['shout', 'coordinator', 'Should this fixture continue?', '--decision']);
+    process.stdout.write(JSON.stringify({ joined, asked }));
+  `);
+  assert.equal(prepare.document.joined.code, 0, 'the real agent worktree joins its lane');
+  assert.equal(prepare.document.asked.code, 0, 'the agent creates a real open decision before its key is removed');
+  const decision = prepare.document.asked.document.id;
+  assert.ok(Number.isSafeInteger(decision));
+  await box.link();
+  const boardFile = join(box.root, '.git', 'pullboard', 'board.sqlite');
+  const beforeBytes = readFileSync(boardFile);
+  const callsBefore = box.calls.length;
+  assert.equal(existsSync(box.keyFile), true);
+  rmSync(box.keyFile);
+  assert.equal(existsSync(box.keyFile), false, 'the isolated device key is actually absent');
+
+  const reads = await box.script(`
+    import { main } from ${JSON.stringify(box.mainURL)};
+    for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
+    /** Run one local read and capture its JSON document and diagnostics. */
+    async function command(args) {
+      let output = '';
+      const code = await main([...args, '--json'], { cwd: process.cwd(), stdout: { isTTY: false, write: value => { output += value; } }, stderr: { write() {} }, stdin: process.stdin });
+      return { code, document: JSON.parse(output) };
+    }
+    const status = await command(['status']);
+    const list = await command(['list', '--all']);
+    const show = await command(['show', '1']);
+    const decisions = await command(['decisions']);
+    process.stdout.write(JSON.stringify({ status, list, show, decisions }));
+  `);
+  const localReads = Object.values(reads.document);
+  for (const result of localReads) {
+    assert.equal(result.code, 0, JSON.stringify(result.document));
+    assert.equal(result.document.diagnostics?.length, 1, 'each read gets one missing-key line despite sync before and after the command');
+    assert.match(result.document.diagnostics[0], /RELAY_KEY_MISSING|board key is missing/);
+    assert.match(result.document.diagnostics[0], /moves are off until the key is reachable/);
+    assert.match(result.document.diagnostics[0], /run this command where the key is available, or pair this device/);
+  }
+  assert.ok(reads.document.list.document.items.some(item => item.item_title === 'private cleanup fixture item'), 'list returns the local item');
+  assert.equal(reads.document.show.document.item_title, 'private cleanup fixture item', 'show returns the local item');
+  assert.ok(reads.document.decisions.document.decisions.some(ask => ask.shout_id === decision), 'decisions returns the locally stored open question');
+  assert.equal(box.calls.length, callsBefore, 'missing key is detected before any relay request');
+
+  const moves = await box.script(`
+    import { main } from ${JSON.stringify(box.mainURL)};
+    for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
+    /** Run one linked move and capture its refusal document. */
+    async function command(cwd, args) {
+      let output = '';
+      const code = await main([...args, '--json'], { cwd, stdout: { isTTY: false, write: value => { output += value; } }, stderr: { write() {} }, stdin: process.stdin });
+      return { code, document: JSON.parse(output) };
+    }
+    const claim = await command(${JSON.stringify(agentRoot)}, ['claim', '1']);
+    const shout = await command(${JSON.stringify(agentRoot)}, ['shout', 'coordinator', 'must not be sent']);
+    const answer = await command(${JSON.stringify(box.root)}, ['answer', ${JSON.stringify(String(decision))}, 'yes']);
+    process.stdout.write(JSON.stringify({ claim, shout, answer }));
+  `);
+  for (const result of Object.values(moves.document)) {
+    assert.equal(result.code, 1);
+    assert.equal(result.document.error.code, 'RELAY_KEY_MISSING');
+    assert.match(result.document.error.message, /board key is missing/);
+    assert.match(result.document.error.message, /run this command where the key is available, or pair this device/);
+  }
+  assert.deepEqual(readFileSync(boardFile), beforeBytes, 'reads and refused moves leave the local board unchanged');
+  assert.equal(box.calls.length, callsBefore, 'no read or refused move reaches the relay');
+});
+
+test('a linked device with an unreadable key reads locally and refuses moves with both repairs [H10,H17]', async (t) => {
+  const box = await relayClientFixture(t);
+  // The isolated PATH must install the real CLI for Git's generated hooks in the new worktree.
+  symlinkSync(resolve(import.meta.dirname, '../bin/pullboard.js'), join(box.env.PATH, 'pullboard'));
+  const staged = spawnSync('git', ['add', '-A'], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  assert.equal(staged.status, 0, staged.stderr);
+  const seeded = spawnSync('git', ['commit', '-m', 'chore(test): seed fixture'], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  assert.equal(seeded.status, 0, seeded.stderr);
+  const agentRoot = join(box.root, '..', 'missing-key-agent');
+  const worktree = spawnSync('git', ['worktree', 'add', '-b', 'fixture-missing-key-agent', agentRoot, 'HEAD'], {
+    cwd: box.root, env: box.env, encoding: 'utf8',
+  });
+  assert.equal(worktree.status, 0, worktree.stderr);
+  const prepare = await box.script(`
+    import { main } from ${JSON.stringify(box.mainURL)};
+    for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
+    /** Run a real CLI command from the fixture worktree and capture its JSON result. */
+    async function command(cwd, args) {
+      let output = '';
+      const code = await main([...args, '--json'], { cwd, stdout: { isTTY: false, write: value => { output += value; } }, stderr: { write() {} }, stdin: process.stdin });
+      return { code, document: JSON.parse(output) };
+    }
+    const joined = await command(${JSON.stringify(agentRoot)}, ['join', ${JSON.stringify(box.lane)}, '--route', 'mid']);
+    const asked = await command(${JSON.stringify(agentRoot)}, ['shout', 'coordinator', 'Should this fixture continue?', '--decision']);
+    process.stdout.write(JSON.stringify({ joined, asked }));
+  `);
+  assert.equal(prepare.document.joined.code, 0, 'the real agent worktree joins its lane');
+  assert.equal(prepare.document.asked.code, 0, 'the agent creates a real open decision before its key is removed');
+  const decision = prepare.document.asked.document.id;
+  assert.ok(Number.isSafeInteger(decision));
+  await box.link();
+  const boardFile = join(box.root, '.git', 'pullboard', 'board.sqlite');
+  const beforeBytes = readFileSync(boardFile);
+  const callsBefore = box.calls.length;
+  assert.equal(existsSync(box.keyFile), true);
+  chmodSync(box.keyFile, 0o000);
+  t.after(() => { if (existsSync(box.keyFile)) chmodSync(box.keyFile, 0o600); });
+  assert.throws(() => readFileSync(box.keyFile), { code: 'EACCES' }, 'the real key file is denied to this shell');
+
+  const reads = await box.script(`
+    import { main } from ${JSON.stringify(box.mainURL)};
+    for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
+    /** Run one local read and capture its JSON document and diagnostics. */
+    async function command(args) {
+      let output = '';
+      try {
+        const code = await main([...args, '--json'], { cwd: process.cwd(), stdout: { isTTY: false, write: value => { output += value; } }, stderr: { write() {} }, stdin: process.stdin });
+        return { code, document: JSON.parse(output) };
+      } catch (error) {
+        return { code: error.code, document: { thrown: error.message } };
+      }
+    }
+    const status = await command(['status']);
+    const list = await command(['list', '--all']);
+    const show = await command(['show', '1']);
+    const decisions = await command(['decisions']);
+    process.stdout.write(JSON.stringify({ status, list, show, decisions }));
+  `);
+  const localReads = Object.values(reads.document);
+  for (const result of localReads) {
+    assert.equal(result.code, 0, JSON.stringify(result.document));
+    assert.equal(result.document.diagnostics?.length, 1, 'each read gets one unreadable-key line despite sync before and after the command');
+    assert.match(result.document.diagnostics[0], /board key is unreadable in this shell \(EACCES\)/);
+    assert.match(result.document.diagnostics[0], /moves are off until the key is reachable/);
+    assert.match(result.document.diagnostics[0], /run this command where the key is available, or pair this device/);
+  }
+  assert.ok(reads.document.list.document.items.some(item => item.item_title === 'private cleanup fixture item'), 'list returns the local item');
+  assert.equal(reads.document.show.document.item_title, 'private cleanup fixture item', 'show returns the local item');
+  assert.ok(reads.document.decisions.document.decisions.some(ask => ask.shout_id === decision), 'decisions returns the locally stored open question');
+  assert.equal(box.calls.length, callsBefore, 'unreadable key is detected before any relay request');
+
+  const moves = await box.script(`
+    import { main } from ${JSON.stringify(box.mainURL)};
+    for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
+    /** Run one linked move and capture its refusal document. */
+    async function command(cwd, args) {
+      let output = '';
+      try {
+        const code = await main([...args, '--json'], { cwd, stdout: { isTTY: false, write: value => { output += value; } }, stderr: { write() {} }, stdin: process.stdin });
+        return { code, document: JSON.parse(output) };
+      } catch (error) {
+        return { code: error.code, document: { thrown: error.message } };
+      }
+    }
+    const claim = await command(${JSON.stringify(agentRoot)}, ['claim', '1']);
+    const shout = await command(${JSON.stringify(agentRoot)}, ['shout', 'coordinator', 'must not be sent']);
+    const answer = await command(${JSON.stringify(box.root)}, ['answer', ${JSON.stringify(String(decision))}, 'yes']);
+    process.stdout.write(JSON.stringify({ claim, shout, answer }));
+  `);
+  for (const result of Object.values(moves.document)) {
+    assert.equal(result.code, 1);
+    assert.equal(result.document.error.code, 'RELAY_KEY_MISSING');
+    assert.match(result.document.error.message, /board key is unreadable in this shell \(EACCES\)/);
+    assert.match(result.document.error.message, /run this command where the key is available, or pair this device/);
+  }
+  assert.deepEqual(readFileSync(boardFile), beforeBytes, 'reads and refused moves leave the local board unchanged');
+  assert.equal(box.calls.length, callsBefore, 'no read or refused move reaches the relay');
 });
 
 test('plain relay off explains an already-deleted board without printing credentials [H1,H18]', async (t) => {
