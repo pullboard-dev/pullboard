@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { gunzipSync } from 'node:zlib';
 import { decodeBoardKey, seal, unseal } from '../src/seal.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { findChromeExecutable, relayWorkBudgetMs, startChrome } from './relay-browser-fixture.js';
@@ -420,9 +421,11 @@ test('a newer acknowledged checkpoint covers an earlier timed-out PUT [H16,C7]',
   const saved = (await stateResponse.json()).state;
   assert.equal(saved.sequence, trace.at(-1).sequence, 'the relay retains the newest acknowledged checkpoint');
   assert.equal(createHash('sha256').update(saved.sealed).digest('hex'), trace.at(-1).ciphertext);
-  const restored = JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(saved.sealed, 'base64url'), {
+  const opened = await unseal(key, Buffer.from(saved.sealed, 'base64url'), {
     boardId: link.board, kind: 'snapshot', sequence: saved.sequence,
-  })));
+  });
+  const plaintext = opened[0] === 0x1f && opened[1] === 0x8b ? gunzipSync(opened) : opened;
+  const restored = JSON.parse(new TextDecoder().decode(plaintext));
   const exported = (await box.cli('export')).document;
   assert.equal(Number(exported.tables.board_meta.find(row => row.meta_key === 'relay_applied_sequence').meta_value), saved.sequence);
   assert.equal(Number(restored.tables.board_meta.find(row => row.meta_key === 'relay_applied_sequence').meta_value), saved.sequence);
