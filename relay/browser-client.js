@@ -5,11 +5,12 @@ import { snapshotState, presentationState } from './model.js';
 import { ENGINE_VERSION } from './engine.js';
 import { Refused } from './refused.js';
 import { enqueueStream, followStream } from './browser-stream.js';
-import { noticeLines } from './browser-notice.js';
+import { noticeLines, rememberOwnedRequestId, storedOwnedRequestState } from './browser-notice.js';
 
 const KEYS = 'pullboard.relay.keys.v1';
 const PENDING = 'pullboard.relay.pair.v1';
 const OUTBOX = 'pullboard.relay.requests.v1.';
+const OWNED = 'pullboard.relay.owned-requests.v1.';
 const BOARD = /^[0-9a-f]{32}$/;
 
 /** Read private browser storage without turning unavailable storage into a credential diagnostic. */
@@ -82,7 +83,14 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     const element = document.getElementById('relay-notice');
     if (!element) return;
     element.replaceChildren();
-    for (const text of noticeLines({ available, paired, warnings, failure })) {
+    const ownedRequestIds = new Map();
+    for (const [id, entry] of paired) {
+      const key = OWNED + id;
+      let state = { owned: new Set() };
+      try { state = storedOwnedRequestState(localStorage, key, entry.state?.personRequests); } catch { /* Missing device storage can only hide this device's own notice. */ }
+      ownedRequestIds.set(id, state.owned);
+    }
+    for (const text of noticeLines({ available, paired, ownedRequestIds, warnings, failure })) {
       const paragraph = document.createElement('p');
       paragraph.textContent = text;
       element.append(paragraph);
@@ -293,7 +301,10 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
   /** Save only ciphertext on the device so an interrupted send retains its stable request id. */
   function saveOutbox(entry) {
     try {
-      if (entry.outbox) localStorage.setItem(OUTBOX + entry.id + '.' + entry.outbox.id, JSON.stringify(entry.outbox));
+      if (entry.outbox) {
+        localStorage.setItem(OUTBOX + entry.id + '.' + entry.outbox.id, JSON.stringify(entry.outbox));
+        rememberOwnedRequestId(localStorage, OWNED + entry.id, entry.outbox.id);
+      }
     } catch { throw new Refused('REQUEST_STORAGE', 'This browser cannot save the sealed request. Enable device storage before sending it.'); }
   }
 
@@ -353,7 +364,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
       await snapshot(entry);
       await catchUp(entry);
       const received = entry.state.personRequests?.find(record => record.id === value.id);
-      if (received) { acknowledge(entry, value.id); return { version: 1, event: null, result: { request: received } }; }
+      if (received) { acknowledge(entry, value.id); notice(); return { version: 1, event: null, result: { request: received } }; }
       if (entry.outbox.sequence !== entry.cursor + 1) {
         entry.outbox = await requestEnvelope(entry, value, entry.cursor + 1);
         saveOutbox(entry);
@@ -370,6 +381,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
       const record = entry.state.personRequests.find(request => request.id === value.id);
       if (!record) throw new Refused('RELAY_RESPONSE', 'The request acknowledgement has no receipt. Retry this board.');
       acknowledge(entry, value.id);
+      notice();
       onUpdate();
       return { version: 1, event: response.event, result: { request: structuredClone(record) } };
     }
@@ -411,6 +423,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
         await snapshot(entry);
         await catchUp(entry);
         if (entry.stream?.closed) subscribe(entry);
+        notice();
         if (match[2] === 'state') return { version: 1, state: entry.state };
         return { version: 1, events: [...entry.state.events].reverse() };
       });
