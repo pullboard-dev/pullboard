@@ -54,6 +54,7 @@ function testEnvironment(sandbox) {
   env.GIT_CONFIG_KEY_0 = 'user.useConfigOnly';
   env.GIT_CONFIG_VALUE_0 = 'true';
   env.PATH = [shims, process.env.PATH].filter(Boolean).join(delimiter);
+  delete env.PULLBOARD_RELAY_TOKEN; // Fixtures must supply their own scoped credentials, never an agent’s live bearer.
   delete env.NODE_TEST_CONTEXT;
   delete env.PULLBOARD_TEST_FILE;
   return env;

@@ -83,7 +83,7 @@ for (const branch of ['master', 'trunk']) {
     const box = project(branch);
     const head = box.git(box.repo, 'rev-parse', 'HEAD');
     assert.equal(mainPolicy(box.repo).commit, head, 'trusted policy resolves the primary checkout rather than a fixed branch name');
-    const added = box.run(box.repo, 'add', 'web', `baseline on ${branch}`, '--specs', 'G1', '--criterion', 'a real check baseline is recorded', '--check', 'node -e "process.exit(1)"', '--json');
+    const added = box.run(box.repo, 'add', 'web', `baseline on ${branch}`, '--specs', 'G1', '--criterion', 'a real check baseline is recorded', '--check', 'node -e "process.exit(1)"', '--wait', '--json');
     assert.equal(added.code, 0, `${added.out}${added.err}`);
     const item = JSON.parse(added.out).item;
     assert.equal(item.item_check_baseline.main, head, `${branch} baseline points at the primary checkout commit`);

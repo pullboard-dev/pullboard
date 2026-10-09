@@ -6,10 +6,12 @@
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { gitChildEnv, gitPath, headTree, isClean, untracked } from './git.js';
+import { gitChildEnv, gitPath, headTree, invalidateGitFacts, isClean, untracked } from './git.js';
 import { Refused } from './refused.js';
 import { takeResource } from './resources.js';
 import { loadMachineSettings } from './settings.js';
+import { selectAffectedTests } from './affected-tests.js';
+import { join } from 'node:path';
 
 const STAMP = 'pullboard-gate-green';
 const LOG = 'pullboard-gate.log';
@@ -97,6 +99,7 @@ export function runShell(root, command) {
   const started = Date.now();
   // Newlines, not spaces, around the command, so a trailing comment in it cannot swallow the `)`.
   const result = spawnSync(`(\n${command}\n) 2>&1`, { cwd: root, env: gitChildEnv(root), shell: true, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', maxBuffer: 2 ** 30 });
+  invalidateGitFacts();
   return { isGreen: result.status === 0, output: `${result.stdout ?? ''}${result.stderr ?? ''}`, seconds: Math.round((Date.now() - started) / 1000) };
 }
 
@@ -133,8 +136,8 @@ export async function withGateSlot(root, action, { landing = false, itemCheck = 
  * streams in order, is kept whole in the git dir and returned for a digest.
  *
  * A passed tree is marked by a stamp file in the git dir, which any agent can write. So the stamp
- * only saves a run where nothing is proven by it, such as pre-push (C3); submit needs a run of its
- * own and passes `trustStamp: false` (V16).
+ * only saves a run where nothing is proven by it, such as pre-push (C3). A submission that falls
+ * back to the full gate always runs it afresh (V16).
  *
  * @param {string} root
  * @param {any} config
@@ -146,17 +149,64 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
     throw new Refused('NO_GATE', 'no gate configured; set "gate" in pullboard.json, e.g. "npm test"');
   }
   if (trustStamp && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
+  return await withGateSlot(root, () => fullGateRun(root, config, trustStamp), { landing, onWait });
+}
+
+/** Run a full gate while its caller owns the queue lease; only a full run may stamp its tree. */
+function fullGateRun(root, config, trustStamp = false) {
+  if (trustStamp && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
+  const before = committedTree(root);
+  const { isGreen, output, seconds } = runShell(root, config.gate);
+  const log = gitPath(root, LOG);
+  writeFileSync(log, output);
+  if (isGreen && before !== null && committedTree(root) === before) writeFileSync(gitPath(root, STAMP), `${before}\n`);
+  return { isGreen, isCached: false, output, seconds, log };
+}
+
+/** Quote a fixed executable or selected path without permitting shell expansion. */
+function commandWord(value) {
+  return `'${String(value).replaceAll("'", "'\\''")}'`;
+}
+
+/**
+ * Prove the frozen item check and selected imports under one lease. Subsets neither read nor write
+ * the full-gate stamp. An uncertain selection runs the full configured gate and records its reason.
+ *
+ * @param {string} root
+ * @param {any} config
+ * @param {{base:string|null, trunk?:string, changed?:string[], check:string, onWait?:(state:object)=>void}} options
+ * @returns {Promise<any>}
+ */
+export async function runSubmitGate(root, config, { base, trunk, changed, check, onWait }) {
+  if (!config.gate.trim()) throw new Refused('NO_GATE', 'no gate configured; set "gate" in pullboard.json, e.g. "npm test"');
+  const selection = selectAffectedTests(root, { base, trunk, changed });
   return await withGateSlot(root, () => {
-    if (trustStamp && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
-    const before = committedTree(root);
-    const { isGreen, output, seconds } = runShell(root, config.gate);
-    const log = gitPath(root, LOG);
-    writeFileSync(log, output);
-    if (isGreen && before !== null && committedTree(root) === before) {
-      writeFileSync(gitPath(root, STAMP), `${before}\n`);
+    const criterion = check ? runShell(root, check) : { isGreen: true, output: '', seconds: 0 };
+    const receipt = { command: check, green: criterion.isGreen, seconds: criterion.seconds, checked: Boolean(check) };
+    const log = gitPath(root, 'pullboard-submit.log');
+    if (!criterion.isGreen) {
+      writeFileSync(log, criterion.output);
+      return { isGreen: false, isCached: false, output: criterion.output, seconds: criterion.seconds, log, ...selection, check: receipt };
     }
-    return { isGreen, isCached: false, output, seconds, log };
-  }, { landing, onWait });
+    let proof;
+    if (selection.full) proof = fullGateRun(root, config);
+    else if (!selection.files.length) proof = { isGreen: true, output: '', seconds: 0, isCached: false, log };
+    else {
+      const runner = existsSync(join(root, 'bin/run-tests.js')) ? [process.execPath, 'bin/run-tests.js'] : [process.execPath, '--test'];
+      const command = [...runner, ...selection.files.map(path => './' + path)].map(commandWord).join(' ');
+      proof = { ...runShell(root, command), isCached: false, log };
+    }
+    writeFileSync(log, `item check:\n${criterion.output}\n${selection.full ? 'full gate' : 'affected tests'}:\n${proof.output}`);
+    return { ...proof, log, seconds: criterion.seconds + proof.seconds, ...selection, check: receipt };
+  }, { onWait });
+}
+
+/** Describe precisely which submission proof ran, including absent checks and full fallbacks. */
+export function submitGateReport(gate) {
+  const check = gate.check.checked ? `item check ${gate.check.green ? 'green' : 'red'} in ${gate.check.seconds}s` : 'no item check';
+  const selection = gate.full ? `full gate: ${gate.reason}` : `affected tests: ${gate.files.length ? gate.files.join(', ') : 'none'}`;
+  const result = gate.isGreen && !gate.full ? `affected tests green in ${gate.seconds}s` : gateReport(gate);
+  return `${check}; ${selection}; ${result}`;
 }
 
 /**
