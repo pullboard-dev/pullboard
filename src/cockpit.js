@@ -124,10 +124,10 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
       </form>
     </aside>
   </section>
-  <section data-pane="shouts" class="two narrow">
+  <section data-pane="shouts" class="two narrow" id="shouts-pane">
     <div class="primary">
       <section class="needs-you" id="decisions" aria-label="Decisions needed" hidden></section>
-      <form id="shout-form" class="card-panel inline"><p class="answering" id="answering" hidden><span>Answering <b id="answering-who"></b>: <span id="answering-q"></span></span><button class="ghost" id="answer-cancel" type="button">Cancel</button></p><label>To<input id="shout-to" list="shout-targets" required placeholder="all, a lane or an agent"></label><datalist id="shout-targets"></datalist><label class="wide">Message<input id="shout-text" required></label><button class="go" id="shout-send" type="submit">Shout</button></form>
+      <form id="shout-form" class="card-panel shout-form"><p class="answering" id="answering" hidden><span>Answering <b id="answering-who"></b>: <span id="answering-q"></span></span><button class="ghost" id="answer-cancel" type="button">Cancel</button></p><div class="composer"><label class="to"><span>to</span><input id="shout-to" list="shout-targets" required placeholder="all" aria-label="To: all, a lane or an agent"></label><datalist id="shout-targets"></datalist><textarea id="shout-text" required rows="1" placeholder="Shout to the board" aria-label="Message"></textarea><button class="send" id="shout-send" type="submit" aria-label="Shout" title="Shout (Enter; Shift+Enter for a new line)"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button></div></form>
       <div class="card-panel feed" id="feed"></div>
     </div>
     <aside class="card-panel detail" aria-label="Agents and lanes">
@@ -184,7 +184,7 @@ function homeTab() {
   const kept = keep('pb.tab');
   return kept && kept !== 'roadmap' ? kept : 'items';
 }
-const view = { root: keep('pb.project'), tab: addressTab() || homeTab(), seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null } };
+const view = { root: keep('pb.project'), tab: addressTab() || homeTab(), seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null }, agent: null, agentsHidden: keep('pb.agents') === 'hidden', allAgents: false };
 if (snapshot) view.state = 'all';
 let data = null;
 let seen = '';
@@ -213,7 +213,11 @@ const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&am
 // is in columns, as a terminal counts them: CJK, full-width and emoji characters take two.
 const wideChar = (c) => { const p = c.codePointAt(0); return (p >= 0x1100 && p <= 0x115f) || (p >= 0x2e80 && p <= 0xa4cf) || (p >= 0xac00 && p <= 0xd7a3) || (p >= 0xf900 && p <= 0xfaff) || (p >= 0xfe30 && p <= 0xfe4f) || (p >= 0xff00 && p <= 0xff60) || (p >= 0xffe0 && p <= 0xffe6) || (p >= 0x1f300 && p <= 0x1faff) || (p >= 0x20000 && p <= 0x3fffd); };
 const columns = (text) => [...String(text)].reduce((n, c) => n + (wideChar(c) ? 2 : 1), 0);
-const codeChip = (text) => '<code class="inline' + (columns(text) > 24 ? ' long' : '') + '">' + esc(text) + '</code>';
+const codeChip = (text, kind = '') => kind === 'sha' && String(text).length > 10
+  ? '<code class="inline sha" title="' + esc(text) + '">' + esc(String(text).slice(0, 10)) + '</code>'
+  : '<code class="inline' + (kind ? ' ' + kind : '') + (columns(text) > 24 ? ' long" title="' + esc(text) : '') + '">' + esc(text) + '</code>';
+// An age said in words, as a shout's card shows it: now, 2m ago, 1h ago.
+const agoLong = (iso) => { const short = ago(iso); return short === 'now' ? 'now' : short + ' ago'; };
 const ago = (iso) => { const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 1 ? 'now' : m < 60 ? m + 'm' : m < 2880 ? Math.round(m / 60) + 'h' : Math.round(m / 1440) + 'd'; };
 // An age as the page shows it: the moment it counts from stays on it, so tickAges can move it on.
 const age = (iso) => '<time data-ago="' + esc(iso) + '">' + ago(iso) + '</time>';
@@ -228,6 +232,11 @@ const dayName = (iso) => {
 };
 // A feed's rows, newest first, with the day named above each run of rows from the same day.
 const byDay = (rows, at, row) => rows.map((x, i) => (i && new Date(at(x)).toDateString() === new Date(at(rows[i - 1])).toDateString() ? '' : '<h4 class="day">' + dayName(at(x)) + '</h4>') + row(x)).join('');
+// Where the shouts cross into an earlier day, a rule names it in the middle; today needs no label at the top.
+const dayRules = (rows, at, row) => rows.map((x, i) => {
+  const day = new Date(at(x)).toDateString(), before = i ? new Date(at(rows[i - 1])).toDateString() : new Date().toDateString();
+  return (day === before ? '' : '<div class="day-rule" role="separator"><span>' + dayName(at(x)) + '</span></div>') + row(x);
+}).join('');
 const firstLine = (text) => String(text ?? '').split('\\n').map((line) => line.trim()).find(Boolean) || '';
 // The latest verdict is a reject and no accept followed: open again, being reworked, resubmitted, or
 // withdrawn after it.
@@ -245,7 +254,11 @@ const codeRef = (ref, before) => {
   const open = Boolean(c && c.open);
   const shown = !open ? '' : c.error ? '<span class="code no">' + esc(c.error) + '</span>' : !c.lines ? '<span class="code more">loading…</span>'
     : '<span class="code">' + c.lines.map((line, n) => '<span><i>' + (c.from + n) + '</i>' + esc(line) + '</span>').join('') + (c.more ? '<span class="more">the first ' + c.lines.length + ' lines</span>' : '') + '</span>';
-  return '<button class="ref" data-code="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' type="button" aria-expanded="' + open + '">' + esc(ref) + '</button>' + shown;
+  // Its label is one piece: the path, cut short first where the line is narrow, then the lines and the commit's first
+  // ten characters; the whole reference is on hover.
+  const colon = ref.indexOf(':'), at = ref.lastIndexOf('@');
+  const label = '<span class="ref-path">' + esc(ref.slice(0, colon)) + '</span><span class="ref-at">' + esc(ref.slice(colon, at + 1) + ref.slice(at + 1, at + 11)) + '</span>';
+  return '<button class="ref" data-code="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' title="' + esc(ref) + '" type="button" aria-expanded="' + open + '">' + label + '</button>' + shown;
 };
 /** Format the API's structured fact binding as the live reference the code preview accepts. */
 function factCodeRef(ref) {
@@ -857,7 +870,9 @@ function renderSide() {
       if (allowLinks && validRef) return codeRef(part, textBefore.slice(-2000));
       return codeChip(part);
     }
-    if (/^(?:${COMMAND_SOURCE}|--[\\w-]+|(?:\\/|\\.\\.?\\/|[\\w.-]+\\/)\\w[\\w./-]*\\.[A-Za-z0-9]+|\\b[0-9a-fA-F]{7,40}\\b)$/.test(part)) return codeChip(part);
+    if (/^(?:${COMMAND_SOURCE}|--[\\w-]+)$/.test(part)) return codeChip(part, 'cmd');
+    if (/^(?:\\/|\\.\\.?\\/|[\\w.-]+\\/)\\w[\\w./-]*\\.[A-Za-z0-9]+$/.test(part)) return codeChip(part, 'path');
+    if (/^[0-9a-fA-F]{7,40}$/.test(part)) return codeChip(part, 'sha');
     return linked(part, titles, allowLinks);
   }).join(''); }
   /** Render inline text and fenced or shell command blocks with escaped contents.
@@ -890,7 +905,7 @@ function renderSide() {
       open.push({ indent: indent.length, node });
     }
     const list = (nodes) => '<ul class="text-list">' + nodes.map((node) => '<li>'
-      + (wholeCommand(node.text) ? codeChip(node.text) : inline(node.text, titles, allowLinks))
+      + (wholeCommand(node.text) ? codeChip(node.text, 'cmd') : inline(node.text, titles, allowLinks))
       + (node.children.length ? list(node.children) : '') + '</li>').join('') + '</ul>';
     return list(roots);
   }
@@ -1129,24 +1144,57 @@ function render() {
   const mark = (x) => (x.shout_decision ? '<span class="mark ask">decision</span> ' : x.shout_answers ? '<span class="mark">answer</span> ' : '');
   // Evidence a shout carries (B22), as the fields it is: its kind and outcome, the item, who sent it,
   // and the commit, shortened, with the full SHA on hover.
-  const evidence = (x) => (x.shout_evidence_kind ? '<span class="ev"><b>' + esc(x.shout_evidence_kind) + '</b> ' + esc(x.shout_evidence_outcome) + ' · ' + linked('#' + x.shout_evidence_item, titles) + ' · ' + esc(x.shout_from) + ' · <code title="' + esc(x.shout_evidence_commit) + '">' + esc(String(x.shout_evidence_commit).slice(0, 12)) + '</code></span>' : '');
-  $('feed').innerHTML = p.shouts.length ? byDay(p.shouts, (x) => x.shout_at, (x) => '<div><time>' + clock(x.shout_at) + '</time><div><b>' + esc(x.shout_from) + ' → ' + esc(x.shout_to) + '</b> ' + mark(x) + rich(x.shout_text, titles) + evidence(x) + '</div></div>') : '<div class="empty">No shouts yet.</div>';
+  const evidence = (x) => (x.shout_evidence_kind ? '<div class="receipt"><div><span class="badge">' + esc(x.shout_evidence_kind) + '</span> <span class="outcome">' + esc(x.shout_evidence_outcome) + '</span></div>'
+    + '<div class="receipt-foot">' + linked('#' + x.shout_evidence_item, titles) + ' · ' + esc(x.shout_from) + ' · ' + codeChip(String(x.shout_evidence_commit), 'sha') + '</div></div>' : '');
+  // A shout as a card (#250): who, in a colour of their own, to whom, its item and when on top; what was said
+  // below. An ask carries a band until it is answered; a long shout folds at six lines.
+  const hue = (id) => [...String(id)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 8;
+  const initials = (id) => { const [name, rest = ''] = String(id).split(/[-_ ]/); const digits = rest.replace(/\\D/g, ''); return (name.slice(0, digits ? 1 : 2) + digits.slice(0, 3)).toUpperCase(); };
+  const open = new Set([...p.decisions, ...p.asked].map((d) => d.shout_id));
+  const answerOf = new Map(p.shouts.filter((y) => y.shout_answers).map((y) => [y.shout_answers, y]));
+  const band = (x) => !x.shout_decision ? '' : open.has(x.shout_id) ? '<div class="band">Decision needed</div>'
+    : '<div class="band done">Answered' + (answerOf.has(x.shout_id) ? ' by ' + esc(answerOf.get(x.shout_id).shout_from) + ': <a href="#shout-' + answerOf.get(x.shout_id).shout_id + '">see the answer</a>' : '') + '</div>';
+  // The shout's item: the first #N in its text that names an item on this board, or else its evidence's.
+  const itemOf = (x) => [...String(x.shout_text).matchAll(/#(\\d+)/g)].map((m) => String(Number(m[1]))).find((id) => titles.has(id)) || x.shout_evidence_item;
+  // The coordinator's mark is the board's own: a square with the Pullboard logo, so it stands out from the agents.
+  const LEAD = '<svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg>';
+  const lead = (from) => from === 'coordinator';
+  const heard = view.agent ? p.shouts.filter((x) => x.shout_from === view.agent || x.shout_to === view.agent) : p.shouts;
+  const bar = '<div class="feed-bar">' + (view.agent ? '<span>Shouts with <b>' + esc(view.agent) + '</b> <button class="link" data-agent="" type="button">show all</button></span>' : '<span></span>')
+    + '<button class="link" data-agents-toggle type="button">' + (view.agentsHidden ? 'Show agents' : 'Hide agents') + '</button></div>';
+  $('shouts-pane').classList.toggle('bare', view.agentsHidden);
+  // One card for a shout, in the feed and among the asks; tail adds what the place needs, such as Answer. Only the
+  // feed's copy carries the band and the id an answer's link lands on, so an ask shown twice never repeats an id.
+  const card = (x, tail = '', inFeed = true) => '<article class="shout h' + hue(x.shout_from) + (lead(x.shout_from) ? ' lead' : '') + (openShouts.has(x.shout_id) ? ' open' : '') + '"' + (inFeed ? ' id="shout-' + x.shout_id + '"' : '') + ' data-shout-id="' + x.shout_id + '">'
+    + (lead(x.shout_from) ? '<span class="avatar">' + LEAD + '</span>' : '<span class="avatar' + (initials(x.shout_from).length > 3 ? ' wide' : '') + '" aria-hidden="true">' + esc(initials(x.shout_from)) + '</span>') + '<div class="shout-main"><header><b class="who">' + esc(x.shout_from) + '</b><span class="to">→ ' + esc(x.shout_to) + '</span>'
+    + (itemOf(x) ? '<span class="item">#' + esc(itemOf(x)) + '</span>' : '') + mark(x) + '<time class="long" data-ago="' + esc(x.shout_at) + '" title="' + esc(when(x.shout_at)) + '">' + agoLong(x.shout_at) + '</time></header>'
+    + '<div class="text">' + rich(x.shout_text, titles) + '</div><button class="more" data-more type="button">' + (openShouts.has(x.shout_id) ? 'less' : 'more') + '</button>' + (inFeed ? band(x) : '') + evidence(x) + tail + '</div></article>';
+  $('feed').innerHTML = bar + (heard.length ? dayRules(heard, (x) => x.shout_at, card) : '<div class="empty">' + (view.agent ? 'No shouts with ' + esc(view.agent) + ' among the last forty.' : 'No shouts yet.') + '</div>');
+  foldShouts();
   // Each ask waits here until it is answered (B21); the answer itself is typed in the form below. The
   // person answers the ones passed up to them; the rest wait on whoever holds them (B26).
   $('decisions').hidden = !p.decisions.length && !p.asked.length;
-  $('decisions').innerHTML = (p.decisions.length ? '<div class="head"><i></i>Decision needed</div>' + p.decisions.map((d) => '<div class="ask"><p><small><b>' + esc(d.shout_from) + '</b> asks, ' + age(d.shout_at) + '</small></p><p>' + rich(d.shout_text, titles) + '</p><button class="ghost" data-go="decide:' + d.shout_id + '" type="button">Answer</button></div>').join('') : '')
-    + (p.asked.length ? '<div class="head quiet">Waiting on others</div>' + p.asked.map((d) => '<div class="ask other"><p><small><b>' + esc(d.shout_from) + '</b> asks <b>' + esc(d.shout_to) + '</b>, ' + age(d.shout_at) + '</small></p><p>' + rich(d.shout_text, titles) + '</p></div>').join('') : '');
+  // The asks as the feed's cards, folded to three lines: the person's to answer, then those waiting on others.
+  $('decisions').innerHTML = (p.decisions.length ? '<div class="head"><i></i>Decision needed</div>' + p.decisions.map((d) => card(d, '<button class="ghost answer" data-go="decide:' + d.shout_id + '" type="button">Answer</button>', false)).join('') : '')
+    + (p.asked.length ? '<div class="head quiet">Waiting on others</div>' + p.asked.map((d) => card(d, '', false)).join('') : '');
+  foldShouts();
   $('shout-targets').innerHTML = ['all', ...lanes, ...p.agents.map((a) => a.agent_id)].map((t) => '<option value="' + esc(t) + '">').join('');
   // Each agent with what it holds: its claim, then its work sent back, then its work waiting for a
   // verdict. The worktree path is there on hover; what the person reads is who is doing what.
   // A review an agent holds (V15) comes right after its claim.
   const rank = (a, i) => i.status === 'claimed' ? 0 : i.reviewer === a.agent_id ? 1 : stateOf(i) === 'back' ? 2 : 3;
   const holding = (a) => items.filter((i) => i.status === 'claimed' ? i.owner === a.agent_id : i.reviewer === a.agent_id || (i.builtBy === a.agent_id && ['back', 'verify'].includes(stateOf(i)))).sort((x, y) => rank(a, x) - rank(a, y));
-  $('agents').innerHTML = p.agents.length ? p.agents.map((a) => {
+  // The agents at work: holding a claim or a review now, or moved in the last hour. Every agent is one click away;
+  // work an idle agent left sent back or waiting stays on the Items tab.
+  const recent = (a) => p.items.some((i) => (i.status === 'claimed' && i.owner === a.agent_id) || (i.status === 'submitted' && i.reviewer === a.agent_id))
+    || (a.lastMoveAt && Date.now() - Date.parse(a.lastMoveAt) < 36e5);
+  const listed = view.allAgents ? p.agents : p.agents.filter(recent);
+  $('agents').innerHTML = (listed.length ? listed.map((a) => {
     const mine = holding(a);
-    return '<div class="agent"><div><b title="' + esc(a.agent_path) + '">' + esc(a.agent_id) + '</b><span class="muted">' + esc(a.agent_lane) + ' · ' + esc(a.agent_route) + '</span>' + (a.lastMoveAt ? '<time data-ago="' + esc(a.lastMoveAt) + '" title="last moved ' + when(a.lastMoveAt) + '">' + ago(a.lastMoveAt) + '</time>' : '') + '</div>'
+    return '<div class="agent' + (view.agent === a.agent_id ? ' on' : '') + '"><div><button class="agent-name" data-agent="' + esc(a.agent_id) + '" title="Shouts with ' + esc(a.agent_id) + ' (' + esc(a.agent_path) + ')" type="button">' + esc(a.agent_id) + '</button><span class="muted">' + esc(a.agent_lane) + ' · ' + esc(a.agent_route) + '</span>' + (a.lastMoveAt ? '<time data-ago="' + esc(a.lastMoveAt) + '" title="last moved ' + when(a.lastMoveAt) + '">' + ago(a.lastMoveAt) + '</time>' : '') + '</div>'
       + (mine.length ? mine.map((i) => '<div class="agent-work" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span>' + (i.reviewer === a.agent_id ? '<span class="chip warn">reviewing</span>' : chip(stateOf(i))) + '</div>').join('') : '<small>idle</small>') + '</div>';
-  }).join('') : '<div class="empty">No agents yet.</div>';
+  }).join('') : '<div class="empty">' + (p.agents.length ? 'No agent has moved today.' : 'No agents yet.') + '</div>')
+    + (p.agents.length > p.agents.filter(recent).length ? '<button class="link all-agents" data-all-agents type="button">' + (view.allAgents ? 'show only agents at work' : 'show all ' + p.agents.length) + '</button>' : '');
   const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
   $('lanes').innerHTML = working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no">held by ' + esc(held.get(l).hold_by) + '</span> <span class="muted">' + linked(held.get(l).hold_reason, titles) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join('');
 
@@ -1226,6 +1274,7 @@ function showTab() {
   document.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = pane.dataset.pane !== view.tab; });
   document.querySelectorAll('.tab').forEach((button) => button.classList.toggle('on', button.dataset.tab === view.tab));
   countUnseen();
+  if (view.tab === 'shouts') foldShouts();
 }
 
 /** The address that names a tab: the Roadmap's own, or the board's, keeping the rest as it is. */
@@ -1311,7 +1360,9 @@ function answer(id) {
   else $('answering-q').textContent = ask ? ask.shout_text : '';
   if (ask) $('shout-to').value = ask.shout_from;
   $('shout-to').disabled = Boolean(ask);
-  $('shout-send').textContent = ask ? 'Answer' : 'Shout';
+  const verb = ask ? 'Answer' : 'Shout';
+  $('shout-send').setAttribute('aria-label', verb);
+  $('shout-send').title = verb + ' (Enter; Shift+Enter for a new line)';
   if (ask) $('shout-text').focus();
 }
 
@@ -1460,9 +1511,10 @@ async function decideSpec(command, args, anchor) {
 async function act(command, args, anchor) {
   const out = $('console');
   if (snapshot || (readOnly && !requests)) { out.hidden = false; out.className = 'console no'; out.textContent = snapshot ? 'This is a read-only snapshot.' : 'This is a read-only view.'; return false; }
+  // A form's result stands above its actions, or above the shout composer's bar, never inside that one row.
   if (anchor) {
     const target = anchor.matches('form')
-      ? anchor.querySelector('.actions') || anchor.querySelector('[type="submit"]') || anchor
+      ? anchor.querySelector('.actions') || anchor.querySelector('.composer') || anchor.querySelector('[type="submit"]') || anchor
       : anchor.closest('#lanes') || anchor;
     target.insertAdjacentElement(anchor.matches('form') ? 'beforebegin' : 'afterend', out);
   }
@@ -1506,8 +1558,21 @@ async function act(command, args, anchor) {
  * changes, so a click is never lost to a rebuild; on a quiet board the ages would otherwise stay
  * as old as the page.
  */
+/** Shouts the person opened past their six lines, kept across refreshes. */
+const openShouts = new Set();
+
+/** Fold each shout taller than six lines, with 'more' to open it; measured only while Shouts shows. */
+function foldShouts() {
+  if ($('feed').offsetParent === null) return;
+  document.querySelectorAll('#feed .shout, #decisions .shout').forEach((card) => {
+    const text = card.querySelector('.text');
+    card.classList.add('clamp');
+    card.classList.toggle('clamp', card.classList.contains('open') || text.scrollHeight > text.clientHeight + 1);
+  });
+}
+
 function tickAges() {
-  document.querySelectorAll('[data-ago]').forEach((node) => { node.textContent = ago(node.dataset.ago); });
+  document.querySelectorAll('[data-ago]').forEach((node) => { node.textContent = node.classList.contains('long') ? agoLong(node.dataset.ago) : ago(node.dataset.ago); });
 }
 
 /** Open or close the project list where the sidebar is folded into a top bar (under 900px). */
@@ -1537,6 +1602,26 @@ function switchTo(root, target = null, record = true) {
   });
 }
 
+// The Shouts tab's own controls: a folded shout's more and less, every agent or only those at work, the agents
+// panel hidden or shown, and an agent's name, which filters the feed to its shouts and addresses the composer to it.
+$('shouts-pane').addEventListener('click', (event) => {
+  const more = event.target.closest('[data-more]'), pick = event.target.closest('[data-agent]');
+  if (more) {
+    const card = more.closest('.shout'), id = Number(card.dataset.shoutId);
+    if (openShouts.has(id)) openShouts.delete(id); else openShouts.add(id);
+    card.classList.toggle('open', openShouts.has(id));
+    more.textContent = openShouts.has(id) ? 'less' : 'more';
+    return;
+  }
+  if (event.target.closest('[data-all-agents]')) { view.allAgents = !view.allAgents; render(); return; }
+  if (event.target.closest('[data-agents-toggle]')) { view.agentsHidden = !view.agentsHidden; keep('pb.agents', view.agentsHidden ? 'hidden' : 'shown'); render(); return; }
+  if (!pick) return;
+  view.agent = pick.dataset.agent && pick.dataset.agent !== view.agent ? pick.dataset.agent : null;
+  if (view.agent && !view.answering) $('shout-to').value = view.agent;
+  render();
+});
+// Enter shouts; Shift+Enter starts a new line.
+$('shout-text').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('shout-form').requestSubmit(); } });
 document.addEventListener('click', (event) => {
   const t = event.target.closest('[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],#proj-switch,#console');
   if (!event.target.closest('.side')) fold(false);
