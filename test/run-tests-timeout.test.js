@@ -77,6 +77,27 @@ test('synchronous timeout target [C7,V10]', () => { Atomics.wait(new Int32Array(
   assert.match(output, /ok \d+ - later file still reports \[C7,V10\]/u);
 });
 
+test('a helper-only test file exits after importing the runner [C7, V10]', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-test-timeout-helper-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const helper = join(root, 'helper.js');
+  writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
+  writeFileSync(helper, 'export const helperLoaded = true;\n');
+
+  const result = spawnSync(process.execPath, [runner, helper], {
+    cwd: root,
+    env: { ...process.env, PULLBOARD_TEST_TIMEOUT_MS: '1200' },
+    encoding: 'utf8',
+    detached: true,
+    timeout: 10_000,
+  });
+  if (result.error?.code === 'ETIMEDOUT' && result.pid) {
+    try { process.kill(-result.pid, 'SIGKILL'); } catch { /* The owned fixture process group already exited. */ }
+  }
+  assert.equal(result.status, 0, outputOf(result));
+  assert.equal(result.signal, null, 'the helper exits normally without a test lifecycle');
+});
+
 test('an invalid test-timeout override refuses before running a test [C7, V10]', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-test-timeout-invalid-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));

@@ -61,6 +61,7 @@ function installTestWatchdog() {
   const timeoutMs = testTimeoutMs();
   const file = process.env.PULLBOARD_TEST_FILE ?? process.argv[1] ?? '<unknown test file>';
   const watchdog = new Worker(watchdogSource, { eval: true });
+  watchdog.unref();
   const activeTests = new WeakMap();
   let nextTestId = 0;
 
