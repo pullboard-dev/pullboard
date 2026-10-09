@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { AGENT_SHELL_MARKERS } from '../src/person.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -43,7 +43,7 @@ function project(t) {
   writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec ${shellWord(process.execPath)} ${shellWord(BIN)} "$@"\n`);
   chmodSync(join(bin, 'pullboard'), 0o755);
   const env = { ...process.env };
-  for (const name of Object.keys(env)) if (name.startsWith('GIT_') || AGENT_SHELL_MARKERS.includes(name)) delete env[name];
+  for (const name of Object.keys(env)) if (name.startsWith('GIT_') || AGENT_SHELL_MARKERS.includes(name) || SSH_SHELL_MARKERS.includes(name)) delete env[name];
   Object.assign(env, {
     PATH: `${bin}:${process.env.PATH}`,
     HOME: join(dir, 'home'),
