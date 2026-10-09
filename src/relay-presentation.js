@@ -10,14 +10,13 @@ import { projectState } from './serve.js';
 import { personRequestStatuses } from './relay-requests.js';
 
 /** Capture spec, doctrine, config and board presentation without sending plaintext to a relay. */
-export function relayPresentation(root) {
-  const state = projectState(root);
+export function relayPresentation(root, { board: providedBoard = null } = {}) {
+  const state = projectState(root, { board: providedBoard });
   const info = repoInfo(root);
-  const board = store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'));
+  const board = providedBoard ?? store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'));
   try { return { version: 1, state: { ...store.projectItemThreads(board, state), personRequests: personRequestStatuses(board) }, config: loadConfig(root), shouts: store.allShouts(board) }; }
-  finally { store.closeBoard(board); }
+  finally { if (!providedBoard) store.closeBoard(board); }
 }
-
 /** Resolve one shout from the complete history carried only inside the sealed presentation. */
 export function relayPresentationShout(root, id) {
   return presentationShout(relayPresentation(root), id);
@@ -38,17 +37,17 @@ export function presentationDigest(presentation) {
 }
 
 /** Capture importable native tables beside matching API presentation, retrying a concurrent local move. */
-export function relaySnapshot(root) {
+export function relaySnapshot(root, { board: providedBoard = null } = {}) {
   const info = repoInfo(root);
   for (let attempt = 0; attempt < 3; attempt++) {
-    const before = relayPresentation(info.root);
-    const board = store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'));
+    const before = providedBoard ? null : relayPresentation(info.root);
+    const board = providedBoard ?? store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'));
     let native;
-    try { native = exportBoard(board); } finally { store.closeBoard(board); }
-    const presentation = relayPresentation(info.root);
+    try { native = exportBoard(board); } finally { if (!providedBoard) store.closeBoard(board); }
+    const presentation = relayPresentation(info.root, { board: providedBoard });
     const event = native.tables.event.at(-1)?.event_id ?? 0;
     if (event === (presentation.state.events[0]?.event_id ?? 0) &&
-        presentationDigest(before) === presentationDigest(presentation)) return { ...native, presentation };
+        (providedBoard || presentationDigest(before) === presentationDigest(presentation))) return { ...native, presentation };
   }
   throw new Refused('RELAY_SNAPSHOT_BUSY', 'the local board changed while its presentation was captured; retry the command to publish a consistent sealed checkpoint');
 }

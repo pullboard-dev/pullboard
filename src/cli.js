@@ -61,7 +61,7 @@ import { proofStats } from './stats.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
-import { relayCommandReceipt, relayCommandReceiptReported, relayLinked, relayOff, relayOn, relayOperation, relayRecovered, relayStatus, syncRelay } from './relay.js';
+import { relayCommandReceipt, relayCommandReceiptReported, relayLinked, relayOff, relayOn, relayOperation, relayRecover, relayRecovered, relayStatus, syncRelay } from './relay.js';
 import { executePersonRequests } from './relay-request-execution.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -85,6 +85,7 @@ Set up
   pullboard serve [--port N]           local API v1: boards, state, moves, requests and live events,
                                         behind the session secret in its printed address
   pullboard relay [on|off] [--url <address>]  link, inspect or unlink this board's sealed relay mirror
+  pullboard relay recover --skip <sequence>  person-only recovery of one blocked next relay position
                                         on signs in through GitHub; the address defaults to https://app.pullboard.dev
   pullboard resume                      where you are: your claim, branch, uncommitted work, what came back,
                                         unread shouts, what to do next; run it to start any session
@@ -180,7 +181,7 @@ Reject reasons: TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HE
 
 const HELP_NAMES = [
   'tour', 'init', 'worktree', 'join', 'whoami', 'lanes', 'status', 'resources', 'settings', 'view', 'view export',
-  'serve', 'relay', 'resume', 'hooks', 'add', 'edit', 'escalate', 'run', 'list', 'doctor', 'show', 'next',
+  'serve', 'relay', 'relay recover', 'resume', 'hooks', 'add', 'edit', 'escalate', 'run', 'list', 'doctor', 'show', 'next',
   'check', 'claim', 'release', 'submit', 'done', 'verify', 'fact', 'shout', 'answer', 'pass', 'decisions', 'inbox', 'export', 'import',
   'sweep', 'merged', 'withdraw', 'refreeze', 'hold', 'stats', 'ledger', 'log', 'spec', 'spec check', 'spec view',
   'spec show', 'spec unmet', 'spec signoff', 'spec signers', 'spec signers add', 'forget', 'prompt', 'gate', 'hook',
@@ -422,6 +423,7 @@ const OPTIONS = {
   remove: { type: 'string' },
   name: { type: 'string' },
   url: { type: 'string' },
+  skip: { type: 'string' },
   wait: { type: 'string' },
   verify: { type: 'boolean' },
   build: { type: 'boolean' },
@@ -1322,7 +1324,7 @@ function readCommands(io, { first, second, rest, values }) {
         io.result(summary);
         return 0;
       }
-      if (summary.relay.linked) io.say(`relay: sequence ${summary.relay.sequence}; ${summary.relay.behind} pending uploads`);
+      if (summary.relay.linked) io.say(`relay: sequence ${summary.relay.sequence}; ${summary.relay.behind} pending uploads${summary.relay.recovery.pending ? `; recovery pending for sequence ${summary.relay.recovery.skip}; retry ${summary.relay.recovery.next}` : ''}`);
       const { items, accepted, rejected } = summary.stats;
       io.say(`${summary.me.id}: ${summary.unread} unread shouts; holding ${summary.mine.map((item) => `#${item.item_id}`).join(', ') || 'nothing'}`);
       io.say(`board: ${items.open} open, ${items.claimed} claimed, ${items.submitted} awaiting verification, ${items.verified} verified, ${items.withdrawn} withdrawn`);
@@ -2389,13 +2391,24 @@ async function runCommand(argv, io) {
     if (command === 'hook') return await hookCommand(io, args);
     if (command === 'settings') return settingsCommand(io, args);
     if (command === 'relay') {
+      if (first === 'recover') {
+        if (second || rest.length || !values.skip || values.url) throw new Refused('USAGE', 'pullboard relay recover --skip <exact blocked next sequence>');
+        requirePersonChannel('terminal');
+        const result = await relayRecover(context(io).info.root, Number(values.skip), io);
+        io.result?.(result);
+        io.say(result.adopted
+          ? `relay recovery adopted the authenticated checkpoint at sequence ${result.sequence}; blocked sequence ${result.skipped} remains recorded as refused`
+          : `relay recovery published at sequence ${result.sequence}; skipped blocked sequence ${result.skipped}`);
+        return 0;
+      }
+      if (values.skip) throw new Refused('USAGE', '--skip is only valid with pullboard relay recover');
       if (second || rest.length || (first && !['on', 'off'].includes(first)) || (values.url && first !== 'on')) throw new Refused('USAGE', 'pullboard relay [on|off] [--url <address>]');
       const ctx = context(io);
       if (!first) { await syncRelay(ctx.info.root, io); await executePersonRequests(ctx.info.root, io, main); }
       const result = first === 'on' ? await relayOn(ctx.info.root, values.url, io)
         : first === 'off' ? await relayOff(ctx.info.root, io) : relayStatus(ctx.info.root);
       io.result?.(result);
-      io.say(result.linked ? `${result.link}\nrelay: sequence ${result.sequence}; ${result.behind} pending uploads` : (result.notice || 'relay off; the local board is complete'));
+      io.say(result.linked ? `${result.link}\nrelay: sequence ${result.sequence}; ${result.behind} pending uploads${result.recovery.pending ? `; recovery pending for sequence ${result.recovery.skip}; retry ${result.recovery.next}` : ''}` : (result.notice || 'relay off; the local board is complete'));
       return 0;
     }
     if (command === 'gate') {

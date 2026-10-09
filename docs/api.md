@@ -32,7 +32,7 @@ When `add` or `edit` supplies a new nonempty check, Pullboard measures it once i
 | `lanes` | `version:number`, `lanes:object`, `shared:array`, `coordinator:string` |
 | `resources` | `version:number`, `resources:array` |
 | `settings` | `version:number`, `settings:object` |
-| `relay` | `version:number`, `linked:boolean`, `board:string`, `url:string`, `link:string`, `sequence:number`, `behind:number` |
+| `relay` | `version:number`, `linked:boolean`, `board:string`, `url:string`, `link:string`, `sequence:number`, `behind:number`, `recovery:object` |
 | `list` | `version:number`, `items:array` |
 | `roadmap` | `version:number`, `milestones:array` |
 | `milestone add` | `version:number`, `milestone:object` |
@@ -42,7 +42,7 @@ When `add` or `edit` supplies a new nonempty check, Pullboard measures it once i
 | `milestone remove` | `version:number`, `milestone:object` |
 | `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array`, `thread:array` |
 | `stats` | `version:number`, `stats:object` |
-| `status` | `version:number`, `me:object`, `mine:array`, `stats:object`, `reviewQueue:object`, `unread:number` |
+| `status` | `version:number`, `me:object`, `mine:array`, `stats:object`, `reviewQueue:object`, `unread:number`, `relay:object` |
 | `doctor` | `version:number`, `problems:array` |
 | `inbox` | `version:number`, `shouts:array` |
 | `decisions` | `version:number`, `decisions:array` |
@@ -139,7 +139,7 @@ Only the coordinator sets or edits an item's `--check`. `pullboard check [id]` p
 | `error` | `code:string`, `message:string`, `next:string` |
 <!-- api-refusal-shapes:end -->
 
-`relay on`, `relay`, and `relay off` share the relay result shape. `status` adds a `relay` object with the current sequence and pending upload count. Successful results may include `diagnostics` for a relay refusal or inactivity notice; a local move still succeeds when its upload must wait. Device sign-in instructions are written immediately to stderr, including with `--json`, so the person can sign in before the command returns.
+`relay on`, `relay`, and `relay off` share the relay result shape. Successful `pullboard relay recover --skip N` returns that same shape with optional `skipped: N` naming the explicitly refused sequence and `adopted: true` when it adopts a different authenticated person checkpoint that proves the same blocked refusal. Every relay result includes `recovery: { pending, skip, next }`; when a saved recovery is pending, `next` is the exact retry command. The `behind` count remains the number of pending uploads and does not include recovery. `status` includes this relay object alongside the local board summary. Human status and relay output show the recovery sequence and retry command when one is saved. The local `agent_last_shout_id` inbox read cursor is metadata: recovery ignores only that field in its guarded digest and preserves the greater valid cursor for matching agents. Other native changes remain protected; if a semantic local write changes while recovery is pending, the CLI preserves it and refuses automatic restoration. Exporting alone does not unblock that conflict; this prototype has no merge or discard command, so the person must reconcile the export and remote checkpoint before continuing. Successful results may include `diagnostics` for a relay refusal or inactivity notice; a local move still succeeds when its upload must wait. Device sign-in instructions are written immediately to stderr, including with `--json`, so the person can sign in before the command returns.
 
 The result and refusal tables are checked against `JSON_SHAPES` in `src/json.js` by `docs/api.test.js`.
 

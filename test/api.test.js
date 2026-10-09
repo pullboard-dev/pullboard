@@ -17,9 +17,10 @@ import { once } from 'node:events';
 import { join, dirname, resolve, basename, delimiter } from 'node:path';
 import { after, test } from 'node:test';
 import { resultCommands } from '../src/cli.js';
-import { allShouts, closeBoard, EVENT_LOG_VERSION, openBoard } from '../src/board.js';
+import { allShouts, EVENT_LOG_VERSION, closeBoard, openBoard } from '../src/board.js';
 import { presentationShout, relayPresentation } from '../src/relay-presentation.js';
 import { JSON_SHAPES } from '../src/json.js';
+import { projectState } from '../src/serve.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -591,6 +592,18 @@ test('[A1] every catalog command and subcommand has a real CLI exercise', () => 
   const missing = Object.keys(JSON_SHAPES.commands).filter((key) => !covered.has(key));
   assert.deepEqual(missing, [], `add real-repo invocations for undocumented coverage gaps: ${missing.join(', ')}`);
   assert.deepEqual([...coveredRoots].sort(), resultCommands(), 'every actual root/factory command has an invocation');
+});
+
+test('[A2] API projection from a borrowed staged board matches the normal view and leaves it open', () => {
+  const box = project();
+  json(box, box.repo, 'add', ['app', 'Projection fixture', '--criterion', 'same projector']);
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  try {
+    const ordinary = projectState(box.repo);
+    const staged = projectState(box.repo, { board });
+    assert.deepEqual(staged, ordinary, 'the staged path uses the exact API projectState projection');
+    assert.doesNotThrow(() => board.db.prepare('SELECT 1').get(), 'the caller retains ownership of its borrowed board connection');
+  } finally { closeBoard(board); }
 });
 
 test('[N26,A2] roadmap text, JSON and API state follow live local and registered repo items', async (t) => {

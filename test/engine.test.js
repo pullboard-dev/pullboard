@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { exportBoard, importBoard, restoreRelaySnapshot } from '../src/exchange.js';
-import { applyEngineMove, applyRelayMove, prepareEngineMove, appliedSequence, engineReceipt, startRelayEpoch } from '../src/engine.js';
+import { applyEngineMove, applyRelayMove, prepareEngineMove, appliedSequence, engineReceipt, refuseRelayMove, startRelayEpoch } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { Refused } from '../src/refused.js';
 
@@ -102,6 +102,7 @@ test('missing relay senders are refused deterministically without poisoning a la
     const before = store.getItem(board, item);
     const refused = applyRelayMove(board, move, { sequence: 1, at: CLAIM_AT, kind: 'request' });
     assert.equal(refused.error.code, 'RELAY_SENDER');
+    assert.match(refused.error.message, /no authenticated sender.*restore attribution/);
     assert.deepEqual(store.getItem(board, item), before);
     assert.equal(appliedSequence(board), 1);
     assert.equal(engineReceipt(board, move.id), null, 'a forged move id cannot reserve a legitimate operation receipt');
@@ -176,6 +177,34 @@ test('future engine relay records stop before every sender shape without changin
       assert.equal(appliedSequence(board), 0);
     }
   }
+});
+
+test('a refused answerDecision is not attributed to an item sharing its shout id [H16]', t => {
+  const { copies, item, source } = engineCopies(t);
+  const [board] = copies;
+  const shoutId = store.shout(source, {
+    from: 'coordinator', to: 'person', text: 'Private refusal fixture', decision: true, lanes: ['web'],
+  });
+  assert.equal(shoutId, item, 'fixture needs a coincident shout and item id');
+  const move = prepareEngineMove(board, 'answerDecision', [shoutId, {
+    agentId: 'coordinator', text: 'Approved', lanes: ['web'],
+  }], { id: 'forged-answer' });
+  const refused = applyRelayMove(board, move, {
+    sequence: 1, at: CLAIM_AT, kind: 'move', sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' },
+  });
+  assert.equal(refused.error.code, 'RELAY_SENDER_MISMATCH');
+  assert.equal(store.events(board).at(-1).item_id, null, 'a shout id must not be mistaken for an item id');
+});
+
+test('fallback refusal identity hashes operation arguments when no ciphertext digest is supplied [H16]', t => {
+  const { copies, item } = engineCopies(t);
+  const board = copies[0];
+  const move = claimMove(board, item, 'web-1');
+  const envelope = { sequence: 1, at: CLAIM_AT, sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' }, kind: 'move', code: 'RELAY_MOVE' };
+  const initial = refuseRelayMove(board, move, envelope);
+  assert.match(initial.error.message, /this relay record was refused and logged; run pullboard relay to continue/);
+  const changed = { ...move, args: [item, { ...move.args[1], head: 'b'.repeat(40) }] };
+  assert.throws(() => refuseRelayMove(board, changed, envelope), { code: 'RELAY_CURSOR' }, 'changed contents cannot reuse an earlier refusal receipt');
 });
 
 test('a relay refusal receipt failure rolls back its log and cursor together [H2,H16]', t => {

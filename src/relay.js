@@ -1,10 +1,10 @@
 /** Opt-in, sealed relay ordering, with crash-safe migration from the older mirror [H1,H3,H16,P5]. */
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import * as store from './board.js';
-import { exportBoard, restoreRelaySnapshot } from './exchange.js';
-import { appliedSequence, applyRelayMove, checkpointSequence, engineReceipt, prepareEngineMove, requireSupportedEngine, startRelayEpoch } from './engine.js';
+import { exportBoard, importBoard, restoreRelaySnapshot, semanticBoardDigest } from './exchange.js';
+import { appliedSequence, applyRelayMove, checkpointSequence, engineReceipt, prepareEngineMove, refuseRelayMove, requireSupportedEngine, startRelayEpoch } from './engine.js';
 import { ENGINE_VERSION } from './machine.js';
 import { presentationDigest, relayPresentation, relaySnapshot } from './relay-presentation.js';
 import { repoInfo, tryGit } from './git.js';
@@ -140,19 +140,50 @@ function localRecords(root, work) {
   try { return work(board); } finally { store.closeBoard(board); }
 }
 
+/** Fingerprint native board contents so async recovery can refuse concurrent local writes. */
+function nativeBoardDigest(board) {
+  return semanticBoardDigest(exportBoard(board));
+}
+
+/** Confirm a recovered checkpoint contains the same durable refusal for the blocked transport slot. */
+function recoveryRefusalMatches(document, recovery) {
+  const boardMeta = Array.isArray(document?.tables?.board_meta) ? document.tables.board_meta : [];
+  const events = Array.isArray(document?.tables?.event) ? document.tables.event : [];
+  const meta = boardMeta.find((row) => row?.meta_key === 'relay_refusal_' + recovery.skip);
+  if (!meta || typeof meta.meta_value !== 'string') return false;
+  let refusal;
+  try { refusal = JSON.parse(meta.meta_value); } catch { return false; }
+  if (typeof refusal?.outcome?.error?.code !== 'string' ||
+      (recovery.blockerDigest && refusal.record !== recovery.blockerDigest)) return false;
+  return events.some((event) => {
+    if (event?.event_kind !== 'relay_refused' || typeof event.event_detail !== 'string') return false;
+    try {
+      const detail = JSON.parse(event.event_detail);
+      return detail.sequence === recovery.skip && detail.code === refusal.outcome.error.code;
+    } catch { return false; }
+  });
+}
+
 /** Count unapplied uploads using durable event ids, without counting relay transport metadata. */
 function behind(root, state) {
   return localRecords(root, (board) => board.db.prepare('SELECT COUNT(*) AS count FROM event WHERE event_id > ?').get(state.cursor).count);
 }
 
+/** Expose only the actionable recovery choice; checkpoint ciphertext and local digests stay private. */
+function recoverySummary(state) {
+  const skip = Number.isSafeInteger(state?.recovery?.skip) ? state.recovery.skip : 0;
+  return { pending: skip > 0, skip, next: skip > 0 ? `pullboard relay recover --skip ${skip}` : '' };
+}
+
 /** Expose pairing information while keeping the human relay credential out of output. */
 function summary(root, state) {
-  if (!state) return { linked: false, board: '', url: '', link: '', sequence: 0, behind: 0 };
-  if (state.unlinking) return { linked: false, board: state.board, url: state.url, link: '', sequence: state.sequence, behind: 0, cleanup: true };
+  if (!state) return { linked: false, board: '', url: '', link: '', sequence: 0, behind: 0, recovery: recoverySummary(null) };
+  if (state.unlinking) return { linked: false, board: state.board, url: state.url, link: '', sequence: state.sequence, behind: 0, cleanup: true, recovery: recoverySummary(state) };
   const key = encodeBoardKey(readBoardKey(state.board));
   return { linked: true, board: state.board, url: state.url,
     link: 'https://app.pullboard.dev/#board=' + state.board + '&key=' + key,
-    sequence: state.sequence, behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)) };
+    sequence: state.sequence, behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)),
+    recovery: recoverySummary(state) };
 }
 
 /** Seal a client record at its proposed public sequence, with no board key in its envelope. */
@@ -256,6 +287,26 @@ async function decoded(key, record, state, kind, sequence) {
   catch { throw new Refused('RELAY_MOVE', 'the authenticated relay document is invalid; upgrade pullboard or restore a consistent snapshot'); }
 }
 
+/** Replay one authenticated record, auto-refusing only deterministic current-format record failures. */
+async function replayRelayRecord(board, key, state, record) {
+  let move;
+  try {
+    move = await decoded(key, record, state, record.kind, record.event_id);
+    requireSupportedEngine(move);
+    if (record.kind === 'request') return receivePersonRequest(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender });
+    return applyRelayMove(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender, kind: record.kind,
+      digest: createHash('sha256').update(record.sealed).digest('hex') });
+  } catch (error) {
+    if (!(error instanceof Refused) || !['RELAY_MOVE', 'RELAY_RESPONSE', 'SEAL_FORMAT', 'SEAL_AUTH_FAILED'].includes(error.code)) throw error;
+    return refuseRelayMove(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender, kind: record.kind,
+      code: error.code === 'SEAL_AUTH_FAILED' ? 'RELAY_SEAL' : error.code,
+      digest: createHash('sha256').update(String(record.sealed)).digest('hex'),
+      refusal: error.code === 'SEAL_AUTH_FAILED'
+        ? new Refused('RELAY_SEAL', 'this relay record failed authentication and was logged as refused; run pullboard relay to continue with the next ordered record')
+        : error });
+  }
+}
+
 /** Persist the exact checkpoint before uploading, so a lost reply retries identical ciphertext. */
 async function publishCheckpoint(root, file, state, io) {
   const document = relaySnapshot(root);
@@ -341,13 +392,8 @@ async function catchUp(root, file, state, io) {
     throw new Refused('RELAY_RESPONSE', 'the relay returned an invalid ordered prefix; fetch a consistent relay snapshot');
   }
   for (const record of remote.events) {
-    const move = await decoded(key, record, state, record.kind, record.event_id);
-    // Legacy executable documents in the request channel still fail closed before attribution.
-    if (record.kind === 'request' && move?.engine !== undefined) requireSupportedEngine(move);
-    localRecords(root, (board) => {
-      if (record.kind === 'request') receivePersonRequest(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender });
-      else applyRelayMove(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender, kind: record.kind });
-    });
+    const board = store.openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite'));
+    try { await replayRelayRecord(board, key, state, record); } finally { store.closeBoard(board); }
   }
   state.sequence = localRecords(root, appliedSequence);
   if (state.pending?.move && localRecords(root, (board) => engineReceipt(board, state.pending.move.id))) {
@@ -417,6 +463,7 @@ export async function relayOperation(root, operation, args, io, command) {
   return locked(file, async () => {
     const state = loadLink(file);
     if (!state || state.unlinking) throw new Refused('RELAY_UNLINK_PENDING', 'finish unlinking this device with pullboard relay off before sending a move');
+    if (state.recovery) throw new Refused('RELAY_RECOVERY_PENDING', `finish the saved recovery for sequence ${state.recovery.skip} before sending a linked move`);
     await ensureOrdered(root, file, state, io);
     await catchUp(root, file, state, io);
     if (state.pending) {
@@ -477,6 +524,7 @@ export async function syncRelay(root, io) {
     if (!state) return null;
     if (state.unlinking) { io.err('pullboard: [RELAY_UNLINK_PENDING] the remote board is deleted; run pullboard relay off to finish forgetting this device key'); return summary(root, state); }
     try {
+      if (state.recovery) throw new Refused('RELAY_RECOVERY_PENDING', `a relay recovery for sequence ${state.recovery.skip} is pending; retry pullboard relay recover --skip ${state.recovery.skip} before syncing`);
       await ensureOrdered(root, file, state, io);
       await catchUp(root, file, state, io);
       if (state.pending) {
@@ -492,7 +540,8 @@ export async function syncRelay(root, io) {
       if (!(error instanceof Refused)) throw error;
       io.err(`pullboard: ${error.message}; run pullboard status to see pending uploads`);
       return { linked: true, board: state.board, url: state.url, sequence: state.sequence,
-        behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)) };
+        behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)),
+        recovery: recoverySummary(state) };
     }
   });
 }
@@ -537,6 +586,87 @@ export async function relayCommandReceiptReported(root, moveId) {
 /** Expose only an unreported operation descriptor so CLI preconditions cannot strand its outcome. */
 export function relayRecovered(root) {
   return loadLink(linkFile(root))?.recovered?.move ?? null;
+}
+
+/** Explicitly refuse one blocked position, replay its valid tail on a private copy, then publish it. */
+export async function relayRecover(root, skip, io) {
+  const file = linkFile(root);
+  return locked(file, async () => {
+    const state = loadLink(file);
+    if (!state || state.unlinking || state.mode !== 'ordered') throw new Refused('RELAY_LINKED', 'link this ordered relay board before recovering a blocked sequence');
+    const boardFile = join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite');
+    const source = store.openBoard(boardFile);
+    const staged = store.openBoard(':memory:');
+    try {
+      const cursor = appliedSequence(source);
+      const sourceDigest = nativeBoardDigest(source);
+      if (!Number.isSafeInteger(skip) || skip !== cursor + 1) throw new Refused('RELAY_SEQUENCE', `only the blocked next sequence ${cursor + 1} can be skipped; inspect pullboard relay and retry`);
+      if (state.recovery && (state.recovery.skip !== skip || state.recovery.cursor !== cursor)) {
+        throw new Refused('RELAY_RECOVERY_PENDING', `finish the saved recovery for sequence ${state.recovery.skip} before choosing another; retry pullboard relay recover --skip ${state.recovery.skip}`);
+      }
+      if (state.recovery && state.recovery.sourceDigest !== sourceDigest) throw new Refused('RELAY_LOCAL_CHANGED', 'the local board changed while recovery was pending; local rows are preserved, but this recovery cannot be retried from the changed board; keep an export and ask the person to reconcile the relay checkpoint');
+      if (nativeBoardDigest(source) !== sourceDigest) throw new Refused('RELAY_LOCAL_CHANGED', 'the local board changed while recovery started; no recovery data was published, retry after preserving that change');
+      importBoard(staged, exportBoard(source));
+      const key = readBoardKey(state.board);
+      if (state.recovery) {
+        const saved = await request(state, '/api/v1/boards/' + state.board + '/state', {}, io);
+        if (Number.isSafeInteger(saved.state?.sequence) && saved.state.sequence >= state.recovery.sequence) {
+          const ownAcknowledgement = saved.state.sequence === state.recovery.sequence && saved.state.sealed === state.recovery.sealed;
+          const senderProblem = relaySenderProblem(null, saved.state.sender, 'snapshot');
+          if (senderProblem) throw senderProblem;
+          const native = await decoded(key, saved.state, state, 'snapshot', saved.state.sequence);
+          if (!recoveryRefusalMatches(native, state.recovery) || (!ownAcknowledgement && !state.recovery.blockerDigest)) {
+            throw new Refused('RELAY_RECOVERY_PENDING', 'the checkpoint does not prove this blocked sequence was refused; keep this device unchanged and ask the person to inspect the relay checkpoint');
+          }
+          if (nativeBoardDigest(source) !== sourceDigest) throw new Refused('RELAY_LOCAL_CHANGED', 'the local board changed while recovery was pending; local rows are preserved, but this checkpoint cannot be adopted over those changes; keep an export and ask the person to reconcile the relay checkpoint');
+          restoreRelaySnapshot(source, native, saved.state.sequence, sourceDigest);
+          state.sequence = saved.state.sequence;
+          state.cursor = saved.state.sequence;
+          delete state.recovery;
+          saveLink(file, state);
+          return { ...summary(root, state), skipped: skip, ...(!ownAcknowledgement ? { adopted: true } : {}) };
+        }
+      }
+      const remote = await request(state, '/api/v1/boards/' + state.board + '/events?after=' + cursor, {}, io);
+      if (!Array.isArray(remote.events) || !remote.events.length || remote.events[0]?.event_id !== skip) throw new Refused('RELAY_SEQUENCE', `relay sequence ${skip} is not available as the next record; fetch the current relay prefix`);
+      const blocker = remote.events[0];
+      let decodedMove = null;
+      let blockerCode = 'RELAY_RECORD';
+      try {
+        decodedMove = await decoded(key, blocker, state, blocker.kind, blocker.event_id);
+        requireSupportedEngine(decodedMove);
+        throw new Refused('RELAY_RECOVERY_HEALTHY', 'the selected record is readable by this pullboard version; run pullboard relay to replay it normally');
+      } catch (error) {
+        if (!(error instanceof Refused) || (error.code !== 'ENGINE_VERSION' && !['SEAL_VERSION', 'RELAY_MOVE', 'RELAY_RESPONSE', 'SEAL_FORMAT', 'SEAL_AUTH_FAILED'].includes(error.code))) throw error;
+        blockerCode = error.code;
+        // A person may explicitly bypass this one authenticated transport slot; it remains in the receipt log.
+      }
+      if (decodedMove?.engine > ENGINE_VERSION) blockerCode = 'ENGINE_VERSION';
+      const blockerDigest = createHash('sha256').update(String(blocker.sealed)).digest('hex');
+      refuseRelayMove(staged, decodedMove, { sequence: skip, at: blocker.event_at, sender: blocker.sender, kind: blocker.kind,
+        code: blockerCode,
+        digest: blockerDigest,
+        refusal: new Refused(blockerCode, 'person recovery logged this blocked record as refused; run pullboard relay to apply the remaining ordered tail') });
+      for (const record of remote.events.slice(1)) await replayRelayRecord(staged, key, state, record);
+      const document = relaySnapshot(root, { board: staged });
+      const sequence = appliedSequence(staged);
+      if (nativeBoardDigest(source) !== sourceDigest) throw new Refused('RELAY_LOCAL_CHANGED', 'the local board changed while recovery was staged; no recovery checkpoint was published, export the new local change and retry');
+      const candidate = state.recovery?.sequence === sequence
+        ? { sequence, sealed: state.recovery.sealed }
+        : { sequence, sealed: await sealedRecord(key, document, state, 'snapshot', sequence) };
+      state.recovery = { skip, cursor, sourceDigest, blockerDigest, ...candidate };
+      saveLink(file, state);
+      const reply = await request(state, '/api/v1/boards/' + state.board + '/state', { method: 'PUT', body: candidate }, io);
+      if (reply.state?.sequence !== sequence || reply.state.sealed !== candidate.sealed) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge the recovery checkpoint; local board was left unchanged, retry recovery');
+      if (nativeBoardDigest(source) !== sourceDigest) throw new Refused('RELAY_LOCAL_CHANGED', 'the local board changed before checkpoint acknowledgement; local rows are preserved, but the checkpoint may already be accepted and this recovery cannot be retried from the changed board; keep an export and ask the person to reconcile the relay checkpoint');
+      restoreRelaySnapshot(source, document, sequence, sourceDigest);
+      state.sequence = sequence;
+      state.cursor = sequence;
+      delete state.recovery;
+      saveLink(file, state);
+      return { ...summary(root, state), skipped: skip };
+    } finally { store.closeBoard(staged); store.closeBoard(source); }
+  });
 }
 
 /** Read the local link and lag without opening a network connection or revealing its relay token. */
