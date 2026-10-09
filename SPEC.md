@@ -57,7 +57,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - V1 [approved, must] The builder never verifies its own work. | gate: test/board.test.js | serves: P1
 - V2 [approved, must] The criterion, title and cited rows freeze at first claim; they alone are the bar, never the brief. | gate: test/board.test.js | serves: P1
 - V3 [approved, must] Submit and verify refuse when the frozen criterion or its cited rows changed since claim. | gate: test/e2e.test.js | serves: V2
-- V4 [approved, must] Submit needs a clean tree and the gate green at HEAD. | gate: test/e2e.test.js
+- V4 [approved, must] Submit needs a clean tree and, green at HEAD, the item's check and the tests its change can reach; the full gate runs at landing. | gate: test/e2e.test.js
 - V5 [approved, must] ACCEPT needs CRITERION_MET and a note of the proof. REJECT needs a reason code and a note. | gate: test/board.test.js
 - V6 [approved, must] REJECT reopens the item. Resubmitting needs a new head. | gate: test/board.test.js
 - V7 [approved, must] The verifier's checkout contains the submitted commit. | gate: test/e2e.test.js
