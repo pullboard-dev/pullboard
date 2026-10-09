@@ -1,6 +1,8 @@
 /** Real-process resource queue and lease coverage [Q1,Q2,Q3]. */
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
+import { performance } from 'node:perf_hooks';
+import { reportFixtureChildFailure, runFixtureChild } from './fixture-child.js';
 import { once } from 'node:events';
 import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -57,8 +59,8 @@ function fixture() {
   const second = join(dir, 'repo-b');
   for (const repo of [first, second]) {
     mkdirSync(repo);
-    const result = spawnSync('git', ['init', '-q', repo], { encoding: 'utf8' });
-    assert.equal(result.status, 0, result.stderr);
+    const result = runFixtureChild('git', ['init', '-q', repo], { encoding: 'utf8' });
+    assert.equal(result.status, 0, result.failure);
   }
   return { dir, home, first, second, env: { ...process.env, PULLBOARD_HOME: home } };
 }
@@ -112,20 +114,33 @@ function worker(box, { name = 'gate', capacity = 1, scope = 'machine', root = bo
   const workerArgs = ['--input-type=module', '-e', WORKER, name, String(capacity), scope, root, agent, String(stallMs), String(landing)];
   const executable = sandboxProcessInfo ? '/usr/bin/sandbox-exec' : process.execPath;
   const args = sandboxProcessInfo ? ['-p', PROCESS_INFO_POLICY, process.execPath, ...workerArgs] : workerArgs;
+  const startedAt = performance.now();
+  const workerEnv = { ...box.env, ...env };
   const child = spawn(executable, args, {
-    env: { ...box.env, ...env }, stdio: ['pipe', 'pipe', 'pipe'],
+    env: workerEnv, stdio: ['pipe', 'pipe', 'pipe'],
   });
+  child.startedAt = startedAt;
+  child.spawnEnv = workerEnv;
   child.lines = createInterface({ input: child.stdout });
   child.errors = '';
   child.pendingLines = [];
   child.lineWaiters = [];
   child.exitResult = null;
-  child.finished = new Promise((resolveExit) => child.once('exit', (code, signal) => {
+  child.failureReported = false;
+  let spawnError = null;
+  child.once('error', (error) => { spawnError = error; });
+  child.finished = new Promise((resolveExit) => child.once('close', (code, signal) => {
     child.exitResult = { code, signal };
     CHILDREN.delete(child);
+    if ((code !== 0 || signal || spawnError) && !child.failureReported) {
+      child.failureReported = true;
+      child.failure = reportFixtureChildFailure({ command: executable, args, status: code, signal,
+        elapsedMs: performance.now() - startedAt, stderr: child.errors, env: workerEnv,
+        detail: spawnError?.message ?? '' });
+    }
     for (const waiter of child.lineWaiters.splice(0)) {
       clearTimeout(waiter.timer);
-      waiter.reject(new Error(`worker exited ${code}/${signal}: ${child.errors}`));
+      waiter.reject(new Error(child.failure ?? `worker exited ${code}/${signal}: ${child.errors}`));
     }
     resolveExit(child.exitResult);
   }));
@@ -142,11 +157,16 @@ function worker(box, { name = 'gate', capacity = 1, scope = 'machine', root = bo
 /** Read the next worker event, failing promptly with its stderr if it exits unexpectedly. */
 async function event(child, timeoutMs = 10_000) {
   if (child.pendingLines.length) return JSON.parse(child.pendingLines.shift());
-  if (child.exitResult) throw new Error(`worker exited ${child.exitResult.code}/${child.exitResult.signal}: ${child.errors}`);
+  if (child.exitResult) throw new Error(child.failure ?? `worker exited ${child.exitResult.code}/${child.exitResult.signal}: ${child.errors}`);
   const line = await new Promise((resolveLine, reject) => {
     const waiter = { resolve: resolveLine, reject, timer: setTimeout(() => {
       child.lineWaiters.splice(child.lineWaiters.indexOf(waiter), 1);
-      reject(new Error(`worker timed out: ${child.errors}`));
+      child.failureReported = true;
+      const failure = reportFixtureChildFailure({ command: child.spawnfile, args: child.spawnargs.slice(1),
+        status: child.exitResult?.code ?? null, signal: child.exitResult?.signal ?? null,
+        elapsedMs: performance.now() - child.startedAt, stderr: child.errors, env: child.spawnEnv,
+        detail: `worker event wait expired after ${timeoutMs}ms` });
+      reject(new Error(failure));
     }, timeoutMs) };
     child.lineWaiters.push(waiter);
   });

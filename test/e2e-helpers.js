@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
+import { performance } from 'node:perf_hooks';
+import { reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import {
   chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync,
   rmSync, statSync, symlinkSync, writeFileSync,
@@ -46,11 +48,11 @@ function sandbox() {
   };
   for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
   delete env.PULLBOARD_RELAY_TOKEN;
-  const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
-  const tryGit = (cwd, ...args) => spawnSync('git', args, { cwd, env, encoding: 'utf8' });
+  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
+  const tryGit = (cwd, ...args) => runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
   const run = (cwd, ...args) => {
-    const result = spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
-    return { code: result.status, out: result.stdout, err: result.stderr };
+    const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+    return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
   };
   return { dir, env, git, tryGit, run };
 }
@@ -112,12 +114,26 @@ function holdingGate(box) {
 
 /** Launch a CLI or Git process while preserving its output for the gate-lock assertion. */
 function launch(box, cwd, command, args) {
+  const startedAt = performance.now();
   const child = spawn(command, args, { cwd, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
   child.stdoutText = '';
   child.stderrText = '';
   child.stdout.setEncoding('utf8').on('data', (chunk) => { child.stdoutText += chunk; });
   child.stderr.setEncoding('utf8').on('data', (chunk) => { child.stderrText += chunk; });
-  child.closed = new Promise((resolveClose) => child.once('close', (code, signal) => resolveClose({ code, signal })));
+  child.closed = new Promise((resolveClose) => {
+    let reported = false;
+    const reportFailure = (code, signal, extra = '') => {
+      if (reported) return;
+      reported = true;
+      child.failure = reportFixtureChildFailure({ command, args, status: code, signal,
+        elapsedMs: performance.now() - startedAt, stderr: child.stderrText, env: box.env, detail: extra });
+    };
+    child.once('error', (error) => reportFailure(null, null, error.message));
+    child.once('close', (code, signal) => {
+      if (code !== 0 || signal) reportFailure(code, signal);
+      resolveClose({ code, signal, failure: child.failure ?? null });
+    });
+  });
   return child;
 }
 
@@ -150,15 +166,27 @@ function commitFile(box, cwd, path, text, message) {
 const LIGHT_BRIEF = 'Files:\n- web/page.js\nChange:\n- copy the header from the api\nTest:\n- the page test asserts the header\nOut of scope: anything else\n';
 
 async function startView(box, cwd) {
+  const startedAt = performance.now();
   const child = spawn(process.execPath, [BIN, 'view', '--no-open'], { cwd, env: box.env });
   const link = await new Promise((found, fail) => {
     let out = '';
+    let stderr = '';
+    let settled = false;
+    const rejectStartup = (code, signal, extra = '') => {
+      if (settled) return;
+      settled = true;
+      const failure = reportFixtureChildFailure({ command: process.execPath, args: [BIN, 'view', '--no-open'],
+        status: code, signal, elapsedMs: performance.now() - startedAt, stderr, env: box.env, detail: extra });
+      fail(new Error(failure));
+    };
     child.stdout.on('data', (chunk) => {
       out += chunk;
       const match = /Pullboard view: (http:\/\/127\.0\.0\.1:\d+\/\?k=\S+)/.exec(out);
-      if (match) found(new URL(match[1]));
+      if (match && !settled) { settled = true; found(new URL(match[1])); }
     });
-    child.on('exit', (code) => fail(new Error(`view exited ${code}: ${out}`)));
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    child.once('error', (error) => rejectStartup(null, null, error.message));
+    child.once('exit', (code, signal) => rejectStartup(code, signal));
   });
   const key = link.searchParams.get('k');
   const base = `http://127.0.0.1:${link.port}`;

@@ -1,6 +1,8 @@
 /** Person-authored row decisions stay on the board until a coordinator applies them [B26,S18,S19,C7]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { performance } from 'node:perf_hooks';
+import { reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -74,12 +76,12 @@ function sandbox() {
   Object.assign(env, FIXTURE_GIT_ENV);
   /** Run Git with the fixture's private identity and configuration. */
   function git(cwd, ...args) {
-    return execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+    return runFixtureGit(args, { cwd, env });
   }
   /** Run the real CLI with a clean person environment and optional explicit markers. */
   function run(cwd, args, extraEnv = {}) {
-    return spawnSync(process.execPath, [BIN, ...args], {
-      cwd, env: { ...personEnvironment(env), ...FIXTURE_GIT_ENV, ...extraEnv }, encoding: 'utf8', timeout: 15_000,
+    return runFixtureChild(process.execPath, [BIN, ...args], {
+      cwd, env: { ...personEnvironment(env), ...FIXTURE_GIT_ENV, ...extraEnv }, encoding: 'utf8',
     });
   }
   return { dir, env, git, run };
@@ -163,8 +165,11 @@ function sourceRow(box, file, id) {
 
 /** Start the private real view with clean person credentials and expose authenticated requests. */
 async function startView(t, box, extraEnv = {}) {
-  const child = spawn(process.execPath, [BIN, 'view', '--no-open', '--port', '0', '--json'], {
-    cwd: box.root, env: { ...personEnvironment(box.env), ...extraEnv, CODEX_SHELL: 'private-agent-view-host' }, stdio: ['ignore', 'pipe', 'pipe'],
+  const args = [BIN, 'view', '--no-open', '--port', '0', '--json'];
+  const env = { ...personEnvironment(box.env), ...extraEnv, CODEX_SHELL: 'private-agent-view-host' };
+  const startedAt = performance.now();
+  const child = spawn(process.execPath, args, {
+    cwd: box.root, env, stdio: ['ignore', 'pipe', 'pipe'],
   });
   let stdout = '';
   let stderrTail = [];
@@ -201,14 +206,29 @@ async function startView(t, box, extraEnv = {}) {
     if (child.exitCode === null && child.signalCode === null) await stopView('SIGKILL');
   });
   const document = await new Promise((resolveDocument, rejectDocument) => {
-    const timer = setTimeout(() => rejectDocument(new Error(`view did not start: ${stderrTail.join('\n')}\n${stderrPartial}`)), 10_000);
+    let settled = false;
+    const failStartup = (detail, status = child.exitCode, signal = child.signalCode) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      const stderr = [...stderrTail, ...(stderrPartial ? [stderrPartial] : [])].slice(-20).join('\n');
+      rejectDocument(new Error(reportFixtureChildFailure({ command: process.execPath, args, status, signal,
+        elapsedMs: performance.now() - startedAt, stderr, env, detail })));
+    };
+    const timer = setTimeout(() => failStartup('view readiness deadline (10000ms) expired'), 10_000);
     child.stdout.on('data', (chunk) => {
       stdout += chunk;
-      try { resolveDocument(JSON.parse(stdout)); clearTimeout(timer); }
+      try {
+        const value = JSON.parse(stdout);
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolveDocument(value);
+      }
       catch { /* Wait until the one JSON document is complete. */ }
     });
-    child.once('error', rejectDocument);
-    child.once('close', () => rejectDocument(new Error(`view exited early: ${stderrTail.join('\n')}\n${stderrPartial}`)));
+    child.once('error', (error) => failStartup(error.message, null, null));
+    child.once('close', (code, signal) => failStartup('view exited before readiness', code, signal));
   });
   const address = new URL(document.url);
   const key = address.searchParams.get('k');
@@ -412,7 +432,8 @@ test('[B26,S18,S19] stale row text refuses apply without changing any approved r
 
 /** Create a real SSH Ed25519 key pair for the required-signer decision case. */
 function makeKey(path) {
-  execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', 'row-decision@example.invalid', '-f', path], { stdio: 'pipe' });
+  const generated = runFixtureChild('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', 'row-decision@example.invalid', '-f', path], { encoding: 'utf8' });
+  assert.equal(generated.status, 0, generated.failure);
   return { privateKey: path, publicKey: `${path}.pub` };
 }
 

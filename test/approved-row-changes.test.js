@@ -1,6 +1,7 @@
 /** Approved-row edits need an exact person decision or staged SSH receipt [S19,V3]. */
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { fixtureChildMessage, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
 import { once } from 'node:events';
 import { tmpdir } from 'node:os';
@@ -78,11 +79,11 @@ function fixture(t, { signer = false, doctrine = false } = {}) {
   };
   /** Run Git while preserving this fixture's local identity and the hook's active index. */
   function git(...args) {
-    return execFileSync('git', args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+    return runFixtureGit(args, { cwd: root, env });
   }
   /** Run Pullboard in the fixture repo and retain both output streams for assertions. */
   function pullboard(...args) {
-    return spawnSync(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8', timeout: 20_000 });
+    return runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
   }
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Approved-row fixture');
@@ -98,11 +99,12 @@ function fixture(t, { signer = false, doctrine = false } = {}) {
   mkdirSync(join(root, 'test'));
   writeFileSync(join(root, 'test', 'promise.test.js'), "import assert from 'node:assert/strict';\nimport { readFileSync } from 'node:fs';\nimport { test } from 'node:test';\ntest('approved promise remains documented [G1]', () => { assert.match(readFileSync('SPEC.md', 'utf8'), /G1 \\[approved/); });\n");
   git('add', '-A');
-  const initial = spawnSync('git', ['commit', '-q', '-m', 'chore: initialize approved-row fixture'], { cwd: root, env, encoding: 'utf8', timeout: 20_000 });
-  assert.equal(initial.status, 0, `${initial.stdout}${initial.stderr}`);
+  const initial = runFixtureChild('git', ['commit', '-q', '-m', 'chore: initialize approved-row fixture'], { cwd: root, env, encoding: 'utf8' });
+  assert.equal(initial.status, 0, fixtureChildMessage(initial));
   if (signer) {
     const key = join(dir, 'co-signing-key');
-    execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', 'approved-row@example.invalid', '-f', key], { stdio: 'pipe' });
+    const generated = runFixtureChild('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', 'approved-row@example.invalid', '-f', key], { encoding: 'utf8' });
+    assert.equal(generated.status, 0, fixtureChildMessage(generated));
     git('config', 'user.signingkey', key);
     const added = pullboard('spec', 'signers', 'add', '--key', `${key}.pub`, '--by', 'CO');
     assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
@@ -178,7 +180,7 @@ function setRowText(box, id, text) {
 
 /** Attempt a real commit through the installed Pullboard pre-commit and commit-msg hooks. */
 function commit(box, subject = 'docs: update approved row') {
-  return spawnSync('git', ['commit', '-m', subject], { cwd: box.root, env: box.env, encoding: 'utf8', timeout: 30_000 });
+  return runFixtureChild('git', ['commit', '-m', subject], { cwd: box.root, env: box.env, encoding: 'utf8' });
 }
 
 /** Stage SPEC.md and any explicitly named supporting receipt files. */

@@ -4,6 +4,7 @@
  */
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { runFixtureChild } from './fixture-child.js';
 import {
   chmodSync,
   existsSync,
@@ -358,7 +359,7 @@ function foreignGitScript(box, name, { fixer = false } = {}) {
     `const ordinary = ${JSON.stringify(ordinary)}; const bare = ${JSON.stringify(bare)};`,
     "fs.mkdirSync(ordinary); fs.mkdirSync(bare);",
     "let failed = false;",
-    "const run = (cwd, args) => { const r = cp.spawnSync('git', args, { cwd, encoding: 'utf8', timeout: 10000 }); if (r.status !== 0) { failed = true; console.error(r.stderr); } };",
+    "const run = (cwd, args) => { const started = Date.now(); const r = cp.spawnSync('git', args, { cwd, encoding: 'utf8' }); if (r.status !== 0) { failed = true; console.error(JSON.stringify({command: ['git', ...args], status: r.status, signal: r.signal, elapsed: Date.now() - started, stderr: r.stderr})); } };",
     "run(ordinary, ['init', '-q', '-b', 'main']);",
     "fs.writeFileSync(ordinary + '/probe.txt', 'its own repository\\n');",
     "run(ordinary, ['add', 'probe.txt']); run(ordinary, ['commit', '-q', '-m', 'chore: foreign probe']);",

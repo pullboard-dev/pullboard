@@ -1,6 +1,7 @@
 /** Checkout-session ownership and takeover behavior [B3,B7]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
+import { fixtureChildMessage, reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -37,7 +38,7 @@ function sandbox() {
   });
   /** Run real Git with the private environment. */
   function git(cwd, ...args) {
-    return execFileSync('git', args, { cwd, env: base, encoding: 'utf8', stdio: 'pipe' }).trim();
+    return runFixtureGit(args, { cwd, env: base });
   }
   /** Run the actual CLI with an explicit agent session or markerless terminal. */
   function run(cwd, args, { session, sessionKey = 'CLAUDE_CODE_SESSION_ID', agent = true } = {}) {
@@ -46,7 +47,7 @@ function sandbox() {
       env.CLAUDECODE = '1';
       if (session !== undefined) env[sessionKey] = session;
     }
-    return spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8', timeout: 15_000 });
+    return runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   }
   return { dir, base, git, run };
 }
@@ -217,10 +218,10 @@ test('the actual view adapter writes without taking over an agent session [B3,B7
     const response = await executeMove(process.cwd(), { verb: 'shout', args: { to: 'web', text: 'actual view action' } }, main);
     process.stdout.write(JSON.stringify(response));
   `;
-  const response = spawnSync(process.execPath, ['--input-type=module', '-e', source], {
+  const response = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
     cwd: box.repo, env: { ...box.base, CODEX_THREAD_ID: 'other-process-view-session-273' }, encoding: 'utf8', timeout: 15_000,
   });
-  assert.equal(response.status, 0, response.stderr);
+  assert.equal(response.status, 0, fixtureChildMessage(response));
   const document = JSON.parse(response.stdout);
   assert.equal(document.status, 200, response.stdout);
   assert.equal(document.body.event.event_kind, 'shout');
@@ -250,11 +251,23 @@ test('takeover waits for an active write and then refuses the old session [B3,B7
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): change the page [G1]');
   /** Start a real CLI write with a durable closed-process observation. */
   function launch(session, ...args) {
-    const child = spawn(process.execPath, [BIN, ...args, '--json'], { cwd: box.web, env: { ...box.base, CODEX_SESSION_ID: session }, stdio: ['ignore', 'pipe', 'pipe'] });
+    const command = process.execPath;
+    const childArgs = [BIN, ...args, '--json'];
+    const childEnv = { ...box.base, CODEX_SESSION_ID: session };
+    const startedAt = performance.now();
+    const child = spawn(command, childArgs, { cwd: box.web, env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
+    let stderr = '';
     child.stdout.setEncoding('utf8').on('data', (part) => { output += part; });
-    child.stderr.resume();
-    child.closed = new Promise((resolveClose) => child.once('close', (code) => resolveClose({ code, output })));
+    child.stderr.setEncoding('utf8').on('data', (part) => { stderr += part; });
+    let spawnError = null;
+    child.once('error', (error) => { spawnError = error; });
+    child.closed = new Promise((resolveClose) => child.once('close', (code, signal) => {
+      const failure = code === 0 && !signal && !spawnError ? null : reportFixtureChildFailure({ command, args: childArgs,
+        status: code, signal, elapsedMs: performance.now() - startedAt, stderr, env: childEnv,
+        detail: spawnError?.message ?? '' });
+      resolveClose({ code, signal, output, stderr, failure });
+    }));
     return child;
   }
   /** Wait on an actual private fixture observation, with an assertion if it never becomes true. */
@@ -278,9 +291,9 @@ test('takeover waits for an active write and then refuses the old session [B3,B7
     assert.equal(boardSnapshot(box.boardFile).shout.length, 0, 'takeover has not recorded a receipt before acquiring the checkout');
     writeFileSync(release, 'release');
     const submitted = await submission.closed;
-    assert.equal(submitted.code, 0, submitted.output);
+    assert.equal(submitted.code, 0, submitted.failure ?? submitted.output);
     const taken = await takeover.closed;
-    assert.equal(taken.code, 0, taken.output);
+    assert.equal(taken.code, 0, taken.failure ?? taken.output);
     assert.equal(boardSnapshot(box.boardFile).item[0].item_status, 'submitted');
     const beforeRefusal = boardSnapshot(box.boardFile);
     const old = box.run(box.web, ['shout', 'coordinator', 'old session cannot write', '--json'], { session: 'active-write-273', sessionKey: 'CODEX_SESSION_ID' });

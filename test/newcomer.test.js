@@ -1,6 +1,7 @@
 /** First-run guidance on private Git repos, including unrelated files setup must not stage [I1,I2]. */
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -14,9 +15,9 @@ function project(t) {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', PULLBOARD_HOME: join(root, '.private-home') };
   /** Read a private Git command's result without inheriting the maintainer's configuration. */
-  const git = (...args) => execFileSync('git', args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+  const git = (...args) => runFixtureGit(args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' });
   /** Preserve CLI output so guidance is checked exactly as a newcomer receives it. */
-  const run = (...args) => spawnSync(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
+  const run = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   return { root, env, git, run };
 }

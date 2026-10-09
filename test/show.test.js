@@ -3,7 +3,8 @@
  * note in full on --history or --json.
  */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
+import { runFixtureChild } from './fixture-child.js';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -98,7 +99,7 @@ test('show prints the latest verdict in full and earlier ones as one line; --his
     store.closeBoard(board);
   }
 
-  const run = (...args) => spawnSync(process.execPath, [BIN, ...args], { cwd: repo, env, encoding: 'utf8' });
+  const run = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: repo, env, encoding: 'utf8' });
   const plain = run('show', '1');
   assert.equal(plain.status, 0, plain.stderr);
   const verdictLines = plain.stdout.split('\n').filter((line) => /^(REJECT|ACCEPT) /.test(line));

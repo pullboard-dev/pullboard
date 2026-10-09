@@ -1,6 +1,7 @@
 /** Approved row edits identify every affected frozen item without rewriting receipts [S19,V3]. */
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -52,13 +53,13 @@ function project(t) {
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
   });
-  /** Run a bounded real Pullboard CLI process in one fixture checkout. */
+  /** Run the real Pullboard CLI in one fixture checkout; the test runner owns the hang bound. */
   function pullboard(cwd, ...args) {
-    return spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8', timeout: 30_000 });
+    return runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   }
   /** Run real Git with isolated identity while preserving hook-provided index variables. */
   function git(cwd, ...args) {
-    return execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+    return runFixtureGit(args, { cwd, env });
   }
   git(root, 'init', '-q', '-b', 'main');
   git(root, 'config', 'user.name', 'Stale-frozen fixture');
@@ -72,7 +73,7 @@ function project(t) {
   writeFileSync(join(root, 'SPEC.md'), OLD_SPEC);
   mkdirSync(join(root, 'web'));
   git(root, 'add', '-A');
-  const initial = spawnSync('git', ['commit', '-q', '-m', 'chore: initialize stale-frozen fixture'], { cwd: root, env, encoding: 'utf8', timeout: 30_000 });
+  const initial = runFixtureChild('git', ['commit', '-q', '-m', 'chore: initialize stale-frozen fixture'], { cwd: root, env, encoding: 'utf8' });
   assert.equal(initial.status, 0, `${initial.stdout}${initial.stderr}`);
   git(root, 'worktree', 'add', '-q', web, '-b', 'web/stale-frozen');
   const joined = pullboard(web, 'join', 'web');
@@ -106,7 +107,7 @@ function submit(box, id, name) {
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, relative), `${name}\n`);
   box.git(box.web, 'add', relative);
-  const committed = spawnSync('git', ['commit', '-m', `feat(web): build ${name} [G1]`], { cwd: box.web, env: box.env, encoding: 'utf8', timeout: 30_000 });
+  const committed = runFixtureChild('git', ['commit', '-m', `feat(web): build ${name} [G1]`], { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}`);
   const head = box.git(box.web, 'rev-parse', 'HEAD');
   succeeds(box, box.web, 'submit', String(id));
@@ -176,7 +177,7 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
   assert.equal(decision.status, 0, `${decision.stdout}${decision.stderr}`);
   succeeds(box, box.root, 'spec', 'apply', '--json');
   box.git(box.root, 'add', 'SPEC.md');
-  const appliedCommit = spawnSync('git', ['commit', '-m', 'docs: update approved G1 wording [G1]'], { cwd: box.root, env: box.env, encoding: 'utf8', timeout: 30_000 });
+  const appliedCommit = runFixtureChild('git', ['commit', '-m', 'docs: update approved G1 wording [G1]'], { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.equal(appliedCommit.status, 0, `${appliedCommit.stdout}${appliedCommit.stderr}`);
   assert.ok(readFileSync(join(box.root, 'SPEC.md'), 'utf8').includes(NEW_TEXT));
 

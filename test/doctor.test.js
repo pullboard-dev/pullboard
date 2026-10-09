@@ -1,6 +1,6 @@
 /** Integrity checks use throwaway git repositories and real board databases (A6). */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -35,8 +35,8 @@ function boardBox({ initialize = true, repoName = 'repo' } = {}) {
     GIT_COMMITTER_NAME: 'Doctor Test',
     GIT_COMMITTER_EMAIL: 'doctor@example.com',
   });
-  const git = (...args) => execFileSync('git', args, { cwd: root, env, encoding: 'utf8' }).trim();
-  const run = (...args) => spawnSync(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
+  const git = (...args) => runFixtureGit(args, { cwd: root, env, encoding: 'utf8' });
+  const run = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   const mergeHook = join(root, '.git', 'hooks', 'pre-merge-commit');
   mkdirSync(join(root, '.git', 'hooks'), { recursive: true });
@@ -114,9 +114,10 @@ test('commands and doctor explain how to repair core.bare without crossing a nes
 
   const nested = join(box.root, 'nested');
   mkdirSync(nested);
-  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: nested, env: box.env });
+  const nestedGitInit = runFixtureChild('git', ['init', '-q', '-b', 'main'], { cwd: nested, env: box.env, encoding: 'utf8' });
+  assert.equal(nestedGitInit.status, 0, nestedGitInit.failure);
   /** Run the private Pullboard CLI from the nested repo under the bare parent. */
-  const nestedRun = (...args) => spawnSync(process.execPath, [BIN, ...args], { cwd: nested, env: box.env, encoding: 'utf8' });
+  const nestedRun = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: nested, env: box.env, encoding: 'utf8' });
   const nestedInit = nestedRun('init');
   assert.equal(nestedInit.status, 0, nestedInit.stderr);
   const nestedStatus = nestedRun('status');
@@ -124,7 +125,8 @@ test('commands and doctor explain how to repair core.bare without crossing a nes
   const nestedDoctor = nestedRun('doctor');
   assert.equal(nestedDoctor.status, 0, nestedDoctor.stderr);
 
-  execFileSync('sh', ['-c', repair], { cwd: root, env: box.env });
+  const repaired = runFixtureChild('sh', ['-c', repair], { cwd: root, env: box.env, encoding: 'utf8' });
+  assert.equal(repaired.status, 0, repaired.failure);
   assert.equal(box.run('status').status, 0);
   assert.equal(box.run('doctor').status, 0);
 });

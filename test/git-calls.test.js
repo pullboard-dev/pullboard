@@ -1,6 +1,7 @@
 /** Count real Git child processes and prove command-scoped facts refresh after a commit [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureChild } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { delimiter, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -63,8 +64,12 @@ function fixture(t) {
     lanes: { core: { owns: ['src/'], specs: ['C7'] } },
   }));
   writeFileSync(join(repo, 'SPEC.md'), '# Test spec\n\n## C · Core\n- C7 [approved, must] A command reads each Git fact once. | gate: test/git-calls.test.js\n');
-  const git = (cwd, ...args) => execFileSync(realGit, args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
-  const run = (cwd, ...args) => spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8', timeout: 60_000 });
+  const git = (cwd, ...args) => {
+    const result = runFixtureChild(realGit, args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
+    if (result.status !== 0) throw new Error(result.failure);
+    return result.stdout.trim();
+  };
+  const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   const ok = (cwd, ...args) => {
     const result = run(cwd, ...args);
     assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
@@ -180,7 +185,7 @@ const item = JSON.parse(process.env.PULLBOARD_TEST_ITEM);
 const result = await withGitFacts(() => commitWork(root, item, loadConfig(root), ['src/runner-result.txt']));
 console.log(JSON.stringify(result));`;
   const env = { ...box.env, PULLBOARD_TEST_ITEM: JSON.stringify(item) };
-  const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], { cwd: box.worker, env, encoding: 'utf8' });
+  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: box.worker, env, encoding: 'utf8' });
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   const committed = JSON.parse(result.stdout.trim());
   assert.equal(committed.ok, true, committed.output);

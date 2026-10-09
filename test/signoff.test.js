@@ -1,6 +1,7 @@
 /** SSH sign-off opt-in, rotation, row requirements and tamper rejection [S17,S18,S19,S20,S21]. */
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { fixtureChildMessage, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -20,7 +21,8 @@ function shellWord(value) { return `'${value.replaceAll("'", "'\\''")}'`; }
 
 /** Create a throwaway OpenSSH Ed25519 private and public key pair. */
 function makeKey(path) {
-  execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', 'test@example.invalid', '-f', path], { stdio: 'pipe' });
+  const result = runFixtureChild('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', 'test@example.invalid', '-f', path], { encoding: 'utf8' });
+  assert.equal(result.status, 0, fixtureChildMessage(result));
   return { privateKey: path, publicKey: `${path}.pub` };
 }
 
@@ -49,8 +51,8 @@ function fixture(t) {
     GIT_COMMITTER_EMAIL: 'co@example.invalid',
     PULLBOARD_HOME: join(dir, 'home'),
   };
-  const git = (...args) => execFileSync('git', args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' }).trim();
-  const run = (...args) => spawnSync(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
+  const git = (...args) => runFixtureGit(args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' });
+  const run = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'CO');
   git('config', 'user.email', 'co@example.invalid');

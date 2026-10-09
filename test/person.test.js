@@ -1,6 +1,8 @@
 /** Person terminal identity and immutable channel receipts on real repositories [B26]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
+import { performance } from 'node:perf_hooks';
+import { fixtureChildMessage, reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -60,10 +62,10 @@ function sandbox() {
     PULLBOARD_HOME: join(dir, 'pullboard-home'),
   });
   /** Run real Git commands under isolated author and configuration settings. */
-  const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   /** Run the real Pullboard CLI in its own process with optional environment markers. */
-  const run = (cwd, args, extraEnv = {}) => spawnSync(process.execPath, [BIN, ...args], {
-    cwd, env: { ...env, ...extraEnv }, encoding: 'utf8', timeout: 10_000,
+  const run = (cwd, args, extraEnv = {}) => runFixtureChild(process.execPath, [BIN, ...args], {
+    cwd, env: { ...env, ...extraEnv }, encoding: 'utf8',
   });
   return { dir, env, git, run };
 }
@@ -75,7 +77,7 @@ function project() {
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
   const initialized = box.run(repo, ['init']);
-  assert.equal(initialized.status, 0, initialized.stderr);
+  assert.equal(initialized.status, 0, fixtureChildMessage(initialized));
   const configPath = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   writeFileSync(configPath, `${JSON.stringify({
@@ -163,7 +165,9 @@ test('[B26] person answers refuse agent environments without writes and record t
 
 /** Start the actual view in an agent environment and retain only its private request credentials. */
 async function startView(t, box, extraEnv = {}) {
-  const child = spawn(process.execPath, [BIN, 'view', '--no-open', '--port', '0', '--json'], {
+  const args = [BIN, 'view', '--no-open', '--port', '0', '--json'];
+  const startedAt = performance.now();
+  const child = spawn(process.execPath, args, {
     cwd: box.repo, env: { ...box.env, ...MARKERS, ...extraEnv }, stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
@@ -181,17 +185,27 @@ async function startView(t, box, extraEnv = {}) {
     clearTimeout(timer);
   });
   const document = await new Promise((ready, fail) => {
-    const timer = setTimeout(() => fail(new Error('the private view did not start: ' + diagnostics)), 10_000);
+    let settled = false;
+    const failStartup = (detail, status = child.exitCode, signal = child.signalCode) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fail(new Error(reportFixtureChildFailure({ command: process.execPath, args, status, signal,
+        elapsedMs: performance.now() - startedAt, stderr: diagnostics, env: box.env, detail })));
+    };
+    const timer = setTimeout(() => failStartup('private view readiness deadline (10000ms) expired'), 10_000);
     child.stdout.on('data', (part) => {
       output += part;
       try {
         const value = JSON.parse(output);
+        if (settled) return;
+        settled = true;
         clearTimeout(timer);
         ready(value);
       } catch { /* The JSON envelope may arrive in several chunks. */ }
     });
-    child.once('error', (error) => { clearTimeout(timer); fail(error); });
-    child.once('close', () => { clearTimeout(timer); fail(new Error('the private view exited: ' + diagnostics)); });
+    child.once('error', (error) => failStartup(error.message, null, null));
+    child.once('close', (code, signal) => failStartup('private view exited before readiness', code, signal));
   });
   const address = new URL(document.url);
   const secret = address.searchParams.get('k');
@@ -316,7 +330,7 @@ test('[B26,S18] signer enrollment refuses agent shells without creating or chang
   const box = project();
   t.after(() => rmSync(box.dir, { recursive: true, force: true }));
   const key = join(box.dir, 'fixture-signing-key');
-  const generated = spawnSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', key], { env: box.env, stdio: 'ignore' });
+  const generated = runFixtureChild('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', key], { env: box.env, stdio: 'ignore' });
   assert.equal(generated.status, 0, 'the fixture creates a disposable signing identity');
   const files = ['signers', 'signers.initial', 'first-commit', 'signoffs.jsonl'].map(name => join(box.repo, '.pullboard', name));
   /** Read only private fixture trust bytes; assertions never print key contents. */

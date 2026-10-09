@@ -1,6 +1,7 @@
 /** Project metadata and registry lifecycle (N33, N35, N36). */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
+import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -23,8 +24,8 @@ function fleet(t) {
   const prior = process.env.PULLBOARD_HOME;
   process.env.PULLBOARD_HOME = home;
   t.after(() => { if (prior === undefined) delete process.env.PULLBOARD_HOME; else process.env.PULLBOARD_HOME = prior; });
-  const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
-  const run = (cwd, ...args) => spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
+  const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   const ok = (cwd, ...args) => { const out = run(cwd, ...args); assert.equal(out.status, 0, `${out.stdout}${out.stderr}`); return out.stdout; };
   const repo = (folder, name, project = 'Demo group') => {
     const root = join(dir, folder);

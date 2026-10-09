@@ -1,6 +1,7 @@
 /** Reproduce lane-policy bypasses with private Git repositories and their installed hooks [L1,L3]. */
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -48,16 +49,16 @@ function sandbox() {
   mkdirSync(env.HOME);
   /** Run Git in a fixture repo and return trimmed output. */
   function git(cwd, ...args) {
-    return execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+    return runFixtureGit(args, { cwd, env });
   }
   /** Run Git while preserving expected hook failures for assertions. */
   function tryGit(cwd, ...args) {
-    return spawnSync('git', args, { cwd, env, encoding: 'utf8', timeout: 30_000 });
+    return runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
   }
   /** Run this checkout's CLI in the selected private working tree. */
   function run(cwd, ...args) {
-    const result = spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8', timeout: 30_000 });
-    return { code: result.status, out: result.stdout, err: result.stderr };
+    const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+    return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
   }
   return { dir, env, git, tryGit, run };
 }

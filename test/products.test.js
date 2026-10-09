@@ -4,7 +4,7 @@
  * spec check catches an entry that names no row.
  */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -104,8 +104,8 @@ test('in a real repo, status prints each product, and spec check fails on an ent
     GIT_COMMITTER_EMAIL: 'agent@example.com',
     PULLBOARD_HOME: join(dir, 'home'),
   };
-  const git = (...args) => execFileSync('git', args, { cwd: repo, env, encoding: 'utf8', stdio: 'pipe' });
-  const run = (...args) => spawnSync(process.execPath, [BIN, ...args], { cwd: repo, env, encoding: 'utf8' });
+  const git = (...args) => runFixtureGit(args, { cwd: repo, env, encoding: 'utf8', stdio: 'pipe' });
+  const run = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: repo, env, encoding: 'utf8' });
   const writeConfig = (products) => writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true', lanes: CONFIG.lanes, products }, null, 2));
   git('init', '-q', '-b', 'main');
   writeConfig(PRODUCTS);

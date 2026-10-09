@@ -1,6 +1,7 @@
 /** Durable check observations retry delivery without running their shell again [V2,H16]. */
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -50,11 +51,11 @@ function sandbox() {
   });
   /** Run Git with only this private fixture's configuration and identity. */
   function git(cwd, ...args) {
-    return execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+    return runFixtureGit(args, { cwd, env });
   }
-  /** Run the real CLI in a private process with a bounded timeout. */
+  /** Run the real CLI in a child whose lifetime is bounded by the test runner. */
   function run(cwd, args) {
-    return spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8', timeout: 20_000 });
+    return runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   }
   return { dir, env, git, run };
 }
@@ -112,7 +113,7 @@ function completionCount(board, id) {
 /** Run the actual worker function in a clean child process using the fixture environment. */
 function runWorker(box, id, request) {
   const source = `import { runCheckBaselineWorker } from ${JSON.stringify(WORKER_MODULE)};\nawait runCheckBaselineWorker(process.cwd(), Number(process.argv[1]), process.argv[2]);`;
-  return spawnSync(process.execPath, ['--input-type=module', '-e', source, String(id), request], {
+  return runFixtureChild(process.execPath, ['--input-type=module', '-e', source, String(id), request], {
     cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 45_000,
   });
 }

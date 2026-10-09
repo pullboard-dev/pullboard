@@ -1,12 +1,13 @@
 /** Private end-to-end proof for ordered agent enrollment and scoped relay credentials [H2,H9,A4]. */
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { chmodSync, existsSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
+import { cleanupFixtureChildren, runFixtureChild, runFixtureChildAsync } from './fixture-child.js';
 import { claim as claimStoredItem, closeBoard, openBoard, register as registerStoredAgent, submit as submitStoredItem } from '../src/board.js';
 import { serveApi } from '../src/api.js';
 import { main } from '../src/cli.js';
@@ -16,34 +17,27 @@ import { frozenCriterion, parseSpec } from '../src/spec.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { fetchFresh } from './http-fixture.js';
 
-/** Invoke one real CLI command without retaining stderr or exposing private command output. */
+after(cleanupFixtureChildren);
+
+/** Invoke one real CLI command and retain only redacted child diagnostics on failure. */
 function runCli(root, env, cli, args) {
-  return new Promise((resolveResult, reject) => {
-    const child = spawn(process.execPath, [cli, ...args, '--json'], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
-    let stdout = '';
-    const timer = setTimeout(() => child.kill('SIGKILL'), 25000);
-    child.stdout.setEncoding('utf8').on('data', (part) => { stdout += part; });
-    child.stderr.resume();
-    child.once('error', (error) => { clearTimeout(timer); reject(error); });
-    child.once('close', (code, signal) => {
-      clearTimeout(timer);
-      if (signal) return reject(new Error('private agent CLI exceeded its deadline'));
-      try { resolveResult({ code, document: JSON.parse(stdout) }); }
-      catch { reject(new Error(`private agent CLI ${args[0]} did not return JSON (exit ${code ?? 'signal'})`)); }
-    });
+  return runFixtureChildAsync(process.execPath, [cli, ...args, '--json'], { cwd: root, env }).then((result) => {
+    if (result.error) throw new Error(result.failure);
+    try { return { code: result.status, document: JSON.parse(result.stdout), stderr: result.failure ?? result.stderr, failure: result.failure }; }
+    catch { throw new Error(result.failure ?? result.context); }
   });
 }
 
 /** Run Git in a private fixture and keep all diagnostics credential-free. */
 function git(root, env, args) {
-  const result = spawnSync('git', args, { cwd: root, env, encoding: 'utf8' });
-  assert.equal(result.status, 0, `private Git fixture ${args[0]} succeeds: ${result.stderr}`);
+  const result = runFixtureChild('git', args, { cwd: root, env, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.failure ?? `private Git fixture ${args[0]} succeeds: ${result.stderr}`);
 }
 
 /** Return private Git output for a structural assertion without surfacing command diagnostics. */
 function gitText(root, env, args) {
-  const result = spawnSync('git', args, { cwd: root, env, encoding: 'utf8' });
-  assert.equal(result.status, 0, `private Git fixture ${args[0]} succeeds`);
+  const result = runFixtureChild('git', args, { cwd: root, env, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.failure ?? `private Git fixture ${args[0]} succeeds`);
   return result.stdout;
 }
 
@@ -90,9 +84,9 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
   const oneItem = await box.cli('add', box.lane, 'agent one private review', '--criterion', 'the first verifier records its own decision');
   const twoItem = await box.cli('add', box.lane, 'agent two private review', '--criterion', 'the second verifier records its own decision');
   const workItem = await box.cli('add', box.lane, 'token-only agent work');
-  assert.equal(oneItem.code, 0);
-  assert.equal(twoItem.code, 0);
-  assert.equal(workItem.code, 0);
+  assert.equal(oneItem.code, 0, oneItem.failure ?? oneItem.stderr);
+  assert.equal(twoItem.code, 0, twoItem.failure ?? twoItem.stderr);
+  assert.equal(workItem.code, 0, workItem.failure ?? workItem.stderr);
 
   git(box.root, box.env, ['add', '-A']);
   git(box.root, box.env, ['commit', '-q', '-m', 'test: prepare private agent fixture']);
@@ -122,7 +116,7 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
   await box.link();
   const firstStart = box.calls.length;
   const firstJoin = await runCli(firstRoot, box.env, cli, ['join', box.lane, '--family', 'codex-fixture']);
-  assert.equal(firstJoin.code, 0, 'the first worktree joins through the real linked CLI');
+  assert.equal(firstJoin.code, 0, firstJoin.failure ?? 'the first worktree joins through the real linked CLI');
   const firstAgent = firstJoin.document.agent;
   const firstCalls = box.calls.slice(firstStart);
   const firstRegistration = firstCalls.findIndex((call) => call.method === 'POST' && call.path.endsWith('/moves'));
@@ -131,7 +125,7 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
 
   const secondStart = box.calls.length;
   const secondJoin = await runCli(secondRoot, box.env, cli, ['join', box.lane, '--family', 'codex-fixture']);
-  assert.equal(secondJoin.code, 0, 'the second worktree joins through the real linked CLI');
+  assert.equal(secondJoin.code, 0, secondJoin.failure ?? 'the second worktree joins through the real linked CLI');
   const secondAgent = secondJoin.document.agent;
   const secondCalls = box.calls.slice(secondStart);
   const secondRegistration = secondCalls.findIndex((call) => call.method === 'POST' && call.path.endsWith('/moves'));
@@ -142,7 +136,7 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
   const firstToken = scopedToken(box.linkFile, firstAgent);
   const secondToken = scopedToken(box.linkFile, secondAgent);
   const list = await box.cli('relay', 'tokens');
-  assert.equal(list.code, 0);
+  assert.equal(list.code, 0, list.failure ?? list.stderr);
   assert.deepEqual(list.document.tokens.map((row) => row.agent).sort(), [firstAgent, secondAgent].sort());
   const personState = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const boardKey = readFileSync(box.keyFile, 'utf8').trim();
@@ -176,13 +170,13 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
 
   const firstVerify = await runCli(firstRoot, { ...box.env, PULLBOARD_RELAY_TOKEN: firstToken }, cli,
     ['verify', String(oneItem.document.item.item_id), 'accept', '--note', 'checked the private submitted proof']);
-  assert.equal(firstVerify.code, 0, `the first agent gives an ACCEPT verdict using only its scoped token (${firstVerify.document.error?.code ?? 'no refusal'})`);
+  assert.equal(firstVerify.code, 0, firstVerify.failure ?? `the first agent gives an ACCEPT verdict using only its scoped token (${firstVerify.document.error?.code ?? 'no refusal'})`);
   const secondVerify = await runCli(secondRoot, { ...box.env, PULLBOARD_RELAY_TOKEN: secondToken }, cli,
     ['verify', String(twoItem.document.item.item_id), 'accept', '--note', 'checked the other private submitted proof']);
-  assert.equal(secondVerify.code, 0, `the second agent gives an ACCEPT verdict using only its scoped token (${secondVerify.document.error?.code ?? 'no refusal'})`);
+  assert.equal(secondVerify.code, 0, secondVerify.failure ?? `the second agent gives an ACCEPT verdict using only its scoped token (${secondVerify.document.error?.code ?? 'no refusal'})`);
 
   const revoke = await box.cli('relay', 'revoke', firstTokenRow.id);
-  assert.equal(revoke.code, 0, 'CLI revokes one listed opaque token id');
+  assert.equal(revoke.code, 0, revoke.failure ?? 'CLI revokes one listed opaque token id');
   const apiRevokeResponse = await fetchFresh(tokenUrl, {
     method: 'POST', headers: apiHeaders, body: JSON.stringify({ id: firstTokenRow.id }),
   });
@@ -233,9 +227,9 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
 
   const secondEnv = { ...box.env, PULLBOARD_RELAY_TOKEN: secondToken };
   const tokenOnlyRead = await runCli(secondRoot, secondEnv, cli, ['list', '--all']);
-  assert.equal(tokenOnlyRead.code, 0, 'the other agent reads through its scoped token after person revocation');
+  assert.equal(tokenOnlyRead.code, 0, tokenOnlyRead.failure ?? 'the other agent reads through its scoped token after person revocation');
   const tokenOnlyWrite = await runCli(secondRoot, secondEnv, cli, ['claim', String(workItem.document.item.item_id)]);
-  assert.equal(tokenOnlyWrite.code, 0, 'the other agent writes through its scoped token after person revocation');
+  assert.equal(tokenOnlyWrite.code, 0, tokenOnlyWrite.failure ?? 'the other agent writes through its scoped token after person revocation');
 
   const native = nativeEvents(boardFile);
   assert.ok(native.some((row) => row.event_by === secondAgent && row.event_kind === 'claim' && row.item_id === workItem.document.item.item_id),
@@ -281,7 +275,7 @@ test('a token mint failure after registration preserves the agent for one clean 
   chmodSync(shim, 0o700);
   const boardFile = join(box.root, '.git', 'pullboard', 'board.sqlite');
   const item = await box.cli('add', box.lane, 'retry registered agent token fixture');
-  assert.equal(item.code, 0);
+  assert.equal(item.code, 0, item.failure ?? item.stderr);
   git(box.root, box.env, ['add', '-A']);
   git(box.root, box.env, ['commit', '-q', '-m', 'test: prepare token retry fixture']);
   await box.link();
@@ -304,7 +298,7 @@ test('a token mint failure after registration preserves the agent for one clean 
 
   const retryStart = box.calls.length;
   const retry = await runCli(agentRoot, box.env, cli, ['join', box.lane, '--family', 'codex-fixture']);
-  assert.equal(retry.code, 0, 'the same registered worktree can retry token minting');
+  assert.equal(retry.code, 0, retry.failure ?? 'the same registered worktree can retry token minting');
   assert.equal(retry.document.agent, agent);
   assert.equal(box.calls.slice(retryStart).filter((call) => call.method === 'POST' && call.path === '/auth/tokens').length, 1);
   assert.equal(nativeEvents(boardFile).filter((row) => row.event_by === agent && row.event_kind === 'join').length, 1);
@@ -313,10 +307,10 @@ test('a token mint failure after registration preserves the agent for one clean 
   assert.deepEqual(Object.keys(linkState.agentTokens), [agent], 'the private link cache holds one usable token for the registered agent');
   const token = scopedToken(box.linkFile, agent);
   const listed = await box.cli('relay', 'tokens');
-  assert.equal(listed.code, 0);
+  assert.equal(listed.code, 0, listed.failure ?? listed.stderr);
   assert.deepEqual(listed.document.tokens.map((row) => row.agent), [agent]);
   assertMetadataOnly(listed.document, [token, linkState.token], 'retry inventory exposes metadata only');
   const usable = await runCli(agentRoot, { ...box.env, PULLBOARD_RELAY_TOKEN: token }, cli,
     ['claim', String(item.document.item.item_id)]);
-  assert.equal(usable.code, 0, 'the single token from the successful retry authorizes an agent action');
+  assert.equal(usable.code, 0, usable.failure ?? 'the single token from the successful retry authorizes an agent action');
 });

@@ -1,6 +1,7 @@
 /** Coordinator-owned check commands and explicit caller consent [V2,N23]. */
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -45,10 +46,10 @@ function sandbox() {
     PULLBOARD_HOME: join(dir, 'pullboard-home'),
   };
   /** Run Git with private fixture identity and config. */
-  const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   /** Run the production CLI in a separate process, optionally with piped stdin. */
-  const run = (cwd, args, input) => spawnSync(process.execPath, [BIN, ...args], {
-    cwd, env, encoding: 'utf8', timeout: 10_000, ...(input === undefined ? {} : { input }),
+  const run = (cwd, args, input) => runFixtureChild(process.execPath, [BIN, ...args], {
+    cwd, env, encoding: 'utf8', ...(input === undefined ? {} : { input }),
   });
   return { dir, env, git, run };
 }

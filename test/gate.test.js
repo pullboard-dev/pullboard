@@ -4,6 +4,7 @@
  */
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -40,8 +41,8 @@ function repoWithGate(gate, check = '') {
     GIT_COMMITTER_EMAIL: 'agent@example.com',
     PULLBOARD_HOME: join(dir, 'home'),
   };
-  const git = (...args) => execFileSync('git', args, { cwd: repo, env, encoding: 'utf8', stdio: 'pipe' }).trim();
-  const run = (...args) => spawnSync(process.execPath, [BIN, ...args], { cwd: repo, env, encoding: 'utf8', timeout: 60_000 });
+  const git = (...args) => runFixtureGit(args, { cwd: repo, env });
+  const run = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: repo, env, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: `echo run >> ../runs.log; ${gate}` }));
   writeFileSync(join(repo, 'SPEC.md'), '# Demo\n\n## G · Goals\n- G1 [approved, must] It works. | gate: test\n');
@@ -154,7 +155,7 @@ function shellWord(value) {
 function privateCheck(box, command) {
   const logPath = join(box.dir, 'private-command.log');
   const pidFile = logPath + '.pid';
-  const run = spawnSync(process.execPath, [PRIVATE_WORKER], {
+  const run = runFixtureChild(process.execPath, [PRIVATE_WORKER], {
     cwd: box.repo, env: box.env, encoding: 'utf8',
     input: JSON.stringify({ command, timeout: 30_000, pidFile, logPath }), timeout: 35_000,
   });
@@ -164,7 +165,7 @@ function privateCheck(box, command) {
 }
 
 test('a piped gate fails on any red stage without changing its existing shell [V16,C7]', () => {
-  const supported = spawnSync('set -o pipefail', { shell: true }).status === 0;
+  const supported = runFixtureChild('set -o pipefail', { shell: true }).status === 0;
   const failing = repoWithGate('sh -c "exit 7" | tail -1');
   const red = failing.run('gate', '--json');
   assert.equal(red.status, 1, 'a failing producer cannot leave the gate green');
