@@ -104,12 +104,13 @@ export function rowEvidence(root, id, { items = [], verdicts = [], testFiles } =
  *
  * @param {{ stale?: any[] } | null | undefined} standing
  * @param {{ files?: string[], verified?: any[], building?: boolean, awaiting?: boolean }} evidence
- * @returns {'stale' | 'awaiting a verdict' | 'building' | 'verified and ready to sign' | 'no evidence'}
+ * @returns {'stale' | 'awaiting a verdict' | 'building' | 'verified and ready to sign' | 'cited by tests, not verified' | 'no evidence'}
  */
 export function rowStage(standing, evidence) {
   if (standing?.stale?.length) return 'stale';
   if (evidence?.awaiting) return 'awaiting a verdict';
   if (evidence?.building) return 'building';
-  if (evidence?.files?.length || evidence?.verified?.length) return 'verified and ready to sign';
+  if (evidence?.verified?.length) return 'verified and ready to sign';
+  if (evidence?.files?.length) return 'cited by tests, not verified';
   return 'no evidence';
 }
