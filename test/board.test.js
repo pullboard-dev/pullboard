@@ -304,7 +304,7 @@ test('a verifier releases its reserved review; another verifier can take it, and
     store.submit(durable, id, { agentId: builder, commit: SHA_A, tree: 'tree-a' });
     store.reserveReview(durable, id, { agentId: reviewer, leaseMs: HOUR, policy: 'any' });
 
-    assert.equal(store.release(durable, id, reviewer), true);
+    assert.equal(store.release(durable, id, reviewer, 'wrong tree'), true);
     assert.deepEqual(
       [store.getItem(durable, id).item_review_by, store.getItem(durable, id).item_review_until],
       [null, null],

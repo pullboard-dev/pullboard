@@ -274,7 +274,9 @@ async function mergeDependencies(ctx, item, deps) {
     }
     spawnSync('git', ['merge', '--abort'], { cwd: root });
     invalidateGitFacts();
-    await deps.withBoard(ctx, async (board) => deps.ordered ? deps.ordered(ctx, board, 'release', [item.item_id, deps.whoAmI(ctx, board).id]) : store.release(board, item.item_id, deps.whoAmI(ctx, board).id));
+    await deps.withBoard(ctx, async (board) => deps.ordered
+      ? deps.ordered(ctx, board, 'release', [item.item_id, deps.whoAmI(ctx, board).id, 'dependency merge conflict'])
+      : store.release(board, item.item_id, deps.whoAmI(ctx, board).id, 'dependency merge conflict'));
     throw new Refused('MERGE_CONFLICT', `#${item.item_id} waits on #${before.item_id}, whose commit ${before.item_commit.slice(0, 12)} conflicts with this worktree; the coordinator integrates it, then run again`);
   }
 }

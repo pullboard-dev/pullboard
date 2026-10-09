@@ -133,6 +133,33 @@ test('one runner climbs the tiers: an escalated item goes to the next command, w
   assert.equal(existsSync(join(packs, '2-light-1.md')), true);
 });
 
+test('the runner returns a claimed dependent item when its verified dependency conflicts [B8,V1,R1]', () => {
+  const box = project();
+  const localRunner = box.run(box.repo, 'worktree', 'api', '--route', 'light').out.match(/^made (\S+) /)[1];
+  const dependencyRunner = box.run(box.repo, 'worktree', 'api', '--route', 'light').out.match(/^made (\S+) /)[1];
+  mkdirSync(join(localRunner, 'api'));
+  writeFileSync(join(localRunner, 'api', 'server.js'), "export const source = 'local';\n");
+  box.git(localRunner, 'add', 'api/server.js');
+  box.git(localRunner, 'commit', '-q', '-m', 'feat(api): local server variant [G2]');
+
+  const brief = LIGHT_BRIEF.replace('web/page.js', 'api/server.js');
+  box.run(box.repo, 'add', 'api', 'Upstream API', '--route', 'light', '--specs', 'G2', '--criterion', 'serves the upstream API',
+    '--check', 'grep -q upstream api/server.js', '--brief', brief);
+  const upstreamAgent = `sh ${join(box.dir, 'upstream.sh')}`;
+  writeFileSync(join(box.dir, 'upstream.sh'), '#!/bin/sh\nmkdir -p api\nprintf "export const source = upstream;\\n" > api/server.js\n');
+  assert.match(box.run(dependencyRunner, 'run', '--agent-light', upstreamAgent, '--attempts', '1').out, /submitted #1/);
+  const dependencyCommit = JSON.parse(box.run(box.repo, 'show', '1', '--json').out).item_commit;
+  box.git(box.web, 'merge', '-q', '--ff-only', dependencyCommit);
+  assert.match(box.run(box.web, 'verify', '1', 'accept', '--note', 'The exact upstream API check passed.').out, /verified #1/);
+
+  box.run(box.repo, 'add', 'api', 'Dependent API', '--after', '1', '--route', 'light', '--specs', 'G2', '--criterion', 'integrates upstream API',
+    '--check', 'grep -q upstream api/server.js', '--brief', brief);
+  const blocked = box.run(localRunner, 'run', '--agent-light', 'true', '--attempts', '1');
+  assert.notEqual(blocked.code, 0, blocked.out);
+  assert.match(blocked.err, /MERGE_CONFLICT/);
+  assert.equal(JSON.parse(box.run(box.repo, 'show', '2', '--json').out).item_status, 'open', 'the automatic claimed-item release remains unchanged');
+});
+
 test('sweep files one light item per flagged file, in its lane; a second sweep skips what is open [N15]', () => {
   const box = project();
   writeFileSync(join(box.dir, 'novar.mjs'), [

@@ -53,6 +53,10 @@ export function startRelayEpoch(board) {
 export function prepareEngineMove(board, operation, args, { id = randomUUID(), actor } = {}) {
   if (!ENGINE_OPERATIONS.includes(operation) || !Array.isArray(args)) throw new Refused('RELAY_MOVE', 'use a supported board-engine operation with its argument array');
   const values = args.map((value) => value && typeof value === 'object' ? { ...value } : value);
+  if (operation === 'release') {
+    const problem = store.reviewReleaseNoteProblem(board, values[0], values[1], values[2]);
+    if (problem) throw problem;
+  }
   if (['claim', 'refreeze'].includes(operation)) {
     const options = values[1];
     const item = store.getItem(board, values[0]);
@@ -180,7 +184,9 @@ export function applyEngineMove(board, move, { sequence, at }) {
     let outcome = previous?.outcome;
     if (!outcome) {
       const clock = board.clock;
+      const engineVersion = board.executionEngineVersion;
       board.clock = { now: () => new Date(at) };
+      board.executionEngineVersion = move.engine;
       const firstEvent = board.emittedEvents?.length ?? 0;
       try {
         const result = store.atomic(board, () => {
@@ -192,7 +198,11 @@ export function applyEngineMove(board, move, { sequence, at }) {
       } catch (error) {
         if (!(error instanceof Refused)) throw error;
         outcome = { error: refusalDocument(error).error };
-      } finally { board.clock = clock; }
+      } finally {
+        board.clock = clock;
+        if (engineVersion === undefined) delete board.executionEngineVersion;
+        else board.executionEngineVersion = engineVersion;
+      }
       recordRequestMove(board, move, outcome, sequence, at);
       metadata(board, 'relay_receipt_' + move.id, JSON.stringify({ sequence, move: encoded, outcome }));
     }

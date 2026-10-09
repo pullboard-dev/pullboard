@@ -12,7 +12,7 @@ import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { briefFiles, briefSections } from './brief.js';
 import { COORDINATOR } from './config.js';
-import { GUARDS, IN_STATE, MOVES, STATES, UNKNOWN_MOVE, effectiveGuards, storeTriggers } from './machine.js';
+import { ENGINE_VERSION, GUARDS, IN_STATE, MOVES, STATES, UNKNOWN_MOVE, effectiveGuards, storeTriggers } from './machine.js';
 import { Refused } from './refused.js';
 import { parseSpec } from './spec.js';
 
@@ -30,6 +30,7 @@ export const EVENT_LOG_VERSION = 1;
  */
 export const ROUTES = ['light', 'mid', 'strong'];
 const BRIEF_LIMIT = 8000;
+const REVIEW_RELEASE_COOLDOWN_MS = 60 * 60 * 1000;
 
 /**
  * True when an agent on `agentRoute` may build or verify an item routed `itemRoute`.
@@ -977,17 +978,23 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null, 
  * @param {any} board
  * @param {number} id
  * @param {string} agentId
+ * @param {string} [note] One-line reason required when releasing a submitted review.
  * @returns {boolean} Whether a review reservation was released rather than a claim.
  */
-export function release(board, id, agentId) {
+export function release(board, id, agentId, note = '') {
   return atomic(board, () => {
     const item = itemById(board, id);
     if (item.item_status === 'submitted') {
       if (reviewHolder(board, item) !== agentId) {
         throw new Refused('NOT_YOURS', `item #${id} review is not reserved by you; ask its current reviewer to release it, or take a free review with pullboard next --verify`);
       }
+      const currentEngine = board.executionEngineVersion ?? ENGINE_VERSION;
+      const problem = currentEngine >= 5 ? reviewReleaseNoteProblem(board, id, agentId, note) : null;
+      if (problem) throw problem;
+      const reason = typeof note === 'string' ? note.trim() : '';
       setItem(board, id, { item_review_by: null, item_review_until: null });
-      logEvent(board, agentId, 'release', id);
+      if (currentEngine >= 5) logEvent(board, agentId, 'release', id, { review: true, reason });
+      else logEvent(board, agentId, 'release', id);
       return true;
     }
     moveItem(board, id, 'release', {
@@ -995,6 +1002,7 @@ export function release(board, id, agentId) {
         joined: null,
         [IN_STATE]: () => new Refused('NOT_YOURS', `item #${id} is not claimed by you`),
         isHolder: (found) => (found.item_owner === agentId ? null : new Refused('NOT_YOURS', `item #${id} is not claimed by you`)),
+        reviewReleaseExplained: null, // Claimed releases do not free a submitted review.
       },
       set: () => ({ item_owner: null, item_lease_until: null }),
     });
@@ -1068,6 +1076,73 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
  */
 export function reviewHolder(board, item) {
   return item.item_status === 'submitted' && item.item_review_by && (item.item_review_until ?? '') > now(board) ? item.item_review_by : null;
+}
+
+/** Validate a newly constructed review release while keeping old sealed replay executable [V1,R1,H16].
+ * @param {any} board
+ * @param {number} itemId
+ * @param {string} agentId
+ * @param {unknown} note
+ * @returns {Refused | null}
+ */
+export function reviewReleaseNoteProblem(board, itemId, agentId, note) {
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) < 5) return null;
+  let item;
+  try { item = getItem(board, itemId); }
+  catch (error) {
+    // Missing items keep their native, ordered refusal; this preflight only validates review notes.
+    if (error instanceof Refused && error.code === 'NO_ITEM') return null;
+    throw error;
+  }
+  if (item.item_status !== 'submitted' || reviewHolder(board, item) !== agentId) return null;
+  const reason = typeof note === 'string' ? note.trim() : '';
+  if (!reason || /[\r\n\u2028\u2029]/u.test(reason)) {
+    return new Refused('NOTE_REQUIRED', 'give the review release a one-line reason with --note "..."');
+  }
+  return null;
+}
+
+/** Find review releases after the current submission, optionally for one reviewer [V1,R1].
+ * Older releases are ignored because a new submission starts a fresh review.
+ */
+function reviewReleasesSinceSubmit(board, itemId, agentId = null) {
+  const events = board.db.prepare("SELECT event_id, event_at, event_by, event_kind, event_detail FROM event WHERE item_id=? AND event_kind IN ('submit','release') ORDER BY event_id DESC")
+    .all(itemId);
+  const releases = [];
+  for (const event of events) {
+    if (event.event_kind === 'submit') return releases;
+    if (event.event_by !== agentId && agentId !== null) continue;
+    try {
+      const detail = JSON.parse(event.event_detail);
+      if (detail.review === true || detail.review === undefined) releases.push({ ...event, legacy: detail.review === undefined,
+        reason: detail.reason ?? 'reason not recorded' });
+    } catch { /* Ignore malformed legacy details rather than treating them as review releases. */ }
+  }
+  return releases;
+}
+
+/** Return a reviewer's active one-hour cooldown, if a later submission has not reset it [V1,R1]. */
+function reviewReleaseCooldown(board, itemId, agentId) {
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) < 5) return null;
+  const event = reviewReleasesSinceSubmit(board, itemId, agentId).find((release) => !release.legacy);
+  if (!event) return null;
+  const until = Date.parse(event.event_at) + REVIEW_RELEASE_COOLDOWN_MS;
+  return until > board.clock.now().getTime() ? new Date(until).toISOString() : null;
+}
+
+/** Count unreserved submissions by whether they are awaiting a first reviewer or were released [R1]. */
+export function reviewQueueBreakdown(board) {
+  let awaitingFirstReview = 0;
+  let releasedWithoutVerdict = 0;
+  const releasedItems = [];
+  for (const item of listItems(board).filter((entry) => entry.item_status === 'submitted' && !reviewHolder(board, entry))) {
+    const releases = reviewReleasesSinceSubmit(board, item.item_id);
+    if (releases.length) {
+      releasedWithoutVerdict += 1;
+      releasedItems.push({ item: item.item_id, releases: releases.length, reason: releases[0].reason });
+    } else awaitingFirstReview += 1;
+  }
+  return { awaitingFirstReview, releasedWithoutVerdict, releasedItems };
 }
 
 /** Summarize outstanding reviews using live leases and the latest submission's age [Q1,V15]. */
@@ -1164,6 +1239,11 @@ function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'of
       coordinatorSaysAs: null,
       joined: null,
       [IN_STATE]: (found) => new Refused('NOT_SUBMITTED', `item #${id} is ${current(board, found).item_status}, not submitted`),
+      /** Enforce the cooldown after state validation and before reviewer eligibility [V1]. */
+      reviewCooldownElapsed: () => {
+        const cooldown = reviewReleaseCooldown(board, id, agentId);
+        return cooldown ? new Refused('REVIEW_COOLDOWN', `you released the review of #${id}; try again after ${cooldown}, or let another reviewer take it`) : null;
+      },
       ...reviewerChecks(board, { agentId, policy, familyPolicy }),
     },
     set: () => ({ item_review_by: agentId, item_review_until: until }),
@@ -1715,11 +1795,19 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     if (policy === COORDINATOR && agentId !== COORDINATOR) reviewable = reviewable.filter((entry) => entry.item_lane === COORDINATOR);
     if (familyPolicy === 'require') reviewable = reviewable.filter(hasDifferentFamily);
     if (familyPolicy === 'prefer') reviewable.sort((first, second) => Number(hasDifferentFamily(second)) - Number(hasDifferentFamily(first)));
-    const holder = (entry) => reviewHolder(board, entry);
-    const item = reviewable.find((entry) => holder(entry) === agentId) ?? reviewable.find((entry) => !holder(entry));
+    const candidates = reviewable.map((entry) => ({
+      entry,
+      holder: reviewHolder(board, entry),
+      cooldown: reviewReleaseCooldown(board, entry.item_id, agentId),
+    }));
+    const item = candidates.find((candidate) => candidate.holder === agentId)?.entry
+      ?? candidates.find((candidate) => !candidate.holder && !candidate.cooldown)?.entry;
     if (item) return { item, reasons: [] };
-    const held = reviewable.map((entry) => `${holder(entry)} holds the review of #${entry.item_id} until ${entry.item_review_until}`);
-    return { item: null, reasons: [`nothing ${routed}submitted that you did not build${held.length ? ' and no other agent is reviewing' : ''}`, ...held] };
+    const held = candidates.filter((candidate) => candidate.holder && candidate.holder !== agentId)
+      .map(({ entry, holder: reviewer }) => `${reviewer} holds the review of #${entry.item_id} until ${entry.item_review_until}`);
+    const cooling = candidates.filter((candidate) => candidate.cooldown)
+      .map(({ entry, cooldown }) => `you released the review of #${entry.item_id}; try again after ${cooldown}, or let another reviewer take it`);
+    return { item: null, reasons: [`nothing ${routed}submitted that you did not build${held.length ? ' and no other agent is reviewing' : ''}`, ...held, ...cooling] };
   }
   const held = items.find((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null);
   if (held) return { item: held, reasons: [] };
