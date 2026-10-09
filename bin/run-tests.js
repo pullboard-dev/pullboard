@@ -7,11 +7,13 @@ import { delimiter, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
+import { randomUUID } from 'node:crypto';
 import { after, afterEach, beforeEach } from 'node:test';
 import { Worker } from 'node:worker_threads';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
 
 const runner = fileURLToPath(import.meta.url);
+const profileReporter = fileURLToPath(new URL('./gate-profile-reporter.js', import.meta.url));
 export const DEFAULT_TEST_TIMEOUT_MS = 660_000;
 
 const watchdogSource = `
@@ -128,6 +130,8 @@ function testEnvironment(sandbox) {
   delete env.PULLBOARD_RELAY_TOKEN; // Fixtures must supply their own scoped credentials, never an agent’s live bearer.
   delete env.NODE_TEST_CONTEXT;
   delete env.PULLBOARD_TEST_FILE;
+  // Keep fixture-spawned test commands from being counted as part of this runner invocation.
+  delete env.PULLBOARD_TEST_TIMING_PROFILE;
   return env;
 }
 
@@ -140,13 +144,34 @@ function testEnvironment(sandbox) {
  */
 function runTests(args, env) {
   const reporter = args.some((argument) => argument === '--test-reporter' || argument.startsWith('--test-reporter='));
+  const destination = args.some(argument => argument === '--test-reporter-destination' || argument.startsWith('--test-reporter-destination='));
+  const profileBase = process.env.PULLBOARD_TEST_TIMING_PROFILE;
+  const profileFile = profileBase ? `${profileBase}.${process.pid}.${randomUUID()}.json` : null;
+  const reporters = profileFile ? [
+    ...(!destination ? ['--test-reporter-destination=stdout'] : []),
+    `--test-reporter=${profileReporter}`, `--test-reporter-destination=${profileFile}`,
+  ] : [];
+  const callerArgs = [...args];
+  if (profileFile) {
+    // Reporter and destination arrays pair by position; append after the caller's options.
+    let afterReporters = 0;
+    for (let at = 0; at < args.length; at += 1) {
+      if (['--test-reporter', '--test-reporter-destination'].includes(args[at])) {
+        afterReporters = at + 2;
+        at += 1;
+      } else if (args[at].startsWith('--test-reporter=') || args[at].startsWith('--test-reporter-destination=')) {
+        afterReporters = at + 1;
+      }
+    }
+    callerArgs.splice(afterReporters, 0, ...reporters);
+  }
   const nodeArgs = [
     '--disable-warning=ExperimentalWarning',
     '--test',
     ...(!reporter ? ['--test-reporter=tap'] : []),
     '--import',
     runner,
-    ...args,
+    ...callerArgs,
   ];
   return spawnSync(process.execPath, nodeArgs, { env, stdio: 'inherit' });
 }

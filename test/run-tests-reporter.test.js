@@ -1,7 +1,7 @@
 /** Keep the production runner's report stable across Node versions and caller options [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -68,4 +68,42 @@ test('run-tests prints TAP on every Node version and keeps a caller reporter [C7
   assert.equal(splitCallerReporter.childArgs[splitReporterIndex + 1], 'spec');
   assert.ok(!splitCallerReporter.childArgs.includes('--test-reporter=tap'), 'the default does not override the separate caller option');
   assert.doesNotMatch(splitCallerReporter.output, /^TAP version \d+/mu);
+});
+
+/** Run the actual runner with timing output and a caller reporter enabled. */
+function runProfileReporterFixture(t, reporterArgs = []) {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-run-tests-profile-reporter-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const fixture = join(root, 'profile-reporter.test.js');
+  const profileBase = join(root, 'profile');
+  writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
+  writeFileSync(fixture, "import { test } from 'node:test';\ntest('profile reporter fixture [C7]', () => {});\n");
+  const result = spawnSync(process.execPath, [runner, ...reporterArgs, fixture], {
+    cwd: root,
+    env: { ...process.env, PULLBOARD_TEST_TIMING_PROFILE: profileBase },
+    encoding: 'utf8',
+    timeout: 15_000,
+  });
+  const profileName = readdirSync(root).find((name) => name.startsWith('profile.'));
+  const rawProfile = profileName ? readFileSync(join(root, profileName), 'utf8') : '';
+  assert.match(rawProfile, /^\{"files":/u, 'the private destination receives timing JSON');
+  const profile = JSON.parse(rawProfile);
+  return { result, output: `${result.stdout ?? ''}${result.stderr ?? ''}`, profile };
+}
+
+test('run-tests keeps caller reporter output visible beside a timing profile [C7]', (t) => {
+  for (const reporterArgs of [
+    ['--test-reporter=spec'],
+    ['--test-reporter', 'spec'],
+    ['--test-reporter=spec', '--test-reporter-destination=stdout'],
+    ['--test-reporter', 'spec', '--test-reporter-destination', 'stdout'],
+  ]) {
+    const run = runProfileReporterFixture(t, reporterArgs);
+    assert.equal(run.result.status, 0, run.output);
+    assert.ok(run.profile, 'the timing profile is still written as JSON');
+    assert.equal(run.profile.tests.length, 1);
+    assert.equal(run.profile.tests[0].name, 'profile reporter fixture [C7]');
+    assert.match(run.output, /ℹ tests 1/u, 'the caller’s spec reporter remains on stdout');
+    assert.doesNotMatch(run.output, /^\{"files":/mu, 'profile JSON does not replace caller output');
+  }
 });
