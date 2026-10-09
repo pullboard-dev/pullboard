@@ -618,7 +618,9 @@ async function boardState(root, mark) {
     if (!grouped.has(project.project)) grouped.set(project.project, []);
     grouped.get(project.project).push(project);
   }
-  const groups = [...grouped].map(([name, repos]) => ({ name, key: 'group:' + name, repos }));
+  // A project groups repos only when two or more share its name. One repo alone, as every board the relay
+  // lists is, shows as itself: a heading above the same board would only say it twice.
+  const groups = [...grouped].filter(([, repos]) => repos.length > 1).map(([name, repos]) => ({ name, key: 'group:' + name, repos }));
   const group = groups.find((entry) => entry.key === root);
   return {
     projects, groups, project: states.get(root) || null,
@@ -788,7 +790,7 @@ function renderSide() {
     const count = group.repos.length;
     return '<section class="repo-group"><button class="proj project-pick' + (on ? ' on' : '') + '"' + (on ? ' aria-current="true"' : '') + ' data-root="' + esc(group.key) + '" type="button"><span class="pname">' + esc(group.name) + '</span>' + (needs ? '<b class="need" title="needs you">' + needs + '</b>' : '') + '<small>' + count + ' ' + (count === 1 ? 'repo' : 'repos') + '</small></button><div class="repos">' + group.repos.map(repoButton).join('') + '</div></section>';
   }).join('');
-  const loose = data.projects.filter((repo) => !repo.project && !groupedRoots.has(repo.root)).map(repoButton).join('');
+  const loose = data.projects.filter((repo) => !groupedRoots.has(repo.root)).map(repoButton).join('');
   $('proj-list').innerHTML = grouped || loose ? grouped + loose : '<div class="empty">None yet.</div>';
   const currentGroup = data.groups.find((group) => group.key === view.root);
   const currentRoots = new Set(currentGroup ? currentGroup.repos.map((repo) => repo.root) : [view.root]);

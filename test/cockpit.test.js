@@ -608,6 +608,32 @@ test('projects group repos with combined needs and activity, while ungrouped and
   }
 });
 
+test('a project with one repo shows once in the project list [N33, N26]', async () => {
+  const box = machine();
+  const solo = project(box, 'solo', SPEC, { name: 'Solo board', project: 'Solo' });
+  box.run(solo.repo, 'shout', 'person', 'Ship it today?', '--decision');
+  // The relay lists every board this way: its project is its own repository's name.
+  const mirrored = project(box, 'mirrored', SPEC, { name: 'acme/site', project: 'acme/site' });
+  project(box, 'core', SPEC, { name: 'Core API', project: 'Atlas' });
+  project(box, 'web', SPEC, { name: 'Web UI', project: 'Atlas' });
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    const side = page.show('proj-list');
+    const once = (name) => side.split('<span class="pname">' + name + '</span>').length - 1;
+    assert.doesNotMatch(side, /data-root="group:Solo"|data-root="group:acme\/site"/, 'a project with one repo has no group heading');
+    assert.deepEqual([once('Solo board'), once('acme/site'), once('Solo')], [1, 1, 0], 'each one-repo project shows as its repo, once');
+    assert.ok(side.includes(`data-root="${solo.repo}"`) && side.includes(`data-root="${mirrored.repo}"`), 'as a repo button of its own');
+    assert.equal((side.match(/title="needs you">1<\/b>/g) || []).length, 1, "the lone repo's decision is counted once, not again on a heading");
+    assert.match(side, /data-root="group:Atlas"/, 'two repos sharing a project still group');
+    assert.deepEqual([once('Core API'), once('Web UI'), once('Atlas')], [1, 1, 1], 'under one heading');
+    await page.click({ root: solo.repo });
+    assert.deepEqual([page.element('group-view').hidden, page.element('tabs').hidden], [true, false], 'the lone repo opens on its own board');
+  } finally {
+    await view.stop();
+  }
+});
+
 test('the tabs fit one row on a phone [N26]', async () => {
   const view = await startView(machine());
   try {
