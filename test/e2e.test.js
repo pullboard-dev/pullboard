@@ -1322,7 +1322,9 @@ test('the tour runs a reject and its rework on a throwaway repo, in under thirty
   const normalizeTourRoot = (text) => text
     .replace(/Look around: cd .* && pullboard log/, 'Look around: cd <tour> && pullboard log')
     .replace(/\b[0-9a-f]{12}\b/g, '<sha>')
-    .replace(/claimed #1 until \S+ criterion frozen/g, 'claimed #1 until <time> criterion frozen');
+    .replace(/claimed #1 until \S+ criterion frozen/g, 'claimed #1 until <time> criterion frozen')
+    // A gate's rounded wall time is not output NO_COLOR could change, so a slower gate must still compare equal.
+    .replace(/gate (green|red) in \d+s/g, 'gate $1 in <n>s');
   assert.equal(normalizeTourRoot(noColor.stdout), normalizeTourRoot(shown.stdout), 'NO_COLOR preserves the plain tour output');
 
   const repo = /Look around: cd (\S+) && pullboard log/.exec(shown.stdout)[1];
@@ -2053,7 +2055,9 @@ test('accept reports a frozen install timeout before running the check [V18,V2]'
 test('private check timeout kills a TERM-resistant shell and its tracked child [V18,V2]', () => {
   const box = project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  config.check = { install: '', timeout: '100ms' };
+  // The shell must start and write both pid files inside this budget; on a loaded machine that takes seconds.
+  const budget = '2s';
+  config.check = { install: '', timeout: budget };
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure bounded check fixture');
@@ -2074,11 +2078,16 @@ test('private check timeout kills a TERM-resistant shell and its tracked child [
   let outer;
   try {
     outer = spawnSync(process.execPath, ['--input-type=module', '-e', source, box.repo, JSON.stringify(trackedItem)], {
-      cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 3000, detached: true,
+      cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 15_000, detached: true,
     });
     assert.equal(outer.error, undefined, outer.error?.message);
     assert.equal(outer.status, 0, outer.stderr);
     assert.equal(JSON.parse(outer.stdout).stage, 'check timed out');
+    if (!existsSync(pidFile)) {
+      assert.fail(existsSync(shellPidFile)
+        ? `the check was killed before it forked its tracked child: its shell started, but ${pidFile} never appeared within the ${budget} check budget`
+        : `the check was killed before its shell started, so it never forked: ${shellPidFile} never appeared within the ${budget} check budget`);
+    }
     const childPid = Number(readFileSync(pidFile, 'utf8').trim());
     let childAlive = true;
     for (let attempt = 0; attempt < 20; attempt += 1) {
