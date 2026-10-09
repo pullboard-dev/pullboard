@@ -355,7 +355,7 @@ test('a timed-out checkpoint PUT retries identical ciphertext through the native
     boardId: link.board, kind: 'request', sequence: 1,
   })).toString('base64url');
   const response = await fetch(box.origin + '/api/v1/boards/' + link.board + '/requests', {
-    method: 'POST', headers: { authorization: 'Bearer ' + link.token,
+    method: 'POST', headers: { authorization: 'Bearer ' + (await box.phoneSession()).token,
       'x-pullboard-engine': String(ENGINE_VERSION), 'content-type': 'application/json' },
     body: JSON.stringify({ sequence: 1, sealed }),
   });
@@ -393,7 +393,7 @@ test('a newer acknowledged checkpoint covers an earlier timed-out PUT [H16,C7]',
     boardId: link.board, kind: 'request', sequence: 1,
   })).toString('base64url');
   const response = await fetch(box.origin + '/api/v1/boards/' + link.board + '/requests', {
-    method: 'POST', headers: { authorization: 'Bearer ' + link.token,
+    method: 'POST', headers: { authorization: 'Bearer ' + (await box.phoneSession()).token,
       'x-pullboard-engine': String(ENGINE_VERSION), 'content-type': 'application/json' },
     body: JSON.stringify({ sequence: 1, sealed }),
   });
