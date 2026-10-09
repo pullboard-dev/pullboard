@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { projectState } from '../src/serve.js';
+import { checkAtCommit } from '../src/trusted-policy.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const DOCTRINE = 'DOCTRINE.md';
@@ -269,4 +270,88 @@ test('[D4,A5] a staged rename keeps known duplicates before its rename commit', 
   assert.equal(check.status, 0, `${check.stdout}${check.stderr}`);
   assert.match(check.stdout, /SPEC\.md:4 G1 warning: known duplicate id; also appears at DOCTRINE\.md:4/u);
   assert.match(check.stdout, /DOCTRINE\.md:4 G1 warning: known duplicate id; also appears at SPEC\.md:4/u);
+});
+
+test('[D4,A5] detached checkout reads the trunk baseline through the verifier clone', function verifierCloneRetainsTrunkBaseline() {
+  const box = sandbox();
+  const source = renamedDoctrineFixture(box, 'detached-source');
+  const initialized = box.run(source, 'init');
+  assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
+  box.git(source, 'add', '-A');
+  box.git(source, 'commit', '-q', '-m', 'chore: initialize detached spec fixture');
+  assert.equal(box.git(source, 'config', '--local', '--get', 'pullboard.trunk'), 'refs/heads/main', 'initialization records the actual source trunk');
+  const commit = box.git(source, 'rev-parse', 'HEAD');
+  const item = { item_id: 324, item_claim_head: commit, item_commit: commit,
+    item_frozen: JSON.stringify({ check: `${shellWord(process.execPath)} ${shellWord(BIN)} spec check` }) };
+
+  const checked = checkAtCommit(source, item);
+  assert.equal(checked.state, 'pass', `${checked.stage}\n${checked.output}`);
+  assert.match(checked.output, /SPEC\.md: \d+ rows, 0 errors, \d+ warnings/u);
+  assert.match(checked.output, /DOCTRINE\.md: \d+ rows, 0 errors, \d+ warnings/u);
+  assert.match(checked.output, /SPEC\.md:4 G1 warning: known duplicate id; also appears at DOCTRINE\.md:4/u);
+  assert.match(checked.output, /DOCTRINE\.md:4 G1 warning: known duplicate id; also appears at SPEC\.md:4/u);
+
+  const attached = box.run(source, 'spec', 'check');
+  assert.equal(attached.status, 0, `${attached.stdout}${attached.stderr}`);
+  const attachedRows = specRows(box, source);
+  const jsonFile = join(box.dir, 'verifier-spec-rows.json');
+  const json = checkAtCommit(source, { ...item, item_frozen: JSON.stringify({ check: `${shellWord(process.execPath)} ${shellWord(BIN)} spec --json > ${shellWord(jsonFile)}` }) });
+  assert.equal(json.state, 'pass', `${json.stage}\n${json.output}`);
+  const rows = JSON.parse(readFileSync(jsonFile, 'utf8')).rows;
+  assert.deepEqual(rows, attachedRows, 'the production verifier clone reports the same rows as attached main');
+  assert.ok(rows.some(row => row.file === 'SPEC.md' && row.id === 'G1'));
+  assert.ok(rows.some(row => row.file === DOCTRINE && row.id === 'G1'));
+
+  const withoutTrunk = renamedDoctrineFixture(box, 'detached-source-without-trunk');
+  const noTrunkInit = box.run(withoutTrunk, 'init');
+  assert.equal(noTrunkInit.status, 0, `${noTrunkInit.stdout}${noTrunkInit.stderr}`);
+  box.git(withoutTrunk, 'add', '-A');
+  box.git(withoutTrunk, 'commit', '-q', '-m', 'chore: initialize no-trunk spec fixture');
+  const noTrunkCommit = box.git(withoutTrunk, 'rev-parse', 'HEAD');
+  // Init and the installed commit hook both remember the attached trunk; remove it only after them.
+  box.git(withoutTrunk, 'config', '--local', '--unset-all', 'pullboard.trunk');
+  assert.equal(spawnSync('git', ['config', '--local', '--get', 'pullboard.trunk'], {
+    cwd: withoutTrunk, env: box.env,
+  }).status, 1, 'the negative source actually has no retained trunk');
+  const refused = checkAtCommit(withoutTrunk, { ...item, item_claim_head: noTrunkCommit, item_commit: noTrunkCommit });
+  assert.equal(refused.state, 'red');
+  assert.match(`${refused.output}\n${refused.outputTail}`, /NO_TRUNK/u);
+  assert.match(`${refused.output}\n${refused.outputTail}`, /check out the trunk branch in the main checkout once/u);
+});
+
+test('[D4,A5] verify in a detached checkout reads the trunk baseline for a doctrine frozen check', function verifyDoctrineFrozenCheck() {
+  const box = sandbox();
+  const source = renamedDoctrineFixture(box, 'verify-doctrine-source');
+  const initialized = box.run(source, 'init');
+  assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
+  const configPath = join(source, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  writeFileSync(configPath, JSON.stringify({ ...config, gate: 'true', verify: 'coordinator',
+    lanes: { web: { owns: ['web/'], specs: [] } }, shared: [] }, null, 2) + '\n');
+  box.git(source, 'add', '-A');
+  box.git(source, 'commit', '-q', '-m', 'chore: initialize doctrine verification fixture');
+  const check = `${shellWord(process.execPath)} ${shellWord(BIN)} spec check | grep -E 'DOCTRINE[.]md: .*0 errors'`;
+  const added = box.run(source, 'add', 'web', 'Doctrine review fixture', '--criterion', 'The frozen doctrine check passes in the verifier clone.', '--check', check, '--json');
+  assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
+  const id = JSON.parse(added.stdout).item.item_id;
+  const builder = join(box.dir, 'verify-doctrine-builder');
+  box.git(source, 'worktree', 'add', '-q', '-b', 'web/doctrine-review', builder);
+  assert.equal(box.run(builder, 'join', 'web').status, 0);
+  assert.equal(box.run(builder, 'claim', String(id)).status, 0);
+  mkdirSync(join(builder, 'web'));
+  writeFileSync(join(builder, 'web/candidate.txt'), 'doctrine verification fixture\n');
+  box.git(builder, 'add', 'web/candidate.txt');
+  box.git(builder, 'commit', '-q', '-m', 'feat(web): build doctrine verification fixture [G1]');
+  const submitted = box.run(builder, 'submit', String(id), '--json');
+  assert.equal(submitted.status, 0, `${submitted.stdout}${submitted.stderr}`);
+  const commit = JSON.parse(submitted.stdout).commit;
+  box.git(source, 'switch', '-q', '--detach', commit);
+  const accepted = box.run(source, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'The exact private frozen doctrine check passed.', '--json');
+  assert.equal(accepted.status, 0, `${accepted.stdout}${accepted.stderr}`);
+  const result = JSON.parse(accepted.stdout);
+  assert.equal(result.decision, 'ACCEPT');
+  assert.equal(result.check, 'green', 'the real verifier records that the frozen doctrine check ran and passed');
+  const shown = box.run(source, 'show', String(id), '--json');
+  assert.equal(shown.status, 0, `${shown.stdout}${shown.stderr}`);
+  assert.equal(JSON.parse(shown.stdout).item_status, 'verified');
 });

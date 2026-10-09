@@ -141,7 +141,7 @@ test('spec check lists primary-branch collisions as known warnings [A5]', (t) =>
   assert.match(result.stdout, /PRACTICE\.md:4 G1 warning: known duplicate id; also appears at SPEC\.md:6/u);
 });
 
-test('spec check refuses a collision committed on a linked builder after coordinator trunk [A5]', (t) => {
+test('spec check uses the retained trunk after its coordinator checkout detaches [A5]', (t) => {
   const practice = '# Practice\n\n## P\n- P1 [draft] A local rule.\n';
   const box = specBox(t, { practice });
   const gitAt = (cwd, ...args) => execFileSync('git', args, { cwd, env: box.env, encoding: 'utf8', stdio: 'pipe' });
@@ -149,6 +149,7 @@ test('spec check refuses a collision committed on a linked builder after coordin
     cwd, env: box.env, encoding: 'utf8',
   });
   gitAt(box.root, 'branch', '-m', 'trunk');
+  gitAt(box.root, 'config', '--local', 'pullboard.trunk', 'refs/heads/trunk');
   const configPath = join(box.root, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   config.lanes.spec = { owns: ['PRACTICE.md'] };
@@ -170,7 +171,8 @@ test('spec check refuses a collision committed on a linked builder after coordin
   gitAt(box.root, 'switch', '-q', '--detach');
   const detached = runAt(builder, 'spec', 'check');
   assert.equal(detached.status, 1);
-  assert.match(detached.stderr, /COORDINATOR_DETACHED/u);
+  assert.match(detached.stdout, /duplicate id; also appears at PRACTICE\.md:\d+/u);
+  assert.doesNotMatch(`${detached.stdout}${detached.stderr}`, /COORDINATOR_DETACHED/u);
   gitAt(box.root, 'switch', '-q', 'trunk');
 });
 
