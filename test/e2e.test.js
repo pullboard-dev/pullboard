@@ -288,7 +288,7 @@ test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [
   rmSync(join(box.web, 'web', 'stray.txt'));
   const submitted = box.run(box.web, 'submit', '1');
   assert.equal(submitted.code, 0, submitted.err);
-  assert.match(submitted.out, /submitted #1 at [0-9a-f]{12}; gate green/);
+  assert.match(submitted.out, /submitted #1 at [0-9a-f]{12}; no item check; full gate: no committed Node test files can be selected; gate green in \d+s/);
   const head = box.git(box.web, 'rev-parse', 'HEAD');
   assert.equal(box.git(box.repo, 'rev-parse', `refs/pullboard/items/1/${head.slice(0, 12)}`), head, 'submit pins the commit');
 });
