@@ -610,7 +610,8 @@ test('[A4,H7] two clients append sealed moves in one order and no plaintext or c
   const box = await fixture(t);
   const listed = await box.call('/api/v1/boards');
   assert.equal(listed.status, 200);
-  assert.deepEqual(listed.body.boards, [{ id: box.id, repository: 'fixture/repository' }]);
+  const linkedAt = box.auth.linkedBoards().find(row => row.id === box.id).linkedAt;
+  assert.deepEqual(listed.body.boards, [{ id: box.id, repository: 'fixture/repository', linkedAt }]);
   const initial = box.clientSeal(box.document, 'snapshot', 0);
   const uploaded = await box.call(box.path + '/state', { method: 'PUT', token: box.person.token, body: { sequence: 0, sealed: initial } });
   assert.equal(uploaded.status, 200);
