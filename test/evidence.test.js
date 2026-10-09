@@ -69,6 +69,7 @@ test('evidence uses exact citations in tracked visible tests and stage precedenc
     assert.equal(rowStage({}, evidence), 'awaiting a verdict');
     assert.equal(rowStage({}, { ...evidence, awaiting: false }), 'building');
     assert.equal(rowStage({}, { files: [], verified: [{ id: 7 }], building: false, awaiting: false }), 'verified and ready to sign');
+    assert.equal(rowStage({}, { files: ['test/ghost.test.js'], verified: [], building: false, awaiting: false }), 'cited by tests, not verified');
     assert.equal(rowStage({}, { files: [], verified: [], building: false, awaiting: false }), 'no evidence');
   } finally {
     if (priorHome === undefined) delete process.env.PULLBOARD_HOME;

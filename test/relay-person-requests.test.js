@@ -5,6 +5,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { decodeBoardKey, seal } from '../src/seal.js';
+import { ENGINE_VERSION } from '../src/machine.js';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 
@@ -77,7 +78,7 @@ test('real paired Chrome transports one person shout, and native status makes on
     'the browser posts a sealed request document, not an executable engine move');
   assert.equal(box.keyInRequest(), false, 'the device key never enters an HTTP request');
   const session = JSON.parse(readFileSync(box.linkFile, 'utf8'));
-  const rawResponse = await fetch(box.origin + '/api/v1/boards/' + link.board + '/events?after=0', { headers: { authorization: 'Bearer ' + session.token } });
+  const rawResponse = await fetch(box.origin + '/api/v1/boards/' + link.board + '/events?after=0', { headers: { authorization: 'Bearer ' + session.token, 'x-pullboard-engine': String(ENGINE_VERSION) } });
   assert.equal(rawResponse.status, 200);
   const raw = await rawResponse.json();
   assert.equal(JSON.stringify(raw).includes(move.args.text), false, 'the relay response contains opaque ciphertext rather than request text');
@@ -162,7 +163,7 @@ test('an agent-sealed row approval is refused before any row receipt or spec edi
   assert.equal(tokenResponse.status, 201, 'the signed-in person can issue a scoped agent token');
   const agentToken = (await tokenResponse.json()).token;
   const snapshotResponse = await fetch(box.origin + '/api/v1/boards/' + link.board + '/state', {
-    headers: { authorization: 'Bearer ' + personToken },
+    headers: { authorization: 'Bearer ' + personToken, 'x-pullboard-engine': String(ENGINE_VERSION) },
   });
   assert.equal(snapshotResponse.status, 200);
   const sequence = (await snapshotResponse.json()).state.sequence + 1;
@@ -172,7 +173,7 @@ test('an agent-sealed row approval is refused before any row receipt or spec edi
     boardId: link.board, kind: 'request', sequence,
   })).toString('base64url');
   const uploaded = await fetch(box.origin + '/api/v1/boards/' + link.board + '/requests', {
-    method: 'POST', headers: { authorization: 'Bearer ' + agentToken, 'content-type': 'application/json' },
+    method: 'POST', headers: { authorization: 'Bearer ' + agentToken, 'x-pullboard-engine': String(ENGINE_VERSION), 'content-type': 'application/json' },
     body: JSON.stringify({ sequence, sealed }),
   });
   assert.equal(uploaded.status, 200, 'the opaque journal accepts authenticated ciphertext without interpreting it');
