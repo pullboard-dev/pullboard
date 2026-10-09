@@ -6,7 +6,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { gitChildEnv, gitPath, headTree, isClean, untracked } from './git.js';
+import { gitChildEnv, gitPath, headTree, invalidateGitFacts, isClean, untracked } from './git.js';
 import { Refused } from './refused.js';
 import { takeResource } from './resources.js';
 import { loadMachineSettings } from './settings.js';
@@ -99,6 +99,7 @@ export function runShell(root, command) {
   const started = Date.now();
   // Newlines, not spaces, around the command, so a trailing comment in it cannot swallow the `)`.
   const result = spawnSync(`(\n${command}\n) 2>&1`, { cwd: root, env: gitChildEnv(root), shell: true, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', maxBuffer: 2 ** 30 });
+  invalidateGitFacts();
   return { isGreen: result.status === 0, output: `${result.stdout ?? ''}${result.stderr ?? ''}`, seconds: Math.round((Date.now() - started) / 1000) };
 }
 

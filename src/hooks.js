@@ -6,7 +6,7 @@
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { git, gitChildEnv, gitPath, mainCheckout, refuseGrafts, tryGit } from './git.js';
+import { git, gitChildEnv, gitPath, gitConfig, invalidateGitFacts, mainCheckout, refuseGrafts, tryGit } from './git.js';
 import { CONFIG_FILE, configFromSource, DOCTRINE_FILE, LEGACY_DOCTRINE_FILE } from './config.js';
 import { Refused } from './refused.js';
 import { outOfLane } from './lanes.js';
@@ -358,6 +358,7 @@ export function applyFixers(root, fixers) {
       encoding: 'utf8',
       timeout: 120_000,
     });
+    invalidateGitFacts();
     if (result.status === 0) git(root, ['add', '--', ...files]);
     else notes.push(`fixer "${fixer.run}" failed (${result.status ?? 'timed out'}); staged nothing from it, so the gate will name what it could not fix`);
   }
@@ -485,7 +486,7 @@ export function installHooks(root, onWrite = () => {}) {
     onWrite(`${HOOKS_DIR}/${hook}`);
     notes.push(`wrote ${HOOKS_DIR}/${hook}`);
   }
-  const current = tryGit(root, ['config', '--get', 'core.hooksPath']).stdout;
+  const current = gitConfig(root, 'core.hooksPath').stdout;
   if (current && current !== HOOKS_DIR) {
     notes.push(`core.hooksPath is ${current}; left as is. Call pullboard hook <name> from those hooks`);
   } else if (current === HOOKS_DIR) {
