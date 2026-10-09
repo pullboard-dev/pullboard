@@ -15,7 +15,7 @@ import { agentSessionDigest, requirePersonChannel } from './person.js';
 import { bindLocalSession } from './agent-session.js';
 import { decisionProjection, planRowApply, prepareRowDecisions, restoreRowApply, writeRowApply } from './row-decisions.js';
 import { digestOf, gateReport, runGate, runShell, withGateSlot } from './gate.js';
-import { bareWorktreeFinding, contains, differFromHead, git, gitChildEnv, headCommit, headTree, isClean, mainCheckout, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
+import { bareWorktreeFinding, contains, differFromHead, git, gitChildEnv, headCommit, headTree, invalidateGitFacts, isClean, mainCheckout, repoInfo, resolveCommit, tryGit, untracked, withGitFacts } from './git.js';
 import {
   FIX_NOTE,
   applyFixers,
@@ -1813,6 +1813,7 @@ async function sweepHere(ctx, board, me, values) {
   }
   const max = values.max === undefined ? 20 : idArg(values.max, 'a number after --max');
   const ran = spawnSync(report, { cwd: ctx.info.root, shell: true, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  invalidateGitFacts();
   const problems = parseProblems(`${ran.stdout ?? ''}\n${ran.stderr ?? ''}`, ctx.info.root);
   if (!problems.length) {
     ctx.io.say(`the checker reported no problems I can read (exit ${ran.status}); nothing to file`);
@@ -1830,6 +1831,7 @@ async function sweepHere(ctx, board, me, values) {
   const blind = [];
   for (const item of items) {
     const canary = spawnSync(item.check, { cwd: ctx.info.root, shell: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    invalidateGitFacts();
     if (canary.status === 0) {
       blind.push(item.file);
       continue;
@@ -2589,8 +2591,14 @@ function rememberTrunk(io) {
 
 /** Run one command and emit its single versioned JSON result when requested (A1). */
 export async function main(argv, streams) {
+  return withGitFacts(() => runMain(argv, streams));
+}
+
+/** Parse and execute one CLI command, binding its checkout session and Git-fact scope. */
+async function runMain(argv, streams) {
   const io = commandOutput(argv, streams);
   let sync = true;
+  let needsRepo = true;
   let parsed;
   let checkoutSession;
   try {
@@ -2600,13 +2608,13 @@ export async function main(argv, streams) {
       positionals: parsed.positionals.slice(1),
       values: Object.fromEntries(Object.keys(parsed.values).filter(key => key !== 'json').sort().map(key => [key, parsed.values[key]])) };
     sync = Boolean(command) && !parsed.values.help && !parsed.values.version && !['help', 'version', 'hook', 'init', 'relay', 'tour'].includes(command);
-  } catch { sync = false; }
+    needsRepo = !(parsed.values.help || parsed.values.version || command === 'help' || command === 'version');
+  } catch { sync = false; needsRepo = false; }
   if (parsed) {
     try {
       checkoutSession = await bindCheckoutSession(io, parsed.positionals, parsed.values);
       if (checkoutSession?.lease) CHECKOUT_LEASES.set(io, checkoutSession.lease);
-    }
-    catch (error) {
+    } catch (error) {
       if (!(error instanceof Refused)) throw error;
       io.refusal(error);
       io.err(`pullboard: ${error.message}`);
@@ -2623,13 +2631,13 @@ export async function main(argv, streams) {
         if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
       }
     };
-    rememberTrunk(io);
+    if (needsRepo) rememberTrunk(io);
     if (sync) {
       await retry();
       try { await executePersonRequests(io.cwd, io, main); }
       catch (error) {
         if (!(error instanceof Refused)) throw error;
-        if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err('pullboard: ' + error.message);
+        if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
       }
     }
     const code = await runCommand(argv, io);
