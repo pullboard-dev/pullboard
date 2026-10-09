@@ -29,6 +29,7 @@ export const JSON_SHAPES = {
     'milestone edit': shape({ milestone: 'object' }),
     'milestone remove': shape({ milestone: 'object' }),
     show: shape({ item_id: 'number', item_title: 'string', item_lane: 'string', item_status: 'string', verdicts: 'array', thread: 'array' }),
+    stats: shape({ stats: 'object' }),
     status: shape({ me: 'object', mine: 'array', stats: 'object', reviewQueue: 'object', unread: 'number' }),
     doctor: shape({ problems: 'array' }),
     inbox: shape({ shouts: 'array' }),

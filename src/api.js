@@ -10,6 +10,7 @@ import { relayLinked, relayOperation } from './relay.js';
 import { laneNames } from './lanes.js';
 import { listApiProjects } from './projects.js';
 import { milestoneRoadmap } from './roadmap.js';
+import { proofStats } from './stats.js';
 import { projectRowDecisions } from './row-decisions.js';
 import { Refused } from './refused.js';
 import { codeAt, projectState } from './serve.js';
@@ -155,8 +156,10 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
         personRequests: personRequestStatuses(db),
         milestones: milestoneRoadmap(board.root, db),
         rowDecisions: store.rowDecisions(db),
+        proofStats: proofStats(db),
         threads: new Map(store.listItems(db, { all: true }).map((item) => [item.item_id, store.itemThread(db, item.item_id)])),
       }));
+      state.proofStats = projectData.proofStats;
       state.requests = projectData.requests;
       state.personRequests = projectData.personRequests;
       state.milestones = projectData.milestones;

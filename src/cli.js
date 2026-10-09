@@ -57,6 +57,7 @@ import { serveApi } from './api.js';
 import { doctorProblems, doctrineProblems } from './doctor.js';
 import { staleFrozenItems, staleItemFinding } from './approved-rows.js';
 import { mainPolicy, policyAt, itemPolicy, submissionPaths, frozenCheck, checkAtCommit, dependencySnapshots, requireTrunkMerge, trunkRef } from './trusted-policy.js';
+import { proofStats } from './stats.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
@@ -148,6 +149,7 @@ Coordinator
   pullboard hold <lane> --off           release it
 
 Receipts
+  pullboard stats [--since <date>]      proof numbers from the event log; --json for sites and tools
   pullboard ledger                      markdown: what was built, by whom, verified by whom
   pullboard log [id]                    every move, in order
 
@@ -180,7 +182,7 @@ const HELP_NAMES = [
   'tour', 'init', 'worktree', 'join', 'whoami', 'lanes', 'status', 'resources', 'settings', 'view', 'view export',
   'serve', 'relay', 'resume', 'hooks', 'add', 'edit', 'escalate', 'run', 'list', 'doctor', 'show', 'next',
   'check', 'claim', 'release', 'submit', 'done', 'verify', 'fact', 'shout', 'answer', 'pass', 'decisions', 'inbox', 'export', 'import',
-  'sweep', 'merged', 'withdraw', 'refreeze', 'hold', 'ledger', 'log', 'spec', 'spec check', 'spec view',
+  'sweep', 'merged', 'withdraw', 'refreeze', 'hold', 'stats', 'ledger', 'log', 'spec', 'spec check', 'spec view',
   'spec show', 'spec unmet', 'spec signoff', 'spec signers', 'spec signers add', 'forget', 'prompt', 'gate', 'hook',
   'hook pre-commit', 'hook commit-msg', 'hook pre-push', 'view export', 'version', 'lifecycle', 'help',
   'roadmap', 'milestone',
@@ -200,7 +202,7 @@ const HELP_EXAMPLES = {
   fact: 'pullboard fact 12 measurement "The check passes in 8 seconds"',
   verify: 'pullboard verify 12 accept --note "removed the fix; the test failed"',
   answer: 'pullboard answer 12 "done"', pass: 'pullboard pass 12 "please decide"',
-  status: 'pullboard status', view: 'pullboard view', log: 'pullboard log 12', ledger: 'pullboard ledger',
+  status: 'pullboard status', view: 'pullboard view', stats: 'pullboard stats --since 2026-10-08', log: 'pullboard log 12', ledger: 'pullboard ledger',
   roadmap: 'pullboard roadmap', milestone: 'pullboard milestone add "0.7.0" --items 12,13',
   edit: 'pullboard edit 12 --brief "Add the upload page"', release: 'pullboard release 12',
   escalate: 'pullboard escalate 12 --note "needs a manual step"', next: 'pullboard next',
@@ -427,6 +429,7 @@ const OPTIONS = {
   must: { type: 'boolean' },
   json: { type: 'boolean' },
   history: { type: 'boolean' },
+  since: { type: 'string' },
   decision: { type: 'boolean' },
   evidence: { type: 'string' },
   outcome: { type: 'string' },
@@ -1372,6 +1375,17 @@ function readCommands(io, { first, second, rest, values }) {
       io.result?.({ decisions: asks });
       if (!asks.length) io.say('no open decisions');
       for (const ask of asks) io.say(`#${ask.shout_id}  ${ask.shout_from} -> ${ask.shout_to}, ${span(ctx, ask.shout_at)} ago: ${firstLine(ask.shout_text)}`);
+      return 0;
+    },
+    stats: () => {
+      const ctx = context(io);
+      const stats = withBoard(ctx, (board) => proofStats(board, { since: values.since }));
+      io.result?.({ stats });
+      io.say(`${stats.submissions} submissions · ${stats.rejections} rejections · ${(stats.rejectionShare * 100).toFixed(1)}% sent back`);
+      io.say(`${stats.merged} items merged · ${stats.mergedWithoutAccept} merged without an accept`);
+      io.say(`${stats.agentCount} agents · ${stats.familyCount} family buckets: ${stats.families.map((family) => `${family.name} (${family.agents} agents, ${family.moves} moves)`).join('; ') || 'none'}`);
+      io.say(`agents: ${stats.agents.map((agent) => `${agent.id} (${agent.families.join('/')}; ${agent.moves} moves)`).join(', ') || 'none'}`);
+      io.say(`events: ${stats.firstEventAt ?? 'none'} to ${stats.lastEventAt ?? 'none'}${stats.since ? ` (since ${stats.since})` : ''}`);
       return 0;
     },
     ledger: () => {
