@@ -608,63 +608,6 @@ test('projects group repos with combined needs and activity, while ungrouped and
   }
 });
 
-test('activity rows say what each shout and answer said [N26]', { timeout: 120_000 }, async (t) => {
-  const executable = chromeExecutable();
-  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for activity checks.');
-
-  const box = machine();
-  const demo = project(box, 'said');
-  box.run(demo.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1', '--criterion', 'greets');
-  box.run(demo.repo, 'shout', 'web', 'The oldest note, from before the forty shouts the view loads');
-  for (let n = 1; n <= 40; n++) box.run(demo.repo, 'shout', 'web', `Filler ${n}`);
-  const long = 'Please take #1 next, run `pullboard next` in your worktree, and keep going until the greeting reads right on every width the view supports';
-  box.run(demo.repo, 'shout', 'web', `${long}\nA second line the row leaves out.`);
-  box.run(demo.web, 'shout', 'coordinator', 'Ship the greeting today?', '--decision');
-  const view = await startView(box);
-  const profile = mkdtempSync(join(tmpdir(), 'pullboard-said-chrome-'));
-  let chrome;
-  try {
-    const headers = { 'x-pullboard-key': view.key };
-    const [board] = (await (await fetch(`${view.base}/api/v1/boards`, { headers })).json()).boards;
-    const state = (await (await fetch(`${view.base}/api/v1/boards/${encodeURIComponent(board.id)}/state`, { headers })).json()).state;
-    const ask = state.asked.find((row) => row.shout_text === 'Ship the greeting today?');
-    box.run(demo.repo, 'answer', String(ask.shout_id), 'Yes, ship it once the phone width reads right too');
-    const asker = ask.shout_from;
-
-    chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.waitFor('!!document.querySelector(\'[data-tab="activity"]\')');
-    await chrome.evaluate('document.querySelector(\'[data-tab="activity"]\').click()');
-    await chrome.waitFor(`[...document.querySelectorAll('#activity .act')].some((row) => row.textContent.startsWith('coordinator answered'))`);
-    for (const width of [375, 1280]) {
-      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      await chrome.waitFor(`innerWidth === ${width}`);
-      const rows = JSON.parse(await chrome.evaluate(`JSON.stringify([...document.querySelectorAll('#activity .act')].map((row) => {
-        const said = row.querySelector('.said');
-        const lines = said ? Math.round(said.getBoundingClientRect().height / parseFloat(getComputedStyle(said).lineHeight)) : 0;
-        return { text: row.textContent, said: said?.textContent ?? null, tip: said?.title ?? null, lines, refs: said ? said.querySelectorAll('button.ref').length : 0,
-          code: said ? [...said.querySelectorAll('code')].map((code) => code.textContent) : [], ellipsis: said ? getComputedStyle(said).textOverflow === 'ellipsis' : null,
-          cut: said ? said.scrollWidth > said.clientWidth : null };
-      }))`));
-      const find = (start) => rows.find((row) => row.text.startsWith(start) && (row.said ?? '').length > 0);
-      const told = find('coordinator shouted to web' + 'Please take');
-      assert.ok(told, `${width}: a shout reads sender, shouted to, recipient, then what it said: ${JSON.stringify(rows.slice(0, 4))}`);
-      assert.deepEqual([told.said, told.tip], [long.replaceAll("`", ""), long], `${width}: its first line, as written in the tooltip and rendered in the row, never its second`);
-      assert.ok(told.lines === 1 && told.ellipsis, `${width}: on one line, set to end in an ellipsis: ${JSON.stringify(told)}`);
-      if (width === 375) assert.ok(told.cut, `${width}: cut on a phone, so the ellipsis shows`);
-      assert.deepEqual([told.refs, told.code], [1, ['pullboard next']], `${width}: keeping the item link and the inline code`);
-      assert.ok(find(`${asker} asked coordinator` + 'Ship the greeting today?'), `${width}: a decision reads asked`);
-      assert.ok(find(`coordinator answered ${asker}` + 'Yes, ship it once'), `${width}: an answer reads who answered whom, then the answer`);
-      const oldest = rows.filter((row) => row.text.startsWith('coordinator shouted to web')).at(-1);
-      assert.deepEqual([oldest.text, oldest.said], ['coordinator shouted to web', null], `${width}: a shout older than the forty on hand still names who it went to`);
-      assert.ok(rows.some((row) => row.text === 'coordinator add #1 Greet the visitor'), `${width}: other rows read as before`);
-    }
-  } finally {
-    if (chrome) await closeSnapshotChrome(chrome);
-    rmSync(profile, { recursive: true, force: true });
-    await view.stop();
-  }
-});
-
 test('a project with one repo shows once in the project list [N33, N26]', async () => {
   const box = machine();
   const solo = project(box, 'solo', SPEC, { name: 'Solo board', project: 'Solo' });
@@ -2319,6 +2262,63 @@ test('a shout shows the evidence it carries [B22]', async () => {
     await view.stop();
   }
 });
+test('activity rows say what each shout and answer said [N26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for activity checks.');
+
+  const box = machine();
+  const demo = project(box, 'said');
+  box.run(demo.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1', '--criterion', 'greets');
+  box.run(demo.repo, 'shout', 'web', 'The oldest note, from before the forty shouts the view loads');
+  for (let n = 1; n <= 40; n++) box.run(demo.repo, 'shout', 'web', `Filler ${n}`);
+  const long = 'Please take #1 next, run `pullboard next` in your worktree, and keep going until the greeting reads right on every width the view supports';
+  box.run(demo.repo, 'shout', 'web', `${long}\nA second line the row leaves out.`);
+  box.run(demo.web, 'shout', 'coordinator', 'Ship the greeting today?', '--decision');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-said-chrome-'));
+  let chrome;
+  try {
+    const headers = { 'x-pullboard-key': view.key };
+    const [board] = (await (await fetch(`${view.base}/api/v1/boards`, { headers })).json()).boards;
+    const state = (await (await fetch(`${view.base}/api/v1/boards/${encodeURIComponent(board.id)}/state`, { headers })).json()).state;
+    const ask = state.asked.find((row) => row.shout_text === 'Ship the greeting today?');
+    box.run(demo.repo, 'answer', String(ask.shout_id), 'Yes, ship it once the phone width reads right too');
+    const asker = ask.shout_from;
+
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor('!!document.querySelector(\'[data-tab="activity"]\')');
+    await chrome.evaluate('document.querySelector(\'[data-tab="activity"]\').click()');
+    await chrome.waitFor(`[...document.querySelectorAll('#activity .act')].some((row) => row.textContent.startsWith('coordinator answered'))`);
+    for (const width of [375, 1280]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.waitFor(`innerWidth === ${width}`);
+      const rows = JSON.parse(await chrome.evaluate(`JSON.stringify([...document.querySelectorAll('#activity .act')].map((row) => {
+        const said = row.querySelector('.said');
+        const lines = said ? Math.round(said.getBoundingClientRect().height / parseFloat(getComputedStyle(said).lineHeight)) : 0;
+        return { text: row.textContent, said: said?.textContent ?? null, tip: said?.title ?? null, lines, refs: said ? said.querySelectorAll('button.ref').length : 0,
+          code: said ? [...said.querySelectorAll('code')].map((code) => code.textContent) : [], ellipsis: said ? getComputedStyle(said).textOverflow === 'ellipsis' : null,
+          cut: said ? said.scrollWidth > said.clientWidth : null };
+      }))`));
+      const find = (start) => rows.find((row) => row.text.startsWith(start) && (row.said ?? '').length > 0);
+      const told = find('coordinator shouted to web' + 'Please take');
+      assert.ok(told, `${width}: a shout reads sender, shouted to, recipient, then what it said: ${JSON.stringify(rows.slice(0, 4))}`);
+      assert.deepEqual([told.said, told.tip], [long.replaceAll("`", ""), long], `${width}: its first line, as written in the tooltip and rendered in the row, never its second`);
+      assert.ok(told.lines === 1 && told.ellipsis, `${width}: on one line, set to end in an ellipsis: ${JSON.stringify(told)}`);
+      if (width === 375) assert.ok(told.cut, `${width}: cut on a phone, so the ellipsis shows`);
+      assert.deepEqual([told.refs, told.code], [1, ['pullboard next']], `${width}: keeping the item link and the inline code`);
+      assert.ok(find(`${asker} asked coordinator` + 'Ship the greeting today?'), `${width}: a decision reads asked`);
+      assert.ok(find(`coordinator answered ${asker}` + 'Yes, ship it once'), `${width}: an answer reads who answered whom, then the answer`);
+      const oldest = rows.filter((row) => row.text.startsWith('coordinator shouted to web')).at(-1);
+      assert.deepEqual([oldest.text, oldest.said], ['coordinator shouted to web', null], `${width}: a shout older than the forty on hand still names who it went to`);
+      assert.ok(rows.some((row) => row.text === 'coordinator add #1 Greet the visitor'), `${width}: other rows read as before`);
+    }
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
 test('activity names the item each event moved [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
