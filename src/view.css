@@ -330,7 +330,17 @@ code.inline { padding: 0 3px; border-radius: 3px; background: color-mix(in srgb,
 .snapshot-controls label { display: flex; align-items: center; gap: 6px; }
 .snapshot-controls output { color: var(--ink-muted); font: 12px/1.5 var(--mono); }
 .snapshot #new-item, .snapshot form, .snapshot [data-new], .snapshot [data-release], .snapshot [data-shout], .snapshot [data-go^="decide:"] { display: none !important; }
-.read-only #new-item, .read-only form, .read-only [data-new], .read-only [data-release], .read-only [data-shout], .read-only [data-go^="decide:"] { display: none !important; }
+.read-only:not(.requests) #new-item, .read-only:not(.requests) form, .read-only:not(.requests) [data-new], .read-only:not(.requests) [data-release], .read-only:not(.requests) [data-shout], .read-only:not(.requests) [data-go^="decide:"] { display: none !important; }
+.person-requests { margin-bottom: 12px; padding: 12px; min-width: 0; }
+.person-requests h2 { margin: 0 0 8px; font-size: 14px; }
+.request-list { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow-y: auto; }
+.request-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+.request-list li:first-child { border-top: 0; }
+.request-label { min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
+.request-status { align-self: start; font-size: 12px; }
+.request-error, .request-next { grid-column: 1 / -1; margin: 0; overflow-wrap: anywhere; font-size: 12px; }
+.request-error { color: var(--reject); }
+.request-next { color: var(--ink-muted); }
 
 /* Every action keeps a usable touch target at either viewport, including inline controls. */
 button, input, select, textarea, [data-item], [data-row] { min-height: 44px; }
