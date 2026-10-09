@@ -1,14 +1,17 @@
 /** Parse import edges without evaluating repository code, using V8 rather than a JavaScript grammar guess [V4,C7]. */
 import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 /**
- * A child Node that compiles each source on its stdin as an ES module and reports, for each, whether
+ * A child Node that compiles each source in its private input file as an ES module and reports, for each, whether
  * it compiles and the modules it imports statically, as V8 lists them.
  */
 const PARSER = [
   "import vm from 'node:vm';",
   "import { readFileSync } from 'node:fs';",
-  "const sources = JSON.parse(readFileSync(0, 'utf8'));",
+  "const sources = JSON.parse(readFileSync(process.argv[1], 'utf8'));",
   '/** Compile one source without executing repository code. */',
   'const look = (source) => {',
   '  try {',
@@ -28,13 +31,17 @@ const PARSER = [
  * @returns {{ compiles: boolean, imports: string[] }[]}
  */
 function look(sources) {
-  const child = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', '--input-type=module', '-e', PARSER], {
-    input: JSON.stringify(sources),
-    encoding: 'utf8',
-    maxBuffer: 2 ** 26,
-  });
-  if (child.status !== 0) throw new Error('V8 import parser failed: ' + (child.error?.message ?? child.stderr));
-  return JSON.parse(child.stdout);
+  // The package parser has an observed stdin/EOF hang. Use a private regular file and bound V8 too.
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-imports-'));
+  const input = join(directory, 'sources.json');
+  try {
+    writeFileSync(input, JSON.stringify(sources), { mode: 0o600 });
+    const child = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', '--input-type=module', '-e', PARSER, input], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 2 ** 26, timeout: 10_000, killSignal: 'SIGKILL',
+    });
+    if (child.status !== 0) throw new Error('V8 import parser failed: ' + (child.error?.message ?? child.stderr));
+    return JSON.parse(child.stdout);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 }
 
 /** Every place the whole word import appears, in code or not; Unicode letters count as part of a word. */
