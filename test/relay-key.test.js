@@ -108,3 +108,31 @@ test('PULLBOARD_RELAY_KEY is a canonical device-only fallback when no stored key
   }, 'padding aliases are refused instead of silently normalized');
   assert.equal(refusal.message.includes(encoded), false, 'a malformed environment secret is never echoed in the refusal');
 });
+
+
+test('owner-only key file refuses mismatched environment keys without exposing either source [H15,H17]', async (t) => {
+  const box = privateFallback(t);
+  const boardId = 'e'.repeat(32);
+  const raw = await generateBoardKey();
+  storeBoardKey(boardId, raw);
+  const file = join(box.keyDirectory, `${boardId}.key`);
+  const before = readFileSync(file);
+  const encoded = encodeBoardKey(raw);
+  process.env.PULLBOARD_RELAY_KEY = encoded;
+  assert.deepEqual(readBoardKey(boardId), raw, 'matching device sources remain usable');
+  const wrong = encodeBoardKey(await generateBoardKey());
+  process.env.PULLBOARD_RELAY_KEY = wrong;
+  assert.throws(() => readBoardKey(boardId), error => {
+    assert.equal(error.code, 'RELAY_KEY_FILE_ENV_MISMATCH');
+    assert.match(error.message, /PULLBOARD_RELAY_KEY.*file.*unset/u);
+    for (const key of [encoded, wrong]) assert.equal(error.message.includes(key), false);
+    return true;
+  });
+  assert.deepEqual(readFileSync(file), before, 'refusal leaves the stored key unchanged');
+  process.env.PULLBOARD_RELAY_KEY = '';
+  assert.throws(() => readBoardKey(boardId), { code: 'RELAY_KEY_FILE_ENV_MISMATCH' }, 'an explicitly empty environment value also conflicts with the file');
+  rmSync(file);
+  assert.throws(() => readBoardKey(boardId), { code: 'SEAL_KEY' }, 'an explicitly empty fallback is validated rather than silently ignored');
+  delete process.env.PULLBOARD_RELAY_KEY;
+  assert.throws(() => readBoardKey(boardId), error => error.code === 'RELAY_KEY_MISSING' && /set PULLBOARD_RELAY_KEY from your local secret store/u.test(error.message), 'missing-key guidance from main remains intact');
+});
