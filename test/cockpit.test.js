@@ -4773,10 +4773,19 @@ test('wait references stay on one line and link to every prerequisite at phone a
 
 /** Click what a page expression finds, through Chrome's own mouse input, as a person would. */
 async function press(chrome, find) {
-  const point = JSON.parse(await chrome.evaluate(`(() => {
-    const element = ${find};
-    if (!element) throw new Error(${JSON.stringify(`nothing to press: ${find}`)});
-    element.scrollIntoView({ block: 'center' });
+  const point = JSON.parse(await chrome.evaluate(`(async () => {
+    const target = () => ${find};
+    if (!target()) throw new Error(${JSON.stringify(`nothing to press: ${find}`)});
+    target().scrollIntoView({ block: 'center' });
+    // Press where the target is when the press arrives: opening an item on a phone scrolls its detail into
+    // view, which moves the tab bar after it is measured (#255: measured at scroll 0, pressed at 32, landed on
+    // main). So measure once the target, found afresh each frame since a refresh can redraw it, has held still
+    // for two frames.
+    const frame = () => new Promise((done) => requestAnimationFrame(() => done()));
+    let last = '', still = 0;
+    for (let n = 0; n < 240 && still < 2; n++) { await frame(); const now = target() ? (({ x, y, width, height }) => [x, y, width, height, scrollX, scrollY].join())(target().getBoundingClientRect()) : ''; still = now && now === last ? still + 1 : 0; last = now; }
+    const element = target();
+    if (!element) throw new Error(${JSON.stringify(`gone before the press: ${find}`)});
     const rect = element.getBoundingClientRect();
     // Keep where the press really lands, so a wait that follows it can say so when it fails.
     const name = (node) => node ? node.tagName.toLowerCase() + (node.id ? '#' + node.id : '') + (typeof node.className === 'string' && node.className ? '.' + node.className.trim().split(/\\s+/).join('.') : '') : 'nothing';
