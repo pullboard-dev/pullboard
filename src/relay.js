@@ -18,6 +18,7 @@ import { receivePersonRequest } from './relay-requests.js';
 export const DEFAULT_RELAY = 'https://app.pullboard.dev';
 const LINK_FILES = new WeakMap();
 const WARNED_COMMANDS = new WeakSet();
+const KEY_WARNED_COMMANDS = new WeakSet();
 
 /** Require a trusted origin; HTTP exists only for loopback development and test relays. */
 function relayOrigin(address) {
@@ -490,7 +491,12 @@ export async function syncRelay(root, io) {
     }
     catch (error) {
       if (!(error instanceof Refused)) throw error;
-      io.err(`pullboard: ${error.message}; run pullboard status to see pending uploads`);
+      if (error.code === 'RELAY_KEY_MISSING') {
+        if (!KEY_WARNED_COMMANDS.has(io)) {
+          KEY_WARNED_COMMANDS.add(io);
+          io.err(`pullboard: ${error.message}; moves are off until the key is reachable`);
+        }
+      } else io.err(`pullboard: ${error.message}; run pullboard status to see pending uploads`);
       return { linked: true, board: state.board, url: state.url, sequence: state.sequence,
         behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)) };
     }
@@ -539,8 +545,16 @@ export function relayRecovered(root) {
   return loadLink(linkFile(root))?.recovered?.move ?? null;
 }
 
-/** Read the local link and lag without opening a network connection or revealing its relay token. */
-export function relayStatus(root) { return summary(root, loadLink(linkFile(root))); }
+/** Read relay status without a connection or key, since its cursor is local metadata. */
+export function relayStatus(root) {
+  const state = loadLink(linkFile(root));
+  try { return summary(root, state); }
+  catch (error) {
+    if (!(error instanceof Refused) || error.code !== 'RELAY_KEY_MISSING') throw error;
+    return { linked: true, board: state.board, url: state.url, link: '', sequence: state.sequence,
+      behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)) };
+  }
+}
 
 /** Renew a person session through the relay without changing this device's board key or cursors. */
 async function deviceSignIn(url, io) {

@@ -80,7 +80,7 @@ export function readBoardKey(boardId) {
     const found = spawnSync(service, args, { encoding: 'utf8', timeout: 10000 });
     if (found.status === 0) return decodeBoardKey(found.stdout.trim());
   }
-  throw new Refused('RELAY_KEY_MISSING', 'the board key is missing on this device; pair this device again, or run pullboard relay off then relay on to upload a new sealed snapshot');
+  throw new Refused('RELAY_KEY_MISSING', 'the board key is missing on this device; run this command where the key is available, or pair this device');
 }
 
 /** Remove the device key after a successful unlink, leaving all local board records untouched. */
