@@ -1,6 +1,7 @@
 /** API v1's shared HTTP boundary; local and relay adapters supply the same board operations (A2). */
 import { Refused } from './refused.js';
 import { refusalDocument } from './json.js';
+import { withGitFacts } from './git.js';
 
 const BODY_BYTES = 100_000;
 
@@ -70,27 +71,29 @@ export function createApiHandler(adapter, { pollMs = 200 } = {}) {
     }
     /** Deliver only records after the latest delivered sequence, with no overlapping polls. */
     async function send() {
-      if (closed || busy || blocked) return;
-      busy = true;
-      try {
-        who = await adapter.authenticate(req, { board: board.id, write: false });
-        const warning = await adapter.warning?.(board, who);
-        const serialized = warning ? JSON.stringify({ version: 1, warning }) : null;
-        if (serialized !== lastWarning) {
-          lastWarning = serialized;
-          if (serialized && !res.write('event: warning\ndata: ' + serialized + '\n\n')) { blocked = true; return; }
-        }
-        const records = initial ?? await adapter.events(board, after, who);
-        initial = null;
-        for (const event of records) {
-          if (closed) break;
-          after = event.event_id;
-          if (!res.write('id: ' + after + '\ndata: ' + JSON.stringify({ version: 1, event }) + '\n\n')) { blocked = true; break; }
-        }
-      } catch (error) {
-        if (!closed) res.write('event: error\ndata: ' + JSON.stringify(refusal(error)) + '\n\n');
-        stop();
-      } finally { busy = false; }
+      return withGitFacts(async () => {
+        if (closed || busy || blocked) return;
+        busy = true;
+        try {
+          who = await adapter.authenticate(req, { board: board.id, write: false });
+          const warning = await adapter.warning?.(board, who);
+          const serialized = warning ? JSON.stringify({ version: 1, warning }) : null;
+          if (serialized !== lastWarning) {
+            lastWarning = serialized;
+            if (serialized && !res.write('event: warning\ndata: ' + serialized + '\n\n')) { blocked = true; return; }
+          }
+          const records = initial ?? await adapter.events(board, after, who);
+          initial = null;
+          for (const event of records) {
+            if (closed) break;
+            after = event.event_id;
+            if (!res.write('id: ' + after + '\ndata: ' + JSON.stringify({ version: 1, event }) + '\n\n')) { blocked = true; break; }
+          }
+        } catch (error) {
+          if (!closed) res.write('event: error\ndata: ' + JSON.stringify(refusal(error)) + '\n\n');
+          stop();
+        } finally { busy = false; }
+      });
     }
     res.once('close', stop);
     res.on('drain', () => { blocked = false; void send(); });
@@ -101,6 +104,11 @@ export function createApiHandler(adapter, { pollMs = 200 } = {}) {
 
   /** Route a request through the adapter and keep every HTTP response inside API v1. */
   async function handle(req, res) {
+    return withGitFacts(() => route(req, res));
+  }
+
+  /** Handle one request under a fresh Git-fact scope so a long-lived server observes later refs. */
+  async function route(req, res) {
     try {
       let url;
       try { url = new URL(req.url ?? '/', 'http://127.0.0.1'); } catch { throw new Refused('BAD_REQUEST', 'use a valid path under /api/v1/boards'); }
