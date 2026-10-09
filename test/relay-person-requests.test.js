@@ -166,9 +166,7 @@ test('real paired Chrome transports a person shout while its native snapshot is 
   const delays = box.snapshotWriteDelays().slice(delayedBefore);
   const trace = status.result.snapshotTrace;
   const writeRecords = box.snapshotWriteRecords().slice(writeRecordsBefore);
-  t.diagnostic('person shout status snapshot PUT sources: ' + JSON.stringify(trace.map(write => ({
-    at: write.at, sequence: write.sequence, ciphertext: write.ciphertext, callers: write.callers, elapsedMs: write.elapsedMs,
-  }))));
+  t.diagnostic('person shout status snapshot PUT sources: ' + JSON.stringify({ fetches: trace, relayReceives: writeRecords }));
   assert.equal(trace.length, delays.length, 'every delayed state upload has a matching private fetch trace');
   assert.deepEqual(trace.map(({ sequence, ciphertext }) => ({ sequence, ciphertext })),
     writeRecords.map(({ sequence, ciphertext }) => ({ sequence, ciphertext })),
