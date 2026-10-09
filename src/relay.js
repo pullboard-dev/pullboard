@@ -506,7 +506,6 @@ async function ensureOrdered(root, file, state, io) {
     // Older links with no pending sequence-zero snapshot necessarily accepted their baseline.
     if (state.baselineAccepted === undefined) {
       state.baselineAccepted = !(state.snapshot?.sequence === 0);
-      saveLink(file, state);
     }
     if (state.baselinePause) {
       if (!await retryPausedBaseline(root, file, state, io)) return false;
