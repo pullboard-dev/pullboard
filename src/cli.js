@@ -67,7 +67,7 @@ import { proofStats } from './stats.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
-import { relayCommandReceipt, relayCommandReceiptReported, relayLinked, relayOff, relayOn, relayOperation, relayRecovered, relayRevoke, relayStatus, relayTokens, syncRelay } from './relay.js';
+import { formatSnapshotLimit, pendingSnapshotSize, relayCommandReceipt, relayCommandReceiptReported, relayLinked, relayOff, relayOn, relayOperation, relayRecovered, relayRevoke, relayStatus, relayTokens, syncRelay } from './relay.js';
 import { relayOnAll, revokeRelayDevice, unlinkedRelayProjects } from './relay-setup.js';
 import { readRelayMachine } from './relay-machine.js';
 import { relayJoin, relayPair } from './relay-pairing-client.js';
@@ -1565,6 +1565,7 @@ function readCommands(io, { first, second, rest, values }) {
         return 0;
       }
       if (summary.relay.linked) io.say(`relay: sequence ${summary.relay.sequence}; ${summary.relay.behind} pending uploads`);
+      if (summary.relay.oversizedSnapshot) io.say(formatSnapshotLimit(summary.relay.oversizedSnapshot));
       const { items, accepted, rejected } = summary.stats;
       io.say(`${summary.me.id}: ${summary.unread} unread shouts; holding ${summary.mine.map((item) => `#${item.item_id}`).join(', ') || 'nothing'}`);
       io.say(`board: ${items.open} open, ${items.claimed} claimed, ${items.submitted} awaiting verification, ${items.verified} verified, ${items.withdrawn} withdrawn`);
@@ -1586,6 +1587,10 @@ function readCommands(io, { first, second, rest, values }) {
       }
       const ctx = context(io);
       const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects()];
+      const oversizedSnapshot = pendingSnapshotSize(ctx.info.root);
+      if (oversizedSnapshot) problems.push({ code: 'RELAY_SNAPSHOT_LIMIT',
+        message: formatSnapshotLimit(oversizedSnapshot),
+        next: 'reduce the sealed board snapshot below the relay limit, then run pullboard status' });
       io.result?.({ problems });
       if (!problems.length) {
         io.say('board is clean');
