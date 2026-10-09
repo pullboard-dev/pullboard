@@ -1,6 +1,7 @@
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
 /** Private real CLI, auth and relay fixture; credentials never enter assertion messages [H1,H7,H18]. */
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { Transform } from 'node:stream';
@@ -8,46 +9,90 @@ import { once } from 'node:events';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { delimiter, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { createAuthHandler } from '../relay/auth-http.js';
 import { createRelayAuth } from '../relay/auth.js';
 import { createRelayHandler } from '../relay/service.js';
 import { createGitHubClient } from '../relay/github.js';
 import { githubFixture } from './relay-fixture.js';
+import { relayWorkBudgetMs, MAX_SNAPSHOT_ATTEMPTS } from './relay-budget.js';
 
 const CLI = resolve(import.meta.dirname, '../bin/pullboard.js');
-const CLI_PRODUCT_DEADLINE_MS = 15_000;
-const SNAPSHOT_UPLOAD_BOUND_MS = 10_000;
-const STATUS_SNAPSHOT_UPLOADS = 3;
-const CLI_DEADLINE_MARGIN_MS = 10_000;
+const MAX_OBSERVED_SNAPSHOT_UPLOADS = MAX_SNAPSHOT_ATTEMPTS;
+const DEFAULT_SNAPSHOT_UPLOADS = 3;
 
-/** Derive a private CLI child deadline from the product bound and its asserted upload count. */
-export function cliChildDeadlineMs(snapshotUploads) {
-  assert.ok(Number.isSafeInteger(snapshotUploads) && snapshotUploads >= 0, 'snapshot upload count is a nonnegative integer');
-  return Math.max(CLI_PRODUCT_DEADLINE_MS, snapshotUploads * SNAPSHOT_UPLOAD_BOUND_MS) + CLI_DEADLINE_MARGIN_MS;
+/** Derive a private CLI child deadline from observed uploads, with a finite runaway guard. */
+export function cliChildDeadlineMs(observedUploads) {
+  assert.ok(Number.isSafeInteger(observedUploads) && observedUploads >= 0 && observedUploads <= MAX_OBSERVED_SNAPSHOT_UPLOADS,
+    'observed snapshot upload count is within the finite fixture bound');
+  return relayWorkBudgetMs(observedUploads);
+}
+
+/** Count exact checkpoints; a newer acknowledged snapshot may cover a superseded timeout. */
+export function assertSnapshotCheckpoints(trace, expected) {
+  try {
+    const checkpoints = new Map();
+    let priorSequence = -1;
+    for (const write of trace) {
+      assert.ok(Number.isSafeInteger(write.sequence) && /^[0-9a-f]{64}$/u.test(write.ciphertext ?? ''), 'checkpoint metadata is complete');
+      assert.ok(write.sequence >= priorSequence, 'checkpoint attempts never regress the covered sequence');
+      priorSequence = write.sequence;
+      const previous = checkpoints.get(write.sequence);
+      if (previous) {
+        assert.equal(write.ciphertext, previous.ciphertext, 'a retried sequence preserves its exact ciphertext');
+        assert.equal(previous.abort?.name, 'TimeoutError', 'only a timed-out PUT can add a transport attempt');
+        assert.ok(write.callers.some(caller => caller.includes('async retry@cli.js:')), 'syncRelay retries the persisted checkpoint');
+      }
+      checkpoints.set(write.sequence, write);
+    }
+    assert.equal(checkpoints.size, expected, 'the flow publishes its exact number of distinct checkpoints');
+    if (expected === 0) return checkpoints.size;
+    const latest = trace.at(-1);
+    assert.equal(latest?.status, 200, 'the latest checkpoint receives an acknowledgement');
+    for (const write of checkpoints.values()) {
+      if (write.status === 200) continue;
+      assert.equal(write.abort?.name, 'TimeoutError', 'only a timed-out checkpoint can be superseded');
+      assert.ok(latest.sequence > write.sequence, 'the acknowledged checkpoint covers the superseded sequence');
+    }
+    return checkpoints.size;
+  } catch (error) {
+    error.message += '; sanitized checkpoint fetches: ' + JSON.stringify(trace);
+    throw error;
+  }
 }
 
 /** Capture a real child result without exposing its private output in failure diagnostics. */
-function childResult(root, env, argv, snapshotUploads = STATUS_SNAPSHOT_UPLOADS) {
+function childResult(root, env, argv, observedSnapshotUploads, initialSnapshotUploads = DEFAULT_SNAPSHOT_UPLOADS) {
   return new Promise((resolveResult, reject) => {
     const startedAt = Date.now();
     const command = argv[0] === CLI ? (argv[1] ?? 'CLI') : (argv[0] ?? 'script');
-    const childDeadlineMs = cliChildDeadlineMs(snapshotUploads);
+    let deadlineAt = startedAt + cliChildDeadlineMs(initialSnapshotUploads);
     const child = spawn(process.execPath, argv, { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     let exceededDeadline = false;
-    const timer = setTimeout(() => { exceededDeadline = true; child.kill('SIGKILL'); }, childDeadlineMs);
+    const timer = setInterval(() => {
+      const count = observedSnapshotUploads?.() ?? initialSnapshotUploads;
+      if (count > MAX_OBSERVED_SNAPSHOT_UPLOADS) {
+        exceededDeadline = true;
+        child.kill('SIGKILL');
+        return;
+      }
+      deadlineAt = Math.max(deadlineAt, startedAt + cliChildDeadlineMs(count));
+      if (Date.now() >= deadlineAt) { exceededDeadline = true; child.kill('SIGKILL'); }
+    }, 20);
     child.stdout.setEncoding('utf8').on('data', part => { stdout += part; });
     child.stderr.resume();
-    child.once('error', error => { clearTimeout(timer); reject(error); });
+    child.once('error', error => { clearInterval(timer); reject(error); });
     child.once('close', (code, signal) => {
-      clearTimeout(timer);
+      clearInterval(timer);
       if (signal) return reject(new Error(exceededDeadline
-        ? `Private relay fixture ${command} exceeded its ${childDeadlineMs}ms deadline after ${Date.now() - startedAt}ms.`
+        ? `Private relay fixture ${command} exceeded its ${deadlineAt - startedAt}ms upload-derived deadline after ${Date.now() - startedAt}ms.`
         : `Private relay fixture ${command} ended with signal ${signal} after ${Date.now() - startedAt}ms.`));
       let document;
       try { document = JSON.parse(stdout); }
       catch { return reject(new Error('private relay fixture child did not return JSON')); }
-      resolveResult({ code, document });
+      resolveResult({ code, document, snapshotUploads: observedSnapshotUploads?.() ?? initialSnapshotUploads,
+        snapshotDeadlineMs: deadlineAt - startedAt });
     });
   });
 }
@@ -58,6 +103,8 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
   const root = join(scratch, 'repo');
   const home = join(scratch, 'home');
   const privateBin = join(scratch, 'path');
+  const traceFile = join(scratch, 'snapshot-fetch-trace.jsonl');
+  const tracePreload = join(scratch, 'snapshot-fetch-trace.mjs');
   mkdirSync(root);
   mkdirSync(home, { mode: 0o700 });
   mkdirSync(privateBin, { mode: 0o700 });
@@ -72,6 +119,55 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
     GIT_AUTHOR_NAME: 'Relay Fixture', GIT_AUTHOR_EMAIL: 'relay-fixture@example.com',
     GIT_COMMITTER_NAME: 'Relay Fixture', GIT_COMMITTER_EMAIL: 'relay-fixture@example.com',
   };
+  writeFileSync(tracePreload, `
+import { appendFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+const originalFetch = globalThis.fetch;
+/** Record safe request, caller and checkpoint details for this private relay only. */
+globalThis.fetch = function tracedFetch(input, init) {
+  const target = new URL(input instanceof URL ? input.href : typeof input === 'string' ? input : input.url);
+  const method = init?.method ?? input?.method ?? 'GET';
+  if (target.origin !== process.env.PULLBOARD_TEST_RELAY_TRACE_ORIGIN || method !== 'PUT'
+      || !/^\\/api\\/v1\\/boards\\/[0-9a-f]{32}\\/state$/u.test(target.pathname)) {
+    return originalFetch.call(this, input, init);
+  }
+  const startedAt = Date.now();
+  const body = init?.body;
+  let sequence = null;
+  let ciphertext = null;
+  try {
+    const document = JSON.parse(String(body));
+    if (Number.isSafeInteger(document.sequence)) sequence = document.sequence;
+    if (typeof document.sealed === 'string') ciphertext = createHash('sha256').update(document.sealed).digest('hex');
+  } catch { /* Record only metadata for malformed fixture traffic. */ }
+  const callers = (new Error().stack ?? '').split('\\n')
+    .filter(line => line.includes('/src/'))
+    .slice(0, 8)
+    .map(line => {
+      const name = line.match(/^\\s*at (.*?) \\(/u)?.[1] ?? '<anonymous>';
+      const location = line.match(/\\/src\\/([^/():]+\\.js:\\d+:\\d+)/u)?.[1] ?? 'unknown';
+      return name + '@' + location;
+    });
+  const signal = init?.signal ?? input?.signal;
+  let abort = signal?.aborted ? { at: Date.now(), name: signal.reason?.name ?? null, code: signal.reason?.code ?? null } : null;
+  const onAbort = () => { abort = { at: Date.now(), name: signal.reason?.name ?? null, code: signal.reason?.code ?? null }; };
+  signal?.addEventListener('abort', onAbort, { once: true });
+  const record = { at: startedAt, method, path: target.pathname.replace(/\\/[0-9a-f]{32}\\//u, '/<board>/'), sequence, ciphertext, callers };
+  /** Persist one bounded request outcome while excluding the sealed payload and credentials. */
+  function finish(details) {
+    appendFileSync(process.env.PULLBOARD_TEST_RELAY_TRACE_FILE, JSON.stringify({ ...record, abort, ...details }) + '\\n', { mode: 0o600 });
+    signal?.removeEventListener('abort', onAbort);
+  }
+  return originalFetch.call(this, input, init).then(response => {
+    finish({ status: response.status, elapsedMs: Date.now() - startedAt });
+    return response;
+  }, error => {
+    finish({ errorName: error.name, errorCode: error.code ?? null, elapsedMs: Date.now() - startedAt });
+    throw error;
+  });
+};
+`, { mode: 0o600 });
+  writeFileSync(traceFile, '', { mode: 0o600 });
   for (const name of ['PULLBOARD_RELAY_KEY', 'PULLBOARD_RELAY_TOKEN', ...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[name];
   const provider = await githubFixture(t);
   provider.state.deviceAuthorized = true;
@@ -87,9 +183,12 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
   assert.ok(Number.isSafeInteger(injectedSnapshotWriteDelayMs) && injectedSnapshotWriteDelayMs >= 0 && injectedSnapshotWriteDelayMs <= 15000,
     'injected snapshot delay is within the product wait bound');
   let snapshotWriteDelayMs = 0;
+  let oneSnapshotDelay = null;
   let snapshotWriteCount = 0;
   const snapshotWriteDelays = [];
+  const snapshotWriteRecords = [];
   let stateReadDelayMs = 0;
+  let stateReadHold = null;
   let stateReadStarted = 0;
   let refuseSnapshotWrites = false;
   let rejectSnapshotWrites = null;
@@ -106,9 +205,13 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
   const privateKeys = new Set();
   let keyLeaked = false;
   const server = createServer(async (req, res) => {
-    if (req.method === 'PUT' && /\/api\/v1\/boards\/[0-9a-f]{32}\/state$/.test(req.url ?? '')) snapshotWriteCount += 1;
+    const snapshotWrite = req.method === 'PUT' && /\/api\/v1\/boards\/[0-9a-f]{32}\/state$/.test(req.url ?? '');
+    if (snapshotWrite) snapshotWriteCount += 1;
     const requestChunks = [];
     const responseChunks = [];
+    const snapshotStartedAt = Date.now();
+    const snapshotRecord = snapshotWrite ? { at: snapshotStartedAt, sequence: null, ciphertext: null, status: null, elapsedMs: null, responseClosedBeforeFinish: false } : null;
+    if (snapshotRecord) snapshotWriteRecords.push(snapshotRecord);
     const request = new Transform({
       transform(chunk, _encoding, callback) {
         requestChunks.push(Buffer.from(chunk));
@@ -117,6 +220,22 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
     });
     Object.assign(request, { method: req.method, url: req.url, headers: req.headers });
     req.pipe(request);
+    if (snapshotRecord) {
+      request.once('finish', () => {
+        let checkpoint = {};
+        try { checkpoint = JSON.parse(Buffer.concat(requestChunks).toString('utf8')); } catch { /* Keep the transport trace safe when a malformed request arrives. */ }
+        snapshotRecord.sequence = Number.isSafeInteger(checkpoint.sequence) ? checkpoint.sequence : null;
+        snapshotRecord.ciphertext = typeof checkpoint.sealed === 'string' ? createHash('sha256').update(checkpoint.sealed).digest('hex') : null;
+      });
+      req.once('aborted', () => { snapshotRecord.requestAborted = true; });
+      res.once('finish', () => {
+        snapshotRecord.status = res.statusCode;
+        snapshotRecord.elapsedMs = Date.now() - snapshotStartedAt;
+      });
+      res.once('close', () => {
+        if (snapshotRecord.status === null) snapshotRecord.responseClosedBeforeFinish = true;
+      });
+    }
     /** Capture a response chunk for boolean-only transport audits without changing the response. */
     function captureResponse(chunk) {
       if (chunk !== undefined && chunk !== null && typeof chunk !== 'function') responseChunks.push(Buffer.from(chunk));
@@ -195,15 +314,16 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
       await before(req.headers);
     }
     const stateSnapshotDelayMs = Math.max(snapshotWriteDelayMs, injectedSnapshotWriteDelayMs);
-    if (stateSnapshotDelayMs && req.method === 'PUT' && /\/api\/v1\/boards\/[0-9a-f]{32}\/state$/.test(req.url ?? '')) {
-      const delay = stateSnapshotDelayMs;
+    if ((stateSnapshotDelayMs || oneSnapshotDelay?.count === snapshotWriteCount) && req.method === 'PUT' && /\/api\/v1\/boards\/[0-9a-f]{32}\/state$/.test(req.url ?? '')) {
+      const delay = oneSnapshotDelay?.count === snapshotWriteCount ? oneSnapshotDelay.ms : stateSnapshotDelayMs;
       const delayedAt = Date.now();
       await new Promise(resolveDelay => setTimeout(resolveDelay, delay));
       snapshotWriteDelays.push(Date.now() - delayedAt);
     }
-    if (stateReadDelayMs && req.method === 'GET' && /\/api\/v1\/boards\/[0-9a-f]{32}\/state$/.test(req.url ?? '')) {
+    if ((stateReadDelayMs || stateReadHold) && req.method === 'GET' && /\/api\/v1\/boards\/[0-9a-f]{32}\/state$/.test(req.url ?? '')) {
       stateReadStarted += 1;
-      await new Promise(resolveDelay => setTimeout(resolveDelay, stateReadDelayMs));
+      if (stateReadHold) await stateReadHold;
+      else await new Promise(resolveDelay => setTimeout(resolveDelay, stateReadDelayMs));
     }
     if (beforeMove && req.method === 'POST' && /\/api\/v1\/boards\/[0-9a-f]{32}\/moves$/.test(req.url ?? '')) {
       const action = beforeMove; beforeMove = null; await action();
@@ -267,14 +387,45 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
     return step.snapshotUploads;
   }
   /** Run one CLI child and verify its observed uploads against the plan when the test supplied one. */
-  async function runCliChild(args, requestedUploads) {
+  async function runCliChild(args, requestedUploads, traceSnapshotWrites = false) {
     const plannedUploads = plannedSnapshotUploads(args);
     const snapshotUploads = plannedUploads ?? requestedUploads;
     const writesBefore = snapshotWriteCount;
-    const result = await childResult(root, env, [CLI, ...args, '--json'], snapshotUploads);
+    const childEnv = traceSnapshotWrites ? { ...env, PULLBOARD_TEST_RELAY_TRACE_FILE: traceFile,
+      PULLBOARD_TEST_RELAY_TRACE_ORIGIN: origin,
+      NODE_OPTIONS: [env.NODE_OPTIONS, '--import=' + pathToFileURL(tracePreload).href].filter(Boolean).join(' ') } : env;
+    const traceLinesBefore = traceSnapshotWrites ? readFileSync(traceFile, 'utf8').split('\n').filter(Boolean).length : 0;
+    const initialUploads = traceSnapshotWrites ? 0 : snapshotUploads ?? DEFAULT_SNAPSHOT_UPLOADS;
+    /** Read only this child’s sanitized fetch records, retaining evidence before fixture cleanup. */
+    function childTrace() {
+      if (!traceSnapshotWrites) return [];
+      return readFileSync(traceFile, 'utf8').split('\n').filter(Boolean)
+        .slice(traceLinesBefore).map(line => JSON.parse(line));
+    }
+    let result;
+    try {
+      result = await childResult(root, childEnv, [CLI, ...args, '--json'],
+        traceSnapshotWrites ? () => snapshotWriteCount - writesBefore : undefined, initialUploads);
+    } catch (error) {
+      if (traceSnapshotWrites) {
+        const evidence = JSON.stringify({ fetches: childTrace(), relayReceives: snapshotWriteRecords.slice(writesBefore) });
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`${message}; safe snapshot transport evidence: ${evidence}`, { cause: error });
+      }
+      throw error;
+    }
+    if (traceSnapshotWrites) result.snapshotTrace = childTrace();
     if (cliChildren) {
-      assert.equal(snapshotWriteCount - writesBefore, snapshotUploads,
-        `private CLI child ${cliChildIndex} uploads its declared number of snapshots`);
+      const observedUploads = snapshotWriteCount - writesBefore;
+      const observedWrites = snapshotWriteRecords.slice(writesBefore);
+      const safeTrace = result.snapshotTrace ?? [];
+      try {
+        if (traceSnapshotWrites) assertSnapshotCheckpoints(safeTrace, snapshotUploads);
+        else assert.equal(observedUploads, snapshotUploads, 'untraced setup uploads match the plan');
+      } catch (error) {
+        error.message += `; private CLI child ${cliChildIndex}; client fetches: ${JSON.stringify(safeTrace)}; relay receives: ${JSON.stringify(observedWrites)}`;
+        throw error;
+      }
     }
     if (cliChildren && requestedUploads !== undefined) {
       assert.equal(requestedUploads, snapshotUploads, `private CLI child ${cliChildIndex} uses its declared upload count`);
@@ -283,7 +434,7 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
   }
   /** Invoke the production CLI in this private repository under its planned budget, when present. */
   async function cli(...args) {
-    return runCliChild(args);
+    return runCliChild(args, undefined, args[0] === 'status');
   }
   /** Invoke the production CLI from another worktree sharing this fixture's repository and home. */
   async function cliAt(cwd, ...args) {
@@ -292,7 +443,12 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
   /** Bound a CLI child using the exact snapshot count asserted by its fixture flow. */
   async function cliWithSnapshotUploads(snapshotUploads, ...args) {
     cliChildDeadlineMs(snapshotUploads);
-    return runCliChild(args, snapshotUploads);
+    return runCliChild(args, snapshotUploads, args[0] === 'status');
+  }
+  /** Run a CLI child with sanitized local snapshot callsite tracing for diagnosis. */
+  async function cliWithSnapshotTrace(snapshotUploads, ...args) {
+    cliChildDeadlineMs(snapshotUploads);
+    return runCliChild(args, snapshotUploads, true);
   }
   assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, env }).status, 0);
   writeFileSync(join(root, 'README.md'), 'private relay fixture project\n', { mode: 0o600 });
@@ -390,7 +546,7 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
   }
   return {
     transit, relayDirectory: join(scratch, 'relay'), authDatabase, otherDeviceJoin,
-    root, env, origin, lane, before, linkFile, keyFile, calls, moveAcks, cli, cliAt, cliWithSnapshotUploads, link, phoneSession, requireEngineThree, otherDeviceOff, additionalBoard, script, stopRelay, restartRelay,
+    root, env, origin, lane, before, linkFile, keyFile, calls, moveAcks, cli, cliAt, cliWithSnapshotUploads, cliWithSnapshotTrace, link, phoneSession, requireEngineThree, otherDeviceOff, additionalBoard, script, stopRelay, restartRelay,
     /** Assert the test consumed every declared child budget, with no hidden CLI calls. */
     assertCliChildrenComplete() {
       if (cliChildren) assert.equal(cliChildIndex, cliChildren.length, 'every planned private CLI child ran exactly once');
@@ -412,12 +568,25 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
       assert.ok(Number.isSafeInteger(ms) && ms >= 0 && ms <= 15000, 'snapshot delay is within the product wait bound');
       snapshotWriteDelayMs = ms;
     },
+    /** Delay exactly one upcoming PUT to exercise the real product abort and persisted retry. */
+    delaySnapshotWriteOnce(offset, ms) {
+      assert.ok(Number.isSafeInteger(offset) && offset > 0 && Number.isSafeInteger(ms) && ms > 10000 && ms <= 15000);
+      oneSnapshotDelay = { count: snapshotWriteCount + offset, ms };
+    },
     /** Return observed delays for the fixture's real snapshot endpoint. */
     snapshotWriteDelays() { return [...snapshotWriteDelays]; },
+    /** Return sanitized per-child transport callsites and checkpoint fingerprints. */
+    snapshotWriteRecords() { return snapshotWriteRecords.map(record => ({ ...record })); },
     /** Hold real state reads long enough to observe their pending-request diagnostic. */
     delayStateReads(ms) {
       assert.ok(Number.isSafeInteger(ms) && ms >= 0 && ms <= 30000, 'state read hold is bounded');
       stateReadDelayMs = ms;
+    },
+    /** Hold reads until the test explicitly releases them, avoiding load-sensitive short sleeps. */
+    holdStateReads() {
+      let release;
+      stateReadHold = new Promise(resolveHold => { release = resolveHold; });
+      return () => { stateReadHold = null; release(); };
     },
     /** Return how many state reads reached the private relay. */
     stateReadStarted() { return stateReadStarted; },
