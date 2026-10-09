@@ -6,6 +6,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSyn
 import { delimiter, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
+import { gunzipSync } from 'node:zlib';
 import { DatabaseSync } from 'node:sqlite';
 import { createAuthHandler } from '../relay/auth-http.js';
 import { createRelayAuth } from '../relay/auth.js';
@@ -25,6 +26,11 @@ import { presentationShout } from '../src/relay-presentation.js';
 import { fetchFresh } from './http-fixture.js';
 
 const SIGN_INS = new Map();
+
+/** Read native gzip snapshots while retaining checks against historical uncompressed records. */
+function snapshotDocument(plain) {
+  return JSON.parse(Buffer.from(plain[0] === 0x1f && plain[1] === 0x8b ? gunzipSync(plain) : plain).toString('utf8'));
+}
 
 /** Run the actual CLI asynchronously so this process can continue serving its HTTP requests. */
 function cliResult(root, env, ...args) {
@@ -220,9 +226,9 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   }
   const remoteState = await get(`/api/v1/boards/${boardId}/state`);
   assert.equal(remoteState.status, 200);
-  const openedSnapshot = JSON.parse(new TextDecoder().decode(await unseal(
+  const openedSnapshot = snapshotDocument(await unseal(
     key, Buffer.from(remoteState.body.state.sealed, 'base64url'), { boardId, kind: 'snapshot', sequence: 0 },
-  )));
+  ));
   const linkedExport = await cli(root, env, 'export');
   assert.deepEqual(openedSnapshot.tables, linkedExport.tables, 'the first sealed record is the exact native board snapshot');
   assert.ok(openedSnapshot.presentation.state.items.some((item) => item.title === 'initial private item'));
@@ -241,7 +247,7 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   assert.deepEqual(firstMoves.map((row) => row.event_kind), ['add', 'shout']);
   const nativeAfterMoves = await get(`/api/v1/boards/${boardId}/state`);
   assert.equal(nativeAfterMoves.body.state.sequence, 2, 'the checkpoint covers both acknowledged operations');
-  const checkpoint = JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(nativeAfterMoves.body.state.sealed, 'base64url'), { boardId, kind: 'snapshot', sequence: 2 })));
+  const checkpoint = snapshotDocument(await unseal(key, Buffer.from(nativeAfterMoves.body.state.sealed, 'base64url'), { boardId, kind: 'snapshot', sequence: 2 }));
   assert.deepEqual(checkpoint.tables.event.slice(beforeLink.tables.event.length), firstMoves);
   assert.ok(checkpoint.presentation.state.items.some((item) => item.title === 'mirrored private move'));
   assert.equal(relay.uploads.length, 2);
@@ -791,9 +797,9 @@ async function legacyMirrorQueueFragment({
   assert.equal(stateResponse.status, 200);
   const stateDocument = await stateResponse.json();
   assert.equal(stateDocument.state.sequence, 5, 'the native checkpoint covers the complete ordered prefix');
-  const checkpoint = JSON.parse(new TextDecoder().decode(await unseal(
+  const checkpoint = snapshotDocument(await unseal(
     key, Buffer.from(stateDocument.state.sealed, 'base64url'), { boardId, kind: 'snapshot', sequence: 5 },
-  )));
+  ));
   assert.deepEqual(checkpoint.tables.event.slice(priorRows.length), queuedEvents,
     'the source-native snapshot records both legacy rows in order');
   assert.ok(checkpoint.presentation.state.items.some((item) => item.title === 'legacy queued item'));

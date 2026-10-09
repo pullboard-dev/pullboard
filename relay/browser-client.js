@@ -1,4 +1,4 @@
-/** Device-only relay transport: cookie authorization, local keys and authenticated ciphertext [H5,H15,H16]. */
+/** Device-only relay transport: cookie authorization, local keys and authenticated ciphertext [H5,H15,H16,H17]. */
 import { rememberDevicePairing, enrollPhone, deviceBoardKeys } from './browser-devices.js';
 import { decodeBoardKey, encodeBoardKey, seal, unseal } from './seal.js';
 import { preparePersonRequest, validatePersonRequest } from './person-request.js';
@@ -39,6 +39,23 @@ function transportBytes(value) {
   if (typeof value !== 'string' || !/^[A-Za-z0-9_-]+$/.test(value) || value.length > 14000000) throw new Error('The sealed board response is invalid. Refresh this board.');
   const binary = atob(value.replaceAll('-', '+').replaceAll('_', '/') + '='.repeat((4 - value.length % 4) % 4));
   return Uint8Array.from(binary, character => character.charCodeAt(0));
+}
+
+/** Inflate a new gzip snapshot or preserve the legacy JSON plaintext format. */
+async function snapshotDocument(plain) {
+  if (plain[0] === 0x1f && plain[1] === 0x8b) {
+    if (typeof DecompressionStream !== 'function') throw new Error('This browser cannot read gzip snapshots. Upgrade the browser client.');
+    try {
+      const stream = new Blob([plain]).stream().pipeThrough(new DecompressionStream('gzip'));
+      return JSON.parse(await new Response(stream).text());
+    } catch { throw new Refused('SNAPSHOT_FORMAT', 'The sealed gzip snapshot is invalid. Refresh it from a linked machine.'); }
+  }
+  if (plain[0] !== 0x7b) {
+    const seen = [...plain.slice(0, 4)].map(value => value.toString(16).padStart(2, '0')).join('') || 'no bytes';
+    throw new Refused('SNAPSHOT_FORMAT', `The sealed snapshot starts with ${seen}; expected gzip magic 1f8b or legacy JSON starting with 7b.`);
+  }
+  try { return JSON.parse(new TextDecoder().decode(plain)); }
+  catch { throw new Refused('SNAPSHOT_FORMAT', 'The sealed legacy JSON snapshot is invalid. Refresh it from a linked machine.'); }
 }
 
 /** Confirm session authorization before treating a board-local refusal as global access loss. */
@@ -143,7 +160,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     if (!row || !Number.isSafeInteger(row.sequence) || row.sequence < 0) throw new Error('The relay snapshot cursor is invalid. Refresh this board.');
     warning(row.warning, entry.id);
     const plain = await unseal(entry.key, transportBytes(row.sealed), { boardId: entry.id, kind: 'snapshot', sequence: row.sequence });
-    const value = JSON.parse(new TextDecoder().decode(plain));
+    const value = await snapshotDocument(plain);
     const state = snapshotState(value, entry.id);
     if (accessLost) throw new Error('Sign in again to read this board.');
     entry.snapshotTag = response.headers.get('etag');
