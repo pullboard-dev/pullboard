@@ -158,13 +158,26 @@ test('real paired Chrome transports a person shout while its native snapshot is 
   await installRequestTransport(chrome);
 
   const delayedBefore = box.snapshotWriteDelays().length;
+  const writeRecordsBefore = box.snapshotWriteRecords().length;
   box.delaySnapshotWrites(8000);
-  const native = box.cliWithSnapshotUploads(3, 'status').then(result => ({ result }), error => ({ error }));
+  const native = box.cliWithSnapshotTrace(3, 'status').then(result => ({ result }), error => ({ error }));
   const status = await native;
   box.delaySnapshotWrites(0);
   assert.equal(status.error, undefined, 'the next native status receives and executes the queued intent');
   assert.equal(status.result.code, 0, 'the next native status reports success');
   const delays = box.snapshotWriteDelays().slice(delayedBefore);
+  const trace = status.result.snapshotTrace;
+  const writeRecords = box.snapshotWriteRecords().slice(writeRecordsBefore);
+  t.diagnostic('person shout status snapshot PUT sources: ' + JSON.stringify(trace.map(write => ({
+    at: write.at, sequence: write.sequence, ciphertext: write.ciphertext, callers: write.callers, elapsedMs: write.elapsedMs,
+  }))));
+  assert.equal(trace.length, delays.length, 'every delayed state upload has a matching private fetch trace');
+  assert.deepEqual(trace.map(({ sequence, ciphertext }) => ({ sequence, ciphertext })),
+    writeRecords.map(({ sequence, ciphertext }) => ({ sequence, ciphertext })),
+    'the private trace matches only snapshots received by the isolated relay');
+  assert.ok(trace.every(write => write.callers.some(line => line.includes('publishCheckpoint'))), 'each traced upload came from checkpoint publication');
+  assert.equal(status.result.snapshotUploads, trace.length);
+  assert.equal(status.result.snapshotDeadlineMs, cliChildDeadlineMs(trace.length), 'the child deadline follows this run’s observed upload count');
   assert.equal(delays.length, 3, 'this three-upload status flow uploads exactly three snapshots');
   assert.ok(delays.every(delay => delay >= 7900), 'the relay delayed every native snapshot by 8 seconds');
   const latest = await waitForRequest(chrome, link.board, receipt.result.request.id, 'done');
@@ -294,12 +307,27 @@ test('coordinator decline resolves a paired approval request with a reason and l
   const link = await pairedTransport(chrome, box, title);
   const queued = await sendPersonIntent(chrome, link.board, { verb: 'spec-approve', args: { ids: 'G96' } });
   const delayedBefore = box.snapshotWriteDelays().length;
+  const writeRecordsBefore = box.snapshotWriteRecords().length;
   box.delaySnapshotWrites(8000);
   const native = await box.cliWithSnapshotUploads(4, 'status').then(result => ({ result }), error => ({ error }));
   box.delaySnapshotWrites(0);
   assert.equal(native.error, undefined, 'the four-upload decline status fits its derived deadline');
   assert.equal(native.result.code, 0);
   const delays = box.snapshotWriteDelays().slice(delayedBefore);
+  const trace = native.result.snapshotTrace;
+  const writeRecords = box.snapshotWriteRecords().slice(writeRecordsBefore);
+  t.diagnostic('decline status snapshot PUT evidence: ' + JSON.stringify({
+    fetches: trace, relayReceives: writeRecords, delays,
+  }));
+  assert.equal(trace.length, delays.length, 'every delayed decline upload has a matching client fetch trace');
+  assert.deepEqual(trace.map(({ sequence, ciphertext }) => ({ sequence, ciphertext })),
+    writeRecords.map(({ sequence, ciphertext }) => ({ sequence, ciphertext })),
+    'the private client and relay traces identify each decline checkpoint');
+  assert.ok(trace.every(write => write.callers.some(caller => caller.includes('publishCheckpoint'))),
+    'each decline upload comes from checkpoint publication');
+  assert.equal(native.result.snapshotUploads, trace.length);
+  assert.equal(native.result.snapshotDeadlineMs, cliChildDeadlineMs(trace.length),
+    'the decline status deadline follows its observed uploads');
   assert.equal(delays.length, 4, 'the decline status flow uploads exactly four snapshots');
   assert.ok(delays.every(delay => delay >= 7900), 'the relay delayed every decline snapshot by 8 seconds');
   const pending = (await finalState(chrome, link.board)).state.personRequests.find(record => record.id === queued.result.request.id);

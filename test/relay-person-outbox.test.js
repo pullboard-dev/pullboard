@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
-import { relayClientFixture } from './relay-client-fixture.js';
+import { cliChildDeadlineMs, relayClientFixture } from './relay-client-fixture.js';
 
 /** Install only the private fixture's person cookie in the real browser. */
 async function signIn(chrome, box) {
@@ -109,13 +109,26 @@ test('real Chrome keeps an interrupted person request sealed and retries it once
   assert.deepEqual(outbox, [], 'the relay acknowledgement removes the device outbox entry');
 
   const delayedBefore = box.snapshotWriteDelays().length;
+  const writeRecordsBefore = box.snapshotWriteRecords().length;
   box.delaySnapshotWrites(8000);
-  const native = box.cliWithSnapshotUploads(3, 'status').then(result => ({ result }), error => ({ error }));
+  const native = box.cliWithSnapshotTrace(3, 'status').then(result => ({ result }), error => ({ error }));
   const status = await native;
   box.delaySnapshotWrites(0);
   assert.equal(status.error, undefined, 'the native linked machine executes the recovered request');
   assert.equal(status.result.code, 0, 'the native linked machine reports success');
   const delays = box.snapshotWriteDelays().slice(delayedBefore);
+  const trace = status.result.snapshotTrace;
+  const writeRecords = box.snapshotWriteRecords().slice(writeRecordsBefore);
+  t.diagnostic('status snapshot PUT sources: ' + JSON.stringify(trace.map(write => ({
+    at: write.at, sequence: write.sequence, ciphertext: write.ciphertext, callers: write.callers, elapsedMs: write.elapsedMs,
+  }))));
+  assert.equal(trace.length, delays.length, 'every delayed state upload has a matching private fetch trace');
+  assert.deepEqual(trace.map(({ sequence, ciphertext }) => ({ sequence, ciphertext })),
+    writeRecords.map(({ sequence, ciphertext }) => ({ sequence, ciphertext })),
+    'the private trace matches only snapshots received by the isolated relay');
+  assert.ok(trace.every(write => write.callers.some(line => line.includes('publishCheckpoint'))), 'each traced upload came from checkpoint publication');
+  assert.equal(status.result.snapshotUploads, trace.length);
+  assert.equal(status.result.snapshotDeadlineMs, cliChildDeadlineMs(trace.length), 'the child deadline follows this run’s observed upload count');
   assert.equal(delays.length, 3, 'this three-upload status flow uploads exactly three snapshots');
   assert.ok(delays.every(delay => delay >= 7900), 'the relay delayed every native snapshot by 8 seconds');
   const completed = await waitForRequest(chrome, link.board, requestId, 'done');
@@ -125,7 +138,10 @@ test('real Chrome keeps an interrupted person request sealed and retries it once
   assert.equal(completed.state.personRequests.find(row => row.id === requestId).status, 'done');
   const repeatedState = await finalState(chrome, link.board);
   assert.equal(repeatedState.state.personRequests.find(row => row.id === requestId).status, 'done');
-  assert.equal((await box.cli('status')).code, 0, 'repeated native replay stays idempotent');
+  const control = await box.cliWithSnapshotTrace(0, 'status');
+  assert.equal(control.code, 0, 'repeated native replay stays idempotent');
+  assert.equal(control.snapshotTrace.length, 0, 'a completed request status has no checkpoint to republish');
+  assert.equal(control.snapshotDeadlineMs, cliChildDeadlineMs(0), 'a no-upload control keeps only the product bound and margin');
   const repeatedExport = (await box.cli('export')).document;
   assert.equal(repeatedExport.tables.shout.filter(row => row.shout_from === 'person' && row.shout_text === text).length, 1);
 });
