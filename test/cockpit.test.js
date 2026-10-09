@@ -18,7 +18,8 @@ import { loadDoctrine } from '../src/doctrine.js';
 import { addItem, closeBoard, openBoard } from '../src/board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { MACHINE } from '../src/machine.js';
-import { cockpitPage } from '../src/cockpit.js';
+import { cockpitPage, PULLBOARD_COMMANDS } from '../src/cockpit.js';
+import { HELP } from '../src/cli.js';
 import { portableSnapshot, projectState } from '../src/serve.js';
 import { fetchFresh } from './http-fixture.js';
 
@@ -809,6 +810,59 @@ test('the tabs fit one row on a phone [N26]', async () => {
     await view.stop();
   }
 });
+test('a pullboard command in prose chips only the command [N26]', async () => {
+  // The page's command list is the CLI's: every "pullboard ..." that help --all prints (HELP.all) or a usage line
+  // declares, choices in [a|b] or a|b, and commands after " | ", and nothing else.
+  const declared = new Set();
+  const read = (text) => {
+    for (const found of text.matchAll(/(?:^|[\s(`'"])pullboard ((?:\S+ ?)+?)(?= {2}|$|[;,.)](?:\s|$))/gm)) {
+      const tokens = found[1].trim().split(' ');
+      const phrase = [];
+      for (let n = 0; n < tokens.length; n++) {
+        const token = tokens[n];
+        if (/^[a-z][a-zA-Z-]*$/.test(token)) { phrase.push(token); continue; }
+        const choices = /^\[?([a-z][a-zA-Z-]*(?:\|[a-z][a-zA-Z-]*)+)\]?$/.exec(token);
+        if (choices) for (const choice of choices[1].split('|')) declared.add([...phrase, choice].join(' '));
+        else if (token === '|' && phrase.length === 1) {
+          for (let k = n + 1; k < tokens.length; k += 2) { if (!/^[a-z][a-zA-Z-]*$/.test(tokens[k])) break; declared.add(tokens[k]); if (tokens[k + 1] !== '|') break; }
+        }
+        break;
+      }
+      if (phrase.length) declared.add(phrase.join(' '));
+    }
+  };
+  read(HELP.all);
+  for (const row of Object.values(HELP.commands)) for (const usage of row.usages) read(usage);
+  for (const sub of ['milestone add', 'relay tokens', 'spec approve', 'prompt review']) assert.ok(declared.has(sub), `help --all declares ${sub}`);
+  assert.deepEqual([...PULLBOARD_COMMANDS].sort(), [...declared].sort(), 'the view chips exactly the commands the CLI declares');
+  assert.deepEqual(PULLBOARD_COMMANDS, [...PULLBOARD_COMMANDS].sort((a, b) => b.split(' ').length - a.split(' ').length), 'longest phrases first, so spec check wins over spec');
+
+  const box = machine();
+  const demo = project(box, 'commands');
+  box.run(demo.repo, 'shout', 'all', [
+    'pullboard spec check prints a line for docs/api.md with 0 errors.',
+    'pullboard view serves every board.',
+    'Run pullboard next --verify 235 then review it.',
+    'pullboard verify 235 reject goes on in words.',
+    'Turn pullboard relay on now, and pullboard hold web --reason "a pause" after that.',
+    "pullboard's own page has no command.",
+    'Then pullboard milestone add Launch for the person, and pullboard prompt review prints a guide.',
+  ].join(' '));
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    page.run("view.tab = 'shouts'; render();");
+    const feed = page.show('feed');
+    const chips = [...feed.matchAll(/<code class="inline(?: long)?">([^<]*)<\/code>/g)].map((match) => match[1].replaceAll('&quot;', '"'));
+    assert.deepEqual(chips.filter((chip) => chip.startsWith('pullboard')), ['pullboard spec check', 'pullboard view', 'pullboard next --verify 235', 'pullboard verify 235', 'pullboard relay on', 'pullboard hold', 'pullboard milestone add', 'pullboard prompt review'],
+      `each chip is the command and its arguments, never the words after it: ${JSON.stringify(chips)}`);
+    assert.ok(chips.includes('docs/api.md') && chips.includes('--reason'), 'a path and a flag in the prose after a command still chip on their own');
+    for (const word of ['prints', 'serves', 'then', 'goes', 'now', 'after', 'own', 'for', 'a']) assert.ok(!chips.some((chip) => chip.split(' ').includes(word)), `"${word}" stays prose`);
+  } finally {
+    await view.stop();
+  }
+});
+
 test('real Chrome renders brief lists with inline paths [N26]', { timeout: 90_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for brief list checks.');
@@ -4227,8 +4281,8 @@ test('real Chrome styles shout code and item text without growing linked lines [
     assert.ok(rendered.shoutCodeMetrics.width > 0 && rendered.shoutCodeMetrics.width < rendered.shoutCodeMetrics.lineWidth / 2,
       `1280px shout code is a compact chip: ${JSON.stringify(rendered.shoutCodeMetrics)}`);
     assert.match(rendered.shoutHtml, /<code class="inline">code &lt;b&gt;safe&lt;\/b&gt;<\/code>/, 'backticks create escaped inline code');
-    assert.match(rendered.shoutHtml, /<code class="inline">pullboard shout<\/code>/, 'pullboard commands are inline code');
-    assert.match(rendered.shoutHtml, /<code class="inline">--decision<\/code>/, 'flags are inline code');
+    assert.match(rendered.shoutHtml, /<code class="inline(?: long)?">pullboard shout --decision<\/code>/, 'a pullboard command is inline code, with the flags that follow it');
+    assert.match(rendered.shoutHtml, /<code class="inline">--flag<\/code>/, 'a flag on its own is inline code');
     assert.match(rendered.shoutHtml, /<code class="inline">src\/cockpit\.js<\/code>/, 'slash paths are inline code');
     assert.match(rendered.shoutHtml, /<code class="inline long">0123456789abcdef0123456789abcdef01234567<\/code>/, 'hex SHAs are inline code, long enough to wrap');
     assert.ok((rendered.shoutHtml.match(/<code class="code block">/g) ?? []).length >= 2, 'fences and dollar-prefixed lines are code blocks');
@@ -4242,7 +4296,7 @@ test('real Chrome styles shout code and item text without growing linked lines [
     await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"]').getAttribute('aria-expanded') === 'true'`);
     await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"] + .code')?.textContent.includes('Demo spec')`);
     assert.match(await chrome.evaluate(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"] + .code')?.textContent || ''`), /Demo spec/, 'the original code preview still opens its referenced lines');
-    assert.match(rendered.askHtml, /<code class="inline">pullboard shout<\/code>/, 'needs-you uses the same code renderer');
+    assert.match(rendered.askHtml, /<code class="inline(?: long)?">pullboard shout --decision<\/code>/, 'needs-you uses the same code renderer');
     assert.equal(rendered.askNestedButtons, 0, 'formatted text in an ask cannot nest interactive controls');
     assert.equal(rendered.needsNestedButtons, 0, 'needs-you keeps its button markup valid');
     assert.equal(rendered.agentNestedButtons, 0, 'agent item buttons never nest reference controls');
