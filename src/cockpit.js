@@ -990,11 +990,17 @@ function render() {
   const needs = [
     ...p.decisions.map((d) => ['decide:' + d.shout_id, d.shout_from, d.shout_text, 'decide', d.shout_at]),
     ...p.spec.filter((r) => r.status === 'pending' && !r.decision).map((r) => ['spec:' + r.id, r.id, r.text, 'answer in SPEC.md']),
-    ...p.holds.map((h) => ['tab:shouts', h.hold_lane, h.hold_reason, 'lane held by ' + h.hold_by]),
+    ...p.holds.map((h) => ['tab:shouts', h.hold_lane, h.hold_reason, 'lane held by ' + h.hold_by, h.hold_at]),
   ];
   const drafts = p.spec.filter((r) => r.status === 'draft' && !r.decision).length;
   $('needs').hidden = !needs.length && !drafts;
-  $('needs').innerHTML = '<div class="head"><i></i>Needs you</div>' + needs.slice(0, 6).map(([target, ref, text, what, at]) => '<div class="ny"><code>' + esc(ref) + '</code><span class="ny-text">' + rich(text, titles) + '</span><button class="ny-open" data-go="' + esc(target) + '" type="button"><em>' + esc(what) + (at ? ', ' + age(at) : '') + ' →</em></button></div>').join('') + (needs.length > 6 ? '<div class="muted more">and ' + (needs.length - 6) + ' more</div>' : '') + (drafts ? '<div class="ny"><code>' + drafts + '</code><span class="ny-text">draft spec rows to approve or drop</span><button class="ny-open" data-go="tab:spec" type="button"><em>review →</em></button></div>' : '');
+  /** Render the same Needs-you entry as linked text and an action, or plain read-only text. */
+  const needRow = ([target, ref, text, what, at]) => {
+    const status = '<em>' + esc(what) + (at ? ', ' + age(at) : '') + ' →</em>';
+    const action = readOnly ? status : '<button class="ny-open" data-go="' + esc(target) + '" type="button">' + status + '</button>';
+    return '<div class="ny"><code>' + esc(ref) + '</code><span class="ny-text">' + rich(text, titles, !readOnly) + '</span>' + action + '</div>';
+  };
+  $('needs').innerHTML = '<div class="head"><i></i>Needs you</div>' + needs.slice(0, 6).map(needRow).join('') + (needs.length > 6 ? '<div class="muted more">and ' + (needs.length - 6) + ' more</div>' : '') + (drafts ? needRow(['tab:spec', String(drafts), 'draft spec rows to approve or drop', 'review']) : '');
 
   const lanes = p.lanes;
   const working = lanes.filter((l) => l !== 'coordinator');
