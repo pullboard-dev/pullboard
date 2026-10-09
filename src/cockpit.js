@@ -57,7 +57,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
 <div class="shell">
 <aside class="side" id="side" aria-label="Projects">
   <div class="side-top">
-    <div class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg><span>Pullboard</span></div>
+    <button class="brand" id="side-toggle" type="button" aria-pressed="false" aria-controls="side-body" aria-label="Collapse the project list" title="Collapse the project list"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg><span>Pullboard</span></button>
     <button class="switch-btn" id="proj-switch" type="button" aria-expanded="false" aria-controls="side-body"><span id="proj-name">Projects</span><b class="need" id="proj-elsewhere" title="Needs you in other projects" hidden></b><small>▾</small></button>
     <button class="theme-btn" id="theme" type="button" title="Theme: system"><svg class="sys" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="currentColor" d="M8 2a6 6 0 0 1 0 12Z"/></svg><svg class="sun" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M8 1.5v1.2M8 13.3v1.2M1.5 8h1.2M13.3 8h1.2M3.4 3.4l.85.85M11.75 11.75l.85.85M3.4 12.6l.85-.85M11.75 4.25l.85-.85"/></svg><svg class="moon" viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M13.6 9.6A6 6 0 1 1 6.4 2.4a5.2 5.2 0 0 0 7.2 7.2Z"/></svg></button>
   </div>
@@ -190,6 +190,15 @@ function theme(pick) {
   $('theme').title = 'Theme: ' + (document.documentElement.dataset.theme || 'system');
 }
 theme(keep('pb.theme'));
+/** Collapse the sidebar into the tab bar on a wide screen, or bring it back, as the person last chose. */
+function collapseSide(collapsed) {
+  if (collapsed) document.documentElement.dataset.side = 'collapsed';
+  else delete document.documentElement.dataset.side;
+  $('side-toggle').setAttribute('aria-pressed', String(collapsed));
+  $('side-toggle').title = collapsed ? 'Show the project list' : 'Collapse the project list';
+  $('side-toggle').setAttribute('aria-label', $('side-toggle').title);
+}
+collapseSide(keep('pb.side') === 'collapsed');
 const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const ago = (iso) => { const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 1 ? 'now' : m < 60 ? m + 'm' : m < 2880 ? Math.round(m / 60) + 'h' : Math.round(m / 1440) + 'd'; };
 // An age as the page shows it: the moment it counts from stays on it, so tickAges can move it on.
@@ -1516,6 +1525,14 @@ $('flow-show').addEventListener('click', () => showFlow(true));
 $('flow-panel').hidden = keep('pb.flow') === 'hidden';
 $('flow-show').hidden = !$('flow-panel').hidden;
 // Each press moves on one, from the system's theme to light, then dark, and back; this browser keeps it.
+$('side-toggle').addEventListener('click', () => {
+  // A phone always shows the switcher, so there the logo is only the logo.
+  if (!matchMedia('(width > 900px)').matches) return;
+  const collapsed = !document.documentElement.dataset.side;
+  collapseSide(collapsed);
+  fold(false);
+  keep('pb.side', collapsed ? 'collapsed' : 'open');
+});
 $('theme').addEventListener('click', () => {
   const next = { light: 'dark', dark: 'system' }[document.documentElement.dataset.theme] || 'light';
   keep('pb.theme', next);
