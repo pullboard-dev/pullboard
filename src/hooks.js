@@ -4,7 +4,7 @@
  * Each check returns its problems; an empty list lets git go on.
  */
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { git, gitChildEnv, gitPath, mainCheckout, refuseGrafts, tryGit } from './git.js';
 import { CONFIG_FILE, configFromSource, DOCTRINE_FILE, LEGACY_DOCTRINE_FILE } from './config.js';
@@ -78,7 +78,7 @@ function headerProblems(header, rules) {
  * @param {{ rules: any, spec: any }} context
  * @returns {string[]}
  */
-export function commitMsgProblems(raw, { rules, spec }) {
+export function commitMsgProblems(raw, { rules, spec, doctrine = null }) {
   const lines = raw.split('\n').filter((line) => !line.startsWith('#'));
   while (lines.length && !lines.at(-1)?.trim()) lines.pop();
   const [header = '', second, ...body] = lines;
@@ -86,7 +86,7 @@ export function commitMsgProblems(raw, { rules, spec }) {
   const { problems, type } = headerProblems(header, rules);
   const ids = citedIds(header);
   problems.push(
-    ...idProblems(spec, ids).map(
+    ...idProblems(spec, ids, doctrine).map(
       (problem) => `cite only rows that exist and are live, separated by commas like [G1,G2] (${problem})`,
     ),
   );
@@ -104,6 +104,29 @@ export function commitMsgProblems(raw, { rules, spec }) {
   if (rules.noEmoji && EMOJI_RE.test(all)) problems.push('remove the emoji');
   if (rules.noCoAuthor && /^\s*co-authored-by\s*:/im.test(all)) problems.push('remove the Co-Authored-By trailer');
   return problems;
+}
+
+/**
+ * Colliding bare citations keep their SPEC.md meaning, but tell the author how to name doctrine.
+ *
+ * @param {string} raw
+ * @param {{ spec: any, doctrine: any }} context
+ * @returns {string[]}
+ */
+export function commitCitationWarnings(raw, { spec, doctrine }) {
+  const ids = citedIds(raw.split('\n')[0] ?? '').filter((id) => !id.startsWith('doctrine:'));
+  return ids.flatMap((id) => {
+    const specRows = spec.rows.filter((row) => row.id === id);
+    const doctrineRows = (doctrine?.repo?.rows ?? []).filter((row) => row.id === id);
+    if (!specRows.length || specRows.length + doctrineRows.length < 2) return [];
+    const specLocations = specRows.map((row) => `${spec.name ?? 'SPEC.md'}:${row.line}`);
+    const doctrineLocations = doctrineRows.map((row) => `${doctrine.name}:${row.line}`);
+    const locations = [...specLocations, ...doctrineLocations].slice(0, 2);
+    const resolution = doctrineRows.length
+      ? `bare ids cite SPEC.md, use doctrine:${id} for a doctrine row`
+      : 'bare ids resolve to SPEC.md, which contains duplicate rows';
+    return [`${id} is a known collision at ${locations.join(' and ')}; ${resolution}`];
+  });
 }
 
 /**
@@ -448,7 +471,16 @@ export function installHooks(root, onWrite = () => {}) {
       );
       continue;
     }
-    writeFileSync(file, hookScript(hook));
+    const script = hookScript(hook);
+    if (existing === script) {
+      if ((statSync(file).mode & 0o777) !== 0o755) {
+        chmodSync(file, 0o755);
+        onWrite(`${HOOKS_DIR}/${hook}`);
+        notes.push(`restored executable mode for ${HOOKS_DIR}/${hook}`);
+      } else notes.push(`kept ${HOOKS_DIR}/${hook}`);
+      continue;
+    }
+    writeFileSync(file, script);
     chmodSync(file, 0o755);
     onWrite(`${HOOKS_DIR}/${hook}`);
     notes.push(`wrote ${HOOKS_DIR}/${hook}`);
@@ -456,6 +488,8 @@ export function installHooks(root, onWrite = () => {}) {
   const current = tryGit(root, ['config', '--get', 'core.hooksPath']).stdout;
   if (current && current !== HOOKS_DIR) {
     notes.push(`core.hooksPath is ${current}; left as is. Call pullboard hook <name> from those hooks`);
+  } else if (current === HOOKS_DIR) {
+    notes.push(`kept core.hooksPath at ${HOOKS_DIR}`);
   } else {
     git(root, ['config', 'core.hooksPath', HOOKS_DIR]);
     notes.push(`set core.hooksPath to ${HOOKS_DIR}`);

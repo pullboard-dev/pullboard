@@ -87,6 +87,18 @@ function writeNew(file, text, name, onWrite) {
   return `wrote ${name}`;
 }
 
+/** Ignore Claude's nested agent worktrees, preserving existing ignore bytes and second-run idempotence. */
+function ignoreAgentWorktrees(root, onWrite) {
+  const file = join(root, '.gitignore');
+  const pattern = '.claude/worktrees/';
+  const existing = existsSync(file);
+  const previous = existing ? readFileSync(file, 'utf8') : '';
+  if (previous.split(/\r?\n/u).includes(pattern)) return 'kept .gitignore (already ignores .claude/worktrees/)';
+  appendFileSync(file, (previous && !previous.endsWith('\n') ? '\n' : '') + pattern + '\n');
+  onWrite('.gitignore');
+  return existing ? 'added .claude/worktrees/ to .gitignore' : 'wrote .gitignore (ignores .claude/worktrees/)';
+}
+
 /**
  * Put the agent instructions in AGENTS.md, appending pullboard's block to a file the repo already
  * has, and point CLAUDE.md at AGENTS.md so Claude Code reads the same rules.
@@ -193,6 +205,7 @@ export function initRepo({ info, openBoardHere, register, closeBoard }) {
     writeNew(join(root, CONFIG_FILE), configTemplate(gate, detectFixers(root)), CONFIG_FILE, onWrite),
     writeNew(join(root, 'SPEC.md'), specTemplate(basename(root), gate), 'SPEC.md', onWrite),
     writeNew(join(root, doctrine), practiceTemplate(), doctrine, onWrite),
+    ignoreAgentWorktrees(root, onWrite),
     ...writeAgentDocs(root, onWrite),
     ...installHooks(root, onWrite),
     ...installSkills(root, onWrite),
