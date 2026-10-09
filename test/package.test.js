@@ -3,8 +3,10 @@
  * trust, and every import is a Node built-in or a file of its own.
  */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 
@@ -12,13 +14,13 @@ const ROOT = resolve(import.meta.dirname, '..');
 const PACKAGE = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 
 /**
- * A child Node that compiles each source on its stdin as an ES module and reports, for each, whether
+ * A child Node that compiles each source from a regular file as an ES module and reports, for each, whether
  * it compiles and the modules it imports statically, as V8 lists them.
  */
 const PARSER = [
   "import vm from 'node:vm';",
   "import { readFileSync } from 'node:fs';",
-  "const sources = JSON.parse(readFileSync(0, 'utf8'));",
+  "const sources = JSON.parse(readFileSync(process.argv[1], 'utf8'));",
   'const look = (source) => {',
   '  try {',
   '    const module = new vm.SourceTextModule(source);',
@@ -31,19 +33,27 @@ const PARSER = [
 ].join('\n');
 
 /**
- * What V8 makes of each source, all in one child process.
+ * What V8 makes of each source, in one bounded child that never waits for stdin EOF.
  *
  * @param {string[]} sources
  * @returns {{ compiles: boolean, imports: string[] }[]}
  */
 function look(sources) {
-  const child = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', '--input-type=module', '-e', PARSER], {
-    input: JSON.stringify(sources),
-    encoding: 'utf8',
-    maxBuffer: 2 ** 26,
-  });
-  assert.equal(child.status, 0, child.stderr);
-  return JSON.parse(child.stdout);
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-package-parser-'));
+  try {
+    const input = join(directory, 'sources.json');
+    writeFileSync(input, JSON.stringify(sources), { mode: 0o600 });
+    const child = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', '--input-type=module', '-e', PARSER, input], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      encoding: 'utf8',
+      maxBuffer: 2 ** 26,
+      timeout: 3000,
+    });
+    assert.equal(child.status, 0, child.stderr);
+    return JSON.parse(child.stdout);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 }
 
 /** Every place the whole word import appears, in code or not; Unicode letters count as part of a word. */
@@ -211,4 +221,30 @@ test('the installable package includes the single inherited doctrine file [D1]',
   const files = JSON.parse(packed.stdout)[0].files.map(file => file.path);
   assert.equal(files.filter(file => file === 'src/standard-doctrine.md').length, 1);
   assert.ok(files.includes('src/doctrine.js'));
+});
+
+
+test('the parser finishes without waiting for stdin EOF [C7,P3]', { timeout: 6000 }, async function parserWithoutStdinEOF() {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-parser-eof-guard-'));
+  const input = join(directory, 'sources.json');
+  writeFileSync(input, JSON.stringify(["import 'node:fs';"]), { mode: 0o600 });
+  const child = spawn(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', '--input-type=module', '-e', PARSER, input], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+    timeout: 3000,
+    killSignal: 'SIGKILL',
+  });
+  const stdout = [];
+  const stderr = [];
+  child.stdout.on('data', (chunk) => stdout.push(chunk));
+  child.stderr.on('data', (chunk) => stderr.push(chunk));
+  try {
+    // Keep the writer open: reverting the parser to read fd 0 must hit the child bound.
+    const [status, signal] = await once(child, 'close');
+    assert.equal(status, 0, `parser depended on stdin EOF (${signal}): ${Buffer.concat(stderr)}`);
+    assert.deepEqual(JSON.parse(Buffer.concat(stdout).toString('utf8')), [{ compiles: true, imports: ['node:fs'] }]);
+  } finally {
+    child.stdin.destroy();
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
