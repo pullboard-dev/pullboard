@@ -23,6 +23,8 @@ function respond(res, type, content, scriptHashes = []) {
 export function createRelayBrowserHandler({ authenticate }) {
   const assets = new Map([
     ['/view.css', ['text/css', STYLES]],
+    ['/relay/device-keys.js', ['text/javascript', readFileSync(new URL('../src/relay-device-keys.js', import.meta.url), 'utf8')]],
+    ['/relay/browser-devices.js', ['text/javascript', readFileSync(new URL('./browser-devices.js', import.meta.url), 'utf8')]],
     ['/relay/client.js', ['text/javascript', readFileSync(new URL('./browser-client.js', import.meta.url), 'utf8')]],
     ['/relay/browser-notice.js', ['text/javascript', readFileSync(new URL('./browser-notice.js', import.meta.url), 'utf8')]],
     ['/relay/browser-stream.js', ['text/javascript', readFileSync(new URL('./browser-stream.js', import.meta.url), 'utf8')]],

@@ -143,7 +143,7 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
   }
 
   /** Replace a covered snapshot and compact only its acknowledged prefix, keeping the head. */
-  function saveSnapshot(sequence, bytes, principal) {
+  function saveSnapshot(sequence, bytes, principal, { initialOnly = false } = {}) {
     open();
     if (!Number.isSafeInteger(sequence) || sequence < 0) throw new Refused('BAD_SEQUENCE', 'name the nonnegative sequence this snapshot covers');
     const sealed = payload(bytes);
@@ -152,6 +152,7 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
     try {
       if (sequence > latest()) throw new Refused('SEQUENCE_GAP', 'upload the missing moves before a snapshot that covers them');
       const previous = snapshot();
+      if (initialOnly && previous) throw new Refused('BASELINE_EXISTS', 'this board already has a baseline; preserve the local board before choosing which history to keep');
       if (previous && sequence < previous.sequence) throw new Refused('SNAPSHOT_STALE', 'use the latest stored snapshot and seal a snapshot that covers at least its sequence');
       const at = now();
       if (!(at instanceof Date) || !Number.isFinite(at.getTime())) throw new Refused('RELAY_CONFIG', 'the journal clock must return a valid Date');

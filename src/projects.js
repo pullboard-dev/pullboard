@@ -86,16 +86,16 @@ function withRegistry(mutate) {
 }
 
 /**
- * Whether a path currently names a directory.
+ * Whether registry pruning should keep this root as a directory or inaccessible entry.
  *
  * @param {string} path
- * @returns {boolean}
+ * @returns {boolean} True for directories and non-missing stat errors; false for files or missing roots.
  */
 function isDirectory(path) {
   try {
     return statSync(path).isDirectory();
-  } catch {
-    return false;
+  } catch (error) {
+    return error.code !== 'ENOENT' && error.code !== 'ENOTDIR';
   }
 }
 
@@ -203,12 +203,12 @@ export function listProjects({ pruneMissing = true } = {}) {
 }
 
 /**
- * Read the API's registered projects while preserving unreadable entries for warnings.
+ * Read API projects, pruning missing folders while preserving existing unreadable entries for warnings.
  *
  * @returns {{ root: string, name: string, project: string, added: string }[]}
  */
 export function listApiProjects() {
-  return listProjects({ pruneMissing: false });
+  return listProjects();
 }
 
 /**
@@ -258,4 +258,12 @@ export function forgetProject(path) {
     writeRegistry(projects);
     return true;
   });
+}
+
+/** Register locally and complete opted-in automatic relay linking before the CLI returns. */
+export async function registerProjectAndLink(root, now, config, io) {
+  const added = registerProject(root, now, config);
+  const { autoLinkProject } = await import('./relay-setup.js');
+  await autoLinkProject(root, io);
+  return added;
 }

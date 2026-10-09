@@ -7,6 +7,8 @@ import { createApiHandler, apiJson, apiRefusal, apiStatus, readApiBody } from '.
 import { Refused } from '../src/refused.js';
 import { createRelayJournal } from './journal.js';
 import { createRelayRetention } from './retention.js';
+import { createDeviceStore } from './device-store.js';
+import { createDeviceHandler } from './device-http.js';
 import { createPairingStore } from './pairing-store.js';
 import { createPairingHandler } from './pairing-http.js';
 import { createRelayBrowserHandler } from './browser-page.js';
@@ -102,6 +104,13 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
     return who;
   }
 
+  const deviceStore = createDeviceStore({ directory: root, now });
+  const deviceHandler = createDeviceHandler({
+    authenticate: (req, write) => auth.authenticate(credential(req, origin, write)),
+    authorizeBoard: (req, id) => authorizedRequest(req, id, true),
+    boardsFor: req => auth.boardsFor(credential(req, origin)),
+    devices: deviceStore,
+  });
   const pairingStore = createPairingStore({ now });
   const pairing = createPairingHandler({
     authenticate: (req, { board, write }) => authorizedRequest(req, board, write),
@@ -190,6 +199,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
 
   /** Add authenticated snapshot replacement and deletion to the common versioned read/move paths. */
   async function handle(req, res) {
+    if (await deviceHandler(req, res)) return;
     if (await pairing(req, res)) return;
     try {
       if (browser && await browser(req, res)) return;
@@ -222,14 +232,14 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
         if (!Number.isSafeInteger(body.sequence) || body.sequence < 0) throw new Refused('BAD_SEQUENCE', 'name the nonnegative sequence covered by the sealed snapshot');
         const who = await authorizedRequest(req, id, true);
         const principal = sender(who, true);
-        const saved = withJournal(id, (journal) => journal.saveSnapshot(body.sequence, bytes, principal), true, who.engineVersion);
+        const saved = withJournal(id, (journal) => journal.saveSnapshot(body.sequence, bytes, principal, { initialOnly: req.headers['if-none-match'] === '*' }), true, who.engineVersion);
         return apiJson(res, 200, { state: annotated(saved, id) });
       }
       if (req.method === 'DELETE' && deletion) {
         const id = identity(deletion[1]);
         const who = await authorizedRequest(req, id, true);
         sender(who, true);
-        auth.withBoard(id, () => { requireClientVersion(id, who.engineVersion); retention.unlink(id); });
+        auth.withBoard(id, () => { requireClientVersion(id, who.engineVersion); retention.unlink(id); deviceStore.unlink(id); });
         return apiJson(res, 200, { deleted: id });
       }
       return await common(req, res);
@@ -241,7 +251,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
   handle.maintenance = maintain;
   handle.backup = retention.backup;
   handle.maintenanceStatus = () => ({ error: maintenanceError });
-  handle.close = () => { clearInterval(timer); common.close(); };
+  handle.close = () => { clearInterval(timer); common.close(); deviceStore.close(); };
   return handle;
 }
 

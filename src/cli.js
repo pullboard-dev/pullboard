@@ -54,7 +54,7 @@ import { parseProblems, sweepItems } from './sweep.js';
 import { renderSpecView } from './view.js';
 import { tour } from './tour.js';
 import { commandOutput } from './json.js';
-import { forgetProject, registerProject } from './projects.js';
+import { forgetProject, registerProjectAndLink } from './projects.js';
 import { milestoneRoadmap } from './roadmap.js';
 import { listResources } from './resources.js';
 import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
@@ -67,7 +67,9 @@ import { proofStats } from './stats.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
-import { relayCommandReceipt, relayCommandReceiptReported, relayLinked, relayOff, relayOn, relayOperation, relayRecovered, relayRevoke, relayStatus, relayTokens, syncRelay } from './relay.js';
+import { formatSnapshotLimit, pendingSnapshotSize, pendingCheckpointProblem, relayCommandReceipt, relayCommandReceiptReported, relayLinked, relayOff, relayOn, relayOperation, relayRecovered, relayRevoke, relayStatus, relayTokens, syncRelay } from './relay.js';
+import { relayOnAll, revokeRelayDevice, unlinkedRelayProjects } from './relay-setup.js';
+import { readRelayMachine } from './relay-machine.js';
 import { relayJoin, relayPair } from './relay-pairing-client.js';
 import { executePersonRequests } from './relay-request-execution.js';
 
@@ -76,12 +78,12 @@ export const VERSION = PACKAGE.version;
 const CHECKOUT_LEASES = new WeakMap();
 
 /**
- * Read the collision baseline from the primary branch, or its retained trunk when detached.
+ * Read the collision baseline from the primary branch, retained trunk, or detached HEAD default.
  *
  * @param {string} root
  * @param {string} path
  * @param {string} [revision]
- * @returns {{ status: number, stdout: string }}
+ * @returns {{ status: number, stdout: string, baseline?: string }}
  */
 function coordinatorFile(root, path, revision) {
   const commonDir = git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
@@ -89,7 +91,9 @@ function coordinatorFile(root, path, revision) {
   const env = { ...gitChildEnv(root), GIT_NO_REPLACE_OBJECTS: '1' };
   const primary = mainCheckout(coordinatorRoot);
   let ref = primary?.branch ?? trunkRef(coordinatorRoot);
-  if (!ref?.startsWith('refs/heads/')) {
+  const detachedHeadDefault = !primary && !ref;
+  if (detachedHeadDefault) ref = 'HEAD';
+  if (ref !== 'HEAD' && !ref?.startsWith('refs/heads/')) {
     throw new Refused('NO_TRUNK', 'no trunk branch was recorded; check out the trunk branch in the main checkout once and run pullboard inbox');
   }
   if (!primary) {
@@ -104,7 +108,11 @@ function coordinatorFile(root, path, revision) {
   const result = spawnSync('git', ['--no-replace-objects', 'show', `${revision ?? ref}:${path}`], {
     cwd: coordinatorRoot, env, encoding: 'utf8',
   });
-  return { status: result.status ?? 1, stdout: result.stdout ?? '' };
+  return {
+    status: result.status ?? 1,
+    stdout: result.stdout ?? '',
+    ...(detachedHeadDefault ? { baseline: 'collision baseline default: detached HEAD' } : {}),
+  };
 }
 
 const ALL_HELP = `pullboard ${VERSION}: the local-first work board for teams of coding agents.
@@ -128,6 +136,10 @@ Set up
   pullboard relay [on|off|pair|join <code>] [--url <address>]  link, inspect or unlink this board's sealed relay
                                         on signs in through GitHub; the address defaults to https://app.pullboard.dev
                                         pair prints a one-use machine code; join stores it in another clone
+  pullboard relay on --all [--url <address>]  link every registered project after one sign-in; pair the phone once
+                                        keep this command open until pairing finishes; later projects link on registration
+  pullboard relay devices               list paired device ids and their public-key fingerprints
+  pullboard relay revoke <device>       stop future key delivery; already received keys remain known
   pullboard relay tokens                list this board's agent token ids, agents and expiry, never credentials
   pullboard relay revoke <token-id>     revoke one token from that list; other agents keep working
   pullboard resume                      where you are: your claim, branch, uncommitted work, what came back,
@@ -718,7 +730,7 @@ async function ordered(ctx, board, operation, args) {
   const command = ['add', 'edit', 'merged'].includes(ctx.io.relayCommand?.cliOperation) ? ctx.io.relayCommand : undefined;
   /** Dispatch while this session holds the checkout, including long-running next/run loops. */
   const execute = () => relayLinked(ctx.info.root)
-    ? relayOperation(ctx.info.root, operation, args, ctx.io, command) : store[operation](board, ...args);
+    ? relayOperation(ctx.info.root, operation, args, ctx.io, command, () => store[operation](board, ...args)) : store[operation](board, ...args);
   const digest = agentSessionDigest();
   if (CHECKOUT_LEASES.has(ctx.io) || !digest || ctx.io.personChannel === 'view' || ctx.io.personRequest) return execute();
   const agent = ctx.info.isMain ? COORDINATOR : store.agentAt(board, ctx.info.root)?.agent_id ?? 'unjoined agent';
@@ -758,7 +770,7 @@ async function bindCheckoutSession(io, positionals, values) {
         const me = whoAmI(ctx, board);
         const message = { from: me.id, to: info.isMain ? 'person' : COORDINATOR,
           text: `${me.id} took over this checkout in a new agent session.`, lanes: laneNames(ctx.config) };
-        if (relayLinked(info.root)) await relayOperation(info.root, 'shout', [message], io);
+        if (relayLinked(info.root)) await relayOperation(info.root, 'shout', [message], io, undefined, () => store.shout(board, message));
         else store.shout(board, message);
       });
     },
@@ -1095,6 +1107,7 @@ function resumeHere(io) {
       newest: store.peekShouts(board, me.id, 1),
     };
   });
+  card.relayProblems = unlinkedRelayProjects();
   const { me } = card;
   card.stale = staleFrozenItems(card.all, loadSpec(root, ctx.config).rows, ctx.doctrine.rows).map((item) => ({ ...item, ...staleItemFinding(item) }));
   if (isMain) {
@@ -1104,6 +1117,7 @@ function resumeHere(io) {
     card.reviewQueue = { items: card.toVerify, awaiting: card.awaiting };
   }
   const say = (line) => io.say(line);
+  for (const problem of card.relayProblems) say(problem.message);
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
   say(`resume: ${me.id}${me.family ? ` (${me.family})` : ''}, ${me.lane} lane${isMain ? ', the main checkout' : ''}, at ${root}`);
   const dirty = dirtyFiles(root).length;
@@ -1192,7 +1206,7 @@ async function viewHere(io, values) {
   }
   try {
     const info = repoInfo(io.cwd);
-    if (info.isMain && existsSync(join(info.root, CONFIG_FILE))) registerProject(info.root, new Date(), loadConfig(info.root));
+    if (info.isMain && existsSync(join(info.root, CONFIG_FILE))) await registerProjectAndLink(info.root, new Date(), loadConfig(info.root), io);
   } catch (error) {
     if (!(error instanceof Refused)) throw error;
   }
@@ -1219,7 +1233,7 @@ async function viewHere(io, values) {
 async function serveHere(io, values) {
   const ctx = context(io);
   const mainRoot = git(ctx.info.root, ['worktree', 'list', '--porcelain']).split('\n')[0].slice('worktree '.length);
-  registerProject(mainRoot, new Date(), loadConfig(mainRoot));
+  await registerProjectAndLink(mainRoot, new Date(), loadConfig(mainRoot), io);
   const port = values.port === undefined ? 0 : Number(values.port);
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Refused('USAGE', '--port is a number from 0 to 65535; use 0 to choose a free one');
   const api = await serveApi({ port, runCommand: main });
@@ -1241,11 +1255,11 @@ async function serveHere(io, values) {
  *
  * @param {any} io
  * @param {{ first?: string }} args
- * @returns {Record<string, () => number>}
+ * @returns {Record<string, () => number | Promise<number>>}
  */
 function setupCommands(io, { first, values }) {
   return {
-    init: () => {
+    init: async () => {
       const info = repoInfo(io.cwd);
       const notes = initRepo({
         info,
@@ -1263,7 +1277,7 @@ function setupCommands(io, { first, values }) {
       io.result?.({ root: info.root, notes });
       const staging = notes.at(-1)?.startsWith('git add -f -- ') ? notes.at(-1) : null;
       (staging ? notes.slice(0, -1) : notes).forEach((note) => io.say(note));
-      if (registerProject(info.root, new Date(), loadConfig(info.root))) io.say('registered this project on this machine, so pullboard view lists it');
+      if (await registerProjectAndLink(info.root, new Date(), loadConfig(info.root), io)) io.say('registered this project on this machine, so pullboard view lists it');
       io.say('next: write SPEC.md rows, declare lanes in pullboard.json, then: pullboard add <lane> <title>');
       io.say('with an agent: start a new Claude Code session here, which loads the pullboard skills, then tell it what to build; the pullboard-run skill runs the team');
       if (staging) io.say(staging);
@@ -1551,6 +1565,7 @@ function readCommands(io, { first, second, rest, values }) {
         return 0;
       }
       if (summary.relay.linked) io.say(`relay: sequence ${summary.relay.sequence}; ${summary.relay.behind} pending uploads`);
+      if (summary.relay.oversizedSnapshot && !summary.relay.refusedCheckpoint) io.say(formatSnapshotLimit(summary.relay.oversizedSnapshot));
       const { items, accepted, rejected } = summary.stats;
       io.say(`${summary.me.id}: ${summary.unread} unread shouts; holding ${summary.mine.map((item) => `#${item.item_id}`).join(', ') || 'nothing'}`);
       io.say(`board: ${items.open} open, ${items.claimed} claimed, ${items.submitted} awaiting verification, ${items.verified} verified, ${items.withdrawn} withdrawn`);
@@ -1571,13 +1586,19 @@ function readCommands(io, { first, second, rest, values }) {
         return 1;
       }
       const ctx = context(io);
-      const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config), ...doctrineProblems(ctx.info.root, ctx.config)];
+      const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects()];
+      const checkpointProblem = pendingCheckpointProblem(ctx.info.root);
+      if (checkpointProblem) problems.push(checkpointProblem);
+      const oversizedSnapshot = checkpointProblem ? null : pendingSnapshotSize(ctx.info.root);
+      if (oversizedSnapshot) problems.push({ code: 'RELAY_SNAPSHOT_LIMIT',
+        message: formatSnapshotLimit(oversizedSnapshot),
+        next: 'reduce the sealed board snapshot below the relay limit, then run pullboard status' });
       io.result?.({ problems });
       if (!problems.length) {
         io.say('board is clean');
         return 0;
       }
-      for (const problem of problems) io.say(`problem: ${problem.message}; repair: ${problem.next}`);
+      for (const problem of problems) if (problem !== checkpointProblem) io.say(`problem: ${problem.message}; repair: ${problem.next}`);
       return 1;
     },
     inbox: () => {
@@ -2395,11 +2416,13 @@ async function specCommand(io, { first, second, rest, values }) {
     const renameBase = collisionFiles.some(([name]) => name === DOCTRINE_FILE)
       ? legacyDoctrineRenameBase(ctx.info.root, DOCTRINE_FILE)
       : null;
+    const baselineNotes = new Set();
     const previousCounts = new Map(collisionFiles.map(([name]) => {
       const baselineName = renameBase && name === DOCTRINE_FILE ? LEGACY_DOCTRINE_FILE : name;
       const previous = name === DOCTRINE_FILE && !renameBase
         ? { status: 1, stdout: '' }
         : coordinatorFile(ctx.info.root, baselineName, renameBase ?? undefined);
+      if (previous.baseline) baselineNotes.add(previous.baseline);
       const rows = previous.status === 0 ? parseSpec(previous.stdout, { strictGrammarVersion: false }).rows : [];
       const counts = new Map();
       for (const row of rows) counts.set(row.id, (counts.get(row.id) ?? 0) + 1);
@@ -2429,7 +2452,7 @@ async function specCommand(io, { first, second, rest, values }) {
       }
     }
     let errors = 0;
-    const messages = [];
+    const messages = [...baselineNotes];
     for (const [name, parsed] of files) {
       const findings = [
         ...lintSpec(parsed).filter((finding) => !finding.message.startsWith('duplicate id;')),
@@ -2674,6 +2697,24 @@ async function runCommand(argv, io) {
     if (command === 'hook') return await hookCommand(io, args);
     if (command === 'settings') return settingsCommand(io, args);
     if (command === 'relay') {
+      if (first === 'devices') {
+        if (second || rest.length || values.url || values.all) throw new Refused('USAGE', 'pullboard relay devices');
+        const devices = readRelayMachine().devices.map(({ deviceId, label, fingerprint, createdAt }) => ({ deviceId, label, fingerprint, createdAt }));
+        io.result?.({ devices });
+        for (const device of devices) io.say(`${device.deviceId}  ${device.label}  ${device.fingerprint}`);
+        if (!devices.length) io.say('no paired devices; run pullboard relay on --all');
+        return 0;
+      }
+      if (first === 'revoke' && /^device-[0-9a-f]{32}$/u.test(second ?? '')) {
+        if (rest.length || values.url || values.all) throw new Refused('USAGE', 'pullboard relay revoke <device>');
+        const result = await revokeRelayDevice(second, io);
+        io.result?.(result); io.say(result.notice); return 0;
+      }
+      if (values.all) {
+        if (first !== 'on' || second || rest.length) throw new Refused('USAGE', 'pullboard relay on --all [--url <address>]');
+        const result = await relayOnAll(values.url, io);
+        io.result?.(result); return result.failed.length ? 1 : 0;
+      }
       if (['tokens', 'revoke'].includes(first)) {
         if (rest.length || values.url || (first === 'tokens' && second) || (first === 'revoke' && !second)) {
           throw new Refused('USAGE', 'pullboard relay tokens, or pullboard relay revoke <token-id>');
@@ -2755,6 +2796,7 @@ async function runMain(argv, streams) {
   try {
     parsed = parseCommandArgs(argv);
     const command = parsed.positionals[0];
+    io.relayJson = Boolean(parsed.values.json);
     io.relayCommand = { cliOperation: command === 'done' ? 'submit' : command, cwd: resolve(io.cwd),
       positionals: parsed.positionals.slice(1),
       values: Object.fromEntries(Object.keys(parsed.values).filter(key => key !== 'json').sort().map(key => [key, parsed.values[key]])) };

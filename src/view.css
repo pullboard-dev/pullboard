@@ -168,7 +168,6 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .needs-you .head { font-weight: 700; display: flex; gap: 8px; align-items: center; }
 .needs-you .head i { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); display: inline-block; }
 .needs-you .head.quiet { color: var(--ink-muted); font-weight: 600; }
-.needs-you .ask + .head.quiet { margin-top: 12px; }
 .needs-you .more { padding: 2px 4px; }
 .ny { display: grid; grid-template-columns: auto minmax(5em, 1fr) minmax(0, max-content); gap: 10px; align-items: baseline; text-align: left; border: 0; background: none; padding: 6px 4px; border-radius: 8px; width: 100%; min-height: 44px; }
 .ny:has(.ny-open):hover { background: color-mix(in srgb, var(--warn) 10%, var(--surface)); }
@@ -177,17 +176,10 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .ny .ny-open { min-height: 44px; border: 0; padding: 0; background: none; color: var(--warn); cursor: pointer; text-align: right; }
 .ny em { font-style: normal; color: var(--warn); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (width < 480px) { .ny { grid-template-columns: auto minmax(0, 1fr); row-gap: 1px; } .ny .ny-open { grid-column: 2; } }
-.ask { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: center; padding: 6px 4px; }
-.ask > p { grid-column: 1; margin: 0; overflow-wrap: anywhere; }
-.ask small { color: var(--ink-muted); }
-.ask button { grid-row: 1 / span 2; grid-column: 2; }
 .answering { flex: 1 1 100%; display: flex; gap: 10px; align-items: baseline; justify-content: space-between; margin: 0; font-size: 13px; color: var(--ink-muted); }
 .answering > span { min-width: 0; overflow-wrap: anywhere; }
 .mark { font: 600 11px var(--mono); padding: 0 6px; border-radius: 999px; background: var(--surface-2); color: var(--ink-muted); }
 .mark.ask { display: inline; background: var(--warn-soft); color: var(--warn); }
-.ev { display: flex; flex-wrap: wrap; gap: 0 6px; align-items: baseline; width: fit-content; max-width: 100%; margin-top: 4px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); font-size: 12px; color: var(--ink-muted); }
-.ev b { font: 600 11px var(--mono); letter-spacing: .04em; text-transform: uppercase; color: var(--ink); }
-.ev code { font: 12px var(--mono); }
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 2px; }
 .chips button { flex: 0 0 auto; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 9px; cursor: pointer; font-size: 13px; }
@@ -244,6 +236,7 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .detail h3 { margin: 0 0 6px; font: 600 11px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
 .detail .text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .detail .muted, .muted { color: var(--ink-muted); }
+.check-warning { margin: 6px 0 0; color: var(--warn); font-size: 13px; }
 .kv { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); gap: 4px 10px; font-size: 13px; margin: 0; }
 .kv dt { color: var(--ink-faint); } .kv dd { margin: 0; overflow-wrap: anywhere; }
 .kv dd.waits-on button.ref { border: 0; background: none; padding: 0; font: inherit; color: var(--accent-strong); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
@@ -295,11 +288,80 @@ form.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; paddin
 .feed > div { display: grid; grid-template-columns: 4.6em minmax(0, 1fr); gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); overflow-wrap: break-word; }
 .feed > .empty { display: block; }
 .feed > div:first-child, .feed > .day + div { border-top: 0; }
+/* The shout composer: one bar, to on the left, the message growing with what is typed, send on the right. */
+.shout-form { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px; }
+.shout-form > .composer { flex: 1 1 100%; min-width: 0; }
+.composer { display: flex; align-items: flex-end; gap: 6px; padding: 4px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); }
+.composer:focus-within { border-color: var(--accent); }
+.composer .to { display: flex; flex: none; align-items: center; gap: 4px; padding: 0 4px 0 10px; border-right: 1px solid var(--line); color: var(--ink-faint); font-size: 12px; }
+.composer .to input { width: 7.5em; min-height: 44px; border: 0; padding: 0 4px; background: none; color: var(--ink); font-weight: 600; }
+.composer textarea { flex: 1; min-width: 0; min-height: 44px; max-height: 12em; padding: 11px 8px; border: 0; background: none; resize: none; field-sizing: content; line-height: 1.5; }
+.composer input:focus-visible, .composer textarea:focus-visible { outline: 0; }
+.composer .send { display: grid; place-items: center; flex: none; width: 44px; height: 44px; border: 0; border-radius: 9px; background: var(--ink); color: var(--surface); cursor: pointer; }
+.composer .send:hover { background: var(--accent-strong); color: var(--on-accent); }
+.composer .send svg { width: 18px; height: 18px; }
+/* The feed's bar: whose shouts these are, and the agents panel shown or hidden. */
+#feed > .feed-bar { display: flex; border-top: 0; justify-content: space-between; align-items: center; gap: 8px; padding: 0 4px; color: var(--ink-muted); font-size: 13px; }
+.link { display: inline-flex; align-items: center; min-height: 44px; padding: 0; border: 0; background: none; color: var(--accent-strong); font: inherit; font-weight: 600; cursor: pointer; }
+[data-pane="shouts"].bare { grid-template-columns: minmax(0, 1fr); }
+[data-pane="shouts"].bare > aside { display: none; }
+/* The asks as cards in a quiet panel; the amber lives in the heading's dot, not in a box. */
+#decisions { background: var(--surface); border-color: var(--line); padding: 10px 12px 4px; }
+#decisions > .shout { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 0 12px; padding: 10px 2px; border-top: 1px solid var(--line); }
+#decisions > .head + .shout { border-top: 0; }
+#decisions .shout.clamp:not(.open) .text { -webkit-line-clamp: 3; }
+#decisions .answer { margin-top: 6px; }
+.all-agents { margin-top: 2px; font-size: 13px; }
+.agent-name { display: inline-flex; align-items: center; min-height: 44px; padding: 0; border: 0; background: none; font: inherit; font-weight: 700; color: var(--ink); cursor: pointer; }
+.agent-name:hover { color: var(--accent-strong); text-decoration: underline; text-underline-offset: 2px; }
+.agent.on .agent-name { color: var(--accent-strong); }
+/* Shouts as cards (#250): who and when on top, what was said below, each agent in a colour of its own. No
+ * card carries a coloured edge; colour lives in the avatar, the name and the chips. */
+:root { --hue-0: light-dark(#0f766e, #5eead4); --hue-1: light-dark(#1d4ed8, #93b4f8); --hue-2: light-dark(#6d28d9, #c4b5fd); --hue-3: light-dark(#be185d, #f9a8d4);
+  --hue-4: light-dark(#b45309, #fcd34d); --hue-5: light-dark(#15803d, #86efac); --hue-6: light-dark(#b91c1c, #fca5a5); --hue-7: light-dark(#475569, #cbd5e1); }
+.shout.h0 { --h: var(--hue-0); } .shout.h1 { --h: var(--hue-1); } .shout.h2 { --h: var(--hue-2); } .shout.h3 { --h: var(--hue-3); }
+.shout.h4 { --h: var(--hue-4); } .shout.h5 { --h: var(--hue-5); } .shout.h6 { --h: var(--hue-6); } .shout.h7 { --h: var(--hue-7); }
+#feed > .shout { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 0 12px; align-items: start; padding: 14px 4px; border-top: 1px solid var(--line); }
+#feed > .shout:first-child, #feed > .day-rule + .shout { border-top: 0; }
+#feed > .day-rule { display: flex; align-items: center; gap: 12px; margin: 10px 0 2px; color: var(--ink-faint); font: 600 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+#feed > .day-rule::before, #feed > .day-rule::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
+#feed > .day-rule:first-child { margin-top: 2px; }
+.shout.lead .avatar { border-radius: 9px; background: var(--ink); color: var(--surface); }
+.shout.lead .avatar svg { width: 18px; height: 18px; }
+.shout.lead .who { color: var(--ink); }
+.shout .avatar { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: color-mix(in srgb, var(--h) 16%, var(--surface)); color: var(--h); font: 700 11px var(--mono); }
+.shout .avatar.wide { font-size: 9px; letter-spacing: -.02em; }
+.shout-main { min-width: 0; }
+.shout header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 7px; }
+.shout .who { color: var(--h); font-weight: 700; }
+.shout .to, .shout .item { color: var(--ink-faint); }
+.shout .item { font: 12px var(--mono); }
+.shout header time { margin-left: auto; color: var(--ink-faint); font-size: 12px; white-space: nowrap; }
+.shout .text { margin-top: 3px; overflow-wrap: break-word; }
+.shout.clamp:not(.open) .text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
+.shout .more { display: none; align-items: center; min-height: 44px; margin: -8px 0 -10px; padding: 0; border: 0; background: none; color: var(--accent-strong); font-weight: 600; font-size: 13px; cursor: pointer; }
+.shout.clamp .more { display: inline-flex; }
+.shout .band { margin-top: 8px; padding: 6px 10px; border-radius: 8px; background: var(--warn-soft); color: var(--warn); font-weight: 600; font-size: 13px; }
+.shout .band.done { background: var(--surface-2); color: var(--ink-muted); font-weight: 500; }
+.shout .receipt { display: grid; gap: 4px; margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); font-size: 13px; }
+.shout .receipt .badge { padding: 1px 7px; border-radius: 999px; background: var(--blue-soft); color: var(--blue); font: 600 11px var(--mono); text-transform: capitalize; }
+.shout .receipt .outcome { color: var(--ink-muted); }
+.shout .receipt-foot { color: var(--ink-faint); font-size: 12px; }
+/* In a shout, a chip says what it is: an item, a path, a commit, a command. */
+.shout button.ref[data-go] { padding: 0 5px; border-radius: 5px; background: var(--violet-soft); color: var(--violet); font-weight: 600; text-decoration: none; }
+.shout code.inline.path { background: var(--blue-soft); color: var(--blue); }
+.shout code.inline.sha { background: var(--warn-soft); color: var(--warn); }
+.shout code.inline.cmd { background: var(--accent-soft); color: var(--accent-strong); }
+/* In a shout a long chip stays one piece: it moves whole to the next line, and one longer than the line ends in an
+   ellipsis, the whole of it on hover and in a copy. */
+.shout code.inline.long { display: inline-block; box-sizing: border-box; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; vertical-align: bottom; }
 .feed .day { margin: 0; padding: 12px 0 4px; font: 600 11px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
 .feed .day:first-child { padding-top: 6px; }
 button.ref { width: auto; min-height: 0; border: 0; border-radius: 0; background: none; padding: 0; color: var(--accent-strong); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; display: inline; vertical-align: baseline; line-height: inherit; font: inherit; }
 /* A code reference (path:lines@sha) is one long token: wider than its line, it breaks anywhere rather than push the page sideways. */
-button.ref[data-code] { max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: left; }
+button.ref[data-code] { display: inline-flex; max-width: 100%; vertical-align: bottom; white-space: nowrap; text-align: left; }
+button.ref[data-code] .ref-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+button.ref[data-code] .ref-at { flex: none; }
 code.inline { padding: 0 3px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 8%, var(--surface)); font: .92em var(--mono); white-space: nowrap; }
 code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 /* A brief's '- ' lines, wherever text is drawn: tight bullets, nested ones indented under their parent. */
