@@ -11,14 +11,16 @@ import { parseArgs } from 'node:util';
 import * as store from './board.js';
 import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
 import { doctrineHistory, loadDoctrine } from './doctrine.js';
-import { requirePersonChannel } from './person.js';
+import { agentSessionDigest, requirePersonChannel } from './person.js';
+import { bindLocalSession } from './agent-session.js';
 import { decisionProjection, planRowApply, prepareRowDecisions, restoreRowApply, writeRowApply } from './row-decisions.js';
 import { digestOf, gateReport, runGate, runShell, withGateSlot } from './gate.js';
-import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, isClean, mainCheckout, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
+import { bareWorktreeFinding, contains, differFromHead, git, gitChildEnv, headCommit, headTree, isClean, mainCheckout, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
 import {
   FIX_NOTE,
   applyFixers,
   commitMsgProblems,
+  commitCitationWarnings,
   installHooks,
   preCommitProblems,
   prePushProblems,
@@ -37,6 +39,7 @@ import {
   lintSpec,
   loadSpec,
   permanenceProblems,
+  parseSpec,
   readSignoffs,
   signOff,
   standings,
@@ -63,10 +66,39 @@ import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
 import { relayCommandReceipt, relayCommandReceiptReported, relayLinked, relayOff, relayOn, relayOperation, relayRecovered, relayStatus, syncRelay } from './relay.js';
+import { relayJoin, relayPair } from './relay-pairing-client.js';
 import { executePersonRequests } from './relay-request-execution.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
+const CHECKOUT_LEASES = new WeakMap();
+
+/**
+ * Read the grandfather baseline from the primary checkout's attached branch, never a builder's head.
+ *
+ * @param {string} root
+ * @param {string} path
+ * @returns {{ status: number, stdout: string }}
+ */
+function coordinatorFile(root, path) {
+  const commonDir = git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+  const coordinatorRoot = dirname(commonDir);
+  const env = { ...gitChildEnv(root), GIT_NO_REPLACE_OBJECTS: '1' };
+  const branch = spawnSync('git', ['symbolic-ref', '--quiet', 'HEAD'], {
+    cwd: coordinatorRoot, env, encoding: 'utf8',
+  });
+  const ref = (branch.stdout ?? '').trim();
+  if (branch.status !== 0 || !ref.startsWith('refs/heads/')) {
+    throw new Refused(
+      'COORDINATOR_DETACHED',
+      'the primary checkout must be on its attached local branch to establish the collision baseline; the coordinator returns it to its branch',
+    );
+  }
+  const result = spawnSync('git', ['--no-replace-objects', 'show', `${ref}:${path}`], {
+    cwd: coordinatorRoot, env, encoding: 'utf8',
+  });
+  return { status: result.status ?? 1, stdout: result.stdout ?? '' };
+}
 
 const ALL_HELP = `pullboard ${VERSION}: the local-first work board for teams of coding agents.
 Nothing ships until a second agent verifies it.
@@ -78,6 +110,7 @@ Set up
   pullboard join <lane> [--route light] [--family <name>]       register this worktree as an agent
                                         --route sets which work the model can take; --family records its name
   pullboard whoami | lanes | status     who you are, the lanes, the board at a glance
+  pullboard takeover                   rebind this checkout when the same agent starts a new session
   pullboard resources                  local resource holders and their FIFO queues
   pullboard settings [gateSlots <n>]    view or set this machine's gate slots (default 2)
   pullboard view [--port N] [--no-open]  every project on this machine in your browser: items, shouts, doctrine,
@@ -85,8 +118,9 @@ Set up
   pullboard view --export <dir>         a read-only snapshot with event replay, for any static host
   pullboard serve [--port N]           local API v1: boards, state, moves, requests and live events,
                                         behind the session secret in its printed address
-  pullboard relay [on|off] [--url <address>]  link, inspect or unlink this board's sealed relay mirror
+  pullboard relay [on|off|pair|join <code>] [--url <address>]  link, inspect or unlink this board's sealed relay
                                         on signs in through GitHub; the address defaults to https://app.pullboard.dev
+                                        pair prints a one-use machine code; join stores it in another clone
   pullboard resume                      where you are: your claim, branch, uncommitted work, what came back,
                                         unread shouts, what to do next; run it to start any session
   pullboard hooks                       reinstall the git hooks (e.g. after a fresh clone)
@@ -180,7 +214,7 @@ Reject reasons: TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HE
 --json prints one versioned document for every command; refusals include their code and next step.`;
 
 const HELP_NAMES = [
-  'tour', 'init', 'worktree', 'join', 'whoami', 'lanes', 'status', 'resources', 'settings', 'view', 'view export',
+  'tour', 'init', 'worktree', 'join', 'takeover', 'whoami', 'lanes', 'status', 'resources', 'settings', 'view', 'view export',
   'serve', 'relay', 'resume', 'hooks', 'add', 'edit', 'escalate', 'run', 'list', 'doctor', 'show', 'next',
   'check', 'claim', 'release', 'submit', 'done', 'verify', 'fact', 'shout', 'answer', 'pass', 'decisions', 'inbox', 'export', 'import',
   'sweep', 'merged', 'withdraw', 'refreeze', 'hold', 'stats', 'ledger', 'log', 'spec', 'spec check', 'spec view',
@@ -649,9 +683,60 @@ function withBoard(ctx, work) {
 /** Dispatch a board mutation locally, or seal it before any linked replica applies it. */
 async function ordered(ctx, board, operation, args) {
   const command = ['add', 'edit', 'merged'].includes(ctx.io.relayCommand?.cliOperation) ? ctx.io.relayCommand : undefined;
-  return relayLinked(ctx.info.root)
-    ? relayOperation(ctx.info.root, operation, args, ctx.io, command)
-    : store[operation](board, ...args);
+  /** Dispatch while this session holds the checkout, including long-running next/run loops. */
+  const execute = () => relayLinked(ctx.info.root)
+    ? relayOperation(ctx.info.root, operation, args, ctx.io, command) : store[operation](board, ...args);
+  const digest = agentSessionDigest();
+  if (CHECKOUT_LEASES.has(ctx.io) || !digest || ctx.io.personChannel === 'view' || ctx.io.personRequest) return execute();
+  const agent = ctx.info.isMain ? COORDINATOR : store.agentAt(board, ctx.info.root)?.agent_id ?? 'unjoined agent';
+  const lease = await bindLocalSession(ctx.info, { agent, digest, keepLease: true });
+  try { return await execute(); }
+  finally { lease.release(); }
+}
+
+/** Check ownership before sync or command side effects; reads and authenticated person channels keep their identity. */
+async function bindCheckoutSession(io, positionals, values) {
+  if (values.help || values.version || io.personChannel === 'view' || io.personRequest) return;
+  const [command, first] = positionals;
+  if (command === 'takeover' && (positionals.length !== 1 || Object.keys(values).some((key) => key !== 'json'))) {
+    throw new Refused('USAGE', 'pullboard takeover takes no arguments; run pullboard takeover [--json]');
+  }
+  const writes = ['init', 'join', 'worktree', 'hooks', 'hook', 'add', 'edit', 'fact', 'escalate', 'run', 'sweep',
+    'next', 'claim', 'hold', 'release', 'submit', 'done', 'verify', 'merged', 'withdraw', 'refreeze', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget'];
+  if (!writes.includes(command) && !(command === 'settings' && first) && !(command === 'spec' && first === 'apply') && !(command === 'relay' && ['on', 'off'].includes(first))) return;
+  if (command === 'answer' && values.as === 'person') return;
+  const digest = agentSessionDigest();
+  if (!digest) {
+    if (command === 'takeover') throw new Refused('AGENT_SESSION', 'takeover belongs to an agent session; run pullboard takeover from the agent’s shell');
+    return;
+  }
+  const info = repoInfo(io.cwd);
+  let agent = info.isMain ? COORDINATOR : null;
+  if (!info.isMain) {
+    const ctx = context(io);
+    agent = withBoard(ctx, (board) => store.agentAt(board, info.root)?.agent_id);
+    if (!agent && command !== 'join') throw new Refused('NOT_JOINED', 'this worktree has not joined a lane; run pullboard join <lane>');
+  }
+  const lease = await bindLocalSession(info, { agent: agent ?? 'unjoined agent', digest, takeover: command === 'takeover', keepLease: !['run', 'next'].includes(command),
+    /** Use an existing ordered shout so takeover has a receipt without changing the board format. */
+    recordTakeover: async () => {
+      const ctx = context(io);
+      await withBoard(ctx, async (board) => {
+        const me = whoAmI(ctx, board);
+        const message = { from: me.id, to: info.isMain ? 'person' : COORDINATOR,
+          text: `${me.id} took over this checkout in a new agent session.`, lanes: laneNames(ctx.config) };
+        if (relayLinked(info.root)) await relayOperation(info.root, 'shout', [message], io);
+        else store.shout(board, message);
+      });
+    },
+  });
+  if (agent) return { lease };
+  /** Replace the temporary identity after a successful first join, retaining the winning session. */
+  return { lease, finish: async () => {
+    const ctx = context(io);
+    const me = withBoard(ctx, (board) => whoAmI(ctx, board));
+    lease.updateAgent(me.id);
+  } };
 }
 
 /**
@@ -700,7 +785,7 @@ function freezer(ctx, { captureVerifyPolicy = false } = {}) {
     } else {
       config = policy ? itemPolicy(ctx.info.root, { ...item, item_frozen: JSON.stringify({ policy }) }).config : ctx.config;
     }
-    const frozen = frozenCriterion(loadSpec(ctx.info.root, config), item);
+    const frozen = frozenCriterion(loadSpec(ctx.info.root, config), item, loadDoctrine(ctx.info.root, config));
     if (!policy) return frozen; // Legacy criteria retain their original digest and committed claim base.
     const text = JSON.stringify({ ...JSON.parse(frozen.text), policy });
     return { text, digest: createHash('sha256').update(text).digest('hex') };
@@ -909,7 +994,7 @@ function resumeHere(io) {
     };
   });
   const { me } = card;
-  card.stale = staleFrozenItems(card.all, loadSpec(root, ctx.config).rows).map((item) => ({ ...item, ...staleItemFinding(item) }));
+  card.stale = staleFrozenItems(card.all, loadSpec(root, ctx.config).rows, ctx.doctrine.rows).map((item) => ({ ...item, ...staleItemFinding(item) }));
   const say = (line) => io.say(line);
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
   say(`resume: ${me.id}${me.family ? ` (${me.family})` : ''}, ${me.lane} lane${isMain ? ', the main checkout' : ''}, at ${root}`);
@@ -1076,6 +1161,13 @@ function setupCommands(io, { first, values }) {
       return 0;
     },
     worktree: () => worktreeFor(io, first, values.route ?? 'strong', values.family ?? null),
+    takeover: () => {
+      const ctx = context(io);
+      const me = withBoard(ctx, (board) => whoAmI(ctx, board));
+      io.result?.({ agent: me.id, path: ctx.info.root });
+      io.say(`${me.id} took over this checkout for the current agent session`);
+      return 0;
+    },
   };
 }
 
@@ -1560,9 +1652,11 @@ async function verifyHere(ctx, id, { second, values }) {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
       requireTrunkMerge(root, commit);
       check = await withGateSlot(root, () => checkAtCommit(root, item), { itemCheck: true, onWait: gateWaitReporter(ctx.io) });
-      if (check.state === 'unverified') throw new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the submitted commit; restore the install or check environment, then retry verification; output digest:\n${check.report.replace(/^/gm, '  ')}`);
-      if (check.state === 'red') throw new Refused('CHECK_RED', `the frozen item check is red at the submitted commit; check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit; output digest:\n${check.report.replace(/^/gm, '  ')}`);
-
+      const evidence = check.checked
+        ? `\nlast output lines (up to 40):\n${(check.outputTail ?? '(no output)').split('\n').map((line) => `  ${line}`).join('\n')}\nfull output file: ${check.outputPath ?? `(unavailable${check.outputError ? `: ${check.outputError}` : ''})`}`
+        : '';
+      if (check.state === 'unverified') throw new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the submitted commit; restore the install or check environment, then retry verification; output digest:\n${check.report.replace(/^/gm, '  ')}${evidence}`);
+      if (check.state === 'red') throw new Refused('CHECK_RED', `the frozen item check is red at the submitted commit (${check.stage}); check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit; output digest:\n${check.report.replace(/^/gm, '  ')}${evidence}`);
       const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
       submissionPaths(root, item, commit, { mainCommit: receipt?.policyCommit, dependencies: dependencySnapshots(board.db, item) });
       requireTrunkMerge(root, commit); // Re-read after the frozen check, before accepting.
@@ -1838,7 +1932,7 @@ function workCommands(io, args) {
       }
       if (!first || !isLane(ctx.config, first)) throw new Refused('NO_LANE', `no lane "${first ?? ''}"; see: pullboard lanes`);
       const specIds = idList(values.specs);
-      const problems = idProblems(loadSpec(ctx.info.root, ctx.config), specIds);
+      const problems = idProblems(loadSpec(ctx.info.root, ctx.config), specIds, ctx.doctrine);
       if (problems.length) throw new Refused('UNKNOWN_SPEC', `${problems.join('; ')}`);
       const parentId = values.parent ? idArg(values.parent, 'a parent item id') : null;
       const after = idList(values.after).map((text) => idArg(text, 'an item id after --after'));
@@ -2153,12 +2247,46 @@ async function specCommand(io, { first, second, rest, values }) {
     });
   }
   if (first === 'check' || first === undefined) {
-    const files = [[ctx.config.spec, spec], ...(practice.exists ? [[ctx.config.practice, practice]] : [])];
+    const files = [[ctx.config.spec, spec], ...(practice.exists ? [[practice.name, practice]] : [])];
     for (const [, parsed] of files) assertRequiredSigners(ctx.info.root, parsed.rows);
+    const collisionFiles = [[ctx.config.spec, spec], ...(practice.repoExists ? [[practice.name, practice.repo]] : [])];
+    const previousCounts = new Map(collisionFiles.map(([name]) => {
+      const previous = coordinatorFile(ctx.info.root, name);
+      const rows = previous.status === 0 ? parseSpec(previous.stdout, { strictGrammarVersion: false }).rows : [];
+      const counts = new Map();
+      for (const row of rows) counts.set(row.id, (counts.get(row.id) ?? 0) + 1);
+      return [name, counts];
+    }));
+    const locationsById = new Map();
+    for (const [name, parsed] of collisionFiles) {
+      for (const row of parsed.rows) {
+        const locations = locationsById.get(row.id) ?? [];
+        locations.push({ name, line: row.line });
+        locationsById.set(row.id, locations);
+      }
+    }
+    const collisionFindings = new Map(collisionFiles.map(([name]) => [name, []]));
+    for (const [id, locations] of locationsById) {
+      if (locations.length < 2) continue;
+      const currentCounts = new Map();
+      for (const location of locations) currentCounts.set(location.name, (currentCounts.get(location.name) ?? 0) + 1);
+      const known = [...currentCounts].every(([name, count]) => count <= (previousCounts.get(name)?.get(id) ?? 0));
+      for (let index = 0; index < locations.length; index++) {
+        const location = locations[index];
+        const other = locations[(index + 1) % locations.length];
+        collisionFindings.get(location.name).push({
+          level: known ? 'warning' : 'error', line: location.line, id,
+          message: `${known ? 'known duplicate id' : 'duplicate id'}; also appears at ${other.name}:${other.line}`,
+        });
+      }
+    }
     let errors = 0;
     const messages = [];
     for (const [name, parsed] of files) {
-      const findings = lintSpec(parsed);
+      const findings = [
+        ...lintSpec(parsed).filter((finding) => !finding.message.startsWith('duplicate id;')),
+        ...(collisionFindings.get(name) ?? []),
+      ];
       findings.forEach((finding) => messages.push(`${name}:${finding.line} ${finding.id ?? ''} ${finding.level}: ${finding.message}`.replace('  ', ' ')));
       const history = parsed === practice ? doctrineHistory(ctx.info.root, name) : committedIds(ctx.info.root, name);
       const cited = name === ctx.config.spec ? citations(ctx, history) : new Map();
@@ -2311,7 +2439,10 @@ async function hookCommand(io, { first, second }) {
     problems = preCommitProblems({ root: info.root, isMain: info.isMain, config: ctx.config, agent, boardFile: ctx.file });
   } else if (first === 'commit-msg') {
     const message = readFileSync(second ?? '', 'utf8');
-    problems = commitMsgProblems(message, { rules: ctx.config.commits, spec: loadSpec(info.root, ctx.config) });
+    const spec = loadSpec(info.root, ctx.config);
+    commitCitationWarnings(message, { spec, doctrine: ctx.doctrine })
+      .forEach((warning) => io.say(`pullboard commit-msg: warning: ${warning}`));
+    problems = commitMsgProblems(message, { rules: ctx.config.commits, spec, doctrine: ctx.doctrine });
   } else if (first === 'pre-push') {
     const refsText = await readStdin(io.stdin);
     problems = prePushProblems(info.root, refsText);
@@ -2395,6 +2526,16 @@ async function runCommand(argv, io) {
     if (command === 'hook') return await hookCommand(io, args);
     if (command === 'settings') return settingsCommand(io, args);
     if (command === 'relay') {
+      if (first === 'pair') {
+        if (second || rest.length || values.url) throw new Refused('USAGE', 'pullboard relay pair');
+        const ctx = context(io);
+        return await relayPair(ctx.info.root, io);
+      }
+      if (first === 'join') {
+        if (!second || rest.length) throw new Refused('USAGE', 'pullboard relay join <code> [--url <address>]');
+        const ctx = context(io);
+        return await relayJoin(ctx.info.root, second, values.url, io);
+      }
       if (second || rest.length || (first && !['on', 'off'].includes(first)) || (values.url && first !== 'on')) throw new Refused('USAGE', 'pullboard relay [on|off] [--url <address>]');
       const ctx = context(io);
       if (!first) { await syncRelay(ctx.info.root, io); await executePersonRequests(ctx.info.root, io, main); }
@@ -2442,35 +2583,56 @@ function rememberTrunk(io) {
 export async function main(argv, streams) {
   const io = commandOutput(argv, streams);
   let sync = true;
+  let parsed;
+  let checkoutSession;
   try {
-    const parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
+    parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
     const command = parsed.positionals[0];
     io.relayCommand = { cliOperation: command === 'done' ? 'submit' : command, cwd: resolve(io.cwd),
       positionals: parsed.positionals.slice(1),
       values: Object.fromEntries(Object.keys(parsed.values).filter(key => key !== 'json').sort().map(key => [key, parsed.values[key]])) };
     sync = Boolean(command) && !parsed.values.help && !parsed.values.version && !['help', 'version', 'hook', 'init', 'relay', 'tour'].includes(command);
   } catch { sync = false; }
-  /** A network refusal preserves offline reads; linked mutation dispatch requires an acknowledgement. */
-  const retry = async () => {
-    try { await syncRelay(io.cwd, io); }
-    catch (error) {
-      if (!(error instanceof Refused)) throw error;
-      if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
+  if (parsed) {
+    try {
+      checkoutSession = await bindCheckoutSession(io, parsed.positionals, parsed.values);
+      if (checkoutSession?.lease) CHECKOUT_LEASES.set(io, checkoutSession.lease);
     }
-  };
-  rememberTrunk(io);
-  if (sync) {
-    await retry();
-    try { await executePersonRequests(io.cwd, io, main); }
     catch (error) {
       if (!(error instanceof Refused)) throw error;
-      if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err('pullboard: ' + error.message);
+      io.refusal(error);
+      io.err(`pullboard: ${error.message}`);
+      io.flush(1);
+      return 1;
     }
   }
-  const code = await runCommand(argv, io);
-  if (sync && code === 0) await retry();
-  io.flush(code);
-  return code;
+  try {
+    /** A network refusal preserves offline reads; linked mutation dispatch requires an acknowledgement. */
+    const retry = async () => {
+      try { await syncRelay(io.cwd, io); }
+      catch (error) {
+        if (!(error instanceof Refused)) throw error;
+        if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
+      }
+    };
+    rememberTrunk(io);
+    if (sync) {
+      await retry();
+      try { await executePersonRequests(io.cwd, io, main); }
+      catch (error) {
+        if (!(error instanceof Refused)) throw error;
+        if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err('pullboard: ' + error.message);
+      }
+    }
+    const code = await runCommand(argv, io);
+    if (code === 0) await checkoutSession?.finish?.();
+    if (sync && code === 0) await retry();
+    io.flush(code);
+    return code;
+  } finally {
+    CHECKOUT_LEASES.delete(io);
+    checkoutSession?.lease?.release();
+  }
 }
 
 /** Result-producing command names, including aliases, for API contract coverage (A1). */

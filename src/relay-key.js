@@ -63,7 +63,7 @@ export function storeBoardKey(boardId, key) {
   return 'file';
 }
 
-/** Read a board key only from this device's private file or operating-system keychain. */
+/** Read a board key from device storage or a canonical local environment secret for unpaired agents. */
 export function readBoardKey(boardId) {
   const id = identity(boardId);
   const file = keyFile(id);
@@ -80,7 +80,8 @@ export function readBoardKey(boardId) {
     const found = spawnSync(service, args, { encoding: 'utf8', timeout: 10000 });
     if (found.status === 0) return decodeBoardKey(found.stdout.trim());
   }
-  throw new Refused('RELAY_KEY_MISSING', 'the board key is missing on this device; pair this device again, or run pullboard relay off then relay on to upload a new sealed snapshot');
+  if (process.env.PULLBOARD_RELAY_KEY !== undefined) return decodeBoardKey(process.env.PULLBOARD_RELAY_KEY);
+  throw new Refused('RELAY_KEY_MISSING', 'the board key is missing on this device; set PULLBOARD_RELAY_KEY from your local secret store, pair this device again, or run pullboard relay off then relay on to upload a new sealed snapshot');
 }
 
 /** Remove the device key after a successful unlink, leaving all local board records untouched. */
