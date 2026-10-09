@@ -250,3 +250,9 @@ export function contains(root, ancestor, descendant) {
 export function gitPath(root, name) {
   return resolve(root, git(root, ['rev-parse', '--git-path', name]));
 }
+
+/** Refuse lane-sensitive history checks while grafts can rewrite commit ancestry despite replacement guards [L3]. */
+export function refuseGrafts(root) {
+  const file = gitPath(root, 'info/grafts');
+  if (existsSync(file)) throw new Refused('GIT_GRAFTS', `lane checks cannot trust history while ${file} exists; ask the coordinator to remove the graft file before retrying`);
+}

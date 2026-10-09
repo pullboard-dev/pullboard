@@ -172,7 +172,7 @@ Role guides
 
 Gate and hooks
   pullboard gate [--landing]            run the configured gate; prioritize a trunk landing in the machine queue
-  pullboard hook pre-commit|commit-msg|pre-push   git runs these
+  pullboard hook pre-commit|pre-merge-commit|commit-msg|pre-push   git runs these
 
 ${lifecycleHelp()}
 
@@ -185,7 +185,7 @@ const HELP_NAMES = [
   'check', 'claim', 'release', 'submit', 'done', 'verify', 'fact', 'shout', 'answer', 'pass', 'decisions', 'inbox', 'export', 'import',
   'sweep', 'merged', 'withdraw', 'refreeze', 'hold', 'stats', 'ledger', 'log', 'spec', 'spec check', 'spec view',
   'spec show', 'spec unmet', 'spec signoff', 'spec signers', 'spec signers add', 'forget', 'prompt', 'gate', 'hook',
-  'hook pre-commit', 'hook commit-msg', 'hook pre-push', 'view export', 'version', 'lifecycle', 'help',
+  'hook pre-commit', 'hook pre-merge-commit', 'hook commit-msg', 'hook pre-push', 'view export', 'version', 'lifecycle', 'help',
   'roadmap', 'milestone',
 ];
 
@@ -230,8 +230,9 @@ const HELP_ALIASES = {
   'spec signoff': { usage: 'pullboard spec signoff <ids> [--by <principal>] [--note "..."] [--note-file <file>]', source: 'spec show', onlyFlags: ['--by', '--note', '--note-file'], extraFlags: ['--note-file <file>'] },
   'spec signers': { usage: 'pullboard spec signers add [--key <path>] [--by <principal>]', source: 'spec signers add' },
   'spec signers add': { usage: 'pullboard spec signers add [--key <path>] [--by <principal>]', source: 'spec signers add' },
-  hook: { usage: 'pullboard hook pre-commit|commit-msg|pre-push', source: 'hook' },
+  hook: { usage: 'pullboard hook pre-commit|pre-merge-commit|commit-msg|pre-push', source: 'hook' },
   'hook pre-commit': { usage: 'pullboard hook pre-commit', source: 'hook' },
+  'hook pre-merge-commit': { usage: 'pullboard hook pre-merge-commit', source: 'hook' },
   'hook commit-msg': { usage: 'pullboard hook commit-msg <file>', source: 'hook' },
   'hook pre-push': { usage: 'pullboard hook pre-push', source: 'hook' },
 };
@@ -2304,7 +2305,7 @@ async function hookCommand(io, { first, second }) {
     throw error;
   }
   let problems = [];
-  if (first === 'pre-commit') {
+  if (first === 'pre-commit' || first === 'pre-merge-commit') {
     applyFixers(info.root, ctx.config.fix).forEach((note) => io.err(`pullboard pre-commit: ${note}`));
     const agent = info.isMain ? null : withBoard(ctx, (board) => store.agentAt(board, info.root));
     problems = preCommitProblems({ root: info.root, isMain: info.isMain, config: ctx.config, agent, boardFile: ctx.file });
@@ -2321,7 +2322,7 @@ async function hookCommand(io, { first, second }) {
       if (!gate.isGreen) problems = [`the gate is red; fix it before pushing. ${gateReport(gate)}`];
     }
   } else {
-    throw new Refused('USAGE', 'pullboard hook pre-commit | commit-msg <file> | pre-push');
+    throw new Refused('USAGE', 'pullboard hook pre-commit | pre-merge-commit | commit-msg <file> | pre-push');
   }
   if (!problems.length) return 0;
   io.err(`pullboard ${first}: blocked\n${problems.map((problem) => `  - ${problem}`).join('\n')}\n${FIX_NOTE}`);
