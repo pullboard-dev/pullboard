@@ -1,6 +1,6 @@
 /** Registry metadata, refresh, pruning and forgetting (N33, N35, N36). */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { startFixtureChild as spawn, reportFixtureChildFailure, runFixtureGit } from './fixture-child.js';
 import { performance } from 'node:perf_hooks';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -8,7 +8,6 @@ import { basename, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { configProblems, defaults, loadConfig } from '../src/config.js';
 import { forgetProject, listProjects, registerProject, registryFile } from '../src/projects.js';
-import { reportFixtureChildFailure, runFixtureGit } from './fixture-child.js';
 
 /**
  * Create an initialized temporary Git repository with a private Pullboard home.

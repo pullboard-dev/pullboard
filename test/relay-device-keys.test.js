@@ -1,7 +1,7 @@
 /** Real device enrollment and key wraps; actual WebCrypto only [H5,H15,H17]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { spawnSync } from 'node:child_process';
+import { runFixtureChild as spawnSync } from './fixture-child.js';
 import { mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -136,7 +136,7 @@ test('machine device enrollment survives a new process and refuses unrecorded or
   const module = new URL('../src/relay-machine.js', import.meta.url).href;
   const restarted = spawnSync(process.execPath, ['--input-type=module', '-e',
     `import {readRelayMachine} from ${JSON.stringify(module)}; console.log(JSON.stringify(readRelayMachine().devices.map(device => device.deviceId)));`],
-  { env: process.env, encoding: 'utf8', timeout: 10_000 });
+  { env: process.env, encoding: 'utf8' });
   assert.equal(restarted.status, 0, restarted.stderr);
   assert.deepEqual(JSON.parse(restarted.stdout), [phone.deviceId], 'a fresh process sees the same authenticated device');
   removeRecordedDevice(phone.deviceId);

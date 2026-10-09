@@ -1,6 +1,6 @@
 /** Real private relay lifecycle storage, controlled clocks and HTTP authorization [H18]. */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { startFixtureChild as spawn } from './fixture-child.js';
 import { DatabaseSync } from 'node:sqlite';
 import { createCipheriv, randomBytes } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';

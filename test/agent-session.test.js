@@ -1,7 +1,6 @@
 /** Checkout-session ownership and takeover behavior [B3,B7]. */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import { fixtureChildMessage, reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { startFixtureChild as spawn, fixtureChildMessage, reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -219,7 +218,7 @@ test('the actual view adapter writes without taking over an agent session [B3,B7
     process.stdout.write(JSON.stringify(response));
   `;
   const response = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
-    cwd: box.repo, env: { ...box.base, CODEX_THREAD_ID: 'other-process-view-session-273' }, encoding: 'utf8', timeout: 15_000,
+    cwd: box.repo, env: { ...box.base, CODEX_THREAD_ID: 'other-process-view-session-273' }, encoding: 'utf8',
   });
   assert.equal(response.status, 0, fixtureChildMessage(response));
   const document = JSON.parse(response.stdout);

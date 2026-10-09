@@ -14,8 +14,7 @@ import { HELP } from '../src/cli.js';
 import { loadConfig } from '../src/config.js';
 import { Refused } from '../src/refused.js';
 import { BLANKS, IN_STATE, MACHINE, effectiveGuards, lifecycleHelp, lifecycleMarkdown, machineProblems, storeTriggers } from '../src/machine.js';
-import { execFileSync, spawnSync } from 'node:child_process';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 
 /**
  * Refusals that are not about an item's lifecycle, so no move declares them: command input, caller

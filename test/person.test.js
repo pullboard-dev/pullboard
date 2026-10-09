@@ -1,8 +1,7 @@
 /** Person terminal identity and immutable channel receipts on real repositories [B26]. */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { startFixtureChild as spawn, fixtureChildMessage, reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { performance } from 'node:perf_hooks';
-import { fixtureChildMessage, reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';

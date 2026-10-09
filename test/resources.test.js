@@ -1,8 +1,7 @@
 /** Real-process resource queue and lease coverage [Q1,Q2,Q3]. */
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { startFixtureChild as spawn, runFixtureChild as spawnSync, reportFixtureChildFailure, runFixtureChild } from './fixture-child.js';
 import { performance } from 'node:perf_hooks';
-import { reportFixtureChildFailure, runFixtureChild } from './fixture-child.js';
 import { once } from 'node:events';
 import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -165,7 +164,7 @@ async function event(child, timeoutMs = 10_000) {
       const failure = reportFixtureChildFailure({ command: child.spawnfile, args: child.spawnargs.slice(1),
         status: child.exitResult?.code ?? null, signal: child.exitResult?.signal ?? null,
         elapsedMs: performance.now() - child.startedAt, stderr: child.errors, env: child.spawnEnv,
-        detail: `worker event wait expired after ${timeoutMs}ms` });
+        detail: `worker timed out waiting for its event after ${timeoutMs}ms` });
       reject(new Error(failure));
     }, timeoutMs) };
     child.lineWaiters.push(waiter);

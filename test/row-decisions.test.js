@@ -1,8 +1,7 @@
 /** Person-authored row decisions stay on the board until a coordinator applies them [B26,S18,S19,C7]. */
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { startFixtureChild as spawn, runFixtureChild as spawnSync, reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { performance } from 'node:perf_hooks';
-import { reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';

@@ -1,13 +1,12 @@
 /** Private end-to-end proof for ordered agent enrollment and scoped relay credentials [H2,H9,A4]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { runFixtureChild as spawnSync, cleanupFixtureChildren, runFixtureChild, runFixtureChildAsync } from './fixture-child.js';
 import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { chmodSync, existsSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, test } from 'node:test';
-import { cleanupFixtureChildren, runFixtureChild, runFixtureChildAsync } from './fixture-child.js';
 import { claim as claimStoredItem, closeBoard, openBoard, register as registerStoredAgent, submit as submitStoredItem } from '../src/board.js';
 import { serveApi } from '../src/api.js';
 import { main } from '../src/cli.js';

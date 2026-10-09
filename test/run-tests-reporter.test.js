@@ -1,6 +1,6 @@
 /** Keep the production runner's report stable across Node versions and caller options [C7]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { runFixtureChild as spawnSync } from './fixture-child.js';
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -40,7 +40,6 @@ syncBuiltinESMExports();
       PULLBOARD_REPORTER_CAPTURE_FILE: capture,
     },
     encoding: 'utf8',
-    timeout: 15_000,
   });
   const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
   const childArgs = JSON.parse(readFileSync(capture, 'utf8'));

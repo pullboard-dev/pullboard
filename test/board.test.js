@@ -3,8 +3,7 @@
  * R2). The git-facing rules (V3, V4, V7) run against real repos in e2e.test.js.
  */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { runFixtureGit } from './fixture-child.js';
+import { runFixtureExecFile as execFileSync, runFixtureGit } from './fixture-child.js';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

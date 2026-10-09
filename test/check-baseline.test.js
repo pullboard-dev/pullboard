@@ -1,7 +1,6 @@
 /** Check baselines run against main and travel with deterministic board moves [V2,H3,H16,N23]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -363,7 +362,7 @@ function applyInReplica(file, replicaDir, moveFile, env, at = '2026-10-07T12:00:
     'finally { closeBoard(board); }',
   ].join('\n');
   return runFixtureChild(process.execPath, ['--input-type=module', '-e', source, file, moveFile, String(env.sequence), at], {
-    cwd: replicaDir, env, encoding: 'utf8', timeout: 10_000,
+    cwd: replicaDir, env, encoding: 'utf8',
   });
 }
 

@@ -1,7 +1,6 @@
 /** The frozen check outcome travels with accepts without changing the board schema [V19,V8]. */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { runFixtureExecFile as execFileSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';

@@ -1,6 +1,6 @@
 /** Real-SQLite tests for the deterministic, sequence-ordered move engine [H3,H16]. */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync } from './fixture-child.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';

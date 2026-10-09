@@ -1,7 +1,6 @@
 /** Keep the coordinator's handoff brief short, ordered, and derived from real Git and board state [N19,B3]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { DatabaseSync } from 'node:sqlite';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

@@ -1,8 +1,7 @@
 /** The public, versioned JSON surface of every pullboard command (A1). */
 import assert from 'node:assert/strict';
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, startFixtureChild as spawn, runFixtureChild as spawnSync, reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { performance } from 'node:perf_hooks';
-import { reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import {
   chmodSync,
   existsSync,

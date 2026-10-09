@@ -14,7 +14,7 @@ export function safeFixtureDiagnostic(value, env = process.env) {
     }
   }
   return text
-    .replace(/\b(?:ps|pa)_[A-Za-z0-9_-]+\b/gu, '[redacted-token]')
+    .replace(/\b(?:ps|pa|pm|pg)_[A-Za-z0-9_-]+\b/gu, '[redacted-token]')
     .replace(/\b[a-f\d]{32}\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b/giu, '[redacted-pairing-code]')
     .replace(/((?:token|secret|password|private[_ -]?key|access[_ -]?key|relay[_ -]?key|pairing[_ -]?code|verification[_ -]?code)\s*[:=]\s*)[^\s,;]+/giu, '$1[redacted]')
     .replace(/(authorization\s*:\s*bearer\s+)[^\s,;]+/giu, '$1[redacted]');
@@ -43,7 +43,10 @@ export function reportFixtureChildFailure(options) {
 export function runFixtureChild(command, args = [], options = {}) {
   if (!Array.isArray(args)) { options = args; args = []; }
   const started = performance.now();
-  const result = spawnSync(command, args, options);
+  const stderrIgnored = options.stdio === 'ignore' || (Array.isArray(options.stdio) && options.stdio[2] === 'ignore');
+  const childOptions = stderrIgnored ? { ...options, stdio: options.stdio === 'ignore'
+    ? ['ignore', 'ignore', 'pipe'] : [options.stdio[0], options.stdio[1], 'pipe'] } : options;
+  const result = spawnSync(command, args, childOptions);
   const elapsedMs = Math.round(performance.now() - started);
   const env = options.env ?? process.env;
   const stderr = safeFixtureDiagnostic(Buffer.isBuffer(result.stderr) ? result.stderr.toString('utf8') : (result.stderr ?? ''), env);
@@ -59,7 +62,7 @@ export function runFixtureChild(command, args = [], options = {}) {
     command, args, status: result.status, signal: result.signal, elapsedMs, stderr, env,
     detail: result.error?.message ?? '',
   });
-  return { ...result, command: [command, ...args], elapsedMs, context, failure };
+  return { ...result, stderr: stderrIgnored ? null : result.stderr, command: [command, ...args], elapsedMs, context, failure };
 }
 
 /** Run an async fixture child, retaining redacted diagnostics without imposing a child clock. */
@@ -121,4 +124,40 @@ export function runFixtureGit(args, options = {}) {
   const result = runFixtureChild('git', args, { encoding: 'utf8', ...options });
   if (result.status !== 0) throw new Error(result.failure);
   return result.stdout.trim();
+}
+
+/** Preserve execFileSync output and failure fields while adding common child diagnostics. */
+export function runFixtureExecFile(command, args = [], options = {}) {
+  if (!Array.isArray(args)) { options = args; args = []; }
+  const result = runFixtureChild(command, args, options);
+  if (result.failure) {
+    const error = new Error(result.failure);
+    Object.assign(error, result);
+    throw error;
+  }
+  return result.stdout;
+}
+
+/** Execute a fixture shell command with the same output contract and failure evidence. */
+export function runFixtureExec(command, options = {}) {
+  return runFixtureExecFile(options.shell ?? '/bin/sh', ['-c', command], options);
+}
+
+/** Observe a spawned fixture without changing its streams, exit events or child-clock policy. */
+export function startFixtureChild(command, args = [], options = {}) {
+  if (!Array.isArray(args)) { options = args; args = []; }
+  const started = performance.now();
+  const child = spawn(command, args, options);
+  let stderr = '';
+  let spawnError;
+  child.stderr?.on('data', part => { stderr += part.toString(); });
+  child.once('error', error => { spawnError = error; });
+  child.once('close', (status, signal) => {
+    if (status !== 0 || signal || spawnError) {
+      child.fixtureFailure = reportFixtureChildFailure({ command, args, status, signal,
+        elapsedMs: performance.now() - started, stderr, env: options.env ?? process.env,
+        detail: spawnError?.message ?? '' });
+    }
+  });
+  return child;
 }

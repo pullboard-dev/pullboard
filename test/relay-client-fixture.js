@@ -1,7 +1,7 @@
 /** Private real CLI, auth and relay fixture; credentials never enter assertion messages [H1,H7,H18]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { spawn } from 'node:child_process';
+import { startFixtureChild as spawn, reportFixtureChildFailure, runFixtureChild } from './fixture-child.js';
 import { performance } from 'node:perf_hooks';
 import { createServer } from 'node:http';
 import { Transform } from 'node:stream';
@@ -16,7 +16,6 @@ import { createRelayHandler } from '../relay/service.js';
 import { createGitHubClient } from '../relay/github.js';
 import { githubFixture } from './relay-fixture.js';
 import { relayWorkBudgetMs, MAX_SNAPSHOT_ATTEMPTS } from './relay-budget.js';
-import { reportFixtureChildFailure, runFixtureChild } from './fixture-child.js';
 
 const CLI = resolve(import.meta.dirname, '../bin/pullboard.js');
 const MAX_OBSERVED_SNAPSHOT_UPLOADS = MAX_SNAPSHOT_ATTEMPTS;

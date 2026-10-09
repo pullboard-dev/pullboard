@@ -1,5 +1,5 @@
 /** Shared isolated Chrome launcher with bounded startup and complete process-group cleanup [C7]. */
-import { spawn } from 'node:child_process';
+import { startFixtureChild as spawn } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { monitorEventLoopDelay } from 'node:perf_hooks';

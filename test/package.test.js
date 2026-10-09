@@ -3,7 +3,7 @@
  * trust, and every import is a Node built-in or a file of its own.
  */
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { startFixtureChild as spawn, runFixtureChild as spawnSync } from './fixture-child.js';
 import { once } from 'node:events';
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -47,7 +47,6 @@ function look(sources) {
       stdio: ['ignore', 'pipe', 'pipe'],
       encoding: 'utf8',
       maxBuffer: 2 ** 26,
-      timeout: 3000,
     });
     assert.equal(child.status, 0, child.stderr);
     return JSON.parse(child.stdout);

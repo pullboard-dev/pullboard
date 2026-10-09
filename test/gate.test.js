@@ -3,8 +3,7 @@
  * no stamp stands in for it, and the tree must hold still while it runs.
  */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -157,7 +156,7 @@ function privateCheck(box, command) {
   const pidFile = logPath + '.pid';
   const run = runFixtureChild(process.execPath, [PRIVATE_WORKER], {
     cwd: box.repo, env: box.env, encoding: 'utf8',
-    input: JSON.stringify({ command, timeout: 30_000, pidFile, logPath }), timeout: 35_000,
+    input: JSON.stringify({ command, timeout: 30_000, pidFile, logPath }),
   });
   rmSync(pidFile, { force: true });
   assert.equal(run.status, 0, `${run.stdout}${run.stderr}`);

@@ -1,7 +1,6 @@
 /** Exercise typed item threads and deterministic replication on isolated SQLite boards [B29,B30,B31,B32]. */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { runFixtureExecFile as execFileSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';

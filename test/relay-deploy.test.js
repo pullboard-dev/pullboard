@@ -1,6 +1,6 @@
 /** Exercise the deploy smoke script against a private loopback relay [H5,H18]. */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { startFixtureChild as spawn, reportFixtureChildFailure, safeFixtureDiagnostic } from './fixture-child.js';
 import { performance } from 'node:perf_hooks';
 import { createServer } from 'node:http';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, copyFileSync } from 'node:fs';
@@ -10,7 +10,6 @@ import { test } from 'node:test';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { githubFixture } from './relay-fixture.js';
-import { reportFixtureChildFailure, safeFixtureDiagnostic } from './fixture-child.js';
 
 const SMOKE = resolve(import.meta.dirname, '../relay/smoke.mjs');
 const SERVER = resolve(import.meta.dirname, '../relay/server.mjs');

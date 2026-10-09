@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { startFixtureChild as spawn, reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { performance } from 'node:perf_hooks';
-import { reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import {
   chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync,
   rmSync, statSync, symlinkSync, writeFileSync,

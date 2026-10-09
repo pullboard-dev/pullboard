@@ -3,8 +3,7 @@
  * note in full on --history or --json.
  */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { runFixtureChild } from './fixture-child.js';
+import { runFixtureExecFile as execFileSync, runFixtureChild } from './fixture-child.js';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';

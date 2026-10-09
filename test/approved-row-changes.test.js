@@ -1,7 +1,6 @@
 /** Approved-row edits need an exact person decision or staged SSH receipt [S19,V3]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { fixtureChildMessage, runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { runFixtureExecFile as execFileSync, startFixtureChild as spawn, runFixtureChild as spawnSync, fixtureChildMessage, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
 import { once } from 'node:events';
 import { tmpdir } from 'node:os';

@@ -1,8 +1,7 @@
 /** Fixture requests reach a live server even after the test blocked its own event loop past keep-alive [C7]. */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { startFixtureChild as spawn, reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { performance } from 'node:perf_hooks';
-import { reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { once } from 'node:events';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';

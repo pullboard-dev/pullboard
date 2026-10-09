@@ -1,7 +1,6 @@
 /** Coordinator-owned check commands and explicit caller consent [V2,N23]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { runFixtureExecFile as execFileSync, startFixtureChild as spawn, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -135,13 +134,12 @@ async function confirmInteractively(box, itemId, command, markerFile, json = fal
   child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk; answerPrompt(); });
   child.once('error', promptReject);
   const closed = new Promise((resolveClose, rejectClose) => {
-    child.once('close', (code, signal) => resolveClose({ code, signal }));
+    child.once('close', (code, signal) => {
+      if (!sent) promptReject(new Error(child.fixtureFailure ?? 'check exited before its prompt'));
+      resolveClose({ code, signal, failure: child.fixtureFailure });
+    });
     child.once('error', rejectClose);
   });
-  const timer = setTimeout(() => {
-    promptReject(new Error('timed out waiting for the coordinator check prompt'));
-    child.kill('SIGKILL');
-  }, 10_000);
   try {
     await prompt;
     const result = await closed;
@@ -151,8 +149,6 @@ async function confirmInteractively(box, itemId, command, markerFile, json = fal
     child.kill('SIGKILL');
     await Promise.race([closed, new Promise((resolveClose) => setTimeout(resolveClose, 1_000))]);
     throw error;
-  } finally {
-    clearTimeout(timer);
   }
 }
 

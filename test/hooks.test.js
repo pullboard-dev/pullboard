@@ -2,8 +2,7 @@
  * The commit-message rules (C1, C2) and the pre-commit pattern checks on real staged changes.
  */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { runFixtureGit } from './fixture-child.js';
+import { runFixtureExecFile as execFileSync, runFixtureGit } from './fixture-child.js';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

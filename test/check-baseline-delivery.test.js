@@ -1,7 +1,6 @@
 /** Durable check observations retry delivery without running their shell again [V2,H16]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -114,7 +113,7 @@ function completionCount(board, id) {
 function runWorker(box, id, request) {
   const source = `import { runCheckBaselineWorker } from ${JSON.stringify(WORKER_MODULE)};\nawait runCheckBaselineWorker(process.cwd(), Number(process.argv[1]), process.argv[2]);`;
   return runFixtureChild(process.execPath, ['--input-type=module', '-e', source, String(id), request], {
-    cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 45_000,
+    cwd: box.repo, env: box.env, encoding: 'utf8',
   });
 }
 

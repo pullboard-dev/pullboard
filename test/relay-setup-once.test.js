@@ -1,6 +1,6 @@
 /** One real machine setup reaches current and future projects through one phone key [H5,H15,H17]. */
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { startFixtureChild as spawn, runFixtureChild as spawnSync } from './fixture-child.js';
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -21,21 +21,22 @@ async function waitFor(read, message, timeout = 20_000) {
 }
 
 /** Launch the production CLI against an isolated real repository and retain only private diagnostics. */
-function command(root, env, args, timeout = 25_000) {
+function command(root, env, args) {
   const child = spawn(process.execPath, [CLI, ...args, '--json'], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = '';
   let stderr = '';
   child.stdout.setEncoding('utf8').on('data', value => { stdout += value; });
   child.stderr.setEncoding('utf8').on('data', value => { stderr += value; });
   const done = new Promise((resolveResult, reject) => {
-    const timer = setTimeout(() => child.kill('SIGKILL'), timeout);
-    child.once('error', error => { clearTimeout(timer); reject(error); });
+    child.once('error', reject);
     child.once('close', (code, signal) => {
-      clearTimeout(timer);
-      if (signal) return reject(new Error('The private setup command exceeded its bounded fixture lifetime.'));
+      if (signal || code !== 0) {
+        const failure = child.fixtureFailure;
+        if (signal) return reject(new Error(failure));
+      }
       let document;
       try { document = JSON.parse(stdout); } catch { return reject(new Error('The private setup command did not return JSON.')); }
-      resolveResult({ code, document, stderr });
+      resolveResult({ code, document, stderr, failure: child.fixtureFailure });
     });
   });
   return { child, done };
@@ -78,7 +79,7 @@ test('set up once links three registered boards, later registration and a persis
   const second = await project(box, 'second-project');
   const third = await project(box, 'third-project');
   const machineFile = join(box.env.PULLBOARD_HOME, 'relay-machine/state.json');
-  setup = command(box.root, box.env, ['relay', 'on', '--all', '--url', box.origin], 90_000);
+  setup = command(box.root, box.env, ['relay', 'on', '--all', '--url', box.origin]);
   const pending = await waitFor(() => {
     if (!existsSync(machineFile)) return null;
     return JSON.parse(readFileSync(machineFile, 'utf8')).pending;

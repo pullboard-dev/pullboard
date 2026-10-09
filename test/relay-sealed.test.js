@@ -1,14 +1,13 @@
 /** Two real clients and encrypted CLI records exercise the relay without sharing their key [A4,H7]. */
 import assert from 'node:assert/strict';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, cleanupFixtureChildren, runFixtureChild, runFixtureGit, runFixtureChildAsync } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createServer } from 'node:http';
 import { after, test } from 'node:test';
-import { cleanupFixtureChildren, runFixtureChild, runFixtureGit, runFixtureChildAsync } from './fixture-child.js';
 import { serveRelay } from '../relay/service.js';
 import { createRelayAuth } from '../relay/auth.js';
 import { createGitHubClient } from '../relay/github.js';

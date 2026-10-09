@@ -1,13 +1,12 @@
 /** Real device-flow CLI ordering through the opaque relay [H1,H7,H15]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { runFixtureChild as spawnSync, cleanupFixtureChildren, runFixtureChildAsync, runFixtureGit, safeFixtureDiagnostic } from './fixture-child.js';
 import { createServer } from 'node:http';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { delimiter, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { after, test } from 'node:test';
 import { gunzipSync } from 'node:zlib';
-import { cleanupFixtureChildren, runFixtureChildAsync, runFixtureGit, safeFixtureDiagnostic } from './fixture-child.js';
 import { DatabaseSync } from 'node:sqlite';
 import { createAuthHandler } from '../relay/auth-http.js';
 import { createRelayAuth } from '../relay/auth.js';

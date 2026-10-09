@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { after, test } from 'node:test';
-import { cleanupFixtureChildren, runFixtureChild, runFixtureChildAsync } from './fixture-child.js';
+import { cleanupFixtureChildren, runFixtureChild, runFixtureChildAsync, runFixtureExecFile, runFixtureExec, startFixtureChild } from './fixture-child.js';
 
 after(cleanupFixtureChildren);
 
@@ -40,6 +40,20 @@ test('a fixture child killed or failed names its command, signal and stderr [C7]
   const elapsed = /elapsed: (\d+)ms/u.exec(killed.failure);
   assert.ok(Number(elapsed?.[1]) - (readyAt - startedAt) >= 80, killed.failure);
   assert.match(killed.failure, /stderr: sleeping child/u);
+
+  assert.throws(() => runFixtureExecFile(process.execPath, ['-e', "console.error('exec stderr'); process.exit(6)"], { encoding: 'utf8' }),
+    error => /command:/.test(error.message) && /status: 6/.test(error.message) && /stderr: exec stderr/.test(error.message));
+  assert.equal(runFixtureExec('printf shell-output', { encoding: 'utf8' }), 'shell-output');
+  const observed = startFixtureChild(process.execPath, ['-e', "console.error('observed stderr'); process.exit(4)"]);
+  await new Promise(resolveClose => observed.once('close', resolveClose));
+  assert.match(observed.fixtureFailure, /command: .*node/u);
+  assert.match(observed.fixtureFailure, /status: 4/u);
+  assert.match(observed.fixtureFailure, /signal: none/u);
+  assert.match(observed.fixtureFailure, /elapsed: \d+ms/u);
+  assert.match(observed.fixtureFailure, /stderr: observed stderr/u);
+  const ignored = runFixtureChild(process.execPath, ['-e', "console.error('otherwise discarded stderr'); process.exit(5)"], { stdio: 'ignore' });
+  assert.equal(ignored.stderr, null, 'ignore preserves the caller output contract');
+  assert.match(ignored.failure, /stderr: otherwise discarded stderr/u);
 
   const pairingCode = '0123456789abcdef0123456789abcdef.ABCDEFGHIJKLMNOPQRSTUV.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ';
   const credentialFailure = runFixtureChild(process.execPath, ['-e', `console.error('token ps_fixtureSecret_98765 pairing-code pa_fixtureCode_12345 relay-key relay-fixture-secret-abcdef ${pairingCode}'); process.exit(2)`], {

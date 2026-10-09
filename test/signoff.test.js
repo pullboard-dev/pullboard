@@ -1,7 +1,6 @@
 /** SSH sign-off opt-in, rotation, row requirements and tamper rejection [S17,S18,S19,S20,S21]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
-import { fixtureChildMessage, runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, fixtureChildMessage, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
