@@ -322,14 +322,18 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .agent-work:hover > span:first-child { color: var(--accent-strong); text-decoration: underline; text-underline-offset: 2px; }
 .lane { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); font-size: 13px; }
 .lane:first-child { border-top: 0; }
+.rows-filter { display: flex; padding: 10px 10px 2px; }
 .rows { padding: 4px 10px 10px; }
 .spec-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0 4px; }
 .rows h4 { margin: 0; font-size: 12.5px; color: var(--ink-muted); }
-.spec-section-approve, .approve-row, .decline-row { min-height: 44px; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); cursor: pointer; }
-.spec-section-approve { color: var(--accent-strong); }
-.approve-row { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; }
-.decline-row { border-color: var(--reject); color: var(--reject); }
-.spec-decision-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin-top: 8px; cursor: default; }
+/* Deciding a row is a quiet word beside it, no box: Approve in the accent, Decline in grey, each lit only on hover. */
+.spec-section-approve, .approve-row, .decline-row { min-height: 44px; padding: 0 10px; border: 0; border-radius: 8px; background: none; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.spec-section-approve, .approve-row { color: var(--accent-strong); }
+.decline-row { color: var(--ink-muted); }
+.spec-section-approve:hover, .approve-row:hover { background: var(--accent-soft); }
+.decline-row:hover { background: var(--reject-soft); color: var(--reject); }
+.spec-decision-actions { display: flex; align-items: center; gap: 2px; margin: -11px -6px -11px 0; cursor: default; }
+.detail-decision-actions { margin: 4px 0 0 -10px; }
 .detail-decision-actions { margin: 0 0 12px; }
 .spec-reason-backdrop { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; padding: 16px; background: rgb(15 23 42 / 45%); }
 .spec-reason-dialog { width: min(100%, 420px); display: grid; gap: 12px; padding: 18px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); box-shadow: 0 18px 60px rgb(0 0 0 / 24%); }
@@ -338,13 +342,13 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .spec-reason-dialog input { width: 100%; min-height: 44px; padding: 7px 9px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 13px; }
 .spec-reason-dialog .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .spec-reason-dialog .actions button { min-height: 44px; }
-.srow { display: grid; grid-template-columns: 4.4em minmax(6.2em, max-content) minmax(0, 1fr); gap: 8px; padding: 6px 4px; border-top: 1px solid var(--line); align-items: baseline; cursor: pointer; border-radius: 6px; }
+.srow { display: grid; grid-template-columns: 4.4em minmax(6.2em, max-content) minmax(0, 1fr) auto; gap: 8px; padding: 6px 4px; border-top: 1px solid var(--line); align-items: baseline; cursor: pointer; border-radius: 6px; }
 .srow:hover { background: var(--surface-2); }
 .srow.on { background: var(--accent-soft); }
 .srow code { font: 600 12px var(--mono); }
 .rule-source, .rule-reason { display: block; color: var(--ink-muted); font-size: 11.5px; line-height: 1.5; }
 .rule-reason { margin-top: 3px; }
-@media (width < 480px) { .srow { grid-template-columns: auto minmax(0, 1fr); } .srow > span:last-child { grid-column: 1 / -1; } }
+@media (width < 480px) { .srow { grid-template-columns: auto minmax(0, 1fr); } .srow > span:nth-child(3), .srow > .spec-decision-actions { grid-column: 1 / -1; } .srow > .spec-decision-actions { margin: -6px 0 -8px -10px; } }
 .flow { position: relative; margin: 0 0 12px; padding: 10px 12px 8px; overflow-x: auto; }
 .flow svg { display: block; width: 100%; min-width: 680px; max-width: 920px; height: auto; margin: 0 auto; }
 .flow figcaption { color: var(--ink-faint); font-size: 12px; padding: 2px 34px 0 2px; }
