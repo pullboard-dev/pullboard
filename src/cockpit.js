@@ -137,11 +137,11 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
     </aside>
   </section>
   <section data-pane="spec" class="two">
-    <div class="primary"><div class="card-panel rows-card"><div class="rows-filter"><div class="seg" id="spec-chips" role="group" aria-label="Show"></div></div><div class="rows" id="spec-list"></div></div></div>
+    <div class="primary"><div class="card-panel rows-card"><div class="rows-filter"><div class="seg" id="spec-chips" role="group" aria-label="Show"></div></div><div class="rows" id="spec-list" tabindex="0" aria-label="Spec rows"></div></div></div>
     <aside class="card-panel detail" aria-label="Spec row"><div id="spec-detail"></div></aside>
   </section>
   <section data-pane="doctrine" class="two">
-    <div class="primary"><div class="card-panel rows-card"><div class="rows-filter"><div class="seg" id="doctrine-chips" role="group" aria-label="Show"></div></div><div class="rows" id="doctrine-list"></div></div></div>
+    <div class="primary"><div class="card-panel rows-card"><div class="rows-filter"><div class="seg" id="doctrine-chips" role="group" aria-label="Show"></div></div><div class="rows" id="doctrine-list" tabindex="0" aria-label="Doctrine rows"></div></div></div>
     <aside class="card-panel detail" aria-label="Practice row"><div id="doctrine-detail"></div></aside>
   </section>
   <section data-pane="activity">
@@ -1349,6 +1349,7 @@ function render() {
     const feedback = kind === 'spec' && view.specFeedback?.root === view.root && view.specFeedback.from === 'list' ? view.specFeedback : null;
     const feedbackId = feedback && (shownRows.some((r) => r.id === feedback.id) ? feedback.id : shownRows.some((r) => r.id === feedback.next) ? feedback.next : shownRows[0]?.id);
     let section = null;
+    const implied = filter === 'decide' ? 'draft' : 'approved';
     $(kind + '-list').innerHTML = shownRows.length ? shownRows.map((r) => {
       const sectionRows = !snapshot && (!readOnly || requests) && kind === 'spec' && r.section !== section ? rows.filter((entry) => entry.section === r.section && undecided(entry)) : [];
       const head = r.section !== section ? '<div class="spec-section-head"><h4>' + esc(r.section) + '</h4>' + (sectionRows.length ? '<button class="spec-section-approve" data-section-approve="' + esc(r.section) + '" type="button">Approve all ' + sectionRows.length + ' in this section</button>' : '') + '</div>' : '';
@@ -1357,12 +1358,9 @@ function render() {
       const text = declined ? '<s>' + linked(r.standardText || r.text, titles) + '</s>' : linked(r.text, titles);
       const reason = declined && r.reason ? '<small class="rule-reason">Reason: ' + linked(r.reason, titles) + '</small>' : '';
       const source = kind === 'doctrine' ? '<small class="rule-source">' + esc(ruleSource(r)) + '</small>' : '';
-      const status = r.stage || r.status;
-      /** Render person-only row decisions in both the list and its detail pane. */
-      const decisionActions = (!snapshot && (!readOnly || requests) && kind === 'spec' && undecided(r))
-        ? '<span class="spec-decision-actions"><button class="approve-row" data-row-decision="approve" data-row-id="' + esc(r.id) + '" type="button">Approve</button><button class="decline-row" data-row-decision="decline" data-row-id="' + esc(r.id) + '" type="button">Decline</button></span>'
-        : '';
-      return head + (feedback && feedbackId === r.id ? specFeedback(feedback) : '') + '<div class="srow' + (view.row[kind] === r.id ? ' on' : '') + '" data-row="' + kind + ':' + esc(r.id) + '"><code>' + esc(r.id) + '</code><span><span class="chip ' + tone(r.status) + '">' + esc(status) + '</span>' + source + '</span><span>' + text + reason + '</span>' + decisionActions + '</div>';
+      // A row reads as its id and its words; a chip only where its status is not the one the filter already says.
+      const chip = r.status === implied ? '' : '<span class="chip ' + tone(r.status) + '">' + esc(r.stage || r.status) + '</span>';
+      return head + (feedback && feedbackId === r.id ? specFeedback(feedback) : '') + '<div class="srow' + (view.row[kind] === r.id ? ' on' : '') + '" data-row="' + kind + ':' + esc(r.id) + '"><code>' + esc(r.id) + '</code><span class="srow-text">' + chip + source + text + reason + '</span></div>';
     }).join('') : '<div class="empty">' + (rows.length ? 'No rows match.' : kind === 'spec' ? 'No spec rows yet. Each requirement is one row in SPEC.md, such as G1 [draft, must] and a line; write them, or ask an agent to, and they show up here.' : 'No doctrine rows yet: they live in DOCTRINE.md.') + '</div>';
     if (feedback && !shownRows.length) $(kind + '-list').innerHTML += specFeedback(feedback);
     const row = rows.find((r) => r.id === view.row[kind]);
@@ -1374,7 +1372,7 @@ function render() {
     const home = kind === 'doctrine' && row && row.origin === 'standard' ? 'Standard rules come with Pullboard; override or decline one in DOCTRINE.md.' : 'Rows change in ' + (kind === 'spec' ? 'SPEC.md' : 'DOCTRINE.md') + ', and only you approve them.';
     const rowStatus = row?.stage || row?.status;
     const rowDecisionActions = !snapshot && (!readOnly || requests) && row && kind === 'spec' && undecided(row)
-      ? '<div class="spec-decision-actions detail-decision-actions"><button class="approve-row" data-row-decision="approve" data-row-id="' + esc(row.id) + '" type="button">Approve</button><button class="decline-row" data-row-decision="decline" data-row-id="' + esc(row.id) + '" type="button">Decline</button></div>'
+      ? '<div class="spec-decision-actions detail-decision-actions"><button class="approve-row" data-row-decision="approve" data-row-id="' + esc(row.id) + '" title="Approve (A, from the list)" type="button">Approve</button><button class="decline-row" data-row-decision="decline" data-row-id="' + esc(row.id) + '" title="Decline (D, from the list)" type="button">Decline</button></div>'
       : '';
     $(kind + '-detail').innerHTML = row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div>' + rowDecisionActions + (kind === 'spec' && view.specFeedback?.root === view.root && view.specFeedback.from === 'detail' && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '') + '<dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<div class="links-item" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span></div>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div><div class="muted">' + home + '</div></div>' : '<div class="empty">Pick a row to see it, and the items that cite it.</div>';
   }
@@ -1671,6 +1669,16 @@ function specFeedback(feedback) {
   return '<div class="spec-feedback ' + feedback.tone + '" role="status">' + esc(feedback.text) + '</div>';
 }
 
+/** Ask why a Spec row is declined; the reason, once given, is recorded where it was asked. */
+function askDecline(id, from) {
+  view.declining = id;
+  view.declineFrom = from;
+  $('spec-decline-title').textContent = 'Decline ' + id;
+  $('spec-decline-reason').value = '';
+  $('spec-decline-dialog').hidden = false;
+  $('spec-decline-reason').focus();
+}
+
 /** Record a Spec decision beside its row and retain the list's reading position (B26, N26). */
 async function decideSpec(command, args, anchor) {
   if (snapshot || (readOnly && !requests)) return false;
@@ -1691,6 +1699,9 @@ async function decideSpec(command, args, anchor) {
     feedback.tone = requests ? request.status === 'done' ? 'ok' : request.status === 'refused' ? 'no' : '' : 'ok';
     feedback.text = requests ? requestNotice(request) : moveMessage(move.body, result.result);
     if (requests) { feedback.requestId = request.id; feedback.status = request.status; }
+    // Decided from the list, the pick moves on to the next row before the board redraws without the decided one, so
+    // the next key decides that one.
+    if (feedback.from === 'list' && feedback.tone !== 'no' && next && view.row.spec === ids[0] && root === view.root) view.row.spec = next;
     await refresh();
   } catch (error) {
     feedback.tone = 'no';
@@ -1839,21 +1850,21 @@ document.addEventListener('click', (event) => {
   else if (t.dataset.rowDecision) {
     const id = t.dataset.rowId;
     if (t.dataset.rowDecision === 'approve') decideSpec('spec-approve', { ids: id }, t);
-    else {
-      view.declining = id;
-      view.declineFrom = t.closest('#spec-detail') ? 'detail' : 'list';
-      $('spec-decline-title').textContent = 'Decline ' + id;
-      $('spec-decline-reason').value = '';
-      $('spec-decline-dialog').hidden = false;
-      $('spec-decline-reason').focus();
-    }
+    else askDecline(id, t.closest('#spec-detail') ? 'detail' : 'list');
   }
   else if (t.dataset.sectionApprove) {
     const section = t.dataset.sectionApprove;
     const ids = data.project.spec.filter((row) => row.section === section && ['pending', 'draft'].includes(row.status) && !row.decision).map((row) => row.id);
     if (ids.length && window.confirm('Approve all ' + ids.length + ' undecided rows in “' + section + '”?')) decideSpec('spec-approve', { ids: ids.join(' ') }, t);
   }
-  else if (t.dataset.row) { const [kind, id] = t.dataset.row.split(':'); view.row[kind] = id; render(); }
+  else if (t.dataset.row) {
+    const [kind, id] = t.dataset.row.split(':');
+    view.row[kind] = id;
+    render();
+    $(kind + '-list').focus({ preventScroll: true });
+    // Where the list and the detail stack, the picked row's detail, with its buttons, comes into view.
+    if (matchMedia('(max-width: 900px)').matches) $(kind + '-detail').scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
   else if (t.dataset.codeAll) showAllCode(t.dataset.codeAll, t.dataset.before || '');
   else if (t.dataset.codeLess) showLessCode(t.dataset.codeLess, t.dataset.before || '');
   else if (t.dataset.code) code(t.dataset.code, t.dataset.before || '');
@@ -1869,10 +1880,27 @@ document.addEventListener('keydown', (event) => {
   event.preventDefault();
   go(row.dataset.go, row.dataset.board || view.root);
 });
+// In a focused Spec or Doctrine list the arrow keys move the pick; on Spec, A approves the picked row and D asks why
+// it is declined, as the detail's buttons do.
+for (const kind of ['spec', 'doctrine']) $(kind + '-list').addEventListener('keydown', (event) => {
+  if (event.target !== event.currentTarget || event.metaKey || event.ctrlKey || event.altKey) return;
+  const ids = [...event.currentTarget.querySelectorAll('[data-row]')].map((row) => row.dataset.row.slice(kind.length + 1));
+  const at = ids.indexOf(view.row[kind]);
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault();
+    const next = ids[Math.min(ids.length - 1, Math.max(0, at + (event.key === 'ArrowDown' ? 1 : -1)))];
+    if (next && next !== view.row[kind]) { view.row[kind] = next; render(); event.currentTarget.querySelector('.srow.on')?.scrollIntoView({ block: 'nearest' }); }
+  } else if (kind === 'spec' && (event.key === 'a' || event.key === 'd') && view.row.spec && $('spec-detail').querySelector('.approve-row')) {
+    // Only a row still waiting on the person has a decision to make; the detail shows it.
+    event.preventDefault();
+    if (event.key === 'a') decideSpec('spec-approve', { ids: view.row.spec }, event.currentTarget);
+    else askDecline(view.row.spec, 'list');
+  }
+});
 // The form covers the picked item rather than dropping it, so Cancel brings it back.
 $('new-item').addEventListener('click', () => { view.adding = true; render(); $('add-title').focus(); });
 $('add-cancel').addEventListener('click', () => { view.adding = false; render(); });
-$('spec-decline-cancel').addEventListener('click', () => { view.declining = null; $('spec-decline-dialog').hidden = true; });
+$('spec-decline-cancel').addEventListener('click', () => { view.declining = null; $('spec-decline-dialog').hidden = true; if (view.declineFrom === 'list') $('spec-list').focus({ preventScroll: true }); });
 $('spec-decline-form').addEventListener('submit', (event) => {
   event.preventDefault();
   const id = view.declining;
@@ -1880,6 +1908,7 @@ $('spec-decline-form').addEventListener('submit', (event) => {
   if (!id || !reason) return;
   view.declining = null;
   $('spec-decline-dialog').hidden = true;
+  if (view.declineFrom === 'list') $('spec-list').focus({ preventScroll: true });
   const anchor = view.declineFrom === 'detail' ? $('spec-detail') : [...$('spec-list').querySelectorAll('[data-row]')].find((row) => row.dataset.row === 'spec:' + id);
   decideSpec('spec-decline', { ids: id, reason }, anchor);
 });
