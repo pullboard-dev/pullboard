@@ -483,6 +483,22 @@ test('a refused later checkpoint names its repair once on every native agent com
       assert.match(finding.next, /npm i -g pullboard.*relay off.*relay on --all/u);
     }
   }
+  for (const command of ['status', 'doctor']) {
+    const text = await box.script(`
+      const { main } = await import(${JSON.stringify(box.mainURL)});
+      let stdout = '', stderr = '';
+      const code = await main([${JSON.stringify(command)}], {
+        cwd: process.cwd(), stdout: { write(value) { stdout += value; } }, stderr: { write(value) { stderr += value; } },
+      });
+      console.log(JSON.stringify({ code, stdout, stderr }));
+    `);
+    assert.equal(text.code, 0);
+    const lines = (text.document.stdout + text.document.stderr).split('\n').filter(line => line.includes('relay checkpoint refused for '));
+    assert.equal(lines.length, 1, command + ' text mode also prints only one actionable upload line');
+    assert.match(text.document.stdout, /relay checkpoint refused for /u, 'text readers preserve their existing stdout diagnostic');
+    assert.match(lines[0], /npm i -g pullboard.*relay off.*relay on --all/u);
+    assert.doesNotMatch(text.document.stderr, /relay checkpoint refused for /u);
+  }
   const refused = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   assert.equal(refused.baselinePause, undefined);
   const remote = await fetch(box.origin + '/api/v1/boards/' + refused.board + '/events?after=' + baselineSequence, {

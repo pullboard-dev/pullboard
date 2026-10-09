@@ -1598,7 +1598,7 @@ function readCommands(io, { first, second, rest, values }) {
         io.say('board is clean');
         return 0;
       }
-      for (const problem of problems) if (problem.code !== 'RELAY_CHECKPOINT_REFUSED') io.say(`problem: ${problem.message}; repair: ${problem.next}`);
+      for (const problem of problems) if (problem !== checkpointProblem) io.say(`problem: ${problem.message}; repair: ${problem.next}`);
       return 1;
     },
     inbox: () => {
@@ -2796,6 +2796,7 @@ async function runMain(argv, streams) {
   try {
     parsed = parseCommandArgs(argv);
     const command = parsed.positionals[0];
+    io.relayJson = Boolean(parsed.values.json);
     io.relayCommand = { cliOperation: command === 'done' ? 'submit' : command, cwd: resolve(io.cwd),
       positionals: parsed.positionals.slice(1),
       values: Object.fromEntries(Object.keys(parsed.values).filter(key => key !== 'json').sort().map(key => [key, parsed.values[key]])) };

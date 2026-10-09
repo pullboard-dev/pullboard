@@ -233,7 +233,7 @@ function checkpointProblem(state) {
   const message = `relay checkpoint refused for ${state.board}: ${code} ${reason}`
     + (size ? '; ' + formatSnapshotLimit(size) : '')
     + '; moves still sync in order; a fresh checkpoint goes up on the next change; if it keeps failing, ' + next;
-  return { code: 'RELAY_CHECKPOINT_REFUSED', message, next };
+  return { code: size ? 'RELAY_SNAPSHOT_LIMIT' : 'RELAY_CHECKPOINT_REFUSED', message, next };
 }
 
 /** Project the current checkpoint repair for doctor without making another network request. */
@@ -248,7 +248,9 @@ function reportCheckpointRefusal(state, io) {
   if (!boards) { boards = new Set(); CHECKPOINT_NOTICES.set(io, boards); }
   if (boards.has(state.board)) return;
   boards.add(state.board);
-  io.err('pullboard: ' + checkpointProblem(state).message);
+  const line = 'pullboard: ' + checkpointProblem(state).message;
+  if (['status', 'doctor'].includes(io.relayCommand?.cliOperation) && io.relayJson === false) io.say(line);
+  else io.err(line);
 }
 
 /** Name the safe next step for the saved permanent refusal. */
