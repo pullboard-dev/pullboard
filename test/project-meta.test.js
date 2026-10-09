@@ -39,10 +39,11 @@ function fleet(t) {
   return { dir, home, env, git, run, ok, repo };
 }
 
-test('the API exposes configured repo/project names, refreshed labels, stale warnings and CLI forgetting [N33, N35, N36]', async (t) => {
+test('the API prunes a project whose folder is gone and keeps one unreadable-board warning [N33, N35, N36]', async (t) => {
   const f = fleet(t);
   const local = f.repo('local', 'Local label');
   const gone = f.repo('gone', 'Gone label');
+  const unreadable = f.repo('unreadable', 'Unreadable label');
   const view = await serveView({ port: 0 });
   try {
     const link = new URL(view.url);
@@ -57,23 +58,40 @@ test('the API exposes configured repo/project names, refreshed labels, stale war
       return document;
     };
     let data = await boards();
-    assert.deepEqual(data.boards.map(({ name, project }) => ({ name, project })), [{ name: 'Local label', project: 'Demo group' }, { name: 'Gone label', project: 'Demo group' }]);
+    assert.deepEqual(data.boards.map(({ name, project }) => ({ name, project })), [
+      { name: 'Local label', project: 'Demo group' },
+      { name: 'Gone label', project: 'Demo group' },
+      { name: 'Unreadable label', project: 'Demo group' },
+    ]);
     assert.deepEqual(data.warnings, []);
     const registered = new Map(data.boards.map(({ root, id, added }) => [root, { id, added }]));
     const config = JSON.parse(readFileSync(join(local, 'pullboard.json'), 'utf8'));
     writeFileSync(join(local, 'pullboard.json'), JSON.stringify({ ...config, name: 'New label', project: 'New group' }));
     rmSync(gone, { recursive: true, force: true });
+    rmSync(join(unreadable, '.git'), { recursive: true, force: true });
     data = await boards();
     assert.deepEqual(data.boards.map(({ name, project }) => ({ name, project })), [{ name: 'New label', project: 'New group' }]);
     assert.deepEqual(data.boards.map(({ root, id, added }) => ({ root, id, added })), [{ root: local, ...registered.get(local) }]);
-    assert.deepEqual(data.warnings.map(({ root, name, project, added }) => ({ root, name, project, added })), [{ root: gone, name: 'Gone label', project: 'Demo group', added: registered.get(gone).added }]);
+    assert.deepEqual(data.warnings.map(({ root, name, project, added }) => ({ root, name, project, added })), [{ root: unreadable, name: 'Unreadable label', project: 'Demo group', added: registered.get(unreadable).added }]);
+    assert.equal(data.warnings.length, 1, 'only the existing folder with an unreadable board remains as a warning');
     assert.equal(data.warnings[0].error.version, 1);
     assert.equal(data.warnings[0].error.error.code, 'BOARD_UNAVAILABLE');
     assert.match(data.warnings[0].error.error.next, /pullboard forget/);
+    const registry = join(f.home, 'projects.json');
+    const afterPruning = readFileSync(registry, 'utf8');
+    const registeredAfterPruning = JSON.parse(afterPruning).projects.map(({ root }) => root);
+    assert.deepEqual(registeredAfterPruning, [local, unreadable], 'the missing root is removed while the unreadable directory stays registered');
+    const repeated = await boards();
+    assert.deepEqual(repeated, data, 'the second API listing returns the same board and warning');
+    assert.equal(readFileSync(registry, 'utf8'), afterPruning, 'the second listing makes no further registry change');
     f.ok(local, 'forget', '.');
     data = await boards();
     assert.deepEqual(data.boards, []);
-    assert.deepEqual(data.warnings.map(({ root }) => root), [gone], 'forget removes only the selected registered repo');
+    assert.deepEqual(data.warnings.map(({ root }) => root), [unreadable], 'forget removes only the selected registered repo');
+    f.ok(local, 'forget', unreadable);
+    data = await boards();
+    assert.deepEqual(data.boards, []);
+    assert.deepEqual(data.warnings, []);
   } finally { await view.close(); }
 });
 
