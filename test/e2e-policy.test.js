@@ -30,7 +30,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
   BIN, cockpitSource, sandboxes, sandbox, CONFIG, SPEC, project, holdingGate,
-  launch, waitFor, gateEvents, commitFile, attackCommit, privateCheckSubmission,
+  launch, waitFor, gateEvents, commitFile, attackCommit, historicalCheckSubmission, privateCheckSubmission,
   startView, LIGHT_BRIEF,
 } = e2e;
 
@@ -160,7 +160,10 @@ test('accept reruns the frozen check at the submission even when the reviewer re
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web/RED_CHECK'), 'red');
   const commit = attackCommit(box, box.web);
-  assert.equal(box.run(box.web, 'submit', '1').code, 0, 'the project gate passes while the separate item check is red');
+  const blocked = box.run(box.web, 'submit', '1');
+  assert.equal(blocked.code, 1, 'current submit refuses the red frozen check even when the project gate passes');
+  assert.match(blocked.err, /GATE_RED/);
+  historicalCheckSubmission(box, commit); // Legacy receipts must still be independently checked.
   const review = join(box.dir, 'exact-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
   assert.equal(box.run(review, 'join', 'api').code, 0);
