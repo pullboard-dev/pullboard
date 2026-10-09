@@ -60,7 +60,7 @@ const CAUGHT = { 'cli.js#submitHere': ['cli.js#freezer'], 'cli.js#verifyHere': [
  * Encrypted transport authenticates/orders a move; its board operation is walked separately above.
  * Keep walking the CLI dispatcher itself so a new item rule there cannot hide behind this boundary.
  */
-const TRANSPORT_BOUNDARIES = new Set(['relay.js#relayLinked', 'relay.js#relayOperation']);
+const TRANSPORT_BOUNDARIES = new Set(['relay.js#relayLinked', 'relay.js#relayOperation', 'relay.js#relayRecovered', 'relay.js#relayCommandReceipt', 'relay.js#relayCommandReceiptReported']);
 
 /** A top-level function, or a top-level arrow function bound to a const. */
 const START = /^(?:export )?(?:(?:async )?function (\w+)\(|const (\w+) = (?:async )?(?:\([^)]*\)|\w+) =>)/;
@@ -781,9 +781,9 @@ test('pullboard help lists each role\'s moves from the declaration, and pullboar
 /** Guards the CLI checks before it asks the board: the board's own order starts after them. */
 const CLI_CHECKED = {
   claim: ['joined'],
-  submit: ['joined', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'gateConfigured', 'gateGreen', 'treeStillDuringGate'],
+  submit: ['joined', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'trunkMergeClean', 'gateConfigured', 'gateGreen', 'treeStillDuringGate'],
   reserve: ['coordinatorSaysAs', 'joined'],
-  accept: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit', 'itemCheckGreen'],
+  accept: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit', 'trunkMergeClean', 'itemCheckGreen'],
   reject: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit'],
 };
 

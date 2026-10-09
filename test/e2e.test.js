@@ -305,6 +305,14 @@ test('items and commit headers cite doctrine rows by namespace; bare collisions 
   const check = box.run(box.repo, 'spec', 'check');
   assert.equal(check.code, 1);
   assert.match(check.out, /duplicate id; also appears at DOCTRINE\.md:/u);
+  const legacy = readFileSync(join(box.repo, 'DOCTRINE.md'), 'utf8');
+  rmSync(join(box.repo, 'DOCTRINE.md'));
+  writeFileSync(join(box.repo, 'PRACTICE.md'), legacy);
+  const legacyCheck = box.run(box.repo, 'spec', 'check');
+  assert.equal(legacyCheck.code, 1);
+  assert.match(legacyCheck.out, /SPEC\.md:4 G1 error: duplicate id; also appears at PRACTICE\.md:\d+/u);
+  assert.match(legacyCheck.out, /PRACTICE\.md:\d+ G1 error: duplicate id; also appears at SPEC\.md:4/u);
+  assert.doesNotMatch(legacyCheck.out, /DOCTRINE\.md:/u);
 });
 
 test('the board lives in the git common dir; every worktree sees it; nothing is committed [B1, B3]', () => {

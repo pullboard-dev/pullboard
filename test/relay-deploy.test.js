@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
+import { ENGINE_VERSION } from '../src/machine.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { githubFixture } from './relay-fixture.js';
 
@@ -209,6 +210,7 @@ test('[H5,H18] the Railway checklist matches the container and relay runtime set
 test('[H5,H18] the Railway smoke links, reads one unsealed move and unlinks locally', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
+  assert.equal(await box.requireEngineThree(), ENGINE_VERSION, 'the real relay fixture now refuses legacy declarations for this board');
   const previous = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   assert.equal((await box.cli('relay', 'off')).code, 0);
   const beforeSmoke = box.calls.length;
@@ -223,6 +225,10 @@ test('[H5,H18] the Railway smoke links, reads one unsealed move and unlinks loca
   assert.equal(existsSync(box.keyFile), false, 'relay off forgets the device-only board key');
   assert.ok(box.calls.slice(beforeSmoke).some((call) => call.method === 'DELETE' && call.path === `/api/v1/boards/${previous.board}`),
     'the smoke sends relay off to the supplied local relay');
+  const smokeReads = box.calls.slice(beforeSmoke).filter((call) => call.method === 'GET'
+    && new RegExp(`^/api/v1/boards/${previous.board}/(?:events|state)(?:\\?|$)`, 'u').test(call.path));
+  assert.ok(smokeReads.length >= 2, 'the smoke reads the mirrored event and its native checkpoint over the real HTTP API');
+  assert.ok(smokeReads.every((call) => call.engine === String(ENGINE_VERSION)), 'every smoke board-content read declares the current engine after the relay minimum is raised');
   const local = (await box.cli('export')).document;
   assert.ok(local.tables.item.some((item) => item.item_id === result.item && item.item_title.startsWith('Pullboard relay smoke ')),
     'the real CLI move remains in the local board after relay off');

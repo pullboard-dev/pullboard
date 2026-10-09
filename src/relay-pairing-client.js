@@ -66,7 +66,7 @@ async function relayRequest(url, token, path, body) {
   try {
     response = await fetch(new URL(path, url), {
       method: 'POST', redirect: 'error', signal: AbortSignal.timeout(10000),
-      headers: { ...(token ? { authorization: 'Bearer ' + token } : {}), 'content-type': 'application/json' }, body: JSON.stringify(body),
+      headers: { 'x-pullboard-engine': String(ENGINE_VERSION), ...(token ? { authorization: 'Bearer ' + token } : {}), 'content-type': 'application/json' }, body: JSON.stringify(body),
     });
   } catch { throw new Refused('RELAY_UNAVAILABLE', 'the relay did not answer; retry pairing with the same code before it expires'); }
   let document;

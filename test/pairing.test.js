@@ -246,6 +246,7 @@ test('[H15,H17] relay service holds only bounded opaque pairing bytes and preser
       return { id: token, kind: 'session', user: { id: token, login: 'fixture' } };
     },
     linkedBoards() { return [...links.values()]; },
+    minimumEngineVersion() { return 1; },
     withBoard(board, work) {
       const link = links.get(board);
       if (!link) throw new Refused('BOARD_NOT_LINKED', 'link the board');
@@ -294,6 +295,7 @@ test('[H15,H17] relay service holds only bounded opaque pairing bytes and preser
 test('[H15,H17] production CLI pairs a real second clone and reads the same board', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
+  await box.requireEngineThree();
   const linkedSource = await box.cli('export');
   assert.equal(linkedSource.code, 0, 'the linked source exports its current checkpoint');
   const printed = await box.cli('relay', 'pair');
@@ -301,6 +303,13 @@ test('[H15,H17] production CLI pairs a real second clone and reads the same boar
   assert.match(printed.document.code, /^[0-9a-f]{32}\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/);
   assert.equal(printed.document.expiresIn, 600);
   assert.match(printed.document.link, /^https:\/\/app\.pullboard\.dev\/#board=/);
+  const state = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const { locator } = parsePairingCode(printed.document.code);
+  const staleClient = await fetch(box.origin + '/api/v1/pairings/' + state.board + '/' + locator + '/consume', {
+    method: 'POST', headers: { authorization: 'Bearer ' + state.token, 'x-pullboard-engine': '1' },
+  });
+  assert.equal(staleClient.status, 400, 'an obsolete engine cannot consume the one-use envelope');
+  assert.equal((await staleClient.json()).error.code, 'ENGINE_VERSION');
   const paired = await box.otherDeviceJoin(printed.document.code);
   assert.equal(paired.joined.board, box.before.tables.board_meta.find((row) => row.meta_key === 'board_id').meta_value);
   assert.deepEqual(paired.exported, linkedSource.document, 'the second clone imports the source checkpoint and counters after linking');
