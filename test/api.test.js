@@ -274,6 +274,7 @@ test('[A1] command results match the catalog across roots and subcommands', () =
   const messageFile = join(box.dir, 'commit-message.txt');
   writeFileSync(messageFile, 'chore: valid fixture\n');
   json(box, repo, 'hook', ['pre-commit'], 'pre-commit');
+  json(box, repo, 'hook', ['pre-merge-commit'], 'pre-merge-commit');
   json(box, repo, 'hook', ['commit-msg', messageFile], 'commit-msg');
   json(box, repo, 'hook', ['pre-push'], 'pre-push');
 
