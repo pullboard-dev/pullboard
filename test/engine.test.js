@@ -1,12 +1,14 @@
 /** Real-SQLite tests for the deterministic, sequence-ordered move engine [H3,H16]. */
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { exportBoard, importBoard, restoreRelaySnapshot } from '../src/exchange.js';
-import { applyEngineMove, applyRelayMove, prepareEngineMove, appliedSequence, engineReceipt, startRelayEpoch } from '../src/engine.js';
+import { applyEngineMove, applyRelayMove, prepareEngineMove, appliedSequence, engineReceipt, startRelayEpoch, checkpointSequence, ENGINE_OPERATIONS } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { Refused } from '../src/refused.js';
 
@@ -175,6 +177,39 @@ test('future engine relay records stop before every sender shape without changin
       assert.deepEqual(exportBoard(board), before);
       assert.equal(appliedSequence(board), 0);
     }
+  }
+});
+
+test('released engine 3 stops a background completion before changing rows or its cursor [V2,H16]', async t => {
+  const { directory, copies, item } = engineCopies(t);
+  const archive = execFileSync('git', ['archive', 'v0.8.1'], { cwd: resolve(import.meta.dirname, '..'), maxBuffer: 32 * 1024 * 1024 });
+  execFileSync('tar', ['-x', '-C', directory], { input: archive });
+  const released = await import(pathToFileURL(join(directory, 'src/engine.js')).href);
+  const releasedMachine = await import(pathToFileURL(join(directory, 'src/machine.js')).href);
+  assert.equal(releasedMachine.ENGINE_VERSION, 3, 'exercise the actual released client');
+  assert.equal(released.ENGINE_OPERATIONS.includes('completeCheckBaseline'), false);
+  assert.ok(ENGINE_OPERATIONS.includes('completeCheckBaseline'));
+  const expected = { command: 'true', main: 'a'.repeat(40), request: '12345678-1234-1234-1234-123456789abc' };
+  const baseline = { ...expected, result: 'green' };
+  const sender = { kind: 'agent', userId: 'fixture-user', agent: 'coordinator' };
+  for (const board of copies) {
+    store.editItem(board, item, { agentId: 'coordinator', check: expected.command, checkBaseline: { ...expected, result: 'pending' } });
+    checkpointSequence(board, 7);
+    const move = prepareEngineMove(board, 'completeCheckBaseline', [item, { agentId: 'coordinator', expected, baseline }]);
+    assert.equal(move.engine, 4);
+    const before = exportBoard(board);
+    assert.throws(() => released.applyRelayMove(board, move, { sequence: 8, at: CLAIM_AT, kind: 'move', sender }), error => {
+      assert.equal(error.code, 'ENGINE_VERSION');
+      assert.match(error.message, /version 4.*version 3.*upgrade/i);
+      return true;
+    });
+    assert.deepEqual(exportBoard(board), before, 'no refusal, receipt, item or replay metadata changes');
+    assert.equal(released.appliedSequence(board), 7);
+    const receipt = applyRelayMove(board, move, { sequence: 8, at: CLAIM_AT, kind: 'move', sender });
+    assert.equal(Boolean(receipt.error), false);
+    assert.equal(receipt.result, true);
+    assert.equal(appliedSequence(board), 8);
+    assert.equal(store.events(board).at(-1).event_kind, 'check-baseline');
   }
 });
 

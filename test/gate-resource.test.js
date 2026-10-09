@@ -1,7 +1,7 @@
-/** Real CLI gate processes share the machine FIFO, skip cached trees and release after a crash [Q4,O5,O6]. */
+/** Real gates and item checks share the machine queue; landing priority and lease behavior stay intact [Q1,Q2,Q4,O5,O6,V18]. */
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
@@ -47,8 +47,8 @@ function gateRepo(box, name, delay = 0.25, releaseFile = null) {
 }
 
 /** Launch a real gate CLI in its own process group and collect its output. */
-function launch(box, root) {
-  const child = spawn(process.execPath, [BIN, 'gate'], { cwd: root, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+function launch(box, root, args = ['gate']) {
+  const child = spawn(process.execPath, [BIN, ...args], { cwd: root, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   child.stdoutText = '';
   child.stderrText = '';
   child.stdout.setEncoding('utf8');
@@ -61,6 +61,38 @@ function launch(box, root) {
     resolveClose({ code, signal });
   }));
   return child;
+}
+
+/** Create a real claimed item with a failing-at-baseline check that leaves an execution marker. */
+function checkProject(box) {
+  const root = join(box.dir, 'check-project');
+  const runner = join(box.dir, 'check-runner');
+  const script = join(box.dir, 'item-check.cjs');
+  const shims = join(box.dir, 'bin');
+  mkdirSync(shims);
+  writeFileSync(join(shims, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`);
+  chmodSync(join(shims, 'pullboard'), 0o755);
+  box.env.PATH = `${shims}:${box.env.PATH}`;
+  mkdirSync(root);
+  assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, env: box.env }).status, 0);
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({
+    gate: 'true',
+    lanes: { web: { owns: ['web/'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } },
+  }));
+  writeFileSync(join(root, 'SPEC.md'), '# Queue fixture\n\n## G · Goals\n- G1 [approved, must] The check runs. | gate: test -f web/result.txt\n- G2 [approved, must] The API responds. | gate: test -f api/result.txt\n');
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root, env: box.env }).status, 0);
+  assert.equal(spawnSync('git', ['commit', '-q', '-m', 'chore: queue fixture'], { cwd: root, env: box.env }).status, 0);
+  const initialized = spawnSync(process.execPath, [BIN, 'init'], { cwd: root, env: box.env, encoding: 'utf8' });
+  assert.equal(initialized.status, 0, initialized.stderr);
+  assert.equal(spawnSync('git', ['worktree', 'add', '-q', runner, '-b', 'web/runner'], { cwd: root, env: box.env }).status, 0);
+  const joined = spawnSync(process.execPath, [BIN, 'join', 'web'], { cwd: runner, env: box.env, encoding: 'utf8' });
+  assert.equal(joined.status, 0, joined.stderr);
+  writeFileSync(script, `const fs = require('node:fs'); fs.appendFileSync(${JSON.stringify(box.events)}, 'item check\\n'); process.exitCode = fs.existsSync('web/result.txt') ? 0 : 1;\n`);
+  const added = spawnSync(process.execPath, [BIN, 'add', 'web', 'Check item', '--specs', 'G1', '--route', 'light', '--criterion', 'the item check runs', '--check', `node '${script}'`, '--brief', 'Files: web/result.txt\nTest: run the item check and observe its result.'], { cwd: root, env: box.env, encoding: 'utf8' });
+  assert.equal(added.status, 0, added.stderr);
+  assert.equal(spawnSync(process.execPath, [BIN, 'claim', '1'], { cwd: runner, env: box.env }).status, 0);
+  writeFileSync(box.events, '');
+  return { root, runner };
 }
 
 /** Wait until an observable fixture state is reached, or fail with a useful timeout. */
@@ -161,4 +193,72 @@ test('[Q4] SIGKILL during a gate releases its machine slot for the next process'
   ]);
   assert.equal(result.code, 0, next.stderrText);
   assert.ok(events(box).includes('next start'));
+});
+
+test('[Q1,Q2,V18] item checks wait for a gate slot and ordinary gates precede them', async () => {
+  const box = fixture();
+  const release = join(box.dir, 'release-holder');
+  const firstRoot = gateRepo(box, 'slot-holder', 0.1, release);
+  const nextRoot = gateRepo(box, 'ordinary-gate', 0.15);
+  const { root, runner } = checkProject(box);
+  assert.equal(spawnSync(process.execPath, [BIN, 'settings', 'gateSlots', '1'], { cwd: firstRoot, env: box.env }).status, 0);
+
+  const first = launch(box, firstRoot);
+  await waitFor(() => events(box).includes('slot-holder start') && !events(box).includes('slot-holder end'), 'the first gate to hold the only slot');
+  const check = launch(box, runner, ['check', '1', '--yes']);
+  await waitFor(() => check.stdoutText.includes('place 1') || check.exitCode !== null, 'the item check to queue behind the running gate');
+  assert.ok(check.stdoutText.includes('place 1'), 'the item check prints its queued gate-slot position');
+  assert.match(check.stdoutText, /gate waiting:/);
+  assert.deepEqual(events(box), ['slot-holder start'], 'the item check command has not started while the gate holds the slot');
+  const ordinary = launch(box, nextRoot);
+  await waitFor(() => /place [12]/u.test(ordinary.stdoutText), 'the later ordinary gate to enter the queue');
+  assert.ok(ordinary.stdoutText.includes('place 1'), 'the ordinary gate is granted priority over the queued item check');
+  assert.deepEqual(events(box), ['slot-holder start'], 'neither queued command runs before the holder releases');
+
+  writeFileSync(release, 'release\n');
+  await waitFor(() => events(box).includes('ordinary-gate start'), 'the waiting ordinary gate to acquire the released slot');
+  assert.equal(events(box).includes('item check'), false, 'the ordinary gate starts before the lower-priority item check');
+  await waitFor(() => events(box).includes('ordinary-gate end'), 'the ordinary gate to finish');
+  const [firstResult, ordinaryResult, checkResult] = await Promise.all([first.closed, ordinary.closed, check.closed]);
+  assert.equal(firstResult.code, 0);
+  assert.equal(ordinaryResult.code, 0, ordinary.stderrText);
+  assert.equal(checkResult.code, 1, check.stderrText);
+  assert.deepEqual(events(box), ['slot-holder start', 'slot-holder end', 'ordinary-gate start', 'ordinary-gate end', 'item check']);
+
+  mkdirSync(join(runner, 'web'));
+  writeFileSync(join(runner, 'web', 'result.txt'), 'ready\n');
+  assert.equal(spawnSync('git', ['add', 'web/result.txt'], { cwd: runner, env: box.env }).status, 0);
+  const commit = spawnSync('git', ['commit', '-q', '-m', 'feat(web): queue item proof [G1]'], { cwd: runner, env: box.env, encoding: 'utf8' });
+  assert.equal(commit.status, 0, commit.stderr);
+  const submitted = spawnSync(process.execPath, [BIN, 'submit', '1'], { cwd: runner, env: box.env, encoding: 'utf8' });
+  assert.equal(submitted.status, 0, submitted.stderr);
+  const review = join(box.dir, 'check-review');
+  const itemCommit = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: runner, env: box.env, encoding: 'utf8' }).stdout.trim();
+  assert.equal(spawnSync('git', ['worktree', 'add', '-q', '--detach', review, itemCommit], { cwd: root, env: box.env }).status, 0);
+  const reviewer = spawnSync(process.execPath, [BIN, 'join', 'api'], { cwd: review, env: box.env, encoding: 'utf8' });
+  assert.equal(reviewer.status, 0, reviewer.stderr);
+
+  writeFileSync(box.events, '');
+  const verifyRelease = join(box.dir, 'release-verify-holder');
+  const verifyHolderRoot = gateRepo(box, 'verify-holder', 0.1, verifyRelease);
+  const verifyNextRoot = gateRepo(box, 'verify-next-gate', 0.15);
+  const verifyHolder = launch(box, verifyHolderRoot);
+  await waitFor(() => events(box).includes('verify-holder start') && !events(box).includes('verify-holder end'), 'a gate to hold the slot before accepting an item');
+  const verify = launch(box, review, ['verify', '1', 'accept', '--note', 'queue fixture']);
+  await waitFor(() => verify.stdoutText.includes('place 1') || verify.exitCode !== null, 'verify accept to queue for the gate slot');
+  assert.ok(verify.stdoutText.includes('place 1'), 'verify accept prints its queued gate-slot position');
+  assert.match(verify.stdoutText, /gate waiting:/);
+  const verifyNext = launch(box, verifyNextRoot);
+  await waitFor(() => /place [12]/u.test(verifyNext.stdoutText), 'the ordinary gate to enter the queue ahead of accept');
+  assert.ok(verifyNext.stdoutText.includes('place 1'), 'the ordinary gate is granted priority over the queued accept check');
+  assert.equal(events(box).includes('item check'), false);
+  writeFileSync(verifyRelease, 'release\n');
+  await waitFor(() => events(box).includes('verify-next-gate start'), 'the waiting ordinary gate to acquire before accept');
+  assert.equal(events(box).includes('item check'), false);
+  await waitFor(() => events(box).includes('verify-next-gate end'), 'the ordinary gate before accept to finish');
+  const [verifyHolderResult, verifyNextResult, verifyResult] = await Promise.all([verifyHolder.closed, verifyNext.closed, verify.closed]);
+  assert.equal(verifyHolderResult.code, 0);
+  assert.equal(verifyNextResult.code, 0, verifyNext.stderrText);
+  assert.equal(verifyResult.code, 0, `${verify.stderrText}${verify.stdoutText}`);
+  assert.deepEqual(events(box), ['verify-holder start', 'verify-holder end', 'verify-next-gate start', 'verify-next-gate end', 'item check']);
 });

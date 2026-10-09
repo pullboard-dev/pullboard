@@ -268,7 +268,7 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
       const boards = row.kind === 'board' ? db.prepare('SELECT * FROM relay_boards WHERE id=?').all(row.board) : db.prepare('SELECT * FROM relay_boards ORDER BY id').all();
       const visible = [];
       for (const board of boards) {
-        try { await auth.authenticate(token, { board: board.id }); visible.push({ id: board.id, repository: board.repository }); }
+        try { await auth.authenticate(token, { board: board.id }); visible.push({ id: board.id, repository: board.repository, linkedAt: board.linked_at }); }
         catch (error) { if (!['NO_REPO_ACCESS', 'BOARD_NOT_LINKED'].includes(error.code)) throw error; }
       }
       return visible;
