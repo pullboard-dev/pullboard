@@ -426,6 +426,88 @@ test('pre-push keeps its machine gate slot until the hook check finishes [C3,Q4]
   }
 });
 
+test('explicit and trunk pre-push landings jump the machine gate line and show in resources [Q1,Q2]', async () => {
+  const box = sandbox();
+  const gate = holdingGate(box);
+  const projectBox = project(gate.command, box);
+  assert.equal(projectBox.run(projectBox.repo, 'settings', 'gateSlots', '1').code, 0);
+  writeFileSync(gate.mode, 'armed');
+
+  const ordinary = launch(projectBox, projectBox.repo, process.execPath, [BIN, 'gate']);
+  const children = [ordinary];
+  let explicitLanding;
+  try {
+    await waitFor(() => gateEvents(gate).length === 1, 'ordinary gate to hold the sole machine slot');
+    explicitLanding = launch(projectBox, projectBox.web, process.execPath, [BIN, 'gate', '--landing']);
+    children.push(explicitLanding);
+    let latestResources = '';
+    await waitFor(() => {
+      const result = projectBox.run(projectBox.repo, 'resources', '--json');
+      assert.equal(result.code, 0, result.err);
+      latestResources = result.out;
+      const resource = JSON.parse(result.out).resources.find((entry) => entry.scope === 'machine' && entry.name === 'gate');
+      return resource?.line.length > 0;
+    }, 'explicit gate run to appear in the resource listing').catch((error) => {
+      throw new Error(`${error.message}\nresources: ${latestResources}\nlanding stdout: ${explicitLanding.stdoutText}\nlanding stderr: ${explicitLanding.stderrText}\nevents: ${gateEvents(gate).join(',')}`);
+    });
+    const json = projectBox.run(projectBox.repo, 'resources', '--json');
+    assert.equal(json.code, 0, json.err);
+    const queued = JSON.parse(json.out).resources.find((resource) => resource.scope === 'machine' && resource.name === 'gate');
+    assert.deepEqual(queued.line.map(({ landing }) => landing), [true]);
+    const humanQueue = projectBox.run(projectBox.repo, 'resources');
+    assert.equal(humanQueue.code, 0, humanQueue.err);
+    assert.match(humanQueue.out, /waiting: .* \(landing\)/u);
+    writeFileSync(gate.release, 'released');
+    const results = await Promise.all(children.map((child) => child.closed));
+    assert.deepEqual(results.map(({ code }) => code), [0, 0]);
+    assert.deepEqual(gateEvents(gate), ['start', 'end', 'start', 'end']);
+  } finally {
+    writeFileSync(gate.release, 'released');
+    await Promise.all(children.map((child) => child.closed));
+  }
+
+  const pushBox = sandbox();
+  const pushGate = holdingGate(pushBox);
+  const pushProject = project(pushGate.command, pushBox);
+  const remote = join(pushBox.dir, 'remote.git');
+  pushProject.git(pushBox.dir, 'init', '-q', '--bare', remote);
+  pushProject.git(pushProject.repo, 'remote', 'add', 'origin', remote);
+  assert.equal(pushProject.run(pushProject.repo, 'settings', 'gateSlots', '1').code, 0);
+  writeFileSync(pushGate.mode, 'armed');
+  const holder = launch(pushProject, pushProject.web, process.execPath, [BIN, 'gate']);
+  const pushChildren = [holder];
+  let push;
+  try {
+    await waitFor(() => gateEvents(pushGate).length === 1, 'gate holder to start before trunk push');
+    push = launch(pushProject, pushProject.repo, 'git', ['push', '-q', 'origin', 'main']);
+    pushChildren.push(push);
+    let latestPushResources = '';
+    await waitFor(() => {
+      const result = pushProject.run(pushProject.repo, 'resources', '--json');
+      assert.equal(result.code, 0, result.err);
+      latestPushResources = result.out;
+      const resource = JSON.parse(result.out).resources.find((entry) => entry.scope === 'machine' && entry.name === 'gate');
+      return resource?.line.length > 0;
+    }, 'trunk pre-push gate to appear in the resource listing').catch((error) => {
+      throw new Error(`${error.message}\nresources: ${latestPushResources}\npush stdout: ${push.stdoutText}\npush stderr: ${push.stderrText}\nevents: ${gateEvents(pushGate).join(',')}`);
+    });
+    const json = pushProject.run(pushProject.repo, 'resources', '--json');
+    assert.equal(json.code, 0, json.err);
+    const queued = JSON.parse(json.out).resources.find((resource) => resource.scope === 'machine' && resource.name === 'gate');
+    assert.deepEqual(queued.line.map(({ landing }) => landing), [true], 'the hook marks its trunk update as a landing');
+    const humanQueue = pushProject.run(pushProject.repo, 'resources');
+    assert.equal(humanQueue.code, 0, humanQueue.err);
+    assert.match(humanQueue.out, /waiting: .* \(landing\)/u);
+    writeFileSync(pushGate.release, 'released');
+    const results = await Promise.all(pushChildren.map((child) => child.closed));
+    assert.deepEqual(results.map(({ code }) => code), [0, 0]);
+    assert.deepEqual(gateEvents(pushGate), ['start', 'end', 'start', 'end']);
+  } finally {
+    writeFileSync(pushGate.release, 'released');
+    await Promise.all(pushChildren.map((child) => child.closed));
+  }
+});
+
 test('decisions are asked, listed and answered, and evidence attached, from the command line [B21, B22, B26]', () => {
   const box = project();
   box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');

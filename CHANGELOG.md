@@ -4,6 +4,33 @@ Notable changes to Pullboard, for people using it. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-09
+
+### Added
+
+- Your board on your phone: pullboard.dev shows Pullboard View to a signed-in person, and what you do there reaches your board as a request.
+- Approve or decline proposed spec rows from the Spec tab, one at a time or a whole section at once.
+- An item's detail shows its thread as one timeline.
+- `pullboard stats` prints the board's proof numbers.
+- The tour's demo board appears in Pullboard View.
+
+### Changed
+
+- The agents' house rules are DOCTRINE.md everywhere; a PRACTICE.md is still read under its old name.
+- Submit and accept refuse work that can't merge onto the trunk.
+- Accept installs the repo's dependencies before the frozen check, and every accept records whether a check ran.
+- Only `pullboard answer` closes a decision, over the relay too.
+- A replayed verify obeys the item's frozen policy.
+- Every relay client declares its engine, and the relay refuses clients too old to judge agent moves; upgrade every linked device to 0.8.1.
+- Offline, a linked board reads locally and refuses moves.
+
+### Fixed
+
+- Retrying a move after a lost reply never duplicates it.
+- Merging main into a lane branch commits cleanly; edits outside the lane are still refused.
+- Test runs keep a private machine home, so they no longer add projects to Pullboard View.
+- Chrome and port tests hold up on a busy machine.
+
 ## [0.8.0] - 2026-10-08
 
 ### Added
@@ -62,7 +89,8 @@ Notable changes to Pullboard, for people using it. The format follows [Keep a Ch
 - A local, spec-backed work board gives each item a frozen criterion, a separate worktree lane, a gated submission, and an independent review receipt.
 - The timed tour demonstrates a change being rejected, corrected, and accepted with proof.
 
-[Unreleased]: https://github.com/pullboard-dev/pullboard/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/pullboard-dev/pullboard/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/pullboard-dev/pullboard/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/pullboard-dev/pullboard/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/pullboard-dev/pullboard/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/pullboard-dev/pullboard/compare/v0.6.0...v0.6.1
