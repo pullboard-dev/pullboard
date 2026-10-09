@@ -7,6 +7,7 @@ import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { once } from 'node:events';
 import { test } from 'node:test';
+import { SSH_SHELL_MARKERS } from '../src/person.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const MARKERS = {
@@ -29,6 +30,7 @@ const TEMP_DIRS = [];
 function cleanEnvironment(source) {
   const env = { ...source };
   for (const key of Object.keys(MARKERS)) delete env[key];
+  for (const key of SSH_SHELL_MARKERS) delete env[key];
   return env;
 }
 
@@ -159,9 +161,9 @@ test('[B26] person answers refuse agent environments without writes and record t
 
 
 /** Start the actual view in an agent environment and retain only its private request credentials. */
-async function startView(t, box) {
+async function startView(t, box, extraEnv = {}) {
   const child = spawn(process.execPath, [BIN, 'view', '--no-open', '--port', '0', '--json'], {
-    cwd: box.repo, env: { ...box.env, ...MARKERS }, stdio: ['ignore', 'pipe', 'pipe'],
+    cwd: box.repo, env: { ...box.env, ...MARKERS, ...extraEnv }, stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
   let diagnostics = '';
@@ -199,6 +201,51 @@ async function startView(t, box) {
   });
   return request;
 }
+
+test('[B26,B3] person actions over SSH refuse terminals while the authenticated view remains available', async (t) => {
+  const box = project();
+  t.after(() => rmSync(box.dir, { recursive: true, force: true }));
+  /** Create a real person decision by passing a worktree agent's request. */
+  const createPersonDecision = (text) => {
+    const asked = box.run(box.web, ['shout', 'coordinator', text, '--decision', '--json']);
+    assert.equal(asked.status, 0, asked.stderr);
+    const passed = box.run(box.repo, ['pass', String(JSON.parse(asked.stdout).id), 'The person should decide.', '--json']);
+    assert.equal(passed.status, 0, passed.stderr);
+    return JSON.parse(passed.stdout).id;
+  };
+  const terminalPerson = createPersonDecision('Answer from a local terminal?');
+  const viewPerson = createPersonDecision('Answer from the view over SSH?');
+  const database = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  const before = boardCounts(database);
+  for (const remote of [
+    { SSH_CONNECTION: '192.0.2.10 12345 192.0.2.20 22' },
+    { SSH_TTY: '/dev/pts/7' },
+  ]) {
+    const refused = box.run(box.repo, ['answer', String(terminalPerson), 'Ship it.', '--as', 'person', '--json'], remote);
+    assert.equal(refused.status, 1, refused.stdout + refused.stderr);
+    const error = JSON.parse(refused.stdout).error;
+    assert.equal(error.code, 'B26_PERSON_CHANNEL');
+    assert.match(error.message, /remote SSH shell/iu);
+    assert.match(error.next, /pullboard view/iu);
+    assert.deepEqual(boardCounts(database), before, 'SSH refusals append no answer or event');
+  }
+  const local = box.run(box.repo, ['answer', String(terminalPerson), 'Ship it.', '--as', 'person', '--json'], cleanEnvironment(box.env));
+  assert.equal(local.status, 0, local.stderr);
+  assert.equal(lastAnswerDetail(database).channel, 'terminal');
+
+  const request = await startView(t, box, { SSH_CONNECTION: '192.0.2.10 12345 192.0.2.20 22', SSH_TTY: '/dev/pts/7' });
+  const listing = await (await request('/api/v1/boards')).json();
+  const board = listing.boards.find((entry) => entry.root === box.repo);
+  assert.ok(board, 'view remains available when launched with SSH environment markers');
+  const response = await request(`/api/v1/boards/${board.id}/moves`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ verb: 'answer', item: viewPerson, agent: 'coordinator', args: { text: 'Yes.', as: 'person' } }),
+  });
+  assert.equal(response.status, 200, await response.clone().text());
+  const answer = await response.json();
+  assert.equal(answer.event.event_by, 'person');
+  assert.equal(JSON.parse(answer.event.event_detail).channel, 'view');
+});
 
 test('[B26,B27] a view launched by an agent records view on both person answer receipts', async (t) => {
   const box = project();

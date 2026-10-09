@@ -10,6 +10,7 @@ import { BLANKS, STATES, storeTriggers } from './machine.js';
 import { readEventLogVersion, SCHEMA_VERSION } from './board.js';
 import { staleFrozenItems, staleItemFinding } from './approved-rows.js';
 import { loadSpec } from './spec.js';
+import { loadDoctrine } from './doctrine.js';
 import { preMergeHookProblems } from './hooks.js';
 const blankCharacters = new Set(BLANKS.map((point) => String.fromCodePoint(point)));
 
@@ -51,7 +52,7 @@ export function doctorProblems(file, root, tryGit, config) {
       ...(layout.itemPins ? pinProblems(db, root, tryGit) : []),
       ...(layout.verdicts ? verdictProblems(db, root, tryGit) : []),
       ...(layout.itemAudit ? submissionProblems(db, root) : []),
-      ...(layout.itemAudit && config ? staleFrozenItems(db.prepare('SELECT * FROM item ORDER BY item_id').all(), loadSpec(root, config).rows).map(staleItemFinding) : []),
+      ...(layout.itemAudit && config ? staleFrozenItems(db.prepare('SELECT * FROM item ORDER BY item_id').all(), loadSpec(root, config).rows, loadDoctrine(root, config).rows).map(staleItemFinding) : []),
     ];
   } finally {
     db.close();
