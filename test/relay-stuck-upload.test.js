@@ -410,3 +410,92 @@ async function privatePersonSession(box) {
   const cookie = signed.headers.getSetCookie().find(value => value.startsWith('pb_session='));
   return cookie.split(';')[0].slice('pb_session='.length);
 }
+
+/** The accepted-baseline path stays ordered while one actionable line survives internal retries. */
+test('a refused later checkpoint names its repair once on every native agent command [H16,B26]', async t => {
+  const box = await relayClientFixture(t);
+  const configPath = join(box.root, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  const lane = 'fixture-build';
+  const gate = 'node --check src/relay-checkpoint-fixture.js';
+  config.gate = gate;
+  config.lanes[lane] = { owns: ['src/'], specs: ['G'] };
+  writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+  const specPath = join(box.root, 'SPEC.md');
+  writeFileSync(specPath, readFileSync(specPath, 'utf8').replace('\n## K · Constraints',
+    `\n- G1 [approved, must] The checkpoint fixture parses. | gate: ${gate}\n\n## K · Constraints`));
+  const added = await box.cli('add', lane, 'accepted baseline work', '--specs', 'G1', '--criterion', 'the fixture source parses', '--check', gate);
+  assert.equal(added.code, 0);
+  const item = added.document.item.item_id;
+  symlinkSync(resolve(import.meta.dirname, '../bin/pullboard.js'), join(box.env.PATH, 'pullboard'));
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: box.root, env: box.env }).status, 0);
+  assert.equal(spawnSync('git', ['commit', '-q', '-m', 'chore(test): prepare checkpoint fixture'], { cwd: box.root, env: box.env }).status, 0);
+  const agentRoot = join(box.root, '..', 'later-checkpoint-agent');
+  assert.equal(spawnSync('git', ['worktree', 'add', '-q', '-b', 'fixture-later-checkpoint-agent', agentRoot, 'HEAD'], { cwd: box.root, env: box.env }).status, 0);
+  await box.link();
+  assert.equal((await box.cliAt(agentRoot, 'join', lane)).code, 0);
+  assert.ok(JSON.parse(readFileSync(box.linkFile, 'utf8')).baselineAccepted);
+  box.rejectSnapshots({ status: 503, code: 'RELAY_UNAVAILABLE', message: 'temporary checkpoint refusal' });
+  assert.equal((await box.cli('shout', 'all', 'private transient checkpoint change')).code, 0);
+  const transient = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  assert.ok(transient.checkpoint, 'a transient checkpoint keeps its exact queued ciphertext');
+  assert.equal(transient.checkpointRefusal, undefined, 'a retryable response never becomes a permanent checkpoint diagnostic');
+  box.rejectSnapshots(null);
+  assert.equal((await box.cli('status')).code, 0);
+  assert.equal(JSON.parse(readFileSync(box.linkFile, 'utf8')).checkpoint, undefined, 'a later read retries the transient checkpoint without requiring another change');
+  const baselineSequence = (await uploadedState(box)).sequence;
+  box.rejectSnapshots({ status: 400, code: 'BAD_UPLOAD', message: 'malformed sealed snapshot' });
+
+  /** Leave a genuinely refused checkpoint pending before each measured command. */
+  async function seed() {
+    assert.equal((await box.cli('shout', 'all', 'private checkpoint seeding change')).code, 0);
+    assert.ok(JSON.parse(readFileSync(box.linkFile, 'utf8')).checkpoint);
+  }
+  /** Demand one bounded diagnostic with upload, reason and the coordinator's concrete repair. */
+  function diagnostic(result, name) {
+    const lines = result.document.diagnostics ?? [];
+    assert.equal(lines.length, 1, name + ' prints one diagnostic across preflight, move and postflight');
+    assert.match(lines[0], /relay checkpoint refused for [0-9a-f]{32}: BAD_UPLOAD malformed sealed snapshot/u);
+    assert.match(lines[0], /moves still sync in order; a fresh checkpoint goes up on the next change/u);
+    assert.match(lines[0], /upgrade pullboard \(npm i -g pullboard\) or run pullboard relay off then relay on --all/u);
+    assert.doesNotMatch(lines[0], /\n|run pullboard status to see pending uploads|relay paused/u);
+  }
+  await seed();
+  const claimed = await box.cliAt(agentRoot, 'claim', String(item));
+  assert.equal(claimed.code, 0); diagnostic(claimed, 'claim');
+  mkdirSync(join(agentRoot, 'src'), { recursive: true });
+  writeFileSync(join(agentRoot, 'src/relay-checkpoint-fixture.js'), 'export const checkpoint = true;\n');
+  assert.equal(spawnSync('git', ['add', 'src/relay-checkpoint-fixture.js'], { cwd: agentRoot, env: box.env }).status, 0);
+  assert.equal(spawnSync('git', ['commit', '-q', '-m', 'feat(fixture-build): complete checkpoint work [G1]'], { cwd: agentRoot, env: box.env }).status, 0);
+  await seed();
+  const submitted = await box.cliAt(agentRoot, 'submit', String(item));
+  assert.equal(submitted.code, 0); diagnostic(submitted, 'submit');
+  await seed();
+  const shouted = await box.cliAt(agentRoot, 'shout', 'coordinator', 'ordered agent with refused checkpoint');
+  assert.equal(shouted.code, 0); diagnostic(shouted, 'shout');
+  for (const command of ['status', 'doctor']) {
+    await seed();
+    const result = await box.cliAt(agentRoot, command);
+    assert.ok([0, 1].includes(result.code)); diagnostic(result, command);
+    if (command === 'doctor') {
+      const finding = result.document.problems.find(problem => problem.code === 'RELAY_CHECKPOINT_REFUSED');
+      assert.ok(finding, 'doctor exposes a repair finding as well as its single diagnostic');
+      assert.match(finding.next, /npm i -g pullboard.*relay off.*relay on --all/u);
+    }
+  }
+  const refused = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  assert.equal(refused.baselinePause, undefined);
+  const remote = await fetch(box.origin + '/api/v1/boards/' + refused.board + '/events?after=' + baselineSequence, {
+    headers: { authorization: 'Bearer ' + refused.token, 'x-pullboard-engine': String(ENGINE_VERSION) },
+  });
+  assert.equal(remote.status, 200);
+  const records = (await remote.json()).events;
+  assert.deepEqual(records.map(record => record.event_id), records.map((_, index) => baselineSequence + index + 1));
+  assert.ok(records.some(record => record.sender.kind === 'agent'), 'agent effects stay in authenticated relay order');
+  box.rejectSnapshots(null);
+  assert.equal((await box.cliAt(agentRoot, 'shout', 'coordinator', 'fresh checkpoint after repair')).code, 0);
+  const recovered = await box.cliAt(agentRoot, 'status');
+  assert.equal((recovered.document.diagnostics ?? []).length, 0, 'fresh accepted checkpoint clears the refusal');
+  assert.equal(JSON.parse(readFileSync(box.linkFile, 'utf8')).checkpointRefusal, undefined);
+  assert.equal((await uploadedState(box)).sequence, baselineSequence + records.length + 1);
+});

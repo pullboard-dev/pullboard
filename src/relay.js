@@ -25,6 +25,7 @@ const WARNED_COMMANDS = new WeakSet();
 const KEY_WARNED_COMMANDS = new WeakSet();
 const BASELINE_ATTEMPTS = new WeakMap();
 const BASELINE_NOTICES = new WeakSet();
+const CHECKPOINT_NOTICES = new WeakMap();
 const BASELINE_LOCAL_MOVES = new WeakSet();
 const BASELINE_FAILURES = new WeakMap();
 
@@ -180,7 +181,8 @@ function summary(root, state, { pairing = false } = {}) {
     link: 'https://app.pullboard.dev/#board=' + state.board + fragment,
     sequence: state.sequence, behind: (state.baselinePause ? behind(root, state) : state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)),
     ...(oversizedSnapshot ? { oversizedSnapshot } : {}),
-    ...(state.baselinePause ? { pausedUpload: structuredClone(state.baselinePause) } : {}) };
+    ...(state.baselinePause ? { pausedUpload: structuredClone(state.baselinePause) } : {}),
+    ...(state.checkpointRefusal ? { refusedCheckpoint: checkpointProblem(state) } : {}) };
 }
 
 /** Measure a pending sealed snapshot against the relay's decoded journal limit. */
@@ -219,6 +221,34 @@ function safePauseMessage(error) {
 function permanentBaselineRefusal(error) {
   return Number.isInteger(error?.httpStatus) && error.httpStatus >= 400 && error.httpStatus < 500 &&
     ![408, 425, 429].includes(error.httpStatus);
+}
+
+/** Explain a refused later checkpoint without changing the ordered-move recovery policy. */
+function checkpointProblem(state) {
+  const refusal = state.checkpointRefusal;
+  const code = safePauseCode(refusal);
+  const reason = safePauseMessage(refusal);
+  const size = snapshotSize(state);
+  const next = 'upgrade pullboard (npm i -g pullboard) or run pullboard relay off then relay on --all';
+  const message = `relay checkpoint refused for ${state.board}: ${code} ${reason}`
+    + (size ? '; ' + formatSnapshotLimit(size) : '')
+    + '; moves still sync in order; a fresh checkpoint goes up on the next change; if it keeps failing, ' + next;
+  return { code: 'RELAY_CHECKPOINT_REFUSED', message, next };
+}
+
+/** Project the current checkpoint repair for doctor without making another network request. */
+export function pendingCheckpointProblem(root) {
+  const state = loadLink(linkFile(root));
+  return state?.checkpointRefusal ? checkpointProblem(state) : null;
+}
+
+/** Deduplicate permanent checkpoint diagnostics across the same command's preflight and retries. */
+function reportCheckpointRefusal(state, io) {
+  let boards = CHECKPOINT_NOTICES.get(io);
+  if (!boards) { boards = new Set(); CHECKPOINT_NOTICES.set(io, boards); }
+  if (boards.has(state.board)) return;
+  boards.add(state.board);
+  io.err('pullboard: ' + checkpointProblem(state).message);
 }
 
 /** Name the safe next step for the saved permanent refusal. */
@@ -485,11 +515,22 @@ async function publishCheckpoint(root, file, state, io) {
   const sequence = Number(document.tables.board_meta.find((row) => row.meta_key === 'relay_applied_sequence')?.meta_value ?? 0);
   const digest = presentationDigest(document.presentation);
   if (!state.checkpoint || state.checkpoint.sequence !== sequence || state.checkpointPresentationDigest !== digest) {
+    delete state.checkpointRefusal;
     state.checkpointPresentationDigest = digest;
     state.checkpoint = { sequence, sealed: await sealedRecord(readBoardKey(state.board), document, state, 'snapshot', sequence) };
     saveLink(file, state);
   }
-  const reply = await request(state, '/api/v1/boards/' + state.board + '/state', { method: 'PUT', body: state.checkpoint }, io);
+  // A definitive rejection retries only a fresh image after the board changes.
+  if (state.checkpointRefusal) { reportCheckpointRefusal(state, io); return; }
+  let reply;
+  try { reply = await request(state, '/api/v1/boards/' + state.board + '/state', { method: 'PUT', body: state.checkpoint }, io); }
+  catch (error) {
+    if (!(error instanceof Refused) || !permanentBaselineRefusal(error)) throw error;
+    state.checkpointRefusal = { code: safePauseCode(error), message: safePauseMessage(error), status: error.httpStatus };
+    saveLink(file, state);
+    reportCheckpointRefusal(state, io);
+    return;
+  }
   if (reply.state?.sequence !== state.checkpoint.sequence || reply.state.sealed !== state.checkpoint.sealed) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge this checkpoint; retry the configured relay');
   state.presentationDigest = state.checkpointPresentationDigest;
   delete state.checkpoint;
