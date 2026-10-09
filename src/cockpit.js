@@ -559,6 +559,13 @@ function renderPersonRequests(project) {
     $('console').className = 'console' + (current.status === 'done' ? ' ok' : current.status === 'refused' ? ' no' : '');
     $('console').textContent = requestNotice(current);
   }
+  const feedback = view.specFeedback;
+  const rowRequest = feedback?.root === view.root && feedback.requestId && entries.find((request) => request.id === feedback.requestId);
+  if (rowRequest) {
+    feedback.status = rowRequest.status;
+    feedback.tone = rowRequest.status === 'done' ? 'ok' : rowRequest.status === 'refused' ? 'no' : '';
+    feedback.text = requestNotice(rowRequest);
+  }
 }
 
 /** A board's sidebar counts, derived from the same API state the page displays. */
@@ -1085,7 +1092,7 @@ function render() {
     const feedbackId = feedback && (shownRows.some((r) => r.id === feedback.id) ? feedback.id : shownRows.some((r) => r.id === feedback.next) ? feedback.next : shownRows[0]?.id);
     let section = null;
     $(kind + '-list').innerHTML = shownRows.length ? shownRows.map((r) => {
-      const sectionRows = !snapshot && !readOnly && kind === 'spec' && r.section !== section ? rows.filter((entry) => entry.section === r.section && undecided(entry)) : [];
+      const sectionRows = !snapshot && (!readOnly || requests) && kind === 'spec' && r.section !== section ? rows.filter((entry) => entry.section === r.section && undecided(entry)) : [];
       const head = r.section !== section ? '<div class="spec-section-head"><h4>' + esc(r.section) + '</h4>' + (sectionRows.length ? '<button class="spec-section-approve" data-section-approve="' + esc(r.section) + '" type="button">Approve all ' + sectionRows.length + ' in this section</button>' : '') + '</div>' : '';
       section = r.section;
       const declined = kind === 'doctrine' && r.status === 'wont';
@@ -1094,7 +1101,7 @@ function render() {
       const source = kind === 'doctrine' ? '<small class="rule-source">' + esc(ruleSource(r)) + '</small>' : '';
       const status = r.stage || r.status;
       /** Render person-only row decisions in both the list and its detail pane. */
-      const decisionActions = (!snapshot && !readOnly && kind === 'spec' && undecided(r))
+      const decisionActions = (!snapshot && (!readOnly || requests) && kind === 'spec' && undecided(r))
         ? '<div class="spec-decision-actions"><button class="approve-row" data-row-decision="approve" data-row-id="' + esc(r.id) + '" type="button">Approve</button><button class="decline-row" data-row-decision="decline" data-row-id="' + esc(r.id) + '" type="button">Decline</button></div>'
         : '';
       return head + (feedback && feedbackId === r.id ? specFeedback(feedback) : '') + '<div class="srow' + (view.row[kind] === r.id ? ' on' : '') + '" data-row="' + kind + ':' + esc(r.id) + '"><code>' + esc(r.id) + '</code><span><span class="chip ' + tone(r.status) + '">' + esc(status) + '</span>' + source + '</span><span>' + text + reason + decisionActions + '</span></div>';
@@ -1108,7 +1115,7 @@ function render() {
     const reason = declined && row.reason ? '<dt>reason</dt><dd>' + linked(row.reason, titles) + '</dd>' : '';
     const home = kind === 'doctrine' && row && row.origin === 'standard' ? 'Standard rules come with Pullboard; override or decline one in PRACTICE.md.' : 'Rows change in ' + (kind === 'spec' ? 'SPEC.md' : 'PRACTICE.md') + ', and only you approve them.';
     const rowStatus = row?.stage || row?.status;
-    const rowDecisionActions = !snapshot && !readOnly && row && kind === 'spec' && undecided(row)
+    const rowDecisionActions = !snapshot && (!readOnly || requests) && row && kind === 'spec' && undecided(row)
       ? '<div class="spec-decision-actions detail-decision-actions"><button class="approve-row" data-row-decision="approve" data-row-id="' + esc(row.id) + '" type="button">Approve</button><button class="decline-row" data-row-decision="decline" data-row-id="' + esc(row.id) + '" type="button">Decline</button></div>'
       : '';
     $(kind + '-detail').innerHTML = row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div>' + rowDecisionActions + (kind === 'spec' && view.specFeedback?.root === view.root && view.specFeedback.from === 'detail' && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '') + '<dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<div class="links-item" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span></div>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div><div class="muted">' + home + '</div></div>' : '<div class="empty">Pick a row to see it, and the items that cite it.</div>';
@@ -1334,7 +1341,7 @@ function specFeedback(feedback) {
 
 /** Record a Spec decision beside its row and retain the list's reading position (B26, N26). */
 async function decideSpec(command, args, anchor) {
-  if (snapshot) return false;
+  if (snapshot || (readOnly && !requests)) return false;
   const root = view.root, scroll = window.scrollY;
   const ids = String(args.ids).split(/\s+/);
   const rows = [...$('spec-list').querySelectorAll('[data-row]')];
@@ -1346,9 +1353,12 @@ async function decideSpec(command, args, anchor) {
   window.scrollTo({ top: scroll, behavior: 'instant' });
   try {
     const move = pageMove(command, args);
-    const result = await api(boardPath(root) + '/moves', move.body);
-    feedback.tone = 'ok';
-    feedback.text = moveMessage(move.body, result.result);
+    const result = requests ? await sendPersonRequest(root, move.body) : await api(boardPath(root) + '/moves', move.body);
+    const request = requests && result?.result?.request;
+    if (requests && (!request?.id || !['waiting', 'done', 'refused'].includes(request.status))) throw new Error('The request did not include its status; refresh the board to check it.');
+    feedback.tone = requests ? request.status === 'done' ? 'ok' : request.status === 'refused' ? 'no' : '' : 'ok';
+    feedback.text = requests ? requestNotice(request) : moveMessage(move.body, result.result);
+    if (requests) { feedback.requestId = request.id; feedback.status = request.status; }
     await refresh();
   } catch (error) {
     feedback.tone = 'no';
@@ -1357,9 +1367,9 @@ async function decideSpec(command, args, anchor) {
   if (root === view.root && view.specFeedback === feedback) {
     render();
     window.scrollTo({ top: scroll, behavior: 'instant' });
-    setTimeout(() => { if (view.specFeedback === feedback) { view.specFeedback = null; render(); } }, 6000);
+    if (!requests || feedback.status === 'done') setTimeout(() => { if (view.specFeedback === feedback) { view.specFeedback = null; render(); } }, 6000);
   }
-  return feedback.tone === 'ok';
+  return requests ? Boolean(feedback.requestId) && feedback.status !== 'refused' : feedback.tone === 'ok';
 }
 
 /** Run a public API move beside its action and let only the latest one own the console and timer. */

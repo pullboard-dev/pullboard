@@ -2712,7 +2712,8 @@ test('relay person requests stay explicit, read-only and visible [H12,H5]', { ti
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to run the person-request transport proof.');
 
   const box = machine();
-  const requestSpec = `# Person request fixture\n\n## G · Goals\n- G1 [approved, must] Existing item remains readable. | gate: test\n- G2 [draft, must] The person can approve this row. | gate: test\n`;
+  const requestRows = Array.from({ length: 12 }, (_, index) => `- P${index + 1} [draft, must] Keep the reading position measurable. | gate: test`).join('\n');
+  const requestSpec = `# Person request fixture\n\n## G · Goals\n- G1 [approved, must] Existing item remains readable. | gate: test\n${requestRows}\n- G2 [draft, must] The person can approve this row. | gate: test\n`;
   const app = project(box, 'person requests', requestSpec);
   box.run(app.repo, 'add', 'web', 'Existing private item', '--specs', 'G1', '--criterion', 'remains readable');
   box.run(app.repo, 'shout', 'person', 'Should this item ship?', '--decision');
@@ -2731,9 +2732,15 @@ test('relay person requests stay explicit, read-only and visible [H12,H5]', { ti
       await fetch('/request-status', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, status, error }) });
       await onUpdate();
     };
+    window.__holdNextIntent = false;
+    window.__releaseHeldIntent = null;
     return { async request(path, body) {
       window.__transportCalls.push({ path, body: body ?? null });
       if (body) {
+        if (window.__holdNextIntent) {
+          window.__holdNextIntent = false;
+          await new Promise(resolve => { window.__releaseHeldIntent = resolve; });
+        }
         const response = await fetch('/intent', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
         const document = await response.json();
         if (!response.ok) throw new Error(document.error?.message || String(response.status));
@@ -2812,8 +2819,37 @@ test('relay person requests stay explicit, read-only and visible [H12,H5]', { ti
     await chrome.evaluate("document.querySelector('[data-tab=\"shouts\"]').click(); document.querySelector('#shout-to').value = 'coordinator'; document.querySelector('#shout-text').value = 'Please review this item.'; document.querySelector('#shout-form').requestSubmit()");
     await chrome.waitFor("data?.project?.personRequests?.length === 1");
     assert.deepEqual(intents.at(-1), { verb: 'shout', args: { to: 'coordinator', text: 'Please review this item.' } });
-    assert.equal(await chrome.evaluate(`(async () => act('spec-approve', { ids: 'G2' }))()`), true);
+    await chrome.evaluate("document.querySelector('[data-tab=\"spec\"]').click()");
+    await chrome.waitFor("document.querySelector('#spec-list [data-row=\"spec:G2\"] button[data-row-decision=\"approve\"]')");
+    assert.equal(await chrome.evaluate("document.querySelector('#spec-list [data-row=\"spec:G2\"] button[data-row-decision=\"approve\"]').getBoundingClientRect().height >= 44"), true, 'the real G2 approval control is usable at 375px');
+    await chrome.evaluate("document.querySelector('#spec-list [data-row=\"spec:G2\"]').scrollIntoView({ block: 'center' })");
+    await chrome.waitFor('window.scrollY > 0');
+    await chrome.evaluate("document.querySelector('#spec-list [data-row=\"spec:G2\"]').click()");
+    await chrome.waitFor("view.row.spec === 'G2'");
+    const reading = JSON.parse(await chrome.evaluate(`JSON.stringify({ root: view.root, boardRoot: data.project.root, row: view.row.spec, scroll: window.scrollY })`));
+    assert.equal(reading.root, reading.boardRoot, 'the selected spec row belongs to the displayed board');
+    assert.equal(reading.row, 'G2', 'G2 is the selected reading row before approval');
+    await chrome.evaluate('window.__holdNextIntent = true');
+    await chrome.evaluate("document.querySelector('#spec-list [data-row=\"spec:G2\"] button[data-row-decision=\"approve\"]').click()");
+    await chrome.waitFor("typeof window.__releaseHeldIntent === 'function' || document.querySelector('#spec-list .spec-feedback.no')");
+    assert.equal(await chrome.evaluate("typeof window.__releaseHeldIntent"), 'function', 'the row decision reaches the sealed request transport instead of the refused generic API');
+    await chrome.waitFor("document.querySelector('#spec-list .spec-feedback')?.textContent.trim() === 'Recording decision…'");
+    await chrome.evaluate('window.__releaseHeldIntent()');
+    await chrome.waitFor("document.querySelector('#spec-list .spec-feedback') && document.querySelector('#spec-list .spec-feedback').textContent.trim() !== 'Recording decision…'");
+    assert.deepEqual(intents.at(-1), { verb: 'spec-approve', args: { ids: 'G2' } }, 'the row click creates the exact second literal intent');
+    await chrome.waitFor("data?.project?.personRequests?.length === 2 && document.querySelector('[data-person-request=\"request-2\"] .request-status')?.textContent === 'Waiting'");
+    assert.match(await chrome.evaluate("document.querySelector('#spec-list .spec-feedback')?.textContent.trim() || ''"), /G2/);
+    const afterApproval = JSON.parse(await chrome.evaluate(`JSON.stringify({ root: view.root, row: view.row.spec, scroll: window.scrollY, selected: document.querySelector('#spec-list [data-row=\"spec:G2\"]')?.classList.contains('on'), visible: (() => { const row = document.querySelector('#spec-list [data-row=\"spec:G2\"]')?.getBoundingClientRect(); return !!row && row.top >= 0 && row.bottom <= innerHeight; })() })`));
+    assert.deepEqual([afterApproval.root, afterApproval.row, afterApproval.selected], [reading.root, 'G2', true], 'the request keeps the selected board and G2 row');
+    assert.ok(Math.abs(afterApproval.scroll - reading.scroll) <= 1, 'the request keeps the page at the same reading position');
+    assert.equal(afterApproval.visible, true, 'G2 remains visible beside its inline feedback');
     assert.deepEqual(intents.at(-1), { verb: 'spec-approve', args: { ids: 'G2' } });
+    assert.equal(await chrome.evaluate("data.project.spec.find(row => row.id === 'G2').decision === undefined"), true, 'waiting for a request never approves the row optimistically');
+    await chrome.evaluate("window.__setPersonRequest('request-2', 'done')");
+    assert.match(await chrome.evaluate("document.querySelector('#spec-list .spec-feedback')?.textContent || ''"), /^Done/, 'the same row feedback follows a matched done receipt');
+    await chrome.evaluate("window.__setPersonRequest('request-2', 'refused', { code: 'REQUEST_DECLINED', message: 'Keep the row draft.', next: 'Ask the coordinator for the next step.' })");
+    assert.match(await chrome.evaluate("document.querySelector('#spec-list .spec-feedback.no')?.textContent || ''"), /Refused[\s\S]*REQUEST_DECLINED[\s\S]*Keep the row draft\.[\s\S]*Ask the coordinator/, 'the same row retains the original refusal and next step');
+    await chrome.evaluate("window.__setPersonRequest('request-2', 'waiting')");
 
     const ids = JSON.parse(await chrome.evaluate('JSON.stringify(data.project.personRequests.map(row => row.id))'));
     assert.deepEqual(ids, ['request-1', 'request-2']);
@@ -2845,10 +2881,16 @@ test('relay person requests stay explicit, read-only and visible [H12,H5]', { ti
     await chrome.send('Page.navigate', { url: `http://127.0.0.1:${pageServer.address().port}/without-capability` });
     await chrome.waitFor("typeof data === 'object' && !!data?.project && document.body?.classList.contains('read-only')");
     const beforeDisabled = intents.length;
+    await chrome.evaluate("document.querySelector('[data-tab=\"spec\"]').click(); document.querySelector('#spec-list [data-row=\"spec:G2\"]').click()");
+    await chrome.waitFor("view.row.spec === 'G2'");
+    assert.equal(await chrome.evaluate(`(async () => decideSpec('spec-approve', { ids: 'G2' }, document.querySelector('#spec-list [data-row=\"spec:G2\"]')))()`), false, 'the decision handler itself refuses without request capability');
+    assert.equal(await chrome.evaluate('!view.specFeedback'), true, 'a disabled decision refuses before creating decision feedback');
+    assert.equal(intents.length, beforeDisabled, 'a direct no-capability decision never reaches the request transport');
     for (const [action, args] of allActions) assert.equal(await chrome.evaluate(`act(${JSON.stringify(action)}, ${JSON.stringify(args)})`), false, `${action} stays refused without the capability`);
     assert.equal(intents.length, beforeDisabled, 'read-only without the explicit request capability refuses every action');
     await chrome.send('Page.navigate', { url: `http://127.0.0.1:${pageServer.address().port}/snapshot` });
     await chrome.waitFor("typeof data === 'object' && !!data?.project && document.body?.classList.contains('snapshot')");
+    assert.equal(await chrome.evaluate(`(async () => decideSpec('spec-approve', { ids: 'G2' }, null))()`), false, 'the decision handler itself refuses in a snapshot');
     for (const [action, args] of allActions) assert.equal(await chrome.evaluate(`act(${JSON.stringify(action)}, ${JSON.stringify(args)})`), false, `${action} stays refused in a snapshot`);
     assert.match(await chrome.evaluate(`(async () => { try { await api('/api/v1/boards/demo/moves', { verb: 'shout' }); return 'unexpected'; } catch (error) { return error.message; } })()`), /read-only snapshot/i);
     assert.equal(intents.length, beforeDisabled, 'snapshot mode cannot use the explicit request capability');
