@@ -1,6 +1,7 @@
 {
   "name": "pullboard",
   "gate": "npm run gate",
+  "affectedTests": "node bin/run-tests.js",
   "spec": "SPEC.md",
   "verify": "any",
   "lease": "2h",
