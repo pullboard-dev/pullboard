@@ -80,6 +80,8 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
   let override = null;
   let mintFailures = 0;
   let refuseEventReads = false;
+  let revokeOnNextListing = false;
+  const boardsWithoutSnapshots = new Map();
   const injectedSnapshotWriteDelayMs = Number(process.env.PULLBOARD_TEST_SNAPSHOT_WRITE_DELAY_MS ?? 0);
   assert.ok(Number.isSafeInteger(injectedSnapshotWriteDelayMs) && injectedSnapshotWriteDelayMs >= 0 && injectedSnapshotWriteDelayMs <= 15000,
     'injected snapshot delay is within the product wait bound');
@@ -129,7 +131,18 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
     res.once('finish', () => transit.push({ method: req.method, path: req.url,
       request: Buffer.concat(requestChunks), response: Buffer.concat(responseChunks) }));
     calls.push({ method: req.method, path: req.url, accept: req.headers.accept ?? '', engine: req.headers['x-pullboard-engine'] });
+    if (revokeOnNextListing && req.method === 'GET' && req.url === '/api/v1/boards') {
+      revokeOnNextListing = false;
+      const state = JSON.parse(readFileSync(linkFile, 'utf8'));
+      await auth.revoke(state.token, state.tokenId);
+    }
     if ([...privateKeys].some(key => JSON.stringify({ url: req.url, headers: req.headers }).includes(key))) keyLeaked = true;
+    const missingSnapshot = /^\/api\/v1\/boards\/([0-9a-f]{32})\/(state|events)(?:\?|$)/u.exec(req.url ?? '');
+    if (req.method === 'GET' && missingSnapshot && boardsWithoutSnapshots.get(missingSnapshot[1])?.has(missingSnapshot[2])) {
+      res.writeHead(404, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ version: 1, error: { code: 'NO_BOARD', message: 'upload the sealed snapshot for this linked board first' } }));
+      return;
+    }
     if (mintFailures > 0 && req.method === 'POST' && req.url === '/auth/tokens') {
       mintFailures -= 1;
       req.resume();
@@ -311,10 +324,8 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
   }
   /** Link another independently initialized synthetic board through the same real person account. */
   async function additionalBoard(title) {
-    const nextRoot = join(scratch, 'additional-board');
-    const nextHome = join(scratch, 'additional-home');
-    mkdirSync(nextRoot);
-    mkdirSync(nextHome, { mode: 0o700 });
+    const nextRoot = mkdtempSync(join(scratch, 'additional-board-'));
+    const nextHome = mkdtempSync(join(scratch, 'additional-home-'));
     const nextEnv = { ...env, HOME: nextHome, PULLBOARD_HOME: join(nextHome, '.pullboard') };
     /** Run this separate board without retaining credentials in diagnostic output. */
     const run = (...args) => childResult(nextRoot, nextEnv, [CLI, ...args, '--json']);
@@ -362,6 +373,12 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
     keyInRequest() { return keyLeaked; },
     /** Revoke the actual synthetic person session, including its current live streams. */
     revokeSession() { const state = JSON.parse(readFileSync(linkFile, 'utf8')); return auth.revoke(state.token, state.tokenId); },
+    /** Revoke the real session when the next listing arrives so its HTTP authorization refusal is exercised. */
+    revokeSessionOnNextListing() { revokeOnNextListing = true; },
     refuseReads(value) { refuseEventReads = value; },
+    /** Return a selected listed-board read's missing-snapshot refusal over real HTTP. */
+    noBoardOnReads(id, paths = ['state']) {
+      boardsWithoutSnapshots.set(id, new Set(paths));
+    },
   };
 }
