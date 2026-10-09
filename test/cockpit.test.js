@@ -83,7 +83,7 @@ function project(box, name, spec = SPEC, extra = {}) {
   const web = join(box.dir, `${name}-web`);
   box.git(repo, 'worktree', 'add', '-q', web, '-b', branch);
   box.run(web, 'join', 'web');
-  return { repo, web, branch };
+  return { repo, web, branch, baseBranch: branch, itemBranches: new Map() };
 }
 
 test('borrowed board presentation keeps parity, shows staged rows, and leaves the caller connection open [N26,H16]', () => {
@@ -113,6 +113,16 @@ test('borrowed board presentation keeps parity, shows staged rows, and leaves th
  * web-1 builds an item: claims it, commits a file in its lane through the hooks, and submits it.
  */
 function build(box, p, id, file) {
+  const key = `${p.baseBranch}:${id}`;
+  let branch = p.itemBranches.get(key);
+  if (!branch) {
+    branch = `${p.baseBranch}-item-${id}`;
+    box.git(p.web, 'switch', '-q', '-c', branch, p.baseBranch);
+    p.itemBranches.set(key, branch);
+  } else {
+    box.git(p.web, 'switch', '-q', branch);
+  }
+  p.branch = branch;
   box.run(p.web, 'claim', String(id));
   mkdirSync(join(p.web, 'web'), { recursive: true });
   writeFileSync(join(p.web, 'web', file), `${file}\n`);
@@ -125,7 +135,7 @@ function build(box, p, id, file) {
  * The coordinator sends an item back from a checkout of its submitted commit, as a verifier does.
  */
 function sendBack(box, p, id, note) {
-  box.git(p.repo, 'switch', '-q', '--detach', p.branch);
+  box.git(p.repo, 'switch', '-q', '--detach', p.itemBranches.get(`${p.baseBranch}:${id}`) ?? p.branch);
   box.run(p.repo, 'verify', String(id), 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--note', note, '--as', 'coordinator');
   box.git(p.repo, 'switch', '-q', 'main');
 }
@@ -955,7 +965,7 @@ test('the agents panel says what each agent holds [N26]', async () => {
   for (const title of ['Header', 'Farewell', 'Greeting <b>bold</b>', 'Footer']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
   // The board lists items newest first; each agent's rows must put its higher id second.
   build(box, alpha, 3, 'greeting.html');
-  const two = { ...alpha, web: second, branch: 'web/two' };
+  const two = { ...alpha, web: second, branch: 'web/two', baseBranch: 'web/two' };
   build(box, two, 2, 'farewell.html');
   sendBack(box, two, 2, 'no farewell on the page');
   build(box, two, 4, 'footer.html');
@@ -1360,7 +1370,7 @@ test('ages stay true while the board is quiet [N26]', async () => {
  * The coordinator accepts an item from a checkout of its submitted commit.
  */
 function accept(box, p, id) {
-  box.git(p.repo, 'switch', '-q', '--detach', p.branch);
+  box.git(p.repo, 'switch', '-q', '--detach', p.itemBranches.get(`${p.baseBranch}:${id}`) ?? p.branch);
   box.run(p.repo, 'verify', String(id), 'accept', '--note', 'the page shows it', '--as', 'coordinator');
   box.git(p.repo, 'switch', '-q', 'main');
 }
