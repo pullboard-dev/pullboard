@@ -352,6 +352,9 @@ form.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; paddin
 .shout code.inline.path { background: var(--blue-soft); color: var(--blue); }
 .shout code.inline.sha { background: var(--warn-soft); color: var(--warn); }
 .shout code.inline.cmd { background: var(--accent-soft); color: var(--accent-strong); }
+/* In a shout a long chip stays one piece: it moves whole to the next line, and one longer than the line ends in an
+   ellipsis, the whole of it on hover and in a copy. */
+.shout code.inline.long { display: inline-block; box-sizing: border-box; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; vertical-align: bottom; }
 .feed .day { margin: 0; padding: 12px 0 4px; font: 600 11px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
 .feed .day:first-child { padding-top: 6px; }
 button.ref { width: auto; min-height: 0; border: 0; border-radius: 0; background: none; padding: 0; color: var(--accent-strong); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; display: inline; vertical-align: baseline; line-height: inherit; font: inherit; }

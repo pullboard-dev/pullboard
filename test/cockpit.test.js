@@ -4187,7 +4187,7 @@ test('static export redacts structured checkout paths but preserves paths people
   }
 });
 
-test('a short code chip at a line end stays whole, and long code still wraps inside the screen [N26]', { timeout: 90_000 }, async (t) => {
+test('a short code chip at a line end stays whole, and long code stays one chip inside the screen [N26]', { timeout: 90_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for code chip checks.');
 
@@ -4213,12 +4213,12 @@ test('a short code chip at a line end stays whole, and long code still wraps ins
         const chips = [...document.querySelectorAll('#feed code.inline')];
         const flag = chips.find((code) => code.textContent === '--flag'), path = chips.find((code) => code.textContent === ${JSON.stringify(long)});
         const text = flag.parentElement.closest('div');
-        // Long code wraps where the fonts put it, and stays inside the screen.
+        // Long code stays one chip, cut short with an ellipsis where the line is shorter, and inside the screen.
         const pathRects = [...path.getClientRects()];
         // Measured where the chips live: no shout's text runs wider than its column. (The page as a whole is
         // other lanes' layout; at 320 on Linux a 15px scrollbar leaves 305px for it.)
-        const longCode = { fragments: pathRects.length, right: Math.max(...pathRects.map((r) => r.right)), screen: document.documentElement.clientWidth,
-          overflow: [...document.querySelectorAll('#feed > div > div')].some((column) => column.scrollWidth > column.clientWidth + 0.5) };
+        const longCode = { fragments: pathRects.length, title: path.title, right: Math.max(...pathRects.map((r) => r.right)), screen: document.documentElement.clientWidth,
+          overflow: [...document.querySelectorAll('#feed .shout .text')].some((column) => column.scrollWidth > column.clientWidth + 0.5) };
         const wideRects = [...chips.find((code) => code.textContent === ${JSON.stringify(wide)}).getClientRects()];
         const wideCode = { fragments: wideRects.length, right: Math.max(...wideRects.map((r) => r.right)), screen: document.documentElement.clientWidth };
         // Then end the chip's line three pixels inside the chip, whatever this machine's fonts measure.
@@ -4232,8 +4232,9 @@ test('a short code chip at a line end stays whole, and long code still wraps ins
       assert.equal(seen.atEnd.fragments, 1, `${width}: a short chip at a line's end moves to the next line whole, never broken after its "--": ${JSON.stringify(seen)}`);
       assert.equal(seen.atEnd.display, 'inline', `${width}: and it is still inline code, not a bar`);
       assert.ok(seen.atEnd.width < seen.atEnd.line / 2, `${width}: and compact: ${JSON.stringify(seen.atEnd)}`);
-      if (width === 375) assert.ok(seen.longCode.fragments > 1, `${width}: code longer than its line wraps: ${JSON.stringify(seen.longCode)}`);
-      assert.ok(seen.wideCode.right <= seen.wideCode.screen + 0.5, `${width}: so does code of wide characters, by the columns it takes: ${JSON.stringify(seen.wideCode)}`);
+      assert.deepEqual([seen.longCode.fragments, seen.longCode.title], [1, long], `${width}: code longer than its line stays one chip, the whole of it on hover: ${JSON.stringify(seen.longCode)}`);
+      assert.equal(seen.wideCode.fragments, 1, `${width}: so does code of wide characters: ${JSON.stringify(seen.wideCode)}`);
+      assert.ok(seen.wideCode.right <= seen.wideCode.screen + 0.5, `${width}: inside the screen, by the columns it takes: ${JSON.stringify(seen.wideCode)}`);
       assert.ok(seen.longCode.right <= seen.longCode.screen + 0.5 && !seen.longCode.overflow, `${width}: and never runs past the screen: ${JSON.stringify(seen.longCode)}`);
     }
   } finally {
@@ -4339,7 +4340,7 @@ test('real Chrome styles shout code and item text without growing linked lines [
     assert.ok(rendered.shoutCodeMetrics.width > 0 && rendered.shoutCodeMetrics.width < rendered.shoutCodeMetrics.lineWidth / 2,
       `1280px shout code is a compact chip: ${JSON.stringify(rendered.shoutCodeMetrics)}`);
     assert.match(rendered.shoutHtml, /<code class="inline">code &lt;b&gt;safe&lt;\/b&gt;<\/code>/, 'backticks create escaped inline code');
-    assert.match(rendered.shoutHtml, /<code class="inline cmd(?: long)?">pullboard shout --decision<\/code>/, 'a pullboard command is inline code, with the flags that follow it');
+    assert.match(rendered.shoutHtml, /<code class="inline cmd(?: long" title="pullboard shout --decision)?">pullboard shout --decision<\/code>/, 'a pullboard command is inline code, with the flags that follow it');
     assert.match(rendered.shoutHtml, /<code class="inline cmd">--flag<\/code>/, 'a flag on its own is a command chip');
     assert.match(rendered.shoutHtml, /<code class="inline path">src\/cockpit\.js<\/code>/, 'slash paths are path chips');
     assert.match(rendered.shoutHtml, /<code class="inline sha" title="0123456789abcdef0123456789abcdef01234567">0123456789<\/code>/, 'a hex SHA is a ten-character chip with the whole SHA on hover');
@@ -4349,12 +4350,12 @@ test('real Chrome styles shout code and item text without growing linked lines [
     assert.equal(rendered.shoutScripts, 0, 'a shout cannot create a script element');
     assert.match(rendered.outsideHtml, /&lt;script&gt;alert\(2\)&lt;\/script&gt; outside code/, 'script text outside code is escaped too');
     assert.equal(rendered.previewLinks, 1, 'only a path:lines@SHA reference with the original whole-word boundaries becomes an actionable preview');
-    assert.match(rendered.shoutHtml, /Invalid prefix:<code class="inline long">SPEC\.md:1-2@/, 'a path:lines@SHA suffix after a colon stays plain inline code');
+    assert.match(rendered.shoutHtml, /Invalid prefix:<code class="inline long" title="SPEC\.md:1-2@[0-9a-f]+">SPEC\.md:1-2@/, 'a path:lines@SHA suffix after a colon stays plain inline code');
     await chrome.evaluate(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"]').click()`);
     await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"]').getAttribute('aria-expanded') === 'true'`);
     await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"] + .code')?.textContent.includes('Demo spec')`);
     assert.match(await chrome.evaluate(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"] + .code')?.textContent || ''`), /Demo spec/, 'the original code preview still opens its referenced lines');
-    assert.match(rendered.askHtml, /<code class="inline cmd(?: long)?">pullboard shout --decision<\/code>/, 'needs-you uses the same code renderer');
+    assert.match(rendered.askHtml, /<code class="inline cmd(?: long" title="pullboard shout --decision)?">pullboard shout --decision<\/code>/, 'needs-you uses the same code renderer');
     assert.equal(rendered.askNestedButtons, 0, 'formatted text in an ask cannot nest interactive controls');
     assert.equal(rendered.needsNestedButtons, 0, 'needs-you keeps its button markup valid');
     assert.equal(rendered.agentNestedButtons, 0, 'agent item buttons never nest reference controls');
@@ -4460,6 +4461,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
   const box = machine();
   const alpha = project(box, 'cards');
   box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  box.run(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G1', '--criterion', 'says goodbye');
   box.run(alpha.web, 'claim', '1');
   const second = join(box.dir, 'cards-web-2');
   box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/cards2');
@@ -4472,6 +4474,10 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
   const ship = 'Ship #1 today?';
   const chips = `See #1 in src/cockpit.js at ${sha}; run pullboard check --json, then \`npm test\`.`;
   const long = lines('A long note that folds.', 12);
+  const mixed = 'Moved #2 along.';
+  const longCommand = 'node bin/run-tests.js test/relay-person-requests.test.js', longPath = 'test/relay-person-requests.test.js';
+  const longerPath = 'docs/a/very/long/path/that/keeps/going/well/past/any/phone/screen/width.md';
+  const longChips = `Ran \`${longCommand}\` on ${longPath} and ${longerPath} today.`;
   const twoDays = new Date(); twoDays.setDate(twoDays.getDate() - 2); twoDays.setHours(12, 0, 0, 0);
   earlier(alpha.repo, twoDays, (board) => shoutOnBoard(board, { from: 'web-1', to: 'coordinator', text: older, lanes: ['web'] }));
   earlier(alpha.repo, Date.now() - 65 * 60e3, (board) => shoutOnBoard(board, { from: 'web-2', to: 'coordinator', text: colour, decision: true, lanes: ['web'] }));
@@ -4480,6 +4486,8 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
   box.run(alpha.repo, 'answer', String(asked.shout_id), 'Yes, ship it.');
   box.run(alpha.web, 'shout', 'all', 'the page loads in 80ms', '--evidence', 'receipt', '--outcome', 'measured 80ms', '--item', '1', '--commit', head);
   box.run(alpha.web, 'shout', 'all', chips);
+  box.run(alpha.web, 'shout', 'all', mixed, '--evidence', 'receipt', '--outcome', 'moved', '--item', '1', '--commit', head);
+  box.run(alpha.web, 'shout', 'all', longChips);
   box.run(alpha.repo, 'shout', 'person', 'Launch on Friday?', '--decision');
   box.run(alpha.web, 'shout', 'all', long);
 
@@ -4488,7 +4496,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 8');
+    await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 10');
     await chrome.evaluate("document.querySelector('[data-tab=shouts]').click()");
     await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
     const ids = JSON.parse(await chrome.evaluate('JSON.stringify(Object.fromEntries(data.project.shouts.map((s) => [s.shout_text, s.shout_id])))'));
@@ -4525,7 +4533,11 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
         heads: [...document.querySelectorAll('#decisions .head')].map((h) => h.textContent),
         decisions: [...document.querySelectorAll('#decisions .shout')].map((e) => e.dataset.shoutId),
         feed: { older: card('#feed', ${ids[older]}), colour: card('#feed', ${ids[colour]}), ship: card('#feed', ${ids[ship]}), chips: card('#feed', ${ids[chips]}), long: card('#feed', ${ids[long]}),
-          receipt: card('#feed', ${ids['the page loads in 80ms']}), answer: card('#feed', ${answerId}), friday: card('#feed', ${ids['Launch on Friday?']}) },
+          receipt: card('#feed', ${ids['the page loads in 80ms']}), answer: card('#feed', ${answerId}), friday: card('#feed', ${ids['Launch on Friday?']}), mixed: card('#feed', ${ids[mixed]}) },
+        longs: [...document.querySelectorAll('#feed #shout-${ids[longChips]} .text code.inline')].map((e) => {
+          const c = e.getBoundingClientRect(), t = e.closest('.text').getBoundingClientRect();
+          return { text: e.textContent, title: e.title, rects: e.getClientRects().length, inside: c.left >= t.left - 0.5 && c.right <= t.right + 0.5, cut: e.scrollWidth > e.clientWidth + 1, ends: getComputedStyle(e).textOverflow };
+        }),
         asks: { friday: card('#decisions', ${ids['Launch on Friday?']}), colour: card('#decisions', ${ids[colour]}) },
         answerTarget: !!document.getElementById('shout-${answerId}'),
         repeated: [...document.querySelectorAll('[id]')].map((e) => e.id).filter((id, n, all) => all.indexOf(id) !== n),
@@ -4540,7 +4552,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
         const at = `${width}px ${scheme}`;
         const r = await read();
         assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll: ${JSON.stringify(r.page)}`);
-        const { older: old, colour: asking, ship: shipped, chips: chipCard, long: folded, receipt, answer, friday } = r.feed;
+        const { older: old, colour: asking, ship: shipped, chips: chipCard, long: folded, receipt, answer, friday, mixed: both } = r.feed;
 
         // A card: avatar, name in its colour, arrow and recipient, item, and the age at the top right over the text.
         for (const [name, c] of Object.entries(r.feed)) {
@@ -4556,7 +4568,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
         assert.notEqual(asking.avatar.color, old.avatar.color, `${at}: another agent has its own`);
         assert.ok(answer.avatar.svg && answer.avatar.radius !== '50%' && Math.abs(answer.avatar.box.width - answer.avatar.box.height) < 1 && answer.classes.includes('lead'),
           `${at}: the coordinator's avatar is a square with the Pullboard mark: ${JSON.stringify(answer.avatar)}`);
-        assert.deepEqual([old.item, chipCard.item, receipt.item, asking.item], ['#1', '#1', '#1', null], `${at}: the item is the first #N that names one, or the evidence's`);
+        assert.deepEqual([old.item, chipCard.item, receipt.item, asking.item, both.item], ['#1', '#1', '#1', null, '#2'], `${at}: the item is the first #N that names one, or else the evidence's`);
         assert.notEqual(old.item_color, old.who.color, `${at}: the item is muted, not the agent's colour`);
         assert.deepEqual([folded.time.text, shipped.time.text, asking.time.text], ['now', '2m ago', '1h ago'], `${at}: ages read now, 2m ago, 1h ago`);
         assert.ok(/\d\d:\d\d$/.test(shipped.time.title) && /^\S+ \d+ \d\d:\d\d$/.test(old.time.title), `${at}: the clock time is on hover, with the date when it was another day`);
@@ -4570,6 +4582,10 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
         assert.equal(new Set([r.chips.ref.color, r.chips.path.color, r.chips.sha.color]).size, 3, `${at}: item refs, paths and hashes each have a colour: ${JSON.stringify(r.chips)}`);
         assert.deepEqual([r.chips.sha.text, r.chips.sha.title], [sha.slice(0, 10), sha], `${at}: a full sha shows its first ten characters, the whole on hover`);
         assert.deepEqual([r.chips.ref.text, r.chips.path.text, r.chips.cmd.text, r.chips.code.text], ['#1', 'src/cockpit.js', 'pullboard check --json', 'npm test']);
+        // Long chips too: each one piece inside the text, the whole of it on hover; one longer than the line is cut short.
+        assert.deepEqual(r.longs.map((c) => [c.text, c.title, c.rects, c.inside]), [longCommand, longPath, longerPath].map((text) => [text, text, 1, true]),
+          `${at}: a long command, path and code stay one chip each: ${JSON.stringify(r.longs)}`);
+        if (width === 375) assert.ok(r.longs[2].cut && r.longs[2].ends === 'ellipsis', `${at}: a chip longer than its line is cut short with an ellipsis: ${JSON.stringify(r.longs)}`);
 
         // Decisions: a band until answered, then who answered and a link to the answer.
         assert.deepEqual(asking.band, { text: 'Decision needed', done: false, href: null }, `${at}: an open ask carries a Decision needed band`);

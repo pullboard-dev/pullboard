@@ -215,7 +215,7 @@ const wideChar = (c) => { const p = c.codePointAt(0); return (p >= 0x1100 && p <
 const columns = (text) => [...String(text)].reduce((n, c) => n + (wideChar(c) ? 2 : 1), 0);
 const codeChip = (text, kind = '') => kind === 'sha' && String(text).length > 10
   ? '<code class="inline sha" title="' + esc(text) + '">' + esc(String(text).slice(0, 10)) + '</code>'
-  : '<code class="inline' + (kind ? ' ' + kind : '') + (columns(text) > 24 ? ' long' : '') + '">' + esc(text) + '</code>';
+  : '<code class="inline' + (kind ? ' ' + kind : '') + (columns(text) > 24 ? ' long" title="' + esc(text) : '') + '">' + esc(text) + '</code>';
 // An age said in words, as a shout's card shows it: now, 2m ago, 1h ago.
 const agoLong = (iso) => { const short = ago(iso); return short === 'now' ? 'now' : short + ' ago'; };
 const ago = (iso) => { const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 1 ? 'now' : m < 60 ? m + 'm' : m < 2880 ? Math.round(m / 60) + 'h' : Math.round(m / 1440) + 'd'; };
@@ -1150,8 +1150,8 @@ function render() {
   const answerOf = new Map(p.shouts.filter((y) => y.shout_answers).map((y) => [y.shout_answers, y]));
   const band = (x) => !x.shout_decision ? '' : open.has(x.shout_id) ? '<div class="band">Decision needed</div>'
     : '<div class="band done">Answered' + (answerOf.has(x.shout_id) ? ' by ' + esc(answerOf.get(x.shout_id).shout_from) + ': <a href="#shout-' + answerOf.get(x.shout_id).shout_id + '">see the answer</a>' : '') + '</div>';
-  // The shout's item: its evidence's, or the first #N in its text that names an item on this board.
-  const itemOf = (x) => x.shout_evidence_item || ([...String(x.shout_text).matchAll(/#(\\d+)/g)].map((m) => m[1]).find((id) => titles.has(id)));
+  // The shout's item: the first #N in its text that names an item on this board, or else its evidence's.
+  const itemOf = (x) => [...String(x.shout_text).matchAll(/#(\\d+)/g)].map((m) => String(Number(m[1]))).find((id) => titles.has(id)) || x.shout_evidence_item;
   // The coordinator's mark is the board's own: a square with the Pullboard logo, so it stands out from the agents.
   const LEAD = '<svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg>';
   const lead = (from) => from === 'coordinator';
