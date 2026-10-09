@@ -166,7 +166,7 @@ Work
   pullboard check [id] [--yes]          show and run your item's check; --yes confirms a check set by someone else
                                         the command and its author print first; the project gate is pullboard gate
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
-  pullboard release <id>                hand it back
+  pullboard release <id> [--note "why"] hand it back; a review release needs a one-line reason
   pullboard submit <id>                 needs a clean tree and the gate green at HEAD (alias: done)
   pullboard verify <id> accept --note "what you broke or which edge you tried, and what happened"
   pullboard verify <id> reject --reason TEST_FAILURE --note "what failed"
@@ -711,6 +711,10 @@ function withBoard(ctx, work) {
 
 /** Dispatch a board mutation locally, or seal it before any linked replica applies it. */
 async function ordered(ctx, board, operation, args) {
+  if (operation === 'release') {
+    const problem = store.reviewReleaseNoteProblem(board, args[0], args[1], args[2]);
+    if (problem) throw problem;
+  }
   const command = ['add', 'edit', 'merged'].includes(ctx.io.relayCommand?.cliOperation) ? ctx.io.relayCommand : undefined;
   /** Dispatch while this session holds the checkout, including long-running next/run loops. */
   const execute = () => relayLinked(ctx.info.root)
@@ -1446,7 +1450,7 @@ function readCommands(io, { first, second, rest, values }) {
       const summary = withBoard(ctx, (board) => {
         const me = whoAmI(ctx, board);
         const mine = store.listItems(board).filter((item) => item.item_status === 'claimed' && item.item_owner === me.id);
-        return { me, mine, stats: store.stats(board), reviewQueue: store.reviewQueue(board), unread: store.unreadCount(board, me.id), relay: relayStatus(ctx.info.root) };
+        return { me, mine, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relayStatus(ctx.info.root) };
       });
       if (values.json) {
         io.result(summary);
@@ -1756,6 +1760,10 @@ async function nextOnce(ctx, values) {
 /** Describe the queue's actual outstanding reviews and submission age [Q1,V15]. */
 function reviewQueueLine(ctx, queue) {
   const age = queue.oldestSubmittedAt ? `${span(ctx, queue.oldestSubmittedAt)} ago` : 'none';
+  if (queue.awaitingFirstReview !== undefined) {
+    const released = queue.releasedItems?.map((item) => `#${item.item} released ${item.releases} ${item.releases === 1 ? 'time' : 'times'}: ${item.reason}`).join('; ');
+    return `review queue: ${queue.pending} submitted; ${queue.awaitingFirstReview} waiting for a first reviewer, ${queue.releasedWithoutVerdict} released without a verdict${released ? ` (${released})` : ''}, ${queue.reviewing} agents reviewing; oldest submission ${age}`;
+  }
   return `review queue: ${queue.pending} awaiting, ${queue.reviewing} agents reviewing; oldest submission ${age}`;
 }
 
@@ -2086,7 +2094,7 @@ function workCommands(io, args) {
       return 0;
     }),
     release: () => act(async (ctx, board, me) => {
-      const review = await ordered(ctx, board, 'release', [idArg(first), me.id]);
+      const review = await ordered(ctx, board, 'release', [idArg(first), me.id, textArg(io, values, 'note') ?? '']);
       io.result?.({ id: idArg(first) });
       io.say(review ? `released the review of #${first}; the review is free again` : `released #${first}`);
       return 0;
