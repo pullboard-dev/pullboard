@@ -1596,7 +1596,7 @@ test("needs-you holds only the person's calls; the rest show on the board with w
       ['tab', '1', 'draft spec rows to approve or drop'],
     ], "the person's calls, and only those: the decision asked of them, the spec's question, the held lane, the draft row");
     assert.doesNotMatch(needs, /Which colour|Greeting|Farewell/, "an agent's ask, work waiting for a verdict and work sent back are not the person's");
-    assert.match(needs, /<code>web<\/code><span class="ny-text">G3 is open<\/span><button class="ny-open" data-go="tab:shouts" type="button"><em>lane held by coordinator →<\/em><\/button>/, 'a held lane says who set it');
+    assert.match(needs, /<code>web<\/code><span class="ny-text">G3 is open<\/span><button class="ny-open" data-go="tab:shouts" type="button"><em>lane held by coordinator, <time data-ago="[^"]+">(?:now|\d+[mhd])<\/time> →<\/em><\/button>/, 'a held lane says who set it and shows the API-provided hold age');
 
     // Each of the rest is on the board, with who holds it.
     assert.match(page.show('decisions'), /<div class="head quiet">Waiting on others<\/div><div class="ask other"><p><small><b>web-1<\/b> asks <b>coordinator<\/b>, /, "the agent's ask waits on its coordinator");
@@ -2368,14 +2368,29 @@ async function openSnapshotChrome(executable, url, profile) {
       if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
       return result.result.value;
     };
-    /** Poll a page expression with a fixed deadline, without leaving a live interval behind. */
+    /**
+     * Poll a page expression with a fixed deadline, without leaving a live interval behind. A condition that
+     * throws, as one does while the next document is still parsing, is not ready yet, so polling goes on; one
+     * that never holds fails at the deadline, naming the last error it threw. Exceptions the page throws by
+     * itself still reach exceptions: an evaluation's own exception is never reported there.
+     */
     const waitFor = async (expression, timeoutMs = 10_000) => {
       const deadline = Date.now() + timeoutMs;
+      let lastError = '';
       while (Date.now() < deadline) {
-        if (await evaluate(expression)) return;
+        try {
+          const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+          if (!result.exceptionDetails && result.result.value) return;
+          if (result.exceptionDetails) {
+            const details = result.exceptionDetails;
+            lastError = String(details.exception?.description ?? details.text).split('\n')[0];
+          }
+        } catch (error) {
+          lastError = error.message;
+        }
         await browserPause(50);
       }
-      throw new Error(`Browser condition did not arrive: ${expression}`);
+      throw new Error(`Browser condition did not arrive: ${expression}${lastError ? `; it last threw: ${lastError}` : ''}`);
     };
     await send('Page.enable');
     await send('Runtime.enable');
@@ -2467,6 +2482,46 @@ process.exit(19);
   catch (error) { failure = error; }
   assert.match(failure?.message ?? '', /Chrome final stderr marker/, 'a real launch failure includes Chrome stderr');
   assert.equal(readFileSync(failedAttempts, 'utf8'), '2', 'the failed launch is retried exactly once');
+});
+
+test('a Chrome wait whose condition throws while the next document loads keeps polling, and names its last error [N26,C7]', { timeout: 60_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to run the browser wait proof.');
+  const server = createServer((request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+    if (request.url === '/late') {
+      // The head arrives now and the body 1.5 s later, so the next document parses without #late for a while.
+      response.write('<!doctype html><html><head><title>late</title></head>');
+      setTimeout(() => response.end('<body><p id="late">the late body arrived</p></body></html>'), 1500);
+      return;
+    }
+    if (request.url === '/fault') {
+      response.end('<!doctype html><script>window.__faultRan = true; throw new Error("page fault fixture");</script>');
+      return;
+    }
+    response.end('<!doctype html><p id="first">first page</p>');
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-wait-chrome-'));
+  let chrome;
+  try {
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    chrome = await openSnapshotChrome(executable, `${origin}/first`, profile);
+    await chrome.waitFor("document.querySelector('#first')?.textContent === 'first page'");
+    await chrome.send('Page.navigate', { url: `${origin}/late` });
+    await chrome.waitFor("document.querySelector('#late').textContent.includes('the late body arrived')");
+    await assert.rejects(chrome.waitFor("document.querySelector('#never').textContent === 'never'", 1000),
+      /^Error: Browser condition did not arrive: .*#never.*; it last threw: TypeError: Cannot read properties of null/u);
+    assert.deepEqual(chrome.exceptions, [], 'a condition that throws is not a page exception');
+    await chrome.send('Page.navigate', { url: `${origin}/fault` });
+    await chrome.waitFor('window.__faultRan === true');
+    assert.equal(chrome.exceptions.length, 1, 'an exception the page throws by itself is still collected');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    rmSync(profile, { recursive: true, force: true });
+  }
 });
 
 test('static export stays in its prefix and replays read-only in Chrome [A10,A3]', { timeout: 90_000 }, async (t) => {
@@ -2967,12 +3022,12 @@ test('relay person requests stay explicit, read-only and visible [H12,H5]', { ti
   }
 });
 
-test('read-only pages use a local browser transport and refresh on its updates [N26,N27]', { timeout: 90_000 }, async (t) => {
+test('read-only Needs-you preserves each entry as text while its transport stays read-only [N26,N27,B26]', { timeout: 90_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to run the browser transport proof.');
 
   const box = machine();
-  const app = project(box, 'read only transport');
+  const app = project(box, 'read only transport', `${SPEC}- G3 [pending, must] Confirm the read-only question. | gate: review\n- G4 [draft, must] Confirm the draft row. | gate: review\n`);
   box.run(app.repo, 'add', 'web', 'Read-only fixture item', '--specs', 'G1', '--criterion', 'keeps action controls in the DOM');
   box.run(app.repo, 'shout', 'person', 'Should the read-only fixture ship?', '--decision');
   box.run(app.repo, 'hold', 'web', '--reason', 'read-only fixture hold');
@@ -3044,8 +3099,26 @@ test('read-only pages use a local browser transport and refresh on its updates [
   scratch.push(profile);
   let chrome;
   try {
-    chrome = await openSnapshotChrome(executable, `http://127.0.0.1:${address.port}/`, profile);
+    chrome = await openSnapshotChrome(executable, live.link.href, profile);
+    await chrome.waitFor("typeof data === 'object' && !!data?.project && document.querySelector('#needs .ny')?.textContent.includes('Should the read-only fixture ship?')");
+    /** Read Needs-you labels with absolute API age timestamps so the comparison survives minute ticks. */
+    const readNeedEntries = () => chrome.evaluate(`JSON.stringify([...document.querySelectorAll('#needs .ny')].map((row) => {
+      const em = row.querySelector('em');
+      const time = em.querySelector('time');
+      return [row.querySelector('code')?.textContent, row.querySelector('span')?.textContent,
+        time ? em.textContent.replace(time.textContent, '@' + time.dataset.ago) : em.textContent];
+    }))`);
+    const normalEntries = JSON.parse(await readNeedEntries());
+    assert.deepEqual(normalEntries.map((row) => row[0]), ['coordinator', 'G3', 'web', '1'], 'the normal Needs-you list contains the decision, pending row, held lane, and draft summary');
+    assert.match(normalEntries[0][2], /decide, @[^ ]+ →/, 'the API-provided decision timestamp is shown as an age');
+    assert.match(normalEntries[2][2], /lane held by coordinator, @[^ ]+ →/, 'the holder and API-provided hold timestamp are shown as an age');
+    await chrome.send('Page.navigate', { url: `http://127.0.0.1:${address.port}/` });
     await chrome.waitFor("typeof data === 'object' && document.body?.classList.contains('read-only') && !!data?.project && typeof window.__transportUpdate === 'function'");
+    await chrome.waitFor("document.querySelector('#needs .ny')?.textContent.includes('Should the read-only fixture ship?')");
+    const readOnlyEntries = JSON.parse(await readNeedEntries());
+    assert.deepEqual(readOnlyEntries, normalEntries, 'read-only Needs-you preserves the normal entries and their API-provided asker and ages');
+    assert.equal(await chrome.evaluate("document.querySelectorAll('#needs button, #needs [data-go], #needs [data-new], #needs [data-shout], #needs [data-release]').length"), 0,
+      'read-only Needs-you entries contain no answer, approve, navigation, or other action controls');
     const calls = JSON.parse(await chrome.evaluate('JSON.stringify(window.__transportCalls)'));
     assert.ok(calls.some((call) => call.path === '/api/v1/boards'));
     assert.ok(calls.some((call) => call.path.startsWith('/api/v1/boards/') && call.path.endsWith('/state')));

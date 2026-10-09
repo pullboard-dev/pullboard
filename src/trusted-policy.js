@@ -1,12 +1,15 @@
 /** Coordinator policy and immutable submission checks cannot come from a builder's candidate [V4,V16,L3,M3]. */
+import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { digestOf } from './gate.js';
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { closeSync, existsSync, mkdtempSync, mkdirSync, openSync, readFileSync, readSync, rmSync, writeSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath } from 'node:url';
 import { configFromSource } from './config.js';
 import { cleanGitEnvironment, gitConfig, invalidateGitFacts, mainCheckout, refuseGrafts } from './git.js';
+import { secretsIn } from './hooks.js';
 import { outOfLane } from './lanes.js';
 import { Refused } from './refused.js';
 
@@ -128,7 +131,7 @@ export function checkAtCommit(root, item) {
   if (!command) return { state: 'pass', green: true, checked: false, report: '' };
   let config;
   try { config = itemPolicy(root, item).config; }
-  catch { return checkResult('unverified', 'policy', '', ''); }
+  catch { return checkResult('unverified', 'policy', '', '', { root, item }); }
   const install = config.check.install;
   const timeout = config.check.timeoutMs;
   const scratch = mkdtempSync(join(tmpdir(), 'pullboard-criterion-'));
@@ -141,26 +144,38 @@ export function checkAtCommit(root, item) {
   delete env.PULLBOARD_RELAY_TOKEN;
   let installOutput = '';
   let checkOutput = '';
+  let installLogPath = '';
+  let checkLogPath = '';
+  /** Format one completed check phase with the private captures and durable artifact locations. */
+  const finish = (state, stage) => checkResult(state, stage, installOutput, checkOutput, {
+    root, item, installLogPath, checkLogPath,
+  });
   try {
     const common = policyGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
     const clone = spawnSync('git', ['clone', '--quiet', '--shared', '--no-checkout', common, copy], { env, stdio: 'ignore' });
     const checkout = clone.status === 0 && spawnSync('git', ['checkout', '--quiet', '--detach', item.item_commit], { cwd: copy, env, stdio: 'ignore' });
-    if (!checkout || checkout.status !== 0) return checkResult('unverified', 'clone or checkout', installOutput, checkOutput);
+    if (!checkout || checkout.status !== 0) return finish('unverified', 'clone or checkout could not start');
     const deadline = Date.now() + timeout;
     if (install) {
-      const run = runPrivateCommand(copy, env, install, Math.max(1, deadline - Date.now()), join(scratch, 'install.log'));
+      installLogPath = join(scratch, 'install.log');
+      const run = runPrivateCommand(copy, env, install, Math.max(1, deadline - Date.now()), installLogPath);
       installOutput = run.output;
-      if (run.error?.code === 'ETIMEDOUT') return checkResult('unverified', 'install timed out', installOutput, checkOutput);
-      if (run.status !== 0) return checkResult('unverified', 'install failed', installOutput, checkOutput);
+      if (run.error?.code === 'ETIMEDOUT') return finish('unverified', 'install timed out');
+      if (run.error) return finish('unverified', `install could not start (${run.error.code})`);
+      if (run.logError) return finish('unverified', `install output could not be saved (${run.logError.code})`);
+      if (run.status !== 0) return finish('unverified', 'install failed');
     }
     const remaining = deadline - Date.now();
-    if (remaining <= 0) return checkResult('unverified', 'check timed out', installOutput, checkOutput);
-    const run = runPrivateCommand(copy, env, command, remaining, join(scratch, 'check.log'));
+    if (remaining <= 0) return finish('unverified', 'check timed out');
+    checkLogPath = join(scratch, 'check.log');
+    const run = runPrivateCommand(copy, env, command, remaining, checkLogPath);
     checkOutput = run.output;
-    if (run.error?.code === 'ETIMEDOUT') return checkResult('unverified', 'check timed out', installOutput, checkOutput);
-    if (run.error || run.status === null) return checkResult('unverified', 'check could not complete', installOutput, checkOutput);
-    return checkResult(run.status === 0 ? 'pass' : 'red', 'check', installOutput, checkOutput);
-  } catch { return checkResult('unverified', 'check', installOutput, checkOutput); }
+    if (run.error?.code === 'ETIMEDOUT') return finish('unverified', 'check timed out');
+    if (run.error) return finish('unverified', `check could not start (${run.error.code})`);
+    if (run.logError) return finish('unverified', `check output could not be saved (${run.logError.code})`);
+    if (run.status === null) return finish('unverified', 'check could not start (CHECK_RUNNER)');
+    return finish(run.status === 0 ? 'pass' : 'red', run.status === 0 ? 'check' : `check failed (exit ${run.status})`);
+  } catch { return finish('unverified', 'check could not complete'); }
   finally { rmSync(scratch, { recursive: true, force: true }); }
 }
 
@@ -170,7 +185,7 @@ function runPrivateCommand(root, env, command, timeout, logPath) {
   try {
     // The worker drains pipes even after its capture cap, so noisy successful commands still pass.
     const run = spawnSync(process.execPath, [fileURLToPath(new URL('./private-check-worker.js', import.meta.url))], {
-      cwd: root, env, input: JSON.stringify({ command, timeout, pidFile }), encoding: 'utf8',
+      cwd: root, env, input: JSON.stringify({ command, timeout, pidFile, logPath }), encoding: 'utf8',
       timeout: timeout + 1000, killSignal: 'SIGKILL', maxBuffer: 64 * 1024 * 1024,
     });
     if (run.error) return { status: null, error: { code: run.error.code }, output: '' };
@@ -187,10 +202,183 @@ function runPrivateCommand(root, env, command, timeout, logPath) {
   }
 }
 
-/** Summarize both private command outputs for verifier and doctor diagnostics. */
-function checkResult(state, stage, installOutput, checkOutput) {
-  const install = digestOf(installOutput) || '(no output)';
-  const check = digestOf(checkOutput) || '(not run or no output)';
-  const output = `install:\n${installOutput || '(no output)'}\ncheck:\n${checkOutput || '(not run or no output)'}`;
-  return { state, green: state === 'pass', checked: true, stage, report: `install output:\n${install}\ncheck output:\n${check}`, output };
+const CHECK_LOG_READ_BYTES = 32 * 1024;
+const CHECK_LINE_SCAN_LIMIT = 64 * 1024;
+const CHECK_OVERSIZED_LINE = '[redacted output line exceeds 64 KiB safe-scan limit]';
+
+/** Replace a detected secret line without including its value in diagnostics. */
+function scanOutputLine(line, path, number) {
+  if (Buffer.byteLength(line, 'utf8') > CHECK_LINE_SCAN_LIMIT) return CHECK_OVERSIZED_LINE;
+  const findings = secretsIn([{ path, line: number, text: line }]);
+  if (!findings.length) return line;
+  const labels = findings.map(finding => finding.slice(0, finding.lastIndexOf(' at ')));
+  return `[redacted ${labels.join(', ')}]`;
+}
+
+/** Summarize bounded private command output for verifier and doctor diagnostics. */
+function secretScanned(output, path) {
+  return output.split('\n').map((line, index) => scanOutputLine(line, path, index + 1)).join('\n');
+}
+
+/** Stream one worker log into a private artifact while retaining only its bounded sanitized tail. */
+function streamSanitizedLog(path, fallback, label, writeArtifact) {
+  const decoder = new StringDecoder('utf8');
+  const tail = [];
+  let line = '';
+  let lineBytes = 0;
+  let lineNumber = 1;
+  let oversized = false;
+  let pending = '';
+  let sawOutput = false;
+  let finishedWithNewline = false;
+
+  /** Flush buffered sanitized text using complete synchronous writes. */
+  function flush() {
+    if (!pending || !writeArtifact) { pending = ''; return; }
+    const buffer = Buffer.from(pending, 'utf8');
+    let offset = 0;
+    while (offset < buffer.length) {
+      const written = writeArtifact(buffer, offset);
+      if (written <= 0) throw new Error('diagnostic artifact write made no progress');
+      offset += written;
+    }
+    pending = '';
+  }
+
+  /** Retain one bounded tail line and append its scanned form to the artifact buffer. */
+  function emitLine(newline) {
+    const sanitized = oversized ? CHECK_OVERSIZED_LINE : scanOutputLine(line, label, lineNumber);
+    const bounded = sanitized.length > 2000
+      ? `${sanitized.slice(0, 1000)}…[line truncated]…${sanitized.slice(-1000)}` : sanitized;
+    tail.push(bounded);
+    if (tail.length > 40) tail.shift();
+    pending += sanitized + (newline ? '\n' : '');
+    sawOutput = true;
+    line = '';
+    lineBytes = 0;
+    oversized = false;
+    lineNumber += 1;
+    if (pending.length >= CHECK_LOG_READ_BYTES) flush();
+  }
+
+  /** Consume decoded text without retaining an oversized logical line. */
+  function consume(text) {
+    let start = 0;
+    while (start < text.length) {
+      const end = text.indexOf('\n', start);
+      const stop = end < 0 ? text.length : end;
+      if (!oversized) {
+        const part = text.slice(start, stop);
+        const partBytes = Buffer.byteLength(part, 'utf8');
+        if (lineBytes + partBytes > CHECK_LINE_SCAN_LIMIT) {
+          line = '';
+          lineBytes = 0;
+          oversized = true;
+        } else {
+          line += part;
+          lineBytes += partBytes;
+        }
+      }
+      if (end < 0) {
+        if (stop > start) finishedWithNewline = false;
+        break;
+      }
+      emitLine(true);
+      finishedWithNewline = true;
+      start = end + 1;
+    }
+  }
+
+  /** Decode a bounded fallback capture when the worker log is unavailable. */
+  function feedFallback(text) {
+    consume(decoder.write(Buffer.from(text, 'utf8')));
+    consume(decoder.end());
+    if (line || oversized) emitLine(false);
+    else if (finishedWithNewline) { tail.push(''); if (tail.length > 40) tail.shift(); }
+  }
+
+  if (path && existsSync(path)) {
+    const input = openSync(path, 'r');
+    const chunk = Buffer.alloc(CHECK_LOG_READ_BYTES);
+    try {
+      let count;
+      while ((count = readSync(input, chunk, 0, chunk.length, null)) > 0) {
+        consume(decoder.write(chunk.subarray(0, count)));
+      }
+      consume(decoder.end());
+      if (line || oversized) emitLine(false);
+      else if (finishedWithNewline) { tail.push(''); if (tail.length > 40) tail.shift(); }
+    } finally { closeSync(input); }
+  } else feedFallback(fallback);
+  flush();
+  return { tail, sawOutput };
+}
+
+/** Persist a sanitized full diagnostic outside the temporary checkout so a refusal can name it. */
+function checkResult(state, stage, installCapture, checkCapture, { root = '', item = {}, installLogPath = '', checkLogPath = '' } = {}) {
+  const boundedInstall = secretScanned(installCapture, 'check install capture');
+  const boundedCheck = secretScanned(checkCapture, 'frozen check capture');
+  const install = digestOf(boundedInstall) || '(no output)';
+  const check = digestOf(boundedCheck) || '(not run or no output)';
+  const report = `install output:\n${install}\ncheck output:\n${check}`;
+  let outputPath = null;
+  let outputError = null;
+  let artifactFd = null;
+  if (state !== 'pass' && root) {
+    try {
+      const common = policyGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
+      const directory = join(common, 'pullboard', 'check-output');
+      mkdirSync(directory, { recursive: true, mode: 0o700 });
+      outputPath = join(directory, `check-${item.item_id ?? 'unknown'}-${String(item.item_commit ?? 'unknown').slice(0, 12)}-${randomUUID()}.log`);
+      artifactFd = openSync(outputPath, 'wx', 0o600);
+    } catch (error) {
+      outputPath = null;
+      outputError = error.code ?? 'CHECK_DIAGNOSTIC';
+    }
+  }
+  /** Write complete text to the private artifact, handling short synchronous writes. */
+  const appendArtifact = (text) => {
+    if (artifactFd === null) return;
+    const buffer = Buffer.from(text, 'utf8');
+    let offset = 0;
+    while (offset < buffer.length) {
+      const written = writeSync(artifactFd, buffer, offset, buffer.length - offset);
+      if (written <= 0) throw new Error('diagnostic artifact write made no progress');
+      offset += written;
+    }
+  };
+  /** Give a missing phase the same explicit placeholder used by the former complete-string path. */
+  const writePhase = (title, path, capture, label, absentText) => {
+    appendArtifact(`${title}:\n`);
+    const result = streamSanitizedLog(path, capture, label, artifactFd === null ? null : (buffer, offset) => {
+      const written = writeSync(artifactFd, buffer, offset, buffer.length - offset);
+      if (written <= 0) throw new Error('diagnostic artifact write made no progress');
+      return written;
+    });
+    if (!result.sawOutput) appendArtifact(`${absentText}\n`);
+    return result;
+  };
+  let installLog;
+  let checkLog;
+  try {
+    installLog = writePhase('install', installLogPath, installCapture, 'check install output', '(no output)');
+    appendArtifact('\n');
+    checkLog = writePhase('check', checkLogPath, checkCapture, 'frozen check output',
+      !checkLogPath && !checkCapture ? '(not run or no output)' : '(no output)');
+    if (artifactFd !== null) closeSync(artifactFd);
+  } catch (error) {
+    if (artifactFd !== null) { try { closeSync(artifactFd); } catch { /* The descriptor may already be closed. */ } }
+    if (outputPath) { try { rmSync(outputPath, { force: true }); } catch { /* Keep the refusal typed if cleanup also fails. */ } }
+    outputPath = null;
+    outputError = error.code ?? 'CHECK_DIAGNOSTIC';
+    installLog = streamSanitizedLog('', installCapture, 'check install capture', null);
+    checkLog = streamSanitizedLog('', checkCapture, 'frozen check capture', null);
+  }
+  const relevant = stage.startsWith('install') ? installLog : (checkLog.sawOutput ? checkLog : installLog);
+  const outputTail = relevant.tail.map((line) => line.length > 2000
+    ? `${line.slice(0, 1000)}…[line truncated]…${line.slice(-1000)}` : line).join('\n') || '(no output)';
+  const failure = state === 'red' ? 'failed' : /timed out/u.test(stage) ? 'timed out'
+    : /could not start/u.test(stage) ? "couldn't start" : state === 'unverified' ? 'could not be verified' : 'passed';
+  const output = `install output:\n${boundedInstall || '(no output)'}\ncheck output:\n${boundedCheck || '(not run or no output)'}`;
+  return { state, green: state === 'pass', checked: true, stage, failure, report, output, outputTail, outputPath, outputError };
 }
