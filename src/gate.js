@@ -11,7 +11,6 @@ import { Refused } from './refused.js';
 import { takeResource } from './resources.js';
 import { loadMachineSettings } from './settings.js';
 import { selectAffectedTests } from './affected-tests.js';
-import { join } from 'node:path';
 
 const STAMP = 'pullboard-gate-green';
 const LOG = 'pullboard-gate.log';
@@ -198,7 +197,9 @@ function commandWord(value) {
  */
 export async function runSubmitGate(root, config, { base, trunk, changed, check, onWait }) {
   if (!config.gate.trim()) throw new Refused('NO_GATE', 'no gate configured; set "gate" in pullboard.json, e.g. "npm test"');
-  const selection = selectAffectedTests(root, { base, trunk, changed });
+  const selection = config.affectedTests
+    ? selectAffectedTests(root, { base, trunk, changed })
+    : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] };
   return await withGateSlot(root, () => {
     const criterion = check ? runShell(root, check) : { isGreen: true, output: '', seconds: 0 };
     const receipt = { command: check, green: criterion.isGreen, seconds: criterion.seconds, checked: Boolean(check) };
@@ -211,8 +212,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     if (selection.full) proof = fullGateRun(root, config);
     else if (!selection.files.length) proof = { isGreen: true, output: '', seconds: 0, isCached: false, log };
     else {
-      const runner = existsSync(join(root, 'bin/run-tests.js')) ? [process.execPath, 'bin/run-tests.js'] : [process.execPath, '--test'];
-      const command = [...runner, ...selection.files.map(path => './' + path)].map(commandWord).join(' ');
+      const command = `${config.affectedTests.trimEnd()} ${selection.files.map(path => commandWord('./' + path)).join(' ')}`;
       proof = { ...runShell(root, command), isCached: false, log };
     }
     writeFileSync(log, `item check:\n${criterion.output}\n${selection.full ? 'full gate' : 'affected tests'}:\n${proof.output}`);

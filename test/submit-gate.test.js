@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { selectAffectedTests } from '../src/affected-tests.js';
+import { configFromSource } from '../src/config.js';
 
 const BIN = resolveBin();
 const dirs = [];
@@ -163,7 +164,7 @@ test('submit runs the frozen check and affected test only; landing and explicit 
   const checkCommand = 'node -e "require(\'node:fs\').appendFileSync(process.env.ITEM_CHECK_MARKER, \'check\')"';
   const checkMarker = join(box.dir, 'item-check.log');
   box.env.ITEM_CHECK_MARKER = checkMarker;
-  put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', spec: 'SPEC.md', verify: 'any', lease: '2h' }, null, 2));
+  put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test', spec: 'SPEC.md', verify: 'any', lease: '2h' }, null, 2));
   put(box.root, 'SPEC.md', SPEC);
   put(box.root, 'src/a.js', 'export const value = 1;\n');
   put(box.root, 'test/a.test.js', [
@@ -221,9 +222,92 @@ test('submit runs the frozen check and affected test only; landing and explicit 
   assert.equal(existsSync(stamp), false, 'neither subset nor red full gate leaves a green full-gate stamp');
 });
 
+test('a jest project submits with its own gate [V4,C7]', (t) => {
+  for (const optedIn of [false, true]) {
+    let box = privateRepo(t);
+    const gateMarker = join(box.dir, `jest-gate-${optedIn}.log`);
+    const testMarker = join(box.dir, `jest-tests-${optedIn}.log`);
+    box.env.JEST_GATE_MARKER = gateMarker;
+    box.env.JEST_TEST_MARKER = testMarker;
+    if (optedIn) box.env.FAIL_UNSELECTED = '1';
+    put(box.root, 'pullboard.json', JSON.stringify({
+      gate: 'npm test',
+      ...(optedIn ? { affectedTests: 'node test/jest-runner.js' } : {}),
+    }));
+    put(box.root, 'package.json', JSON.stringify({
+      type: 'module',
+      scripts: { test: 'node test/jest-runner.js' },
+    }));
+    put(box.root, 'src/a.js', 'export const value = 1;\n');
+    put(box.root, 'src/b.js', 'export const value = 8;\n');
+    put(box.root, 'test/jest-runner.js', [
+      "import { appendFileSync } from 'node:fs';",
+      "import { resolve } from 'node:path';",
+      "import { pathToFileURL } from 'node:url';",
+      "const files = process.argv.slice(2).length ? process.argv.slice(2) : ['./test/a.test.js', './test/b.test.js'];",
+      "appendFileSync(process.env.JEST_GATE_MARKER, process.argv.slice(2).length ? 'prefix\\n' : 'full\\n');",
+      'const pending = [];',
+      "globalThis.describe = (_name, run) => run();",
+      "globalThis.it = (_name, run) => pending.push(Promise.resolve().then(run));",
+      "globalThis.expect = actual => ({ toBe(expected) { if (!Object.is(actual, expected)) throw new Error(`expected ${expected}, received ${actual}`); } });",
+      'for (const file of files) await import(pathToFileURL(resolve(file)));',
+      'const results = await Promise.allSettled(pending);',
+      'const failed = results.find(result => result.status === \'rejected\');',
+      'if (failed) { console.error(failed.reason); process.exitCode = 1; }',
+    ].join('\n') + '\n');
+    put(box.root, 'test/a.test.js', [
+      "import { appendFileSync } from 'node:fs';",
+      "import { value } from '../src/a.js';",
+      "describe('relative ESM imports', () => it('runs with jest-style globals', () => {",
+      "  appendFileSync(process.env.JEST_TEST_MARKER, 'a\\n');",
+      '  expect(value).toBe(2);',
+      '}));',
+    ].join('\n') + '\n');
+    put(box.root, 'test/b.test.js', [
+      "import { appendFileSync } from 'node:fs';",
+      "import { value } from '../src/b.js';",
+      "describe('relative ESM imports', () => it('runs the other configured test', () => {",
+      "  if (process.env.FAIL_UNSELECTED) throw new Error('unselected test ran');",
+      "  appendFileSync(process.env.JEST_TEST_MARKER, 'b\\n');",
+      '  expect(value).toBe(8);',
+      '}));',
+    ].join('\n') + '\n');
+    commitAll(box);
+    box = builderRepo(box);
+    const added = box.coordinator('add', 'build', 'Jest-style project', '--check', 'true');
+    assert.equal(added.code, 0, added.err);
+    assert.equal(box.run('claim', '1').code, 0);
+    put(box.root, 'src/a.js', 'export const value = 2;\n');
+    commitAll(box, 'feat(core): change a jest project source [G1]');
+
+    const submitted = box.run('submit', '1', '--json');
+    assert.equal(submitted.code, 0, submitted.err || submitted.out);
+    const receipt = JSON.parse(submitted.out);
+    if (optedIn) {
+      assert.equal(receipt.gate.full, false);
+      assert.deepEqual(receipt.gate.files, ['test/a.test.js']);
+      assert.equal(readFileSync(gateMarker, 'utf8'), 'prefix\n', 'the configured prefix ran the selected file');
+      assert.equal(readFileSync(testMarker, 'utf8'), 'a\n', 'the unrelated test did not run');
+    } else {
+      assert.equal(receipt.gate.full, true);
+      assert.equal(readFileSync(gateMarker, 'utf8'), 'full\n', 'the configured project gate ran without opt-in');
+      assert.equal(readFileSync(testMarker, 'utf8'), 'a\nb\n', 'the full project gate ran both tests');
+    }
+  }
+});
+
+test('affectedTests accepts only a nonempty command prefix [V4,C7]', () => {
+  for (const affectedTests of ['', '  ', 4, false, null]) {
+    assert.throws(() => configFromSource(JSON.stringify({ affectedTests })), {
+      code: 'BAD_CONFIG', message: /affectedTests.*nonempty command prefix/u,
+    });
+  }
+  assert.equal(configFromSource(JSON.stringify({ affectedTests: 'node test/runner.js' })).affectedTests, 'node test/runner.js');
+});
+
 test('submit without a frozen check reports no item check and still runs affected tests [V4,C7,V16]', (t) => {
   let box = privateRepo(t);
-  put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test' }));
+  put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test' }));
   put(box.root, 'src/a.js', 'export const value = 1;\n');
   put(box.root, 'test/a.test.js', "import '../src/a.js'; import { appendFileSync } from 'node:fs'; appendFileSync(process.env.AFFECTED_MARKER, 'ran');\n");
   put(box.root, 'test/b.test.js', "import assert from 'node:assert/strict'; assert.fail('unrelated');\n");
@@ -248,7 +332,7 @@ test('submit without a frozen check reports no item check and still runs affecte
 
 test('a red frozen item check refuses submit before affected tests run [V4,C7,V16]', (t) => {
   let box = privateRepo(t);
-  put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test' }));
+  put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test' }));
   seedGraph(box);
   box = builderRepo(box);
   const added = box.coordinator('add', 'build', 'Frozen check', '--check', 'node -e "process.exit(process.env.CHECK_REFUSE ? 1 : 0)"');
@@ -301,7 +385,7 @@ test('CommonJS and nested package scopes fall back instead of silently missing r
 for (const mode of ['topic parent', 'merge commit']) {
   test(`affected tests include source changes carried by a ${mode} [V4,C7,V16]`, (t) => {
     let box = privateRepo(t);
-    put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test' }));
+    put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test' }));
     seedGraph(box);
     put(box.root, 'test/a.test.js', [
       "import assert from 'node:assert/strict';",
@@ -387,7 +471,7 @@ test('affected selection reads old edges and all changes at the trunk merge base
 
 test('affected submit includes branch changes made before the item claim [V4,C7,V16]', (t) => {
   let box = privateRepo(t);
-  put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test' }));
+  put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test' }));
   seedGraph(box);
   put(box.root, 'test/a.test.js', "import assert from 'node:assert/strict'; import { value } from '../src/middle.js'; assert.equal(value, 1);\n");
   box = builderRepo(box);
@@ -408,7 +492,7 @@ test('affected submit includes branch changes made before the item claim [V4,C7,
 for (const mode of ['deleted source', 'topic parent', 'merge commit']) {
   test(`affected submit on main includes a ${mode} since its claim [V4,C7,V16]`, (t) => {
     const box = privateRepo(t);
-    put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', lanes: { core: { owns: ['src/', 'test/'], specs: ['G'] } } }));
+    put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test', lanes: { core: { owns: ['src/', 'test/'], specs: ['G'] } } }));
     seedGraph(box);
     put(box.root, 'test/a.test.js', [
       "import assert from 'node:assert/strict';",

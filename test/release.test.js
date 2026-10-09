@@ -76,7 +76,7 @@ test('a packed release installs with no network and runs the whole loop from a f
   git(builder, 'add', '-A');
   git(builder, 'commit', '-q', '-m', 'feat(web): greet [G1]');
   const commit = git(builder, 'rev-parse', 'HEAD');
-  assert.match(pullboard(builder, 'submit', '1'), new RegExp(`submitted #1 at ${commit.slice(0, 12)}; no item check; full gate: no committed Node test files can be selected; gate green in \\d+s`));
+  assert.match(pullboard(builder, 'submit', '1'), new RegExp(`submitted #1 at ${commit.slice(0, 12)}; no item check; full gate: affected-test selection is not enabled for this project; gate green in \\d+s`));
 
   assert.match(pullboard(repo, 'worktree', 'web'), /joined as web-2/);
   const verifier = join(dir, 'repo-web-2');
