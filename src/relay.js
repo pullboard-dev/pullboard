@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { gunzipSync, gzipSync } from 'node:zlib';
 import * as store from './board.js';
 import { exportBoard, restoreRelaySnapshot } from './exchange.js';
 import { appliedSequence, applyRelayMove, checkpointSequence, engineReceipt, prepareEngineMove, requireSupportedEngine, startRelayEpoch } from './engine.js';
@@ -18,6 +19,7 @@ import { readRelayMachine, updateRelayMachine, wrapForRecordedDevice } from './r
 import { receivePersonRequest } from './relay-requests.js';
 
 export const DEFAULT_RELAY = 'https://app.pullboard.dev';
+const SEALED_SNAPSHOT_LIMIT = 10_000_000;
 const LINK_FILES = new WeakMap();
 const WARNED_COMMANDS = new WeakSet();
 const KEY_WARNED_COMMANDS = new WeakSet();
@@ -157,14 +159,40 @@ function summary(root, state, { pairing = false } = {}) {
   if (!state) return { linked: false, board: '', url: '', link: '', sequence: 0, behind: 0 };
   if (state.unlinking) return { linked: false, board: state.board, url: state.url, link: '', sequence: state.sequence, behind: 0, cleanup: true };
   const fragment = pairing ? '&key=' + encodeBoardKey(readBoardKey(state.board)) : '';
+  const oversizedSnapshot = snapshotSize(state);
   return { linked: true, board: state.board, url: state.url,
     link: 'https://app.pullboard.dev/#board=' + state.board + fragment,
-    sequence: state.sequence, behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)) };
+    sequence: state.sequence, behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)),
+    ...(oversizedSnapshot ? { oversizedSnapshot } : {}) };
+}
+
+/** Measure a pending sealed snapshot against the relay's decoded journal limit. */
+function snapshotSize(state) {
+  const sealed = state?.snapshot?.sealed ?? state?.checkpoint?.sealed;
+  if (typeof sealed !== 'string') return null;
+  const bytes = Buffer.from(sealed, 'base64url');
+  if (bytes.toString('base64url') !== sealed || bytes.byteLength <= SEALED_SNAPSHOT_LIMIT) return null;
+  return { board: state.board, sealedBytes: bytes.byteLength, limit: SEALED_SNAPSHOT_LIMIT };
+}
+
+/** Return the local pending snapshot's oversize details without contacting the relay. */
+export function pendingSnapshotSize(root) {
+  return snapshotSize(loadLink(linkFile(root)));
+}
+
+/** Format a shared status line for an oversized sealed snapshot. */
+export function formatSnapshotLimit(problem, { paused = false } = {}) {
+  const size = `${(problem.sealedBytes / 1_000_000).toFixed(1)} MB`;
+  const limit = `${(problem.limit / 1_000_000).toFixed(1)} MB`;
+  if (paused) return `relay paused for ${problem.board}: snapshot ${size} over the relay limit ${limit}; it resumes on its own once a snapshot fits`;
+  return `relay snapshot for ${problem.board}: sealed snapshot ${size} over the relay limit ${limit}`;
 }
 
 /** Seal a client record at its proposed public sequence, with no board key in its envelope. */
 async function sealedRecord(key, value, state, kind, sequence) {
-  return Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(value)), { boardId: state.board, kind, sequence })).toString('base64url');
+  const plain = Buffer.from(JSON.stringify(value));
+  const content = kind === 'snapshot' ? gzipSync(plain) : plain;
+  return Buffer.from(await seal(key, content, { boardId: state.board, kind, sequence })).toString('base64url');
 }
 
 /** Catch up in local order, retaining exact ciphertext so a lost response cannot duplicate a move. */
@@ -259,8 +287,18 @@ async function decoded(key, record, state, kind, sequence) {
   const bytes = Buffer.from(record.sealed, 'base64url');
   if (!bytes.length || bytes.toString('base64url') !== record.sealed) throw new Refused('RELAY_RESPONSE', 'the relay returned invalid sealed bytes; fetch the board again');
   const plain = await unseal(key, bytes, { boardId: state.board, kind, sequence });
-  try { return JSON.parse(new TextDecoder().decode(plain)); }
-  catch { throw new Refused('RELAY_MOVE', 'the authenticated relay document is invalid; upgrade pullboard or restore a consistent snapshot'); }
+  try {
+    if (kind === 'snapshot') {
+      if (plain[0] === 0x1f && plain[1] === 0x8b) return JSON.parse(gunzipSync(plain).toString('utf8'));
+      if (plain[0] !== 0x7b) throw new Refused('SNAPSHOT_FORMAT', `the sealed snapshot starts with ${Buffer.from(plain.subarray(0, 4)).toString('hex') || 'no bytes'}; expected gzip magic 1f8b or legacy JSON starting with 7b`);
+    }
+    return JSON.parse(new TextDecoder().decode(plain));
+  }
+  catch (error) {
+    if (error instanceof Refused) throw error;
+    if (kind === 'snapshot') throw new Refused('SNAPSHOT_FORMAT', 'the sealed snapshot has gzip magic or legacy JSON bytes but cannot be read; refresh it from a linked machine');
+    throw new Refused('RELAY_MOVE', 'the authenticated relay document is invalid; upgrade pullboard or restore a consistent snapshot');
+  }
 }
 
 /** Persist the exact checkpoint before uploading, so a lost reply retries identical ciphertext. */

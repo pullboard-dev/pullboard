@@ -41,6 +41,23 @@ function transportBytes(value) {
   return Uint8Array.from(binary, character => character.charCodeAt(0));
 }
 
+/** Inflate a new gzip snapshot or preserve the legacy JSON plaintext format. */
+async function snapshotDocument(plain) {
+  if (plain[0] === 0x1f && plain[1] === 0x8b) {
+    if (typeof DecompressionStream !== 'function') throw new Error('This browser cannot read gzip snapshots. Upgrade the browser client.');
+    try {
+      const stream = new Blob([plain]).stream().pipeThrough(new DecompressionStream('gzip'));
+      return JSON.parse(await new Response(stream).text());
+    } catch { throw new Refused('SNAPSHOT_FORMAT', 'The sealed gzip snapshot is invalid. Refresh it from a linked machine.'); }
+  }
+  if (plain[0] !== 0x7b) {
+    const seen = [...plain.slice(0, 4)].map(value => value.toString(16).padStart(2, '0')).join('') || 'no bytes';
+    throw new Refused('SNAPSHOT_FORMAT', `The sealed snapshot starts with ${seen}; expected gzip magic 1f8b or legacy JSON starting with 7b.`);
+  }
+  try { return JSON.parse(new TextDecoder().decode(plain)); }
+  catch { throw new Refused('SNAPSHOT_FORMAT', 'The sealed legacy JSON snapshot is invalid. Refresh it from a linked machine.'); }
+}
+
 /** Fetch only same-origin API documents, retaining stable refusal guidance and no provider details. */
 async function documentAt(path, onDenied, options = {}) {
   const headers = new Headers(options.headers ?? {});
@@ -124,7 +141,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     if (!row || !Number.isSafeInteger(row.sequence) || row.sequence < 0) throw new Error('The relay snapshot cursor is invalid. Refresh this board.');
     warning(row.warning, entry.id);
     const plain = await unseal(entry.key, transportBytes(row.sealed), { boardId: entry.id, kind: 'snapshot', sequence: row.sequence });
-    const value = JSON.parse(new TextDecoder().decode(plain));
+    const value = await snapshotDocument(plain);
     const state = snapshotState(value, entry.id);
     if (accessLost) throw new Error('Sign in again to read this board.');
     entry.snapshotTag = response.headers.get('etag');

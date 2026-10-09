@@ -305,7 +305,7 @@ export async function relayClientFixture(t, { cliChildren } = {}) {
       const envKey = { ...otherEnv, PULLBOARD_RELAY_KEY: environmentKey };
       return childResult(otherRoot, envKey, [CLI, ...args, '--json']);
     }
-    return { joined: document, exported: exported.document, syncWithEnvironmentKey,
+    return { joined: document, exported: exported.document, cli: run, syncWithEnvironmentKey,
       /** Check that the paired clone still has no persisted board-key file. */
       keyFileExists() { return existsSync(otherKeyFile); } };
   }

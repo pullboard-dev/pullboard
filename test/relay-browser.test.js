@@ -5,6 +5,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { gunzipSync } from 'node:zlib';
 import { snapshotState, presentationState } from '../relay/browser-model.js';
 import { decodeBoardKey, seal, unseal } from '../src/seal.js';
 import { relaySnapshot } from '../src/relay-presentation.js';
@@ -12,6 +13,11 @@ import { ENGINE_VERSION } from '../src/machine.js';
 import { addItem, closeBoard, openBoard } from '../src/board.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
+
+/** Read native gzip snapshots while retaining checks against historical uncompressed records. */
+function snapshotDocument(plain) {
+  return JSON.parse(Buffer.from(plain[0] === 0x1f && plain[1] === 0x8b ? gunzipSync(plain) : plain).toString('utf8'));
+}
 
 /** Write an executable that fails its first launch, then optionally delegates to real Chrome. */
 function writeLaunchWrapper(directory, { chrome, failEveryLaunch = false, publishPort }) {
@@ -126,7 +132,7 @@ test('conditional sealed snapshots reauthorize before 304 and refresh spec-only 
   const row = (await changed.json()).state;
   assert.equal(row.sequence, body.state.sequence, 'spec refresh preserves the acknowledged move sequence');
   const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
-  const document = JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(row.sealed, 'base64url'), { boardId: link.board, kind: 'snapshot', sequence: row.sequence })));
+  const document = snapshotDocument(await unseal(key, Buffer.from(row.sealed, 'base64url'), { boardId: link.board, kind: 'snapshot', sequence: row.sequence }));
   assert.equal(document.presentation.state.spec.some(rule => rule.text === 'SPEC_PRESENTATION_ONLY_108'), true);
 });
 
@@ -366,7 +372,7 @@ test('legacy queued presentations never disclose later unacknowledged moves [H5,
   assert.equal(response.status, 200);
   const checkpoint = (await response.json()).state;
   assert.equal(checkpoint.sequence, box.moveAcks[1].event_id, 'the acknowledged final checkpoint covers the omitted presentation');
-  const document = JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(checkpoint.sealed, 'base64url'), { boardId: link.board, kind: 'snapshot', sequence: checkpoint.sequence })));
+  const document = snapshotDocument(await unseal(key, Buffer.from(checkpoint.sealed, 'base64url'), { boardId: link.board, kind: 'snapshot', sequence: checkpoint.sequence }));
   assert.equal(document.presentation.state.items.some(item => item.title === 'FIRST_QUEUED_108'), true);
   assert.equal(document.presentation.state.items.some(item => item.title === 'SECOND_QUEUED_108'), true);
   const compacted = await fetch(box.origin + '/api/v1/boards/' + link.board + '/events?after=0', { headers: { authorization: 'Bearer ' + link.token, 'x-pullboard-engine': String(ENGINE_VERSION) } });
