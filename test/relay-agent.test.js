@@ -14,6 +14,7 @@ import { ENGINE_VERSION } from '../src/machine.js';
 import { decodeBoardKey, unseal } from '../src/seal.js';
 import { frozenCriterion, parseSpec } from '../src/spec.js';
 import { relayClientFixture } from './relay-client-fixture.js';
+import { fetchFresh } from './http-fixture.js';
 
 /** Invoke one real CLI command without retaining stderr or exposing private command output. */
 function runCli(root, env, cli, args) {
@@ -158,7 +159,7 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
   const tokenUrl = new URL(`/api/v1/boards/${personState.board}/tokens`, localApi.url);
   tokenUrl.searchParams.set('k', new URL(localApi.url).searchParams.get('k'));
   const apiHeaders = { 'content-type': 'application/json' };
-  const apiListResponse = await fetch(tokenUrl, { headers: apiHeaders });
+  const apiListResponse = await fetchFresh(tokenUrl, { headers: apiHeaders });
   assert.equal(apiListResponse.status, 200, 'local API reads the real relay token inventory');
   const apiList = await apiListResponse.json();
   assert.deepEqual(apiList.tokens.map((row) => row.agent).sort(), [firstAgent, secondAgent].sort());
@@ -182,7 +183,7 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
 
   const revoke = await box.cli('relay', 'revoke', firstTokenRow.id);
   assert.equal(revoke.code, 0, 'CLI revokes one listed opaque token id');
-  const apiRevokeResponse = await fetch(tokenUrl, {
+  const apiRevokeResponse = await fetchFresh(tokenUrl, {
     method: 'POST', headers: apiHeaders, body: JSON.stringify({ id: firstTokenRow.id }),
   });
   assert.equal(apiRevokeResponse.status, 200, 'local API accepts the opaque id-only revocation body');

@@ -9,6 +9,7 @@ import { main } from '../src/cli.js';
 import { headCommit, withGitFacts } from '../src/git.js';
 import { serveApi } from '../src/api.js';
 import { pathToFileURL } from 'node:url';
+import { fetchFresh } from './http-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const RUN_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/run.js')).href;
@@ -135,12 +136,12 @@ function advanceHead(box, label, branch = 'main') {
 async function readServedBranchCode(api, branch) {
   const address = new URL(api.url);
   const headers = { 'x-pullboard-key': address.searchParams.get('k') };
-  const listing = await fetch(address, { headers });
+  const listing = await fetchFresh(address, { headers });
   assert.equal(listing.status, 200);
   const board = (await listing.json()).boards[0];
   assert.ok(board?.id, 'the fixture board is listed');
   const path = `${address.pathname}/${encodeURIComponent(board.id)}/code?ref=${encodeURIComponent(`SPEC.md:1@${branch}`)}`;
-  const response = await fetch(address.origin + path, { headers });
+  const response = await fetchFresh(address.origin + path, { headers });
   const document = await response.json();
   assert.equal(response.status, 200, JSON.stringify(document));
   return document.code.commit;

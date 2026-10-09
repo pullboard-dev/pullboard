@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { serveView } from '../src/serve.js';
+import { fetchFresh } from './http-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 
@@ -47,7 +48,7 @@ test('the API exposes configured repo/project names, refreshed labels, stale war
     const link = new URL(view.url);
     /** Read the public listing without pruning unavailable registered roots. */
     const boards = async () => {
-      const response = await fetch(`${link.origin}/api/v1/boards`, { headers: { 'x-pullboard-key': link.searchParams.get('k') } });
+      const response = await fetchFresh(`${link.origin}/api/v1/boards`, { headers: { 'x-pullboard-key': link.searchParams.get('k') } });
       assert.equal(response.status, 200);
       const document = await response.json();
       assert.equal(document.version, 1);
