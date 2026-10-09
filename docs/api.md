@@ -20,6 +20,7 @@ When `add` or `edit` supplies a new nonempty check, Pullboard measures it once i
 | `init` | `version:number`, `root:string`, `notes:array` |
 | `hooks` | `version:number`, `notes:array` |
 | `join` | `version:number`, `agent:string`, `lane:string`, `route:string`, `path:string` |
+| `takeover` | `version:number`, `agent:string`, `path:string` |
 | `worktree` | `version:number`, `agent:string`, `lane:string`, `route:string`, `path:string`, `branch:string`, `prompt:string` |
 | `resume` | `version:number`, `me:object`, `all:array`, `requests:array`, `holding:array`, `sentBack:array`, `awaiting:array`, `toVerify:array`, `toMerge:array`, `open:array`, `stale:array`, `holds:array`, `unread:number`, `newest:array`, `root:string`, `dirty:number`, `next:string` |
 | `whoami` | `version:number`, `id:string`, `lane:string`, `path:string` |
@@ -87,6 +88,8 @@ When `add` or `edit` supplies a new nonempty check, Pullboard measures it once i
 <!-- api-command-shapes:end -->
 
 `join` and `worktree` accept an optional free-text `--family` declaration. Rejoining the same worktree preserves its agent id; a supplied family updates the declaration, while omitting `--family` preserves it. `resume` includes it as `me.family`; `show` includes `item_builder_family` and each verdict's `verdict_verifier_family`. These recorded fields are `null` when the agent did not declare a family, and later declarations do not rewrite prior submissions or verdicts.
+
+Each checkout is bound to the first agent session that writes there. The local Git directory holds only its session digest, agent id and timestamp; bindings are absent from board exports and relay snapshots. Another agent session gets `NOT_YOUR_CHECKOUT` and the command to make its own worktree. The same agent starting a new session runs `pullboard takeover`; the existing ordered shout records the takeover, addressed to the person for the main checkout or the coordinator for a lane checkout. Markerless terminals, reads, the view and person requests keep their existing behavior. A shout or decision addressed to its sender is refused with `SELF_SHOUT`.
 
 `status.reviewQueue` contains `pending`, `reviewing` (distinct agents with live review leases), `reserved`, `oldestSubmittedAt` and `ageMs`. Age starts at each outstanding item's latest submit event; reserving or renewing its review does not reset it. An empty queue has `oldestSubmittedAt: null` and `ageMs: 0`.
 

@@ -1346,6 +1346,7 @@ export function verdictsFor(board, id) {
  */
 function insertShout(board, { from, to, text, lanes, decision = false, answers = null, evidence = null, request = false, channel = 'terminal' }) {
   if (!text.trim()) throw new Refused('EMPTY_SHOUT', 'a shout needs text');
+  if (to === from) throw new Refused('SELF_SHOUT', `a shout cannot be addressed to its sender ${from}; name another agent, a lane or all`);
   if (request && (from !== 'person' || to !== COORDINATOR || decision || answers !== null)) {
     throw new Refused('BAD_REQUEST', 'a request goes from the person to the coordinator; use the board requests endpoint with its text');
   }

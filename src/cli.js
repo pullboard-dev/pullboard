@@ -11,7 +11,8 @@ import { parseArgs } from 'node:util';
 import * as store from './board.js';
 import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
 import { doctrineHistory, loadDoctrine } from './doctrine.js';
-import { requirePersonChannel } from './person.js';
+import { agentSessionDigest, requirePersonChannel } from './person.js';
+import { bindLocalSession } from './agent-session.js';
 import { decisionProjection, planRowApply, prepareRowDecisions, restoreRowApply, writeRowApply } from './row-decisions.js';
 import { digestOf, gateReport, runGate, runShell } from './gate.js';
 import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, isClean, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
@@ -65,6 +66,7 @@ import { executePersonRequests } from './relay-request-execution.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
+const CHECKOUT_LEASES = new WeakMap();
 
 const ALL_HELP = `pullboard ${VERSION}: the local-first work board for teams of coding agents.
 Nothing ships until a second agent verifies it.
@@ -76,6 +78,7 @@ Set up
   pullboard join <lane> [--route light] [--family <name>]       register this worktree as an agent
                                         --route sets which work the model can take; --family records its name
   pullboard whoami | lanes | status     who you are, the lanes, the board at a glance
+  pullboard takeover                   rebind this checkout when the same agent starts a new session
   pullboard resources                  local resource holders and their FIFO queues
   pullboard settings [gateSlots <n>]    view or set this machine's gate slots (default 2)
   pullboard view [--port N] [--no-open]  every project on this machine in your browser: items, shouts, doctrine,
@@ -177,7 +180,7 @@ Reject reasons: TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HE
 --json prints one versioned document for every command; refusals include their code and next step.`;
 
 const HELP_NAMES = [
-  'tour', 'init', 'worktree', 'join', 'whoami', 'lanes', 'status', 'resources', 'settings', 'view', 'view export',
+  'tour', 'init', 'worktree', 'join', 'takeover', 'whoami', 'lanes', 'status', 'resources', 'settings', 'view', 'view export',
   'serve', 'relay', 'resume', 'hooks', 'add', 'edit', 'escalate', 'run', 'list', 'doctor', 'show', 'next',
   'check', 'claim', 'release', 'submit', 'done', 'verify', 'fact', 'shout', 'answer', 'pass', 'decisions', 'inbox', 'export', 'import',
   'sweep', 'merged', 'withdraw', 'refreeze', 'hold', 'ledger', 'log', 'spec', 'spec check', 'spec view',
@@ -641,9 +644,60 @@ function withBoard(ctx, work) {
 
 /** Dispatch a board mutation locally, or seal it before any linked replica applies it. */
 async function ordered(ctx, board, operation, args) {
-  return relayLinked(ctx.info.root)
-    ? relayOperation(ctx.info.root, operation, args, ctx.io)
-    : store[operation](board, ...args);
+  /** Dispatch while this session holds the checkout, including long-running next/run loops. */
+  const execute = () => relayLinked(ctx.info.root)
+    ? relayOperation(ctx.info.root, operation, args, ctx.io) : store[operation](board, ...args);
+  const digest = agentSessionDigest();
+  if (CHECKOUT_LEASES.has(ctx.io) || !digest || ctx.io.personChannel === 'view' || ctx.io.personRequest) return execute();
+  const agent = ctx.info.isMain ? COORDINATOR : store.agentAt(board, ctx.info.root)?.agent_id ?? 'unjoined agent';
+  const lease = await bindLocalSession(ctx.info, { agent, digest, keepLease: true });
+  try { return await execute(); }
+  finally { lease.release(); }
+}
+
+/** Check ownership before sync or command side effects; reads and authenticated person channels keep their identity. */
+async function bindCheckoutSession(io, positionals, values) {
+  if (values.help || values.version || io.personChannel === 'view' || io.personRequest) return;
+  const [command, first] = positionals;
+  if (command === 'takeover' && (positionals.length !== 1 || Object.keys(values).some((key) => key !== 'json'))) {
+    throw new Refused('USAGE', 'pullboard takeover takes no arguments; run pullboard takeover [--json]');
+  }
+  const writes = ['init', 'join', 'worktree', 'hooks', 'hook', 'add', 'edit', 'fact', 'escalate', 'run', 'sweep',
+    'next', 'claim', 'hold', 'release', 'submit', 'done', 'verify', 'merged', 'withdraw', 'refreeze', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget'];
+  if (!writes.includes(command) && !(command === 'settings' && first) && !(command === 'spec' && first === 'apply') && !(command === 'relay' && ['on', 'off'].includes(first))) return;
+  if (command === 'answer' && values.as === 'person') return;
+  const digest = agentSessionDigest();
+  if (!digest) {
+    if (command === 'takeover') throw new Refused('AGENT_SESSION', 'takeover belongs to an agent session; run pullboard takeover from the agent’s shell');
+    return;
+  }
+  const info = repoInfo(io.cwd);
+  let agent = info.isMain ? COORDINATOR : null;
+  if (!info.isMain) {
+    const ctx = context(io);
+    agent = withBoard(ctx, (board) => store.agentAt(board, info.root)?.agent_id);
+    if (!agent && command !== 'join') throw new Refused('NOT_JOINED', 'this worktree has not joined a lane; run pullboard join <lane>');
+  }
+  const lease = await bindLocalSession(info, { agent: agent ?? 'unjoined agent', digest, takeover: command === 'takeover', keepLease: !['run', 'next'].includes(command),
+    /** Use an existing ordered shout so takeover has a receipt without changing the board format. */
+    recordTakeover: async () => {
+      const ctx = context(io);
+      await withBoard(ctx, async (board) => {
+        const me = whoAmI(ctx, board);
+        const message = { from: me.id, to: info.isMain ? 'person' : COORDINATOR,
+          text: `${me.id} took over this checkout in a new agent session.`, lanes: laneNames(ctx.config) };
+        if (relayLinked(info.root)) await relayOperation(info.root, 'shout', [message], io);
+        else store.shout(board, message);
+      });
+    },
+  });
+  if (agent) return { lease };
+  /** Replace the temporary identity after a successful first join, retaining the winning session. */
+  return { lease, finish: async () => {
+    const ctx = context(io);
+    const me = withBoard(ctx, (board) => whoAmI(ctx, board));
+    lease.updateAgent(me.id);
+  } };
 }
 
 /**
@@ -1054,6 +1108,13 @@ function setupCommands(io, { first, values }) {
       return 0;
     },
     worktree: () => worktreeFor(io, first, values.route ?? 'strong', values.family ?? null),
+    takeover: () => {
+      const ctx = context(io);
+      const me = withBoard(ctx, (board) => whoAmI(ctx, board));
+      io.result?.({ agent: me.id, path: ctx.info.root });
+      io.say(`${me.id} took over this checkout for the current agent session`);
+      return 0;
+    },
   };
 }
 
@@ -2338,31 +2399,52 @@ async function runCommand(argv, io) {
 export async function main(argv, streams) {
   const io = commandOutput(argv, streams);
   let sync = true;
+  let parsed;
+  let checkoutSession;
   try {
-    const parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
+    parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
     const command = parsed.positionals[0];
     sync = Boolean(command) && !parsed.values.help && !parsed.values.version && !['help', 'version', 'hook', 'init', 'relay', 'tour'].includes(command);
   } catch { sync = false; }
-  /** A network refusal preserves offline reads; linked mutation dispatch requires an acknowledgement. */
-  const retry = async () => {
-    try { await syncRelay(io.cwd, io); }
-    catch (error) {
-      if (!(error instanceof Refused)) throw error;
-      if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
+  if (parsed) {
+    try {
+      checkoutSession = await bindCheckoutSession(io, parsed.positionals, parsed.values);
+      if (checkoutSession?.lease) CHECKOUT_LEASES.set(io, checkoutSession.lease);
     }
-  };
-  if (sync) {
-    await retry();
-    try { await executePersonRequests(io.cwd, io, main); }
     catch (error) {
       if (!(error instanceof Refused)) throw error;
-      if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err('pullboard: ' + error.message);
+      io.refusal(error);
+      io.err(`pullboard: ${error.message}`);
+      io.flush(1);
+      return 1;
     }
   }
-  const code = await runCommand(argv, io);
-  if (sync && code === 0) await retry();
-  io.flush(code);
-  return code;
+  try {
+    /** A network refusal preserves offline reads; linked mutation dispatch requires an acknowledgement. */
+    const retry = async () => {
+      try { await syncRelay(io.cwd, io); }
+      catch (error) {
+        if (!(error instanceof Refused)) throw error;
+        if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
+      }
+    };
+    if (sync) {
+      await retry();
+      try { await executePersonRequests(io.cwd, io, main); }
+      catch (error) {
+        if (!(error instanceof Refused)) throw error;
+        if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err('pullboard: ' + error.message);
+      }
+    }
+    const code = await runCommand(argv, io);
+    if (code === 0) await checkoutSession?.finish?.();
+    if (sync && code === 0) await retry();
+    io.flush(code);
+    return code;
+  } finally {
+    CHECKOUT_LEASES.delete(io);
+    checkoutSession?.lease?.release();
+  }
 }
 
 /** Result-producing command names, including aliases, for API contract coverage (A1). */
