@@ -469,7 +469,7 @@ test('unlinked board commands attempt zero outbound requests [H1,P5]', async (t)
     const codes = [];
     for (const args of [
       ['status'], ['list'], ['show', '1'], ['add', ${JSON.stringify(box.lane)}, 'another fixture item'],
-      ['shout', 'coordinator', 'fixture local message'], ['relay'], ['relay', 'off'],
+      ['shout', ${JSON.stringify(box.lane)}, 'fixture local message'], ['relay'], ['relay', 'off'],
     ]) {
       try {
         codes.push(await main([...args, '--json'], {

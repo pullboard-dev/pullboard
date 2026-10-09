@@ -209,13 +209,20 @@ export function lintSpec(spec, { maxWords = 20 } = {}) {
  *
  * @param {ReturnType<typeof parseSpec>} spec
  * @param {string[]} ids
+ * @param {ReturnType<import('./doctrine.js').loadDoctrine>} [doctrine]
  * @returns {string[]} Problems; empty when every id is live.
  */
-export function idProblems(spec, ids) {
+export function idProblems(spec, ids, doctrine = null) {
   const byId = new Map(spec.rows.map((row) => [row.id, row]));
   return ids.flatMap((id) => {
-    const row = byId.get(id);
-    if (!row) return [`${id} is not in ${spec.name ?? 'the spec'}`];
+    const prefix = 'doctrine:';
+    const namespaced = id.startsWith(prefix);
+    const rawId = namespaced ? id.slice(prefix.length) : id;
+    if (id.includes(':') && !namespaced) return [`${id} uses an unknown namespace; use doctrine:<id> for a doctrine row`];
+    const row = namespaced
+      ? doctrine?.rows.find((entry) => entry.id === rawId)
+      : byId.get(rawId);
+    if (!row) return [`${id} is not in ${namespaced ? 'doctrine' : spec.name ?? 'the spec'}`];
     if (row.status === 'retired') return [`${id} is retired`];
     if (row.status === 'wont') return [`${id} is marked won't build; the person reopens it first`];
     return [];
@@ -229,14 +236,18 @@ export function idProblems(spec, ids) {
  *
  * @param {ReturnType<typeof parseSpec>} spec
  * @param {{ item_title: string, item_criterion: string, item_spec_ids: string, item_check?: string }} item
+ * @param {ReturnType<import('./doctrine.js').loadDoctrine>} [doctrine]
  * @returns {{ text: string, digest: string }}
  */
-export function frozenCriterion(spec, item) {
+export function frozenCriterion(spec, item, doctrine = null) {
   const ids = item.item_spec_ids ? item.item_spec_ids.split(',') : [];
-  const problems = idProblems(spec, ids);
+  const problems = idProblems(spec, ids, doctrine);
   if (problems.length) throw new Refused('UNKNOWN_SPEC', `${problems.join('; ')}; fix the spec, or the coordinator withdraws the item`);
   const rows = ids.map((id) => {
-    const row = spec.rows.find((entry) => entry.id === id);
+    const [namespace, rawId] = id.startsWith('doctrine:') ? ['doctrine', id.slice('doctrine:'.length)] : ['spec', id];
+    const row = namespace === 'doctrine'
+      ? doctrine.rows.find((entry) => entry.id === rawId)
+      : spec.rows.find((entry) => entry.id === rawId);
     return { id, text: row.text, gate: row.gate };
   });
   const check = item.item_check ? { check: item.item_check } : {};
@@ -348,7 +359,7 @@ export function signOff(root, spec, { ids, by, on, note = '', commit = '' }) {
  * @returns {string[]}
  */
 export function citedIds(header) {
-  const match = /\[([A-Za-z0-9.,\s]+)\]\s*$/.exec(header);
+  const match = /\[([A-Za-z0-9:.,\s]+)\]\s*$/.exec(header);
   if (!match) return [];
   return match[1].split(',').map((id) => id.trim()).filter(Boolean);
 }

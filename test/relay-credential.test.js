@@ -21,6 +21,10 @@ test('every current operation selects its native actor credential without a seco
     if (operation === 'release') args = [999999, actor];
     if (['claim', 'refreeze'].includes(operation)) args = [box.before.tables.item[0].item_id, options];
     if (operation === 'reserveNextReview') args = [options];
+    if (operation === 'completeCheckBaseline') args = [999999, { ...options,
+      expected: { command: 'true', main: 'a'.repeat(40), result: 'pending', request: '11111111-1111-4111-8111-111111111111' },
+      baseline: { command: 'true', main: 'a'.repeat(40), result: 'green' },
+    }];
     if (operation === 'addMilestone') args = [{ agentId: actor, name: 'Credential fixture', items: [] }];
     if (['holdLane', 'releaseLane'].includes(operation)) args = [box.lane, options];
     if (operation === 'applyRowDecisions') args = [{ agentId: actor, events: [] }];

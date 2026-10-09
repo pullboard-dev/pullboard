@@ -147,7 +147,7 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .needs-you .ask + .head.quiet { margin-top: 12px; }
 .needs-you .more { padding: 2px 4px; }
 .ny { display: grid; grid-template-columns: auto minmax(5em, 1fr) minmax(0, max-content); gap: 10px; align-items: baseline; text-align: left; border: 0; background: none; padding: 6px 4px; border-radius: 8px; width: 100%; min-height: 44px; }
-.ny:hover { background: color-mix(in srgb, var(--warn) 10%, var(--surface)); }
+.ny:has(.ny-open):hover { background: color-mix(in srgb, var(--warn) 10%, var(--surface)); }
 .ny code { font: 600 12px var(--mono); }
 .ny .ny-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); }
 .ny .ny-open { min-height: 44px; border: 0; padding: 0; background: none; color: var(--warn); cursor: pointer; text-align: right; }
@@ -252,7 +252,7 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .panel-form input, .panel-form select, .panel-form textarea, .inline input, .inline select { width: 100%; }
 .panel-form textarea { resize: vertical; }
 .actions { display: flex; gap: 8px; } .actions .go { flex: 1; }
-.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; padding: 10px; }
+form.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; padding: 10px; }
 .inline label { flex: 1 1 150px; min-width: 0; }
 .inline label.wide { flex: 4 1 260px; }
 .feed { padding: 6px 10px 10px; display: grid; }
@@ -330,7 +330,17 @@ code.inline { padding: 0 3px; border-radius: 3px; background: color-mix(in srgb,
 .snapshot-controls label { display: flex; align-items: center; gap: 6px; }
 .snapshot-controls output { color: var(--ink-muted); font: 12px/1.5 var(--mono); }
 .snapshot #new-item, .snapshot form, .snapshot [data-new], .snapshot [data-release], .snapshot [data-shout], .snapshot [data-go^="decide:"] { display: none !important; }
-.read-only #new-item, .read-only form, .read-only [data-new], .read-only [data-release], .read-only [data-shout], .read-only [data-go^="decide:"] { display: none !important; }
+.read-only:not(.requests) #new-item, .read-only:not(.requests) form, .read-only:not(.requests) [data-new], .read-only:not(.requests) [data-release], .read-only:not(.requests) [data-shout], .read-only:not(.requests) [data-go^="decide:"] { display: none !important; }
+.person-requests { margin-bottom: 12px; padding: 12px; min-width: 0; }
+.person-requests h2 { margin: 0 0 8px; font-size: 14px; }
+.request-list { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow-y: auto; }
+.request-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+.request-list li:first-child { border-top: 0; }
+.request-label { min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
+.request-status { align-self: start; font-size: 12px; }
+.request-error, .request-next { grid-column: 1 / -1; margin: 0; overflow-wrap: anywhere; font-size: 12px; }
+.request-error { color: var(--reject); }
+.request-next { color: var(--ink-muted); }
 
 /* Every action keeps a usable touch target at either viewport, including inline controls. */
 button, input, select, textarea, [data-item], [data-row] { min-height: 44px; }

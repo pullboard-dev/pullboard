@@ -1,4 +1,5 @@
 {
+  "name": "pullboard",
   "gate": "npm run gate",
   "spec": "SPEC.md",
   "verify": "any",
@@ -41,13 +42,15 @@
       "owns": [
         "docs/",
         "README.md",
-        "ROADMAP.md",
         "test/readme.test.js",
         "skills/",
+        "DOCTRINE.md",
+        "PRACTICE.md",
         "CODE_OF_CONDUCT.md",
         "CHANGELOG.md",
         ".github/ISSUE_TEMPLATE/",
-        ".github/pull_request_template.md"
+        ".github/pull_request_template.md",
+        "CONTRIBUTING.md"
       ],
       "specs": [
         "I"

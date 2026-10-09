@@ -1,0 +1,71 @@
+# Run one test file, or one test in it, N times on a chosen runner and count the reds (C7). It proves a
+# flake's fix where the flake lives, macOS included, without running the whole gate N times. Inputs
+# reach the shell only through env, never through the script text. Run it on main, or on a commit
+# the coordinator pushes to a short-lived prove/<id> branch:
+#   gh workflow run repeat.yml --ref <branch> -f file=test/cockpit.test.js \
+#     -f pattern='real Chrome keeps the demo board usable' -f runs=30 -f os=macos-latest -f node=22.13
+name: repeat
+
+on:
+  workflow_dispatch:
+    inputs:
+      file:
+        description: Test file to run
+        required: true
+      pattern:
+        description: Test name pattern (empty runs the whole file)
+        required: false
+        default: ''
+      runs:
+        description: How many runs
+        required: true
+        default: '30'
+      os:
+        description: Runner
+        required: true
+        default: macos-latest
+        type: choice
+        options: [macos-latest, ubuntu-latest]
+      node:
+        description: Node version
+        required: true
+        default: '22.13'
+
+permissions:
+  contents: read
+
+jobs:
+  repeat:
+    runs-on: ${{ inputs.os }}
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node }}
+      - name: Run it N times and count
+        env:
+          FILE: ${{ inputs.file }}
+          PATTERN: ${{ inputs.pattern }}
+          RUNS: ${{ inputs.runs }}
+          RUNNER: ${{ inputs.os }}
+          NODE_VERSION: ${{ inputs.node }}
+        run: |
+          case "$RUNS" in ''|*[!0-9]*) echo "runs must be a whole number, saw '$RUNS'"; exit 2;; esac
+          [ -f "$FILE" ] || { echo "no such test file: $FILE"; exit 2; }
+          pass=0; fail=0
+          for i in $(seq 1 "$RUNS"); do
+            if [ -n "$PATTERN" ]; then set -- --test-name-pattern "$PATTERN" "$FILE"; else set -- "$FILE"; fi
+            start=$(date +%s)
+            if out=$(node bin/run-tests.js "$@" 2>&1) && ! printf '%s\n' "$out" | grep -q '^not ok'; then
+              pass=$((pass + 1)); echo "run $i: ok in $(( $(date +%s) - start ))s"
+            else
+              fail=$((fail + 1)); echo "::group::run $i: RED in $(( $(date +%s) - start ))s"
+              printf '%s\n' "$out" | grep -E -A40 '^not ok' | head -120
+              echo "::endgroup::"
+            fi
+          done
+          echo "$FILE ${PATTERN:+[$PATTERN] }on $RUNNER node $NODE_VERSION: runs=$RUNS pass=$pass fail=$fail" | tee -a "$GITHUB_STEP_SUMMARY"
+          [ "$fail" -eq 0 ]

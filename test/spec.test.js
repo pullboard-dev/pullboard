@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { standardDoctrine } from '../src/doctrine.js';
+import { AGENT_SHELL_MARKERS } from '../src/person.js';
 import {
   citedIds,
   deletedIds,
@@ -109,6 +110,70 @@ test('real spec check refuses future grammar in either configured file [A5]', (t
   assert.equal(box.run('check').status, 0);
 });
 
+test('spec check names both locations when ids repeat within or across configured files [A5]', (t) => {
+  const practiceRow = '# Practice\n\n## P\n- P1 [draft] A local rule.\n';
+  const crossFile = specBox(t, { practice: practiceRow });
+  writeFileSync(join(crossFile.root, crossFile.practiceName), practiceRow.replace('P1', 'G1'));
+  const cross = crossFile.run('check');
+  assert.equal(cross.status, 1);
+  assert.match(cross.stdout, /SPEC\.md:6 G1 error: duplicate id; also appears at PRACTICE\.md:4/u);
+  assert.match(cross.stdout, /PRACTICE\.md:4 G1 error: duplicate id; also appears at SPEC\.md:6/u);
+
+  const duplicateSpec = specBox(t);
+  writeFileSync(join(duplicateSpec.root, 'SPEC.md'), SPEC.replace('- G1.2 [draft, aim]', '- G1 [draft, aim]'));
+  const duplicateSpecResult = duplicateSpec.run('check');
+  assert.equal(duplicateSpecResult.status, 1);
+  assert.match(duplicateSpecResult.stdout, /SPEC\.md:7 G1 error: duplicate id; also appears at SPEC\.md:6/u);
+
+  const duplicatePractice = specBox(t, { practice: practiceRow });
+  writeFileSync(join(duplicatePractice.root, 'PRACTICE.md'), practiceRow.replace('- P1 [draft] A local rule.', '- P1 [draft] First.\n- P1 [draft] Second.'));
+  const duplicatePracticeResult = duplicatePractice.run('check');
+  assert.equal(duplicatePracticeResult.status, 1);
+  assert.match(duplicatePracticeResult.stdout, /PRACTICE\.md:5 P1 error: duplicate id; also appears at PRACTICE\.md:4/u);
+});
+
+test('spec check lists primary-branch collisions as known warnings [A5]', (t) => {
+  const practice = '# Practice\n\n## G\n- G1 [draft] A known local rule.\n';
+  const box = specBox(t, { practice });
+  const result = box.run('check');
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /SPEC\.md:6 G1 warning: known duplicate id; also appears at PRACTICE\.md:4/u);
+  assert.match(result.stdout, /PRACTICE\.md:4 G1 warning: known duplicate id; also appears at SPEC\.md:6/u);
+});
+
+test('spec check refuses a collision committed on a linked builder after coordinator trunk [A5]', (t) => {
+  const practice = '# Practice\n\n## P\n- P1 [draft] A local rule.\n';
+  const box = specBox(t, { practice });
+  const gitAt = (cwd, ...args) => execFileSync('git', args, { cwd, env: box.env, encoding: 'utf8', stdio: 'pipe' });
+  const runAt = (cwd, ...args) => spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args], {
+    cwd, env: box.env, encoding: 'utf8',
+  });
+  gitAt(box.root, 'branch', '-m', 'trunk');
+  const configPath = join(box.root, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  config.lanes.spec = { owns: ['PRACTICE.md'] };
+  writeFileSync(configPath, JSON.stringify(config));
+  gitAt(box.root, 'add', 'pullboard.json');
+  gitAt(box.root, 'commit', '-q', '-m', 'chore: add the spec fixture lane');
+  const builder = join(box.root, 'builder');
+  gitAt(box.root, 'worktree', 'add', '-q', builder, '-b', 'builder');
+  const joined = spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), 'join', 'spec'], {
+    cwd: builder, env: box.env, encoding: 'utf8',
+  });
+  assert.equal(joined.status, 0, joined.stderr);
+  writeFileSync(join(builder, 'PRACTICE.md'), practice.replace('- P1 [draft] A local rule.', '- P1 [draft] A local rule.\n- G1 [draft] Duplicate.'));
+  gitAt(builder, 'add', 'PRACTICE.md');
+  gitAt(builder, 'commit', '-q', '-m', 'chore: add a colliding row');
+  const result = runAt(builder, 'spec', 'check');
+  assert.equal(result.status, 1);
+  assert.match(`${result.stdout}${result.stderr}`, /duplicate id; also appears at PRACTICE\.md:\d+/u);
+  gitAt(box.root, 'switch', '-q', '--detach');
+  const detached = runAt(builder, 'spec', 'check');
+  assert.equal(detached.status, 1);
+  assert.match(detached.stderr, /COORDINATOR_DETACHED/u);
+  gitAt(box.root, 'switch', '-q', 'trunk');
+});
+
 test('a grammar-1 repair can commit after grammar 2 was already recorded [A5,S8]', (t) => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-grammar-history-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -197,6 +262,21 @@ test('cited ids must exist and must not be retired', () => {
   assert.deepEqual(idProblems(spec, ['G9', 'G2']), ['G9 is not in SPEC.md', 'G2 is retired']);
 });
 
+test('doctrine ids use their own namespace when an id also exists in SPEC.md [A5]', () => {
+  const spec = { ...parseSpec('## G\n- G1 [approved] Product rule.\n'), name: 'SPEC.md' };
+  const doctrine = { rows: [
+    { id: 'G1', status: 'approved', text: 'House rule.', gate: '' },
+    { id: 'PB1', status: 'approved', text: 'Inherited rule.', gate: '' },
+  ] };
+  assert.deepEqual(idProblems(spec, ['G1', 'doctrine:G1', 'doctrine:PB1'], doctrine), []);
+  assert.deepEqual(idProblems(spec, ['doctrine:PB9'], doctrine), ['doctrine:PB9 is not in doctrine']);
+  assert.deepEqual(idProblems(spec, ['other:G1'], doctrine), ['other:G1 uses an unknown namespace; use doctrine:<id> for a doctrine row']);
+  const frozen = frozenCriterion(spec, {
+    item_title: 'Use the house rule', item_criterion: 'follow it', item_spec_ids: 'doctrine:G1',
+  }, doctrine);
+  assert.match(frozen.text, /"id":"doctrine:G1","text":"House rule\."/u);
+});
+
 test('the frozen criterion covers title, criterion and cited row text [V2]', () => {
   const item = { item_title: 'Load twice', item_criterion: 'second load adds nothing', item_spec_ids: 'G1' };
   const first = frozenCriterion(parseSpec(SPEC), item);
@@ -229,6 +309,7 @@ test('a sign-off holds the text it approved; changing the row makes it stale [S5
 
 test('commit headers cite ids in a trailing bracket [C2]', () => {
   assert.deepEqual(citedIds('feat(web): add the page [G1, K1.2]'), ['G1', 'K1.2']);
+  assert.deepEqual(citedIds('feat(web): add the rule [doctrine:PB1]'), ['doctrine:PB1']);
   assert.deepEqual(citedIds('feat(web): add the page'), []);
   assert.deepEqual(citedIds('fix: handle [x] in the middle of text'), []);
 });
@@ -268,7 +349,7 @@ test('the check command is part of the frozen bar; items without one keep their 
  * A real repo and board with an isolated registry, so JSON exercises the command's lint and history
  * checks rather than just serializing the parser. Its files may use the configured names.
  */
-function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md', practice } = {}) {
+function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md', practice, specSource = SPEC } = {}) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-spec-json-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const bin = join(root, '.bin');
@@ -283,6 +364,9 @@ function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md', practi
     GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com',
     PULLBOARD_HOME: join(root, '.home'),
   };
+  delete env.PULLBOARD_RELAY_TOKEN;
+  // These isolated signoff fixtures model the same person terminal as the suite runner.
+  for (const marker of AGENT_SHELL_MARKERS) delete env[marker];
   const git = (...args) => execFileSync('git', args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' });
   const command = (...args) => spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args], { cwd: root, env, encoding: 'utf8' });
   const run = (...args) => command('spec', ...args);
@@ -296,7 +380,7 @@ function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md', practi
   rmSync(join(root, 'SPEC.md'), { force: true });
   rmSync(join(root, 'PRACTICE.md'), { force: true });
   rmSync(join(root, 'DOCTRINE.md'), { force: true });
-  writeFileSync(join(root, specName), SPEC);
+  writeFileSync(join(root, specName), specSource);
   if (practice !== undefined) writeFileSync(join(root, practiceName), practice);
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: a spec');
@@ -392,7 +476,7 @@ test('signoff prints cited tests, preserves its note and escapes that note in th
   const note = 'checked <img> & empty names\nwith the local greeting test';
   const signed = box.run('signoff', 'G1', '--by', 'CO', '--note', note);
   assert.equal(signed.status, 0, signed.stderr);
-  assert.match(signed.stdout, /evidence for G1:\n  test: test\/greeting.test.js/);
+  assert.match(signed.stdout, /evidence for G1:\n  cited by tests \(none run by pullboard\):\n    test\/greeting.test.js/);
   assert.ok(signed.stdout.indexOf('evidence for') < signed.stdout.indexOf('signed 1 rows'));
   assert.equal(readSignoffs(box.root)[0].note, note);
   assert.ok(box.run('show', 'G1').stdout.includes(note));
@@ -485,6 +569,7 @@ test('signoff refuses missing evidence atomically, and unmet shows every stage t
   const accepted = spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), 'verify', '1', 'accept', '--note', acceptedNote], { cwd: review, env: box.env, encoding: 'utf8' });
   assert.equal(accepted.status, 0, `${accepted.stdout}${accepted.stderr}`);
   assert.match(box.run('unmet').stdout, /G1 \[must\].*— verified and ready to sign/);
+  assert.equal(JSON.parse(box.run('unmet', '--json').stdout).rows.find(row => row.id === 'G1').stage, 'verified and ready to sign');
   const signed = box.run('signoff', 'G1', '--by', 'CO', '--note', 'checked the accepting verdict');
   assert.equal(signed.status, 0, signed.stderr);
   assert.match(signed.stdout, /verified #1: checked greeting in the private fixture/);
@@ -493,4 +578,26 @@ test('signoff refuses missing evidence atomically, and unmet shows every stage t
   writeFileSync(join(box.root, box.specName), SPEC.replace('Same file twice is a no-op.', 'Same file twice stays a no-op.'));
   assert.match(box.run('unmet').stdout, /G1 \[must\].*— stale/);
   assert.match(box.run('show', 'G1').stdout, /checked the accepting verdict/);
+});
+
+test('a failing never-run test citation is not verified, and signoff says no tests were run [S15,S16]', (t) => {
+  const specSource = SPEC.replace('## K · Constraints', '- G3 [approved, must] A ghost test is only a citation. | gate: true\n\n## K · Constraints');
+  const box = specBox(t, { specSource });
+  mkdirSync(join(box.root, 'test'));
+  writeFileSync(join(box.root, 'test/ghost.test.js'), '// [G3]\nimport { writeFileSync } from "node:fs";\nwriteFileSync(new URL("./ghost-ran", import.meta.url), "ran");\nthrow new Error("this ghost test fails if run");\n');
+  box.git('add', 'test/ghost.test.js');
+  box.git('commit', '-q', '-m', 'test: cite a never-run ghost');
+  const unmet = box.run('unmet');
+  assert.equal(unmet.status, 0, unmet.stderr);
+  assert.match(unmet.stdout, /G3 \[must\].*— cited by tests, not verified/);
+  const json = box.run('unmet', '--json');
+  assert.equal(json.status, 0, json.stderr);
+  assert.equal(JSON.parse(json.stdout).rows.find(row => row.id === 'G3').stage, 'cited by tests, not verified');
+  assert.equal(existsSync(join(box.root, 'test/ghost-ran')), false, 'the citation scan never executes the failing test');
+  const signed = box.run('signoff', 'G3', '--by', 'CO', '--note', 'the fixture person read the unverified citation');
+  assert.equal(signed.status, 0, signed.stderr);
+  assert.match(signed.stdout, /cited by tests \(none run by pullboard\):\n    test\/ghost.test.js/);
+  assert.doesNotMatch(signed.stdout, /verified #/);
+  assert.equal(existsSync(join(box.root, 'test/ghost-ran')), false, 'signoff does not execute the test either');
+  assert.ok(readSignoffs(box.root).some(row => row.id === 'G3'), 'S15 still permits the fixture person to sign');
 });
