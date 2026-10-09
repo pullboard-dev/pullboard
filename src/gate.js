@@ -1,5 +1,5 @@
 /**
- * The gate (V4, C3): the repo's own check command, run before submit and before every push. A green
+ * The gate (V4, C3, Q1, Q2, V18): the repo's check command and shared queue for gates and item checks. A green
  * run over a committed tree, with nothing untracked and nothing changed while it ran, leaves that
  * tree's id in the git dir, so the same tree is never checked twice. An agent sees a digest of the
  * run, not the run (V10): a passing suite's output costs tokens and says nothing.
@@ -100,6 +100,34 @@ export function runShell(root, command) {
   return { isGreen: result.status === 0, output: `${result.stdout ?? ''}${result.stderr ?? ''}`, seconds: Math.round((Date.now() - started) / 1000) };
 }
 
+/** Run work under the machine gate queue, keeping landing gates ahead of ordinary gates and item checks last.
+ *
+ * @param {string} root - Checkout used to locate the machine resource database.
+ * @param {() => any | Promise<any>} action - Work to perform while holding a slot.
+ * @param {{ landing?: boolean, itemCheck?: boolean, onWait?: (state: object) => void }} [options] - Queue class and progress reporter.
+ * @returns {Promise<any>} The action's result after releasing its lease.
+ */
+export async function withGateSlot(root, action, { landing = false, itemCheck = false, onWait } = {}) {
+  const capacityProvider = () => loadMachineSettings().gateSlots;
+  const lease = await takeResource({
+    name: 'gate',
+    capacity: capacityProvider(),
+    capacityProvider,
+    scope: 'machine',
+    root,
+    repo: root,
+    landing,
+    itemCheck,
+    allowIdleCapacityUpdate: true,
+    onWait,
+  });
+  try {
+    return await action();
+  } finally {
+    lease.release();
+  }
+}
+
 /**
  * Run the configured gate in the repo, unless this exact tree already passed. Its output, both
  * streams in order, is kept whole in the git dir and returned for a digest.
@@ -110,26 +138,15 @@ export function runShell(root, command) {
  *
  * @param {string} root
  * @param {any} config
- * @param {{ trustStamp?: boolean, onWait?: (state: object) => void }} [options]
+ * @param {{ trustStamp?: boolean, onWait?: (state: object) => void, landing?: boolean }} [options]
  * @returns {Promise<{ isGreen: boolean, isCached: boolean, output: string, seconds: number, log: string }>}
  */
-export async function runGate(root, config, { trustStamp = true, onWait } = {}) {
+export async function runGate(root, config, { trustStamp = true, onWait, landing = false } = {}) {
   if (!config.gate.trim()) {
     throw new Refused('NO_GATE', 'no gate configured; set "gate" in pullboard.json, e.g. "npm test"');
   }
   if (trustStamp && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
-  const capacityProvider = () => loadMachineSettings().gateSlots;
-  const lease = await takeResource({
-    name: 'gate',
-    capacity: capacityProvider(),
-    capacityProvider,
-    scope: 'machine',
-    root,
-    repo: root,
-    allowIdleCapacityUpdate: true,
-    onWait,
-  });
-  try {
+  return await withGateSlot(root, () => {
     if (trustStamp && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
     const before = committedTree(root);
     const { isGreen, output, seconds } = runShell(root, config.gate);
@@ -139,9 +156,7 @@ export async function runGate(root, config, { trustStamp = true, onWait } = {}) 
       writeFileSync(gitPath(root, STAMP), `${before}\n`);
     }
     return { isGreen, isCached: false, output, seconds, log };
-  } finally {
-    lease.release();
-  }
+  }, { landing, onWait });
 }
 
 /**
