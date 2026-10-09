@@ -272,7 +272,42 @@ test('[D4,A5] a staged rename keeps known duplicates before its rename commit', 
   assert.match(check.stdout, /DOCTRINE\.md:4 G1 warning: known duplicate id; also appears at SPEC\.md:4/u);
 });
 
-test('[D4,A5] detached checkout reads the trunk baseline through the verifier clone', function verifierCloneRetainsTrunkBaseline() {
+test('[D4,A5] spec check in a fresh detached CI clone reads its own commit', function detachedCiCloneUsesCheckedCommit() {
+  const box = sandbox();
+  for (const scenario of [
+    { name: 'ci-known', laterCollision: false },
+    { name: 'ci-later', laterCollision: true },
+  ]) {
+    const source = renamedDoctrineFixture(box, `${scenario.name}-source`, { laterCollision: scenario.laterCollision });
+    const initialized = box.run(source, 'init');
+    assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
+    box.git(source, 'add', '-A');
+    box.git(source, 'commit', '-q', '-m', 'chore: commit detached CI fixture configuration');
+    box.git(source, 'tag', scenario.name);
+
+    const clone = join(box.dir, `${scenario.name}-clone`);
+    box.git(box.dir, 'clone', '--quiet', '--no-local', '--no-checkout', '--', source, clone);
+    box.git(clone, 'checkout', '--quiet', '--detach', scenario.name);
+    const localTrunk = spawnSync('git', ['config', '--local', '--get', 'pullboard.trunk'], { cwd: clone, env: box.env, encoding: 'utf8' });
+    assert.equal(localTrunk.status, 1, 'the detached CI clone has no recorded trunk configuration');
+
+    const checked = box.run(clone, 'spec', 'check');
+    assert.match(checked.stdout, /^collision baseline default: detached HEAD$/mu, 'the check announces the detached default ref');
+    assert.match(checked.stdout, /SPEC\.md:4 G1 warning: known duplicate id; also appears at DOCTRINE\.md:4/u);
+    assert.match(checked.stdout, /DOCTRINE\.md:4 G1 warning: known duplicate id; also appears at SPEC\.md:4/u);
+    if (scenario.laterCollision) {
+      assert.equal(checked.status, 1, checked.stdout);
+      assert.match(checked.stdout, /SPEC\.md:5 G2 error: duplicate id; also appears at DOCTRINE\.md:5/u);
+      assert.match(checked.stdout, /DOCTRINE\.md:5 G2 error: duplicate id; also appears at SPEC\.md:5/u);
+    } else {
+      assert.equal(checked.status, 0, `${checked.stdout}${checked.stderr}`);
+      assert.match(checked.stdout, /SPEC\.md: \d+ rows, 0 errors/u);
+      assert.match(checked.stdout, /DOCTRINE\.md: \d+ rows, 0 errors/u);
+    }
+  }
+});
+
+test('[D4,A5] detached verifier clones use a recorded trunk or their checked commit', function verifierCloneRetainsTrunkBaseline() {
   const box = sandbox();
   const source = renamedDoctrineFixture(box, 'detached-source');
   const initialized = box.run(source, 'init');
@@ -312,11 +347,19 @@ test('[D4,A5] detached checkout reads the trunk baseline through the verifier cl
   box.git(withoutTrunk, 'config', '--local', '--unset-all', 'pullboard.trunk');
   assert.equal(spawnSync('git', ['config', '--local', '--get', 'pullboard.trunk'], {
     cwd: withoutTrunk, env: box.env,
-  }).status, 1, 'the negative source actually has no retained trunk');
-  const refused = checkAtCommit(withoutTrunk, { ...item, item_claim_head: noTrunkCommit, item_commit: noTrunkCommit });
-  assert.equal(refused.state, 'red');
-  assert.match(`${refused.output}\n${refused.outputTail}`, /NO_TRUNK/u);
-  assert.match(`${refused.output}\n${refused.outputTail}`, /check out the trunk branch in the main checkout once/u);
+  }).status, 1, 'the source actually has no retained trunk');
+  const attachedWithoutTrunk = box.run(withoutTrunk, 'spec', 'check');
+  assert.equal(attachedWithoutTrunk.status, 0, `${attachedWithoutTrunk.stdout}${attachedWithoutTrunk.stderr}`);
+  assert.doesNotMatch(attachedWithoutTrunk.stdout, /collision baseline default: detached HEAD/u, 'an attached checkout keeps using its own branch');
+  box.git(withoutTrunk, 'config', '--local', '--unset-all', 'pullboard.trunk');
+  assert.equal(spawnSync('git', ['config', '--local', '--get', 'pullboard.trunk'], {
+    cwd: withoutTrunk, env: box.env,
+  }).status, 1, 'the source remains without a retained trunk for the detached verifier');
+  const detachedWithoutTrunk = checkAtCommit(withoutTrunk, { ...item, item_claim_head: noTrunkCommit, item_commit: noTrunkCommit });
+  assert.equal(detachedWithoutTrunk.state, 'pass', `${detachedWithoutTrunk.stage}\n${detachedWithoutTrunk.output}`);
+  assert.match(detachedWithoutTrunk.output, /^collision baseline default: detached HEAD$/mu);
+  assert.match(detachedWithoutTrunk.output, /SPEC\.md:4 G1 warning: known duplicate id; also appears at DOCTRINE\.md:4/u);
+  assert.match(detachedWithoutTrunk.output, /DOCTRINE\.md:4 G1 warning: known duplicate id; also appears at SPEC\.md:4/u);
 });
 
 test('[D4,A5] verify in a detached checkout reads the trunk baseline for a doctrine frozen check', function verifyDoctrineFrozenCheck() {
