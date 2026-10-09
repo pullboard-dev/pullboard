@@ -121,9 +121,13 @@ function testEnvironment(sandbox) {
   env.TEMP = sandbox;
   env.GIT_CONFIG_GLOBAL = '/dev/null';
   env.GIT_CONFIG_NOSYSTEM = '1';
-  env.GIT_CONFIG_COUNT = '1';
+  env.GIT_CONFIG_COUNT = '3';
   env.GIT_CONFIG_KEY_0 = 'user.useConfigOnly';
   env.GIT_CONFIG_VALUE_0 = 'true';
+  env.GIT_CONFIG_KEY_1 = 'gc.auto';
+  env.GIT_CONFIG_VALUE_1 = '0';
+  env.GIT_CONFIG_KEY_2 = 'maintenance.auto';
+  env.GIT_CONFIG_VALUE_2 = 'false';
   env.PATH = [shims, process.env.PATH].filter(Boolean).join(delimiter);
   delete env.PULLBOARD_RELAY_TOKEN; // Fixtures must supply their own scoped credentials, never an agent’s live bearer.
   delete env.NODE_TEST_CONTEXT;
