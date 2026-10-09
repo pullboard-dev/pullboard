@@ -130,7 +130,7 @@ test('[A2] local HTTP state accepts a safe seen cursor and committed code previe
   }
 });
 
-test('[A2, N33, N35] API listing refreshes live labels and preserves missing-entry warnings', async (t) => {
+test('[A2, N33, N35] API listing refreshes live labels and preserves unreadable-entry warnings', async (t) => {
   const box = fixture(t);
   const priorHome = process.env.PULLBOARD_HOME;
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
@@ -174,7 +174,7 @@ test('[A2, N33, N35] API listing refreshes live labels and preserves missing-ent
     { name: 'Fresh first', project: 'Fresh group' },
     { name: 'Saved second', project: 'Saved group' },
   ]);
-  rmSync(second, { recursive: true, force: true });
+  rmSync(join(second, '.git'), { recursive: true, force: true });
 
   const refreshed = await listing();
   assert.deepEqual(refreshed.boards.map(({ root, name, project }) => ({ root, name, project })), [
