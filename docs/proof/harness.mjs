@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '..', '..');
-const COPIED = ['src', 'bin', 'test', 'skills', 'docs', '.github', 'package.json', 'PRACTICE.md', 'README.md'];
+const COPIED = ['src', 'bin', 'test', 'skills', 'docs', '.github', 'package.json', 'DOCTRINE.md', 'README.md'];
 
 /**
  * Run an audit and print one line per change. Sets the exit code to 1 if any change comes out other
