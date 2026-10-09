@@ -3728,8 +3728,10 @@ test('a short code chip at a line end stays whole, and long code still wraps ins
         const text = flag.parentElement.closest('div');
         // Long code wraps where the fonts put it, and stays inside the screen.
         const pathRects = [...path.getClientRects()];
+        // Measured where the chips live: no shout's text runs wider than its column. (The page as a whole is
+        // other lanes' layout; at 320 on Linux a 15px scrollbar leaves 305px for it.)
         const longCode = { fragments: pathRects.length, right: Math.max(...pathRects.map((r) => r.right)), screen: document.documentElement.clientWidth,
-          overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth };
+          overflow: [...document.querySelectorAll('#feed > div > div')].some((column) => column.scrollWidth > column.clientWidth + 0.5) };
         const wideRects = [...chips.find((code) => code.textContent === ${JSON.stringify(wide)}).getClientRects()];
         const wideCode = { fragments: wideRects.length, right: Math.max(...wideRects.map((r) => r.right)), screen: document.documentElement.clientWidth };
         // Then end the chip's line three pixels inside the chip, whatever this machine's fonts measure.
