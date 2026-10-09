@@ -9,7 +9,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import * as store from './board.js';
-import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
+import { CONFIG_FILE, COORDINATOR, DOCTRINE_FILE, LEGACY_DOCTRINE_FILE, loadConfig } from './config.js';
 import { doctrineHistory, loadDoctrine } from './doctrine.js';
 import { agentSessionDigest, requirePersonChannel } from './person.js';
 import { bindLocalSession } from './agent-session.js';
@@ -38,6 +38,7 @@ import {
   idProblems,
   lintSpec,
   loadSpec,
+  legacyDoctrineRenameBase,
   permanenceProblems,
   parseSpec,
   readSignoffs,
@@ -78,9 +79,10 @@ const CHECKOUT_LEASES = new WeakMap();
  *
  * @param {string} root
  * @param {string} path
+ * @param {string} [revision]
  * @returns {{ status: number, stdout: string }}
  */
-function coordinatorFile(root, path) {
+function coordinatorFile(root, path, revision) {
   const commonDir = git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
   const coordinatorRoot = dirname(commonDir);
   const env = { ...gitChildEnv(root), GIT_NO_REPLACE_OBJECTS: '1' };
@@ -94,7 +96,7 @@ function coordinatorFile(root, path) {
       'the primary checkout must be on its attached local branch to establish the collision baseline; the coordinator returns it to its branch',
     );
   }
-  const result = spawnSync('git', ['--no-replace-objects', 'show', `${ref}:${path}`], {
+  const result = spawnSync('git', ['--no-replace-objects', 'show', `${revision ?? ref}:${path}`], {
     cwd: coordinatorRoot, env, encoding: 'utf8',
   });
   return { status: result.status ?? 1, stdout: result.stdout ?? '' };
@@ -2251,8 +2253,14 @@ async function specCommand(io, { first, second, rest, values }) {
     const files = [[ctx.config.spec, spec], ...(practice.exists ? [[practice.name, practice]] : [])];
     for (const [, parsed] of files) assertRequiredSigners(ctx.info.root, parsed.rows);
     const collisionFiles = [[ctx.config.spec, spec], ...(practice.repoExists ? [[practice.name, practice.repo]] : [])];
+    const renameBase = collisionFiles.some(([name]) => name === DOCTRINE_FILE)
+      ? legacyDoctrineRenameBase(ctx.info.root, DOCTRINE_FILE)
+      : null;
     const previousCounts = new Map(collisionFiles.map(([name]) => {
-      const previous = coordinatorFile(ctx.info.root, name);
+      const baselineName = renameBase && name === DOCTRINE_FILE ? LEGACY_DOCTRINE_FILE : name;
+      const previous = name === DOCTRINE_FILE && !renameBase
+        ? { status: 1, stdout: '' }
+        : coordinatorFile(ctx.info.root, baselineName, renameBase ?? undefined);
       const rows = previous.status === 0 ? parseSpec(previous.stdout, { strictGrammarVersion: false }).rows : [];
       const counts = new Map();
       for (const row of rows) counts.set(row.id, (counts.get(row.id) ?? 0) + 1);
