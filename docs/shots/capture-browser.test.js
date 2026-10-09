@@ -1,7 +1,7 @@
 /** Real Chrome readiness over the disposable demo's exported API (I13,A10). */
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -102,6 +102,33 @@ test('capture cleanup retries while a closed browser flushes its profile [I13,A1
     await closed;
     await removeCaptureFolder(base);
   }
+});
+
+test('demo capture preserves one shared Chrome startup diagnostic [I13]', { timeout: 40_000 }, async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pullboard-demo-chrome-no-port-'));
+  const profile = join(directory, 'profile');
+  const launches = join(directory, 'launches');
+  const wrapper = join(directory, 'chrome-no-port');
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await writeFile(wrapper, [
+    '#!/usr/bin/env node',
+    "const fs = require('node:fs');",
+    `const launches = ${JSON.stringify(launches)};`,
+    "fs.appendFileSync(launches, 'launch\\n');",
+    "process.stderr.write('DEMO_CAPTURE_NO_PORT_STDERR\\n');",
+    "process.on('SIGTERM', () => { fs.appendFileSync(launches, 'stopped\\n'); process.exit(0); });",
+    'setInterval(() => {}, 1000);',
+  ].join('\n'));
+  await chmod(wrapper, 0o700);
+
+  await assert.rejects(browser(wrapper, profile, 'about:blank'), (error) => {
+    assert.match(error.message, /did not publish its DevTools port/u);
+    assert.match(error.message, /elapsed \d+ms; 30000ms DevTools budget/u);
+    assert.ok(Number(/elapsed (\d+)ms/u.exec(error.message)[1]) >= 30_000, 'the capture uses the shared 30-second startup budget');
+    assert.match(error.message, /DEMO_CAPTURE_NO_PORT_STDERR/u, 'the capture preserves Chrome stderr in its startup refusal');
+    return true;
+  });
+  assert.equal(await readFile(launches, 'utf8'), 'launch\nstopped\n', 'the shared launcher starts once and exits before profile cleanup');
 });
 
 test('demo capture waits for the intended HTTP document and populated board in Chrome [I13,A10]', { timeout: 90_000 }, async (t) => {
