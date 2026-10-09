@@ -5,11 +5,13 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
+import { ENGINE_VERSION } from '../src/machine.js';
 import { createGitHubClient } from '../relay/github.js';
 import { createRelayAuth, ACCESS_WINDOW_MS } from '../relay/auth.js';
 import { serveRelay } from '../relay/service.js';
 import { githubFixture } from './relay-fixture.js';
 import { relayClientFixture } from './relay-client-fixture.js';
+import { serveView } from '../src/serve.js';
 
 /** Use real private SQLite and an actual HTTP provider with a controllable expiry clock. */
 async function fixture(t, options = {}) {
@@ -187,7 +189,7 @@ test('revoking a board credential while its upload body is open stores nothing [
   const origin = `http://127.0.0.1:${service.port}`;
   const snapshot = await fetch(`${origin}/api/v1/boards/${board}/state`, {
     method: 'PUT',
-    headers: { authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
+    headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
     body: JSON.stringify({ sequence: 0, sealed: 'AQ' }),
   });
   assert.equal(snapshot.status, 200);
@@ -207,7 +209,7 @@ test('revoking a board credential while its upload body is open stores nothing [
   let stream;
   const upload = fetch(`${origin}/api/v1/boards/${board}/moves`, {
     method: 'POST',
-    headers: { authorization: `Bearer ${agent.token}`, 'content-type': 'application/json' },
+    headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${agent.token}`, 'content-type': 'application/json' },
     body: new ReadableStream({ start(controller) { stream = controller; controller.enqueue(Buffer.from('{"sequence":1,"sealed":"')); } }),
     duplex: 'half',
   });
@@ -223,7 +225,7 @@ test('revoking a board credential while its upload body is open stores nothing [
   assert.equal(response.status, 401, JSON.stringify(refusal));
   assert.equal(refusal.error.code, 'AUTH_REQUIRED');
   const events = await fetch(`${origin}/api/v1/boards/${board}/events?after=0`, {
-    headers: { authorization: `Bearer ${person.token}` },
+    headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}` },
   });
   assert.equal(events.status, 200);
   assert.deepEqual((await events.json()).events, [], 'the revoked upload never appends a move');
@@ -244,7 +246,7 @@ test('revoking a person token during snapshot upload preserves the prior snapsho
   const origin = `http://127.0.0.1:${service.port}`;
   const firstSnapshot = await fetch(`${origin}/api/v1/boards/${board}/state`, {
     method: 'PUT',
-    headers: { authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
+    headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
     body: JSON.stringify({ sequence: 0, sealed: 'AQ' }),
   });
   assert.equal(firstSnapshot.status, 200);
@@ -264,7 +266,7 @@ test('revoking a person token during snapshot upload preserves the prior snapsho
   let stream;
   const upload = fetch(`${origin}/api/v1/boards/${board}/state`, {
     method: 'PUT',
-    headers: { authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
+    headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
     body: new ReadableStream({ start(controller) { stream = controller; controller.enqueue(Buffer.from('{"sequence":0,"sealed":"')); } }),
     duplex: 'half',
   });
@@ -280,7 +282,7 @@ test('revoking a person token during snapshot upload preserves the prior snapsho
   assert.equal(response.status, 401, JSON.stringify(refusal));
   assert.equal(refusal.error.code, 'AUTH_REQUIRED');
   const current = await fetch(`${origin}/api/v1/boards/${board}/state`, {
-    headers: { authorization: `Bearer ${observer.token}` },
+    headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${observer.token}` },
   });
   assert.equal(current.status, 200);
   const saved = await current.json();
@@ -482,6 +484,94 @@ test('unlinked board commands attempt zero outbound requests [H1,P5]', async (t)
   assert.ok(result.document.codes.every(code => code === 0), 'all ordinary local board commands succeed without transport');
 });
 
+
+test('offline linked reads use the local board, moves refuse, and the same relay resumes [H10]', async (t) => {
+  const box = await relayClientFixture(t);
+  await box.link();
+  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const boardFile = join(box.root, '.git', 'pullboard', 'board.sqlite');
+  const beforeBytes = readFileSync(boardFile);
+  const beforeTables = (await box.cli('export')).document.tables;
+  const beforeEvents = beforeTables.event;
+  const oldEnvironment = new Map(['HOME', 'PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME']
+    .map(name => [name, process.env[name]]));
+  for (const name of oldEnvironment.keys()) process.env[name] = box.env[name];
+  let view;
+  try {
+    view = await serveView({ port: 0 });
+    const page = await fetch(view.url);
+    assert.equal(page.status, 200, 'the real local view page remains available');
+    assert.match(page.headers.get('content-type') ?? '', /text\/html/);
+
+    await box.stopRelay();
+    const status = await box.cli('status');
+    const listed = await box.cli('list', '--all');
+    const shown = await box.cli('show', '1');
+    assert.equal(status.code, 0, 'status reads its local board while disconnected');
+    assert.equal(listed.code, 0, 'list reads its local board while disconnected');
+    assert.ok(listed.document.items.some(item => item.item_title === 'private cleanup fixture item'));
+    assert.equal(shown.code, 0, 'show reads its local board while disconnected');
+    assert.equal(shown.document.item_title, 'private cleanup fixture item');
+
+    const viewKey = new URL(view.url).searchParams.get('k');
+    const localBoardsUrl = new URL('/api/v1/boards', view.url);
+    localBoardsUrl.searchParams.set('k', viewKey);
+    const localBoardsResponse = await fetch(localBoardsUrl);
+    assert.equal(localBoardsResponse.status, 200, 'the local view API remains available offline');
+    const localBoards = await localBoardsResponse.json();
+    const localBoard = localBoards.boards.find(board => board.root === box.root);
+    assert.ok(localBoard, 'the local view still lists the linked project from its local registry');
+    const localStateUrl = new URL(`/api/v1/boards/${localBoard.id}/state`, view.url);
+    localStateUrl.searchParams.set('k', viewKey);
+    const localStateResponse = await fetch(localStateUrl);
+    assert.equal(localStateResponse.status, 200);
+    const localState = await localStateResponse.json();
+    assert.ok(localState.state.items.some(item => item.title === 'private cleanup fixture item'),
+      'the local view reads the same private board contents while the relay is stopped');
+
+    for (const args of [
+      ['add', box.lane, 'refused offline add'],
+      ['shout', 'coordinator', 'refused offline shout'],
+    ]) {
+      const refused = await box.cli(...args);
+      assert.equal(refused.code, 1);
+      assert.equal(refused.document.error.code, 'RELAY_UNAVAILABLE');
+      assert.ok(refused.document.error.message.includes(box.origin), 'the refusal names the address attempted');
+      assert.match(refused.document.error.message, /retry this move when the relay is reachable/);
+    }
+    const viewMoveUrl = new URL(`/api/v1/boards/${localBoard.id}/moves`, view.url);
+    viewMoveUrl.searchParams.set('k', viewKey);
+    const viewMove = await fetch(viewMoveUrl, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ verb: 'add', args: { lane: box.lane, title: 'refused offline view move' } }),
+    });
+    assert.equal(viewMove.status, 409, 'the local view API uses the linked move refusal path');
+    assert.equal((await viewMove.json()).error.code, 'RELAY_UNAVAILABLE');
+
+    assert.deepEqual(readFileSync(boardFile), beforeBytes, 'offline reads and refused moves leave the native board bytes unchanged');
+    assert.deepEqual((await box.cli('export')).document.tables, beforeTables, 'no speculative local move or event was applied');
+
+    await box.restartRelay();
+    const resumed = await box.cli('add', box.lane, 'move after relay returns');
+    assert.equal(resumed.code, 0, 'the relay resumes without relay off/on repair');
+    assert.equal(resumed.document.item.item_title, 'move after relay returns');
+    const afterTables = (await box.cli('export')).document.tables;
+    assert.equal(afterTables.event.length, beforeEvents.length + 1, 'only the acknowledged recovery move is recorded locally');
+    assert.equal(afterTables.event.at(-1).event_kind, 'add');
+    const remoteStateResponse = await fetch(`${box.origin}/api/v1/boards/${link.board}/state`, {
+      headers: { authorization: `Bearer ${link.token}`, 'x-pullboard-engine': String(ENGINE_VERSION) },
+    });
+    assert.equal(remoteStateResponse.status, 200);
+    assert.equal((await remoteStateResponse.json()).state.sequence, 1, 'the resumed move has exactly one relay position');
+  } finally {
+    if (view) await view.close();
+    for (const [name, value] of oldEnvironment) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+});
+
 test('plain relay off explains an already-deleted board without printing credentials [H1,H18]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
@@ -496,4 +586,19 @@ test('plain relay off explains an already-deleted board without printing credent
   `);
   assert.equal(result.code, 0);
   assert.deepEqual(result.document, { code: 0, explained: true, credential: false });
+});
+
+
+test('every real CLI relay request declares its engine including sign-in, reads, writes and unlink [H16,H3]', async t => {
+  const box = await relayClientFixture(t);
+  await box.link();
+  assert.equal((await box.cli('export')).code, 0);
+  assert.equal((await box.cli('add', box.lane, 'Declared-engine fixture move')).code, 0);
+  assert.equal((await box.cli('relay', 'off')).code, 0);
+  assert.ok(box.calls.some(call => call.path.startsWith('/auth/')));
+  assert.ok(box.calls.some(call => call.method === 'GET' && call.path.includes('/events')));
+  assert.ok(box.calls.some(call => call.method === 'POST' && call.path.endsWith('/moves')));
+  assert.ok(box.calls.some(call => call.method === 'PUT' && call.path.endsWith('/state')));
+  assert.ok(box.calls.some(call => call.method === 'DELETE'));
+  assert.ok(box.calls.every(call => call.engine === String(ENGINE_VERSION)), 'every request from the real CLI carries the current engine version');
 });

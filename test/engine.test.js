@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { exportBoard, importBoard, restoreRelaySnapshot } from '../src/exchange.js';
-import { applyEngineMove, prepareEngineMove, appliedSequence, engineReceipt, startRelayEpoch } from '../src/engine.js';
+import { applyEngineMove, applyRelayMove, prepareEngineMove, appliedSequence, engineReceipt, startRelayEpoch } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { Refused } from '../src/refused.js';
 
@@ -14,13 +14,14 @@ const HOUR = 3_600_000;
 const CLAIM_AT = '2026-10-07T18:00:00.000Z';
 
 /** Open two independent SQLite copies of the same registered board and one available item. */
-function engineCopies(t) {
+function engineCopies(t, initialize = () => {}) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-engine-'));
   const source = store.openBoard(join(directory, 'source.sqlite'));
   store.register(source, { lane: 'coordinator', path: '/source' });
   store.register(source, { lane: 'web', path: '/source/web-1' });
   store.register(source, { lane: 'web', path: '/source/web-2' });
   const item = store.addItem(source, { by: 'coordinator', lane: 'web', title: 'Engine fixture' });
+  initialize(source);
   const document = exportBoard(source);
   const copies = ['one', 'two'].map((name, index) => {
     const clock = { now: () => new Date(`2026-10-07T${index + 16}:00:00.000Z`) };
@@ -64,47 +65,64 @@ test('authenticated relay senders bind every move and refusals preserve replica 
   const claim = claimMove(one, item, 'web-1');
   const actorlessClaim = { ...claim, id: 'actorless-person-claim' };
   delete actorlessClaim.actor;
-  const mismatchedArgs = prepareEngineMove(one, 'claim', claim.args, {
-    id: 'sealed-actor-mismatch', actor: 'web-2',
+  const mismatchedArgs = prepareEngineMove(one, 'claim', [item, { ...claim.args[1], agentId: 'web-2' }], {
+    id: 'sealed-actor-mismatch', actor: 'web-1',
   });
   const personalAnswer = prepareEngineMove(one, 'answerDecision', [1, {
     asPerson: true, agentId: 'coordinator', text: 'fixture answer', lanes: ['web'],
   }], { id: 'agent-person-answer' });
   const cases = [
-    { move: actorlessClaim, sender: { kind: 'person', userId: 'fixture-user' } },
+    { move: actorlessClaim, sender: undefined, expected: 'RELAY_SENDER' },
     { move: claim, sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-2' } },
     { move: mismatchedArgs, sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } },
     { move: prepareEngineMove(one, 'register', [{ lane: 'web', path: '/fixture/enroll' }], { id: 'agent-enrollment' }), sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } },
-    { move: personalAnswer, sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } },
+    { move: personalAnswer, sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' }, expected: 'RELAY_PERSON_ONLY' },
     { move: prepareEngineMove(one, 'shout', [{ from: 'web-2', agentId: 'web-1', to: 'all', text: 'spoof', lanes: ['web'] }], { id: 'shadowed-shout', actor: 'web-1' }), sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } },
     { move: prepareEngineMove(one, 'addItem', [{ by: 'coordinator', agentId: 'web-1', lane: 'web', title: 'spoof' }], { id: 'shadowed-add', actor: 'web-1' }), sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } },
   ];
 
-  cases.forEach(({ move, sender }, index) => {
+  cases.forEach(({ move, sender, expected = 'RELAY_SENDER_MISMATCH' }, index) => {
     const sequence = index + 1;
     for (const board of copies) {
       const before = boardRows(board, item);
-      const outcome = applyEngineMove(board, move, { sequence, at: CLAIM_AT, sender });
-      assert.equal(outcome.error?.code, 'RELAY_ACTOR', `case ${index + 1} must refuse before native writes`);
-      assert.deepEqual(boardRows(board, item), before, `case ${index + 1} leaves native rows/events unchanged`);
+      const outcome = applyRelayMove(board, move, { sequence, at: CLAIM_AT, kind: 'move', sender });
+      assert.equal(outcome.error?.code, expected, `case ${index + 1} must refuse before native writes`);
+      const after = boardRows(board, item);
+      assert.deepEqual(after.item, before.item, `case ${index + 1} leaves native item rows unchanged`);
+      assert.deepEqual(after.events.slice(0, -1), before.events, `case ${index + 1} preserves every prior event`);
+      assert.equal(after.events.length, before.events.length + 1, 'only the mandated refusal event is appended');
+      assert.equal(after.events.at(-1).event_kind, 'relay_refused');
+      assert.equal(after.events.at(-1).event_by, sender?.kind === 'agent' ? sender.agent : 'relay');
       assert.equal(replayCursor(board), sequence, `case ${index + 1} commits the refusal prefix`);
     }
   });
 
   const validClaim = { ...claim, id: 'valid-claim-after-refusals' };
   const agent = { kind: 'agent', userId: 'fixture-user', agent: 'web-1' };
-  const claimOne = applyEngineMove(one, validClaim, { sequence: cases.length + 1, at: CLAIM_AT, sender: agent });
-  const claimTwo = applyEngineMove(two, validClaim, { sequence: cases.length + 1, at: CLAIM_AT, sender: agent });
+  const claimOne = applyRelayMove(one, validClaim, { sequence: cases.length + 1, at: CLAIM_AT, kind: 'move', sender: agent });
+  const claimTwo = applyRelayMove(two, validClaim, { sequence: cases.length + 1, at: CLAIM_AT, kind: 'move', sender: agent });
   assert.deepEqual(claimOne, claimTwo);
   assert.equal(store.getItem(one, item).item_owner, 'web-1');
 
   const shout = prepareEngineMove(one, 'shout', [{ from: 'web-1', to: 'all', text: 'authenticated fixture', lanes: ['web'] }], { id: 'valid-shout-after-refusals' });
-  const shoutOne = applyEngineMove(one, shout, { sequence: cases.length + 2, at: CLAIM_AT, sender: agent });
-  const shoutTwo = applyEngineMove(two, shout, { sequence: cases.length + 2, at: CLAIM_AT, sender: agent });
+  const shoutOne = applyRelayMove(one, shout, { sequence: cases.length + 2, at: CLAIM_AT, kind: 'move', sender: agent });
+  const shoutTwo = applyRelayMove(two, shout, { sequence: cases.length + 2, at: CLAIM_AT, kind: 'move', sender: agent });
   assert.deepEqual(shoutOne, shoutTwo);
   assert.deepEqual(boardRows(one, item), boardRows(two, item), 'valid claim and shout replay identically after refusal prefix');
   assert.equal(replayCursor(one), cases.length + 2);
   assert.equal(replayCursor(two), cases.length + 2);
+});
+
+test('person sessions delegate native agent moves under the shared sender policy [H2,H9,H16]', (t) => {
+  const { copies, item } = engineCopies(t);
+  const move = claimMove(copies[0], item, 'web-1');
+  delete move.actor;
+  const outcomes = copies.map(board => applyRelayMove(board, move, {
+    sequence: 1, at: CLAIM_AT, kind: 'move', sender: { kind: 'person', userId: 'fixture-user' },
+  }));
+  assert.deepEqual(outcomes[0], outcomes[1]);
+  assert.equal(outcomes[0].error, undefined);
+  for (const board of copies) assert.equal(store.getItem(board, item).item_owner, 'web-1');
 });
 
 test('authenticated coordinator milestones replay and reject foreign sender identity [H2,H9,H3,H16]', (t) => {
@@ -113,18 +131,147 @@ test('authenticated coordinator milestones replay and reject foreign sender iden
   const move = prepareEngineMove(one, 'addMilestone', [{ agentId: 'coordinator', name: 'Fixture milestone', items: [item] }], { id: 'coordinator-milestone', actor: 'coordinator' });
   for (const board of copies) {
     const before = store.milestones(board);
-    const refused = applyEngineMove(board, move, { sequence: 1, at: CLAIM_AT, sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } });
-    assert.equal(refused.error?.code, 'RELAY_ACTOR');
+    const refused = applyRelayMove(board, move, { sequence: 1, at: CLAIM_AT, kind: 'move', sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } });
+    assert.equal(refused.error?.code, 'RELAY_SENDER_MISMATCH');
     assert.deepEqual(store.milestones(board), before, 'a foreign scoped token cannot change milestone metadata');
   }
   const valid = { ...move, id: 'valid-coordinator-milestone' };
   const sender = { kind: 'agent', userId: 'fixture-user', agent: 'coordinator' };
-  const outcomes = copies.map((board) => applyEngineMove(board, valid, { sequence: 2, at: CLAIM_AT, sender }));
+  const outcomes = copies.map((board) => applyRelayMove(board, valid, { sequence: 2, at: CLAIM_AT, kind: 'move', sender }));
   assert.deepEqual(outcomes[0], outcomes[1]);
   assert.equal(outcomes[0].error, undefined, 'the coordinator scoped token binds the native milestone actor');
   assert.deepEqual(store.milestones(one), [{ name: 'Fixture milestone', note: null, items: [item] }]);
   assert.deepEqual(store.milestones(one), store.milestones(two));
   assert.deepEqual(store.events(one), store.events(two));
+});
+
+test('person answer channel replays identically on agent and plain replicas [B26,H16]', t => {
+  const questions = [];
+  const { copies } = engineCopies(t, source => {
+    questions.push(...['view', 'terminal', 'legacy'].map(channel => store.shout(source, {
+      from: 'coordinator', to: 'person', text: 'Private engine fixture ' + channel,
+      decision: true, lanes: ['web'],
+    })));
+  });
+  const [one, two] = copies;
+  const markers = ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL'];
+  const original = markers.map(name => [name, process.env[name]]);
+  try {
+    questions.forEach((id, index) => {
+      const channel = ['view', 'terminal', undefined][index];
+      const move = prepareEngineMove(one, 'answerDecision', [id, {
+        agentId: 'coordinator', text: 'Approved private fixture', lanes: ['web'], asPerson: true,
+        ...(channel ? { channel } : {}),
+      }]);
+      for (const name of markers) process.env[name] = 'fixture-agent';
+      const agentReceipt = applyEngineMove(one, move, { sequence: index + 1, at: CLAIM_AT });
+      for (const name of markers) delete process.env[name];
+      const plainReceipt = applyEngineMove(two, move, { sequence: index + 1, at: CLAIM_AT });
+      assert.equal(Boolean(agentReceipt.error), false);
+      assert.deepEqual(agentReceipt, plainReceipt, 'replica execution ignores sender-shell markers');
+      assert.equal(JSON.parse(agentReceipt.events[0].event_detail).channel, channel ?? 'terminal');
+    });
+    assert.deepEqual(exportBoard(one).tables, exportBoard(two).tables);
+  } finally {
+    for (const [name, value] of original) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+});
+
+test('missing relay senders are refused deterministically without poisoning a later legitimate move id [H2,H16]', t => {
+  const { copies, item } = engineCopies(t);
+  const [one, two] = copies;
+  const move = claimMove(one, item, 'web-1');
+  for (const board of copies) {
+    const before = store.getItem(board, item);
+    const refused = applyRelayMove(board, move, { sequence: 1, at: CLAIM_AT, kind: 'request' });
+    assert.equal(refused.error.code, 'RELAY_SENDER');
+    assert.deepEqual(store.getItem(board, item), before);
+    assert.equal(appliedSequence(board), 1);
+    assert.equal(engineReceipt(board, move.id), null, 'a forged move id cannot reserve a legitimate operation receipt');
+    assert.equal(store.events(board).at(-1).event_kind, 'relay_refused');
+    assert.equal(store.events(board).at(-1).event_by, 'relay');
+    const accepted = applyRelayMove(board, move, { sequence: 2, at: CLAIM_AT, kind: 'move', sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } });
+    assert.equal(Boolean(accepted.error), false);
+    assert.equal(store.getItem(board, item).item_owner, 'web-1');
+    const after = exportBoard(board);
+    assert.deepEqual(applyRelayMove(board, move, { sequence: 1, at: CLAIM_AT, kind: 'request' }), refused);
+    assert.deepEqual(exportBoard(board), after, 'repeated refusal returns its own receipt without moving the cursor backwards');
+  }
+  assert.deepEqual(exportBoard(one).tables, exportBoard(two).tables);
+});
+
+test('sealed shouts cannot bypass addressee, already answered or person decision rules [H16,B26]', t => {
+  const questions = [];
+  const { copies } = engineCopies(t, source => {
+    const lanes = ['web'];
+    questions.push(store.shout(source, { from: 'coordinator', to: 'person', text: 'Person decision', decision: true, lanes }));
+    questions.push(store.shout(source, { from: 'coordinator', to: 'web-2', text: 'Another agent decision', decision: true, lanes }));
+    const closed = store.shout(source, { from: 'coordinator', to: 'web-1', text: 'Already answered decision', decision: true, lanes });
+    store.answerDecision(source, closed, { agentId: 'web-1', text: 'Original answer', lanes });
+    questions.push(closed);
+    questions.push(store.shout(source, { from: 'web-1', to: 'coordinator', text: 'Needs passing', decision: true, lanes }));
+  });
+  for (const board of copies) {
+    const original = exportBoard(board);
+    let sequence = 0;
+    for (const sender of [{ kind: 'agent', userId: 'fixture-user', agent: 'web-1' }, { kind: 'person', userId: 'fixture-user' }]) {
+      for (const answers of questions.slice(0, 3)) {
+        const move = prepareEngineMove(board, 'shout', [{ from: 'web-1', to: 'coordinator', text: 'Bypass attempted', answers, lanes: ['web'] }], { id: 'bypass-' + ++sequence });
+        const refused = applyRelayMove(board, move, { sequence, at: CLAIM_AT, kind: 'move', sender });
+        assert.equal(refused.error?.code, 'RELAY_ANSWER');
+        assert.match(refused.error.next, /pullboard answer.*pullboard pass/);
+        assert.deepEqual(exportBoard(board).tables.shout, original.tables.shout);
+        assert.deepEqual(exportBoard(board).tables.item, original.tables.item);
+      }
+    }
+    const agentSender = { kind: 'agent', userId: 'fixture-user', agent: 'web-1' };
+    for (const [index, expected] of ['NOT_YOUR_DECISION', 'NOT_YOUR_DECISION', 'ALREADY_ANSWERED'].entries()) {
+      const move = prepareEngineMove(board, 'answerDecision', [questions[index], { agentId: 'web-1', text: 'Guarded attempt', lanes: ['web'] }], { id: 'answer-' + ++sequence });
+      assert.equal(applyRelayMove(board, move, { sequence, at: CLAIM_AT, kind: 'move', sender: agentSender }).error.code, expected);
+      assert.deepEqual(exportBoard(board).tables.shout, original.tables.shout);
+    }
+    assert.deepEqual(store.openDecisions(board, 'person').map(row => row.shout_id), [questions[0]]);
+    const permitted = prepareEngineMove(board, 'answerDecision', [questions[0], { agentId: 'coordinator', asPerson: true, text: 'Person answered', lanes: ['web'], channel: 'view' }], { id: 'person-answer' });
+    assert.equal(Boolean(applyRelayMove(board, permitted, { sequence: ++sequence, at: CLAIM_AT, kind: 'move', sender: { kind: 'person', userId: 'fixture-user' } }).error), false);
+    assert.deepEqual(store.openDecisions(board, 'person'), []);
+    const personSender = { kind: 'person', userId: 'fixture-user' };
+    const pass = prepareEngineMove(board, 'passDecision', [questions[3], { agentId: 'coordinator', note: 'Needs the person', lanes: ['web'] }], { id: 'guarded-pass' });
+    const passed = applyRelayMove(board, pass, { sequence: ++sequence, at: CLAIM_AT, kind: 'move', sender: personSender });
+    assert.equal(Boolean(passed.error), false);
+    assert.deepEqual(store.openDecisions(board, 'person').map(row => row.shout_id), [passed.result]);
+    const response = prepareEngineMove(board, 'answerDecision', [passed.result, { agentId: 'coordinator', asPerson: true, text: 'Passed decision answered', lanes: ['web'] }], { id: 'passed-answer' });
+    assert.equal(Boolean(applyRelayMove(board, response, { sequence: ++sequence, at: CLAIM_AT, kind: 'move', sender: personSender }).error), false);
+    assert.deepEqual(store.openDecisions(board, 'person'), []);
+    assert.deepEqual(store.openDecisions(board, 'coordinator'), []);
+    assert.ok(exportBoard(board).tables.shout.some(row => row.shout_answers === questions[3] && row.shout_from === 'person'), 'guarded person answers reach the original asker');
+  }
+  assert.deepEqual(exportBoard(copies[0]).tables, exportBoard(copies[1]).tables);
+});
+
+test('future engine relay records stop before every sender shape without changing a replica [H16]', t => {
+  const { copies, item } = engineCopies(t);
+  const move = { ...claimMove(copies[0], item, 'web-1'), engine: ENGINE_VERSION + 1 };
+  for (const sender of [undefined, {}, { kind: 'person', userId: 'fixture-user' }, { kind: 'agent', userId: 'fixture-user', agent: 'web-2' }]) {
+    for (const board of copies) {
+      const before = exportBoard(board);
+      assert.throws(() => applyRelayMove(board, move, { sequence: 1, at: CLAIM_AT, kind: 'request', sender }), error => error.code === 'ENGINE_VERSION');
+      assert.deepEqual(exportBoard(board), before);
+      assert.equal(appliedSequence(board), 0);
+    }
+  }
+});
+
+test('a relay refusal receipt failure rolls back its log and cursor together [H2,H16]', t => {
+  const { copies, item } = engineCopies(t);
+  const board = copies[0];
+  const before = exportBoard(board);
+  board.db.exec("CREATE TEMP TRIGGER refuse_receipt BEFORE INSERT ON board_meta WHEN NEW.meta_key LIKE 'relay_refusal_%' BEGIN SELECT RAISE(ABORT, 'refusal receipt rollback'); END");
+  assert.throws(() => applyRelayMove(board, claimMove(board, item, 'web-1'), { sequence: 1, at: CLAIM_AT, kind: 'move' }), /refusal receipt rollback/);
+  assert.deepEqual(exportBoard(board), before);
+  assert.equal(appliedSequence(board), 0);
 });
 
 test('the same sealed claim replays to identical rows and sequence retries are idempotent [H3,H16]', (t) => {

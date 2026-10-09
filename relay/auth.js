@@ -1,4 +1,4 @@
-/** Hash-only relay sessions and board credentials, authorized by current GitHub roles [H8, H1, H13, H14]. */
+/** Hash-only relay sessions and board credentials, authorized by current GitHub roles [H8, H1, H13, H14, H16, H3]. */
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { chmodSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -276,6 +276,12 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
         catch (error) { if (!['NO_REPO_ACCESS', 'BOARD_NOT_LINKED'].includes(error.code)) throw error; }
       }
       return visible;
+    },
+    /** Keep the minimum replay engine at three after any agent token, including revoked or expired tokens. */
+    minimumEngineVersion(board) {
+      open();
+      identifier(board, 'BAD_BOARD');
+      return db.prepare("SELECT 1 FROM relay_credentials WHERE board=? AND kind='board' LIMIT 1").get(board) ? 3 : 1;
     },
     /** Mint an agent credential scoped to a single readable board and immutable human identity. */
     async issueToken(token, { board, agent, expiresIn = tokenTTL }) {

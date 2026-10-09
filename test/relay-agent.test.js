@@ -1,6 +1,7 @@
 /** Private end-to-end proof for ordered agent enrollment and scoped relay credentials [H2,H9,A4]. */
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { chmodSync, existsSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
@@ -9,6 +10,7 @@ import { test } from 'node:test';
 import { claim as claimStoredItem, closeBoard, openBoard, register as registerStoredAgent, submit as submitStoredItem } from '../src/board.js';
 import { serveApi } from '../src/api.js';
 import { main } from '../src/cli.js';
+import { ENGINE_VERSION } from '../src/machine.js';
 import { decodeBoardKey, unseal } from '../src/seal.js';
 import { frozenCriterion, parseSpec } from '../src/spec.js';
 import { relayClientFixture } from './relay-client-fixture.js';
@@ -98,7 +100,13 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
   const seed = openBoard(boardFile);
   try {
     const spec = parseSpec(readFileSync(join(box.root, 'SPEC.md'), 'utf8'));
-    const freezer = (item) => frozenCriterion(spec, item);
+    const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
+    const freezer = (item) => {
+      const criterion = JSON.parse(frozenCriterion(spec, item).text);
+      const policy = { version: 1, commit: submittedHead, verify: { policy: config.verify.policy, family: config.verify.family } };
+      const text = JSON.stringify({ ...criterion, policy });
+      return { text, digest: createHash('sha256').update(text).digest('hex') };
+    };
     for (const [row, builderPath] of [[oneItem.document.item, '/private/relay-builder-one'], [twoItem.document.item, '/private/relay-builder-two']]) {
       const builder = registerStoredAgent(seed, { lane: box.lane, path: builderPath });
       claimStoredItem(seed, row.item_id, { agentId: builder, lane: box.lane, leaseMs: 60 * 60 * 1000, freeze: freezer, head: submittedHead });
@@ -185,12 +193,12 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
 
   // Capture authenticated journal records before a person command checkpoints their prefix.
   const remoteState = await fetch(`${box.origin}/api/v1/boards/${personState.board}/state`, {
-    headers: { authorization: `Bearer ${secondToken}` },
+    headers: { authorization: `Bearer ${secondToken}`, 'x-pullboard-engine': String(ENGINE_VERSION) },
   });
   assert.equal(remoteState.status, 200, 'the second scoped token can read the sealed relay snapshot');
   const relayState = await remoteState.json();
   const remote = await fetch(`${box.origin}/api/v1/boards/${personState.board}/events?after=${relayState.state.sequence}`, {
-    headers: { authorization: `Bearer ${secondToken}` },
+    headers: { authorization: `Bearer ${secondToken}`, 'x-pullboard-engine': String(ENGINE_VERSION) },
   });
   assert.equal(remote.status, 200, 'the second scoped token can read the ordered relay events');
   const remoteEvents = (await remote.json()).events;
@@ -239,7 +247,7 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
 
   const otherBoard = (personState.board[0] === '0' ? '1' : '0') + personState.board.slice(1);
   const crossBoard = await fetch(`${box.origin}/api/v1/boards/${otherBoard}/events?after=0`, {
-    headers: { authorization: `Bearer ${secondToken}` },
+    headers: { authorization: `Bearer ${secondToken}`, 'x-pullboard-engine': String(ENGINE_VERSION) },
   });
   assert.equal(crossBoard.status, 403, 'an agent token cannot cross to another board');
   assert.equal((await crossBoard.json()).error.code, 'TOKEN_BOARD');

@@ -15,7 +15,7 @@ export const JSON_SHAPES = {
     hooks: shape({ notes: 'array' }),
     join: shape({ agent: 'string', lane: 'string', route: 'string', path: 'string' }),
     worktree: shape({ agent: 'string', lane: 'string', route: 'string', path: 'string', branch: 'string', prompt: 'string' }),
-    resume: shape({ me: 'object', all: 'array', requests: 'array', holding: 'array', sentBack: 'array', awaiting: 'array', toVerify: 'array', toMerge: 'array', open: 'array', holds: 'array', unread: 'number', newest: 'array', root: 'string', dirty: 'number', next: 'string' }),
+    resume: shape({ me: 'object', all: 'array', requests: 'array', holding: 'array', sentBack: 'array', awaiting: 'array', toVerify: 'array', toMerge: 'array', open: 'array', stale: 'array', holds: 'array', unread: 'number', newest: 'array', root: 'string', dirty: 'number', next: 'string' }),
     whoami: shape({ id: 'string', lane: 'string', path: 'string' }),
     lanes: shape({ lanes: 'object', shared: 'array', coordinator: 'string' }),
     resources: shape({ resources: 'array' }),
@@ -28,8 +28,9 @@ export const JSON_SHAPES = {
     'milestone move': shape({ milestone: 'object' }),
     'milestone edit': shape({ milestone: 'object' }),
     'milestone remove': shape({ milestone: 'object' }),
-    show: shape({ item_id: 'number', item_title: 'string', item_lane: 'string', item_status: 'string', verdicts: 'array' }),
-    status: shape({ me: 'object', mine: 'array', stats: 'object', unread: 'number' }),
+    show: shape({ item_id: 'number', item_title: 'string', item_lane: 'string', item_status: 'string', verdicts: 'array', thread: 'array' }),
+    stats: shape({ stats: 'object' }),
+    status: shape({ me: 'object', mine: 'array', stats: 'object', reviewQueue: 'object', unread: 'number' }),
     doctor: shape({ problems: 'array' }),
     inbox: shape({ shouts: 'array' }),
     decisions: shape({ decisions: 'array' }),
@@ -37,6 +38,7 @@ export const JSON_SHAPES = {
     log: shape({ events: 'array' }),
     add: shape({ item: 'object' }),
     edit: shape({ item: 'object' }),
+    fact: shape({ item: 'number', fact: 'object' }),
     escalate: shape({ id: 'number', from: 'string', to: 'string' }),
     run: shape({ messages: 'array' }),
     sweep: shape({ messages: 'array' }),
@@ -71,6 +73,9 @@ export const JSON_SHAPES = {
     'spec unmet': shape({ rows: 'array' }),
     'spec signoff': shape({ count: 'number', by: 'string', ids: 'array', evidence: 'array' }),
     'spec signers': shape({ added: 'boolean', by: 'string', path: 'string', initial: 'boolean' }),
+    'spec approve': shape({ decisions: 'array' }),
+    'spec decline': shape({ decisions: 'array' }),
+    'spec apply': shape({ applied: 'array', files: 'array' }),
     'hook pre-commit': shape({ messages: 'array' }),
     'hook commit-msg': shape({ messages: 'array' }),
     'hook pre-push': shape({ messages: 'array' }),
@@ -78,6 +83,7 @@ export const JSON_SHAPES = {
   http: {
     boards: shape({ boards: 'array' }),
     state: shape({ state: 'object' }),
+    shout: shape({ shout: 'object' }),
     events: shape({ events: 'array' }),
     move: shape({ event: 'object', result: 'object' }),
     request: shape({ event: 'object', result: 'object' }),
@@ -89,7 +95,7 @@ export const JSON_SHAPES = {
 
 /** Extract a concrete repair from existing refusals, retaining their original guidance. */
 function nextStep(message) {
-  const match = /(?:; |\. |: )((?:run|install|upgrade|fix|restore|commit|check out|set|give|use|ask your coordinator|answer from the main checkout|the coordinator|to keep looking|never work around)\b[\s\S]*)/i.exec(message);
+  const match = /(?:; |\. |: )((?:run|install|upgrade|fix|restore|commit|check out|set|give|use|reject|ask your coordinator|answer from the main checkout|the coordinator|to keep looking|never work around)\b[\s\S]*)/i.exec(message);
   return match?.[1] ?? 'Run pullboard help, correct the reported problem, and retry the command.';
 }
 

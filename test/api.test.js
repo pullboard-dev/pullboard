@@ -17,7 +17,8 @@ import { once } from 'node:events';
 import { join, dirname, resolve, basename, delimiter } from 'node:path';
 import { after, test } from 'node:test';
 import { resultCommands } from '../src/cli.js';
-import { EVENT_LOG_VERSION, openBoard } from '../src/board.js';
+import { allShouts, closeBoard, EVENT_LOG_VERSION, openBoard } from '../src/board.js';
+import { presentationShout, relayPresentation } from '../src/relay-presentation.js';
 import { JSON_SHAPES } from '../src/json.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -81,7 +82,7 @@ function project() {
     ...config,
     gate: 'true',
     spec: 'SPEC.md',
-    practice: 'PRACTICE.md',
+    practice: 'DOCTRINE.md',
     lanes: {
       app: { owns: ['app/'], specs: ['G1'] },
       review: { owns: [] },
@@ -89,7 +90,7 @@ function project() {
     shared: [],
   }, null, 2)}\n`);
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
-  writeFileSync(join(repo, 'PRACTICE.md'), '');
+  writeFileSync(join(repo, 'DOCTRINE.md'), '');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: set up API fixture');
   return { ...box, repo, initialized };
@@ -237,6 +238,7 @@ test('[A1] command results match the catalog across roots and subcommands', () =
   assert.equal(existsSync(join(box.env.PULLBOARD_HOME, 'config.json')), false, 'machine settings use the separate settings.json file');
   json(box, repo, 'resume');
   json(box, repo, 'status');
+  json(box, repo, 'stats');
   json(box, repo, 'doctor');
   const plainStatus = box.run(repo, 'status');
   assert.equal(plainStatus.status, 0, plainStatus.stderr);
@@ -283,6 +285,7 @@ test('[A1] command results match the catalog across roots and subcommands', () =
 
   const added = json(box, repo, 'add', ['coordinator', 'API item', '--specs', 'G1', '--criterion', 'the API item is verified', '--check', 'true']);
   assert.equal(added.item.item_id, 1);
+  json(box, repo, 'fact', ['1', 'note', 'API fact']);
   json(box, repo, 'edit', ['1', '--criterion', 'the edited API item is verified', '--check', 'true']);
   json(box, repo, 'show', ['1']);
   json(box, repo, 'list', ['--all']);
@@ -461,6 +464,17 @@ test('[A1] refusals are one JSON document with exact public error fields', () =>
   assert.match(unknownDocument.error.message, /Unknown option '--not-a-real-flag'/);
   assert.equal(unknownDocument.error.next, 'run pullboard help');
 
+  const unknownCommand = box.run(repo, 'cliam', '--json');
+  assert.equal(unknownCommand.status, 2);
+  assert.equal(unknownCommand.stderr, '');
+  const unknownCommandDocument = JSON.parse(unknownCommand.stdout);
+  assert.equal(unknownCommandDocument.version, 1);
+  assertRequiredShape(unknownCommandDocument, JSON_SHAPES.error.required, 'error envelope');
+  assertRequiredShape(unknownCommandDocument.error, JSON_SHAPES.errorFields, 'error');
+  assert.equal(unknownCommandDocument.error.code, 'USAGE');
+  assert.match(unknownCommandDocument.error.message, /no command "cliam"; closest match is "claim"/);
+  assert.match(unknownCommandDocument.error.next, /pullboard help --all/);
+
   const valid = readFileSync(join(repo, 'SPEC.md'), 'utf8');
   writeFileSync(join(repo, 'SPEC.md'), `${valid}\n- G2 [maybe, must] Bad status.\n`);
   const textCheck = box.run(repo, 'spec', 'check');
@@ -571,6 +585,9 @@ test('[A1] every catalog command and subcommand has a real CLI exercise', () => 
   json(source, source.repo, 'milestone', ['edit', 'Catalog', '--name', 'Release', '--note', 'Catalog coverage'], 'edit');
   json(source, source.repo, 'milestone', ['remove', 'Later'], 'remove');
   json(source, source.repo, 'milestone', ['remove', 'Release'], 'remove');
+  json(source, source.repo, 'spec', ['approve', 'G1'], 'approve');
+  json(source, source.repo, 'spec', ['decline', 'G1', '--reason', 'Catalog decline'], 'decline');
+  json(source, source.repo, 'spec', ['apply'], 'apply');
   const missing = Object.keys(JSON_SHAPES.commands).filter((key) => !covered.has(key));
   assert.deepEqual(missing, [], `add real-repo invocations for undocumented coverage gaps: ${missing.join(', ')}`);
   assert.deepEqual([...coveredRoots].sort(), resultCommands(), 'every actual root/factory command has an invocation');
@@ -703,6 +720,74 @@ async function nextSseEvent(reader, pending = { text: '' }) {
     pending.text += decoder.decode(value, { stream: true });
   }
 }
+
+test('[N38] local API and sealed presentation resolve shouts beyond recent state, with complete export history', async (t) => {
+  const box = project();
+  const api = await startApi(t, box);
+  const boards = await (await apiFetch(api, '/api/v1/boards')).json();
+  const boardId = boards.boards.find((candidate) => candidate.root === box.repo).id;
+  const boardPath = `/api/v1/boards/${boardId}`;
+  const decision = json(box, box.repo, 'shout', ['person', 'An old decision', '--decision']);
+  json(box, box.repo, 'answer', [String(decision.id), 'Approved', '--as', 'person']);
+  const openDecision = json(box, box.repo, 'shout', ['person', 'An old open decision', '--decision']);
+  for (let index = 0; index < 40; index += 1) json(box, box.repo, 'shout', ['app', `recent message ${index}`]);
+
+  const state = await (await apiFetch(api, `${boardPath}/state`)).json();
+  assert.equal(state.state.shouts.length, 40);
+  assert.ok(!state.state.shouts.some((shout) => shout.shout_id === decision.id), 'the addressed shout is older than the existing recent-40 state');
+  assert.ok(!state.state.shouts.some((shout) => shout.shout_id === openDecision.id));
+  const direct = await apiFetch(api, `${boardPath}/shouts/${decision.id}`);
+  assert.equal(direct.status, 200);
+  const directDocument = await direct.json();
+  assertRequiredShape(directDocument, JSON_SHAPES.http.shout.required, 'shout response');
+  assert.equal(directDocument.version, JSON_SHAPES.version);
+  const oldShout = directDocument.shout;
+  assert.equal(oldShout.shout_id, decision.id);
+  assert.equal(oldShout.shout_from, 'coordinator');
+  assert.equal(oldShout.shout_to, 'person');
+  assert.equal(oldShout.shout_text, 'An old decision');
+  assert.equal(oldShout.shout_decision, 1);
+  assert.equal(oldShout.decision_state, 'answered');
+  assert.equal(oldShout.decision_answer.shout_text, 'Approved');
+  assert.ok(oldShout.shout_at);
+  const open = await (await apiFetch(api, `${boardPath}/shouts/${openDecision.id}`)).json();
+  assert.equal(open.shout.decision_state, 'open');
+  assert.equal(open.shout.decision_answer, null);
+
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  let history;
+  try { history = allShouts(board); } finally { closeBoard(board); }
+  assert.equal(history.length, 43);
+  const answer = history.find((shout) => shout.shout_answers === decision.id);
+  assert.ok(answer, 'the complete read retains the decision reply relationship');
+  assert.equal(answer.shout_text, 'Approved');
+  const presentation = relayPresentation(box.repo);
+  assert.throws(() => presentationShout({ state: presentation.state }, decision.id), { code: 'SHOUT_NOT_AVAILABLE' },
+    'older snapshots without complete history refuse the capability clearly');
+  assert.equal(presentation.shouts.length, 43);
+  assert.equal(presentation.shouts[0].shout_id, decision.id);
+  assert.equal(presentation.shouts[0].shout_text, 'An old decision');
+  assert.equal(presentation.state.shouts.length, 40, 'sealed presentation keeps the state window bounded separately');
+
+  const linkFile = join(box.repo, '.git', 'pullboard', 'relay.json');
+  writeFileSync(linkFile, JSON.stringify({ version: 1, mode: 'ordered', board: boardId,
+    url: 'https://app.pullboard.dev', repository: 'fixture/repository', token: 'ps_' + 'a'.repeat(43), sequence: 0, cursor: 0 }) + '\n', { mode: 0o600 });
+  const throughRelayPresentation = await apiFetch(api, `${boardPath}/shouts/${decision.id}`);
+  const relayDocument = await throughRelayPresentation.json();
+  assert.equal(throughRelayPresentation.status, 200, JSON.stringify(relayDocument));
+  assert.deepEqual(relayDocument.shout, JSON.parse(JSON.stringify(oldShout)));
+
+  const missing = await apiFetch(api, `${boardPath}/shouts/999999`);
+  assert.equal((await apiError(missing, 404)).code, 'NO_SHOUT');
+  const malformed = await apiFetch(api, `${boardPath}/shouts/0`);
+  assert.equal((await apiError(malformed, 400)).code, 'BAD_REQUEST');
+  const malformedText = await apiFetch(api, `${boardPath}/shouts/nope`);
+  assert.equal((await apiError(malformedText, 400)).code, 'BAD_REQUEST');
+  await apiError(await apiFetch(api, `${boardPath}/shouts/${decision.id}`, { noSecret: true }), 401);
+  await apiError(await apiFetch(api, `${boardPath}/shouts/${decision.id}`, { headers: { 'x-pullboard-key': 'wrong-session-secret' } }), 401);
+  assert.equal((await (await apiFetch(api, `${boardPath}/state`)).json()).state.shouts.length, 40,
+    'addressed reads and refusals do not change the recent-40 projection');
+});
 
 test('[A2] local HTTP v1 versions state and moves, authenticates, and preserves CLI refusals', async (t) => {
   const box = project();

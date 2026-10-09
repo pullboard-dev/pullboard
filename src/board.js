@@ -6,7 +6,7 @@
  * every move lands in an append-only event log (R2). The caller supplies what only git and the
  * spec know: the commit, the verifier's checkout, the frozen criterion.
  */
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -14,6 +14,7 @@ import { briefFiles, briefSections } from './brief.js';
 import { COORDINATOR } from './config.js';
 import { GUARDS, IN_STATE, MOVES, STATES, UNKNOWN_MOVE, effectiveGuards, storeTriggers } from './machine.js';
 import { Refused } from './refused.js';
+import { parseSpec } from './spec.js';
 
 export const ACCEPT_REASON = 'CRITERION_MET';
 export const PERSON = 'person';
@@ -364,6 +365,11 @@ function logEvent(board, by, kind, itemId, detail = {}) {
   (board.emittedEvents ??= []).push(board.lastEvent);
 }
 
+/** Log an authenticated relay refusal without making an item, shout or verdict move [H2,H16]. */
+export function recordRelayRefusal(board, { by, sequence, kind, operation, actor, code }) {
+  logEvent(board, by, 'relay_refused', null, { sequence, kind, operation, actor, code });
+}
+
 /**
  * The item with this id, or a refusal naming the id.
  *
@@ -559,27 +565,10 @@ function routeOf(board, agentId) {
  * @param {{ by: string, lane: string, title: string, criterion?: string, specIds?: string[], parentId?: number | null, after?: number[], brief?: string, route?: string, check?: string }} item
  * @returns {number} The new item's id.
  */
-export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong', check }) {
-  const command = coordinatorCheck(by, check) ?? '';
-  const cleanTitle = title.trim();
-  if (!cleanTitle) throw new Refused('NO_TITLE', 'an item needs a title');
-  checkRoute(route);
-  checkRouted({ brief: brief.trim(), route, criterion, check: command });
+export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong', check, checkBaseline }) {
   return atomic(board, () => {
-    if (parentId !== null) {
-      const parent = itemById(board, parentId);
-      if (parent.item_lane !== lane) {
-        throw new Refused('PARENT_LANE', `a child item sits in its parent's lane (${parent.item_lane})`);
-      }
-      if (['verified', 'withdrawn'].includes(parent.item_status)) {
-        throw new Refused('PARENT_CLOSED', `item #${parentId} is ${parent.item_status}`);
-      }
-    }
-    for (const dependency of after) {
-      if (itemById(board, dependency).item_status === 'withdrawn') {
-        throw new Refused('WITHDRAWN', `item #${dependency} is withdrawn; nothing can wait on it`);
-      }
-    }
+    const { command, cleanTitle } = validateItemAddition(board, { by, lane, title, criterion, parentId, after, brief, route, check });
+    const baseline = normalizeCheckBaseline(by, command, checkBaseline);
     const at = now(board);
     const result = board.db
       .prepare(
@@ -589,9 +578,34 @@ export function addItem(board, { by, lane, title, criterion = '', specIds = [], 
       )
       .run(parentId, lane, cleanTitle, criterion.trim(), specIds.join(','), after.join(','), brief.trim(), route, command, by, at, at);
     const id = Number(result.lastInsertRowid);
-    logEvent(board, by, 'add', id, { lane, specIds, after, route });
+    saveCheckBaseline(board, id, baseline);
+    logEvent(board, by, 'add', id, { lane, specIds, after, route, ...(baseline ? { checkBaseline: baseline } : {}) });
     return id;
   });
+}
+
+/** Validate an addition before its sender runs a new check, and again when the ordered move applies. */
+export function validateItemAddition(board, { by, lane, title, criterion = '', parentId = null, after = [], brief = '', route = 'strong', check }) {
+  const command = coordinatorCheck(by, check) ?? '';
+  const cleanTitle = title.trim();
+  if (!cleanTitle) throw new Refused('NO_TITLE', 'an item needs a title');
+  checkRoute(route);
+  checkRouted({ brief: brief.trim(), route, criterion, check: command });
+  if (parentId !== null) {
+    const parent = itemById(board, parentId);
+    if (parent.item_lane !== lane) {
+      throw new Refused('PARENT_LANE', `a child item sits in its parent's lane (${parent.item_lane})`);
+    }
+    if (['verified', 'withdrawn'].includes(parent.item_status)) {
+      throw new Refused('PARENT_CLOSED', `item #${parentId} is ${parent.item_status}`);
+    }
+  }
+  for (const dependency of after) {
+    if (itemById(board, dependency).item_status === 'withdrawn') {
+      throw new Refused('WITHDRAWN', `item #${dependency} is withdrawn; nothing can wait on it`);
+    }
+  }
+  return { command, cleanTitle };
 }
 
 /**
@@ -605,51 +619,96 @@ export function addItem(board, { by, lane, title, criterion = '', specIds = [], 
  * @param {number} id
  * @param {{ agentId: string, brief?: string, route?: string, criterion?: string, check?: string }} change
  */
-export function editItem(board, id, { agentId, brief, route, criterion, check }) {
-  const command = coordinatorCheck(agentId, check);
-  if ([brief, route, criterion, check].every((value) => value === undefined)) {
-    throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "..." or --check "<command>"');
-  }
+export function editItem(board, id, { agentId, brief, route, criterion, check, checkBaseline }) {
   atomic(board, () => {
-    const item = current(board, itemById(board, id));
-    if (agentId !== COORDINATOR && agentId !== item.item_created_by) {
-      throw new Refused('NOT_YOURS', `only the coordinator or ${item.item_created_by}, who added #${id}, edits it; shout them instead`);
-    }
-    if (['verified', 'withdrawn'].includes(item.item_status)) {
-      throw new Refused('CLOSED', `item #${id} is ${item.item_status}`);
-    }
-    const next = {
-      item_brief: brief === undefined ? item.item_brief : brief.trim(),
-      item_route: route ?? item.item_route,
-      item_criterion: criterion === undefined ? item.item_criterion : criterion.trim(),
-      item_check: command === undefined ? item.item_check : command,
-    };
-    checkRoute(next.item_route);
-    const moved = ['item_route', 'item_criterion', 'item_check'].filter((key) => next[key] !== item[key]);
-    if (moved.length && item.item_status !== 'open') {
-      throw new Refused('HELD', `item #${id} is ${item.item_status}; change its route, criterion or check only while it is open`);
-    }
-    checkRouted({ brief: next.item_brief, route: next.item_route, criterion: next.item_criterion, check: next.item_check });
-    const unfreeze = next.item_criterion !== item.item_criterion || next.item_check !== item.item_check;
+    const { item, next, command, unfreeze } = validateItemEdit(board, id, { agentId, brief, route, criterion, check });
+    const baseline = normalizeCheckBaseline(agentId, command, checkBaseline);
     setItem(board, id, { ...next, ...(unfreeze ? { item_frozen: null, item_frozen_digest: null } : {}) });
+    if (baseline || next.item_check !== item.item_check) saveCheckBaseline(board, id, baseline);
     logEvent(board, agentId, 'edit', id, {
       ...(next.item_brief !== item.item_brief ? { brief: `${next.item_brief.length} characters` } : {}),
       ...(next.item_route !== item.item_route ? { route: next.item_route } : {}),
       ...(next.item_criterion !== item.item_criterion ? { criterion: next.item_criterion } : {}),
       ...(command !== undefined ? { check: next.item_check } : {}),
+      ...(baseline ? { checkBaseline: baseline } : {}),
       ...(unfreeze && item.item_frozen_digest ? { unfrozen: item.item_frozen_digest } : {}),
     });
   });
 }
 
+/** Validate an edit without side effects, so a refused change never starts a shell baseline. */
+export function validateItemEdit(board, id, { agentId, brief, route, criterion, check }) {
+  const command = coordinatorCheck(agentId, check);
+  if ([brief, route, criterion, check].every((value) => value === undefined)) {
+    throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "..." or --check "<command>"');
+  }
+  const item = current(board, itemById(board, id));
+  if (agentId !== COORDINATOR && agentId !== item.item_created_by) {
+    throw new Refused('NOT_YOURS', `only the coordinator or ${item.item_created_by}, who added #${id}, edits it; shout them instead`);
+  }
+  if (['verified', 'withdrawn'].includes(item.item_status)) {
+    throw new Refused('CLOSED', `item #${id} is ${item.item_status}`);
+  }
+  const next = {
+    item_brief: brief === undefined ? item.item_brief : brief.trim(),
+    item_route: route ?? item.item_route,
+    item_criterion: criterion === undefined ? item.item_criterion : criterion.trim(),
+    item_check: command === undefined ? item.item_check : command,
+  };
+  checkRoute(next.item_route);
+  const moved = ['item_route', 'item_criterion', 'item_check'].filter((key) => next[key] !== item[key]);
+  if (moved.length && item.item_status !== 'open') {
+    throw new Refused('HELD', `item #${id} is ${item.item_status}; change its route, criterion or check only while it is open`);
+  }
+  checkRouted({ brief: next.item_brief, route: next.item_route, criterion: next.item_criterion, check: next.item_check });
+  const unfreeze = next.item_criterion !== item.item_criterion || next.item_check !== item.item_check;
+  return { item, next, command, unfreeze };
+}
+
 /** Normalize an explicitly supplied check only when its author is the coordinator [V2]. */
-function coordinatorCheck(agentId, command) {
+export function coordinatorCheck(agentId, command) {
   if (command === undefined) return undefined;
   if (agentId !== COORDINATOR) {
     throw new Refused('COORDINATOR_CHECK', 'only the coordinator sets or edits an item check; ask your coordinator to supply --check');
   }
   if (typeof command !== 'string') throw new Refused('BAD_CHECK', 'an item check is a command string; ask your coordinator to supply --check "<command>"');
   return command.trim();
+}
+
+/** Validate captured baseline data without asking a replica to run Git or a shell [V2,H16]. */
+function normalizeCheckBaseline(agentId, command, baseline) {
+  if (baseline === undefined) return undefined;
+  coordinatorCheck(agentId, command ?? '');
+  if (!command || !baseline || typeof baseline !== 'object' || Array.isArray(baseline)
+    || baseline.command !== command || !['green', 'red', 'unavailable'].includes(baseline.result)
+    || !(baseline.main === null || typeof baseline.main === 'string' && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(baseline.main))
+    || (baseline.result !== 'unavailable' && baseline.main === null)
+    || (baseline.reason !== undefined && typeof baseline.reason !== 'string')
+    || (baseline.seconds !== undefined && (!Number.isSafeInteger(baseline.seconds) || baseline.seconds < 0))) {
+    throw new Refused('BAD_CHECK_BASELINE', 'the check baseline must describe this command at a main commit; set --check again from the coordinator');
+  }
+  return {
+    command, main: baseline.main, result: baseline.result,
+    ...(baseline.reason === undefined ? {} : { reason: baseline.reason }),
+    ...(baseline.seconds === undefined ? {} : { seconds: baseline.seconds }),
+    ...(baseline.result === 'green' ? { warning: 'CRITERION_PROVES_NOTHING' } : {}),
+  };
+}
+
+/** Store or clear an item's observation atomically with its check and immutable audit event. */
+function saveCheckBaseline(board, id, baseline) {
+  const key = `item_check_baseline_${id}`;
+  if (!baseline) board.db.prepare('DELETE FROM board_meta WHERE meta_key = ?').run(key);
+  else board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
+    .run(key, JSON.stringify(baseline));
+}
+
+/** Read an observation only when it still describes the item's current check command. */
+function itemCheckBaseline(board, item) {
+  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`item_check_baseline_${item.item_id}`);
+  if (!row) return null;
+  const baseline = JSON.parse(row.meta_value);
+  return baseline.command === item.item_check ? baseline : null;
 }
 
 /** Read the current check's setter from immutable edits, or its original item author [V2]. */
@@ -799,10 +858,10 @@ export function recordAttempt(board, id, { agentId, n, seconds, result }) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, lane: string, leaseMs: number, freeze: (item: any) => { text: string, digest: string }, head?: string | null }} who
+ * @param {{ agentId: string, lane: string, leaseMs: number, freeze: (item: any) => { text: string, digest: string }, head?: string | null, reviewSkipped?: object | null }} who
  * @returns {{ leaseUntil: string, digest: string, renewed: boolean }}
  */
-export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null }) {
+export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null }) {
   return atomic(board, () => {
     const leaseUntil = new Date(board.clock.now().getTime() + leaseMs).toISOString();
     const isRenewal = (item) => item.item_owner === agentId && isHeld(board, item);
@@ -879,7 +938,7 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null }
     });
     const renewed = isRenewal(item);
     const digest = frozen ? frozen.digest : item.item_frozen_digest;
-    logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest });
+    logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(!renewed && reviewSkipped ? { reviewSkipped } : {}) });
     return { leaseUntil, digest, renewed };
   });
 }
@@ -941,6 +1000,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
         nothingUntracked: null,
         hasCommit: null,
         withinLane: null,
+        trunkMergeClean: null,
         gateConfigured: null,
         gateGreen: null,
         treeStillDuringGate: null,
@@ -980,6 +1040,25 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
  */
 export function reviewHolder(board, item) {
   return item.item_status === 'submitted' && item.item_review_by && (item.item_review_until ?? '') > now(board) ? item.item_review_by : null;
+}
+
+/** Summarize outstanding reviews using live leases and the latest submission's age [Q1,V15]. */
+export function reviewQueue(board) {
+  const pending = listItems(board).filter((item) => item.item_status === 'submitted');
+  const holders = pending.map((item) => reviewHolder(board, item)).filter(Boolean);
+  const submissions = new Map(board.db.prepare("SELECT item_id, MAX(event_at) AS submitted_at FROM event WHERE event_kind='submit' GROUP BY item_id")
+    .all().map((event) => [event.item_id, event.submitted_at]));
+  const oldestSubmittedAt = pending.map((item) => submissions.get(item.item_id)).filter(Boolean).sort()[0] ?? null;
+  return { pending: pending.length, reviewing: new Set(holders).size, reserved: holders.length, oldestSubmittedAt,
+    ageMs: oldestSubmittedAt ? Math.max(0, board.clock.now().getTime() - Date.parse(oldestSubmittedAt)) : 0 };
+}
+
+/** Offer an eligible review at the queue ratio without claiming or reserving anything [Q1,V15]. */
+export function reviewOffer(board, { agentId, lane, policy = 'any', familyPolicy = 'off', ratio = 3, runnable = false, routes = ROUTES }) {
+  const queue = reviewQueue(board);
+  if (queue.pending < ratio * Math.max(queue.reviewing, 1)) return null;
+  const { item } = nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes });
+  return item ? { item, queue, ratio } : null;
 }
 
 /**
@@ -1078,10 +1157,10 @@ function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'of
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, decision: string, reason?: string, note?: string, head: string, digest: string, policy: string, familyPolicy?: string }} verdict
- * @returns {{ decision: string, reason: string }}
+ * @param {{ agentId: string, decision: string, reason?: string, note?: string, head: string, digest: string, policy: string, familyPolicy?: string, check?: 'none' | 'green' }} verdict
+ * @returns {{ decision: string, reason: string, check?: 'none' | 'green' }}
  */
-export function verify(board, id, { agentId, decision, reason, note = '', head, digest, policy, familyPolicy = 'off' }) {
+export function verify(board, id, { agentId, decision, reason, note = '', head, digest, policy, familyPolicy = 'off', check }) {
   const verb = { ACCEPT: 'accept', REJECT: 'reject' }[decision];
   if (!verb) throw new Refused('BAD_DECISION', 'the decision is accept or reject');
   const isAccept = verb === 'accept';
@@ -1099,6 +1178,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', head, 
             ? null
             : new Refused('CRITERIA_CHANGED', `the criterion for #${id} changed after it was claimed; the coordinator runs: pullboard refreeze ${id}`),
         reasonIsMet: () => (reason && reason !== ACCEPT_REASON ? new Refused('BAD_REASON', `accept means ${ACCEPT_REASON}; a failed criterion is a reject`) : null),
+        trunkMergeClean: null,
         itemCheckGreen: null,
         proofNoted: () =>
           note.trim()
@@ -1119,8 +1199,10 @@ export function verify(board, id, { agentId, decision, reason, note = '', head, 
       },
       set: (found) => ({ item_verdict: decision, item_verified_by: isAccept ? agentId : null, item_owner: isAccept ? found.item_owner : null }),
     });
-    logEvent(board, agentId, verb, id, { reason: code, commit: item.item_commit });
-    return { decision, reason: code };
+    const detail = { reason: code, commit: item.item_commit };
+    if (isAccept && check !== undefined) detail.check = check;
+    logEvent(board, agentId, verb, id, detail);
+    return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}) };
   });
 }
 
@@ -1235,7 +1317,9 @@ export function listItems(board, { lane, all = false } = {}) {
  * @returns {any}
  */
 export function getItem(board, id) {
-  return current(board, itemById(board, id));
+  const item = current(board, itemById(board, id));
+  const baseline = itemCheckBaseline(board, item);
+  return baseline ? { ...item, item_check_baseline: baseline } : item;
 }
 
 /**
@@ -1246,17 +1330,23 @@ export function getItem(board, id) {
  * @returns {any[]}
  */
 export function verdictsFor(board, id) {
-  return board.db.prepare('SELECT * FROM verdict WHERE item_id = ? ORDER BY verdict_id').all(id);
+  const verdicts = board.db.prepare('SELECT * FROM verdict WHERE item_id = ? ORDER BY verdict_id').all(id);
+  const receipts = board.db.prepare("SELECT event_kind, event_detail FROM event WHERE item_id = ? AND event_kind IN ('accept', 'reject') ORDER BY event_id").all(id);
+  return verdicts.map((verdict, index) => {
+    let detail = {};
+    try { detail = JSON.parse(receipts[index]?.event_detail ?? '{}'); } catch { /* Malformed legacy details remain unknown. */ }
+    return { ...verdict, check: detail.check ?? 'unknown' };
+  });
 }
 
 /**
  * Insert a shout within the caller's transaction.
  *
  * @param {any} board
- * @param {{ from: string, to: string, text: string, lanes: string[], decision?: boolean, answers?: number | null, evidence?: any, request?: boolean }} message
+ * @param {{ from: string, to: string, text: string, lanes: string[], decision?: boolean, answers?: number | null, evidence?: any, request?: boolean, channel?: 'terminal' | 'view' }} message
  * @returns {number}
  */
-function insertShout(board, { from, to, text, lanes, decision = false, answers = null, evidence = null, request = false }) {
+function insertShout(board, { from, to, text, lanes, decision = false, answers = null, evidence = null, request = false, channel = 'terminal' }) {
   if (!text.trim()) throw new Refused('EMPTY_SHOUT', 'a shout needs text');
   if (request && (from !== 'person' || to !== COORDINATOR || decision || answers !== null)) {
     throw new Refused('BAD_REQUEST', 'a request goes from the person to the coordinator; use the board requests endpoint with its text');
@@ -1285,6 +1375,10 @@ function insertShout(board, { from, to, text, lanes, decision = false, answers =
     throw new Refused('NOT_A_DECISION', `shout #${answers} asked for no decision; reply with pullboard shout`);
   }
   if (evidence) checkEvidence(board, evidence);
+  const personAnswer = from === PERSON && answers !== null && !decision;
+  if (personAnswer && !['terminal', 'view'].includes(channel)) {
+    throw new Refused('B26_PERSON_CHANNEL', 'record the person answer through the terminal or the view; run pullboard view');
+  }
   const result = board.db
     .prepare(
       `INSERT INTO shout (shout_from, shout_to, shout_text, shout_at, shout_decision, shout_answers,
@@ -1294,7 +1388,7 @@ function insertShout(board, { from, to, text, lanes, decision = false, answers =
     )
     .run(from, to, text.trim(), now(board), decision ? 1 : 0, answers, evidence?.kind ?? null, evidence ? evidence.outcome.trim() : null, evidence?.item ?? null, evidence?.commit ?? null, request ? 1 : 0, outcome);
   const id = Number(result.lastInsertRowid);
-  logEvent(board, from, answers === null ? 'shout' : decision ? 'pass' : 'answer', null, { shout: id, to, decision: Boolean(decision), request: Boolean(request), answers, ...(outcome ? { outcome } : {}) });
+  logEvent(board, from, answers === null ? 'shout' : decision ? 'pass' : 'answer', null, { shout: id, to, decision: Boolean(decision), request: Boolean(request), answers, ...(outcome ? { outcome } : {}), ...(personAnswer ? { channel } : {}) });
   return id;
 }
 
@@ -1302,7 +1396,7 @@ function insertShout(board, { from, to, text, lanes, decision = false, answers =
  * Shout to a lane, an agent, `all`, or the person (B7, B25, B26). The caller passes declared lanes.
  *
  * @param {any} board
- * @param {{ from: string, to: string, text: string, lanes: string[], decision?: boolean, answers?: number | null, evidence?: any, request?: boolean }} message
+ * @param {{ from: string, to: string, text: string, lanes: string[], decision?: boolean, answers?: number | null, evidence?: any, request?: boolean, channel?: 'terminal' | 'view' }} message
  * @returns {number}
  */
 export function shout(board, message) {
@@ -1334,10 +1428,10 @@ export function passDecision(board, id, { agentId, note, lanes }) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, text: string, lanes: string[], asPerson?: boolean }} options
+ * @param {{ agentId: string, text: string, lanes: string[], asPerson?: boolean, channel?: 'terminal' | 'view' }} options
  * @returns {number}
  */
-export function answerDecision(board, id, { agentId, text, lanes, asPerson = false }) {
+export function answerDecision(board, id, { agentId, text, lanes, asPerson = false, channel = 'terminal' }) {
   return atomic(board, () => {
     const ask = getShout(board, id);
     if (ask.shout_request) {
@@ -1357,10 +1451,10 @@ export function answerDecision(board, id, { agentId, text, lanes, asPerson = fal
       throw new Refused('NOT_YOUR_DECISION', `shout #${id} is addressed to ${ask.shout_to}, not ${lane} (agent ${agentId})`);
     }
     const from = personAnswer ? PERSON : agentId;
-    const answerId = insertShout(board, { from, to: ask.shout_from, text, lanes, answers: id });
+    const answerId = insertShout(board, { from, to: ask.shout_from, text, lanes, answers: id, channel });
     if (personAnswer && ask.shout_answers !== null) {
       const original = getShout(board, ask.shout_answers);
-      insertShout(board, { from: PERSON, to: original.shout_from, text: `Person answered #${id}: ${String(text).trim()}`, lanes, answers: original.shout_id });
+      insertShout(board, { from: PERSON, to: original.shout_from, text: `Person answered #${id}: ${String(text).trim()}`, lanes, answers: original.shout_id, channel });
     }
     return answerId;
   });
@@ -1396,6 +1490,20 @@ export function getShout(board, id) {
   const found = board.db.prepare('SELECT * FROM shout WHERE shout_id = ?').get(id);
   if (!found) throw new Refused('NO_SHOUT', `no shout #${id}`);
   return found;
+}
+
+/** Read every shout in creation order without marking it read, for addressed history and exports. */
+export function allShouts(board) {
+  return board.db.prepare('SELECT * FROM shout ORDER BY shout_id').all();
+}
+
+/** Read one shout with the current open or answered state of its decision, if it is one. */
+export function shoutDetails(board, id) {
+  const shout = getShout(board, id);
+  const answer = shout.shout_decision
+    ? board.db.prepare('SELECT * FROM shout WHERE shout_answers = ? ORDER BY shout_id LIMIT 1').get(id) ?? null
+    : null;
+  return { ...shout, decision_state: shout.shout_decision ? (answer ? 'answered' : 'open') : null, decision_answer: answer };
 }
 
 /**
@@ -1485,6 +1593,67 @@ export function events(board, { itemId } = {}) {
     .all(itemId ?? null, itemId ?? null);
 }
 
+/** Fact labels distinguish observations from judgements reserved to an item's live holder [B29,B30]. */
+export const FACT_KINDS = Object.freeze(['capture', 'measurement', 'note', 'diff', 'decision', 'rejection', 'supersession', 'root-cause']);
+const FACT_JUDGEMENTS = new Set(['decision', 'rejection', 'supersession', 'root-cause']);
+
+/** Validate a portable code binding without reading source on replicas that hold only board data [B32,H7]. */
+export function factReference(ref) {
+  if (ref === null || ref === undefined) return null;
+  const parts = typeof ref === 'string' && /^([^\r\n\0]+):(\d+)(?:-(\d+))?@([0-9a-f]{40})$/iu.exec(ref);
+  if (!parts) throw new Refused('BAD_FACT_REF', 'a fact reference needs path:line[-line]@full-sha with all 40 hexadecimal characters; use the full git commit id');
+  const [, path, first, last, commit] = parts;
+  const start = Number(first), end = Number(last ?? first);
+  if (path.startsWith('/') || path.includes('\\') || /^[A-Za-z]:/u.test(path) || path.split('/').some((part) => !part || part === '.' || part === '..') || !Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 1 || end < start) {
+    throw new Refused('BAD_FACT_REF', 'a fact reference needs a relative repo path and a positive ascending line range; use path:line[-line]@full-sha');
+  }
+  return { path, start, end, commit: commit.toLowerCase() };
+}
+
+/** Give facts the same stamped identity on CLI, API, export and replica reads [B29,B31]. */
+function factFromEvent(event) {
+  const detail = JSON.parse(event.event_detail);
+  return { id: detail.id, eventId: event.event_id, kind: detail.kind, text: detail.text,
+    by: event.event_by, at: event.event_at, ref: detail.ref ?? null, supersedes: detail.supersedes ?? null };
+}
+
+/** Read every move and fact in append order, including superseded facts and full original text [B31,B32]. */
+export function itemThread(board, id) {
+  itemById(board, id);
+  return events(board, { itemId: id }).map((event) => event.event_kind === 'fact'
+    ? { type: 'fact', ...factFromEvent(event) }
+    : { type: 'move', eventId: event.event_id, kind: event.event_kind, by: event.event_by,
+      at: event.event_at, detail: JSON.parse(event.event_detail) });
+}
+
+/** Add threads to public item projections without changing their existing fields [A1,A2,B32]. */
+export function projectItemThreads(board, state) {
+  return { ...state, items: state.items.map((item) => ({ ...item, thread: itemThread(board, item.id) })) };
+}
+
+/** Append a typed fact atomically; a correction never edits the original event [B29,B30,B31,B32].
+ * The internal factId is set from a sealed move's identity during replay, rather than replica-local sequence ids.
+ */
+export function appendFact(board, id, { agentId, kind, text, ref = null, supersedes = null, factId = randomUUID() }) {
+  return atomic(board, () => {
+    const item = current(board, itemById(board, id));
+    if (!board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(agentId)) throw new Refused('NO_AGENT', `no registered agent ${agentId}; join a worktree before appending a fact`);
+    if (!FACT_KINDS.includes(kind)) throw new Refused('BAD_FACT_KIND', `unknown fact kind ${String(kind)}; use ${FACT_KINDS.join(', ')}`);
+    if (typeof text !== 'string' || !text.trim()) throw new Refused('EMPTY_FACT', 'a fact needs nonempty text; supply the observation or judgement');
+    if ((FACT_JUDGEMENTS.has(kind) || supersedes !== null) && agentId !== COORDINATOR && (!isHeld(board, item) || item.item_owner !== agentId)) {
+      throw new Refused('FACT_JUDGEMENT', `only the item's live holder${isHeld(board, item) ? ' (' + item.item_owner + ')' : ''} or the coordinator may append a judgement or supersede a fact; append an observation or ask the coordinator`);
+    }
+    if (typeof factId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/u.test(factId)) throw new Refused('BAD_FACT_ID', 'a fact identity is invalid; retry with the current Pullboard engine');
+    if (board.db.prepare("SELECT 1 FROM event WHERE event_kind = 'fact' AND json_extract(event_detail, '$.id') = ?").get(factId)) throw new Refused('BAD_FACT_ID', 'this fact identity is already recorded; retry the original sealed move instead of appending it again');
+    if (supersedes !== null && (typeof supersedes !== 'string' || !itemThread(board, id).some((entry) => entry.type === 'fact' && entry.id === supersedes))) {
+      throw new Refused('NO_FACT', `no fact ${String(supersedes)} on item #${id}; use a fact id from pullboard show ${id} --json`);
+    }
+    const binding = factReference(ref);
+    logEvent(board, agentId, 'fact', id, { id: factId, kind, text, ref: binding, supersedes });
+    return factFromEvent(board.lastEvent);
+  });
+}
+
 /**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
  * dependencies are verified; for a verifier, the oldest submitted item it did not build. An agent
@@ -1498,10 +1667,10 @@ export function events(board, { itemId } = {}) {
  * and `shared` names them (N20). A held lane offers nothing new (N22).
  *
  * @param {any} board
- * @param {{ agentId: string, lane: string, verify?: boolean, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[] }} who
+ * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[] }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
-export function nextFor(board, { agentId, lane, verify = false, familyPolicy = 'off', runnable = false, routes = ROUTES, warm = [] }) {
+export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', runnable = false, routes = ROUTES, warm = [] }) {
   const route = routeOf(board, agentId);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
   const items = listItems(board)
@@ -1514,6 +1683,7 @@ export function nextFor(board, { agentId, lane, verify = false, familyPolicy = '
     const family = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(agentId)?.agent_family ?? null;
     const hasDifferentFamily = (entry) => Boolean(family && entry.item_builder_family && family !== entry.item_builder_family);
     let reviewable = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId);
+    if (policy === COORDINATOR && agentId !== COORDINATOR) reviewable = reviewable.filter((entry) => entry.item_lane === COORDINATOR);
     if (familyPolicy === 'require') reviewable = reviewable.filter(hasDifferentFamily);
     if (familyPolicy === 'prefer') reviewable.sort((first, second) => Number(hasDifferentFamily(second)) - Number(hasDifferentFamily(first)));
     const holder = (entry) => reviewHolder(board, entry);
@@ -1616,10 +1786,12 @@ export function relatedItems(board, item, limit = 3) {
  *
  * @param {any} board
  * @param {string} lane
- * @param {{ agentId: string, reason: string }} hold
+ * @param {{ agentId: string, reason: string, asPerson?: boolean, channel?: string }} hold
  */
-export function holdLane(board, lane, { agentId, reason }) {
+export function holdLane(board, lane, { agentId, reason, asPerson = false, channel = 'terminal' }) {
   coordinatorOnly(agentId, 'holds a lane');
+  if (asPerson && !['terminal', 'view'].includes(channel)) throw new Refused('B26_PERSON_CHANNEL', 'record the person hold through the terminal or the view; run pullboard view');
+  const by = asPerson ? PERSON : agentId;
   if (!String(reason ?? '').trim()) throw new Refused('USAGE', `a hold needs a reason: pullboard hold ${lane} --reason "why"`);
   atomic(board, () => {
     board.db
@@ -1627,8 +1799,8 @@ export function holdLane(board, lane, { agentId, reason }) {
         `INSERT INTO hold (hold_lane, hold_reason, hold_by, hold_at) VALUES (?, ?, ?, ?)
            ON CONFLICT (hold_lane) DO UPDATE SET hold_reason = excluded.hold_reason, hold_by = excluded.hold_by, hold_at = excluded.hold_at`,
       )
-      .run(lane, reason.trim(), agentId, now(board));
-    logEvent(board, agentId, 'hold', null, { lane, reason: reason.trim() });
+      .run(lane, reason.trim(), by, now(board));
+    logEvent(board, by, 'hold', null, { lane, reason: reason.trim(), ...(asPerson ? { channel } : {}) });
   });
 }
 
@@ -1637,14 +1809,16 @@ export function holdLane(board, lane, { agentId, reason }) {
  *
  * @param {any} board
  * @param {string} lane
- * @param {{ agentId: string }} who
+ * @param {{ agentId: string, asPerson?: boolean, channel?: string }} who
  */
-export function releaseLane(board, lane, { agentId }) {
+export function releaseLane(board, lane, { agentId, asPerson = false, channel = 'terminal' }) {
   coordinatorOnly(agentId, 'releases a lane');
+  if (asPerson && !['terminal', 'view'].includes(channel)) throw new Refused('B26_PERSON_CHANNEL', 'record the person release through the terminal or the view; run pullboard view');
+  const by = asPerson ? PERSON : agentId;
   atomic(board, () => {
     const { changes } = board.db.prepare('DELETE FROM hold WHERE hold_lane = ?').run(lane);
     if (!changes) throw new Refused('NOT_HELD', `the ${lane} lane is not held`);
-    logEvent(board, agentId, 'unhold', null, { lane });
+    logEvent(board, by, 'unhold', null, { lane, ...(asPerson ? { channel } : {}) });
   });
 }
 
@@ -1834,6 +2008,68 @@ export function removeMilestone(board, name, { agentId }) {
     saveMilestones(board, remaining);
     logEvent(board, agentId, 'milestone_remove', null, { name });
     return name;
+  });
+}
+
+/** Current person decisions, including applied receipts, stored without checkout-dependent state. */
+export function rowDecisions(board) {
+  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get('row_decisions');
+  return row ? JSON.parse(row.meta_value) : [];
+}
+
+/** Persist the current decision index inside its caller's board transaction. */
+function writeRowDecisions(board, records) {
+  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
+    .run('row_decisions', JSON.stringify(records));
+}
+
+/** Record one exact-row decision per event; sender-side channel checks precede deterministic replay. */
+export function recordRowDecisions(board, { agentId, channel, decisions }) {
+  if (agentId !== PERSON) throw new Refused('B26_PERSON_APPROVAL', 'only the person approves or declines rows; use pullboard view for the person to decide');
+  if (!['terminal', 'view'].includes(channel)) throw new Refused('B26_PERSON_CHANNEL', 'row decisions use the terminal or the view; use pullboard view');
+  if (!Array.isArray(decisions) || !decisions.length) throw new Refused('ROW_DECISION', 'name at least one row to approve or decline; use pullboard spec approve <ids>');
+  const keys = new Set();
+  for (const record of decisions) {
+    if (!record || !['approve', 'decline'].includes(record.decision) || !['spec', 'doctrine'].includes(record.kind)
+      || !['id', 'file', 'source', 'replacement', 'text'].every((key) => typeof record[key] === 'string' && record[key].trim())
+      || (record.decision === 'decline' && !String(record.reason ?? '').trim())) throw new Refused('ROW_DECISION', 'a row decision needs its id, file and exact text; use pullboard spec approve or decline');
+    const original = parseSpec(`## Decision\n${record.source}\n`).rows;
+    const replacement = parseSpec(`## Decision\n${record.replacement}\n`).rows;
+    const target = replacement[0];
+    if (original.length !== 1 || original[0].id !== record.id || replacement.length !== 1 || target.id !== record.id
+      || target.status !== (record.decision === 'approve' ? 'approved' : 'wont') || target.text !== record.text
+      || (record.decision === 'decline' && target.text !== record.reason)) throw new Refused('ROW_DECISION', 'the exact row must match its recorded approval or decline; use pullboard spec approve or decline');
+    const key = `${record.kind}:${record.id}`;
+    if (keys.has(key)) throw new Refused('ROW_DECISION', `${key} is named twice; use each row once`);
+    keys.add(key);
+  }
+  return atomic(board, () => {
+    let current = rowDecisions(board);
+    const recorded = decisions.map((record) => {
+      logEvent(board, PERSON, 'row_decision', null, { record, channel });
+      const entry = { ...record, event: board.lastEvent.event_id, at: board.lastEvent.event_at, applied: false };
+      current = [...current.filter((old) => old.kind !== record.kind || old.id !== record.id), entry];
+      return entry;
+    });
+    writeRowDecisions(board, current);
+    return recorded;
+  });
+}
+
+/** A coordinator records which exact decisions its local file changes applied, with no replay writes. */
+export function applyRowDecisions(board, { agentId, events }) {
+  if (agentId !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator applies row decisions; ask your coordinator to run pullboard spec apply');
+  if (!Array.isArray(events) || events.some((event) => !Number.isSafeInteger(event) || event < 1)) throw new Refused('ROW_DECISION', 'apply needs current decision event ids; use pullboard spec apply');
+  return atomic(board, () => {
+    const records = rowDecisions(board);
+    const found = events.map((event) => records.find((record) => record.event === event));
+    if (found.some((record) => !record)) throw new Refused('STALE_ROW_DECISION', 'a row decision was replaced; use pullboard spec apply with the current decisions');
+    const applied = found.filter((record) => !record.applied);
+    if (!applied.length) return [];
+    const at = now(board);
+    writeRowDecisions(board, records.map((record) => events.includes(record.event) ? { ...record, applied: true, appliedAt: at } : record));
+    logEvent(board, agentId, 'row_apply', null, { events: applied.map((record) => record.event) });
+    return applied.map((record) => ({ ...record, applied: true, appliedAt: at }));
   });
 }
 

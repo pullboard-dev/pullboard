@@ -105,13 +105,22 @@ export function createApiHandler(adapter, { pollMs = 200 } = {}) {
       let url;
       try { url = new URL(req.url ?? '/', 'http://127.0.0.1'); } catch { throw new Refused('BAD_REQUEST', 'use a valid path under /api/v1/boards'); }
       const route = /^\/api\/v1\/boards\/([^/]+)\/(state|events|moves|requests|code|tokens)$/.exec(url.pathname);
-      const who = await adapter.authenticate(req, { board: route?.[1] ?? null, write: req.method === 'POST' });
+      const shoutRoute = /^\/api\/v1\/boards\/([^/]+)\/shouts\/([^/]+)$/.exec(url.pathname);
+      const boardId = route?.[1] ?? shoutRoute?.[1] ?? null;
+      const who = await adapter.authenticate(req, { board: boardId, write: req.method === 'POST' });
       if (req.method === 'GET' && url.pathname === '/api/v1/boards') {
         const listing = await adapter.boards(who);
         return json(res, 200, Array.isArray(listing) ? { boards: listing } : listing);
       }
-      if (!route) return json(res, 404, refusal(new Refused('NO_ENDPOINT', 'no API v1 endpoint here; use /api/v1/boards and a board state, code, events, moves or requests path')));
-      const board = await adapter.board(route[1], who);
+      if (!route && !shoutRoute) return json(res, 404, refusal(new Refused('NO_ENDPOINT', 'no API v1 endpoint here; use /api/v1/boards and a board state, shout, code, events, moves or requests path')));
+      const board = await adapter.board(boardId, who);
+      if (req.method === 'GET' && shoutRoute) {
+        const rawId = shoutRoute[2];
+        if (!/^[1-9]\d*$/.test(rawId) || !Number.isSafeInteger(Number(rawId))) throw new Refused('BAD_REQUEST', 'shout needs a positive integer id; use the id from the event or recent state');
+        if (typeof adapter.shout !== 'function') throw new Refused('SHOUT_NOT_AVAILABLE', 'this API adapter does not provide addressed shout reads');
+        return json(res, 200, { shout: await adapter.shout(board, Number(rawId), who) });
+      }
+      if (shoutRoute) throw new Refused('BAD_REQUEST', 'read an addressed shout with GET; use a board move to create or answer shouts');
       if (route[2] === 'tokens') {
         if (typeof adapter.tokens !== 'function' || typeof adapter.revokeToken !== 'function') {
           throw new Refused('TOKENS_NOT_AVAILABLE', "manage this board's agent tokens in its local view or signed-in relay account");
@@ -166,7 +175,7 @@ export function createApiHandler(adapter, { pollMs = 200 } = {}) {
 
 /** Choose the same HTTP refusal class for local and sealed relay adapters. */
 export function apiStatus(error) {
-  return { AUTH_REQUIRED: 401, TOKEN_BOARD: 403, API_ORIGIN: 403, BAD_ORIGIN: 403, WRITE_REQUIRED: 403, HUMAN_REQUIRED: 403, NO_REPO_ACCESS: 403, NO_BOARD: 404, BOARD_NOT_LINKED: 404, NO_SNAPSHOT: 404, SNAPSHOT_REQUIRED: 409, SEQUENCE_REPEAT: 409, SEQUENCE_GAP: 409 }[error.code] ?? (error instanceof Refused ? 400 : 500);
+  return { AUTH_REQUIRED: 401, TOKEN_BOARD: 403, API_ORIGIN: 403, BAD_ORIGIN: 403, WRITE_REQUIRED: 403, HUMAN_REQUIRED: 403, NO_REPO_ACCESS: 403, NO_BOARD: 404, NO_SHOUT: 404, BOARD_NOT_LINKED: 404, NO_SNAPSHOT: 404, SNAPSHOT_REQUIRED: 409, SEQUENCE_REPEAT: 409, SEQUENCE_GAP: 409 }[error.code] ?? (error instanceof Refused ? 400 : 500);
 }
 
 // Relay-only snapshot/delete routes reuse the exact shared bounded-body and refusal boundary.

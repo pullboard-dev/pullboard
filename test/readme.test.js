@@ -13,15 +13,73 @@ import { MACHINE } from '../src/machine.js';
 const ROOT = resolve(import.meta.dirname, '..');
 const README = readFileSync(join(ROOT, 'README.md'), 'utf8');
 const drawn = Object.keys(FIGURES).map((name) => `docs/img/${name}.svg`).sort();
+const SHOT_FIGURES = [
+  { path: 'docs/shots/tour.svg', alt: 'The timed Pullboard tour shows a change submitted, rejected for a missed edge, fixed and accepted.' },
+  { path: 'docs/shots/desktop.png', alt: "The Pullboard board shows open, claimed, submitted and accepted work, with a pending decision and the accepted item's review history." },
+];
 
 /** Average glyph width, in ems, generous enough for the widest system font each figure may get. */
 const EM = { sans: 0.56, mono: 0.62 };
 const SIZE = { head: 14, t1: 14, t2: 12, label: 12, aside: 12, code: 11.5 };
 
-test('README links the official site directly under its title [I12]', () => {
-  const firstTenLines = README.split(/\r?\n/).slice(0, 10);
-  assert.equal(firstTenLines[0], '# Pullboard');
-  assert.equal(firstTenLines[1], 'Website: [pullboard.dev](https://pullboard.dev)');
+/** Count reader-facing words, ignoring Markdown punctuation. */
+function wordCount(text) {
+  return text.match(/[\p{L}\p{N}]+(?:['’.-][\p{L}\p{N}]+)*/gu)?.length ?? 0;
+}
+
+test('README has the approved centered header, logo and one-line facts [I10,I12]', () => {
+  assert.match(README, /^<p align="center">\n  <picture>\n    <source media="\(prefers-color-scheme: dark\)" srcset="docs\/img\/logo-dark\.svg">\n    <img src="docs\/img\/logo\.svg" alt="" width="72">\n  <\/picture>\n<\/p>\n\n<h1 align="center">Pullboard<\/h1>/u);
+  assert.match(README, /<p align="center"><a href="https:\/\/pullboard\.dev"><b>pullboard\.dev<\/b><\/a> · lives in your git repo · no account · no dependencies · never calls a model<\/p>/u, 'the centered header pins the product facts in one line');
+  for (const badge of ['gate', 'npm', 'node', 'MIT license']) assert.match(README, new RegExp(`alt="${badge}"`), `${badge} badge remains in the header`);
+  assert.ok(readFileSync(join(ROOT, 'docs/img/logo.svg'), 'utf8').startsWith('<svg '), 'the approved light logo is present');
+  assert.ok(readFileSync(join(ROOT, 'docs/img/logo-dark.svg'), 'utf8').startsWith('<svg '), 'the approved dark logo is present');
+});
+
+test('README names DOCTRINE.md and explains doctrine once [I12]', () => {
+  const gloss = 'the house rules for agentic development';
+  const layout = FIGURES.layout();
+  const firstDoctrine = README.indexOf('Doctrine');
+  const firstGloss = README.indexOf(gloss);
+  assert.ok(firstDoctrine >= 0, 'the README introduces Doctrine');
+  assert.equal(README.slice(firstDoctrine, firstGloss), 'Doctrine (', 'the first doctrine mention carries its gloss');
+  assert.equal(README.split(gloss).length - 1, 1, 'the README glosses doctrine once, at its first mention');
+  assert.match(README, /`DOCTRINE\.md`/u, 'the README names the current doctrine file');
+  assert.doesNotMatch(README, /PRACTICE\.md/u, 'the README uses the current doctrine filename');
+  assert.match(layout, /<text class="mono label"[^>]*>DOCTRINE\.md<\/text>/u, 'the location figure names the current doctrine file');
+  assert.doesNotMatch(layout, /PRACTICE\.md/u, 'the location figure leaves the legacy filename to migration guidance');
+});
+
+test('current docs pages and shipped skills use DOCTRINE.md, reserving PRACTICE.md for history or fallback [I12]', () => {
+  /**
+   * List the current Markdown contracts recursively so newly added docs and shipped skills join the audit.
+   * @param {string} directory
+   * @returns {string[]}
+   */
+  function markdownFiles(directory) {
+    return readdirSync(join(ROOT, directory), { withFileTypes: true }).flatMap((entry) => {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) return markdownFiles(path);
+      return entry.isFile() && (entry.name.endsWith('.md') || entry.name === 'SKILL.md') ? [path] : [];
+    });
+  }
+
+  const files = [...markdownFiles('docs'), ...markdownFiles('skills')].sort();
+  assert.ok(files.includes('docs/rfcs/0001-standard-doctrine.md'));
+  const specProof = readFileSync(join(ROOT, 'docs/proof/spec.md'), 'utf8');
+  assert.match(specProof, /This checkout still uses legacy `PRACTICE\.md`; new repos use `DOCTRINE\.md`, and `PRACTICE\.md` remains a compatibility fallback/u, 'the proof table is anchored by its explicit legacy-fallback introduction');
+  for (const file of files) {
+    const text = readFileSync(join(ROOT, file), 'utf8');
+    for (const [index, line] of text.split('\n').entries()) {
+      if (!line.includes('PRACTICE.md')) continue;
+      if (file === 'docs/proof/spec.md' && line.startsWith('| S')) continue; // historical proof rows follow the page's legacy-fallback introduction
+      assert.match(line, /legacy|fallback|histor|at the time/i, `${file}:${index + 1} labels PRACTICE.md as legacy, fallback or history`);
+    }
+  }
+
+  const rfc = readFileSync(join(ROOT, 'docs/rfcs/0001-standard-doctrine.md'), 'utf8');
+  assert.match(rfc, /`DOCTRINE\.md`/u, 'the accepted RFC names the current file');
+  assert.match(rfc, /legacy `PRACTICE\.md` remains a compatibility fallback/u, 'the accepted RFC labels the old name only as a fallback');
+  assert.match(rfc, /At the time of this RFC, `pullboard init` copied/u, 'the RFC keeps its old filename in clearly historical context');
 });
 
 /**
@@ -61,7 +119,9 @@ test('the README links every figure draw.mjs draws, each committed exactly as dr
   const links = [...README.matchAll(/!\[([^\]]*)\]\((docs\/img\/[^)\s]+)\)/g)].map(([, alt, path]) => ({ alt, path }));
   assert.deepEqual(links.map((link) => link.path).sort(), drawn, 'the README links each drawn figure once, and nothing else under docs/img');
   for (const { alt, path } of links) assert.ok(alt.trim().length >= 40, `${path} has alt text that says what it shows`);
-  const committed = readdirSync(join(ROOT, 'docs', 'img')).filter((file) => file.endsWith('.svg')).map((file) => `docs/img/${file}`).sort();
+  assert.ok(README.includes('![An agent asks its coordinator. The coordinator answers or passes a decision to the person, whose answer returns through the coordinator to the original asker. Agents send decision requests to their coordinator first.](docs/img/chain.svg)'), 'the chain figure says decision requests go through the coordinator');
+  for (const { alt, path } of SHOT_FIGURES) assert.ok(README.includes(`![${alt}](${path})`), `${path} and its alt text remain in the README`);
+  const committed = readdirSync(join(ROOT, 'docs', 'img')).filter((file) => file.endsWith('.svg') && !['logo.svg', 'logo-dark.svg'].includes(file)).map((file) => `docs/img/${file}`).sort();
   assert.deepEqual(committed, drawn, 'docs/img holds exactly the figures draw.mjs draws');
   for (const [name, draw] of Object.entries(FIGURES)) {
     assert.ok(readFileSync(join(ROOT, 'docs', 'img', `${name}.svg`), 'utf8') === draw(), `docs/img/${name}.svg differs from what draw.mjs draws: run node docs/img/draw.mjs`);
@@ -104,13 +164,107 @@ test('the lifecycle figure is drawn from the declaration, and refuses a state or
   assert.match(texts(drawLifecycle(bench)).map((text) => text.words).join(' '), /\bbench\b/, 'a new move between drawn states is named without touching draw.mjs');
 });
 
-test('README shows JSON output for spec check and view [S13]', () => {
-  assert.match(README, /`pullboard spec check --json`/);
-  assert.match(README, /`pullboard spec view --json`/);
-  assert.match(README, /\[CLI JSON API\]\(docs\/api\.md\)/);
+test('README pins its approved Philosophy, Key concepts and Why structure [I10,I12]', () => {
+  const philosophy = README.indexOf('## Philosophy');
+  const concepts = README.indexOf('### Key concepts', philosophy);
+  const whyStart = README.indexOf('### Why', concepts);
+  const nextTopLevel = README.indexOf('\n## ', philosophy + 1);
+  assert.ok(philosophy >= 0 && philosophy < concepts && concepts < whyStart && whyStart < nextTopLevel, 'Philosophy contains Key concepts and Why before the next top-level section');
+  const section = README.slice(philosophy, nextTopLevel);
+  for (const text of [
+    'You do not explain twice. You rule the agents. Hierarchy is enforced. Judgement is yours. Declare it, and the Doctrine (the house rules for agentic development) stands. **You speak the constraints, agents fill in the blanks.** The Spec is canon. Then code. Then proof.',
+    'Five primitives. Everything else is built on them.',
+    '**Items.**', '**Shouts.**', '**Spec.**', '**Doctrine.**', '**Activity.**',
+    "**It said done. It wasn't.**", '**It forgot what you decided.**',
+    '**Two agents, one file.**', '**A fix broke something.**',
+  ]) assert.ok(section.includes(text), `Philosophy keeps ${text}`);
 });
 
-test('README shows the signers field and setup command [S18]', () => {
-  assert.match(README, /```markdown\n- R1 \[approved, must\] A release is tested\. \| gate: npm test\n- R2 \[approved, must\] A release is signed\. \| gate: npm test \| signers: alice@workstation, bob@workstation\n```/);
-  assert.match(README, /`pullboard spec signers add`/);
+test('README has a manual workflow and shell examples without inline comments [I10,I12]', () => {
+  assert.match(README, /^### (?:By hand|Manual workflow)$/mu);
+  const shellBlocks = [...README.matchAll(/```(?:sh|shell|bash)\n([\s\S]*?)```/gu)].map(([, body]) => body);
+  assert.ok(shellBlocks.length > 0, 'the README includes shell examples');
+  for (const [index, block] of shellBlocks.entries()) {
+    assert.doesNotMatch(block, /(?:^|\s)#(?:\s|$)/mu, `shell example ${index + 1} has no inline comment`);
+  }
+  for (const command of ['pullboard tour', 'pullboard init', 'pullboard add web', 'pullboard worktree web', 'pullboard next --verify', 'pullboard verify 1 accept']) {
+    assert.ok(README.includes(command), `the working workflow still shows ${command}`);
+  }
+});
+
+test('README is concise and skimmable without removing its instructions or figures [I10,I12]', () => {
+  const lines = README.split(/\r?\n/u);
+  let insideFence = false;
+  const proseLines = lines.map((line) => {
+    if (line.startsWith('```')) {
+      insideFence = !insideFence;
+      return '';
+    }
+    return insideFence ? '' : line;
+  });
+  const firstSection = proseLines.findIndex((line) => /^##\s/u.test(line));
+  assert.ok(firstSection > 0, 'the README has a section after its lead');
+
+  const headings = proseLines.filter((line) => /^#{1,6}\s/u.test(line)).map((line) => line.replace(/^#{1,6}\s+/u, '').trim().toLocaleLowerCase());
+  assert.equal(new Set(headings).size, headings.length, 'headings are unique');
+
+  for (let index = 0; index < proseLines.length; index += 1) {
+    const heading = /^(#{1,6})\s/u.exec(proseLines[index]);
+    if (!heading) continue;
+    let next = index + 1;
+    while (next < lines.length && !lines[next].trim()) next += 1;
+    assert.ok(next < proseLines.length, `${proseLines[index]} has an opening element`);
+    const opening = lines[next];
+    const nestedHeading = /^(#{1,6})\s/u.exec(opening);
+    if (nestedHeading) {
+      assert.ok(nestedHeading[1].length > heading[1].length, `${proseLines[index]} only opens with a nested heading`);
+    } else if (opening.startsWith('![')) {
+      assert.match(opening, /^!\[[^\]]+[.!?]\]\(/u, `${proseLines[index]} opens with a descriptive figure`);
+    } else if (opening.startsWith('```')) {
+      assert.match(opening, /^```(?:sh|shell|bash)$/u, `${proseLines[index]} opens with a runnable shell example`);
+      assert.ok(lines[next + 1]?.trim(), `${proseLines[index]} shell example has a command`);
+    } else if (opening.startsWith('[')) {
+      assert.match(opening, /\]\(docs\/[^)]+\)/u, `${proseLines[index]} opens with document links`);
+    } else if (opening.endsWith(':')) {
+      const following = lines.slice(next + 1).find((line) => line.trim());
+      assert.match(following ?? '', /^```/u, `${proseLines[index]} introduces a code example`);
+    } else {
+      assert.match(opening.replace(/\*+$/u, ''), /[.!?]$/u, `${proseLines[index]} opens with its point`);
+    }
+  }
+
+  const paragraphs = [];
+  let paragraph = [];
+  let inCode = false;
+  let inCenteredHeader = false;
+  const flush = () => {
+    if (paragraph.length) paragraphs.push(paragraph.join(' '));
+    paragraph = [];
+  };
+  for (const line of lines) {
+    if (line.startsWith('```')) {
+      flush();
+      inCode = !inCode;
+    } else if (line === '<p align="center">') {
+      flush();
+      inCenteredHeader = true;
+    } else if (inCenteredHeader) {
+      if (line === '</p>') inCenteredHeader = false;
+    } else if (inCode || !line.trim() || /^#{1,6}\s|^!\[|^\|/u.test(line)) {
+      flush();
+    } else if (/^\s*[-*]\s/u.test(line)) {
+      flush();
+      paragraphs.push(line.replace(/^\s*[-*]\s+/u, ''));
+    } else {
+      paragraph.push(line);
+    }
+  }
+  flush();
+  for (const text of paragraphs) assert.ok(wordCount(text) <= 70, `paragraph has ${wordCount(text)} words: ${text}`);
+
+  for (let index = 0; index < proseLines.length - 1; index += 1) {
+    if (!/^\|/u.test(proseLines[index]) || !/^\|\s*:?-{3,}/u.test(proseLines[index + 1])) continue;
+    const cells = proseLines[index].replace(/^\||\|$/gu, '').split('|').map((cell) => cell.trim());
+    assert.ok(cells.length > 0 && cells.every(Boolean), 'tables have no empty header cells');
+  }
 });

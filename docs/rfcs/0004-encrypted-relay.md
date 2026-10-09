@@ -16,10 +16,10 @@ The relay still puts moves in one order (H3). It can't check a move it can't rea
 
 ## Pairing
 
-A device that can read a board holds its key. A linked machine hands the key to a new device directly, never through the relay:
+A device that can read a board holds its key. A linked machine hands the key to a new device without letting the relay read it:
 
 - **A phone or a browser:** `pullboard relay on` and `pullboard relay pair` print a QR code and a link to app.pullboard.dev with the key after the `#`. Browsers never send that part of an address to a server. The page reads the key there, keeps it in the browser, and unseals the board on the device.
-- **Another machine:** `pullboard relay pair` prints a one-time code; `pullboard relay join <code>` on the other machine stores the key there.
+- **Another machine:** `pullboard relay pair` prints a code carrying a single-use, expiring 256-bit secret. `pullboard relay join <code>` sends the key through the relay sealed under that secret; the secret never reaches the relay, so it can carry the key but cannot read it.
 - **An agent that can't pair**, such as a cloud session: the key comes from an environment variable, beside its relay token.
 
 Signing in with GitHub decides who may fetch a board's sealed blobs; holding the key decides who can read them. Both are needed.

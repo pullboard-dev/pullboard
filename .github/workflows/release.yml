@@ -1,0 +1,31 @@
+# A release is a tag on a green commit (I15). Pushing a tag vX.Y.Z runs the gate on that exact commit,
+# checks the tag matches package.json's version, and publishes to npm with provenance through npm's
+# trusted publishing: no token is stored anywhere. npmjs.com must list this workflow (release.yml in
+# pullboard-dev/pullboard) as the package's trusted publisher, set once by the person.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+      - name: The tag names package.json's version
+        run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+      - run: npm run gate
+      - name: npm new enough for trusted publishing
+        run: npm install -g npm@latest
+      - run: npm publish --provenance --access public

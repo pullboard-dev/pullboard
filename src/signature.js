@@ -130,6 +130,9 @@ function readInitialSignerHash(root) {
 
 /** Serialize canonical signed content with stable field order. */
 export function canonical(record) {
+  if (record.type === 'row-decision') {
+    return JSON.stringify({ version: 1, type: record.type, firstCommit: record.firstCommit, initialHash: record.initialHash, id: record.id, file: record.file, kind: record.kind, source: record.source, replacement: record.replacement, text: record.text, decision: record.decision, reason: record.reason, commit: record.commit, by: record.by, on: record.on, note: record.note ?? '' });
+  }
   if (record.type === 'signers') {
     return JSON.stringify({ version: 1, type: record.type, firstCommit: record.firstCommit, initialHash: record.initialHash, previousHash: record.previousHash, previousSigners: record.previousSigners, hash: record.hash, by: record.by, on: record.on });
   }
@@ -282,6 +285,24 @@ export function signRows(root, records, requestedKey) {
   });
   appendRecords(root, signed);
   return signed;
+}
+
+/** Sign an exact person decision without writing a receipt into the checkout before apply. */
+export function signRowDecision(root, fields, requestedKey) {
+  const allowed = readSignerText(root);
+  verifySignedRecords(root, readRawRecords(root));
+  if (!listsPrincipal(allowed, fields.by)) throw new Refused('UNLISTED_SIGNER', `${fields.by} is not listed in ${SIGNERS_FILE}`);
+  if (!fields.commit) throw new Refused('NO_SIGNING_COMMIT', 'signed approvals include the commit read; commit or check out the repo first');
+  const record = { version: 1, type: 'row-decision', firstCommit: readFirstCommit(root), initialHash: readInitialSignerHash(root), ...fields };
+  record.signature = makeSignature(root, record, requestedKey);
+  verifySignature(record, allowed);
+  return record;
+}
+
+/** Validate a board-held approval against this checkout's established SSH trust history. */
+export function verifyRowDecision(root, record) {
+  if (record.decision === 'approve' && hasSignerFile(root) && !record.signature) throw new Refused('MISSING_SIGNATURE', `${record.id} approval needs the person's signed sign-off; use pullboard spec approve again`);
+  verifySignedRecords(root, [...readRawRecords(root), ...(record.signature ? [record] : [])]);
 }
 
 /** Use Git's exact email as the allowed-signers principal; `--by` explicitly overrides it. */

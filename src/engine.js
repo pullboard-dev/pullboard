@@ -4,6 +4,8 @@ import * as store from './board.js';
 import { refusalDocument } from './json.js';
 import { ENGINE_VERSION } from './machine.js';
 import { Refused } from './refused.js';
+import { requestMoveProblem, recordRequestMove } from './relay-requests.js';
+import { relayMoveActor, relaySenderProblem } from './relay-sender.js';
 
 /** Only these public board operations may be requested by an encrypted move. */
 export const ENGINE_OPERATIONS = Object.freeze([
@@ -11,6 +13,7 @@ export const ENGINE_OPERATIONS = Object.freeze([
   'claim', 'release', 'submit', 'reserveReview', 'reserveNextReview', 'verify', 'merged',
   'withdraw', 'refreeze', 'shout', 'passDecision', 'answerDecision', 'holdLane', 'releaseLane',
   'addMilestone', 'editMilestoneItems', 'moveMilestone', 'editMilestone', 'removeMilestone',
+  'recordRowDecisions', 'applyRowDecisions', 'appendFact',
 ]);
 
 /** Read a replica's committed prefix without trusting an independently saved transport cursor. */
@@ -40,6 +43,7 @@ export function checkpointSequence(board, sequence) {
 export function startRelayEpoch(board) {
   store.atomic(board, () => {
     board.db.prepare("DELETE FROM board_meta WHERE meta_key LIKE 'relay_receipt_%'").run();
+    board.db.prepare("DELETE FROM board_meta WHERE meta_key LIKE 'relay_refusal_%'").run();
     metadata(board, 'relay_applied_sequence', '0');
     metadata(board, 'relay_engine_version', String(ENGINE_VERSION));
   });
@@ -70,40 +74,25 @@ export function prepareEngineMove(board, operation, args, { id = randomUUID(), a
   return JSON.parse(JSON.stringify(move));
 }
 
+/** Stop before interpreting actors or operations that a newer engine may have changed. */
+export function requireSupportedEngine(move) {
+  if (Number.isSafeInteger(move?.engine) && move.engine > ENGINE_VERSION) throw new Refused('ENGINE_VERSION', `move engine version ${move.engine} is newer than this pullboard engine version ${ENGINE_VERSION}; upgrade pullboard before applying the relay order`);
+}
+
 /** Validate protocol identity before a future engine or malformed input can alter any replica. */
 function validateMove(move) {
   if (!move || move.version !== 1 || !Number.isSafeInteger(move.engine) || move.engine < 1) throw new Refused('RELAY_MOVE', 'this executable move format is invalid; upgrade pullboard or restore a consistent relay snapshot');
-  if (move.engine > ENGINE_VERSION) throw new Refused('ENGINE_VERSION', `move engine version ${move.engine} is newer than this pullboard engine version ${ENGINE_VERSION}; upgrade pullboard before applying the relay order`);
+  requireSupportedEngine(move);
   if (typeof move.id !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(move.id) || !ENGINE_OPERATIONS.includes(move.operation) || !Array.isArray(move.args)) throw new Refused('RELAY_MOVE', 'this sealed operation is invalid; use a supported board-engine operation');
 }
 
-/** Resolve the native operation's actor, excluding person-only enrollment and answers. */
-export function engineActor(operation, args) {
-  if (['register', 'ensureCoordinator'].includes(operation)) return 'person';
-  if (operation === 'answerDecision' && args[1]?.asPerson) return 'person';
-  if (operation === 'release') return args[1];
-  if (operation === 'addItem') return args[0]?.by;
-  if (operation === 'addMilestone') return args[0]?.agentId;
-  if (operation === 'shout') return args[0]?.from;
-  if (operation === 'reserveNextReview') return args[0]?.agentId;
-  return args[1]?.agentId;
-}
-
-/** Bind sealed operation identity to authenticated relay metadata before any native write. */
-function bindSender(move, sender) {
-  if (sender === undefined) return; // Pure local replay fixtures have no transport principal.
-  const actor = engineActor(move.operation, move.args);
-  if (!sender || !['person', 'agent'].includes(sender.kind) || !actor ||
-      (move.actor !== undefined && move.actor !== actor) ||
-      (sender.kind === 'agent' && (actor === 'person' || actor !== sender.agent)) ||
-      (sender.kind === 'person' && actor !== 'person')) {
-    throw new Refused('RELAY_ACTOR', 'the sealed actor differs from the authenticated sender; use that agent’s board token and retry the intended move');
-  }
-}
-
 /** Restore only the frozen criterion callback; no receiver runs another machine's Git or shell. */
-function executableArgs(move) {
+function executableArgs(move, board) {
   const args = structuredClone(move.args);
+  if (move.operation === 'appendFact') {
+    if (!args[1] || typeof args[1] !== 'object' || Array.isArray(args[1])) throw new Refused('RELAY_MOVE', 'a fact needs its typed arguments; use the current Pullboard engine');
+    args[1].factId = move.id;
+  }
   if (['claim', 'refreeze'].includes(move.operation)) {
     const options = args[1];
     if (!options || !Object.hasOwn(options, 'frozen')) throw new Refused('RELAY_MOVE', 'the claim has no frozen criterion; send it with the current pullboard engine');
@@ -112,6 +101,21 @@ function executableArgs(move) {
       if (!options.frozen || typeof options.frozen.text !== 'string' || typeof options.frozen.digest !== 'string') throw new Refused('RELAY_MOVE', 'the frozen criterion is invalid; send it with the current pullboard engine');
       return options.frozen;
     };
+  }
+  if (move.operation === 'verify') {
+    const item = store.getItem(board, args[0]);
+    const options = args[1];
+    let frozen;
+    try { frozen = JSON.parse(item.item_frozen ?? 'null'); }
+    catch { throw new Refused('NO_POLICY', 'the frozen verify policy is invalid; ask the coordinator to refreeze this item before verifying it'); }
+    const capturedPolicy = frozen?.policy;
+    const captured = capturedPolicy?.verify;
+    if (!options || typeof options !== 'object' || Array.isArray(options) ||
+        capturedPolicy?.version !== 1 || !/^[0-9a-f]{40,64}$/.test(capturedPolicy.commit ?? '') ||
+        !['any', 'coordinator'].includes(captured?.policy) || !['off', 'prefer', 'require'].includes(captured?.family)) {
+      throw new Refused('NO_POLICY', 'the frozen verify policy is missing or invalid; ask the coordinator to refreeze this item before verifying it');
+    }
+    args[1] = { ...options, policy: captured.policy, familyPolicy: captured.family };
   }
   return args;
 }
@@ -122,11 +126,45 @@ export function engineReceipt(board, id) {
   return row ? JSON.parse(row.meta_value) : null;
 }
 
+/** Authorize each public relay position before replay, retaining refusals atomically with its cursor. */
+export function applyRelayMove(board, move, { sequence, at, sender, kind }) {
+  requireSupportedEngine(move);
+  const problem = relaySenderProblem(move, sender, kind);
+  if (!problem) return applyEngineMove(board, move, { sequence, at });
+  if (!Number.isSafeInteger(sequence) || sequence < 1 || !Number.isFinite(Date.parse(at))) throw new Refused('RELAY_MOVE', 'supply a valid relay sequence and receipt timestamp');
+  return store.atomic(board, () => {
+    const cursor = appliedSequence(board);
+    const key = 'relay_refusal_' + sequence;
+    const encoded = JSON.stringify({ move, sender, kind });
+    const saved = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key);
+    if (sequence <= cursor) {
+      const receipt = saved && JSON.parse(saved.meta_value);
+      if (!receipt || receipt.record !== encoded) throw new Refused('RELAY_CURSOR', 'this earlier refused position has no matching receipt; fetch a consistent relay snapshot');
+      return receipt.outcome;
+    }
+    if (sequence !== cursor + 1) throw new Refused('RELAY_ORDER', `relay sequence ${sequence} does not follow applied sequence ${cursor}; fetch and apply the missing prefix first`);
+    const outcome = { error: refusalDocument(problem).error };
+    const clock = board.clock;
+    board.clock = { now: () => new Date(at) };
+    try {
+      store.recordRelayRefusal(board, {
+        by: sender?.kind === 'agent' && typeof sender.agent === 'string' ? sender.agent : 'relay',
+        sequence, kind, operation: typeof move?.operation === 'string' ? move.operation : null,
+        actor: typeof relayMoveActor(move) === 'string' ? relayMoveActor(move) : null, code: problem.code,
+      });
+    } finally { board.clock = clock; }
+    metadata(board, key, JSON.stringify({ record: encoded, outcome }));
+    metadata(board, 'relay_applied_sequence', String(sequence));
+    metadata(board, 'relay_engine_version', String(ENGINE_VERSION));
+    return outcome;
+  });
+}
+
 /**
  * Apply one relay position with the same board functions as the CLI, preserving its refusal.
  * A receipt and prefix commit atomically; duplicate ids return that receipt without another move.
  */
-export function applyEngineMove(board, move, { sequence, at, sender }) {
+export function applyEngineMove(board, move, { sequence, at }) {
   validateMove(move);
   if (!Number.isSafeInteger(sequence) || sequence < 1 || !Number.isFinite(Date.parse(at))) throw new Refused('RELAY_MOVE', 'supply a valid relay sequence and receipt timestamp');
   return store.atomic(board, () => {
@@ -145,13 +183,17 @@ export function applyEngineMove(board, move, { sequence, at, sender }) {
       board.clock = { now: () => new Date(at) };
       const firstEvent = board.emittedEvents?.length ?? 0;
       try {
-        bindSender(move, sender);
-        const result = store.atomic(board, () => store[move.operation](board, ...executableArgs(move)));
+        const result = store.atomic(board, () => {
+          const problem = requestMoveProblem(board, move);
+          if (problem) throw problem;
+          return store[move.operation](board, ...executableArgs(move, board));
+        });
         outcome = { result: result ?? null, events: (board.emittedEvents?.slice(firstEvent) ?? []).map((event) => ({ ...event })) };
       } catch (error) {
         if (!(error instanceof Refused)) throw error;
         outcome = { error: refusalDocument(error).error };
       } finally { board.clock = clock; }
+      recordRequestMove(board, move, outcome, sequence, at);
       metadata(board, 'relay_receipt_' + move.id, JSON.stringify({ sequence, move: encoded, outcome }));
     }
     metadata(board, 'relay_applied_sequence', String(sequence));

@@ -9,6 +9,41 @@ import { Refused } from './refused.js';
 
 const GIT_FLAGS = ['--no-replace-objects', '-c', 'core.quotepath=false'];
 
+/** Clear inherited Git selectors while retaining ordinary user settings and exact-object behavior.
+ *
+ * @returns {NodeJS.ProcessEnv}
+ */
+export function cleanGitEnvironment() {
+  const env = { ...process.env };
+  for (const key of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_PREFIX', 'GIT_CONFIG', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_COUNT', 'GIT_IMPLICIT_WORK_TREE', 'GIT_GRAFT_FILE', 'GIT_NO_REPLACE_OBJECTS', 'GIT_REPLACE_REF_BASE', 'GIT_SHALLOW_FILE']) delete env[key];
+  for (const key of Object.keys(env)) if (/^GIT_CONFIG_(?:KEY|VALUE)_/.test(key)) delete env[key];
+  env.GIT_NO_REPLACE_OBJECTS = '1';
+  return env;
+}
+
+/** Resolve the primary checkout's branch and commit without assuming its branch is named main.
+ *
+ * @param {string} root
+ * @returns {{branch: string, commit: string|null}|null}
+ */
+export function mainCheckout(root) {
+  const env = cleanGitEnvironment();
+  /** Run one Git lookup with the sanitized environment. */
+  const gitCall = (args) => spawnSync('git', [...GIT_FLAGS, ...args], {
+    cwd: root, env, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024,
+  });
+  const common = gitCall(['rev-parse', '--path-format=absolute', '--git-common-dir']);
+  if (common.status !== 0) throw new Refused('NO_POLICY', 'the primary checkout cannot be located; restore the repository and ask the coordinator to retry');
+  const commonDir = common.stdout.trim();
+  const symbolic = gitCall(['--git-dir', commonDir, 'symbolic-ref', '--quiet', 'HEAD']);
+  if (symbolic.status === 1) return null;
+  if (symbolic.status !== 0) throw new Refused('NO_POLICY', 'the primary checkout branch cannot be read; restore its Git metadata and ask the coordinator to retry');
+  const branch = symbolic.stdout.trim();
+  const resolved = gitCall(['--git-dir', commonDir, 'rev-parse', '--verify', '--quiet', `${branch}^{commit}`]);
+  if (resolved.status !== 0 && resolved.status !== 1) throw new Refused('NO_POLICY', 'the primary checkout commit cannot be read; restore its Git objects and ask the coordinator to retry');
+  return { branch, commit: resolved.status === 0 ? resolved.stdout.trim() : null };
+}
+
 /**
  * The environment for a gate or fixer: keep the user's settings, but remove Git's repository-local
  * variables so a child that changes folders cannot act on the hook's repository by accident.
@@ -29,13 +64,15 @@ export function gitChildEnv(root) {
  *
  * @param {string} cwd
  * @param {string[]} args
+ * @param {{ maxBuffer?: number }} [options] - Bound output captures for callers parsing larger diffs.
  * @returns {string}
  */
-export function git(cwd, args) {
+export function git(cwd, args, { maxBuffer } = {}) {
   return execFileSync('git', [...GIT_FLAGS, ...args], {
     cwd,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
+    ...(maxBuffer === undefined ? {} : { maxBuffer }),
   }).trim();
 }
 

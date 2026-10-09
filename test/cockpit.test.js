@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import vm from 'node:vm';
+import { loadConfig } from '../src/config.js';
 import { loadDoctrine } from '../src/doctrine.js';
 import { MACHINE } from '../src/machine.js';
 import { cockpitPage } from '../src/cockpit.js';
@@ -503,14 +504,14 @@ test('the sidebar lists every project and what needs the person [N26]', async ()
 
 test('projects group repos with combined needs and activity, while ungrouped and unreadable repos stay clear [N33, N34, N36]', async () => {
   const box = machine();
-  const core = project(box, 'core', `${SPEC}- G3 [pending] Should the API greet in French?\n`, { name: 'Core API', project: 'Atlas' });
-  box.run(core.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  const core = project(box, 'core', `${SPEC}- G3 [pending] Should #1 greet in French?\n`, { name: 'Core API', project: 'Atlas' });
+  box.run(core.repo, 'add', 'web', 'Core target #1', '--specs', 'G1', '--criterion', 'greets');
   build(box, core, 1, 'greeting.html');
   sendBack(box, core, 1, 'the page needs a greeting');
   const web = project(box, 'web', SPEC, { name: 'Web UI', project: 'Atlas' });
-  box.run(web.repo, 'add', 'web', 'Header', '--specs', 'G1', '--criterion', 'has a header');
+  box.run(web.repo, 'add', 'web', 'Target for #1', '--specs', 'G1', '--criterion', 'has a header');
   build(box, web, 1, 'header.html');
-  box.run(web.repo, 'shout', 'person', 'Ship the header today?', '--decision');
+  box.run(web.repo, 'shout', 'person', 'Ship #1 today?', '--decision');
   const standalone = project(box, 'standalone', SPEC, { name: 'Scratchpad' });
   const broken = project(box, 'broken', SPEC, { name: 'Broken repo', project: 'Atlas' });
   const view = await startView(box);
@@ -544,17 +545,36 @@ test('projects group repos with combined needs and activity, while ungrouped and
     assert.equal(page.element('tabs').hidden, true);
     assert.match(page.show('group-needs'), /Core API/);
     assert.match(page.show('group-needs'), /Web UI/);
-    assert.match(page.show('group-needs'), /<b>Core API<\/b><code>G3<\/code><span>Should the API greet in French\?<\/span><em>answer in SPEC\.md →<\/em>/, "a question in one repo's spec");
-    assert.match(page.show('group-needs'), /<b>Web UI<\/b><code>coordinator<\/code><span>Ship the header today\?<\/span><em>decision, /, "and a decision in another's");
+    assert.match(page.show('group-needs'), /<b>Core API<\/b><code>G3<\/code><span>Should <button class="ref" data-root="[^"]+" data-go="item:1" title="Core target #1" type="button">#1<\/button> greet in French\?<\/span><button data-root="[^"]+" type="button"><em>answer in SPEC\.md →<\/em><\/button>/, "a question in one repo's spec");
+    assert.match(page.show('group-needs'), /<b>Web UI<\/b><code>coordinator<\/code><span>Ship <button class="ref" data-root="[^"]+" data-go="item:1" title="Target for #1" type="button">#1<\/button> today\?<\/span><button data-root="[^"]+" type="button"><em>decision, /, "and a decision in another's");
     assert.doesNotMatch(page.show('group-needs'), /sent back|to verify|Greeting|Header/, "work sent back or waiting for a verdict is the agents', not the person's");
     assert.match(page.show('group-activity'), /Core API/);
     assert.match(page.show('group-activity'), /Web UI/);
-    assert.match(page.show('group-activity'), /Greeting|Header/);
+    assert.match(page.show('group-activity'), /Greeting|Target/);
+    const activityRefs = [...page.show('group-activity').matchAll(/<button class="ref" data-root="([^"]+)" data-go="item:1" title="([^"]+)"/g)].map((link) => [link[1], link[2]]);
+    assert.ok(activityRefs.some(([root, title]) => root === core.repo && title === 'Core target #1'), 'activity links bind Core API #1 to its repo');
+    assert.ok(activityRefs.some(([root, title]) => root === web.repo && title === 'Target for #1'), 'activity links bind Web UI #1 to its repo');
+
+    assert.deepEqual([...page.show('group-needs').matchAll(/<button class="ref" data-root="([^"]+)" data-go="item:1" title="([^"]+)"/g)].map((link) => [link[1], link[2]]), [
+      [core.repo, 'Core target #1'], [web.repo, 'Target for #1'],
+    ], 'each duplicate #1 keeps the repo where it was written');
+    page.run("view.tab = 'activity'");
+    await page.click({ root: core.repo, go: 'item:1' });
+    assert.equal(page.run('view.root'), core.repo, 'the Core API link opens its own repo');
+    assert.equal(page.run('view.item'), 1, 'the Core API link opens its #1');
+    assert.equal(page.run('view.tab'), 'items', 'the Core API link opens its item detail');
+    await page.click({ root: 'group:Atlas' });
+    page.run("view.tab = 'activity'");
+    await page.click({ root: web.repo, go: 'item:1' });
+    assert.equal(page.run('view.root'), web.repo, 'the Web UI link opens its own repo');
+    assert.equal(page.run('view.item'), 1, 'the Web UI link opens its #1');
+    assert.equal(page.run('view.tab'), 'items', 'the Web UI link opens its item detail');
+    await page.click({ root: 'group:Atlas' });
 
     await page.click({ root: core.repo });
     assert.equal(page.element('group-view').hidden, true);
     assert.equal(page.element('tabs').hidden, false);
-    assert.match(page.show('chain'), /Greeting/);
+    assert.match(page.show('chain'), /Core target/);
     assert.doesNotMatch(page.show('chain'), /Header/);
     assert.ok(side.includes(`data-root="${standalone.repo}"`), 'the repo without a project stands alone');
   } finally {
@@ -569,12 +589,12 @@ test('the tabs fit one row on a phone [N26]', async () => {
     const style = await styleOf(view);
     const phone = /@media \(width < 480px\) \{\n([^@]*?)\n\}/.exec(style)?.[1] ?? '';
     assert.doesNotMatch(style, /max-width: 480px/, 'at 480px itself the tabs keep their row');
-    assert.match(phone, /\.tabs \{ flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: minmax\(0, 1fr\);/, 'under 480px the tabs share the bar in equal columns');
+    assert.match(phone, /\.tabs \{ flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: auto;/, 'under 480px the tabs share the bar: each as wide as its label, plus an even share of the room left');
     assert.match(phone, /\.tab \{ display: grid; grid-template-rows: auto 13px; justify-items: center;/, 'each tab stacks its label over its count');
     assert.match(phone, /\.tab b \{ margin: 0;/);
     assert.match(style, /\n\.tabs \{ display: flex; flex-wrap: wrap; gap: 2px; \}\n/, 'wider, the tabs keep the row they have');
     const tabs = [...html.matchAll(/<button class="tab" data-tab="([a-z]+)" type="button">([A-Za-z]+)(<b id="count-([a-z]+)"><\/b>)?<\/button>/g)];
-    assert.deepEqual(tabs.map((match) => [match[2], match[4] === match[1]]), [['Items', true], ['Shouts', true], ['Spec', true], ['Doctrine', true], ['Activity', false]], 'five tabs: a label, then its count where it has one');
+    assert.deepEqual(tabs.map((match) => [match[2], match[4] === match[1]]), [['Items', true], ['Shouts', true], ['Spec', true], ['Doctrine', true], ['Activity', false], ['Roadmap', false]], 'six tabs: a label, then its count where it has one');
   } finally {
     await view.stop();
   }
@@ -663,7 +683,7 @@ test("the sidebar shows each product's progress [N28]", async () => {
  * stay it began, with any running age read as its text.
  */
 function timelineRows(html) {
-  return [...html.matchAll(/<li class="([^"]*)"><time>([^<]*)<\/time><span><b>([^<]*)<\/b> ([^<]*)<\/span>(?:<small>(.*?)<\/small>)?<\/li>/g)].map((match) => ({
+  return [...html.matchAll(/<li class="([^"]*)"[^>]*><time>([^<]*)<\/time><span><b>([^<]*)<\/b> ([^<]*)<\/span>(?:<small>(.*?)<\/small>)?<\/li>/g)].map((match) => ({
     dot: match[1],
     time: match[2],
     event: `${match[3]} ${match[4]}`,
@@ -680,7 +700,10 @@ test("the history is a timeline of the item's states [N26]", async () => {
   sendBack(box, alpha, 1, 'no greeting');
   build(box, alpha, 1, 'greeting-again.html');
   accept(box, alpha, 1);
-  box.run(alpha.repo, 'merged', '1', box.git(alpha.repo, 'rev-parse', alpha.branch));
+  box.git(alpha.repo, 'merge', '--no-ff', '-m', 'chore: merge fixture item', alpha.branch);
+  const trunkCommit = box.git(alpha.repo, 'rev-parse', 'HEAD');
+  assert.notEqual(trunkCommit, box.git(alpha.repo, 'rev-parse', alpha.branch), 'the receipt names the trunk merge commit');
+  box.run(alpha.repo, 'merged', '1', trunkCommit);
   box.run(alpha.web, 'claim', '2');
   const view = await startView(box);
   try {
@@ -745,7 +768,7 @@ function agentEntries(html) {
     id: /<b[^>]*>([^<]*)<\/b>/.exec(entry)?.[1],
     path: /<b title="([^"]*)"/.exec(entry)?.[1],
     age: /<time[^>]*>([^<]*)<\/time>/.exec(entry)?.[1],
-    holds: [...entry.matchAll(/data-go="item:(\d+)"[^>]*><span>([^]*?)<\/span><span class="chip[^"]*">([^<]*)</g)].map((match) => `${match[2]}: ${match[3]}`),
+    holds: [...entry.matchAll(/data-item="(\d+)"[^>]*><span>([^]*?)<\/span><span class="chip[^"]*">([^<]*)</g)].map((match) => `${match[2]}: ${match[3]}`),
     idle: entry.includes('<small>idle</small>'),
     text: entry.replace(/<[^>]*>/g, ' '),
   }));
@@ -876,7 +899,9 @@ test('an open decision counts in the sidebar and the tab title [B21, B26, N26]',
     box.run(beta.repo, 'answer', '3', 'after', '--as', 'person');
     await page.run('refresh()');
     assert.deepEqual(rows(), [['alpha', '', 'nothing open'], ['beta', '', 'nothing open']], 'answered, they need no one');
-    assert.match(box.run(beta.web, 'inbox'), /person -> web-1: answers \\?#1: Person answered \\?#2: yes/, "the person's answer reaches the agent that asked");
+    const replies = JSON.parse(box.run(beta.web, 'inbox', '--json')).shouts.filter((shout) => shout.shout_answers === 1);
+    assert.deepEqual(replies.map((shout) => [shout.shout_from, shout.shout_to, shout.shout_answers, shout.shout_text]),
+      [['person', 'web-1', 1, 'Person answered #2: yes']], "the person's answer reaches the agent that asked");
     assert.equal(page.run('document.title'), 'alpha · Pullboard');
     assert.equal(page.element('proj-elsewhere').hidden, true);
   } finally {
@@ -909,7 +934,7 @@ test('each row says what it waits on [N26]', async () => {
     }]));
     assert.deepEqual(rows['1'], { chip: 'free: unclaimed', edge: false, waits: [] }, 'free to claim');
     assert.deepEqual(rows['2'], { chip: 'busy: web-1', edge: false, waits: [] }, 'a claim names its holder');
-    assert.deepEqual(rows['3'], { chip: 'gate: gated', edge: true, waits: ['waits on <button class="ref" data-go="item:2" type="button">#2</button>'] }, 'gated on #2, which is still being built');
+    assert.deepEqual(rows['3'], { chip: 'gate: gated', edge: true, waits: ['<span class="wait-unit">waits on <button class="ref" data-go="item:2" type="button">#2</button>'] }, 'gated on #2, which is still being built');
     assert.deepEqual(rows['4'], { chip: 'gate: lane held', edge: true, waits: ['lane held: API &lt;freeze&gt; until Friday'] });
     assert.deepEqual(rows['5'], { chip: 'warn: to verify', edge: false, waits: [] });
     assert.deepEqual(rows['6'], { chip: 'no: sent back', edge: false, waits: [] });
@@ -1104,14 +1129,30 @@ test('a closed lifecycle stays closed, across a reload and a restart of the view
     await new Promise((done) => taken.close(done));
   }
 });
-test('a named port that is busy is refused with the way out, not a stack trace [N26]', async () => {
+test('busy-port refusal preserves its first line and JSON next [N26,A1]', async () => {
   const box = machine();
   const held = await new Promise((done) => { const server = createServer(); server.listen(0, '127.0.0.1', () => done(server)); });
   try {
     const port = held.address().port;
     const result = spawnSync(process.execPath, [BIN, 'view', '--no-open', '--port', String(port)], { cwd: box.dir, env: box.env, encoding: 'utf8', timeout: 20000 });
     assert.equal(result.status, 1, `a refusal, not a crash or a hang: ${result.stderr}`);
-    assert.equal(result.stderr.trim(), `pullboard: [PORT_BUSY] port ${port} is in use: name another with --port, or leave --port out to take any free one`);
+    assert.equal(result.stdout, '', 'text refusal does not leak a second document to stdout');
+    assert.doesNotMatch(result.stderr, /\n\s+at\s/m, 'a busy port is a refusal, not a stack trace');
+    const firstLine = `pullboard: [PORT_BUSY] port ${port} is in use: name another with --port, or leave --port out to take any free one`;
+    const stderr = result.stderr.endsWith('\n') ? result.stderr.slice(0, -1) : result.stderr;
+    const lines = stderr.split(/\r?\n/);
+    assert.equal(lines[0], firstLine, 'the original refusal line stays exact');
+    assert.ok(lines.length === 1 || lines.length === 2, 'only the legacy line or exactly one next line is allowed');
+    if (lines.length === 2) {
+      const json = spawnSync(process.execPath, [BIN, 'view', '--no-open', '--port', String(port), '--json'], { cwd: box.dir, env: box.env, encoding: 'utf8', timeout: 20000 });
+      assert.equal(json.status, 1, `JSON reports the same busy-port refusal: ${json.stderr}`);
+      assert.equal(json.stderr, '', 'JSON refusal has no extra stderr text');
+      const document = JSON.parse(json.stdout);
+      assert.equal(document.error.code, 'PORT_BUSY');
+      assert.equal(typeof document.error.next, 'string');
+      assert.ok(lines[1].startsWith('next: '), 'the optional text line has the canonical next label');
+      assert.equal(lines[1].slice('next: '.length), document.error.next, 'the optional text next value is exactly the JSON refusal next step');
+    }
   } finally {
     await new Promise((done) => held.close(done));
   }
@@ -1438,8 +1479,8 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     box.run(alpha.repo, 'pass', '1', 'over to you');
     await page.run('refresh()');
     const passed = `Passed up from web-1: ${question}\nCoordinator note: over to you`;
-    assert.match(page.show('needs'), new RegExp(`^<div class="head"><i></i>Needs you</div><button class="ny" data-go="decide:42" type="button"><code>coordinator</code><span>${passed}</span><em>decide, <time data-ago="[^"]+">now</time> →</em></button>`), 'first in Needs-you: who passed it, what, and since when');
-    assert.match(page.show('decisions'), new RegExp(`^<div class="head"><i></i>Decision needed</div><div class="ask"><p><small><b>coordinator</b> asks, <time data-ago="[^"]+">now</time></small></p><p>${passed}</p><button class="ghost" data-go="decide:42" type="button">Answer</button></div>$`), 'and above the shouts, with an Answer button');
+    assert.match(page.show('needs'), new RegExp(`^<div class="head"><i></i>Needs you</div><div class="ny"><code>coordinator</code><span class="ny-text">${passed.replace('\n', '<br>')}</span><button class="ny-open" data-go="decide:42" type="button"><em>decide, <time data-ago="[^"]+">now</time> →</em></button></div>`), 'first in Needs-you: who passed it, what, and since when');
+    assert.match(page.show('decisions'), new RegExp(`^<div class="head"><i></i>Decision needed</div><div class="ask"><p><small><b>coordinator</b> asks, <time data-ago="[^"]+">now</time></small></p><p>${passed.replace('\n', '<br>')}</p><button class="ghost" data-go="decide:42" type="button">Answer</button></div>$`), 'and above the shouts, with an Answer button');
 
     const form = () => ({
       answering: !page.element('answering').hidden,
@@ -1461,7 +1502,9 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     await page.fire('shout-form', 'submit');
     assert.equal(page.element('console').textContent.split('\n')[0], '$ pullboard answer 42 French, then English --as person', 'the view answers as the person');
     assert.equal(page.element('console').className, 'console ok');
-    assert.match(box.run(alpha.web, 'inbox'), /person -> web-1: answers \\?#1: Person answered \\?#42: French, then English/, 'the answer reaches the agent that asked');
+    const replies = JSON.parse(box.run(alpha.web, 'inbox', '--json')).shouts.filter((shout) => shout.shout_answers === 1);
+    assert.deepEqual(replies.map((shout) => [shout.shout_from, shout.shout_to, shout.shout_answers, shout.shout_text]),
+      [['person', 'web-1', 1, 'Person answered #42: French, then English']], 'the answer reaches the agent that asked');
     assert.deepEqual(form(), { answering: false, who: '', question: '', to: 'web', locked: false, button: 'Shout' }, 'the form is a plain shout again');
     assert.equal(page.element('shout-text').value, '');
     assert.doesNotMatch(page.show('needs'), /decide:/, 'an answered decision leaves Needs-you');
@@ -1496,8 +1539,11 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     await page.fire('shout-form', 'submit');
     assert.deepEqual(form(), plain, 'an answer is never sent to another project');
     assert.equal(page.element('console').textContent.split('\n')[0], '$ pullboard answer 42 French, then English --as person', 'nothing ran');
-    assert.match(box.run(beta.repo, 'decisions', '--as', 'person'), /^#2 {2}coordinator -> person, [^:]+: Passed up from web-1: Beta asks too\?/m, "beta's ask still waits");
-    assert.match(box.run(alpha.repo, 'decisions', '--as', 'person'), /^#46 {2}coordinator -> person, [^:]+: Passed up from web-1: Ship today\?/m, "and so does alpha's");
+    /** Read the still-open decision by stable identity, independently of display-name formatting. */
+    const waiting = (repo, id) => JSON.parse(box.run(repo, 'decisions', '--as', 'person', '--json')).decisions
+      .filter((shout) => shout.shout_id === id).map((shout) => [shout.shout_from, shout.shout_to, shout.shout_text]);
+    assert.deepEqual(waiting(beta.repo, 2), [['coordinator', 'person', 'Passed up from web-1: Beta asks too?\nCoordinator note: yours too']], "beta's ask still waits");
+    assert.deepEqual(waiting(alpha.repo, 46), [['coordinator', 'person', 'Passed up from web-1: Ship today?\nCoordinator note: yours']], "and so does alpha's");
   } finally {
     await view.stop();
   }
@@ -1517,14 +1563,14 @@ test("needs-you holds only the person's calls; the rest show on the board with w
   try {
     const page = await openPage(view);
     const needs = page.show('needs');
-    assert.deepEqual([...needs.matchAll(/<button class="ny" data-go="([^:"]+):[^"]*" type="button"><code>([^<]*)<\/code><span>([^<]*)<\/span>/g)].map((line) => [line[1], line[2], line[3]]), [
+    assert.deepEqual([...needs.matchAll(/<div class="ny"><code>([^<]*)<\/code><span class="ny-text">([^<]*)<\/span><button class="ny-open" data-go="([^:"]+):[^"]*" type="button"><em>/g)].map((line) => [line[3], line[1], line[2]]), [
       ['decide', 'coordinator', 'Launch on Friday?'],
       ['spec', 'G3', 'Greet in French?'],
       ['tab', 'web', 'G3 is open'],
       ['tab', '1', 'draft spec rows to approve or drop'],
     ], "the person's calls, and only those: the decision asked of them, the spec's question, the held lane, the draft row");
     assert.doesNotMatch(needs, /Which colour|Greeting|Farewell/, "an agent's ask, work waiting for a verdict and work sent back are not the person's");
-    assert.match(needs, /<code>web<\/code><span>G3 is open<\/span><em>lane held by coordinator →<\/em>/, 'a held lane says who set it');
+    assert.match(needs, /<code>web<\/code><span class="ny-text">G3 is open<\/span><button class="ny-open" data-go="tab:shouts" type="button"><em>lane held by coordinator →<\/em><\/button>/, 'a held lane says who set it');
 
     // Each of the rest is on the board, with who holds it.
     assert.match(page.show('decisions'), /<div class="head quiet">Waiting on others<\/div><div class="ask other"><p><small><b>web-1<\/b> asks <b>coordinator<\/b>, /, "the agent's ask waits on its coordinator");
@@ -1913,16 +1959,19 @@ test('the doctrine view carries and labels inherited, local, overridden and decl
   }
 });
 
-test('spec rows read across a phone [N26]', async () => {
+test('spec rows read across a phone [N26,D1]', async () => {
   const box = machine();
-  const alpha = project(box, 'alpha');
-  // Its own house rules: a fresh init may write PRACTICE.md with none.
-  writeFileSync(join(alpha.repo, 'PRACTICE.md'), '# Practice\n\n## W · Writing\n- W1 [approved, must] Numbers over adjectives. No hedges, no filler. | gate: review\n- W2 [draft, aim] One record per decision. | gate: review\n');
+  const alpha = project(box, 'alpha', SPEC, { practice: 'DOCTRINE.md' });
+  // Its own house rules follow the doctrine file named by this repo's config.
+  writeFileSync(join(alpha.repo, loadConfig(alpha.repo).practice), '# Practice\n\n## W · Writing\n- W1 [approved, must] Numbers over adjectives. No hedges, no filler. | gate: review\n- W2 [draft, aim] One record per decision. | gate: review\n');
   const view = await startView(box);
   try {
     const page = await openPage(view, { width: 375 });
+    const doctrineRows = page.show('doctrine-list');
+    assert.match(doctrineRows, /data-row="doctrine:W1"[^]*?Numbers over adjectives\./, 'W1 from the configured doctrine is shown');
+    assert.match(doctrineRows, /data-row="doctrine:W2"[^]*?One record per decision\./, 'W2 from the configured doctrine is shown');
     const style = await styleOf(view);
-    assert.match(style, /\n\.srow \{ display: grid; grid-template-columns: 4\.4em 6\.2em minmax\(0, 1fr\);/, 'wider, a row keeps its three columns');
+    assert.match(style, /\n\.srow \{ display: grid; grid-template-columns: 4\.4em minmax\(6\.2em, max-content\) minmax\(0, 1fr\);/, 'wider, a row keeps its three columns');
     const phone = /\n@media ([^{]+) \{ \.srow \{ grid-template-columns: auto minmax\(0, 1fr\); \} \.srow > span:last-child \{ grid-column: 1 \/ -1; \} \}\n/.exec(style);
     assert.ok(phone, 'on a phone the text takes the full width below the id and status');
     assert.equal(phone[1], '(width < 480px)', 'under 480px only: at 480px itself the three columns stay');
@@ -2101,7 +2150,7 @@ test('activity names the item each event moved [N26]', async () => {
     for (const row of about) assert.match(row, /type="button">#1<\/button> <span class="what">Greeting &lt;b&gt;bold&lt;\/b&gt;<\/span><\/div>/, 'the escaped title follows the link');
     const joins = rows.filter((row) => /<\/b> join<\/div>/.test(row));
     assert.ok(joins.length > 0 && joins.every((row) => !row.includes('class="what"')), 'an event about no item names none');
-    assert.match(await styleOf(view), /\.feed \.act \.what \{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/, 'a long title keeps to one line');
+    assert.match(await styleOf(view), /\.feed \.act \.what \{ flex: 1 1 auto; min-width: 0; overflow-wrap: break-word;/, 'activity titles wrap at words and permit an overflowing token to break');
   } finally {
     await view.stop();
   }
@@ -2115,9 +2164,9 @@ test('needs-you lines keep their titles on a phone [N26]', async () => {
     const page = await openPage(view, { width: 375 });
     const style = await styleOf(view);
     assert.match(style, /\n\.ny \{ display: grid; grid-template-columns: auto minmax\(5em, 1fr\) minmax\(0, max-content\);/, 'wider, a line keeps its single row');
-    assert.match(style, /\n@media \(width < 480px\) \{ \.ny \{ grid-template-columns: auto minmax\(0, 1fr\); row-gap: 1px; \} \.ny em \{ grid-column: 2; \} \}\n/, 'under 480px, what it needs moves under the title');
-    // The rule works because each line is the ref, then the title, then what it needs.
-    assert.match(page.show('needs'), /<button class="ny" data-go="spec:G3" type="button"><code>G3<\/code><span>Should a greeting with a title long enough to need the room wrap\?<\/span><em>answer in SPEC\.md →<\/em><\/button>/);
+    assert.match(style, /\n@media \(width < 480px\) \{ \.ny \{ grid-template-columns: auto minmax\(0, 1fr\); row-gap: 1px; \} \.ny \.ny-open \{ grid-column: 2; \} \}\n/, 'under 480px, the action moves under the text');
+    // The row keeps its reference, text and action in three columns.
+    assert.match(page.show('needs'), /<div class="ny"><code>G3<\/code><span class="ny-text">Should a greeting with a title long enough to need the room wrap\?<\/span><button class="ny-open" data-go="spec:G3" type="button"><em>answer in SPEC\.md →<\/em><\/button><\/div>/);
   } finally {
     await view.stop();
   }
@@ -2179,25 +2228,58 @@ function browserPause(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Start Chrome, retry once, and wait for its DevTools port before giving up. */
+async function startSnapshotChrome(executable, profile, { timeoutMs = 30_000 } = {}) {
+  const args = ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
+    '--disable-background-networking', '--disable-sync', '--disable-extensions', '--no-proxy-server',
+    '--use-mock-keychain', '--password-store=basic', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'];
+  let lastFailure = '';
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    if (attempt > 1) rmSync(join(profile, 'DevToolsActivePort'), { force: true });
+    const child = spawn(executable, args, { detached: true, stdio: ['ignore', 'ignore', 'pipe'] });
+    const stopped = new Promise((resolve) => child.once('close', (code, signal) => resolve({ code, signal })));
+    let stderr = '';
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk) => { stderr = `${stderr}${chunk}`.slice(-8_192); });
+    let exit;
+    const deadline = Date.now() + timeoutMs;
+    let port;
+    while (Date.now() < deadline) {
+      try {
+        const candidate = readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0].trim();
+        if (/^\d+$/.test(candidate) && child.exitCode === null && child.signalCode === null) {
+          port = candidate;
+          break;
+        }
+      } catch { /* Chrome has not published its port yet. */ }
+      const remaining = Math.max(1, deadline - Date.now());
+      exit = await Promise.race([
+        stopped.then((status) => ({ status })),
+        browserPause(Math.min(100, remaining)).then(() => null),
+      ]);
+      if (exit) break;
+    }
+    if (port) return { child, stopped, port, stderr: () => stderr };
+    const details = [stderr.trim(), exit?.status?.signal && `signal ${exit.status.signal}`,
+      exit?.status && exit.status.code !== null && `exit ${exit.status.code}`].filter(Boolean).join('; ') || 'no stderr';
+    lastFailure = exit
+      ? `Chrome exited before publishing DevToolsActivePort (${details})`
+      : `Chrome did not publish DevToolsActivePort within ${timeoutMs}ms (${details})`;
+    await stopOwnedChrome(child, stopped);
+  }
+  throw new Error(`Chrome failed to start after 2 launches; final stderr: ${lastFailure}`);
+}
+
 /** Start one isolated headless Chrome and expose its page through a small CDP client. */
 async function openSnapshotChrome(executable, url, profile) {
-  const child = spawn(executable, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
-    '--disable-background-networking', '--disable-sync', '--disable-extensions', '--no-proxy-server',
-    '--use-mock-keychain', '--password-store=basic', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'],
-  { detached: true, stdio: ['ignore', 'ignore', 'ignore'] });
-  const stopped = new Promise((resolve) => child.once('close', resolve));
+  const launched = await startSnapshotChrome(executable, profile);
+  const { child, stopped, port } = launched;
   let socket;
   let id = 0;
   const pending = new Map();
   const requests = [];
   const exceptions = [];
   try {
-    let port;
-    for (let attempt = 0; attempt < 100 && !port; attempt++) {
-      try { port = readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0]; }
-      catch { await browserPause(100); }
-    }
-    assert.ok(port, 'isolated Chrome publishes its DevTools port');
     const target = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT', signal: AbortSignal.timeout(10_000) })).json();
     socket = new WebSocket(target.webSocketDebuggerUrl);
     await new Promise((resolve, reject) => {
@@ -2249,7 +2331,8 @@ async function openSnapshotChrome(executable, url, profile) {
   } catch (error) {
     socket?.close();
     await stopOwnedChrome(child, stopped);
-    throw error;
+    const chromeStderr = launched.stderr().trim();
+    throw new Error(chromeStderr ? `${error.message}; Chrome stderr: ${chromeStderr}` : error.message, { cause: error });
   }
 }
 
@@ -2275,6 +2358,62 @@ async function closeSnapshotChrome(chrome) {
   chrome.socket.close();
   await stopOwnedChrome(chrome.child, chrome.stopped);
 }
+
+test('Chrome startup waits past the old timeout, retries once, and reports final stderr [N26,A10]', { timeout: 45_000 }, async () => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-chrome-launch-')));
+  scratch.push(dir);
+  const profile = join(dir, 'slow-profile');
+  mkdirSync(profile);
+  const attempts = join(dir, 'slow-attempts');
+  const delayed = join(dir, 'delayed-chrome');
+  writeFileSync(delayed, `#!/usr/bin/env node
+const { readFileSync, writeFileSync, writeSync, mkdirSync } = require('node:fs');
+const { dirname, join } = require('node:path');
+const profile = process.argv.find((arg) => arg.startsWith('--user-data-dir=')).slice('--user-data-dir='.length);
+const attempts = join(dirname(profile), 'slow-attempts');
+let count = 0;
+try { count = Number(readFileSync(attempts, 'utf8')); } catch {}
+writeFileSync(attempts, String(++count));
+if (count === 1) { writeSync(2, 'first Chrome launch failed\\n'); process.exit(17); }
+setTimeout(() => {
+  mkdirSync(profile, { recursive: true });
+  writeFileSync(join(profile, 'DevToolsActivePort'), '9333\\n/devtools/browser/fake\\n');
+  setInterval(() => {}, 1000);
+}, 10_100);
+`);
+  chmodSync(delayed, 0o755);
+  const started = Date.now();
+  const chrome = await startSnapshotChrome(delayed, profile);
+  try {
+    assert.ok(Date.now() - started > 10_000, 'the helper waits beyond its former ten-second limit');
+    assert.equal(chrome.port, '9333');
+    assert.equal(readFileSync(attempts, 'utf8'), '2', 'the failed first launch is retried exactly once');
+  } finally {
+    await stopOwnedChrome(chrome.child, chrome.stopped);
+  }
+
+  const failedAttempts = join(dir, 'failed-attempts');
+  const failureProfile = join(dir, 'failure-profile');
+  mkdirSync(failureProfile);
+  const failing = join(dir, 'failing-chrome');
+  writeFileSync(failing, `#!/usr/bin/env node
+const { readFileSync, writeFileSync, writeSync } = require('node:fs');
+const { dirname, join } = require('node:path');
+const profile = process.argv.find((arg) => arg.startsWith('--user-data-dir=')).slice('--user-data-dir='.length);
+const attempts = join(dirname(profile), 'failed-attempts');
+let count = 0;
+try { count = Number(readFileSync(attempts, 'utf8')); } catch {}
+writeFileSync(attempts, String(++count));
+writeSync(2, 'Chrome final stderr marker\\n');
+process.exit(19);
+`);
+  chmodSync(failing, 0o755);
+  let failure;
+  try { await startSnapshotChrome(failing, failureProfile); }
+  catch (error) { failure = error; }
+  assert.match(failure?.message ?? '', /Chrome final stderr marker/, 'a real launch failure includes Chrome stderr');
+  assert.equal(readFileSync(failedAttempts, 'utf8'), '2', 'the failed launch is retried exactly once');
+});
 
 test('static export stays in its prefix and replays read-only in Chrome [A10,A3]', { timeout: 90_000 }, async (t) => {
   const executable = chromeExecutable();
@@ -2542,7 +2681,221 @@ test('served connection reaches an authenticated API on another origin and path 
   }
 });
 
-test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N27]', { timeout: 120_000 }, async (t) => {
+test('read-only pages use a local browser transport and refresh on its updates [N26,N27]', { timeout: 90_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to run the browser transport proof.');
+
+  const box = machine();
+  const app = project(box, 'read only transport');
+  box.run(app.repo, 'add', 'web', 'Read-only fixture item', '--specs', 'G1', '--criterion', 'keeps action controls in the DOM');
+  box.run(app.repo, 'shout', 'person', 'Should the read-only fixture ship?', '--decision');
+  box.run(app.repo, 'hold', 'web', '--reason', 'read-only fixture hold');
+  const live = await startView(box);
+  const pageKey = 'page-relay-secret';
+  const headerKey = 'header-relay-secret';
+  const page = cockpitPage(pageKey, {
+    readOnly: true,
+    transportModule: '/transport.js',
+    apiBase: 'https://private.invalid/board?secret=api-base-secret',
+    apiHeaders: { 'x-pullboard-key': headerKey },
+    stylesheet: '/view.css',
+  });
+  for (const secret of [pageKey, headerKey, 'api-base-secret']) assert.equal(page.includes(secret), false, 'custom transport page options do not expose API credentials');
+  assert.throws(() => cockpitPage('', { transportModule: '' }), /transportModule/);
+
+  const forwarded = [];
+  const moduleSource = `export async function createTransport({ onUpdate }) {
+    window.__transportCalls = [];
+    window.__transportUpdate = onUpdate;
+    return { async request(path, body) {
+      window.__transportCalls.push({ path, body: body ?? null });
+      const response = await fetch('/fixture' + path, { method: body ? 'POST' : 'GET', headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+      const document = await response.json();
+      if (!response.ok) throw new Error(document.error?.message || String(response.status));
+      return document;
+    } };
+  }`;
+  const server = createServer((request, response) => {
+    const url = new URL(request.url, 'http://127.0.0.1');
+    if (url.pathname === '/' || url.pathname === '/missing') {
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      response.end(page);
+      return;
+    }
+    if (url.pathname === '/transport.js') {
+      response.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
+      response.end(moduleSource);
+      return;
+    }
+    if (url.pathname === '/view.css') {
+      response.writeHead(200, { 'content-type': 'text/css; charset=utf-8' });
+      response.end(readFileSync(new URL('../src/view.css', import.meta.url), 'utf8'));
+      return;
+    }
+    if (!url.pathname.startsWith('/fixture/')) {
+      response.writeHead(404).end();
+      return;
+    }
+    const target = url.pathname.slice('/fixture'.length) + url.search;
+    const headers = { 'x-pullboard-key': live.key };
+    if (request.method !== 'GET') {
+      forwarded.push(request.method);
+      response.writeHead(405, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'fixture transport accepts reads only' }));
+      return;
+    }
+    forwarded.push(request.method);
+    fetch(live.base + target, { headers }).then(async (reply) => {
+      response.writeHead(reply.status, { 'content-type': 'application/json' });
+      response.end(await reply.text());
+    }).catch((error) => {
+      response.writeHead(502, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ error: String(error.message || error) }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-transport-chrome-'));
+  scratch.push(profile);
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, `http://127.0.0.1:${address.port}/`, profile);
+    await chrome.waitFor("typeof data === 'object' && document.body?.classList.contains('read-only') && !!data?.project && typeof window.__transportUpdate === 'function'");
+    const calls = JSON.parse(await chrome.evaluate('JSON.stringify(window.__transportCalls)'));
+    assert.ok(calls.some((call) => call.path === '/api/v1/boards'));
+    assert.ok(calls.some((call) => call.path.startsWith('/api/v1/boards/') && call.path.endsWith('/state')));
+    assert.match(await chrome.evaluate("document.querySelector('#live').textContent"), /^live · /, 'read-only transport keeps the page live');
+    const actionSelectors = ['#new-item', '#add-form', '#shout-form', '#hold-form', '[data-release]', '[data-shout]', '[data-new]', '[data-go^="decide:"]'];
+    const actionMatches = JSON.parse(await chrome.evaluate(`JSON.stringify(${JSON.stringify(actionSelectors)}.map((selector) => ({ selector, count: document.querySelectorAll(selector).length, visible: [...document.querySelectorAll(selector)].some((node) => !node.hidden && getComputedStyle(node).display !== 'none') })))`));
+    assert.ok(actionMatches.every((entry) => entry.count > 0), 'the seeded item, decision and hold exercise every action selector');
+    assert.deepEqual(actionMatches.filter((entry) => entry.visible).map((entry) => entry.selector), [], 'read-only mode hides every match for every action control');
+
+    const refusedAction = JSON.parse(await chrome.evaluate(`(async () => JSON.stringify({ result: await act('shout', { to: 'all', text: 'blocked' }), message: document.querySelector('#console').textContent }))()`));
+    assert.equal(refusedAction.result, false);
+    assert.match(refusedAction.message, /read-only/i);
+    const refusedApi = await chrome.evaluate(`(async () => { try { await api('/api/v1/boards/demo/moves', { verb: 'shout' }); return 'unexpected success'; } catch (error) { return error.message; } })()`);
+    assert.match(refusedApi, /read-only/i, 'direct API mutation calls are refused before transport');
+    assert.ok(forwarded.every((method) => method === 'GET'), 'read-only action attempts send no write through the transport');
+
+    await chrome.evaluate(`window.__samePage = true; Object.defineProperty(document, 'hidden', { configurable: true, get: () => true })`);
+    box.run(app.repo, 'add', 'web', 'Transport refresh item', '--specs', 'G1', '--criterion', 'appears after a transport update');
+    await chrome.evaluate('window.__transportUpdate()');
+    assert.equal(await chrome.evaluate("data?.project?.items.some((item) => item.title === 'Transport refresh item') && window.__samePage === true"), true, 'onUpdate refreshes state in the same page without relying on the poll');
+    assert.ok(forwarded.every((method) => method === 'GET'), 'transport update refreshed through reads only');
+
+  } finally {
+    if (chrome) {
+      chrome.socket.close();
+      await stopOwnedChrome(chrome.child, chrome.stopped);
+    }
+    await live.stop();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('a configured transport never falls back while loading or after import failure [N26,N27]', { timeout: 90_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for the transport startup proof.');
+
+  const box = machine();
+  const demo = project(box, 'transport-startup');
+  box.run(demo.repo, 'add', 'web', 'Transport startup item', '--specs', 'G1', '--criterion', 'loads through the configured transport');
+  const live = await startView(box);
+  const slowPage = cockpitPage('', { transportModule: '/slow-transport.js' });
+  const failedPage = cockpitPage('', { transportModule: '/failed-transport.js' });
+  const localRequests = [];
+  const relayRequests = [];
+  let slowModuleRequested;
+  const requested = new Promise((resolve) => { slowModuleRequested = resolve; });
+  let releaseSlowModule;
+  const slowModuleBarrier = new Promise((resolve) => { releaseSlowModule = resolve; });
+  const transportSource = `export async function createTransport() {
+    window.__transportReady = true;
+    window.__transportCalls = [];
+    return { async request(path, body) {
+      window.__transportCalls.push(path);
+      const response = await fetch('/relay' + path, { method: body ? 'POST' : 'GET', body: body ? JSON.stringify(body) : undefined });
+      return response.json();
+    } };
+  }`;
+  const server = createServer(async (request, response) => {
+    const url = new URL(request.url, 'http://127.0.0.1');
+    if (url.pathname === '/slow' || url.pathname === '/failed') {
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      response.end(url.pathname === '/slow' ? slowPage : failedPage);
+      return;
+    }
+    if (url.pathname === '/slow-transport.js') {
+      slowModuleRequested();
+      await slowModuleBarrier;
+      response.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
+      response.end(transportSource);
+      return;
+    }
+    if (url.pathname === '/failed-transport.js') {
+      response.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
+      response.end("throw new Error('fixture transport import failed');");
+      return;
+    }
+    if (url.pathname === '/view.css') {
+      response.writeHead(200, { 'content-type': 'text/css; charset=utf-8' });
+      response.end(readFileSync(new URL('../src/view.css', import.meta.url), 'utf8'));
+      return;
+    }
+    if (url.pathname.startsWith('/relay/')) {
+      const path = url.pathname.slice('/relay'.length) + url.search;
+      relayRequests.push(path);
+      try {
+        const reply = await fetch(live.base + path, { headers: { 'x-pullboard-key': live.key } });
+        response.writeHead(reply.status, { 'content-type': 'application/json' });
+        response.end(await reply.text());
+      } catch (error) {
+        response.writeHead(502, { 'content-type': 'application/json' });
+        response.end(JSON.stringify({ error: String(error.message || error) }));
+      }
+      return;
+    }
+    if (url.pathname.startsWith('/api/v1/')) {
+      localRequests.push(url.pathname);
+      response.writeHead(503, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ error: { code: 'LOCAL_FALLBACK', message: 'the page-local API must not be used' } }));
+      return;
+    }
+    response.writeHead(404).end();
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-transport-startup-chrome-'));
+  let chrome;
+  try {
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    chrome = await openSnapshotChrome(executable, `${origin}/slow`, profile);
+    await requested;
+    const loadingCall = await chrome.evaluate("api('/api/v1/boards').then(() => 'unexpected success', error => error.message)");
+    assert.match(loadingCall, /transport.*loading/i, 'direct API calls refuse while the configured module is loading');
+    await browserPause(3200);
+    assert.equal(await chrome.evaluate('window.__transportReady === true'), false, 'the delayed module is still loading during the proof');
+    assert.deepEqual(localRequests, [], 'neither direct reads nor the poll fall back while loading');
+
+    releaseSlowModule();
+    await chrome.waitFor('window.__transportReady === true && !!data?.project');
+    assert.ok(relayRequests.includes('/api/v1/boards'), 'the initial board read uses the configured transport');
+    assert.deepEqual(localRequests, [], 'loading the configured module never touched the page-local API');
+
+    await chrome.send('Page.navigate', { url: `${origin}/failed` });
+    await chrome.waitFor("document.querySelector('#live').textContent.includes('fixture transport import failed')");
+    await browserPause(3200);
+    assert.match(await chrome.evaluate("document.querySelector('#live').textContent"), /cannot reach the view: fixture transport import failed/,
+      'the original module error remains visible after later poll intervals');
+    assert.deepEqual(localRequests, [], 'a failed import also disables page-local polling');
+  } finally {
+    releaseSlowModule();
+    if (chrome) await closeSnapshotChrome(chrome);
+    await live.stop();
+    await new Promise((resolve) => server.close(resolve));
+    rmSync(profile, { recursive: true, force: true });
+  }
+});
+
+test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N26,N27]', { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for viewport checks.');
 
@@ -2550,6 +2903,8 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N
   const demo = project(box, 'phone-demo');
   const other = project(box, 'other-demo');
   box.run(demo.repo, 'add', 'web', 'Starter item', '--specs', 'G1', '--criterion', 'visible in the detail pane');
+  const wrapTitle = 'word boundary test ' + 'abcdef0123456789'.repeat(12);
+  box.run(demo.repo, 'add', 'web', wrapTitle, '--specs', 'G1', '--criterion', 'the activity title wraps without splitting words');
   box.run(demo.repo, 'shout', 'person', 'Should the phone demo ship?', '--decision');
   box.run(demo.web, 'shout', 'coordinator', 'Should this waiting ask span the full row?', '--decision');
   const view = await startView(box);
@@ -2567,8 +2922,17 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N
     });
     await chrome.send('Log.enable');
 
+    /** Wait for every matching element to render before using its geometry [N26]. */
+    const waitRendered = (selectors) => chrome.waitFor(`(() => {
+      const groups = ${JSON.stringify(selectors)}.map(selector => [...document.querySelectorAll(selector)]);
+      return groups.every(elements => elements.length > 0 && elements.every(element => {
+        const style = getComputedStyle(element), rect = element.getBoundingClientRect();
+        return !element.closest('[hidden]') && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+      }));
+    })()`);
     /** Click the actual control through Chrome input coordinates. */
     const click = async (selector) => {
+      await waitRendered([selector]);
       const point = JSON.parse(await chrome.evaluate(`(() => {
         const e=document.querySelector(${JSON.stringify(selector)});
         if(!e) throw Error('missing '+${JSON.stringify(selector)});
@@ -2589,17 +2953,25 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N
     /** Resize Chrome and wait for the board layout. */
     const setViewport = async (width) => {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      await chrome.waitFor(`innerWidth === ${width} && document.readyState === 'complete' && !!document.querySelector('#chain .row')`);
+      await chrome.waitFor(`innerWidth === ${width} && document.readyState === 'complete'`);
+      await waitRendered(['[data-pane]:not([hidden])']);
     };
     /** Read actual visible target sizes and document geometry. */
-    const snapshot = async () => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+    const snapshot = async () => {
+      await waitRendered(['[data-pane]:not([hidden])']);
+      return JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
       const visible=e=>{const s=getComputedStyle(e),r=e.getBoundingClientRect();return !e.disabled&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&r.width>0&&r.height>0&&!e.closest('[hidden]')};
       const selector='button,a[href],input:not([type=hidden]),select,textarea,[role=button],[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-release],[data-shout],[data-new],[data-code]';
-      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),width:r.width,height:r.height}});
+      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,inlineReference:e.matches('.feed button.ref, .ask button.ref, .detail button.ref')||!!e.closest('#chain .meta .gate, #detail .kv dd.waits-on')}});
+      const notice=document.querySelector('#console');
+      const noticeBox=visible(notice)?notice.getBoundingClientRect():null;
+      const toast=noticeBox?{x:noticeBox.x,y:noticeBox.y,right:noticeBox.right,bottom:noticeBox.bottom,visible:noticeBox.y>=0&&noticeBox.bottom<=innerHeight,
+        overlaps:controls.filter(c=>c.x<noticeBox.right&&c.right>noticeBox.x&&c.y<noticeBox.bottom&&c.bottom>noticeBox.y).map(c=>c.id||c.text)}:null;
       return {width:innerWidth,clientWidth:document.documentElement.clientWidth,documentWidth:document.documentElement.scrollWidth,bodyWidth:document.body.scrollWidth,
         projectList:visible(document.querySelector('#proj-list')),needs:visible(document.querySelector('#needs')),
-        detail:visible(document.querySelector('#detail')),controls};
+        detail:visible(document.querySelector('#detail')),controls,toast};
     })())`));
+    };
     /** Check document and body overflow against the actual layout viewport, excluding its scrollbar. */
     const fitsViewport = (layout) => layout.documentWidth <= layout.clientWidth && layout.bodyWidth <= layout.clientWidth;
     /** Assert the current pane fits and all its controls remain touchable. */
@@ -2607,8 +2979,10 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N
       const layout = await snapshot();
       assert.ok(fitsViewport(layout),
         `${width} ${place}: no horizontal overflow: ${JSON.stringify(layout)}`);
-      const short = layout.controls.filter((control) => control.height < 44);
+      const short = layout.controls.filter((control) => control.height < 44 && !control.inlineReference);
       assert.deepEqual(short, [], `${width} ${place}: visible enabled actions are at least 44px high: ${JSON.stringify(short)}`);
+      if (layout.toast) assert.deepEqual(layout.toast.overlaps, [], `${width} ${place}: the result toast clears every visible control: ${JSON.stringify(layout.toast)}`);
+      if (place === 'successful add toast') assert.equal(layout.toast?.visible, true, `${width}: the successful action toast remains in the viewport: ${JSON.stringify(layout.toast)}`);
     };
 
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -2619,6 +2993,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N
         await chrome.waitFor("document.querySelector('#needs').innerText.includes('Should the desktop demo ship?')", 15_000);
       }
       await setViewport(width);
+      await click('[data-tab="items"]');
       if (width <= 900) {
         await click('#proj-switch');
         await chrome.waitFor("getComputedStyle(document.querySelector('#proj-list')).display !== 'none'");
@@ -2637,7 +3012,37 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N
       for (const tab of ['shouts', 'spec', 'doctrine', 'activity']) {
         await click(`[data-tab="${tab}"]`);
         await checkLayout(width, `${tab} tab`);
+        if (tab === 'spec') {
+          await waitRendered(['#spec-chips button']);
+          const chips = JSON.parse(await chrome.evaluate(`JSON.stringify([...document.querySelectorAll('#spec-chips button')].map(button => {
+            const clone=button.cloneNode(true); clone.style.cssText += ';position:fixed;visibility:hidden;width:max-content;flex:none'; button.parentElement.append(clone);
+            const naturalWidth=clone.getBoundingClientRect().width, actualWidth=button.getBoundingClientRect().width; clone.remove();
+            return {text:button.textContent.trim(),actualWidth,naturalWidth};
+          }))`));
+          assert.ok(chips.length >= 2, `${width}: spec filters render as chips`);
+          for (const chip of chips) assert.ok(Math.abs(chip.actualWidth - chip.naturalWidth) < 2, `${width}: ${chip.text} keeps its natural width: ${JSON.stringify(chip)}`);
+        }
+        if (tab === 'activity') {
+          await chrome.waitFor(`(() => {
+            const element = [...document.querySelectorAll('#activity .what')].find(node => node.textContent === ${JSON.stringify(wrapTitle)});
+            return element?.getBoundingClientRect().width > 0 && element.firstChild?.nodeType === Node.TEXT_NODE;
+          })()`);
+          const wrap = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+            const element=[...document.querySelectorAll('#activity .what')].find(node=>node.textContent===${JSON.stringify(wrapTitle)});
+            if(!element) return null;
+            const text=element.firstChild, ranges=(word)=>{const start=text.textContent.indexOf(word),range=document.createRange();range.setStart(text,start);range.setEnd(text,start+word.length);return [...range.getClientRects()].map(rect=>({x:rect.x,y:rect.y,width:rect.width}));};
+            const lines=(rects)=>new Set(rects.map(rect=>Math.round(rect.y))).size;
+            return {width:element.clientWidth,height:element.getBoundingClientRect().height,wordLines:lines(ranges('boundary')),tokenLines:lines(ranges('abcdef0123456789'.repeat(12)))};
+          })())`));
+          assert.ok(wrap, `${width}: the activity feed shows the long item title`);
+          assert.equal(wrap.wordLines, 1, `${width}: a normal word stays together at a line boundary: ${JSON.stringify(wrap)}`);
+          assert.ok(wrap.tokenLines > 1, `${width}: only the overflowing unbroken token splits: ${JSON.stringify(wrap)}`);
+        }
         if (tab === 'shouts') {
+          await waitRendered([
+            '#decisions .ask.other', '#decisions .ask.other p:first-child', '#decisions .ask.other p:nth-child(2)',
+            '#decisions .ask:not(.other) p:first-child', '#decisions .ask:not(.other) button',
+          ]);
           const asks = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
             const waiting = document.querySelector('#decisions .ask.other');
             const waitingMeta = waiting?.querySelector('p:first-child');
@@ -2671,8 +3076,10 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N
       await fill('#add-lane', 'web');
       await fill('#add-title', `Phone item ${width}`);
       await fill('#add-specs', 'G1');
-      await submit('#add-form');
+      await click('#add-form button[type="submit"]');
       await chrome.waitFor(`document.querySelector('#chain').innerText.includes('Phone item ${width}')`);
+      await chrome.waitFor("document.querySelector('#console.ok') && document.querySelector('#console').textContent.includes('added #')");
+      await checkLayout(width, 'successful add toast');
 
       await click('[data-tab="shouts"]');
       await checkLayout(width, 'shout and hold forms');
@@ -2681,6 +3088,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N
       await submit('#shout-form');
       await chrome.waitFor(`document.querySelector('#feed').innerText.includes('Phone shout ${width}')`);
 
+      await chrome.waitFor("!!document.querySelector('#decisions [data-go]')");
       const decision = await chrome.evaluate("document.querySelector('#decisions [data-go]')?.getAttribute('data-go')");
       assert.ok(decision, `${width}: a decision is offered for answer`);
       await click(`#decisions [data-go="${decision}"]`);
@@ -2732,6 +3140,138 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [N26,N
   }
 });
 
+test('real Chrome records Spec row decisions from the row, detail and confirmed section controls [B26,N26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for Spec decision checks.');
+
+  /** Click a visible control through Chrome's input path without scrolling the result away. */
+  const click = async (chrome, selector) => {
+    const point = JSON.parse(await chrome.evaluate(`(() => {
+      const e = document.querySelector(${JSON.stringify(selector)});
+      if (!e) throw Error('missing ' + ${JSON.stringify(selector)});
+      e.scrollIntoView({block:'center'});
+      const r = e.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0 || r.top < 0 || r.bottom > innerHeight) throw Error('control is not visible: ' + ${JSON.stringify(selector)});
+      return JSON.stringify({x:r.x+r.width/2,y:r.y+r.height/2});
+    })()`));
+    await chrome.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
+    await chrome.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
+    await chrome.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
+  };
+
+  /** Run the full decision story in a fresh real board and browser at one viewport width. */
+  const runWidth = async (width) => {
+    const rows = Array.from({ length: 29 }, (_, index) => `- G${index + 1} [draft, must] Goal ${index + 1}. | gate: web test`);
+    const spec = `# Decisions\n\n## G · Goals\n${rows.join('\n')}\n\n## K · Follow-up\n- K1 [draft, must] Follow-up one. | gate: web test\n- K2 [draft, must] Follow-up two. | gate: web test\n`;
+    const box = machine();
+    const demo = project(box, `spec-decisions-${width}`, spec);
+    const view = await startView(box);
+    const profile = mkdtempSync(join(tmpdir(), `pullboard-spec-decisions-${width}-`));
+    let chrome;
+    try {
+      chrome = await openSnapshotChrome(executable, view.link.href, profile);
+      await chrome.waitFor("typeof data === 'object' && !!data && !!data.project");
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.evaluate("document.querySelector('[data-tab=spec]').click()");
+      await chrome.waitFor(`innerWidth === ${width} && !!document.querySelector('#spec-list [data-row="spec:G1"]')`);
+      await chrome.evaluate("document.querySelector('#spec-chips [data-rows=\"spec:all\"]').click()");
+      await chrome.waitFor("document.querySelector('#spec-list [data-row=\"spec:G2\"]') && document.querySelector('#count-spec').textContent === '31'");
+
+      const geometry = JSON.parse(await chrome.evaluate(`JSON.stringify({
+        overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        controls: [...document.querySelectorAll('#spec-list button[data-row-decision],#spec-list button[data-section-approve]')].map(e=>({height:e.getBoundingClientRect().height})),
+        rows: [...document.querySelectorAll('#spec-list .srow')].map(row=>{
+          const chip=row.querySelector(':scope > span:nth-child(2) .chip');
+          const text=row.querySelector(':scope > span:nth-child(3)');
+          if (!chip || !text) return {id:row.dataset.row, missing:true};
+          const a=chip.getBoundingClientRect(), b=text.getBoundingClientRect();
+          return {id:row.dataset.row, intersects:a.right>b.left && a.left<b.right && a.bottom>b.top && a.top<b.bottom};
+        })
+      })`));
+      assert.equal(geometry.overflow, false, `${width}: Spec has no horizontal overflow`);
+      assert.deepEqual(geometry.controls.filter((control) => control.height < 44), [], `${width}: row and section controls meet the 44px target`);
+      assert.deepEqual(geometry.rows.filter((row) => row.missing), [], `${width}: row status and text are present for every fixture row`);
+      if (width === 1280) assert.deepEqual(geometry.rows.filter((row) => row.intersects), [], '1280: stage chips never cover row text');
+
+      await chrome.evaluate("document.querySelector('#spec-list [data-row=\"spec:G2\"]').click()");
+      await chrome.waitFor("document.querySelector('#spec-detail h2 span')?.textContent === 'G2'");
+      assert.ok(await chrome.evaluate("document.querySelector('#spec-detail [data-row-decision=approve]') && document.querySelector('#spec-detail [data-row-decision=decline]')"), `${width}: selected G2 has both detail decisions`);
+      await click(chrome, '#spec-list [data-row="spec:G1"] [data-row-decision="approve"]');
+      await chrome.waitFor("!!document.querySelector('.spec-feedback.ok,.spec-feedback.no')");
+      let state = await boardOf(view, demo.repo);
+      assert.equal(state.spec.find((row) => row.id === 'G1')?.stage, 'approved, pending apply', `${width}: clicked G1 is approved`);
+      assert.equal(state.spec.find((row) => row.id === 'G2')?.decision, undefined, `${width}: selecting G2 does not redirect the clicked G1 decision`);
+      assert.ok(await chrome.evaluate(`(() => { const e=document.querySelector('#spec-list [data-row="spec:G2"]'); const r=e.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; })()`), `${width}: next undecided G2 stays in the viewport after G1 approval`);
+      assert.equal(await chrome.evaluate("document.querySelector('#count-spec').textContent"), '30', `${width}: Spec badge excludes the decided row`);
+      if (width === 1280) assert.ok(await chrome.evaluate(`(() => {
+        const row=document.querySelector('#spec-list [data-row="spec:G1"]');
+        const chip=row.querySelector(':scope > span:nth-child(2) .chip').getBoundingClientRect();
+        const text=row.querySelector(':scope > span:nth-child(3)').getBoundingClientRect();
+        return chip.right <= text.left || chip.bottom <= text.top || chip.top >= text.bottom;
+      })()`), '1280: the approved pending stage does not cover row text');
+
+      await chrome.evaluate("document.querySelector('#spec-chips [data-rows=\"spec:decide\"]').click()");
+      assert.equal(await chrome.evaluate("!!document.querySelector('#spec-list [data-row=\"spec:G1\"]')"), false, `${width}: approval immediately leaves Needs your decision`);
+      await chrome.evaluate("document.querySelector('#spec-chips [data-rows=\"spec:all\"]').click()");
+
+      await click(chrome, '#spec-detail [data-row-decision="decline"]');
+      assert.ok(await chrome.evaluate("!document.querySelector('#spec-decline-dialog').hidden && document.querySelector('#spec-decline-title').textContent === 'Decline G2'"), `${width}: G2 decline opens the reason form`);
+      assert.ok(await chrome.evaluate("[...document.querySelectorAll('#spec-decline-dialog input,#spec-decline-dialog button')].every(e => e.getBoundingClientRect().height >= 44)"), `${width}: decline reason and controls meet the 44px target`);
+      await click(chrome, '#spec-decline-cancel');
+      state = await boardOf(view, demo.repo);
+      assert.equal(state.events.filter((event) => event.event_kind === 'row_decision').length, 1, `${width}: cancelling decline records no event`);
+      assert.equal(state.spec.find((row) => row.id === 'G2')?.decision, undefined, `${width}: cancelling leaves G2 undecided`);
+
+      await click(chrome, '#spec-detail [data-row-decision="decline"]');
+      await chrome.evaluate("document.querySelector('#spec-decline-reason').value = 'Needs a clearer outcome'");
+      box.run(demo.repo, 'shout', 'person', `refresh probe ${width}`);
+      await chrome.waitFor(`data.project.shouts.some(shout => shout.shout_text === 'refresh probe ${width}')`);
+      assert.equal(await chrome.evaluate("document.querySelector('#spec-decline-reason').value"), 'Needs a clearer outcome', `${width}: typed reason survives a live refresh`);
+      await click(chrome, '#spec-decline-submit');
+      await chrome.waitFor("!!document.querySelector('#spec-detail .spec-feedback.ok,#spec-detail .spec-feedback.no')");
+
+      await chrome.evaluate("window.__sectionConfirm = null; window.confirm = message => { window.__sectionConfirm = message; return false; }");
+      const sectionSelector = `#spec-list [data-section-approve]`;
+      await chrome.evaluate(`(() => { const button=[...document.querySelectorAll(${JSON.stringify(sectionSelector)})].find(e=>e.parentElement.querySelector('h4')?.textContent.includes('Follow-up')); if(!button) throw Error('missing K section approval'); button.click(); })()`);
+      state = await boardOf(view, demo.repo);
+      assert.match(await chrome.evaluate('window.__sectionConfirm'), /Approve all 2 undecided rows in/, `${width}: section approval asks for confirmation`);
+      assert.equal(await chrome.evaluate("!!document.querySelector('#spec-list .spec-feedback')"), false, `${width}: dismissing the confirmation starts no move`);
+      assert.equal(state.events.filter((event) => event.event_kind === 'row_decision').length, 2, `${width}: dismissing section confirmation records no events`);
+      assert.equal(state.spec.find((row) => row.id === 'K1')?.decision, undefined, `${width}: dismissed section approval leaves K1 undecided`);
+
+      await chrome.evaluate("window.confirm = () => true");
+      await chrome.evaluate(`(() => { const button=[...document.querySelectorAll(${JSON.stringify(sectionSelector)})].find(e=>e.parentElement.querySelector('h4')?.textContent.includes('Follow-up')); if(!button) throw Error('missing K section approval'); button.click(); })()`);
+      await chrome.waitFor("document.querySelector('#spec-list [data-row=\"spec:K1\"]').innerText.includes('approved, pending apply') && document.querySelector('#spec-list [data-row=\"spec:K2\"]').innerText.includes('approved, pending apply')");
+      state = await boardOf(view, demo.repo);
+      const decisions = state.events.filter((event) => event.event_kind === 'row_decision');
+      assert.equal(decisions.length, 4, `${width}: approve, decline and two section rows produce four events`);
+      assert.deepEqual(decisions.map((event) => event.event_by), ['person', 'person', 'person', 'person'], `${width}: every decision is recorded by the person`);
+      assert.deepEqual(decisions.map((event) => JSON.parse(event.event_detail).channel), ['view', 'view', 'view', 'view'], `${width}: every decision uses the view channel`);
+      assert.equal(state.spec.find((row) => row.id === 'G2')?.stage, 'declined, pending apply', `${width}: G2 shows its pending decline stage`);
+      assert.equal(state.spec.find((row) => row.id === 'G2')?.decision?.reason, 'Needs a clearer outcome', `${width}: decline reason is in board state`);
+      assert.equal(state.spec.find((row) => row.id === 'K1')?.stage, 'approved, pending apply', `${width}: K1 was approved`);
+      assert.equal(state.spec.find((row) => row.id === 'K2')?.stage, 'approved, pending apply', `${width}: K2 was approved`);
+      assert.equal(state.spec.find((row) => row.id === 'G3')?.decision, undefined, `${width}: other section rows remain undecided`);
+      if (width === 1280) assert.ok(await chrome.evaluate(`['G1','G2','K1','K2'].every(id => {
+        const row=document.querySelector('#spec-list [data-row="spec:'+id+'"]');
+        const chip=row.querySelector(':scope > span:nth-child(2) .chip').getBoundingClientRect();
+        const text=row.querySelector(':scope > span:nth-child(3)').getBoundingClientRect();
+        return chip.right <= text.left || chip.bottom <= text.top || chip.top >= text.bottom;
+      })`), '1280: every pending decision stage has room beside its row text');
+      await chrome.evaluate("document.querySelector('#spec-chips [data-rows=\"spec:decide\"]').click()");
+      await chrome.waitFor("document.querySelector('#spec-list [data-row=\"spec:G3\"]') && !document.querySelector('#spec-list [data-row=\"spec:G1\"]') && !document.querySelector('#spec-list [data-row=\"spec:G2\"]') && !document.querySelector('#spec-list [data-row=\"spec:K1\"]') && !document.querySelector('#spec-list [data-row=\"spec:K2\"]')");
+      assert.ok(await chrome.evaluate("document.querySelector('#spec-chips [data-rows=\"spec:decide\"]').innerText.includes('27')"), `${width}: Needs your decision excludes all four decided rows`);
+      assert.deepEqual(chrome.exceptions, [], `${width}: Chrome reports no uncaught exceptions`);
+    } finally {
+      if (chrome) await closeSnapshotChrome(chrome);
+      await view.stop();
+      rmSync(profile, { recursive: true, force: true });
+    }
+  };
+
+  await runWidth(375);
+  await runWidth(1280);
+});
 test('static export redacts structured checkout paths but preserves paths people wrote [A10]', async () => {
   const box = machine();
   const alpha = project(box, 'private-project');
@@ -2798,5 +3338,927 @@ test('static export redacts structured checkout paths but preserves paths people
     }
   } finally {
     await live.stop();
+  }
+});
+
+test('real Chrome styles shout code and item text without growing linked lines [N26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for rendered shout checks.');
+
+  const box = machine();
+  const alpha = project(box, 'shout-code');
+  const title = 'A `title` <img src=x onerror=alert(1)> #1';
+  box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'Criterion `value` stays safe', '--brief', 'Run $ pullboard claim 1\nKeep `<safe>` literal.');
+  box.run(alpha.web, 'claim', '1');
+  const sourceHead = box.git(alpha.repo, 'rev-parse', 'HEAD');
+  const sample = 'Inline `code <b>safe</b>`; pullboard shout --decision; --flag; src/cockpit.js; 0123456789abcdef0123456789abcdef01234567.\nPreview SPEC.md:1-2@' + sourceHead + '. Invalid prefix:SPEC.md:1-2@' + sourceHead + '.\n```js\n<script>alert(1)</script>\n```\n$ pullboard claim 1\n<script>alert(1)</script>';
+  const wrappedLinkedText = 'This deliberately long linked sample wraps across lines so text length does not define line height. '.repeat(3) + '#1';
+  box.run(alpha.repo, 'shout', 'person', sample, '--decision');
+  box.run(alpha.web, 'shout', 'coordinator', 'A linked line #1');
+  box.run(alpha.web, 'shout', 'coordinator', 'A plain line here');
+  box.run(alpha.web, 'shout', 'coordinator', 'X #1');
+  box.run(alpha.web, 'shout', 'coordinator', 'X');
+  box.run(alpha.web, 'shout', 'coordinator', wrappedLinkedText);
+  box.run(alpha.web, 'shout', 'coordinator', 'OK');
+  box.run(alpha.web, 'shout', 'coordinator', '<script>alert(2)</script> outside code');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-shout-code-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    const consoleErrors = [];
+    chrome.socket.addEventListener('message', ({ data }) => {
+      const message = JSON.parse(String(data));
+      if (message.method === 'Runtime.consoleAPICalled' && message.params.type === 'error') consoleErrors.push(message.params.args.map((arg) => arg.value ?? arg.description ?? '').join(' '));
+      if (message.method === 'Log.entryAdded' && message.params.entry.level === 'error') consoleErrors.push(message.params.entry.text);
+    });
+    await chrome.send('Log.enable');
+    await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 4 && document.querySelectorAll("#feed > div:not(.day)").length >= 4');
+    await chrome.evaluate(`document.querySelector('[data-tab="shouts"]').click()`);
+
+    const rendered = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      const shout = [...document.querySelectorAll('#feed > div:not(.day)')].find((row) => row.textContent.includes('Inline'));
+      const ask = [...document.querySelectorAll('#decisions .ask')].find((row) => row.textContent.includes('Inline'));
+      const titleNode = document.querySelector('#chain .row .t');
+      const outside = [...document.querySelectorAll('#feed > div:not(.day)')].find((row) => row.textContent.includes('alert(2)'));
+      const itemDetail = document.querySelector('#detail');
+      const agentItem = document.querySelector('#agents .agent [data-item="1"]');
+      /** Measure the complete rendered content line box, including its item link. */
+      const lineMetrics = (message) => {
+        const row = [...document.querySelectorAll('#feed > div:not(.day)')].find((entry) => {
+          const content = entry.children[1];
+          return content && content.textContent.slice(content.querySelector('b')?.textContent.length ?? 0).trim() === message;
+        });
+        const content = row.children[1];
+        const height = content.getBoundingClientRect().height;
+        const lineHeight = parseFloat(getComputedStyle(content).lineHeight);
+        return { height, lineHeight, lines: Math.round(height / lineHeight) };
+      };
+      return {
+        shoutHtml: shout.innerHTML, shoutScripts: shout.querySelectorAll('script').length,
+        askHtml: ask.innerHTML, titleHtml: titleNode.innerHTML,
+        linkedMetrics: lineMetrics('X #1'), plainMetrics: lineMetrics('X'),
+        wrapLinked: lineMetrics(${JSON.stringify(wrappedLinkedText)}), wrapPlain: lineMetrics('OK'),
+        linkedButtons: [...document.querySelectorAll('#feed > div:not(.day)')].find((entry) => entry.textContent.includes('A linked line'))?.querySelectorAll('button.ref').length,
+        previewLinks: shout.querySelectorAll('button[data-code^="SPEC.md:1-2@"]').length,
+        outsideHtml: outside.innerHTML, askNestedButtons: ask.querySelector('p').querySelectorAll('button').length,
+        criterionHtml: itemDetail.querySelector('.text')?.innerHTML, briefHtml: itemDetail.querySelector('.text.muted')?.innerHTML,
+        needsNestedButtons: [...document.querySelectorAll('#needs button.ref')].filter(link => link.parentElement.closest('button')).length,
+        agentNestedButtons: [...document.querySelectorAll('#agents .agent button.ref')].filter(link => link.parentElement.closest('button')).length,
+        agentItemHeight: agentItem?.getBoundingClientRect().height,
+      };
+    })())`));
+    assert.match(rendered.shoutHtml, /<code class="inline">code &lt;b&gt;safe&lt;\/b&gt;<\/code>/, 'backticks create escaped inline code');
+    assert.match(rendered.shoutHtml, /<code class="inline">pullboard shout<\/code>/, 'pullboard commands are inline code');
+    assert.match(rendered.shoutHtml, /<code class="inline">--decision<\/code>/, 'flags are inline code');
+    assert.match(rendered.shoutHtml, /<code class="inline">src\/cockpit\.js<\/code>/, 'slash paths are inline code');
+    assert.match(rendered.shoutHtml, /<code class="inline">0123456789abcdef0123456789abcdef01234567<\/code>/, 'hex SHAs are inline code');
+    assert.ok((rendered.shoutHtml.match(/<code class="code block">/g) ?? []).length >= 2, 'fences and dollar-prefixed lines are code blocks');
+    assert.match(rendered.shoutHtml, /<code class="code block">\$ pullboard claim 1<\/code>/, 'the shell prompt stays visible in command blocks');
+    assert.match(rendered.shoutHtml, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/, 'script text is escaped inside code');
+    assert.equal(rendered.shoutScripts, 0, 'a shout cannot create a script element');
+    assert.match(rendered.outsideHtml, /&lt;script&gt;alert\(2\)&lt;\/script&gt; outside code/, 'script text outside code is escaped too');
+    assert.equal(rendered.previewLinks, 1, 'only a path:lines@SHA reference with the original whole-word boundaries becomes an actionable preview');
+    assert.match(rendered.shoutHtml, /Invalid prefix:<code class="inline">SPEC\.md:1-2@/, 'a path:lines@SHA suffix after a colon stays plain inline code');
+    await chrome.evaluate(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"]').click()`);
+    await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"]').getAttribute('aria-expanded') === 'true'`);
+    await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"] + .code')?.textContent.includes('Demo spec')`);
+    assert.match(await chrome.evaluate(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"] + .code')?.textContent || ''`), /Demo spec/, 'the original code preview still opens its referenced lines');
+    assert.match(rendered.askHtml, /<code class="inline">pullboard shout<\/code>/, 'needs-you uses the same code renderer');
+    assert.equal(rendered.askNestedButtons, 0, 'formatted text in an ask cannot nest interactive controls');
+    assert.equal(rendered.needsNestedButtons, 0, 'needs-you keeps its button markup valid');
+    assert.equal(rendered.agentNestedButtons, 0, 'agent item buttons never nest reference controls');
+    assert.ok(rendered.agentItemHeight >= 44, 'agent item controls keep a 44px touch target');
+    assert.match(rendered.titleHtml, /<code class="inline">title<\/code>/, 'item titles use the same code renderer');
+    assert.match(rendered.titleHtml, /&lt;img src=x onerror=alert\(1\)&gt;/, 'item text remains escaped');
+    assert.match(rendered.criterionHtml, /<code class="inline">value<\/code>/, 'criterion text uses the renderer');
+    assert.match(rendered.briefHtml, /<code class="inline">&lt;safe&gt;<\/code>/, 'brief text uses the renderer without interpreting markup');
+    assert.equal(rendered.linkedButtons, 1, 'the compared row contains a rendered item link');
+    assert.equal(rendered.linkedMetrics.lines, 1, 'the short linked sample occupies one desktop line');
+    assert.equal(rendered.plainMetrics.lines, 1, 'the short plain sample occupies one desktop line');
+    assert.ok(Math.abs(rendered.linkedMetrics.height - rendered.plainMetrics.height) < 1, 'the complete one-line desktop boxes match within 1px');
+    assert.ok(Math.abs(rendered.linkedMetrics.height - rendered.linkedMetrics.lineHeight) < 1, 'the linked desktop box equals one computed line-height');
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor('innerWidth === 375 && document.querySelector("#feed > div:not(.day)")?.getBoundingClientRect().width > 0');
+    const phoneMetrics = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      /** Measure the complete rendered content line box, including its item link. */
+      const lineMetrics = (message) => {
+        const row = [...document.querySelectorAll('#feed > div:not(.day)')].find((entry) => {
+          const content = entry.children[1];
+          return content && content.textContent.slice(content.querySelector('b')?.textContent.length ?? 0).trim() === message;
+        });
+        const content = row.children[1];
+        const height = content.getBoundingClientRect().height;
+        const lineHeight = parseFloat(getComputedStyle(content).lineHeight);
+        return { height, lineHeight, lines: Math.round(height / lineHeight) };
+      };
+      return { linked: lineMetrics('X #1'), plain: lineMetrics('X'), wrapLinked: lineMetrics(${JSON.stringify(wrappedLinkedText)}), wrapPlain: lineMetrics('OK') };
+    })())`));
+    assert.equal(phoneMetrics.linked.lines, 1, 'the short linked sample occupies one phone line');
+    assert.equal(phoneMetrics.plain.lines, 1, 'the short plain sample occupies one phone line');
+    assert.ok(Math.abs(phoneMetrics.linked.height - phoneMetrics.plain.height) < 1, 'the complete one-line phone boxes match within 1px');
+    assert.ok(Math.abs(phoneMetrics.linked.height - phoneMetrics.linked.lineHeight) < 1, 'the linked phone box equals one computed line-height');
+    assert.ok(phoneMetrics.wrapLinked.lines > 1, 'the long linked probe actually wraps at 375px');
+    assert.equal(phoneMetrics.wrapPlain.lines, 1, 'the short plain wrap probe remains on one line');
+    assert.ok(Math.abs(phoneMetrics.wrapLinked.height / phoneMetrics.wrapLinked.lines - phoneMetrics.wrapPlain.lineHeight) < 1,
+      'normalizing the forced wrap by its rendered line count proves the same per-line height');
+    assert.ok(Math.abs(phoneMetrics.wrapLinked.height - phoneMetrics.wrapPlain.height) >= 1,
+      'the old whole-text-box comparison would fail on the deliberately wrapped sample');
+    assert.deepEqual(consoleErrors, []);
+    assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception on its first load');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
+test("item detail merges API facts and moves in one responsive timeline [B33,B29]", { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for item-thread rendering checks.');
+
+  const box = machine();
+  const alpha = project(box, 'item-thread');
+  box.run(alpha.repo, 'add', 'web', 'Thread fixture', '--specs', 'G1', '--criterion', 'The item keeps its evidence.');
+  box.run(alpha.web, 'claim', '1');
+  const sourceHead = box.git(alpha.repo, 'rev-parse', 'HEAD');
+  /** Append a real board fact and return the identity the correction must name. */
+  const addFact = (kind, text, ...flags) => JSON.parse(box.run(alpha.web, 'fact', '1', kind, text, ...flags, '--json')).fact;
+  const oldNote = addFact('note', 'Earlier observation, now replaced.');
+  addFact('capture', 'Captured the rendered page.', '--ref', `SPEC.md:1-2@${sourceHead}`);
+  box.run(alpha.web, 'release', '1');
+  addFact('measurement', 'The view settles in 8 seconds.');
+  box.run(alpha.web, 'claim', '1');
+  addFact('diff', 'The detail gained a thread.');
+  addFact('decision', 'Keep the thread in the item.');
+  addFact('rejection', 'The first layout wrapped poorly.');
+  const replacement = addFact('supersession', 'Correction: the note is replaced.', '--supersedes', oldNote.id);
+  addFact('root-cause', 'The missing projection hid the facts.');
+
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-item-thread-chrome-'));
+  let chrome;
+  try {
+    const apiState = await boardOf(view, alpha.repo);
+    const expected = apiState.items.find((item) => item.id === 1).thread;
+    assert.deepEqual(expected.filter((entry) => entry.type === 'fact').map((entry) => entry.kind),
+      ['note', 'capture', 'measurement', 'diff', 'decision', 'rejection', 'supersession', 'root-cause'],
+      'the API provides every fact in append order');
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor('typeof data !== "undefined" && data?.project?.items?.find((item) => item.id === 1)?.thread?.length === ' + expected.length);
+    await chrome.waitFor('document.querySelectorAll("#detail .tl [data-event-id]").length === ' + expected.length);
+    const expectedIds = expected.map((entry) => entry.eventId);
+    for (const width of [375, 1280]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
+      await chrome.waitFor(`innerWidth === ${width} && document.querySelector('#detail .tl')?.getBoundingClientRect().width > 0`);
+      const rendered = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+        const timeline = document.querySelector('#detail .tl');
+        const old = document.querySelector('#detail #fact-${oldNote.id}');
+        const replacement = document.querySelector('#detail #fact-${replacement.id}');
+        const live = document.querySelector('#detail #fact-${expected.find((entry) => entry.type === 'fact' && entry.kind === 'capture').id}');
+        const plain = document.querySelector('#detail .tl-fact:not(.tl-judgement):not(.tl-superseded)');
+        const judgementColors = Object.fromEntries(['decision', 'rejection', 'supersession', 'root-cause'].map((kind) => {
+          const row = [...timeline.querySelectorAll('.tl-fact')].find((entry) => entry.querySelector('.tl-fact-head .chip')?.textContent === kind);
+          return [kind, row ? getComputedStyle(row, '::before').backgroundColor : null];
+        }));
+        return {
+          ids: [...timeline.querySelectorAll('[data-event-id]')].map((row) => Number(row.dataset.eventId)),
+          rows: timeline.querySelectorAll('li').length,
+          kinds: [...timeline.querySelectorAll('.tl-fact-head .chip')].map((chip) => chip.textContent),
+          authors: [...timeline.querySelectorAll('.tl-fact-head b')].map((name) => name.textContent),
+          ages: timeline.querySelectorAll('.tl-fact small time[data-ago]').length,
+          oldClass: old?.className,
+          replacementHref: old?.querySelector('.thread-replacement')?.getAttribute('href'),
+          oldOpacity: Number(old && getComputedStyle(old).opacity),
+          replacementOpacity: Number(replacement && getComputedStyle(replacement).opacity),
+          liveOpacity: Number(live && getComputedStyle(live).opacity),
+          plainMarker: plain ? getComputedStyle(plain, '::before').backgroundColor : null,
+          judgementColors,
+          judgementKinds: Object.keys(judgementColors).filter((kind) => judgementColors[kind] !== null),
+          ref: timeline.querySelector('.tl-fact button[data-code]')?.dataset.code,
+          viewport: document.documentElement.clientWidth,
+          pageWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+        };
+      })())`));
+      assert.deepEqual(rendered.ids, expectedIds, `${width}px: moves and facts follow the API's event order`);
+      assert.equal(rendered.rows, expected.length, `${width}px: each API event appears exactly once`);
+      const expectedFacts = expected.filter((entry) => entry.type === 'fact');
+      assert.deepEqual(rendered.kinds, expectedFacts.map((entry) => entry.kind), `${width}px: every fact kind is a visible chip`);
+      assert.deepEqual(rendered.authors, expectedFacts.map((entry) => entry.by), `${width}px: each fact names its API author`);
+      assert.equal(rendered.ages, expectedFacts.length, `${width}px: each fact shows its age`);
+      assert.match(rendered.oldClass, /tl-superseded/, `${width}px: the earlier fact is visibly dimmed`);
+      assert.equal(rendered.replacementHref, `#fact-${replacement.id}`, `${width}px: the earlier fact links to its replacement`);
+      assert.ok(rendered.oldOpacity < rendered.replacementOpacity && rendered.oldOpacity < rendered.liveOpacity,
+        `${width}px: computed opacity dims the superseded fact`);
+      assert.deepEqual(rendered.judgementKinds, ['decision', 'rejection', 'supersession', 'root-cause'], `${width}px: all judgement kinds appear`);
+      for (const [kind, color] of Object.entries(rendered.judgementColors)) {
+        assert.notEqual(color, rendered.plainMarker, `${width}px: ${kind} uses a distinct computed marker color`);
+      }
+      assert.equal(rendered.ref, `SPEC.md:1-2@${sourceHead}`, `${width}px: the committed code reference is actionable`);
+      assert.equal(rendered.pageWidth, rendered.viewport, `${width}px: the timeline causes no sideways page scroll`);
+    }
+    const scrollBefore = JSON.parse(await chrome.evaluate(`JSON.stringify({ page: document.documentElement.scrollTop, detail: document.querySelector('#detail').scrollTop })`));
+    await chrome.evaluate(`document.querySelector('#detail #fact-${oldNote.id} .thread-replacement').click()`);
+    await chrome.waitFor(`location.hash === '#fact-${replacement.id}' && document.querySelector('#detail #fact-${replacement.id}')`);
+    const target = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      const detail = document.querySelector('#detail'), fact = document.querySelector('#detail #fact-${replacement.id}');
+      const box = fact.getBoundingClientRect(), panel = detail.getBoundingClientRect();
+      return { item: view.item, id: fact.id, text: document.querySelector('#detail h2')?.textContent,
+        page: document.documentElement.scrollTop, detail: detail.scrollTop,
+        visible: box.top >= panel.top && box.bottom <= panel.bottom };
+    })())`));
+    assert.equal(target.id, `fact-${replacement.id}`, 'the replacement anchor resolves to a visible fact');
+    assert.equal(target.item, 1, 'following the link keeps the same item selected');
+    assert.equal(target.text, '#1Thread fixture', 'the item detail stays open after following the replacement link');
+    assert.ok(target.page > scrollBefore.page || target.detail > scrollBefore.detail,
+      'following the replacement anchor scrolls to its existing target');
+    assert.equal(target.visible, true, 'the replacement is visible after following its link');
+    await chrome.evaluate(`document.querySelector('#detail .tl-fact button[data-code]').click()`);
+    await chrome.waitFor(`document.querySelector('#detail .tl-fact button[data-code]')?.getAttribute('aria-expanded') === 'true'`);
+    await chrome.waitFor(`document.querySelector('#detail .tl-fact .code')?.textContent.includes('Demo spec')`);
+    assert.match(await chrome.evaluate(`document.querySelector('#detail .tl-fact .code')?.textContent || ''`), /Demo spec/, 'the code reference opens the committed lines');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    await view.stop();
+    rmSync(profile, { recursive: true, force: true });
+  }
+});
+
+test('in-text item references stay inline and open their target at phone and desktop widths [N26]', { timeout: 90_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for item-reference layout checks.');
+
+  const box = machine();
+  const demo = project(box, 'inline-references', SPEC, { practice: 'ways.md' });
+  writeFileSync(join(demo.repo, 'ways.md'), '# Local rules\n\n## Team\n- R1 [approved, must] Items carry the page behavior. | gate: review\n');
+  box.run(demo.repo, 'add', 'web', 'Target item', '--specs', 'G1', '--criterion', 'the linked target');
+  box.run(demo.repo, 'add', 'web', 'Title links to #1', '--specs', 'G1', '--criterion', 'Criterion links to #1', '--brief', 'Brief links to #1');
+  box.run(demo.web, 'claim', '2');
+  box.run(demo.repo, 'shout', 'person', 'Please choose #1 next', '--decision');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-inline-references-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor('document.querySelectorAll("#chain .row").length >= 2 && document.querySelector("#needs .ny")');
+
+    for (const width of [375, 1280]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      // The row inlineReference stays on its title line beside the text.
+      const rendered = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+        const row = document.querySelector('#chain .row[data-item="2"]');
+        const plain = document.querySelector('#chain .row[data-item="1"]');
+        const titleRef = row?.querySelector('.t button.ref');
+        const need = [...document.querySelectorAll('#needs .ny')].find((entry) => entry.textContent.includes('Please choose'));
+        const needRef = need?.querySelector('button.ref');
+        const needAction = need?.querySelector('.ny-open');
+        const realButton = document.querySelector('#new-item');
+        /** Measure the element box independently of the inline-link assertion. */
+        const rect = node => { const r=node.getBoundingClientRect(); return {height:r.height,width:r.width}; };
+        return {
+          titleRef: titleRef && { ...rect(titleRef), border:getComputedStyle(titleRef).borderWidth, lineHeight:getComputedStyle(titleRef).lineHeight },
+          linkedTitle: row && rect(row.querySelector('.t')),
+          plainTitle: plain && rect(plain.querySelector('.t')),
+          needRef: needRef && { ...rect(needRef), border:getComputedStyle(needRef).borderWidth, lineHeight:getComputedStyle(needRef).lineHeight },
+          needText: need?.querySelector('.ny-text') && rect(need.querySelector('.ny-text')),
+          needAction: needAction && rect(needAction), realButton: realButton && rect(realButton),
+        };
+      })())`));
+      assert.ok(rendered.titleRef && rendered.needRef, `${width}: list and Needs-you references are links: ${JSON.stringify(rendered)}`);
+      assert.equal(rendered.titleRef.border, '0px', `${width}: the title reference has no button border`);
+      assert.equal(rendered.needRef.border, '0px', `${width}: the Needs-you reference has no button border`);
+      assert.ok(Math.abs(rendered.linkedTitle.height - rendered.plainTitle.height) < 1,
+        `${width}: the title line matches a plain title: ${JSON.stringify(rendered)}`);
+      assert.ok(Math.abs(rendered.titleRef.height - rendered.linkedTitle.height) < 1,
+        `${width}: the title link has the surrounding line height: ${JSON.stringify(rendered)}`);
+      assert.ok(Math.abs(rendered.needRef.height - rendered.needText.height) < 1,
+        `${width}: the Needs-you link has the surrounding line height: ${JSON.stringify(rendered)}`);
+      assert.ok(rendered.needAction.height >= 44 && rendered.realButton.height >= 44,
+        `${width}: real controls keep 44px targets: ${JSON.stringify(rendered)}`);
+
+      for (const section of ['agents', 'spec', 'doctrine']) {
+        if (section === 'agents') {
+          await chrome.evaluate(`document.querySelector('[data-tab="shouts"]').click()`);
+          await chrome.waitFor('document.querySelector("#agents [data-item=\\"2\\"]")');
+        } else {
+          await chrome.evaluate(`document.querySelector('[data-tab="${section}"]').click()`);
+          await chrome.evaluate(`document.querySelector('[data-rows="${section}:all"]').click()`);
+          const citedRow = section === 'doctrine' ? 'R1' : 'G1';
+          if (section === 'doctrine') {
+            // Item citations normally point to SPEC ids; add the distinct practice id to the
+            // browser projection to exercise the shared doctrine citing-item renderer.
+            await chrome.evaluate("data.project.items.find(item => item.id === 2).specs.push('R1'); render();");
+          }
+          await chrome.waitFor(`document.querySelector('#${section}-list [data-row="${section}:${citedRow}"]')`);
+          await chrome.evaluate(`document.querySelector('#${section}-list [data-row="${section}:${citedRow}"]').click()`);
+          await chrome.waitFor(`document.querySelector('#${section}-detail [data-item="2"]')`);
+        }
+        const selector = section === 'agents' ? '#agents [data-item="2"] .ref' : `#${section}-detail .links [data-item="2"] .ref`;
+        const metrics = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+          const ref = document.querySelector(${JSON.stringify(selector)});
+          const container = ref?.closest('[data-item="2"]');
+          const r = ref?.getBoundingClientRect();
+          const c = container?.getBoundingClientRect();
+          return { present:!!ref, border:ref && getComputedStyle(ref).borderWidth,
+            refHeight:r?.height, lineHeight:ref && parseFloat(getComputedStyle(ref).lineHeight),
+            containerHeight:c?.height, nestedButtons:container ? [...container.querySelectorAll('.ref')].filter(link => link.parentElement.closest('button')).length : 0 };
+        })())`));
+        assert.ok(metrics.present, `${width}: ${section} citing title renders a compact item reference: ${JSON.stringify(metrics)}`);
+        assert.equal(metrics.border, '0px', `${width}: ${section} reference has no button border`);
+        assert.ok(Math.abs(metrics.refHeight - metrics.lineHeight) < 1, `${width}: ${section} reference keeps the text line height: ${JSON.stringify(metrics)}`);
+        assert.ok(metrics.containerHeight >= 44, `${width}: ${section} containing item keeps a 44px target`);
+        assert.equal(metrics.nestedButtons, 0, `${width}: ${section} title has no nested controls`);
+        await chrome.evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+        await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
+        await chrome.evaluate(`document.querySelector(${JSON.stringify(selector)}).closest('[data-item="2"]').click()`);
+        await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Title links to #1')");
+      }
+
+      await chrome.evaluate(`document.querySelector('#chain .row[data-item="2"] .t button.ref').click()`);
+      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Target item')");
+      await chrome.evaluate(`document.querySelector('#needs .ny button.ref').click()`);
+      await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
+
+      await chrome.evaluate(`document.querySelector('[data-tab="activity"]').click()`);
+      await chrome.waitFor("document.querySelector('#activity .what button.ref')");
+      await chrome.evaluate(`document.querySelector('#activity .what button.ref').click()`);
+      await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
+
+      await chrome.evaluate(`document.querySelector('#chain .row[data-item="2"]').click()`);
+      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Title links to #1') && document.querySelector('#detail .text button.ref') && document.querySelector('#detail .text.muted button.ref')");
+      await chrome.evaluate(`document.querySelector('#detail .text button.ref').click()`);
+      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Target item')");
+      await chrome.evaluate(`document.querySelector('#chain .row[data-item="2"]').click()`);
+      await chrome.waitFor("document.querySelector('#detail .text.muted button.ref')");
+      await chrome.evaluate(`document.querySelector('#detail .text.muted button.ref').click()`);
+      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Target item')");
+    }
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
+test('Roadmap and rule prose references stay inline and open the item on their own board [N26,N38]', { timeout: 90_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for prose-reference checks.');
+  const box = machine();
+  const demo = project(box, 'a-inline-prose', `${SPEC}- G3 [approved, must] Follow #1 first. | gate: review\n`, { practice: 'ways.md' });
+  writeFileSync(join(demo.repo, 'ways.md'), '# Local rules\n\n## Team\n- R1 [approved, must] Review #1 first. | gate: review\n');
+  box.run(demo.repo, 'add', 'web', 'Local target', '--specs', 'G1', '--criterion', 'target');
+  box.run(demo.repo, 'add', 'web', 'Local title links to #1', '--specs', 'G1', '--criterion', 'title');
+  build(box, demo, 2, 'title.txt');
+  sendBack(box, demo, 2, 'Review #1 before accepting.');
+  const other = project(box, 'beacon-prose');
+  box.run(other.repo, 'add', 'web', 'Remote target', '--specs', 'G1', '--criterion', 'target');
+  box.run(other.repo, 'add', 'web', 'Remote title links to #1', '--specs', 'G1', '--criterion', 'title');
+  box.run(demo.repo, 'milestone', 'add', 'Choose #1', '--note', 'Review #1 next.', '--items', '2,beacon-prose#2');
+  box.run(demo.repo, 'shout', 'person', 'Choose #1 before shipping.', '--decision');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-prose-references-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("document.querySelector('#chain .row[data-item=\"2\"]')");
+    for (const width of [375, 1280]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      const contexts = [
+        ['roadmap', '#roadmap .milestone h2 .ref', 'Local target'],
+        ['roadmap', '#roadmap .milestone-note .ref', 'Local target'],
+        ['roadmap', '#roadmap .milestone-item[data-go="item:2"]:not([data-board]) .t .ref', 'Local target'],
+        ['roadmap', '#roadmap .milestone-item[data-board] .t .ref', 'Remote target'],
+        ['spec', '#spec-list [data-row="spec:G3"] .ref', 'Local target'],
+        ['doctrine', '#doctrine-list [data-row="doctrine:R1"] .ref', 'Local target'],
+      ];
+      for (const [tab, selector, target] of contexts) {
+        await chrome.evaluate(`document.querySelector('[data-root=${JSON.stringify(demo.repo)}]').click();`);
+        await chrome.waitFor("data?.project?.root === view.root && !document.body.classList.contains('switching') && document.querySelector('#proj-name').textContent === 'a-inline-prose'");
+        await chrome.evaluate(`document.querySelector('[data-tab="${tab}"]').click()`);
+        if (tab !== 'roadmap') await chrome.evaluate(`document.querySelector('[data-rows="${tab}:all"]').click()`);
+        const metrics = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+          const ref = document.querySelector(${JSON.stringify(selector)});
+          const row = ref?.closest('.milestone-item');
+          const style = ref && getComputedStyle(ref);
+          return { present:!!ref, title:ref?.title, border:style?.borderWidth, height:ref?.getBoundingClientRect().height,
+            line:style && parseFloat(style.lineHeight), nested:!!ref?.parentElement.closest('button'),
+            rowHeight:row?.getBoundingClientRect().height };
+        })())`));
+        assert.ok(metrics.present, `${width}: ${selector} contains its inline reference`);
+        assert.equal(metrics.title, target, `${width}: the reference tooltip names the target on its own board`);
+        assert.equal(metrics.border, '0px', `${width}: ${selector} has no box`);
+        assert.ok(Math.abs(metrics.height - metrics.line) < 1, `${width}: ${selector} keeps the text line height`);
+        assert.equal(metrics.nested, false, `${width}: ${selector} never nests buttons`);
+        if (metrics.rowHeight !== undefined) assert.ok(metrics.rowHeight >= 44, `${width}: the containing Roadmap control keeps its touch target`);
+        await chrome.evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+        await chrome.waitFor("!document.body.classList.contains('switching') && document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2 > span')?.textContent === '#1'");
+        assert.ok((await chrome.evaluate("document.querySelector('#detail h2').textContent")).includes(target), 'the reference opens its target title');
+        assert.equal(await chrome.evaluate('view.root'), target === 'Remote target' ? other.repo : demo.repo, 'duplicate item numbers stay bound to their own board');
+      }
+      await chrome.evaluate(`document.querySelector('[data-tab="items"]').click(); document.querySelector('#chain .row[data-item="2"]').click()`);
+      await chrome.waitFor("document.querySelector('#detail .verdict .note')");
+      assert.equal(await chrome.evaluate("document.querySelectorAll('#detail .verdict .note .ref').length"), 1, 'verdict prose keeps its item reference');
+      await chrome.evaluate("document.querySelector('#detail .verdict .note .ref').click()");
+      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Local target')");
+      await chrome.evaluate("document.querySelector('#needs .ny-open[data-go^=\"decide:\"]').click()");
+      assert.equal(await chrome.evaluate("document.querySelectorAll('#answering-q .ref').length"), 1, 'the answering question keeps its inline item reference');
+      await chrome.evaluate("document.querySelector('#answering-q .ref').click()");
+      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Local target') && document.querySelector('[data-tab=items].on')");
+      await chrome.evaluate("document.querySelector('[data-tab=roadmap]').click(); document.querySelector('#roadmap .milestone-item[role=button]:not([data-board])').dispatchEvent(new KeyboardEvent('keydown', {key:'Enter',bubbles:true}))");
+      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Local title links to #1') && document.querySelector('[data-tab=items].on')");
+    }
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
+test('wait references stay on one line and link to every prerequisite at phone and desktop widths [N26]', { timeout: 90_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for prerequisite layout checks.');
+  const box = machine();
+  const demo = project(box, 'waits-demo');
+  box.run(demo.repo, 'add', 'web', 'Prerequisite one', '--specs', 'G1', '--criterion', 'finish first');
+  box.run(demo.repo, 'add', 'web', 'Prerequisite two', '--specs', 'G1', '--criterion', 'finish second');
+  box.run(demo.repo, 'add', 'web', 'Blocked item', '--specs', 'G1', '--criterion', 'wait on both', '--after', '1,2');
+  const view = await startView(box);
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, join(box.dir, 'waits-chrome'));
+    /** Pick a visible click target only after scrolling and its hit-test position have settled. */
+    const click = async (selector) => {
+      const point = JSON.parse(await chrome.evaluate(`(async () => {
+        const element=document.querySelector(${JSON.stringify(selector)});
+        if (!element) throw Error('missing '+${JSON.stringify(selector)});
+        const visible=()=>{const style=getComputedStyle(element),rect=element.getBoundingClientRect();return style.display!=='none'&&style.visibility!=='hidden'&&rect.width>0&&rect.height>0&&!element.closest('[hidden]');};
+        if(!visible())throw Error('target is not visible: '+${JSON.stringify(selector)});
+        element.scrollIntoView({block:'center'});
+        const point=()=>{const currentElement=document.querySelector(${JSON.stringify(selector)});if(!currentElement)return null;const style=getComputedStyle(currentElement),rect=currentElement.getBoundingClientRect();if(style.display==='none'||style.visibility==='hidden'||rect.width<=0||rect.height<=0||currentElement.closest('[hidden]'))return null;const x=rect.x+rect.width/2,y=rect.y+rect.height/2,hit=document.elementFromPoint(x,y);return {x,y,scrollX,scrollY,rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height},hit:!!hit&&(hit===currentElement||currentElement.contains(hit))};};
+        const targets=[window,document,...(()=>{const nodes=[];for(let node=element.parentElement;node;node=node.parentElement)if(node.scrollHeight>node.clientHeight||node.scrollWidth>node.clientWidth)nodes.push(node);return nodes;})()];
+        let scrolled=false,scrollEnded=false;
+        const onScroll=()=>{scrolled=true;};
+        const onScrollEnd=()=>{scrollEnded=true;};
+        targets.forEach(target=>{target.addEventListener('scroll',onScroll,{passive:true});target.addEventListener('scrollend',onScrollEnd);});
+        try {
+          return JSON.stringify(await new Promise((resolve,reject)=>{
+            let previous=null,stable=0,frameId=0,finished=false;
+            const timeout=setTimeout(()=>{finished=true;cancelAnimationFrame(frameId);reject(Error('scroll did not settle for '+${JSON.stringify(selector)}+': '+JSON.stringify(previous)));},5000);
+            const frame=()=>{
+              if(finished)return;
+              const current=point();
+              if(!current){previous=null;stable=0;frameId=requestAnimationFrame(frame);return;}
+              const same=previous&&Math.abs(current.scrollX-previous.scrollX)<=.1&&Math.abs(current.scrollY-previous.scrollY)<=.1&&Math.abs(current.rect.x-previous.rect.x)<=.1&&Math.abs(current.rect.y-previous.rect.y)<=.1&&Math.abs(current.rect.width-previous.rect.width)<=.1&&Math.abs(current.rect.height-previous.rect.height)<=.1;
+              stable=same?stable+1:0;previous=current;
+              if(stable>=3&&current.hit&&(!scrolled||scrollEnded||stable>=12)){finished=true;clearTimeout(timeout);resolve(current);return;}
+              frameId=requestAnimationFrame(frame);
+            };
+            frameId=requestAnimationFrame(frame);
+          }));
+        } finally { targets.forEach(target=>{target.removeEventListener('scroll',onScroll);target.removeEventListener('scrollend',onScrollEnd);}); }
+      })()`));
+      const deadline = Date.now() + 5000;
+      let ready;
+      let settled = false;
+      while (Date.now() < deadline) {
+        ready = JSON.parse(await chrome.evaluate(`(async()=>{
+          const sample=()=>{const element=document.querySelector(${JSON.stringify(selector)});if(!element)return null;const style=getComputedStyle(element),rect=element.getBoundingClientRect();if(style.display==='none'||style.visibility==='hidden'||rect.width<=0||rect.height<=0||element.closest('[hidden]'))return null;const x=rect.x+rect.width/2,y=rect.y+rect.height/2,hit=document.elementFromPoint(x,y);return {x,y,scrollX,scrollY,rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height},hit:!!hit&&(hit===element||element.contains(hit))};};
+          let previous=null,stable=0,current=null,frameId=0,finished=false;
+          await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>{finished=true;cancelAnimationFrame(frameId);reject(Error('pointer target did not stabilize for '+${JSON.stringify(selector)}));},1500);const frame=()=>{if(finished)return;current=sample();const same=current&&previous&&Math.abs(current.scrollX-previous.scrollX)<=.1&&Math.abs(current.scrollY-previous.scrollY)<=.1&&Math.abs(current.rect.x-previous.rect.x)<=.1&&Math.abs(current.rect.y-previous.rect.y)<=.1&&Math.abs(current.rect.width-previous.rect.width)<=.1&&Math.abs(current.rect.height-previous.rect.height)<=.1;stable=same?stable+1:0;previous=current;if(stable>=2&&current.hit){finished=true;clearTimeout(timeout);resolve();}else frameId=requestAnimationFrame(frame);};frameId=requestAnimationFrame(frame);});
+          return JSON.stringify(current);
+        })()`));
+        await chrome.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: ready.x, y: ready.y });
+        const underPointer = JSON.parse(await chrome.evaluate(`(async()=>{
+          const sample=()=>{const element=document.querySelector(${JSON.stringify(selector)});if(!element)return null;const rect=element.getBoundingClientRect(),hit=document.elementFromPoint(${ready.x},${ready.y});return {scrollX,scrollY,rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height},hit:!!hit&&(hit===element||element.contains(hit))};};
+          let previous=null,stable=0,current=null,frameId=0,finished=false;
+          await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>{finished=true;cancelAnimationFrame(frameId);reject(Error('pointer target did not stabilize for '+${JSON.stringify(selector)}));},1000);const frame=()=>{if(finished)return;current=sample();const same=current&&previous&&Math.abs(current.scrollX-previous.scrollX)<=.1&&Math.abs(current.scrollY-previous.scrollY)<=.1&&Math.abs(current.rect.x-previous.rect.x)<=.1&&Math.abs(current.rect.y-previous.rect.y)<=.1&&Math.abs(current.rect.width-previous.rect.width)<=.1&&Math.abs(current.rect.height-previous.rect.height)<=.1;stable=same?stable+1:0;previous=current;if(stable>=2&&current.hit){finished=true;clearTimeout(timeout);resolve();}else frameId=requestAnimationFrame(frame);};frameId=requestAnimationFrame(frame);});return JSON.stringify({current,stable});
+        })()`));
+        if (underPointer?.current?.hit && underPointer.stable >= 2 && Math.abs(underPointer.current.scrollX-ready.scrollX)<=.1 && Math.abs(underPointer.current.scrollY-ready.scrollY)<=.1 && Math.abs(underPointer.current.rect.x-ready.rect.x)<=.1 && Math.abs(underPointer.current.rect.y-ready.rect.y)<=.1 && Math.abs(underPointer.current.rect.width-ready.rect.width)<=.1 && Math.abs(underPointer.current.rect.height-ready.rect.height)<=.1) {
+          point.x = ready.x;
+          point.y = ready.y;
+          point.scrollX = ready.scrollX;
+          point.scrollY = ready.scrollY;
+          point.rect = ready.rect;
+          settled = true;
+          break;
+        }
+      }
+      assert.ok(settled && ready && point.x === ready.x && point.y === ready.y,
+        `${selector}: scroll and target geometry settle under the pointer before press: ${JSON.stringify({ point, ready })}`);
+      await chrome.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount: 1 });
+      await chrome.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount: 1 });
+    };
+    for (const width of [375, 1280]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.waitFor(`innerWidth === ${width} && document.querySelector('#chain [data-item="3"] .meta .gate')?.getBoundingClientRect().width > 0`);
+      await click('#chain [data-item="1"] .t');
+      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Prerequisite one')");
+      const itemIds = await chrome.evaluate('data.project.items.map(item => item.id + ":" + item.title + ":" + item.blockedBy.join(","))');
+      assert.ok(await chrome.evaluate('!!document.querySelector(\'#chain [data-item="3"]\')'), `${width}: blocked item appears among ${itemIds.join('; ')}`);
+      const list = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+        const gate=document.querySelector('#chain [data-item="3"] .meta .gate');
+        const lineHeight=e=>parseFloat(getComputedStyle(e).lineHeight);
+        const neighbors=[...gate.parentElement.children].filter(e=>e!==gate).map(lineHeight).filter(Number.isFinite);
+        const units=[...gate.querySelectorAll('.wait-unit')];
+        return {height:gate.getBoundingClientRect().height,neighborHeight:Math.max(...neighbors),unitWhiteSpaces:units.map(unit=>getComputedStyle(unit).whiteSpace),unitY:units.map(unit=>unit.getBoundingClientRect().y),links:[...gate.querySelectorAll('button.ref')].map(link=>link.dataset.go)};
+      })())`));
+      t.diagnostic(`${width}px list wait marker: ${list.height}px tall, neighboring metadata line ${list.neighborHeight}px`);
+      assert.ok(list.height <= list.neighborHeight + 1, `${width}: list reference matches neighboring metadata height: ${JSON.stringify(list)}`);
+      assert.deepEqual(list.unitWhiteSpaces, ['nowrap', 'nowrap'], `${width}: each list prerequisite stays intact`);
+      assert.equal(new Set(list.unitY).size, 1, `${width}: both list prerequisites fit on one line: ${JSON.stringify(list)}`);
+      assert.deepEqual(list.links, ['item:1', 'item:2'], `${width}: every prerequisite is a link`);
+
+      await click('#chain [data-item="3"] .t');
+      await chrome.waitFor("!!document.querySelector('#detail .kv dd.waits-on')");
+      const detail = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+        const waits=document.querySelector('#detail .kv dd.waits-on');
+        const units=[...waits.querySelectorAll('.wait-unit')];
+        return {height:waits.getBoundingClientRect().height,lineHeight:parseFloat(getComputedStyle(waits).lineHeight),unitWhiteSpaces:units.map(unit=>getComputedStyle(unit).whiteSpace),unitY:units.map(unit=>unit.getBoundingClientRect().y),
+          links:[...waits.querySelectorAll('button.ref')].map(link=>link.dataset.go)};
+      })())`));
+      t.diagnostic(`${width}px detail wait marker: ${detail.height}px tall, neighboring metadata line ${detail.lineHeight}px`);
+      assert.ok(detail.height <= detail.lineHeight + 1, `${width}: detail prerequisite line matches its metadata: ${JSON.stringify(detail)}`);
+      assert.deepEqual(detail.unitWhiteSpaces, ['nowrap', 'nowrap'], `${width}: each detail prerequisite stays intact`);
+      assert.deepEqual(detail.links, ['item:1', 'item:2'], `${width}: detail links every prerequisite`);
+      assert.equal(new Set(detail.unitY).size, 1, `${width}: detail links share one line: ${JSON.stringify(detail)}`);
+      t.diagnostic(`${width}px detail wait links share y=${detail.unitY[0]}`);
+      for (const [id, title] of [['1', 'Prerequisite one'], ['2', 'Prerequisite two']]) {
+        await click('#chain [data-item="3"] .t');
+        await chrome.waitFor("!!document.querySelector('#detail .kv dd.waits-on')");
+        await click(`#detail .waits-on [data-go="item:${id}"]`);
+        await chrome.waitFor(`document.querySelector('#detail h2').textContent.includes(${JSON.stringify(title)})`);
+      }
+    }
+    assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught page exceptions');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    await view.stop();
+  }
+});
+
+/** Click what a page expression finds, through Chrome's own mouse input, as a person would. */
+async function press(chrome, find) {
+  const point = JSON.parse(await chrome.evaluate(`(() => {
+    const element = ${find};
+    if (!element) throw new Error(${JSON.stringify(`nothing to press: ${find}`)});
+    element.scrollIntoView({ block: 'center' });
+    const rect = element.getBoundingClientRect();
+    return JSON.stringify({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 });
+  })()`));
+  await chrome.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
+  await chrome.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
+  await chrome.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
+}
+
+/** Go back (-1) or forward (1) one entry in the tab's history, as the browser's own buttons do. */
+async function travel(chrome, step) {
+  const { currentIndex, entries } = await chrome.send('Page.getNavigationHistory');
+  await chrome.send('Page.navigateToHistoryEntry', { entryId: entries[currentIndex + step].id });
+}
+
+/** Wait for a page condition that may span a page load, when the page asked may still be loading. */
+async function settled(chrome, expression, timeoutMs = 15_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try { if (await chrome.evaluate(expression)) return; } catch { /* The next page is still loading. */ }
+    await browserPause(50);
+  }
+  throw new Error(`Browser condition did not arrive: ${expression}`);
+}
+
+/** A page expression for the Roadmap row showing an id, such as #3 or beacon#1. */
+function roadmapRow(id) {
+  return `[...document.querySelectorAll('#roadmap .milestone-item')].find((row) => row.querySelector('.id')?.textContent === ${JSON.stringify(id)})`;
+}
+
+/** A page expression that is true when only this pane shows, at this address. */
+function showing(pane, address) {
+  return `[...document.querySelectorAll('[data-pane]')].filter((each) => !each.hidden).map((each) => each.dataset.pane).join() === ${JSON.stringify(pane)} && location.pathname + location.hash === ${JSON.stringify(address)}`;
+}
+
+/**
+ * The Roadmap as Chrome draws it: the address and the pane shown, the page's width, and each card
+ * with its count, the share of its bar that is filled, its note and its rows. A row has the id and
+ * chip label the person reads, the chip's tone and colours, its dot's colour, its tooltip and title,
+ * and how many lines the title takes and whether it is cut with an ellipsis.
+ */
+async function readRoadmap(chrome) {
+  return JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+    const paint = (element) => getComputedStyle(element).color + ' on ' + getComputedStyle(element).backgroundColor;
+    return {
+      address: location.pathname + location.search + location.hash,
+      shown: [...document.querySelectorAll('[data-pane]')].filter((pane) => !pane.hidden).map((pane) => pane.dataset.pane),
+      tab: document.querySelector('.tab.on')?.dataset.tab,
+      client: document.documentElement.clientWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth,
+      cards: [...document.querySelectorAll('#roadmap .milestone')].map((card) => {
+        const bar = card.querySelector('.milestone-progress');
+        return {
+          name: card.querySelector('h2').innerText,
+          count: card.querySelector('.milestone-count')?.innerText ?? null,
+          filled: bar ? Math.round(1000 * bar.querySelector('rect').getBoundingClientRect().width / bar.getBoundingClientRect().width) / 1000 : null,
+          progress: bar ? [Number(bar.getAttribute('aria-valuenow')), Number(bar.getAttribute('aria-valuemax'))] : null,
+          empty: card.querySelector('.milestone-empty')?.innerText ?? null,
+          note: card.querySelector('.milestone-note')?.innerText ?? null,
+          rows: [...card.querySelectorAll('.milestone-item')].map((row) => {
+            const chip = row.querySelector('.chip'), title = row.querySelector('.t'), style = getComputedStyle(title), box = chip.getBoundingClientRect();
+            return {
+              id: row.querySelector('.id').innerText, label: chip.innerText, tone: [...chip.classList].filter((name) => name !== 'chip').join(' '),
+              seen: box.width > 0 && box.height > 0 && getComputedStyle(chip).visibility === 'visible',
+              chip: paint(chip), dot: getComputedStyle(row.querySelector('.dot')).backgroundColor,
+              button: row.tagName === 'BUTTON', tip: row.title, title: [...title.childNodes].slice(1).map((node) => node.textContent).join(''),
+              lines: Math.round(title.getBoundingClientRect().height / parseFloat(style.lineHeight)),
+              cut: title.scrollWidth > title.clientWidth, ellipsis: style.textOverflow === 'ellipsis' && style.whiteSpace === 'nowrap' && style.overflow === 'hidden',
+            };
+          }),
+        };
+      }),
+    };
+  })())`));
+}
+
+/**
+ * How the tab bar lays out with each tab in turn picked, and so bold: each tab's box and its label's,
+ * and the bar's edges. The tab picked now is picked again afterwards.
+ */
+async function tabBar(chrome) {
+  return JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+    const bar = document.querySelector('#tabs'), tabs = [...bar.querySelectorAll('.tab')], picked = tabs.find((tab) => tab.classList.contains('on'));
+    const layouts = tabs.map((on) => {
+      tabs.forEach((tab) => tab.classList.toggle('on', tab === on));
+      return { on: on.dataset.tab, bar: [bar.getBoundingClientRect().left, bar.getBoundingClientRect().right], tabs: tabs.map((tab) => {
+        const range = document.createRange();
+        range.selectNodeContents(tab.firstChild);
+        const box = tab.getBoundingClientRect(), label = range.getBoundingClientRect();
+        return { tab: tab.dataset.tab, left: box.left, right: box.right, labelLeft: label.left, labelRight: label.right };
+      }) };
+    });
+    tabs.forEach((tab) => tab.classList.toggle('on', tab === picked));
+    return { client: document.documentElement.clientWidth, layouts };
+  })())`));
+}
+
+/** Serve a folder under a path prefix, as a static host does, recording each request and its status. */
+async function serveFolder(folder, prefix) {
+  const requests = [];
+  const server = createServer((request, response) => {
+    const path = new URL(request.url, 'http://127.0.0.1').pathname;
+    /** Record the request with its status, then answer it. */
+    const answer = (status, body, type) => { requests.push({ path, status }); response.writeHead(status, type ? { 'content-type': type, 'cache-control': 'no-store' } : {}).end(body); };
+    if (!path.startsWith(prefix) || request.method !== 'GET') return answer(404);
+    const file = resolve(folder, decodeURIComponent(path.slice(prefix.length)) || 'index.html');
+    if (!file.startsWith(`${resolve(folder)}/`)) return answer(404);
+    let body;
+    try { body = readFileSync(file); } catch { return answer(404); }
+    return answer(200, body, file.endsWith('.html') ? 'text/html; charset=utf-8' : file.endsWith('.css') ? 'text/css; charset=utf-8' : 'application/json; charset=utf-8');
+  });
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  return { base: `http://127.0.0.1:${server.address().port}`, requests, close: () => new Promise((done) => server.close(done)) };
+}
+
+/** Save the page, all of it, at a width and in a theme, when PULLBOARD_ROADMAP_PROOF names a folder. */
+async function proofShot(chrome, name, width) {
+  if (!process.env.PULLBOARD_ROADMAP_PROOF) return;
+  mkdirSync(process.env.PULLBOARD_ROADMAP_PROOF, { recursive: true });
+  for (const theme of ['light', 'dark']) {
+    await chrome.evaluate(`document.documentElement.dataset.theme = '${theme}'`);
+    const height = await chrome.evaluate('Math.ceil(document.documentElement.scrollHeight)');
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: Math.max(900, height), deviceScaleFactor: 2, mobile: false });
+    await browserPause(150);
+    const shot = await chrome.send('Page.captureScreenshot', { format: 'png' });
+    writeFileSync(join(process.env.PULLBOARD_ROADMAP_PROOF, `${name}-${width}-${theme}.png`), Buffer.from(shot.data, 'base64'));
+  }
+  await chrome.evaluate('delete document.documentElement.dataset.theme');
+  await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+}
+
+test('the roadmap reads every item as the Items tab does, opens each one, another repo\'s too, and keeps its own address [N26,N38]', { timeout: 150_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for roadmap browser checks.');
+  const box = machine();
+  const alpha = project(box, 'roadmap-demo');
+  const beacon = project(box, 'beacon');
+  const long = 'A deliberately long title that runs past the width of a phone and keeps going, far enough to be cut on a wide desktop card as well';
+  const titles = ['Merged greeting page', 'Verified farewell page', 'Session timeout banner', 'Upload progress bar', 'Live search results', long, 'Withdrawn experiment'];
+  for (const title of titles) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
+  // One item in each state: verified and merged, verified, sent back, to verify, building, open, withdrawn.
+  build(box, alpha, 1, 'one.txt');
+  accept(box, alpha, 1);
+  const itemCommit = box.git(alpha.repo, 'rev-parse', alpha.branch);
+  box.git(alpha.repo, 'merge', '--no-ff', '--no-edit', alpha.branch);
+  const trunkCommit = box.git(alpha.repo, 'rev-parse', 'HEAD');
+  assert.notEqual(trunkCommit, itemCommit, 'the Roadmap receipt names the trunk merge commit');
+  box.run(alpha.repo, 'merged', '1', trunkCommit);
+  build(box, alpha, 2, 'two.txt');
+  accept(box, alpha, 2);
+  build(box, alpha, 3, 'three.txt');
+  sendBack(box, alpha, 3, 'the banner does not time out yet');
+  build(box, alpha, 4, 'four.txt');
+  box.run(alpha.web, 'claim', '5');
+  box.run(alpha.repo, 'withdraw', '7', 'no longer needed');
+  // Another repo's item, sent back on its own board.
+  box.run(beacon.repo, 'add', 'web', 'Billing webhook retries', '--specs', 'G1', '--criterion', 'retries');
+  build(box, beacon, 1, 'retry.txt');
+  sendBack(box, beacon, 1, 'retry twice before failing');
+  box.run(alpha.repo, 'milestone', 'add', 'Launch', '--note', 'Ships when the review lands; your call on the name.', '--items', '1,2,3,4,beacon#1');
+  box.run(alpha.repo, 'milestone', 'add', 'Next', '--note', 'Queued behind Launch.', '--items', '5,6,7');
+  box.run(alpha.repo, 'milestone', 'add', 'Later', '--note', 'Ideas not filed yet.');
+  // What the person reads on each row: the Items tab's word for the item's state, and its colour's class.
+  const words = [
+    { id: '#1', label: 'verified', tone: 'ok' },
+    { id: '#2', label: 'verified', tone: 'ok' },
+    { id: '#3', label: 'sent back', tone: 'no' },
+    { id: '#4', label: 'to verify', tone: 'warn' },
+    { id: 'beacon#1', label: 'sent back', tone: 'no' },
+    { id: '#5', label: 'building', tone: 'busy' },
+    { id: '#6', label: 'open', tone: '' },
+    { id: '#7', label: 'withdrawn', tone: '' },
+  ];
+  const view = await startView(box);
+  const roadmap = `/roadmap${view.link.search}`;
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-roadmap-chrome-'));
+  let chrome;
+  try {
+    const direct = await fetch(new URL(roadmap, view.link));
+    assert.equal(direct.status, 200, 'the view serves its page at /roadmap, behind its secret');
+    assert.equal((await fetch(new URL('/roadmap', view.link))).status, 403, 'and nothing there without the secret');
+    chrome = await openSnapshotChrome(executable, new URL(roadmap, view.link).href, profile);
+    const consoleErrors = [];
+    chrome.socket.addEventListener('message', ({ data }) => {
+      const message = JSON.parse(String(data));
+      if (message.method === 'Runtime.consoleAPICalled' && message.params.type === 'error') consoleErrors.push(message.params.args.map((arg) => arg.value ?? arg.description ?? '').join(' '));
+      if (message.method === 'Log.entryAdded' && message.params.entry.level === 'error') consoleErrors.push(message.params.entry.text);
+    });
+    await chrome.send('Log.enable');
+    await settled(chrome, `!!data?.project && ${showing('roadmap', '/roadmap')} && document.querySelectorAll('#roadmap .milestone').length === 3`);
+
+    let seen;
+    for (const width of [375, 1280]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.waitFor(`innerWidth === ${width} && ${showing('roadmap', '/roadmap')}`);
+      seen = await readRoadmap(chrome);
+      assert.deepEqual([seen.address, seen.shown, seen.tab], [roadmap, ['roadmap'], 'roadmap'], `${width}: the direct address shows the Roadmap tab, and only it`);
+      assert.ok(seen.document <= seen.client && seen.body <= seen.client, `${width}: no sideways scroll: ${JSON.stringify(seen)}`);
+      assert.deepEqual(seen.cards.map((card) => card.name), ['Launch', 'Next', 'Later'], `${width}: a card for each milestone, in order`);
+      assert.deepEqual(seen.cards.map((card) => card.note), ['Ships when the review lands; your call on the name.', 'Queued behind Launch.', 'Ideas not filed yet.'], `${width}: each card's note`);
+      assert.deepEqual(seen.cards.map((card) => [card.count, card.progress, card.filled]), [['2/5 done', [2, 5], 0.4], ['0/3 done', [0, 3], 0], [null, null, null]], `${width}: counts and bars say how many items are verified`);
+      assert.deepEqual([seen.cards[2].empty, seen.cards[2].rows.length], ['No items yet.', 0], `${width}: an empty milestone says so, with no bar or count`);
+      const rows = seen.cards.flatMap((card) => card.rows);
+      assert.deepEqual(rows.map(({ id, label, tone }) => ({ id, label, tone })), words, `${width}: each chip shows the word and colour the Items tab gives its item's state`);
+      assert.ok(rows.every((row) => row.seen), `${width}: every chip is on screen`);
+      assert.deepEqual(rows.map((row) => row.title), [...titles.slice(0, 4), 'Billing webhook retries', ...titles.slice(4)], `${width}: each row names its item`);
+      assert.deepEqual(rows.map((row) => row.tip), rows.map((row) => row.title), `${width}: each row's tooltip is its whole title`);
+      assert.ok(rows.every((row) => row.lines === 1 && row.ellipsis), `${width}: every title holds one line, set to end in an ellipsis: ${JSON.stringify(rows)}`);
+      assert.ok(rows.find((row) => row.id === '#6').cut, `${width}: the long title is cut, so its ellipsis shows`);
+      assert.ok(rows.every((row) => row.button), `${width}: every item opens, another repo's included`);
+
+      const bar = await tabBar(chrome);
+      for (const layout of bar.layouts) {
+        const place = `${width} with ${layout.on} picked`;
+        assert.equal(layout.tabs.length, 6, `${place}: six tabs`);
+        for (const tab of layout.tabs) assert.ok(tab.labelLeft >= tab.left + 2 && tab.labelRight <= tab.right - 2, `${place}: ${tab.tab}'s label sits inside its highlight: ${JSON.stringify(tab)}`);
+        layout.tabs.forEach((tab, n) => { if (n) assert.ok(tab.left >= layout.tabs[n - 1].right - 0.5, `${place}: ${tab.tab} starts after the tab before it ends`); });
+        assert.ok(layout.tabs[0].left >= layout.bar[0] - 0.5 && layout.tabs.at(-1).right <= layout.bar[1] + 0.5 && layout.bar[1] <= bar.client, `${place}: the tab bar fits on screen: ${JSON.stringify(layout)}`);
+      }
+      await proofShot(chrome, 'roadmap', width);
+
+      // An item opens on the Items tab; Back shows the Roadmap at its address again, Forward the item.
+      await press(chrome, roadmapRow('#3'));
+      await chrome.waitFor(`${showing('items', '/')} && document.querySelector('#detail h2')?.innerText.includes('Session timeout banner')`);
+      assert.equal(await chrome.evaluate('location.search'), view.link.search, `${width}: the address keeps the rest of itself`);
+      await travel(chrome, -1);
+      await settled(chrome, `${showing('roadmap', '/roadmap')} && document.querySelector('.tab.on')?.dataset.tab === 'roadmap'`);
+      await travel(chrome, 1);
+      await settled(chrome, `${showing('items', '/')} && document.querySelector('.tab.on')?.dataset.tab === 'items' && document.querySelector('#detail h2')?.innerText.includes('Session timeout banner')`);
+      await press(chrome, `document.querySelector('[data-tab="roadmap"]')`);
+      await chrome.waitFor(`${showing('roadmap', '/roadmap')} && location.search === ${JSON.stringify(view.link.search)}`);
+    }
+
+    // Another repo's item opens on its own board, and Back and Forward move between the two boards.
+    await press(chrome, roadmapRow('beacon#1'));
+    await chrome.waitFor(`document.querySelector('#proj-name').textContent === 'beacon' && ${showing('items', '/')} && document.querySelector('#detail h2')?.innerText.includes('Billing webhook retries')`);
+    const there = JSON.parse(await chrome.evaluate(`JSON.stringify((() => { const chip = document.querySelector('#detail .meta .chip'); return {
+      id: document.querySelector('#detail h2 span').innerText, label: chip.innerText, chip: getComputedStyle(chip).color + ' on ' + getComputedStyle(chip).backgroundColor,
+      dot: getComputedStyle(document.querySelector('#chain [data-item="1"] .dot')).backgroundColor }; })())`));
+    const crossed = seen.cards[0].rows.find((row) => row.id === 'beacon#1');
+    assert.deepEqual(there, { id: '#1', label: crossed.label, chip: crossed.chip, dot: crossed.dot }, "the other repo's Items tab shows that item with the Roadmap's word and colours");
+    await travel(chrome, -1);
+    await settled(chrome, `document.querySelector('#proj-name').textContent === 'roadmap-demo' && ${showing('roadmap', '/roadmap')} && !!${roadmapRow('beacon#1')}`);
+    await travel(chrome, 1);
+    await settled(chrome, `document.querySelector('#proj-name').textContent === 'beacon' && ${showing('items', '/')} && document.querySelector('#detail h2')?.innerText.includes('Billing webhook retries')`);
+    await travel(chrome, -1);
+    await settled(chrome, `document.querySelector('#proj-name').textContent === 'roadmap-demo' && ${showing('roadmap', '/roadmap')} && !!${roadmapRow('#1')}`);
+
+    // Each of this board's rows opens its item on the Items tab, which gives it the same word and
+    // colours, its list dot included; a withdrawn item is left out of the list while browsing.
+    for (const row of seen.cards.flatMap((card) => card.rows).filter((each) => each.id.startsWith('#'))) {
+      await press(chrome, roadmapRow(row.id));
+      await chrome.waitFor(`${showing('items', '/')} && document.querySelector('#detail h2 span')?.innerText === ${JSON.stringify(row.id)}`);
+      const here = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+        const chip = document.querySelector('#detail .meta .chip'), dot = document.querySelector('#chain [data-item="${row.id.slice(1)}"] .dot');
+        return { label: chip.innerText, chip: getComputedStyle(chip).color + ' on ' + getComputedStyle(chip).backgroundColor, dot: dot ? getComputedStyle(dot).backgroundColor : 'not listed' };
+      })())`));
+      assert.deepEqual(here, { label: row.label, chip: row.chip, dot: row.label === 'withdrawn' ? 'not listed' : row.dot }, `${row.id}: the Items tab shows it with the Roadmap's word and colours`);
+      await travel(chrome, -1);
+      await settled(chrome, `${showing('roadmap', '/roadmap')} && !!${roadmapRow(row.id)}`);
+    }
+
+    // It updates live as items move, here and on the other repo's board.
+    accept(box, alpha, 4);
+    await chrome.waitFor(`${roadmapRow('#4')}?.querySelector('.chip').innerText === 'verified' && document.querySelector('#roadmap .milestone-count').innerText === '3/5 done'`, 15_000);
+    box.run(beacon.web, 'claim', '1');
+    await chrome.waitFor(`${roadmapRow('beacon#1')}?.querySelector('.chip').innerText === 'building'`, 15_000);
+
+    // A board with no milestones says how one starts; the address stays the Roadmap's.
+    await press(chrome, `document.querySelector('[data-root=${JSON.stringify(beacon.repo)}]')`);
+    await chrome.waitFor(`document.querySelector('#proj-name').textContent === 'beacon' && ${showing('roadmap', '/roadmap')} && document.querySelector('#roadmap').innerText.startsWith('No milestones yet.')`);
+    await press(chrome, `document.querySelector('[data-root=${JSON.stringify(alpha.repo)}]')`);
+    await chrome.waitFor(`document.querySelector('#proj-name').textContent === 'roadmap-demo' && !!${roadmapRow('#1')}`);
+
+    // A reload keeps the Roadmap. The board's own address shows the tab last picked there, never the
+    // Roadmap, even when the Roadmap was picked last.
+    await chrome.send('Page.reload');
+    await settled(chrome, `!!data?.project && ${showing('roadmap', '/roadmap')} && !!${roadmapRow('#1')}`);
+    await press(chrome, `document.querySelector('[data-tab="shouts"]')`);
+    await chrome.waitFor(showing('shouts', '/'));
+    await press(chrome, `document.querySelector('[data-tab="roadmap"]')`);
+    await chrome.waitFor(showing('roadmap', '/roadmap'));
+    await chrome.send('Page.navigate', { url: view.link.href });
+    await settled(chrome, `!!data?.project && ${showing('shouts', '/')} && document.querySelector('.tab.on')?.dataset.tab === 'shouts'`);
+    assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught page exceptions');
+    assert.deepEqual(consoleErrors, [], 'Chrome reports no console errors');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    await view.stop();
+    rmSync(profile, { recursive: true, force: true });
+  }
+});
+
+test('an exported roadmap has its own address under a folder, and Back and Forward return to it [N38,A10]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for exported roadmap checks.');
+  const box = machine();
+  const alpha = project(box, 'roadmap-snapshot');
+  const beacon = project(box, 'beacon');
+  box.run(alpha.repo, 'add', 'web', 'Verified page', '--specs', 'G1', '--criterion', 'renders');
+  box.run(alpha.repo, 'add', 'web', 'Open page', '--specs', 'G1', '--criterion', 'renders');
+  build(box, alpha, 1, 'one.txt');
+  accept(box, alpha, 1);
+  box.run(beacon.repo, 'add', 'web', 'Billing webhook retries', '--specs', 'G1', '--criterion', 'retries');
+  box.run(alpha.repo, 'milestone', 'add', 'Launch', '--note', 'Ships with the snapshot.', '--items', '1,2,beacon#1');
+  box.run(alpha.repo, 'milestone', 'add', 'Later');
+  const folder = join(box.dir, 'roadmap-export');
+  box.run(alpha.repo, 'view', '--export', folder);
+  const host = await serveFolder(folder, '/demo/');
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-roadmap-export-chrome-'));
+  const ready = "document.body.classList.contains('snapshot') && !!data?.project && snapshotReplay.index === snapshotReplay.events.length";
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, `${host.base}/demo/`, profile);
+    await settled(chrome, `${ready} && ${showing('items', '/demo/')}`);
+    await press(chrome, `document.querySelector('[data-tab="roadmap"]')`);
+    await chrome.waitFor(showing('roadmap', '/demo/#roadmap'));
+    const seen = await readRoadmap(chrome);
+    assert.deepEqual(seen.cards[0].rows.map(({ id, label, tone, button }) => ({ id, label, tone, button })), [
+      { id: '#1', label: 'verified', tone: 'ok', button: true },
+      { id: '#2', label: 'open', tone: '', button: true },
+      { id: 'beacon#1', label: 'open', tone: '', button: false },
+    ], "the snapshot's rows read as its Items tab does; another repo's item, not in the snapshot, opens nothing");
+    assert.equal(seen.cards[0].rows[2].tip, 'Billing webhook retries (not in this snapshot)', 'and says why');
+    assert.deepEqual([seen.cards[1].name, seen.cards[1].empty], ['Later', 'No items yet.']);
+
+    // The address survives a reload on a static host, and Back and Forward show the tab it names,
+    // whether the browser keeps the page for an entry or loads it again.
+    await chrome.send('Page.reload');
+    await settled(chrome, `${ready} && ${showing('roadmap', '/demo/#roadmap')} && !!${roadmapRow('#1')}`);
+    await travel(chrome, -1);
+    await settled(chrome, `${ready} && ${showing('items', '/demo/')}`);
+    await travel(chrome, 1);
+    await settled(chrome, `${ready} && ${showing('roadmap', '/demo/#roadmap')} && !!${roadmapRow('#2')}`);
+    await press(chrome, roadmapRow('#2'));
+    await chrome.waitFor(`${showing('items', '/demo/')} && document.querySelector('#detail h2')?.innerText.includes('Open page')`);
+    await travel(chrome, -1);
+    await settled(chrome, `${ready} && ${showing('roadmap', '/demo/#roadmap')}`);
+
+    // Opened afresh, the folder shows the board's tab, and its #roadmap address the Roadmap.
+    for (const [address, pane] of [['/demo/', 'items'], ['/demo/#roadmap', 'roadmap']]) {
+      await chrome.send('Page.navigate', { url: 'about:blank' });
+      await settled(chrome, "location.href === 'about:blank'");
+      await chrome.send('Page.navigate', { url: `${host.base}${address}` });
+      await settled(chrome, `${ready} && ${showing(pane, address)}`);
+    }
+    for (const width of [375, 1280]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.waitFor(`innerWidth === ${width}`);
+      const layout = await readRoadmap(chrome);
+      assert.ok(layout.document <= layout.client && layout.body <= layout.client, `${width}: no sideways scroll in the snapshot: ${JSON.stringify(layout)}`);
+      await proofShot(chrome, 'snapshot-roadmap', width);
+    }
+    assert.deepEqual(host.requests.filter((request) => !request.path.startsWith('/demo/') || request.status !== 200), [], 'every request stays in the folder and finds its file');
+    assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught page exceptions');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    await host.close();
+    rmSync(profile, { recursive: true, force: true });
   }
 });

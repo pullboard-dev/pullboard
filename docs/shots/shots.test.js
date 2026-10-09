@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { evaluationValue } from './devtools-evaluation.mjs';
 import { renderTour } from './tour-renderer.mjs';
 
@@ -26,8 +27,8 @@ function linkedInSection(section, file, phrases) {
 }
 
 test('the README links the desktop board and timed tour with descriptive alt text [I11,I13]', () => {
-  linkedInSection('See every project at once', 'desktop.png', ['open', 'claimed', 'submitted', 'accepted']);
-  linkedInSection('Try it', 'tour.svg', ['submitted', 'rejected', 'fixed', 'accepted']);
+  linkedInSection('Pullboard View', 'desktop.png', ['open', 'claimed', 'submitted', 'accepted']);
+  linkedInSection('Installation', 'tour.svg', ['submitted', 'rejected', 'fixed', 'accepted']);
 });
 
 test('the demo assets exist and stay within their size budgets [I11,I13]', () => {
@@ -40,10 +41,59 @@ test('the demo assets exist and stay within their size budgets [I11,I13]', () =>
   assert.doesNotMatch(tour, /[\x00-\x08\x0b-\x1f]/, 'tour SVG contains no XML-invalid control characters');
 });
 
+test('the exported demo records cross-family review, a passed and answered decision, and standard doctrine [I13,A10]', () => {
+  const listing = JSON.parse(readFileSync(new URL('docs/demo/api/v1/boards.json', ROOT), 'utf8'));
+  assert.equal(listing.boards.length, 1);
+  assert.deepEqual({ id: listing.boards[0].id, root: listing.boards[0].root, name: listing.boards[0].name },
+    { id: 'demo-board', root: 'demo-board', name: 'Demo board' });
+  const base = 'docs/demo/api/v1/boards/demo-board/';
+  const state = JSON.parse(readFileSync(new URL(base + 'state.json', ROOT), 'utf8')).state;
+  assert.equal(state.board, 'demo-board', 'the snapshot refers to its stable public board id');
+  const events = JSON.parse(readFileSync(new URL(base + 'events.json', ROOT), 'utf8')).events;
+  const reviewed = state.items.find((item) => item.id === 1);
+  assert.equal(reviewed.status, 'verified');
+  assert.deepEqual(reviewed.verdicts.map((verdict) => verdict.decision), ['REJECT', 'ACCEPT']);
+  const familyOf = (id) => state.agents.find((agent) => agent.agent_id === id)?.agent_family;
+  assert.equal(familyOf(reviewed.builtBy), 'codex');
+  assert.equal(familyOf(reviewed.verdicts.at(-1).by), 'claude');
+  assert.notEqual(familyOf(reviewed.builtBy), familyOf(reviewed.verdicts.at(-1).by));
+  assert.ok(events.some((event) => event.event_kind === 'family' && JSON.parse(event.event_detail).family === 'codex'));
+  assert.ok(events.some((event) => event.event_kind === 'family' && JSON.parse(event.event_detail).family === 'claude'));
+  assert.ok(events.some((event) => event.event_kind === 'reject' && event.item_id === 1));
+  assert.ok(events.some((event) => event.event_kind === 'accept' && event.item_id === 1));
+  const joinedLanes = new Set(events.filter((event) => event.event_kind === 'join').map((event) => JSON.parse(event.event_detail).lane));
+  assert.deepEqual([...joinedLanes].sort(), ['app', 'coordinator', 'review']);
+  assert.ok(state.items.some((item) => item.status === 'claimed'));
+  assert.ok(state.items.some((item) => item.status === 'submitted'));
+  assert.deepEqual(state.spec.filter((row) => row.status === 'approved').map((row) => row.id), ['G1', 'G2']);
+  assert.ok(state.practice.some((row) => row.origin === 'standard'), 'the snapshot contains the shipped standard doctrine');
+  assert.ok(state.holds.some((hold) => hold.hold_lane === 'review'));
+  const ask = events.findIndex((event) => event.event_kind === 'shout' && JSON.parse(event.event_detail).decision === true);
+  const pass = events.findIndex((event, index) => index > ask && event.event_kind === 'pass' && event.event_by === 'coordinator');
+  const answer = events.findIndex((event, index) => index > pass && event.event_kind === 'answer' && event.event_by === 'person');
+  assert.ok(ask >= 0 && pass > ask && answer > pass, 'the coordinator passes the decision up and the person answers afterward');
+});
+
+test('the exported demo is synthetic and contains no machine paths or unrelated shouts [I13,A10]', () => {
+  const files = ['index.html', 'view.css', 'api/v1/boards.json', 'api/v1/boards/demo-board/state.json', 'api/v1/boards/demo-board/events.json'];
+  const text = files.map((file) => readFileSync(new URL('docs/demo/' + file, ROOT), 'utf8')).join('\n');
+  assert.equal(text.includes(fileURLToPath(ROOT)), false, 'the export does not name this checkout');
+  if (process.env.HOME) assert.equal(text.includes(process.env.HOME), false, 'the export does not name the person home');
+  assert.doesNotMatch(text, /file:\/\/|\/(?:Users|private)\/|\/tmp\/pullboard-/);
+  const state = JSON.parse(readFileSync(new URL('docs/demo/api/v1/boards/demo-board/state.json', ROOT), 'utf8')).state;
+  assert.ok(state.agents.every((agent) => /^(coordinator|person|app-\d+|review-\d+)$/.test(agent.agent_id)), 'only generic demo roles appear as agents');
+  assert.ok(state.shouts.every((shout) => [
+    'The review is complete. May the verified change proceed?',
+    'Passed up from app-3: The review is complete. May the verified change proceed?\nCoordinator note: The review passed; ask the person before proceeding.',
+    'Proceed with the verified change.',
+    'Person answered #2: Proceed with the verified change.',
+  ].includes(shout.shout_text)), 'the board contains only the synthetic decision exchange');
+});
+
 test('the demo rebuild script uses a temporary repo and isolated home [I11,I13]', () => {
   const script = readFileSync(shots('demo.mjs'), 'utf8');
   assert.match(script, /mkdtemp\(join\(tmpdir\(\)/);
-  assert.match(script, /, HOME: home, PULLBOARD_HOME: home/);
+  assert.match(readFileSync(shots('demo-env.mjs'), 'utf8'), /, HOME: home, PULLBOARD_HOME: home/);
   assert.match(script, /process\.execPath, \[BIN, 'init'\]/);
 });
 

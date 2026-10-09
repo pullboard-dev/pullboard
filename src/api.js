@@ -10,9 +10,15 @@ import { relayLinked, relayOperation, relayRevoke, relayTokens } from './relay.j
 import { laneNames } from './lanes.js';
 import { listApiProjects } from './projects.js';
 import { milestoneRoadmap } from './roadmap.js';
+import { proofStats } from './stats.js';
+import { projectRowDecisions } from './row-decisions.js';
 import { Refused } from './refused.js';
 import { codeAt, projectState } from './serve.js';
+import { relayPresentationShout } from './relay-presentation.js';
 import { createApiHandler } from './api-http.js';
+import { moveArgs } from './api-moves.js';
+import { personRequestStatuses } from './relay-requests.js';
+export { moveArgs } from './api-moves.js';
 
 const ADDRESS = '127.0.0.1';
 const VERSION = 1;
@@ -79,60 +85,8 @@ function agentPath(root, name = COORDINATOR) {
   });
 }
 
-/** Declarative CLI forms keep API calls on the same argument parser and engine as terminal moves. */
-const MOVES = {
-  add: { positions: ['lane', 'title'], flags: ['criterion', 'specs', 'parent', 'after', 'brief', 'route', 'check'] },
-  edit: { item: true, flags: ['criterion', 'brief', 'route', 'check'] },
-  claim: { item: true },
-  release: { item: true },
-  submit: { item: true },
-  done: { item: true },
-  verify: { item: true, positions: ['decision'], flags: ['reason', 'note', 'as'] },
-  merged: { item: true, positions: ['commit'] },
-  withdraw: { item: true, positions: ['reason'] },
-  refreeze: { item: true },
-  escalate: { item: true, flags: ['note'] },
-  hold: { positions: ['lane'], flags: ['reason'], booleans: ['off'] },
-  shout: { positions: ['to', 'text'], optional: ['to'], booleans: ['decision'], flags: ['evidence', 'outcome', 'item', 'commit'] },
-  answer: { item: true, positions: ['text'], flags: ['as'] },
-  pass: { item: true, positions: ['note'] },
-  next: { flags: ['as'], booleans: ['verify'] },
-};
-
-/** Reject unsupported fields, then pass values as distinct argv entries, never a shell command. */
-export function moveArgs({ verb, item, args = {} }) {
-  if (verb === 'accept' || verb === 'reject') return moveArgs({ verb: 'verify', item, args: { ...args, decision: verb } });
-  const form = Object.hasOwn(MOVES, verb) ? MOVES[verb] : null;
-  if (!form) throw new Refused('BAD_REQUEST', `no API move ${String(verb)}; use a board move such as add, claim, submit, verify, shout or answer`);
-  if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Refused('BAD_REQUEST', 'args needs a JSON object containing this move\'s arguments');
-  const allowed = [...(form.positions ?? []), ...(form.flags ?? []), ...(form.booleans ?? [])];
-  for (const key of Object.keys(args)) if (!allowed.includes(key)) throw new Refused('BAD_REQUEST', `${verb} does not take args.${key}; use only this CLI move's arguments`);
-  const argv = [verb];
-  if (form.item) {
-    if (!Number.isSafeInteger(item) || item < 1) throw new Refused('BAD_REQUEST', `${verb} needs a positive integer item; use the item id from the board state`);
-    argv.push(String(item));
-  } else if (item !== undefined && item !== null) throw new Refused('BAD_REQUEST', `${verb} does not take item; put its arguments in args`);
-  const positional = [];
-  for (const key of form.positions ?? []) {
-    if (args[key] === undefined && form.optional?.includes(key)) continue;
-    if (typeof args[key] !== 'string' || !args[key].trim()) throw new Refused('BAD_REQUEST', `${verb} needs args.${key} as nonempty text; supply the CLI move's argument`);
-    positional.push(args[key]);
-  }
-  for (const key of form.flags ?? []) if (args[key] !== undefined) {
-    if (typeof args[key] !== 'string') throw new Refused('BAD_REQUEST', `args.${key} needs text; supply the CLI flag's value`);
-    argv.push(`--${key}=${args[key]}`);
-  }
-  for (const key of form.booleans ?? []) if (args[key] !== undefined) {
-    if (typeof args[key] !== 'boolean') throw new Refused('BAD_REQUEST', `args.${key} needs true or false`);
-    if (args[key]) argv.push(`--${key}`);
-  }
-  // Positionals follow -- so titles and notes beginning with a dash never become CLI flags.
-  argv.push('--json', '--', ...positional);
-  return argv;
-}
-
 /** Execute one actual CLI command and retain its emitted event without a latest-row race. */
-async function executeMove(root, body, runCommand) {
+export async function executeMove(root, body, runCommand) {
   if (Object.keys(body).some((key) => !['verb', 'item', 'args', 'agent'].includes(key))) throw new Refused('BAD_REQUEST', 'a move takes only verb, item, args and agent; remove the unknown fields');
   const argv = moveArgs(body);
   let cwd;
@@ -145,12 +99,14 @@ async function executeMove(root, body, runCommand) {
   const events = [];
   const status = await runCommand(argv, {
     cwd,
+    personChannel: 'view',
     stdout: { isTTY: false, write: (text) => { output += text; } },
     stderr: { write: (text) => { diagnostics += text; } },
     onEvent: (row) => { events.push(row); },
   });
   const result = JSON.parse(output);
   if (status) return { status: 409, body: result };
+  if (body.verb === 'next' && result.offer) return { status: 200, body: { version: VERSION, event: null, result, offer: result.offer } };
   const kind = body.verb === 'verify' ? body.args?.decision
     : body.verb === 'done' ? 'submit'
     : body.verb === 'hold' && body.args?.off ? 'unhold' : body.verb;
@@ -194,16 +150,27 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     boards: () => apiBoardListing(projects),
     board: (id) => findBoard(id, projects),
     state: (board, who, seen) => {
-      const state = projectState(board.root, { seen });
+      let state = projectState(board.root, { seen });
       state.board = board.id;
       const projectData = withBoard(board.root, (db) => ({
         requests: store.openRequests(db),
+        personRequests: personRequestStatuses(db),
         milestones: milestoneRoadmap(board.root, db),
+        rowDecisions: store.rowDecisions(db),
+        proofStats: proofStats(db),
+        threads: new Map(store.listItems(db, { all: true }).map((item) => [item.item_id, store.itemThread(db, item.item_id)])),
       }));
+      state.proofStats = projectData.proofStats;
       state.requests = projectData.requests;
+      state.personRequests = projectData.personRequests;
       state.milestones = projectData.milestones;
+      state = projectRowDecisions(projectData.rowDecisions, state);
+      state.items = state.items.map((item) => ({ ...item, thread: projectData.threads.get(item.id) ?? [] }));
       return state;
     },
+    shout: (board, id) => relayLinked(board.root)
+      ? relayPresentationShout(board.root, id)
+      : withBoard(board.root, (db) => store.shoutDetails(db, id)),
     code: (board, ref) => codeAt(board.root, ref),
     events: (board, after) => afterEvents(board.root, after),
     eventLogVersion: () => store.EVENT_LOG_VERSION,

@@ -4,7 +4,8 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, wri
 import { dirname, join } from 'node:path';
 import * as store from './board.js';
 import { exportBoard, restoreRelaySnapshot } from './exchange.js';
-import { appliedSequence, applyEngineMove, checkpointSequence, engineReceipt, engineActor, prepareEngineMove, startRelayEpoch } from './engine.js';
+import { appliedSequence, applyRelayMove, checkpointSequence, engineReceipt, prepareEngineMove, requireSupportedEngine, startRelayEpoch } from './engine.js';
+import { relayMoveActor } from './relay-sender.js';
 import { ENGINE_VERSION } from './machine.js';
 import { presentationDigest, relayPresentation, relaySnapshot } from './relay-presentation.js';
 import { repoInfo, tryGit } from './git.js';
@@ -12,6 +13,8 @@ import { forgetBoardKey, readBoardKey, storeBoardKey } from './relay-key.js';
 import { encodeBoardKey, generateBoardKey, seal, unseal } from './seal.js';
 import { terminalQr } from './qr.js';
 import { Refused } from './refused.js';
+import { relaySenderProblem } from './relay-sender.js';
+import { receivePersonRequest } from './relay-requests.js';
 
 export const DEFAULT_RELAY = 'https://app.pullboard.dev';
 const LINK_FILES = new WeakMap();
@@ -121,7 +124,7 @@ async function request(state, path, { method = 'GET', body, allowMissing = false
   try {
     response = await fetch(relayOrigin(state.url) + path, {
       method, redirect: 'error', signal: AbortSignal.timeout(10000),
-      headers: { ...(token ? { authorization: 'Bearer ' + token } : {}), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      headers: { 'x-pullboard-engine': String(ENGINE_VERSION), ...(token ? { authorization: 'Bearer ' + token } : {}), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   } catch { throw new Refused('RELAY_UNAVAILABLE', `the relay ${state.url} did not answer; read the local board offline, then retry this move when the relay is reachable`); }
@@ -172,8 +175,12 @@ async function flushMirror(root, file, state, io) {
     saveLink(file, state);
   }
   if (state.snapshot) {
-    const uploaded = await request(state, path + '/state', { method: 'PUT', body: state.snapshot }, io);
-    if (uploaded.state?.sequence !== state.snapshot.sequence || uploaded.state.sealed !== state.snapshot.sealed) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge the queued snapshot; retry the configured relay');
+    const pendingSnapshot = state.snapshot;
+    const uploaded = await request(state, path + '/state', { method: 'PUT', body: pendingSnapshot }, io);
+    if (uploaded.state?.sequence !== pendingSnapshot.sequence || uploaded.state.sealed !== pendingSnapshot.sealed) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge the queued snapshot; retry the configured relay');
+    if (state.snapshotPresentationDigest) state.presentationDigest = state.snapshotPresentationDigest;
+    delete state.snapshotPresentationDigest;
+    state.needsPresentation = false;
     delete state.snapshot;
     saveLink(file, state);
   }
@@ -185,9 +192,18 @@ async function flushMirror(root, file, state, io) {
       !['move', 'request'].includes(event.kind) || typeof event.sealed !== 'string' || !/^[A-Za-z0-9_-]+$/.test(event.sealed))) {
     throw new Refused('RELAY_RESPONSE', 'the relay returned an invalid ordered event prefix; retry the configured relay');
   }
+  // A mirror-only client cannot attest a checkpoint covering another device's unseen moves.
+  if (received.some(event => !(state.pending && event.event_id === state.pending.sequence && event.sealed === state.pending.sealed && event.kind === 'move'))) {
+    throw new Refused('RELAY_REPLAY_REQUIRED', 'another device changed this board; upgrade to a relay-order client before publishing a checkpoint or further queued moves');
+  }
   if (state.pending) {
     const accepted = received.find((event) => event.event_id === state.pending.sequence && event.sealed === state.pending.sealed && event.kind === 'move');
-    if (accepted) { state.cursor = state.pending.localEvent; delete state.pending; }
+    if (accepted) {
+      state.cursor = state.pending.localEvent;
+      state.needsPresentation = Boolean(state.needsPresentation || state.pending.needsPresentation || !state.pending.presentationDigest);
+      if (state.pending.presentationDigest) state.presentationDigest = state.pending.presentationDigest;
+      delete state.pending;
+    }
   }
   if (received.length) state.sequence = Math.max(state.sequence, ...received.map((event) => event.event_id));
   if (state.pending && state.pending.sequence <= state.sequence) delete state.pending;
@@ -196,8 +212,11 @@ async function flushMirror(root, file, state, io) {
   for (const event of rows) {
     if (!state.pending) {
       const sequence = state.sequence + 1;
-      state.pending = { localEvent: event.event_id, sequence,
-        sealed: await sealedRecord(key, { version: 1, engine: ENGINE_VERSION, event }, state, 'move', sequence) };
+      const current = relayPresentation(root);
+      // Only a projection ending at this local record belongs to its relay position.
+      const presentation = current.state.events[0]?.event_id === event.event_id ? current : undefined;
+      state.pending = { localEvent: event.event_id, sequence, needsPresentation: Boolean(state.needsPresentation || !presentation), ...(presentation ? { presentationDigest: presentationDigest(presentation) } : {}),
+        sealed: await sealedRecord(key, { version: 1, engine: ENGINE_VERSION, event, presentation }, state, 'move', sequence) };
       saveLink(file, state);
     }
     const { sequence, sealed } = state.pending;
@@ -205,7 +224,26 @@ async function flushMirror(root, file, state, io) {
     if (reply.event?.event_id !== sequence || reply.event.sealed !== sealed) throw new Refused('RELAY_RESPONSE', 'the relay acknowledgement does not match the queued record; retry after checking the relay');
     state.sequence = sequence;
     state.cursor = event.event_id;
+    state.needsPresentation = Boolean(state.needsPresentation || state.pending.needsPresentation);
+    if (state.pending.presentationDigest) state.presentationDigest = state.pending.presentationDigest;
     delete state.pending;
+    saveLink(file, state);
+  }
+  const presentation = relayPresentation(root);
+  const digest = presentationDigest(presentation);
+  if (state.needsPresentation || state.presentationDigest !== digest) {
+    const document = relaySnapshot(root);
+    if ((document.tables.event.at(-1)?.event_id ?? 0) !== state.cursor) throw new Refused('RELAY_PRESENTATION_PENDING', 'new local moves arrived while syncing; run pullboard status again before publishing their presentation');
+    state.snapshot = { sequence: state.sequence, sealed: await sealedRecord(key, document, state, 'snapshot', state.sequence) };
+    state.snapshotPresentationDigest = presentationDigest(document.presentation);
+    saveLink(file, state);
+    const pendingSnapshot = state.snapshot;
+    const uploaded = await request(state, path + '/state', { method: 'PUT', body: pendingSnapshot }, io);
+    if (uploaded.state?.sequence !== pendingSnapshot.sequence || uploaded.state.sealed !== pendingSnapshot.sealed) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge the refreshed presentation; retry the configured relay');
+    state.presentationDigest = state.snapshotPresentationDigest;
+    delete state.snapshotPresentationDigest;
+    state.needsPresentation = false;
+    delete state.snapshot;
     saveLink(file, state);
   }
   return summary(root, state);
@@ -287,6 +325,8 @@ async function restoreCheckpoint(root, state, io, key) {
   const document = await request(state, '/api/v1/boards/' + state.board + '/state', {}, io);
   const snapshot = document.state;
   if (!snapshot || !Number.isSafeInteger(snapshot.sequence) || snapshot.sequence < 0) throw new Refused('RELAY_RESPONSE', 'the relay snapshot has no valid coverage sequence; fetch it again');
+  const senderProblem = relaySenderProblem(null, snapshot.sender, 'snapshot');
+  if (senderProblem) throw senderProblem;
   const native = await decoded(key, snapshot, state, 'snapshot', snapshot.sequence);
   localRecords(root, (board) => restoreRelaySnapshot(board, native, snapshot.sequence));
 }
@@ -308,12 +348,18 @@ async function catchUp(root, file, state, io) {
   }
   for (const record of remote.events) {
     const move = await decoded(key, record, state, record.kind, record.event_id);
+    // Legacy executable documents in the request channel still fail closed before attribution.
+    if (record.kind === 'request' && move?.engine !== undefined) requireSupportedEngine(move);
     localRecords(root, (board) => {
-      applyEngineMove(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender });
+      if (record.kind === 'request') receivePersonRequest(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender });
+      else applyRelayMove(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender, kind: record.kind });
     });
   }
   state.sequence = localRecords(root, appliedSequence);
-  if (state.pending?.move && localRecords(root, (board) => engineReceipt(board, state.pending.move.id))) delete state.pending;
+  if (state.pending?.move && localRecords(root, (board) => engineReceipt(board, state.pending.move.id))) {
+    state.recovered = state.pending;
+    delete state.pending;
+  }
   saveLink(file, state);
 }
 
@@ -322,7 +368,7 @@ async function sendPending(root, file, state, io) {
   for (let tries = 0; state.pending && tries < 100; tries += 1) {
     const pending = state.pending;
     try {
-      const transport = await actorTransport(root, file, state, engineActor(pending.move.operation, pending.move.args), io);
+      const transport = await actorTransport(root, file, state, credentialActor(pending.move), io);
       const reply = await request(transport, '/api/v1/boards/' + state.board + '/moves', { method: 'POST', body: { sequence: pending.sequence, sealed: pending.sealed } }, io);
       if (reply.event?.event_id !== pending.sequence || reply.event.sealed !== pending.sealed) throw new Refused('RELAY_RESPONSE', 'the relay acknowledgement differs from this executable send; fetch the configured relay');
     } catch (error) {
@@ -340,10 +386,23 @@ async function sendPending(root, file, state, io) {
   if (state.pending) throw new Refused('RELAY_BUSY', 'the relay order stayed busy; retry this command after other clients finish');
 }
 
+/** Choose credentials only; main's relay sender policy remains the sole replay authorization. */
+function credentialActor(move) {
+  const args = move.args;
+  if (move.personRequest || ['register', 'ensureCoordinator', 'recordRowDecisions'].includes(move.operation)
+    || move.operation === 'answerDecision' && args[1]?.asPerson
+    || move.operation === 'shout' && args[0]?.request) return 'person';
+  return relayMoveActor(move);
+}
+
 /** Select one scoped credential without renewing a revoked or expired agent cache. */
 async function actorTransport(root, file, state, actor, io) {
   if (typeof actor !== 'string' || !/^[A-Za-z0-9_.-]{1,128}$/.test(actor)) {
     throw new Refused('RELAY_ACTOR', 'name the registered agent performing this move before sending it');
+  }
+  if (actor === 'person') {
+    if (!state.token.startsWith('ps_')) throw new Refused('HUMAN_REQUIRED', 'sign in as a person to enroll an agent or answer as the person');
+    return state;
   }
   const supplied = process.env.PULLBOARD_RELAY_TOKEN;
   if (supplied !== undefined) {
@@ -352,10 +411,6 @@ async function actorTransport(root, file, state, actor, io) {
     const identity = await request(transport, '/auth/session?board=' + state.board, {}, io);
     if (identity.session?.kind !== 'board' || identity.session.agent !== actor) throw new Refused('RELAY_ACTOR', 'use the scoped token belonging to this move’s registered agent');
     return transport;
-  }
-  if (actor === 'person') {
-    if (!state.token.startsWith('ps_')) throw new Refused('HUMAN_REQUIRED', 'sign in as a person to enroll an agent or answer as the person');
-    return state;
   }
   if (state.token.startsWith('pa_')) {
     const identity = await request(state, '/auth/session?board=' + state.board, {}, io);
@@ -378,8 +433,40 @@ async function actorTransport(root, file, state, actor, io) {
   return { ...state, token: state.agentTokens[actor].token, agent: actor };
 }
 
+/** Compare caller intent without executing frozen callbacks or allocating another operation id. */
+function operationIntent(operation, args) {
+  const values = Array.isArray(args) ? args.map((value, index) => {
+    if (!['claim', 'refreeze'].includes(operation) || index !== 1 || !value || typeof value !== 'object') return value;
+    const options = { ...value };
+    delete options.freeze;
+    delete options.frozen;
+    delete options.freezeError;
+    return options;
+  }) : args;
+  return JSON.stringify({ operation, args: values }, (_key, value) => typeof value === 'function' ? undefined : value);
+}
+
+/** Keep a recovered outcome until its caller repeats the interrupted operation to receive it. */
+function recoveredMove(root, state, operation, args, command) {
+  if (!state.recovered) return null;
+  const recovered = state.recovered;
+  const intent = recovered.intent ?? operationIntent(recovered.move.operation, recovered.move.args);
+  const matches = recovered.commandIntent === undefined
+    ? intent === operationIntent(operation, args)
+    : recovered.move.operation === operation && recovered.commandIntent === operationIntent('cli:' + command?.cliOperation, command);
+  if (!matches) {
+    throw new Refused('RELAY_RETRY_PENDING', 'the previous move reached the relay; repeat that interrupted command to receive its original outcome before sending a different move');
+  }
+  const receipt = localRecords(root, (board) => engineReceipt(board, recovered.move.id));
+  if (!receipt) throw new Refused('RELAY_RESPONSE', 'the recovered operation has no replay receipt; fetch a consistent relay snapshot before retrying');
+  if (receipt.move !== JSON.stringify(recovered.move)) {
+    throw new Refused('RELAY_MOVE', 'the recovered operation differs from its durable receipt; restore consistent relay metadata before retrying');
+  }
+  return recovered.move;
+}
+
 /** Send one board operation before executing it locally, and report its canonical engine result. */
-export async function relayOperation(root, operation, args, io) {
+export async function relayOperation(root, operation, args, io, command) {
   const file = linkFile(root);
   return locked(file, async () => {
     const state = loadLink(file);
@@ -390,14 +477,39 @@ export async function relayOperation(root, operation, args, io) {
       delete state.pending;
       saveLink(file, state);
     }
-    const move = localRecords(root, (board) => prepareEngineMove(board, operation, args, { actor: engineActor(operation, args) }));
-    await actorTransport(root, file, state, move.actor, io);
-    const sequence = state.sequence + 1;
-    state.pending = { move, sequence, sealed: await sealedRecord(readBoardKey(state.board), move, state, 'move', sequence) };
-    saveLink(file, state);
-    await sendPending(root, file, state, io);
+    const previousReceipt = io.personRequestMoveId && localRecords(root, board => engineReceipt(board, io.personRequestMoveId));
+    if (previousReceipt) {
+      if (state.recovered?.move?.id === io.personRequestMoveId) {
+        delete state.recovered;
+        saveLink(file, state);
+      }
+      if (previousReceipt.outcome.error) throw new Refused(previousReceipt.outcome.error.code, previousReceipt.outcome.error.message);
+      for (const event of previousReceipt.outcome.events ?? []) io.onEvent?.(event);
+      return previousReceipt.outcome.result;
+    }
+    let move = recoveredMove(root, state, operation, args, command);
+    if (!move) {
+      move = localRecords(root, (board) => prepareEngineMove(board, operation, args, io.personRequestMoveId ? { id: io.personRequestMoveId } : {}));
+      if (io.personRequest) move.personRequest = structuredClone(io.personRequest);
+      move.actor = relayMoveActor(move) ?? credentialActor(move);
+      await actorTransport(root, file, state, credentialActor(move), io);
+      const sequence = state.sequence + 1;
+      state.pending = { move, intent: operationIntent(operation, args),
+        ...(command ? { command, commandIntent: operationIntent('cli:' + command.cliOperation, command) } : {}), sequence,
+        sealed: await sealedRecord(readBoardKey(state.board), move, state, 'move', sequence) };
+      saveLink(file, state);
+      try { await sendPending(root, file, state, io); }
+      catch (error) {
+        if (!['RELAY_UNAVAILABLE', 'RELAY_RESPONSE'].includes(error.code)) throw error;
+        // A lost acknowledgement can be recovered now without asking the caller to retry side effects.
+        try { await catchUp(root, file, state, io); } catch { throw error; }
+        if (!localRecords(root, (board) => engineReceipt(board, move.id))) throw error;
+      }
+    }
     const receipt = localRecords(root, (board) => engineReceipt(board, move.id));
     if (!receipt) throw new Refused('RELAY_RESPONSE', 'the acknowledged operation has no replay receipt; fetch a consistent relay snapshot');
+    delete state.recovered;
+    saveLink(file, state);
     // A phone can read a compacted checkpoint; failed presentation uploads do not undo the move.
     try { await publishCheckpoint(root, file, state, io); }
     catch (error) { if (!(error instanceof Refused)) throw error; io.err(`pullboard: ${error.message}`); }
@@ -489,6 +601,47 @@ export async function relayRevoke(root, id, io) {
   });
 }
 
+/** Read an acknowledged exact CLI result before changed spec, brief or Git refs can block it. */
+export async function relayCommandReceipt(root, command) {
+  if (!command) return null;
+  const file = linkFile(root);
+  return locked(file, async () => {
+    const state = loadLink(file);
+    if (!state || state.unlinking) return null;
+    const recovered = state.recovered;
+    if (!recovered || recovered.commandIntent !== operationIntent('cli:' + command.cliOperation, command)) return null;
+    if (recovered.commandIntent !== operationIntent('cli:' + recovered.command?.cliOperation, recovered.command)) {
+      throw new Refused('RELAY_STORAGE', 'restore the interrupted command metadata before retrying');
+    }
+    const expected = { add: 'addItem', edit: 'editItem', merged: 'merged' }[command.cliOperation];
+    if (!recovered.move || recovered.move.operation !== expected) throw new Refused('RELAY_STORAGE', 'restore the interrupted command metadata before retrying');
+    const move = recoveredMove(root, state, recovered.move.operation, recovered.move.args, command);
+    const receipt = localRecords(root, board => engineReceipt(board, move.id));
+    if (receipt.outcome.error) {
+      delete state.recovered;
+      saveLink(file, state);
+      throw new Refused(receipt.outcome.error.code, receipt.outcome.error.message);
+    }
+    return { result: receipt.outcome.result, events: receipt.outcome.events ?? [], move };
+  });
+}
+
+/** Consume the exact cached result after its original CLI outcome has been formatted. */
+export async function relayCommandReceiptReported(root, moveId) {
+  const file = linkFile(root);
+  return locked(file, async () => {
+    const state = loadLink(file);
+    if (state?.recovered?.move?.id === moveId) {
+      delete state.recovered;
+      saveLink(file, state);
+    }
+  });
+}
+
+/** Expose only an unreported operation descriptor so CLI preconditions cannot strand its outcome. */
+export function relayRecovered(root) {
+  return loadLink(linkFile(root))?.recovered?.move ?? null;
+}
 /** Read the local link and lag without opening a network connection or revealing its relay token. */
 export function relayStatus(root) { return summary(root, loadLink(linkFile(root))); }
 
@@ -575,5 +728,18 @@ export async function relayOff(root, io) {
     rmSync(file, { force: true });
     return { linked: false, board: state.board, url: state.url, link: '', sequence: state.sequence, behind: 0,
       ...(state.alreadyDeleted ? { alreadyDeleted: true, notice: 'the relay had already deleted this board; this device is unlinked and the local board is complete' } : {}) };
+  });
+}
+
+
+/** Keep the elected native executor stable across processes while other worktrees share its link. */
+export async function relayRequestDevice(root) {
+  const file = linkFile(root);
+  if (!existsSync(file)) return null;
+  return locked(file, async () => {
+    const state = loadLink(file);
+    if (!state || state.unlinking) return null;
+    if (!state.requestDevice) { state.requestDevice = randomUUID(); saveLink(file, state); }
+    return state.requestDevice;
   });
 }

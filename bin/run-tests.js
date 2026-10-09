@@ -5,10 +5,16 @@
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { delimiter, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
+import { AGENT_SHELL_MARKERS } from '../src/person.js';
 
 const runner = fileURLToPath(import.meta.url);
+
+/** Quote a path for the private Git shim without interpreting shell metacharacters. */
+function shellWord(value) {
+  return `'${String(value).replaceAll("'", "'\\''")}'`;
+}
 
 /**
  * Build a private environment that makes local tests fail for the same missing Git and CLI setup as CI.
@@ -24,11 +30,17 @@ function testEnvironment(sandbox) {
   const refusal = join(shims, 'pullboard');
   writeFileSync(refusal, '#!/bin/sh\nprintf "pullboard is not installed; current test: %s\\n" "${PULLBOARD_TEST_FILE:-unknown}" >&2\nexit 1\n');
   chmodSync(refusal, 0o755);
+  const realGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim().split(/\r?\n/u)[0];
+  const git = join(shims, 'git');
+  writeFileSync(git, `#!/bin/sh\nexec ${shellWord(realGit)} -c user.useConfigOnly=true "$@"\n`);
+  chmodSync(git, 0o755);
 
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
     if (key.startsWith('GIT_')) delete env[key];
   }
+  // Model a plain user terminal; person-boundary tests inject agent markers explicitly.
+  for (const key of AGENT_SHELL_MARKERS) delete env[key];
   env.HOME = home;
   env.USERPROFILE = home;
   env.PULLBOARD_HOME = home;
