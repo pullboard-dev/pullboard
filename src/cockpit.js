@@ -755,8 +755,8 @@ function proofStatsCard(stats) {
     + '<div><span>Agents</span><b data-stat="agentCount" data-value="' + esc(stats.agentCount) + '">' + esc(stats.agentCount) + '</b></div>'
     + '<div><span>Families</span><b data-stat="familyCount" data-value="' + esc(stats.familyCount) + '">' + esc(stats.familyCount) + '</b></div>'
     + '<div><span>First · latest</span><small><time data-stat="firstEventAt" data-value="' + esc(firstAt) + '" datetime="' + esc(firstAt) + '">' + esc(dateText(firstAt)) + '</time> · <time data-stat="lastEventAt" data-value="' + esc(lastAt) + '" datetime="' + esc(lastAt) + '">' + esc(dateText(lastAt)) + '</time></small></div>'
-    + '</div><details class="proof-stats-detail"><summary>Agents and families</summary>'
-    + '<p><b>Families:</b> ' + esc(familyDetail) + '</p><p><b>Agents:</b> ' + esc(agentDetail) + '</p></details>';
+    + '</div><div class="proof-stats-detail">'
+    + '<p><b>Families:</b> ' + esc(familyDetail) + '</p><p><b>Agents:</b> ' + esc(agentDetail) + '</p></div>';
 }
 
 /** Resolve a displayed repo to the persistent board identity supplied by API v1. */

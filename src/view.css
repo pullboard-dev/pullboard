@@ -686,7 +686,6 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .proof-stats-grid b { font-size: 14px; font-variant-numeric: tabular-nums; }
 .proof-stats-grid small { overflow-wrap: anywhere; font-size: 11px; color: var(--ink-muted); }
 .proof-stats-detail { border-top: 1px solid var(--line); padding-top: 5px; font-size: 11px; }
-.proof-stats-detail summary { min-height: var(--tap); align-content: center; cursor: pointer; color: var(--ink-muted); }
 .proof-stats-detail p { margin: 5px 0 0; overflow-wrap: anywhere; }
 
 @media (width < 480px) { .proof-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
