@@ -2,7 +2,9 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { loadavg } from 'node:os';
 import { join } from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { gunzipSync } from 'node:zlib';
 import { decodeBoardKey, seal, unseal } from '../src/seal.js';
@@ -41,6 +43,54 @@ const DECLINE_FLOW_CLI_CHILDREN = [
   { command: ['resume'], snapshotUploads: 0 },
 ];
 
+/** Record the real phase and wait budget for a late-snapshot failure without changing either wait. */
+function lateSnapshotTiming(t) {
+  const phases = [];
+  const testStartedAt = performance.now();
+  let active = null;
+  /** Finish the active phase and retain only timing metadata. */
+  function finish() {
+    if (!active) return;
+    phases.push({ phase: active.phase, waitMs: active.waitMs, elapsedMs: Math.round(performance.now() - active.startedAt) });
+    active = null;
+  }
+  t.after(() => {
+    const current = active && { phase: active.phase, waitMs: active.waitMs,
+      elapsedMs: Math.round(performance.now() - active.startedAt) };
+    t.diagnostic('late snapshot phase timing: ' + JSON.stringify({
+      plannedSnapshotDelayMs: 8000,
+      activePhase: current?.phase ?? null,
+      lastCompletedPhase: phases.at(-1)?.phase ?? null,
+      elapsedMs: Math.round(performance.now() - testStartedAt),
+      waitMs: current?.waitMs ?? phases.at(-1)?.waitMs ?? null,
+      loadavg: loadavg(),
+      phases: current ? [...phases, current] : phases,
+    }));
+  });
+  return {
+    /** Emit sanitized timing before Node runs potentially blocking teardown hooks. */
+    reportFailure(error) {
+      const current = active && { phase: active.phase, waitMs: active.waitMs,
+        elapsedMs: Math.round(performance.now() - active.startedAt) };
+      process.stderr.write('[late-snapshot-timing] ' + JSON.stringify({
+        outcome: 'failed', failureType: error?.name ?? 'Error',
+        plannedSnapshotDelayMs: 8000,
+        activePhase: current?.phase ?? null,
+        lastCompletedPhase: phases.at(-1)?.phase ?? null,
+        elapsedMs: Math.round(performance.now() - testStartedAt),
+        waitMs: current?.waitMs ?? phases.at(-1)?.waitMs ?? null,
+        loadavg: loadavg(),
+        phases: current ? [...phases, current] : phases,
+      }) + '\n');
+    },
+    /** Begin a named operation with the exact existing operation bound, without extending it. */
+    begin(phase, waitMs) { finish(); active = { phase, waitMs, startedAt: performance.now() }; },
+    /** Record the child's final work-derived bound without changing its execution. */
+    updateWait(waitMs) { if (active) active.waitMs = waitMs; },
+    finish,
+  };
+}
+
 /** Budget all actual CLI children in a flow, plus one Chrome launch and stated setup margin. */
 function approvalFlowTimeoutMs(cliChildren) {
   const childrenBudgetMs = cliChildren.reduce((total, child) => total + cliChildDeadlineMs(child.snapshotUploads), 0);
@@ -57,22 +107,30 @@ async function signIn(chrome, box) {
 }
 
 /** Pair a real browser and retain the transport already owned by its cockpit. */
-async function pairedTransport(chrome, box, title) {
+async function pairedTransport(chrome, box, title, timing = null) {
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const encoded = readFileSync(box.keyFile, 'utf8').trim();
+  timing?.begin('person session sign-in', relayWorkBudgetMs());
   await signIn(chrome, box);
+  timing?.finish();
+  timing?.begin('Chrome navigation', relayWorkBudgetMs());
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + encoded);
+  timing?.finish();
+  timing?.begin('page readiness', relayWorkBudgetMs());
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')');
-  await installRequestTransport(chrome);
+  timing?.finish();
+  await installRequestTransport(chrome, timing);
   return link;
 }
 
 /** Attach a transport handle for the existing test actions after either pairing or a reload. */
-async function installRequestTransport(chrome) {
+async function installRequestTransport(chrome, timing = null) {
+  timing?.begin('page transport readiness', relayWorkBudgetMs());
   await chrome.waitFor('typeof transport?.request === "function"', relayWorkBudgetMs(), 'real page transport ready');
   assert.equal(await chrome.evaluate(`(() => { window.__personRequestTransport = transport;
     return window.__personRequestTransport === transport; })()`, 'use real person request transport'), true,
     'fixture commands use the page-owned transport and its single stream queue');
+  timing?.finish();
 }
 
 /** Send one exact person intent through the browser transport rather than constructing a move. */
@@ -121,69 +179,95 @@ function addPendingSpecRow(box, id) {
 test('real paired Chrome transports a person shout while its native snapshot is 8 seconds late [H12,H16]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
-  const box = await relayClientFixture(t);
-  const title = 'PERSON_REQUEST_SHOUT_FIXTURE';
-  assert.equal((await box.cli('add', box.lane, title)).code, 0);
-  await box.link();
-  const chrome = await startChrome();
-  t.after(() => chrome.close());
-  const link = await pairedTransport(chrome, box, title);
-  const move = { verb: 'shout', args: { to: 'coordinator', text: 'PERSON_REQUEST_SHOUT_LITERAL' } };
-  const receipt = await sendPersonIntent(chrome, link.board, move);
+  const timing = lateSnapshotTiming(t);
+  try {
+    timing.begin('fixture setup and item creation', '4 serial private CLI children; each has the existing 55,000 ms child bound');
+    const box = await relayClientFixture(t);
+    const title = 'PERSON_REQUEST_SHOUT_FIXTURE';
+    assert.equal((await box.cli('add', box.lane, title)).code, 0);
+    timing.finish();
+    timing.begin('relay link', cliChildDeadlineMs(3));
+    await box.link();
+    timing.finish();
+    timing.begin('Chrome startup', CHROME_START_BUDGET_MS);
+    const chrome = await startChrome();
+    t.after(() => chrome.close());
+    timing.finish();
+    const link = await pairedTransport(chrome, box, title, timing);
+    timing.begin('person shout transport action', relayWorkBudgetMs());
+    const move = { verb: 'shout', args: { to: 'coordinator', text: 'PERSON_REQUEST_SHOUT_LITERAL' } };
+    const receipt = await sendPersonIntent(chrome, link.board, move);
 
-  assert.equal(receipt.version, 1);
-  assert.equal(receipt.result.request.status, 'waiting');
-  assert.deepEqual(receipt.result.request.move, move);
-  assert.equal(typeof receipt.result.request.id, 'string');
-  assert.equal(await chrome.evaluate("document.querySelector('#relay-notice').textContent"),
-    '1 request from this device is waiting for a linked machine to run Pullboard.',
-    'the paired browser identifies only its own acknowledged waiting request');
-  assert.equal(box.calls.some(call => call.method === 'POST' && call.path === `/api/v1/boards/${link.board}/requests`), true,
-    'the browser posts a sealed request document, not an executable engine move');
-  assert.equal(box.keyInRequest(), false, 'the device key never enters an HTTP request');
-  const session = JSON.parse(readFileSync(box.linkFile, 'utf8'));
-  const rawResponse = await fetch(box.origin + '/api/v1/boards/' + link.board + '/events?after=0', { headers: { authorization: 'Bearer ' + session.token, 'x-pullboard-engine': String(ENGINE_VERSION) } });
-  assert.equal(rawResponse.status, 200);
-  const raw = await rawResponse.json();
-  assert.equal(JSON.stringify(raw).includes(move.args.text), false, 'the relay response contains opaque ciphertext rather than request text');
-  const sealedRequest = raw.events.find(row => row.kind === 'request');
-  assert.ok(sealedRequest && typeof sealedRequest.sealed === 'string');
+    assert.equal(receipt.version, 1);
+    assert.equal(receipt.result.request.status, 'waiting');
+    assert.deepEqual(receipt.result.request.move, move);
+    assert.equal(typeof receipt.result.request.id, 'string');
+    assert.equal(await chrome.evaluate("document.querySelector('#relay-notice').textContent"),
+      '1 request from this device is waiting for a linked machine to run Pullboard.',
+      'the paired browser identifies only its own acknowledged waiting request');
+    assert.equal(box.calls.some(call => call.method === 'POST' && call.path === `/api/v1/boards/${link.board}/requests`), true,
+      'the browser posts a sealed request document, not an executable engine move');
+    assert.equal(box.keyInRequest(), false, 'the device key never enters an HTTP request');
+    timing.finish();
+    timing.begin('relay event privacy read', 'direct local fetch has no explicit per-call timeout');
+    const session = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+    const rawResponse = await fetch(box.origin + '/api/v1/boards/' + link.board + '/events?after=0', { headers: { authorization: 'Bearer ' + session.token, 'x-pullboard-engine': String(ENGINE_VERSION) } });
+    assert.equal(rawResponse.status, 200);
+    const raw = await rawResponse.json();
+    assert.equal(JSON.stringify(raw).includes(move.args.text), false, 'the relay response contains opaque ciphertext rather than request text');
+    const sealedRequest = raw.events.find(row => row.kind === 'request');
+    assert.ok(sealedRequest && typeof sealedRequest.sealed === 'string');
+    timing.finish();
 
-  await chrome.send('Page.reload');
-  await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')');
-  assert.equal(await chrome.evaluate("document.querySelector('#relay-notice').textContent"),
-    '1 request from this device is waiting for a linked machine to run Pullboard.',
-    'the device-local request id survives a page reload without storing its text');
-  await installRequestTransport(chrome);
+    timing.begin('browser reload and readiness', relayWorkBudgetMs());
+    await chrome.send('Page.reload');
+    await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')');
+    assert.equal(await chrome.evaluate("document.querySelector('#relay-notice').textContent"),
+      '1 request from this device is waiting for a linked machine to run Pullboard.',
+      'the device-local request id survives a page reload without storing its text');
+    timing.finish();
+    await installRequestTransport(chrome, timing);
 
-  const delayedBefore = box.snapshotWriteDelays().length;
-  const writeRecordsBefore = box.snapshotWriteRecords().length;
-  box.delaySnapshotWrites(8000);
-  const native = box.cliWithSnapshotTrace(3, 'status').then(result => ({ result }), error => ({ error }));
-  const status = await native;
-  box.delaySnapshotWrites(0);
-  assert.equal(status.error, undefined, 'the next native status receives and executes the queued intent');
-  assert.equal(status.result.code, 0, 'the next native status reports success');
-  const delays = box.snapshotWriteDelays().slice(delayedBefore);
-  const trace = status.result.snapshotTrace;
-  const writeRecords = box.snapshotWriteRecords().slice(writeRecordsBefore);
-  t.diagnostic('person shout status snapshot PUT sources: ' + JSON.stringify({ fetches: trace, relayReceives: writeRecords }));
-  assert.equal(trace.length, delays.length, 'every delayed state upload has a matching private fetch trace');
-  assert.deepEqual(trace.map(({ sequence, ciphertext }) => ({ sequence, ciphertext })),
-    writeRecords.map(({ sequence, ciphertext }) => ({ sequence, ciphertext })),
-    'the private trace matches only snapshots received by the isolated relay');
-  assert.ok(trace.every(write => write.callers.some(line => line.includes('publishCheckpoint'))), 'each traced upload came from checkpoint publication');
-  assert.equal(status.result.snapshotUploads, trace.length);
-  assert.equal(status.result.snapshotDeadlineMs, cliChildDeadlineMs(trace.length), 'the child deadline follows this run’s observed upload count');
-  assertSnapshotCheckpoints(trace, 3);
-  assert.ok(delays.every(delay => delay >= 7900), 'the relay delayed every native snapshot by 8 seconds');
-  const latest = await waitForRequest(chrome, link.board, receipt.result.request.id, 'done');
-  assert.equal(await chrome.evaluate("document.querySelector('#relay-notice').textContent"), '',
-    'the completed local request no longer appears as waiting');
-  const personShouts = latest.state.shouts.filter(shout => shout.shout_from === 'person' && shout.shout_text === move.args.text);
-  assert.equal(personShouts.length, 1, 'the authored person shout occurs exactly once');
-  const exported = (await box.cli('export')).document;
-  assert.equal(exported.tables.shout.filter(shout => shout.shout_from === 'person' && shout.shout_text === move.args.text).length, 1);
+    const delayedBefore = box.snapshotWriteDelays().length;
+    const writeRecordsBefore = box.snapshotWriteRecords().length;
+    timing.begin('native status child and delayed checkpoint uploads', `initial child bound ${cliChildDeadlineMs(3)} ms for 3 uploads`);
+    box.delaySnapshotWrites(8000);
+    const native = box.cliWithSnapshotTrace(3, 'status').then(result => ({ result }), error => ({ error }));
+    const status = await native;
+    box.delaySnapshotWrites(0);
+    const observedUploads = box.snapshotWriteRecords().length - writeRecordsBefore;
+    timing.updateWait(`initial ${cliChildDeadlineMs(3)} ms; current upload-derived bound ${cliChildDeadlineMs(Math.max(3, observedUploads))} ms for ${observedUploads} observed uploads`);
+    assert.equal(status.error, undefined, 'the next native status receives and executes the queued intent');
+    assert.equal(status.result.code, 0, 'the next native status reports success');
+    const delays = box.snapshotWriteDelays().slice(delayedBefore);
+    const trace = status.result.snapshotTrace;
+    const writeRecords = box.snapshotWriteRecords().slice(writeRecordsBefore);
+    t.diagnostic('person shout status snapshot PUT sources: ' + JSON.stringify({ fetches: trace, relayReceives: writeRecords }));
+    assert.equal(trace.length, delays.length, 'every delayed state upload has a matching private fetch trace');
+    assert.deepEqual(trace.map(({ sequence, ciphertext }) => ({ sequence, ciphertext })),
+      writeRecords.map(({ sequence, ciphertext }) => ({ sequence, ciphertext })),
+      'the private trace matches only snapshots received by the isolated relay');
+    assert.ok(trace.every(write => write.callers.some(line => line.includes('publishCheckpoint'))), 'each traced upload came from checkpoint publication');
+    assert.equal(status.result.snapshotUploads, trace.length);
+    assert.equal(status.result.snapshotDeadlineMs, cliChildDeadlineMs(trace.length), 'the child deadline follows this run’s observed upload count');
+    assertSnapshotCheckpoints(trace, 3);
+    assert.ok(delays.every(delay => delay >= 7900), 'the relay delayed every native snapshot by 8 seconds');
+    timing.finish();
+    timing.begin('paired-browser request completion poll', '85,000 ms in-page poll; 110,000 ms outer CDP task bound');
+    const latest = await waitForRequest(chrome, link.board, receipt.result.request.id, 'done');
+    assert.equal(await chrome.evaluate("document.querySelector('#relay-notice').textContent"), '',
+      'the completed local request no longer appears as waiting');
+    const personShouts = latest.state.shouts.filter(shout => shout.shout_from === 'person' && shout.shout_text === move.args.text);
+    assert.equal(personShouts.length, 1, 'the authored person shout occurs exactly once');
+    timing.finish();
+    timing.begin('final export', cliChildDeadlineMs(3));
+    const exported = (await box.cli('export')).document;
+    assert.equal(exported.tables.shout.filter(shout => shout.shout_from === 'person' && shout.shout_text === move.args.text).length, 1);
+    timing.finish();
+  } catch (error) {
+    timing.reportFailure(error);
+    throw error;
+  }
 });
 
 test('real paired Chrome approval remains pending until coordinator applies and answers; invalid add keeps its CLI refusal [H12,H16,B26]', {
