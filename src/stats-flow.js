@@ -96,7 +96,7 @@ function queuesFrom(items, now) {
     const start = { open: item.openAt, claimed: item.claimAt, submitted: item.submitAt, accepted: item.acceptAt }[item.state];
     const ageMinutes = interval(start, now);
     if (ageMinutes !== null && (!queue.oldest || ageMinutes > queue.oldest.ageMinutes ||
-      ageMinutes === queue.oldest.ageMinutes && item.id < queue.oldest.id)) queue.oldest = { id: item.id, ageMinutes };
+      ageMinutes === queue.oldest.ageMinutes && item.id < queue.oldest.id)) queue.oldest = { id: item.id, since: new Date(start).toISOString(), ageMinutes };
     if (item.state === 'open') openByLane.set(item.lane, (openByLane.get(item.lane) ?? 0) + 1);
     if (item.state === 'accepted') accepted.push(item.id);
   }
@@ -194,7 +194,7 @@ export function flowStats(history, boundary, now, counts) {
   } : { stage: null, share: null, completedItems, fullyMeasuredCycles: 0, totalCycleMinutes: 0, lowConfidence: completedItems > 0,
     message: completedItems ? `not enough measured flow to name a bottleneck (${completedItems} items completed since ${boundary ?? 'the beginning'}, none with every stage measured)` :
       `not enough flow to name a bottleneck (0 items completed since ${boundary ?? 'the beginning'})`, recommendation: null };
-  return { stages, queues: queueData.queues, daily: [...daily.values()].sort((a, b) => a.date.localeCompare(b.date)),
+  return { asOf: new Date(now).toISOString(), stages, queues: queueData.queues, daily: [...daily.values()].sort((a, b) => a.date.localeCompare(b.date)),
     submitsPerMerged: completedItems ? counts.submissions / completedItems : 0, activeAgents, bottleneck };
 }
 

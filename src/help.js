@@ -107,6 +107,8 @@ Receipts
                                         released/expired reservations remain wait, not review;
                                         review: closing reservation to verdict; merge wait: accept to first merge
                                         unfinished stages are omitted; missing legacy reservations are unmeasured
+                                        JSON flow.asOf records one observation clock; oldest.since records its origin;
+                                        ageMinutes = (asOf - since) / 60000 for every queue age
                                         queues include all current work, even added before --since;
                                         open age restarts on add, reopen, reject, release or claim lapse;
                                         claimed age starts at claim (not renewal), submitted at final submit,

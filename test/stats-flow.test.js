@@ -92,6 +92,7 @@ test('flow numbers match a hand computation through rework, released reviews and
   const { board, stats } = fixture(t, entries);
   const result = stats();
   assert.ok(result.flow, 'stats JSON carries event-derived flow');
+  assert.equal(result.flow.asOf, at(200), 'all queue ages use this one recorded observation');
   assert.equal(store.getItem(board, 1).item_status, 'open', 'fixture rows cannot substitute for the event history');
   assert.deepEqual(result.flow.stages, {
     build: summary(4, 135, 33.75, 25),
@@ -100,8 +101,8 @@ test('flow numbers match a hand computation through rework, released reviews and
     mergeWait: summary(2, 80, 40, 40),
   }, 'build samples80,40,10,5; wait30,10,5; review10,30,5; merge20,60');
   assert.deepEqual(result.flow.queues, {
-    open: { size: 3, oldest: { id: 3, ageMinutes: 160 } }, claimed: { size: 1, oldest: { id: 6, ageMinutes: 25 } },
-    submitted: { size: 1, oldest: { id: 7, ageMinutes: 10 } }, accepted: { size: 1, oldest: { id: 8, ageMinutes: 5 } },
+    open: { size: 3, oldest: { id: 3, since: at(40), ageMinutes: 160 } }, claimed: { size: 1, oldest: { id: 6, since: at(175), ageMinutes: 25 } },
+    submitted: { size: 1, oldest: { id: 7, since: at(190), ageMinutes: 10 } }, accepted: { size: 1, oldest: { id: 8, since: at(195), ageMinutes: 5 } },
   });
   assert.deepEqual(result.flow.daily, [{ date: '2026-10-10', added: 8, merged: 2 }]);
   assert.equal(result.flow.submitsPerMerged, 2.5, 'five submissions divided by two first merges');
@@ -183,7 +184,7 @@ test('flow distinguishes expired and released reviews, open resets, legacy gaps 
   ];
   const { stats } = fixture(t, entries);
   const flow = stats().flow;
-  assert.deepEqual(flow.queues.open, { size: 2, oldest: { id: 5, ageMinutes: 50 } });
+  assert.deepEqual(flow.queues.open, { size: 2, oldest: { id: 5, since: at(150), ageMinutes: 50 } });
   assert.deepEqual(flow.stages.reviewWait, summary(2, 40, 20, 20, 2), 'legacy review intervals are omitted; reopen has no closing reservation');
   assert.deepEqual(flow.stages.review, summary(2, 15, 7.5, 7.5, 2));
   assert.equal(flow.bottleneck.completedItems, 3);
@@ -249,9 +250,9 @@ test('open age restarts on each return and equal queue ages choose the lower id 
     [180, 'core-2', 'submit', 2, { commit: '2'.repeat(40) }], [185, 'coordinator', 'reopen', 2],
     [0, 'coordinator', 'add', 3, { lane: 'core' }], [10, 'core-3', 'claim', 3, { leaseUntil: at(190) }],
   ];
-  assert.deepEqual(fixture(t, entries).stats().flow.queues.open, { size: 3, oldest: { id: 2, ageMinutes: 15 } });
+  assert.deepEqual(fixture(t, entries).stats().flow.queues.open, { size: 3, oldest: { id: 2, since: at(185), ageMinutes: 15 } });
   assert.deepEqual(fixture(t, entries.filter(entry => entry[2] !== 'reopen'), 200).stats().flow.queues.open,
-    { size: 2, oldest: { id: 1, ageMinutes: 10 } });
+    { size: 2, oldest: { id: 1, since: at(190), ageMinutes: 10 } });
 });
 
 test('active lane counts preserve recorded names that also exist on Object.prototype [R1,R2]', t => {
@@ -272,4 +273,23 @@ test('recommendations name an empty target queue honestly and choose the busiest
     [150, 'coordinator', 'add', 2, { lane: 'core' }], [150, 'coordinator', 'add', 3, { lane: 'web' }],
     [150, 'coordinator', 'add', 4, { lane: 'web' }]];
   assert.equal(fixture(t, entries).stats().flow.bottleneck.recommendation, 'add a builder in web');
+});
+
+test('every queue age has one exact observation clock and its recorded origin [R1,R2]', t => {
+  const { stats } = fixture(t, [
+    [1, 'coordinator', 'add', 1, { lane: 'core' }],
+    [2, 'coordinator', 'add', 2, { lane: 'core' }],
+    [3, 'core-2', 'claim', 2, { leaseUntil: at(1000) }],
+  ]);
+  const first = stats({ now: BASE + 200 * 60_000 });
+  const second = stats({ now: BASE + 200 * 60_000 + 129 });
+  assert.equal(second.flow.asOf, '2026-10-10T03:20:00.129Z');
+  for (const state of ['open', 'claimed']) {
+    const a = first.flow.queues[state].oldest;
+    const b = second.flow.queues[state].oldest;
+    assert.equal(b.since, a.since, 'a later read retains the exact lifecycle origin');
+    assert.equal(b.ageMinutes, (Date.parse(second.flow.asOf) - Date.parse(b.since)) / 60_000);
+    assert.equal(a.ageMinutes, (Date.parse(first.flow.asOf) - Date.parse(a.since)) / 60_000);
+    assert.equal(b.ageMinutes, a.ageMinutes + 129 / 60_000);
+  }
 });
