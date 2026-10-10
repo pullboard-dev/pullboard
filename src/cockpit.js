@@ -340,9 +340,11 @@ const codeRef = (ref, before, block = false) => {
   // ten characters; the whole reference is on hover.
   const colon = ref.indexOf(':'), at = ref.lastIndexOf('@');
   const label = '<span class="ref-path">' + esc(ref.slice(0, colon)) + '</span><span class="ref-at">' + esc(ref.slice(colon, at)) + '<span class="ref-sha">' + esc(ref.slice(at, at + 11)) + '</span></span>';
-  const button = '<button class="ref' + (block ? ' block' : '') + '" data-code="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' title="' + esc(ref) + '" aria-label="Open code reference ' + esc(ref) + '" type="button" aria-expanded="' + open + '">' + label + '</button>';
+  const button = (asBlock) => '<button class="ref' + (asBlock ? ' block' : '') + '" data-code="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' title="' + esc(ref) + '" aria-label="Open code reference ' + esc(ref) + '" type="button" aria-expanded="' + open + '">' + label + '</button>';
   // A reference on a line of its own is a block, collapsed until asked: a caret, the path and lines, the short commit.
-  return block ? '<div class="code-ref' + (open ? ' open' : '') + '">' + button + shown + '</div>' : button + shown;
+  // One inside a sentence keeps its label, so the prose reads on, and opens that same block below it.
+  return block ? '<div class="code-ref' + (open ? ' open' : '') + '">' + button(true) + shown + '</div>'
+    : button(false) + (open ? '<div class="code-ref open">' + button(true) + shown + '</div>' : '');
 };
 /** Format the API's structured fact binding as the live reference the code preview accepts. */
 function factCodeRef(ref) {

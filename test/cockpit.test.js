@@ -24,7 +24,7 @@ import { exportView, portableSnapshot, projectState } from '../src/serve.js';
 import { relayPresentation } from '../src/relay-presentation.js';
 import { fetchFresh } from './http-fixture.js';
 import { relayClientFixture } from './relay-client-fixture.js';
-import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
+import { findChromeExecutable, relayWorkBudgetMs, startChrome } from './relay-browser-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const scratch = [];
@@ -2453,8 +2453,8 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
     await page.click({ code: was, before: b1 });
     await page.click({ code: now, before: b2 });
     let feed = page.show('feed');
-    assert.ok(feed.includes(button(was, true, b1) + '<div class="code-wrap"><pre class="code"><span><i>1</i>greeting.html</span></pre></div>'), 'the code as it was at that commit');
-    assert.ok(feed.includes(button(now, true, b2) + '<div class="code-wrap"><pre class="code"><span><i>1</i>  hello &lt;b&gt;there&lt;/b&gt;</span><span><i>2</i>    second line</span></pre></div>'), 'escaped, every indent kept');
+    assert.ok(feed.includes(button(was, true, b1) + '<div class="code-ref open">' + button(was, true, b1, true) + '<div class="code-wrap"><pre class="code"><span><i>1</i>greeting.html</span></pre></div>'), 'the code as it was at that commit');
+    assert.ok(feed.includes(button(now, true, b2) + '<div class="code-ref open">' + button(now, true, b2, true) + '<div class="code-wrap"><pre class="code"><span><i>1</i>  hello &lt;b&gt;there&lt;/b&gt;</span><span><i>2</i>    second line</span></pre></div>'), 'escaped, every indent kept');
 
     await page.click({ code: long, before: b3 });
     feed = page.show('feed');
@@ -2470,7 +2470,7 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
     assert.equal([...page.show('feed').slice(page.show('feed').indexOf(button(long, true, b3))).matchAll(/<span><i>\d+<\/i>/g)].length, 60, 'show less returns to the bounded first window');
 
     await page.run('seen = ""; refresh()');
-    assert.ok(page.show('feed').includes(button(was, true, b1) + '<div class="code-wrap">'), 'a refresh keeps it open');
+    assert.ok(page.show('feed').includes(button(was, true, b1) + '<div class="code-ref open">' + button(was, true, b1, true) + '<div class="code-wrap">'), 'a refresh keeps it open');
     await page.click({ code: was, before: b1 });
     assert.ok(page.show('feed').includes(button(was, false, b1) + ', is'), 'a second click closes it');
 
@@ -2488,10 +2488,10 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
     await page.click({ code: spaced });
     await page.click({ code: spaced, before: b5 });
     feed = page.show('feed');
-    assert.ok(feed.includes(button('/' + was, true, 'absolute ') + '<span class="code no" role="status">[BAD_REF] name a file inside the repo by its path from the top, such as src/serve.js (saw &quot;/web/greeting.html&quot;)</span>'), 'escaped, as every refusal');
-    assert.ok(feed.includes(button('x+' + spaced, true, 'plus ') + '<span class="code no" role="status">[BAD_REF] name a file inside the repo by its path from the top, such as src/serve.js (saw &quot;x+web/note.txt&quot;)</span>'));
-    assert.ok(feed.includes(button(spaced, true, b4) + '<span class="code no" role="status">[AMBIGUOUS] the text before it may make it &quot;web/my web/note.txt&quot;, which a reference cannot name</span>'));
-    assert.ok(feed.includes(button(spaced, true, b5) + '<span class="code no" role="status">[AMBIGUOUS] the text before it may make it &quot;web/one two three four five web/note.txt&quot;, which a reference cannot name</span>'), 'however many words the path has');
+    assert.ok(feed.includes(button('/' + was, true, 'absolute ') + '<div class="code-ref open">' + button('/' + was, true, 'absolute ', true) + '<span class="code no" role="status">[BAD_REF] name a file inside the repo by its path from the top, such as src/serve.js (saw &quot;/web/greeting.html&quot;)</span>'), 'escaped, as every refusal');
+    assert.ok(feed.includes(button('x+' + spaced, true, 'plus ') + '<div class="code-ref open">' + button('x+' + spaced, true, 'plus ', true) + '<span class="code no" role="status">[BAD_REF] name a file inside the repo by its path from the top, such as src/serve.js (saw &quot;x+web/note.txt&quot;)</span>'));
+    assert.ok(feed.includes(button(spaced, true, b4) + '<div class="code-ref open">' + button(spaced, true, b4, true) + '<span class="code no" role="status">[AMBIGUOUS] the text before it may make it &quot;web/my web/note.txt&quot;, which a reference cannot name</span>'));
+    assert.ok(feed.includes(button(spaced, true, b5) + '<div class="code-ref open">' + button(spaced, true, b5, true) + '<span class="code no" role="status">[AMBIGUOUS] the text before it may make it &quot;web/one two three four five web/note.txt&quot;, which a reference cannot name</span>'), 'however many words the path has');
     // Inside a block comment a line is all comment: its apostrophe is a word, not the start of a string.
     assert.deepEqual([" * the verifier's checkout", '/** Version */', ' */', '# a note'].map((line) => page.run(`highlightCodeLine(${JSON.stringify(line)}, 'src/a.js')`)),
       ["<span class=\"tok-comment\"> * the verifier&#39;s checkout</span>", '<span class="tok-comment">/** Version */</span>', '<span class="tok-comment"> */</span>', '# a note'],
@@ -2619,8 +2619,8 @@ test('committed shout and fact references stay local, expand safely at phone and
       await chrome.waitFor(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"]').getAttribute('aria-expanded') === 'false'`);
     }
     await chrome.evaluate(`document.querySelector('#feed button[data-code^="web/reference.js:1@deadbee"]').click()`);
-    await chrome.waitFor(`document.querySelector('#feed button[data-code^=\"web/reference.js:1@deadbee\"] + .code')?.textContent.includes('[NO_COMMIT]')`);
-    assert.equal(await chrome.evaluate(`document.querySelector('#feed button[data-code^=\"web/reference.js:1@deadbee\"] + .code').textContent.includes('deadbee')`), true, 'a missing commit produces its readable refusal');
+    await chrome.waitFor(`document.querySelector('#feed button[data-code^=\"web/reference.js:1@deadbee\"] + .code-ref .code, #feed button[data-code^=\"web/reference.js:1@deadbee\"] + .code')?.textContent.includes('[NO_COMMIT]')`);
+    assert.equal(await chrome.evaluate(`document.querySelector('#feed button[data-code^=\"web/reference.js:1@deadbee\"] + .code-ref .code, #feed button[data-code^=\"web/reference.js:1@deadbee\"] + .code').textContent.includes('deadbee')`), true, 'a missing commit produces its readable refusal');
     assert.equal(await chrome.evaluate(`document.querySelector('#feed .ref-missing')?.textContent.includes('missing the repository path')`), true, 'a reference with no path gives a clear note');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
@@ -2657,7 +2657,7 @@ test('committed shout and fact references stay local, expand safely at phone and
     await snapshotChrome.evaluate(`document.querySelector('[data-tab="shouts"]').click()`);
     await snapshotChrome.evaluate(`document.querySelector('#feed button[data-code^="web/reference.js:1-100@"]').click()`);
     await snapshotChrome.waitFor(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"]')?.getAttribute('aria-expanded') === 'true'`);
-    assert.match(await snapshotChrome.evaluate(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"] + .code')?.textContent || ''`), /Source code is not included in this relay snapshot/);
+    assert.match(await snapshotChrome.evaluate(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"] + .code-ref .code, #feed button[data-code^=\"web/reference.js:1-100@\"] + .code')?.textContent || ''`), /Source code is not included in this relay snapshot/);
     assert.ok(snapshotChrome.requests.every((request) => !request.url.includes('/code?')), 'relay snapshot serves only the reference and sends no code read');
   } finally {
     if (snapshotChrome) await closeSnapshotChrome(snapshotChrome);
@@ -2665,7 +2665,9 @@ test('committed shout and fact references stay local, expand safely at phone and
   }
 });
 test('a paired relay reference explains that committed source is available only in the local project view [B33]', {
-  timeout: 90_000,
+  // Its relay work is the fixture's setup moves, the browser's pairing and the reference's request: three budgets,
+  // derived from the work as main's relay tests are, so it holds under load.
+  timeout: relayWorkBudgetMs() * 3,
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
   const box = await relayClientFixture(t);
@@ -2717,9 +2719,10 @@ test('a paired relay reference explains that committed source is available only 
   const encoded = readFileSync(box.keyFile, 'utf8').trim();
   const chrome = await startChrome();
   t.after(() => chrome.close());
+  // Since person power stays on the paired phone, the browser reads the board with the phone's session, not the link's.
   assert.equal((await chrome.send('Network.setCookie', {
-    name: 'pb_session', value: link.token, url: box.origin, httpOnly: true, sameSite: 'Lax',
-  })).success, true, 'the private browser receives the fixture’s authenticated session');
+    name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax',
+  })).success, true, 'the private browser receives the paired phone’s authenticated session');
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + encoded);
   await chrome.waitFor(`document.querySelector('#chain')?.textContent.includes(${JSON.stringify(itemTitle)})`);
   await chrome.evaluate(`document.querySelector('[data-tab="shouts"]').click()`);
@@ -2730,12 +2733,12 @@ test('a paired relay reference explains that committed source is available only 
     await chrome.waitFor(`innerWidth === ${width}`);
     const button = `document.querySelector('#feed button[data-code^="${sourceRef}:1@"]')`;
     if (!await chrome.evaluate(`${button}.getAttribute('aria-expanded') === 'true'`)) await chrome.evaluate(`${button}.click()`);
-    await chrome.waitFor(`${button}.nextElementSibling?.textContent.includes('local project view')`);
+    await chrome.waitFor(`${button}.nextElementSibling?.querySelector('.code')?.textContent.includes('local project view')`);
     assert.equal(await chrome.evaluate(`document.body.textContent.includes(${JSON.stringify(sentinel)})`), false,
       'the paired relay browser never receives committed source text');
     assert.equal(await chrome.evaluate(`JSON.stringify(data).includes(${JSON.stringify(sentinel)})`), false,
       'the decoded relay presentation contains only the reference, not source bytes');
-    assert.equal(await chrome.evaluate(`${button}.nextElementSibling.textContent`),
+    assert.equal(await chrome.evaluate(`${button}.nextElementSibling.querySelector('.code').textContent`),
       'Source code is unavailable in a relay view; open this reference in the local project view.');
     assert.equal(await chrome.evaluate(`document.querySelector('#feed button[data-code-all]') === null`), true,
       'a relay reference exposes no control that could request more source');
@@ -4586,8 +4589,8 @@ test('real Chrome styles shout code and item text without growing linked lines [
     assert.match(rendered.shoutHtml, /Invalid prefix:<code class="inline long" title="SPEC\.md:1-2@[0-9a-f]+">SPEC\.md:1-2@/, 'a path:lines@SHA suffix after a colon stays plain inline code');
     await chrome.evaluate(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"]').click()`);
     await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"]').getAttribute('aria-expanded') === 'true'`);
-    await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"] + .code-wrap > .code')?.textContent.includes('Demo spec')`);
-    assert.match(await chrome.evaluate(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"] + .code-wrap > .code')?.textContent || ''`), /Demo spec/, 'the original code preview still opens its referenced lines');
+    await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"] + .code-ref .code-wrap > .code')?.textContent.includes('Demo spec')`);
+    assert.match(await chrome.evaluate(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"] + .code-ref .code-wrap > .code')?.textContent || ''`), /Demo spec/, 'the original code preview still opens its referenced lines');
     assert.match(rendered.askHtml, /<code class="inline cmd(?: long" title="pullboard shout --decision)?">pullboard shout --decision<\/code>/, 'needs-you uses the same code renderer');
     assert.equal(rendered.askNestedButtons, 0, 'formatted text in an ask cannot nest interactive controls');
     assert.equal(rendered.needsNestedButtons, 0, 'needs-you keeps its button markup valid');
@@ -4899,6 +4902,17 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
     const deepRef = `[...document.querySelectorAll('#feed #shout-${ids[refsShout]} button[data-code]')][1]`;
     await chrome.evaluate(`${deepRef}.click()`);
     await chrome.waitFor(`${deepRef}.getAttribute('aria-expanded') === 'true' && ${deepRef}.nextElementSibling?.textContent.includes('Deep line one')`, 15_000);
+    // An inline reference keeps its label in the sentence and opens the same block a reference on its own line is.
+    const opened = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      const inline = ${deepRef}, block = inline.nextElementSibling, header = block?.querySelector(':scope > button.ref.block');
+      const standalone = document.querySelector('#feed #shout-${ids[blockShout]} .code-ref.open');
+      return { label: !inline.classList.contains('block') && inline.textContent, next: block?.className, header: header && [header.dataset.code, header.textContent, header.getAttribute('aria-expanded')],
+        lines: block?.querySelector(':scope > .code-wrap .code')?.textContent.includes('Deep line one'),
+        shape: block && [...block.children].map((e) => e.className), standalone: standalone && [...standalone.children].map((e) => e.className) };
+    })())`));
+    assert.deepEqual([opened.next, opened.header, opened.lines], ['code-ref open', [sourceRefs[1], opened.label, 'true'], true],
+      `an inline reference opens the collapsed block with its own header, under its label: ${JSON.stringify(opened)}`);
+    assert.deepEqual(opened.shape, opened.standalone, 'the same block a reference on its own line opens to');
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
