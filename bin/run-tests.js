@@ -10,6 +10,9 @@ import { tmpdir } from 'node:os';
 import { after, afterEach, beforeEach } from 'node:test';
 import { Worker } from 'node:worker_threads';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import { withGateSlot } from '../src/gate.js';
+import { GATE_SLOT_HELD_ENV } from '../src/resources.js';
+import { loadMachineSettings } from '../src/settings.js';
 
 const runner = fileURLToPath(import.meta.url);
 export const DEFAULT_TEST_TIMEOUT_MS = 660_000;
@@ -156,13 +159,47 @@ function runTests(args, env) {
   return spawnSync(process.execPath, nodeArgs, { env, stdio: 'inherit' });
 }
 
+const NODE_TEST_OPTIONS_WITH_VALUES = new Set([
+  '--test-name-pattern', '--test-skip-pattern', '--test-reporter', '--test-reporter-destination',
+  '--test-timeout', '--test-concurrency', '--import', '--require', '--conditions', '--loader',
+  '--experimental-loader', '--inspect-port', '-r', '-C',
+  '--test-shard', '--test-coverage-branches', '--test-coverage-exclude',
+  '--test-coverage-functions', '--test-coverage-include', '--test-coverage-lines',
+  '--test-global-setup', '--test-random-seed', '--test-rerun-failures',
+]);
+
+/** Distinguish file selection from option values so filtered discovery still takes a full-suite slot. */
+function hasTestFiles(args) {
+  let takesValue = false;
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (takesValue) { takesValue = false; continue; }
+    if (argument === '--') return index < args.length - 1;
+    if (argument.startsWith('-')) {
+      if (!argument.includes('=')) takesValue = NODE_TEST_OPTIONS_WITH_VALUES.has(argument);
+      continue;
+    }
+    return true;
+  }
+  return false;
+}
+
+/** Run tests in the disposable environment, preserving a marker only when a parent holds the slot. */
+function executeTests(args, sandbox, gateSlotHeld) {
+  const env = testEnvironment(sandbox);
+  if (gateSlotHeld) env[GATE_SLOT_HELD_ENV] = '1';
+  const result = runTests(args, env);
+  if (result.error) throw result.error;
+  return result;
+}
+
 /**
  * Launch Node's test runner in a disposable environment and remove it after the run ends.
  *
  * @param {string[]} args
- * @returns {void}
+ * @returns {Promise<void>}
  */
-function main(args) {
+async function main(args) {
   try {
     testTimeoutMs();
   } catch (error) {
@@ -170,21 +207,35 @@ function main(args) {
     process.exitCode = 1;
     return;
   }
-  const sandbox = mkdtempSync(join(tmpdir(), 'pullboard-test-run-'));
+  const fullSuite = !hasTestFiles(args);
+  const inheritedSlot = process.env[GATE_SLOT_HELD_ENV] === '1';
   let signal = null;
-  try {
-    const result = runTests(args, testEnvironment(sandbox));
-    if (result.error) throw result.error;
-    signal = result.signal;
-    process.exitCode = result.status ?? 1;
-  } finally {
-    rmSync(sandbox, { recursive: true, force: true });
+  /** Keep sandbox lifetime inside the held lease, including the complete child process. */
+  const run = (gateSlotHeld) => {
+    const sandbox = mkdtempSync(join(tmpdir(), 'pullboard-test-run-'));
+    try {
+      const result = executeTests(args, sandbox, gateSlotHeld);
+      signal = result.signal;
+      process.exitCode = result.status ?? 1;
+    } finally { rmSync(sandbox, { recursive: true, force: true }); }
+  };
+  if (!fullSuite || inheritedSlot) run(inheritedSlot);
+  else {
+    const capacity = loadMachineSettings().gateSlots;
+    let announced = false;
+    await withGateSlot(process.cwd(), () => run(true), {
+      onWait: ({ holders }) => {
+        if (announced) return;
+        announced = true;
+        process.stderr.write(`waiting for a gate slot: ${holders.length} of ${capacity} in use\n`);
+      },
+    });
   }
   if (signal) process.kill(process.pid, signal);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === runner) {
-  main(process.argv.slice(2));
+  await main(process.argv.slice(2));
 } else if (process.argv[1]) {
   process.env.PULLBOARD_TEST_FILE = process.argv[1];
   installTestWatchdog();

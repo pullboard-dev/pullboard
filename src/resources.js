@@ -14,6 +14,9 @@ const POLL_MS = 40;
 const PROCESS_IDENTITY_CACHE_MS = 3_000;
 const processIdentities = new Map();
 
+/** Mark child commands whose parent already owns a machine gate slot. */
+export const GATE_SLOT_HELD_ENV = 'PULLBOARD_GATE_SLOT_HELD';
+
 /** Resolve the local database for the requested scope. */
 function databaseFile(scope, root) {
   if (scope === 'board') throw new Refused('BOARD_SCOPE_UNAVAILABLE', 'board-scoped resources need the relay; run pullboard relay on');

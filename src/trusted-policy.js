@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath } from 'node:url';
+import { GATE_SLOT_HELD_ENV } from './resources.js';
 import { configFromSource } from './config.js';
 import { cleanGitEnvironment, gitConfig, invalidateGitFacts, mainCheckout, refuseGrafts } from './git.js';
 import { secretsIn } from './hooks.js';
@@ -138,9 +139,9 @@ export function frozenCheck(item) {
 /** Run the frozen check at the exact submitted commit in a private clone, leaving live worktrees untouched.
  * @param {string} root
  * @param {object} item
- * @param {{ waitMs?: number }} [options] - Queue wait before the private check started.
+ * @param {{ waitMs?: number, gateSlotHeld?: boolean }} [options] - Queue wait before the private check started.
  */
-export function checkAtCommit(root, item, { waitMs = 0 } = {}) {
+export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false } = {}) {
   const command = frozenCheck(item);
   if (!command) return { state: 'pass', green: true, checked: false, report: '' };
   let config;
@@ -155,6 +156,7 @@ export function checkAtCommit(root, item, { waitMs = 0 } = {}) {
   const verifierHome = process.env.HOME ?? process.env.USERPROFILE;
   const npmCache = process.env.npm_config_cache ?? join(verifierHome ?? home, '.npm');
   const env = { ...cleanGitEnvironment(), HOME: home, PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(home, 'machine'), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', npm_config_cache: npmCache };
+  if (gateSlotHeld) env[GATE_SLOT_HELD_ENV] = '1';
   delete env.PULLBOARD_RELAY_TOKEN;
   let installOutput = '';
   let checkOutput = '';
