@@ -4,10 +4,10 @@ import { runFixtureExecFile as execFileSync, startFixtureChild as spawn, runFixt
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
 import { once } from 'node:events';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { delimiter, join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
-import { removeFixtureDirectory } from './cleanup-diagnostics.js';
+import { cleanupFailureReport, removeFixtureDirectory } from './cleanup-diagnostics.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -167,6 +167,75 @@ test('[C7] cleanup diagnostics capture a forced late writer without hiding ENOTE
     if (!closed) writer.kill('SIGKILL');
     if (!closed) await writerClosed;
   }
+});
+
+test('[C7] cleanup diagnostics name the owner when lsof is slow', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-cleanup-slow-lsof-'));
+  const shimDir = join(directory, 'bin');
+  const heldFile = join(directory, 'held-open');
+  mkdirSync(shimDir);
+  writeFileSync(heldFile, 'an open file for lsof');
+  const originalPath = process.env.PATH ?? '';
+  const hasLsof = originalPath.split(delimiter).some(path => existsSync(join(path, 'lsof')));
+  const lsof = join(shimDir, 'lsof');
+  writeFileSync(lsof, `#!/bin/sh\n/bin/sleep 4\nPATH=${shellWord(originalPath)}\nexport PATH\nexec lsof "$@"\n`);
+  chmodSync(lsof, 0o755);
+  const source = `const fs = require('node:fs'); const fd = fs.openSync(${JSON.stringify(heldFile)}, 'r'); console.log('writer-ready'); process.stdin.resume(); process.stdin.on('end', () => { fs.closeSync(fd); process.exit(0); });`;
+  const writer = spawn(process.execPath, ['-e', source], { stdio: ['pipe', 'pipe', 'pipe'], env: { PATH: originalPath } });
+  const writerClosed = once(writer, 'close').then(() => true, () => true);
+  let output = '';
+  writer.stdout.setEncoding('utf8');
+  writer.stdout.on('data', chunk => { output += chunk; });
+  let report = '';
+  let captureElapsedMs = 0;
+  try {
+    const readyDeadline = Date.now() + 5_000;
+    while (!output.includes('writer-ready') && Date.now() < readyDeadline) await new Promise(resolvePromise => setTimeout(resolvePromise, 10));
+    assert.ok(output.includes('writer-ready'), `writer handshake arrived before its deadline: ${output}`);
+    process.env.PATH = `${shimDir}:${originalPath}`;
+    const error = Object.assign(new Error('forced non-empty fixture cleanup'), { code: 'ENOTEMPTY', path: directory });
+    const captureStarted = Date.now();
+    try { report = cleanupFailureReport(error, directory); }
+    finally { captureElapsedMs = Date.now() - captureStarted; }
+  } finally {
+    process.env.PATH = originalPath;
+    if (writer.exitCode === null && writer.signalCode === null) writer.stdin.end();
+    let closed = await waitForClose(writerClosed, 2_000);
+    if (!closed) writer.kill('SIGTERM');
+    if (!closed) closed = await waitForClose(writerClosed, 2_000);
+    if (!closed) writer.kill('SIGKILL');
+    if (!closed) await writerClosed;
+    rmSync(directory, { recursive: true, force: true });
+  }
+  const owners = report.split('open-file owners:\n')[1] ?? '';
+  if (hasLsof) assert.match(owners, new RegExp(`pid=${writer.pid}\\b`));
+  else assert.match(owners, /^unavailable \(lsof exit (?:126|127)\)$/);
+  assert.ok(captureElapsedMs >= 4_000, `the lsof shim waited four seconds: ${captureElapsedMs}ms`);
+  assert.ok(captureElapsedMs < 10_000, `the 8000ms subprocess budget stayed within its 10000ms wall ceiling: ${captureElapsedMs}ms`);
+});
+
+test('[C7] cleanup diagnostics report the lsof timeout budget', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-cleanup-timeout-lsof-'));
+  const shimDir = join(directory, 'bin');
+  mkdirSync(shimDir);
+  const originalPath = process.env.PATH ?? '';
+  const lsof = join(shimDir, 'lsof');
+  writeFileSync(lsof, '#!/bin/sh\nexec /bin/sleep 30\n');
+  chmodSync(lsof, 0o755);
+  const error = Object.assign(new Error('forced non-empty fixture cleanup'), { code: 'ENOTEMPTY', path: directory });
+  let report;
+  let captureElapsedMs = 0;
+  try {
+    process.env.PATH = `${shimDir}:${originalPath}`;
+    const captureStarted = Date.now();
+    try { report = cleanupFailureReport(error, directory); }
+    finally { captureElapsedMs = Date.now() - captureStarted; }
+  } finally {
+    process.env.PATH = originalPath;
+    rmSync(directory, { recursive: true, force: true });
+  }
+  assert.ok(captureElapsedMs < 10_000, `the 8000ms subprocess budget stayed within its 10000ms wall ceiling: ${captureElapsedMs}ms`);
+  assert.match(report, /open-file owners:\nunavailable \(ETIMEDOUT after 8000 ms\)$/);
 });
 
 /** Replace one row's prose while preserving status, tier and every trailing field. */
