@@ -574,3 +574,4 @@ button, input, select, textarea, [data-item], [data-row] { min-height: 44px; }
 .heard-face { display: grid; place-items: center; width: 18px; height: 18px; margin-right: -5px; border: 1.5px solid var(--surface); border-radius: 50%; background: color-mix(in srgb, var(--h) 16%, var(--surface)); color: var(--h); font: 700 7px var(--mono); }
 .heard-face.lead { border-radius: 5px; background: var(--ink); color: var(--surface); }
 .heard-face svg { width: 11px; height: 11px; }
+.roadmap-only { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px; color: var(--ink-muted); font-size: 13px; }

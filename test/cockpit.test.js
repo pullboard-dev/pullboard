@@ -6370,6 +6370,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
   box.run(alpha.web, 'claim', '2');
   box.run(alpha.repo, 'hold', 'api', '--reason', 'API freeze');
   box.run(alpha.repo, 'milestone', 'add', '1.0: first cut', '--note', 'The first pages', '--items', '1,5,7');
+  box.run(alpha.repo, 'milestone', 'add', '2.0: the rest', '--note', 'After the first cut', '--items', '2,3,4');
   const second = join(box.dir, 'glance-web-2');
   box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/glance2');
   box.run(second, 'join', 'web');
@@ -6411,7 +6412,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
       seg: box(document.querySelector('#state-chips')), find: box(document.querySelector('.find')), go: box(document.querySelector('#new-item')), toolbar: box(document.querySelector('.toolbar')),
       waiting: (() => { const fold = document.querySelector('#decisions .fold-line[data-fold="waiting"]'); return fold && { text: words(fold), open: fold.getAttribute('aria-expanded'), height: fold.getBoundingClientRect().height, offset: fold.getBoundingClientRect().top - fold.parentElement.getBoundingClientRect().top, cards: document.querySelectorAll('#decisions .shout').length }; })(),
       idle: (() => { const fold = document.querySelector('#agents .fold-line[data-fold="idle"]'); return fold && { text: words(fold), open: fold.getAttribute('aria-expanded'), height: fold.getBoundingClientRect().height, pills: document.querySelectorAll('#agents .agent-pill').length }; })(),
-      agentRows: document.querySelectorAll('#agents .agent-card').length,
+      agentRows: [...document.querySelectorAll('#agents .agent-card')].filter((card) => card.getBoundingClientRect().height > 0).length,
     };
   })())`));
   const part = (r, to) => r.bar.find((p) => p.to === to);
@@ -6443,8 +6444,8 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
         if (width === 1280) {
           assert.ok(Math.abs(r.barBox.bottom - 900) <= 1 && r.barBox.left === 0 && Math.abs(r.barBox.width - r.page.width) <= 1, `${at}: the bar runs along the foot: ${JSON.stringify(r.barBox)}`);
           assert.ok(r.barTint[3] > 0 && r.barTint[3] < 1 && /blur/.test(r.barBlur), `${at}: the bar is see-through and frosted: ${JSON.stringify([r.barTint, r.barBlur])}`);
-          assert.deepEqual(r.bar.map((p) => p.to).filter((to) => !to.startsWith('item:') && to !== 'activity'), ['items', 'shouts', 'verify', 'gated', 'roadmap'], `${at}: items, agents, to verify, gated and the release, then the last event: ${JSON.stringify(r.bar)}`);
-          assert.deepEqual([part(r, 'items').text, part(r, 'verify').text, part(r, 'gated').text, part(r, 'roadmap').text], ['6 items', '1 to verify', '2 gated', '1.0: first cut 1/3'], `${at}: what the parts say`);
+          assert.deepEqual(r.bar.map((p) => p.to).filter((to) => !to.startsWith('item:') && to !== 'activity'), ['items', 'agents', 'verify', 'gated', 'release'], `${at}: items, agents, to verify, gated and the release, then the last event: ${JSON.stringify(r.bar)}`);
+          assert.deepEqual([part(r, 'items').text, part(r, 'verify').text, part(r, 'gated').text, part(r, 'release').text], ['6 items', '1 to verify', '2 gated', '1.0: first cut 1/3'], `${at}: what the parts say`);
         }
         // Rows: two lines, the age at the top right, the lane and up to three spec ids below, or the verdict instead.
         const row = Object.fromEntries(r.rows.map((x) => [x.id, x]));
@@ -6510,12 +6511,26 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
       if (to === 'gated') assert.ok(r.rows.every((x) => x.gated), 'every row it opens is a gated row');
     }
     await click('[data-state=active]');
-    await click('.status [data-status="shouts"]');
+    await click('.status [data-status="agents"]');
     await chrome.waitFor("view.tab === 'shouts' && !document.querySelector('[data-pane=shouts]').hidden");
     r = await read();
-    assert.equal(number(part(r, 'shouts')), r.agentRows, 'the agents part counts the rows of the agents panel it opens');
-    await click('.status [data-status="roadmap"]');
+    assert.ok(r.agentRows > 0 && number(part(r, 'agents')) === r.agentRows, `the agents part counts the ${r.agentRows} rows of the agents panel it opens`);
+    // Hidden by the person, the panel comes back when the part that counts its rows is opened.
+    await click('#feed [data-agents-toggle]');
+    await chrome.waitFor('view.agentsHidden === true');
+    await click('[data-tab=items]');
+    await click('.status [data-status="agents"]');
+    await chrome.waitFor("view.tab === 'shouts' && view.agentsHidden === false");
+    r = await read();
+    assert.ok(r.agentRows > 0 && number(part(r, 'agents')) === r.agentRows, `hidden, the panel comes back with the ${r.agentRows} agents the part counts`);
+    // The release part opens the Roadmap on that release alone: its rows are the ones it counts.
+    await click('.status [data-status="release"]');
     await chrome.waitFor("view.tab === 'roadmap'");
+    const roadmapRows = () => chrome.evaluate("document.querySelectorAll('#roadmap .milestone-item').length");
+    assert.deepEqual([await chrome.evaluate("[...document.querySelectorAll('#roadmap .milestone h2')].map((h) => h.textContent).join()"), await roadmapRows()], ['1.0: first cut', 3],
+      'the release the part counts, and only its three items');
+    await click('#roadmap [data-roadmap-all]');
+    assert.equal(await roadmapRows(), 6, 'show all brings back every release');
     const last = r.bar.find((p) => p.to.startsWith('item:'));
     if (last) {
       await click(`.status [data-status="${last.to}"]`);
