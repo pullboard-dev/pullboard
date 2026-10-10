@@ -165,6 +165,32 @@ test('doctor and resume accept env delegation that real Git executes [L3]', () =
   }
 });
 
+test('doctor and resume accept env assignments that real Git executes [L3]', () => {
+  const box = executedHookBox();
+  for (const source of [
+    '#!/bin/sh\nenv REVIEWER_HOOK_CONTROL=1 pullboard hook pre-commit "$@"\n',
+    '#!/bin/sh\nexec env FIRST=one SECOND="two words" EMPTY= pullboard hook pre-commit "$@"\n',
+    "#!/bin/sh\nenv FIRST='two words' SECOND=three pullboard hook pre-commit \"$@\"\n",
+  ]) {
+    writeFileSync(box.hook, source); chmodSync(box.hook, 0o755);
+    writeFileSync(box.marker, '');
+    box.git('commit', '--allow-empty', '-q', '-m', 'chore: actual hook control');
+    assert.match(readFileSync(box.marker, 'utf8'), /^hook pre-commit\n$/u,
+      'the real Git pre-commit hook invoked the actual submitted CLI once');
+    writeFileSync(box.marker, '');
+    const doctor = box.run('doctor');
+    assert.equal(doctor.status, 0, 'an executed env delegation is wired');
+    assert.equal(doctor.stdout, 'board is clean\n');
+    const resume = box.run('resume');
+    assert.equal(resume.status, 0);
+    assert.doesNotMatch(resume.stdout, /active Git hook|HOOK_UNWIRED/u);
+    assert.deepEqual(JSON.parse(box.run('doctor', '--json').stdout).problems, []);
+    assert.deepEqual(JSON.parse(box.run('resume', '--json').stdout).hookProblems, []);
+    assert.equal(readFileSync(box.marker, 'utf8'), '', 'diagnosis never executes the hook');
+    assert.equal(readFileSync(box.hook, 'utf8'), source, 'diagnosis never edits the hook');
+  }
+});
+
 test('doctor and resume reject printed heredocs that real Git never executes [L3]', () => {
   const box = executedHookBox();
   const message = 'active Git hook .husky/pre-commit does not call pullboard hook pre-commit';

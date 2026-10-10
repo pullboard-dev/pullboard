@@ -369,7 +369,10 @@ function delegatesHook(source, hook) {
   const program = String.raw`(?:"(?:[^"]*/)?pullboard(?:\.js)?"|'(?:[^']*/)?pullboard(?:\.js)?'|(?:[^\s"';&|()]+/)?pullboard(?:\.js)?)`;
   const binBinding = new RegExp(`^(?:bin=|for\\s+bin\\s+in\\s+)${program}(?=\\s|$)`);
   const boundBin = commands.some(command => binBinding.test(command));
-  const call = new RegExp(`^(?:(?:then|do|else|exec|command|npx|node|env)\\s+)*(?:${program}${boundBin ? '|"?\\$bin"?' : ''})\\s+hook\\s+${hook}(?=\\s|$)`);
+  // env consumes NAME=value arguments before its executable, including quoted and empty values.
+  const assignment = String.raw`[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|[^\s"';&|()])*`;
+  const prefix = String.raw`(?:(?:then|do|else|exec|command|npx|node)\s+|env\s+(?:${assignment}\s+)*)*`;
+  const call = new RegExp(`^${prefix}(?:${program}${boundBin ? '|"?\\$bin"?' : ''})\\s+hook\\s+${hook}(?=\\s|$)`);
   return commands.some(command => call.test(command));
 }
 
