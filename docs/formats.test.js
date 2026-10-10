@@ -23,6 +23,7 @@ import {
   escalate,
   events,
   holdLane,
+  holdItem,
   merged,
   openBoard,
   passDecision,
@@ -34,6 +35,7 @@ import {
   register,
   release,
   releaseLane,
+  releaseItemHold,
   reserveReview,
   SCHEMA_VERSION,
   submit,
@@ -45,6 +47,13 @@ import { ID_RE, readSignoffs, SPEC_GRAMMAR_VERSION, STATUSES, TIERS, lintSpec, p
 import { sha256, signRows } from '../src/signature.js';
 
 const guide = readFileSync(new URL('./formats.md', import.meta.url), 'utf8');
+
+test('formats guide documents collision grandfathering and doctrine citations [A5]', () => {
+  assert.match(guide, /A bare id names a row in `SPEC\.md`/u);
+  assert.match(guide, /`doctrine:<id>` in item spec ids and commit headers/u);
+  assert.match(guide, /Collisions already present in the primary checkout's attached branch are reported as known warnings/u);
+  assert.match(guide, /adding a colliding row is an error that names both file paths and line numbers/u);
+});
 
 /** Return the text inside a named marked documentation block. */
 function block(start, end) {
@@ -243,6 +252,8 @@ function recordEventContract() {
   const fact = appendFact(board, first, { agentId: builder, kind: 'note', text: 'Captured evidence', ref: 'docs/formats.md:1-3@' + 'a'.repeat(40) });
   appendFact(board, first, { agentId: coordinator, kind: 'measurement', text: 'Corrected evidence', supersedes: fact.id });
   editItem(board, first, { agentId: coordinator, brief: 'Files: docs/formats.md\nTest: docs/formats.test.js', route: 'mid', criterion: 'Changed', check: 'node test' });
+  holdItem(board, first, { agentId: coordinator, reason: 'fixture item hold' });
+  releaseItemHold(board, first, { agentId: coordinator });
   recordAttempt(board, first, { agentId: builder, n: 1, seconds: 2, result: 'failed' });
   claim(board, first, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('first') });
   claim(board, first, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('unused') });

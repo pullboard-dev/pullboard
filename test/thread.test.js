@@ -1,6 +1,6 @@
 /** Exercise typed item threads and deterministic replication on isolated SQLite boards [B29,B30,B31,B32]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -12,6 +12,7 @@ import * as store from '../src/board.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
+import { fetchFresh } from './http-fixture.js';
 
 const HOUR = 3_600_000;
 const SHA = 'a'.repeat(40);
@@ -224,9 +225,9 @@ function threadHttpFixture(t) {
   };
   mkdirSync(env.HOME);
   /** Run Git only in this disposable repository and return trimmed output. */
-  const git = (...args) => execFileSync('git', args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' }).trim();
+  const git = (...args) => runFixtureGit(args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' });
   /** Invoke the actual CLI with the private environment. */
-  const run = (cwd, ...args) => spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   /** Decode one successful JSON command. */
   function cli(cwd, ...args) {
     const result = run(cwd, ...args, '--json');
@@ -252,13 +253,13 @@ async function threadHttpBox(t) {
   t.after(() => api.close());
   const url = new URL(api.url);
   const key = url.searchParams.get('k');
-  const catalogResponse = await fetch(url.origin + '/api/v1/boards', { headers: { 'x-pullboard-key': key } });
+  const catalogResponse = await fetchFresh(url.origin + '/api/v1/boards', { headers: { 'x-pullboard-key': key } });
   assert.equal(catalogResponse.status, 200);
   const catalog = await catalogResponse.json();
   const id = catalog.boards[0].id;
-  /** Send an authenticated JSON request and return its HTTP status and decoded body. */
+  /** Send an authenticated JSON request on its own connection and return its HTTP status and decoded body. */
   async function call(path, value) {
-    const response = await fetch(url.origin + path, {
+    const response = await fetchFresh(url.origin + path, {
       method: value === undefined ? 'GET' : 'POST',
       headers: { 'x-pullboard-key': key, ...(value === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(value === undefined ? {} : { body: JSON.stringify(value) }),

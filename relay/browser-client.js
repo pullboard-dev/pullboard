@@ -1,14 +1,17 @@
-/** Device-only relay transport: cookie authorization, local keys and authenticated ciphertext [H5,H15]. */
-import { decodeBoardKey, seal, unseal } from './seal.js';
+/** Device-only relay transport: cookie authorization, local keys and authenticated ciphertext [H5,H15,H16,H17]. */
+import { rememberDevicePairing, enrollPhone, deviceBoardKeys, installPhoneApprovals } from './browser-devices.js';
+import { decodeBoardKey, encodeBoardKey, seal, unseal } from './seal.js';
 import { preparePersonRequest, validatePersonRequest } from './person-request.js';
 import { snapshotState, presentationState } from './model.js';
 import { ENGINE_VERSION } from './engine.js';
 import { Refused } from './refused.js';
 import { enqueueStream, followStream } from './browser-stream.js';
+import { noticeLines, rememberOwnedRequestId, storedOwnedRequestState } from './browser-notice.js';
 
 const KEYS = 'pullboard.relay.keys.v1';
 const PENDING = 'pullboard.relay.pair.v1';
 const OUTBOX = 'pullboard.relay.requests.v1.';
+const OWNED = 'pullboard.relay.owned-requests.v1.';
 const BOARD = /^[0-9a-f]{32}$/;
 
 /** Read private browser storage without turning unavailable storage into a credential diagnostic. */
@@ -18,6 +21,7 @@ function stored(storage, name, fallback) {
 
 /** Keep an unauthenticated pairing fragment on the device through the GitHub redirect. */
 export function rememberPairing() {
+  rememberDevicePairing();
   const fragment = new URLSearchParams(location.hash.slice(1));
   if (!fragment.has('board') && !fragment.has('key')) return null;
   const board = fragment.get('board');
@@ -37,6 +41,30 @@ function transportBytes(value) {
   return Uint8Array.from(binary, character => character.charCodeAt(0));
 }
 
+/** Inflate a new gzip snapshot or preserve the legacy JSON plaintext format. */
+async function snapshotDocument(plain) {
+  if (plain[0] === 0x1f && plain[1] === 0x8b) {
+    if (typeof DecompressionStream !== 'function') throw new Error('This browser cannot read gzip snapshots. Upgrade the browser client.');
+    try {
+      const stream = new Blob([plain]).stream().pipeThrough(new DecompressionStream('gzip'));
+      return JSON.parse(await new Response(stream).text());
+    } catch { throw new Refused('SNAPSHOT_FORMAT', 'The sealed gzip snapshot is invalid. Refresh it from a linked machine.'); }
+  }
+  if (plain[0] !== 0x7b) {
+    const seen = [...plain.slice(0, 4)].map(value => value.toString(16).padStart(2, '0')).join('') || 'no bytes';
+    throw new Refused('SNAPSHOT_FORMAT', `The sealed snapshot starts with ${seen}; expected gzip magic 1f8b or legacy JSON starting with 7b.`);
+  }
+  try { return JSON.parse(new TextDecoder().decode(plain)); }
+  catch { throw new Refused('SNAPSHOT_FORMAT', 'The sealed legacy JSON snapshot is invalid. Refresh it from a linked machine.'); }
+}
+
+/** Confirm session authorization before treating a board-local refusal as global access loss. */
+async function checkAuthorization(path, status, onDenied) {
+  if (![401, 403].includes(status) || !onDenied) return;
+  if (['/api/v1/boards', '/api/v1/devices/session'].includes(new URL(path, location.origin).pathname)) onDenied();
+  else await documentAt('/api/v1/devices/session', onDenied);
+}
+
 /** Fetch only same-origin API documents, retaining stable refusal guidance and no provider details. */
 async function documentAt(path, onDenied, options = {}) {
   const headers = new Headers(options.headers ?? {});
@@ -45,7 +73,7 @@ async function documentAt(path, onDenied, options = {}) {
   const document = await response.json();
   if (!response.ok) {
     const error = document.error;
-    if ([401, 403].includes(response.status) || error?.code === 'NO_BOARD') onDenied?.();
+    await checkAuthorization(path, response.status, onDenied);
     if (error) throw new Refused(error.code, error.message);
     throw new Refused('RELAY_UNAVAILABLE', 'The relay did not answer. Sign in again or retry.');
   }
@@ -59,8 +87,10 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
   const keys = savedKeys && typeof savedKeys === 'object' && !Array.isArray(savedKeys) ? savedKeys : {};
   const paired = new Map();
   let available = [];
+  let waitingBoards = new Map();
   let warnings = [];
   let failure = '';
+  let failureBoard = null;
   let accessLost = false;
   let pair = rememberPairing() ?? stored(sessionStorage, PENDING, null);
   if (pair && (!BOARD.test(pair.board ?? '') || typeof pair.key !== 'string')) pair = null;
@@ -81,19 +111,28 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     const element = document.getElementById('relay-notice');
     if (!element) return;
     element.replaceChildren();
-    const lines = ['Requests from this device wait for a linked machine to run Pullboard.'];
-    const unpaired = available.filter(board => !paired.has(board.id));
-    for (const board of unpaired) lines.push(board.repository + ': pair this browser using a link or QR from a linked machine.');
-    for (const warning of warnings) if (warning?.code === 'BOARD_INACTIVE' && Number.isInteger(warning.daysLeft)) {
-      lines.push('BOARD_INACTIVE: ' + warning.daysLeft + ' days left before this relay board is deleted. Make a board move from a linked machine to keep it.');
+    const ownedRequestIds = new Map();
+    for (const [id, entry] of paired) {
+      const key = OWNED + id;
+      let state = { owned: new Set() };
+      try { state = storedOwnedRequestState(localStorage, key, entry.state?.personRequests); } catch { /* Missing device storage can only hide this device's own notice. */ }
+      ownedRequestIds.set(id, state.owned);
     }
-    if (failure) lines.push(failure);
-    if (!available.length) lines.push('No linked boards are available for this account.');
-    for (const text of lines) {
+    for (const text of noticeLines({ available, paired, ownedRequestIds, waitingBoards, warnings, failure })) {
       const paragraph = document.createElement('p');
       paragraph.textContent = text;
       element.append(paragraph);
     }
+  }
+
+  /** Keep one missing-snapshot board visible as waiting without clearing other authorized boards. */
+  function waitForFirstSnapshot(entry) {
+    entry.stream?.close();
+    entry.state = null;
+    paired.delete(entry.id);
+    const board = available.find(value => value.id === entry.id);
+    waitingBoards.set(entry.id, board?.repository ?? entry.repository ?? 'This board');
+    notice();
   }
 
   /** Retain one warning per board without duplicating it on the next live poll. */
@@ -113,7 +152,8 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     if (response.status === 304 && entry.state) return;
     const document = await response.json();
     if (!response.ok) {
-      if ([401, 403].includes(response.status) || document.error?.code === 'NO_BOARD') denied();
+      await checkAuthorization('/api/v1/boards/' + entry.id + '/state', response.status, denied);
+      if (document.error?.code === 'NO_BOARD' || document.error?.code === 'NO_SNAPSHOT') waitForFirstSnapshot(entry);
       throw new Error(document.error ? '[' + document.error.code + '] ' + document.error.message : 'The relay snapshot is unavailable. Retry.');
     }
     if (document.version !== 1) throw new Error('This relay API version is unsupported. Upgrade this browser client.');
@@ -121,7 +161,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     if (!row || !Number.isSafeInteger(row.sequence) || row.sequence < 0) throw new Error('The relay snapshot cursor is invalid. Refresh this board.');
     warning(row.warning, entry.id);
     const plain = await unseal(entry.key, transportBytes(row.sealed), { boardId: entry.id, kind: 'snapshot', sequence: row.sequence });
-    const value = JSON.parse(new TextDecoder().decode(plain));
+    const value = await snapshotDocument(plain);
     const state = snapshotState(value, entry.id);
     if (accessLost) throw new Error('Sign in again to read this board.');
     entry.snapshotTag = response.headers.get('etag');
@@ -182,14 +222,24 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     }
   }
 
+  /** Read board events without turning board-local snapshot loss into a session redirect. */
+  async function boardEvents(entry) {
+    try {
+      return await documentAt('/api/v1/boards/' + entry.id + '/events?after=' + entry.cursor, denied);
+    } catch (error) {
+      if (['NO_BOARD', 'NO_SNAPSHOT'].includes(error?.code)) waitForFirstSnapshot(entry);
+      throw error;
+    }
+  }
+
   /** Read any durable prefix before attaching the live stream, including compaction repair. */
   async function catchUp(entry) {
     let document;
-    try { document = await documentAt('/api/v1/boards/' + entry.id + '/events?after=' + entry.cursor, denied); }
+    try { document = await boardEvents(entry); }
     catch (error) {
       if (!error.message.includes('[SNAPSHOT_REQUIRED]')) throw error;
       await snapshot(entry);
-      document = await documentAt('/api/v1/boards/' + entry.id + '/events?after=' + entry.cursor, denied);
+      document = await boardEvents(entry);
     }
     warning(document.warning, entry.id);
     for (const row of document.events) await receive(entry, row, true);
@@ -209,8 +259,13 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
         subscribe(entry);
         onUpdate();
       } else {
-        if (['AUTH_REQUIRED', 'NO_REPO_ACCESS', 'TOKEN_BOARD', 'NO_BOARD'].includes(error?.code)) denied();
+        if (['NO_BOARD', 'NO_SNAPSHOT'].includes(error?.code)) {
+          waitForFirstSnapshot(entry);
+          return;
+        }
+        if (['AUTH_REQUIRED', 'NO_REPO_ACCESS', 'TOKEN_BOARD'].includes(error?.code)) await documentAt('/api/v1/devices/session', denied);
         failure = error ? '[' + error.code + '] ' + error.message : 'The relay stream ended. Refresh this board.';
+        failureBoard = entry.id;
         notice();
       }
       return;
@@ -218,6 +273,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
     if (document.version !== 1) throw new Error('Upgrade this browser client to read the relay API.');
     await receive(entry, document.event);
     failure = '';
+    failureBoard = null;
     notice();
     onUpdate();
   }
@@ -242,7 +298,8 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
         if (!response.ok) {
           let document;
           try { document = await response.json(); } catch { document = null; }
-          if ([401, 403].includes(response.status) || document?.error?.code === 'NO_BOARD') denied();
+          await checkAuthorization(url, response.status, denied);
+          if (document?.error?.code === 'NO_BOARD' || document?.error?.code === 'NO_SNAPSHOT') waitForFirstSnapshot(entry);
           const refusal = new Refused(document?.error?.code ?? 'RELAY_UNAVAILABLE', document?.error?.message ?? 'The relay stream ended. Refresh this board.');
           if (refusal.code === 'ENGINE_VERSION') refusal.fatal = true;
           throw refusal;
@@ -252,7 +309,9 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
       onMessage: message => enqueueStream(entry, () => streamMessage(entry, message, stream)),
       onFailure: (error, { fatal }) => {
         if (controller.signal.aborted || accessLost) return;
+        if (['NO_BOARD', 'NO_SNAPSHOT'].includes(error?.code)) { waitForFirstSnapshot(entry); return; }
         failure = error.message;
+        failureBoard = entry.id;
         notice();
         if (fatal) stream.close();
       },
@@ -262,33 +321,41 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
   /** Reauthorize the listing, pair only visible boards, and close streams for lost access. */
   async function listing() {
     const document = await documentAt('/api/v1/boards', denied);
+    Object.assign(keys, stored(localStorage, KEYS, {}));
+    Object.assign(keys, await deviceBoardKeys((path, options) => documentAt(path, denied, options)));
     available = document.boards.filter(board => BOARD.test(board.id) && typeof board.repository === 'string');
+    waitingBoards = new Map();
     warnings = document.warnings ?? [];
     const visible = new Set(available.map(board => board.id));
     for (const [id, entry] of paired) if (!visible.has(id)) { entry.stream?.close(); paired.delete(id); }
     for (const board of available) {
-      if (paired.has(board.id) && pair?.board !== board.id) continue;
-      Object.assign(keys, stored(localStorage, KEYS, {}));
       const encoded = pair?.board === board.id ? pair.key : keys[board.id];
+      if (paired.has(board.id) && pair?.board !== board.id && encodeBoardKey(paired.get(board.id).key) === encoded) continue;
       if (!encoded) continue;
       try {
-        const entry = { id: board.id, key: decodeBoardKey(encoded), cursor: -1, state: null, outbox: null };
+        const entry = { id: board.id, repository: board.repository, key: decodeBoardKey(encoded), cursor: -1, state: null, outbox: null };
         await snapshot(entry);
         await catchUp(entry);
         if (accessLost) throw new Error('Sign in again to read this board.');
         paired.get(board.id)?.stream?.close();
         paired.set(board.id, entry);
+        waitingBoards.delete(board.id);
         keys[board.id] = encoded;
-        try { localStorage.setItem(KEYS, JSON.stringify({ ...stored(localStorage, KEYS, {}), [board.id]: encoded })); } catch { failure = 'This browser cannot save pairing. Use the pairing link again on your next visit.'; }
+        try { localStorage.setItem(KEYS, JSON.stringify({ ...stored(localStorage, KEYS, {}), [board.id]: encoded })); } catch { failure = 'This browser cannot save pairing. Use the pairing link again on your next visit.'; failureBoard = null; }
         if (pair?.board === board.id) {
           pair = null;
           try { sessionStorage.removeItem(PENDING); } catch { /* Device storage can be unavailable. */ }
         }
         subscribe(entry);
       } catch (error) {
+        if (['NO_BOARD', 'NO_SNAPSHOT'].includes(error?.code) || /\[(?:NO_BOARD|NO_SNAPSHOT)\]/u.test(error.message)) {
+          waitForFirstSnapshot({ id: board.id, repository: board.repository });
+          continue;
+        }
         failure = ['ENGINE_VERSION', 'RELAY_ENGINE_VERSION'].includes(error.code) || /^\[(?:ENGINE_VERSION|RELAY_ENGINE_VERSION)\]/u.test(error.message)
           ? error.message
           : 'Could not open this board with its saved key. Pair this browser again from a linked machine.';
+        failureBoard = board.id;
       }
     }
     notice();
@@ -300,7 +367,10 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
   /** Save only ciphertext on the device so an interrupted send retains its stable request id. */
   function saveOutbox(entry) {
     try {
-      if (entry.outbox) localStorage.setItem(OUTBOX + entry.id + '.' + entry.outbox.id, JSON.stringify(entry.outbox));
+      if (entry.outbox) {
+        localStorage.setItem(OUTBOX + entry.id + '.' + entry.outbox.id, JSON.stringify(entry.outbox));
+        rememberOwnedRequestId(localStorage, OWNED + entry.id, entry.outbox.id);
+      }
     } catch { throw new Refused('REQUEST_STORAGE', 'This browser cannot save the sealed request. Enable device storage before sending it.'); }
   }
 
@@ -360,7 +430,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
       await snapshot(entry);
       await catchUp(entry);
       const received = entry.state.personRequests?.find(record => record.id === value.id);
-      if (received) { acknowledge(entry, value.id); return { version: 1, event: null, result: { request: received } }; }
+      if (received) { acknowledge(entry, value.id); notice(); return { version: 1, event: null, result: { request: received } }; }
       if (entry.outbox.sequence !== entry.cursor + 1) {
         entry.outbox = await requestEnvelope(entry, value, entry.cursor + 1);
         saveOutbox(entry);
@@ -377,6 +447,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
       const record = entry.state.personRequests.find(request => request.id === value.id);
       if (!record) throw new Refused('RELAY_RESPONSE', 'The request acknowledgement has no receipt. Retry this board.');
       acknowledge(entry, value.id);
+      notice();
       onUpdate();
       return { version: 1, event: response.event, result: { request: structuredClone(record) } };
     }
@@ -385,12 +456,14 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
 
   /** Pair a link opened in this already-loaded page as well as one opened on a fresh visit. */
   async function pairingChanged() {
-    try { pair = rememberPairing() ?? pair; await listing(); onUpdate(); }
-    catch { failure = 'The pairing link is invalid. Get a new link from a linked machine.'; notice(); }
+    try { pair = rememberPairing() ?? pair; await enrollPhone((path, options) => documentAt(path, denied, options)); await listing(); onUpdate(); }
+    catch { failure = 'The pairing link is invalid. Get a new link from a linked machine.'; failureBoard = null; notice(); }
   }
   addEventListener('hashchange', pairingChanged);
   addEventListener('pagehide', () => { for (const entry of paired.values()) entry.stream?.close(); });
+  await enrollPhone((path, options) => documentAt(path, denied, options));
   await listing();
+  await installPhoneApprovals((path, options) => documentAt(path, denied, options), keys, async () => { await listing(); onUpdate(); });
   return {
     /** Return decoded API state or seal narrow person intent; no board key or plaintext leaves the device. */
     async request(path, body) {
@@ -417,7 +490,10 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
         await flushOutbox(entry);
         await snapshot(entry);
         await catchUp(entry);
+        // A read has authenticated the checkpoint and complete prefix before clearing its failure.
+        if (failureBoard === entry.id) { failure = ''; failureBoard = null; }
         if (entry.stream?.closed) subscribe(entry);
+        notice();
         if (match[2] === 'state') return { version: 1, state: entry.state };
         return { version: 1, events: [...entry.state.events].reverse() };
       });

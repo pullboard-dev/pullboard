@@ -1,6 +1,7 @@
 /** The public, versioned JSON surface of every pullboard command (A1). */
 import assert from 'node:assert/strict';
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, startFixtureChild as spawn, runFixtureChild as spawnSync, reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { performance } from 'node:perf_hooks';
 import {
   chmodSync,
   existsSync,
@@ -21,6 +22,8 @@ import { allShouts, EVENT_LOG_VERSION, closeBoard, openBoard } from '../src/boar
 import { presentationShout, relayPresentation } from '../src/relay-presentation.js';
 import { JSON_SHAPES } from '../src/json.js';
 import { projectState } from '../src/serve.js';
+import { SSH_SHELL_MARKERS } from '../src/person.js';
+import { fetchFresh } from './http-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -65,8 +68,9 @@ function sandbox() {
     GIT_COMMITTER_EMAIL: 'api@example.invalid',
     PULLBOARD_HOME: join(dir, 'home'),
   };
-  const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
-  const run = (cwd, ...args) => spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  for (const marker of SSH_SHELL_MARKERS) delete env[marker];
+  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
+  const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   return { dir, env, git, run };
 }
 
@@ -275,6 +279,7 @@ test('[A1] command results match the catalog across roots and subcommands', () =
   const messageFile = join(box.dir, 'commit-message.txt');
   writeFileSync(messageFile, 'chore: valid fixture\n');
   json(box, repo, 'hook', ['pre-commit'], 'pre-commit');
+  json(box, repo, 'hook', ['pre-merge-commit'], 'pre-merge-commit');
   json(box, repo, 'hook', ['commit-msg', messageFile], 'commit-msg');
   json(box, repo, 'hook', ['pre-push'], 'pre-push');
 
@@ -373,7 +378,7 @@ test('[A1,B21,B27] decisions shows an agent its direct and lane asks only', () =
   const app1Ask = json(box, box.repo, 'shout', ['app-1', 'App one decision?', '--decision']).id;
   const app2Ask = json(box, box.repo, 'shout', ['app-2', 'App two decision?', '--decision']).id;
   const reviewAsk = json(box, box.repo, 'shout', ['review', 'Review decision?', '--decision']).id;
-  const coordinatorAsk = json(box, box.repo, 'shout', ['coordinator', 'Coordinator decision?', '--decision']).id;
+  const coordinatorAsk = json(box, app1, 'shout', ['coordinator', 'Coordinator decision?', '--decision']).id;
 
   const app1Queue = json(box, app1, 'decisions').decisions.map(({ shout_id }) => shout_id);
   assert.deepEqual(app1Queue, [laneAsk, app1Ask]);
@@ -498,7 +503,9 @@ test('[A1] long-running servers flush one JSON document before shutdown', async 
   for (const command of ['view', 'serve']) {
     const box = project();
     t.after(() => rmSync(box.dir, { recursive: true, force: true }));
-    const child = spawn(process.execPath, [BIN, command, ...(command === 'view' ? ['--no-open'] : []), '--port', '0', '--json'], { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const args = [BIN, command, ...(command === 'view' ? ['--no-open'] : []), '--port', '0', '--json'];
+    const startedAt = performance.now();
+    const child = spawn(process.execPath, args, { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';
     child.stdout.setEncoding('utf8');
@@ -510,10 +517,20 @@ test('[A1] long-running servers flush one JSON document before shutdown', async 
       if (child.exitCode === null) child.kill('SIGTERM');
     });
     const ready = new Promise((resolveReady, rejectReady) => {
-      const timeout = setTimeout(() => rejectReady(new Error('view did not flush its JSON result')), 10_000);
+      let settled = false;
+      const failStartup = (detail, status = child.exitCode, signal = child.signalCode) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        rejectReady(new Error(reportFixtureChildFailure({ command: process.execPath, args, status, signal,
+          elapsedMs: performance.now() - startedAt, stderr, env: box.env, detail })));
+      };
+      const timeout = setTimeout(() => failStartup('server readiness deadline (10000ms) expired'), 10_000);
       child.stdout.on('data', () => {
         try {
           const document = JSON.parse(stdout);
+          if (settled) return;
+          settled = true;
           clearTimeout(timeout);
           resolveReady(document);
         } catch {
@@ -521,9 +538,9 @@ test('[A1] long-running servers flush one JSON document before shutdown', async 
         }
       });
       child.once('error', (error) => {
-        clearTimeout(timeout);
-        rejectReady(error);
+        failStartup(error.message, null, null);
       });
+      child.once('close', (code, signal) => failStartup('server exited before flushing its JSON result', code, signal));
     });
     const document = await ready;
     assert.equal(document.version, 1);
@@ -589,6 +606,9 @@ test('[A1] every catalog command and subcommand has a real CLI exercise', () => 
   json(source, source.repo, 'spec', ['approve', 'G1'], 'approve');
   json(source, source.repo, 'spec', ['decline', 'G1', '--reason', 'Catalog decline'], 'decline');
   json(source, source.repo, 'spec', ['apply'], 'apply');
+  /** Exercise the agent-only takeover with a private explicit session, leaving later terminal calls markerless. */
+  const sessionSource = { ...source, run: (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env: { ...source.env, CODEX_SESSION_ID: 'api-catalog-session' }, encoding: 'utf8' }) };
+  json(sessionSource, source.repo, 'takeover');
   const missing = Object.keys(JSON_SHAPES.commands).filter((key) => !covered.has(key));
   assert.deepEqual(missing, [], `add real-repo invocations for undocumented coverage gaps: ${missing.join(', ')}`);
   assert.deepEqual([...coveredRoots].sort(), resultCommands(), 'every actual root/factory command has an invocation');
@@ -659,7 +679,9 @@ test('[N26,A2] roadmap text, JSON and API state follow live local and registered
 
 /** Start the real local API server and stop it when its test finishes. */
 async function startApi(t, box) {
-  const child = spawn(process.execPath, [BIN, 'serve', '--port', '0', '--json'], { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const args = [BIN, 'serve', '--port', '0', '--json'];
+  const startedAt = performance.now();
+  const child = spawn(process.execPath, args, { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = '';
   let stderr = '';
   child.stdout.setEncoding('utf8');
@@ -676,10 +698,20 @@ async function startApi(t, box) {
     }
   });
   const document = await new Promise((resolveReady, rejectReady) => {
-    const timeout = setTimeout(() => rejectReady(new Error(`serve did not flush its JSON result: ${stderr}`)), 10_000);
+    let settled = false;
+    const failStartup = (detail, status = child.exitCode, signal = child.signalCode) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      rejectReady(new Error(reportFixtureChildFailure({ command: process.execPath, args, status, signal,
+        elapsedMs: performance.now() - startedAt, stderr, env: box.env, detail })));
+    };
+    const timeout = setTimeout(() => failStartup('serve readiness deadline (10000ms) expired'), 10_000);
     const check = () => {
       try {
         const parsed = JSON.parse(stdout);
+        if (settled) return;
+        settled = true;
         clearTimeout(timeout);
         resolveReady(parsed);
       } catch {
@@ -687,7 +719,8 @@ async function startApi(t, box) {
       }
     };
     child.stdout.on('data', check);
-    child.once('error', (error) => { clearTimeout(timeout); rejectReady(error); });
+    child.once('error', (error) => failStartup(error.message, null, null));
+    child.once('close', (code, signal) => failStartup('serve exited before readiness', code, signal));
     child.once('close', (code) => {
       if (code !== 0) { clearTimeout(timeout); rejectReady(new Error(`serve exited ${code}: ${stderr}`)); }
     });
@@ -699,11 +732,11 @@ async function startApi(t, box) {
   return { child, document, origin: parsed.origin, secret, stderr: () => stderr };
 }
 
-/** Send one bounded HTTP request to the fixture API, authenticating by header unless overridden. */
+/** Send one bounded HTTP request to the fixture API on its own connection, authenticating by header unless overridden. */
 function apiFetch(api, path, options = {}) {
   const { noSecret = false, ...requestOptions } = options;
   const headers = { ...(noSecret ? {} : { 'x-pullboard-key': api.secret }), ...requestOptions.headers };
-  return fetch(new URL(path, api.origin), { ...requestOptions, headers, signal: requestOptions.signal ?? AbortSignal.timeout(10_000) });
+  return fetchFresh(new URL(path, api.origin), { ...requestOptions, headers, signal: requestOptions.signal ?? AbortSignal.timeout(10_000) });
 }
 
 /** Parse and validate a versioned API refusal. */

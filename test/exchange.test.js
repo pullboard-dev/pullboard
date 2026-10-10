@@ -3,7 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
+import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -61,8 +61,7 @@ const tempDirectory = () => mkdtempSync(join(tmpdir(), 'pullboard-exchange-'));
  */
 function gitRepo(root) {
   mkdirSync(root);
-  const result = spawnSync('git', ['init', '-q'], { cwd: root, encoding: 'utf8' });
-  assert.equal(result.status, 0, result.stderr);
+  runFixtureGit(['init', '-q'], { cwd: root, encoding: 'utf8' });
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ lanes: {} }));
 }
 
@@ -228,7 +227,7 @@ test('export and import CLI commands exchange a versioned document between real 
     GIT_COMMITTER_EMAIL: 'exchange@example.invalid',
     PULLBOARD_HOME: join(directory, 'home'),
   };
-  const cli = (cwd, ...args) => spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  const cli = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   try {
     const initialized = cli(targetRoot, 'init');
     assert.equal(initialized.status, 0, initialized.stderr || initialized.stdout);

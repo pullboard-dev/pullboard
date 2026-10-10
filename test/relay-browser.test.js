@@ -5,6 +5,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { gunzipSync } from 'node:zlib';
 import { snapshotState, presentationState } from '../relay/browser-model.js';
 import { decodeBoardKey, seal, unseal } from '../src/seal.js';
 import { relaySnapshot } from '../src/relay-presentation.js';
@@ -12,6 +13,11 @@ import { ENGINE_VERSION } from '../src/machine.js';
 import { addItem, closeBoard, openBoard } from '../src/board.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
+
+/** Read native gzip snapshots while retaining checks against historical uncompressed records. */
+function snapshotDocument(plain) {
+  return JSON.parse(Buffer.from(plain[0] === 0x1f && plain[1] === 0x8b ? gunzipSync(plain) : plain).toString('utf8'));
+}
 
 /** Write an executable that fails its first launch, then optionally delegates to real Chrome. */
 function writeLaunchWrapper(directory, { chrome, failEveryLaunch = false, publishPort }) {
@@ -40,28 +46,20 @@ ${launch}
   return { wrapper, counter };
 }
 
-test('relay fixture relaunches once when Chrome does not publish a DevTools port [H5]', {
-  skip: !findChromeExecutable() && 'Chrome is not installed',
-}, async t => {
+test('relay fixture fails once when Chrome exits during startup [C7]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-relay-relaunch-'));
-  let chrome;
-  t.after(async () => {
-    await chrome?.close();
-    rmSync(directory, { recursive: true, force: true });
-  });
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
   const { wrapper, counter } = writeLaunchWrapper(directory, { chrome: findChromeExecutable() });
-  await assert.doesNotReject((async () => { chrome = await startChrome({ executable: wrapper }); })(),
-    'the fixture retries once after the first launch fails');
-  assert.equal(await chrome.evaluate('1 + 1'), 2, 'the second real browser reaches its local DevTools endpoint');
-  assert.equal(Number(readFileSync(counter, 'utf8')), 2, 'the wrapper launched once unsuccessfully and once successfully');
+  await assert.rejects(startChrome({ executable: wrapper }), /exited during startup/u);
+  assert.equal(Number(readFileSync(counter, 'utf8')), 1, 'the relay fixture never retries a failed Chrome launch');
 });
 
-test('relay fixture keeps the startup refusal after its second failed launch [H5]', async t => {
+test('relay fixture reports its first failed launch [C7]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-relay-failure-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const { wrapper, counter } = writeLaunchWrapper(directory, { failEveryLaunch: true });
-  await assert.rejects(startChrome({ executable: wrapper }), /Isolated Chrome exited during startup\./u);
-  assert.equal(Number(readFileSync(counter, 'utf8')), 2, 'a second failure does not trigger a third launch');
+  await assert.rejects(startChrome({ executable: wrapper }), /exited during startup/u);
+  assert.equal(Number(readFileSync(counter, 'utf8')), 1, 'one startup failure means exactly one browser launch');
 });
 
 /** Reserve and release an ephemeral loopback port so the wrapper can publish an unavailable endpoint. */
@@ -76,7 +74,7 @@ async function unusedLoopbackPort() {
   return port;
 }
 
-test('relay fixture does not relaunch after Chrome publishes its DevTools port [H5]', async t => {
+test('relay fixture does not retry after Chrome publishes an unavailable DevTools port [C7]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-relay-target-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const { wrapper, counter } = writeLaunchWrapper(directory, { publishPort: await unusedLoopbackPort() });
@@ -88,7 +86,7 @@ test('relay fixture does not relaunch after Chrome publishes its DevTools port [
 async function signIn(chrome, box) {
   const state = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const result = await chrome.send('Network.setCookie', {
-    name: 'pb_session', value: state.token, url: box.origin, httpOnly: true, sameSite: 'Lax',
+    name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax',
   });
   assert.equal(result.success, true, 'the real authorized person session is installed in this private browser');
   return state;
@@ -134,7 +132,7 @@ test('conditional sealed snapshots reauthorize before 304 and refresh spec-only 
   const row = (await changed.json()).state;
   assert.equal(row.sequence, body.state.sequence, 'spec refresh preserves the acknowledged move sequence');
   const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
-  const document = JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(row.sealed, 'base64url'), { boardId: link.board, kind: 'snapshot', sequence: row.sequence })));
+  const document = snapshotDocument(await unseal(key, Buffer.from(row.sealed, 'base64url'), { boardId: link.board, kind: 'snapshot', sequence: row.sequence }));
   assert.equal(document.presentation.state.spec.some(rule => rule.text === 'SPEC_PRESENTATION_ONLY_108'), true);
 });
 
@@ -174,7 +172,7 @@ test('real Chrome pairs, retains its device key, declares its engine on every re
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(firstTitle) + ')');
   assert.equal(await chrome.evaluate('location.hash === ""'), true, 'the pairing key is removed from browser history');
   assert.equal(await chrome.evaluate("JSON.parse(localStorage.getItem('pullboard.relay.keys.v1'))[" + JSON.stringify(link.board) + '].length === 43'), true);
-  assert.equal(await chrome.evaluate("getComputedStyle(document.querySelector('#new-item')).display === 'none'"), true, 'the relay page hides action controls');
+  assert.equal(await chrome.evaluate("getComputedStyle(document.querySelector('#new-item')).display !== 'none' && readOnly && requests"), true, 'the relay page exposes person request controls while keeping direct moves read-only');
   assert.equal(box.calls.some(call => call.accept.includes('text/event-stream')), true, 'the page opened a real authorized event stream');
   const browserApiCalls = box.calls.slice(firstBrowserCall).filter(call => call.path.startsWith('/api/v1/'));
   assert.ok(browserApiCalls.length > 0, 'the browser made authenticated relay API requests');
@@ -192,7 +190,8 @@ test('real Chrome pairs, retains its device key, declares its engine on every re
 
   assert.equal((await box.cli('add', box.lane, liveTitle)).code, 0);
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(liveTitle) + ')');
-  assert.equal(await chrome.evaluate("document.querySelector('#relay-notice').textContent.includes('Requests from this device wait for a linked machine')"), true);
+  assert.equal(await chrome.evaluate("document.querySelector('#relay-notice').textContent"), '',
+    'ordinary native moves do not create a person request or claim that this device has one waiting');
   await chrome.navigate(box.origin);
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(liveTitle) + ')');
   assert.equal(await chrome.evaluate('location.hash === ""'), true, 'a later visit needs no new pairing link');
@@ -201,6 +200,63 @@ test('real Chrome pairs, retains its device key, declares its engine on every re
   assert.equal(box.keyInRequest(), false, 'the key was never in an HTTP URL or header');
   await box.revokeSession();
   await chrome.waitFor("document.body.textContent.includes('Sign in with GitHub') && !document.body.textContent.includes(" + JSON.stringify(liveTitle) + ')');
+});
+
+test('a board without a snapshot waits without reloading the page [H5,H16]', {
+  skip: !findChromeExecutable() && 'Chrome is not installed',
+}, async t => {
+  const box = await relayClientFixture(t);
+  const healthyTitle = 'NO_BOARD_HEALTHY_BOARD_339';
+  const healthyUpdate = 'NO_BOARD_HEALTHY_BOARD_UPDATE_339';
+  const missingTitle = 'NO_BOARD_WAITING_BOARD_339';
+  const missingEventsTitle = 'NO_BOARD_WAITING_EVENTS_339';
+  assert.equal((await box.cli('add', box.lane, healthyTitle)).code, 0);
+  await box.link();
+  const healthy = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const healthyKey = readFileSync(box.keyFile, 'utf8').trim();
+  const waiting = await box.additionalBoard(missingTitle);
+  const waitingEvents = await box.additionalBoard(missingEventsTitle);
+  box.noBoardOnReads(waiting.id, ['state']);
+  box.noBoardOnReads(waitingEvents.id, ['events']);
+
+  const chrome = await startChrome();
+  t.after(() => chrome.close());
+  await chrome.send('Page.addScriptToEvaluateOnNewDocument', {
+    source: 'sessionStorage.setItem("pullboard.test.page-starts", String(Number(sessionStorage.getItem("pullboard.test.page-starts") || 0) + 1)); localStorage.setItem("pullboard.relay.keys.v1", ' +
+      JSON.stringify(JSON.stringify({ [healthy.board]: healthyKey, [waiting.id]: waiting.encoded, [waitingEvents.id]: waitingEvents.encoded })) + ');',
+  });
+  await signIn(chrome, box);
+  await chrome.navigate(box.origin);
+  const pageStarts = await chrome.evaluate("Number(sessionStorage.getItem('pullboard.test.page-starts'))");
+  await chrome.waitFor("(document.querySelector('#relay-notice')?.textContent.includes(" + JSON.stringify(waiting.id.slice(0, 8)) + ") && document.querySelector('#relay-notice')?.textContent.includes(" + JSON.stringify(waitingEvents.id.slice(0, 8)) + ") && document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(healthyTitle) + ")) || Number(sessionStorage.getItem('pullboard.test.page-starts')) > " + pageStarts);
+  assert.equal(await chrome.evaluate("document.querySelector('#relay-notice')?.textContent.includes(" + JSON.stringify(waiting.id.slice(0, 8)) + ') ?? false'), true,
+    'the notice identifies the board whose first snapshot is missing');
+  assert.equal(await chrome.evaluate("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(healthyTitle) + ')'), true,
+    'the other linked board still renders its actual snapshot');
+  assert.equal(await chrome.evaluate("document.querySelector('#relay-notice')?.textContent.includes(" + JSON.stringify(waitingEvents.id.slice(0, 8)) + ') ?? false'), true,
+    'an events endpoint with no board snapshot also gets its own waiting notice');
+  const healthySelector = '#proj-list .proj.repo[data-root="' + healthy.board + '"]';
+  await chrome.evaluate('document.querySelector(' + JSON.stringify(healthySelector) + ').click()');
+  await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(healthyTitle) + ')');
+  assert.equal(box.calls.some(call => call.method === 'GET' && call.path === '/api/v1/boards/' + waiting.id + '/state'), true,
+    'the real browser requests the listed board snapshot over HTTP');
+  assert.equal(box.calls.some(call => call.method === 'GET' && call.path.startsWith('/api/v1/boards/' + waitingEvents.id + '/events')), true,
+    'the real browser requests the other listed board event stream over HTTP');
+
+  assert.equal((await box.cli('add', box.lane, healthyUpdate)).code, 0);
+  await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(healthyUpdate) + ')');
+
+  const pageLoads = () => box.calls.filter(call => call.method === 'GET' && call.path === '/').length;
+  const beforeWait = pageLoads();
+  await new Promise(resolveWait => setTimeout(resolveWait, 10_000));
+  assert.equal(pageLoads(), beforeWait, 'the missing snapshot does not reload the real page during ten seconds');
+
+  const listingsBeforeRevocation = box.calls.filter(call => call.method === 'GET' && call.path === '/api/v1/boards').length;
+  box.revokeSessionOnNextListing();
+  await chrome.evaluate("location.hash = '#refresh-listing'");
+  await chrome.waitFor("document.body.textContent.includes('Sign in with GitHub')");
+  assert.ok(box.calls.filter(call => call.method === 'GET' && call.path === '/api/v1/boards').length > listingsBeforeRevocation,
+    'a real unauthorized listing still sends the page back to sign in');
 });
 
 /** Append an authenticated synthetic sealed move without writing it to the private local board. */
@@ -373,7 +429,7 @@ test('legacy queued presentations never disclose later unacknowledged moves [H5,
   assert.equal(response.status, 200);
   const checkpoint = (await response.json()).state;
   assert.equal(checkpoint.sequence, box.moveAcks[1].event_id, 'the acknowledged final checkpoint covers the omitted presentation');
-  const document = JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(checkpoint.sealed, 'base64url'), { boardId: link.board, kind: 'snapshot', sequence: checkpoint.sequence })));
+  const document = snapshotDocument(await unseal(key, Buffer.from(checkpoint.sealed, 'base64url'), { boardId: link.board, kind: 'snapshot', sequence: checkpoint.sequence }));
   assert.equal(document.presentation.state.items.some(item => item.title === 'FIRST_QUEUED_108'), true);
   assert.equal(document.presentation.state.items.some(item => item.title === 'SECOND_QUEUED_108'), true);
   const compacted = await fetch(box.origin + '/api/v1/boards/' + link.board + '/events?after=0', { headers: { authorization: 'Bearer ' + link.token, 'x-pullboard-engine': String(ENGINE_VERSION) } });

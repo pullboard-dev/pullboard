@@ -1,11 +1,12 @@
 /** Canonical doctrine naming keeps legacy repos and the stable state API readable [D1,D2,A5]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { projectState } from '../src/serve.js';
+import { checkAtCommit } from '../src/trusted-policy.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const DOCTRINE = 'DOCTRINE.md';
@@ -50,11 +51,11 @@ function sandbox() {
   });
   /** Run Git with the fixture's isolated identity and configuration. */
   function git(cwd, ...args) {
-    return execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+    return runFixtureGit(args, { cwd, env });
   }
   /** Run one real CLI command and keep stdout, stderr and status available to assertions. */
   function run(cwd, ...args) {
-    return spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8', timeout: 20_000 });
+    return runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   }
   return { dir, env, git, run };
 }
@@ -139,7 +140,7 @@ test('[D1,D2,A5] legacy init keeps PRACTICE rules and doctor offers a working on
   const untrackedRename = doctorProblems(box, repo.root).find((problem) => problem.code === 'DOCTRINE_LEGACY');
   assert.ok(untrackedRename);
   assert.equal(untrackedRename.next, `mv -- ${PRACTICE} ${DOCTRINE}`, 'an untracked legacy file needs a filesystem rename');
-  const moved = spawnSync('sh', ['-c', untrackedRename.next], { cwd: repo.root, env: box.env, encoding: 'utf8' });
+  const moved = runFixtureChild('sh', ['-c', untrackedRename.next], { cwd: repo.root, env: box.env, encoding: 'utf8' });
   assert.equal(moved.status, 0, moved.stderr);
   assert.ok(specRows(box, repo.root).some((row) => row.id === 'L1' && row.file === DOCTRINE));
   renameSync(join(repo.root, DOCTRINE), join(repo.root, PRACTICE));
@@ -197,4 +198,203 @@ test('[D1,D2,A5] explicit custom practice paths remain authoritative beside DOCT
   assert.ok(rows.some((row) => row.id === 'C1' && row.file === 'ways.md'));
   assert.equal(rows.some((row) => row.id === 'L1'), false, 'custom path remains the configured source');
   assert.ok(projectState(repo.root).practice.some((row) => row.id === 'C1'));
+});
+
+/** Make a committed pre-init rename fixture, optionally adding a later collision on main. */
+function renamedDoctrineFixture(box, name, { laterCollision = false, commitRename = true } = {}) {
+  const root = join(box.dir, name);
+  mkdirSync(root);
+  box.git(root, 'init', '-q', '-b', 'main');
+  const originalSpec = '# Requirements\n\n## G · Goals\n- G1 [draft, aim] Existing requirement.\n';
+  const originalPractice = '# Legacy rules\n\n## G · Goals\n- G1 [draft] Existing collision.\n- G2 [draft] Legacy id without a collision.\n';
+  writeFileSync(join(root, 'SPEC.md'), originalSpec);
+  writeFileSync(join(root, PRACTICE), originalPractice);
+  box.git(root, 'add', 'SPEC.md', PRACTICE);
+  box.git(root, 'commit', '-q', '-m', 'docs: seed legacy doctrine collision');
+  box.git(root, 'mv', PRACTICE, DOCTRINE);
+  if (commitRename) box.git(root, 'commit', '-q', '-m', 'docs: rename practice to doctrine');
+  if (laterCollision) {
+    const updatedSpec = `${originalSpec.trimEnd()}\n- G2 [draft, aim] Added after the doctrine rename.\n`;
+    writeFileSync(join(root, 'SPEC.md'), updatedSpec);
+    box.git(root, 'add', 'SPEC.md');
+    box.git(root, 'commit', '-q', '-m', 'docs: add post-rename collision');
+  }
+  return root;
+}
+
+test('[D4,A5] rename keeps known duplicates while a later collision remains an error', function renameKeepsKnownDuplicates() {
+  const box = sandbox();
+  const beforeCollision = renamedDoctrineFixture(box, 'legacy-before-collision');
+  const initialized = box.run(beforeCollision, 'init');
+  assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
+  const knownOnly = box.run(beforeCollision, 'spec', 'check');
+  assert.equal(knownOnly.status, 0, `${knownOnly.stdout}${knownOnly.stderr}`);
+  assert.match(knownOnly.stdout, /SPEC\.md:4 G1 warning: known duplicate id; also appears at DOCTRINE\.md:4/u);
+  assert.match(knownOnly.stdout, /DOCTRINE\.md:4 G1 warning: known duplicate id; also appears at SPEC\.md:4/u);
+
+  const afterCollision = renamedDoctrineFixture(box, 'legacy-after-collision', { laterCollision: true });
+  const laterInitialized = box.run(afterCollision, 'init');
+  assert.equal(laterInitialized.status, 0, `${laterInitialized.stdout}${laterInitialized.stderr}`);
+  const later = box.run(afterCollision, 'spec', 'check');
+  assert.equal(later.status, 1, later.stdout);
+  assert.match(later.stdout, /SPEC\.md:4 G1 warning: known duplicate id; also appears at DOCTRINE\.md:4/u);
+  assert.match(later.stdout, /DOCTRINE\.md:4 G1 warning: known duplicate id; also appears at SPEC\.md:4/u);
+  assert.match(later.stdout, /SPEC\.md:5 G2 error: duplicate id; also appears at DOCTRINE\.md:5/u);
+  assert.match(later.stdout, /DOCTRINE\.md:5 G2 error: duplicate id; also appears at SPEC\.md:5/u);
+});
+
+test('[D4,A5] canonical collisions stay errors without legacy rename history', function canonicalCollisionNeedsLegacyHistory() {
+  const box = sandbox();
+  const root = join(box.dir, 'never-legacy');
+  mkdirSync(root);
+  box.git(root, 'init', '-q', '-b', 'main');
+  writeFileSync(join(root, 'SPEC.md'), '# Requirements\n\n## G · Goals\n- G1 [draft, aim] Existing requirement.\n');
+  writeFileSync(join(root, DOCTRINE), '# Doctrine\n\n## G · Goals\n- G1 [draft] Existing collision.\n');
+  box.git(root, 'add', 'SPEC.md', DOCTRINE);
+  box.git(root, 'commit', '-q', '-m', 'docs: add canonical doctrine collision');
+  const initialized = box.run(root, 'init');
+  assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
+  const check = box.run(root, 'spec', 'check');
+  assert.equal(check.status, 1, check.stdout);
+  assert.match(check.stdout, /SPEC\.md:4 G1 error: duplicate id; also appears at DOCTRINE\.md:4/u);
+  assert.match(check.stdout, /DOCTRINE\.md:4 G1 error: duplicate id; also appears at SPEC\.md:4/u);
+});
+
+
+test('[D4,A5] a staged rename keeps known duplicates before its rename commit', function stagedRenameKeepsKnownDuplicates() {
+  const box = sandbox();
+  const root = renamedDoctrineFixture(box, 'staged-legacy-rename', { commitRename: false });
+  const initialized = box.run(root, 'init');
+  assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
+  const check = box.run(root, 'spec', 'check');
+  assert.equal(check.status, 0, `${check.stdout}${check.stderr}`);
+  assert.match(check.stdout, /SPEC\.md:4 G1 warning: known duplicate id; also appears at DOCTRINE\.md:4/u);
+  assert.match(check.stdout, /DOCTRINE\.md:4 G1 warning: known duplicate id; also appears at SPEC\.md:4/u);
+});
+
+test('[D4,A5] spec check in a fresh detached CI clone reads its own commit', function detachedCiCloneUsesCheckedCommit() {
+  const box = sandbox();
+  for (const scenario of [
+    { name: 'ci-known', laterCollision: false },
+    { name: 'ci-later', laterCollision: true },
+  ]) {
+    const source = renamedDoctrineFixture(box, `${scenario.name}-source`, { laterCollision: scenario.laterCollision });
+    const initialized = box.run(source, 'init');
+    assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
+    box.git(source, 'add', '-A');
+    box.git(source, 'commit', '-q', '-m', 'chore: commit detached CI fixture configuration');
+    box.git(source, 'tag', scenario.name);
+
+    const clone = join(box.dir, `${scenario.name}-clone`);
+    box.git(box.dir, 'clone', '--quiet', '--no-local', '--no-checkout', '--', source, clone);
+    box.git(clone, 'checkout', '--quiet', '--detach', scenario.name);
+    const localTrunk = spawnSync('git', ['config', '--local', '--get', 'pullboard.trunk'], { cwd: clone, env: box.env, encoding: 'utf8' });
+    assert.equal(localTrunk.status, 1, 'the detached CI clone has no recorded trunk configuration');
+
+    const checked = box.run(clone, 'spec', 'check');
+    assert.match(checked.stdout, /^collision baseline default: detached HEAD$/mu, 'the check announces the detached default ref');
+    assert.match(checked.stdout, /SPEC\.md:4 G1 warning: known duplicate id; also appears at DOCTRINE\.md:4/u);
+    assert.match(checked.stdout, /DOCTRINE\.md:4 G1 warning: known duplicate id; also appears at SPEC\.md:4/u);
+    if (scenario.laterCollision) {
+      assert.equal(checked.status, 1, checked.stdout);
+      assert.match(checked.stdout, /SPEC\.md:5 G2 error: duplicate id; also appears at DOCTRINE\.md:5/u);
+      assert.match(checked.stdout, /DOCTRINE\.md:5 G2 error: duplicate id; also appears at SPEC\.md:5/u);
+    } else {
+      assert.equal(checked.status, 0, `${checked.stdout}${checked.stderr}`);
+      assert.match(checked.stdout, /SPEC\.md: \d+ rows, 0 errors/u);
+      assert.match(checked.stdout, /DOCTRINE\.md: \d+ rows, 0 errors/u);
+    }
+  }
+});
+
+test('[D4,A5] detached verifier clones use a recorded trunk or their checked commit', function verifierCloneRetainsTrunkBaseline() {
+  const box = sandbox();
+  const source = renamedDoctrineFixture(box, 'detached-source');
+  const initialized = box.run(source, 'init');
+  assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
+  box.git(source, 'add', '-A');
+  box.git(source, 'commit', '-q', '-m', 'chore: initialize detached spec fixture');
+  assert.equal(box.git(source, 'config', '--local', '--get', 'pullboard.trunk'), 'refs/heads/main', 'initialization records the actual source trunk');
+  const commit = box.git(source, 'rev-parse', 'HEAD');
+  const item = { item_id: 324, item_claim_head: commit, item_commit: commit,
+    item_frozen: JSON.stringify({ check: `${shellWord(process.execPath)} ${shellWord(BIN)} spec check` }) };
+
+  const checked = checkAtCommit(source, item);
+  assert.equal(checked.state, 'pass', `${checked.stage}\n${checked.output}`);
+  assert.match(checked.output, /SPEC\.md: \d+ rows, 0 errors, \d+ warnings/u);
+  assert.match(checked.output, /DOCTRINE\.md: \d+ rows, 0 errors, \d+ warnings/u);
+  assert.match(checked.output, /SPEC\.md:4 G1 warning: known duplicate id; also appears at DOCTRINE\.md:4/u);
+  assert.match(checked.output, /DOCTRINE\.md:4 G1 warning: known duplicate id; also appears at SPEC\.md:4/u);
+
+  const attached = box.run(source, 'spec', 'check');
+  assert.equal(attached.status, 0, `${attached.stdout}${attached.stderr}`);
+  const attachedRows = specRows(box, source);
+  const jsonFile = join(box.dir, 'verifier-spec-rows.json');
+  const json = checkAtCommit(source, { ...item, item_frozen: JSON.stringify({ check: `${shellWord(process.execPath)} ${shellWord(BIN)} spec --json > ${shellWord(jsonFile)}` }) });
+  assert.equal(json.state, 'pass', `${json.stage}\n${json.output}`);
+  const rows = JSON.parse(readFileSync(jsonFile, 'utf8')).rows;
+  assert.deepEqual(rows, attachedRows, 'the production verifier clone reports the same rows as attached main');
+  assert.ok(rows.some(row => row.file === 'SPEC.md' && row.id === 'G1'));
+  assert.ok(rows.some(row => row.file === DOCTRINE && row.id === 'G1'));
+
+  const withoutTrunk = renamedDoctrineFixture(box, 'detached-source-without-trunk');
+  const noTrunkInit = box.run(withoutTrunk, 'init');
+  assert.equal(noTrunkInit.status, 0, `${noTrunkInit.stdout}${noTrunkInit.stderr}`);
+  box.git(withoutTrunk, 'add', '-A');
+  box.git(withoutTrunk, 'commit', '-q', '-m', 'chore: initialize no-trunk spec fixture');
+  const noTrunkCommit = box.git(withoutTrunk, 'rev-parse', 'HEAD');
+  // Init and the installed commit hook both remember the attached trunk; remove it only after them.
+  box.git(withoutTrunk, 'config', '--local', '--unset-all', 'pullboard.trunk');
+  assert.equal(runFixtureChild('git', ['config', '--local', '--get', 'pullboard.trunk'], {
+    cwd: withoutTrunk, env: box.env,
+  }).status, 1, 'the source actually has no retained trunk');
+  const attachedWithoutTrunk = box.run(withoutTrunk, 'spec', 'check');
+  assert.equal(attachedWithoutTrunk.status, 0, `${attachedWithoutTrunk.stdout}${attachedWithoutTrunk.stderr}`);
+  assert.doesNotMatch(attachedWithoutTrunk.stdout, /collision baseline default: detached HEAD/u, 'an attached checkout keeps using its own branch');
+  box.git(withoutTrunk, 'config', '--local', '--unset-all', 'pullboard.trunk');
+  assert.equal(spawnSync('git', ['config', '--local', '--get', 'pullboard.trunk'], {
+    cwd: withoutTrunk, env: box.env,
+  }).status, 1, 'the source remains without a retained trunk for the detached verifier');
+  const detachedWithoutTrunk = checkAtCommit(withoutTrunk, { ...item, item_claim_head: noTrunkCommit, item_commit: noTrunkCommit });
+  assert.equal(detachedWithoutTrunk.state, 'pass', `${detachedWithoutTrunk.stage}\n${detachedWithoutTrunk.output}`);
+  assert.match(detachedWithoutTrunk.output, /^collision baseline default: detached HEAD$/mu);
+  assert.match(detachedWithoutTrunk.output, /SPEC\.md:4 G1 warning: known duplicate id; also appears at DOCTRINE\.md:4/u);
+  assert.match(detachedWithoutTrunk.output, /DOCTRINE\.md:4 G1 warning: known duplicate id; also appears at SPEC\.md:4/u);
+});
+
+test('[D4,A5] verify in a detached checkout reads the trunk baseline for a doctrine frozen check', function verifyDoctrineFrozenCheck() {
+  const box = sandbox();
+  const source = renamedDoctrineFixture(box, 'verify-doctrine-source');
+  const initialized = box.run(source, 'init');
+  assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
+  const configPath = join(source, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  writeFileSync(configPath, JSON.stringify({ ...config, gate: 'true', verify: 'coordinator',
+    lanes: { web: { owns: ['web/'], specs: [] } }, shared: [] }, null, 2) + '\n');
+  box.git(source, 'add', '-A');
+  box.git(source, 'commit', '-q', '-m', 'chore: initialize doctrine verification fixture');
+  const check = `${shellWord(process.execPath)} ${shellWord(BIN)} spec check | grep -E 'DOCTRINE[.]md: .*0 errors'`;
+  const added = box.run(source, 'add', 'web', 'Doctrine review fixture', '--criterion', 'The frozen doctrine check passes in the verifier clone.', '--check', check, '--json');
+  assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
+  const id = JSON.parse(added.stdout).item.item_id;
+  const builder = join(box.dir, 'verify-doctrine-builder');
+  box.git(source, 'worktree', 'add', '-q', '-b', 'web/doctrine-review', builder);
+  assert.equal(box.run(builder, 'join', 'web').status, 0);
+  assert.equal(box.run(builder, 'claim', String(id)).status, 0);
+  mkdirSync(join(builder, 'web'));
+  writeFileSync(join(builder, 'web/candidate.txt'), 'doctrine verification fixture\n');
+  box.git(builder, 'add', 'web/candidate.txt');
+  box.git(builder, 'commit', '-q', '-m', 'feat(web): build doctrine verification fixture [G1]');
+  const submitted = box.run(builder, 'submit', String(id), '--json');
+  assert.equal(submitted.status, 0, `${submitted.stdout}${submitted.stderr}`);
+  const commit = JSON.parse(submitted.stdout).commit;
+  box.git(source, 'switch', '-q', '--detach', commit);
+  const accepted = box.run(source, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'The exact private frozen doctrine check passed.', '--json');
+  assert.equal(accepted.status, 0, `${accepted.stdout}${accepted.stderr}`);
+  const result = JSON.parse(accepted.stdout);
+  assert.equal(result.decision, 'ACCEPT');
+  assert.equal(result.check, 'green', 'the real verifier records that the frozen doctrine check ran and passed');
+  const shown = box.run(source, 'show', String(id), '--json');
+  assert.equal(shown.status, 0, `${shown.stdout}${shown.stderr}`);
+  assert.equal(JSON.parse(shown.stdout).item_status, 'verified');
 });

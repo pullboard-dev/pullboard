@@ -1,5 +1,7 @@
 {
+  "name": "pullboard",
   "gate": "npm run gate",
+  "affectedTests": "node bin/run-tests.js",
   "spec": "SPEC.md",
   "verify": "any",
   "lease": "2h",
@@ -48,7 +50,8 @@
         "CODE_OF_CONDUCT.md",
         "CHANGELOG.md",
         ".github/ISSUE_TEMPLATE/",
-        ".github/pull_request_template.md"
+        ".github/pull_request_template.md",
+        "CONTRIBUTING.md"
       ],
       "specs": [
         "I"
@@ -60,7 +63,8 @@
         "src/cockpit.js",
         "src/serve.js",
         "src/view.css",
-        "test/cockpit.test.js"
+        "test/cockpit.test.js",
+        "test/journeys.test.js"
       ],
       "specs": [
         "N26",

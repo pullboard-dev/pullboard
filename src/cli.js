@@ -9,16 +9,18 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import * as store from './board.js';
-import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
+import { CONFIG_FILE, COORDINATOR, DOCTRINE_FILE, LEGACY_DOCTRINE_FILE, loadConfig } from './config.js';
 import { doctrineHistory, loadDoctrine } from './doctrine.js';
-import { requirePersonChannel } from './person.js';
+import { agentSessionDigest, requirePersonChannel } from './person.js';
+import { bindLocalSession } from './agent-session.js';
 import { decisionProjection, planRowApply, prepareRowDecisions, restoreRowApply, writeRowApply } from './row-decisions.js';
-import { digestOf, gateReport, runGate, runShell } from './gate.js';
-import { bareWorktreeFinding, contains, differFromHead, git, headCommit, headTree, isClean, mainCheckout, repoInfo, resolveCommit, tryGit, untracked } from './git.js';
+import { digestOf, gateReport, runGate, runShell, runSubmitGate, submitGateReport, withGateSlot } from './gate.js';
+import { bareWorktreeFinding, contains, differFromHead, git, gitChildEnv, headCommit, headTree, invalidateGitFacts, isClean, mainCheckout, repoInfo, resolveCommit, tryGit, untracked, withGitFacts } from './git.js';
 import {
   FIX_NOTE,
   applyFixers,
   commitMsgProblems,
+  commitCitationWarnings,
   installHooks,
   preCommitProblems,
   prePushProblems,
@@ -36,20 +38,23 @@ import {
   idProblems,
   lintSpec,
   loadSpec,
+  legacyDoctrineRenameBase,
   permanenceProblems,
+  parseSpec,
   readSignoffs,
   signOff,
   standings,
   unmetRows,
 } from './spec.js';
 import { briefFiles } from './brief.js';
-import { checkBaseline, sayCheckBaseline } from './check-baseline.js';
+import { checkBaseline, prepareCheckBaseline, sayCheckBaseline } from './check-baseline.js';
+import { retryCheckBaselines, startCheckBaseline } from './check-baseline-worker.js';
 import { runItems } from './run.js';
 import { parseProblems, sweepItems } from './sweep.js';
 import { renderSpecView } from './view.js';
 import { tour } from './tour.js';
 import { commandOutput } from './json.js';
-import { forgetProject, registerProject } from './projects.js';
+import { forgetProject, registerProjectAndLink } from './projects.js';
 import { milestoneRoadmap } from './roadmap.js';
 import { listResources } from './resources.js';
 import { citedTestFiles, rowEvidence, rowStage } from './evidence.js';
@@ -62,11 +67,54 @@ import { proofStats } from './stats.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
-import { relayCommandReceipt, relayCommandReceiptReported, relayLinked, relayOff, relayOn, relayOperation, relayRecover, relayRecovered, relayStatus, syncRelay } from './relay.js';
+import { formatSnapshotLimit, pendingSnapshotSize, pendingCheckpointProblem, relayCommandReceipt, relayCommandReceiptReported, relayLinked, relayOff, relayOn, relayOperation, relayRecover, relayRecovered, relayRevoke, relayStatus, relayTokens, syncRelay } from './relay.js';
+import { autoLinkProject, relayOnAll, revokeRelayDevice, unlinkedRelayProjects } from './relay-setup.js';
+import { readRelayMachine } from './relay-machine.js';
+import { relayJoin, relayPair } from './relay-pairing-client.js';
 import { executePersonRequests } from './relay-request-execution.js';
+import { engineReceipt } from './engine.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
+const CHECKOUT_LEASES = new WeakMap();
+
+/**
+ * Read the collision baseline from the primary branch, retained trunk, or detached HEAD default.
+ *
+ * @param {string} root
+ * @param {string} path
+ * @param {string} [revision]
+ * @returns {{ status: number, stdout: string, baseline?: string }}
+ */
+function coordinatorFile(root, path, revision) {
+  const commonDir = git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+  const coordinatorRoot = dirname(commonDir);
+  const env = { ...gitChildEnv(root), GIT_NO_REPLACE_OBJECTS: '1' };
+  const primary = mainCheckout(coordinatorRoot);
+  let ref = primary?.branch ?? trunkRef(coordinatorRoot);
+  const detachedHeadDefault = !primary && !ref;
+  if (detachedHeadDefault) ref = 'HEAD';
+  if (ref !== 'HEAD' && !ref?.startsWith('refs/heads/')) {
+    throw new Refused('NO_TRUNK', 'no trunk branch was recorded; check out the trunk branch in the main checkout once and run pullboard inbox');
+  }
+  if (!primary) {
+    const tip = spawnSync('git', ['--no-replace-objects', 'rev-parse', '--verify', '--quiet', `${ref}^{commit}`], {
+      cwd: coordinatorRoot, env, encoding: 'utf8',
+    });
+    if (tip.status !== 0) {
+      throw new Refused('NO_TRUNK', 'the recorded trunk branch has no readable tip; check out the trunk branch in the main checkout once and run pullboard inbox');
+    }
+    ref = tip.stdout.trim();
+  }
+  const result = spawnSync('git', ['--no-replace-objects', 'show', `${revision ?? ref}:${path}`], {
+    cwd: coordinatorRoot, env, encoding: 'utf8',
+  });
+  return {
+    status: result.status ?? 1,
+    stdout: result.stdout ?? '',
+    ...(detachedHeadDefault ? { baseline: 'collision baseline default: detached HEAD' } : {}),
+  };
+}
 
 const ALL_HELP = `pullboard ${VERSION}: the local-first work board for teams of coding agents.
 Nothing ships until a second agent verifies it.
@@ -78,6 +126,7 @@ Set up
   pullboard join <lane> [--route light] [--family <name>]       register this worktree as an agent
                                         --route sets which work the model can take; --family records its name
   pullboard whoami | lanes | status     who you are, the lanes, the board at a glance
+  pullboard takeover                   rebind this checkout when the same agent starts a new session
   pullboard resources                  local resource holders and their FIFO queues
   pullboard settings [gateSlots <n>]    view or set this machine's gate slots (default 2)
   pullboard view [--port N] [--no-open]  every project on this machine in your browser: items, shouts, doctrine,
@@ -85,9 +134,16 @@ Set up
   pullboard view --export <dir>         a read-only snapshot with event replay, for any static host
   pullboard serve [--port N]           local API v1: boards, state, moves, requests and live events,
                                         behind the session secret in its printed address
-  pullboard relay [on|off] [--url <address>]  link, inspect or unlink this board's sealed relay mirror
+  pullboard relay [on|off|pair|join <code>] [--url <address>]  link, inspect or unlink this board's sealed relay
   pullboard relay recover --skip <sequence>  person-only recovery of one blocked next relay position
                                         on signs in through GitHub; the address defaults to https://app.pullboard.dev
+                                        pair prints a one-use machine code; join stores it in another clone
+  pullboard relay on --all [--url <address>]  link every registered project after one sign-in; pair the phone once
+                                        keep this command open until pairing finishes; later projects link on registration
+  pullboard relay devices               list paired device ids and their public-key fingerprints
+  pullboard relay revoke <device>       stop future key delivery; already received keys remain known
+  pullboard relay tokens                list this board's agent token ids, agents and expiry, never credentials
+  pullboard relay revoke <token-id>     revoke one token from that list; other agents keep working
   pullboard resume                      where you are: your claim, branch, uncommitted work, what came back,
                                         unread shouts, what to do next; run it to start any session
   pullboard hooks                       reinstall the git hooks (e.g. after a fresh clone)
@@ -97,8 +153,10 @@ Work
                 [--brief "..." | --brief-file <file>] [--route light|mid]
                                         --after: claiming waits until those items are verified
                                         --brief: what a cold agent needs; --route light: any model can build it
-                [--check "<command>"]  the command that proves it; with --criterion and a brief, needed below strong
+                [--check "<command>"] [--wait]   the command that proves it; --wait waits for its main baseline
+                                        with --criterion and a brief, --check is needed below strong
   pullboard edit <id> [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."]
+                [--wait]                wait for a new check's baseline; otherwise it runs in the background
   pullboard escalate <id> --note "what was tried and how it failed"   hand it one tier up
   pullboard run --agent "<command>" [--attempts 3] [--minutes 15] [--items N] [--wait M]
                                         build routed items unattended in this worktree: the agent command reads
@@ -126,8 +184,8 @@ Work
   pullboard check [id] [--yes]          show and run your item's check; --yes confirms a check set by someone else
                                         the command and its author print first; the project gate is pullboard gate
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
-  pullboard release <id>                hand it back
-  pullboard submit <id>                 needs a clean tree and the gate green at HEAD (alias: done)
+  pullboard release <id> [--note "why"]  hand it back; a review release needs a one-line reason
+  pullboard submit <id>                 needs a clean tree, item check and affected tests green at HEAD (alias: done)
   pullboard verify <id> accept --note "what you broke or which edge you tried, and what happened"
   pullboard verify <id> reject --reason TEST_FAILURE --note "what failed"
                                         any --note can be --note-file <file>, which keeps quotes, $ and backticks intact
@@ -148,7 +206,8 @@ Coordinator
   pullboard withdraw <id> <reason>      drop an item nobody should build
   pullboard refreeze <id>               re-freeze a criterion after its spec rows changed
   pullboard hold <lane> --reason "..."   pause a lane: next there claims nothing and names the reason
-  pullboard hold <lane> --off           release it
+  pullboard hold <id> "reason"          hold one item so next skips it
+  pullboard hold <lane|id> --off        lift a lane or item hold
 
 Receipts
   pullboard stats [--since <date>]      proof numbers from the event log; --json for sites and tools
@@ -173,7 +232,7 @@ Role guides
 
 Gate and hooks
   pullboard gate [--landing]            run the configured gate; prioritize a trunk landing in the machine queue
-  pullboard hook pre-commit|commit-msg|pre-push   git runs these
+  pullboard hook pre-commit|pre-merge-commit|commit-msg|pre-push   git runs these
 
 ${lifecycleHelp()}
 
@@ -181,12 +240,12 @@ Reject reasons: TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HE
 --json prints one versioned document for every command; refusals include their code and next step.`;
 
 const HELP_NAMES = [
-  'tour', 'init', 'worktree', 'join', 'whoami', 'lanes', 'status', 'resources', 'settings', 'view', 'view export',
+  'tour', 'init', 'worktree', 'join', 'takeover', 'whoami', 'lanes', 'status', 'resources', 'settings', 'view', 'view export',
   'serve', 'relay', 'relay recover', 'resume', 'hooks', 'add', 'edit', 'escalate', 'run', 'list', 'doctor', 'show', 'next',
   'check', 'claim', 'release', 'submit', 'done', 'verify', 'fact', 'shout', 'answer', 'pass', 'decisions', 'inbox', 'export', 'import',
   'sweep', 'merged', 'withdraw', 'refreeze', 'hold', 'stats', 'ledger', 'log', 'spec', 'spec check', 'spec view',
   'spec show', 'spec unmet', 'spec signoff', 'spec signers', 'spec signers add', 'forget', 'prompt', 'gate', 'hook',
-  'hook pre-commit', 'hook commit-msg', 'hook pre-push', 'view export', 'version', 'lifecycle', 'help',
+  'hook pre-commit', 'hook pre-merge-commit', 'hook commit-msg', 'hook pre-push', 'view export', 'version', 'lifecycle', 'help',
   'roadmap', 'milestone',
 ];
 
@@ -231,8 +290,9 @@ const HELP_ALIASES = {
   'spec signoff': { usage: 'pullboard spec signoff <ids> [--by <principal>] [--note "..."] [--note-file <file>]', source: 'spec show', onlyFlags: ['--by', '--note', '--note-file'], extraFlags: ['--note-file <file>'] },
   'spec signers': { usage: 'pullboard spec signers add [--key <path>] [--by <principal>]', source: 'spec signers add' },
   'spec signers add': { usage: 'pullboard spec signers add [--key <path>] [--by <principal>]', source: 'spec signers add' },
-  hook: { usage: 'pullboard hook pre-commit|commit-msg|pre-push', source: 'hook' },
+  hook: { usage: 'pullboard hook pre-commit|pre-merge-commit|commit-msg|pre-push', source: 'hook' },
   'hook pre-commit': { usage: 'pullboard hook pre-commit', source: 'hook' },
+  'hook pre-merge-commit': { usage: 'pullboard hook pre-merge-commit', source: 'hook' },
   'hook commit-msg': { usage: 'pullboard hook commit-msg <file>', source: 'hook' },
   'hook pre-push': { usage: 'pullboard hook pre-push', source: 'hook' },
 };
@@ -446,6 +506,28 @@ const OPTIONS = {
   version: { type: 'boolean', short: 'v' },
 };
 
+/** Parse --wait as a switch for add/edit and as minutes for next/run, preserving all other options. */
+function parseCommandArgs(argv) {
+  let command;
+  for (const wait of [{ type: 'boolean' }, OPTIONS.wait]) {
+    try {
+      command = parseArgs({ args: argv, options: { ...OPTIONS, wait }, allowPositionals: true }).positionals[0];
+      if (['add', 'edit'].includes(command)) break;
+    } catch { /* The final parser supplies the existing actionable usage error. */ }
+  }
+  const options = ['add', 'edit'].includes(command) ? { ...OPTIONS, wait: { type: 'boolean' } } : OPTIONS;
+  return parseArgs({ args: argv, options, allowPositionals: true });
+}
+
+/** Start an already-recorded request, recording an unavailable result if its child cannot start. */
+async function launchBaseline(ctx, board, id, baseline) {
+  try { await startCheckBaseline(ctx.info.root, id, baseline); }
+  catch {
+    await ordered(ctx, board, 'completeCheckBaseline', [id, { agentId: COORDINATOR, expected: baseline,
+      baseline: { command: baseline.command, main: baseline.main, result: 'unavailable', reason: 'background worker could not start; set --check again from the coordinator' } }]);
+  }
+}
+
 /**
  * A positive whole number from an argument, or a refusal naming what was expected.
  *
@@ -650,9 +732,60 @@ function withBoard(ctx, work) {
 /** Dispatch a board mutation locally, or seal it before any linked replica applies it. */
 async function ordered(ctx, board, operation, args) {
   const command = ['add', 'edit', 'merged'].includes(ctx.io.relayCommand?.cliOperation) ? ctx.io.relayCommand : undefined;
-  return relayLinked(ctx.info.root)
-    ? relayOperation(ctx.info.root, operation, args, ctx.io, command)
-    : store[operation](board, ...args);
+  /** Dispatch while this session holds the checkout, including long-running next/run loops. */
+  const execute = () => relayLinked(ctx.info.root)
+    ? relayOperation(ctx.info.root, operation, args, ctx.io, command, () => store[operation](board, ...args)) : store[operation](board, ...args);
+  const digest = agentSessionDigest();
+  if (CHECKOUT_LEASES.has(ctx.io) || !digest || ctx.io.personChannel === 'view' || ctx.io.personRequest) return execute();
+  const agent = ctx.info.isMain ? COORDINATOR : store.agentAt(board, ctx.info.root)?.agent_id ?? 'unjoined agent';
+  const lease = await bindLocalSession(ctx.info, { agent, digest, keepLease: true });
+  try { return await execute(); }
+  finally { lease.release(); }
+}
+
+/** Check ownership before sync or command side effects; reads and authenticated person channels keep their identity. */
+async function bindCheckoutSession(io, positionals, values) {
+  if (values.help || values.version || io.personChannel === 'view' || io.personRequest) return;
+  const [command, first] = positionals;
+  if (command === 'takeover' && (positionals.length !== 1 || Object.keys(values).some((key) => key !== 'json'))) {
+    throw new Refused('USAGE', 'pullboard takeover takes no arguments; run pullboard takeover [--json]');
+  }
+  const writes = ['init', 'join', 'worktree', 'hooks', 'hook', 'add', 'edit', 'fact', 'escalate', 'run', 'sweep',
+    'next', 'claim', 'hold', 'release', 'submit', 'done', 'verify', 'merged', 'withdraw', 'refreeze', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget'];
+  if (!writes.includes(command) && !(command === 'settings' && first) && !(command === 'spec' && first === 'apply') && !(command === 'relay' && ['on', 'off'].includes(first))) return;
+  if (command === 'answer' && values.as === 'person') return;
+  const digest = agentSessionDigest();
+  if (!digest) {
+    if (command === 'takeover') throw new Refused('AGENT_SESSION', 'takeover belongs to an agent session; run pullboard takeover from the agent’s shell');
+    return;
+  }
+  const info = repoInfo(io.cwd);
+  let agent = info.isMain ? COORDINATOR : null;
+  if (!info.isMain) {
+    const ctx = context(io);
+    agent = withBoard(ctx, (board) => store.agentAt(board, info.root)?.agent_id);
+    if (!agent && command !== 'join') throw new Refused('NOT_JOINED', 'this worktree has not joined a lane; run pullboard join <lane>');
+  }
+  const lease = await bindLocalSession(info, { agent: agent ?? 'unjoined agent', digest, takeover: command === 'takeover', keepLease: !['run', 'next'].includes(command),
+    /** Use an existing ordered shout so takeover has a receipt without changing the board format. */
+    recordTakeover: async () => {
+      const ctx = context(io);
+      await withBoard(ctx, async (board) => {
+        const me = whoAmI(ctx, board);
+        const message = { from: me.id, to: info.isMain ? 'person' : COORDINATOR,
+          text: `${me.id} took over this checkout in a new agent session.`, lanes: laneNames(ctx.config) };
+        if (relayLinked(info.root)) await relayOperation(info.root, 'shout', [message], io, undefined, () => store.shout(board, message));
+        else store.shout(board, message);
+      });
+    },
+  });
+  if (agent) return { lease };
+  /** Replace the temporary identity after a successful first join, retaining the winning session. */
+  return { lease, finish: async () => {
+    const ctx = context(io);
+    const me = withBoard(ctx, (board) => whoAmI(ctx, board));
+    lease.updateAgent(me.id);
+  } };
 }
 
 /**
@@ -701,7 +834,7 @@ function freezer(ctx, { captureVerifyPolicy = false } = {}) {
     } else {
       config = policy ? itemPolicy(ctx.info.root, { ...item, item_frozen: JSON.stringify({ policy }) }).config : ctx.config;
     }
-    const frozen = frozenCriterion(loadSpec(ctx.info.root, config), item);
+    const frozen = frozenCriterion(loadSpec(ctx.info.root, config), item, loadDoctrine(ctx.info.root, config));
     if (!policy) return frozen; // Legacy criteria retain their original digest and committed claim base.
     const text = JSON.stringify({ ...JSON.parse(frozen.text), policy });
     return { text, digest: createHash('sha256').update(text).digest('hex') };
@@ -763,7 +896,8 @@ function itemLine(item) {
   const after = item.item_after ? `  after ${item.item_after.split(',').map((id) => `#${id}`).join(',')}` : '';
   const rejected = item.item_status === 'open' && item.item_verdict === 'REJECT' ? ' (rejected)' : '';
   const light = item.item_route === 'strong' ? '' : `  ${item.item_route}`;
-  return `#${item.item_id}  ${item.item_status}${holder}${verifier}${rejected}  ${item.item_lane}  ${item.item_title}${specs}${parent}${after}${light}`;
+  const hold = item.item_hold_reason ? `  held by ${item.item_hold_by}: ${item.item_hold_reason}` : '';
+  return `#${item.item_id}  ${item.item_status}${holder}${verifier}${rejected}  ${item.item_lane}  ${item.item_title}${specs}${parent}${after}${light}${hold}`;
 }
 
 /**
@@ -809,8 +943,44 @@ function dirtyFiles(root) {
 function filesSince(root, id, from, to) {
   if (!from) return [];
   const others = [`--exclude=refs/pullboard/items/${id}/*`, '--glob=refs/pullboard/items/*'];
-  const result = tryGit(root, ['log', '--first-parent', '--no-merges', '--format=', '--name-only', to, '--not', from, ...others]);
+  const result = tryGit(root, ['log', '--first-parent', '--no-merges', '--no-renames', '--format=', '--name-only', to, '--not', from, ...others]);
   return result.status === 0 ? [...new Set(result.stdout.split('\n').filter(Boolean))].sort() : [];
+}
+
+/** Refuse a candidate containing another item's unverified submitted commit [V1].
+ *
+ * Trunk-reachable commits are already landed, including when the candidate is trunk itself.
+ * Inspect all remaining reachable commits, including merged topic parents.
+ *
+ * @param {string} root
+ * @param {any} board
+ * @param {any} item
+ * @param {string} commit
+ * @param {{ ref: string, commit: string } | null} trunk
+ * @returns {void}
+ */
+function refuseUnverifiedStack(root, board, item, commit, trunk) {
+  const trunkRange = trunk?.commit
+    ? tryGit(root, ['rev-list', `${trunk.commit}..${commit}`])
+    : { status: 1, stdout: '' };
+  if (trunkRange.status !== 0) {
+    throw new Refused('NO_POLICY', 'the current trunk range cannot be read; restore Git history and retry the submit or verification');
+  }
+  const commits = new Set(trunkRange.stdout.split('\n').filter(Boolean));
+  const stacked = store.unverifiedSubmissions(board)
+    .find((other) => other.item_id !== item.item_id && commits.has(other.item_commit));
+  if (stacked) {
+    throw new Refused(
+      'STACKED_ON_UNVERIFIED',
+      `#${item.item_id} includes unverified item #${stacked.item_id} at ${stacked.item_commit}; wait for #${stacked.item_id} to be accepted or rebuild without its commits before continuing`,
+    );
+  }
+}
+
+/** Return the durable outcome only when a recovered move exactly matches its original receipt. */
+function recordedRecovery(board, move) {
+  const receipt = engineReceipt(board, move.id);
+  return receipt?.move === JSON.stringify(move) ? receipt : null;
 }
 
 /**
@@ -878,6 +1048,71 @@ function coordinatorNext(card, rows) {
   return 'nothing open: report what was built to the person, or curate the queue: pullboard add, edit, hold';
 }
 
+/** Read each actor's newest structured integration attempt unless their later receipt closes it. */
+function integrationClaims(root, item, shouts, now) {
+  const actors = new Map();
+  for (const shout of shouts) {
+    if (shout.shout_evidence_item !== item.item_id) continue;
+    if (shout.shout_evidence_kind === 'receipt') actors.delete(shout.shout_from);
+    else if (shout.shout_evidence_kind === 'attempt' && shout.shout_evidence_outcome === 'integrating'
+      && contains(root, item.item_commit, shout.shout_evidence_commit)) {
+      actors.set(shout.shout_from, shout);
+    }
+  }
+  const claims = [...actors.values()].map((shout) => ({ type: 'shout', by: shout.shout_from, at: shout.shout_at,
+      text: shout.shout_text, commit: shout.shout_evidence_commit, id: shout.shout_id,
+      expired: now - Date.parse(shout.shout_at) > 24 * 60 * 60 * 1000 }))
+    .sort((a, b) => b.id - a.id);
+  return { live: claims.find((claim) => !claim.expired) ?? null,
+    expired: claims.find((claim) => claim.expired) ?? null };
+}
+
+/** Check verified, unmerged heads against the trunk without changing a worktree or trusting prose. */
+function verifiedMergeGroups(root, items, shouts, now) {
+  const groups = { clean: [], conflicts: [], integrating: [] };
+  const staleIntegrations = [];
+  for (const item of [...items].sort((a, b) => a.item_id - b.item_id)) {
+    const claimed = integrationClaims(root, item, shouts, now);
+    if (claimed.live) {
+      const { expired, ...claim } = claimed.live;
+      groups.integrating.push({ item, ...claim });
+      continue;
+    }
+    if (claimed.expired) staleIntegrations.push({ item, ...claimed.expired });
+    try {
+      requireTrunkMerge(root, item.item_commit);
+      groups.clean.push(item);
+    } catch (error) {
+      if (error.code !== 'MERGE_CONFLICT') throw error;
+      const detail = / in ([\s\S]*); merge the trunk into/u.exec(error.message)?.[1] ?? '';
+      let files = [];
+      try { files = JSON.parse(`[${detail}]`); } catch { files = []; }
+      groups.conflicts.push({ item, files });
+    }
+  }
+  return { verifiedNotMerged: groups, staleIntegrations };
+}
+
+/** Capture coordinator-only decision sections with stable ages and answers from the board. */
+function coordinatorDecisionSections(board, ctx) {
+  const shouts = store.allShouts(board);
+  const openDecisions = store.openDecisions(board, COORDINATOR).map((ask) => ({
+    id: ask.shout_id, asker: ask.shout_from, question: ask.shout_text, at: ask.shout_at, age: span(ctx, ask.shout_at),
+  }));
+  const recentAnswers = shouts.filter((ask) => ask.shout_decision).flatMap((ask) => {
+    const answer = store.shoutDetails(board, ask.shout_id).decision_answer;
+    if (!answer) return [];
+    const ageMs = ctx.clock.now().getTime() - Date.parse(answer.shout_at);
+    if (ageMs < 0 || ageMs > 24 * 60 * 60 * 1000) return [];
+    return [{ id: ask.shout_id, asker: ask.shout_from, question: ask.shout_text,
+      answeredBy: answer.shout_from, answer: answer.shout_text, at: answer.shout_at, age: span(ctx, answer.shout_at) }];
+  }).sort((a, b) => b.at.localeCompare(a.at));
+  const personQuestions = store.openDecisions(board, 'person').map((ask) => ({
+    id: ask.shout_id, asker: ask.shout_from, question: ask.shout_text, at: ask.shout_at, age: span(ctx, ask.shout_at),
+  }));
+  return { openDecisions, recentAnswers, personQuestions, shouts };
+}
+
 /**
  * `pullboard resume` (N19): one short card that puts an agent back to work after a fresh start,
  * a restart or a compaction, from the board rather than from a summary.
@@ -891,9 +1126,13 @@ function resumeHere(io) {
   const card = withBoard(ctx, (board) => {
     const me = whoAmI(ctx, board);
     const all = store.listItems(board, { all: true });
+    const toMerge = all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit);
+    const decisionSections = isMain ? coordinatorDecisionSections(board, ctx) : null;
+    const { shouts = [], ...decisions } = decisionSections ?? {};
     return {
       me,
       all,
+      ...(decisionSections ? { ...decisions, ...verifiedMergeGroups(root, toMerge, shouts, ctx.clock.now().getTime()) } : {}),
       requests: me.id === COORDINATOR ? store.openRequests(board) : [],
       holding: all.filter((item) => item.item_status === 'claimed' && item.item_owner === me.id),
       sentBack: all
@@ -901,7 +1140,7 @@ function resumeHere(io) {
         .map((item) => ({ item, verdict: store.verdictsFor(board, item.item_id).at(-1) })),
       awaiting: all.filter((item) => item.item_status === 'submitted' && item.item_built_by === me.id),
       toVerify: all.filter((item) => item.item_status === 'submitted' && item.item_built_by !== me.id),
-      toMerge: all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit),
+      toMerge,
       open: all.filter((item) => item.item_status === 'open'),
       hold: store.laneHold(board, me.lane),
       holds: store.laneHolds(board),
@@ -909,9 +1148,17 @@ function resumeHere(io) {
       newest: store.peekShouts(board, me.id, 1),
     };
   });
+  card.relayProblems = unlinkedRelayProjects();
   const { me } = card;
-  card.stale = staleFrozenItems(card.all, loadSpec(root, ctx.config).rows).map((item) => ({ ...item, ...staleItemFinding(item) }));
+  card.stale = staleFrozenItems(card.all, loadSpec(root, ctx.config).rows, ctx.doctrine.rows).map((item) => ({ ...item, ...staleItemFinding(item) }));
+  if (isMain) {
+    card.staleFollowUps = { count: card.stale.length + card.staleIntegrations.length,
+      list: 'pullboard resume --json', items: card.stale, integrations: card.staleIntegrations };
+    delete card.staleIntegrations;
+    card.reviewQueue = { items: card.toVerify, awaiting: card.awaiting };
+  }
   const say = (line) => io.say(line);
+  for (const problem of card.relayProblems) say(problem.message);
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
   say(`resume: ${me.id}${me.family ? ` (${me.family})` : ''}, ${me.lane} lane${isMain ? ', the main checkout' : ''}, at ${root}`);
   const dirty = dirtyFiles(root).length;
@@ -934,11 +1181,30 @@ function resumeHere(io) {
   for (const { item, verdict } of card.sentBack) {
     say(`sent back: #${item.item_id} ${verdict ? `${verdict.verdict_reason} by ${verdict.verdict_by}: ${firstLine(verdict.verdict_note)}` : 'rejected'}`);
   }
-  for (const item of card.stale) say(`stale: ${item.message}; next: ${item.next}`);
+  if (isMain && card.staleFollowUps.count) say(`${plural(card.staleFollowUps.count, 'stale follow-up')}; list them with ${card.staleFollowUps.list}`);
+  else if (!isMain) for (const item of card.stale) say(`stale: ${item.message}; next: ${item.next}`);
   if (card.awaiting.length) say(`awaiting a verdict: ${card.awaiting.map((item) => `#${item.item_id} (${span(ctx, item.item_updated_at)})`).join(', ')}`);
   if (isMain) {
-    if (card.toVerify.length) say(`to verify: ${card.toVerify.map((item) => `#${item.item_id} ${item.item_lane} (${span(ctx, item.item_updated_at)})`).join(', ')}`);
-    if (card.toMerge.length) say(`verified, not merged: ${card.toMerge.map((item) => `#${item.item_id} at ${item.item_commit.slice(0, 12)}`).join(', ')}; pullboard merged <id> <commit> records each`);
+    /** Limit each text section; JSON keeps every record for a complete handoff. */
+    const section = (entries, line) => {
+      for (const entry of entries.slice(0, 3)) say(line(entry));
+      if (entries.length > 3) say(`  ${entries.length - 3} more; list them with pullboard resume --json`);
+    };
+    section(card.openDecisions, (ask) => `open decision #${ask.id} from ${ask.asker} (${ask.age}): ${firstLine(ask.question)}`);
+    section(card.recentAnswers, (answer) => `recent decision #${answer.id}: ${answer.answeredBy} answered ${answer.asker} (${answer.age} ago): ${firstLine(answer.answer)}`);
+    if (card.toMerge.length) {
+      const groups = card.verifiedNotMerged;
+      /** Keep merge groups on one line while retaining all entries in JSON. */
+      const listed = (entries, line) => entries.slice(0, 3).map(line).join(', ')
+        + (entries.length > 3 ? `, +${entries.length - 3} more (pullboard resume --json)` : '') || 'none';
+      say(`verified, not merged — merges cleanly: ${listed(groups.clean, (item) => `#${item.item_id} ${firstLine(item.item_title)}`)}`);
+      say(`verified, not merged — conflicts: ${listed(groups.conflicts, ({ item, files }) => `#${item.item_id} ${firstLine(item.item_title)} (${files.join(', ') || 'files unavailable'})`)}`);
+      say(`verified, not merged — claimed for integration: ${listed(groups.integrating, ({ item, by, at, commit }) => `#${item.item_id} by ${by} at ${at} (${commit.slice(0, 12)})`)}`);
+    }
+    section(card.personQuestions, (ask) => `waiting on the person: #${ask.id} from ${ask.asker} (${ask.age}): ${firstLine(ask.question)}`);
+    if (card.toVerify.length) say('review queue:');
+    section(card.toVerify, (item) => `  to verify: #${item.item_id} ${item.item_lane} (${span(ctx, item.item_updated_at)})`);
+    if (card.toMerge.length) say('merge verified work, run the gate, then record each with pullboard merged <id> <commit>');
     for (const hold of card.holds) say(`held: the ${hold.hold_lane} lane, ${hold.hold_reason}`);
     const byLane = Object.entries(Map.groupBy(card.open, (item) => item.item_lane)).map(([lane, items]) => `${lane} ${items.length}`);
     say(`open: ${card.open.length}${byLane.length ? ` (${byLane.join(', ')})` : ''}`);
@@ -981,7 +1247,7 @@ async function viewHere(io, values) {
   }
   try {
     const info = repoInfo(io.cwd);
-    if (info.isMain && existsSync(join(info.root, CONFIG_FILE))) registerProject(info.root, new Date(), loadConfig(info.root));
+    if (info.isMain && existsSync(join(info.root, CONFIG_FILE))) await registerProjectAndLink(info.root, new Date(), loadConfig(info.root), io);
   } catch (error) {
     if (!(error instanceof Refused)) throw error;
   }
@@ -1008,7 +1274,7 @@ async function viewHere(io, values) {
 async function serveHere(io, values) {
   const ctx = context(io);
   const mainRoot = git(ctx.info.root, ['worktree', 'list', '--porcelain']).split('\n')[0].slice('worktree '.length);
-  registerProject(mainRoot, new Date(), loadConfig(mainRoot));
+  await registerProjectAndLink(mainRoot, new Date(), loadConfig(mainRoot), io);
   const port = values.port === undefined ? 0 : Number(values.port);
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Refused('USAGE', '--port is a number from 0 to 65535; use 0 to choose a free one');
   const api = await serveApi({ port, runCommand: main });
@@ -1030,11 +1296,11 @@ async function serveHere(io, values) {
  *
  * @param {any} io
  * @param {{ first?: string }} args
- * @returns {Record<string, () => number>}
+ * @returns {Record<string, () => number | Promise<number>>}
  */
 function setupCommands(io, { first, values }) {
   return {
-    init: () => {
+    init: async () => {
       const info = repoInfo(io.cwd);
       const notes = initRepo({
         info,
@@ -1052,7 +1318,7 @@ function setupCommands(io, { first, values }) {
       io.result?.({ root: info.root, notes });
       const staging = notes.at(-1)?.startsWith('git add -f -- ') ? notes.at(-1) : null;
       (staging ? notes.slice(0, -1) : notes).forEach((note) => io.say(note));
-      if (registerProject(info.root, new Date(), loadConfig(info.root))) io.say('registered this project on this machine, so pullboard view lists it');
+      if (await registerProjectAndLink(info.root, new Date(), loadConfig(info.root), io)) io.say('registered this project on this machine, so pullboard view lists it');
       io.say('next: write SPEC.md rows, declare lanes in pullboard.json, then: pullboard add <lane> <title>');
       io.say('with an agent: start a new Claude Code session here, which loads the pullboard skills, then tell it what to build; the pullboard-run skill runs the team');
       if (staging) io.say(staging);
@@ -1077,6 +1343,13 @@ function setupCommands(io, { first, values }) {
       return 0;
     },
     worktree: () => worktreeFor(io, first, values.route ?? 'strong', values.family ?? null),
+    takeover: () => {
+      const ctx = context(io);
+      const me = withBoard(ctx, (board) => whoAmI(ctx, board));
+      io.result?.({ agent: me.id, path: ctx.info.root });
+      io.say(`${me.id} took over this checkout for the current agent session`);
+      return 0;
+    },
   };
 }
 
@@ -1109,6 +1382,11 @@ async function worktreeFor(io, lane, route, family = null) {
   let id;
   try { id = await withBoard(ctx, async (board) => await ordered(ctx, board, 'register', [{ lane, path: root, route, family }])); }
   catch (error) {
+    const registered = withBoard(ctx, (board) => store.agentAt(board, root));
+    if (registered) {
+      io.err('pullboard: registration is already ordered; the worktree is preserved. Retry enrollment to obtain its credential: ' + cdTo(root) + ' pullboard join ' + lane + (route === 'strong' ? '' : ' --route ' + route) + (family ? ' --family ' + shellWord(family) : ''));
+      throw error;
+    }
     // Only remove the clean worktree just created here; preserve it if another process changed it.
     const removed = tryGit(mainRoot, ['worktree', 'remove', root]);
     if (removed.status === 0) tryGit(mainRoot, ['branch', '-d', `${lane}/${n}`]);
@@ -1206,8 +1484,8 @@ function readCommands(io, { first, second, rest, values }) {
       if (!resources.length) io.say('no resources have been used');
       for (const resource of resources) {
         io.say(`${resource.name} (${resource.scope}, capacity ${resource.capacity})`);
-        for (const holder of resource.holders) io.say(`  held by ${holder.agent}${holder.repo ? ` in ${holder.repo}` : ''}${holder.landing ? ' (landing)' : ''} since ${holder.since}`);
-        resource.line.forEach((waiter, index) => io.say(`  ${index + 1}. waiting: ${waiter.agent}${waiter.repo ? ` in ${waiter.repo}` : ''}${waiter.landing ? ' (landing)' : ''}`));
+        for (const holder of resource.holders) io.say(`  held by ${holder.agent}${holder.repo ? ` in ${holder.repo}` : ''}${holder.landing ? ' (landing)' : holder.itemCheck ? ' (item check)' : ''} since ${holder.since}`);
+        resource.line.forEach((waiter, index) => io.say(`  ${index + 1}. waiting: ${waiter.agent}${waiter.repo ? ` in ${waiter.repo}` : ''}${waiter.landing ? ' (landing)' : waiter.itemCheck ? ' (item check)' : ''}`));
       }
       return 0;
     },
@@ -1321,13 +1599,14 @@ function readCommands(io, { first, second, rest, values }) {
       const summary = withBoard(ctx, (board) => {
         const me = whoAmI(ctx, board);
         const mine = store.listItems(board).filter((item) => item.item_status === 'claimed' && item.item_owner === me.id);
-        return { me, mine, stats: store.stats(board), reviewQueue: store.reviewQueue(board), unread: store.unreadCount(board, me.id), relay: relayStatus(ctx.info.root) };
+        return { me, mine, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relayStatus(ctx.info.root) };
       });
       if (values.json) {
         io.result(summary);
         return 0;
       }
-      if (summary.relay.linked) io.say(`relay: sequence ${summary.relay.sequence}; ${summary.relay.behind} pending uploads${summary.relay.recovery.pending ? `; recovery pending for sequence ${summary.relay.recovery.skip}; retry ${summary.relay.recovery.next}` : ''}`);
+      if (summary.relay.linked) io.say(`relay: sequence ${summary.relay.sequence}; ${summary.relay.behind} pending uploads${summary.relay.recovery?.pending ? `; recovery pending for sequence ${summary.relay.recovery.skip}; retry ${summary.relay.recovery.next}` : ''}`);
+      if (summary.relay.oversizedSnapshot && !summary.relay.refusedCheckpoint) io.say(formatSnapshotLimit(summary.relay.oversizedSnapshot));
       const { items, accepted, rejected } = summary.stats;
       io.say(`${summary.me.id}: ${summary.unread} unread shouts; holding ${summary.mine.map((item) => `#${item.item_id}`).join(', ') || 'nothing'}`);
       io.say(`board: ${items.open} open, ${items.claimed} claimed, ${items.submitted} awaiting verification, ${items.verified} verified, ${items.withdrawn} withdrawn`);
@@ -1348,13 +1627,19 @@ function readCommands(io, { first, second, rest, values }) {
         return 1;
       }
       const ctx = context(io);
-      const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config), ...doctrineProblems(ctx.info.root, ctx.config)];
+      const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects()];
+      const checkpointProblem = pendingCheckpointProblem(ctx.info.root);
+      if (checkpointProblem) problems.push(checkpointProblem);
+      const oversizedSnapshot = checkpointProblem ? null : pendingSnapshotSize(ctx.info.root);
+      if (oversizedSnapshot) problems.push({ code: 'RELAY_SNAPSHOT_LIMIT',
+        message: formatSnapshotLimit(oversizedSnapshot),
+        next: 'reduce the sealed board snapshot below the relay limit, then run pullboard status' });
       io.result?.({ problems });
       if (!problems.length) {
         io.say('board is clean');
         return 0;
       }
-      for (const problem of problems) io.say(`problem: ${problem.message}; repair: ${problem.next}`);
+      for (const problem of problems) if (problem !== checkpointProblem) io.say(`problem: ${problem.message}; repair: ${problem.next}`);
       return 1;
     },
     inbox: () => {
@@ -1438,8 +1723,16 @@ async function submitHere(ctx, id) {
   const { root } = ctx.info;
   const recovered = relayRecovered(root);
   if (recovered?.operation === 'submit' && recovered.args[0] === id) {
-    const me = withBoard(ctx, (board) => whoAmI(ctx, board));
-    if (recovered.args[1]?.agentId === me.id) {
+    const preflight = withBoard(ctx, (board) => {
+      const me = whoAmI(ctx, board);
+      if (recovered.args[1]?.agentId !== me.id) return null;
+      if (recordedRecovery(board, recovered)) return { me, recorded: true };
+      const item = store.getItem(board, id);
+      const trunk = requireTrunkMerge(root, recovered.args[1].commit);
+      refuseUnverifiedStack(root, board, item, recovered.args[1].commit, trunk);
+      return { me, recorded: false };
+    });
+    if (preflight) {
       await withBoard(ctx, async (board) => await ordered(ctx, board, 'submit', recovered.args));
       return reportSubmission(ctx, id, recovered.args[1].commit,
         { green: true, report: 'recovered the original submission; its gate ran before the original send' });
@@ -1487,21 +1780,24 @@ async function submitHere(ctx, id) {
   if (stray.length) throw new Refused('UNTRACKED', `commit or ignore ${stray.length} untracked file(s), e.g. ${stray[0]}`);
   const commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
-  requireTrunkMerge(root, commit);
-  // Submit runs the gate itself, every time: a stamp from an earlier run is a file any agent can
-  // write, so it never stands in for this run (V16). It starts on the commit submitted, and must end
-  // on it too. What the gate's own code does in between is the submitted tree's, under review.
-  const gate = await runGate(root, ctx.config, { trustStamp: false, onWait: gateWaitReporter(ctx.io) });
-  if (!gate.isGreen) throw new Refused('GATE_RED', `the gate is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${gateReport(gate)}`);
+  const trunk = requireTrunkMerge(root, commit);
+  withBoard(ctx, (board) => refuseUnverifiedStack(root, board, held, commit, trunk));
+  // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
+  // A full-gate stamp never substitutes for either proof; only an actual full fallback may stamp.
+  const gate = await runSubmitGate(root, ctx.config, { base: claimHead, trunk: acceptedMain.commit, check: frozenCheck(held), onWait: gateWaitReporter(ctx.io) });
+  if (!gate.isGreen) throw new Refused('GATE_RED', `the submission proof is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${submitGateReport(gate)}`);
   if (headCommit(root) !== commit || !isClean(root)) {
     throw new Refused(
       'MOVED_DURING_GATE',
       `when the gate ended, HEAD or a tracked file differed from ${commit.slice(0, 12)}, the commit it started on, so the gate did not end on what you would submit; leave the worktree alone until the gate finishes, then submit again`,
     );
   }
-  requireTrunkMerge(root, commit); // The trunk may have moved while the gate ran.
-  await withBoard(ctx, async (board) => await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit }]));
-  return reportSubmission(ctx, id, commit, { green: gate.isGreen, report: gateReport(gate) });
+  const currentTrunk = requireTrunkMerge(root, commit); // The trunk may have moved while the gate ran.
+  await withBoard(ctx, async (board) => {
+    refuseUnverifiedStack(root, board, store.getItem(board, id), commit, currentTrunk);
+    return await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit }]);
+  });
+  return reportSubmission(ctx, id, commit, { green: gate.isGreen, report: submitGateReport(gate), files: gate.files, full: gate.full, reason: gate.reason, check: gate.check });
 }
 
 /** Report and pin the original submitted commit, including a recovered acknowledged outcome. */
@@ -1537,6 +1833,13 @@ async function verifyHere(ctx, id, { second, values }) {
     if (recovered?.operation === 'verify' && recovered.args[0] === id && previous?.agentId === me.id &&
         previous.decision === decision && previous.reason === values.reason &&
         previous.note === (textArg(ctx.io, values, 'note') ?? '')) {
+      if (decision === 'ACCEPT' && !recordedRecovery(board, recovered)) {
+        const item = store.getItem(board, id);
+        const commit = resolveCommit(root, item.item_commit);
+        if (!commit) throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
+        const trunk = requireTrunkMerge(root, commit);
+        refuseUnverifiedStack(root, board, item, commit, trunk);
+      }
       return await ordered(ctx, board, 'verify', recovered.args);
     }
     const item = store.getItem(board, id);
@@ -1559,14 +1862,18 @@ async function verifyHere(ctx, id, { second, values }) {
     }
     if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
-      requireTrunkMerge(root, commit);
-      check = checkAtCommit(root, item);
-      if (check.state === 'unverified') throw new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the submitted commit; restore the install or check environment, then retry verification; output digest:\n${check.report.replace(/^/gm, '  ')}`);
-      if (check.state === 'red') throw new Refused('CHECK_RED', `the frozen item check is red at the submitted commit; check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit; output digest:\n${check.report.replace(/^/gm, '  ')}`);
-
+      const trunk = requireTrunkMerge(root, commit);
+      refuseUnverifiedStack(root, board, item, commit, trunk);
+      check = await withGateSlot(root, () => checkAtCommit(root, item), { itemCheck: true, onWait: gateWaitReporter(ctx.io) });
+      const evidence = check.checked
+        ? `\nlast output lines (up to 40):\n${(check.outputTail ?? '(no output)').split('\n').map((line) => `  ${line}`).join('\n')}\nfull output file: ${check.outputPath ?? `(unavailable${check.outputError ? `: ${check.outputError}` : ''})`}`
+        : '';
+      if (check.state === 'unverified') throw new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the submitted commit; restore the install or check environment, then retry verification; output digest:\n${check.report.replace(/^/gm, '  ')}${evidence}`);
+      if (check.state === 'red') throw new Refused('CHECK_RED', `the frozen item check is red at the submitted commit (${check.stage}); check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit; output digest:\n${check.report.replace(/^/gm, '  ')}${evidence}`);
       const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
       submissionPaths(root, item, commit, { mainCommit: receipt?.policyCommit, dependencies: dependencySnapshots(board.db, item) });
-      requireTrunkMerge(root, commit); // Re-read after the frozen check, before accepting.
+      const currentTrunk = requireTrunkMerge(root, commit); // Re-read after the frozen check, before accepting.
+      refuseUnverifiedStack(root, board, item, commit, currentTrunk);
     }
     return await ordered(ctx, board, 'verify', [id, {
       agentId: me.id,
@@ -1619,16 +1926,20 @@ async function nextOnce(ctx, values) {
     try {
       await ordered(ctx, board, 'claim', [item.item_id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx), head: headCommit(ctx.info.root), reviewSkipped }]);
     } catch (error) {
-      if (error instanceof Refused && ['HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true };
+      if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true };
       throw error;
     }
-    return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped };
+    return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped, reasons };
   });
 }
 
 /** Describe the queue's actual outstanding reviews and submission age [Q1,V15]. */
 function reviewQueueLine(ctx, queue) {
   const age = queue.oldestSubmittedAt ? `${span(ctx, queue.oldestSubmittedAt)} ago` : 'none';
+  if (queue.awaitingFirstReview !== undefined) {
+    const released = queue.releasedItems?.map((item) => `#${item.item} released ${item.releases} ${item.releases === 1 ? 'time' : 'times'}: ${item.reason}`).join('; ');
+    return `review queue: ${queue.pending} submitted; ${queue.awaitingFirstReview} waiting for a first reviewer, ${queue.releasedWithoutVerdict} released without a verdict${released ? ` (${released})` : ''}, ${queue.reviewing} agents reviewing; oldest submission ${age}`;
+  }
   return `review queue: ${queue.pending} awaiting, ${queue.reviewing} agents reviewing; oldest submission ${age}`;
 }
 
@@ -1668,7 +1979,8 @@ async function nextHere(io, values) {
     if (found.item) {
       if (found.offer) { sayReviewOffer(ctx, found); return 0; }
       const item = found.item;
-      io.result?.({ item, review: Boolean(values.verify), held: Boolean(found.held), shared: found.shared ?? [] });
+      io.result?.({ item, review: Boolean(values.verify), held: Boolean(found.held), shared: found.shared ?? [], reasons: found.reasons ?? [] });
+      for (const reason of found.reasons ?? []) io.say(reason);
       const here = cdTo(ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (values.verify) {
@@ -1718,6 +2030,7 @@ async function sweepHere(ctx, board, me, values) {
   }
   const max = values.max === undefined ? 20 : idArg(values.max, 'a number after --max');
   const ran = spawnSync(report, { cwd: ctx.info.root, shell: true, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  invalidateGitFacts();
   const problems = parseProblems(`${ran.stdout ?? ''}\n${ran.stderr ?? ''}`, ctx.info.root);
   if (!problems.length) {
     ctx.io.say(`the checker reported no problems I can read (exit ${ran.status}); nothing to file`);
@@ -1735,6 +2048,7 @@ async function sweepHere(ctx, board, me, values) {
   const blind = [];
   for (const item of items) {
     const canary = spawnSync(item.check, { cwd: ctx.info.root, shell: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    invalidateGitFacts();
     if (canary.status === 0) {
       blind.push(item.file);
       continue;
@@ -1839,7 +2153,7 @@ function workCommands(io, args) {
       }
       if (!first || !isLane(ctx.config, first)) throw new Refused('NO_LANE', `no lane "${first ?? ''}"; see: pullboard lanes`);
       const specIds = idList(values.specs);
-      const problems = idProblems(loadSpec(ctx.info.root, ctx.config), specIds);
+      const problems = idProblems(loadSpec(ctx.info.root, ctx.config), specIds, ctx.doctrine);
       if (problems.length) throw new Refused('UNKNOWN_SPEC', `${problems.join('; ')}`);
       const parentId = values.parent ? idArg(values.parent, 'a parent item id') : null;
       const after = idList(values.after).map((text) => idArg(text, 'an item id after --after'));
@@ -1857,8 +2171,9 @@ function workCommands(io, args) {
         check: values.check,
       };
       const { command } = store.validateItemAddition(board, item);
-      if (command) item.checkBaseline = checkBaseline(ctx.info.root, command);
+      if (command) item.checkBaseline = values.wait ? checkBaseline(ctx.info.root, command) : prepareCheckBaseline(ctx.info.root, command);
       const id = await ordered(ctx, board, 'addItem', [item]);
+      if (item.checkBaseline?.result === 'pending') await launchBaseline(ctx, board, id, item.checkBaseline);
       io.result?.({ item: store.getItem(board, id) });
       io.say(`#${id}`);
       sayCheckBaseline(io, store.getItem(board, id));
@@ -1884,8 +2199,9 @@ function workCommands(io, args) {
         check: values.check,
       };
       const { item, command } = store.validateItemEdit(board, id, change);
-      if (command && command !== item.item_check) change.checkBaseline = checkBaseline(ctx.info.root, command);
+      if (command && command !== item.item_check) change.checkBaseline = values.wait ? checkBaseline(ctx.info.root, command) : prepareCheckBaseline(ctx.info.root, command);
       await ordered(ctx, board, 'editItem', [id, change]);
+      if (change.checkBaseline?.result === 'pending') await launchBaseline(ctx, board, id, change.checkBaseline);
       io.result?.({ item: store.getItem(board, id) });
       io.say(`edited #${id}`);
       sayCheckBaseline(io, store.getItem(board, id));
@@ -1930,7 +2246,7 @@ function workCommands(io, args) {
           throw new Refused('CHECK_CONFIRM', `the check set by ${by} was not run: ${check}; run pullboard check ${item.item_id} --yes after reading the command, or answer yes at the prompt`);
         }
       }
-      const run = runShell(ctx.info.root, check);
+      const run = await withGateSlot(ctx.info.root, () => runShell(ctx.info.root, check), { itemCheck: true, onWait: gateWaitReporter(io) });
       io.result?.({ id: item.item_id, green: run.isGreen, seconds: run.seconds, check, by, report: run.isGreen ? '' : digestOf(run.output) });
       io.say(`check ${run.isGreen ? 'green' : 'red'} in ${run.seconds}s: ${check}`);
       if (!run.isGreen) io.say(digestOf(run.output).replace(/^/gm, '  '));
@@ -1943,6 +2259,20 @@ function workCommands(io, args) {
       return 0;
     }),
     hold: () => act(async (ctx, board, me) => {
+      const itemTarget = /^#?\d+$/u.test(first ?? '');
+      if (itemTarget) {
+        const id = idArg(first);
+        const reason = values.reason ?? [second, ...rest].filter(Boolean).join(' ');
+        if (values.off) {
+          await ordered(ctx, board, 'releaseItemHold', [id, { agentId: me.id }]);
+          io.say(`lifted the hold on #${id}`);
+        } else {
+          await ordered(ctx, board, 'holdItem', [id, { agentId: me.id, reason }]);
+          io.say(`holding #${id}: ${reason}. Lift it with: pullboard hold ${id} --off`);
+        }
+        io.result?.({ id, lane: store.getItem(board, id).item_lane, held: !values.off, reason: values.off ? null : reason });
+        return 0;
+      }
       if (!first || !isLane(ctx.config, first)) throw new Refused('NO_LANE', `no lane "${first ?? ''}"; see: pullboard lanes`);
       if (values.off) {
         await ordered(ctx, board, 'releaseLane', [first, { agentId: me.id, asPerson: io.personChannel === 'view', channel: io.personChannel ?? 'terminal' }]);
@@ -1955,7 +2285,10 @@ function workCommands(io, args) {
       return 0;
     }),
     release: () => act(async (ctx, board, me) => {
-      const review = await ordered(ctx, board, 'release', [idArg(first), me.id]);
+      const args = [idArg(first), me.id, textArg(io, values, 'note') ?? ''];
+      const problem = store.reviewReleaseNoteProblem(board, ...args);
+      if (problem) throw problem;
+      const review = await ordered(ctx, board, 'release', args);
       io.result?.({ id: idArg(first) });
       io.say(review ? `released the review of #${first}; the review is free again` : `released #${first}`);
       return 0;
@@ -2154,12 +2487,54 @@ async function specCommand(io, { first, second, rest, values }) {
     });
   }
   if (first === 'check' || first === undefined) {
-    const files = [[ctx.config.spec, spec], ...(practice.exists ? [[ctx.config.practice, practice]] : [])];
+    const files = [[ctx.config.spec, spec], ...(practice.exists ? [[practice.name, practice]] : [])];
     for (const [, parsed] of files) assertRequiredSigners(ctx.info.root, parsed.rows);
+    const collisionFiles = [[ctx.config.spec, spec], ...(practice.repoExists ? [[practice.name, practice.repo]] : [])];
+    const renameBase = collisionFiles.some(([name]) => name === DOCTRINE_FILE)
+      ? legacyDoctrineRenameBase(ctx.info.root, DOCTRINE_FILE)
+      : null;
+    const baselineNotes = new Set();
+    const previousCounts = new Map(collisionFiles.map(([name]) => {
+      const baselineName = renameBase && name === DOCTRINE_FILE ? LEGACY_DOCTRINE_FILE : name;
+      const previous = name === DOCTRINE_FILE && !renameBase
+        ? { status: 1, stdout: '' }
+        : coordinatorFile(ctx.info.root, baselineName, renameBase ?? undefined);
+      if (previous.baseline) baselineNotes.add(previous.baseline);
+      const rows = previous.status === 0 ? parseSpec(previous.stdout, { strictGrammarVersion: false }).rows : [];
+      const counts = new Map();
+      for (const row of rows) counts.set(row.id, (counts.get(row.id) ?? 0) + 1);
+      return [name, counts];
+    }));
+    const locationsById = new Map();
+    for (const [name, parsed] of collisionFiles) {
+      for (const row of parsed.rows) {
+        const locations = locationsById.get(row.id) ?? [];
+        locations.push({ name, line: row.line });
+        locationsById.set(row.id, locations);
+      }
+    }
+    const collisionFindings = new Map(collisionFiles.map(([name]) => [name, []]));
+    for (const [id, locations] of locationsById) {
+      if (locations.length < 2) continue;
+      const currentCounts = new Map();
+      for (const location of locations) currentCounts.set(location.name, (currentCounts.get(location.name) ?? 0) + 1);
+      const known = [...currentCounts].every(([name, count]) => count <= (previousCounts.get(name)?.get(id) ?? 0));
+      for (let index = 0; index < locations.length; index++) {
+        const location = locations[index];
+        const other = locations[(index + 1) % locations.length];
+        collisionFindings.get(location.name).push({
+          level: known ? 'warning' : 'error', line: location.line, id,
+          message: `${known ? 'known duplicate id' : 'duplicate id'}; also appears at ${other.name}:${other.line}`,
+        });
+      }
+    }
     let errors = 0;
-    const messages = [];
+    const messages = [...baselineNotes];
     for (const [name, parsed] of files) {
-      const findings = lintSpec(parsed);
+      const findings = [
+        ...lintSpec(parsed).filter((finding) => !finding.message.startsWith('duplicate id;')),
+        ...(collisionFindings.get(name) ?? []),
+      ];
       findings.forEach((finding) => messages.push(`${name}:${finding.line} ${finding.id ?? ''} ${finding.level}: ${finding.message}`.replace('  ', ' ')));
       const history = parsed === practice ? doctrineHistory(ctx.info.root, name) : committedIds(ctx.info.root, name);
       const cited = name === ctx.config.spec ? citations(ctx, history) : new Map();
@@ -2306,13 +2681,16 @@ async function hookCommand(io, { first, second }) {
     throw error;
   }
   let problems = [];
-  if (first === 'pre-commit') {
+  if (first === 'pre-commit' || first === 'pre-merge-commit') {
     applyFixers(info.root, ctx.config.fix).forEach((note) => io.err(`pullboard pre-commit: ${note}`));
     const agent = info.isMain ? null : withBoard(ctx, (board) => store.agentAt(board, info.root));
     problems = preCommitProblems({ root: info.root, isMain: info.isMain, config: ctx.config, agent, boardFile: ctx.file });
   } else if (first === 'commit-msg') {
     const message = readFileSync(second ?? '', 'utf8');
-    problems = commitMsgProblems(message, { rules: ctx.config.commits, spec: loadSpec(info.root, ctx.config) });
+    const spec = loadSpec(info.root, ctx.config);
+    commitCitationWarnings(message, { spec, doctrine: ctx.doctrine })
+      .forEach((warning) => io.say(`pullboard commit-msg: warning: ${warning}`));
+    problems = commitMsgProblems(message, { rules: ctx.config.commits, spec, doctrine: ctx.doctrine });
   } else if (first === 'pre-push') {
     const refsText = await readStdin(io.stdin);
     problems = prePushProblems(info.root, refsText);
@@ -2323,7 +2701,7 @@ async function hookCommand(io, { first, second }) {
       if (!gate.isGreen) problems = [`the gate is red; fix it before pushing. ${gateReport(gate)}`];
     }
   } else {
-    throw new Refused('USAGE', 'pullboard hook pre-commit | commit-msg <file> | pre-push');
+    throw new Refused('USAGE', 'pullboard hook pre-commit | pre-merge-commit | commit-msg <file> | pre-push');
   }
   if (!problems.length) return 0;
   io.err(`pullboard ${first}: blocked\n${problems.map((problem) => `  - ${problem}`).join('\n')}\n${FIX_NOTE}`);
@@ -2340,7 +2718,7 @@ async function hookCommand(io, { first, second }) {
 async function runCommand(argv, io) {
   let parsed;
   try {
-    parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
+    parsed = parseCommandArgs(argv);
   } catch (error) {
     io.refusal?.(new Refused('USAGE', `${error.message}; run pullboard help`));
     io.err(`pullboard: ${error.message}\nRun pullboard help --all for the full list.`);
@@ -2397,7 +2775,7 @@ async function runCommand(argv, io) {
     if (command === 'settings') return settingsCommand(io, args);
     if (command === 'relay') {
       if (first === 'recover') {
-        if (second || rest.length || !values.skip || values.url) throw new Refused('USAGE', 'pullboard relay recover --skip <exact blocked next sequence>');
+        if (second || rest.length || !values.skip || values.url || values.all) throw new Refused('USAGE', 'pullboard relay recover --skip <exact blocked next sequence>');
         requirePersonChannel('terminal');
         const result = await relayRecover(context(io).info.root, Number(values.skip), io);
         io.result?.(result);
@@ -2407,13 +2785,54 @@ async function runCommand(argv, io) {
         return 0;
       }
       if (values.skip) throw new Refused('USAGE', '--skip is only valid with pullboard relay recover');
+      if (first === 'devices') {
+        if (second || rest.length || values.url || values.all) throw new Refused('USAGE', 'pullboard relay devices');
+        const devices = readRelayMachine().devices.map(({ deviceId, label, fingerprint, createdAt }) => ({ deviceId, label, fingerprint, createdAt }));
+        io.result?.({ devices });
+        for (const device of devices) io.say(`${device.deviceId}  ${device.label}  ${device.fingerprint}`);
+        if (!devices.length) io.say('no paired devices; run pullboard relay on --all');
+        return 0;
+      }
+      if (first === 'revoke' && /^device-[0-9a-f]{32}$/u.test(second ?? '')) {
+        if (rest.length || values.url || values.all) throw new Refused('USAGE', 'pullboard relay revoke <device>');
+        const result = await revokeRelayDevice(second, io);
+        io.result?.(result); io.say(result.notice); return 0;
+      }
+      if (values.all) {
+        if (first !== 'on' || second || rest.length) throw new Refused('USAGE', 'pullboard relay on --all [--url <address>]');
+        const result = await relayOnAll(values.url, io);
+        io.result?.(result); return result.failed.length ? 1 : 0;
+      }
+      if (['tokens', 'revoke'].includes(first)) {
+        if (rest.length || values.url || (first === 'tokens' && second) || (first === 'revoke' && !second)) {
+          throw new Refused('USAGE', 'pullboard relay tokens, or pullboard relay revoke <token-id>');
+        }
+        const ctx = context(io);
+        const result = first === 'tokens' ? await relayTokens(ctx.info.root, io) : await relayRevoke(ctx.info.root, second, io);
+        io.result?.(result);
+        if (first === 'tokens') {
+          if (!result.tokens.length) io.say('no agent tokens on this board');
+          for (const row of result.tokens) io.say(row.id + '  ' + row.agent + '  ' + (row.revoked ? 'revoked' : 'expires ' + new Date(row.expires).toISOString()));
+        } else io.say('revoked token ' + result.id + '; other agent tokens are unchanged');
+        return 0;
+      }
+      if (first === 'pair') {
+        if (second || rest.length || values.url) throw new Refused('USAGE', 'pullboard relay pair');
+        const ctx = context(io);
+        return await relayPair(ctx.info.root, io);
+      }
+      if (first === 'join') {
+        if (!second || rest.length) throw new Refused('USAGE', 'pullboard relay join <code> [--url <address>]');
+        const ctx = context(io);
+        return await relayJoin(ctx.info.root, second, values.url, io);
+      }
       if (second || rest.length || (first && !['on', 'off'].includes(first)) || (values.url && first !== 'on')) throw new Refused('USAGE', 'pullboard relay [on|off] [--url <address>]');
       const ctx = context(io);
       if (!first) { await syncRelay(ctx.info.root, io); await executePersonRequests(ctx.info.root, io, main); }
       const result = first === 'on' ? await relayOn(ctx.info.root, values.url, io)
         : first === 'off' ? await relayOff(ctx.info.root, io) : relayStatus(ctx.info.root);
       io.result?.(result);
-      io.say(result.linked ? `${result.link}\nrelay: sequence ${result.sequence}; ${result.behind} pending uploads${result.recovery.pending ? `; recovery pending for sequence ${result.recovery.skip}; retry ${result.recovery.next}` : ''}` : (result.notice || 'relay off; the local board is complete'));
+      io.say(result.linked ? `${result.link}\nrelay: sequence ${result.sequence}; ${result.behind} pending uploads${result.recovery?.pending ? `; recovery pending for sequence ${result.recovery.skip}; retry ${result.recovery.next}` : ''}` : (result.notice || 'relay off; the local board is complete'));
       return 0;
     }
     if (command === 'gate') {
@@ -2452,37 +2871,73 @@ function rememberTrunk(io) {
 
 /** Run one command and emit its single versioned JSON result when requested (A1). */
 export async function main(argv, streams) {
+  return withGitFacts(() => runMain(argv, streams));
+}
+
+/** Parse and execute one CLI command, binding its checkout session and Git-fact scope. */
+async function runMain(argv, streams) {
   const io = commandOutput(argv, streams);
   let sync = true;
+  let needsRepo = true;
+  let parsed;
+  let checkoutSession;
   try {
-    const parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
+    parsed = parseCommandArgs(argv);
     const command = parsed.positionals[0];
+    io.relayJson = Boolean(parsed.values.json);
     io.relayCommand = { cliOperation: command === 'done' ? 'submit' : command, cwd: resolve(io.cwd),
       positionals: parsed.positionals.slice(1),
       values: Object.fromEntries(Object.keys(parsed.values).filter(key => key !== 'json').sort().map(key => [key, parsed.values[key]])) };
     sync = Boolean(command) && !parsed.values.help && !parsed.values.version && !['help', 'version', 'hook', 'init', 'relay', 'tour'].includes(command);
-  } catch { sync = false; }
-  /** A network refusal preserves offline reads; linked mutation dispatch requires an acknowledgement. */
-  const retry = async () => {
-    try { await syncRelay(io.cwd, io); }
-    catch (error) {
+    needsRepo = !(parsed.values.help || parsed.values.version || command === 'help' || command === 'version');
+  } catch { sync = false; needsRepo = false; }
+  if (parsed) {
+    try {
+      const [command, verb] = parsed.positionals;
+      if (!parsed.values.help && !parsed.values.version &&
+          (parsed.values.as === 'person' && command !== 'decisions' || command === 'relay' && ['on', 'join', 'revoke'].includes(verb))) requirePersonChannel(io.personChannel);
+      checkoutSession = await bindCheckoutSession(io, parsed.positionals, parsed.values);
+      if (checkoutSession?.lease) CHECKOUT_LEASES.set(io, checkoutSession.lease);
+    } catch (error) {
       if (!(error instanceof Refused)) throw error;
-      if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
-    }
-  };
-  rememberTrunk(io);
-  if (sync) {
-    await retry();
-    try { await executePersonRequests(io.cwd, io, main); }
-    catch (error) {
-      if (!(error instanceof Refused)) throw error;
-      if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err('pullboard: ' + error.message);
+      io.refusal(error);
+      io.err(`pullboard: ${error.message}`);
+      io.flush(1);
+      return 1;
     }
   }
-  const code = await runCommand(argv, io);
-  if (sync && code === 0) await retry();
-  io.flush(code);
-  return code;
+  try {
+    /** A network refusal preserves offline reads; linked mutation dispatch requires an acknowledgement. */
+    const retry = async () => {
+      try {
+        await syncRelay(io.cwd, io);
+        await retryCheckBaselines(io.cwd, io);
+      }
+      catch (error) {
+        if (!(error instanceof Refused)) throw error;
+        if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
+      }
+    };
+    if (needsRepo) rememberTrunk(io);
+    if (sync) {
+      try { await autoLinkProject(io.cwd, io); } catch (error) { if (!(error instanceof Refused)) throw error; }
+      await retry();
+      try { await executePersonRequests(io.cwd, io, main); }
+      catch (error) {
+        if (!(error instanceof Refused)) throw error;
+        if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
+      }
+    }
+    const code = await runCommand(argv, io);
+    if (code === 0) await checkoutSession?.finish?.();
+    if (sync && code === 0) await retry();
+    const status = io.exitCode(code);
+    io.flush(status);
+    return status;
+  } finally {
+    CHECKOUT_LEASES.delete(io);
+    checkoutSession?.lease?.release();
+  }
 }
 
 /** Result-producing command names, including aliases, for API contract coverage (A1). */

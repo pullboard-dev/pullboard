@@ -1,14 +1,15 @@
 /** Person-authored row decisions stay on the board until a coordinator applies them [B26,S18,S19,C7]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { startFixtureChild as spawn, runFixtureChild as spawnSync, reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { performance } from 'node:perf_hooks';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { once } from 'node:events';
 import { after, test } from 'node:test';
 import { parseSpec } from '../src/spec.js';
-import { AGENT_SHELL_MARKERS } from '../src/person.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import { fetchFresh } from './http-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const SPEC_FILE = 'SPEC.md';
@@ -46,7 +47,7 @@ after(cleanup);
 function personEnvironment(source) {
   const env = { ...source };
   for (const key of Object.keys(env)) {
-    if (key.startsWith('GIT_') || AGENT_SHELL_MARKERS.includes(key)) delete env[key];
+    if (key.startsWith('GIT_') || AGENT_SHELL_MARKERS.includes(key) || SSH_SHELL_MARKERS.includes(key)) delete env[key];
   }
   return env;
 }
@@ -74,12 +75,12 @@ function sandbox() {
   Object.assign(env, FIXTURE_GIT_ENV);
   /** Run Git with the fixture's private identity and configuration. */
   function git(cwd, ...args) {
-    return execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+    return runFixtureGit(args, { cwd, env });
   }
   /** Run the real CLI with a clean person environment and optional explicit markers. */
   function run(cwd, args, extraEnv = {}) {
-    return spawnSync(process.execPath, [BIN, ...args], {
-      cwd, env: { ...personEnvironment(env), ...FIXTURE_GIT_ENV, ...extraEnv }, encoding: 'utf8', timeout: 15_000,
+    return runFixtureChild(process.execPath, [BIN, ...args], {
+      cwd, env: { ...personEnvironment(env), ...FIXTURE_GIT_ENV, ...extraEnv }, encoding: 'utf8',
     });
   }
   return { dir, env, git, run };
@@ -162,45 +163,103 @@ function sourceRow(box, file, id) {
 }
 
 /** Start the private real view with clean person credentials and expose authenticated requests. */
-async function startView(t, box) {
-  const child = spawn(process.execPath, [BIN, 'view', '--no-open', '--port', '0', '--json'], {
-    cwd: box.root, env: { ...personEnvironment(box.env), CODEX_SHELL: 'private-agent-view-host' }, stdio: ['ignore', 'pipe', 'pipe'],
+async function startView(t, box, extraEnv = {}) {
+  const args = [BIN, 'view', '--no-open', '--port', '0', '--json'];
+  const env = { ...personEnvironment(box.env), ...extraEnv, CODEX_SHELL: 'private-agent-view-host' };
+  const startedAt = performance.now();
+  const child = spawn(process.execPath, args, {
+    cwd: box.root, env, stdio: ['ignore', 'pipe', 'pipe'],
   });
   let stdout = '';
-  let stderr = '';
+  let stderrTail = [];
+  let stderrPartial = '';
   child.stdout.setEncoding('utf8');
-  child.stderr.setEncoding('utf8').on('data', (part) => { stderr += part; });
-  const closed = once(child, 'close');
+  child.stderr.setEncoding('utf8').on('data', (part) => {
+    const lines = (stderrPartial + part).split(/\r?\n/);
+    stderrPartial = lines.pop() ?? '';
+    if (stderrPartial.length > 2048) stderrPartial = `[truncated stderr line] ${stderrPartial.slice(-2048)}`;
+    stderrTail.push(...lines.map((line) => line.length > 2048 ? `[truncated stderr line] ${line.slice(-2048)}` : line));
+    if (stderrTail.length > 20) stderrTail = stderrTail.slice(-20);
+  });
+  let spawnError = null;
+  const closed = new Promise((resolveClose) => {
+    child.once('error', (error) => { spawnError = error; });
+    child.once('close', (code, signal) => resolveClose({ code, signal, error: spawnError }));
+  });
+  /** Wait for the child process to close, including when it was stopped by a signal. */
+  function waitForClose() {
+    return closed;
+  }
+  /** Stop the view once and wait until its exit status is available. */
+  async function stopView(signal = 'SIGTERM') {
+    if (child.exitCode === null && child.signalCode === null) child.kill(signal);
+    return waitForClose();
+  }
   t.after(async () => {
-    if (child.exitCode !== null) return;
-    child.kill('SIGTERM');
+    if (child.exitCode !== null || child.signalCode !== null) return;
     let timer;
-    await Promise.race([closed, new Promise((done) => {
-      timer = setTimeout(() => { child.kill('SIGKILL'); done(); }, 5000);
+    await Promise.race([stopView('SIGTERM'), new Promise((done) => {
+      timer = setTimeout(() => done(false), 5000);
     })]);
     clearTimeout(timer);
+    if (child.exitCode === null && child.signalCode === null) await stopView('SIGKILL');
   });
   const document = await new Promise((resolveDocument, rejectDocument) => {
-    const timer = setTimeout(() => rejectDocument(new Error(`view did not start: ${stderr}`)), 10_000);
+    let settled = false;
+    const failStartup = (detail, status = child.exitCode, signal = child.signalCode) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      const stderr = [...stderrTail, ...(stderrPartial ? [stderrPartial] : [])].slice(-20).join('\n');
+      rejectDocument(new Error(reportFixtureChildFailure({ command: process.execPath, args, status, signal,
+        elapsedMs: performance.now() - startedAt, stderr, env, detail })));
+    };
+    const timer = setTimeout(() => failStartup('view readiness deadline (10000ms) expired'), 10_000);
     child.stdout.on('data', (chunk) => {
       stdout += chunk;
-      try { resolveDocument(JSON.parse(stdout)); clearTimeout(timer); }
+      try {
+        const value = JSON.parse(stdout);
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolveDocument(value);
+      }
       catch { /* Wait until the one JSON document is complete. */ }
     });
-    child.once('error', rejectDocument);
-    child.once('close', () => rejectDocument(new Error(`view exited early: ${stderr}`)));
+    child.once('error', (error) => failStartup(error.message, null, null));
+    child.once('close', (code, signal) => failStartup('view exited before readiness', code, signal));
   });
   const address = new URL(document.url);
   const key = address.searchParams.get('k');
   assert.ok(key, 'the private view URL includes its one-use request credential');
   /** Send a bounded authenticated request to the live view adapter. */
-  function request(path, options = {}) {
-    return fetch(new URL(path, address.origin), {
-      ...options,
-      headers: { 'x-pullboard-key': key, ...options.headers },
-      signal: AbortSignal.timeout(10_000),
-    });
+  async function request(path, options = {}) {
+    try {
+      return await fetchFresh(new URL(path, address.origin), {
+        ...options,
+        headers: { 'x-pullboard-key': key, ...options.headers },
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch (error) {
+      let timer;
+      await Promise.race([closed, new Promise((resolveStatus) => { timer = setTimeout(resolveStatus, 500); })]);
+      clearTimeout(timer);
+      const causeCode = error?.cause?.cause?.code ?? error?.cause?.code ?? error?.code ?? 'no-code';
+      const causeChain = [];
+      for (let current = error; current !== undefined && current !== null && causeChain.length < 8; current = current.cause) {
+        causeChain.push([current.code ?? current.name, current.message].filter(Boolean).join(': '));
+      }
+      const processStatus = child.exitCode !== null
+        ? `exit code=${child.exitCode}`
+        : child.signalCode !== null ? `signal=${child.signalCode}`
+          : spawnError ? `spawn error code=${spawnError.code ?? spawnError.name}` : 'still running';
+      const stderr = [...stderrTail, ...(stderrPartial ? [stderrPartial] : [])].slice(-20);
+      const lines = stderr.length ? stderr.join('\n') : '<no stderr output>';
+      throw new Error(`view request failed after 1 attempt (no retry): fetch cause code=${causeCode}; cause chain ${causeChain.join(' <- ')}; child ${processStatus}; stderr last 20 lines:\n${lines}`, { cause: error });
+    }
   }
+  request.stopView = stopView;
+  request.waitForClose = waitForClose;
   return request;
 }
 
@@ -224,6 +283,40 @@ async function viewDecision(request, boardPath, verb, args) {
   assert.equal(response.status, 200, await response.clone().text());
   return response.json();
 }
+
+test('[B26] failed view request names its cause', async (t) => {
+  const box = project();
+  const preload = join(box.dir, 'stderr-preload.mjs');
+  writeFileSync(preload, [
+    ...Array.from({ length: 25 }, (_, index) => `process.stderr.write('stderr-tail-${String(index + 1).padStart(2, '0')}\\n');`),
+    'process.stderr.write("stderr-split-");',
+    'await new Promise((resolveWait) => setTimeout(resolveWait, 25));',
+    'process.stderr.write("line\\n");',
+  ].join('\n'));
+  const request = await startView(t, box, { NODE_OPTIONS: `--import=file://${preload}` });
+  await request.stopView('SIGKILL');
+  let failure;
+  try {
+    await request('/api/v1/boards');
+  } catch (error) {
+    failure = error;
+  }
+  assert.ok(failure, 'requesting a stopped view rejects');
+  const fetchError = failure.cause;
+  const causeCode = fetchError?.cause?.code ?? fetchError?.code;
+  assert.equal(typeof causeCode, 'string', 'the failed fetch provides a cause code');
+  assert.ok(failure.message.includes(`fetch cause code=${causeCode}`));
+  assert.match(failure.message, /child (?:exit code=\d+|signal=\w+)/);
+  assert.match(failure.message, /view request failed after 1 attempt \(no retry\)/, 'the request is not retried');
+  const stderr = failure.message.split('stderr last 20 lines:\n')[1];
+  assert.ok(stderr, 'the diagnostic includes the stderr tail');
+  assert.equal(stderr.split('\n').length, 20, 'the stderr diagnostic contains exactly the last 20 lines');
+  for (const line of Array.from({ length: 6 }, (_, index) => `stderr-tail-${String(index + 20).padStart(2, '0')}`)) {
+    assert.ok(stderr.includes(line), `${line} appears in the last 20 stderr lines`);
+  }
+  assert.ok(stderr.includes('stderr-split-line'), 'stderr text split across writes is reconstructed');
+  assert.ok(!stderr.includes('stderr-tail-01'), 'stderr older than the last 20 lines is omitted');
+});
 
 test('[B26,S18,S19] person decisions wait on the board until one apply preserves every other field', async function pendingThenApply(t) {
   const box = project();
@@ -338,7 +431,8 @@ test('[B26,S18,S19] stale row text refuses apply without changing any approved r
 
 /** Create a real SSH Ed25519 key pair for the required-signer decision case. */
 function makeKey(path) {
-  execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', 'row-decision@example.invalid', '-f', path], { stdio: 'pipe' });
+  const generated = runFixtureChild('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', 'row-decision@example.invalid', '-f', path], { encoding: 'utf8' });
+  assert.equal(generated.status, 0, generated.failure);
   return { privateKey: path, publicKey: `${path}.pub` };
 }
 

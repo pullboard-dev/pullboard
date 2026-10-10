@@ -1,11 +1,12 @@
 /** Real device-flow CLI ordering through the opaque relay [H1,H7,H15]. */
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { runFixtureChild as spawnSync, cleanupFixtureChildren, runFixtureChildAsync, runFixtureGit, safeFixtureDiagnostic } from './fixture-child.js';
 import { createServer } from 'node:http';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { delimiter, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
+import { gunzipSync } from 'node:zlib';
 import { DatabaseSync } from 'node:sqlite';
 import { createAuthHandler } from '../relay/auth-http.js';
 import { createRelayAuth } from '../relay/auth.js';
@@ -18,45 +19,46 @@ import { exportBoard, importBoard } from '../src/exchange.js';
 import { checkpointSequence } from '../src/engine.js';
 import { serveApi } from '../src/api.js';
 import { main } from '../src/cli.js';
-import { appliedSequence, prepareEngineMove } from '../src/engine.js';
+import { appliedSequence, engineReceipt, prepareEngineMove } from '../src/engine.js';
 import { storeBoardKey } from '../src/relay-key.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { presentationShout } from '../src/relay-presentation.js';
+import { fetchFresh } from './http-fixture.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
 
 const SIGN_INS = new Map();
+after(cleanupFixtureChildren);
+
+/** Read native gzip snapshots while retaining checks against historical uncompressed records. */
+function snapshotDocument(plain) {
+  return JSON.parse(Buffer.from(plain[0] === 0x1f && plain[1] === 0x8b ? gunzipSync(plain) : plain).toString('utf8'));
+}
 
 /** Run the actual CLI asynchronously so this process can continue serving its HTTP requests. */
 function cliResult(root, env, ...args) {
-  return new Promise((resolveResult, reject) => {
-    const child = spawn(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args, '--json'], {
-      cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    let stdout = '';
-    let stderr = '';
-    const timer = setTimeout(() => child.kill('SIGKILL'), 25_000);
-    child.stdout.setEncoding('utf8').on('data', (part) => { stdout += part; });
-    let signInStarted = false;
-    child.stderr.setEncoding('utf8').on('data', (part) => {
-      stderr += part;
-      if (!signInStarted && stderr.includes('enter TEST-ONLY') && SIGN_INS.has(root)) {
+  let signInStarted = false;
+  let observedStderr = '';
+  return runFixtureChildAsync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args, '--json'], {
+    cwd: root, env,
+    onStderrChunk(part, child) {
+      observedStderr += part;
+      if (!signInStarted && observedStderr.includes('enter TEST-ONLY') && SIGN_INS.has(root)) {
         signInStarted = true;
         Promise.resolve(SIGN_INS.get(root)()).catch(() => child.kill('SIGKILL'));
       }
-    });
-    child.once('error', (error) => { clearTimeout(timer); reject(error); });
-    child.once('close', (code, signal) => {
-      clearTimeout(timer);
-      if (signal) return reject(new Error(`pullboard ${args.join(' ')} was killed by ${signal}: ${stderr}`));
-      try { resolveResult({ status: code, document: JSON.parse(stdout), stderr }); }
-      catch { reject(new Error(`pullboard ${args.join(' ')} did not print JSON: ${stdout}\n${stderr}`)); }
-    });
+    },
+  }).then((result) => {
+    if (result.error) throw new Error(result.failure);
+    try { return { status: result.status, document: JSON.parse(result.stdout), stderr: result.stderr, failure: result.failure }; }
+    catch { throw new Error(result.failure ?? result.context); }
   });
 }
 
 /** Run a successful actual CLI command and retain refusal diagnostics on failure. */
 async function cli(root, env, ...args) {
   const result = await cliResult(root, env, ...args);
-  assert.equal(result.status, 0, `pullboard ${args.join(' ')} exited ${result.status}: ${result.stderr}\n${JSON.stringify(result.document)}`);
+  const refusal = safeFixtureDiagnostic(JSON.stringify(result.document), env);
+  assert.equal(result.status, 0, `${result.failure ?? `pullboard ${args.join(' ')} exited ${result.status}: ${result.stderr}`}\n${refusal}`);
   return result.document;
 }
 
@@ -145,6 +147,8 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
     GIT_COMMITTER_NAME: 'Relay Test',
     GIT_COMMITTER_EMAIL: 'relay-test@example.com',
   };
+  for (const name of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[name];
+  for (const name of ['PULLBOARD_RELAY_KEY', 'PULLBOARD_RELAY_TOKEN']) delete env[name];
   const provider = await githubFixture(t);
   let signIns = 0;
   SIGN_INS.set(root, async () => {
@@ -161,13 +165,11 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   const callback = new URL(authorization.headers.get('location'));
   const person = await auth.finishWeb(callback.searchParams.get('state'), callback.searchParams.get('code'), flow.binding);
 
-  const git = spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, env, encoding: 'utf8' });
-  assert.equal(git.status, 0, git.stderr);
+  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env, encoding: 'utf8' });
   await cli(root, env, 'init');
   writeFileSync(join(root, 'SPEC.md'), '# Spec\n\n## G · Goals\n- G1 [approved, must] A lost reply has one original outcome. | gate: review\n');
   const config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
-  const originRemote = spawnSync('git', ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git'], { cwd: root, env, encoding: 'utf8' });
-  assert.equal(originRemote.status, 0, originRemote.stderr);
+  runFixtureGit(['remote', 'add', 'origin', 'git@github.com:fixture/repository.git'], { cwd: root, env, encoding: 'utf8' });
   const marker = 'RELAY_CLIENT_KNOWN_PRIVATE_CRITERION';
   const lane = Object.keys(config.lanes)[0];
   await cli(root, env, 'add', lane, 'initial private item', '--criterion', marker);
@@ -194,9 +196,11 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   await assert.rejects(cli(root, relayEnv, 'relay', 'on', '--url', relay.origin), /RELAY_KEY_STORAGE/);
   assert.deepEqual(await auth.boardsFor(person.token), [], 'a failed device key save creates no remote link');
   assert.ok(!relay.calls.some((call) => call.path === '/auth/boards/link'));
+  assert.equal(signIns, 0, 'a failed key save does not start a foreground person sign-in');
   chmodSync(keysDirectory, 0o700);
   const on = await cli(root, relayEnv, 'relay', 'on', '--url', relay.origin);
-  assert.deepEqual(await auth.boardsFor(person.token), [{ id: boardId, repository: 'fixture/repository' }]);
+  const linkedAt = auth.linkedBoards().find(link => link.id === boardId).linkedAt;
+  assert.deepEqual(await auth.boardsFor(person.token), [{ id: boardId, repository: 'fixture/repository', linkedAt }]);
   assert.equal(on.version, 1);
   assert.equal(on.linked, true);
   assert.equal(on.board, boardId);
@@ -211,16 +215,22 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   assert.equal(new URLSearchParams(fragment).get('board'), boardId);
   assert.equal(new URLSearchParams(fragment).get('key'), keyText, 'the phone link carries this board key only after #');
 
-  /** Fetch a public sealed document and authenticate it locally with the device-only key. */
-  async function get(path) {
-    const response = await fetch(relay.origin + path, { headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}` } });
+  const linkFile = join(root, '.git', 'pullboard', 'relay.json');
+  const machineLink = JSON.parse(readFileSync(linkFile, 'utf8'));
+  assert.match(machineLink.token, /^pm_[A-Za-z0-9_-]{43}$/u, 'the board stores its scoped machine credential');
+  assert.notEqual(machineLink.token, person.token, 'the short-lived person session is not stored in the board link');
+  assert.equal(machineLink.account, person.user.id);
+  assert.equal(typeof machineLink.machine, 'string');
+  /** Fetch a public sealed document with the current board-scoped machine credential. */
+  async function get(path, token = JSON.parse(readFileSync(linkFile, 'utf8')).token) {
+    const response = await fetch(relay.origin + path, { headers: { 'x-pullboard-engine': String(ENGINE_VERSION), authorization: `Bearer ${token}` } });
     return { status: response.status, body: await response.json() };
   }
   const remoteState = await get(`/api/v1/boards/${boardId}/state`);
   assert.equal(remoteState.status, 200);
-  const openedSnapshot = JSON.parse(new TextDecoder().decode(await unseal(
+  const openedSnapshot = snapshotDocument(await unseal(
     key, Buffer.from(remoteState.body.state.sealed, 'base64url'), { boardId, kind: 'snapshot', sequence: 0 },
-  )));
+  ));
   const linkedExport = await cli(root, env, 'export');
   assert.deepEqual(openedSnapshot.tables, linkedExport.tables, 'the first sealed record is the exact native board snapshot');
   assert.ok(openedSnapshot.presentation.state.items.some((item) => item.title === 'initial private item'));
@@ -239,7 +249,7 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   assert.deepEqual(firstMoves.map((row) => row.event_kind), ['add', 'shout']);
   const nativeAfterMoves = await get(`/api/v1/boards/${boardId}/state`);
   assert.equal(nativeAfterMoves.body.state.sequence, 2, 'the checkpoint covers both acknowledged operations');
-  const checkpoint = JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(nativeAfterMoves.body.state.sealed, 'base64url'), { boardId, kind: 'snapshot', sequence: 2 })));
+  const checkpoint = snapshotDocument(await unseal(key, Buffer.from(nativeAfterMoves.body.state.sealed, 'base64url'), { boardId, kind: 'snapshot', sequence: 2 }));
   assert.deepEqual(checkpoint.tables.event.slice(beforeLink.tables.event.length), firstMoves);
   assert.ok(checkpoint.presentation.state.items.some((item) => item.title === 'mirrored private move'));
   assert.equal(relay.uploads.length, 2);
@@ -252,7 +262,6 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
     assert.ok(Array.isArray(opened.args));
   }
 
-  const linkFile = join(root, '.git', 'pullboard', 'relay.json');
   const oldLink = JSON.parse(readFileSync(linkFile, 'utf8'));
   await auth.revoke(person.token, oldLink.tokenId);
   const expired = await cli(root, relayEnv, 'status');
@@ -262,7 +271,7 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   assert.equal(renewed.sequence, 2, 'renewing sign-in preserves the relay cursor');
   assert.equal((await get(`/api/v1/boards/${boardId}/state`)).body.state.sealed, nativeAfterMoves.body.state.sealed,
     'renewing sign-in does not replace the acknowledged checkpoint');
-  assert.ok(signIns >= 3, 'JSON mode exposes each device code before waiting for sign-in');
+  assert.equal(signIns, 2, 'JSON mode exposes each device code for the initial successful link and explicit renewal');
 
   relay.failMoves(true);
   const beforeOffline = localEvents(boardFile);
@@ -313,7 +322,7 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   }
   assert.equal(uniqueMoves.size, 3, 'a lost reply recovers the exact send without inventing a second operation');
   await legacyMirrorQueueFragment({ relay, root, relayEnv, boardFile, linkFile, lane, lanes: Object.keys(config.lanes), boardId, key,
-    currentPersonToken: JSON.parse(readFileSync(linkFile, 'utf8')).token, localEvents, cli, store, unseal });
+    currentMachineToken: JSON.parse(readFileSync(linkFile, 'utf8')).token, localEvents, cli, store, unseal });
   relay.advance(80);
   const warned = await cli(root, relayEnv, 'status');
   assert.match((warned.diagnostics ?? []).join('\n'), /BOARD_INACTIVE.*10 days left.*Make a board move/i, 'the next linked command shows the real relay retention notice and repair');
@@ -327,24 +336,40 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   assert.equal(stored.includes(Buffer.from(encodeBoardKey(key))), false, 'relay journal does not contain the encoded key');
 
   await legacyForeignPrefixFragment({ relay, root, relayEnv, boardFile, linkFile, lane, boardId,
-    currentPersonToken: JSON.parse(readFileSync(linkFile, 'utf8')).token, localEvents, cliResult });
+    currentMachineToken: JSON.parse(readFileSync(linkFile, 'utf8')).token, localEvents, cliResult });
   const localBeforeOff = await cli(root, relayEnv, 'export');
   const off = await cli(root, relayEnv, 'relay', 'off');
   assert.equal(off.linked, false);
+  assert.match(off.notice, /Local link removed\. The relay copy stays until you approve deleting it on your phone\./u);
   assert.deepEqual((await cli(root, env, 'export')).tables, localBeforeOff.tables, 'unlink leaves local rows and counters unchanged');
-  assert.deepEqual(await auth.boardsFor(person.token), [], 'unlink removes the repository link');
-  const session = await fetch(relay.origin + '/auth/session', { headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}` } });
+  assert.deepEqual(await auth.boardsFor(person.token), [{ id: boardId, repository: 'fixture/repository', linkedAt }],
+    'zero-tap local unlink leaves the remote board linked');
+  const session = await fetch(relay.origin + '/auth/session', { headers: { 'x-pullboard-engine': String(ENGINE_VERSION), authorization: `Bearer ${person.token}` } });
   assert.equal(session.status, 200, 'unlink preserves the person session');
-  assert.equal((await get(`/api/v1/boards/${boardId}/state`)).status, 404);
-  assert.equal(readdirSync(relayDirectory).some((name) => name.startsWith(boardId + '.journal.sqlite')), false,
-    'off removes the relay journal and SQLite sidecars');
+  const remoteAfterOff = await fetch(`${relay.origin}/api/v1/boards/${boardId}/state`, {
+    headers: { 'x-pullboard-engine': String(ENGINE_VERSION), authorization: `Bearer ${person.token}` },
+  });
+  assert.equal(remoteAfterOff.status, 200, 'the relay copy remains until explicit person authorization');
+  assert.equal(readdirSync(relayDirectory).some((name) => name.startsWith(boardId + '.journal.sqlite')), true,
+    'local off leaves the remote journal and SQLite sidecars in place');
   const afterOffCalls = relay.calls.length;
   await cli(root, env, 'status');
   assert.equal(relay.calls.length, afterOffCalls, 'unlinked commands stop connecting immediately');
   assert.equal(existsSync(keyFile), false, 'successful off removes this device copy of the board key');
+  const deleted = await fetch(`${relay.origin}/api/v1/boards/${boardId}`, {
+    method: 'DELETE', headers: { 'x-pullboard-engine': String(ENGINE_VERSION), authorization: `Bearer ${person.token}` },
+  });
+  assert.equal(deleted.status, 200, 'a separate person HTTP DELETE removes the retained relay copy');
+  assert.deepEqual(await auth.boardsFor(person.token), [], 'the real person deletion unlinks the remote board');
+  const afterDelete = await fetch(`${relay.origin}/api/v1/boards/${boardId}/state`, {
+    headers: { 'x-pullboard-engine': String(ENGINE_VERSION), authorization: `Bearer ${person.token}` },
+  });
+  assert.equal(afterDelete.status, 404);
+  assert.equal(readdirSync(relayDirectory).some((name) => name.startsWith(boardId + '.journal.sqlite')), false,
+    'person deletion removes the relay journal and SQLite sidecars');
 });
 
-test('[H3,H16] three cloned linked replicas order competing claims and recover lost replies once', { timeout: 240_000 }, async (t) => {
+test('[H3,H16,V1,V17] three cloned linked replicas order competing claims and recover lost replies once', { timeout: 240_000 }, async (t) => {
   const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-relay-clone-race-')));
   const seed = join(scratch, 'seed');
   const clones = [join(scratch, 'clone-a'), join(scratch, 'clone-b'), join(scratch, 'clone-c')];
@@ -363,6 +388,8 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
   const envs = homes.map((home) => {
     const env = { ...process.env, HOME: home, USERPROFILE: home, PULLBOARD_HOME: join(home, '.pullboard'), PATH: privateBin };
     for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
+    for (const key of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[key];
+    for (const key of ['PULLBOARD_RELAY_KEY', 'PULLBOARD_RELAY_TOKEN']) delete env[key];
     Object.assign(env, {
       GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
       GIT_AUTHOR_NAME: 'Relay Clone Test', GIT_AUTHOR_EMAIL: 'relay-clone@example.com',
@@ -373,9 +400,7 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
 
   /** Run fixture Git with an isolated identity and report its stderr on failure. */
   function gitAt(root, env, ...args) {
-    const result = spawnSync('git', args, { cwd: root, env, encoding: 'utf8' });
-    assert.equal(result.status, 0, `git ${args.join(' ')}: ${result.stderr}`);
-    return result.stdout.trim();
+    return runFixtureGit(args, { cwd: root, env, encoding: 'utf8' });
   }
 
   /** Resolve the common Git directory used by a clone and its worktree. */
@@ -389,7 +414,7 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
     gate: 'true', lanes: { web: { owns: ['web/'], specs: ['G'] } },
   }, null, 2) + '\n');
   writeFileSync(join(seed, 'SPEC.md'), '# Spec\n\n## G · Goals: relay claim fixture\n- G1 [approved, must] A linked claim is applied once in relay order. | gate: review\n');
-  writeFileSync(join(seed, 'PRACTICE.md'), readFileSync(resolve(import.meta.dirname, '../PRACTICE.md')));
+  writeFileSync(join(seed, 'PRACTICE.md'), readFileSync(resolve(import.meta.dirname, '..', existsSync(resolve(import.meta.dirname, '../DOCTRINE.md')) ? 'DOCTRINE.md' : 'PRACTICE.md')));
   mkdirSync(join(seed, 'web'));
   writeFileSync(join(seed, 'web', 'README.md'), 'relay claim fixture\n');
   gitAt(seed, envs[0], 'add', '-A');
@@ -437,6 +462,7 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
   await auth.linkBoard(person.token, boardId, 'fixture/repository');
 
   const key = await generateBoardKey();
+  const cloneCredentials = [];
   const savedPath = process.env.PATH;
   const savedHome = process.env.PULLBOARD_HOME;
   try {
@@ -446,9 +472,14 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
       assert.equal(storeBoardKey(boardId, key), 'file', 'the isolated PATH forces the private file fallback');
       const keyFile = join(envs[index].PULLBOARD_HOME, 'relay-keys', `${boardId}.key`);
       assert.equal(statSync(keyFile).mode & 0o777, 0o600);
+      const machine = 'machine-clone-' + (index + 1);
+      const machineCredential = await auth.issueMachine(person.token, { board: boardId, machine });
+      cloneCredentials.push(machineCredential);
+      assert.match(machineCredential.token, /^pm_[A-Za-z0-9_-]{43}$/u);
       const state = {
         version: 1, mode: 'ordered', board: boardId, url: relay.origin, repository: 'fixture/repository',
-        token: person.token, tokenId: person.id, keyStorage: 'file', sequence: 0,
+        token: machineCredential.token, tokenId: machineCredential.id, account: person.user.id, machine,
+        keyStorage: 'file', sequence: 0,
         cursor: snapshot.tables.event.at(-1)?.event_id ?? 0,
       };
       const linkFile = join(commonDir(clones[index], envs[index]), 'pullboard', 'relay.json');
@@ -459,12 +490,14 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
     if (savedPath === undefined) delete process.env.PATH; else process.env.PATH = savedPath;
     if (savedHome === undefined) delete process.env.PULLBOARD_HOME; else process.env.PULLBOARD_HOME = savedHome;
   }
+  assert.equal(new Set(cloneCredentials.map(value => value.token)).size, clones.length,
+    'each clone receives a distinct real board-scoped machine credential');
 
   const sealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(snapshot)), {
     boardId, kind: 'snapshot', sequence: 0,
   })).toString('base64url');
   const uploaded = await fetch(`${relay.origin}/api/v1/boards/${boardId}/state`, {
-    method: 'PUT', headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
+    method: 'PUT', headers: { 'x-pullboard-engine': String(ENGINE_VERSION), authorization: `Bearer ${cloneCredentials[0].token}`, 'content-type': 'application/json' },
     body: JSON.stringify({ sequence: 0, sealed }),
   });
   assert.equal(uploaded.status, 200, await uploaded.text());
@@ -551,7 +584,8 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
   const earlierSealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(earlier)), {
     boardId, kind: 'move', sequence: next,
   })).toString('base64url');
-  const headers = { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}`, 'content-type': 'application/json' };
+  const coordinatorCredential = await auth.issueToken(person.token, { board: boardId, agent: 'coordinator' });
+  const headers = { 'x-pullboard-engine': String(ENGINE_VERSION), authorization: 'Bearer ' + coordinatorCredential.token, 'content-type': 'application/json' };
   assert.equal((await fetch(`${relay.origin}/api/v1/boards/${boardId}/moves`, {
     method: 'POST', headers, body: JSON.stringify({ sequence: next, sealed: earlierSealed }),
   })).status, 200);
@@ -572,7 +606,7 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
   const localApi = await serveApi({ runCommand: apiCommand, projects: () => [{ root: clones[0], name: 'Clone API' }] });
   try {
     const address = new URL(localApi.url);
-    const response = await fetch(`${address.origin}/api/v1/boards/${boardId}/moves`, {
+    const response = await fetchFresh(`${address.origin}/api/v1/boards/${boardId}/moves`, {
       method: 'POST', headers: { 'x-pullboard-key': address.searchParams.get('k'), 'content-type': 'application/json' },
       body: JSON.stringify({ verb: 'add', args: { lane: 'web', title: 'This API item' } }),
     });
@@ -587,7 +621,7 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
     const apiLostHeaders = { 'x-pullboard-key': address.searchParams.get('k'), 'content-type': 'application/json' };
     const beforeLostApi = relay.uploads.length;
     relay.dropNextReply({ offline: true });
-    const lostApi = await fetch(`${address.origin}/api/v1/boards/${boardId}/moves`, {
+    const lostApi = await fetchFresh(`${address.origin}/api/v1/boards/${boardId}/moves`, {
       method: 'POST', headers: apiLostHeaders, body: apiLostBody,
     });
     const lostApiResult = await lostApi.json();
@@ -595,7 +629,7 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
     assert.equal(lostApiResult.error.code, 'RELAY_UNAVAILABLE');
     relay.failReads(false);
     await cli(clones[0], envs[0], 'status');
-    const apiRetry = await fetch(`${address.origin}/api/v1/boards/${boardId}/moves`, {
+    const apiRetry = await fetchFresh(`${address.origin}/api/v1/boards/${boardId}/moves`, {
       method: 'POST', headers: apiLostHeaders, body: apiLostBody,
     });
     const apiRetryResult = await apiRetry.json();
@@ -708,6 +742,105 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
     undefined, 'automatic success consumes its recovered outcome');
 
   await Promise.all(worktrees.map((root, index) => cli(root, envs[index], 'status')));
+
+  // A lost submit reply is already an outcome, even if another item becomes stacked while this
+  // replica is behind. A third, receipt-missing recovered descriptor still takes the fresh guard.
+  const stackBrief = join(scratch, 'recovered-stack-brief.md');
+  writeFileSync(stackBrief, 'Files: web/\nTest: only an exact durable receipt bypasses the fresh stack guard.\n');
+  const stackedA = (await cli(clones[0], envs[0], 'add', 'web', 'Relay recovered stack A', '--route', 'light', '--brief-file', stackBrief, '--specs', 'G1', '--criterion', 'exact durable receipt preserves recovery and missing receipts enforce stacking', '--check', 'true')).item.item_id;
+  const stackedB = (await cli(clones[0], envs[0], 'add', 'web', 'Relay recovered stack B', '--route', 'light', '--brief-file', stackBrief, '--specs', 'G1', '--criterion', 'exact durable receipt preserves recovery and missing receipts enforce stacking', '--check', 'true')).item.item_id;
+  const freshB = (await cli(clones[0], envs[0], 'add', 'web', 'Receipt-missing recovered stack', '--route', 'light', '--brief-file', stackBrief, '--specs', 'G1', '--criterion', 'exact durable receipt preserves recovery and missing receipts enforce stacking', '--check', 'true')).item.item_id;
+  await cli(worktrees[0], envs[0], 'claim', String(stackedB));
+  await cli(worktrees[1], envs[1], 'claim', String(stackedA));
+  await cli(worktrees[2], envs[2], 'claim', String(freshB));
+
+  writeFileSync(join(worktrees[1], 'web', 'recovery-a.txt'), 'the first submitted commit\n');
+  gitAt(worktrees[1], envs[1], 'add', 'web/recovery-a.txt');
+  gitAt(worktrees[1], envs[1], 'commit', '-q', '-m', 'test: create first recovery commit [G1]');
+  const firstRecoveryCommit = gitAt(worktrees[1], envs[1], 'rev-parse', 'HEAD');
+  for (const candidate of [worktrees[0], worktrees[2]]) {
+    const env = candidate === worktrees[0] ? envs[0] : envs[2];
+    gitAt(candidate, env, 'fetch', '-q', worktrees[1], firstRecoveryCommit);
+    gitAt(candidate, env, 'merge', '--no-ff', '-m', 'test: merge first recovery candidate [G1]', firstRecoveryCommit);
+  }
+  for (const [candidate, env, file, body, title] of [
+    [worktrees[0], envs[0], 'web/recovery-b.txt', 'the lost-ack candidate\n', 'recovered B'],
+    [worktrees[2], envs[2], 'web/recovery-fresh.txt', 'the receipt-missing candidate\n', 'fresh B'],
+  ]) {
+    writeFileSync(join(candidate, file), body);
+    gitAt(candidate, env, 'add', file);
+    gitAt(candidate, env, 'commit', '-q', '-m', `test: create ${title} candidate [G1]`);
+  }
+  const recoveredStackCommit = gitAt(worktrees[0], envs[0], 'rev-parse', 'HEAD');
+  const freshStackCommit = gitAt(worktrees[2], envs[2], 'rev-parse', 'HEAD');
+
+  const beforeRecoveredStack = relay.uploads.length;
+  relay.dropNextReply({ offline: true });
+  const lostStackSubmit = await cliResult(worktrees[0], envs[0], 'submit', String(stackedB));
+  assert.equal(lostStackSubmit.status, 1);
+  assert.equal(lostStackSubmit.document.error.code, 'RELAY_UNAVAILABLE');
+  relay.failReads(false);
+  const laterA = await cliResult(worktrees[1], envs[1], 'submit', String(stackedA));
+  assert.equal(laterA.status, 0, laterA.stderr);
+  assert.equal(laterA.document.commit, firstRecoveryCommit);
+  await cli(clones[0], envs[0], 'status');
+
+  const recoveredLink = join(commonDir(clones[0], envs[0]), 'pullboard', 'relay.json');
+  const pendingOutcome = JSON.parse(readFileSync(recoveredLink, 'utf8')).recovered;
+  assert.equal(pendingOutcome.move.operation, 'submit');
+  assert.equal(pendingOutcome.move.args[0], stackedB);
+  assert.ok(pendingOutcome.move.args[1].commit === recoveredStackCommit);
+  const recoveredReceipt = receipts(replicaFiles[0]).find((receipt) => JSON.parse(receipt.move).id === pendingOutcome.move.id);
+  assert.deepEqual(JSON.parse(recoveredReceipt.move), pendingOutcome.move, 'the pending reply has the exact durable engine receipt');
+  const beforeOutcomeRetry = relay.uploads.length;
+  assert.equal(beforeOutcomeRetry, beforeRecoveredStack + 2, 'the relay applied B and then A once each');
+  const originalOutcome = await cli(worktrees[0], envs[0], 'submit', String(stackedB));
+  assert.equal(originalOutcome.commit, recoveredStackCommit);
+  assert.match(originalOutcome.gate.report, /recovered the original submission/u);
+  assert.equal(relay.uploads.length, beforeOutcomeRetry, 'reporting the durable outcome creates no new relay move');
+
+  await cli(clones[2], envs[2], 'status');
+  const freshLinkFile = join(commonDir(clones[2], envs[2]), 'pullboard', 'relay.json');
+  const freshLink = JSON.parse(readFileSync(freshLinkFile, 'utf8'));
+  const freshBoard = store.openBoard(replicaFiles[2]);
+  let fabricatedReceiptlessMove;
+  try {
+    const freshItem = store.getItem(freshBoard, freshB);
+    const args = [freshB, {
+      agentId: freshItem.item_owner,
+      commit: freshStackCommit,
+      tree: gitAt(worktrees[2], envs[2], 'rev-parse', 'HEAD^{tree}'),
+      files: ['web/recovery-a.txt', 'web/recovery-fresh.txt'],
+      policyCommit: gitAt(clones[2], envs[2], 'rev-parse', 'main'),
+    }];
+    fabricatedReceiptlessMove = prepareEngineMove(freshBoard, 'submit', args);
+    assert.equal(appliedSequence(freshBoard) > 0, true);
+    assert.equal(engineReceipt(freshBoard, fabricatedReceiptlessMove.id), null,
+      'the recovery descriptor has no durable engine receipt');
+  } finally { store.closeBoard(freshBoard); }
+  const freshSequence = freshLink.sequence + 1;
+  const freshSealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(fabricatedReceiptlessMove)), {
+    boardId, kind: 'move', sequence: freshSequence,
+  })).toString('base64url');
+  freshLink.recovered = {
+    move: fabricatedReceiptlessMove,
+    intent: JSON.stringify({ operation: 'submit', args: fabricatedReceiptlessMove.args }),
+    sequence: freshSequence,
+    sealed: freshSealed,
+  };
+  writeFileSync(freshLinkFile, JSON.stringify(freshLink) + '\n', { mode: 0o600 });
+  const beforeFreshRefusal = relay.uploads.length;
+  const freshRefusal = await cliResult(worktrees[2], envs[2], 'submit', String(freshB));
+  assert.equal(freshRefusal.status, 1);
+  assert.equal(freshRefusal.document.error.code, 'STACKED_ON_UNVERIFIED');
+  assert.match(freshRefusal.document.error.message, new RegExp(`#${stackedA}\\b`, 'u'));
+  assert.ok(freshRefusal.document.error.message.includes(firstRecoveryCommit));
+  assert.equal(relay.uploads.length, beforeFreshRefusal, 'a receipt-missing recovered descriptor is refused before relay upload');
+  const freshAfter = store.openBoard(replicaFiles[2]);
+  try { assert.equal(store.getItem(freshAfter, freshB).item_status, 'claimed'); }
+  finally { store.closeBoard(freshAfter); }
+
+  await Promise.all(worktrees.map((root, index) => cli(root, envs[index], 'status')));
   const updated = store.openBoard(replicaFiles[0]);
   let future;
   try {
@@ -734,7 +867,7 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
 
 /** Exercise migration of an old local-first mirror queue into the ordered native checkpoint. */
 async function legacyMirrorQueueFragment({
-  relay, root, relayEnv, boardFile, linkFile, lane, lanes, boardId, key, currentPersonToken,
+  relay, root, relayEnv, boardFile, linkFile, lane, lanes, boardId, key, currentMachineToken,
   localEvents, cli, store, unseal,
 }) {
   const priorRows = localEvents(boardFile);
@@ -783,14 +916,14 @@ async function legacyMirrorQueueFragment({
   assert.equal(openedLegacy[0].presentation, undefined, 'the historical first move cannot attest the later row');
   assert.equal(openedLegacy[1].presentation.state.events[0].event_id, queuedEvents.at(-1).event_id, 'the final legacy move carries only its matching projection');
 
-  const authorization = { 'x-pullboard-engine': '3', authorization: `Bearer ${currentPersonToken}` };
+  const authorization = { 'x-pullboard-engine': String(ENGINE_VERSION), authorization: `Bearer ${currentMachineToken}` };
   const stateResponse = await fetch(`${relay.origin}/api/v1/boards/${boardId}/state`, { headers: authorization });
   assert.equal(stateResponse.status, 200);
   const stateDocument = await stateResponse.json();
   assert.equal(stateDocument.state.sequence, 5, 'the native checkpoint covers the complete ordered prefix');
-  const checkpoint = JSON.parse(new TextDecoder().decode(await unseal(
+  const checkpoint = snapshotDocument(await unseal(
     key, Buffer.from(stateDocument.state.sealed, 'base64url'), { boardId, kind: 'snapshot', sequence: 5 },
-  )));
+  ));
   assert.deepEqual(checkpoint.tables.event.slice(priorRows.length), queuedEvents,
     'the source-native snapshot records both legacy rows in order');
   assert.ok(checkpoint.presentation.state.items.some((item) => item.title === 'legacy queued item'));
@@ -806,7 +939,7 @@ async function legacyMirrorQueueFragment({
 
 /** Confirm migration refuses an unrecognized remote prefix before executing another local move. */
 async function legacyForeignPrefixFragment({
-  relay, root, relayEnv, boardFile, linkFile, lane, boardId, currentPersonToken, localEvents, cliResult,
+  relay, root, relayEnv, boardFile, linkFile, lane, boardId, currentMachineToken, localEvents, cliResult,
 }) {
   const originalLink = readFileSync(linkFile, 'utf8');
   const link = JSON.parse(originalLink);
@@ -818,7 +951,7 @@ async function legacyForeignPrefixFragment({
 
   const foreign = await fetch(`${relay.origin}/api/v1/boards/${boardId}/moves`, {
     method: 'POST',
-    headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${currentPersonToken}`, 'content-type': 'application/json' },
+    headers: { 'x-pullboard-engine': String(ENGINE_VERSION), authorization: `Bearer ${currentMachineToken}`, 'content-type': 'application/json' },
     body: JSON.stringify({ sequence: link.sequence + 1, sealed: 'AQ' }),
   });
   assert.equal(foreign.status, 200, await foreign.text());

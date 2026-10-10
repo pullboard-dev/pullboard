@@ -9,7 +9,7 @@ import { laneNames } from './lanes.js';
 import { refusalDocument } from './json.js';
 import { Refused } from './refused.js';
 import { relayLinked, relayOperation, relayRequestDevice } from './relay.js';
-import { personRequestRecords } from './relay-requests.js';
+import { personRequestRecords, requestIntentDigest, requestStageText } from './relay-requests.js';
 
 /** Read durable intake without retaining a SQLite connection while the CLI runs. */
 function requests(root) {
@@ -25,13 +25,9 @@ function stageId(id, phase, executor) {
 
 /** Publish an ordinary person shout as a durable intake, coordinator request or refusal receipt. */
 async function receipt(root, record, executor, phase, io, error) {
-  const text = phase === 'claim' ? 'Received a request from the paired view.'
-    : phase === 'refuse' ? '[' + error.code + '] ' + error.message
-    : 'Apply the person’s recorded row decision with pullboard spec apply, or decline this request with a reason. '
-      + record.move.verb + ': ' + record.move.args.ids;
-  const message = { from: 'person', to: 'coordinator', text: 'View request ' + record.id + ': ' + text, lanes: laneNames(loadConfig(root)), ...(phase === 'repo-request' ? { request: true } : {}) };
+  const message = { from: 'person', to: 'coordinator', text: requestStageText(record, phase, error), lanes: laneNames(loadConfig(root)), ...(phase === 'repo-request' ? { request: true } : {}) };
   return relayOperation(root, 'shout', [message], {
-    ...io, personRequest: { id: record.id, executor, phase, ...(error ? { error } : {}) },
+    ...io, personRequest: { id: record.id, executor, phase, digest: requestIntentDigest(record), ...(error ? { error } : {}) },
     personRequestMoveId: phase === 'claim' && record.executor && record.executor !== executor ? randomUUID() : stageId(record.id, phase, executor),
   });
 }
@@ -58,7 +54,7 @@ export async function executePersonRequests(root, io, runCommand) {
       if (!Object.hasOwn(record, 'result')) {
         const response = await executeMove(coordinatorRoot, record.move, (argv, streams) => runCommand(argv, {
           ...streams, skipPersonRequests: true,
-          personRequest: { id: record.id, executor, phase: 'execute' },
+          personRequest: { id: record.id, executor, phase: 'execute', digest: requestIntentDigest(record) },
           personRequestMoveId: stageId(record.id, 'execute', executor),
         }));
         if (response.status !== 200) {

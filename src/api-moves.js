@@ -5,11 +5,11 @@ import { Refused } from './refused.js';
 const MOVES = {
   'spec-approve': { prefix: ['spec', 'approve'], positions: ['ids'], flags: ['by', 'text'] },
   'spec-decline': { prefix: ['spec', 'decline'], positions: ['ids'], flags: ['reason'] },
-  add: { positions: ['lane', 'title'], flags: ['criterion', 'specs', 'parent', 'after', 'brief', 'route', 'check'] },
-  edit: { item: true, flags: ['criterion', 'brief', 'route', 'check'] },
+  add: { positions: ['lane', 'title'], flags: ['criterion', 'specs', 'parent', 'after', 'brief', 'route', 'check'], booleans: ['wait'], booleans: ['wait'] },
+  edit: { item: true, flags: ['criterion', 'brief', 'route', 'check'], booleans: ['wait'], booleans: ['wait'] },
   fact: { item: true, positions: ['kind', 'text'], flags: ['supersedes', 'ref'] },
   claim: { item: true },
-  release: { item: true },
+  release: { item: true, flags: ['note'] },
   submit: { item: true },
   done: { item: true },
   verify: { item: true, positions: ['decision'], flags: ['reason', 'note', 'as'] },
@@ -55,4 +55,3 @@ export function moveArgs({ verb, item, args = {} }) {
   argv.push('--json', '--', ...positional);
   return argv;
 }
-

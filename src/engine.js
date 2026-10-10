@@ -7,13 +7,13 @@ import { Refused } from './refused.js';
 import { requestMoveProblem, recordRequestMove } from './relay-requests.js';
 import { relayMoveActor, relaySenderProblem, validRelaySender } from './relay-sender.js';
 
-const ITEM_ID_FIRST_ARGUMENT = new Set(['editItem', 'escalate', 'recordAttempt', 'claim', 'release', 'submit', 'reserveReview', 'verify', 'merged', 'withdraw', 'refreeze']);
+const ITEM_ID_FIRST_ARGUMENT = new Set(['editItem', 'escalate', 'recordAttempt', 'claim', 'release', 'submit', 'reserveReview', 'verify', 'merged', 'withdraw', 'refreeze', 'appendFact']);
 
 /** Only these public board operations may be requested by an encrypted move. */
 export const ENGINE_OPERATIONS = Object.freeze([
-  'register', 'ensureCoordinator', 'addItem', 'editItem', 'escalate', 'recordAttempt',
+  'register', 'ensureCoordinator', 'addItem', 'editItem', 'completeCheckBaseline', 'escalate', 'recordAttempt',
   'claim', 'release', 'submit', 'reserveReview', 'reserveNextReview', 'verify', 'merged',
-  'withdraw', 'refreeze', 'shout', 'passDecision', 'answerDecision', 'holdLane', 'releaseLane',
+  'withdraw', 'refreeze', 'shout', 'passDecision', 'answerDecision', 'holdLane', 'releaseLane', 'holdItem', 'releaseItemHold',
   'addMilestone', 'editMilestoneItems', 'moveMilestone', 'editMilestone', 'removeMilestone',
   'recordRowDecisions', 'applyRowDecisions', 'appendFact',
 ]);
@@ -52,9 +52,13 @@ export function startRelayEpoch(board) {
 }
 
 /** Turn caller-only callbacks into deterministic values before sealing an executable operation. */
-export function prepareEngineMove(board, operation, args, { id = randomUUID() } = {}) {
+export function prepareEngineMove(board, operation, args, { id = randomUUID(), actor } = {}) {
   if (!ENGINE_OPERATIONS.includes(operation) || !Array.isArray(args)) throw new Refused('RELAY_MOVE', 'use a supported board-engine operation with its argument array');
   const values = args.map((value) => value && typeof value === 'object' ? { ...value } : value);
+  if (operation === 'release') {
+    const problem = store.reviewReleaseNoteProblem(board, values[0], values[1], values[2]);
+    if (problem) throw problem;
+  }
   if (['claim', 'refreeze'].includes(operation)) {
     const options = values[1];
     const item = store.getItem(board, values[0]);
@@ -71,7 +75,7 @@ export function prepareEngineMove(board, operation, args, { id = randomUUID() } 
       options.freezeError = error ?? null;
     }
   }
-  const move = { version: 1, engine: ENGINE_VERSION, id, operation, args: values };
+  const move = { version: 1, engine: ENGINE_VERSION, id, operation, args: values, ...(actor === undefined ? {} : { actor }) };
   // JSON is the wire format: optional undefined fields become absent on every replica alike.
   return JSON.parse(JSON.stringify(move));
 }
@@ -163,7 +167,8 @@ export function refuseRelayMove(board, move, { sequence, at, sender, kind, code,
 /** Authorize each public relay position before replay, retaining refusals atomically with its cursor. */
 export function applyRelayMove(board, move, { sequence, at, sender, kind, digest = null }) {
   requireSupportedEngine(move);
-  const problem = relaySenderProblem(move, sender, kind);
+  const phoneReceipt = sender?.kind === 'machine' && move?.engine >= 6 && Boolean(move.personRequest) && !requestMoveProblem(board, move, { checkExecutorLease: false });
+  const problem = relaySenderProblem(move, sender, kind, { phoneReceipt });
   if (!problem) return applyEngineMove(board, move, { sequence, at });
   return refuseRelayMove(board, move, { sequence, at, sender, kind, code: problem.code, digest, refusal: problem });
 }
@@ -188,7 +193,9 @@ export function applyEngineMove(board, move, { sequence, at }) {
     let outcome = previous?.outcome;
     if (!outcome) {
       const clock = board.clock;
+      const engineVersion = board.executionEngineVersion;
       board.clock = { now: () => new Date(at) };
+      board.executionEngineVersion = move.engine;
       const firstEvent = board.emittedEvents?.length ?? 0;
       try {
         const result = store.atomic(board, () => {
@@ -200,7 +207,11 @@ export function applyEngineMove(board, move, { sequence, at }) {
       } catch (error) {
         if (!(error instanceof Refused)) throw error;
         outcome = { error: refusalDocument(error).error };
-      } finally { board.clock = clock; }
+      } finally {
+        board.clock = clock;
+        if (engineVersion === undefined) delete board.executionEngineVersion;
+        else board.executionEngineVersion = engineVersion;
+      }
       recordRequestMove(board, move, outcome, sequence, at);
       metadata(board, 'relay_receipt_' + move.id, JSON.stringify({ sequence, move: encoded, outcome }));
     }

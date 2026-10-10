@@ -1,6 +1,6 @@
 /** Event-derived proof numbers have the same data in text and versioned JSON [R1,R2,A1]. */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { runFixtureGit } from './fixture-child.js';
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +9,7 @@ import * as store from '../src/board.js';
 import { main } from '../src/cli.js';
 import { proofStats } from '../src/stats.js';
 import { serveApi } from '../src/api.js';
+import { fetchFresh } from './http-fixture.js';
 
 /** Capture the real CLI without spawning a second model or changing the machine's registry. */
 async function run(root, args) {
@@ -24,7 +25,7 @@ async function run(root, args) {
 function fixture(t) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-stats-cli-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root, stdio: 'pipe' });
+  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, stdio: 'pipe' });
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ lanes: { web: { owns: ['web/'] } } }));
   writeFileSync(join(root, 'PRACTICE.md'), '');
   const clock = { now: () => new Date('2026-10-08T12:00:00.000Z') };
@@ -91,7 +92,7 @@ test('[R1,R2,A2] local HTTP state exposes exactly the command statistics', async
   t.after(() => api.close());
   const url = new URL(api.url);
   const headers = { 'x-pullboard-key': url.searchParams.get('k') };
-  const response = await fetch(`${url.origin}/api/v1/boards/${store.boardId(board)}/state`, { headers });
+  const response = await fetchFresh(`${url.origin}/api/v1/boards/${store.boardId(board)}/state`, { headers });
   assert.equal(response.status, 200);
   const document = await response.json();
   const command = await run(root, ['stats', '--json']);
