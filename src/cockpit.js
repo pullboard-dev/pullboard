@@ -246,19 +246,105 @@ const verdictHtml = (v, titles) => '<div class="verdict ' + (v.decision === 'ACC
 const stateOf = (i) => i.status === 'claimed' ? 'building' : i.status === 'submitted' ? 'verify' : i.status === 'verified' ? 'verified' : i.status === 'withdrawn' ? 'withdrawn' : i.verdict && i.verdict.decision === 'REJECT' ? 'back' : 'open';
 const STATES = { building: ['building', 'busy'], verify: ['to verify', 'warn'], back: ['sent back', 'no'], verified: ['verified', 'ok'], open: ['unclaimed', 'free'], withdrawn: ['withdrawn', ''] };
 const chip = (s) => '<span class="chip ' + STATES[s][1] + '">' + STATES[s][0] + '</span>';
-// A shout's path:lines@commit reference (B23): a button, and under it, once opened, that code as it
-// was at that commit, with its line numbers. The text before it on its line goes with it, so the view
-// can refuse a reference that text may make part of a longer path.
-const codeRef = (ref, before) => {
+/** Parse the bounded reference syntax before requesting additional committed line windows. */
+function codeReferenceParts(ref) {
+  const match = /^(.+):(\\d+)(?:-(\\d+))?@([0-9a-f]{7,40})$/.exec(String(ref));
+  if (!match) return null;
+  const from = Number(match[2]);
+  const to = Number(match[3] ?? match[2]);
+  return Number.isSafeInteger(from) && Number.isSafeInteger(to) && from > 0 && to >= from
+    ? { path: match[1], from, to, commit: match[4] } : null;
+}
+/**
+ * Escape and color a source line using a small language-neutral set of common code tokens. A block comment or a
+ * template string still open at the line's end is left in state.open, and the next line given the same state goes on
+ * inside it, so a comment or a string spanning lines is colored on every one of them.
+ */
+function highlightCodeLine(line, path, state = {}) {
+  const source = String(line);
+  const extension = String(path).split('.').at(-1).toLowerCase();
+  let output = '', i = 0;
+  if (state.open) {
+    let end = -1;
+    if (state.open === 'comment') { const at = source.indexOf('*/'); end = at < 0 ? -1 : at + 2; }
+    else for (let k = 0; k < source.length; k++) { if (source.charCodeAt(k) === 92) { k++; continue; } if (source.charCodeAt(k) === 96) { end = k + 1; break; } }
+    const kind = state.open === 'comment' ? 'tok-comment' : 'tok-string';
+    if (end < 0) return '<span class="' + kind + '">' + esc(source) + '</span>';
+    output = '<span class="' + kind + '">' + esc(source.slice(0, end)) + '</span>';
+    i = end;
+    state.open = null;
+  } else {
+    // A preview may start inside a block comment, so a line that reads as one is all comment, and so is a whole-line
+    // hash comment where the language has them: their apostrophes are words, not strings.
+    const lead = source.trimStart();
+    if (/^(?:\\*\\/|\\*(?:\\s|$))/.test(lead) || (['py', 'sh', 'yml', 'yaml', 'rb', 'toml'].includes(extension) && lead.startsWith('#'))) return '<span class="tok-comment">' + esc(source) + '</span>';
+  }
+  const keywords = new Set(['const', 'let', 'var', 'function', 'return', 'if', 'else', 'new', 'class', 'export', 'import', 'from', 'async', 'await', 'throw', 'try', 'catch', 'true', 'false', 'null', 'undefined']);
+  while (i < source.length) {
+    if (source.startsWith('//', i) || (extension === 'py' && source[i] === '#')) {
+      output += '<span class="tok-comment">' + esc(source.slice(i)) + '</span>';
+      break;
+    }
+    if (source.startsWith('/*', i)) {
+      const at = source.indexOf('*/', i + 2), end = at < 0 ? source.length : at + 2;
+      output += '<span class="tok-comment">' + esc(source.slice(i, end)) + '</span>';
+      if (at < 0) state.open = 'comment';
+      i = end;
+      continue;
+    }
+    const char = source[i];
+    if (char === '"' || char === "'" || char.charCodeAt(0) === 96) {
+      let end = i + 1, closed = false;
+      while (end < source.length) {
+        if (source.charCodeAt(end) === 92) { end += 2; continue; }
+        if (source[end++] === char) { closed = true; break; }
+      }
+      if (!closed && char.charCodeAt(0) === 96) state.open = 'template';
+      output += '<span class="tok-string">' + esc(source.slice(i, end)) + '</span>';
+      i = end;
+      continue;
+    }
+    const wordStart = (char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z') || char === '_' || char === '$';
+    if (wordStart) {
+      let end = i + 1;
+      while (end < source.length && ((source[end] >= 'A' && source[end] <= 'Z') || (source[end] >= 'a' && source[end] <= 'z') || (source[end] >= '0' && source[end] <= '9') || source[end] === '_' || source[end] === '$')) end++;
+      const word = source.slice(i, end);
+      output += keywords.has(word) ? '<span class="tok-keyword">' + esc(word) + '</span>' : esc(word);
+      i = end;
+      continue;
+    }
+    if (char >= '0' && char <= '9') {
+      let end = i + 1;
+      while (end < source.length && ((source[end] >= '0' && source[end] <= '9') || source[end] === '.')) end++;
+      output += '<span class="tok-number">' + esc(source.slice(i, end)) + '</span>';
+      i = end;
+      continue;
+    }
+    output += esc(char);
+    i++;
+  }
+  return output;
+}
+// A shout or thread fact's path:lines@commit reference: keep only the reference in this button until
+// the person opens it. The text before a shout ref is retained so ambiguous paths can be refused.
+const codeRef = (ref, before, block = false) => {
   const c = view.code[view.root + '\\n' + before + '\\n' + ref];
   const open = Boolean(c && c.open);
-  const shown = !open ? '' : c.error ? '<span class="code no">' + esc(c.error) + '</span>' : !c.lines ? '<span class="code more">loading…</span>'
-    : '<span class="code">' + c.lines.map((line, n) => '<span><i>' + (c.from + n) + '</i>' + esc(line) + '</span>').join('') + (c.more ? '<span class="more">the first ' + c.lines.length + ' lines</span>' : '') + '</span>';
+  const shownLines = c?.all ? c.allLines : c?.lines, carry = {};
+  const shown = !open ? '' : c.error ? '<span class="code no" role="status">' + esc(c.error) + '</span>' : !shownLines ? '<span class="code more">loading…</span>'
+    : '<div class="code-wrap"><pre class="code">' + shownLines.map((line, n) => '<span><i>' + (c.from + n) + '</i>' + highlightCodeLine(line, c.path, carry) + '</span>').join('') + '</pre>'
+      + (c.more && !c.all ? '<button class="code-control" data-code-all="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' type="button"' + (c.allLoading ? ' disabled' : '') + '>' + (c.allLoading ? 'loading all lines…' : 'show all lines') + '</button>' : '')
+      + (c.all ? '<button class="code-control" data-code-less="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' type="button">show less</button>' : '')
+      + '</div>';
   // Its label is one piece: the path, cut short first where the line is narrow, then the lines and the commit's first
   // ten characters; the whole reference is on hover.
   const colon = ref.indexOf(':'), at = ref.lastIndexOf('@');
-  const label = '<span class="ref-path">' + esc(ref.slice(0, colon)) + '</span><span class="ref-at">' + esc(ref.slice(colon, at + 1) + ref.slice(at + 1, at + 11)) + '</span>';
-  return '<button class="ref" data-code="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' title="' + esc(ref) + '" type="button" aria-expanded="' + open + '">' + label + '</button>' + shown;
+  const label = '<span class="ref-path">' + esc(ref.slice(0, colon)) + '</span><span class="ref-at">' + esc(ref.slice(colon, at)) + '<span class="ref-sha">' + esc(ref.slice(at, at + 11)) + '</span></span>';
+  const button = (asBlock) => '<button class="ref' + (asBlock ? ' block' : '') + '" data-code="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' title="' + esc(ref) + '" aria-label="Open code reference ' + esc(ref) + '" type="button" aria-expanded="' + open + '">' + label + '</button>';
+  // A reference on a line of its own is a block, collapsed until asked: a caret, the path and lines, the short commit.
+  // One inside a sentence keeps its label, so the prose reads on, and opens that same block below it.
+  return block ? '<div class="code-ref' + (open ? ' open' : '') + '">' + button(true) + shown + '</div>'
+    : button(false) + (open ? '<div class="code-ref open">' + button(true) + shown + '</div>' : '');
 };
 /** Format the API's structured fact binding as the live reference the code preview accepts. */
 function factCodeRef(ref) {
@@ -858,7 +944,7 @@ function renderSide() {
    * @param {boolean} allowLinks
    * @returns {string}
    */
-  function inline(text, titles, allowLinks = true) { return String(text ?? '').split(/(\`[^\`]*\`|[^\\s:@()[\\]{}"'\`]+:\\d+(?:-\\d+)?@[0-9a-f]{7,40}|${COMMAND_SOURCE}|--[\\w-]+|(?:\\/|\\.\\.?\\/|[\\w.-]+\\/)\\w[\\w./-]*\\.[A-Za-z0-9]+|\\b[0-9a-fA-F]{7,40}\\b|#\\d+)/g).map((part, n, parts) => {
+  function inline(text, titles, allowLinks = true) { return String(text ?? '').split(/(\`[^\`]*\`|(?:[^\\s:@()[\\]{}"'\`]+)?:\\d+(?:-\\d+)?@[0-9a-f]{0,40}|${COMMAND_SOURCE}|--[\\w-]+|(?:\\/|\\.\\.?\\/|[\\w.-]+\\/)\\w[\\w./-]*\\.[A-Za-z0-9]+|\\b[0-9a-fA-F]{7,40}\\b|#\\d+)/g).map((part, n, parts) => {
     if (part.startsWith('\`') && part.endsWith('\`')) return codeChip(part.slice(1, -1));
     if (part.includes('@') && part.includes(':')) {
       const textBefore = parts.slice(0, n).join('');
@@ -867,6 +953,11 @@ function renderSide() {
       const leftBoundary = !textBefore || [9, 10, 32, 40, 91, 123, 34, 39, 96].includes(textBefore.at(-1).charCodeAt(0));
       const rightBoundary = !after || [9, 10, 32, 41, 93, 125, 34, 39, 96, 46, 44, 59, 58, 33, 63].includes(after.charCodeAt(0));
       const validRef = leftBoundary && rightBoundary;
+      const partial = /^(?:([^:@()[\\]{}"'\`]+))?:(\\d+)(?:-(\\d+))?@([0-9a-f]*)$/.exec(part);
+      if (validRef && partial && (!partial[1] || partial[4].length < 7)) {
+        const reason = !partial[1] ? 'missing the repository path' : 'missing a usable commit SHA';
+        return '<span class="code no ref-missing" role="status">Code reference unavailable: ' + reason + '.</span>';
+      }
       if (allowLinks && validRef) return codeRef(part, textBefore.slice(-2000));
       return codeChip(part);
     }
@@ -910,6 +1001,8 @@ function renderSide() {
     return list(roots);
   }
 
+  // A line that is nothing but one path:lines@commit reference.
+  const WHOLE_REF = /^\\s*[^\\s:@()[\\]{}"'\`]+:\\d+(?:-\\d+)?@[0-9a-f]{7,40}\\s*$/;
   function rich(text, titles, allowLinks = true) {
     const lines = String(text ?? '').split('\\n');
     const output = [];
@@ -924,18 +1017,20 @@ function renderSide() {
         const block = [];
         while (i < lines.length && lines[i].startsWith('$ ')) block.push(lines[i++]);
         output.push('<code class="code block">' + esc(block.join('\\n')) + '</code>');
+      } else if (allowLinks && WHOLE_REF.test(lines[i])) {
+        output.push({ block: codeRef(lines[i++].trim(), '', true) });
       } else if (/^\\s*- /.test(lines[i])) {
         const run = [];
         while (i < lines.length && /^\\s*- /.test(lines[i])) run.push(lines[i++]);
         output.push({ list: bullets(run, titles, allowLinks) });
       } else {
         const block = [];
-        while (i < lines.length && !lines[i].startsWith('\`\`\`') && !lines[i].startsWith('$ ') && !/^\\s*- /.test(lines[i])) block.push(inline(lines[i++], titles, allowLinks));
+        while (i < lines.length && !lines[i].startsWith('\`\`\`') && !lines[i].startsWith('$ ') && !/^\\s*- /.test(lines[i]) && !(allowLinks && WHOLE_REF.test(lines[i]))) block.push(inline(lines[i++], titles, allowLinks));
         output.push(block.join('<br>'));
       }
     }
     // A list ends its own line, so no break goes beside one: a blank line in the text stays one blank line.
-    return output.map((part, n) => (n && typeof part === 'string' && typeof output[n - 1] === 'string' ? '<br>' : '') + (typeof part === 'string' ? part : part.list)).join('');
+    return output.map((part, n) => (n && typeof part === 'string' && typeof output[n - 1] === 'string' ? '<br>' : '') + (typeof part === 'string' ? part : part.list ?? part.block)).join('');
   }
 
 /** Draw a project's cross-repo Needs-you list and one activity feed. */
@@ -1120,6 +1215,23 @@ function render() {
     const cited = item.specs.map((id) => p.spec.find((r) => r.id === id) || { id, status: 'missing', text: '(not in SPEC.md)' });
     const baseline = item.checkBaseline;
     const baselineClass = baseline?.result === 'green' ? 'ok' : baseline?.result === 'red' ? 'no' : baseline?.result === 'pending' ? 'warn' : '';
+    const factRefs = (item.thread || []).filter((entry) => entry.type === 'fact' && entry.ref);
+    const referencedCode = factRefs.length ? '<div><h3>Referenced code</h3>' + factRefs.map((fact) => {
+      const ref = fact.ref;
+      const path = typeof ref.path === 'string' ? ref.path : '';
+      const start = ref.start;
+      const end = ref.end;
+      const commit = typeof ref.commit === 'string' ? ref.commit : '';
+      const safePath = /^[\\w.-]+(?:\\/[\\w.-]+)*$/.test(path) && !path.split('/').some((part) => part === '.' || part === '..');
+      const safeRange = Number.isSafeInteger(start) && start > 0 && Number.isSafeInteger(end) && end >= start;
+      const safeCommit = /^[0-9a-f]{40}$/.test(commit);
+      if (!safePath || !safeRange || !safeCommit) {
+        const missing = [!safePath && 'repository path', !safeRange && 'line range', !safeCommit && 'full commit SHA'].filter(Boolean).join(', ');
+        return '<div class="fact-code"><span class="chip">' + esc(fact.kind) + '</span> <span class="muted">' + esc(fact.by) + ' · ' + age(fact.at) + '</span><div class="code no ref-missing" role="status">Code reference unavailable: missing or invalid ' + esc(missing) + '.</div></div>';
+      }
+      const range = path + ':' + start + (end === start ? '' : '-' + end) + '@' + commit;
+      return '<div class="fact-code"><span class="chip">' + esc(fact.kind) + '</span> <span class="muted">' + esc(fact.by) + ' · ' + age(fact.at) + '</span>' + codeRef(range, '', true) + '</div>';
+    }).join('') + '</div>' : '';
     // Why it came back is the first thing the person reads; the verdicts before it stay below.
     const back = rejected(item);
     const earlier = back ? item.verdicts.slice(0, -1) : item.verdicts;
@@ -1128,6 +1240,7 @@ function render() {
       + (item.criterion ? '<div><h3>Criterion</h3><div class="text">' + rich(item.criterion, titles) + '</div></div>' : '')
       + (item.check ? '<div><h3>Check</h3><dl class="kv"><dt>command</dt><dd><code>' + esc(item.check) + '</code></dd><dt>baseline</dt><dd><span class="chip ' + baselineClass + '">' + esc(baseline?.result ?? 'not recorded') + '</span></dd></dl>'
         + (baseline?.warning === 'CRITERION_PROVES_NOTHING' ? '<p class="check-warning">This check already passed before the work, so it proves nothing.</p>' : '') + '</div>' : '')
+      + referencedCode
       + (cited.length ? '<div><h3>Spec rows it serves</h3>' + cited.map((r) => '<div class="rowref"><code>' + esc(r.id) + '</code><div>' + linked(r.text, titles) + ' <span class="chip ' + tone(r.status) + '">' + esc(r.status) + '</span></div></div>').join('') + '</div>' : '')
       + (item.brief ? '<div><h3>Brief</h3><div class="text muted">' + rich(item.brief, titles) + '</div></div>' : '')
       + '<div><h3>People and commits</h3><dl class="kv">' + (item.owner && s === 'building' ? '<dt>holding</dt><dd>' + esc(item.owner) + '</dd>' : '') + (item.builtBy ? '<dt>built by</dt><dd>' + esc(item.builtBy) + '</dd>' : '') + (item.verifiedBy ? '<dt>verified by</dt><dd>' + esc(item.verifiedBy) + '</dd>' : '') + (item.commit ? '<dt>commit</dt><dd><code>' + esc(item.commit.slice(0, 12)) + '</code></dd>' : '') + (item.merged ? '<dt>merged</dt><dd><code>' + esc(item.merged.slice(0, 12)) + '</code></dd>' : '') + (item.blockedBy.length ? '<dt>waits on</dt><dd class="waits-on">' + item.blockedBy.map((id) => '<span class="wait-unit"><button class="ref" data-go="item:' + id + '" type="button">#' + id + '</button></span>').join(', ') + '</dd>' : '') + '</dl></div>'
@@ -1459,12 +1572,60 @@ async function code(ref, before) {
   render();
   if (!c.open || c.lines) return;
   c.error = null;
+  if (snapshot) {
+    c.error = 'Source code is not included in this relay snapshot; open the reference in the local project view.';
+    render();
+    return;
+  }
+  if (transportModule) {
+    c.error = 'Source code is unavailable in a relay view; open this reference in the local project view.';
+    render();
+    return;
+  }
   try {
     const reply = await api(boardPath(view.root) + '/code?ref=' + encodeURIComponent(ref) + '&before=' + encodeURIComponent(before));
     Object.assign(c, reply.code);
   } catch (error) {
     c.error = String(error.message || error);
   }
+  render();
+}
+
+/** Fetch the rest of a bounded local reference in API-sized windows after an explicit request. */
+async function showAllCode(ref, before) {
+  const root = view.root;
+  const c = view.code[root + '\\n' + before + '\\n' + ref];
+  const parts = codeReferenceParts(ref);
+  if (!c || c.allLoading) return;
+  if (transportModule) { c.error = 'Source code is unavailable in a relay view; open this reference in the local project view.'; render(); return; }
+  if (!parts) { c.error = 'Code reference has an invalid path, range or commit SHA.'; render(); return; }
+  c.error = null;
+  c.allLoading = true;
+  render();
+  try {
+    const lines = [];
+    for (let from = parts.from; from <= parts.to; from += 60) {
+      const to = Math.min(parts.to, from + 59);
+      const pageRef = parts.path + ':' + from + (to === from ? '' : '-' + to) + '@' + parts.commit;
+      const page = await api(boardPath(root) + '/code?ref=' + encodeURIComponent(pageRef) + '&before=' + encodeURIComponent(before));
+      lines.push(...page.code.lines);
+    }
+    if (lines.length !== parts.to - parts.from + 1) throw new Error('The local view returned an incomplete code range.');
+    c.allLines = lines;
+    c.all = true;
+  } catch (error) {
+    c.error = String(error.message || error);
+  } finally {
+    c.allLoading = false;
+    render();
+  }
+}
+
+/** Return an expanded preview to its first bounded window without closing the reference. */
+function showLessCode(ref, before) {
+  const c = view.code[view.root + '\\n' + before + '\\n' + ref];
+  if (!c) return;
+  c.all = false;
   render();
 }
 
@@ -1664,7 +1825,7 @@ $('shouts-pane').addEventListener('click', (event) => {
 // Enter shouts; Shift+Enter starts a new line.
 $('shout-text').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('shout-form').requestSubmit(); } });
 document.addEventListener('click', (event) => {
-  const t = event.target.closest('[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],#proj-switch,#console');
+  const t = event.target.closest('[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],#proj-switch,#console');
   if (!event.target.closest('.side')) fold(false);
   if (!t) return;
   if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
@@ -1693,6 +1854,8 @@ document.addEventListener('click', (event) => {
     if (ids.length && window.confirm('Approve all ' + ids.length + ' undecided rows in “' + section + '”?')) decideSpec('spec-approve', { ids: ids.join(' ') }, t);
   }
   else if (t.dataset.row) { const [kind, id] = t.dataset.row.split(':'); view.row[kind] = id; render(); }
+  else if (t.dataset.codeAll) showAllCode(t.dataset.codeAll, t.dataset.before || '');
+  else if (t.dataset.codeLess) showLessCode(t.dataset.codeLess, t.dataset.before || '');
   else if (t.dataset.code) code(t.dataset.code, t.dataset.before || '');
   else if (t.dataset.release) act('release', { lane: t.dataset.release }, t);
   else if (t.dataset.shout) { answer(null); addressTo(t.dataset.shout); $('shout-text').value = '#' + t.dataset.about + ': '; openTab('shouts'); showTab(); $('shout-text').focus(); }
