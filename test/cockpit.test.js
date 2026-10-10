@@ -34,6 +34,9 @@ after(() => {
   for (const dir of scratch) rmSync(dir, { recursive: true, force: true });
 });
 
+/** The target the view sets (#371): 44px where a finger taps, here a window under 900px; 32px under the tests' mouse. */
+const tapTarget = (width) => (width < 900 ? 44 : 32);
+
 const SPEC = `# Demo spec
 
 ## G · Goals
@@ -702,7 +705,7 @@ test('the project list collapses into the tab bar and stays collapsed [N26]', { 
     assert.ok(collapsed.side.height <= collapsed.top.height + 0.5 && collapsed.switcher.shown && Math.abs(collapsed.switcher.top - collapsed.top.top) < collapsed.top.height && collapsed.switcher.right <= collapsed.top.left + 0.5,
       `the sidebar is one switcher at the left of the tab bar, in its row: ${JSON.stringify(collapsed)}`);
     assert.ok(!collapsed.list.shown, 'the project list folds away until asked for');
-    assert.ok(Math.abs(collapsed.logo.width - collapsed.logo.height) < 1 && collapsed.logo.height >= 44, `the logo alone is a square control, so its hover is a square: ${JSON.stringify(collapsed.logo)}`);
+    assert.ok(Math.abs(collapsed.logo.width - collapsed.logo.height) < 1 && collapsed.logo.height >= tapTarget(1280), `the logo alone is a square control, so its hover is a square: ${JSON.stringify(collapsed.logo)}`);
     assert.ok(collapsed.main.left <= 0.5 && collapsed.main.width >= collapsed.width - 0.5 && collapsed.columns >= open.columns + 200 && !collapsed.overflow,
       `the board takes the whole width: the list and detail gain at least 200px: ${JSON.stringify({ open: open.columns, collapsed: collapsed.columns, main: collapsed.main })}`);
     assert.ok(collapsed.theme.right >= collapsed.width - 16 && collapsed.live.right <= collapsed.theme.left, 'the light/dark button stays at the right end');
@@ -4170,6 +4173,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
         overlaps:controls.filter(c=>c.x<noticeBox.right&&c.right>noticeBox.x&&c.y<noticeBox.bottom&&c.bottom>noticeBox.y).map(c=>c.id||c.text)}:null;
       return {width:innerWidth,clientWidth:document.documentElement.clientWidth,documentWidth:document.documentElement.scrollWidth,bodyWidth:document.body.scrollWidth,
         pointer:{fine:matchMedia('(pointer: fine)').matches,coarse:matchMedia('(pointer: coarse)').matches,none:matchMedia('(pointer: none)').matches},
+        touch:matchMedia('(pointer: coarse)').matches||innerWidth<900,
         statusParts:[...document.querySelectorAll('.status [data-status]')].filter(visible).map(part=>({label:part.textContent.replace(/\\s+/g,' ').trim(),height:part.getBoundingClientRect().height})),
         projectList:visible(document.querySelector('#proj-list')),needs:visible(document.querySelector('#needs')),
         detail:visible(document.querySelector('#detail')),controls,toast};
@@ -4182,8 +4186,9 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       const layout = await snapshot();
       assert.ok(fitsViewport(layout),
         `${width} ${place}: no horizontal overflow: ${JSON.stringify(layout)}`);
-      // The status bar is thin unless the pointer is coarse; no pointer reads like a mouse. Its labels stay on one line.
-      const short = layout.controls.filter((control) => control.height < 44 && !control.inlineReference && !control.statusBar);
+      // Where a finger taps (a coarse pointer, or a window under 900px) every action is a 44px target, inline references
+      // in running text excepted; under a mouse, or no pointer at all, there is no minimum. Status labels stay on one line.
+      const short = layout.touch ? layout.controls.filter((control) => control.height < 44 && !control.inlineReference) : [];
       assert.deepEqual(layout.controls.filter((control) => !control.oneLine), [], `${width} ${place}: status labels stay on one line`);
       assert.deepEqual(short, [], `${width} ${place}: visible enabled actions are at least 44px high: ${JSON.stringify(short)}`);
       if (layout.toast) assert.deepEqual(layout.toast.overlaps, [], `${width} ${place}: the result toast clears every visible control: ${JSON.stringify(layout.toast)}`);
@@ -4267,7 +4272,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
             `${width}: waiting ask who/when stays on one line: ${JSON.stringify(asks)}`);
           assert.ok(asks.waitingText.width >= asks.waitingMain.width - 1,
             `${width}: waiting ask text spans the card: ${JSON.stringify(asks)}`);
-          assert.ok(asks.button.top >= asks.answerText.bottom && asks.button.left >= asks.answerText.left - 1 && asks.button.height >= 44,
+          assert.ok(asks.button.top >= asks.answerText.bottom && asks.button.left >= asks.answerText.left - 1 && asks.button.height >= tapTarget(width),
             `${width}: the Answer button sits under the ask it answers: ${JSON.stringify(asks)}`);
         }
       }
@@ -4391,7 +4396,7 @@ test('Spec and Doctrine line up, open on a row and decide with quiet controls [N
       if (width === 1280) assert.ok(Math.abs(spec.list.top - spec.detail.top) < 0.5, `${width}: the list and the detail start on one line: ${JSON.stringify([spec.list, spec.detail])}`);
       assert.deepEqual([spec.picked, spec.shown], ['spec:G1', 'G1'], `${width}: with nothing picked, the detail opens on the first row shown`);
       assert.deepEqual([spec.buttons.length, spec.decide.map((b) => b.word)], [0, ['Approve', 'Decline']], `${width}: a row carries no decision; the picked row's detail holds it once`);
-      assert.ok(spec.decide.every((b) => b.quiet && b.height >= 44), `${width}: quiet words, no box or fill until hovered, each a 44px target: ${JSON.stringify(spec.decide)}`);
+      assert.ok(spec.decide.every((b) => b.quiet && b.height >= tapTarget(width)), `${width}: quiet words, no box or fill until hovered, each a target: ${JSON.stringify(spec.decide)}`);
       assert.ok(spec.section.length >= 3 && spec.section.every(Boolean), `${width}: Approve all and the detail's decision are quiet too`);
       if (width === 1280) {
         assert.ok(spec.row.height <= 60 && Math.round(spec.text.height / spec.line) <= 2, `${width}: a one-sentence row takes one or two lines: ${JSON.stringify([spec.row, spec.text, spec.line])}`);
@@ -4506,7 +4511,7 @@ test('spec rows read as a list, decided in the panel [N26]', { timeout: 300_000 
           const picked = r.rows.find((row) => row.on);
           assert.ok(picked && neutral(picked.tint) && picked.edges, `${tab}: the picked row is a quiet neutral tint with no coloured edge: ${JSON.stringify(picked)}`);
           // On Spec, Approve all stays on the section's header.
-          if (kind === 'spec') assert.deepEqual(r.section.map((b) => [b.word, b.head, b.height >= 44]), [[`Approve all ${undecidedNow.length} in this section`, true, true]], `${tab}: Approve all stays on the section header`);
+          if (kind === 'spec') assert.deepEqual(r.section.map((b) => [b.word, b.head, b.height >= tapTarget(width)]), [[`Approve all ${undecidedNow.length} in this section`, true, true]], `${tab}: Approve all stays on the section header`);
           else assert.deepEqual(r.section, [], `${tab}: Doctrine rules are decided one at a time`);
 
           // With focus in the list the arrows move the pick, A approves and moves on, and D asks why, then records it.
@@ -4518,7 +4523,7 @@ test('spec rows read as a list, decided in the panel [N26]', { timeout: 300_000 
           // The picked row's detail holds its decision once, a 44px target each.
           const held = await read(kind);
           assert.deepEqual(held.decide.map((b) => b.word), ['Approve', 'Decline'], `${tab}: the picked row's detail holds its decision`);
-          assert.ok(held.decide.every((b) => b.height >= 44), `${tab}: each a 44px target`);
+          assert.ok(held.decide.every((b) => b.height >= tapTarget(width)), `${tab}: each a target, 44px where a finger taps`);
           await press('ArrowDown', 'ArrowDown', 40);
           assert.equal(await chrome.evaluate(`view.row['${kind}']`), undecidedNow[undecidedNow.findIndex(([id]) => id === first) + 1][0], `${tab}: down moves the pick`);
           await press('ArrowUp', 'ArrowUp', 38);
@@ -4617,9 +4622,9 @@ test('the status bar holds one line under no pointer [N26]', { timeout: 120_000 
       const visible=e=>{const s=getComputedStyle(e),r=e.getBoundingClientRect();return !e.disabled&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&r.width>0&&r.height>0&&!e.closest('[hidden]')};
       const selector='button,a[href],input:not([type=hidden]),select,textarea,[role=button],[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-release],[data-shout],[data-new],[data-code]';
       const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {text:(e.innerText||e.getAttribute('aria-label')||'').trim(),height:r.height,inlineReference:e.matches('.feed button.ref, .shout button.ref, .shout .band a, .detail button.ref')||!!e.closest('#chain .meta .gate, #detail .kv dd.waits-on'),statusBar:!!e.closest('.status')&&!matchMedia('(pointer: coarse)').matches,oneLine:!e.closest('.status')||getComputedStyle(e).whiteSpace==='nowrap'}});
-      return {controls,short:controls.filter(c=>c.height<44&&!c.inlineReference&&!c.statusBar),wrapped:controls.filter(c=>!c.oneLine)};
+      return {controls,tap:getComputedStyle(document.documentElement).getPropertyValue('--tap').trim(),wrapped:controls.filter(c=>!c.oneLine)};
     })())`));
-    assert.deepEqual(audit.short, [], `the demo's visible controls meet its 44px audit with the status exception determined by DOM and coarse pointer: ${JSON.stringify(audit.controls)}`);
+    assert.equal(audit.tap, '32px', `with no pointer at 1280 the targets are the compact ones a mouse gets; touch keeps 44px: ${JSON.stringify(audit.controls)}`);
     assert.deepEqual(audit.wrapped, [], `the demo's visible status labels stay on one line at 1280: ${JSON.stringify(audit.controls)}`);
     assert.deepEqual(layout.parts.filter((part) => part.lineTops.length !== 1), [], `each status part occupies one text line: ${JSON.stringify(layout.parts)}`);
   } finally {
@@ -4736,7 +4741,7 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
         })
       })`));
       assert.equal(geometry.overflow, false, `${width}: Spec has no horizontal overflow`);
-      assert.deepEqual(geometry.controls.filter((control) => control.height < 44), [], `${width}: row and section controls meet the 44px target`);
+      assert.deepEqual(geometry.controls.filter((control) => control.height < tapTarget(width)), [], `${width}: row and section controls meet the target`);
       assert.deepEqual(geometry.rows.filter((row) => row.missing), [], `${width}: row status and text are present for every fixture row`);
       if (width === 1280) assert.deepEqual(geometry.rows.filter((row) => row.intersects), [], '1280: stage chips never cover row text');
 
@@ -4770,7 +4775,7 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
 
       await click(chrome, '#spec-detail [data-row-decision="decline"]');
       assert.ok(await chrome.evaluate("!document.querySelector('#spec-decline-dialog').hidden && document.querySelector('#spec-decline-title').textContent === 'Decline G2'"), `${width}: G2 decline opens the reason form`);
-      assert.ok(await chrome.evaluate("[...document.querySelectorAll('#spec-decline-dialog input,#spec-decline-dialog button')].every(e => e.getBoundingClientRect().height >= 44)"), `${width}: decline reason and controls meet the 44px target`);
+      assert.ok(await chrome.evaluate(`[...document.querySelectorAll('#spec-decline-dialog input,#spec-decline-dialog button')].every(e => e.getBoundingClientRect().height >= ${tapTarget(width)})`), `${width}: decline reason and controls meet the 44px target`);
       await click(chrome, '#spec-decline-cancel');
       state = await boardOf(view, demo.repo);
       assert.equal(state.events.filter((event) => event.event_kind === 'row_decision').length, 1, `${width}: cancelling decline records no event`);
@@ -5382,7 +5387,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
           `${at}: each code reference is one piece with its lines and short commit in view: ${JSON.stringify(r.refs)}`);
         if (width === 375) assert.ok(r.refs[1].cut && r.refs[1].ends === 'ellipsis', `${at}: a path too long for the line is cut short first: ${JSON.stringify(r.refs)}`);
         // A reference on a line of its own is a block, collapsed: a caret header the width of the text, no coloured edge.
-        assert.deepEqual(r.block && [r.block.label, r.block.height >= 44, r.block.full, r.block.caret, r.block.edges], [sourceRefs[0].replace(head, head.slice(0, 10)), true, true, 'drawn', true],
+        assert.deepEqual(r.block && [r.block.label, r.block.height >= tapTarget(width), r.block.full, r.block.caret, r.block.edges], [sourceRefs[0].replace(head, head.slice(0, 10)), true, true, 'drawn', true],
           `${at}: a whole-line reference is a collapsed block: ${JSON.stringify(r.block)}`);
 
         // Decisions: a band until answered, then who answered and a link to the answer.
@@ -5515,7 +5520,7 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
         // One bar: the message, the send button on the right, in one row; no recipient picker.
         for (const part of ['message', 'send']) assert.ok(s[part].top >= s.composer.top - 0.5 && s[part].bottom <= s.composer.bottom + 0.5, `${at}: the ${part} sits inside the composer bar: ${JSON.stringify(s)}`);
         assert.ok(s.pickers === 0 && s.message.right <= s.send.left + 0.5 && s.composer.right - s.send.right < 12, `${at}: the message, then send: ${JSON.stringify(s)}`);
-        assert.ok(s.send.width >= 44 && s.send.height >= 44, `${at}: the send button is a 44px target`);
+        assert.ok(s.send.width >= tapTarget(width) && s.send.height >= tapTarget(width), `${at}: the send button is a target, 44px where a finger taps`);
         // Only agents at work are listed, the idle ones in their fold, which ends with show all.
         assert.ok(s.panel && s.listed.includes('web-1') && s.listed.includes('web-3') && !s.listed.includes('web-2'), `${at}: the agents at work, and not the idle one: ${s.listed}`);
         assert.equal(s.all, `show all ${agents.length}`, `${at}: every agent is one click away`);
@@ -5643,11 +5648,11 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
         const [row] = p.rows;
         assert.match(row.text, /^W1 web-1 (?:now|\d+[mhd]) #1 Header building \+1$/, `${at}: what the row says: ${row.text}`);
         assert.equal(row.face, row.name, `${at}: the name is in its avatar's colour, as in the feed`);
-        assert.ok(row.height >= 44, `${at}: the row is a 44px target`);
+        assert.ok(row.height >= tapTarget(width), `${at}: the row is a target`);
         assert.ok(!/strong/.test(row.text) && row.title.includes('web · strong') && row.title.includes(alpha.web), `${at}: lane, route and path are on hover, not in the row: ${row.title}`);
         // Agents holding nothing are pills in the idle fold; one that has not moved in the last hour waits behind show all.
         assert.deepEqual([p.idle, p.pills.map((pill) => pill.id)], ['2 idle', ['coordinator', 'web-2']], `${at}: the idle agents are pills`);
-        assert.ok(p.pills.every((pill) => pill.height >= 44 && pill.title.includes(' · ')), `${at}: each pill a 44px target with its lane on hover`);
+        assert.ok(p.pills.every((pill) => pill.height >= tapTarget(width) && pill.title.includes(' · ')), `${at}: each pill a target with its lane on hover`);
         assert.equal(p.all, `show all ${agents}`, `${at}: every agent one click away`);
         assert.ok(p.height < 260, `${at}: four agents take little room: ${p.height}px`);
       }
@@ -5659,7 +5664,7 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
     let p = await panel();
     assert.deepEqual([p.rows[0].on, p.rows[0].work.map(([id]) => id), p.chip, p.to, p.cards], [true, ['1', '2'], 'to web-1×', 'web-1', [['web-1', 'coordinator']]],
       `the picked row opens to what it holds, the feed shows its shouts and the composer is addressed to it: ${JSON.stringify(p)}`);
-    assert.ok(p.rows[0].work.every(([, height]) => height >= 44), 'each thing it holds is a 44px target');
+    assert.ok(p.rows[0].work.every(([, height]) => height >= tapTarget(1280)), 'each thing it holds is a target');
     // A pill does the same.
     await chrome.evaluate(`document.querySelector('#agents .agent-pill[data-agent="web-2"]').click()`);
     p = await panel();
@@ -5726,7 +5731,7 @@ test('the composer goes to the coordinator and says who heard [N26]', { timeout:
         // A picked agent's chip has an x that is a 44px square target; picking the agent again puts it back.
         await chrome.evaluate(`document.querySelector('#agents [data-agent="web-1"]').click()`);
         const picked = await read();
-        assert.ok(picked.chip === 'to web-1×' && picked.clear[0] >= 44 && picked.clear[1] >= 44, `${at}: the chip's x is 44 by 44: ${JSON.stringify(picked.clear)}`);
+        assert.ok(picked.chip === 'to web-1×' && picked.clear[0] >= tapTarget(width) && picked.clear[1] >= tapTarget(width), `${at}: the chip's x is a square target: ${JSON.stringify(picked.clear)}`);
         await chrome.evaluate(`document.querySelector('#agents [data-agent="web-1"]').click()`);
         assert.equal((await read()).chip, null, `${at}: picking the agent again returns the composer to the coordinator`);
       }
@@ -5755,7 +5760,8 @@ test('the composer goes to the coordinator and says who heard [N26]', { timeout:
     await chrome.evaluate(`document.querySelector('#agents [data-agent="web-1"]').click()`);
     let r = await read();
     assert.deepEqual([r.chip, r.to, r.placeholder], ['to web-1×', 'web-1', 'Shout to web-1'], 'a picked agent shows as a chip');
-    assert.ok(r.clear[0] >= 44 && r.clear[1] >= 44, 'whose x is a 44px square target');
+    const clearAt = tapTarget(await chrome.evaluate('innerWidth'));
+    assert.ok(r.clear[0] >= clearAt && r.clear[1] >= clearAt, 'whose x is a square target');
     await chrome.evaluate(`document.querySelector('#shout-to-chip [data-to-clear]').click()`);
     r = await read();
     assert.deepEqual([r.chip, r.to, r.placeholder], [null, 'coordinator', 'Shout to the coordinator'], 'the x returns it to the coordinator');
@@ -5940,8 +5946,8 @@ test('in-text item references stay inline and open their target at phone and des
         `${width}: the title link has the surrounding line height: ${JSON.stringify(rendered)}`);
       assert.ok(Math.abs(rendered.needRef.height - rendered.needText.height) < 1,
         `${width}: the Needs-you link has the surrounding line height: ${JSON.stringify(rendered)}`);
-      assert.ok(rendered.needAction.height >= 44 && rendered.realButton.height >= 44,
-        `${width}: real controls keep 44px targets: ${JSON.stringify(rendered)}`);
+      assert.ok(rendered.needAction.height >= tapTarget(width) && rendered.realButton.height >= tapTarget(width),
+        `${width}: real controls keep their targets: ${JSON.stringify(rendered)}`);
 
       for (const section of ['agents', 'spec', 'doctrine']) {
         if (section === 'agents') {
@@ -5974,7 +5980,7 @@ test('in-text item references stay inline and open their target at phone and des
         assert.ok(metrics.present, `${width}: ${section} citing title renders a compact item reference: ${JSON.stringify(metrics)}`);
         assert.equal(metrics.border, '0px', `${width}: ${section} reference has no button border`);
         assert.ok(Math.abs(metrics.refHeight - metrics.lineHeight) < 1, `${width}: ${section} reference keeps the text line height: ${JSON.stringify(metrics)}`);
-        assert.ok(metrics.containerHeight >= 44, `${width}: ${section} containing item keeps a 44px target`);
+        assert.ok(metrics.containerHeight >= tapTarget(width), `${width}: ${section} containing item keeps a target`);
         assert.equal(metrics.nestedButtons, 0, `${width}: ${section} title has no nested controls`);
         await chrome.evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
         await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
@@ -6143,7 +6149,7 @@ test('Roadmap and rule prose references stay inline and open the item on their o
         assert.equal(metrics.border, '0px', `${width}: ${selector} has no box`);
         assert.ok(Math.abs(metrics.height - metrics.line) < 1, `${width}: ${selector} keeps the text line height`);
         assert.equal(metrics.nested, false, `${width}: ${selector} never nests buttons`);
-        if (metrics.rowHeight !== undefined) assert.ok(metrics.rowHeight >= 44, `${width}: the containing Roadmap control keeps its touch target`);
+        if (metrics.rowHeight !== undefined) assert.ok(metrics.rowHeight >= tapTarget(width), `${width}: the containing Roadmap control keeps its target`);
         await chrome.evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
         await chrome.waitFor("!document.body.classList.contains('switching') && document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2 > span')?.textContent === '#1'");
         assert.ok((await chrome.evaluate("document.querySelector('#detail h2').textContent")).includes(target), 'the reference opens its target title');
@@ -7036,6 +7042,111 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
     await chrome.send('Page.reload');
     await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('#theme')");
     assert.deepEqual(Object.values((await read()).theme).slice(0, 2), ['dark', 'Dark theme: switch to light'], 'presses switch between the two, and a reload keeps the last');
+    assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
+test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 150_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for target size checks.');
+  const box = machine();
+  const lanes = { web: { owns: ['web/'], specs: ['G'] }, api: { owns: ['api/'], specs: ['G'] } };
+  const alpha = project(box, 'targets', SPEC, { lanes });
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  box.run(alpha.repo, 'add', 'api', 'Endpoint', '--specs', 'G1', '--criterion', 'answers');
+  box.run(alpha.web, 'claim', '1');
+  box.run(alpha.web, 'shout', 'coordinator', 'Greeting is under way; see #2 after.');
+  // A shout that is only a reference: nothing shares its line, so it is a target like any button.
+  box.run(alpha.web, 'shout', 'coordinator', '#2');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-targets-chrome-'));
+  let chrome;
+  /** Every visible enabled action with its height, which references sit in running text, and the named compact ones. */
+  const audit = async () => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+    const visible = (e) => { const s = getComputedStyle(e), r = e.getBoundingClientRect(); return !e.disabled && s.display !== 'none' && s.visibility !== 'hidden' && r.width > 0 && r.height > 0 && !e.closest('[hidden]'); };
+    const height = (s) => { const e = document.querySelector(s); return e && visible(e) ? Math.round(e.getBoundingClientRect().height) : null; };
+    const selector = 'button,a[href],input:not([type=hidden]),select,textarea,[role=button],[data-tab],[data-go],[data-item],[data-state],[data-row],[data-new]';
+    // A reference inside running text is exempt from 44px, as WCAG 2.5.8 exempts inline targets: only the elements named
+    // here, and only where text that is not another control's shares their line in the same block.
+    const named = (e) => e.matches('.feed button.ref, .shout button.ref, .shout .band a, .detail button.ref, .t button.ref') || !!e.closest('#chain .meta .gate, #detail .kv dd.waits-on');
+    const inLine = (e) => {
+      let block = e.parentElement;
+      while (block.parentElement && getComputedStyle(block).display.startsWith('inline')) block = block.parentElement;
+      const r = e.getBoundingClientRect(), walk = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+      for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+        const owner = node.parentElement.closest(selector);
+        if (e.contains(node) || !node.textContent.trim() || (owner && owner !== block && block.contains(owner))) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        if ([...range.getClientRects()].some((line) => line.width > 0 && line.top < r.bottom && line.bottom > r.top)) return true;
+      }
+      return false;
+    };
+    const controls = [...new Set(document.querySelectorAll(selector))].filter(visible).map((e) => ({ text: (e.innerText || e.getAttribute('aria-label') || e.id || e.className).trim().slice(0, 40), height: e.getBoundingClientRect().height,
+      inline: named(e) && inLine(e), named: named(e), inLine: inLine(e) }));
+    return {
+      page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth },
+      tap: getComputedStyle(document.documentElement).getPropertyValue('--tap').trim(), coarse: matchMedia('(pointer: coarse)').matches,
+      short: controls.filter((c) => c.height < 44 && !c.inline), count: controls.length,
+      exempt: controls.filter((c) => c.named).map((c) => ({ text: c.text, height: Math.round(c.height), inLine: c.inLine })), standalone: inLine(document.querySelector('#new-item')),
+      toolbar: { states: [...document.querySelectorAll('#state-chips button')].filter(visible).map((b) => Math.round(b.getBoundingClientRect().height)), lane: height('#lane-pick'), go: height('#new-item') },
+      composer: { text: height('#shout-text'), send: height('#shout-send') }, status: [...document.querySelectorAll('.status [data-status]')].filter(visible).map((b) => Math.round(b.getBoundingClientRect().height)),
+    };
+  })())`));
+  const tab = async (name) => { await chrome.evaluate(`document.querySelector('[data-tab=${name}]').click()`); await chrome.waitFor(`!document.querySelector('[data-pane=${name}]').hidden`); };
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("typeof data === 'object' && data?.project?.items?.length === 2 && data.project.shouts.length >= 2");
+    for (const scheme of ['light', 'dark']) {
+      for (const width of [1280, 375]) {
+        await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+        await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
+        await chrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${scheme})').matches`);
+        const at = `${width}px ${scheme}`;
+        await tab('items');
+        const items = await audit();
+        await tab('shouts');
+        const shouts = await audit();
+        for (const r of [items, shouts]) assert.ok(r.page.scroll <= r.page.width, `${at}: no sideways scroll`);
+        if (width === 375) {
+          // In a narrow window every action is a 44px target, as a finger needs.
+          assert.equal(items.tap, '44px', `${at}: the target is 44px`);
+          for (const [name, r] of [['Items', items], ['Shouts', shouts]]) assert.deepEqual(r.short, [], `${at} ${name}: every action at least 44px high: ${JSON.stringify(r.short)}`);
+          // The named references: the #2 standing alone is a 44px target; only the #2 inside the shout's sentence, in a
+          // line of its words, is exempt. The same check refuses a standalone button.
+          assert.deepEqual([items.exempt, shouts.exempt.map((e) => [e.text, e.inLine, e.height >= 44])], [[], [['#2', false, true], ['#2', true, false]]], `${at}: #2 alone is a target, #2 in its sentence the only exemption: ${JSON.stringify([items.exempt, shouts.exempt])}`);
+          assert.equal(items.standalone, false, `${at}: a standalone button is never inside a line of text`);
+        } else {
+          // Under a mouse on a wide screen controls size to their words: the Items toolbar at 32px, the composer one line.
+          assert.equal(items.tap, '32px', `${at}: the target is 32px under a mouse`);
+          assert.ok(items.toolbar.states.length === 3 && [...items.toolbar.states, items.toolbar.lane, items.toolbar.go].every((h) => Math.abs(h - 32) <= 1), `${at}: the Items toolbar's controls are 32px: ${JSON.stringify(items.toolbar)}`);
+          assert.ok(shouts.composer.text <= 34 && Math.abs(shouts.composer.send - 32) <= 1, `${at}: the composer is one line of text: ${JSON.stringify(shouts.composer)}`);
+          assert.ok(items.status.length > 0 && items.status.every((h) => h <= 30), `${at}: the status bar keeps its thin strip, no exception needed: ${JSON.stringify(items.status)}`);
+          assert.ok(items.short.length > 0, `${at}: there is no blanket 44px minimum under a mouse`);
+        }
+      }
+    }
+
+    // Under touch on the same wide screen, every action is a 44px target again, the status bar's parts included.
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
+    await chrome.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+    await chrome.waitFor("innerWidth === 1280 && matchMedia('(pointer: coarse)').matches");
+    await tab('items');
+    const touchItems = await audit();
+    await tab('shouts');
+    const touchShouts = await audit();
+    assert.equal(touchItems.tap, '44px', 'under touch the target is 44px');
+    for (const [name, r] of [['Items', touchItems], ['Shouts', touchShouts]]) assert.deepEqual(r.short, [], `touch ${name}: every action at least 44px high: ${JSON.stringify(r.short)}`);
+    assert.ok(touchItems.status.every((h) => h >= 44), `touch: the status bar's parts are 44px: ${JSON.stringify(touchItems.status)}`);
+    // The named references: the #2 standing alone is a 44px target; only the #2 inside the shout's sentence, in a
+    // line of its words, is exempt. The same check refuses a standalone button.
+    assert.deepEqual([touchItems.exempt, touchShouts.exempt.map((e) => [e.text, e.inLine, e.height >= 44])], [[], [['#2', false, true], ['#2', true, false]]], `touch: #2 alone is a target, #2 in its sentence the only exemption: ${JSON.stringify([touchItems.exempt, touchShouts.exempt])}`);
+    assert.equal(touchItems.standalone, false, `touch: a standalone button is never inside a line of text`);
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
