@@ -1170,7 +1170,7 @@ function render() {
   const heardBy = (x) => {
     if (x.shout_from !== 'person') return '';
     const to = p.agents.filter((a) => reached(x, a)), by = to.filter((a) => (a.agent_last_shout_id ?? 0) >= x.shout_id);
-    if (!to.length) return '';
+    // A shout that reaches no agent at all, such as one to a lane nobody has joined, has not been heard either.
     if (!by.length) return '<div class="heard not">Not heard yet</div>';
     const first = by.find((a) => lead(a.agent_id)) || by[0], rest = by.length - 1;
     return '<div class="heard" title="Heard by ' + esc(by.map((a) => a.agent_id).join(', ')) + '"><span class="heard-faces">' + [first, ...by.filter((a) => a !== first)].slice(0, 4).map(dot).join('') + '</span>Heard by ' + esc(first.agent_id) + (rest ? ' and ' + rest + (rest === 1 ? ' agent' : ' agents') : '') + '</div>';

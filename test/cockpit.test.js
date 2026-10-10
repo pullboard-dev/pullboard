@@ -4901,9 +4901,11 @@ test('the composer goes to the coordinator and says who heard [N26]', { timeout:
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for rendered composer checks.');
 
   const box = machine();
-  const alpha = project(box, 'heard');
+  // A docs lane nobody has joined: a shout to it reaches no agent.
+  const alpha = project(box, 'heard', SPEC, { lanes: { web: { owns: ['web/'], specs: ['G'] }, docs: { owns: ['docs/'], specs: ['G'] } } });
   box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   box.run(alpha.web, 'shout', 'coordinator', 'Starting on the greeting.');
+  earlier(alpha.repo, Date.now(), (board) => shoutOnBoard(board, { from: 'person', to: 'docs', text: 'Docs, anyone?', lanes: ['web', 'docs'] }));
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-heard-chrome-'));
   let chrome;
@@ -4919,7 +4921,7 @@ test('the composer goes to the coordinator and says who heard [N26]', { timeout:
         page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth },
         pickers: [...document.querySelectorAll('.composer select, .composer datalist, .composer input')].filter((e) => e.type !== 'hidden').length,
         to: document.querySelector('#shout-to').value, placeholder: document.querySelector('#shout-text').placeholder,
-        chip: chip.hidden ? null : chip.textContent, clear: clear ? clear.getBoundingClientRect().height : null,
+        chip: chip.hidden ? null : chip.textContent, clear: clear ? [clear.getBoundingClientRect().width, clear.getBoundingClientRect().height] : null,
         heard: [...document.querySelectorAll('#feed .shout')].filter((card) => card.querySelector('.heard')).map((card) => {
           const line = card.querySelector('.heard');
           return [card.querySelector('.text').textContent, line.lastChild.textContent, line.querySelectorAll('.heard-face').length, line.title];
@@ -4938,6 +4940,14 @@ test('the composer goes to the coordinator and says who heard [N26]', { timeout:
         const r = await read();
         assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll`);
         assert.deepEqual([r.pickers, r.to, r.placeholder, r.chip], [0, 'coordinator', 'Shout to the coordinator', null], `${at}: no recipient picker; a shout goes to the coordinator, and says so`);
+        // A shout to a lane no agent has joined reached no one, so it has not been heard.
+        assert.deepEqual(r.heard.find(([text]) => text === 'Docs, anyone?')?.slice(1), ['Not heard yet', 0, ''], `${at}: a shout that reached no agent says Not heard yet`);
+        // A picked agent's chip has an x that is a 44px square target; picking the agent again puts it back.
+        await chrome.evaluate(`document.querySelector('#agents [data-agent="web-1"]').click()`);
+        const picked = await read();
+        assert.ok(picked.chip === 'to web-1×' && picked.clear[0] >= 44 && picked.clear[1] >= 44, `${at}: the chip's x is 44 by 44: ${JSON.stringify(picked.clear)}`);
+        await chrome.evaluate(`document.querySelector('#agents [data-agent="web-1"]').click()`);
+        assert.equal((await read()).chip, null, `${at}: picking the agent again returns the composer to the coordinator`);
       }
     }
 
@@ -4964,7 +4974,7 @@ test('the composer goes to the coordinator and says who heard [N26]', { timeout:
     await chrome.evaluate(`document.querySelector('#agents [data-agent="web-1"]').click()`);
     let r = await read();
     assert.deepEqual([r.chip, r.to, r.placeholder], ['to web-1×', 'web-1', 'Shout to web-1'], 'a picked agent shows as a chip');
-    assert.ok(r.clear >= 44, 'whose x is a 44px target');
+    assert.ok(r.clear[0] >= 44 && r.clear[1] >= 44, 'whose x is a 44px square target');
     await chrome.evaluate(`document.querySelector('#shout-to-chip [data-to-clear]').click()`);
     r = await read();
     assert.deepEqual([r.chip, r.to, r.placeholder], [null, 'coordinator', 'Shout to the coordinator'], 'the x returns it to the coordinator');
