@@ -25,6 +25,8 @@ import { exportView, portableSnapshot, projectState } from '../src/serve.js';
 import { relayPresentation } from '../src/relay-presentation.js';
 import { fetchFresh } from './http-fixture.js';
 import { relayClientFixture } from './relay-client-fixture.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import { runFixtureChildAsync } from './fixture-child.js';
 import { findChromeExecutable, relayWorkBudgetMs, startChrome } from './relay-browser-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -7525,6 +7527,165 @@ test('the project switcher\'s arrow turns with the list [N26]', { timeout: 120_0
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
+test('local agents panel inventories and phone-revokes a scoped credential [H2,H9,H16,B26,N26]', { timeout: 180_000 }, async (t) => {
+  assert.ok(chromeExecutable(), 'this security proof requires actual Chrome');
+  const box = await relayClientFixture(t);
+  const personEnv = { ...box.env };
+  for (const key of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete personEnv[key];
+  const privateBin = box.env.PATH.split(delimiter)[0];
+  /** Quote a private fixture executable path literally for its hook shim. */
+  const shellQuote = (value) => "'" + value.replaceAll("'", "'\\''") + "'";
+  writeFileSync(join(privateBin, 'pullboard'), '#!/bin/sh\nexec ' + shellQuote(process.execPath) + ' ' + shellQuote(BIN) + ' "$@"\n', { mode: 0o700 });
+  execFileSync('git', ['add', '-A'], { cwd: box.root, env: personEnv, stdio: 'pipe' });
+  execFileSync('git', ['commit', '-q', '-m', 'test: prepare private credential view'], { cwd: box.root, env: personEnv, stdio: 'pipe' });
+  const machineFile = join(box.env.PULLBOARD_HOME, 'relay-machine/state.json');
+  const setup = spawn(process.execPath, [BIN, 'relay', 'on', '--all', '--url', box.origin, '--json'], {
+    cwd: box.root, env: personEnv, stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let setupOutput = '';
+  setup.stdout.setEncoding('utf8').on('data', chunk => { setupOutput += chunk; });
+  setup.stderr.resume();
+  const setupDone = new Promise((resolve, reject) => setup.once('close', (code, signal) => {
+    if (signal) return reject(new Error('private foreground pairing was interrupted'));
+    try { resolve({ code, document: JSON.parse(setupOutput) }); }
+    catch { reject(new Error('private foreground pairing returned no JSON')); }
+  }));
+  t.after(async () => { if (setup.exitCode === null) setup.kill('SIGTERM'); await setupDone.catch(() => {}); });
+  /** Poll persisted private fixture state without retrying an operation. */
+  const waitFixture = async (read, message, timeout = 30_000) => {
+    const deadline = Date.now() + timeout;
+    do { const value = await read(); if (value) return value; await new Promise(resolve => setTimeout(resolve, 25)); } while (Date.now() < deadline);
+    assert.fail(message);
+  };
+  const pending = await waitFixture(() => existsSync(machineFile) && JSON.parse(readFileSync(machineFile, 'utf8')).pending,
+    'foreground pairing publishes the one-use device enrollment');
+  const phone = await box.phoneSession();
+  const phoneChrome = await startChrome();
+  t.after(() => phoneChrome.close());
+  const localChrome = await startChrome();
+  t.after(() => localChrome.close());
+  assert.equal((await phoneChrome.send('Network.setCookie', {
+    name: 'pb_session', value: phone.token, url: box.origin, httpOnly: true, sameSite: 'Lax',
+  })).success, true);
+  await phoneChrome.navigate(`${box.origin}/#device=${pending.locator}.${pending.secret}`);
+  assert.equal((await setupDone).code, 0, 'the real phone session pairs the machine');
+  await phoneChrome.waitFor("document.querySelector('#phone-approvals') !== null");
+
+  const joined = await box.cli('worktree', box.lane);
+  assert.equal(joined.code, 0, joined.failure ?? 'a real agent worktree joins with machine credentials');
+  const agentRoot = joined.document.path;
+  const agentId = joined.document.agent;
+  const other = await box.cli('worktree', box.lane);
+  assert.equal(other.code, 0, other.failure ?? 'a second agent receives its own credential');
+  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const oldPA = link.agentTokens[agentId], otherPA = link.agentTokens[other.document.agent];
+  assert.match(oldPA.token, /^pa_[A-Za-z0-9_-]{43}$/u);
+  const listed = await box.cli('relay', 'tokens');
+  assert.equal(listed.code, 0, listed.failure ?? 'the real CLI reads token metadata');
+  const expected = listed.document.tokens.find(row => row.agent === agentId);
+  assert.ok(expected?.id && expected.created && expected.expires);
+  assert.deepEqual(listed.document.tokens.map(row => row.agent).sort(), [agentId, other.document.agent].sort(), 'both independent agent credentials are listed');
+  assert.equal(JSON.stringify(listed.document).includes(oldPA.token), false, 'the native inventory contains no PA value');
+
+  const view = await startView({ dir: box.root, env: personEnv });
+  try {
+    await localChrome.navigate(view.link.href);
+    await localChrome.waitFor("typeof data === 'object' && !!data?.project");
+    /** Deliver actual mouse input only after layout settles and the target is uncovered. */
+    const tap = async (selector) => {
+      await localChrome.waitFor(`Boolean(document.querySelector(${JSON.stringify(selector)})?.getBoundingClientRect().width)`);
+      const point = JSON.parse(await localChrome.evaluate(`(async () => {
+        const find=()=>document.querySelector(${JSON.stringify(selector)}); const e=find();
+        e.scrollIntoView({block:'center',inline:'nearest'});
+        const frame=()=>new Promise(done=>requestAnimationFrame(()=>done())); let previous='', stable=0;
+        for(let i=0;i<120&&stable<2;i++){await frame();const n=find(),r=n?.getBoundingClientRect(),v=r?[r.x,r.y,r.width,r.height,scrollX,scrollY].join():'';stable=v&&v===previous?stable+1:0;previous=v;}
+        const n=find(),r=n?.getBoundingClientRect(); if(!n||!r||r.width<=0||r.height<=0)throw Error('control is not laid out');
+        const x=r.x+r.width/2,y=r.y+r.height/2,hit=document.elementFromPoint(x,y);
+        if(hit!==n&&!n.contains(hit))throw Error('the real mouse point is covered by another control');
+        return JSON.stringify({x,y});
+      })()`));
+      for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) await localChrome.send('Input.dispatchMouseEvent', {
+        type, ...point, ...(type === 'mouseMoved' ? {} : { button: 'left', clickCount: 1 }),
+      });
+    };
+    await tap('[data-tab="shouts"]');
+    for (const scheme of ['light', 'dark']) for (const width of [375, 1280]) {
+      await localChrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await localChrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
+      await localChrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${scheme})').matches`);
+      if (!await localChrome.evaluate('Boolean(document.querySelector("[data-token-id]"))')) await tap('[data-credentials]');
+      for (const metadata of listed.document.tokens) {
+        const selector = `[data-token-id="${metadata.id}"]`;
+        await localChrome.waitFor(`Boolean(document.querySelector(${JSON.stringify(selector)}))`);
+        const row = JSON.parse(await localChrome.evaluate(`JSON.stringify((() => {
+          const e=document.querySelector(${JSON.stringify(selector)}),r=e.getBoundingClientRect();
+          return {id:e.dataset.tokenId,text:e.innerText,overflow:document.documentElement.scrollWidth>document.documentElement.clientWidth,
+            rowOverflow:r.right>document.documentElement.clientWidth};
+        })())`));
+        assert.equal(row.id, metadata.id);
+        for (const value of [metadata.id, metadata.agent, new Date(metadata.created).toISOString(), new Date(metadata.expires).toISOString()]) {
+          assert.ok(row.text.includes(value), `${width}/${scheme}: the row shows token id, agent and ISO creation/expiry`);
+        }
+        assert.equal(row.text.includes(oldPA.token), false, 'the credential value never enters the DOM');
+        for (const secret of [oldPA.token, otherPA.token, link.token, phone.token, readFileSync(box.keyFile, 'utf8').trim()]) {
+          assert.equal(await localChrome.evaluate(`document.documentElement.outerHTML.includes(${JSON.stringify(secret)}) || JSON.stringify(data).includes(${JSON.stringify(secret)}) || JSON.stringify([...credentials]).includes(${JSON.stringify(secret)})`), false,
+            'the local page, projected board and inventory retain no credential value or board key');
+        }
+        assert.equal(await localChrome.evaluate(`document.querySelector(${JSON.stringify(selector)}).querySelector('[data-revoke-token]').getBoundingClientRect().height >= 44`), true,
+          `${width}/${scheme}: revocation has a full touch target`);
+
+        assert.equal(row.overflow || row.rowOverflow, false, `${width}/${scheme}: the inventory stays within the viewport`);
+      }
+    }
+
+    const authorizationsBefore = box.calls.filter(call => call.path.endsWith('/authorize')).length;
+    await tap(`[data-revoke-token="${expected.id}"]`);
+    await localChrome.waitFor("document.querySelector('#credentials [role=status]')?.textContent.includes('Approve revocation on your phone…')");
+    assert.equal(box.calls.filter(call => call.path.endsWith('/authorize')).length, authorizationsBefore,
+      'the local button waits for a person and has not silently authorized revocation');
+
+    // A separate paired-phone browser completes the actual pending native grant with real mouse input.
+    const encodedKey = readFileSync(box.keyFile, 'utf8').trim();
+    const board = JSON.parse(readFileSync(box.linkFile, 'utf8')).board;
+    await phoneChrome.navigate(`${box.origin}/#board=${board}&key=${encodedKey}`);
+    await phoneChrome.waitFor("document.querySelector('#phone-approvals') !== null");
+    await phoneChrome.waitFor(` [...document.querySelectorAll('.phone-approval')].some(node => node.textContent.includes(${JSON.stringify(expected.id)}))`);
+    const approvalPoint = JSON.parse(await phoneChrome.evaluate(`(() => {
+      const card=[...document.querySelectorAll('.phone-approval')].find(node=>node.textContent.includes(${JSON.stringify(expected.id)}));
+      const button=card?.querySelector('button'); button?.scrollIntoView({block:'center',behavior:'instant'});
+      const r=button?.getBoundingClientRect(); if(!r||r.width<=0||r.height<=0)throw Error('approval button is not visible');
+      const x=r.x+r.width/2,y=r.y+r.height/2,hit=document.elementFromPoint(x,y);
+      if(hit!==button&&!button.contains(hit))throw Error('approval mouse point is covered'); return JSON.stringify({x,y});
+    })()`));
+    for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) await phoneChrome.send('Input.dispatchMouseEvent', {
+      type, ...approvalPoint, ...(type === 'mouseMoved' ? {} : { button: 'left', clickCount: 1 }),
+    });
+    await localChrome.waitFor("document.querySelector('#credentials [role=status]')?.textContent.includes('Credential revoked.')");
+    assert.equal(await localChrome.evaluate(`document.querySelector('[data-token-id="${expected.id}"]')?.textContent.includes('Revoked')`), true, 'the acknowledged credential row is marked revoked');
+    assert.equal(box.calls.filter(call => call.path.endsWith('/authorize')).length, authorizationsBefore + 1,
+      'one real phone tap authorizes exactly one revoke');
+
+    const mintsBefore = box.calls.filter(call => call.method === 'POST' && call.path === '/auth/tokens').length;
+    const stale = await runFixtureChildAsync(process.execPath, [BIN, 'add', box.lane, 'must refuse revoked scoped credential', '--json'], {
+      cwd: agentRoot, encoding: 'utf8', env: {
+        ...personEnv, PULLBOARD_RELAY_TOKEN: oldPA.token, AI_AGENT: '1', CODEX_SHELL: '1',
+        CODEX_THREAD_ID: 'private-credential-inventory',
+      },
+    });
+    assert.equal(stale.status, 1);
+    assert.equal(JSON.parse(stale.stdout).error.code, 'AUTH_REQUIRED', 'the old PA refuses its very next native move');
+    assert.equal(box.calls.filter(call => call.method === 'POST' && call.path === '/auth/tokens').length, mintsBefore, 'the refused explicit credential is never silently replaced');
+    const unaffected = await runFixtureChildAsync(process.execPath, [BIN, 'shout', 'coordinator', 'the other credential still works', '--json'], {
+      cwd: other.document.path, env: { ...personEnv, PULLBOARD_RELAY_TOKEN: otherPA.token, AI_AGENT: '1', CODEX_SHELL: '1', CODEX_THREAD_ID: 'private-credential-inventory-other' },
+    });
+    assert.equal(unaffected.status, 0, 'revoking one credential leaves the other agent able to move');
+  } finally {
+    await localChrome.close();
+    await phoneChrome.close();
     await view.stop();
   }
 });

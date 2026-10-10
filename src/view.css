@@ -638,3 +638,14 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 /* In an agent's row the state is a coloured word beside the name, so what it holds has the row's full width. */
 .agent-who { gap: 6px; }
 .agent-who .chip { flex: none; padding: 0; border: 0; background: none; font: 600 11.5px var(--sans); letter-spacing: 0; }
+
+/* Credential ids wrap within the agents panel; every action remains a full touch target. */
+#credentials { min-width: 0; margin-top: 12px; }
+#credentials > .link { min-height: 44px; }
+#credentials p { color: var(--ink-muted); overflow-wrap: anywhere; }
+.credential { display: grid; min-width: 0; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line); }
+.credential > code, .credential > b { overflow-wrap: anywhere; }
+.credential dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 8px; margin: 0; font-size: 12px; }
+.credential dt { color: var(--ink-muted); }
+.credential dd { margin: 0; overflow-wrap: anywhere; }
+.credential > button { justify-self: start; min-height: 44px; }
