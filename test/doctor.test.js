@@ -19,7 +19,7 @@ after(() => {
 /**
  * Create a committed repo with a board and isolated git identity for one integrity scenario.
  */
-function boardBox({ initialize = true, repoName = 'repo' } = {}) {
+function boardBox({ initialize = true, repoName = 'repo', lanes = {} } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-doctor-'));
   sandboxes.push(dir);
   const root = join(dir, repoName);
@@ -42,11 +42,11 @@ function boardBox({ initialize = true, repoName = 'repo' } = {}) {
   mkdirSync(join(root, '.git', 'hooks'), { recursive: true });
   writeFileSync(mergeHook, hookScript('pre-merge-commit'));
   chmodSync(mergeHook, 0o755);
-  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', lanes: {} }, null, 2));
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', lanes }, null, 2));
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: setup');
   const dbFile = join(root, '.git', 'pullboard', 'board.sqlite');
-  if (initialize) assert.equal(run('status').status, 0);
+  if (initialize) { const result = run('status'); assert.equal(result.status, 0, result.stderr || result.stdout); }
   else mkdirSync(join(root, '.git', 'pullboard'), { recursive: true });
   return { dir, root, env, git, run, dbFile };
 }
@@ -84,6 +84,70 @@ test('doctor reports a clean board in one line and leaves it unchanged [A6]', ()
   assert.equal(result.stdout, 'board is clean\n');
   assert.equal(result.stderr, '');
   assert.deepEqual(readFileSync(box.dbFile), before);
+});
+
+test('doctor names an unwired hook and resume gives the repair line [L3]', () => {
+  const box = boardBox();
+  const hooks = join(box.root, '.husky');
+  mkdirSync(hooks);
+  box.git('config', 'core.hooksPath', '.husky');
+  writeFileSync(join(hooks, 'pre-commit'), '#!/bin/sh\nnpx lint-staged\n');
+  writeFileSync(join(hooks, 'pre-merge-commit'), '#!/bin/sh\npullboard hook pre-merge-commit "$@"\n');
+  chmodSync(join(hooks, 'pre-commit'), 0o755);
+  chmodSync(join(hooks, 'pre-merge-commit'), 0o755);
+  const expected = 'active Git hook .husky/pre-commit does not call pullboard hook pre-commit';
+
+  const doctor = box.run('doctor');
+  assert.equal(doctor.status, 1);
+  assert.equal(doctor.stdout.split('\n').filter((line) => line.includes(expected)).length, 1, doctor.stdout);
+  assert.ok(doctor.stdout.includes(`${expected}; repair: add this line: pullboard hook pre-commit "$@"`), doctor.stdout);
+  const resume = box.run('resume');
+  assert.equal(resume.status, 0, resume.stderr);
+  assert.equal(resume.stdout.split('\n').filter((line) => line.includes(expected)).length, 1, resume.stdout);
+  assert.ok(resume.stdout.includes(`${expected}; add this line: pullboard hook pre-commit "$@"`), resume.stdout);
+  const doctorJson = box.run('doctor', '--json');
+  assert.equal(doctorJson.status, 1);
+  const finding = { code: 'HOOK_UNWIRED', message: expected, next: 'add this line: pullboard hook pre-commit "$@"' };
+  assert.deepEqual(JSON.parse(doctorJson.stdout).problems, [finding]);
+  const resumeJson = box.run('resume', '--json');
+  assert.equal(resumeJson.status, 0, resumeJson.stderr);
+  assert.deepEqual(JSON.parse(resumeJson.stdout).hookProblems, [finding]);
+
+  writeFileSync(join(hooks, 'pre-commit'), '#!/bin/sh\npullboard hook pre-commit "$@"\n');
+  chmodSync(join(hooks, 'pre-commit'), 0o755);
+  box.git('config', 'core.hooksPath', hooks);
+  assert.doesNotMatch(box.run('doctor').stdout, /HOOK_UNWIRED|active Git hook/u);
+  assert.doesNotMatch(box.run('resume').stdout, /HOOK_UNWIRED|active Git hook/u);
+});
+
+test('text HELD refusal ends with the same next step as JSON [L3]', () => {
+  const box = boardBox({ lanes: { web: { owns: ['web/'] } } });
+  const added = box.run('add', 'web', 'Held refusal control', '--criterion', 'Do not edit a claimed item', '--json');
+  assert.equal(added.status, 0, added.stderr || added.stdout);
+  const id = JSON.parse(added.stdout).item.item_id;
+  const created = box.run('worktree', 'web', '--json');
+  assert.equal(created.status, 0, created.stderr || created.stdout);
+  const agent = JSON.parse(created.stdout);
+  const claim = spawnSync(process.execPath, [BIN, 'claim', String(id), '--json'], { cwd: agent.path, env: box.env, encoding: 'utf8' });
+  assert.equal(claim.status, 0, claim.stderr || claim.stdout);
+  const text = box.run('edit', String(id), '--route', 'mid');
+  const json = box.run('edit', String(id), '--route', 'mid', '--json');
+  assert.equal(text.status, 1);
+  assert.equal(json.status, 1);
+  const refusal = JSON.parse(json.stdout).error;
+  assert.equal(refusal.code, 'HELD');
+  assert.ok(text.stderr.trimEnd().endsWith(`next: ${refusal.next}`), text.stderr);
+});
+
+test('text USAGE refusal ends with the same next step as JSON [L3]', () => {
+  const box = boardBox();
+  const text = box.run('status', '--not-a-real-flag');
+  const json = box.run('status', '--not-a-real-flag', '--json');
+  assert.equal(text.status, 2);
+  assert.equal(json.status, 2);
+  const refusal = JSON.parse(json.stdout).error;
+  assert.equal(refusal.code, 'USAGE');
+  assert.ok(text.stderr.trimEnd().endsWith(`next: ${refusal.next}`), text.stderr);
 });
 
 test('commands and doctor explain how to repair core.bare without crossing a nested repo [A6, P4]', () => {

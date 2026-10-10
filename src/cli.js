@@ -25,6 +25,7 @@ import {
   preCommitProblems,
   prePushProblems,
   pushesTrunk,
+  unwiredHookProblems,
 } from './hooks.js';
 import { initRepo } from './init.js';
 import { lifecycleHelp, lifecycleMarkdown } from './machine.js';
@@ -53,7 +54,7 @@ import { runItems } from './run.js';
 import { parseProblems, sweepItems } from './sweep.js';
 import { renderSpecView } from './view.js';
 import { tour } from './tour.js';
-import { commandOutput } from './json.js';
+import { commandOutput, refusalDocument } from './json.js';
 import { forgetProject, registerProjectAndLink } from './projects.js';
 import { milestoneRoadmap } from './roadmap.js';
 import { listResources } from './resources.js';
@@ -1108,6 +1109,7 @@ function resumeHere(io) {
     };
   });
   card.relayProblems = unlinkedRelayProjects();
+  card.hookProblems = unwiredHookProblems(root);
   const { me } = card;
   card.stale = staleFrozenItems(card.all, loadSpec(root, ctx.config).rows, ctx.doctrine.rows).map((item) => ({ ...item, ...staleItemFinding(item) }));
   if (isMain) {
@@ -1118,6 +1120,7 @@ function resumeHere(io) {
   }
   const say = (line) => io.say(line);
   for (const problem of card.relayProblems) say(problem.message);
+  for (const problem of card.hookProblems) say(`${problem.message}; ${problem.next}`);
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
   say(`resume: ${me.id}${me.family ? ` (${me.family})` : ''}, ${me.lane} lane${isMain ? ', the main checkout' : ''}, at ${root}`);
   const dirty = dirtyFiles(root).length;
@@ -1999,7 +2002,9 @@ async function sweepHere(ctx, board, me, values) {
   }
   if (skipped.length) ctx.io.say(`already open: ${skipped.join(', ')}`);
   if (blind.length) {
-    ctx.io.err(`pullboard: [CHECK_CANNOT_FAIL] the check passes on ${blind.join(', ')} although the checker flags problems there, so it could never prove a fix; not filed. A check ending in a pipe takes its exit status from the last command`);
+    const refusal = new Refused('CHECK_CANNOT_FAIL', `the check passes on ${blind.join(', ')} although the checker flags problems there, so it could never prove a fix; not filed. A check ending in a pipe takes its exit status from the last command. Fix the check so flagged files make it fail, then run pullboard sweep again.`);
+    ctx.io.refusal?.(refusal);
+    ctx.io.err(`pullboard: ${refusal.message}`);
   }
   const filed = items.length - blind.length;
   ctx.io.say(`${problems.length} problems in ${new Set(problems.map((problem) => problem.file)).size} files; ${values['dry-run'] ? 'would file' : 'filed'} ${filed}`);
@@ -2643,8 +2648,9 @@ async function runCommand(argv, io) {
   try {
     parsed = parseCommandArgs(argv);
   } catch (error) {
-    io.refusal?.(new Refused('USAGE', `${error.message}; run pullboard help`));
-    io.err(`pullboard: ${error.message}\nRun pullboard help --all for the full list.`);
+    const refusal = new Refused('USAGE', `${error.message}; run pullboard help`);
+    io.refusal?.(refusal);
+    io.err(`pullboard: ${error.message}\nRun pullboard help --all for the full list.\nnext: ${refusalDocument(refusal).error.next}`);
     return 2;
   }
   const { values, positionals } = parsed;
@@ -2761,7 +2767,7 @@ async function runCommand(argv, io) {
   } catch (error) {
     if (error instanceof Refused) {
       io.refusal?.(error);
-      io.err(`pullboard: ${error.message}`);
+      io.err(`pullboard: ${error.message}; next: ${refusalDocument(error).error.next}`);
       return 1;
     }
     throw error;
@@ -2813,7 +2819,7 @@ async function runMain(argv, streams) {
     } catch (error) {
       if (!(error instanceof Refused)) throw error;
       io.refusal(error);
-      io.err(`pullboard: ${error.message}`);
+      io.err(`pullboard: ${error.message}; next: ${refusalDocument(error).error.next}`);
       io.flush(1);
       return 1;
     }
@@ -2827,7 +2833,7 @@ async function runMain(argv, streams) {
       }
       catch (error) {
         if (!(error instanceof Refused)) throw error;
-        if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
+        if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}; next: ${refusalDocument(error).error.next}`);
       }
     };
     if (needsRepo) rememberTrunk(io);
@@ -2837,7 +2843,7 @@ async function runMain(argv, streams) {
       try { await executePersonRequests(io.cwd, io, main); }
       catch (error) {
         if (!(error instanceof Refused)) throw error;
-        if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}`);
+        if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}; next: ${refusalDocument(error).error.next}`);
       }
     }
     const code = await runCommand(argv, io);

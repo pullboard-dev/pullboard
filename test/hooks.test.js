@@ -3,12 +3,12 @@
  */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { defaults } from '../src/config.js';
-import { addedLines, blockedPaths, commitCitationWarnings, commitMsgProblems, matchesPattern, preCommitProblems, secretsIn } from '../src/hooks.js';
+import { addedLines, blockedPaths, commitCitationWarnings, commitMsgProblems, hookScript, matchesPattern, preCommitProblems, secretsIn, unwiredHookProblems } from '../src/hooks.js';
 import { parseSpec } from '../src/spec.js';
 import { Refused } from '../src/refused.js';
 
@@ -35,6 +35,44 @@ function stagedProblems(root) {
  * Problems with a message under the default rules, or the given ones.
  */
 const check = (message, rules = RULES) => commitMsgProblems(message, { rules, spec: SPEC });
+
+test('hook wiring checks the configured path and accepts pullboard delegation [L3]', (t) => {
+  const box = stagedRepo(t);
+  const hooks = join(box.root, '.husky');
+  mkdirSync(hooks);
+  box.git('config', 'core.hooksPath', '.husky');
+  writeFileSync(join(hooks, 'pre-commit'), '#!/bin/sh\nnpx lint-staged\n');
+  chmodSync(join(hooks, 'pre-commit'), 0o755);
+  assert.deepEqual(unwiredHookProblems(box.root), [{
+    code: 'HOOK_UNWIRED',
+    message: 'active Git hook .husky/pre-commit does not call pullboard hook pre-commit',
+    next: 'add this line: pullboard hook pre-commit "$@"',
+  }]);
+  writeFileSync(join(hooks, 'pre-commit'), '#!/bin/sh\n# pullboard hook pre-commit "$@"\nnot-pullboard hook pre-commit\n');
+  chmodSync(join(hooks, 'pre-commit'), 0o755);
+  assert.equal(unwiredHookProblems(box.root).length, 1);
+  writeFileSync(join(hooks, 'pre-commit'), '#!/bin/sh\npullboard hook pre-commit "$@"\n');
+  chmodSync(join(hooks, 'pre-commit'), 0o755);
+  assert.deepEqual(unwiredHookProblems(box.root), []);
+  for (const source of [
+    `#!/bin/sh\necho 'pullboard hook pre-commit'\n`,
+    `#!/bin/sh\necho 'example; pullboard hook pre-commit'\n`,
+    '#!/bin/sh\nbin=some-other-tool; "$bin" hook pre-commit\n',
+  ]) {
+    writeFileSync(join(hooks, 'pre-commit'), source);
+    assert.equal(unwiredHookProblems(box.root).length, 1, source);
+  }
+  for (const source of [
+    '#!/bin/sh\nexec "$root/node_modules/.bin/pullboard" hook pre-commit\n',
+    '#!/bin/sh\nnode "./bin/pullboard.js" hook pre-commit\n',
+  ]) {
+    writeFileSync(join(hooks, 'pre-commit'), source);
+    assert.deepEqual(unwiredHookProblems(box.root), [], source);
+  }
+  writeFileSync(join(hooks, 'pre-commit'), hookScript('pre-commit'));
+  chmodSync(join(hooks, 'pre-commit'), 0o755);
+  assert.deepEqual(unwiredHookProblems(box.root), []);
+});
 
 test('a clean header citing a live id passes [C1, C2]', () => {
   assert.deepEqual(check('feat(web): add the page [G1]'), []);

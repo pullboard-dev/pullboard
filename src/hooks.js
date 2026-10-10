@@ -5,7 +5,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { git, gitChildEnv, gitPath, gitConfig, invalidateGitFacts, mainCheckout, refuseGrafts, tryGit } from './git.js';
 import { CONFIG_FILE, configFromSource, DOCTRINE_FILE, LEGACY_DOCTRINE_FILE } from './config.js';
 import { Refused } from './refused.js';
@@ -272,6 +272,73 @@ function committedLaneConfig(root) {
 export function preMergeHookProblems(root) {
   const file = gitPath(root, 'hooks/pre-merge-commit');
   return existsSync(file) ? [] : [{ code: 'HOOK_MISSING', message: `merge hook ${file} is missing`, next: 'run pullboard hooks to install pre-merge-commit, then commit the hook files' }];
+}
+
+/** Resolve Git's effective hook directory, letting Git apply core.hooksPath itself.
+ *
+ * @param {string} root
+ * @returns {string}
+ */
+function activeHooksDir(root) {
+  return resolve(root, gitPath(root, 'hooks'));
+}
+
+/** Split hook shell commands without treating quoted examples or comments as invocations. */
+function hookCommands(source) {
+  const commands = [];
+  let command = '';
+  let quote = '';
+  let escaped = false;
+  let comment = false;
+  for (const char of source.replace(/\\\r?\n/gu, '')) {
+    if (comment) {
+      if (char !== '\n') continue;
+      comment = false;
+    }
+    if (escaped) { command += char; escaped = false; continue; }
+    if (char === '\\' && quote !== "'") { command += char; escaped = true; continue; }
+    if (quote) { command += char; if (char === quote) quote = ''; continue; }
+    if (char === '"' || char === "'") { quote = char; command += char; continue; }
+    if (char === '#' && (!command || /\s$/u.test(command))) { comment = true; continue; }
+    if (/[\n;&|()]/u.test(char)) { commands.push(command.trim()); command = ''; continue; }
+    command += char;
+  }
+  commands.push(command.trim());
+  return commands.filter(Boolean);
+}
+
+/** Recognize direct, quoted-path and generated-variable calls without executing a hook. */
+function delegatesHook(source, hook) {
+  const commands = hookCommands(source);
+  const program = String.raw`(?:"(?:[^"]*/)?pullboard(?:\.js)?"|'(?:[^']*/)?pullboard(?:\.js)?'|(?:[^\s"';&|()]+/)?pullboard(?:\.js)?)`;
+  const binBinding = new RegExp(`^(?:bin=|for\\s+bin\\s+in\\s+)${program}(?=\\s|$)`);
+  const boundBin = commands.some(command => binBinding.test(command));
+  const call = new RegExp(`^(?:(?:then|do|else|exec|command|npx|node)\\s+)*(?:${program}${boundBin ? '|"?\\$bin"?' : ''})\\s+hook\\s+${hook}(?=\\s|$)`);
+  return commands.some(command => call.test(command));
+}
+
+/** Report active Git hooks that do not delegate to Pullboard, without changing hook files [L3].
+ *
+ * @param {string} root
+ * @returns {{ code: string, message: string, next: string }[]}
+ */
+export function unwiredHookProblems(root) {
+  const dir = activeHooksDir(root);
+  return HOOKS.flatMap((hook) => {
+    const file = join(dir, hook);
+    let source;
+    try {
+      if ((statSync(file).mode & 0o111) === 0) return [];
+      source = readFileSync(file, 'utf8');
+    } catch { return []; }
+    if (delegatesHook(source, hook)) return [];
+    const path = relative(root, file);
+    return [{
+      code: 'HOOK_UNWIRED',
+      message: `active Git hook ${path} does not call pullboard hook ${hook}`,
+      next: `add this line: pullboard hook ${hook} "$@"`,
+    }];
+  });
 }
 
 /**
