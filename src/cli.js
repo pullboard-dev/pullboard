@@ -2,7 +2,7 @@
  * The pullboard command line: every command, bound to who is asking (B3, R3). The main checkout is the
  * coordinator; every other worktree is the agent that joined from it.
  */
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
@@ -78,6 +78,7 @@ import { readRelayMachine } from './relay-machine.js';
 import { relayJoin, relayPair } from './relay-pairing-client.js';
 import { executePersonRequests } from './relay-request-execution.js';
 import { engineReceipt } from './engine.js';
+import { land } from './land.js';
 
 const CHECKOUT_LEASES = new WeakMap();
 
@@ -209,6 +210,9 @@ const OPTIONS = {
   check: { type: 'string' },
   yes: { type: 'boolean' },
   landing: { type: 'boolean' },
+  adopt: { type: 'boolean' },
+  waive: { type: 'string' },
+  until: { type: 'string' },
   agent: { type: 'string' },
   'agent-light': { type: 'string' },
   'agent-mid': { type: 'string' },
@@ -490,7 +494,7 @@ async function bindCheckoutSession(io, positionals, values) {
     throw new Refused('USAGE', 'pullboard takeover takes no arguments; run pullboard takeover [--json]');
   }
   const writes = ['init', 'join', 'worktree', 'hooks', 'hook', 'skills', 'add', 'edit', 'fact', 'escalate', 'run', 'sweep',
-    'next', 'claim', 'hold', 'release', 'submit', 'done', 'verify', 'merged', 'withdraw', 'refreeze', 'reopen', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget'];
+    'next', 'claim', 'hold', 'release', 'submit', 'done', 'verify', 'merged', 'land', 'withdraw', 'refreeze', 'reopen', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget'];
   if (!writes.includes(command) && !(command === 'settings' && first) && !(command === 'spec' && first === 'apply') && !(command === 'relay' && ['on', 'off'].includes(first))) return;
   if (command === 'answer' && values.as === 'person') return;
   const digest = agentSessionDigest();
@@ -502,7 +506,8 @@ async function bindCheckoutSession(io, positionals, values) {
   let agent = info.isMain ? COORDINATOR : null;
   if (!info.isMain) {
     const ctx = context(io);
-    agent = withBoard(ctx, (board) => store.agentAt(board, info.root)?.agent_id);
+    agent = withBoard(ctx, (board) => store.agentAt(board, info.root)?.agent_id
+      ?? (command === 'hook' && store.landingBatches(board).some((batch) => batch.root === info.root && !['landed', 'blocked'].includes(batch.state)) ? COORDINATOR : null));
     if (!agent && command !== 'join') throw new Refused('NOT_JOINED', 'this worktree has not joined a lane; run pullboard join <lane> --model "<model name>"');
   }
   const lease = await bindLocalSession(info, { agent: agent ?? 'unjoined agent', digest, takeover: command === 'takeover', keepLease: !['run', 'next'].includes(command),
@@ -945,6 +950,7 @@ function resumeHere(io) {
       awaiting: all.filter((item) => item.item_status === 'submitted' && item.item_built_by === me.id),
       toVerify: all.filter((item) => item.item_status === 'submitted' && item.item_built_by !== me.id),
       toMerge,
+      ...(isMain ? { landingBatches: store.landingBatches(board) } : {}),
       open: all.filter((item) => item.item_status === 'open'),
       hold: store.laneHold(board, me.lane),
       holds: store.laneHolds(board),
@@ -993,6 +999,7 @@ function resumeHere(io) {
   else if (!isMain) for (const item of card.stale) say(`stale: ${item.message}; next: ${item.next}`);
   if (card.awaiting.length) say(`awaiting a verdict: ${card.awaiting.map((item) => `#${item.item_id} (${span(ctx, item.item_updated_at)})`).join(', ')}`);
   if (isMain) {
+    for (const batch of card.landingBatches.filter((entry) => !['landed', 'blocked'].includes(entry.state))) say(`landing ${batch.id}: ${batch.state}, owner ${batch.owner}, tip ${batch.tip}; log ${batch.logPath}; next: pullboard land --adopt`);
     /** Limit each text section; JSON keeps every record for a complete handoff. */
     const section = (entries, line) => {
       for (const entry of entries.slice(0, 3)) say(line(entry));
@@ -2162,6 +2169,25 @@ function workCommands(io, args) {
     submit: async () => submitHere(context(io), idArg(first)),
     done: async () => submitHere(context(io), idArg(first)),
     verify: () => verifyHere(context(io), idArg(first), args),
+    land: () => act(async (ctx, board, me) => {
+      if (me.id !== COORDINATOR || !ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'only the coordinator lands verified batches; ask your coordinator to run pullboard land');
+      if (first || second || rest.length) throw new Refused('USAGE', 'pullboard land [--max N] [--dry-run] [--adopt] | --waive <test> --until <date> --reason "why"');
+      if (values.waive !== undefined) {
+        requirePersonChannel(io.personChannel);
+        const waiver = await ordered(ctx, board, 'recordLandingWaiver', [{ agentId: store.PERSON, channel: io.personChannel ?? 'terminal',
+          id: randomUUID(), test: values.waive, until: values.until, reason: values.reason }]);
+        io.result?.({ batch: null, landed: [], conflicts: [], blocked: [], culprits: [], flakes: [], waiver });
+        io.say(`waived ${waiver.test} until ${waiver.until}: ${waiver.reason}`);
+        return 0;
+      }
+      if (values.until !== undefined || values.reason !== undefined || values.max !== undefined && (!/^[1-9][0-9]*$/u.test(values.max) || !Number.isSafeInteger(Number(values.max)))) throw new Refused('USAGE', 'use --max with a positive item count, or --waive with --until and --reason');
+      const result = await land({ root: ctx.info.root, board, config: mainPolicy(ctx.info.root).config,
+        write: (operation, parameters) => ordered(ctx, board, operation, parameters), say: io.say, owner: agentSessionDigest() ?? `pid-${process.pid}`,
+        maximum: values.max === undefined ? Infinity : Number(values.max), dryRun: Boolean(values['dry-run']), adopt: Boolean(values.adopt), onWait: gateWaitReporter(io) });
+      io.result?.(result);
+      if (!result.batch) io.say(result.items ? `would land: ${result.items.map((id) => `#${id}`).join(', ') || 'none'}` : 'no verified items ready to land');
+      return 0;
+    }),
     merged: () => act(async (ctx, board, me) => {
       const recovered = await relayCommandReceipt(ctx.info.root, io.relayCommand);
       if (recovered) {
@@ -2576,7 +2602,8 @@ async function hookCommand(io, { first, second }) {
   if (first === 'pre-commit' || first === 'pre-merge-commit') {
     applyFixers(info.root, ctx.config.fix).forEach((note) => io.err(`pullboard pre-commit: ${note}`));
     const agent = info.isMain ? null : withBoard(ctx, (board) => store.agentAt(board, info.root));
-    problems = preCommitProblems({ root: info.root, isMain: info.isMain, config: ctx.config, agent, boardFile: ctx.file });
+    const landing = withBoard(ctx, (board) => store.landingBatches(board).some((batch) => batch.root === info.root && !['landed', 'blocked'].includes(batch.state)));
+    problems = preCommitProblems({ root: info.root, isMain: info.isMain || landing, config: ctx.config, agent, boardFile: ctx.file });
   } else if (first === 'commit-msg') {
     const message = readFileSync(second ?? '', 'utf8');
     const spec = loadSpec(info.root, ctx.config);
@@ -2588,9 +2615,15 @@ async function hookCommand(io, { first, second }) {
     problems = prePushProblems(info.root, refsText);
     if (!problems.length) {
       const landing = pushesTrunk(refsText, trunkRef(info.root));
-      const gate = await runGate(info.root, ctx.config, { landing, onWait: gateWaitReporter(io) });
-      if (gate.isCached) io.say('pre-push: the gate passed on this exact tree; not running it twice');
-      if (!gate.isGreen) problems = [`the gate is red; fix it before pushing. ${gateReport(gate)}`];
+      const waived = landing && withBoard(ctx, (board) => store.waivedLandingProof(board, headTree(info.root)));
+      const recordedException = landing && withBoard(ctx, (board) => store.landingBatches(board).some((batch) => batch.proof?.tree === headTree(info.root) && batch.proof.failures?.length));
+      if (waived && isClean(info.root) && !untracked(info.root).length) io.say(`pre-push: exact landing tree covered by live person waivers in batch ${waived.id}; no ordinary green stamp`);
+      else if (recordedException) problems = ['the landing proof has an expired or missing person waiver; ask the person for a new expiring waiver'];
+      else {
+        const gate = await runGate(info.root, ctx.config, { landing, onWait: gateWaitReporter(io) });
+        if (gate.isCached) io.say('pre-push: the gate passed on this exact tree; not running it twice');
+        if (!gate.isGreen) problems = [`the gate is red; fix it before pushing. ${gateReport(gate)}`];
+      }
     }
   } else {
     throw new Refused('USAGE', 'pullboard hook pre-commit | pre-merge-commit | commit-msg <file> | pre-push');
