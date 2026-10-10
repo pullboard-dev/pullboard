@@ -199,7 +199,8 @@ test('the gate reaches the agent as a digest: one line when green, the failure w
   const log = join(box.repo, box.git(box.repo, 'rev-parse', '--git-path', 'pullboard-gate.log'));
   const green = box.run(box.repo, 'gate');
   assert.equal(green.code, 0, green.err);
-  assert.match(green.out, /^gate green in \d+s\n$/);
+  assert.match(green.out, /^gate green in \d+s; timing \(node\): wall [0-9.]+s, slot wait [0-9.]+s; per-test timing unavailable: output was not TAP or JUnit; timing profile: [^\n]+\n$/);
+  assert.equal(green.out.trimEnd().split('\n').length, 1, 'a green gate without file measurements remains one line');
   assert.ok(readFileSync(log, 'utf8').length > 1_200_000, 'more than the default 1 MB pipe buffer, read whole');
   writeFileSync(join(box.repo, 'RED'), 'red');
   box.git(box.repo, 'add', 'RED');
@@ -207,7 +208,7 @@ test('the gate reaches the agent as a digest: one line when green, the failure w
   const red = box.run(box.repo, 'gate');
   assert.equal(red.code, 1);
   assert.match(red.out, /^gate red in \d+s:\n {2}not ok 401 - the page renders a heading\n/);
-  assert.match(red.out, / {2}# note 99\nthe whole output is in /);
+  assert.match(red.out, / {2}# note 99\n[\s\S]*the whole output is in /);
   assert.ok(red.out.length < 4000, `${red.out.length} characters`);
   const lines = readFileSync(log, 'utf8').split('\n');
   assert.equal(lines.length, 502);
@@ -266,6 +267,7 @@ test('check runs the item\'s own check command, yours by default, and prints a d
   assert.equal(green.code, 0, green.out);
   assert.match(green.out, /^check green in \d+s: test -f web\/a.html/m);
   assert.equal(green.out.split('\n').filter(Boolean).length, 2);
+  assert.match(green.out, /timing \(test\): wall [0-9.]+s, slot wait [0-9.]+s; per-test timing unavailable: output was not TAP or JUnit; timing profile: /);
   assert.match(green.out, /^check #1 set by coordinator:/);
   assert.equal(box.run(box.repo, 'check', '1').code, 1, 'named, from another checkout: there the file is missing');
   assert.match(box.run(box.web, 'check', '2').err, /NO_CHECK.*#2 has no check command/);

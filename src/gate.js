@@ -347,7 +347,8 @@ export function gateReport(gate) {
   const profilePath = timings && gate.profilePath ? `\ntiming profile: ${gate.profilePath}` : '';
   if (gate.isGreen) {
     const summary = gate.isCached ? 'gate green (this tree already passed)' : `gate green in ${gate.seconds}s`;
-    return timings ? `${summary}\n${timings}${profilePath}` : summary;
+    if (!gate.profile?.files?.length) return timings ? `${summary}; ${timings.replaceAll('\n', '; ')}${gate.profilePath ? `; timing profile: ${gate.profilePath}` : ''}` : summary;
+    return `${summary}\n${timings}${profilePath}`;
   }
   return `gate red in ${gate.seconds}s:\n${digestOf(gate.output).replace(/^/gm, '  ')}\n${timings ? `${timings}\n` : ''}the whole output is in ${gate.log}${profilePath}`;
 }

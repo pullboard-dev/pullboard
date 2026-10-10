@@ -2195,9 +2195,11 @@ function workCommands(io, args) {
       }
       const run = await withGateSlot(ctx.info.root, (lease) => runProfiledShell(ctx.info.root, check, { waitMs: lease.waitMs, artifactPrefix: `pullboard-check-${item.item_id}`, persistLog: true }), { itemCheck: true, onWait: gateWaitReporter(io) });
       io.result?.({ id: item.item_id, green: run.isGreen, seconds: run.seconds, check, by, report: run.isGreen ? '' : digestOf(run.output) });
-      io.say(`check ${run.isGreen ? 'green' : 'red'} in ${run.seconds}s: ${check}`);
       const timings = timingDigest(run.profile);
-      if (timings) {
+      const compact = timings && !run.profile.files.length
+        ? `; ${timings.replaceAll('\n', '; ')}; timing profile: ${run.profilePath}` : '';
+      io.say(`check ${run.isGreen ? 'green' : 'red'} in ${run.seconds}s: ${check}${compact}`);
+      if (timings && run.profile.files.length) {
         io.say(timings);
         io.say(`timing profile: ${run.profilePath}`);
       }
