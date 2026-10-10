@@ -3,12 +3,14 @@
  * R2). The git-facing rules (V3, V4, V7) run against real repos in e2e.test.js.
  */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureGit } from './fixture-child.js';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, test } from 'node:test';
 import * as store from '../src/board.js';
+import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { exportBoard } from '../src/exchange.js';
 import { main } from '../src/cli.js';
 import { briefFiles } from '../src/brief.js';
 import { JSON_SHAPES } from '../src/json.js';
@@ -82,7 +84,7 @@ beforeEach(() => {
   store.register(board, { lane: 'api', path: '/repo-api-1' });
 });
 
-test('[B14] brief paths ignore sentence punctuation but still refuse a foreign path', async (t) => {
+test('[B14] notes in parentheses are not paths, and a foreign path still refuses', async (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-brief-files-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const repo = join(directory, 'repo');
@@ -99,6 +101,9 @@ test('[B14] brief paths ignore sentence punctuation but still refuse a foreign p
   }));
   const brief = 'Files:\n- src/x.js, README.md, docs/, make. folders). api/server.js.\nChange: add a page\nTest: check the page';
   assert.deepEqual(briefFiles(brief), ['src/x.js', 'README.md', 'docs/', 'api/server.js']);
+  const noted = 'Files:\n- src/a.js (only where a checked claim changed in 0.8.1 (see api/v1.js)) .8.1 1..2 0.8.1\n- src/b.js (main.moved and skills/ stay as they are)';
+  assert.deepEqual(briefFiles(noted), ['src/a.js', 'src/b.js']);
+  const unclosed = 'Files:\n- src/a.js (old note api/x.js';
 
   let stdout = '';
   let stderr = '';
@@ -112,6 +117,18 @@ test('[B14] brief paths ignore sentence punctuation but still refuse a foreign p
   assert.equal(code, 1, stdout);
   assert.match(stderr, /BRIEF_LANE.*api\/server\.js \(api's\)/);
   assert.doesNotMatch(stderr, /make\.|folders\)/);
+
+  let unclosedStderr = '';
+  const unclosedCode = await main([
+    'add', 'web', 'Page', '--route', 'light', '--criterion', 'the page renders', '--check', 'true', '--brief', `${unclosed}\nChange: update the page\nTest: check the page`,
+  ], {
+    cwd: repo,
+    stdout: { isTTY: false, write: () => {} },
+    stderr: { write: (text) => { unclosedStderr += text; } },
+  });
+  assert.equal(unclosedCode, 1);
+  assert.match(unclosedStderr, /BRIEF_LANE.*api\/x\.js/u);
+  assert.deepEqual(briefFiles(unclosed), ['src/a.js', 'api/x.js']);
 });
 
 test('agents are numbered per lane; one coordinator; a worktree joins once', () => {
@@ -124,6 +141,78 @@ test('agents are numbered per lane; one coordinator; a worktree joins once', () 
 test('the coordinator follows the main checkout when the repo moves', () => {
   assert.equal(store.ensureCoordinator(board, '/moved/repo'), 'coordinator');
   assert.equal(store.agentAt(board, '/moved/repo').agent_id, 'coordinator');
+});
+
+test('[N26,A2] milestones stay ordered and only the coordinator can edit them', () => {
+  const first = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Build' });
+  const second = store.addItem(board, { by: 'coordinator', lane: 'api', title: 'Publish' });
+  store.addMilestone(board, { agentId: 'coordinator', name: 'Release', note: 'Ship it', items: [first] });
+  store.addMilestone(board, { agentId: 'coordinator', name: 'Aftercare', items: [second] });
+  store.editMilestoneItems(board, 'Release', { agentId: 'coordinator', add: [second] });
+  assert.deepEqual(store.milestones(board).find(({ name }) => name === 'Release').items, [first, second], 'adding preserves item order');
+  store.editMilestoneItems(board, 'Release', { agentId: 'coordinator', remove: [second] });
+  assert.deepEqual(store.milestones(board).find(({ name }) => name === 'Release').items, [first], 'removing preserves the remaining order');
+  store.moveMilestone(board, 'Aftercare', { agentId: 'coordinator', before: 'Release' });
+  store.editMilestone(board, 'Aftercare', { agentId: 'coordinator', newName: 'Maintenance', note: 'Keep watching' });
+  assert.deepEqual(store.milestones(board).map(({ name }) => name), ['Maintenance', 'Release']);
+  assert.throws(() => store.addMilestone(board, { agentId: 'web-1', name: 'Forbidden' }), /COORDINATOR_ONLY/);
+
+  claimAs(second, 'api-1', 'api');
+  const current = store.roadmap(board);
+  assert.deepEqual(current.map(({ name, done, total }) => ({ name, done, total })), [
+    { name: 'Maintenance', done: 0, total: 1 },
+    { name: 'Release', done: 0, total: 1 },
+  ]);
+  assert.equal(current[0].items[0].status, 'claimed', "roadmap reads the item's current state");
+  store.submit(board, second, { agentId: 'api-1', commit: SHA_A, tree: 'tree-a' });
+  store.verify(board, second, {
+    agentId: 'web-2', decision: 'ACCEPT', reason: 'CRITERION_MET', note: 'checked the expected result',
+    head: SHA_A, digest: 'digest:Publish', policy: 'any',
+  });
+  assert.equal(store.roadmap(board)[0].done, 1, 'done counts follow verified item state');
+  store.removeMilestone(board, 'Maintenance', { agentId: 'coordinator' });
+  assert.deepEqual(store.milestones(board).map(({ name }) => name), ['Release']);
+  assert.equal(store.getItem(board, second).item_status, 'verified', 'removing a milestone leaves its item untouched');
+});
+
+test('[H3,H16] captured milestone operations replay identically on SQLite replicas', (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-milestone-replay-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const clock = { now: () => new Date('2026-10-08T00:00:00.000Z') };
+  const left = store.openBoard(join(directory, 'left.sqlite'), clock);
+  const right = store.openBoard(join(directory, 'right.sqlite'), clock);
+  t.after(() => { store.closeBoard(left); store.closeBoard(right); });
+  for (const replica of [left, right]) {
+    store.register(replica, { lane: 'coordinator', path: '/repo' });
+    store.register(replica, { lane: 'app', path: '/repo-app' });
+    store.addItem(replica, { by: 'coordinator', lane: 'app', title: 'Build' });
+    store.addItem(replica, { by: 'coordinator', lane: 'app', title: 'Publish' });
+    replica.db.prepare('UPDATE board_meta SET meta_value = ? WHERE meta_key = ?').run('a'.repeat(32), 'board_id');
+  }
+  const operations = [
+    ['addMilestone', [{ agentId: 'coordinator', name: 'Release', note: 'Ship', items: [1] }]],
+    ['addMilestone', [{ agentId: 'coordinator', name: 'Aftercare', items: [2] }]],
+    ['editMilestoneItems', ['Aftercare', { agentId: 'coordinator', add: [1] }]],
+    ['moveMilestone', ['Aftercare', { agentId: 'coordinator', before: 'Release' }]],
+    ['editMilestone', ['Release', { agentId: 'coordinator', newName: 'Launch', note: 'Ready' }]],
+    ['claim', [2, { agentId: 'app-1', lane: 'app', leaseMs: HOUR, freeze: () => ({ text: 'Publish', digest: 'digest:Publish' }) }]],
+    ['removeMilestone', ['Launch', { agentId: 'coordinator' }]],
+  ];
+  left.clock = { now: () => new Date('2026-10-08T01:00:00.000Z') };
+  right.clock = { now: () => new Date('2026-10-08T02:00:00.000Z') };
+  operations.forEach(([operation, args], index) => {
+    const move = prepareEngineMove(left, operation, args, { id: `milestone-${index}` });
+    const options = { sequence: index + 1, at: `2026-10-08T00:00:0${index}.000Z` };
+    assert.deepEqual(applyEngineMove(left, move, options), applyEngineMove(right, move, options));
+  });
+  const readClock = { now: () => new Date('2026-10-08T00:10:00.000Z') };
+  left.clock = readClock;
+  right.clock = readClock;
+  assert.deepEqual(store.milestones(left), store.milestones(right));
+  assert.deepEqual(store.events(left), store.events(right));
+  assert.deepEqual(store.roadmap(left), store.roadmap(right));
+  assert.deepEqual(exportBoard(left), exportBoard(right), 'native exports include matching metadata and replay receipts');
+  assert.equal(store.roadmap(left)[0].items[0].status, 'claimed');
 });
 
 test('a claim is a lease: renewable by its holder, free again once it lapses [B4]', () => {
@@ -215,7 +304,7 @@ test('a verifier releases its reserved review; another verifier can take it, and
     store.submit(durable, id, { agentId: builder, commit: SHA_A, tree: 'tree-a' });
     store.reserveReview(durable, id, { agentId: reviewer, leaseMs: HOUR, policy: 'any' });
 
-    assert.equal(store.release(durable, id, reviewer), true);
+    assert.equal(store.release(durable, id, reviewer, 'wrong tree'), true);
     assert.deepEqual(
       [store.getItem(durable, id).item_review_by, store.getItem(durable, id).item_review_until],
       [null, null],
@@ -542,6 +631,46 @@ test('changing a criterion or a check drops the frozen bar, in the open; the nex
   assert.equal(claimAs(id, 'web-1', 'web').digest, 'digest:Page');
 });
 
+test('edit after an expired claim reopens it and names its holder [B13]', () => {
+  const edits = [
+    { title: 'Criterion', change: { criterion: 'the new criterion' } },
+    { title: 'Check', change: { check: 'node --test' } },
+    { title: 'Route', change: { route: 'mid' } },
+  ];
+  for (const { title, change } of edits) {
+    const id = store.addItem(board, {
+      by: 'coordinator', lane: 'web', title, route: 'light', brief: BRIEF,
+      criterion: 'the old criterion', check: 'true',
+    });
+    claimAs(id, 'web-1', 'web');
+    clock.advance(2 * HOUR + 1);
+    assert.doesNotThrow(
+      () => store.editItem(board, id, { agentId: 'coordinator', ...change }),
+      `an expired ${title.toLowerCase()} edit must reopen the item before writing its fields`,
+    );
+    const stored = store.itemById(board, id);
+    assert.deepEqual([stored.item_status, stored.item_owner, stored.item_lease_until], ['open', null, null]);
+    assert.equal(stored.item_frozen_digest, null);
+    const event = store.events(board, { itemId: id }).findLast((entry) => entry.event_kind === 'edit');
+    assert.equal(event.event_by, 'coordinator');
+    assert.equal(JSON.parse(event.event_detail).expiredHolder, 'web-1');
+    assert.equal(JSON.parse(event.event_detail).unfrozen, `digest:${title}`);
+  }
+
+  const live = store.addItem(board, {
+    by: 'coordinator', lane: 'web', title: 'Live', route: 'light', brief: BRIEF,
+    criterion: 'the old criterion', check: 'true',
+  });
+  claimAs(live, 'web-1', 'web');
+  const digest = store.itemById(board, live).item_frozen_digest;
+  assert.throws(() => store.editItem(board, live, { agentId: 'coordinator', criterion: 'not yet' }), /HELD/);
+  assert.deepEqual(
+    [store.itemById(board, live).item_status, store.itemById(board, live).item_owner, store.itemById(board, live).item_frozen_digest],
+    ['claimed', 'web-1', digest],
+  );
+  assert.equal(store.events(board, { itemId: live }).some((entry) => entry.event_kind === 'edit'), false);
+});
+
 test('escalate frees an item one tier up, with what was tried attached [B15]', () => {
   store.register(board, { lane: 'web', path: '/repo-web-3', route: 'light' });
   const id = routed('Rename', 'light');
@@ -696,7 +825,7 @@ test('[O3] declared families travel from join through submit and verdict, and ab
     GIT_COMMITTER_EMAIL: 'agent@example.com',
   };
   /** Run Git with isolated identity and configuration in the fixture repository. */
-  const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
   git(repo, 'init', '-q', '-b', 'main');
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({
     gate: 'true',

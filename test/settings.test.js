@@ -1,17 +1,18 @@
 /** Machine-wide gate capacity settings through the actual CLI [O5,O6]. */
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir, userInfo } from 'node:os';
 import { join, resolve } from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
+import { runFixtureChild } from './fixture-child.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const MACHINE_HOME_MODULE = resolve(import.meta.dirname, '../src/machine-home.js');
 
 /** Run settings in an isolated machine home, returning its structured CLI result. */
 function settings(home, ...args) {
-  return spawnSync(process.execPath, [BIN, 'settings', ...args, '--json'], {
+  return runFixtureChild(process.execPath, [BIN, 'settings', ...args, '--json'], {
     encoding: 'utf8', env: { ...process.env, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: home },
   });
 }

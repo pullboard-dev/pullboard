@@ -1,7 +1,56 @@
 # Relay authentication
 
-This module implements the GitHub App sign-in and authorization boundary for the
-opt-in relay. It does not start a public server or change any repository.
+## Deploy the service
+
+The container definition is `relay/Dockerfile`; its build context must be the
+repository root because the service imports `src/` modules. The service listens on
+Railway's `PORT` at `0.0.0.0`, and `GET /health` returns `200` after startup.
+It stores the auth database at `/data/auth.sqlite`, board journals under
+`/data/boards/`, and private backups under `/data/backups/`. Attach one Railway
+volume at `/data`; do not scale this SQLite service to multiple replicas.
+The entry point prepares that root-mounted directory, then runs the server as
+the image's unprivileged `node` user. For Railway volumes, configure
+`RAILWAY_RUN_UID=0` so startup can set the directory ownership before dropping
+privileges.
+
+For #113, the person completes these account steps:
+
+1. Create the Pullboard GitHub App. Set its callback to
+   `https://app.pullboard.dev/auth/github/callback`, grant repository Metadata
+   read-only permission, and enable device flow. Create its client id, client
+   secret and RSA private key.
+2. Create the Railway project and service for this repository. In service
+   settings, keep the root directory `/` so the Docker build can copy `src/`,
+   choose `relay/Dockerfile`, set the start command to
+   `node relay/server.mjs`, and set the health check path to `/health`. Attach
+   one persistent volume at `/data`; the auth database, board journals and
+   backups live at `/data/auth.sqlite`, `/data/boards/` and `/data/backups/`.
+   Set `RAILWAY_RUN_UID=0` so startup can prepare the root-mounted volume before
+   dropping to the image's `node` user. Set
+   `PULLBOARD_PUBLIC_ORIGIN=https://app.pullboard.dev`,
+   `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, and
+   `GITHUB_APP_PRIVATE_KEY` in Railway's service variables. Keep the secret
+   values in Railway, never in git.
+3. Give the service the `app.pullboard.dev` domain and point DNS at the target
+   Railway provides. Wait for the `/health` check to pass before directing
+   clients to it.
+
+The smoke command is `node relay/smoke.mjs <address>`. It uses the current
+repository as a disposable smoke board: it links, creates one uniquely named
+item, reads and unseals its mirrored move, then unlinks. Use a throwaway
+repository and relay when running it against a live deployment. Unlink removes
+the local link and key; the sealed relay copy remains until you approve deleting
+it on the paired phone. The smoke prints this cleanup notice. Tests run the same
+script against a private loopback relay.
+
+Railway's current Infrastructure as Code uses the `railway/iac` package. This
+dependency-free project keeps the deployment settings in the service checklist
+above instead of adding a Railway SDK dependency. Recheck Railway's current
+configuration format before creating a new service.
+
+The auth and API modules implement the GitHub App sign-in and authorization
+boundary for the opt-in relay. `server.mjs` is the public container entry point;
+the library handlers remain embeddable for tests and other local transports.
 
 Create the GitHub provider with `createGitHubClient` from `github.js`. Configuration
 names are `clientId`, `clientSecret`, `privateKey` (RSA PEM), and `callbackURL`.
@@ -112,6 +161,16 @@ byte JSON-body limit. Snapshots allow a bounded 14,000,000 byte JSON body and
 identity, format, head cursor, receive times, public sender identities and sealed payloads. Compaction
 keeps the head cursor, so the next move never reuses an earlier sequence.
 
+Every CLI relay request carries `X-Pullboard-Engine` with its executable engine
+version. Board-content requests require engine 3 once the board has issued any
+agent token. Revocation, expiry and a service restart do not lower that minimum;
+unlink ends that board lifetime. Boards without agent tokens remain compatible
+with engine 1 and 2. An omitted header means legacy engine 1; a malformed or
+older declaration receives `ENGINE_VERSION` with upgrade guidance before any
+record is read, accepted or deleted. Live streams recheck this minimum between
+polls. Listing board identities and signing in do not expose sealed records and
+remain available to older clients.
+
 Bearer credentials work for agents and CLI calls. Browser session-cookie reads
 require a configured trusted publicOrigin; cookie writes require that exact
 Origin. Duplicate cookies are refused, and neither credentials nor board keys
@@ -124,9 +183,16 @@ Sender is derived only from the freshly authenticated credential: a board token
 gives {kind: 'agent', userId, agent}; a person's session gives {kind: 'person', userId}.
 It contains no credential, token id, login or board key. This attribution is saved
 with every event and snapshot and returned unchanged through reads and streams.
-An agent's client must compare the unsealed move's agent with sender.agent before
-applying it; a mismatch is an impersonation attempt. The opaque relay cannot do
-that comparison itself. Snapshot replacement and deletion refuse agent tokens
+Each receiving client compares the unsealed operation's acting agent with
+sender.agent before applying moves or requests. Agent senders cannot answer as
+the person, approve or decline spec rows, or create the person's requests.
+Missing attribution and mismatched actors are refused. A refusal advances the
+replica's sequence atomically with a durable receipt and a `relay_refused` log
+entry naming the authenticated sender and attempted actor; it changes no item,
+shout or verdict. The opaque relay cannot do that comparison itself. Receivers
+also require a person sender before restoring a snapshot. This replay behavior
+uses engine version 3; the event-log format remains version 1.
+Snapshot replacement and deletion refuse agent tokens
 with HUMAN_REQUIRED (403), before reading their bodies or changing storage.
 Journal format 2 requires attribution; the unshipped format-1 prototype is refused
 rather than inventing an identity for historical records.

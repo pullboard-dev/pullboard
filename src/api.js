@@ -6,11 +6,19 @@ import * as store from './board.js';
 import { COORDINATOR, loadConfig } from './config.js';
 import { repoInfo } from './git.js';
 import { refusalDocument } from './json.js';
+import { relayLinked, relayOperation, relayRevoke, relayTokens } from './relay.js';
 import { laneNames } from './lanes.js';
 import { listApiProjects } from './projects.js';
+import { milestoneRoadmap } from './roadmap.js';
+import { proofStats } from './stats.js';
+import { projectRowDecisions } from './row-decisions.js';
 import { Refused } from './refused.js';
 import { codeAt, projectState } from './serve.js';
+import { relayPresentationShout } from './relay-presentation.js';
 import { createApiHandler } from './api-http.js';
+import { moveArgs } from './api-moves.js';
+import { personRequestStatuses } from './relay-requests.js';
+export { moveArgs } from './api-moves.js';
 
 const ADDRESS = '127.0.0.1';
 const VERSION = 1;
@@ -43,8 +51,8 @@ function apiBoardListing(projects = listApiProjects) {
   for (const project of projects()) {
     try {
       boards.push(withBoard(project.root, (board) => ({ ...project, id: store.boardId(board) })));
-    } catch {
-      const error = new Refused('BOARD_UNAVAILABLE', `registered project ${project.root} cannot be read; restore the repo or run pullboard forget ${project.root}`);
+    } catch (cause) {
+      const error = cause.code === 'EVENT_LOG_VERSION' ? cause : new Refused('BOARD_UNAVAILABLE', `registered project ${project.root} cannot be read; restore the repo or run pullboard forget ${project.root}`);
       warnings.push({ ...project, error: refusalDocument(error) });
     }
   }
@@ -67,68 +75,18 @@ function afterEvents(root, after) {
 function agentPath(root, name = COORDINATOR) {
   if (typeof name !== 'string' || !name) throw new Refused('BAD_REQUEST', 'agent needs a registered name; omit it to act as the coordinator');
   return withBoard(root, (board, info) => {
-    if (name === COORDINATOR) store.ensureCoordinator(board, root);
+    if (name === COORDINATOR && !relayLinked(root)) store.ensureCoordinator(board, root);
     const agent = store.listAgents(board).find((entry) => entry.agent_id === name);
     if (!agent) throw new Refused('NO_AGENT', `no registered agent ${name}; use the agents in this board's state or join a worktree first`);
+    // A clone shares the coordinator identity, but resolves its main checkout locally.
+    if (name === COORDINATOR && relayLinked(root)) return root;
     if (repoInfo(agent.agent_path).commonDir !== info.commonDir) throw new Refused('WRONG_BOARD', `agent ${name}'s worktree belongs to another board; join the agent in this board's worktree`);
     return agent.agent_path;
   });
 }
 
-/** Declarative CLI forms keep API calls on the same argument parser and engine as terminal moves. */
-const MOVES = {
-  add: { positions: ['lane', 'title'], flags: ['criterion', 'specs', 'parent', 'after', 'brief', 'route', 'check'] },
-  edit: { item: true, flags: ['criterion', 'brief', 'route', 'check'] },
-  claim: { item: true },
-  release: { item: true },
-  submit: { item: true },
-  done: { item: true },
-  verify: { item: true, positions: ['decision'], flags: ['reason', 'note', 'as'] },
-  merged: { item: true, positions: ['commit'] },
-  withdraw: { item: true, positions: ['reason'] },
-  refreeze: { item: true },
-  escalate: { item: true, flags: ['note'] },
-  hold: { positions: ['lane'], flags: ['reason'], booleans: ['off'] },
-  shout: { positions: ['to', 'text'], optional: ['to'], booleans: ['decision'], flags: ['evidence', 'outcome', 'item', 'commit'] },
-  answer: { item: true, positions: ['text'], flags: ['as'] },
-  pass: { item: true, positions: ['note'] },
-  next: { flags: ['as'], booleans: ['verify'] },
-};
-
-/** Reject unsupported fields, then pass values as distinct argv entries, never a shell command. */
-export function moveArgs({ verb, item, args = {} }) {
-  if (verb === 'accept' || verb === 'reject') return moveArgs({ verb: 'verify', item, args: { ...args, decision: verb } });
-  const form = Object.hasOwn(MOVES, verb) ? MOVES[verb] : null;
-  if (!form) throw new Refused('BAD_REQUEST', `no API move ${String(verb)}; use a board move such as add, claim, submit, verify, shout or answer`);
-  if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Refused('BAD_REQUEST', 'args needs a JSON object containing this move\'s arguments');
-  const allowed = [...(form.positions ?? []), ...(form.flags ?? []), ...(form.booleans ?? [])];
-  for (const key of Object.keys(args)) if (!allowed.includes(key)) throw new Refused('BAD_REQUEST', `${verb} does not take args.${key}; use only this CLI move's arguments`);
-  const argv = [verb];
-  if (form.item) {
-    if (!Number.isSafeInteger(item) || item < 1) throw new Refused('BAD_REQUEST', `${verb} needs a positive integer item; use the item id from the board state`);
-    argv.push(String(item));
-  } else if (item !== undefined && item !== null) throw new Refused('BAD_REQUEST', `${verb} does not take item; put its arguments in args`);
-  const positional = [];
-  for (const key of form.positions ?? []) {
-    if (args[key] === undefined && form.optional?.includes(key)) continue;
-    if (typeof args[key] !== 'string' || !args[key].trim()) throw new Refused('BAD_REQUEST', `${verb} needs args.${key} as nonempty text; supply the CLI move's argument`);
-    positional.push(args[key]);
-  }
-  for (const key of form.flags ?? []) if (args[key] !== undefined) {
-    if (typeof args[key] !== 'string') throw new Refused('BAD_REQUEST', `args.${key} needs text; supply the CLI flag's value`);
-    argv.push(`--${key}=${args[key]}`);
-  }
-  for (const key of form.booleans ?? []) if (args[key] !== undefined) {
-    if (typeof args[key] !== 'boolean') throw new Refused('BAD_REQUEST', `args.${key} needs true or false`);
-    if (args[key]) argv.push(`--${key}`);
-  }
-  // Positionals follow -- so titles and notes beginning with a dash never become CLI flags.
-  argv.push('--json', '--', ...positional);
-  return argv;
-}
-
 /** Execute one actual CLI command and retain its emitted event without a latest-row race. */
-async function executeMove(root, body, runCommand) {
+export async function executeMove(root, body, runCommand) {
   if (Object.keys(body).some((key) => !['verb', 'item', 'args', 'agent'].includes(key))) throw new Refused('BAD_REQUEST', 'a move takes only verb, item, args and agent; remove the unknown fields');
   const argv = moveArgs(body);
   let cwd;
@@ -141,12 +99,14 @@ async function executeMove(root, body, runCommand) {
   const events = [];
   const status = await runCommand(argv, {
     cwd,
+    personChannel: 'view',
     stdout: { isTTY: false, write: (text) => { output += text; } },
     stderr: { write: (text) => { diagnostics += text; } },
     onEvent: (row) => { events.push(row); },
   });
   const result = JSON.parse(output);
   if (status) return { status: 409, body: result };
+  if (body.verb === 'next' && result.offer) return { status: 200, body: { version: VERSION, event: null, result, offer: result.offer } };
   const kind = body.verb === 'verify' ? body.args?.decision
     : body.verb === 'done' ? 'submit'
     : body.verb === 'hold' && body.args?.off ? 'unhold' : body.verb;
@@ -156,10 +116,17 @@ async function executeMove(root, body, runCommand) {
 }
 
 /** Create a person's coordinator request through the same shout transaction as the CLI. */
-function createRequest(root, body) {
+async function createRequest(root, body) {
   if (typeof body.text !== 'string' || !body.text.trim() || Object.keys(body).some((key) => key !== 'text')) throw new Refused('BAD_REQUEST', 'a request needs {text: "what the coordinator should do"}');
+  const message = { from: 'person', to: COORDINATOR, text: body.text, request: true, lanes: laneNames(loadConfig(root)) };
+  if (relayLinked(root)) {
+    const id = await relayOperation(root, 'shout', [message], { err: () => {} });
+    return withBoard(root, (board) => ({ version: VERSION,
+      event: store.events(board).find((event) => JSON.parse(event.event_detail).shout === id),
+      result: { id, request: true } }));
+  }
   return withBoard(root, (board) => {
-    const id = store.shout(board, { from: 'person', to: COORDINATOR, text: body.text, request: true, lanes: laneNames(loadConfig(root)) });
+    const id = store.shout(board, message);
     return { version: VERSION, event: board.lastEvent, result: { id, request: true } };
   });
 }
@@ -183,15 +150,39 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     boards: () => apiBoardListing(projects),
     board: (id) => findBoard(id, projects),
     state: (board, who, seen) => {
-      const state = projectState(board.root, { seen });
+      let state = projectState(board.root, { seen });
       state.board = board.id;
-      state.requests = withBoard(board.root, (db) => store.openRequests(db));
+      const projectData = withBoard(board.root, (db) => ({
+        requests: store.openRequests(db),
+        personRequests: personRequestStatuses(db),
+        milestones: milestoneRoadmap(board.root, db),
+        rowDecisions: store.rowDecisions(db),
+        checks: new Map(store.listItems(db, { all: true }).map((item) => store.getItem(db, item.item_id)).map((item) => [item.item_id, {
+          check: item.item_check,
+          ...(item.item_check_baseline ? { checkBaseline: item.item_check_baseline } : {}),
+        }])),
+        proofStats: proofStats(db),
+        threads: new Map(store.listItems(db, { all: true }).map((item) => [item.item_id, store.itemThread(db, item.item_id)])),
+      }));
+      state.proofStats = projectData.proofStats;
+      state.requests = projectData.requests;
+      state.personRequests = projectData.personRequests;
+      state.milestones = projectData.milestones;
+      state.items = state.items.map((item) => ({ ...item, ...projectData.checks.get(item.id) }));
+      state = projectRowDecisions(projectData.rowDecisions, state);
+      state.items = state.items.map((item) => ({ ...item, thread: projectData.threads.get(item.id) ?? [] }));
       return state;
     },
+    shout: (board, id) => relayLinked(board.root)
+      ? relayPresentationShout(board.root, id)
+      : withBoard(board.root, (db) => store.shoutDetails(db, id)),
     code: (board, ref) => codeAt(board.root, ref),
     events: (board, after) => afterEvents(board.root, after),
+    eventLogVersion: () => store.EVENT_LOG_VERSION,
     move: (board, body) => executeMove(board.root, body, runCommand),
     request: (board, body) => createRequest(board.root, body),
+    tokens: async (board) => (await relayTokens(board.root, { err() {} })).tokens,
+    revokeToken: (board, id) => relayRevoke(board.root, id, { personChannel: 'view', say() {}, err() {} }),
   });
 }
 

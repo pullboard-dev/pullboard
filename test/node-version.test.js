@@ -4,7 +4,7 @@
  * run on whatever Node runs the suite.
  */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync } from './fixture-child.js';
 import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -34,7 +34,7 @@ test('an older Node is told what to install, never a stack trace; 22.13 and newe
   for (const version of ['22.13.0', '24.0.0']) {
     const result = spawnSync(process.execPath, ['--import', spoof(version), BIN, '--help'], { encoding: 'utf8' });
     assert.equal(result.status, 0, `${version} runs: ${result.stderr}`);
-    assert.match(result.stdout, /^pullboard \d+\.\d+\.\d+/, `${version} prints the help`);
+    assert.match(result.stdout, /^New here\? pullboard tour, then pullboard init\.\nPullboard is a local-first work board/, `${version} prints the short overview`);
   }
 });
 
@@ -94,7 +94,7 @@ test('the real entrypoint versions old-Node refusals and honors JSON flag positi
       assert.equal(result.stderr, '');
       const document = JSON.parse(result.stdout);
       assert.equal(document.version, 1);
-      assert.match(document.help, /^pullboard \d+\.\d+\.\d+/);
+      assert.match(document.help, /^New here\? pullboard tour, then pullboard init\.\nPullboard is a local-first work board/);
     }
   }
 });

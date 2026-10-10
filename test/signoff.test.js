@@ -1,6 +1,6 @@
 /** SSH sign-off opt-in, rotation, row requirements and tamper rejection [S17,S18,S19,S20,S21]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, fixtureChildMessage, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -20,7 +20,8 @@ function shellWord(value) { return `'${value.replaceAll("'", "'\\''")}'`; }
 
 /** Create a throwaway OpenSSH Ed25519 private and public key pair. */
 function makeKey(path) {
-  execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', 'test@example.invalid', '-f', path], { stdio: 'pipe' });
+  const result = runFixtureChild('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', 'test@example.invalid', '-f', path], { encoding: 'utf8' });
+  assert.equal(result.status, 0, fixtureChildMessage(result));
   return { privateKey: path, publicKey: `${path}.pub` };
 }
 
@@ -49,8 +50,8 @@ function fixture(t) {
     GIT_COMMITTER_EMAIL: 'co@example.invalid',
     PULLBOARD_HOME: join(dir, 'home'),
   };
-  const git = (...args) => execFileSync('git', args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' }).trim();
-  const run = (...args) => spawnSync(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
+  const git = (...args) => runFixtureGit(args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' });
+  const run = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'CO');
   git('config', 'user.email', 'co@example.invalid');
@@ -58,7 +59,7 @@ function fixture(t) {
   const initialized = run('init');
   assert.equal(initialized.status, 0, initialized.stderr);
   writeFileSync(join(root, 'SPEC.md'), SPEC);
-  writeFileSync(join(root, 'PRACTICE.md'), '# Practice\n');
+  writeFileSync(join(root, 'DOCTRINE.md'), '# Doctrine\n');
   mkdirSync(join(root, 'test'));
   writeFileSync(join(root, 'test', 'proof.test.js'), "import { test } from 'node:test';\ntest('proof [G1]', () => {});\n");
   git('add', '-A');
@@ -122,6 +123,7 @@ test('[S17,S18,S19,S20,S21] signed rows require every named principal and surviv
   writeFileSync(join(box.root, 'SPEC.md'), SPEC.replace('Exact row text is signed.', 'The exact approved row text is signed.'));
   const stale = JSON.parse(succeeds(box, 'show', 'G1', '--json').stdout);
   assert.equal(stale.standing.stale.length, 2, 'cryptographically valid records become stale when row text changes');
+  succeeds(box, 'signoff', 'G1', '--by', 'AB', '--note', 'approved the exact changed row');
 
   box.git('add', 'SPEC.md', '.pullboard/signers', '.pullboard/signers.initial', '.pullboard/first-commit', '.pullboard/signoffs.jsonl');
   box.git('commit', '-q', '-m', 'chore: record signed sign-offs');

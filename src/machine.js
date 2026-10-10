@@ -9,6 +9,9 @@
  * broken copy, and checks the declaration against the refusals board.js and cli.js raise today.
  */
 
+/** Executable move semantics, carried by every sealed move and retained during replay [H16]. */
+export const ENGINE_VERSION = 7;
+
 /** @typedef {'agent' | 'coordinator' | 'clock'} Role */
 
 /**
@@ -104,25 +107,33 @@ export const GUARDS = [
   { id: 'dependenciesVerified', refuse: 'BLOCKED', rule: 'every item it waits on is verified', next: 'claim another item, or shout the lane it waits on', source: 'board' },
   { id: 'notHeldByAnother', refuse: 'HELD', rule: 'no other agent holds it under a live lease', next: 'pullboard next', source: 'board' },
   { id: 'laneOpen', refuse: 'LANE_HELD', rule: 'nobody holds its lane', next: 'pullboard next --wait 9 (minutes)', source: 'board', when: 'unless the caller is renewing its own live claim' },
+  { id: 'itemNotHeld', refuse: 'ITEM_HELD', rule: 'the coordinator has not put this item on hold', next: 'the coordinator lifts it with pullboard hold <id> --off', source: 'board', when: 'unless the caller is renewing its own live claim' },
   { id: 'oneLiveClaim', refuse: 'ONE_CLAIM', rule: 'the caller holds no other live top-level claim, reworks of its own rejected items aside', next: 'submit or release the other item first; child items are free', source: 'board' },
-  { id: 'rowsInForce', refuse: 'UNKNOWN_SPEC', alsoRefuses: [{ code: 'A5_GRAMMAR_VERSION', next: 'upgrade Pullboard or use a file written for grammar 1' }], rule: 'every row the item cites exists and is in force', next: 'fix the spec, or the coordinator withdraws the item', source: 'board', when: 'only where the criterion freezes: claiming an item with no frozen criterion, and refreeze' },
+  { id: 'rowsInForce', refuse: 'UNKNOWN_SPEC', alsoRefuses: [{ code: 'A5_GRAMMAR_VERSION', next: 'upgrade Pullboard or use a file written for grammar 1' }, { code: 'NO_POLICY', next: 'restore the committed coordinator policy' }, { code: 'BAD_CONFIG', next: 'repair and commit the coordinator configuration' }], rule: 'every row the item cites exists and is in force', next: 'fix the spec, or the coordinator withdraws the item', source: 'board', when: 'only where the criterion freezes: claiming an item with no frozen criterion, and refreeze' },
   { id: 'criterionUnchanged', refuse: 'CRITERIA_CHANGED', rule: 'the criterion and the rows it cites read as they did at claim', next: 'the coordinator runs pullboard refreeze <id>', source: 'cli' },
   { id: 'treeClean', refuse: 'DIRTY', rule: 'the worktree has no uncommitted changes', next: 'commit your changes, then submit', source: 'cli' },
   { id: 'nothingUntracked', refuse: 'UNTRACKED', rule: 'the worktree has no untracked files', next: 'commit or ignore them, then submit', source: 'cli' },
   { id: 'hasCommit', refuse: 'NO_COMMIT', rule: 'there is a commit to submit', next: 'commit your work, then submit', source: 'cli' },
   { id: 'gateConfigured', refuse: 'NO_GATE', rule: 'the repo names a gate command', next: 'set "gate" in pullboard.json, e.g. "npm test"', source: 'cli' },
-  { id: 'gateGreen', refuse: 'GATE_RED', rule: 'the gate, which submit runs itself every time, is green at HEAD', next: 'fix what the digest names, commit, submit again', source: 'cli' },
+  { id: 'withinLane', refuse: 'OUTSIDE_LANE', alsoRefuses: [{ code: 'NO_POLICY', next: 'restore the claim base or ask the coordinator to refreeze' }, { code: 'BAD_CONFIG', next: 'restore the committed coordinator configuration' }, { code: 'GIT_GRAFTS', next: 'ask the coordinator to remove the Git graft file before retrying' }], rule: 'the full claimed diff respects committed coordinator ownership', next: 'restore foreign paths or shout their owner', source: 'cli' },
+  { id: 'trunkMergeClean', refuse: 'MERGE_CONFLICT', alsoRefuses: [{ code: 'MERGE_CHECK_FAILED', next: 'use Git 2.38 or newer, restore its objects and retry' }, { code: 'NO_POLICY', next: 'restore the primary repository metadata' }, { code: 'NO_TRUNK', next: 'check out the trunk branch in the main checkout once and run pullboard inbox' }], rule: 'the candidate merges cleanly into the current primary branch without changing an index or worktree', next: 'merge the trunk into your branch, resolve conflicts, commit and resubmit', source: 'cli' },
+  { id: 'noUnverifiedStack', refuse: 'STACKED_ON_UNVERIFIED', rule: "the candidate range contains no other item's unverified submitted commit", next: 'wait for that item to be accepted, or rebuild without its commits', source: 'cli' },
+  { id: 'itemCheckGreen', refuse: 'CHECK_RED', alsoRefuses: [{ code: 'CHECK_UNVERIFIED', next: 'restore the frozen install or check environment and retry' }], rule: 'the frozen item check passes at the exact submitted commit', next: 'reject the failing behavior; the builder fixes and resubmits', source: 'cli' },
+
+  { id: 'gateGreen', refuse: 'GATE_RED', alsoRefuses: [{ code: 'PIPEFAIL_UNAVAILABLE', next: 'rewrite the gate without a pipe' }], rule: 'the gate, which submit runs itself every time, is green at HEAD', next: 'fix what the digest names, commit, submit again', source: 'cli' },
   { id: 'treeStillDuringGate', refuse: 'MOVED_DURING_GATE', rule: 'when the gate ends, HEAD and every tracked file are as they were when it started', next: 'leave the worktree alone until the gate finishes, then submit again', source: 'cli' },
   { id: 'childrenDone', refuse: 'CHILDREN_OPEN', rule: 'every child item is verified or withdrawn', next: 'finish the child items, or the coordinator withdraws them', source: 'board' },
   { id: 'headIsNew', refuse: 'HEAD_NOT_NEW', rule: 'a verifier has not already rejected this commit', next: 'commit the rework, then submit', source: 'board' },
-  { id: 'atSubmittedCommit', refuse: 'NOT_AT_COMMIT', rule: "the caller's checkout contains the submitted commit", next: 'git switch --detach <commit>', source: 'cli' },
+  { id: 'atSubmittedCommit', refuse: 'NOT_AT_COMMIT', alsoRefuses: [{ code: 'OUTSIDE_LANE', next: 'restore foreign paths before accepting' }, { code: 'NO_POLICY', next: 'restore the frozen policy objects' }, { code: 'BAD_CONFIG', next: 'repair the committed coordinator configuration' }, { code: 'GIT_GRAFTS', next: 'ask the coordinator to remove the Git graft file before retrying' }], rule: "the caller's checkout contains the submitted commit", next: 'git switch --detach <commit>', source: 'cli' },
   { id: 'notBuilder', refuse: 'SELF_VERIFY', rule: 'the caller did not build it', next: 'another agent verifies it: pullboard next --verify', source: 'board' },
   { id: 'policyAllows', refuse: 'COORDINATOR_VERIFIES', rule: "the repo's verify policy lets the caller verify this lane's work", next: 'the coordinator verifies it', source: 'board' },
-  { id: 'familyAllows', refuse: 'O2_FAMILY_MATCH', rule: 'the builder and verifier have known, different declared families', next: 'ask the coordinator for a verifier from another declared family', source: 'board', when: 'verify.family is require' },
+  { id: 'familyAllows', refuse: 'O2_FAMILY_MATCH', rule: 'the builder and verifier have different declared families; an undeclared family counts as a match', next: 'ask the coordinator for a verifier from another declared family', source: 'board', when: 'only when verify.family is require' },
   { id: 'reviewFree', refuse: 'REVIEW_HELD', rule: 'no other agent holds its review under a live lease', next: 'pullboard next --verify, which passes over reviews another agent holds', source: 'board' },
   { id: 'reasonIsMet', refuse: 'BAD_REASON', rule: 'an accept gives CRITERION_MET as its reason', next: 'a failed criterion is a reject: pullboard verify <id> reject --reason CODE', source: 'board' },
   { id: 'proofNoted', refuse: 'PROOF_REQUIRED', rule: 'an accept notes how it was proved', next: '--note "what you broke or which edge you tried, and what happened"', source: 'board' },
   { id: 'reasonCoded', refuse: 'BAD_REASON', rule: 'a reject names one of the reject reasons', next: '--reason TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD or OTHER', source: 'board' },
+  { id: 'reviewReleaseExplained', refuse: 'NOTE_REQUIRED', rule: 'a review release gives a nonempty one-line reason', next: 'release with --note "why", or --note-file <file>', source: 'board', when: 'engine 5 or newer, only when freeing a submitted review reservation' },
+  { id: 'reviewCooldownElapsed', refuse: 'REVIEW_COOLDOWN', rule: 'the reviewer has not released this submission within the past hour', next: 'let another reviewer take it, or wait an hour or for a new submission', source: 'board', when: 'engine 5 or newer, only for the same reviewer and current submission' },
   { id: 'noteGiven', refuse: 'NOTE_REQUIRED', rule: 'the move carries a note: what failed, what was tried, or why', next: '--note "..." or --note-file <file>', source: 'board' },
 ];
 
@@ -130,27 +141,27 @@ export const GUARDS = [
 export const MOVES = [
   {
     verb: 'claim', from: ['open', 'claimed'], to: 'claimed', by: ['agent', 'coordinator'], refuse: 'NOT_CLAIMABLE',
-    guards: ['joined', 'itemExists', IN_STATE, 'inLane', 'routeAllows', 'dependenciesVerified', 'notHeldByAnother', 'laneOpen', 'oneLiveClaim', 'rowsInForce'],
+    guards: ['joined', 'itemExists', IN_STATE, 'itemNotHeld', 'inLane', 'routeAllows', 'dependenciesVerified', 'notHeldByAnother', 'laneOpen', 'oneLiveClaim', 'rowsInForce'],
     sets: ['item_owner', 'item_lease_until', 'item_frozen_digest'], command: 'pullboard claim <id>',
   },
   {
     verb: 'release', from: ['claimed'], to: 'open', by: ['agent', 'coordinator'], refuse: 'NOT_YOURS',
-    guards: ['joined', 'itemExists', IN_STATE, 'isHolder'], command: 'pullboard release <id>',
+    guards: ['joined', 'itemExists', IN_STATE, 'isHolder', 'reviewReleaseExplained'], command: 'pullboard release <id>',
   },
   { verb: 'lapse', from: ['claimed'], to: 'open', by: ['clock'], guards: [], when: 'its lease runs out' },
   {
     verb: 'submit', from: ['claimed'], to: 'submitted', by: ['agent', 'coordinator'], refuse: 'NOT_YOURS',
-    guards: ['joined', 'itemExists', IN_STATE, 'isHolder', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'gateConfigured', 'gateGreen', 'treeStillDuringGate', 'childrenDone', 'headIsNew'],
+    guards: ['joined', 'itemExists', IN_STATE, 'isHolder', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'trunkMergeClean', 'noUnverifiedStack', 'gateConfigured', 'gateGreen', 'treeStillDuringGate', 'childrenDone', 'headIsNew'],
     sets: ['item_built_by', 'item_commit'], command: 'pullboard submit <id>',
   },
   {
     verb: 'reserve', from: ['submitted'], to: 'submitted', by: ['agent', 'coordinator'], refuse: 'NOT_SUBMITTED',
-    guards: ['coordinatorSaysAs', 'joined', 'itemExists', IN_STATE, 'notBuilder', 'routeAllows', 'policyAllows', 'familyAllows', 'reviewFree'],
+    guards: ['coordinatorSaysAs', 'joined', 'itemExists', IN_STATE, 'reviewCooldownElapsed', 'notBuilder', 'routeAllows', 'policyAllows', 'familyAllows', 'reviewFree'],
     sets: ['item_review_by', 'item_review_until'], command: 'pullboard next --verify',
   },
   {
     verb: 'accept', from: ['submitted'], to: 'verified', by: ['agent', 'coordinator'], refuse: 'NOT_SUBMITTED',
-    guards: ['coordinatorSaysAs', 'joined', 'itemExists', IN_STATE, 'atSubmittedCommit', 'notBuilder', 'routeAllows', 'policyAllows', 'familyAllows', 'reviewFree', 'criterionUnchanged', 'reasonIsMet', 'proofNoted'],
+    guards: ['coordinatorSaysAs', 'joined', 'itemExists', IN_STATE, 'atSubmittedCommit', 'notBuilder', 'routeAllows', 'policyAllows', 'familyAllows', 'reviewFree', 'criterionUnchanged', 'reasonIsMet', 'trunkMergeClean', 'noUnverifiedStack', 'itemCheckGreen', 'proofNoted'],
     sets: ['item_verified_by'], command: 'pullboard verify <id> accept --note "..."',
   },
   {
@@ -499,6 +510,12 @@ export function lifecycleMarkdown(machine = MACHINE) {
     '',
     `An item starts ${machine.initial}. Its final states, ${finals.map((state) => state.id).join(' and ')}, cannot be left, and every way into them passes the same exit guards, whatever command gets there. The board file itself refuses any move not declared here.`,
     '',
+    '## Frozen check policy',
+    '',
+    'The coordinator may set `check.install` and `check.timeout` in committed `pullboard.json`; the defaults are no install command and `5m`. Accept runs the configured install and the frozen item check in a private clone, under one timeout budget. It reuses the verifier’s npm cache when available. Install commands that need network downloads conflict with P2 (offline); configure an offline install or make its needed packages available in the cache.',
+    '',
+    "Private commands drain their output through pipes, retaining a bounded 8 MiB capture of its beginning and end. Failed or unverifiable checks stream the complete log through secret scanning into an owner-readable artifact; lines over 64 KiB of UTF-8 data are replaced with a safe-scan marker. Output beyond the capture cap does not fail a successful command, and dependency files and build artifacts have no capture-size limit. A timeout kills the command's process group. An unverified check names how to restore the environment and retry; a failing check names rejection or builder rework as the next step.",
+    '',
     '```mermaid',
     'stateDiagram-v2',
     `  [*] --> ${machine.initial}`,
@@ -531,6 +548,8 @@ export function lifecycleMarkdown(machine = MACHINE) {
     '| Code | Raised when this does not hold | Next step |',
     '| --- | --- | --- |',
     ...[...new Set([...wrongState, ...refusals, unknown])],
+    '',
+    'For check diagnostics, a refusal from a failed or unverifiable check includes an output digest, sanitized tail, and a private full-output path in the CLI message (also `error.message` in JSON). The artifact is owner-readable only. If it cannot be saved, the tail remains available and the message names the storage error instead of claiming a path.',
     '',
   ].join('\n');
 }

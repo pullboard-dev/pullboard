@@ -3,7 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
+import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -61,8 +61,7 @@ const tempDirectory = () => mkdtempSync(join(tmpdir(), 'pullboard-exchange-'));
  */
 function gitRepo(root) {
   mkdirSync(root);
-  const result = spawnSync('git', ['init', '-q'], { cwd: root, encoding: 'utf8' });
-  assert.equal(result.status, 0, result.stderr);
+  runFixtureGit(['init', '-q'], { cwd: root, encoding: 'utf8' });
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ lanes: {} }));
 }
 
@@ -83,6 +82,38 @@ test('round trips every board row, state, history and AUTOINCREMENT counter [A7]
     const previousSequence = document.tables.sqlite_sequence.find((row) => row.name === 'item').seq;
     const next = store.addItem(target, { by: 'coordinator', lane: 'web', title: 'next id' });
     assert.equal(next, previousSequence + 1);
+  } finally {
+    store.closeBoard(source);
+    store.closeBoard(target);
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('[A5] imported event logs refuse future formats and upgrade older formats', () => {
+  const directory = tempDirectory();
+  const source = populatedBoard(join(directory, 'source.sqlite'));
+  const target = store.openBoard(join(directory, 'target.sqlite'));
+  try {
+    const before = exportBoard(target);
+    const future = structuredClone(exportBoard(source));
+    const futureVersion = future.tables.board_meta.find((row) => row.meta_key === 'event_log_version');
+    futureVersion.meta_value = String(store.EVENT_LOG_VERSION + 1);
+    assert.throws(() => importBoard(target, future), (error) => {
+      assert.equal(error.code, 'EVENT_LOG_VERSION');
+      assert.match(error.message, new RegExp(`version ${store.EVENT_LOG_VERSION + 1}.*version ${store.EVENT_LOG_VERSION}`));
+      assert.match(error.message, /upgrade pullboard/i);
+      return true;
+    });
+    assert.deepEqual(exportBoard(target), before, 'a future export refusal leaves the target unchanged');
+
+    const older = structuredClone(exportBoard(source));
+    older.tables.board_meta.find((row) => row.meta_key === 'event_log_version').meta_value = '0';
+    importBoard(target, older);
+    assert.equal(
+      exportBoard(target).tables.board_meta.find((row) => row.meta_key === 'event_log_version').meta_value,
+      String(store.EVENT_LOG_VERSION),
+      'an older event-log export upgrades its marker on import',
+    );
   } finally {
     store.closeBoard(source);
     store.closeBoard(target);
@@ -196,7 +227,7 @@ test('export and import CLI commands exchange a versioned document between real 
     GIT_COMMITTER_EMAIL: 'exchange@example.invalid',
     PULLBOARD_HOME: join(directory, 'home'),
   };
-  const cli = (cwd, ...args) => spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  const cli = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   try {
     const initialized = cli(targetRoot, 'init');
     assert.equal(initialized.status, 0, initialized.stderr || initialized.stdout);

@@ -1,11 +1,17 @@
-/** Opt-in sealed API v1 relay: authorization, opaque persistence and ordered live delivery [A4,H7]. */
+/** Opt-in sealed API v1 relay: authorization, opaque persistence and ordered live delivery [A4,H7,H16,H3]. */
 import { createServer } from 'node:http';
+import { createHash } from 'node:crypto';
 import { lstatSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { createApiHandler, apiJson, apiRefusal, apiStatus, readApiBody } from '../src/api-http.js';
 import { Refused } from '../src/refused.js';
 import { createRelayJournal } from './journal.js';
 import { createRelayRetention } from './retention.js';
+import { createDeviceStore } from './device-store.js';
+import { createDeviceHandler } from './device-http.js';
+import { createPairingStore } from './pairing-store.js';
+import { createPairingHandler } from './pairing-http.js';
+import { createRelayBrowserHandler } from './browser-page.js';
 
 const SNAPSHOT_BODY = 14_000_000;
 const STORED_BYTES = 10_000_000;
@@ -23,14 +29,16 @@ function identity(id) {
 function credential(req, publicOrigin, write = false) {
   const authorization = req.headers.authorization;
   if (authorization) {
-    const match = /^Bearer ((?:ps_|pa_)[A-Za-z0-9_-]{43})$/.exec(String(authorization));
+    const match = /^Bearer ((?:ps_|pa_|pm_)[A-Za-z0-9_-]{43})$/.exec(String(authorization));
     if (!match) throw new Refused('AUTH_REQUIRED', 'supply a current relay bearer credential');
     return match[1];
   }
   const cookies = String(req.headers.cookie ?? '').split(';').map((part) => part.trim()).filter((part) => part.startsWith('pb_session='));
   if (cookies.length !== 1 || !publicOrigin) throw new Refused('AUTH_REQUIRED', 'sign in to the configured relay origin');
   if (write && req.headers.origin !== publicOrigin) throw new Refused('BAD_ORIGIN', 'send cookie-authorized writes from the configured relay origin');
-  return cookies[0].slice('pb_session='.length);
+  const session = cookies[0].slice('pb_session='.length);
+  if (!/^ps_[A-Za-z0-9_-]{43}$/.test(session)) throw new Refused('AUTH_REQUIRED', 'sign in to the relay in this browser');
+  return session;
 }
 
 /** Validate an optional trusted browser origin, never inferring one from a request header. */
@@ -63,9 +71,9 @@ function state(row) { return { sequence: row.sequence, receivedAt: row.receivedA
 
 /** Project a freshly authenticated credential to public sender metadata, never taking body fields. */
 function sender(who, personOnly = false) {
-  if (personOnly && who.kind !== 'session') throw new Refused('HUMAN_REQUIRED', 'sign in as a person to replace a snapshot or unlink a board');
-  return { kind: who.kind === 'session' ? 'person' : 'agent', userId: who.user.id,
-    ...(who.kind === 'board' ? { agent: who.agent } : {}) };
+  if (personOnly && who.kind !== 'session' && !(personOnly === 'snapshot' && who.kind === 'machine')) throw new Refused('HUMAN_REQUIRED', 'approve this person action from the paired phone');
+  return { kind: who.kind === 'session' ? 'person' : who.kind === 'machine' ? 'machine' : 'agent', userId: who.user.id,
+    ...(who.kind === 'board' ? { agent: who.agent } : who.kind === 'machine' ? { machine: who.machine } : {}) };
 }
 
 /** Create a private relay handler; the caller owns sign-in lifecycle and service shutdown. */
@@ -98,6 +106,45 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
     return who;
   }
 
+  const deviceStore = createDeviceStore({ directory: root, now });
+  const deviceHandler = createDeviceHandler({
+    authenticate: (req, write) => auth.authenticate(credential(req, origin, write)),
+    authorizeBoard: (req, id) => authorizedRequest(req, id, true),
+    boardsFor: req => auth.boardsFor(credential(req, origin)),
+    devices: deviceStore,
+    linkBoard: (req, id, repository) => auth.linkBoard(credential(req, origin, true), id, repository),
+    issueMachine: (req, value) => auth.issueMachine(credential(req, origin, true), value),
+    issueActionGrant: (req, context) => auth.issueActionGrant(credential(req, origin, true), context),
+    consumeActionGrant: (req, grant, context) => auth.consumeActionGrant(credential(req, origin, true), grant, context),
+    revokeToken: (principal, id, board) => auth.revokeApprovedToken(principal, id, board),
+    deleteBoard: async (req, id) => {
+      const who = await authorizedRequest(req, id, true);
+      sender(who, true);
+      auth.withBoard(id, () => { requireClientVersion(id, who.engineVersion); retention.unlink(id); deviceStore.unlink(id); });
+    },
+  });
+  const pairingStore = createPairingStore({ now });
+  const pairing = createPairingHandler({
+    authenticate: (req, { board, write }) => authorizedRequest(req, board, write),
+    pairings: pairingStore,
+  });
+  /** Refuse an old or ambiguous client before the opaque journal can return or accept board records. */
+  async function authorizedRequest(req, id, write = false) {
+    const who = await authorized(credential(req, origin, write), id, write);
+    const declared = req.headers['x-pullboard-engine'];
+    const version = declared === undefined ? 1 : typeof declared === 'string' && /^[1-9][0-9]*$/.test(declared) ? Number(declared) : NaN;
+    requireClientVersion(id, version);
+    return { ...who, engineVersion: version };
+  }
+
+  /** Recheck the minimum under the board lock so issuing a token cannot race a record read or write. */
+  function requireClientVersion(id, version) {
+    const minimum = auth.minimumEngineVersion(id);
+    if (!Number.isSafeInteger(version) || version < minimum) {
+      throw new Refused('ENGINE_VERSION', `this board requires engine version ${minimum} or newer; upgrade pullboard before reading or sending relay records`);
+    }
+  }
+
   /** Add an authorized next-contact warning without exposing any plaintext board contents. */
   function annotated(row, id) {
     const warning = retention.notice(id);
@@ -105,7 +152,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
   }
 
   /** Open only an existing journal on reads; each synchronous operation closes its connection. */
-  function withJournal(id, work, create = false) {
+  function withJournal(id, work, create = false, engineVersion) {
     const file = join(root, identity(id) + '.journal.sqlite');
     if (!create) {
       try {
@@ -117,6 +164,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
       }
     }
     return auth.withBoard(id, () => {
+      requireClientVersion(id, engineVersion);
       const journal = createRelayJournal({ directory: root, boardId: id, maxBytes: STORED_BYTES, now: () => new Date(now()) });
       try { return work(journal); } finally { journal.close(); }
     });
@@ -130,31 +178,32 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
     return withJournal(board.id, (journal) => {
       const row = journal.append(body.sequence, bytes, kind, principal);
       return { status: 200, body: { event: event(row), result: { sequence: row.sequence } } };
-    });
+    }, false, who.engineVersion);
   }
 
+  const browser = origin ? createRelayBrowserHandler({ authenticate: (req) => auth.authenticate(credential(req, origin)) }) : null;
   const common = createApiHandler({
     authenticate: async (req, { board, write }) => {
       const token = credential(req, origin, write);
       return board === null ? { visible: await auth.boardsFor(token) }
-        : { ...await authorized(token, board, write), credential: token };
+        : { ...await authorizedRequest(req, board, write), credential: token };
     },
     boards: (who) => {
       const boards = who.visible.filter((board) => !retention.expire(board.id));
       const warnings = boards.map((board) => retention.notice(board.id)).filter(Boolean);
       return { boards, ...(warnings.length ? { warnings } : {}) };
     },
-    board: (id) => { withJournal(id, () => undefined); return { id }; },
+    board: (id, who) => { withJournal(id, () => undefined, false, who.engineVersion); return { id, engineVersion: who.engineVersion }; },
     state: (board) => withJournal(board.id, (journal) => {
       const snapshot = journal.snapshot();
       if (!snapshot) throw new Refused('NO_SNAPSHOT', 'upload a sealed snapshot before reading this board');
       return annotated(snapshot, board.id);
-    }),
+    }, false, board.engineVersion),
     events: (board, after) => withJournal(board.id, (journal) => {
       const snapshot = journal.snapshot();
       if (snapshot && after < snapshot.sequence) throw new Refused('SNAPSHOT_REQUIRED', 'fetch the latest sealed state, then resume after its sequence');
       return journal.after(after).map(event);
-    }),
+    }, false, board.engineVersion),
     warning: (board) => retention.notice(board.id),
     move: append,
     request: async (board, body, who) => (await append(board, body, who, 'request')).body,
@@ -162,26 +211,47 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
 
   /** Add authenticated snapshot replacement and deletion to the common versioned read/move paths. */
   async function handle(req, res) {
+    if (await deviceHandler(req, res)) return;
+    if (await pairing(req, res)) return;
     try {
+      if (browser && await browser(req, res)) return;
       let url;
       try { url = new URL(req.url ?? '/', 'http://127.0.0.1'); }
       catch { throw new Refused('BAD_REQUEST', 'use a valid path under /api/v1/boards'); }
       const snapshot = /^\/api\/v1\/boards\/([^/]+)\/state$/.exec(url.pathname);
       const deletion = /^\/api\/v1\/boards\/([^/]+)$/.exec(url.pathname);
+      if (req.method === 'GET' && snapshot) {
+        const id = identity(snapshot[1]);
+        const who = await authorizedRequest(req, id);
+        const saved = withJournal(id, journal => {
+          const row = journal.snapshot();
+          if (!row) throw new Refused('NO_SNAPSHOT', 'upload a sealed snapshot before reading this board');
+          return annotated(row, id);
+        }, false, who.engineVersion);
+        const tag = '"' + createHash('sha256').update(JSON.stringify(saved)).digest('hex') + '"';
+        res.setHeader('etag', tag);
+        if (req.headers['if-none-match'] === tag) {
+          res.writeHead(304, { 'cache-control': 'no-store', 'referrer-policy': 'no-referrer', 'x-content-type-options': 'nosniff' });
+          return res.end();
+        }
+        return apiJson(res, 200, { state: saved });
+      }
       if (req.method === 'PUT' && snapshot) {
         const id = identity(snapshot[1]);
-        sender(await authorized(credential(req, origin, true), id, true), true);
+        sender(await authorizedRequest(req, id, true), 'snapshot');
         const body = await readApiBody(req, { maxBytes: SNAPSHOT_BODY });
         const bytes = sealed(body);
         if (!Number.isSafeInteger(body.sequence) || body.sequence < 0) throw new Refused('BAD_SEQUENCE', 'name the nonnegative sequence covered by the sealed snapshot');
-        const principal = sender(await authorized(credential(req, origin, true), id, true), true);
-        const saved = withJournal(id, (journal) => journal.saveSnapshot(body.sequence, bytes, principal), true);
+        const who = await authorizedRequest(req, id, true);
+        const principal = sender(who, 'snapshot');
+        const saved = withJournal(id, (journal) => journal.saveSnapshot(body.sequence, bytes, principal, { initialOnly: req.headers['if-none-match'] === '*' }), true, who.engineVersion);
         return apiJson(res, 200, { state: annotated(saved, id) });
       }
       if (req.method === 'DELETE' && deletion) {
         const id = identity(deletion[1]);
-        sender(await authorized(credential(req, origin, true), id, true), true);
-        retention.unlink(id);
+        const who = await authorizedRequest(req, id, true);
+        sender(who, true);
+        auth.withBoard(id, () => { requireClientVersion(id, who.engineVersion); retention.unlink(id); deviceStore.unlink(id); });
         return apiJson(res, 200, { deleted: id });
       }
       return await common(req, res);
@@ -193,7 +263,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
   handle.maintenance = maintain;
   handle.backup = retention.backup;
   handle.maintenanceStatus = () => ({ error: maintenanceError });
-  handle.close = () => { clearInterval(timer); common.close(); };
+  handle.close = () => { clearInterval(timer); common.close(); deviceStore.close(); };
   return handle;
 }
 

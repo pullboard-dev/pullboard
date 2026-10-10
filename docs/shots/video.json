@@ -1,0 +1,43 @@
+{
+  "title": "Say it once. It stays said.",
+  "fps": 24,
+  "sizeLimitBytes": 26214400,
+  "scenes": [
+    {
+      "id": "problem",
+      "line": "A vague prompt leaves room for drift.",
+      "caption": "A vague prompt leaves room for drift.",
+      "seconds": 14,
+      "beats": ["prompt", "branches", "drift"]
+    },
+    {
+      "id": "constraints",
+      "line": "You set the constraints; agents fill blanks.",
+      "caption": "You set the constraints; agents fill blanks.",
+      "seconds": 17,
+      "beats": ["blank", "rule", "answer"]
+    },
+    {
+      "id": "holds",
+      "line": "Your repo holds the bar; a claim locks it.",
+      "caption": "Your repo holds the bar; a claim locks it.",
+      "seconds": 27,
+      "beats": ["spec", "claim", "verify"]
+    },
+    {
+      "id": "proof",
+      "line": "A second agent checks the exact change.",
+      "caption": "A second agent checks the exact change.",
+      "seconds": 20,
+      "beats": ["reject", "rework", "accept"],
+      "stats": ["submissions", "rejections", "merged"]
+    },
+    {
+      "id": "tagline",
+      "line": "Say it once. It stays said.",
+      "caption": "Say it once. It stays said.",
+      "seconds": 12,
+      "beats": ["words", "rule", "stays"]
+    }
+  ]
+}

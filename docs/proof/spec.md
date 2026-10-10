@@ -1,6 +1,6 @@
 # Proof audit: the spec rows
 
-S1 to S9 govern SPEC.md and PRACTICE.md themselves:
+S1 to S9 govern SPEC.md and this repo's `DOCTRINE.md`. This audit's S6 proof row records the earlier root `PRACTICE.md`; other repos that still have only `PRACTICE.md` keep it as a compatibility fallback:
 - the row format;
 - ids that are unique and permanent;
 - serves links;

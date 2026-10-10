@@ -1,6 +1,7 @@
 /** The public, versioned JSON surface of every pullboard command (A1). */
 import assert from 'node:assert/strict';
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, startFixtureChild as spawn, runFixtureChild as spawnSync, reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { performance } from 'node:perf_hooks';
 import {
   chmodSync,
   existsSync,
@@ -12,12 +13,16 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { DatabaseSync } from 'node:sqlite';
 import { once } from 'node:events';
 import { join, dirname, resolve, basename, delimiter } from 'node:path';
 import { after, test } from 'node:test';
 import { resultCommands } from '../src/cli.js';
-import { EVENT_LOG_VERSION } from '../src/board.js';
+import { allShouts, closeBoard, EVENT_LOG_VERSION, openBoard } from '../src/board.js';
+import { presentationShout, relayPresentation } from '../src/relay-presentation.js';
 import { JSON_SHAPES } from '../src/json.js';
+import { SSH_SHELL_MARKERS } from '../src/person.js';
+import { fetchFresh } from './http-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -63,8 +68,9 @@ function sandbox() {
     PULLBOARD_HOME: join(dir, 'home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'home'),
   };
-  const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
-  const run = (cwd, ...args) => spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  for (const marker of SSH_SHELL_MARKERS) delete env[marker];
+  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
+  const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   return { dir, env, git, run };
 }
 
@@ -81,7 +87,7 @@ function project() {
     ...config,
     gate: 'true',
     spec: 'SPEC.md',
-    practice: 'PRACTICE.md',
+    practice: 'DOCTRINE.md',
     lanes: {
       app: { owns: ['app/'], specs: ['G1'] },
       review: { owns: [] },
@@ -89,11 +95,61 @@ function project() {
     shared: [],
   }, null, 2)}\n`);
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
-  writeFileSync(join(repo, 'PRACTICE.md'), '');
+  writeFileSync(join(repo, 'DOCTRINE.md'), '');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: set up API fixture');
   return { ...box, repo, initialized };
 }
+
+/** Read the event-log marker without going through openBoard's version guard. */
+function readEventLogVersion(file) {
+  const db = new DatabaseSync(file);
+  try { return db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('event_log_version')?.meta_value; }
+  finally { db.close(); }
+}
+
+/** Set a private fixture's event-log marker to model another reader's persisted format. */
+function setEventLogVersion(file, version) {
+  const db = new DatabaseSync(file);
+  try {
+    db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?) ON CONFLICT(meta_key) DO UPDATE SET meta_value = excluded.meta_value')
+      .run('event_log_version', String(version));
+  } finally { db.close(); }
+}
+
+test('[A5] board opens upgrade older event logs and refuse future event logs before migration', () => {
+  const box = project();
+  const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  assert.equal(readEventLogVersion(file), String(EVENT_LOG_VERSION));
+
+  const future = EVENT_LOG_VERSION + 1;
+  setEventLogVersion(file, future);
+  const refused = box.run(box.repo, 'status', '--json');
+  assert.equal(refused.status, 1, refused.stderr);
+  const refusal = JSON.parse(refused.stdout).error;
+  assert.equal(refusal.code, 'EVENT_LOG_VERSION');
+  assert.match(refusal.message, new RegExp(`event log version ${future}.*version ${EVENT_LOG_VERSION}`));
+  assert.match(refusal.next, /upgrade pullboard/i);
+  assert.equal(readEventLogVersion(file), String(future), 'a future-format refusal leaves the stored version untouched');
+
+  const partialFile = join(box.dir, 'partial-future.sqlite');
+  const partial = new DatabaseSync(partialFile);
+  partial.exec("CREATE TABLE board_meta (meta_key TEXT PRIMARY KEY, meta_value TEXT NOT NULL)");
+  partial.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run('event_log_version', String(future));
+  partial.close();
+  assert.throws(() => openBoard(partialFile), { code: 'EVENT_LOG_VERSION' });
+  const unchanged = new DatabaseSync(partialFile);
+  try {
+    assert.equal(unchanged.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'item'").get(), undefined,
+      'refusing a future event log rolls back schema creation on an older database');
+    assert.equal(unchanged.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('event_log_version').meta_value, String(future));
+  } finally { unchanged.close(); }
+
+  setEventLogVersion(file, EVENT_LOG_VERSION - 1);
+  const older = box.run(box.repo, 'status', '--json');
+  assert.equal(older.status, 0, older.stderr);
+  assert.equal(readEventLogVersion(file), String(EVENT_LOG_VERSION), 'opening an older event log upgrades its marker in place');
+});
 
 /** Resolve the catalog entry for either a root command or a documented subcommand. */
 function shapeFor(command, subcommand) {
@@ -128,8 +184,10 @@ function assertRequiredShape(value, required, label) {
 function json(box, cwd, command, args = [], subcommand) {
   const result = box.run(cwd, command, ...args, '--json');
   assert.equal(result.status, 0, `${command} ${args.join(' ')}: ${result.stderr}${result.stdout}`);
-  assert.equal(result.stderr, '', `${command} --json must keep stderr empty`);
   const document = JSON.parse(result.stdout);
+  if (command === 'check') {
+    assert.equal(result.stderr, `check #${document.id} set by ${document.by}: ${document.check}\n`, 'check attribution is visible before execution while stdout remains one JSON document');
+  } else assert.equal(result.stderr, '', `${command} --json must keep stderr empty`);
   assert.equal(document.version, 1, `${command} --json has a version 1 envelope`);
   assertRequiredShape(document, shapeFor(command, subcommand).required, command);
   return document;
@@ -185,6 +243,7 @@ test('[A1] command results match the catalog across roots and subcommands', () =
   assert.equal(existsSync(join(box.env.PULLBOARD_HOME, 'config.json')), false, 'machine settings use the separate settings.json file');
   json(box, repo, 'resume');
   json(box, repo, 'status');
+  json(box, repo, 'stats');
   json(box, repo, 'doctor');
   const plainStatus = box.run(repo, 'status');
   assert.equal(plainStatus.status, 0, plainStatus.stderr);
@@ -220,6 +279,7 @@ test('[A1] command results match the catalog across roots and subcommands', () =
   const messageFile = join(box.dir, 'commit-message.txt');
   writeFileSync(messageFile, 'chore: valid fixture\n');
   json(box, repo, 'hook', ['pre-commit'], 'pre-commit');
+  json(box, repo, 'hook', ['pre-merge-commit'], 'pre-merge-commit');
   json(box, repo, 'hook', ['commit-msg', messageFile], 'commit-msg');
   json(box, repo, 'hook', ['pre-push'], 'pre-push');
 
@@ -231,6 +291,7 @@ test('[A1] command results match the catalog across roots and subcommands', () =
 
   const added = json(box, repo, 'add', ['coordinator', 'API item', '--specs', 'G1', '--criterion', 'the API item is verified', '--check', 'true']);
   assert.equal(added.item.item_id, 1);
+  json(box, repo, 'fact', ['1', 'note', 'API fact']);
   json(box, repo, 'edit', ['1', '--criterion', 'the edited API item is verified', '--check', 'true']);
   json(box, repo, 'show', ['1']);
   json(box, repo, 'list', ['--all']);
@@ -317,7 +378,7 @@ test('[A1,B21,B27] decisions shows an agent its direct and lane asks only', () =
   const app1Ask = json(box, box.repo, 'shout', ['app-1', 'App one decision?', '--decision']).id;
   const app2Ask = json(box, box.repo, 'shout', ['app-2', 'App two decision?', '--decision']).id;
   const reviewAsk = json(box, box.repo, 'shout', ['review', 'Review decision?', '--decision']).id;
-  const coordinatorAsk = json(box, box.repo, 'shout', ['coordinator', 'Coordinator decision?', '--decision']).id;
+  const coordinatorAsk = json(box, app1, 'shout', ['coordinator', 'Coordinator decision?', '--decision']).id;
 
   const app1Queue = json(box, app1, 'decisions').decisions.map(({ shout_id }) => shout_id);
   assert.deepEqual(app1Queue, [laneAsk, app1Ask]);
@@ -409,6 +470,17 @@ test('[A1] refusals are one JSON document with exact public error fields', () =>
   assert.match(unknownDocument.error.message, /Unknown option '--not-a-real-flag'/);
   assert.equal(unknownDocument.error.next, 'run pullboard help');
 
+  const unknownCommand = box.run(repo, 'cliam', '--json');
+  assert.equal(unknownCommand.status, 2);
+  assert.equal(unknownCommand.stderr, '');
+  const unknownCommandDocument = JSON.parse(unknownCommand.stdout);
+  assert.equal(unknownCommandDocument.version, 1);
+  assertRequiredShape(unknownCommandDocument, JSON_SHAPES.error.required, 'error envelope');
+  assertRequiredShape(unknownCommandDocument.error, JSON_SHAPES.errorFields, 'error');
+  assert.equal(unknownCommandDocument.error.code, 'USAGE');
+  assert.match(unknownCommandDocument.error.message, /no command "cliam"; closest match is "claim"/);
+  assert.match(unknownCommandDocument.error.next, /pullboard help --all/);
+
   const valid = readFileSync(join(repo, 'SPEC.md'), 'utf8');
   writeFileSync(join(repo, 'SPEC.md'), `${valid}\n- G2 [maybe, must] Bad status.\n`);
   const textCheck = box.run(repo, 'spec', 'check');
@@ -431,7 +503,9 @@ test('[A1] long-running servers flush one JSON document before shutdown', async 
   for (const command of ['view', 'serve']) {
     const box = project();
     t.after(() => rmSync(box.dir, { recursive: true, force: true }));
-    const child = spawn(process.execPath, [BIN, command, ...(command === 'view' ? ['--no-open'] : []), '--port', '0', '--json'], { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const args = [BIN, command, ...(command === 'view' ? ['--no-open'] : []), '--port', '0', '--json'];
+    const startedAt = performance.now();
+    const child = spawn(process.execPath, args, { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';
     child.stdout.setEncoding('utf8');
@@ -443,10 +517,20 @@ test('[A1] long-running servers flush one JSON document before shutdown', async 
       if (child.exitCode === null) child.kill('SIGTERM');
     });
     const ready = new Promise((resolveReady, rejectReady) => {
-      const timeout = setTimeout(() => rejectReady(new Error('view did not flush its JSON result')), 10_000);
+      let settled = false;
+      const failStartup = (detail, status = child.exitCode, signal = child.signalCode) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        rejectReady(new Error(reportFixtureChildFailure({ command: process.execPath, args, status, signal,
+          elapsedMs: performance.now() - startedAt, stderr, env: box.env, detail })));
+      };
+      const timeout = setTimeout(() => failStartup('server readiness deadline (10000ms) expired'), 10_000);
       child.stdout.on('data', () => {
         try {
           const document = JSON.parse(stdout);
+          if (settled) return;
+          settled = true;
           clearTimeout(timeout);
           resolveReady(document);
         } catch {
@@ -454,9 +538,9 @@ test('[A1] long-running servers flush one JSON document before shutdown', async 
         }
       });
       child.once('error', (error) => {
-        clearTimeout(timeout);
-        rejectReady(error);
+        failStartup(error.message, null, null);
       });
+      child.once('close', (code, signal) => failStartup('server exited before flushing its JSON result', code, signal));
     });
     const document = await ready;
     assert.equal(document.version, 1);
@@ -486,9 +570,11 @@ test('[A1,A10] view exports a static folder through its JSON variant', () => {
   const events = JSON.parse(readFileSync(join(output, 'api/v1/boards', id, 'events.json'), 'utf8'));
   assert.equal(state.version, 1);
   assert.equal(state.state.board, id);
-  assert.equal(state.state.root, box.repo);
+  assert.equal(state.eventLogVersion, EVENT_LOG_VERSION);
+  assert.equal(state.state.root, basename(box.repo));
   assert.equal(state.state.items[0].id, item.item_id);
   assert.equal(events.version, 1);
+  assert.equal(events.eventLogVersion, EVENT_LOG_VERSION);
   assert.ok(events.events.some((event) => event.event_kind === 'add' && event.item_id === item.item_id));
   assert.deepEqual(events.events.map((event) => event.event_id), events.events.map((event) => event.event_id).sort((a, b) => a - b));
 });
@@ -507,14 +593,83 @@ test('[A1] every catalog command and subcommand has a real CLI exercise', () => 
 
   json(source, source.repo, 'relay');
   json(source, source.repo, 'relay', ['off']);
+  const catalog = json(source, source.repo, 'add', ['app', 'Catalog item', '--criterion', 'catalog coverage'], 'add').item;
+  json(source, source.repo, 'roadmap');
+  json(source, source.repo, 'milestone', ['add', 'Catalog', '--items', String(catalog.item_id)], 'add');
+  json(source, source.repo, 'milestone', ['items', 'Catalog', '--remove', String(catalog.item_id)], 'items');
+  json(source, source.repo, 'milestone', ['items', 'Catalog', '--add', String(catalog.item_id)], 'items');
+  json(source, source.repo, 'milestone', ['add', 'Later'], 'add');
+  json(source, source.repo, 'milestone', ['move', 'Later', '--before', 'Catalog'], 'move');
+  json(source, source.repo, 'milestone', ['edit', 'Catalog', '--name', 'Release', '--note', 'Catalog coverage'], 'edit');
+  json(source, source.repo, 'milestone', ['remove', 'Later'], 'remove');
+  json(source, source.repo, 'milestone', ['remove', 'Release'], 'remove');
+  json(source, source.repo, 'spec', ['approve', 'G1'], 'approve');
+  json(source, source.repo, 'spec', ['decline', 'G1', '--reason', 'Catalog decline'], 'decline');
+  json(source, source.repo, 'spec', ['apply'], 'apply');
+  /** Exercise the agent-only takeover with a private explicit session, leaving later terminal calls markerless. */
+  const sessionSource = { ...source, run: (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env: { ...source.env, CODEX_SESSION_ID: 'api-catalog-session' }, encoding: 'utf8' }) };
+  json(sessionSource, source.repo, 'takeover');
   const missing = Object.keys(JSON_SHAPES.commands).filter((key) => !covered.has(key));
   assert.deepEqual(missing, [], `add real-repo invocations for undocumented coverage gaps: ${missing.join(', ')}`);
   assert.deepEqual([...coveredRoots].sort(), resultCommands(), 'every actual root/factory command has an invocation');
 });
 
+test('[N26,A2] roadmap text, JSON and API state follow live local and registered repo items', async (t) => {
+  const box = project();
+  const foreign = project();
+  const foreignConfigFile = join(foreign.repo, 'pullboard.json');
+  const foreignConfig = JSON.parse(readFileSync(foreignConfigFile, 'utf8'));
+  foreignConfig.name = 'foreign';
+  writeFileSync(foreignConfigFile, `${JSON.stringify(foreignConfig, null, 2)}\n`);
+  const registryFile = join(box.env.PULLBOARD_HOME, 'projects.json');
+  const registry = JSON.parse(readFileSync(registryFile, 'utf8'));
+  registry.projects.push({ root: foreign.repo, name: 'foreign', project: '', added: '2026-10-08T00:00:00.000Z' });
+  writeFileSync(registryFile, `${JSON.stringify(registry, null, 2)}\n`);
+
+  const addArgs = (title) => [
+    'app', title, '--route', 'light', '--criterion', 'roadmap item', '--check', 'true',
+    '--brief', 'Files:\n- app/roadmap.js\nChange: track this work\nTest: inspect its status',
+  ];
+  const localItem = json(box, box.repo, 'add', addArgs('Local release'), 'add').item;
+  const externalItem = json(foreign, foreign.repo, 'add', addArgs('External follow-up'), 'add').item;
+  const worktree = json(box, box.repo, 'worktree', ['app', '--route', 'light'], 'worktree');
+
+  json(box, box.repo, 'milestone', ['add', 'Delivery', '--note', 'Ship the release', '--items', `${localItem.item_id},foreign#${externalItem.item_id}`], 'add');
+  json(box, box.repo, 'milestone', ['add', 'Aftercare'], 'add');
+  json(box, box.repo, 'milestone', ['move', 'Aftercare', '--before', 'Delivery'], 'move');
+  jsonError(box, worktree.path, 'milestone', ['add', 'Forbidden'], {
+    status: 1,
+    code: 'COORDINATOR_ONLY',
+    message: 'only the coordinator changes milestones; ask your coordinator to update the roadmap',
+    next: 'ask your coordinator to update the roadmap',
+  }, 'add');
+  const claim = box.run(worktree.path, 'claim', String(localItem.item_id), '--json');
+  assert.equal(claim.status, 0, claim.stderr || claim.stdout);
+
+  const textRoadmap = box.run(box.repo, 'roadmap');
+  assert.equal(textRoadmap.status, 0, textRoadmap.stderr);
+  assert.ok(textRoadmap.stdout.indexOf('Aftercare: 0/0 done') < textRoadmap.stdout.indexOf('Delivery: 0/2 done'));
+  assert.match(textRoadmap.stdout, /Ship the release/);
+  assert.match(textRoadmap.stdout, new RegExp(`#${localItem.item_id} Local release — claimed`));
+  assert.match(textRoadmap.stdout, new RegExp(`foreign#${externalItem.item_id} External follow-up — open`));
+
+  const document = json(box, box.repo, 'roadmap');
+  assert.deepEqual(document.milestones.map(({ name }) => name), ['Aftercare', 'Delivery']);
+  assert.deepEqual(document.milestones[1].items.map(({ status }) => status), ['claimed', 'open']);
+  const api = await startApi(t, box);
+  const listing = await (await apiFetch(api, '/api/v1/boards')).json();
+  const current = listing.boards.find((candidate) => candidate.root === box.repo);
+  const response = await apiFetch(api, `/api/v1/boards/${current.id}/state`);
+  const state = await response.json();
+  assert.equal(response.status, 200);
+  assert.deepEqual(state.state.milestones, document.milestones);
+});
+
 /** Start the real local API server and stop it when its test finishes. */
 async function startApi(t, box) {
-  const child = spawn(process.execPath, [BIN, 'serve', '--port', '0', '--json'], { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const args = [BIN, 'serve', '--port', '0', '--json'];
+  const startedAt = performance.now();
+  const child = spawn(process.execPath, args, { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = '';
   let stderr = '';
   child.stdout.setEncoding('utf8');
@@ -531,10 +686,20 @@ async function startApi(t, box) {
     }
   });
   const document = await new Promise((resolveReady, rejectReady) => {
-    const timeout = setTimeout(() => rejectReady(new Error(`serve did not flush its JSON result: ${stderr}`)), 10_000);
+    let settled = false;
+    const failStartup = (detail, status = child.exitCode, signal = child.signalCode) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      rejectReady(new Error(reportFixtureChildFailure({ command: process.execPath, args, status, signal,
+        elapsedMs: performance.now() - startedAt, stderr, env: box.env, detail })));
+    };
+    const timeout = setTimeout(() => failStartup('serve readiness deadline (10000ms) expired'), 10_000);
     const check = () => {
       try {
         const parsed = JSON.parse(stdout);
+        if (settled) return;
+        settled = true;
         clearTimeout(timeout);
         resolveReady(parsed);
       } catch {
@@ -542,7 +707,8 @@ async function startApi(t, box) {
       }
     };
     child.stdout.on('data', check);
-    child.once('error', (error) => { clearTimeout(timeout); rejectReady(error); });
+    child.once('error', (error) => failStartup(error.message, null, null));
+    child.once('close', (code, signal) => failStartup('serve exited before readiness', code, signal));
     child.once('close', (code) => {
       if (code !== 0) { clearTimeout(timeout); rejectReady(new Error(`serve exited ${code}: ${stderr}`)); }
     });
@@ -554,11 +720,11 @@ async function startApi(t, box) {
   return { child, document, origin: parsed.origin, secret, stderr: () => stderr };
 }
 
-/** Send one bounded HTTP request to the fixture API, authenticating by header unless overridden. */
+/** Send one bounded HTTP request to the fixture API on its own connection, authenticating by header unless overridden. */
 function apiFetch(api, path, options = {}) {
   const { noSecret = false, ...requestOptions } = options;
   const headers = { ...(noSecret ? {} : { 'x-pullboard-key': api.secret }), ...requestOptions.headers };
-  return fetch(new URL(path, api.origin), { ...requestOptions, headers, signal: requestOptions.signal ?? AbortSignal.timeout(10_000) });
+  return fetchFresh(new URL(path, api.origin), { ...requestOptions, headers, signal: requestOptions.signal ?? AbortSignal.timeout(10_000) });
 }
 
 /** Parse and validate a versioned API refusal. */
@@ -589,6 +755,74 @@ async function nextSseEvent(reader, pending = { text: '' }) {
   }
 }
 
+test('[N38] local API and sealed presentation resolve shouts beyond recent state, with complete export history', async (t) => {
+  const box = project();
+  const api = await startApi(t, box);
+  const boards = await (await apiFetch(api, '/api/v1/boards')).json();
+  const boardId = boards.boards.find((candidate) => candidate.root === box.repo).id;
+  const boardPath = `/api/v1/boards/${boardId}`;
+  const decision = json(box, box.repo, 'shout', ['person', 'An old decision', '--decision']);
+  json(box, box.repo, 'answer', [String(decision.id), 'Approved', '--as', 'person']);
+  const openDecision = json(box, box.repo, 'shout', ['person', 'An old open decision', '--decision']);
+  for (let index = 0; index < 40; index += 1) json(box, box.repo, 'shout', ['app', `recent message ${index}`]);
+
+  const state = await (await apiFetch(api, `${boardPath}/state`)).json();
+  assert.equal(state.state.shouts.length, 40);
+  assert.ok(!state.state.shouts.some((shout) => shout.shout_id === decision.id), 'the addressed shout is older than the existing recent-40 state');
+  assert.ok(!state.state.shouts.some((shout) => shout.shout_id === openDecision.id));
+  const direct = await apiFetch(api, `${boardPath}/shouts/${decision.id}`);
+  assert.equal(direct.status, 200);
+  const directDocument = await direct.json();
+  assertRequiredShape(directDocument, JSON_SHAPES.http.shout.required, 'shout response');
+  assert.equal(directDocument.version, JSON_SHAPES.version);
+  const oldShout = directDocument.shout;
+  assert.equal(oldShout.shout_id, decision.id);
+  assert.equal(oldShout.shout_from, 'coordinator');
+  assert.equal(oldShout.shout_to, 'person');
+  assert.equal(oldShout.shout_text, 'An old decision');
+  assert.equal(oldShout.shout_decision, 1);
+  assert.equal(oldShout.decision_state, 'answered');
+  assert.equal(oldShout.decision_answer.shout_text, 'Approved');
+  assert.ok(oldShout.shout_at);
+  const open = await (await apiFetch(api, `${boardPath}/shouts/${openDecision.id}`)).json();
+  assert.equal(open.shout.decision_state, 'open');
+  assert.equal(open.shout.decision_answer, null);
+
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  let history;
+  try { history = allShouts(board); } finally { closeBoard(board); }
+  assert.equal(history.length, 43);
+  const answer = history.find((shout) => shout.shout_answers === decision.id);
+  assert.ok(answer, 'the complete read retains the decision reply relationship');
+  assert.equal(answer.shout_text, 'Approved');
+  const presentation = relayPresentation(box.repo);
+  assert.throws(() => presentationShout({ state: presentation.state }, decision.id), { code: 'SHOUT_NOT_AVAILABLE' },
+    'older snapshots without complete history refuse the capability clearly');
+  assert.equal(presentation.shouts.length, 43);
+  assert.equal(presentation.shouts[0].shout_id, decision.id);
+  assert.equal(presentation.shouts[0].shout_text, 'An old decision');
+  assert.equal(presentation.state.shouts.length, 40, 'sealed presentation keeps the state window bounded separately');
+
+  const linkFile = join(box.repo, '.git', 'pullboard', 'relay.json');
+  writeFileSync(linkFile, JSON.stringify({ version: 1, mode: 'ordered', board: boardId,
+    url: 'https://app.pullboard.dev', repository: 'fixture/repository', token: 'ps_' + 'a'.repeat(43), sequence: 0, cursor: 0 }) + '\n', { mode: 0o600 });
+  const throughRelayPresentation = await apiFetch(api, `${boardPath}/shouts/${decision.id}`);
+  const relayDocument = await throughRelayPresentation.json();
+  assert.equal(throughRelayPresentation.status, 200, JSON.stringify(relayDocument));
+  assert.deepEqual(relayDocument.shout, JSON.parse(JSON.stringify(oldShout)));
+
+  const missing = await apiFetch(api, `${boardPath}/shouts/999999`);
+  assert.equal((await apiError(missing, 404)).code, 'NO_SHOUT');
+  const malformed = await apiFetch(api, `${boardPath}/shouts/0`);
+  assert.equal((await apiError(malformed, 400)).code, 'BAD_REQUEST');
+  const malformedText = await apiFetch(api, `${boardPath}/shouts/nope`);
+  assert.equal((await apiError(malformedText, 400)).code, 'BAD_REQUEST');
+  await apiError(await apiFetch(api, `${boardPath}/shouts/${decision.id}`, { noSecret: true }), 401);
+  await apiError(await apiFetch(api, `${boardPath}/shouts/${decision.id}`, { headers: { 'x-pullboard-key': 'wrong-session-secret' } }), 401);
+  assert.equal((await (await apiFetch(api, `${boardPath}/state`)).json()).state.shouts.length, 40,
+    'addressed reads and refusals do not change the recent-40 projection');
+});
+
 test('[A2] local HTTP v1 versions state and moves, authenticates, and preserves CLI refusals', async (t) => {
   const box = project();
   const api = await startApi(t, box);
@@ -611,11 +845,13 @@ test('[A2] local HTTP v1 versions state and moves, authenticates, and preserves 
   const stateDocument = await stateResponse.json();
   assertRequiredShape(stateDocument, JSON_SHAPES.http.state.required, 'state response');
   assert.equal(stateDocument.version, 1);
+  assert.equal(stateDocument.eventLogVersion, EVENT_LOG_VERSION);
   const eventsResponse = await apiFetch(api, `${boardPath}/events?after=0`);
   assert.equal(eventsResponse.status, 200);
   const eventsDocument = await eventsResponse.json();
   assertRequiredShape(eventsDocument, JSON_SHAPES.http.events.required, 'events response');
   assert.equal(eventsDocument.version, 1);
+  assert.equal(eventsDocument.eventLogVersion, EVENT_LOG_VERSION);
 
   const malformed = await apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{bad json' });
   assert.equal((await apiError(malformed, 400)).code, 'BAD_REQUEST');
@@ -799,4 +1035,63 @@ test('[A2] SSE delivers a live move and resumes after Last-Event-ID without repl
   } finally {
     await reader.cancel();
   }
+});
+
+test('[A5,A6] doctor diagnoses future event logs read-only and accepts the current marker', () => {
+  const box = project();
+  const added = json(box, box.repo, 'add', ['app', 'Version fixture', '--specs', 'G1']);
+  const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  assert.ok(added.item.item_id);
+  assert.equal(readEventLogVersion(file), String(EVENT_LOG_VERSION));
+  const beforeCurrent = readFileSync(file);
+  const current = box.run(box.repo, 'doctor', '--json');
+  assert.equal(current.status, 0, current.stderr || current.stdout);
+  assert.equal(current.stderr, '');
+  assert.deepEqual(JSON.parse(current.stdout).problems, [], 'the current event-log version is healthy');
+  assert.deepEqual(readFileSync(file), beforeCurrent, 'doctor leaves a current board byte-for-byte unchanged');
+
+  setEventLogVersion(file, EVENT_LOG_VERSION + 1);
+  const eventsDb = new DatabaseSync(file);
+  let events;
+  try { events = eventsDb.prepare('SELECT COUNT(*) AS count FROM event').get().count; }
+  finally { eventsDb.close(); }
+  assert.ok(events > 0, 'the fixture has real events before modeling the future version');
+  const futureBytes = readFileSync(file);
+  const refused = box.run(box.repo, 'doctor', '--json');
+  assert.equal(refused.status, 1, refused.stderr || refused.stdout);
+  assert.equal(refused.stderr, '', 'doctor returns a JSON finding');
+  const problems = JSON.parse(refused.stdout).problems;
+  const problem = problems.find((entry) => entry.code === 'EVENT_LOG_VERSION');
+  assert.ok(problem, refused.stdout);
+  assert.match(problem.message, new RegExp(`event log version ${EVENT_LOG_VERSION + 1}.*version ${EVENT_LOG_VERSION}`));
+  assert.match(problem.next, /upgrade pullboard/i);
+  assert.deepEqual(readFileSync(file), futureBytes, 'the read-only diagnosis preserves the complete board file');
+  assert.equal(readEventLogVersion(file), String(EVENT_LOG_VERSION + 1), 'doctor does not silently upgrade the marker');
+});
+
+test('[A5] view export preserves the typed future-version refusal without creating output', () => {
+  const box = project();
+  const added = json(box, box.repo, 'add', ['app', 'Export version fixture', '--specs', 'G1']);
+  const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  assert.ok(added.item.item_id);
+  setEventLogVersion(file, EVENT_LOG_VERSION + 1);
+  const eventsDb = new DatabaseSync(file);
+  let events;
+  try { events = eventsDb.prepare('SELECT COUNT(*) AS count FROM event').get().count; }
+  finally { eventsDb.close(); }
+  assert.ok(events > 0, 'the fixture has real events before export refuses');
+  const before = readFileSync(file);
+  const output = join(box.dir, 'future-version-export');
+  assert.equal(existsSync(output), false);
+
+  const refused = box.run(box.repo, 'view', '--export', output, '--json');
+  assert.equal(refused.status, 1, refused.stderr || refused.stdout);
+  assert.equal(refused.stderr, '', 'view export returns a JSON refusal');
+  const error = JSON.parse(refused.stdout).error;
+  assert.equal(error.code, 'EVENT_LOG_VERSION', refused.stdout);
+  assert.match(error.message, new RegExp(`event log version ${EVENT_LOG_VERSION + 1}.*version ${EVENT_LOG_VERSION}`));
+  assert.match(error.next, /upgrade pullboard/i);
+  assert.equal(existsSync(output), false, 'refused export creates no output directory or files');
+  assert.deepEqual(readFileSync(file), before, 'refused export preserves every board byte');
+  assert.equal(readEventLogVersion(file), String(EVENT_LOG_VERSION + 1));
 });

@@ -1,6 +1,6 @@
 /** Test the CI-like test runner against real Git and PATH behavior [C7, S13]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync } from './fixture-child.js';
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
@@ -10,13 +10,20 @@ import { test } from 'node:test';
 test('tests run without inherited Git identity or config and refuse ambient pullboard [C7, S13]', (t) => {
   assert.equal(process.env.GIT_CONFIG_GLOBAL, '/dev/null');
   assert.equal(process.env.GIT_CONFIG_NOSYSTEM, '1');
-  assert.equal(process.env.GIT_CONFIG_COUNT, '1');
+  assert.equal(process.env.GIT_CONFIG_COUNT, '3');
   assert.equal(process.env.GIT_CONFIG_KEY_0, 'user.useConfigOnly');
   assert.equal(process.env.GIT_CONFIG_VALUE_0, 'true');
+  assert.equal(process.env.GIT_CONFIG_KEY_1, 'gc.auto');
+  assert.equal(process.env.GIT_CONFIG_VALUE_1, '0');
+  assert.equal(process.env.GIT_CONFIG_KEY_2, 'maintenance.auto');
+  assert.equal(process.env.GIT_CONFIG_VALUE_2, 'false');
   assert.equal(process.env.GIT_AUTHOR_NAME, undefined);
   assert.equal(process.env.GIT_AUTHOR_EMAIL, undefined);
   assert.equal(process.env.GIT_COMMITTER_NAME, undefined);
   assert.equal(process.env.GIT_COMMITTER_EMAIL, undefined);
+  assert.equal(process.env.SSH_CONNECTION, undefined);
+  assert.equal(process.env.SSH_CLIENT, undefined);
+  assert.equal(process.env.SSH_TTY, undefined);
   assert.equal(process.env.HOME, process.env.PULLBOARD_HOME);
   assert.ok(process.env.PULLBOARD_MACHINE_HOME.startsWith(join(process.env.TMPDIR, 'machine')));
   assert.ok(process.env.PULLBOARD_TEST_FILE.endsWith('test/test-runner.test.js'));
@@ -27,6 +34,12 @@ test('tests run without inherited Git identity or config and refuse ambient pull
   const identity = spawnSync('git', ['var', 'GIT_AUTHOR_IDENT'], { cwd: root, encoding: 'utf8' });
   assert.notEqual(identity.status, 0, 'Git refuses to infer an author identity from the machine');
   assert.match(identity.stderr, /author identity unknown/i);
+  const autoGc = spawnSync('git', ['config', '--get', 'gc.auto'], { cwd: root, encoding: 'utf8' });
+  const autoMaintenance = spawnSync('git', ['config', '--get', 'maintenance.auto'], { cwd: root, encoding: 'utf8' });
+  assert.equal(autoGc.status, 0, autoGc.stderr);
+  assert.equal(autoGc.stdout.trim(), '0');
+  assert.equal(autoMaintenance.status, 0, autoMaintenance.stderr);
+  assert.equal(autoMaintenance.stdout.trim(), 'false');
 
   const refused = spawnSync('pullboard', ['init'], { cwd: root, encoding: 'utf8' });
   assert.equal(refused.status, 1);
@@ -54,15 +67,22 @@ test('runner removes its private home after test workers exit [C7, S13]', (t) =>
   const report = join(scratch, 'sandbox-path');
   writeFileSync(probe, `import { test } from 'node:test';
 import { writeFileSync } from 'node:fs';
-test('reports its sandbox', () => writeFileSync(${JSON.stringify(report)}, process.env.TMPDIR));
+test('reports its sandbox and person-terminal markers', () => writeFileSync(${JSON.stringify(report)}, JSON.stringify({ sandbox: process.env.TMPDIR, ssh: [process.env.SSH_CONNECTION, process.env.SSH_CLIENT, process.env.SSH_TTY] })));
 `);
   const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
   const launchEnv = { ...process.env };
+  Object.assign(launchEnv, {
+    SSH_CONNECTION: '192.0.2.1 1234 192.0.2.2 22',
+    SSH_CLIENT: '192.0.2.1 1234 22',
+    SSH_TTY: '/dev/pts/4',
+  });
   delete launchEnv.NODE_TEST_CONTEXT;
   const result = spawnSync(process.execPath, [runner, probe], { encoding: 'utf8', env: launchEnv });
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   assert.ok(existsSync(report), `${result.stdout}${result.stderr}`);
-  const sandbox = readFileSync(report, 'utf8');
+  const resultEnv = JSON.parse(readFileSync(report, 'utf8'));
+  const sandbox = resultEnv.sandbox;
+  assert.deepEqual(resultEnv.ssh, [null, null, null], 'the runner removes every SSH transport marker before test workers act as the person');
   assert.equal(existsSync(sandbox), false, 'the private sandbox is removed after Node exits');
 
   const failingProbe = join(scratch, 'runner-failure.test.js');
@@ -82,6 +102,11 @@ test('default discovery runs one fixture and does not recurse into the runner [C
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
   const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
   copyFileSync(runner, join(bin, 'run-tests.js'));
+  const source = join(root, 'src');
+  mkdirSync(source);
+  for (const name of ['person.js', 'refused.js']) {
+    copyFileSync(fileURLToPath(new URL('../src/' + name, import.meta.url)), join(source, name));
+  }
   const marker = join(root, 'ran-once');
   writeFileSync(join(tests, 'one.test.js'), `import { test } from 'node:test';
 import { appendFileSync } from 'node:fs';
@@ -93,7 +118,6 @@ test('one discovered test', () => appendFileSync(${JSON.stringify(marker)}, 'x')
     cwd: root,
     encoding: 'utf8',
     env: launchEnv,
-    timeout: 15_000,
   });
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   assert.equal(readFileSync(marker, 'utf8'), 'x', 'one test ran exactly once under default discovery');

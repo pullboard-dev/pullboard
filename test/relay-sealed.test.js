@@ -1,15 +1,24 @@
 /** Two real clients and encrypted CLI records exercise the relay without sharing their key [A4,H7]. */
 import assert from 'node:assert/strict';
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from 'node:fs';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, cleanupFixtureChildren, runFixtureChild, runFixtureGit, runFixtureChildAsync } from './fixture-child.js';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { test } from 'node:test';
+import { delimiter, join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { createServer } from 'node:http';
+import { after, test } from 'node:test';
 import { serveRelay } from '../relay/service.js';
 import { createRelayAuth } from '../relay/auth.js';
 import { createGitHubClient } from '../relay/github.js';
 import { githubFixture } from './relay-fixture.js';
+import * as store from '../src/board.js';
+import { exportBoard } from '../src/exchange.js';
+import { checkpointSequence, engineReceipt, prepareEngineMove } from '../src/engine.js';
+import { seal as sealMove } from '../src/seal.js';
+import { ENGINE_VERSION } from '../src/machine.js';
+
+after(cleanupFixtureChildren);
 
 /** Seal on the test client only; nonce, authentication tag and ciphertext are opaque to the server. */
 function seal(key, value, binding) {
@@ -31,19 +40,26 @@ function unseal(key, value, binding) {
 }
 
 /** Create a real private CLI board, actual stand-in GitHub sign-in, and an ephemeral relay server. */
-async function fixture(t) {
+async function fixture(t, { machineCredentials = true } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-sealed-http-')));
   const root = join(directory, 'repo');
   const home = join(directory, 'home');
   const data = join(directory, 'relay');
-  mkdirSync(root); mkdirSync(home);
+  const privateBin = join(directory, 'bin');
+  mkdirSync(root); mkdirSync(home); mkdirSync(privateBin);
   const env = { ...process.env, HOME: home, PULLBOARD_HOME: home, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
-  const git = spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, env, encoding: 'utf8' });
-  assert.equal(git.status, 0, git.stderr);
+  delete env.PULLBOARD_RELAY_TOKEN;
+  const quoteShell = value => `'${String(value).replaceAll("'", "'\\''")}'`;
+  const cliPath = resolve(import.meta.dirname, '../bin/pullboard.js');
+  const pullboardPath = join(privateBin, 'pullboard');
+  writeFileSync(pullboardPath, `#!/bin/sh\nexec ${quoteShell(process.execPath)} ${quoteShell(cliPath)} "$@"\n`);
+  chmodSync(pullboardPath, 0o755);
+  env.PATH = [privateBin, env.PATH].filter(Boolean).join(delimiter);
+  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env, encoding: 'utf8' });
   /** Run the current CLI only in the fixture's private home and Git repository. */
   function cli(...args) {
-    const result = spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args], { cwd: root, env, encoding: 'utf8' });
-    assert.equal(result.status, 0, result.stderr);
+    const result = runFixtureChild(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args], { cwd: root, env, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.failure ?? result.stderr);
     return result.stdout;
   }
   cli('init');
@@ -59,8 +75,13 @@ async function fixture(t) {
   const callback = new URL(redirect.headers.get('location'));
   const person = await auth.finishWeb(callback.searchParams.get('state'), callback.searchParams.get('code'), flow.binding);
   await auth.linkBoard(person.token, id, 'fixture/repository');
-  const one = await auth.issueToken(person.token, { board: id, agent: 'client-one' });
-  const two = await auth.issueToken(person.token, { board: id, agent: 'client-two' });
+  const machines = machineCredentials ? await Promise.all([
+    auth.issueMachine(person.token, { board: id, machine: 'client-one' }),
+    auth.issueMachine(person.token, { board: id, machine: 'client-two' }),
+  ]) : [];
+  const tokenIssuer = machines[0]?.token ?? person.token;
+  const one = await auth.issueToken(tokenIssuer, { board: id, agent: 'client-one' });
+  const two = await auth.issueToken(machines[1]?.token ?? tokenIssuer, { board: id, agent: 'client-two' });
   const relay = await serveRelay({ directory: data, auth, port: 0, pollMs: 20, publicOrigin: 'http://127.0.0.1:44444' });
   t.after(async () => { await relay.close(); auth.close(); rmSync(directory, { recursive: true, force: true }); });
   const origin = 'http://127.0.0.1:' + relay.port;
@@ -70,7 +91,7 @@ async function fixture(t) {
   async function call(path, { method = 'GET', body, token = one.token, headers = {} } = {}) {
     const response = await fetch(origin + path, {
       method,
-      headers: { ...(token ? { authorization: 'Bearer ' + token } : {}), ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
+      headers: { 'x-pullboard-engine': String(ENGINE_VERSION), ...(token ? { authorization: 'Bearer ' + token } : {}), ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     return { status: response.status, body: await response.json() };
@@ -79,14 +100,535 @@ async function fixture(t) {
   function clientSeal(value, kind, sequence, board = id) { return seal(key, value, { board, kind, sequence }); }
   /** Unseal received records at their actual committed position, never the client's old proposal. */
   function clientOpen(value, kind, sequence, board = id) { return unseal(key, value, { board, kind, sequence }); }
-  return { directory, root, data, cli, document, id, marker, auth, person, one, two, relay, origin, key, call, clientSeal, clientOpen, path: '/api/v1/boards/' + id };
+  return { directory, root, home, env, data, cli, document, id, marker, auth, person, machines, tokenIssuer, one, two, relay, origin, key, call, clientSeal, clientOpen, path: '/api/v1/boards/' + id };
 }
+
+/** Run a linked CLI asynchronously so the real relay can serve it, keeping credentials out of diagnostics. */
+function replayClient(root, env, ...args) {
+  return runFixtureChildAsync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args, '--json'], { cwd: root, env })
+    .then((result) => {
+      if (result.failure) throw new Error(result.failure);
+      try { return JSON.parse(result.stdout); }
+      catch { throw new Error(result.failure ?? result.context); }
+    });
+}
+
+/** Replay through the native CLI while acknowledging but suppressing checkpoint writes to the fixture relay. */
+function replayClientWithoutCheckpoint(root, env) {
+  const cliURL = pathToFileURL(resolve(import.meta.dirname, '../src/cli.js')).href;
+  const script = `
+    import { main } from ${JSON.stringify(cliURL)};
+    const realFetch = globalThis.fetch;
+    let checkpointWrites = 0;
+    globalThis.fetch = async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url;
+      if (init.method === 'PUT' && /\\/state(?:\\?|$)/.test(url)) {
+        checkpointWrites += 1;
+        return new Response(JSON.stringify({ version: 1, state: JSON.parse(init.body) }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return realFetch(input, init);
+    };
+    let output = '';
+    let diagnostics = '';
+    const code = await main(['export', '--json'], { cwd: process.cwd(), stdout: { write(part) { output += part; } }, stderr: { write(part) { diagnostics += part; } } });
+    console.log(JSON.stringify({ code, checkpointWrites, document: JSON.parse(output), diagnosticCount: diagnostics.length }));
+  `;
+  return runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', script], { cwd: root, env }).then((result) => {
+    if (result.failure) throw new Error(result.failure);
+    try { return JSON.parse(result.stdout); }
+    catch { throw new Error(result.failure ?? result.context); }
+  });
+}
+
+/** Keep each client on its own replay path by blocking checkpoint publication, forwarding all reads to the real relay. */
+async function independentReplayOrigin(t, origin) {
+  const proxy = createServer(async (request, response) => {
+    if (request.method === 'PUT' && request.url.endsWith('/state')) {
+      response.writeHead(403, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ version: 1, error: { code: 'HUMAN_REQUIRED', message: 'fixture checkpoint publication disabled' } }));
+      return;
+    }
+    try {
+      const reply = await fetch(origin + request.url, { headers: {
+        authorization: request.headers.authorization ?? '',
+        'x-pullboard-engine': request.headers['x-pullboard-engine'] ?? '',
+        ...(request.headers.accept ? { accept: request.headers.accept } : {}),
+      } });
+      response.writeHead(reply.status, { 'content-type': 'application/json' });
+      response.end(Buffer.from(await reply.arrayBuffer()));
+    } catch {
+      response.writeHead(502, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ version: 1, error: { code: 'RELAY_UNAVAILABLE', message: 'fixture relay unavailable' } }));
+    }
+  });
+  await new Promise((done, fail) => { proxy.once('error', fail); proxy.listen(0, '127.0.0.1', done); });
+  t.after(() => new Promise(done => proxy.close(done)));
+  return 'http://127.0.0.1:' + proxy.address().port;
+}
+
+/** Capture a real linked command's warnings and structured refusal without changing its exit status. */
+function replayResult(root, env, ...args) {
+  return runFixtureChildAsync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args, '--json'], { cwd: root, env })
+    .then((result) => {
+      if (result.error) throw new Error(result.failure);
+      try { return { document: JSON.parse(result.stdout), stderr: result.failure ?? result.stderr, status: result.status, failure: result.failure }; }
+      catch { throw new Error(result.failure ?? result.context); }
+    });
+}
+
+test('sealed agent shout cannot answer a person decision on either independent client [H16,B26]', async t => {
+  const box = await fixture(t);
+  const source = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  let document, question, forged, ordinary, answer;
+  try {
+    const lane = store.getItem(source, 1).item_lane;
+    assert.equal(store.register(source, { lane: 'remote', path: join(box.directory, 'remote') }), 'remote-1');
+    question = store.shout(source, {
+      from: 'coordinator', to: 'person', text: 'Approve this change?', decision: true, lanes: [lane],
+    });
+    checkpointSequence(source, 0);
+    // This is intentionally a raw authenticated-agent shout, not answerDecision.
+    // The relay must reject its answer relation before insertShout can close the question.
+    forged = prepareEngineMove(source, 'shout', [{
+      from: 'remote-1', to: 'coordinator', text: 'Forged approval', answers: question, lanes: [lane],
+    }]);
+    ordinary = prepareEngineMove(source, 'shout', [{
+      from: 'remote-1', to: 'all', text: 'Ordinary agent observation', lanes: [lane],
+    }]);
+    answer = prepareEngineMove(source, 'answerDecision', [question, {
+      agentId: 'coordinator', asPerson: true, text: 'Approved by the person', lanes: [lane],
+    }]);
+    document = JSON.parse(JSON.stringify(exportBoard(source)));
+  } finally { store.closeBoard(source); }
+
+  const remote = await box.auth.issueToken(box.machines[0].token, { board: box.id, agent: 'remote-1' });
+  const roots = [box.root, join(box.directory, 'second-client')];
+  const homes = [box.home, join(box.directory, 'second-home')];
+  const envs = homes.map(home => ({ ...box.env, HOME: home, PULLBOARD_HOME: home }));
+  mkdirSync(roots[1]); mkdirSync(homes[1], { mode: 0o700 });
+  assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: roots[1], env: envs[1] }).status, 0);
+  await replayClient(roots[1], envs[1], 'init');
+  const native = join(box.directory, 'native.json');
+  writeFileSync(native, JSON.stringify(document), { mode: 0o600 });
+  await replayClient(roots[1], envs[1], 'import', native);
+  for (let i = 0; i < roots.length; i++) {
+    const keyDirectory = join(homes[i], 'relay-keys');
+    mkdirSync(keyDirectory, { mode: 0o700 });
+    writeFileSync(join(keyDirectory, box.id + '.key'), box.key.toString('base64url') + '\n', { mode: 0o600 });
+    const url = await independentReplayOrigin(t, box.origin);
+    writeFileSync(join(roots[i], '.git/pullboard/relay.json'), JSON.stringify({
+      version: 1, mode: 'ordered', board: box.id, url, repository: 'fixture/repository',
+      token: box.machines[i].token, sequence: 0, cursor: document.tables.event.at(-1).event_id,
+    }) + '\n', { mode: 0o600 });
+  }
+
+  /** Send a production-sealed move using its actual authenticated relay credential. */
+  async function upload(move, sequence, token = remote.token) {
+    const sealed = Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(move)), {
+      boardId: box.id, kind: 'move', sequence,
+    })).toString('base64url');
+    const reply = await box.call(box.path + '/moves', {
+      method: 'POST', token, body: { sequence, sealed },
+    });
+    assert.equal(reply.status, 200);
+    return reply;
+  }
+  const snapshot = Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(document)), {
+    boardId: box.id, kind: 'snapshot', sequence: 0,
+  })).toString('base64url');
+  assert.equal((await box.call(box.path + '/state', {
+    method: 'PUT', token: box.person.token, body: { sequence: 0, sealed: snapshot },
+  })).status, 200);
+  const forgedUpload = await upload(forged, 1);
+  assert.equal(forgedUpload.body.event.sender.agent, 'remote-1');
+  await upload(ordinary, 2);
+
+  const refusedReplicas = [];
+  for (let i = 0; i < roots.length; i++) {
+    const result = await replayResult(roots[i], envs[i], 'export');
+    assert.equal(result.status, 0);
+    const doc = result.document;
+    const q = doc.tables.shout.find(row => row.shout_id === question);
+    assert.ok(q && q.shout_decision, 'the person decision remains present');
+    assert.equal(doc.tables.shout.some(row => row.shout_answers === question), false, 'the refused agent record did not answer it');
+    assert.equal(doc.tables.shout.at(-1).shout_text, 'Ordinary agent observation', 'ordinary agent shouts remain allowed');
+    const refusal = doc.tables.event.find(row => row.event_kind === 'relay_refused' && row.event_by === 'remote-1');
+    assert.equal(JSON.parse(refusal.event_detail).code, 'RELAY_ANSWER');
+    assert.equal(doc.tables.board_meta.find(row => row.meta_key === 'relay_applied_sequence').meta_value, '2');
+    const board = store.openBoard(join(roots[i], '.git/pullboard/board.sqlite'));
+    try { assert.deepEqual(store.openDecisions(board, 'person').map(row => row.shout_id), [question]); }
+    finally { store.closeBoard(board); }
+    refusedReplicas.push(doc.tables);
+  }
+  assert.deepEqual(refusedReplicas[0], refusedReplicas[1], 'both clients independently replay the refusal and allowed shout');
+  const beforeAnswer = refusedReplicas[0];
+
+  // A valid, sealed person decision preserves the existing guarded answer path.
+  await upload(answer, 3, box.person.token);
+  const answered = [];
+  for (let i = 0; i < roots.length; i++) {
+    const result = await replayResult(roots[i], envs[i], 'export');
+    assert.equal(result.status, 0);
+    const doc = result.document;
+    assert.equal(doc.tables.shout.some(row => row.shout_answers === question && row.shout_text === 'Approved by the person'), true);
+    assert.equal(doc.tables.board_meta.find(row => row.meta_key === 'relay_applied_sequence').meta_value, '3');
+    assert.deepEqual(doc.tables.event.slice(0, beforeAnswer.event.length), beforeAnswer.event, 'the guarded answer preserves every earlier event row');
+    assert.deepEqual(doc.tables.shout.slice(0, beforeAnswer.shout.length), beforeAnswer.shout, 'the guarded answer preserves earlier shout IDs and raw rows');
+    const board = store.openBoard(join(roots[i], '.git/pullboard/board.sqlite'));
+    try { assert.deepEqual(store.openDecisions(board, 'person'), []); }
+    finally { store.closeBoard(board); }
+    answered.push(doc.tables);
+  }
+  assert.deepEqual(answered[0], answered[1], 'both clients apply the actual guarded person answer identically');
+  const retained = await box.call(box.path + '/state');
+  assert.equal(retained.body.state.sequence, 0);
+  assert.equal(retained.body.state.sealed, snapshot, 'both clients independently replayed rather than importing a published checkpoint');
+});
+
+test('two real clients stop before sender checks for newer operations and actor layouts without advancing [H16]', async t => {
+  const futureEngine = ENGINE_VERSION + 1;
+  const versionMessage = new RegExp(`engine version ${futureEngine}.*engine version ${ENGINE_VERSION}`);
+  const unknown = { version: 1, engine: futureEngine, id: 'future-operation', operation: 'futureOp', args: [{ agentId: 'remote-1' }] };
+  const shifted = { version: 1, engine: futureEngine, id: 'future-claim', operation: 'claim', args: [1, {}, { agentId: 'remote-1' }] };
+  for (const [name, moves] of [['new operation', [unknown]], ['new actor layout', [shifted]], ['current engine sender checks', [unknown, shifted].map(move => ({ ...move, engine: ENGINE_VERSION }))]]) {
+    await t.test(name, async sub => {
+      const box = await fixture(sub);
+      const source = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+      let document;
+      try {
+        checkpointSequence(source, 0);
+        document = JSON.parse(JSON.stringify(exportBoard(source)));
+      } finally { store.closeBoard(source); }
+      const remote = await box.auth.issueToken(box.machines[0].token, { board: box.id, agent: 'remote-1' });
+      const roots = [box.root, join(box.directory, 'second-client')];
+      const homes = [box.home, join(box.directory, 'second-home')];
+      const envs = homes.map(home => ({ ...box.env, HOME: home, PULLBOARD_HOME: home }));
+      mkdirSync(roots[1]); mkdirSync(homes[1], { mode: 0o700 });
+      assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: roots[1], env: envs[1] }).status, 0);
+      await replayClient(roots[1], envs[1], 'init');
+      const native = join(box.directory, 'native.json');
+      writeFileSync(native, JSON.stringify(document), { mode: 0o600 });
+      await replayClient(roots[1], envs[1], 'import', native);
+      const links = roots.map(root => join(root, '.git/pullboard/relay.json'));
+      for (let index = 0; index < roots.length; index += 1) {
+        const keyDirectory = join(homes[index], 'relay-keys');
+        mkdirSync(keyDirectory, { mode: 0o700 });
+        writeFileSync(join(keyDirectory, box.id + '.key'), box.key.toString('base64url') + '\n', { mode: 0o600 });
+        const replayOrigin = await independentReplayOrigin(sub, box.origin);
+        writeFileSync(links[index], JSON.stringify({ version: 1, mode: 'ordered', board: box.id, url: replayOrigin, repository: 'fixture/repository', token: box.machines[index].token, sequence: 0, cursor: document.tables.event.at(-1).event_id }) + '\n', { mode: 0o600 });
+      }
+      const originalLinks = links.map(file => readFileSync(file, 'utf8'));
+      const initialSnapshot = Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(document)), { boardId: box.id, kind: 'snapshot', sequence: 0 })).toString('base64url');
+      assert.equal((await box.call(box.path + '/state', { method: 'PUT', token: box.person.token, body: { sequence: 0, sealed: initialSnapshot } })).status, 200);
+      for (let index = 0; index < moves.length; index += 1) {
+        const sequence = index + 1;
+        const sealed = Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(moves[index])), { boardId: box.id, kind: 'move', sequence })).toString('base64url');
+        const uploaded = await box.call(box.path + '/moves', { method: 'POST', token: remote.token, body: { sequence, sealed } });
+        assert.equal(uploaded.status, 200);
+        assert.equal(uploaded.body.event.sender.agent, 'remote-1');
+      }
+      const results = [];
+      for (let index = 0; index < roots.length; index += 1) {
+        const result = await replayResult(roots[index], envs[index], 'export');
+        assert.equal(result.status, 0);
+        results.push(result.document);
+        if (moves[0].engine === futureEngine) {
+          assert.match((result.document.diagnostics ?? []).join('\n'), new RegExp(`\\[ENGINE_VERSION\\].*${versionMessage.source}.*upgrade pullboard`), 'future records stop before interpreting the sending agent');
+          assert.deepEqual(result.document.tables, document.tables, 'no board row, receipt or persisted cursor changes');
+          assert.equal(readFileSync(links[index], 'utf8'), originalLinks[index], 'the saved transport cursor is unchanged');
+          const retried = await replayResult(roots[index], envs[index], 'export');
+          assert.match((retried.document.diagnostics ?? []).join('\n'), /\[ENGINE_VERSION\]/);
+          assert.equal(retried.status, 0);
+          assert.deepEqual(retried.document.tables, document.tables, 'retry still stops at the same unapplied record');
+          const attempted = await replayResult(roots[index], envs[index], 'add', document.tables.item[0].item_lane, 'Later local move must wait');
+          assert.equal(attempted.status, 1);
+          assert.equal(attempted.document.error.code, 'ENGINE_VERSION');
+          assert.match(attempted.document.error.message, versionMessage);
+          assert.equal(readFileSync(links[index], 'utf8'), originalLinks[index]);
+          const board = store.openBoard(join(roots[index], '.git/pullboard/board.sqlite'));
+          try { assert.deepEqual(JSON.parse(JSON.stringify(exportBoard(board))).tables, document.tables, 'a later local mutation cannot pass the future record'); }
+          finally { store.closeBoard(board); }
+        } else {
+          assert.doesNotMatch((result.document.diagnostics ?? []).join('\n'), /\[ENGINE_VERSION\]/);
+          assert.deepEqual(result.document.tables.item, document.tables.item);
+          assert.deepEqual(result.document.tables.shout, document.tables.shout);
+          assert.deepEqual(result.document.tables.verdict, document.tables.verdict);
+          const refused = result.document.tables.event.filter(row => row.event_kind === 'relay_refused');
+          assert.deepEqual(refused.map(row => JSON.parse(row.event_detail).code), ['RELAY_SENDER_MISMATCH', 'RELAY_SENDER_MISMATCH']);
+          assert.ok(refused.every(row => row.event_by === 'remote-1'));
+          assert.equal(result.document.tables.board_meta.find(row => row.meta_key === 'relay_applied_sequence').meta_value, '2');
+          assert.equal(JSON.parse(readFileSync(links[index], 'utf8')).sequence, 2);
+        }
+      }
+      assert.deepEqual(results[0].tables, results[1].tables, 'the two independent clients retain identical board rows');
+      const snapshot = await box.call(box.path + '/state');
+      assert.equal(snapshot.body.state.sequence, 0);
+      assert.equal(snapshot.body.state.sealed, initialSnapshot, 'neither client replaced independent replay with a shared checkpoint');
+    });
+  }
+});
+
+test('two real clients refuse forged relay actors and person-only requests while advancing identically [H2,H16]', async t => {
+  const box = await fixture(t);
+  const source = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  let document, question, moves;
+  try {
+    const lane = store.getItem(source, 1).item_lane;
+    assert.equal(store.register(source, { lane: 'remote', path: join(box.directory, 'remote') }), 'remote-1');
+    store.claim(source, 1, { agentId: 'remote-1', lane, leaseMs: 3600000, freeze: () => ({ text: '{}', digest: 'd'.repeat(64) }) });
+    store.submit(source, 1, { agentId: 'remote-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
+    question = store.shout(source, { from: 'coordinator', to: 'person', text: 'Private person decision', decision: true, lanes: [lane] });
+    checkpointSequence(source, 0);
+    moves = [
+      prepareEngineMove(source, 'verify', [1, { agentId: 'coordinator', decision: 'ACCEPT', reason: 'CRITERION_MET', note: 'forged acceptance', head: 'a'.repeat(40), digest: 'd'.repeat(64), policy: 'any' }]),
+      prepareEngineMove(source, 'answerDecision', [question, { agentId: 'coordinator', asPerson: true, text: 'forged person answer', lanes: [lane] }]),
+      { version: 1, type: 'person-request', id: 'forged-person-request', move: { verb: 'shout', args: { to: 'coordinator', text: 'forged person request' } } },
+      prepareEngineMove(source, 'recordRowDecisions', [{ agentId: 'remote-1', channel: 'view', decisions: [] }]),
+      prepareEngineMove(source, 'shout', [{ from: 'remote-1', to: 'all', text: 'valid remote observation', lanes: [lane] }]),
+    ];
+    document = JSON.parse(JSON.stringify(exportBoard(source)));
+  } finally { store.closeBoard(source); }
+  const remote = await box.auth.issueToken(box.machines[0].token, { board: box.id, agent: 'remote-1' });
+  const roots = [box.root, join(box.directory, 'second-client')];
+  const homes = [box.home, join(box.directory, 'second-home')];
+  const envs = homes.map(home => ({ ...box.env, HOME: home, PULLBOARD_HOME: home }));
+  mkdirSync(roots[1]); mkdirSync(homes[1], { mode: 0o700 });
+  assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: roots[1], env: envs[1] }).status, 0);
+  await replayClient(roots[1], envs[1], 'init');
+  const snapshotFile = join(box.directory, 'native.json');
+  writeFileSync(snapshotFile, JSON.stringify(document), { mode: 0o600 });
+  await replayClient(roots[1], envs[1], 'import', snapshotFile);
+  for (let index = 0; index < roots.length; index += 1) {
+    const keyDirectory = join(homes[index], 'relay-keys');
+    mkdirSync(keyDirectory, { mode: 0o700 });
+    writeFileSync(join(keyDirectory, box.id + '.key'), box.key.toString('base64url') + '\n', { mode: 0o600 });
+    writeFileSync(join(roots[index], '.git/pullboard/relay.json'), JSON.stringify({ version: 1, mode: 'ordered', board: box.id, url: box.origin, repository: 'fixture/repository', token: box.machines[index].token, sequence: 0, cursor: document.tables.event.at(-1).event_id }) + '\n', { mode: 0o600 });
+  }
+  /** Seal production-format records on this client; the relay stores only their opaque envelopes. */
+  async function upload(value, kind, sequence, token = remote.token) {
+    const sealed = Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(value)), { boardId: box.id, kind, sequence })).toString('base64url');
+    const reply = await box.call(box.path + (kind === 'snapshot' ? '/state' : kind === 'request' ? '/requests' : '/moves'), { method: kind === 'snapshot' ? 'PUT' : 'POST', token, body: { sequence, sealed } });
+    assert.equal(reply.status, 200, 'the real relay accepts the opaque authorized upload');
+  }
+  await upload(document, 'snapshot', 0, box.person.token);
+  for (let index = 0; index < moves.length; index += 1) await upload(moves[index], index === 2 ? 'request' : 'move', index + 1);
+  const exported = await Promise.all(roots.map((root, index) => replayClient(root, envs[index], 'export')));
+  assert.deepEqual(exported[0].tables, exported[1].tables, 'every replica keeps exactly the same rows and refusal receipts');
+  const result = exported[0];
+  assert.deepEqual(result.tables.item, document.tables.item, 'forged verification changes no item');
+  assert.deepEqual(result.tables.verdict, document.tables.verdict, 'forged acceptance leaves the verdict unchanged');
+  const newShouts = result.tables.shout.filter(row => row.shout_id > document.tables.shout.at(-1).shout_id);
+  assert.equal(newShouts.length, 1, 'only the permitted observation creates a shout');
+  assert.equal(newShouts[0].shout_from, 'remote-1');
+  assert.equal(newShouts[0].shout_text, 'valid remote observation');
+  const refused = result.tables.event.filter(row => row.event_kind === 'relay_refused');
+  assert.equal(refused.length, 4);
+  assert.ok(refused.every(row => row.event_by === 'remote-1'), 'the log attributes every attempted forgery to its authenticated sender');
+  assert.deepEqual(refused.map(row => JSON.parse(row.event_detail).code), ['RELAY_SENDER_MISMATCH', 'RELAY_PERSON_ONLY', 'RELAY_PERSON_ONLY', 'RELAY_PERSON_ONLY']);
+  assert.equal(JSON.parse(refused[0].event_detail).actor, 'coordinator');
+  assert.equal(result.tables.board_meta.find(row => row.meta_key === 'relay_applied_sequence').meta_value, '5');
+  const log = await replayClient(roots[1], envs[1], 'log');
+  assert.deepEqual(log.events.filter(row => row.event_kind === 'relay_refused'), refused, 'pullboard log exposes the sending agent and attempted actor');
+  assert.deepEqual((await replayClient(roots[0], envs[0], 'export')).tables, result.tables, 'repeat catch-up does not duplicate refusals or actions');
+});
+
+test('two real clients enforce the verify policy captured in the item freeze [H16,O2]', { timeout: 240_000 }, async t => {
+  const box = await fixture(t);
+  const configPath = join(box.root, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  config.verify = { ...config.verify, policy: 'coordinator', family: 'require' };
+  writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+  execFileSync('git', ['add', 'pullboard.json', 'SPEC.md'], { cwd: box.root, env: {
+    ...box.env, GIT_AUTHOR_NAME: 'Policy Fixture', GIT_AUTHOR_EMAIL: 'policy@example.invalid',
+    GIT_COMMITTER_NAME: 'Policy Fixture', GIT_COMMITTER_EMAIL: 'policy@example.invalid',
+  } });
+  execFileSync('git', ['commit', '-q', '-m', 'test(relay): pin verify fixture policy'], { cwd: box.root, env: {
+    ...box.env, GIT_AUTHOR_NAME: 'Policy Fixture', GIT_AUTHOR_EMAIL: 'policy@example.invalid',
+    GIT_COMMITTER_NAME: 'Policy Fixture', GIT_COMMITTER_EMAIL: 'policy@example.invalid',
+  } });
+  const lane = Object.keys(config.lanes)[0];
+  const builder = join(box.directory, 'builder');
+  execFileSync('git', ['worktree', 'add', '-q', '-b', 'builder-policy', builder, 'HEAD'], { cwd: box.root, env: box.env });
+  /** Run native setup commands from the real linked builder worktree. */
+  const runBuilder = (...args) => {
+    const result = spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args, '--json'], { cwd: builder, env: box.env, encoding: 'utf8' });
+    assert.equal(result.error, undefined);
+    assert.equal(result.status, 0, result.stderr || result.stdout || 'the real native CLI prepares a fresh claim under the pinned main policy');
+    return JSON.parse(result.stdout);
+  };
+  const joined = runBuilder('join', lane, '--family', 'Builder Family');
+  const builderId = joined.agent;
+  assert.equal(typeof builderId, 'string');
+  runBuilder('claim', '1');
+
+  const source = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: box.root, env: box.env, encoding: 'utf8' }).trim();
+  const tree = execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { cwd: box.root, env: box.env, encoding: 'utf8' }).trim();
+  let verifierSame;
+  let verifierOther;
+  let legacyDigest;
+  try {
+    const item = store.getItem(source, 1);
+    const frozen = JSON.parse(item.item_frozen);
+    assert.deepEqual(frozen.policy.verify, { policy: 'coordinator', family: 'require' }, 'fresh native freeze captures both values from committed main config');
+    const legacyPolicy = { version: 99, commit: frozen.policy.commit, verify: { policy: 'bogus', family: 'off' } };
+    const legacyText = JSON.stringify({ ...frozen, policy: legacyPolicy });
+    legacyDigest = createHash('sha256').update(legacyText).digest('hex');
+    store.refreeze(source, 1, { agentId: 'coordinator', freeze: () => ({ text: legacyText, digest: legacyDigest }) });
+  } finally { store.closeBoard(source); }
+
+  const legacyRefreeze = box.cli('refreeze', '1');
+  assert.match(legacyRefreeze, /#1 refrozen/);
+  runBuilder('claim', '1');
+  const afterRefreeze = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  let document;
+  let moves;
+  try {
+    const refreshed = store.getItem(afterRefreeze, 1);
+    assert.equal(JSON.parse(refreshed.item_frozen).policy.version, 1, 'explicit refreeze repairs malformed captured policy metadata');
+    assert.deepEqual(JSON.parse(refreshed.item_frozen).policy.verify, { policy: 'coordinator', family: 'require' }, 'explicit native refreeze upgrades the legacy claim policy');
+    assert.notEqual(refreshed.item_frozen_digest, legacyDigest, 'explicit refreeze establishes a new digest for the newly captured policy');
+    store.submit(afterRefreeze, 1, { agentId: builderId, commit, tree, files: [] });
+    store.register(afterRefreeze, { lane: 'coordinator', path: box.root, family: 'Coordinator Family' });
+    store.register(afterRefreeze, { lane, path: join(box.directory, 'verifier-same'), family: 'Builder Family' });
+    verifierSame = store.agentAt(afterRefreeze, join(box.directory, 'verifier-same')).agent_id;
+    store.register(afterRefreeze, { lane, path: join(box.directory, 'verifier-other'), family: 'Reviewer Family' });
+    verifierOther = store.agentAt(afterRefreeze, join(box.directory, 'verifier-other')).agent_id;
+
+    /** Freeze test items with a specific historical policy document, keeping engine inputs deterministic. */
+    const makeFrozen = (verify, version = 1) => item => {
+      const text = JSON.stringify({ title: item.item_title, criterion: item.item_criterion, policy: { version, commit, ...(verify ? { verify } : {}) } });
+      return { text, digest: createHash('sha256').update(text).digest('hex') };
+    };
+    /** Add, claim and submit one private fixture item with the supplied frozen verify values. */
+    const makeSubmitted = (title, verify, version = 1) => {
+      const id = store.addItem(afterRefreeze, { by: 'coordinator', lane, title });
+      store.claim(afterRefreeze, id, { agentId: builderId, lane, leaseMs: 3_600_000, freeze: makeFrozen(verify, version), head: commit });
+      store.submit(afterRefreeze, id, { agentId: builderId, commit, tree, files: [] });
+      return store.getItem(afterRefreeze, id);
+    };
+    const legacy = makeSubmitted('legacy frozen verify without policy capture', null);
+    const sameFamily = makeSubmitted('require a different verifier family', { policy: 'any', family: 'require' });
+    const crossFamily = makeSubmitted('allow a different verifier family', { policy: 'any', family: 'require' });
+    const malformed = makeSubmitted('malformed captured verify policy', { policy: 'broken', family: 'off' });
+    const wrongVersion = makeSubmitted('unsupported frozen policy version', { policy: 'any', family: 'require' }, 2);
+    checkpointSequence(afterRefreeze, 0);
+    document = JSON.parse(JSON.stringify(exportBoard(afterRefreeze)));
+    /** Build a verifier envelope with deliberately untrusted any/off settings. */
+    const forge = (item, agentId, id) => prepareEngineMove(afterRefreeze, 'verify', [item.item_id, {
+      agentId, decision: 'ACCEPT', reason: 'CRITERION_MET', note: 'checked by the fixture verifier',
+      head: commit, digest: item.item_frozen_digest, policy: 'any', familyPolicy: 'off',
+    }], { id });
+    moves = [
+      forge(refreshed, verifierSame, 'forged_coordinator_policy'),
+      forge(legacy, verifierSame, 'missing_frozen_verify_policy'),
+      forge(sameFamily, verifierSame, 'forged_family_policy'),
+      forge(crossFamily, verifierOther, 'allowed_cross_family_verify'),
+      forge(malformed, verifierSame, 'malformed_frozen_verify_policy'),
+      forge(wrongVersion, verifierSame, 'unsupported_frozen_policy_version'),
+      forge(refreshed, 'coordinator', 'compliant_legacy_refreeze_verify'),
+    ];
+  } finally { store.closeBoard(afterRefreeze); }
+
+  const roots = [box.root, join(box.directory, 'second-policy-client')];
+  const homes = [box.home, join(box.directory, 'second-policy-home')];
+  const envs = homes.map(home => ({ ...box.env, HOME: home, PULLBOARD_HOME: home }));
+  mkdirSync(roots[1]); mkdirSync(homes[1], { mode: 0o700 });
+  assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: roots[1], env: envs[1] }).status, 0);
+  await replayClient(roots[1], envs[1], 'init');
+    const snapshotFile = join(box.directory, 'policy-snapshot.json');
+  writeFileSync(snapshotFile, JSON.stringify(document), { mode: 0o600 });
+  await replayClient(roots[1], envs[1], 'import', snapshotFile);
+  const recipientConfig = JSON.parse(readFileSync(join(roots[1], 'pullboard.json'), 'utf8'));
+  assert.notDeepEqual(recipientConfig.verify, { policy: 'coordinator', family: 'require' }, 'second client has different local settings from the frozen shared policy');
+  for (let index = 0; index < roots.length; index += 1) {
+    const keyDirectory = join(homes[index], 'relay-keys');
+    mkdirSync(keyDirectory, { mode: 0o700 });
+    writeFileSync(join(keyDirectory, box.id + '.key'), box.key.toString('base64url') + '\n', { mode: 0o600 });
+    writeFileSync(join(roots[index], '.git/pullboard/relay.json'), JSON.stringify({ version: 1, mode: 'ordered', board: box.id, url: box.origin, repository: 'fixture/repository', token: box.machines[index].token, sequence: 0, cursor: document.tables.event.at(-1).event_id }) + '\n', { mode: 0o600 });
+  }
+  const snapshotSealed = Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(document)), { boardId: box.id, kind: 'snapshot', sequence: 0 })).toString('base64url');
+  const savedSnapshot = await box.call(box.path + '/state', { method: 'PUT', token: box.person.token, body: { sequence: 0, sealed: snapshotSealed } });
+  assert.equal(savedSnapshot.status, 200, 'person session installs the initial encrypted snapshot');
+  const verifierTokens = new Map();
+  for (const agent of new Set([verifierSame, verifierOther])) verifierTokens.set(agent, await box.auth.issueToken(box.machines[0].token, { board: box.id, agent }));
+  for (let index = 0; index < moves.length; index += 1) {
+    const agent = moves[index].args[1].agentId;
+    const sequence = index + 1;
+    const sealed = Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(moves[index])), { boardId: box.id, kind: 'move', sequence })).toString('base64url');
+    const token = agent === 'coordinator' ? box.person.token : verifierTokens.get(agent).token;
+    const uploaded = await box.call(box.path + '/moves', { method: 'POST', token, body: { sequence, sealed } });
+    assert.equal(uploaded.status, 200, 'the real relay accepts each authenticated verifier move as an opaque envelope');
+  }
+
+  const firstClient = await replayClientWithoutCheckpoint(roots[0], envs[0]);
+  assert.equal(firstClient.code, 0);
+  assert.equal(firstClient.checkpointWrites, 1, 'first client attempted one local checkpoint, suppressed before relay storage');
+  const relayAfterFirst = await box.call(box.path + '/state');
+  assert.equal(relayAfterFirst.body.state.sequence, 0, 'the second client cannot inherit the first client checkpoint');
+  const secondClient = await replayClientWithoutCheckpoint(roots[1], envs[1]);
+  assert.equal(secondClient.code, 0);
+  assert.equal(secondClient.checkpointWrites, 1, 'second client independently attempted its own checkpoint');
+  const exported = [firstClient.document, secondClient.document];
+  assert.deepEqual(exported[0].tables, exported[1].tables, 'both real clients replay the same refusal and board prefix');
+  assert.deepEqual(exported[0].tables.item.filter(item => ![1, 4].includes(item.item_id)), document.tables.item.filter(item => ![1, 4].includes(item.item_id)), 'policy refusals change no refused item state');
+  assert.equal(exported[0].tables.item.find(item => item.item_id === 1).item_status, 'verified', 'an actual legacy refreeze enables a compliant coordinator verification');
+  assert.equal(exported[0].tables.item.find(item => item.item_id === 4).item_status, 'verified', 'a different declared family is allowed under the frozen require policy');
+  assert.equal(exported[0].tables.verdict.length, document.tables.verdict.length + 2, 'only compliant coordinator and cross-family verifications create verdicts');
+  const codes = ['forged_coordinator_policy', 'missing_frozen_verify_policy', 'forged_family_policy', 'malformed_frozen_verify_policy', 'unsupported_frozen_policy_version'];
+  const outcomes = [];
+  for (const result of exported) {
+    assert.equal(result.tables.board_meta.find(row => row.meta_key === 'relay_applied_sequence').meta_value, '7');
+    outcomes.push(codes.map(id => JSON.parse(result.tables.board_meta.find(row => row.meta_key === 'relay_receipt_' + id).meta_value).outcome.error.code));
+    const accepted = JSON.parse(result.tables.board_meta.find(row => row.meta_key === 'relay_receipt_allowed_cross_family_verify').meta_value);
+    assert.equal(accepted.outcome.result.decision, 'ACCEPT');
+    const refrozen = JSON.parse(result.tables.board_meta.find(row => row.meta_key === 'relay_receipt_compliant_legacy_refreeze_verify').meta_value);
+    assert.equal(refrozen.outcome.result.decision, 'ACCEPT');
+  }
+  assert.deepEqual(outcomes, [
+    ['COORDINATOR_VERIFIES', 'NO_POLICY', 'O2_FAMILY_MATCH', 'NO_POLICY', 'NO_POLICY'],
+    ['COORDINATOR_VERIFIES', 'NO_POLICY', 'O2_FAMILY_MATCH', 'NO_POLICY', 'NO_POLICY'],
+  ]);
+});
+
+test('relay accepts engine 4 clients carrying sealed background completions [V2,H16]', async t => {
+  const box = await fixture(t, { machineCredentials: false });
+  const headers = { 'x-pullboard-engine': '4' };
+  assert.ok(ENGINE_VERSION >= 4, 'engine-4 background completions remain supported');
+  const snapshot = await box.call(box.path + '/state', {
+    method: 'PUT', token: box.person.token, headers,
+    body: { sequence: 0, sealed: box.clientSeal(box.document, 'snapshot', 0) },
+  });
+  assert.equal(snapshot.status, 200);
+  const board = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  let move;
+  try {
+    const expected = { command: 'true', main: 'a'.repeat(40), request: '12345678-1234-1234-1234-123456789abc' };
+    const prepared = prepareEngineMove(board, 'completeCheckBaseline', [1, {
+      agentId: 'client-one', expected, baseline: { ...expected, result: 'green' },
+    }]);
+    assert.equal(prepared.engine, ENGINE_VERSION, 'new operations declare the current engine');
+    move = { ...prepared, engine: 4 }; // Keep exercising the original engine-4 client.
+    assert.equal(move.engine, 4);
+  } finally { store.closeBoard(board); }
+  const uploaded = await box.call(box.path + '/moves', {
+    method: 'POST', headers, body: { sequence: 1, sealed: box.clientSeal(move, 'move', 1) },
+  });
+  assert.equal(uploaded.status, 200);
+  const read = await box.call(box.path + '/events?after=0', { token: box.two.token, headers });
+  assert.equal(read.status, 200);
+  assert.equal(read.body.events.length, 1);
+  const [record] = read.body.events;
+  assert.deepEqual(record.sender, { kind: 'agent', userId: box.person.user.id, agent: 'client-one' });
+  assert.deepEqual(box.clientOpen(record.sealed, record.kind, record.event_id), move);
+});
 
 test('[A4,H7] two clients append sealed moves in one order and no plaintext or client key reaches storage', async (t) => {
   const box = await fixture(t);
   const listed = await box.call('/api/v1/boards');
   assert.equal(listed.status, 200);
-  assert.deepEqual(listed.body.boards, [{ id: box.id, repository: 'fixture/repository' }]);
+  const linkedAt = box.auth.linkedBoards().find(row => row.id === box.id).linkedAt;
+  assert.deepEqual(listed.body.boards, [{ id: box.id, repository: 'fixture/repository', linkedAt }]);
   const initial = box.clientSeal(box.document, 'snapshot', 0);
   const uploaded = await box.call(box.path + '/state', { method: 'PUT', token: box.person.token, body: { sequence: 0, sealed: initial } });
   assert.equal(uploaded.status, 200);
@@ -241,7 +783,7 @@ test('[A4,H7] live streams follow the same order, resume by cursor and stop afte
     const controller = new AbortController();
     controllers.push(controller);
     const reply = await fetch(box.origin + box.path + '/events?after=0', {
-      headers: { authorization: 'Bearer ' + box.two.token, accept: 'text/event-stream', ...(last === null ? {} : { 'last-event-id': String(last) }) },
+      headers: { 'x-pullboard-engine': String(ENGINE_VERSION), authorization: 'Bearer ' + box.two.token, accept: 'text/event-stream', ...(last === null ? {} : { 'last-event-id': String(last) }) },
       signal: controller.signal,
     });
     assert.equal(reply.status, 200);

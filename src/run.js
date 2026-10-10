@@ -17,7 +17,7 @@ import { briefFiles } from './brief.js';
 import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
 import { doctrineText, loadDoctrine } from './doctrine.js';
 import { digestOf, runGate } from './gate.js';
-import { contains, git, headCommit, isClean, tryGit, untracked } from './git.js';
+import { contains, git, headCommit, invalidateGitFacts, isClean, tryGit, untracked } from './git.js';
 import { laneNames, outOfLane } from './lanes.js';
 import { Refused } from './refused.js';
 
@@ -85,6 +85,7 @@ function runCommand(command, { cwd, env = process.env, timeoutMs, log }) {
     }, timeoutMs);
     child.on('close', (status) => {
       clearTimeout(timer);
+      invalidateGitFacts();
       done({ status, output, timedOut, seconds: Math.round((Date.now() - started) / 1000) });
     });
   });
@@ -202,14 +203,21 @@ function commitHeader(item, rules, plain) {
  * @param {any} item
  * @param {any} config
  * @param {string[]} paths
- * @returns {{ ok: boolean, output: string }}
+ * @returns {{ ok: boolean, output: string, commit?: string }}
  */
-function commitWork(root, item, config, paths) {
+export function commitWork(root, item, config, paths) {
   git(root, ['add', '-A', '--', ...paths]);
+  const previousHead = headCommit(root);
   let output = '';
   for (const plain of [false, true]) {
     const result = spawnSync('git', ['commit', '-q', '-m', commitHeader(item, config.commits, plain)], { cwd: root, encoding: 'utf8' });
-    if (result.status === 0) return { ok: true, output: '' };
+    invalidateGitFacts();
+    if (result.status === 0) {
+      const commit = headCommit(root);
+      return commit === previousHead
+        ? { ok: false, output: 'git commit succeeded without advancing HEAD' }
+        : { ok: true, output: '', commit };
+    }
     output = `${result.stdout}${result.stderr}`;
   }
   return { ok: false, output };
@@ -253,16 +261,22 @@ function pinAttempt(root, id) {
  * @param {any} item
  * @param {any} deps
  */
-function mergeDependencies(ctx, item, deps) {
+async function mergeDependencies(ctx, item, deps) {
   const { root } = ctx.info;
   const after = item.item_after ? item.item_after.split(',').map(Number) : [];
   const needed = deps.withBoard(ctx, (board) => after.map((id) => store.getItem(board, id)))
     .filter((before) => before.item_commit && !contains(root, before.item_commit, 'HEAD'));
   for (const before of needed) {
     const merged = spawnSync('git', ['merge', '--no-edit', '-q', before.item_commit], { cwd: root, encoding: 'utf8' });
-    if (merged.status === 0) continue;
+    invalidateGitFacts();
+    if (merged.status === 0) {
+      continue;
+    }
     spawnSync('git', ['merge', '--abort'], { cwd: root });
-    deps.withBoard(ctx, (board) => store.release(board, item.item_id, deps.whoAmI(ctx, board).id));
+    invalidateGitFacts();
+    await deps.withBoard(ctx, async (board) => deps.ordered
+      ? deps.ordered(ctx, board, 'release', [item.item_id, deps.whoAmI(ctx, board).id, 'dependency merge conflict'])
+      : store.release(board, item.item_id, deps.whoAmI(ctx, board).id, 'dependency merge conflict'));
     throw new Refused('MERGE_CONFLICT', `#${item.item_id} waits on #${before.item_id}, whose commit ${before.item_commit.slice(0, 12)} conflicts with this worktree; the coordinator integrates it, then run again`);
   }
 }
@@ -283,8 +297,10 @@ async function tryItem(ctx, item, { command, attempts, minutes, deps, me, start,
   let digest = '';
   let seconds = 0;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    const { fresh, related } = deps.withBoard(ctx, (board) => {
-      store.claim(board, id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: deps.freezer(ctx) });
+    const { fresh, related } = await deps.withBoard(ctx, async (board) => {
+      const options = { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: deps.freezer(ctx) };
+      if (deps.ordered) await deps.ordered(ctx, board, 'claim', [id, options]);
+      else store.claim(board, id, options);
       const claimed = store.getItem(board, id);
       return { fresh: claimed, related: store.relatedItems(board, claimed) };
     });
@@ -323,7 +339,10 @@ async function tryItem(ctx, item, { command, attempts, minutes, deps, me, start,
         ctx.io.say(`#${id} attempt ${attempt}: ${result}: ${error.message}`);
       }
     }
-    deps.withBoard(ctx, (board) => store.recordAttempt(board, id, { agentId: me.id, n: attempt, seconds: built.seconds + checked.seconds, result }));
+    await deps.withBoard(ctx, async (board) => {
+      const options = { agentId: me.id, n: attempt, seconds: built.seconds + checked.seconds, result };
+      return deps.ordered ? deps.ordered(ctx, board, 'recordAttempt', [id, options]) : store.recordAttempt(board, id, options);
+    });
     if (result === 'green') return { green: true, digest, tries: attempt, seconds };
   }
   return { green: false, digest, tries: attempts, seconds };
@@ -340,7 +359,7 @@ async function tryItem(ctx, item, { command, attempts, minutes, deps, me, start,
 async function buildItem(ctx, item, { agents, attempts, minutes, deps, me }) {
   const { root } = ctx.info;
   const id = item.item_id;
-  mergeDependencies(ctx, item, deps);
+  await mergeDependencies(ctx, item, deps);
   const start = headCommit(root) ?? '';
   const earlier = deps.withBoard(ctx, (board) => store.events(board, { itemId: id }))
     .filter((event) => event.event_kind === 'escalate')
@@ -354,9 +373,12 @@ async function buildItem(ctx, item, { agents, attempts, minutes, deps, me }) {
   const ref = pinAttempt(root, id);
   git(root, ['reset', '-q', '--hard', start]);
   git(root, ['clean', '-q', '-fd']);
-  const moved = deps.withBoard(ctx, (board) => {
-    const result = store.escalate(board, id, { agentId: me.id, note: `${attempts} attempts stayed red. Last failure:\n${tried.digest}`.slice(0, 2000), attempt: ref });
-    store.shout(board, { from: me.id, to: COORDINATOR, text: `#${id} escalated ${result.from} -> ${result.to} after ${attempts} red attempts; the work is pinned at ${ref}`, lanes: laneNames(ctx.config) });
+  const moved = await deps.withBoard(ctx, async (board) => {
+    const options = { agentId: me.id, note: `${attempts} attempts stayed red. Last failure:\n${tried.digest}`.slice(0, 2000), attempt: ref };
+    const result = deps.ordered ? await deps.ordered(ctx, board, 'escalate', [id, options]) : store.escalate(board, id, options);
+    const message = { from: me.id, to: COORDINATOR, text: `#${id} escalated ${result.from} -> ${result.to} after ${attempts} red attempts; the work is pinned at ${ref}`, lanes: laneNames(ctx.config) };
+    if (deps.ordered) await deps.ordered(ctx, board, 'shout', [message]);
+    else store.shout(board, message);
     return result;
   });
   ctx.io.say(`#${id} escalated ${moved.from} -> ${moved.to}; the attempt is pinned at ${ref}`);
@@ -399,7 +421,7 @@ export async function runItems(io, values, deps) {
   const totals = { submitted: 0, escalated: 0 };
   const deadline = Date.now() + waitMinutes * 60_000;
   while (totals.submitted + totals.escalated < limit) {
-    const found = deps.nextOnce(ctx, { runnable: true, routes });
+    const found = await deps.nextOnce(ctx, { runnable: true, routes, build: true });
     if (found.retry) continue;
     if (!found.item) {
       if (Date.now() >= deadline) {
@@ -409,6 +431,7 @@ export async function runItems(io, values, deps) {
       await new Promise((done) => setTimeout(done, 5000));
       continue;
     }
+    if (found.reviewSkipped) io.say(`review backlog: ${found.reviewSkipped.pending} awaiting, ${found.reviewSkipped.reviewing} agents reviewing; explicit build intent recorded`);
     totals[await buildItem(ctx, found.item, { agents, attempts, minutes, deps, me })] += 1;
   }
   io.say(`runner done: ${totals.submitted} submitted, ${totals.escalated} escalated`);

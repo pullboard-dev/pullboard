@@ -11,7 +11,7 @@ import { spawnSync } from 'node:child_process';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import * as store from './board.js';
 import { cockpitPage } from './cockpit.js';
 import { COORDINATOR, loadConfig } from './config.js';
@@ -25,6 +25,29 @@ import { loadSpec } from './spec.js';
 /** The page's styles (N26), read once: the page links them, so it needs no inline style. */
 const VIEW_CSS = readFileSync(new URL('./view.css', import.meta.url), 'utf8');
 export const LOOPBACK = '127.0.0.1';
+
+/**
+ * Replace only board-recorded filesystem fields in exported API documents. Event details are
+ * JSON records too; free text such as shouts, criteria, briefs and verdict notes stays verbatim.
+ *
+ * @param {any} value
+ * @param {string} root
+ * @param {string} [field]
+ * @returns {any}
+ */
+export function portableSnapshot(value, root, field = '') {
+  if (Array.isArray(value)) return value.map((entry) => portableSnapshot(entry, root));
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, portableSnapshot(entry, root, key)]));
+  if (typeof value !== 'string') return value;
+  if (field === 'event_detail') {
+    try { return JSON.stringify(portableSnapshot(JSON.parse(value), root)); }
+    catch { return value; }
+  }
+  if (['root', 'path', 'agent_path', 'git_dir', 'gitDir', 'commonDir', 'worktree'].includes(field) && isAbsolute(value)) {
+    return resolve(value) === resolve(root) ? basename(root) : relative(root, value);
+  }
+  return value;
+}
 
 /**
  * Export one board through the same API v1 used by the live page, closing its temporary local
@@ -61,7 +84,11 @@ export async function exportView(root, directory) {
     };
     listing = await read('/api/v1/boards');
     const board = listing.boards[0];
-    if (!board) throw new Refused('NO_BOARD', 'no readable board to export; run pullboard init in this repo');
+    if (!board) {
+      const version = listing.warnings?.map((warning) => warning.error?.error).find((error) => error?.code === 'EVENT_LOG_VERSION');
+      if (version) throw new Refused(version.code, version.message);
+      throw new Refused('NO_BOARD', 'no readable board to export; run pullboard init in this repo');
+    }
     const path = '/api/v1/boards/' + encodeURIComponent(board.id);
     state = await read(path + '/state');
     events = await read(path + '/events');
@@ -70,6 +97,9 @@ export async function exportView(root, directory) {
   } finally {
     await api.close();
   }
+  listing = portableSnapshot(listing, info.root);
+  state = portableSnapshot(state, info.root);
+  events = portableSnapshot(events, info.root);
   const boardPath = join(output, 'api', 'v1', 'boards', listing.boards[0].id);
   mkdirSync(boardPath, { recursive: true });
   writeFileSync(join(output, 'index.html'), cockpitPage('', { snapshot: true }));
@@ -119,16 +149,17 @@ function rememberPort(port) {
  * @template T
  * @param {string} root
  * @param {(board: any, info: any, config: any) => T} read
+ * @param {any | null} [providedBoard] Borrow a staged connection without closing it.
  * @returns {T}
  */
-function withProject(root, read) {
+function withProject(root, read, providedBoard = null) {
   const info = repoInfo(root);
   const config = loadConfig(info.root);
-  const board = store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'));
+  const board = providedBoard ?? store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'));
   try {
     return read(board, info, config);
   } finally {
-    store.closeBoard(board);
+    if (!providedBoard) store.closeBoard(board);
   }
 }
 
@@ -137,10 +168,10 @@ function withProject(root, read) {
  * it also counts every shout since, which the forty it sends cannot always show.
  *
  * @param {string} root
- * @param {{ seen?: number | null }} [options]
+ * @param {{ seen?: number | null, board?: any }} [options] A supplied board stays owned by its caller.
  * @returns {any}
  */
-export function projectState(root, { seen = null } = {}) {
+export function projectState(root, { seen = null, board: providedBoard = null } = {}) {
   return withProject(root, (board, info, config) => {
     const all = store.listItems(board, { all: true });
     const status = new Map(all.map((item) => [item.item_id, item.item_status]));
@@ -202,7 +233,7 @@ export function projectState(root, { seen = null } = {}) {
       // Each product's progress, counted as pullboard status counts it (N28).
       products: productSummaries(config, loadSpec(info.root, config), all),
     };
-  });
+  }, providedBoard);
 }
 
 /** The most lines one code reference shows (B23). */
@@ -285,7 +316,8 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     const isOwnHost = req.headers.host === `${LOOPBACK}:${bound}` || req.headers.host === `localhost:${bound}`;
     if (!isOwnHost || given.length !== key.length || !timingSafeEqual(given, key)) return json(res, 403, { error: 'this view needs its own address and secret: open the link pullboard view printed' });
     try {
-      if (req.method === 'GET' && url.pathname === '/') return reply(res, 200, 'text/html; charset=utf-8', cockpitPage(secret));
+      // The board, and the Roadmap at its own address (N38), are the one page.
+      if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/roadmap')) return reply(res, 200, 'text/html; charset=utf-8', cockpitPage(secret, { paths: true }));
       if (req.method === 'GET' && url.pathname === '/view.css') return reply(res, 200, 'text/css; charset=utf-8', VIEW_CSS);
       return json(res, 404, { error: 'no such page' });
     } catch (error) {

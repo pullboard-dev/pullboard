@@ -4,7 +4,7 @@ import { closeSync, lstatSync, mkdirSync, openSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { Refused } from '../src/refused.js';
 
-const FORMAT = 2;
+const FORMAT = 3;
 const DEFAULT_BYTES = 100_000;
 
 /** Validate a persistent identity before it can name an internal file. */
@@ -37,20 +37,40 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
     db.exec(`CREATE TABLE IF NOT EXISTS journal_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS journal_record (sequence INTEGER PRIMARY KEY, received_at TEXT NOT NULL,
         kind TEXT NOT NULL CHECK(kind IN ('move','request')), payload BLOB NOT NULL,
-        sender_kind TEXT NOT NULL CHECK(sender_kind IN ('person','agent')), sender_user TEXT NOT NULL,
+        sender_kind TEXT NOT NULL CHECK(sender_kind IN ('person','agent','machine')), sender_user TEXT NOT NULL,
         sender_agent TEXT, CHECK((sender_kind='person' AND sender_agent IS NULL) OR
-          (sender_kind='agent' AND sender_agent IS NOT NULL)))`);
+          (sender_kind IN ('agent','machine') AND sender_agent IS NOT NULL)))`);
     const saved = db.prepare('SELECT key, value FROM journal_meta ORDER BY key').all();
     if (saved.length === 0) {
       if (db.prepare('SELECT 1 FROM journal_record LIMIT 1').get()) throw new Refused('RELAY_STORAGE', 'restore the journal with its original identity and format metadata');
       db.prepare('INSERT INTO journal_meta (key,value) VALUES (?,?), (?,?)').run('board', id, 'format', String(FORMAT));
-    } else if (saved.length !== 2 || saved[0].key !== 'board' || saved[0].value !== id || saved[1].key !== 'format' || saved[1].value !== String(FORMAT)) {
+    } else if (saved.length !== 2 || saved[0].key !== 'board' || saved[0].value !== id || saved[1].key !== 'format' || !['2', String(FORMAT)].includes(saved[1].value)) {
       throw new Refused('RELAY_STORAGE', 'open this journal with its original board identity and supported transport format');
     }
     db.exec(`CREATE TABLE IF NOT EXISTS journal_head (slot INTEGER PRIMARY KEY CHECK(slot=1), sequence INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS journal_snapshot (slot INTEGER PRIMARY KEY CHECK(slot=1), sequence INTEGER NOT NULL,
-        received_at TEXT NOT NULL, payload BLOB NOT NULL, sender_kind TEXT NOT NULL CHECK(sender_kind='person'),
-        sender_user TEXT NOT NULL, sender_agent TEXT CHECK(sender_agent IS NULL))`);
+        received_at TEXT NOT NULL, payload BLOB NOT NULL, sender_kind TEXT NOT NULL CHECK(sender_kind IN ('person','machine')),
+        sender_user TEXT NOT NULL, sender_agent TEXT, CHECK((sender_kind='person' AND sender_agent IS NULL) OR
+          (sender_kind='machine' AND sender_agent IS NOT NULL)))`);
+    // The authenticated machine principal needs new CHECK constraints; preserve every opaque byte.
+    if (saved[1]?.value === '2') {
+      db.exec(`ALTER TABLE journal_record RENAME TO journal_record_v2;
+        CREATE TABLE journal_record (sequence INTEGER PRIMARY KEY, received_at TEXT NOT NULL,
+          kind TEXT NOT NULL CHECK(kind IN ('move','request')), payload BLOB NOT NULL,
+          sender_kind TEXT NOT NULL CHECK(sender_kind IN ('person','agent','machine')), sender_user TEXT NOT NULL,
+          sender_agent TEXT, CHECK((sender_kind='person' AND sender_agent IS NULL) OR
+            (sender_kind IN ('agent','machine') AND sender_agent IS NOT NULL)));
+        INSERT INTO journal_record SELECT * FROM journal_record_v2;
+        DROP TABLE journal_record_v2;
+        ALTER TABLE journal_snapshot RENAME TO journal_snapshot_v2;
+        CREATE TABLE journal_snapshot (slot INTEGER PRIMARY KEY CHECK(slot=1), sequence INTEGER NOT NULL,
+          received_at TEXT NOT NULL, payload BLOB NOT NULL, sender_kind TEXT NOT NULL CHECK(sender_kind IN ('person','machine')),
+          sender_user TEXT NOT NULL, sender_agent TEXT, CHECK((sender_kind='person' AND sender_agent IS NULL) OR
+            (sender_kind='machine' AND sender_agent IS NOT NULL)));
+        INSERT INTO journal_snapshot SELECT * FROM journal_snapshot_v2;
+        DROP TABLE journal_snapshot_v2;
+        UPDATE journal_meta SET value='3' WHERE key='format';`);
+    }
     db.exec('INSERT OR IGNORE INTO journal_head (slot,sequence) SELECT 1, COALESCE(MAX(sequence),0) FROM journal_record');
     if (!db.prepare('PRAGMA table_info(journal_head)').all().some((column) => column.name === 'last_activity_at')) {
       db.exec('ALTER TABLE journal_head ADD COLUMN last_activity_at TEXT');
@@ -70,18 +90,19 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
   function record(row) {
     return { sequence: row.sequence, receivedAt: row.received_at, kind: row.kind ?? 'snapshot',
       sender: { kind: row.sender_kind, userId: row.sender_user,
-        ...(row.sender_kind === 'agent' ? { agent: row.sender_agent } : {}) }, bytes: Buffer.from(row.payload) };
+        ...(row.sender_kind === 'agent' ? { agent: row.sender_agent } : row.sender_kind === 'machine' ? { machine: row.sender_agent } : {}) }, bytes: Buffer.from(row.payload) };
   }
 
   /** Require server-derived attribution, copying only its public identity and never a credential. */
   function sender(value, personOnly = false) {
-    if (!value || !['person', 'agent'].includes(value.kind) || typeof value.userId !== 'string' ||
+    if (!value || !['person', 'agent', 'machine'].includes(value.kind) || typeof value.userId !== 'string' ||
         !value.userId.length || value.userId.length > 256 ||
-        (value.kind === 'agent' && (typeof value.agent !== 'string' || !value.agent.length || value.agent.length > 256))) {
+        (value.kind === 'agent' && (typeof value.agent !== 'string' || !value.agent.length || value.agent.length > 256)) ||
+        (value.kind === 'machine' && (typeof value.machine !== 'string' || !value.machine.length || value.machine.length > 256))) {
       throw new Refused('RELAY_PRINCIPAL', 'supply the authenticated sender before storing a sealed record');
     }
-    if (personOnly && value.kind !== 'person') throw new Refused('HUMAN_REQUIRED', 'sign in as a person to replace a board snapshot');
-    return { kind: value.kind, userId: value.userId, agent: value.kind === 'agent' ? value.agent : null };
+    if (personOnly && !['person', 'machine'].includes(value.kind)) throw new Refused('HUMAN_REQUIRED', 'use this board’s machine credential to replace its snapshot');
+    return { kind: value.kind, userId: value.userId, agent: value.kind === 'agent' ? value.agent : value.kind === 'machine' ? value.machine : null };
   }
 
   /** Read the latest committed sequence, including an empty journal's initial cursor. */
@@ -143,7 +164,7 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
   }
 
   /** Replace a covered snapshot and compact only its acknowledged prefix, keeping the head. */
-  function saveSnapshot(sequence, bytes, principal) {
+  function saveSnapshot(sequence, bytes, principal, { initialOnly = false } = {}) {
     open();
     if (!Number.isSafeInteger(sequence) || sequence < 0) throw new Refused('BAD_SEQUENCE', 'name the nonnegative sequence this snapshot covers');
     const sealed = payload(bytes);
@@ -152,6 +173,7 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
     try {
       if (sequence > latest()) throw new Refused('SEQUENCE_GAP', 'upload the missing moves before a snapshot that covers them');
       const previous = snapshot();
+      if (initialOnly && previous) throw new Refused('BASELINE_EXISTS', 'this board already has a baseline; preserve the local board before choosing which history to keep');
       if (previous && sequence < previous.sequence) throw new Refused('SNAPSHOT_STALE', 'use the latest stored snapshot and seal a snapshot that covers at least its sequence');
       const at = now();
       if (!(at instanceof Date) || !Number.isFinite(at.getTime())) throw new Refused('RELAY_CONFIG', 'the journal clock must return a valid Date');

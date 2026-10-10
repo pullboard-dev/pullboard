@@ -4,13 +4,16 @@
  * Each check returns its problems; an empty list lets git go on.
  */
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { git, gitChildEnv, tryGit } from './git.js';
+import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { git, gitChildEnv, gitPath, gitConfig, invalidateGitFacts, mainCheckout, refuseGrafts, tryGit } from './git.js';
+import { CONFIG_FILE, configFromSource, DOCTRINE_FILE, LEGACY_DOCTRINE_FILE } from './config.js';
+import { Refused } from './refused.js';
 import { outOfLane } from './lanes.js';
 import { citedIds, deletedIds, idProblems } from './spec.js';
+import { approvedRowProblems } from './approved-rows.js';
 
-export const HOOKS = ['pre-commit', 'commit-msg', 'pre-push'];
+export const HOOKS = ['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push'];
 export const HOOKS_DIR = '.githooks';
 export const HOOK_MARK = 'Installed by pullboard';
 export const FIX_NOTE = 'Fix what each line names. Never work around a refusal with filler text.';
@@ -18,6 +21,7 @@ export const FIX_NOTE = 'Fix what each line names. Never work around a refusal w
 const EMOJI_RE = /\p{Extended_Pictographic}|\p{Regional_Indicator}|⃣|️/u;
 const EXEMPT_RE = /^(Merge |Revert "|fixup! |squash! |amend! )/;
 const ZERO_SHA = /^0+$/;
+const MAX_SECRET_DIFF_BYTES = 8 * 1024 * 1024;
 
 /**
  * Secrets by kind, most specific first, so a line is named once by what it most likely is.
@@ -74,7 +78,7 @@ function headerProblems(header, rules) {
  * @param {{ rules: any, spec: any }} context
  * @returns {string[]}
  */
-export function commitMsgProblems(raw, { rules, spec }) {
+export function commitMsgProblems(raw, { rules, spec, doctrine = null }) {
   const lines = raw.split('\n').filter((line) => !line.startsWith('#'));
   while (lines.length && !lines.at(-1)?.trim()) lines.pop();
   const [header = '', second, ...body] = lines;
@@ -82,7 +86,7 @@ export function commitMsgProblems(raw, { rules, spec }) {
   const { problems, type } = headerProblems(header, rules);
   const ids = citedIds(header);
   problems.push(
-    ...idProblems(spec, ids).map(
+    ...idProblems(spec, ids, doctrine).map(
       (problem) => `cite only rows that exist and are live, separated by commas like [G1,G2] (${problem})`,
     ),
   );
@@ -100,6 +104,29 @@ export function commitMsgProblems(raw, { rules, spec }) {
   if (rules.noEmoji && EMOJI_RE.test(all)) problems.push('remove the emoji');
   if (rules.noCoAuthor && /^\s*co-authored-by\s*:/im.test(all)) problems.push('remove the Co-Authored-By trailer');
   return problems;
+}
+
+/**
+ * Colliding bare citations keep their SPEC.md meaning, but tell the author how to name doctrine.
+ *
+ * @param {string} raw
+ * @param {{ spec: any, doctrine: any }} context
+ * @returns {string[]}
+ */
+export function commitCitationWarnings(raw, { spec, doctrine }) {
+  const ids = citedIds(raw.split('\n')[0] ?? '').filter((id) => !id.startsWith('doctrine:'));
+  return ids.flatMap((id) => {
+    const specRows = spec.rows.filter((row) => row.id === id);
+    const doctrineRows = (doctrine?.repo?.rows ?? []).filter((row) => row.id === id);
+    if (!specRows.length || specRows.length + doctrineRows.length < 2) return [];
+    const specLocations = specRows.map((row) => `${spec.name ?? 'SPEC.md'}:${row.line}`);
+    const doctrineLocations = doctrineRows.map((row) => `${doctrine.name}:${row.line}`);
+    const locations = [...specLocations, ...doctrineLocations].slice(0, 2);
+    const resolution = doctrineRows.length
+      ? `bare ids cite SPEC.md, use doctrine:${id} for a doctrine row`
+      : 'bare ids resolve to SPEC.md, which contains duplicate rows';
+    return [`${id} is a known collision at ${locations.join(' and ')}; ${resolution}`];
+  });
 }
 
 /**
@@ -195,45 +222,105 @@ export function blockedPaths(paths, protect) {
  * changes outside its folders. The main checkout is the coordinator's and may change anything; any
  * other worktree must have joined a lane.
  *
- * @param {{ root: string, isMain: boolean, config: any, agent: any }} context
+ * @param {{ root: string, isMain: boolean, config: any, agent: any, boardFile?: string }} context
  * @returns {string[]}
  */
-export function preCommitProblems({ root, isMain, config, agent }) {
+export function preCommitProblems({ root, isMain, config, agent, boardFile }) {
+  if (!isMain) refuseGrafts(root);
   const { touched, written } = stagedPaths(root);
   const problems = blockedPaths(written, config.protect).map(
     (path) => `${path} is a blocked file (env or secrets); keep it out of git`,
   );
   if (config.protect.secrets) {
-    const diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0']);
+    let diff;
+    try {
+      diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+    } catch (error) {
+      if (error.code !== 'ENOBUFS') throw error;
+      throw new Refused('DIFF_TOO_LARGE', 'the staged text diff exceeds the safe scan limit; split the change into smaller commits, then retry');
+    }
     problems.push(...secretsIn(addedLines(diff)).map((where) => `possible secret: ${where}`));
   }
   problems.push(...deletedRowProblems(root, [config.spec, config.practice]));
+  problems.push(...approvedRowProblems(root, config, boardFile));
   if (isMain) return problems;
   if (!agent) {
     problems.push('this worktree has not joined a lane: pullboard join <lane>');
     return problems;
   }
   const mergeBase = mainMergeBase(root);
-  const ownershipTouched = mergeBase ? stagedPaths(root, mergeBase).touched : touched;
-  const foreign = outOfLane(config, agent.agent_lane, ownershipTouched);
+  const ownershipConfig = committedLaneConfig(root);
+  const ownershipTouched = mergeBase
+    ? [...new Set([...touched, ...stagedPaths(root, mergeBase).touched])]
+      .filter((path) => !outOfLane(ownershipConfig, agent.agent_lane, [path]).length || !unchangedMergePath(root, path, mergeBase))
+    : touched;
+  const foreign = outOfLane(ownershipConfig, agent.agent_lane, ownershipTouched);
   problems.push(
     ...foreign.map((path) => `outside the ${agent.agent_lane} lane: ${path}; shout its owner instead`),
   );
   return problems;
 }
 
+/** Read lane ownership from the committed checkout, so unstaged settings cannot grant new folders [L1,L3]. */
+function committedLaneConfig(root) {
+  const source = tryGit(root, ['show', 'HEAD:' + CONFIG_FILE]);
+  if (source.status !== 0) throw new Refused('NO_POLICY', 'lane checks need pullboard.json committed at HEAD; restore the committed policy or ask the coordinator to initialize it');
+  return configFromSource(source.stdout);
+}
+
+/** Report a missing merge check at Git's effective hook path without changing files [L3,A6]. */
+export function preMergeHookProblems(root) {
+  const file = gitPath(root, 'hooks/pre-merge-commit');
+  return existsSync(file) ? [] : [{ code: 'HOOK_MISSING', message: `merge hook ${file} is missing`, next: 'run pullboard hooks to install pre-merge-commit, then commit the hook files' }];
+}
+
 /**
- * The commit being merged, only when it is already part of main's history.
+ * The commit being merged, only when it is already part of the primary checkout's history.
  *
  * @param {string} root
  * @returns {string | null}
  */
 function mainMergeBase(root) {
-  const merge = tryGit(root, ['rev-parse', '--verify', 'MERGE_HEAD']);
-  if (merge.status !== 0) return null;
-  return tryGit(root, ['merge-base', '--is-ancestor', merge.stdout, 'refs/heads/main']).status === 0
-    ? merge.stdout
+  const gitPath = tryGit(root, ['rev-parse', '--git-path', 'MERGE_HEAD']);
+  if (gitPath.status !== 0) return null;
+  let merge;
+  try { merge = readFileSync(resolve(root, gitPath.stdout.trim()), 'utf8').split(/\r?\n/u, 1)[0]; } catch { return null; }
+  if (!/^[0-9a-f]{40}$/i.test(merge ?? '')) return null;
+  if (tryGit(root, ['cat-file', '-e', `${merge}^{commit}`]).status !== 0) return null;
+  if (tryGit(root, ['merge-base', '--is-ancestor', merge, 'HEAD']).status === 0) return null;
+  let main;
+  try { main = mainCheckout(root)?.commit; } catch { return null; }
+  if (!main) return null;
+  return tryGit(root, ['merge-base', '--is-ancestor', merge, main]).status === 0
+    ? merge
     : null;
+}
+
+/** Compare the staged mode and object, rejecting unresolved stages rather than treating them as deletions. */
+function stagedObject(root, path) {
+  const records = git(root, ['ls-files', '--stage', '-z', '--', ':(literal)' + path]).split('\0').filter((record) => {
+    const separator = record.indexOf('\t');
+    return separator !== -1 && record.slice(separator + 1) === path;
+  });
+  if (!records.length) return '';
+  if (records.length !== 1) return null;
+  const fields = /^(\d{6}) ([0-9a-f]{40,64}) 0\t/.exec(records[0]);
+  return fields ? fields[1] + ' ' + fields[2] : null;
+}
+
+/** Read one committed path's mode and object without following symlinks or interpreting filename globs. */
+function committedObject(root, commit, path) {
+  const records = git(root, ['ls-tree', '-z', commit, '--', ':(literal)' + path]).split('\0').filter(Boolean);
+  if (!records.length) return '';
+  if (records.length !== 1) return null;
+  const fields = /^(\d{6}) \w+ ([0-9a-f]{40,64})\t/.exec(records[0]);
+  return fields ? fields[1] + ' ' + fields[2] : null;
+}
+
+/** Main integration may preserve either parent's exact foreign object; a new resolution remains lane-owned. */
+function unchangedMergePath(root, path, mergeBase) {
+  const staged = stagedObject(root, path);
+  return staged !== null && (staged === committedObject(root, mergeBase, path) || staged === committedObject(root, 'HEAD', path));
 }
 
 /**
@@ -271,6 +358,7 @@ export function applyFixers(root, fixers) {
       encoding: 'utf8',
       timeout: 120_000,
     });
+    invalidateGitFacts();
     if (result.status === 0) git(root, ['add', '--', ...files]);
     else notes.push(`fixer "${fixer.run}" failed (${result.status ?? 'timed out'}); staged nothing from it, so the gate will name what it could not fix`);
   }
@@ -290,12 +378,15 @@ export function applyFixers(root, fixers) {
  */
 export function deletedRowProblems(root, paths) {
   return paths.flatMap((path) => {
-    const before = tryGit(root, ['show', `HEAD:${path}`]);
-    if (before.status !== 0) return [];
-    const staged = tryGit(root, ['show', `:${path}`]);
-    if (staged.status !== 0) return [`${path} is deleted; ids are permanent: restore it`];
+    const names = [DOCTRINE_FILE, LEGACY_DOCTRINE_FILE].includes(path)
+      ? [path, path === DOCTRINE_FILE ? LEGACY_DOCTRINE_FILE : DOCTRINE_FILE]
+      : [path];
+    const before = names.map((name) => ({ ...tryGit(root, ['show', `HEAD:${name}`]), name })).find((file) => file.status === 0);
+    if (!before) return [];
+    const staged = names.map((name) => ({ ...tryGit(root, ['show', `:${name}`]), name })).find((file) => file.status === 0);
+    if (!staged) return [`${before.name} is deleted; ids are permanent: restore it`];
     return deletedIds(before.stdout, staged.stdout).map(
-      (id) => `${path}: ${id} is gone; ids are permanent: keep the row and mark it wont (won't build) or retired`,
+      (id) => `${staged.name}: ${id} is gone; ids are permanent: keep the row and mark it wont (won't build) or retired`,
     );
   });
 }
@@ -321,6 +412,16 @@ export function prePushProblems(root, refsText) {
     if (commit !== head) problems.push(`${localRef} is not checked out; switch to it and push from there`);
   }
   return problems;
+}
+
+/** Whether Git's pre-push updates advance the configured trunk rather than another remote branch. */
+export function pushesTrunk(refsText, trunk) {
+  if (!trunk) return false;
+  const remoteTrunk = trunk.startsWith('refs/heads/') ? trunk : `refs/heads/${trunk}`;
+  return refsText.split('\n').some((line) => {
+    const [, localSha = '', remoteRef = ''] = line.trim().split(/\s+/u);
+    return remoteRef === remoteTrunk && !ZERO_SHA.test(localSha);
+  });
 }
 
 /**
@@ -352,9 +453,10 @@ export function hookScript(hook) {
  * and reported, so init never clobbers a repo's own hooks (I2).
  *
  * @param {string} root
+ * @param {(path: string) => void} [onWrite] Observe only files this installer actually writes.
  * @returns {string[]} What happened, one line per hook.
  */
-export function installHooks(root) {
+export function installHooks(root, onWrite = () => {}) {
   const dir = join(root, HOOKS_DIR);
   mkdirSync(dir, { recursive: true });
   const notes = [];
@@ -370,13 +472,25 @@ export function installHooks(root) {
       );
       continue;
     }
-    writeFileSync(file, hookScript(hook));
+    const script = hookScript(hook);
+    if (existing === script) {
+      if ((statSync(file).mode & 0o777) !== 0o755) {
+        chmodSync(file, 0o755);
+        onWrite(`${HOOKS_DIR}/${hook}`);
+        notes.push(`restored executable mode for ${HOOKS_DIR}/${hook}`);
+      } else notes.push(`kept ${HOOKS_DIR}/${hook}`);
+      continue;
+    }
+    writeFileSync(file, script);
     chmodSync(file, 0o755);
+    onWrite(`${HOOKS_DIR}/${hook}`);
     notes.push(`wrote ${HOOKS_DIR}/${hook}`);
   }
-  const current = tryGit(root, ['config', '--get', 'core.hooksPath']).stdout;
+  const current = gitConfig(root, 'core.hooksPath').stdout;
   if (current && current !== HOOKS_DIR) {
     notes.push(`core.hooksPath is ${current}; left as is. Call pullboard hook <name> from those hooks`);
+  } else if (current === HOOKS_DIR) {
+    notes.push(`kept core.hooksPath at ${HOOKS_DIR}`);
   } else {
     git(root, ['config', 'core.hooksPath', HOOKS_DIR]);
     notes.push(`set core.hooksPath to ${HOOKS_DIR}`);

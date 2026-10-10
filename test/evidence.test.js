@@ -1,6 +1,6 @@
 /** Row evidence and stage precedence (S15, S16). */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { runFixtureChild } from './fixture-child.js';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -19,7 +19,8 @@ function trackedFile(root, path, text) {
   const file = join(root, path);
   mkdirSync(join(file, '..'), { recursive: true });
   writeFileSync(file, text);
-  execFileSync('git', ['-C', root, 'add', '--', path]);
+  const staged = runFixtureChild('git', ['-C', root, 'add', '--', path], { encoding: 'utf8' });
+  assert.equal(staged.status, 0, staged.failure);
 }
 
 test('evidence uses exact citations in tracked visible tests and stage precedence follows sign-offs [S15, S16]', () => {
@@ -29,7 +30,8 @@ test('evidence uses exact citations in tracked visible tests and stage precedenc
   const root = join(sandbox, 'repo');
   try {
     mkdirSync(root);
-    execFileSync('git', ['init', '--quiet', root]);
+    const initialized = runFixtureChild('git', ['init', '--quiet', root], { encoding: 'utf8' });
+    assert.equal(initialized.status, 0, initialized.failure);
     trackedFile(root, 'test/primary.test.js', '// proves [S15] and [S16]; not [S150]\n');
     trackedFile(root, 'tests/support.js', '/* shared [S15, S150] */\n');
     trackedFile(root, 'src/target.spec.md', 'S15 [S15]\n');
@@ -69,6 +71,7 @@ test('evidence uses exact citations in tracked visible tests and stage precedenc
     assert.equal(rowStage({}, evidence), 'awaiting a verdict');
     assert.equal(rowStage({}, { ...evidence, awaiting: false }), 'building');
     assert.equal(rowStage({}, { files: [], verified: [{ id: 7 }], building: false, awaiting: false }), 'verified and ready to sign');
+    assert.equal(rowStage({}, { files: ['test/ghost.test.js'], verified: [], building: false, awaiting: false }), 'cited by tests, not verified');
     assert.equal(rowStage({}, { files: [], verified: [], building: false, awaiting: false }), 'no evidence');
   } finally {
     if (priorHome === undefined) delete process.env.PULLBOARD_HOME;
