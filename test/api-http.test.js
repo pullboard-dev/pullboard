@@ -1,7 +1,7 @@
 /** Real HTTP calls against an isolated Git repo and the actual board engine (A2). */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createServer, request as httpRequest } from 'node:http';
@@ -40,9 +40,9 @@ function fixture(t) {
   };
   mkdirSync(env.HOME);
   /** Run Git only inside the private fixture. */
-  const git = (...args) => execFileSync('git', args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' });
+  const git = (...args) => runFixtureGit(args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' });
   /** Exercise this worktree's real CLI with a private environment. */
-  const run = (cwd, ...args) => spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   /** Decode one successful versioned CLI invocation without printing session links. */
   function cli(cwd, ...args) {
     const result = run(cwd, ...args, '--json');
@@ -139,7 +139,7 @@ test('[A2, N33, N35] API listing refreshes live labels and preserves unreadable-
   t.after(() => { if (priorHome === undefined) delete process.env.PULLBOARD_HOME; else process.env.PULLBOARD_HOME = priorHome; });
   const second = join(box.dir, 'second-repo');
   mkdirSync(second);
-  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: second, env: box.env, stdio: 'pipe' });
+  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: second, env: box.env, stdio: 'pipe' });
   box.cli(second, 'init');
   const secondConfigFile = join(second, 'pullboard.json');
   const secondConfig = JSON.parse(readFileSync(secondConfigFile, 'utf8'));

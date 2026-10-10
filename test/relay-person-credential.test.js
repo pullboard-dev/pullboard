@@ -1,6 +1,6 @@
 /** Same-user agents keep working while only the paired phone holds person authority [H5,H16,H17,B26]. */
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { startFixtureChild as spawn, runFixtureChild as spawnSync } from './fixture-child.js';
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -18,11 +18,10 @@ function command(root, environment, args) {
   child.stdout.setEncoding('utf8').on('data', part => { output += part; });
   child.stderr.resume();
   const done = new Promise((resolveResult, reject) => {
-    child.once('error', reject);
     child.once('close', (code, signal) => {
-      if (signal) return reject(new Error('private native command ended with ' + signal));
+      if (signal) return reject(new Error(child.fixtureFailure));
       try { resolveResult({ code, document: JSON.parse(output) }); }
-      catch { reject(new Error('private native command returned invalid JSON for ' + args[0])); }
+      catch { reject(new Error(child.fixtureFailure ?? 'private native command returned invalid JSON for ' + args[0])); }
     });
   });
   return { child, done };

@@ -1,11 +1,11 @@
 /** Real device-flow CLI ordering through the opaque relay [H1,H7,H15]. */
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { runFixtureChild as spawnSync, cleanupFixtureChildren, runFixtureChildAsync, runFixtureGit, safeFixtureDiagnostic } from './fixture-child.js';
 import { createServer } from 'node:http';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { delimiter, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import { gunzipSync } from 'node:zlib';
 import { DatabaseSync } from 'node:sqlite';
 import { createAuthHandler } from '../relay/auth-http.js';
@@ -27,6 +27,7 @@ import { fetchFresh } from './http-fixture.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
 
 const SIGN_INS = new Map();
+after(cleanupFixtureChildren);
 
 /** Read native gzip snapshots while retaining checks against historical uncompressed records. */
 function snapshotDocument(plain) {
@@ -35,36 +36,29 @@ function snapshotDocument(plain) {
 
 /** Run the actual CLI asynchronously so this process can continue serving its HTTP requests. */
 function cliResult(root, env, ...args) {
-  return new Promise((resolveResult, reject) => {
-    const child = spawn(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args, '--json'], {
-      cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    let stdout = '';
-    let stderr = '';
-    const timer = setTimeout(() => child.kill('SIGKILL'), 25_000);
-    child.stdout.setEncoding('utf8').on('data', (part) => { stdout += part; });
-    let signInStarted = false;
-    child.stderr.setEncoding('utf8').on('data', (part) => {
-      stderr += part;
-      if (!signInStarted && stderr.includes('enter TEST-ONLY') && SIGN_INS.has(root)) {
+  let signInStarted = false;
+  let observedStderr = '';
+  return runFixtureChildAsync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args, '--json'], {
+    cwd: root, env,
+    onStderrChunk(part, child) {
+      observedStderr += part;
+      if (!signInStarted && observedStderr.includes('enter TEST-ONLY') && SIGN_INS.has(root)) {
         signInStarted = true;
         Promise.resolve(SIGN_INS.get(root)()).catch(() => child.kill('SIGKILL'));
       }
-    });
-    child.once('error', (error) => { clearTimeout(timer); reject(error); });
-    child.once('close', (code, signal) => {
-      clearTimeout(timer);
-      if (signal) return reject(new Error(`pullboard ${args.join(' ')} was killed by ${signal}: ${stderr}`));
-      try { resolveResult({ status: code, document: JSON.parse(stdout), stderr }); }
-      catch { reject(new Error(`pullboard ${args.join(' ')} did not print JSON: ${stdout}\n${stderr}`)); }
-    });
+    },
+  }).then((result) => {
+    if (result.error) throw new Error(result.failure);
+    try { return { status: result.status, document: JSON.parse(result.stdout), stderr: result.stderr, failure: result.failure }; }
+    catch { throw new Error(result.failure ?? result.context); }
   });
 }
 
 /** Run a successful actual CLI command and retain refusal diagnostics on failure. */
 async function cli(root, env, ...args) {
   const result = await cliResult(root, env, ...args);
-  assert.equal(result.status, 0, `pullboard ${args.join(' ')} exited ${result.status}: ${result.stderr}\n${JSON.stringify(result.document)}`);
+  const refusal = safeFixtureDiagnostic(JSON.stringify(result.document), env);
+  assert.equal(result.status, 0, `${result.failure ?? `pullboard ${args.join(' ')} exited ${result.status}: ${result.stderr}`}\n${refusal}`);
   return result.document;
 }
 
@@ -171,13 +165,11 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   const callback = new URL(authorization.headers.get('location'));
   const person = await auth.finishWeb(callback.searchParams.get('state'), callback.searchParams.get('code'), flow.binding);
 
-  const git = spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, env, encoding: 'utf8' });
-  assert.equal(git.status, 0, git.stderr);
+  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env, encoding: 'utf8' });
   await cli(root, env, 'init');
   writeFileSync(join(root, 'SPEC.md'), '# Spec\n\n## G · Goals\n- G1 [approved, must] A lost reply has one original outcome. | gate: review\n');
   const config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
-  const originRemote = spawnSync('git', ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git'], { cwd: root, env, encoding: 'utf8' });
-  assert.equal(originRemote.status, 0, originRemote.stderr);
+  runFixtureGit(['remote', 'add', 'origin', 'git@github.com:fixture/repository.git'], { cwd: root, env, encoding: 'utf8' });
   const marker = 'RELAY_CLIENT_KNOWN_PRIVATE_CRITERION';
   const lane = Object.keys(config.lanes)[0];
   await cli(root, env, 'add', lane, 'initial private item', '--criterion', marker);
@@ -408,9 +400,7 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
 
   /** Run fixture Git with an isolated identity and report its stderr on failure. */
   function gitAt(root, env, ...args) {
-    const result = spawnSync('git', args, { cwd: root, env, encoding: 'utf8' });
-    assert.equal(result.status, 0, `git ${args.join(' ')}: ${result.stderr}`);
-    return result.stdout.trim();
+    return runFixtureGit(args, { cwd: root, env, encoding: 'utf8' });
   }
 
   /** Resolve the common Git directory used by a clone and its worktree. */

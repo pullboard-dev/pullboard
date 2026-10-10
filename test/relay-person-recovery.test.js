@@ -1,10 +1,11 @@
 /** A second linked native device safely takes over an expired person request [H12,H16]. */
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { after } from 'node:test';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
+import { cleanupFixtureChildren, runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
 import * as store from '../src/board.js';
 import { preparePersonRequest } from '../src/person-request.js';
 import { personRequestRecords, personRequestStatuses, requestIntentDigest } from '../src/relay-requests.js';
@@ -19,22 +20,14 @@ const RELAY_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/relay.js
 const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/config.js')).href;
 const REQUESTS_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/relay-requests.js')).href;
 const LANES_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/lanes.js')).href;
+after(cleanupFixtureChildren);
 
 /** Run an isolated fixture child without copying its private output into assertion diagnostics. */
 function child(cwd, env, argv) {
-  return new Promise((done, fail) => {
-    const processChild = spawn(process.execPath, argv, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
-    let stdout = '';
-    const timer = setTimeout(() => processChild.kill('SIGKILL'), 25000);
-    processChild.stdout.setEncoding('utf8').on('data', part => { stdout += part; });
-    processChild.stderr.resume();
-    processChild.once('error', error => { clearTimeout(timer); fail(error); });
-    processChild.once('close', (code, signal) => {
-      clearTimeout(timer);
-      if (signal) return fail(new Error('private request recovery child exceeded its deadline'));
-      try { done({ code, document: JSON.parse(stdout) }); }
-      catch { fail(new Error('private request recovery child did not return its result')); }
-    });
+  return runFixtureChildAsync(process.execPath, argv, { cwd, env }).then((result) => {
+    if (result.error) throw new Error(result.failure);
+    try { return { code: result.status, document: JSON.parse(result.stdout), stderr: result.failure ?? result.stderr, failure: result.failure }; }
+    catch { throw new Error(result.failure ?? result.context); }
   });
 }
 
@@ -101,7 +94,7 @@ test('[H12,H16] an expired native executor lease transfers once and the old devi
   assert.equal((await posted.json()).event.kind, 'request');
 
   const originalClaim = await claimOnly(box.root, box.env, requestId);
-  assert.equal(originalClaim.code, 0);
+  assert.equal(originalClaim.code, 0, originalClaim.failure ?? originalClaim.stderr);
   assert.equal(originalClaim.document.result, true);
   const originalExecutor = originalClaim.document.executor;
 
@@ -118,11 +111,13 @@ test('[H12,H16] an expired native executor lease transfers once and the old devi
     PULLBOARD_HOME: join(secondHome, '.pullboard'),
     PULLBOARD_MACHINE_HOME: join(secondHome, 'machine'),
   };
-  assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: secondRoot, env: secondEnv }).status, 0);
-  assert.equal((await cli(secondRoot, secondEnv, 'init')).code, 0);
+  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: secondRoot, env: secondEnv });
+  const initialized = await cli(secondRoot, secondEnv, 'init');
+  assert.equal(initialized.code, 0, initialized.failure ?? initialized.stderr);
   const snapshot = join(secondRoot, 'native-board.json');
   writeFileSync(snapshot, JSON.stringify(await privateExport(box.root, box.env)), { mode: 0o600 });
-  assert.equal((await cli(secondRoot, secondEnv, 'import', snapshot)).code, 0);
+  const imported = await cli(secondRoot, secondEnv, 'import', snapshot);
+  assert.equal(imported.code, 0, imported.failure ?? imported.stderr);
 
   const secondState = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   delete secondState.requestDevice;
@@ -145,7 +140,8 @@ test('[H12,H16] an expired native executor lease transfers once and the old devi
   writeFileSync(join(keyDirectory, link.board + '.key'), readFileSync(box.keyFile), { mode: 0o600 });
 
   // Before the ten-minute lease expires, the independent device cannot run the request.
-  assert.equal((await cli(secondRoot, secondEnv, 'status')).code, 0);
+  const status = await cli(secondRoot, secondEnv, 'status');
+  assert.equal(status.code, 0, status.failure ?? status.stderr);
   const beforeExpiry = await privateExport(secondRoot, secondEnv);
   assert.equal(beforeExpiry.tables.shout.filter(row => row.shout_text === 'RECOVERY_SHOUT_ONCE').length, 0);
   let board = store.openBoard(join(secondRoot, '.git', 'pullboard', 'board.sqlite'));
@@ -153,8 +149,8 @@ test('[H12,H16] an expired native executor lease transfers once and the old devi
   finally { store.closeBoard(board); }
 
   box.advance(11 / 1440);
-  assert.equal((await cli(secondRoot, secondEnv, 'status')).code, 0,
-    'the next native command after expiry claims and executes through the production CLI');
+  const resumed = await cli(secondRoot, secondEnv, 'status');
+  assert.equal(resumed.code, 0, resumed.failure ?? 'the next native command after expiry claims and executes through the production CLI');
   const afterTakeover = await privateExport(secondRoot, secondEnv);
   assert.equal(afterTakeover.tables.shout.filter(row => row.shout_text === 'RECOVERY_SHOUT_ONCE').length, 1);
   const secondExecutor = JSON.parse(readFileSync(secondLinkFile, 'utf8')).requestDevice;

@@ -1,6 +1,6 @@
 /** Canonical doctrine naming keeps legacy repos and the stable state API readable [D1,D2,A5]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -51,11 +51,11 @@ function sandbox() {
   });
   /** Run Git with the fixture's isolated identity and configuration. */
   function git(cwd, ...args) {
-    return execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+    return runFixtureGit(args, { cwd, env });
   }
   /** Run one real CLI command and keep stdout, stderr and status available to assertions. */
   function run(cwd, ...args) {
-    return spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8', timeout: 20_000 });
+    return runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   }
   return { dir, env, git, run };
 }
@@ -140,7 +140,7 @@ test('[D1,D2,A5] legacy init keeps PRACTICE rules and doctor offers a working on
   const untrackedRename = doctorProblems(box, repo.root).find((problem) => problem.code === 'DOCTRINE_LEGACY');
   assert.ok(untrackedRename);
   assert.equal(untrackedRename.next, `mv -- ${PRACTICE} ${DOCTRINE}`, 'an untracked legacy file needs a filesystem rename');
-  const moved = spawnSync('sh', ['-c', untrackedRename.next], { cwd: repo.root, env: box.env, encoding: 'utf8' });
+  const moved = runFixtureChild('sh', ['-c', untrackedRename.next], { cwd: repo.root, env: box.env, encoding: 'utf8' });
   assert.equal(moved.status, 0, moved.stderr);
   assert.ok(specRows(box, repo.root).some((row) => row.id === 'L1' && row.file === DOCTRINE));
   renameSync(join(repo.root, DOCTRINE), join(repo.root, PRACTICE));
@@ -345,7 +345,7 @@ test('[D4,A5] detached verifier clones use a recorded trunk or their checked com
   const noTrunkCommit = box.git(withoutTrunk, 'rev-parse', 'HEAD');
   // Init and the installed commit hook both remember the attached trunk; remove it only after them.
   box.git(withoutTrunk, 'config', '--local', '--unset-all', 'pullboard.trunk');
-  assert.equal(spawnSync('git', ['config', '--local', '--get', 'pullboard.trunk'], {
+  assert.equal(runFixtureChild('git', ['config', '--local', '--get', 'pullboard.trunk'], {
     cwd: withoutTrunk, env: box.env,
   }).status, 1, 'the source actually has no retained trunk');
   const attachedWithoutTrunk = box.run(withoutTrunk, 'spec', 'check');

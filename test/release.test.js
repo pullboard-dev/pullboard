@@ -4,7 +4,7 @@
  * command, and every git hook, runs the installed pullboard, never this repo's bin.
  */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -27,7 +27,7 @@ test('a packed release installs with no network and runs the whole loop from a f
   assert.deepEqual(tops, PUBLISHED, 'the tarball holds the package and nothing else: no tests, no board');
 
   const prefix = join(dir, 'prefix');
-  const install = spawnSync('npm', ['install', '--global', '--prefix', prefix, '--offline', '--no-audit', '--no-fund', join(dir, packed.filename)], { env: npmEnv, encoding: 'utf8' });
+  const install = runFixtureChild('npm', ['install', '--global', '--prefix', prefix, '--offline', '--no-audit', '--no-fund', join(dir, packed.filename)], { env: npmEnv, encoding: 'utf8' });
   assert.equal(install.status, 0, `installs with no network: ${install.stderr}`);
   const installed = join(prefix, 'lib', 'node_modules', 'pullboard');
   assert.equal(JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8')).dependencies, undefined, 'no dependencies');
@@ -45,10 +45,10 @@ test('a packed release installs with no network and runs the whole loop from a f
     GIT_COMMITTER_EMAIL: 'agent@example.com',
     PULLBOARD_HOME: join(dir, 'home'),
   };
-  const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   /** Run the installed pullboard and require it to succeed. */
   const pullboard = (cwd, ...args) => {
-    const result = spawnSync(bin, args, { cwd, env, encoding: 'utf8', timeout: 120_000 });
+    const result = runFixtureChild(bin, args, { cwd, env, encoding: 'utf8' });
     assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}${result.stdout}`);
     return result.stdout;
   };

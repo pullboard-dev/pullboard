@@ -1,6 +1,6 @@
 /** Branch-name-independent check baselines and lane merge ownership [B34,P2,L3]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -42,12 +42,12 @@ function sandbox() {
   });
   /** Run isolated Git commands. */
   function git(cwd, ...args) {
-    return execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+    return runFixtureGit(args, { cwd, env });
   }
   /** Run a real Pullboard CLI process in the fixture environment. */
   function run(cwd, ...args) {
-    const result = spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8', timeout: 30_000 });
-    return { code: result.status, out: result.stdout, err: result.stderr };
+    const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+    return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
   }
   return { dir, env, git, run };
 }
@@ -106,8 +106,8 @@ for (const branch of ['master', 'trunk']) {
     box.git(box.repo, 'add', 'web/result.txt', 'coordinator.txt');
     box.git(box.repo, 'commit', '-q', '-m', 'chore: update trunk fixture');
     const trunkHead = box.git(box.repo, 'rev-parse', 'HEAD');
-    const merged = spawnSync('git', ['merge', '--no-ff', '--no-commit', branch], {
-      cwd: web, env: box.env, encoding: 'utf8', timeout: 30_000,
+    const merged = runFixtureChild('git', ['merge', '--no-ff', '--no-commit', branch], {
+      cwd: web, env: box.env, encoding: 'utf8',
     });
     assert.equal(merged.status, 1, `${merged.stdout}${merged.stderr}`);
     assert.equal(box.git(web, 'rev-parse', 'MERGE_HEAD'), trunkHead, 'the merge is against the primary checkout tip');
@@ -115,8 +115,8 @@ for (const branch of ['master', 'trunk']) {
     writeFileSync(join(web, 'web', 'result.txt'), `resolved by web lane from ${branch}\n`);
     box.git(web, 'add', 'web/result.txt');
 
-    const committed = spawnSync('git', ['commit', '-m', `Merge ${branch} into web/agent`], {
-      cwd: web, env: box.env, encoding: 'utf8', timeout: 30_000,
+    const committed = runFixtureChild('git', ['commit', '-m', `Merge ${branch} into web/agent`], {
+      cwd: web, env: box.env, encoding: 'utf8',
     });
     assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}`);
     assert.equal(box.git(web, 'show', 'HEAD:web/result.txt'), `resolved by web lane from ${branch}`);

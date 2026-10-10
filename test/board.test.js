@@ -3,7 +3,7 @@
  * R2). The git-facing rules (V3, V4, V7) run against real repos in e2e.test.js.
  */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureGit } from './fixture-child.js';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -825,7 +825,7 @@ test('[O3] declared families travel from join through submit and verdict, and ab
     GIT_COMMITTER_EMAIL: 'agent@example.com',
   };
   /** Run Git with isolated identity and configuration in the fixture repository. */
-  const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
   git(repo, 'init', '-q', '-b', 'main');
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({
     gate: 'true',

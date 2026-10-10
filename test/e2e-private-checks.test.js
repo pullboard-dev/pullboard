@@ -3,7 +3,7 @@
  * worktrees are real worktrees (B1–B3, B6, V3, V4, V7, L3, L4, C3, I1, I2, P2).
  */
 import assert from 'node:assert/strict';
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, startFixtureChild as spawn, runFixtureChild as spawnSync } from './fixture-child.js';
 import {
   chmodSync,
   existsSync,
@@ -114,7 +114,7 @@ test('private worker drains noisy output and reports a failed log path instead o
   const output = spawnSync(process.execPath, [worker], {
     input: JSON.stringify({ command: `node -e 'process.stdout.write("START-WORKER\\n"); process.stdout.write(Buffer.alloc(20 * 1024 * 1024, 120)); process.stdout.write("\\nEND-WORKER\\n")'`,
       timeout: 10_000, pidFile: join(box.dir, 'worker.pid'), logPath: join(box.dir, 'missing', 'check.log') }),
-    encoding: 'utf8', timeout: 15_000, maxBuffer: 64 * 1024 * 1024,
+    encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
   });
   assert.equal(output.status, 0, output.stderr);
   const result = JSON.parse(output.stdout);
@@ -310,7 +310,7 @@ test('private check timeout kills a TERM-resistant shell and its tracked child [
   let outer;
   try {
     outer = spawnSync(process.execPath, ['--input-type=module', '-e', source, box.repo, JSON.stringify(trackedItem)], {
-      cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 15_000, detached: true,
+      cwd: box.repo, env: box.env, encoding: 'utf8', detached: true,
     });
     assert.equal(outer.error, undefined, outer.error?.message);
     assert.equal(outer.status, 0, outer.stderr);

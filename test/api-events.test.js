@@ -1,6 +1,6 @@
 /** CLI move events are the rows written by their command, even with another writer (A2, R2). */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { runFixtureGit } from './fixture-child.js';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -37,7 +37,7 @@ async function project(t) {
       else process.env[key] = value;
     }
   });
-  const git = (...args) => execFileSync('git', args, { cwd: repo, env: { ...process.env, ...env }, stdio: 'pipe' });
+  const git = (...args) => runFixtureGit(args, { cwd: repo, env: { ...process.env, ...env }, stdio: 'pipe' });
   git('init', '-q', '-b', 'main');
   await command(repo, ['init', '--json']);
   const configFile = join(repo, 'pullboard.json');

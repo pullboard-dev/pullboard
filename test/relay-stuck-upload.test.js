@@ -1,6 +1,6 @@
 /** A refused baseline pauses safely and recovers without blocking ordered moves [H16,B26]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { runFixtureChild as spawnSync } from './fixture-child.js';
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';

@@ -1,6 +1,6 @@
 /** Test the CI-like test runner against real Git and PATH behavior [C7, S13]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync } from './fixture-child.js';
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
@@ -117,7 +117,6 @@ test('one discovered test', () => appendFileSync(${JSON.stringify(marker)}, 'x')
     cwd: root,
     encoding: 'utf8',
     env: launchEnv,
-    timeout: 15_000,
   });
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   assert.equal(readFileSync(marker, 'utf8'), 'x', 'one test ran exactly once under default discovery');

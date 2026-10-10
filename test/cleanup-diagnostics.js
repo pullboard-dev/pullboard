@@ -1,6 +1,6 @@
 /** Capture bounded filesystem and live-holder evidence for a fixture cleanup failure. */
 import { readdirSync, rmSync, statSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
+import { runFixtureChild as spawnSync } from './fixture-child.js';
 import { join } from 'node:path';
 
 /** List the newest filesystem entries below a failed cleanup path. */
