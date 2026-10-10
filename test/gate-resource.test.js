@@ -13,6 +13,9 @@ const PROBE_NAME = 'machine gate slot runner probe [Q4]';
 const PROBE_PATTERN = '^machine gate slot runner probe \\[Q4\\]$';
 const PROBE_PATH_ENV = 'PULLBOARD_GATE_RESOURCE_PROBE_PATH';
 const PROBE_RELEASE_ENV = 'PULLBOARD_GATE_RESOURCE_PROBE_RELEASE';
+const PROBE_WRITE_TARGET_ENV = 'PULLBOARD_GATE_RESOURCE_WRITE_TARGET';
+const PROBE_WRITE_READY_ENV = 'PULLBOARD_GATE_RESOURCE_WRITE_READY';
+const PROBE_WRITE_RELEASE_ENV = 'PULLBOARD_GATE_RESOURCE_WRITE_RELEASE';
 const TEMP = [];
 const CHILDREN = new Set();
 
@@ -44,13 +47,13 @@ function probeSuite(box, name) {
   const root = join(box.dir, name);
   const tests = join(root, 'test');
   mkdirSync(tests, { recursive: true });
-  writeFileSync(join(tests, 'probe.test.js'), `import { existsSync, writeFileSync } from 'node:fs';\nimport { test } from 'node:test';\ntest(${JSON.stringify(PROBE_NAME)}, async () => {\n  const marker = process.env.${PROBE_PATH_ENV};\n  if (marker) writeFileSync(marker, process.env.${GATE_SLOT_HELD_ENV} ?? 'none');\n  const release = process.env.${PROBE_RELEASE_ENV};\n  while (release && !existsSync(release)) await new Promise(done => setTimeout(done, 10));\n});\n`);
+  writeFileSync(join(tests, 'probe.test.js'), `import { existsSync, renameSync, writeFileSync } from 'node:fs';\nimport { test } from 'node:test';\ntest(${JSON.stringify(PROBE_NAME)}, async () => {\n  const marker = process.env.${PROBE_PATH_ENV};\n  if (marker) {\n    const temporary = marker + '.tmp';\n    writeFileSync(temporary, process.env.${GATE_SLOT_HELD_ENV} ?? 'none');\n    renameSync(temporary, marker);\n  }\n  const release = process.env.${PROBE_RELEASE_ENV};\n  while (release && !existsSync(release)) await new Promise(done => setTimeout(done, 10));\n});\n`);
   return root;
 }
 
 /** Launch a run-tests invocation with its own process group and captured output. */
-function launchTestRunner(box, root, args, marker, release) {
-  const env = { ...box.env, [PROBE_PATH_ENV]: marker, ...(release ? { [PROBE_RELEASE_ENV]: release } : {}) };
+function launchTestRunner(box, root, args, marker, release, extraEnv = {}) {
+  const env = { ...box.env, [PROBE_PATH_ENV]: marker, ...(release ? { [PROBE_RELEASE_ENV]: release } : {}), ...extraEnv };
   delete env[GATE_SLOT_HELD_ENV];
   const child = spawn(process.execPath, [RUNNER, ...args], { cwd: root, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   child.stdoutText = '';
@@ -423,6 +426,61 @@ test('a raw full-suite run takes a machine gate slot [Q4]', async () => {
       await Promise.all([holder, fullRun, focusedRun, followingGate].filter(Boolean).map(child => child.closed));
     }
   }
+});
+
+test("the slot probe's marker is never seen half-written [Q4]", async () => {
+  const box = fixture();
+  const root = probeSuite(box, 'atomic-marker');
+  const marker = join(box.dir, 'atomic-marker.started');
+  const ready = join(box.dir, 'atomic-marker.write-ready');
+  const release = join(box.dir, 'atomic-marker.write-release');
+  const preload = join(box.dir, 'pause-probe-write.cjs');
+  writeFileSync(preload, `const fs = require('node:fs');
+const { syncBuiltinESMExports } = require('node:module');
+const target = process.env.${PROBE_WRITE_TARGET_ENV};
+const ready = process.env.${PROBE_WRITE_READY_ENV};
+const release = process.env.${PROBE_WRITE_RELEASE_ENV};
+const originalWriteFileSync = fs.writeFileSync;
+let paused = false;
+/** Pause the probe after creating its marker path but before writing its value. */
+fs.writeFileSync = function pauseProbeWrite(file, data, options) {
+  const path = String(file);
+  if (!paused && (path === target || path === target + '.tmp')) {
+    paused = true;
+    const fd = fs.openSync(path, 'w');
+    originalWriteFileSync.call(fs, ready, 'ready');
+    const deadline = Date.now() + 30000;
+    while (!fs.existsSync(release) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
+    try {
+      if (!fs.existsSync(release)) throw new Error('parent did not release delayed probe write');
+      return fs.writeSync(fd, data, 0, typeof options === 'string' ? options : options?.encoding ?? 'utf8');
+    } finally { fs.closeSync(fd); }
+  }
+  return originalWriteFileSync.apply(this, arguments);
+};
+syncBuiltinESMExports();
+`);
+  const env = {
+    [PROBE_WRITE_TARGET_ENV]: marker,
+    [PROBE_WRITE_READY_ENV]: ready,
+    [PROBE_WRITE_RELEASE_ENV]: release,
+    NODE_OPTIONS: `${box.env.NODE_OPTIONS ? `${box.env.NODE_OPTIONS} ` : ''}--require=${JSON.stringify(preload)}`,
+  };
+  const runner = launchTestRunner(box, root, [], marker, null, env);
+  let assertionError;
+  try {
+    await waitFor(() => existsSync(ready), 'the probe write to pause after creating its destination', 30_000);
+    if (existsSync(marker)) assert.equal(readFileSync(marker, 'utf8'), '1', 'a visible marker already has its complete slot value');
+  } catch (error) {
+    assertionError = error;
+  } finally {
+    writeFileSync(release, 'release\n');
+    const result = await runner.closed;
+    assert.equal(result.code, 0, `${runner.stderrText}${runner.stdoutText}`);
+  }
+  if (assertionError) throw assertionError;
+  await waitFor(() => existsSync(marker), 'the atomically published probe marker');
+  assert.equal(readFileSync(marker, 'utf8'), '1', 'the final marker contains the complete slot value');
 });
 
 test('a focused run takes no slot [Q4]', async () => {
