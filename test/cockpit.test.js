@@ -2038,7 +2038,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     assert.equal(page.element('decisions').hidden, true, 'an ask waiting on others stays folded');
     assert.match(page.show('asks-slot'), /^<button class="asks-toggle" data-fold="waiting" type="button" aria-expanded="false" title="Asks between agents, waiting on others: web-1 \(Test Model\) asks coordinator \(unknown\)">1 ask waiting <span aria-hidden="true">▾<\/span><\/button>$/, 'its toggle sits at the end of the composer line');
     page.run('view.open.waiting = true; render();');
-    assert.match(shoutNameText(page.show('decisions')), new RegExp(`^<article class="shout h\\d" data-shout-id="1"><span class="avatar" aria-hidden="true">W1</span><div class="shout-main"><header><b class="who">web-1 \\(Test Model\\)</b><span class="to">→ coordinator \\(unknown\\)</span><span class="mark ask">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">now</time></header><div class="text">${question}</div><button class="more" data-more type="button">more</button></div></article>$`), 'above the shouts as a card, saying who asked whom, with no Answer button');
+    assert.match(shoutNameText(page.show('decisions')), new RegExp(`^<article class="shout h\\d" data-shout-id="1"><span class="avatar" aria-hidden="true">W1</span><div class="shout-main"><header><b class="who">web-1 \\(Test Model\\)</b><span class="to">→ coordinator \\(unknown\\)</span><span class="mark ask" role="group" title="decision" aria-label="decision">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">now</time></header><div class="text">${question}</div><button class="more" data-more type="button">more</button></div></article>$`), 'above the shouts as a card, saying who asked whom, with no Answer button');
     assert.doesNotMatch(page.show('feed'), /Greet in/, 'though the feed no longer reaches it');
 
     // The coordinator passes it up with its note (B27): now it is the person's call.
@@ -2046,7 +2046,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     await page.run('refresh()');
     const passed = `Passed up from web-1: ${question}\nCoordinator note: over to you`;
     assert.match(page.show('needs'), new RegExp(`^<li class="row ask" data-go="decide:42"><span class="dot ask"></span><div><div class="t">${passed.replace('\n', '<br>')}</div><span class="row-age"><time data-ago="[^"]+">now</time></span><div class="meta"><span class="why"><b>NEEDS YOU</b> a decision, asked by coordinator \\(unknown\\)</span></div></div><span class="chip warn">decide</span></li>`), "first in Needs-you: who passed it, what, and since when");
-    assert.match(shoutNameText(page.show('decisions')), new RegExp(`^<div class="head"><i></i>Decision needed</div><article class="shout h\\d lead" data-shout-id="42"><span class="avatar"><svg [\\s\\S]*?</svg></span><div class="shout-main"><header><b class="who">coordinator \\(unknown\\)</b><span class="to">→ person</span><span class="mark ask">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">now</time></header><div class="text">${passed.replace('\n', '<br>')}</div><button class="more" data-more type="button">more</button><button class="ghost answer" data-go="decide:42" type="button">Answer</button></div></article>$`), 'and above the shouts as the coordinator\'s card, with an Answer button');
+    assert.match(shoutNameText(page.show('decisions')), new RegExp(`^<div class="head"><i></i>Decision needed</div><article class="shout h\\d lead" data-shout-id="42"><span class="avatar"><svg [\\s\\S]*?</svg></span><div class="shout-main"><header><b class="who">coordinator \\(unknown\\)</b><span class="to">→ person</span><span class="mark ask" role="group" title="decision" aria-label="decision">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">now</time></header><div class="text">${passed.replace('\n', '<br>')}</div><button class="more" data-more type="button">more</button><button class="ghost answer" data-go="decide:42" type="button">Answer</button></div></article>$`), 'and above the shouts as the coordinator\'s card, with an Answer button');
 
     const form = () => ({
       answering: !page.element('answering').hidden,
@@ -2080,8 +2080,8 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     box.run(alpha.repo, 'pass', '45', 'yours');
     await page.run('refresh()');
     const feed = shoutNameText(page.show('feed'));
-    assert.match(feed, /<b class="who">web-1 \(Test Model\)<\/b><span class="to">→ coordinator \(unknown\)<\/span><span class="mark ask">decision<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">Ship today\?<\/div>/, 'the feed marks an ask');
-    assert.match(feed, /<b class="who">person<\/b><span class="to">→ coordinator \(unknown\)<\/span><span class="mark">answer<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">French, then English<\/div>/, 'and an answer');
+    assert.match(feed, /<b class="who">web-1 \(Test Model\)<\/b><span class="to">→ coordinator \(unknown\)<\/span><span class="mark ask" role="group" title="decision" aria-label="decision">decision<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">Ship today\?<\/div>/, 'the feed marks an ask');
+    assert.match(feed, /<b class="who">person<\/b><span class="to">→ coordinator \(unknown\)<\/span><span class="mark" role="group" title="answer" aria-label="answer">answer<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">French, then English<\/div>/, 'and an answer');
     assert.match(page.show('needs'), /data-go="decide:46"/);
 
     // An answer belongs to the project whose question it shows.
@@ -7524,6 +7524,63 @@ test('the project switcher\'s arrow turns with the list [N26]', { timeout: 120_0
       }
     }
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
+/** Keep a waiting ask's address and age readable when a fallback font widens its header [N26]. */
+test("a waiting ask's who and when stay on one line with wide fonts [N26]", { timeout: 120_000 }, async () => {
+  const executable = chromeExecutable();
+  assert.ok(executable, 'Chrome is required for the wide-font regression');
+  const box = machine();
+  const demo = project(box, 'wide-waiting-ask');
+  box.run(demo.web, 'shout', 'coordinator', 'Does this waiting ask fit with a wider font?', '--decision');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-wide-ask-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor("data?.project && innerWidth === 375");
+    await press(chrome, "document.querySelector('[data-tab=shouts]')");
+    await pressedInto(chrome, "view.tab === 'shouts' && !!document.querySelector('.asks-toggle')");
+    await press(chrome, "document.querySelector('.asks-toggle')");
+    await pressedInto(chrome, "!!document.querySelector('#decisions .shout:not(:has(.answer)) header')");
+    // Change font metrics only: the production layout must fit the same real waiting ask.
+    await chrome.evaluate("(() => { const sheet = document.styleSheets[0]; sheet.insertRule('#decisions .shout header { font-family: monospace; letter-spacing: 1px; }', sheet.cssRules.length); })()");
+    const result = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      const card = document.querySelector('#decisions .shout:not(:has(.answer))'), header = card.querySelector('header');
+      const rect = (element) => { const r = element.getBoundingClientRect(); return { left:r.left, right:r.right, top:r.top, bottom:r.bottom, width:r.width, height:r.height }; };
+      const who = header.querySelector('.who'), address = who.querySelector('.agent-id') || who, age = header.querySelector('time'), kind = header.querySelector('.mark');
+      const range = document.createRange(); range.selectNodeContents(address);
+      const recipient = header.querySelector('.to .agent-id') || header.querySelector('.to'), recipientRange = document.createRange(); recipientRange.selectNodeContents(recipient);
+      const copy = header.cloneNode(true); copy.style.cssText += ';position:fixed;visibility:hidden;width:max-content'; header.parentElement.append(copy);
+      const natural = copy.getBoundingClientRect().width; copy.remove();
+      return { header:rect(header), age:rect(age), ageText:age.textContent, ageWidth:age.clientWidth, ageScroll:age.scrollWidth,
+        address:rect(address), addressText:address.textContent, addressInk:rect(range), line:parseFloat(getComputedStyle(who).lineHeight),
+        recipient:rect(recipient), recipientInk:rect(recipientRange), recipientText:recipient.textContent, spacing:getComputedStyle(header).letterSpacing, natural, kind:{ text:kind.textContent, width:kind.clientWidth, scroll:kind.scrollWidth, overflow:getComputedStyle(kind).textOverflow, title:kind.title, label:kind.getAttribute('aria-label') },
+        page:[document.documentElement.clientWidth, document.documentElement.scrollWidth] };
+    })())`));
+    assert.equal(result.spacing, '1px', 'the positive control widens the actual waiting header');
+    assert.ok(result.natural > result.header.width, `the full header cannot fit without shortening text: ${JSON.stringify(result)}`);
+    assert.ok(result.header.height <= result.line + 1, `the waiting ask stays on one line with wide fonts: ${JSON.stringify(result)}`);
+    assert.equal(result.addressText, 'web-1', 'the sender address remains whole');
+    assert.ok(result.addressInk.left >= result.address.left - 1 && result.addressInk.right <= result.address.right + 1, 'the complete address is drawn inside its element');
+    assert.match(result.recipientText, /coordinator/u, 'the recipient address remains whole');
+    assert.ok(result.recipientInk.left >= result.recipient.left - 1 && result.recipientInk.right <= result.recipient.right + 1 && result.recipient.right <= result.header.right + 1, 'the complete recipient address is drawn inside the header');
+    assert.ok(result.age.top >= result.header.top - 1 && result.age.bottom <= result.header.bottom + 1 && result.age.right <= result.header.right + 1, 'the complete age stays on the same line inside the card');
+    assert.equal(result.ageWidth, result.ageScroll, 'the age never clips');
+    assert.ok(result.ageText.length > 0, 'the age remains visible');
+    assert.ok(result.kind.width < result.kind.scroll, `the kind, rather than the address or age, shortens: ${JSON.stringify(result.kind)}`);
+    assert.equal(result.kind.overflow, 'ellipsis', 'the shortened kind visibly ends with an ellipsis');
+    assert.deepEqual([result.kind.title, result.kind.label], [result.kind.text, result.kind.text], 'the full kind remains in its title and accessible name');
+    const accessibility = await chrome.send('Accessibility.getFullAXTree');
+    assert.ok(accessibility.nodes.some(node => node.name?.value === result.kind.text && node.role?.value === 'group'), 'Chrome exposes the full shortened kind as an accessible name');
+    assert.ok(result.page[1] <= result.page[0], 'the wider font never pushes the page sideways');
+    assert.deepEqual(chrome.exceptions, [], 'the waiting ask raises no uncaught exception');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     rmSync(profile, { recursive: true, force: true });
