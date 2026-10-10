@@ -261,3 +261,15 @@ test('active lane counts preserve recorded names that also exist on Object.proto
     roles: { builder: 0, verifier: 0, coordinator: 0, unknown: 1 }, lanes: { constructor: 1 },
   });
 });
+
+test('recommendations name an empty target queue honestly and choose the busiest open lane [R1,R2]', t => {
+  for (const [durations, action] of [
+    [[20, 1, 1, 1], 'add a builder when open work is available'],
+    [[1, 20, 1, 1], 'review the oldest submission first (none waiting)'],
+    [[1, 1, 1, 20], 'land the accepted items (none waiting)'],
+  ]) assert.equal(fixture(t, cycle(1, durations)).stats().flow.bottleneck.recommendation, action);
+  const entries = [...cycle(1, [20, 1, 1, 1]),
+    [150, 'coordinator', 'add', 2, { lane: 'core' }], [150, 'coordinator', 'add', 3, { lane: 'web' }],
+    [150, 'coordinator', 'add', 4, { lane: 'web' }]];
+  assert.equal(fixture(t, entries).stats().flow.bottleneck.recommendation, 'add a builder in web');
+});
