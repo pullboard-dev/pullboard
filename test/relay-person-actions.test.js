@@ -1,7 +1,9 @@
 /** A paired person can use narrow CLI actions; agents cannot impersonate those actions [H12,H16,B26]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { loadavg } from 'node:os';
 import { join } from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { prepareEngineMove } from '../src/engine.js';
 import { openBoard, closeBoard } from '../src/board.js';
@@ -10,7 +12,55 @@ import { main } from '../src/cli.js';
 import { decodeBoardKey, seal } from '../src/seal.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { findChromeExecutable, relayWorkBudgetMs, startChrome } from './relay-browser-fixture.js';
-import { assertSnapshotCheckpoints, relayClientFixture } from './relay-client-fixture.js';
+import { assertSnapshotCheckpoints, cliChildDeadlineMs, relayClientFixture } from './relay-client-fixture.js';
+
+/** Record the real phase and wait budget for a late-snapshot failure without changing either wait. */
+function lateSnapshotTiming(t) {
+  const phases = [];
+  const testStartedAt = performance.now();
+  let active = null;
+  /** Finish the active phase and retain only timing metadata. */
+  function finish() {
+    if (!active) return;
+    phases.push({ phase: active.phase, waitMs: active.waitMs, elapsedMs: Math.round(performance.now() - active.startedAt) });
+    active = null;
+  }
+  t.after(() => {
+    const current = active && { phase: active.phase, waitMs: active.waitMs,
+      elapsedMs: Math.round(performance.now() - active.startedAt) };
+    t.diagnostic('late snapshot phase timing: ' + JSON.stringify({
+      plannedSnapshotDelayMs: 8000,
+      activePhase: current?.phase ?? null,
+      lastCompletedPhase: phases.at(-1)?.phase ?? null,
+      elapsedMs: Math.round(performance.now() - testStartedAt),
+      waitMs: current?.waitMs ?? phases.at(-1)?.waitMs ?? null,
+      loadavg: loadavg(),
+      phases: current ? [...phases, current] : phases,
+    }));
+  });
+  return {
+    /** Emit sanitized timing before Node runs potentially blocking teardown hooks. */
+    reportFailure(error) {
+      const current = active && { phase: active.phase, waitMs: active.waitMs,
+        elapsedMs: Math.round(performance.now() - active.startedAt) };
+      process.stderr.write('[late-snapshot-timing] ' + JSON.stringify({
+        outcome: 'failed', failureType: error?.name ?? 'Error',
+        plannedSnapshotDelayMs: 8000,
+        activePhase: current?.phase ?? null,
+        lastCompletedPhase: phases.at(-1)?.phase ?? null,
+        elapsedMs: Math.round(performance.now() - testStartedAt),
+        waitMs: current?.waitMs ?? phases.at(-1)?.waitMs ?? null,
+        loadavg: loadavg(),
+        phases: current ? [...phases, current] : phases,
+      }) + '\n');
+    },
+    /** Begin a named operation with the exact existing operation bound, without extending it. */
+    begin(phase, waitMs) { finish(); active = { phase, waitMs, startedAt: performance.now() }; },
+    /** Record the child's final work-derived bound without changing its execution. */
+    updateWait(waitMs) { if (active) active.waitMs = waitMs; },
+    finish,
+  };
+}
 
 /** Install only the private fixture's person cookie in the real browser. */
 async function signIn(chrome, box) {
@@ -22,16 +72,24 @@ async function signIn(chrome, box) {
 }
 
 /** Pair a real browser and initialize the same transport used by the relay cockpit. */
-async function pairedTransport(chrome, box, title) {
+async function pairedTransport(chrome, box, title, timing = null) {
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const key = readFileSync(box.keyFile, 'utf8').trim();
+  timing?.begin('person session sign-in', relayWorkBudgetMs());
   await signIn(chrome, box);
+  timing?.finish();
+  timing?.begin('Chrome navigation', relayWorkBudgetMs());
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + key);
+  timing?.finish();
+  timing?.begin('page readiness', relayWorkBudgetMs());
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')');
+  timing?.finish();
+  timing?.begin('page transport readiness', relayWorkBudgetMs());
   await chrome.waitFor('typeof transport?.request === "function"', relayWorkBudgetMs(), 'real page transport ready');
   assert.equal(await chrome.evaluate(`(() => { window.__personActionTransport = transport;
     return window.__personActionTransport === transport; })()`, 'use real paired person transport'), true,
     'fixture commands use the page-owned transport and its single stream queue');
+  timing?.finish();
   return link;
 }
 
@@ -155,32 +213,55 @@ test('real paired person adds, answers a person decision, and holds then release
 test('a person action completes with late native snapshots after 8 seconds [H12,H16]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
-  const box = await relayClientFixture(t);
-  const title = 'PERSON_ACTION_LATE_SNAPSHOT_READY';
-  assert.equal((await box.cli('add', box.lane, title)).code, 0);
-  await box.link();
-  const chrome = await startChrome();
-  t.after(() => chrome.close());
-  const link = await pairedTransport(chrome, box, title);
-  const action = await personAction(chrome, link.board, {
-    verb: 'shout', args: { to: 'coordinator', text: 'PERSON_ACTION_LATE_SNAPSHOT' },
-  });
-  assert.equal(action.result.request.status, 'waiting');
+  const timing = lateSnapshotTiming(t);
+  try {
+    timing.begin('fixture setup and item creation', '4 serial private CLI children; each has the existing 55,000 ms child bound');
+    const box = await relayClientFixture(t);
+    const title = 'PERSON_ACTION_LATE_SNAPSHOT_READY';
+    assert.equal((await box.cli('add', box.lane, title)).code, 0);
+    timing.finish();
+    timing.begin('relay link', cliChildDeadlineMs(3));
+    await box.link();
+    timing.finish();
+    timing.begin('Chrome startup', relayWorkBudgetMs(2));
+    const chrome = await startChrome();
+    t.after(() => chrome.close());
+    timing.finish();
+    const link = await pairedTransport(chrome, box, title, timing);
+    timing.begin('person action', relayWorkBudgetMs());
+    const action = await personAction(chrome, link.board, {
+      verb: 'shout', args: { to: 'coordinator', text: 'PERSON_ACTION_LATE_SNAPSHOT' },
+    });
+    assert.equal(action.result.request.status, 'waiting');
+    timing.finish();
 
-  const delayedBefore = box.snapshotWriteDelays().length;
-  box.delaySnapshotWrites(8000);
-  const native = box.cliWithSnapshotUploads(3, 'status').then(result => ({ result }), error => ({ error }));
-  const status = await native;
-  box.delaySnapshotWrites(0);
-  assert.equal(status.error, undefined, 'the real native CLI completes within its upload-derived fixture budget');
-  assert.equal(status.result.code, 0, 'the real native CLI reports success');
-  const delays = box.snapshotWriteDelays().slice(delayedBefore);
-  assertSnapshotCheckpoints(status.result.snapshotTrace, 3);
-  assert.ok(delays.every(delay => delay >= 7900), 'the relay delayed every native snapshot by 8 seconds');
-  const completed = await waitRequest(chrome, link.board, action.result.request.id, 'done');
-  assert.equal(completed.state.personRequests.find(row => row.id === action.result.request.id).status, 'done');
-  const exported = (await box.cli('export')).document;
-  assert.equal(exported.tables.shout.filter(row => row.shout_text === 'PERSON_ACTION_LATE_SNAPSHOT').length, 1);
+    const delayedBefore = box.snapshotWriteDelays().length;
+    const snapshotRecordsBefore = box.snapshotWriteRecords().length;
+    timing.begin('native status child and delayed checkpoint uploads', `initial child bound ${cliChildDeadlineMs(3)} ms for 3 uploads`);
+    box.delaySnapshotWrites(8000);
+    const native = box.cliWithSnapshotUploads(3, 'status').then(result => ({ result }), error => ({ error }));
+    const status = await native;
+    box.delaySnapshotWrites(0);
+    const observedUploads = box.snapshotWriteRecords().length - snapshotRecordsBefore;
+    timing.updateWait(`initial ${cliChildDeadlineMs(3)} ms; current upload-derived bound ${cliChildDeadlineMs(Math.max(3, observedUploads))} ms for ${observedUploads} observed uploads`);
+    assert.equal(status.error, undefined, 'the real native CLI completes within its upload-derived fixture budget');
+    assert.equal(status.result.code, 0, 'the real native CLI reports success');
+    const delays = box.snapshotWriteDelays().slice(delayedBefore);
+    assertSnapshotCheckpoints(status.result.snapshotTrace, 3);
+    assert.ok(delays.every(delay => delay >= 7900), 'the relay delayed every native snapshot by 8 seconds');
+    timing.finish();
+    timing.begin('paired-browser request completion poll', '85,000 ms in-page poll; 110,000 ms outer CDP task bound');
+    const completed = await waitRequest(chrome, link.board, action.result.request.id, 'done');
+    assert.equal(completed.state.personRequests.find(row => row.id === action.result.request.id).status, 'done');
+    timing.finish();
+    timing.begin('final export', cliChildDeadlineMs(3));
+    const exported = (await box.cli('export')).document;
+    assert.equal(exported.tables.shout.filter(row => row.shout_text === 'PERSON_ACTION_LATE_SNAPSHOT').length, 1);
+    timing.finish();
+  } catch (error) {
+    timing.reportFailure(error);
+    throw error;
+  }
 });
 
 test('local view attribution is person-only and an agent token cannot seal person-attributed holds [H12,H16,B26]', async t => {

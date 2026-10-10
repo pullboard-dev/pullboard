@@ -1609,6 +1609,83 @@ async function boardOf(view, root) {
   return (await res.json()).state;
 }
 
+/** Check each reported queue age before comparing observations, so independent clocks stay exact. */
+function assertObservationAges(observation) {
+  const flow = observation?.proofStats?.flow;
+  for (const [state, queue] of Object.entries(flow?.queues ?? {})) {
+    const oldest = queue?.oldest;
+    if (!oldest || !Object.hasOwn(oldest, 'ageMinutes')) continue;
+    const label = `project.proofStats.flow.queues.${state}.oldest`;
+    assert.equal(typeof flow.asOf, 'string', `${label} has flow.asOf`);
+    assert.equal(typeof oldest.since, 'string', `${label} has oldest.since`);
+    const asOf = Date.parse(flow.asOf);
+    const since = Date.parse(oldest.since);
+    assert.ok(Number.isFinite(asOf), `${label} has a valid flow.asOf timestamp`);
+    assert.ok(Number.isFinite(since), `${label} has a valid oldest.since timestamp`);
+    assert.equal(oldest.ageMinutes, (asOf - since) / 60000, `${label}.ageMinutes matches its own asOf and since`);
+  }
+}
+
+/** Remove only observation clocks and derived ages while preserving all invariant fields. */
+function withoutObservationAges(value, path = []) {
+  if (Array.isArray(value)) return value.map((entry, index) => withoutObservationAges(entry, [...path, String(index)]));
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value)
+    .filter(([key]) => {
+      const flowClock = path.length === 2 && path[0] === 'proofStats' && path[1] === 'flow' && key === 'asOf';
+      const queueAge = path.length === 5 && path[0] === 'proofStats' && path[1] === 'flow'
+        && path[2] === 'queues' && path[4] === 'oldest' && key === 'ageMinutes';
+      return !flowClock && !queueAge;
+    })
+    .map(([key, entry]) => [key, withoutObservationAges(entry, [...path, key])]));
+}
+
+/** Validate both clocks independently, then compare every field except asOf and ageMinutes. */
+function assertObservationsEqual(expected, actual, message) {
+  assertObservationAges(expected);
+  assertObservationAges(actual);
+  assert.deepEqual(withoutObservationAges(actual), withoutObservationAges(expected), message);
+}
+
+test('observation-time ages compare by their own clock [A10]', () => {
+  const since = '2026-10-10T09:00:00.000Z';
+  const firstAsOf = '2026-10-10T10:00:00.000Z';
+  const secondAsOf = '2026-10-10T10:00:00.129Z';
+  /** Build one synthetic board observation at the supplied capture time. */
+  const snapshot = asOf => ({
+    board: { id: 'same-board', event: { event_id: 42 } },
+    proofStats: {
+      flow: {
+        asOf,
+        total: 3,
+        queues: {
+          open: {
+            count: 1,
+            oldest: { id: 7, since, ageMinutes: (Date.parse(asOf) - Date.parse(since)) / 60000 },
+          },
+        },
+      },
+      other: { asOf: 'unchanged-time', ageMinutes: 3 },
+    },
+  });
+  const first = snapshot(firstAsOf);
+  const second = snapshot(secondAsOf);
+  assertObservationsEqual(first, second, '129ms-separated observations match after validating their own ages');
+
+  const wrongAge = structuredClone(second);
+  wrongAge.proofStats.flow.queues.open.oldest.ageMinutes += 1;
+  assert.throws(() => assertObservationsEqual(first, wrongAge, 'wrong age must be rejected'), error => error.code === 'ERR_ASSERTION' && /ageMinutes/u.test(error.message));
+
+  const changedSince = structuredClone(second);
+  changedSince.proofStats.flow.queues.open.oldest.since = '2026-10-10T08:59:59.000Z';
+  changedSince.proofStats.flow.queues.open.oldest.ageMinutes = (Date.parse(secondAsOf) - Date.parse(changedSince.proofStats.flow.queues.open.oldest.since)) / 60000;
+  assert.throws(() => assertObservationsEqual(first, changedSince, 'different since must be rejected'), error => error.code === 'ERR_ASSERTION');
+
+  const changedInvariant = structuredClone(second);
+  changedInvariant.proofStats.other.ageMinutes += 1;
+  assert.throws(() => assertObservationsEqual(first, changedInvariant, 'unrelated ageMinutes must be retained'), error => error.code === 'ERR_ASSERTION');
+});
+
 test('no box carries a coloured edge [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
@@ -3363,7 +3440,7 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
 
     const initial = JSON.parse(await evaluate(`JSON.stringify({ project: data.project, index: snapshotReplay.index, total: snapshotReplay.events.length, playing: snapshotReplay.playing, speedOptions: [...document.querySelector('#replay-speed').options].map((option) => option.value), bodyClass: document.body.classList.contains('snapshot') })`));
     assert.equal(initial.bodyClass, true);
-    assert.deepEqual(initial.project, expected, 'the initial snapshot is the final live API state');
+    assertObservationsEqual(expected, initial.project, 'the initial snapshot is the final live API state');
     assert.deepEqual(initial.speedOptions, ['1', '4', '16']);
     assert.ok(initial.total >= 6, 'the exported board contains the complete claim/submit/reject/claim/submit/accept history');
     assert.ok(initial.index >= initial.total - 1, 'the initial replay position is the exported final state');
@@ -3449,7 +3526,7 @@ test('static export stays in its prefix and replays read-only in Chrome [A10,A3]
       ['building', 'verify', 'back', 'building', 'verify', 'verified'],
       'the actual item row renders claim, submit, reject, claim, submit, accept in order');
     const finalProject = await evaluate('JSON.stringify(data.project)');
-    assert.deepEqual(JSON.parse(finalProject), expected, 'replay ends at the same state served live before export');
+    assertObservationsEqual(expected, JSON.parse(finalProject), 'replay ends at the same state served live before export');
 
     for (const [width, theme] of [[1280, 'light'], [375, 'dark']]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
