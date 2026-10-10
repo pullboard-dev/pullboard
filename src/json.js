@@ -107,7 +107,7 @@ function nextStep(message) {
 /** A refusal shared by the CLI and API, retaining its rule and repair guidance (A1, A2). */
 export function refusalDocument(error) {
   const message = String(error.message).replace(/^\[[A-Z][A-Z0-9_]*\] /, '');
-  return { version: JSON_SHAPES.version, error: { code: error.code ?? 'INTERNAL', message, next: nextStep(message) } };
+  return { version: JSON_SHAPES.version, error: { code: error.code ?? 'INTERNAL', message, next: error.code === 'SPEC_BEHIND_MAIN' ? 'git merge main' : nextStep(message) } };
 }
 
 /**

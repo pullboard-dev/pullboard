@@ -597,6 +597,75 @@ function freezer(ctx, { captureVerifyPolicy = false } = {}) {
   };
 }
 
+/** Merge a safe main fast-forward before freezing rows that only main has [V1].
+ *
+ * @param {any} ctx
+ * @param {any} item
+ * @returns {string[]|null} Missing rows merged from main, or null when no merge was needed.
+ */
+function prepareClaimSpec(ctx, item) {
+  if (item.item_frozen) return null;
+  const ids = (item.item_spec_ids ?? '').split(',').map((id) => id.trim()).filter((id) => id && !id.startsWith('doctrine:'));
+  if (!ids.length) return null;
+  const root = ctx.info.root;
+  const main = mainCheckout(root);
+  if (!main?.commit) return null;
+  const policy = policyAt(root, main.commit);
+  const mainSource = tryGit(root, ['show', `${main.commit}:${policy.config.spec}`]);
+  if (mainSource.status !== 0) return null;
+  const mainRows = new Set(parseSpec(mainSource.stdout).rows.map((row) => row.id));
+  const localRows = new Set(loadSpec(root, ctx.config).rows.map((row) => row.id));
+  const missing = [...new Set(ids)].filter((id) => mainRows.has(id) && !localRows.has(id));
+  if (!missing.length) return null;
+
+  const head = headCommit(root);
+  const symbolic = tryGit(root, ['symbolic-ref', '--quiet', 'HEAD']);
+  const canFastForward = Boolean(head && symbolic.status === 0 && isClean(root) && untracked(root).length === 0 && contains(root, head, main.commit));
+  if (!canFastForward) throw specBehindMain(policy.config.spec, missing);
+  try {
+    git(root, ['merge', '--ff-only', main.commit]);
+    if (headCommit(root) !== main.commit) throw new Error('main moved during the fast-forward');
+  } catch {
+    throw specBehindMain(policy.config.spec, missing);
+  }
+  Object.assign(ctx, context(ctx.io));
+  return missing;
+}
+
+/** Carry a safe main fast-forward out of the board transaction so claim can retry at the new HEAD. */
+class MainSpecMerged extends Error {
+  /** Preserve the rows needed for the caller's one-line merge notice.
+   * @param {string[]} rows
+   */
+  constructor(rows) {
+    super('main advanced to include the claimed spec rows');
+    this.rows = rows;
+  }
+}
+
+/** Prepare the criterion after the board's other claim guards have passed.
+ *
+ * @param {any} ctx
+ * @returns {(item: any) => { text: string, digest: string }}
+ */
+function claimFreezer(ctx) {
+  return (item) => {
+    const rows = prepareClaimSpec(ctx, item);
+    if (rows) throw new MainSpecMerged(rows);
+    return freezer(ctx)(item);
+  };
+}
+
+/** Explain why an out-of-date spec cannot be merged automatically.
+ *
+ * @param {string} specName
+ * @param {string[]} rows
+ * @returns {Refused}
+ */
+function specBehindMain(specName, rows) {
+  return new Refused('SPEC_BEHIND_MAIN', `${specName} is missing rows ${rows.join(', ')} that exist on main; commit or resolve local work, then merge main and retry`);
+}
+
 /**
  * The evidence a shout carries, from its flags (B22). The commit is resolved here, in this repo,
  * so the board only ever stores a full SHA that names a real commit.
@@ -1784,8 +1853,9 @@ async function nextOnce(ctx, values) {
     const reviewSkipped = values.build && !held
       ? { offeredItem: offer?.item.item_id ?? null, ratio: ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;
     try {
-      await ordered(ctx, board, 'claim', [item.item_id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx), head: headCommit(ctx.info.root), reviewSkipped }]);
+      await ordered(ctx, board, 'claim', [item.item_id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: claimFreezer(ctx), head: headCommit(ctx.info.root), reviewSkipped }]);
     } catch (error) {
+      if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: item.item_id, rows: error.rows } };
       if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true };
       throw error;
     }
@@ -1824,7 +1894,7 @@ function sayReviewOffer(ctx, found) {
  * @returns {Promise<number>}
  */
 async function nextHere(io, values) {
-  const ctx = context(io);
+  let ctx = context(io);
   if (values.build && values.verify) throw new Refused('USAGE', 'choose a build or a review: pullboard next --build or pullboard next --verify');
   if (values.verifyId !== undefined && !values.verify) {
     throw new Refused('USAGE', 'give an item id only with --verify: pullboard next --verify <id>');
@@ -1837,6 +1907,11 @@ async function nextHere(io, values) {
   const deadline = Date.now() + minutes * 60_000;
   for (;;) {
     const found = await nextOnce(ctx, values);
+    if (found.specMerged) {
+      io.say(`merged main before claiming #${found.specMerged.item}: added spec rows ${found.specMerged.rows.join(', ')}`);
+      ctx = context(io);
+      continue;
+    }
     if (found.item) {
       if (found.offer) { sayReviewOffer(ctx, found); return 0; }
       const item = found.item;
@@ -2128,7 +2203,18 @@ function workCommands(io, args) {
       return run.isGreen ? 0 : 1;
     },
     claim: () => act(async (ctx, board, me) => {
-      const result = await ordered(ctx, board, 'claim', [idArg(first), { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx), head: headCommit(ctx.info.root) }]);
+      const id = idArg(first);
+      let result;
+      for (;;) {
+        try {
+          result = await ordered(ctx, board, 'claim', [id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: claimFreezer(ctx), head: headCommit(ctx.info.root) }]);
+          break;
+        } catch (error) {
+          if (!(error instanceof MainSpecMerged)) throw error;
+          io.say(`merged main before claiming #${id}: added spec rows ${error.rows.join(', ')}`);
+          me = whoAmI(ctx, board);
+        }
+      }
       io.result?.({ id: idArg(first), ...result });
       io.say(`${result.renewed ? 'renewed' : 'claimed'} #${first} until ${result.leaseUntil}; criterion frozen as ${result.digest.slice(0, 12)}`);
       return 0;
