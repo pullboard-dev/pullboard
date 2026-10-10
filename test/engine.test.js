@@ -301,6 +301,50 @@ test('released engine 3 stops a background completion before changing rows or it
   }
 });
 
+test('an engine 6 client meets an item hold and is told to upgrade [H16,M1]', async t => {
+  const { directory, copies, item } = engineCopies(t);
+  const archive = execFileSync('git', ['archive', 'v0.8.3'], { cwd: resolve(import.meta.dirname, '..'), maxBuffer: 32 * 1024 * 1024 });
+  execFileSync('tar', ['-x', '-C', directory], { input: archive });
+  const released = await import(pathToFileURL(join(directory, 'src/engine.js')).href);
+  const releasedMachine = await import(pathToFileURL(join(directory, 'src/machine.js')).href);
+  assert.equal(releasedMachine.ENGINE_VERSION, 6, 'exercise the actual 0.8.3 client');
+  assert.equal(released.ENGINE_OPERATIONS.includes('holdItem'), false);
+  assert.equal(released.ENGINE_OPERATIONS.includes('releaseItemHold'), false);
+  assert.ok(ENGINE_OPERATIONS.includes('holdItem'));
+
+  const board = copies[0];
+  const oldMove = released.prepareEngineMove(board, 'claim', [item, {
+    agentId: 'web-1', lane: 'web', leaseMs: 2 * HOUR, head: 'a'.repeat(40),
+    freeze: () => ({ text: '{"rows":[]}', digest: 'f'.repeat(64) }),
+  }], { id: 'engine-6-understood-claim' });
+  assert.equal(oldMove.engine, 6);
+  const sender = { kind: 'agent', userId: 'fixture-user', agent: 'web-1' };
+  const oldOutcome = released.applyRelayMove(board, oldMove, { sequence: 1, at: CLAIM_AT, kind: 'move', sender });
+  assert.equal(Boolean(oldOutcome.error), false, 'the old client still applies an operation it understands');
+  assert.equal(appliedSequence(board), 1);
+
+  const hold = prepareEngineMove(board, 'holdItem', [item, {
+    agentId: 'coordinator', reason: 'review the release',
+  }], { id: 'engine-7-item-hold', actor: 'coordinator' });
+  assert.equal(hold.engine, ENGINE_VERSION);
+  const before = exportBoard(board);
+  let refusal;
+  let refusalOutcome;
+  try {
+    refusalOutcome = released.applyRelayMove(board, hold, {
+      sequence: 2, at: CLAIM_AT, kind: 'move', sender: { kind: 'agent', userId: 'fixture-user', agent: 'coordinator' },
+    });
+  } catch (error) {
+    refusal = error;
+  }
+  const refusalCode = refusal?.code ?? refusalOutcome?.error?.code;
+  const refusalMessage = refusal?.message ?? refusalOutcome?.error?.message ?? '';
+  assert.equal(refusalCode, 'ENGINE_VERSION');
+  assert.match(refusalMessage, /engine version 7.*engine version 6.*upgrade pullboard/i);
+  assert.deepEqual(exportBoard(board), before, 'the old client refuses before changing item rows or replay receipts');
+  assert.equal(appliedSequence(board), 1, 'the hold refusal does not advance the old client cursor');
+});
+
 test('a relay refusal receipt failure rolls back its log and cursor together [H2,H16]', t => {
   const { copies, item } = engineCopies(t);
   const board = copies[0];
