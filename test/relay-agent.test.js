@@ -336,13 +336,17 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
   const remoteEvents = (await remote.json()).events;
 
   const cachedMintCount = box.calls.filter((call) => call.method === 'POST' && call.path === '/auth/tokens').length;
-  const beforeCachedRefusal = nativeEvents(boardFile);
-  const cachedRefusal = await runCli(firstRoot, box.env, cli, ['shout', 'all', 'revoked cache must stay revoked']);
-  assert.equal(cachedRefusal.code, 1, 'a cached revoked credential refuses while the paired phone remains available');
-  assert.equal(cachedRefusal.document.error.code, 'AUTH_REQUIRED');
-  assert.deepEqual(nativeEvents(boardFile), beforeCachedRefusal, 'revoked cached credentials cannot write native board events');
-  assert.equal(box.calls.filter((call) => call.method === 'POST' && call.path === '/auth/tokens').length, cachedMintCount,
-    'a valid machine credential never silently re-mints its revoked agent cache');
+  const cachedMoveCount = box.calls.filter((call) => call.method === 'POST' && call.path.endsWith('/moves')).length;
+  const beforeCachedRenewal = nativeEvents(boardFile);
+  const cachedRenewal = await runCli(firstRoot, box.env, cli, ['shout', 'all', 'renew the revoked agent cache once']);
+  assert.equal(cachedRenewal.code, 0, cachedRenewal.failure ?? 'the valid machine credential replaces one revoked cached agent token');
+  assert.equal(box.calls.filter((call) => call.method === 'POST' && call.path === '/auth/tokens').length, cachedMintCount + 1,
+    'one revoked cache causes exactly one replacement scoped token to be minted');
+  assert.equal(box.calls.filter((call) => call.method === 'POST' && call.path.endsWith('/moves')).length, cachedMoveCount + 2,
+    'the refused ordered send is retried exactly once with the replacement credential');
+  const afterCachedRenewal = nativeEvents(boardFile);
+  assert.equal(afterCachedRenewal.length, beforeCachedRenewal.length + 1,
+    'the authenticated retry writes exactly one native board event');
 
   const linkAfterRevoke = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const machineRevoked = await fetch(box.origin + '/auth/tokens/revoke', {
