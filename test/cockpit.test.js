@@ -6374,6 +6374,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
   box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/glance2');
   box.run(second, 'join', 'web');
   box.run(second, 'shout', 'coordinator', 'Free when you need me.');
+  box.run(alpha.repo, 'shout', 'web', 'Pages first, then the footer.');
   box.run(alpha.web, 'shout', 'coordinator', 'Which colour for the button?', '--decision');
 
   const view = await startView(box);
@@ -6553,12 +6554,20 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 1280');
 
-    // A shout that lands while Items is open counts as unread in the bar; opening it reads it.
+    // A shout that lands while Items is open counts as unread in the bar. The part opens exactly that shout, not the ones
+    // already read beside it, and opening it reads it; show all brings the rest back.
     await click('[data-tab=items]');
+    const alreadyRead = await chrome.evaluate('data.project.shouts.length');
+    assert.ok(alreadyRead >= 2, `shouts the person has already read: ${alreadyRead}`);
     box.run(alpha.web, 'shout', 'coordinator', 'web-1 is on it');
     await chrome.waitFor("!document.querySelector('#status-unread')?.hidden && document.querySelector('#status-unread')?.textContent === '1 unread'", 15_000);
     await click('#status-unread');
     await chrome.waitFor("view.tab === 'shouts' && document.querySelector('#status-unread')?.hidden === true");
+    const feed = async () => JSON.parse(await chrome.evaluate("JSON.stringify([...document.querySelectorAll('#feed .shout .text')].map((text) => text.textContent))"));
+    assert.deepEqual([await feed(), await chrome.evaluate("document.querySelector('#feed .feed-bar span').textContent")], [['web-1 is on it'], '1 unread show all'],
+      `1 unread opens that one shout, not the ${alreadyRead} already read`);
+    await click('#feed [data-unread]');
+    assert.equal((await feed()).length, alreadyRead + 1, 'show all brings back the shouts already read');
 
     // Cut off from the board, the bar turns red and says why.
     await chrome.evaluate("globalThis.fetch = () => Promise.reject(new TypeError('Failed to fetch'))");
@@ -6570,6 +6579,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     await chrome.waitFor('innerWidth === 375');
     r = await read();
     assert.ok(r.barShown && r.live.startsWith('offline'), 'on a phone too, a view cut off from the board says so');
+    assert.ok(r.bar.every((p) => p.height >= 44), `and its parts are 44px targets there: ${JSON.stringify(r.bar)}`);
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);

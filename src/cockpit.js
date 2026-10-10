@@ -1285,8 +1285,11 @@ function render() {
   // The coordinator's mark is the board's own: a square with the Pullboard logo, so it stands out from the agents.
   const LEAD = '<svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg>';
   const lead = (from) => from === 'coordinator';
-  const heard = view.agent ? p.shouts.filter((x) => x.shout_from === view.agent || x.shout_to === view.agent) : p.shouts;
-  const bar = '<div class="feed-bar">' + (view.agent ? '<span>Shouts with <b>' + esc(view.agent) + '</b> <button class="link" data-agent="" type="button">show all</button></span>' : '<span></span>')
+  // Opened from the status bar's unread, the feed is exactly those shouts, the ones after the mark the person had.
+  const unread = view.unread?.root === view.root ? view.unread : null;
+  const heard = unread ? p.shouts.filter((x) => x.shout_id > unread.after) : view.agent ? p.shouts.filter((x) => x.shout_from === view.agent || x.shout_to === view.agent) : p.shouts;
+  const bar = '<div class="feed-bar">' + (unread ? '<span><b>' + heard.length + '</b> unread <button class="link" data-unread type="button">show all</button></span>'
+    : view.agent ? '<span>Shouts with <b>' + esc(view.agent) + '</b> <button class="link" data-agent="" type="button">show all</button></span>' : '<span></span>')
     + '<button class="link" data-agents-toggle type="button">' + (view.agentsHidden ? 'Show agents' : 'Hide agents') + '</button></div>';
   $('shouts-pane').classList.toggle('bare', view.agentsHidden);
   // Who has heard a shout of the person's: the agents it reached whose inbox has read past it. Each agent's read
@@ -1307,7 +1310,7 @@ function render() {
     + (lead(x.shout_from) ? '<span class="avatar">' + LEAD + '</span>' : '<span class="avatar' + (initials(x.shout_from).length > 3 ? ' wide' : '') + '" aria-hidden="true">' + esc(initials(x.shout_from)) + '</span>') + '<div class="shout-main"><header><b class="who">' + esc(x.shout_from) + '</b><span class="to">→ ' + esc(x.shout_to) + '</span>'
     + (itemOf(x) ? '<span class="item">#' + esc(itemOf(x)) + '</span>' : '') + mark(x) + '<time class="long" data-ago="' + esc(x.shout_at) + '" title="' + esc(when(x.shout_at)) + '">' + agoLong(x.shout_at) + '</time></header>'
     + '<div class="text">' + rich(x.shout_text, titles) + '</div><button class="more" data-more type="button">' + (openShouts.has(x.shout_id) ? 'less' : 'more') + '</button>' + (inFeed ? band(x) + heardBy(x) : '') + evidence(x) + tail + '</div></article>';
-  $('feed').innerHTML = bar + (heard.length ? dayRules(heard, (x) => x.shout_at, card) : '<div class="empty">' + (view.agent ? 'No shouts with ' + esc(view.agent) + ' among the last forty.' : 'No shouts yet.') + '</div>');
+  $('feed').innerHTML = bar + (heard.length ? dayRules(heard, (x) => x.shout_at, card) : '<div class="empty">' + (unread ? 'No unread shouts.' : view.agent ? 'No shouts with ' + esc(view.agent) + ' among the last forty.' : 'No shouts yet.') + '</div>');
   foldShouts();
   // Each ask waits here until it is answered (B21); the answer itself is typed in the form below. The
   // person answers the ones passed up to them; the rest wait on whoever holds them (B26).
@@ -1358,7 +1361,7 @@ function render() {
   // countUnseen fills the unread shouts once the tab is drawn.
   const release = (p.milestones || []).find((m) => m.done < m.total), last = p.events[0];
   const part = (to, n, words, title) => n ? '<button type="button" data-status="' + to + '" title="' + esc(title) + '"><b>' + n + '</b> ' + words + '</button>' : '';
-  $('status-board').innerHTML = part('items', active.length, 'items', 'Show the active items') + '<button type="button" id="status-unread" data-status="shouts" title="Open Shouts" hidden></button>'
+  $('status-board').innerHTML = part('items', active.length, 'items', 'Show the active items') + '<button type="button" id="status-unread" data-status="unread" title="Show the shouts you have not read" hidden></button>'
     + part('shouts', busy.length, busy.length === 1 ? 'agent' : 'agents', 'Agents holding work: ' + busy.map((a) => a.agent_id).join(', '))
     + part('verify', active.filter((i) => stateOf(i) === 'verify').length, 'to verify', 'Show the items waiting on a verdict')
     + part('gated', active.filter(gatedOf).length, 'gated', 'Show the open items waiting on another item or a held lane')
@@ -1559,9 +1562,17 @@ function answer(id) {
 
 /** Open what a status-bar part counts: its tab, narrowed to exactly those. */
 function statusGo(to) {
+  view.unread = null;
   if (to.startsWith('item:')) return go(to);
   if (to === 'items') { view.state = 'active'; view.lane = null; view.before = null; $('q').value = ''; openTab('items'); }
   else if (to === 'verify' || to === 'gated') { view.state = to; view.lane = null; view.before = null; $('q').value = ''; openTab('items'); }
+  else if (to === 'unread') {
+    // Only the shouts after the mark the person had; opening Shouts then moves the mark past them.
+    const key = 'pb.seen.' + view.root;
+    view.unread = { root: view.root, after: Number(view.seen[key] ?? keep(key) ?? 0) };
+    view.agent = null;
+    openTab('shouts');
+  }
   else openTab(to);
   showTab();
   render();
@@ -1889,7 +1900,9 @@ $('shouts-pane').addEventListener('click', (event) => {
   if (folded) { view.open[folded.dataset.fold] = !view.open[folded.dataset.fold]; render(); return; }
   if (event.target.closest('[data-all-agents]')) { view.allAgents = !view.allAgents; render(); return; }
   if (event.target.closest('[data-agents-toggle]')) { view.agentsHidden = !view.agentsHidden; keep('pb.agents', view.agentsHidden ? 'hidden' : 'shown'); render(); return; }
+  if (event.target.closest('[data-unread]')) { view.unread = null; render(); return; }
   if (!pick) return;
+  view.unread = null;
   view.agent = pick.dataset.agent && pick.dataset.agent !== view.agent ? pick.dataset.agent : null;
   if (!view.answering) addressTo(view.agent);
   render();
@@ -1904,7 +1917,7 @@ document.addEventListener('click', (event) => {
   if (t.id === 'console') { t.hidden = true; return; }
   if (t.dataset.status) { statusGo(t.dataset.status); return; }
   if (t.dataset.root) switchTo(t.dataset.root, t.dataset.go || '');
-  else if (t.dataset.tab) { openTab(t.dataset.tab); showTab(); }
+  else if (t.dataset.tab) { view.unread = null; openTab(t.dataset.tab); showTab(); }
   else if (t.dataset.go) go(t.dataset.go, t.dataset.board);
   else if (t.dataset.item) pick(Number(t.dataset.item));
   else if (t.dataset.state) { view.state = t.dataset.state; render(); }

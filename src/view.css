@@ -118,7 +118,7 @@ main { padding: 16px 18px 56px; }
 .status #status-unread[hidden] { display: none; }
 /* With touch its parts are 44px targets; a mouse keeps the thin strip. On a phone it shows only when the view is cut off. */
 @media (pointer: coarse) { .status { height: 44px; } .status button { min-height: 44px; } main { padding-bottom: 72px; } }
-@media (width < 480px) { .status:not(:has(.live:not(:empty))) { display: none; } main { padding-bottom: 28px; } }
+@media (width < 480px) { .status:not(:has(.live:not(:empty))) { display: none; } .status { height: 44px; } .status button { min-height: 44px; } main { padding-bottom: 28px; } }
 .side { padding-bottom: 44px; }
 .first { display: none; max-width: 520px; margin: 10vh auto 0; padding: 22px 24px; }
 .first h2 { margin: 0 0 6px; font-size: 18px; }
