@@ -72,6 +72,7 @@ import { autoLinkProject, relayOnAll, revokeRelayDevice, unlinkedRelayProjects }
 import { readRelayMachine } from './relay-machine.js';
 import { relayJoin, relayPair } from './relay-pairing-client.js';
 import { executePersonRequests } from './relay-request-execution.js';
+import { engineReceipt } from './engine.js';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 export const VERSION = PACKAGE.version;
@@ -944,6 +945,42 @@ function filesSince(root, id, from, to) {
   return result.status === 0 ? [...new Set(result.stdout.split('\n').filter(Boolean))].sort() : [];
 }
 
+/** Refuse a candidate containing another item's unverified submitted commit [V1].
+ *
+ * Trunk-reachable commits are already landed, including when the candidate is trunk itself.
+ * Inspect all remaining reachable commits, including merged topic parents.
+ *
+ * @param {string} root
+ * @param {any} board
+ * @param {any} item
+ * @param {string} commit
+ * @param {{ ref: string, commit: string } | null} trunk
+ * @returns {void}
+ */
+function refuseUnverifiedStack(root, board, item, commit, trunk) {
+  const trunkRange = trunk?.commit
+    ? tryGit(root, ['rev-list', `${trunk.commit}..${commit}`])
+    : { status: 1, stdout: '' };
+  if (trunkRange.status !== 0) {
+    throw new Refused('NO_POLICY', 'the current trunk range cannot be read; restore Git history and retry the submit or verification');
+  }
+  const commits = new Set(trunkRange.stdout.split('\n').filter(Boolean));
+  const stacked = store.unverifiedSubmissions(board)
+    .find((other) => other.item_id !== item.item_id && commits.has(other.item_commit));
+  if (stacked) {
+    throw new Refused(
+      'STACKED_ON_UNVERIFIED',
+      `#${item.item_id} includes unverified item #${stacked.item_id} at ${stacked.item_commit}; wait for #${stacked.item_id} to be accepted or rebuild without its commits before continuing`,
+    );
+  }
+}
+
+/** Return the durable outcome only when a recovered move exactly matches its original receipt. */
+function recordedRecovery(board, move) {
+  const receipt = engineReceipt(board, move.id);
+  return receipt?.move === JSON.stringify(move) ? receipt : null;
+}
+
 /**
  * How long ago an ISO time was, or how long until it, in the board's clock: 45m, 3h, 2d.
  *
@@ -1684,8 +1721,16 @@ async function submitHere(ctx, id) {
   const { root } = ctx.info;
   const recovered = relayRecovered(root);
   if (recovered?.operation === 'submit' && recovered.args[0] === id) {
-    const me = withBoard(ctx, (board) => whoAmI(ctx, board));
-    if (recovered.args[1]?.agentId === me.id) {
+    const preflight = withBoard(ctx, (board) => {
+      const me = whoAmI(ctx, board);
+      if (recovered.args[1]?.agentId !== me.id) return null;
+      if (recordedRecovery(board, recovered)) return { me, recorded: true };
+      const item = store.getItem(board, id);
+      const trunk = requireTrunkMerge(root, recovered.args[1].commit);
+      refuseUnverifiedStack(root, board, item, recovered.args[1].commit, trunk);
+      return { me, recorded: false };
+    });
+    if (preflight) {
       await withBoard(ctx, async (board) => await ordered(ctx, board, 'submit', recovered.args));
       return reportSubmission(ctx, id, recovered.args[1].commit,
         { green: true, report: 'recovered the original submission; its gate ran before the original send' });
@@ -1733,7 +1778,8 @@ async function submitHere(ctx, id) {
   if (stray.length) throw new Refused('UNTRACKED', `commit or ignore ${stray.length} untracked file(s), e.g. ${stray[0]}`);
   const commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
-  requireTrunkMerge(root, commit);
+  const trunk = requireTrunkMerge(root, commit);
+  withBoard(ctx, (board) => refuseUnverifiedStack(root, board, held, commit, trunk));
   // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
   // A full-gate stamp never substitutes for either proof; only an actual full fallback may stamp.
   const gate = await runSubmitGate(root, ctx.config, { base: claimHead, trunk: acceptedMain.commit, check: frozenCheck(held), onWait: gateWaitReporter(ctx.io) });
@@ -1744,8 +1790,11 @@ async function submitHere(ctx, id) {
       `when the gate ended, HEAD or a tracked file differed from ${commit.slice(0, 12)}, the commit it started on, so the gate did not end on what you would submit; leave the worktree alone until the gate finishes, then submit again`,
     );
   }
-  requireTrunkMerge(root, commit); // The trunk may have moved while the gate ran.
-  await withBoard(ctx, async (board) => await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit }]));
+  const currentTrunk = requireTrunkMerge(root, commit); // The trunk may have moved while the gate ran.
+  await withBoard(ctx, async (board) => {
+    refuseUnverifiedStack(root, board, store.getItem(board, id), commit, currentTrunk);
+    return await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit }]);
+  });
   return reportSubmission(ctx, id, commit, { green: gate.isGreen, report: submitGateReport(gate), files: gate.files, full: gate.full, reason: gate.reason, check: gate.check,
     log: gate.log, profile: gate.profile, profilePath: gate.profilePath, proofLog: gate.proofLog, proofProfilePath: gate.proofProfilePath });
 }
@@ -1784,6 +1833,13 @@ async function verifyHere(ctx, id, { second, values }) {
     if (recovered?.operation === 'verify' && recovered.args[0] === id && previous?.agentId === me.id &&
         previous.decision === decision && previous.reason === values.reason &&
         previous.note === (textArg(ctx.io, values, 'note') ?? '')) {
+      if (decision === 'ACCEPT' && !recordedRecovery(board, recovered)) {
+        const item = store.getItem(board, id);
+        const commit = resolveCommit(root, item.item_commit);
+        if (!commit) throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
+        const trunk = requireTrunkMerge(root, commit);
+        refuseUnverifiedStack(root, board, item, commit, trunk);
+      }
       return await ordered(ctx, board, 'verify', recovered.args);
     }
     const item = store.getItem(board, id);
@@ -1806,7 +1862,8 @@ async function verifyHere(ctx, id, { second, values }) {
     }
     if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
-      requireTrunkMerge(root, commit);
+      const trunk = requireTrunkMerge(root, commit);
+      refuseUnverifiedStack(root, board, item, commit, trunk);
       check = await withGateSlot(root, (lease) => checkAtCommit(root, item, { waitMs: lease.waitMs }), { itemCheck: true, onWait: gateWaitReporter(ctx.io) });
       verificationProfile = check.profile ?? null;
       const evidence = check.checked
@@ -1818,7 +1875,8 @@ async function verifyHere(ctx, id, { second, values }) {
       if (check.state === 'red') throw new Refused('CHECK_RED', `the frozen item check is red at the submitted commit (${check.stage}); check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit; output digest:\n${check.report.replace(/^/gm, '  ')}${evidence}${timingEvidence}`);
       const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
       submissionPaths(root, item, commit, { mainCommit: receipt?.policyCommit, dependencies: dependencySnapshots(board.db, item) });
-      requireTrunkMerge(root, commit); // Re-read after the frozen check, before accepting.
+      const currentTrunk = requireTrunkMerge(root, commit); // Re-read after the frozen check, before accepting.
+      refuseUnverifiedStack(root, board, item, commit, currentTrunk);
     }
     return await ordered(ctx, board, 'verify', [id, {
       agentId: me.id,

@@ -99,8 +99,9 @@ function claim(box, id) {
   succeeds(box, box.web, 'claim', String(id));
 }
 
-/** Make, submit and return a real lane commit for an item. */
+/** Submit independent lane history so the lifecycle fixture never stacks unverified items. */
 function submit(box, id, name) {
+  box.git(box.web, 'reset', '--hard', 'main');
   claim(box, id);
   const relative = `web/${name}.txt`;
   mkdirSync(join(box.web, 'web'), { recursive: true });
