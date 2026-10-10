@@ -3,6 +3,8 @@ import { readdirSync, rmSync, statSync } from 'node:fs';
 import { runFixtureChild as spawnSync } from './fixture-child.js';
 import { join } from 'node:path';
 
+const FILE_OWNER_TIMEOUT_MS = 8_000;
+
 /** List the newest filesystem entries below a failed cleanup path. */
 function newestEntries(directory) {
   const entries = [];
@@ -27,8 +29,9 @@ function newestEntries(directory) {
 /** Report processes with open files under the fixture tree without exposing arguments or environment. */
 function fileOwners(directory) {
   const result = spawnSync('lsof', ['-nP', '-Fpcn', '+D', directory], {
-    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 3_000,
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: FILE_OWNER_TIMEOUT_MS,
   });
+  if (result.error?.code === 'ETIMEDOUT') return `unavailable (ETIMEDOUT after ${FILE_OWNER_TIMEOUT_MS} ms)`;
   if (result.error) return `unavailable (${result.error.code ?? result.error.message})`;
   if (result.status !== 0 && !result.stdout) return `unavailable (lsof exit ${result.status})`;
   const owners = [];
