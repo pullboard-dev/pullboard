@@ -268,7 +268,7 @@ The `event` table is a SQLite schema object governed by `SCHEMA_VERSION`; its ap
 | `model` | agent | — |
 | `moved` | coordinator | `path` |
 | `add` | item creator | `lane`, `specIds`, `after`, `route` |
-| `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen` |
+| `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen`, optional `pendingRefreeze` |
 | `escalate` | builder | `from`, `to`, `note`, `attempt` |
 | `attempt` | reporting agent | `n`, `seconds`, `result` |
 | `fact` | author | `id`, `kind`, `text`, `ref`, `supersedes` |
@@ -281,7 +281,7 @@ The `event` table is a SQLite schema object governed by `SCHEMA_VERSION`; its ap
 | `reject` | reviewer | `reason`, `commit` |
 | `merged` | coordinator | `commit` |
 | `withdraw` | coordinator | `reason` |
-| `refreeze` | coordinator | `before`, `after` |
+| `refreeze` | coordinator, or live holder adopting a pending correction | `before`, `after`, optional `retainedClaim` |
 | `hold` | coordinator | `lane`, `reason` |
 | `unhold` | coordinator | `lane` |
 | `hold_item` | coordinator | `reason` |
