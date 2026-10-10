@@ -188,15 +188,20 @@ let data = null;
 let seen = '';
 const $ = (id) => document.getElementById(id);
 /**
- * Draw the page in the theme the person picked: light or dark, or anything else to follow the system.
- * The tokens hold both values, so only the scheme they answer to changes.
+ * Draw the page in the theme the person picked, light or dark; with none picked it follows the system, live. The button
+ * only ever offers the other of the two: it shows the scheme on screen, and a press picks the opposite. Following the
+ * system again waits for a settings page. The tokens hold both values, so only the scheme they answer to changes.
  */
 function theme(pick) {
   if (pick === 'light' || pick === 'dark') document.documentElement.dataset.theme = pick;
   else delete document.documentElement.dataset.theme;
-  $('theme').title = 'Theme: ' + (document.documentElement.dataset.theme || 'system');
+  const now = document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  document.documentElement.dataset.scheme = now;
+  $('theme').title = now === 'dark' ? 'Dark theme: switch to light' : 'Light theme: switch to dark';
+  $('theme').setAttribute('aria-label', $('theme').title);
 }
 theme(keep('pb.theme'));
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => theme(keep('pb.theme')));
 /** Collapse the sidebar into the tab bar on a wide screen, or bring it back, as the person last chose. */
 function collapseSide(collapsed) {
   if (collapsed) document.documentElement.dataset.side = 'collapsed';
@@ -903,14 +908,16 @@ function renderSide() {
   const repoButton = (x) => {
     if (!x.ok) return '<p class="repo-error" role="status"><b>' + esc(x.name) + ':</b> ' + esc(x.error) + '</p>';
     const on = x.root === view.root;
-    return '<button class="proj repo' + (on ? ' on' : '') + '"' + (on ? ' aria-current="true"' : '') + ' data-root="' + esc(x.root) + '" title="' + esc(x.root) + '" type="button"><span class="pname">' + esc(x.name) + '</span>' + (needCount(x) ? '<b class="need" title="needs you">' + needCount(x) + '</b>' : '') + '<small>' + esc(doing(x)) + '</small></button>';
+    const parts = doing(x).split(' · '), asks = [x.decisions, x.pending, x.drafts, x.holds].filter(Boolean).length;
+    const line = (asks ? '<span class="asks">' + esc(parts.slice(0, asks).join(' · ')) + '</span>' + (parts.length > asks ? ' · ' : '') : '') + esc(parts.slice(asks).join(' · '));
+    return '<button class="proj repo' + (on ? ' on' : '') + '"' + (on ? ' aria-current="true"' : '') + ' data-root="' + esc(x.root) + '" title="' + esc(x.root) + '" type="button"><span class="pname">' + esc(x.name) + '</span><small>' + line + '</small></button>';
   };
   const groupedRoots = new Set(data.groups.flatMap((group) => group.repos.map((repo) => repo.root)));
   const grouped = data.groups.map((group) => {
     const on = group.key === view.root;
     const needs = group.repos.reduce((total, repo) => total + needCount(repo), 0);
     const count = group.repos.length;
-    return '<section class="repo-group"><button class="proj project-pick' + (on ? ' on' : '') + '"' + (on ? ' aria-current="true"' : '') + ' data-root="' + esc(group.key) + '" type="button"><span class="pname">' + esc(group.name) + '</span>' + (needs ? '<b class="need" title="needs you">' + needs + '</b>' : '') + '<small>' + count + ' ' + (count === 1 ? 'repo' : 'repos') + '</small></button><div class="repos">' + group.repos.map(repoButton).join('') + '</div></section>';
+    return '<section class="repo-group"><button class="proj project-pick' + (on ? ' on' : '') + '"' + (on ? ' aria-current="true"' : '') + ' data-root="' + esc(group.key) + '" type="button"><span class="pname">' + esc(group.name) + '</span><small>' + (needs ? '<span class="asks">' + needs + ' need you</span> · ' : '') + count + ' ' + (count === 1 ? 'repo' : 'repos') + '</small></button><div class="repos">' + group.repos.map(repoButton).join('') + '</div></section>';
   }).join('');
   const loose = data.projects.filter((repo) => !groupedRoots.has(repo.root)).map(repoButton).join('');
   $('proj-list').innerHTML = grouped || loose ? grouped + loose : '<div class="empty">None yet.</div>';
@@ -2009,7 +2016,7 @@ $('side-toggle').addEventListener('click', () => {
   keep('pb.side', collapsed ? 'collapsed' : 'open');
 });
 $('theme').addEventListener('click', () => {
-  const next = { light: 'dark', dark: 'system' }[document.documentElement.dataset.theme] || 'light';
+  const next = document.documentElement.dataset.scheme === 'dark' ? 'light' : 'dark';
   keep('pb.theme', next);
   theme(next);
 });

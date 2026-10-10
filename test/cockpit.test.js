@@ -442,13 +442,18 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
  * The project rows the sidebar shows: name, needs count, the line under it, and which is current.
  */
 function projectRows(html) {
-  return html.split('<button').slice(1).map((row) => ({
-    root: /data-root="([^"]*)"/.exec(row)?.[1],
-    name: /class="pname">([^<]*)</.exec(row)?.[1],
-    needs: /class="need"[^>]*>([^<]*)</.exec(row)?.[1] ?? '',
-    line: /<small[^>]*>([^<]*)</.exec(row)?.[1],
-    current: /aria-current="true"/.test(row),
-  }));
+  return html.split('<button').slice(1).map((row) => {
+    const small = /<small[^>]*>([^]*?)<\/small>/.exec(row)?.[1] ?? '';
+    const asks = /<span class="asks">([^<]*)<\/span>/.exec(small)?.[1] ?? '';
+    return {
+      root: /data-root="([^"]*)"/.exec(row)?.[1],
+      name: /class="pname">([^<]*)</.exec(row)?.[1],
+      // What needs the person leads the line in the warning colour; their count is the sum of its parts.
+      needs: asks ? String(asks.split(' · ').reduce((n, part) => n + Number(/^\d+/.exec(part)?.[0] ?? 0), 0)) : '',
+      line: small.replace(/<[^>]*>/g, ''),
+      current: /aria-current="true"/.test(row),
+    };
+  });
 }
 
 test('the page uses only API v1 for state, code and every offered move [A3,N26,N27]', async () => {
@@ -753,7 +758,7 @@ test('a project with one repo shows once in the project list [N33, N26]', async 
     assert.doesNotMatch(side, /data-root="group:Solo"|data-root="group:acme\/site"/, 'a project with one repo has no group heading');
     assert.deepEqual([once('Solo board'), once('acme/site'), once('Solo')], [1, 1, 0], 'each one-repo project shows as its repo, once');
     assert.ok(side.includes(`data-root="${solo.repo}"`) && side.includes(`data-root="${mirrored.repo}"`), 'as a repo button of its own');
-    assert.equal((side.match(/title="needs you">1<\/b>/g) || []).length, 1, "the lone repo's decision is counted once, not again on a heading");
+    assert.equal((side.match(/<span class="asks">1 decision<\/span>/g) || []).length, 1, "the lone repo's decision is counted once, not again on a heading");
     assert.match(side, /data-root="group:Atlas"/, 'two repos sharing a project still group');
     assert.deepEqual([once('Core API'), once('Web UI'), once('Atlas')], [1, 1, 1], 'under one heading');
     await page.click({ root: solo.repo });
@@ -1017,19 +1022,20 @@ test('the view has a light and a dark theme to choose [N26]', async () => {
     assert.doesNotMatch(style, /prefers-color-scheme/, 'no second list for dark');
     assert.match(page.html, /<div class="side-top">\n(?: {4}<[^\n]*\n)*? {4}<button class="theme-btn" id="theme" type="button" title="Theme: system">[^\n]*<\/button>\n {2}<\/div>/, 'the button sits in the bar atop the sidebar, which is the top bar on a phone');
 
-    const theme = (on) => [on.run('document.documentElement.dataset.theme') ?? 'system', on.element('theme').title];
-    assert.deepEqual(theme(page), ['system', 'Theme: system'], 'it starts with the system\'s theme');
+    const theme = (on) => [on.run('document.documentElement.dataset.scheme'), on.element('theme').title];
+    assert.deepEqual([...theme(page), page.run('document.documentElement.dataset.theme') ?? null], ['dark', 'Dark theme: switch to light', null], 'with none picked it follows the system\'s theme');
     const presses = [];
     for (let press = 0; press < 3; press += 1) {
       await page.fire('theme', 'click');
       presses.push(theme(page));
     }
-    assert.deepEqual(presses, [['light', 'Theme: light'], ['dark', 'Theme: dark'], ['system', 'Theme: system']], 'each press moves on one, and the title says which is on');
+    assert.deepEqual(presses, [['light', 'Light theme: switch to dark'], ['dark', 'Dark theme: switch to light'], ['light', 'Light theme: switch to dark']], 'each press switches between light and dark, and the title says which is on');
 
     await page.fire('theme', 'click');
     await page.fire('theme', 'click');
-    assert.deepEqual(theme(await openPage(view, { store })), ['dark', 'Theme: dark'], 'a reload keeps the pick');
-    assert.deepEqual(theme(await openPage(view)), ['system', 'Theme: system'], 'a browser that keeps nothing follows the system');
+    assert.deepEqual(theme(await openPage(view, { store })), ['light', 'Light theme: switch to dark'], 'a reload keeps the pick');
+    assert.deepEqual(theme(await openPage(view)), ['dark', 'Dark theme: switch to light'], 'a browser that keeps nothing follows the system');
+    assert.ok(['light', 'dark'].includes(store.getItem('pb.theme')), 'and what is kept is only ever light or dark');
   } finally {
     await view.stop();
   }
@@ -6922,6 +6928,114 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     r = await read();
     assert.ok(r.barShown && r.live.startsWith('offline'), 'on a phone too, a view cut off from the board says so');
     assert.ok(r.bar.every((p) => p.height >= 44), `and its parts are 44px targets there: ${JSON.stringify(r.bar)}`);
+    assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
+test('the project corner and the theme read the same everywhere [N26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for project corner checks.');
+  const box = machine();
+  const alpha = project(box, 'corner-alpha', `${SPEC}- G3 [pending] Should the greeting name the visitor? | gate: review\n- G4 [draft, must] The footer links home. | gate: web test\n`);
+  project(box, 'corner-beta');
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  box.run(alpha.web, 'claim', '1');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-corner-chrome-'));
+  let chrome;
+  /** The corner, the project list and the theme button as they read. */
+  const read = async () => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+    const box = (e) => { if (!e) return null; const r = e.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height }; };
+    const shown = (e) => !!e && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0;
+    const rgb = (css) => (css.match(/[\\d.]+/g) || []).map(Number);
+    const probe = document.createElement('i'); probe.style.color = 'var(--warn)'; document.body.append(probe); const warn = getComputedStyle(probe).color; probe.remove();
+    const theme = document.querySelector('#theme'), bar = document.querySelector('header.top'), side = document.querySelector('#side');
+    return {
+      page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth },
+      mode: document.documentElement.dataset.side || 'docked', logo: box(document.querySelector('#side-toggle svg')), name: box(document.querySelector('#proj-name')),
+      wordmark: shown(document.querySelector('#side-toggle span')), arrow: shown(document.querySelector('#proj-switch small')),
+      rows: [...document.querySelectorAll('#proj-list .proj.repo')].filter(shown).map((row) => {
+        const s = getComputedStyle(row), asks = row.querySelector('small .asks');
+        return { name: row.querySelector('.pname').textContent, line: row.querySelector('small').textContent, pill: !!row.querySelector('.need'), on: row.classList.contains('on'),
+          asks: asks ? { text: asks.textContent, first: row.querySelector('small').firstElementChild === asks, warn: getComputedStyle(asks).color === warn } : null,
+          tint: rgb(s.backgroundColor), edge: rgb(s.borderTopColor) };
+      }),
+      theme: { scheme: document.documentElement.dataset.scheme || null, title: theme.title, box: box(theme), bar: box(bar), picked: document.documentElement.dataset.theme || null, side: box(side) },
+    };
+  })())`));
+  const click = (selector) => chrome.evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+  /** A drawn frame: the page hears of a colour-scheme change at its next one. */
+  const frame = () => chrome.evaluate('new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))');
+  const middle = (b) => b.top + b.height / 2;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("typeof data === 'object' && data?.projects?.length === 2 && !!document.querySelector('#proj-list .proj.repo')");
+    for (const scheme of ['light', 'dark']) {
+      for (const width of [1280, 375]) {
+        await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+        await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
+        await chrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${scheme})').matches`);
+        const at = `${width}px ${scheme}`;
+        const r = await read();
+        assert.ok(r.page.scroll <= r.page.width, `${at}: no sideways scroll`);
+        assert.equal(r.wordmark, false, `${at}: the corner is the logo mark, never a wordmark`);
+        // The theme button sits centred in the top bar. On a wide screen that is the tab bar; on a phone it is the
+        // project bar, the page's first row (the logo, the project, the theme), with the tabs under it.
+        const top = width === 375 ? r.theme.side : r.theme.bar;
+        assert.ok(Math.abs(middle(r.theme.box) - middle(top)) <= 2 && r.theme.box.left >= top.left && r.theme.box.right <= top.right, `${at}: the theme button sits centred in the top bar: ${JSON.stringify(r.theme)}`);
+        if (width === 375) assert.ok(top.top <= 0.5 && r.theme.bar.top >= top.bottom - 1, `${at}: on a phone the top bar is the project bar, the tabs under it: ${JSON.stringify(r.theme)}`);
+        if (width === 375) continue;
+        // In the project list: a project is its name and what it holds, what needs the person first in the warning
+        // colour; no count pills; the project shown a quiet neutral tint, no coloured edge.
+        const [shownRow, other] = [r.rows.find((row) => row.on), r.rows.find((row) => !row.on)];
+        assert.ok(r.rows.length === 2 && r.rows.every((row) => !row.pill), `${at}: two projects, no count pills: ${JSON.stringify(r.rows)}`);
+        assert.deepEqual([shownRow.name, shownRow.asks?.text, shownRow.asks?.first, shownRow.asks?.warn], ['corner-alpha', '1 question · 1 draft row', true, true], `${at}: what needs the person comes first, in the warning colour: ${JSON.stringify(shownRow)}`);
+        assert.equal(other.asks, null, `${at}: a project needing nothing says only what it holds`);
+        const [tr, tg, tb] = shownRow.tint, [er, eg, eb] = shownRow.edge;
+        assert.ok(Math.max(tr, tg, tb) - Math.min(tr, tg, tb) <= 14 && Math.max(er, eg, eb) - Math.min(er, eg, eb) <= 14, `${at}: the project shown is a neutral tint with no coloured edge: ${JSON.stringify(shownRow)}`);
+      }
+    }
+
+    // The corner is the same docked and collapsed: the logo, then the name, in the same place; collapsed, the name opens
+    // the list, so only then does it carry its arrow.
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
+    await chrome.waitFor('innerWidth === 1280');
+    await frame();
+    const docked = await read();
+    await click('#side-toggle');
+    await chrome.waitFor('document.documentElement.dataset.side === "collapsed"');
+    const collapsed = await read();
+    for (const part of ['logo', 'name']) {
+      assert.ok(Math.abs(docked[part].left - collapsed[part].left) <= 1 && Math.abs(docked[part].top - collapsed[part].top) <= 1 && Math.abs(docked[part].height - collapsed[part].height) <= 1,
+        `the ${part} keeps its place and size: ${JSON.stringify([docked[part], collapsed[part]])}`);
+    }
+    assert.deepEqual([docked.mode, docked.arrow, collapsed.mode, collapsed.arrow], ['docked', false, 'collapsed', true], 'the arrow only where the name opens a list');
+
+    // The theme is light or dark: it starts from the system's, each press switches, the title says which, a reload keeps
+    // it; collapsed, the button still sits centred in the top bar.
+    assert.deepEqual([collapsed.theme.scheme, collapsed.theme.title, collapsed.theme.picked], ['light', 'Light theme: switch to dark', null], 'none picked yet: the system\'s, light here');
+    // With none picked the page follows the system as it changes.
+    await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] });
+    await frame();
+    await chrome.waitFor("document.documentElement.dataset.scheme === 'dark'");
+    assert.equal((await read()).theme.title, 'Dark theme: switch to light', 'and the button says so');
+    await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
+    await frame();
+    await chrome.waitFor("document.documentElement.dataset.scheme === 'light'");
+    assert.ok(Math.abs(middle(collapsed.theme.box) - middle(collapsed.theme.bar)) <= 2, `the button sits centred in the top bar: ${JSON.stringify(collapsed.theme)}`);
+    await click('#theme');
+    assert.deepEqual(Object.values((await read()).theme).slice(0, 2), ['dark', 'Dark theme: switch to light'], 'a press switches to dark');
+    await click('#theme');
+    assert.deepEqual([...Object.values((await read()).theme).slice(0, 2), await chrome.evaluate("localStorage.getItem('pb.theme')")], ['light', 'Light theme: switch to dark', 'light'], 'the next press is light again, never back to following the system');
+    await click('#theme');
+    await chrome.send('Page.reload');
+    await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('#theme')");
+    assert.deepEqual(Object.values((await read()).theme).slice(0, 2), ['dark', 'Dark theme: switch to light'], 'presses switch between the two, and a reload keeps the last');
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
