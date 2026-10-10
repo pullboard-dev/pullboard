@@ -1049,6 +1049,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
         hasCommit: null,
         withinLane: null,
         trunkMergeClean: null,
+        noUnverifiedStack: null,
         gateConfigured: null,
         gateGreen: null,
         treeStillDuringGate: null,
@@ -1299,6 +1300,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', head, 
             : new Refused('CRITERIA_CHANGED', `the criterion for #${id} changed after it was claimed; the coordinator runs: pullboard refreeze ${id}`),
         reasonIsMet: () => (reason && reason !== ACCEPT_REASON ? new Refused('BAD_REASON', `accept means ${ACCEPT_REASON}; a failed criterion is a reject`) : null),
         trunkMergeClean: null,
+        noUnverifiedStack: null,
         itemCheckGreen: null,
         proofNoted: () =>
           note.trim()
@@ -1427,6 +1429,27 @@ export function listItems(board, { lane, all = false } = {}) {
     .all(lane ?? null, lane ?? null);
   const items = rows.map((item) => current(board, item));
   return all ? items : items.filter((item) => !['verified', 'withdrawn'].includes(item.item_status));
+}
+
+/** Return all recorded submitted heads of items still awaiting verification [V1,V17].
+ * Historical heads remain unreviewed after a rejection or resubmission; current pointers also
+ * cover legacy snapshots that retained the item but not its original submit event.
+ * @param {any} board
+ * @returns {{ item_id: number, item_title: string, item_commit: string }[]}
+ */
+export function unverifiedSubmissions(board) {
+  const submissions = new Map();
+  for (const item of listItems(board, { all: true })) {
+    if (item.item_status === 'verified') continue;
+    const commits = [item.item_commit, ...events(board, { itemId: item.item_id })
+      .filter(event => event.event_kind === 'submit')
+      .map(event => JSON.parse(event.event_detail).commit)];
+    for (const commit of commits) {
+      if (!/^[0-9a-f]{40,64}$/iu.test(commit ?? '')) continue;
+      submissions.set(`${item.item_id}:${commit}`, { item_id: item.item_id, item_title: item.item_title, item_commit: commit });
+    }
+  }
+  return [...submissions.values()];
 }
 
 /**
