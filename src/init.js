@@ -6,7 +6,7 @@
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { CONFIG_FILE, COORDINATOR, loadConfig } from './config.js';
+import { CONFIG_FILE, COORDINATOR, doctrineFile, loadConfig } from './config.js';
 import { loadDoctrine } from './doctrine.js';
 import { installHooks } from './hooks.js';
 import { Refused } from './refused.js';
@@ -85,6 +85,18 @@ function writeNew(file, text, name, onWrite) {
   writeFileSync(file, text);
   onWrite(name);
   return `wrote ${name}`;
+}
+
+/** Ignore Claude's nested agent worktrees, preserving existing ignore bytes and second-run idempotence. */
+function ignoreAgentWorktrees(root, onWrite) {
+  const file = join(root, '.gitignore');
+  const pattern = '.claude/worktrees/';
+  const existing = existsSync(file);
+  const previous = existing ? readFileSync(file, 'utf8') : '';
+  if (previous.split(/\r?\n/u).includes(pattern)) return 'kept .gitignore (already ignores .claude/worktrees/)';
+  appendFileSync(file, (previous && !previous.endsWith('\n') ? '\n' : '') + pattern + '\n');
+  onWrite('.gitignore');
+  return existing ? 'added .claude/worktrees/ to .gitignore' : 'wrote .gitignore (ignores .claude/worktrees/)';
 }
 
 /**
@@ -184,6 +196,7 @@ export function initRepo({ info, openBoardHere, register, closeBoard }) {
     throw new Refused('NOT_MAIN', 'run init in the main checkout; worktrees join a lane instead');
   }
   const { root } = info;
+  const doctrine = existsSync(join(root, CONFIG_FILE)) ? loadConfig(root).practice : doctrineFile(root);
   const gate = detectGate(root);
   const written = [];
   /** Record only paths setup actually writes; unrelated files never enter its staging command. */
@@ -191,7 +204,8 @@ export function initRepo({ info, openBoardHere, register, closeBoard }) {
   const notes = [
     writeNew(join(root, CONFIG_FILE), configTemplate(gate, detectFixers(root)), CONFIG_FILE, onWrite),
     writeNew(join(root, 'SPEC.md'), specTemplate(basename(root), gate), 'SPEC.md', onWrite),
-    writeNew(join(root, 'PRACTICE.md'), practiceTemplate(), 'PRACTICE.md', onWrite),
+    writeNew(join(root, doctrine), practiceTemplate(), doctrine, onWrite),
+    ignoreAgentWorktrees(root, onWrite),
     ...writeAgentDocs(root, onWrite),
     ...installHooks(root, onWrite),
     ...installSkills(root, onWrite),

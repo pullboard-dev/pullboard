@@ -84,7 +84,7 @@ beforeEach(() => {
   store.register(board, { lane: 'api', path: '/repo-api-1' });
 });
 
-test('[B14] brief paths ignore sentence punctuation but still refuse a foreign path', async (t) => {
+test('[B14] notes in parentheses are not paths, and a foreign path still refuses', async (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-brief-files-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const repo = join(directory, 'repo');
@@ -101,6 +101,9 @@ test('[B14] brief paths ignore sentence punctuation but still refuse a foreign p
   }));
   const brief = 'Files:\n- src/x.js, README.md, docs/, make. folders). api/server.js.\nChange: add a page\nTest: check the page';
   assert.deepEqual(briefFiles(brief), ['src/x.js', 'README.md', 'docs/', 'api/server.js']);
+  const noted = 'Files:\n- src/a.js (only where a checked claim changed in 0.8.1 (see api/v1.js)) .8.1 1..2 0.8.1\n- src/b.js (main.moved and skills/ stay as they are)';
+  assert.deepEqual(briefFiles(noted), ['src/a.js', 'src/b.js']);
+  const unclosed = 'Files:\n- src/a.js (old note api/x.js';
 
   let stdout = '';
   let stderr = '';
@@ -114,6 +117,18 @@ test('[B14] brief paths ignore sentence punctuation but still refuse a foreign p
   assert.equal(code, 1, stdout);
   assert.match(stderr, /BRIEF_LANE.*api\/server\.js \(api's\)/);
   assert.doesNotMatch(stderr, /make\.|folders\)/);
+
+  let unclosedStderr = '';
+  const unclosedCode = await main([
+    'add', 'web', 'Page', '--route', 'light', '--criterion', 'the page renders', '--check', 'true', '--brief', `${unclosed}\nChange: update the page\nTest: check the page`,
+  ], {
+    cwd: repo,
+    stdout: { isTTY: false, write: () => {} },
+    stderr: { write: (text) => { unclosedStderr += text; } },
+  });
+  assert.equal(unclosedCode, 1);
+  assert.match(unclosedStderr, /BRIEF_LANE.*api\/x\.js/u);
+  assert.deepEqual(briefFiles(unclosed), ['src/a.js', 'api/x.js']);
 });
 
 test('agents are numbered per lane; one coordinator; a worktree joins once', () => {
@@ -289,7 +304,7 @@ test('a verifier releases its reserved review; another verifier can take it, and
     store.submit(durable, id, { agentId: builder, commit: SHA_A, tree: 'tree-a' });
     store.reserveReview(durable, id, { agentId: reviewer, leaseMs: HOUR, policy: 'any' });
 
-    assert.equal(store.release(durable, id, reviewer), true);
+    assert.equal(store.release(durable, id, reviewer, 'wrong tree'), true);
     assert.deepEqual(
       [store.getItem(durable, id).item_review_by, store.getItem(durable, id).item_review_until],
       [null, null],
@@ -614,6 +629,46 @@ test('changing a criterion or a check drops the frozen bar, in the open; the nex
   const edit = store.events(board, { itemId: id }).find((event) => event.event_kind === 'edit');
   assert.deepEqual(JSON.parse(edit.event_detail), { criterion: 'renders', check: 'npm test', unfrozen: 'digest:Page' });
   assert.equal(claimAs(id, 'web-1', 'web').digest, 'digest:Page');
+});
+
+test('edit after an expired claim reopens it and names its holder [B13]', () => {
+  const edits = [
+    { title: 'Criterion', change: { criterion: 'the new criterion' } },
+    { title: 'Check', change: { check: 'node --test' } },
+    { title: 'Route', change: { route: 'mid' } },
+  ];
+  for (const { title, change } of edits) {
+    const id = store.addItem(board, {
+      by: 'coordinator', lane: 'web', title, route: 'light', brief: BRIEF,
+      criterion: 'the old criterion', check: 'true',
+    });
+    claimAs(id, 'web-1', 'web');
+    clock.advance(2 * HOUR + 1);
+    assert.doesNotThrow(
+      () => store.editItem(board, id, { agentId: 'coordinator', ...change }),
+      `an expired ${title.toLowerCase()} edit must reopen the item before writing its fields`,
+    );
+    const stored = store.itemById(board, id);
+    assert.deepEqual([stored.item_status, stored.item_owner, stored.item_lease_until], ['open', null, null]);
+    assert.equal(stored.item_frozen_digest, null);
+    const event = store.events(board, { itemId: id }).findLast((entry) => entry.event_kind === 'edit');
+    assert.equal(event.event_by, 'coordinator');
+    assert.equal(JSON.parse(event.event_detail).expiredHolder, 'web-1');
+    assert.equal(JSON.parse(event.event_detail).unfrozen, `digest:${title}`);
+  }
+
+  const live = store.addItem(board, {
+    by: 'coordinator', lane: 'web', title: 'Live', route: 'light', brief: BRIEF,
+    criterion: 'the old criterion', check: 'true',
+  });
+  claimAs(live, 'web-1', 'web');
+  const digest = store.itemById(board, live).item_frozen_digest;
+  assert.throws(() => store.editItem(board, live, { agentId: 'coordinator', criterion: 'not yet' }), /HELD/);
+  assert.deepEqual(
+    [store.itemById(board, live).item_status, store.itemById(board, live).item_owner, store.itemById(board, live).item_frozen_digest],
+    ['claimed', 'web-1', digest],
+  );
+  assert.equal(store.events(board, { itemId: live }).some((entry) => entry.event_kind === 'edit'), false);
 });
 
 test('escalate frees an item one tier up, with what was tried attached [B15]', () => {

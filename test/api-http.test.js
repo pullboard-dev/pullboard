@@ -1,5 +1,6 @@
 /** Real HTTP calls against an isolated Git repo and the actual board engine (A2). */
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -12,6 +13,7 @@ import { createApiHandler } from '../src/api-http.js';
 import { registryFile, registerProject } from '../src/projects.js';
 import { Refused } from '../src/refused.js';
 import * as store from '../src/board.js';
+import { fetchFresh } from './http-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 
@@ -52,7 +54,7 @@ function fixture(t) {
   const config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ ...config, gate: 'true', lanes: { app: { owns: ['app/'] }, review: { owns: [] } } }));
   writeFileSync(join(root, 'SPEC.md'), '# HTTP fixture\n\n## Goals\n- G1 [approved, must] Keep the board. | gate: true\n');
-  writeFileSync(join(root, 'PRACTICE.md'), '');
+  writeFileSync(join(root, 'DOCTRINE.md'), '');
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: private HTTP fixture');
   return { root, dir, env, cli, run, commit: git('rev-parse', 'HEAD').trim() };
@@ -68,7 +70,7 @@ async function httpBox(t, { includeMissing = false } = {}) {
   const origin = url.origin;
   /** Make a real HTTP call and decode its single versioned response. */
   async function call(path, value, headers = {}) {
-    const response = await fetch(origin + path, {
+    const response = await fetchFresh(origin + path, {
       method: value === undefined ? 'GET' : 'POST',
       headers: { 'x-pullboard-key': key, ...(value === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
       ...(value === undefined ? {} : { body: JSON.stringify(value) }),
@@ -130,7 +132,7 @@ test('[A2] local HTTP state accepts a safe seen cursor and committed code previe
   }
 });
 
-test('[A2, N33, N35] API listing refreshes live labels and preserves missing-entry warnings', async (t) => {
+test('[A2, N33, N35] API listing refreshes live labels and preserves unreadable-entry warnings', async (t) => {
   const box = fixture(t);
   const priorHome = process.env.PULLBOARD_HOME;
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
@@ -150,7 +152,7 @@ test('[A2, N33, N35] API listing refreshes live labels and preserves missing-ent
   const key = url.searchParams.get('k');
   /** Fetch the authenticated board catalog through the real local HTTP server. */
   async function listing() {
-    const response = await fetch(url.origin + '/api/v1/boards', { headers: { 'x-pullboard-key': key } });
+    const response = await fetchFresh(url.origin + '/api/v1/boards', { headers: { 'x-pullboard-key': key } });
     assert.equal(response.status, 200);
     return response.json();
   }
@@ -174,7 +176,7 @@ test('[A2, N33, N35] API listing refreshes live labels and preserves missing-ent
     { name: 'Fresh first', project: 'Fresh group' },
     { name: 'Saved second', project: 'Saved group' },
   ]);
-  rmSync(second, { recursive: true, force: true });
+  rmSync(join(second, '.git'), { recursive: true, force: true });
 
   const refreshed = await listing();
   assert.deepEqual(refreshed.boards.map(({ root, name, project }) => ({ root, name, project })), [
@@ -226,6 +228,82 @@ test('[A2] real HTTP state, moves and refusals use the CLI and exact committed e
   const badAgent = await box.call(box.path + '/moves', { verb: 'release', item: id, agent: 'absent-agent' });
   assert.equal(badAgent.status, 409);
   assert.equal(badAgent.document.error.code, 'NO_AGENT');
+  const submitted = await box.call(box.path + '/moves', { verb: 'submit', item: id, agent: one.agent });
+  assert.equal(submitted.status, 200, JSON.stringify(submitted.document));
+  const review = await box.call(box.path + '/moves', { verb: 'next', agent: two.agent, args: { verify: true } });
+  assert.equal(review.status, 200, JSON.stringify(review.document));
+  assert.equal(review.document.result.item.item_id, id);
+  const missingNote = await box.call(box.path + '/moves', { verb: 'release', item: id, agent: two.agent });
+  assert.equal(missingNote.status, 409);
+  assert.equal(missingNote.document.error.code, 'NOTE_REQUIRED');
+  const release = await box.call(box.path + '/moves', { verb: 'release', item: id, agent: two.agent, args: { note: 'reviewed the wrong tree' } });
+  assert.equal(release.status, 200, JSON.stringify(release.document));
+  assert.deepEqual(JSON.parse(release.document.event.event_detail), { review: true, reason: 'reviewed the wrong tree' });
+});
+
+test('[A2,V2,H16] board-state JSON retains pending and red baselines and removes cleared observations', async (t) => {
+  const box = await httpBox(t);
+  const pending = { command: 'true', main: box.commit, result: 'pending', request: randomUUID() };
+  const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  let id;
+  try {
+    id = store.addItem(board, { by: 'coordinator', lane: 'app', title: 'Captured API observation',
+      check: pending.command, checkBaseline: pending });
+  } finally { store.closeBoard(board); }
+  const initial = await box.call(box.path + '/state');
+  assert.deepEqual(initial.document.state.items.find((item) => item.id === id).checkBaseline, pending,
+    'a pending captured request reaches the public state endpoint before completion');
+  const completed = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    store.completeCheckBaseline(completed, id, { agentId: 'coordinator', expected: pending,
+      baseline: { command: pending.command, main: pending.main, result: 'red', seconds: 1 } });
+  } finally { store.closeBoard(completed); }
+  const redState = await box.call(box.path + '/state');
+  const red = redState.document.state.items.find((item) => item.id === id).checkBaseline;
+  assert.deepEqual(red, { command: pending.command, main: pending.main, result: 'red', seconds: 1, request: pending.request });
+  assert.equal(Object.hasOwn(red, 'warning'), false, 'a failing baseline has no proves-nothing warning');
+  const cleared = await box.call(box.path + '/moves', { verb: 'edit', item: id, args: { check: '' } });
+  assert.equal(cleared.status, 200, JSON.stringify(cleared.document));
+  const clearedState = await box.call(box.path + '/state');
+  const clearedItem = clearedState.document.state.items.find((item) => item.id === id);
+  assert.equal(clearedItem.check, '');
+  assert.equal(Object.hasOwn(clearedItem, 'checkBaseline'), false, 'clearing the check removes its old observation from API state');
+});
+
+test('[A2,V2] HTTP add and edit preserve explicit blocking baseline requests', async (t) => {
+  const box = await httpBox(t);
+  /** Build a finite check whose completion can be observed independently of the HTTP response. */
+  function completedCheck(marker) {
+    const script = `Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300); require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'finished')`;
+    return `${shellWord(process.execPath)} -e ${shellWord(script)}`;
+  }
+  const firstMarker = join(box.dir, 'add-finished');
+  const check = completedCheck(firstMarker);
+  const added = await box.call(box.path + '/moves', { verb: 'add', args: {
+    lane: 'app', title: 'Blocking API check', check, wait: true,
+  } });
+  assert.equal(added.status, 200, JSON.stringify(added.document));
+  const item = added.document.result.item;
+  assert.equal(item.item_check_baseline.result, 'green', '--wait returns a terminal observation in the add response');
+  assert.equal(item.item_check_baseline.warning, 'CRITERION_PROVES_NOTHING');
+  assert.equal(readFileSync(firstMarker, 'utf8'), 'finished');
+  const addedState = await box.call(box.path + '/state');
+  const projected = addedState.document.state.items.find((row) => row.id === item.item_id);
+  assert.equal(projected.check, check);
+  assert.deepEqual(projected.checkBaseline, item.item_check_baseline, 'board-state item JSON carries the same complete observation and warning');
+  const secondMarker = join(box.dir, 'edit-finished');
+  const editedCheck = completedCheck(secondMarker);
+  const edited = await box.call(box.path + '/moves', { verb: 'edit', item: item.item_id, args: {
+    check: editedCheck, wait: true,
+  } });
+  assert.equal(edited.status, 200, JSON.stringify(edited.document));
+  assert.equal(edited.document.result.item.item_check_baseline.command, editedCheck);
+  assert.equal(edited.document.result.item.item_check_baseline.result, 'green', '--wait also blocks edit until its new check finishes');
+  assert.equal(readFileSync(secondMarker, 'utf8'), 'finished');
+  const editedState = await box.call(box.path + '/state');
+  const editedItem = edited.document.result.item;
+  assert.deepEqual(editedState.document.state.items.find((row) => row.id === item.item_id).checkBaseline,
+    editedItem.item_check_baseline, 'board-state JSON replaces the observation when the check changes');
 });
 
 test('[A2, H12, R2] requests and shouts append events and requests stay outside decisions', async (t) => {
@@ -256,7 +334,7 @@ test('[A2] a live HTTP stream follows CLI writes and reconnects after Last-Event
   const initial = await box.call(box.path + '/events');
   const after = initial.document.events.at(-1).event_id;
   const controller = new AbortController();
-  const response = await fetch(box.origin + box.path + '/events?after=' + after, { headers: { 'x-pullboard-key': box.key, accept: 'text/event-stream' }, signal: controller.signal });
+  const response = await fetchFresh(box.origin + box.path + '/events?after=' + after, { headers: { 'x-pullboard-key': box.key, accept: 'text/event-stream' }, signal: controller.signal });
   assert.match(response.headers.get('content-type'), /text\/event-stream/);
   const reader = response.body.getReader();
   let buffered = '';
@@ -283,7 +361,7 @@ test('[A2] a live HTTP stream follows CLI writes and reconnects after Last-Event
   assert.equal(live.id, live.document.event.event_id);
   await reader.cancel();
   controller.abort();
-  const replay = await fetch(box.origin + box.path + '/events?after=0', { headers: { 'x-pullboard-key': box.key, 'last-event-id': String(live.id) } });
+  const replay = await fetchFresh(box.origin + box.path + '/events?after=0', { headers: { 'x-pullboard-key': box.key, 'last-event-id': String(live.id) } });
   assert.deepEqual((await replay.json()).events, []);
   const invalid = await box.call(box.path + '/events?after=1.5');
   assert.equal(invalid.status, 400);
@@ -292,7 +370,7 @@ test('[A2] a live HTTP stream follows CLI writes and reconnects after Last-Event
 
 test('[A2] local auth, origin, unknown board and malformed calls refuse without moving', async (t) => {
   const box = await httpBox(t);
-  const unauthenticated = await fetch(box.origin + '/api/v1/boards');
+  const unauthenticated = await fetchFresh(box.origin + '/api/v1/boards');
   assert.equal(unauthenticated.status, 401);
   assert.equal((await unauthenticated.json()).error.code, 'AUTH_REQUIRED');
   const badSecret = await box.call('/api/v1/boards', undefined, { 'x-pullboard-key': 'incorrect-private-fixture-key' });
@@ -303,7 +381,7 @@ test('[A2] local auth, origin, unknown board and malformed calls refuse without 
   assert.equal(unknown.status, 404);
   const unknownStream = await box.call('/api/v1/boards/' + '0'.repeat(32) + '/events', undefined, { accept: 'text/event-stream' });
   assert.equal(unknownStream.status, 404);
-  const malformed = await fetch(box.origin + box.path + '/moves', { method: 'POST', headers: { 'x-pullboard-key': box.key, 'content-type': 'application/json' }, body: '{broken' });
+  const malformed = await fetchFresh(box.origin + box.path + '/moves', { method: 'POST', headers: { 'x-pullboard-key': box.key, 'content-type': 'application/json' }, body: '{broken' });
   assert.equal(malformed.status, 400);
   assert.equal((await malformed.json()).error.code, 'BAD_REQUEST');
   const unsupported = await box.call(box.path + '/moves', { verb: 'run', args: { agent: 'unsafe' } });
@@ -372,7 +450,7 @@ test('[A2] shared transport stops a live stream when its caller loses access', a
   t.after(() => controller.abort());
   const timeout = setTimeout(() => controller.abort(), 10_000);
   t.after(() => clearTimeout(timeout));
-  const response = await fetch('http://127.0.0.1:' + server.address().port + '/api/v1/boards/' + id + '/events?after=' + records().at(-1).event_id, { headers: { accept: 'text/event-stream' }, signal: controller.signal });
+  const response = await fetchFresh('http://127.0.0.1:' + server.address().port + '/api/v1/boards/' + id + '/events?after=' + records().at(-1).event_id, { headers: { accept: 'text/event-stream' }, signal: controller.signal });
   const reader = response.body.getReader();
   await reader.read();
   authorized = false;
@@ -402,7 +480,7 @@ test('[A2] adapters without a committed-code capability return a versioned refus
   await new Promise((done) => server.listen(0, '127.0.0.1', done));
   t.after(() => new Promise((done) => { handler.close(); server.close(done); }));
   const id = 'fixture-board';
-  const response = await fetch('http://127.0.0.1:' + server.address().port + '/api/v1/boards/' + id + '/code?ref=secret.txt%3A1%40abcdef0');
+  const response = await fetchFresh('http://127.0.0.1:' + server.address().port + '/api/v1/boards/' + id + '/code?ref=secret.txt%3A1%40abcdef0');
   const document = await response.json();
   assert.equal(response.status, 400);
   assert.equal(document.version, 1);

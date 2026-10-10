@@ -149,16 +149,17 @@ function rememberPort(port) {
  * @template T
  * @param {string} root
  * @param {(board: any, info: any, config: any) => T} read
+ * @param {any | null} [providedBoard] Borrow a staged connection without closing it.
  * @returns {T}
  */
-function withProject(root, read) {
+function withProject(root, read, providedBoard = null) {
   const info = repoInfo(root);
   const config = loadConfig(info.root);
-  const board = store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'));
+  const board = providedBoard ?? store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'));
   try {
     return read(board, info, config);
   } finally {
-    store.closeBoard(board);
+    if (!providedBoard) store.closeBoard(board);
   }
 }
 
@@ -167,10 +168,10 @@ function withProject(root, read) {
  * it also counts every shout since, which the forty it sends cannot always show.
  *
  * @param {string} root
- * @param {{ seen?: number | null }} [options]
+ * @param {{ seen?: number | null, board?: any }} [options] A supplied board stays owned by its caller.
  * @returns {any}
  */
-export function projectState(root, { seen = null } = {}) {
+export function projectState(root, { seen = null, board: providedBoard = null } = {}) {
   return withProject(root, (board, info, config) => {
     const all = store.listItems(board, { all: true });
     const status = new Map(all.map((item) => [item.item_id, item.item_status]));
@@ -232,7 +233,7 @@ export function projectState(root, { seen = null } = {}) {
       // Each product's progress, counted as pullboard status counts it (N28).
       products: productSummaries(config, loadSpec(info.root, config), all),
     };
-  });
+  }, providedBoard);
 }
 
 /** The most lines one code reference shows (B23). */
@@ -315,7 +316,8 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     const isOwnHost = req.headers.host === `${LOOPBACK}:${bound}` || req.headers.host === `localhost:${bound}`;
     if (!isOwnHost || given.length !== key.length || !timingSafeEqual(given, key)) return json(res, 403, { error: 'this view needs its own address and secret: open the link pullboard view printed' });
     try {
-      if (req.method === 'GET' && url.pathname === '/') return reply(res, 200, 'text/html; charset=utf-8', cockpitPage(secret));
+      // The board, and the Roadmap at its own address (N38), are the one page.
+      if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/roadmap')) return reply(res, 200, 'text/html; charset=utf-8', cockpitPage(secret, { paths: true }));
       if (req.method === 'GET' && url.pathname === '/view.css') return reply(res, 200, 'text/css; charset=utf-8', VIEW_CSS);
       return json(res, 404, { error: 'no such page' });
     } catch (error) {

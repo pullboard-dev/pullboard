@@ -1,13 +1,14 @@
 /** Device-side sealing is the same bytes and WebCrypto code in Node and Chrome (H15, H17). */
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { decodeBoardKey, encodeBoardKey, generateBoardKey, seal, SEAL_VERSION, unseal } from '../src/seal.js';
+import { findChromeExecutable, startChrome } from './chrome-fixture.js';
 
 const BOARD = '0123456789abcdef0123456789abcdef';
 const TEXT = new TextEncoder().encode('A private board payload: \u03bb \ud83d\udd12');
@@ -169,50 +170,8 @@ test('sealing validates inputs and copies mutable buffers and binding before awa
   assert.deepEqual(await decoding, TEXT);
 });
 
-/** Find an installed browser, with an explicit override for other supported host layouts. */
-function chromeExecutable() {
-  return [process.env.PULLBOARD_CHROME, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser']
-    .find((path) => path && existsSync(path));
-}
-
-/** Await a browser callback, then stop only our isolated process group, without exposing output. */
-async function chromeRun(executable, url, profile, resultReady) {
-  // Use the temporary profile and mock keychain; the test must never reach a person's credentials.
-  const child = spawn(executable, ['--headless', '--disable-gpu', '--user-data-dir=' + profile,
-    '--no-first-run', '--no-default-browser-check', '--disable-background-networking',
-    '--disable-sync', '--disable-extensions', '--no-proxy-server', '--use-mock-keychain',
-    '--password-store=basic', url],
-  { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
-  child.stdout.resume();
-  child.stderr.resume();
-  let timer;
-  const stopped = new Promise((resolve) => child.once('close', resolve));
-  try {
-    await Promise.race([resultReady, new Promise((resolve, reject) => {
-      timer = setTimeout(() => reject(new Error('Isolated Chrome did not report within 30 seconds.')), 30_000);
-      child.once('error', () => reject(new Error('Isolated Chrome could not start.')));
-      child.once('close', () => reject(new Error('Isolated Chrome exited before its interoperability result.')));
-    })]);
-  } finally {
-    clearTimeout(timer);
-    if (child.pid) {
-      try { process.kill(-child.pid, 'SIGTERM'); } catch { /* Our process group already exited. */ }
-    }
-    let cleanupTimer;
-    const exited = await Promise.race([stopped.then(() => true), new Promise((resolve) => {
-      cleanupTimer = setTimeout(() => resolve(false), 5000);
-    })]);
-    clearTimeout(cleanupTimer);
-    if (!exited && child.pid) {
-      try { process.kill(-child.pid, 'SIGKILL'); } catch { /* Our process group already exited. */ }
-    }
-    await stopped;
-  }
-}
-
 test('headless Chrome loads the unchanged module and exchanges sealed bytes with Node [H15,H17]', { timeout: 60_000 }, async (t) => {
-  const executable = chromeExecutable();
+  const executable = findChromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to run the browser interoperability proof.');
   const key = await generateBoardKey();
   const fixtures = [];
@@ -222,8 +181,6 @@ test('headless Chrome loads the unchanged module and exchanges sealed bytes with
   }
   let browserResult;
   const requests = new Set();
-  let reportReady;
-  const resultReady = new Promise((resolve) => { reportReady = resolve; });
   const html = '<!doctype html><body data-seal-result="pending"><script type="module">' +
     'import {decodeBoardKey,seal,unseal} from "/seal.js";' +
     'try {const f=await (await fetch("/fixture")).json();const key=decodeBoardKey(f.key);const replies=[];' +
@@ -248,18 +205,20 @@ test('headless Chrome loads the unchanged module and exchanges sealed bytes with
     if (req.url === '/result' && req.method === 'POST') {
       let body = '';
       req.on('data', (part) => { body += part; });
-      req.on('end', () => { try { browserResult = JSON.parse(body); } catch { browserResult = null; } res.end('{}'); reportReady(); });
+      req.on('end', () => { try { browserResult = JSON.parse(body); } catch { browserResult = null; } res.end('{}'); });
       return;
     }
     res.writeHead(404); res.end();
   });
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-seal-chrome-'));
+  let chrome;
   try {
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
     try {
-      await chromeRun(executable, 'http://127.0.0.1:' + server.address().port + '/', profile, resultReady);
-    } catch {
-      assert.fail('Chrome interoperability failed; requested fixture routes: ' + [...requests].sort().join(', '));
+      chrome = await startChrome({ executable, profileDirectory: profile, url: 'http://127.0.0.1:' + server.address().port + '/' });
+      await chrome.waitFor("document.body.dataset.sealResult === 'pass'", 30_000);
+    } catch (error) {
+      assert.fail(`Chrome interoperability failed; requested fixture routes: ${[...requests].sort().join(', ')}; ${error.message}`);
     }
     assert.equal(browserResult?.length, 3, 'Chrome must return all three sealed kinds');
     for (let index = 0; index < fixtures.length; index++) {
@@ -267,6 +226,7 @@ test('headless Chrome loads the unchanged module and exchanges sealed bytes with
       assert.deepEqual(await unseal(key, new Uint8Array(browserResult[index].blob), fixtures[index].binding), TEXT);
     }
   } finally {
+    await chrome?.close();
     server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
     rmSync(profile, { recursive: true, force: true });

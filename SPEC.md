@@ -57,7 +57,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - V1 [approved, must] The builder never verifies its own work. | gate: test/board.test.js | serves: P1
 - V2 [approved, must] The criterion, title and cited rows freeze at first claim; they alone are the bar, never the brief. | gate: test/board.test.js | serves: P1
 - V3 [approved, must] Submit and verify refuse when the frozen criterion or its cited rows changed since claim. | gate: test/e2e.test.js | serves: V2
-- V4 [approved, must] Submit needs a clean tree and the gate green at HEAD. | gate: test/e2e.test.js
+- V4 [approved, must] Submit needs a clean tree and, green at HEAD, the item's check and the tests its change can reach; the full gate runs at landing. | gate: test/e2e.test.js
 - V5 [approved, must] ACCEPT needs CRITERION_MET and a note of the proof. REJECT needs a reason code and a note. | gate: test/board.test.js
 - V6 [approved, must] REJECT reopens the item. Resubmitting needs a new head. | gate: test/board.test.js
 - V7 [approved, must] The verifier's checkout contains the submitted commit. | gate: test/e2e.test.js
@@ -117,7 +117,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - D1 [approved, must] Pullboard ships a standard doctrine, versioned, with PB ids; every repo inherits it, Pullboard's own included. | gate: test/practice.test.js
 - D2 [approved, must] A repo's PRACTICE.md adds rules, overrides one by its PB id, or declines one with a wont row and reason. | gate: test/practice.test.js | serves: D1
 - D3 [draft, must] Agents and the view see the merged doctrine, each rule marked standard, with its version, or the repo's. | gate: test/practice.test.js | serves: D1
-- D4 [draft, must] Init writes a PRACTICE.md for the repo's own rules only; the standard needs no copy. | gate: test/e2e.test.js | serves: D1
+- D4 [draft, must] Init writes a DOCTRINE.md for the repo's own rules only; the standard needs no copy. | gate: test/e2e.test.js | serves: D1
 - D5 [draft, aim] `pullboard practice` prints the merged doctrine and what the standard changed since the repo last looked. | gate: test/practice.test.js | serves: D1
 - D6 [draft, must] The standard changes only by an accepted RFC in docs/rfcs, and each change bumps its version. | gate: review | serves: D1
 
@@ -225,6 +225,39 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - H16 [approved, must] Every client applies moves in the relay's order with the CLI's engine, refusing what the CLI refuses. | gate: test/relay.test.js | serves: H3
 - H17 [approved, must] A phone or machine joins a board by pairing once, from a code or QR a linked machine prints. | gate: test/relay.test.js | serves: H15
 - H18 [approved, must] The relay keeps a board only while linked: unlinking deletes it; 90 idle days delete it; backups last 14 days. | gate: test/relay.test.js | serves: H7
+
+## E · Teams: many people, one board
+
+- E1 [draft, must] A team shares one board: every person's clones, machines and phones show the same items in one order. | gate: test/team.test.js
+- E2 [draft, must] Two people adding or claiming at once never make two #1s or two holders; the relay's order decides. | gate: test/team.test.js
+- E3 [draft, must] Each person signs in as themselves; every move records the person, and the agent if one made it. | gate: test/team.test.js
+- E4 [draft, must] A board's people are its repository's writers; pullboard.json names its approvers; only approvers approve rows, answer person decisions or unlink the board. | gate: test/team.test.js
+- E5 [draft, must] Every agent acts with its own token under the person running it, never as its checkout path; removing a person stops their agents. | gate: test/team.test.js
+- E6 [draft, must] Removing a person's write access removes them from the board; the next member device online rotates the key, so their devices read nothing made after it. | gate: test/team.test.js
+- E7 [draft, must] Main moves in one landing order, sequenced on the trunk's board; a second landing builds on the first or is refused. | gate: test/team.test.js
+- E8 [draft, must] A verdict reads stale on every replica once main moves under it in a file the item changed, until re-verified or landed. | gate: test/team.test.js
+- E9 [draft, must] Every session on a paired machine works the board alike: terminal, SSH, agent, scheduled job or CI; the key sits in an owner-only file. | gate: test/team.test.js
+- E10 [draft, must] A CI drill proves it: two people, two machines, a keyless session and a private board share work through a local relay. | gate: test/team.test.js
+- E11 [draft, must] Each person may keep a private board per repo in ~/.pullboard; its items stay on that person's devices. | gate: test/team.test.js
+- E12 [draft, must] pullboard.json names the repo's board and its approvers; a clone of a linked repo joins that board, and the relay refuses a second one. | gate: test/team.test.js
+- E13 [draft, must] A new item goes to the repo's board; --private keeps it on the person's own board. | gate: test/team.test.js
+- E14 [draft, must] Across boards an item is named handle#id, as web#12 or alice/web#7. | gate: test/team.test.js
+- E15 [draft, must] Move re-homes an open or verified item in one sequenced move; its old id points to the new one and is never reused. | gate: test/team.test.js
+- E16 [draft, must] Pairing registers a device key, and each board key is wrapped to its members' devices, so adding or removing a member needs no new code. | gate: test/team.test.js
+- E17 [draft, must] A member's new device gets its board keys from any online member device once an SSH key on their GitHub account signs its device key. | gate: test/team.test.js
+- E18 [draft, must] A CI or cloud session reads and moves with a board key and an agent token from its environment, scoped to one board. | gate: test/team.test.js
+- E19 [draft, must] Each board has one coordinator, held by one session at a time; takeover passes it between sessions, machines and people. | gate: test/team.test.js
+- E20 [draft, must] Only a board's approvers can unlink it or replace its snapshot, and a move no member can open is set aside without stopping replay. | gate: test/team.test.js
+- E21 [draft, must] An agent's grant is a subset of its person's; at claim it narrows to the item's lane and criterion, and it ends with the lease. | gate: test/team.test.js
+- E22 [draft, must] Person-only moves carry the person's signature from the phone or an SSH key; agents never hold their person's relay credential. | gate: test/team.test.js
+- E23 [draft, aim] Join and claim write the agent's grant into its harness's own permission rules: its lane writable, key files and pushes denied. | gate: test/team.test.js
+- E24 [draft, must] Every default names who can change it; an override is a signed record with a reason and an expiry. | gate: test/team.test.js
+- E25 [draft, must] A trunk lands one batch at a time under its board's landing lease; the rest queue behind it. | gate: test/team.test.js
+- E26 [draft, must] A batch takes the trunk's verified items in verdict order. | gate: test/team.test.js
+- E27 [draft, must] pullboard.json names the landing gate, its timeouts, its cadence and the environment it must run in; land runs the batch on a matching host. | gate: test/team.test.js
+- E28 [draft, must] A machine joins a trunk's landing pool by its own setting, and every gate run and verdict records the environment it ran in. | gate: test/team.test.js
+- E29 [draft, must] A red batch that bisects to no culprit files a defect against the failing test; the trunk holds until it's fixed or an approver signs an expiring waiver. | gate: test/team.test.js
+- E30 [draft, aim] A merge queue lands verified items in the trunk board's order, with no one running land by hand. | gate: test/team.test.js
 
 ## Q · Queues and procedures
 - Q1 [approved, must] A resource has a name, a capacity, a scope (machine, repo or board) and a queue. | gate: test/resources.test.js

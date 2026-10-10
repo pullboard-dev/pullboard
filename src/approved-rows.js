@@ -104,8 +104,9 @@ export function approvedRowProblems(root, config, boardFile) {
 }
 
 /** List every frozen item whose cited row text has changed, retaining historical accepted receipts. */
-export function staleFrozenItems(items, rows) {
-  const current = new Map(rows.map((row) => [row.id, row.text]));
+export function staleFrozenItems(items, rows, doctrineRows = []) {
+  const current = new Map([...rows.map((row) => [row.id, row.text]),
+    ...doctrineRows.map((row) => ['doctrine:' + row.id, row.text])]);
   return items.flatMap((item) => {
     if (!item.item_frozen) return [];
     const frozen = JSON.parse(item.item_frozen);

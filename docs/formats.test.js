@@ -1,17 +1,20 @@
-/** Keep the format guide aligned with parser behavior and the live SQLite schema [A5]. */
+/** Keep the format guide aligned with parser behavior, live SQLite schema and static export [A5,A10]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { COORDINATOR } from '../src/config.js';
 import { JSON_SHAPES } from '../src/json.js';
+import { exportView } from '../src/serve.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import {
   ACCEPT_REASON,
   answerDecision,
   addItem,
+  appendFact,
   claim,
   closeBoard,
   editItem,
@@ -38,9 +41,17 @@ import {
   verify,
   withdraw,
 } from '../src/board.js';
-import { ID_RE, SPEC_GRAMMAR_VERSION, STATUSES, TIERS, lintSpec, parseSpec } from '../src/spec.js';
+import { ID_RE, readSignoffs, SPEC_GRAMMAR_VERSION, STATUSES, TIERS, lintSpec, parseSpec, unmetRows } from '../src/spec.js';
+import { sha256, signRows } from '../src/signature.js';
 
 const guide = readFileSync(new URL('./formats.md', import.meta.url), 'utf8');
+
+test('formats guide documents collision grandfathering and doctrine citations [A5]', () => {
+  assert.match(guide, /A bare id names a row in `SPEC\.md`/u);
+  assert.match(guide, /`doctrine:<id>` in item spec ids and commit headers/u);
+  assert.match(guide, /Collisions already present in the primary checkout's attached branch are reported as known warnings/u);
+  assert.match(guide, /adding a colliding row is an error that names both file paths and line numbers/u);
+});
 
 /** Return the text inside a named marked documentation block. */
 function block(start, end) {
@@ -57,6 +68,79 @@ function listedValues(start, end) {
     const match = /^\| `([^`]+)` \|/.exec(line);
     return match ? [match[1]] : [];
   });
+}
+
+/** List every regular file below a snapshot directory with paths relative to its root. */
+function filesUnder(root, directory = root) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    return entry.isDirectory() ? filesUnder(root, path) : [relative(root, path)];
+  }).sort();
+}
+
+/** Read the documented static snapshot file paths. */
+function documentedSnapshotFiles() {
+  return block('<!-- snapshot-files:start -->', '<!-- snapshot-files:end -->').split(/\r?\n/).flatMap((line) => {
+    const row = /^\| `([^`]+)` \|/.exec(line);
+    return row ? [row[1]] : [];
+  });
+}
+
+/** Create isolated Git, SQLite and OpenSSH state for real required-signer receipts. */
+function signerFixture(t) {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-formats-signers-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const root = join(directory, 'repo');
+  const keys = join(directory, 'keys');
+  mkdirSync(root);
+  mkdirSync(keys);
+  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_')));
+  env.GIT_CONFIG_GLOBAL = '/dev/null';
+  env.GIT_CONFIG_NOSYSTEM = '1';
+  /** Run Git against the isolated fixture without inherited worktree variables. */
+  const git = (...args) => execFileSync('git', args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+  git('init', '-q', '-b', 'main');
+  git('config', 'user.name', 'Formats test');
+  git('config', 'user.email', 'formats@example.invalid');
+  writeFileSync(join(root, 'SPEC.md'), [
+    '# Formats signer fixture', '', '## G · Goals',
+    '- A1 [approved, must] One principal signs. | gate: test | signers: alice@example.invalid',
+    '- A2 [approved, must] Both principals sign. | gate: test | signers: alice@example.invalid, bob@example.invalid', '',
+  ].join('\n'));
+  git('add', 'SPEC.md');
+  git('commit', '-q', '-m', 'fixture');
+  const firstCommit = git('rev-parse', 'HEAD');
+  const signerKeys = {};
+  for (const principal of ['alice@example.invalid', 'bob@example.invalid', 'extra@example.invalid']) {
+    const name = principal.split('@')[0];
+    const privateKey = join(keys, name);
+    execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', principal, '-f', privateKey], { stdio: 'pipe' });
+    const publicKey = readFileSync(`${privateKey}.pub`, 'utf8').trim();
+    signerKeys[principal] = { privateKey, publicKey };
+  }
+  const signers = Object.entries(signerKeys).map(([principal, key]) => `${principal} namespaces="pullboard-signoff" ${key.publicKey}`).join('\n') + '\n';
+  const initialHash = sha256(signers);
+  const pullboard = join(root, '.pullboard');
+  mkdirSync(pullboard);
+  writeFileSync(join(pullboard, 'signers'), signers);
+  writeFileSync(join(pullboard, 'first-commit'), `${firstCommit}\n`);
+  writeFileSync(join(pullboard, 'signers.initial'), `${initialHash}\n`);
+
+  const boardPath = join(root, '.git', 'pullboard', 'board.sqlite');
+  let board = openBoard(boardPath);
+  try {
+    ensureCoordinator(board, root);
+    addItem(board, { by: COORDINATOR, lane: 'core', title: 'Signed formats fixture', specIds: ['A5'] });
+  } finally {
+    closeBoard(board);
+  }
+  board = openBoard(boardPath);
+  try {
+    assert.ok(board.db.prepare("SELECT 1 FROM item WHERE item_title='Signed formats fixture'").get(), 'the file-backed SQLite board preserves the fixture item');
+  } finally {
+    closeBoard(board);
+  }
+  return { root, firstCommit, initialHash, signerKeys };
 }
 
 /** Parse table, column, type and rules from the documented live schema. */
@@ -149,6 +233,11 @@ function recordEventContract() {
   ensureCoordinator(board, '/coordinator-moved');
   shout(board, { from: builder, to: 'all', text: 'sample announcement', lanes: ['docs', 'tests'] });
   const passed = shout(board, { from: builder, to: coordinator, text: 'sample decision', lanes: ['docs', 'tests'], decision: true });
+  assert.throws(
+    () => passDecision(board, passed, { agentId: builder, note: 'try to pass it', lanes: ['docs', 'tests'] }),
+    (error) => error?.code === 'COORDINATOR_ONLY',
+    'the pass actor restriction is enforced by the board code',
+  );
   passDecision(board, passed, { agentId: coordinator, note: 'ask the person', lanes: ['docs', 'tests'] });
   const personQuestion = shout(board, { from: coordinator, to: PERSON, text: 'sample person decision', lanes: ['docs', 'tests'], decision: true });
   answerDecision(board, personQuestion, { agentId: coordinator, text: 'approved', lanes: ['docs', 'tests'], asPerson: true });
@@ -158,6 +247,8 @@ function recordEventContract() {
   applyRowDecisions(board, { agentId: coordinator, events: decisions.map((record) => record.event) });
   const freeze = (digest) => () => ({ text: `criterion-${digest}`, digest });
   const first = addItem(board, { by: coordinator, lane: 'docs', title: 'Accepted example', criterion: 'Initial', specIds: ['A1'], route: 'strong' });
+  const fact = appendFact(board, first, { agentId: builder, kind: 'note', text: 'Captured evidence', ref: 'docs/formats.md:1-3@' + 'a'.repeat(40) });
+  appendFact(board, first, { agentId: coordinator, kind: 'measurement', text: 'Corrected evidence', supersedes: fact.id });
   editItem(board, first, { agentId: coordinator, brief: 'Files: docs/formats.md\nTest: docs/formats.test.js', route: 'mid', criterion: 'Changed', check: 'node test' });
   recordAttempt(board, first, { agentId: builder, n: 1, seconds: 2, result: 'failed' });
   claim(board, first, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('first') });
@@ -262,6 +353,17 @@ test('[A5] the grammar table describes values the parser actually reads', () => 
   assert.deepEqual(listedValues('<!-- parser-fields:start -->', '<!-- parser-fields:end -->'), Object.keys(parsed.rows[0]));
   assert.match(guide, /\| gate: <command> \| serves: <ID, ID> \| signers: <principal, principal>/);
 
+  const validSigner = lintSpec(parseSpec('## Signers\n- A1 [draft] Row with a signer. | signers: build@example.invalid\n'));
+  assert.equal(validSigner.some((finding) => finding.message.startsWith('signer ')), false);
+  const commentSigner = lintSpec(parseSpec('## Signers\n- A1 [draft] Row with a comment-like signer. | signers: #comment\n'));
+  assert.ok(commentSigner.some((finding) => finding.message.includes('must be one SSH principal')));
+  const spacedSigner = lintSpec(parseSpec('## Signers\n- A1 [draft] Row with a spaced signer. | signers: build team\n'));
+  assert.ok(spacedSigner.some((finding) => finding.message.includes('must be one SSH principal')));
+  const duplicateSigners = lintSpec(parseSpec('## Signers\n- A1 [draft] Row with duplicates. | signers: build@example.invalid, build@example.invalid\n'));
+  assert.ok(duplicateSigners.some((finding) => finding.message === 'signers are unique on a row'));
+  assert.match(guide, /Each signer is one unique principal with no spaces, commas or leading `#`/);
+  assert.match(guide, /every listed principal has a verified SSH receipt for its current text/);
+
   const noTier = parseSpec('## Plain\n- A1 [draft] Row without a tier.\n');
   assert.equal(noTier.rows[0].tier, '');
   assert.deepEqual(lintSpec(parseSpec('## Must\n- A1 [approved, must] Must names a gate.\n')).filter((finding) => finding.level === 'error').map((finding) => finding.message), [
@@ -303,6 +405,92 @@ test('[A5,H16] grammar and executable engine versions match the format guide', (
     );
     assert.throws(() => parseSpec(`<!-- pullboard-grammar invalid -->\n${body}`), (error) => error?.code === 'A5_GRAMMAR_VERSION', `${file} refuses an invalid marker`);
     assert.equal(parseSpec(`\`\`\`text\n<!-- pullboard-grammar ${SPEC_GRAMMAR_VERSION + 1} -->\n\`\`\`\n${body}`).grammarVersion, SPEC_GRAMMAR_VERSION, `${file} ignores a marker in a fenced example`);
+  }
+});
+
+test('[A5] approved signer rows require every exact verified principal', (t) => {
+  const box = signerFixture(t);
+  const spec = parseSpec(readFileSync(join(box.root, 'SPEC.md'), 'utf8'));
+  /** Find the parsed fixture row by its stable id. */
+  const row = (id) => spec.rows.find((entry) => entry.id === id);
+  /** Return unmet row ids for a candidate receipt set. */
+  const ids = (signoffs) => unmetRows(spec.rows, signoffs).map((entry) => entry.id);
+  /** Construct one deterministic signer receipt payload for the fixture. */
+  const receipt = (id, by) => ({
+    id, text: row(id).text, commit: box.firstCommit, firstCommit: box.firstCommit, initialHash: box.initialHash, by,
+    on: '2026-10-08T00:00:00.000Z', note: '',
+  });
+
+  signRows(box.root, [receipt('A2', 'extra@example.invalid')], box.signerKeys['extra@example.invalid'].privateKey);
+  assert.deepEqual(ids(readSignoffs(box.root)), ['A1', 'A2'], 'a valid receipt from a non-required principal does not count');
+
+  assert.deepEqual(ids([]), ['A1', 'A2'], 'rows without receipts remain unmet');
+  const unverifiedAlice = { type: 'row', ...receipt('A1', 'alice@example.invalid'), signature: 'not verified' };
+  assert.deepEqual(ids([unverifiedAlice]), ['A1', 'A2'], 'a receipt not verified against the Git signer list cannot meet a required row');
+  const receiptFile = join(box.root, '.pullboard', 'signoffs.jsonl');
+  writeFileSync(receiptFile, `${JSON.stringify(unverifiedAlice)}\n`);
+  assert.throws(() => readSignoffs(box.root), (error) => error?.code === 'BAD_SIGNATURE', 'the real receipt reader rejects an invalid signed receipt');
+  rmSync(receiptFile);
+
+  signRows(box.root, [
+    receipt('A1', 'alice@example.invalid'),
+    receipt('A2', 'alice@example.invalid'),
+  ], box.signerKeys['alice@example.invalid'].privateKey);
+  assert.deepEqual(ids(readSignoffs(box.root)), ['A2'], 'one verified principal cannot satisfy another required principal');
+
+  signRows(box.root, [receipt('A2', 'bob@example.invalid')], box.signerKeys['bob@example.invalid'].privateKey);
+  const verified = readSignoffs(box.root);
+  assert.deepEqual(ids(verified), [], 'every required verified principal meets its approved row');
+  const changedSpec = parseSpec(readFileSync(join(box.root, 'SPEC.md'), 'utf8').replace('One principal signs.', 'One principal signs again.'));
+  assert.deepEqual(unmetRows(changedSpec.rows, verified).map((entry) => entry.id), ['A1'], 'a valid receipt for old text is stale when the row changes');
+});
+
+test('[A5,A10] static export files and page readers match API v1', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-formats-export-'));
+  try {
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root });
+    writeFileSync(join(root, 'pullboard.json'), `${JSON.stringify({
+      name: 'Formats fixture', project: 'formats-test', gate: 'true', spec: 'SPEC.md', practice: 'PRACTICE.md',
+      lanes: { docs: { owns: ['docs/'], specs: ['A5', 'A10'] } }, shared: [],
+    }, null, 2)}\n`);
+    writeFileSync(join(root, 'SPEC.md'), '# Formats fixture\n\n## G · Goals\n- G1 [approved, must] Preserve the exported board. | gate: true\n');
+    writeFileSync(join(root, 'PRACTICE.md'), '');
+    const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
+    ensureCoordinator(board, root);
+    closeBoard(board);
+
+    const output = join(root, 'snapshot');
+    await exportView(root, output);
+    const boardsFile = 'api/v1/boards.json';
+    const listing = JSON.parse(readFileSync(join(output, boardsFile), 'utf8'));
+    const boardId = listing.boards[0].id;
+    assert.ok(boardId, 'the exported API v1 listing names the fixture board');
+    const actualFiles = filesUnder(output).map((path) => path.replaceAll(boardId, '<board-id>'));
+    assert.deepEqual(actualFiles, documentedSnapshotFiles().sort());
+
+    const documents = [
+      [boardsFile, JSON_SHAPES.http.boards],
+      [`api/v1/boards/${boardId}/state.json`, JSON_SHAPES.http.state],
+      [`api/v1/boards/${boardId}/events.json`, JSON_SHAPES.http.events],
+    ];
+    for (const [path, shape] of documents) {
+      const document = JSON.parse(readFileSync(join(output, path), 'utf8'));
+      for (const [field, type] of Object.entries(shape.required)) {
+        assert.ok(Object.hasOwn(document, field), `${path} contains API v1 field ${field}`);
+        if (type === 'array') assert.ok(Array.isArray(document[field]), `${path}.${field} is an array`);
+        else if (type === 'object') assert.ok(document[field] && typeof document[field] === 'object' && !Array.isArray(document[field]), `${path}.${field} is an object`);
+        else assert.equal(typeof document[field], type, `${path}.${field} is ${type}`);
+      }
+    }
+
+    const page = readFileSync(join(output, 'index.html'), 'utf8');
+    assert.match(page, /const snapshot = true;/);
+    assert.match(page, /href="view\.css"/);
+    assert.match(page, /path = snapshot \? path\.split\('\?'\)\[0\]\.slice\(1\) \+ '\.json'/);
+    assert.match(page, /api\(boardPath\(view\.root\) \+ '\/events'\)/);
+    assert.match(guide, /The page fetches these files without a session key and reads the events file to replay the snapshot/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });
 
@@ -350,6 +538,7 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
     add: 'item creator',
     edit: 'editor',
     attempt: 'reporting agent',
+    fact: 'author',
     guards: 'board',
     shout: 'sender',
     pass: 'coordinator',
@@ -365,6 +554,7 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
   }
   const documented = documentedEvents();
   assert.deepEqual(Object.keys(documented).sort(), Object.keys(actual).sort());
+  assert.match(block('<!-- pass-rule:start -->', '<!-- pass-rule:end -->'), /passDecision` only for the coordinator/);
   for (const [kind, expected] of Object.entries(documented)) {
     assert.deepEqual([...actual[kind].actors].sort(), [expected.actor]);
     assert.deepEqual([...actual[kind].fields].sort(), expected.fields);
