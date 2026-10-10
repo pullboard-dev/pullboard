@@ -32,7 +32,7 @@ import { productLine, productProblems, productSummaries } from './products.js';
 import { isLane, laneNames, laneOf, outOfLane } from './lanes.js';
 import { Refused } from './refused.js';
 import { commitCitations, committedIds } from './history.js';
-import { promptFor } from './skills.js';
+import { promptFor, skillProblems, updateSkills } from './skills.js';
 import {
   frozenCriterion,
   idProblems,
@@ -171,6 +171,7 @@ Work
                                         rename or update a milestone note
   pullboard milestone remove <name>                            remove a milestone without changing its items
   pullboard doctor                     check board integrity without changing it
+  pullboard skills --update            refresh unchanged Claude Code skills from shipped versions
   pullboard show <id> [--history]       an item, the criterion frozen at claim, its verdicts: the latest in full,
                                         earlier ones as one line; --history prints every note in full
   pullboard fact <id> <kind> <text> [--supersedes <fact-id>] [--ref path:lines@full-sha]
@@ -240,7 +241,7 @@ Reject reasons: TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HE
 
 const HELP_NAMES = [
   'tour', 'init', 'worktree', 'join', 'takeover', 'whoami', 'lanes', 'status', 'resources', 'settings', 'view', 'view export',
-  'serve', 'relay', 'resume', 'hooks', 'add', 'edit', 'escalate', 'run', 'list', 'doctor', 'show', 'next',
+  'serve', 'relay', 'resume', 'hooks', 'add', 'edit', 'escalate', 'run', 'list', 'doctor', 'skills', 'show', 'next',
   'check', 'claim', 'release', 'submit', 'done', 'verify', 'fact', 'shout', 'answer', 'pass', 'decisions', 'inbox', 'export', 'import',
   'sweep', 'merged', 'withdraw', 'refreeze', 'hold', 'stats', 'ledger', 'log', 'spec', 'spec check', 'spec view',
   'spec show', 'spec unmet', 'spec signoff', 'spec signers', 'spec signers add', 'forget', 'prompt', 'gate', 'hook',
@@ -480,6 +481,7 @@ const OPTIONS = {
   run: { type: 'string' },
   max: { type: 'string' },
   'dry-run': { type: 'boolean' },
+  update: { type: 'boolean' },
   before: { type: 'string' },
   add: { type: 'string' },
   remove: { type: 'string' },
@@ -748,7 +750,7 @@ async function bindCheckoutSession(io, positionals, values) {
   if (command === 'takeover' && (positionals.length !== 1 || Object.keys(values).some((key) => key !== 'json'))) {
     throw new Refused('USAGE', 'pullboard takeover takes no arguments; run pullboard takeover [--json]');
   }
-  const writes = ['init', 'join', 'worktree', 'hooks', 'hook', 'add', 'edit', 'fact', 'escalate', 'run', 'sweep',
+  const writes = ['init', 'join', 'worktree', 'hooks', 'hook', 'skills', 'add', 'edit', 'fact', 'escalate', 'run', 'sweep',
     'next', 'claim', 'hold', 'release', 'submit', 'done', 'verify', 'merged', 'withdraw', 'refreeze', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget'];
   if (!writes.includes(command) && !(command === 'settings' && first) && !(command === 'spec' && first === 'apply') && !(command === 'relay' && ['on', 'off'].includes(first))) return;
   if (command === 'answer' && values.as === 'person') return;
@@ -1450,6 +1452,19 @@ function refuseUncommittedSetup(mainRoot, config) {
  */
 function readCommands(io, { first, second, rest, values }) {
   return {
+    skills: () => {
+      if (first || second || rest.length || !values.update) throw new Refused('USAGE', 'pullboard skills --update');
+      const ctx = context(io);
+      const result = updateSkills(ctx.info.root);
+      io.result?.(result);
+      if (result.updated.length) io.say(`updated Claude Code skills: ${result.updated.map((file) => file.split('/')[2]).join(', ')}`);
+      else io.say('Claude Code skills are current or customized; no files were replaced');
+      for (const item of result.customized) {
+        const change = item.missing.length ? `; missing changes: ${item.missing.join('; ')}` : '';
+        io.say(`kept customized skill ${item.path}${change}`);
+      }
+      return 0;
+    },
     export: () => {
       if (first) throw new Refused('USAGE', 'pullboard export takes no arguments');
       const ctx = context(io);
@@ -1625,7 +1640,7 @@ function readCommands(io, { first, second, rest, values }) {
         return 1;
       }
       const ctx = context(io);
-      const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects()];
+      const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config), ...skillProblems(ctx.info.root), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects()];
       const checkpointProblem = pendingCheckpointProblem(ctx.info.root);
       if (checkpointProblem) problems.push(checkpointProblem);
       const oversizedSnapshot = checkpointProblem ? null : pendingSnapshotSize(ctx.info.root);
