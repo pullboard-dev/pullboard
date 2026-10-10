@@ -41,18 +41,18 @@ test('decisions are asked, listed and answered, and evidence attached, from the 
   assert.equal(asked.code, 0, asked.err);
   const id = /as #(\d+)/.exec(asked.out)?.[1];
   assert.ok(id, asked.out);
-  assert.match(box.run(box.repo, 'decisions').out, new RegExp(`#${id} {2}web-1 -> coordinator, \\d+m ago: ship today\\?`));
-  assert.match(box.run(box.repo, 'inbox').out, new RegExp(`web-1 -> coordinator: asks for a decision \\(#${id}; pullboard answer ${id}`));
+  assert.match(box.run(box.repo, 'decisions').out, new RegExp(`#${id} {2}web-1 \\(Test Model\\) -> coordinator \\(unknown\\), \\d+m ago: ship today\\?`));
+  assert.match(box.run(box.repo, 'inbox').out, new RegExp(`web-1 \\(Test Model\\) -> coordinator \\(unknown\\): asks for a decision \\(#${id}; pullboard answer ${id}`));
   const wrongActor = box.run(box.repo, 'answer', id, 'yes, today', '--as', 'person');
   assert.notEqual(wrongActor.code, 0);
   assert.match(wrongActor.err, /B26_PERSON_ANSWER.*person mode answers only/);
-  assert.match(box.run(box.repo, 'answer', id, 'yes, today').out, new RegExp(`answered #${id} to web-1 as #\\d+`));
+  assert.match(box.run(box.repo, 'answer', id, 'yes, today').out, new RegExp(`answered #${id} to web-1 \\(Test Model\\) as #\\d+`));
   assert.match(box.run(box.repo, 'decisions').out, /no open decisions/);
-  assert.match(box.run(box.web, 'inbox').out, new RegExp(`coordinator -> web-1: answers #${id}: yes, today`));
+  assert.match(box.run(box.web, 'inbox').out, new RegExp(`coordinator \\(unknown\\) -> web-1 \\(Test Model\\): answers #${id}: yes, today`));
   const head = box.git(box.web, 'rev-parse', 'HEAD');
   const proved = box.run(box.web, 'shout', 'coordinator', 'FINISH', 'the page', '--evidence', 'receipt', '--outcome', 'measured', '--item', '1', '--commit', 'HEAD');
   assert.equal(proved.code, 0, proved.err);
-  assert.match(box.run(box.repo, 'inbox').out, new RegExp(`web-1 -> coordinator: FINISH the page\\n {2}receipt: measured, #1 at ${head.slice(0, 12)}`));
+  assert.match(box.run(box.repo, 'inbox').out, new RegExp(`web-1 \\(Test Model\\) -> coordinator \\(unknown\\): FINISH the page\\n {2}receipt: measured, #1 at ${head.slice(0, 12)}`));
   assert.match(box.run(box.web, 'shout', 'coordinator', 'x', '--evidence', 'receipt', '--outcome', 'measured', '--item', '1', '--commit', 'nope').err, /BAD_EVIDENCE.*"nope"/);
 });
 
@@ -62,12 +62,12 @@ test('decisions default up the chain, pass to the person, and return to the orig
   assert.equal(asked.code, 0, asked.err);
   const id = /as #(\d+)/.exec(asked.out)?.[1];
   assert.ok(id, asked.out);
-  assert.match(box.run(box.repo, 'decisions').out, new RegExp(`#${id} {2}web-1 -> coordinator`));
+  assert.match(box.run(box.repo, 'decisions').out, new RegExp(`#${id} {2}web-1 \\(Test Model\\) -> coordinator \\(unknown\\)`));
   const passed = box.run(box.repo, 'pass', id, 'the checks are green');
   assert.equal(passed.code, 0, passed.err);
   const personId = /as #(\d+)/.exec(passed.out)?.[1];
   assert.ok(personId, passed.out);
-  assert.match(box.run(box.repo, 'decisions', '--as', 'person').out, new RegExp(`#${personId} {2}coordinator -> person`));
+  assert.match(box.run(box.repo, 'decisions', '--as', 'person').out, new RegExp(`#${personId} {2}coordinator \\(unknown\\) -> person`));
   const personModeFromAgent = box.run(box.web, 'decisions', '--as', 'person');
   assert.notEqual(personModeFromAgent.code, 0);
   assert.match(personModeFromAgent.err, /B26_PERSON_ANSWER.*main checkout/);
@@ -84,7 +84,7 @@ test('decisions default up the chain, pass to the person, and return to the orig
   assert.match(answerRefusal.error.next, new RegExp(`pullboard answer ${personId} "<answer>" --as person`));
   assert.match(box.run(box.repo, 'answer', personId, 'Ship it.', '--as', 'person').out, new RegExp(`person answered #${personId}; notified web-1`));
   assert.match(box.run(box.web, 'resume').out, new RegExp(`newest from person: Person answered #${personId}: Ship it\\.`));
-  assert.match(box.run(box.web, 'inbox').out, new RegExp(`person -> web-1: answers #${id}: Person answered #${personId}: Ship it\\.`));
+  assert.match(box.run(box.web, 'inbox').out, new RegExp(`person -> web-1 \\(Test Model\\): answers #${id}: Person answered #${personId}: Ship it\\.`));
   assert.match(box.run(box.repo, 'decisions').out, /no open decisions/);
   const refused = box.run(box.web, 'shout', 'person', 'Ship?', '--decision', '--json');
   assert.notEqual(refused.code, 0);
@@ -107,9 +107,9 @@ test('pullboard worktree makes a joined worktree for a lane in one command [I4]'
   const made = box.run(box.repo, 'worktree', 'api');
   assert.equal(made.code, 0, made.err);
   const path = join(box.dir, 'repo-api-1');
-  assert.match(made.out, /on branch api\/1, joined as api-1 in the api lane/);
+  assert.match(made.out, /on branch api\/1, joined as api-1 \(Test Model\) in the api lane/);
   assert.match(made.out, new RegExp(`start every command with: cd ${path} &&\n {2}cd ${path} && pullboard inbox\n {2}cd ${path} && pullboard next`));
-  assert.match(box.run(path, 'whoami').out, /^api-1 \(api lane\)/);
+  assert.match(box.run(path, 'whoami').out, /^api-1 \(Test Model\) \(api lane\)/);
   assert.match(box.run(box.repo, 'worktree', 'api').out, /repo-api-2 on branch api\/2, joined as api-2/);
   assert.match(box.run(box.repo, 'worktree', 'nope').err, /NO_LANE/);
 });
@@ -169,7 +169,7 @@ test("a worktree starts only from a commit that holds pullboard's files as the m
 
   const made = box.run(repo, 'worktree', 'web');
   assert.equal(made.code, 0, made.err);
-  assert.match(made.out, /repo-web-1 on branch web\/1, joined as web-1 in the web lane/, 'the refusals made nothing and joined no one');
+  assert.match(made.out, /repo-web-1 on branch web\/1, joined as web-1 \(Test Model\) in the web lane/, 'the refusals made nothing and joined no one');
   const web = join(box.dir, 'repo-web-1');
   assert.ok(readFileSync(join(web, 'SPEC.md'), 'utf8').includes('- G3 [draft'), 'it starts with the spec as committed');
   const foreign = commitFile(box, web, 'api/a.js', 'a', 'feat(web): page [G1]');
@@ -255,7 +255,7 @@ test('verify runs at the submitted commit, against the criterion frozen at claim
   assert.match(box.run(box.web, 'verify', '1', 'accept').err, /SELF_VERIFY/);
   const unsaid = box.run(box.repo, 'verify', '1', 'accept', '--note', 'ran it');
   assert.match(unsaid.err, /MAIN_IS_COORDINATOR\] this is the main checkout, so this verdict would be the coordinator's/);
-  assert.match(unsaid.err, new RegExp(`Agent worktrees: web-1 at ${box.web}`));
+  assert.match(unsaid.err, new RegExp(`Agent worktrees: web-1 \\(Test Model\\) at ${box.web}`));
   assert.match(box.run(box.web, 'verify', '1', 'accept', '--as', 'coordinator').err, /USAGE.*only in the main checkout/);
   assert.match(box.run(box.repo, 'verify', '1', 'accept', '--as', 'coordinator').err, /NOT_AT_COMMIT/);
   box.git(box.repo, 'merge', '-q', '--ff-only', 'web/one');
@@ -274,7 +274,7 @@ test('verify runs at the submitted commit, against the criterion frozen at claim
   assert.match(show, /ACCEPT CRITERION_MET by coordinator/);
   const ledger = box.run(box.repo, 'ledger').out;
   assert.match(ledger, /1 verified by a second agent/);
-  assert.match(ledger, /\| 1 \| web \| Page \| G1 \| web-1 \| coordinator \|/);
+  assert.match(ledger, /\| 1 \| web \| Page \| G1 \| web-1 \(Test Model\) \| coordinator \(unknown\) \|/);
 });
 
 test('unsupported spec grammar keeps claim, refreeze, submit and verify refusals typed [A5,A1,M1]', () => {

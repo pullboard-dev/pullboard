@@ -159,7 +159,7 @@ test('[V1,R1] a review released without a verdict waits an hour for the same rev
   assert.equal(releasedResult.code, 0, releasedResult.stderr);
   const releaseEvent = store.events(box.board, { itemId: released }).at(-1);
   assert.equal(releaseEvent.event_kind, 'release');
-  assert.deepEqual(JSON.parse(releaseEvent.event_detail), { review: true, reason: 'checked the wrong tree' });
+  assert.deepEqual(JSON.parse(releaseEvent.event_detail), { review: true, reason: 'checked the wrong tree', model: 'unknown' });
   const secondReservation = await run(box, box.builder, ['next', '--verify', String(released), '--json']);
   assert.equal(secondReservation.code, 0, secondReservation.stderr);
   assert.equal(secondReservation.data.item.item_id, released);
