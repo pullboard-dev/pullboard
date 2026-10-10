@@ -124,6 +124,12 @@ test('skills --update refreshes an unmodified old skill [I2]', () => {
   const result = json(box, 'skills', '--update');
   assert.deepEqual(result.updated, oldRoles.map((role) => `.claude/skills/${ROLES[role]}/SKILL.md`));
   assert.deepEqual(result.customized, []);
+  const commandHelp = box.run('skills', '--help');
+  assert.equal(commandHelp.status, 0, commandHelp.stderr || commandHelp.stdout);
+  assert.match(commandHelp.stdout, /Usage: pullboard skills --update/u);
+  const allHelp = box.run('help', '--all');
+  assert.equal(allHelp.status, 0, allHelp.stderr || allHelp.stdout);
+  assert.match(allHelp.stdout, /pullboard skills --update\s+refresh unchanged Claude Code skills from shipped versions/u);
   for (const [role, file] of files) {
     const current = readFileSync(resolve(import.meta.dirname, `../skills/${ROLES[role]}/SKILL.md`), 'utf8');
     assert.equal(readFileSync(file, 'utf8'), current, `${role} now matches current shipped bytes`);
