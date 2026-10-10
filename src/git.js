@@ -160,12 +160,12 @@ export function git(cwd, args, { maxBuffer } = {}) {
  *
  * @param {string} cwd
  * @param {string[]} args
- * @returns {{ status: number, stdout: string }}
+ * @returns {{ status: number, stdout: string, stderr: string }}
  */
 export function tryGit(cwd, args) {
   const result = spawnSync('git', [...GIT_FLAGS, ...args], { cwd, encoding: 'utf8' });
   if (changesGitFacts(args)) invalidateGitFacts();
-  return { status: result.status ?? 1, stdout: (result.stdout ?? '').trim() };
+  return { status: result.status ?? 1, stdout: (result.stdout ?? '').trim(), stderr: (result.stderr ?? '').trim() };
 }
 
 /**

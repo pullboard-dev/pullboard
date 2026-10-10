@@ -25,6 +25,10 @@ import {
   holdLane,
   holdItem,
   merged,
+  recordLandingBatch,
+  recordLandingWaiver,
+  recordLandingFlake,
+  finishLandingBatch,
   openBoard,
   passDecision,
   PERSON,
@@ -269,6 +273,11 @@ function recordEventContract() {
   reserveReview(board, first, { agentId: reviewer, leaseMs: 60_000, policy: 'agents' });
   verify(board, first, { agentId: reviewer, decision: 'ACCEPT', reason: ACCEPT_REASON, note: 'checked the example', head: acceptedCommit, digest: 'second', policy: 'agents' });
   merged(board, first, { agentId: coordinator, commit: 'c'.repeat(40) });
+  const batch = recordLandingBatch(board, { agentId: coordinator, batch: { version: 1, id: 'format-example', base: 'a'.repeat(40), tip: 'c'.repeat(40),
+    root: '/landing', branch: 'refs/heads/main', state: 'pushed', owner: 'format-example', logPath: '/landing.log', items: [{ id: first, commit: acceptedCommit, merge: 'c'.repeat(40) }] } });
+  recordLandingWaiver(board, { agentId: PERSON, channel: 'terminal', id: 'format-waiver', test: 'test/flaky.test.js', until: '2099-01-01', reason: 'format example' });
+  recordLandingFlake(board, { agentId: coordinator, test: 'test/flaky.test.js', hash: 'd'.repeat(64), names: ['flaky example'], lane: 'docs', batchId: batch.id });
+  finishLandingBatch(board, { agentId: coordinator, id: batch.id, tip: batch.tip });
 
   const rejected = addItem(board, { by: coordinator, lane: 'docs', title: 'Rejected example' });
   claim(board, rejected, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('rejected') });

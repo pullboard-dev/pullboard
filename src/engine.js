@@ -16,10 +16,11 @@ export const ENGINE_OPERATIONS = Object.freeze([
   'withdraw', 'refreeze', 'reopen', 'shout', 'passDecision', 'answerDecision', 'holdLane', 'releaseLane', 'holdItem', 'releaseItemHold',
   'addMilestone', 'editMilestoneItems', 'moveMilestone', 'editMilestone', 'removeMilestone',
   'recordRowDecisions', 'applyRowDecisions', 'appendFact',
+  'recordLandingBatch', 'recordLandingWaiver', 'recordLandingFlake', 'finishLandingBatch',
 ]);
 
 /** Engine version at which each ordered operation first has stable replay semantics. */
-const OPERATION_ENGINE = Object.freeze({ reopen: 8 });
+const OPERATION_ENGINE = Object.freeze({ reopen: 8, recordLandingBatch: 8, recordLandingWaiver: 8, recordLandingFlake: 8, finishLandingBatch: 8 });
 
 /** Read a replica's committed prefix without trusting an independently saved transport cursor. */
 export function appliedSequence(board) {

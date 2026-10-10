@@ -2402,3 +2402,129 @@ export function stats(board) {
   const count = (decision) => verdicts.find((row) => row.decision === decision)?.total ?? 0;
   return { items, accepted: count('ACCEPT'), rejected: count('REJECT') };
 }
+
+/** Read the latest append-only snapshot of each landing batch [B3,R3,R2]. */
+export function landingBatches(board) {
+  const batches = new Map();
+  for (const row of board.db.prepare("SELECT event_detail FROM event WHERE event_kind = 'landing_batch' ORDER BY event_id").all()) {
+    const { batch } = JSON.parse(row.event_detail);
+    batches.set(batch.id, batch);
+  }
+  return [...batches.values()];
+}
+
+/** Append one coordinator-owned batch revision without changing the board schema [B3,R3]. */
+export function recordLandingBatch(board, { agentId, batch, revision = 0 }) {
+  coordinatorOnly(agentId, 'records landing batches');
+  if (!batch || batch.version !== 1 || typeof batch.id !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/u.test(batch.id)
+    || !['merging', 'gating', 'bisecting', 'flaky', 'blocked', 'ready', 'pushed', 'landed'].includes(batch.state)
+    || !/^[a-f0-9]{40,64}$/u.test(batch.base ?? '') || !/^[a-f0-9]{40,64}$/u.test(batch.tip ?? '')
+    || typeof batch.root !== 'string' || !batch.root || typeof batch.branch !== 'string' || !batch.branch.startsWith('refs/heads/')
+    || !Array.isArray(batch.items) || batch.items.some((entry) => !Number.isSafeInteger(entry?.id) || entry.id < 1 || !/^[a-f0-9]{40,64}$/u.test(entry.commit ?? ''))
+    || typeof batch.owner !== 'string' || !batch.owner || typeof batch.logPath !== 'string' || !batch.logPath
+    || !Number.isSafeInteger(revision) || revision < 0) {
+    throw new Refused('LAND_BATCH', 'a landing batch needs its exact base, tip, items, state, owner and log path; run pullboard land');
+  }
+  return atomic(board, () => {
+    const previous = landingBatches(board).find((entry) => entry.id === batch.id);
+    if ((previous?.revision ?? 0) !== revision || previous?.state === 'landed') {
+      throw new Refused('LAND_MOVED', 'the landing batch changed; read pullboard resume and adopt its current revision');
+    }
+    if (previous && (previous.base !== batch.base || previous.root !== batch.root || previous.branch !== batch.branch)) {
+      throw new Refused('LAND_BATCH', 'a batch keeps its original base and landing worktree; adopt it with pullboard land --adopt');
+    }
+    const recorded = { ...batch, revision: revision + 1, updatedAt: now(board) };
+    logEvent(board, agentId, 'landing_batch', null, { batch: recorded });
+    return recorded;
+  });
+}
+
+/** Record the person's expiring exception for one named failing test [B3,R3]. */
+export function recordLandingWaiver(board, { agentId, channel, id, test, until, reason }) {
+  if (agentId !== PERSON) throw new Refused('LAND_PERSON_ONLY', 'only the person waives a flaky test; use the person’s terminal or Pullboard View');
+  if (!['terminal', 'view'].includes(channel)) throw new Refused('B26_PERSON_CHANNEL', 'waivers use the person’s terminal or view; run pullboard view');
+  if (typeof id !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/u.test(id) || typeof test !== 'string' || !test.trim()
+    || test.startsWith('/') || test.includes('\\') || test.split('/').some((part) => !part || part === '..' || part === '.')
+    || !Number.isFinite(Date.parse(until)) || Date.parse(until) <= board.clock.now().getTime() || typeof reason !== 'string' || !reason.trim()) {
+    throw new Refused('LAND_WAIVER', 'name a test, a future --until date and a nonempty --reason; run pullboard land --waive <test> --until <date> --reason "why"');
+  }
+  return atomic(board, () => {
+    const waiver = { id, test, until: new Date(until).toISOString(), reason: reason.trim(), by: PERSON, channel };
+    logEvent(board, PERSON, 'landing_waiver', null, { waiver });
+    return waiver;
+  });
+}
+
+/** Read every person waiver, retaining expired entries as evidence [B3,R3]. */
+export function landingWaivers(board) {
+  return board.db.prepare("SELECT event_by,event_detail FROM event WHERE event_kind = 'landing_waiver' ORDER BY event_id").all()
+    .filter((row) => row.event_by === PERSON)
+    .map((row) => JSON.parse(row.event_detail).waiver);
+}
+
+/** Find a live person's waiver covering the exact failing file or test name [B3,R3]. */
+export function landingWaiverFor(board, failure) {
+  return landingWaivers(board).findLast((waiver) => Date.parse(waiver.until) > board.clock.now().getTime()
+    && (waiver.test === failure.file || waiver.test === failure.name)) ?? null;
+}
+
+/** File one durable defect per flaky test and retain its source digest [B3,R3]. */
+export function recordLandingFlake(board, { agentId, test, hash, names, lane, batchId }) {
+  coordinatorOnly(agentId, 'files landing flakes');
+  if (typeof test !== 'string' || !test || !/^[a-f0-9]{64}$/u.test(hash ?? '') || !Array.isArray(names) || !names.length || names.some((name) => typeof name !== 'string' || !name) || typeof batchId !== 'string') {
+    throw new Refused('LAND_FLAKE', 'a flake needs its named test, exact source digest and failing names; inspect the landing log');
+  }
+  return atomic(board, () => {
+    const existing = landingFlakes(board).find((entry) => entry.test === test);
+    if (existing?.hash === hash) return existing;
+    const item = existing?.item ?? addItem(board, { by: agentId, lane, title: `Flaky test: ${test}`,
+      criterion: `${test} passes in a full gate and alone without retries; failures: ${names.join(', ')}`, route: 'strong' });
+    const flake = { test, hash, names, item, batchId };
+    logEvent(board, agentId, 'landing_flake', item, { flake });
+    return flake;
+  });
+}
+
+/** Read the latest observation of each named flaky test [B3,R3]. */
+export function landingFlakes(board) {
+  const flakes = new Map();
+  for (const row of board.db.prepare("SELECT event_detail FROM event WHERE event_kind = 'landing_flake' ORDER BY event_id").all()) {
+    const { flake } = JSON.parse(row.event_detail);
+    flakes.set(flake.test, flake);
+  }
+  return [...flakes.values()];
+}
+
+/** Validate a distinct waived landing proof without creating an ordinary gate stamp [B3,R3]. */
+export function waivedLandingProof(board, tree) {
+  return landingBatches(board).findLast((batch) => ['ready', 'pushed', 'landed'].includes(batch.state)
+    && batch.proof?.tree === tree && Array.isArray(batch.proof.failures) && batch.proof.failures.length > 0
+    && batch.proof.failures.every((failure) => {
+      const waiver = landingWaivers(board).find((entry) => entry.id === failure.waiver);
+      return waiver && Date.parse(waiver.until) > board.clock.now().getTime()
+        && (waiver.test === failure.file || waiver.test === failure.name);
+    })) ?? null;
+}
+
+/** Atomically record a pushed batch's first-containing merges and one main-moved receipt [B3,R3]. */
+export function finishLandingBatch(board, { agentId, id, tip }) {
+  coordinatorOnly(agentId, 'finishes a landing');
+  return atomic(board, () => {
+    const batch = landingBatches(board).find((entry) => entry.id === id);
+    if (!batch || batch.tip !== tip) throw new Refused('LAND_BATCH', 'the pushed tip must match its recorded batch; run pullboard land --adopt');
+    if (batch.state === 'landed') return batch;
+    if (batch.state !== 'pushed') throw new Refused('LAND_NOT_PUSHED', 'record a successful push before landing receipts; run pullboard land --adopt');
+    for (const entry of batch.items) {
+      const item = itemById(board, entry.id);
+      if (item.item_commit !== entry.commit || item.item_status !== 'verified') {
+        throw new Refused('LAND_ITEM_MOVED', `item #${entry.id} changed after the batch was gated; rebuild its landing`);
+      }
+      if (item.item_merged_commit && item.item_merged_commit !== entry.merge) {
+        throw new Refused('LAND_ITEM_MOVED', `item #${entry.id} already has another landing receipt; read pullboard show ${entry.id}`);
+      }
+      if (!item.item_merged_commit) merged(board, entry.id, { agentId, commit: entry.merge });
+    }
+    logEvent(board, agentId, 'main-moved', null, { sha: tip, batch: id, items: batch.items.map((entry) => entry.id) });
+    return recordLandingBatch(board, { agentId, batch: { ...batch, state: 'landed' }, revision: batch.revision });
+  });
+}
