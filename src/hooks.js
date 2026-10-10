@@ -283,14 +283,57 @@ function activeHooksDir(root) {
   return resolve(root, gitPath(root, 'hooks'));
 }
 
-/** Split hook shell commands without treating quoted examples or comments as invocations. */
+/** Read a here-document delimiter without treating its quoted spelling as executable code. */
+function hookHeredoc(text, start) {
+  let end = start + 2;
+  const stripTabs = text[end] === '-';
+  if (stripTabs) end++;
+  while (text[end] === ' ' || text[end] === '\t') end++;
+  const wordStart = end;
+  let delimiter = '';
+  let quote = '';
+  while (end < text.length) {
+    const char = text[end];
+    if (!quote && /[\s;&|()<>]/u.test(char)) break;
+    if (char === '\\' && quote !== "'") {
+      if (end + 1 >= text.length || text[end + 1] === '\n') return null;
+      delimiter += text[++end]; end++; continue;
+    }
+    if (quote) {
+      if (char === quote) quote = '';
+      else delimiter += char;
+    } else if (char === "'" || char === '"') quote = char;
+    else delimiter += char;
+    end++;
+  }
+  return end > wordStart && !quote ? { end, delimiter, stripTabs } : null;
+}
+
+/** Skip here-document bodies in shell order; printed examples cannot establish hook wiring. */
+function skipHookHeredocs(text, start, documents) {
+  let cursor = start;
+  for (const { delimiter, stripTabs } of documents) {
+    while (cursor < text.length) {
+      const newline = text.indexOf('\n', cursor);
+      const line = text.slice(cursor, newline < 0 ? text.length : newline);
+      cursor = newline < 0 ? text.length : newline + 1;
+      if ((stripTabs ? line.replace(/^\t*/u, '') : line) === delimiter) break;
+    }
+  }
+  return cursor;
+}
+
+/** Split hook shell commands without treating quoted examples, comments or heredocs as invocations. */
 function hookCommands(source) {
+  const text = source.replace(/\\\r?\n/gu, '');
   const commands = [];
+  const documents = [];
   let command = '';
   let quote = '';
   let escaped = false;
   let comment = false;
-  for (const char of source.replace(/\\\r?\n/gu, '')) {
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index];
     if (comment) {
       if (char !== '\n') continue;
       comment = false;
@@ -300,7 +343,20 @@ function hookCommands(source) {
     if (quote) { command += char; if (char === quote) quote = ''; continue; }
     if (char === '"' || char === "'") { quote = char; command += char; continue; }
     if (char === '#' && (!command || /\s$/u.test(command))) { comment = true; continue; }
-    if (/[\n;&|()]/u.test(char)) { commands.push(command.trim()); command = ''; continue; }
+    if (char === '<' && text[index + 1] === '<' && text[index - 1] !== '<' && text[index + 2] !== '<') {
+      const here = hookHeredoc(text, index);
+      if (here) {
+        documents.push(here); command += text.slice(index, here.end); index = here.end - 1; continue;
+      }
+    }
+    if (/[\n;&|()]/u.test(char)) {
+      commands.push(command.trim()); command = '';
+      if (char === '\n' && documents.length) {
+        index = skipHookHeredocs(text, index + 1, documents) - 1;
+        documents.length = 0;
+      }
+      continue;
+    }
     command += char;
   }
   commands.push(command.trim());
@@ -313,7 +369,7 @@ function delegatesHook(source, hook) {
   const program = String.raw`(?:"(?:[^"]*/)?pullboard(?:\.js)?"|'(?:[^']*/)?pullboard(?:\.js)?'|(?:[^\s"';&|()]+/)?pullboard(?:\.js)?)`;
   const binBinding = new RegExp(`^(?:bin=|for\\s+bin\\s+in\\s+)${program}(?=\\s|$)`);
   const boundBin = commands.some(command => binBinding.test(command));
-  const call = new RegExp(`^(?:(?:then|do|else|exec|command|npx|node)\\s+)*(?:${program}${boundBin ? '|"?\\$bin"?' : ''})\\s+hook\\s+${hook}(?=\\s|$)`);
+  const call = new RegExp(`^(?:(?:then|do|else|exec|command|npx|node|env)\\s+)*(?:${program}${boundBin ? '|"?\\$bin"?' : ''})\\s+hook\\s+${hook}(?=\\s|$)`);
   return commands.some(command => call.test(command));
 }
 

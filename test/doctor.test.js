@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { delimiter, join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { SCHEMA_VERSION } from '../src/board.js';
@@ -118,6 +118,84 @@ test('doctor names an unwired hook and resume gives the repair line [L3]', () =>
   box.git('config', 'core.hooksPath', hooks);
   assert.doesNotMatch(box.run('doctor').stdout, /HOOK_UNWIRED|active Git hook/u);
   assert.doesNotMatch(box.run('resume').stdout, /HOOK_UNWIRED|active Git hook/u);
+});
+
+
+/** Quote one private fixture path as a shell word without expanding user text. */
+function hookWord(value) { return "'" + value.replaceAll("'", "'\\''") + "'"; }
+
+/** Install a real CLI wrapper whose marker proves whether Git actually invokes Pullboard. */
+function executedHookBox() {
+  const box = boardBox();
+  const bin = join(box.dir, 'private-bin');
+  const hooks = join(box.root, '.husky');
+  const marker = join(box.dir, 'executed-hook');
+  mkdirSync(bin); mkdirSync(hooks);
+  writeFileSync(join(bin, 'pullboard'), '#!/bin/sh\nprintf \'%s\\n\' "$*" >> "$PULLBOARD_TEST_HOOK_MARKER"\nexec '
+    + hookWord(process.execPath) + ' ' + hookWord(BIN) + ' "$@"\n');
+  chmodSync(join(bin, 'pullboard'), 0o755);
+  box.env.PATH = bin + delimiter + box.env.PATH;
+  box.env.PULLBOARD_TEST_HOOK_MARKER = marker;
+  box.git('config', 'core.hooksPath', '.husky');
+  writeFileSync(join(hooks, 'pre-merge-commit'), '#!/bin/sh\npullboard hook pre-merge-commit "$@"\n');
+  chmodSync(join(hooks, 'pre-merge-commit'), 0o755);
+  return { ...box, hook: join(hooks, 'pre-commit'), marker };
+}
+
+test('doctor and resume accept env delegation that real Git executes [L3]', () => {
+  const box = executedHookBox();
+  for (const source of ['#!/bin/sh\nenv pullboard hook pre-commit "$@"\n',
+    '#!/bin/sh\nexec env pullboard hook pre-commit "$@"\n']) {
+    writeFileSync(box.hook, source); chmodSync(box.hook, 0o755);
+    writeFileSync(box.marker, '');
+    box.git('commit', '--allow-empty', '-q', '-m', 'chore: actual hook control');
+    assert.match(readFileSync(box.marker, 'utf8'), /^hook pre-commit\n$/u,
+      'the real Git pre-commit hook invoked the actual submitted CLI once');
+    writeFileSync(box.marker, '');
+    const doctor = box.run('doctor');
+    assert.equal(doctor.status, 0, 'an executed env delegation is wired');
+    assert.equal(doctor.stdout, 'board is clean\n');
+    const resume = box.run('resume');
+    assert.equal(resume.status, 0);
+    assert.doesNotMatch(resume.stdout, /active Git hook|HOOK_UNWIRED/u);
+    assert.deepEqual(JSON.parse(box.run('doctor', '--json').stdout).problems, []);
+    assert.deepEqual(JSON.parse(box.run('resume', '--json').stdout).hookProblems, []);
+    assert.equal(readFileSync(box.marker, 'utf8'), '', 'diagnosis never executes the hook');
+    assert.equal(readFileSync(box.hook, 'utf8'), source, 'diagnosis never edits the hook');
+  }
+});
+
+test('doctor and resume reject printed heredocs that real Git never executes [L3]', () => {
+  const box = executedHookBox();
+  const message = 'active Git hook .husky/pre-commit does not call pullboard hook pre-commit';
+  const delegation = 'pullboard hook pre-commit "$@"';
+  const finding = { code: 'HOOK_UNWIRED', message, next: 'add this line: ' + delegation };
+  for (const source of [
+    '#!/bin/sh\ncat <<\'DOCUMENTATION\'\npullboard hook pre-commit "$@"\nDOCUMENTATION\n',
+    '#!/bin/sh\ncat <<DOCUMENTATION\npullboard hook pre-commit "$@"\nDOCUMENTATION\n',
+    '#!/bin/sh\ncat <<-\'DOCUMENTATION\'\n\tpullboard hook pre-commit "$@"\n\tDOCUMENTATION\n',
+    '#!/bin/sh\ncat <<FIRST <<"SECOND"\nexample\nFIRST\npullboard hook pre-commit "$@"\nSECOND\n',
+  ]) {
+    writeFileSync(box.hook, source); chmodSync(box.hook, 0o755);
+    writeFileSync(box.marker, '');
+    box.git('commit', '--allow-empty', '-q', '-m', 'chore: documentation control');
+    assert.equal(readFileSync(box.marker, 'utf8'), '', 'Git only printed documentation; it never called the CLI');
+    const doctor = box.run('doctor');
+    assert.equal(doctor.status, 1, 'printed heredoc text cannot wire the active hook');
+    assert.ok(doctor.stdout.includes(message + '; repair: ' + finding.next));
+    const resume = box.run('resume');
+    assert.equal(resume.status, 0);
+    assert.ok(resume.stdout.includes(message + '; ' + finding.next));
+    assert.deepEqual(JSON.parse(box.run('doctor', '--json').stdout).problems, [finding]);
+    assert.deepEqual(JSON.parse(box.run('resume', '--json').stdout).hookProblems, [finding]);
+    assert.equal(readFileSync(box.marker, 'utf8'), '', 'diagnosis never executes the printed example');
+    assert.equal(readFileSync(box.hook, 'utf8'), source, 'diagnosis leaves documentation untouched');
+    writeFileSync(box.hook, source + delegation + '\n');
+    box.git('commit', '--allow-empty', '-q', '-m', 'chore: exact repair control');
+    assert.match(readFileSync(box.marker, 'utf8'), /^hook pre-commit\n$/u, 'the exact repair line really invokes the CLI');
+    assert.equal(box.run('doctor').stdout, 'board is clean\n');
+    assert.doesNotMatch(box.run('resume').stdout, /active Git hook|HOOK_UNWIRED/u);
+  }
 });
 
 test('text HELD refusal ends with the same next step as JSON [L3]', () => {
