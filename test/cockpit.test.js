@@ -1022,8 +1022,8 @@ test('the view has a light and a dark theme to choose [N26]', async () => {
     assert.doesNotMatch(style, /prefers-color-scheme/, 'no second list for dark');
     assert.match(page.html, /<div class="side-top">\n(?: {4}<[^\n]*\n)*? {4}<button class="theme-btn" id="theme" type="button" title="Theme: system">[^\n]*<\/button>\n {2}<\/div>/, 'the button sits in the bar atop the sidebar, which is the top bar on a phone');
 
-    const theme = (on) => [on.run('document.documentElement.dataset.theme') ?? 'none', on.element('theme').title];
-    assert.deepEqual(theme(page), ['dark', 'Dark theme: switch to light'], 'with none picked it starts with the system\'s theme');
+    const theme = (on) => [on.run('document.documentElement.dataset.scheme'), on.element('theme').title];
+    assert.deepEqual([...theme(page), page.run('document.documentElement.dataset.theme') ?? null], ['dark', 'Dark theme: switch to light', null], 'with none picked it follows the system\'s theme');
     const presses = [];
     for (let press = 0; press < 3; press += 1) {
       await page.fire('theme', 'click');
@@ -1034,7 +1034,8 @@ test('the view has a light and a dark theme to choose [N26]', async () => {
     await page.fire('theme', 'click');
     await page.fire('theme', 'click');
     assert.deepEqual(theme(await openPage(view, { store })), ['light', 'Light theme: switch to dark'], 'a reload keeps the pick');
-    assert.deepEqual(theme(await openPage(view)), ['dark', 'Dark theme: switch to light'], 'a browser that keeps nothing starts from the system');
+    assert.deepEqual(theme(await openPage(view)), ['dark', 'Dark theme: switch to light'], 'a browser that keeps nothing follows the system');
+    assert.ok(['light', 'dark'].includes(store.getItem('pb.theme')), 'and what is kept is only ever light or dark');
   } finally {
     await view.stop();
   }
@@ -6963,10 +6964,12 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
           asks: asks ? { text: asks.textContent, first: row.querySelector('small').firstElementChild === asks, warn: getComputedStyle(asks).color === warn } : null,
           tint: rgb(s.backgroundColor), edge: rgb(s.borderTopColor) };
       }),
-      theme: { scheme: document.documentElement.dataset.theme || null, title: theme.title, box: box(theme), bar: box(bar) },
+      theme: { scheme: document.documentElement.dataset.scheme || null, title: theme.title, box: box(theme), bar: box(bar), picked: document.documentElement.dataset.theme || null },
     };
   })())`));
   const click = (selector) => chrome.evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+  /** A drawn frame: the page hears of a colour-scheme change at its next one. */
+  const frame = () => chrome.evaluate('new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))');
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor("typeof data === 'object' && data?.projects?.length === 2 && !!document.querySelector('#proj-list .proj.repo')");
@@ -6996,6 +6999,7 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
     await chrome.waitFor('innerWidth === 1280');
+    await frame();
     const docked = await read();
     await click('#side-toggle');
     await chrome.waitFor('document.documentElement.dataset.side === "collapsed"');
@@ -7008,7 +7012,15 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
 
     // The theme is light or dark: it starts from the system's, each press switches, the title says which, a reload keeps
     // it; the button sits centred in the top bar.
-    assert.deepEqual([collapsed.theme.scheme, collapsed.theme.title], ['light', 'Light theme: switch to dark'], 'none picked yet: the system\'s, light here');
+    assert.deepEqual([collapsed.theme.scheme, collapsed.theme.title, collapsed.theme.picked], ['light', 'Light theme: switch to dark', null], 'none picked yet: the system\'s, light here');
+    // With none picked the page follows the system as it changes.
+    await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] });
+    await frame();
+    await chrome.waitFor("document.documentElement.dataset.scheme === 'dark'");
+    assert.equal((await read()).theme.title, 'Dark theme: switch to light', 'and the button says so');
+    await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
+    await frame();
+    await chrome.waitFor("document.documentElement.dataset.scheme === 'light'");
     const middle = (b) => b.top + b.height / 2;
     assert.ok(Math.abs(middle(collapsed.theme.box) - middle(collapsed.theme.bar)) <= 2, `the button sits centred in the top bar: ${JSON.stringify(collapsed.theme)}`);
     await click('#theme');

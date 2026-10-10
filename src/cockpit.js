@@ -188,16 +188,20 @@ let data = null;
 let seen = '';
 const $ = (id) => document.getElementById(id);
 /**
- * Draw the page in the theme the person picked: light or dark, or anything else to follow the system.
- * The tokens hold both values, so only the scheme they answer to changes.
+ * Draw the page in the theme the person picked, light or dark; with none picked it follows the system, live. The button
+ * only ever offers the other of the two: it shows the scheme on screen, and a press picks the opposite. Following the
+ * system again waits for a settings page. The tokens hold both values, so only the scheme they answer to changes.
  */
 function theme(pick) {
-  const now = pick === 'light' || pick === 'dark' ? pick : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  document.documentElement.dataset.theme = now;
+  if (pick === 'light' || pick === 'dark') document.documentElement.dataset.theme = pick;
+  else delete document.documentElement.dataset.theme;
+  const now = document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  document.documentElement.dataset.scheme = now;
   $('theme').title = now === 'dark' ? 'Dark theme: switch to light' : 'Light theme: switch to dark';
   $('theme').setAttribute('aria-label', $('theme').title);
 }
 theme(keep('pb.theme'));
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => theme(keep('pb.theme')));
 /** Collapse the sidebar into the tab bar on a wide screen, or bring it back, as the person last chose. */
 function collapseSide(collapsed) {
   if (collapsed) document.documentElement.dataset.side = 'collapsed';
@@ -2012,7 +2016,7 @@ $('side-toggle').addEventListener('click', () => {
   keep('pb.side', collapsed ? 'collapsed' : 'open');
 });
 $('theme').addEventListener('click', () => {
-  const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  const next = document.documentElement.dataset.scheme === 'dark' ? 'light' : 'dark';
   keep('pb.theme', next);
   theme(next);
 });

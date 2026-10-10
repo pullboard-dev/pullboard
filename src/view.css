@@ -36,7 +36,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .theme-btn { flex: none; margin-left: auto; display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 8px; background: none; color: var(--ink-faint); cursor: pointer; }
 .theme-btn:hover { color: var(--ink); background: var(--surface-2); }
 .theme-btn svg { display: none; width: 16px; height: 16px; }
-:root:not([data-theme]) .theme-btn .sys, :root[data-theme="light"] .theme-btn .sun, :root[data-theme="dark"] .theme-btn .moon { display: block; }
+:root[data-scheme="light"] .theme-btn .sun, :root[data-scheme="dark"] .theme-btn .moon { display: block; }
 .side-body { display: grid; gap: 2px; align-content: start; }
 /* Collapsed, as the person chose: the sidebar shrinks to the project switcher at the left of the tab bar,
  * the board below takes the whole width, and the project list opens as a dropdown. The logo collapses and
