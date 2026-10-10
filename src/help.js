@@ -60,6 +60,7 @@ Work
                                         rename or update a milestone note
   pullboard milestone remove <name>                            remove a milestone without changing its items
   pullboard doctor                     check board integrity without changing it
+  pullboard skills --update            refresh unchanged Claude Code skills from shipped versions
   pullboard show <id> [--history]       an item, the criterion frozen at claim, its verdicts: the latest in full,
                                         earlier ones as one line; --history prints every note in full
   pullboard fact <id> <kind> <text> [--supersedes <fact-id>] [--ref path:lines@full-sha]
@@ -130,7 +131,7 @@ Reject reasons: TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HE
 
 const HELP_NAMES = [
   'tour', 'init', 'worktree', 'join', 'takeover', 'whoami', 'lanes', 'status', 'resources', 'settings', 'view', 'view export',
-  'serve', 'relay', 'relay recover', 'resume', 'hooks', 'add', 'edit', 'escalate', 'run', 'list', 'doctor', 'show', 'next',
+  'serve', 'relay', 'relay recover', 'resume', 'hooks', 'add', 'edit', 'escalate', 'run', 'list', 'doctor', 'skills', 'show', 'next',
   'check', 'claim', 'release', 'submit', 'done', 'verify', 'fact', 'shout', 'answer', 'pass', 'decisions', 'inbox', 'export', 'import',
   'sweep', 'merged', 'withdraw', 'refreeze', 'reopen', 'hold', 'stats', 'ledger', 'log', 'spec', 'spec check', 'spec view',
   'spec show', 'spec unmet', 'spec signoff', 'spec signers', 'spec signers add', 'forget', 'prompt', 'gate', 'hook',

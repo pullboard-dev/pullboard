@@ -35,7 +35,7 @@ import { productLine, productProblems, productSummaries } from './products.js';
 import { isLane, laneNames, laneOf, outOfLane } from './lanes.js';
 import { Refused } from './refused.js';
 import { commitCitations, committedIds } from './history.js';
-import { promptFor } from './skills.js';
+import { promptFor, skillProblems, updateSkills } from './skills.js';
 import {
   frozenCriterion,
   idProblems,
@@ -216,6 +216,7 @@ const OPTIONS = {
   run: { type: 'string' },
   max: { type: 'string' },
   'dry-run': { type: 'boolean' },
+  update: { type: 'boolean' },
   before: { type: 'string' },
   add: { type: 'string' },
   remove: { type: 'string' },
@@ -485,7 +486,7 @@ async function bindCheckoutSession(io, positionals, values) {
   if (command === 'takeover' && (positionals.length !== 1 || Object.keys(values).some((key) => key !== 'json'))) {
     throw new Refused('USAGE', 'pullboard takeover takes no arguments; run pullboard takeover [--json]');
   }
-  const writes = ['init', 'join', 'worktree', 'hooks', 'hook', 'add', 'edit', 'fact', 'escalate', 'run', 'sweep',
+  const writes = ['init', 'join', 'worktree', 'hooks', 'hook', 'skills', 'add', 'edit', 'fact', 'escalate', 'run', 'sweep',
     'next', 'claim', 'hold', 'release', 'submit', 'done', 'verify', 'merged', 'withdraw', 'refreeze', 'reopen', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget'];
   if (!writes.includes(command) && !(command === 'settings' && first) && !(command === 'spec' && first === 'apply') && !(command === 'relay' && ['on', 'off'].includes(first))) return;
   if (command === 'answer' && values.as === 'person') return;
@@ -1189,6 +1190,19 @@ function refuseUncommittedSetup(mainRoot, config) {
  */
 function readCommands(io, { first, second, rest, values }) {
   return {
+    skills: () => {
+      if (first || second || rest.length || !values.update) throw new Refused('USAGE', 'pullboard skills --update');
+      const ctx = context(io);
+      const result = updateSkills(ctx.info.root);
+      io.result?.(result);
+      if (result.updated.length) io.say(`updated Claude Code skills: ${result.updated.map((file) => file.split('/')[2]).join(', ')}`);
+      else io.say('Claude Code skills are current or customized; no files were replaced');
+      for (const item of result.customized) {
+        const change = item.missing.length ? `; missing changes: ${item.missing.join('; ')}` : '';
+        io.say(`kept customized skill ${item.path}${change}`);
+      }
+      return 0;
+    },
     export: () => {
       if (first) throw new Refused('USAGE', 'pullboard export takes no arguments');
       const ctx = context(io);
@@ -1364,7 +1378,7 @@ function readCommands(io, { first, second, rest, values }) {
         return 1;
       }
       const ctx = context(io);
-      const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects()];
+      const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config), ...skillProblems(ctx.info.root), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects()];
       const checkpointProblem = pendingCheckpointProblem(ctx.info.root);
       if (checkpointProblem) problems.push(checkpointProblem);
       const oversizedSnapshot = checkpointProblem ? null : pendingSnapshotSize(ctx.info.root);
@@ -1603,7 +1617,7 @@ async function verifyHere(ctx, id, { second, values }) {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
       const trunk = requireTrunkMerge(root, commit);
       refuseUnverifiedStack(root, board, item, commit, trunk);
-      check = await withGateSlot(root, (lease) => checkAtCommit(root, item, { waitMs: lease.waitMs }), { itemCheck: true, onWait: gateWaitReporter(ctx.io) });
+      check = await withGateSlot(root, (lease) => checkAtCommit(root, item, { waitMs: lease.waitMs, gateSlotHeld: true }), { itemCheck: true, onWait: gateWaitReporter(ctx.io) });
       verificationProfile = check.profile ?? null;
       const evidence = check.checked
         ? `\nlast output lines (up to 40):\n${(check.outputTail ?? '(no output)').split('\n').map((line) => `  ${line}`).join('\n')}\nfull output file: ${check.outputPath ?? `(unavailable${check.outputError ? `: ${check.outputError}` : ''})`}`
@@ -1992,7 +2006,7 @@ function workCommands(io, args) {
           throw new Refused('CHECK_CONFIRM', `the check set by ${by} was not run: ${check}; run pullboard check ${item.item_id} --yes after reading the command, or answer yes at the prompt`);
         }
       }
-      const run = await withGateSlot(ctx.info.root, (lease) => runProfiledShell(ctx.info.root, check, { waitMs: lease.waitMs, artifactPrefix: `pullboard-check-${item.item_id}`, persistLog: true }), { itemCheck: true, onWait: gateWaitReporter(io) });
+      const run = await withGateSlot(ctx.info.root, (lease) => runProfiledShell(ctx.info.root, check, { waitMs: lease.waitMs, artifactPrefix: `pullboard-check-${item.item_id}`, persistLog: true, gateSlotHeld: true }), { itemCheck: true, onWait: gateWaitReporter(io) });
       io.result?.({ id: item.item_id, green: run.isGreen, seconds: run.seconds, check, by, report: run.isGreen ? '' : digestOf(run.output) });
       const timings = timingDigest(run.profile);
       const compact = timings && !run.profile.files.length
