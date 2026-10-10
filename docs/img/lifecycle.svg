@@ -54,7 +54,7 @@ text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', 
 <text class="head" x="24" y="34">An item's life</text>
 <text class="aside" x="140" y="34">starts open; ends verified or withdrawn</text>
 <g class="plain"><rect x="25" y="150" width="160" height="58" rx="8"/><text class="t1" x="105" y="175" text-anchor="middle">open</text><text class="t2" x="105" y="193" text-anchor="middle">↻ escalate · refreeze</text></g>
-<g class="plain"><rect x="235" y="150" width="160" height="58" rx="8"/><text class="t1" x="315" y="175" text-anchor="middle">claimed</text><text class="t2" x="315" y="193" text-anchor="middle">↻ claim</text></g>
+<g class="plain"><rect x="235" y="150" width="160" height="58" rx="8"/><text class="t1" x="315" y="175" text-anchor="middle">claimed</text><text class="t2" x="315" y="193" text-anchor="middle">↻ claim · refreeze</text></g>
 <g class="plain"><rect x="445" y="150" width="160" height="58" rx="8"/><text class="t1" x="525" y="175" text-anchor="middle">submitted</text><text class="t2" x="525" y="193" text-anchor="middle">↻ reserve</text></g>
 <g class="done" data-final="verified"><rect x="655" y="150" width="160" height="58" rx="8"/><rect x="659" y="154" width="152" height="50" rx="5" fill="none"/><text class="t1" x="735" y="184" text-anchor="middle">verified</text></g>
 <g class="plain" data-final="withdrawn"><rect x="445" y="284" width="160" height="58" rx="8"/><rect x="449" y="288" width="152" height="50" rx="5" fill="none"/><text class="t1" x="525" y="318" text-anchor="middle">withdrawn</text></g>

@@ -96,7 +96,7 @@ Coordinator
   pullboard land --waive <test> --until <date> --reason \"why\"  the person records an expiring test waiver
   pullboard merged <id> <commit>        record where verified work landed
   pullboard withdraw <id> <reason>      drop an item nobody should build
-  pullboard refreeze <id>               re-freeze a criterion after its spec rows changed
+  pullboard refreeze <id>               adopt a corrected criterion or changed spec rows
   pullboard reopen <id> --note "why"    return a submission for criterion correction without a verdict
   pullboard hold <lane> --reason "..."   pause a lane: next there claims nothing and names the reason
   pullboard hold <id> "reason"          hold one item so next skips it
