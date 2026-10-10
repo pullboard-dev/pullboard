@@ -6,7 +6,10 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
+import { pathToFileURL } from 'node:url';
 import * as store from '../src/board.js';
+import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { exportBoard } from '../src/exchange.js';
 
 const TEMP_DIRS = [];
 const HOUR = 3_600_000;
@@ -108,35 +111,29 @@ test('[R3,R1] merged refuses the root and deleted side-branch commits', async (t
   await refusesUncarried(sideCase, deleted);
 });
 
-test('[R3,R1] merged records fast-forward, merge, rebased and squashed work', async (t) => {
-  const fastForward = await fixture(t);
-  fastForward.git('merge', '--ff-only', 'web/builder');
-  assert.equal((await command(fastForward, ['merged', String(fastForward.id), fastForward.itemCommit])).code, 0);
-  assert.equal(mergeEvent(fastForward).commit, fastForward.itemCommit);
-
-  const merge = await fixture(t);
-  writeFileSync(join(merge.repo, 'trunk.txt'), 'trunk change\n');
-  merge.git('add', 'trunk.txt'); merge.git('commit', '-q', '-m', 'chore: advance trunk');
-  merge.git('merge', '--no-ff', '--no-edit', 'web/builder');
-  const mergeCommit = merge.git('rev-parse', 'HEAD');
-  assert.equal((await command(merge, ['merged', String(merge.id), mergeCommit])).code, 0);
-  assert.equal(mergeEvent(merge).commit, mergeCommit);
-
-  const rebased = await fixture(t);
-  writeFileSync(join(rebased.repo, 'trunk.txt'), 'trunk change\n');
-  rebased.git('add', 'trunk.txt'); rebased.git('commit', '-q', '-m', 'chore: advance trunk [G1]');
-  rebased.git('cherry-pick', rebased.itemCommit);
-  const rebasedCommit = rebased.git('rev-parse', 'HEAD');
-  assert.notEqual(rebasedCommit, rebased.itemCommit, 'the item change was replayed on the advanced trunk');
-  assert.equal((await command(rebased, ['merged', String(rebased.id), rebasedCommit])).code, 0);
-  assert.equal(mergeEvent(rebased).commit, rebasedCommit);
-
-  const squash = await fixture(t);
-  squash.git('merge', '--squash', 'web/builder');
-  squash.git('commit', '-q', '-m', 'feat(web): squash item work [G1]');
-  const squashCommit = squash.git('rev-parse', 'HEAD');
-  assert.equal((await command(squash, ['merged', String(squash.id), squashCommit])).code, 0);
-  assert.equal(mergeEvent(squash).commit, squashCommit);
+test('[R3,R1] merged records fast-forward, merge, rebased and squashed work', async t => {
+  for (const mode of ['fast-forward', 'merge', 'rebased', 'squashed']) {
+    await t.test(`[R3,R1] records ${mode} work`, async () => {
+      const box = await fixture(t);
+      if (['merge', 'rebased'].includes(mode)) {
+        writeFileSync(join(box.repo, 'trunk.txt'), 'trunk change\n');
+        box.git('add', 'trunk.txt');
+        box.git('commit', '-q', '-m', 'chore: advance trunk [G1]');
+      }
+      if (mode === 'fast-forward') box.git('merge', '--ff-only', 'web/builder');
+      if (mode === 'merge') box.git('merge', '--no-ff', '--no-edit', 'web/builder');
+      if (mode === 'rebased') box.git('cherry-pick', box.itemCommit);
+      if (mode === 'squashed') {
+        box.git('merge', '--squash', 'web/builder');
+        box.git('commit', '-q', '-m', 'feat(web): squash item work [G1]');
+      }
+      const commit = box.git('rev-parse', 'HEAD');
+      if (mode === 'rebased') assert.notEqual(commit, box.itemCommit, 'the item change was replayed on advanced trunk');
+      const result = await command(box, ['merged', String(box.id), commit]);
+      assert.equal(result.code, 0, `${result.stdout}${result.stderr}`);
+      assert.equal(mergeEvent(box).commit, commit);
+    });
+  }
 });
 
 test('[R3,R1] --note records an otherwise uncarried merge receipt', async (t) => {
@@ -145,4 +142,30 @@ test('[R3,R1] --note records an otherwise uncarried merge receipt', async (t) =>
   assert.equal(result.code, 0, `${result.stdout}${result.stderr}`);
   assert.equal(mergeEvent(box).commit, box.base);
   assert.equal(mergeEvent(box).note, 'recorded outside trunk');
+});
+
+
+test('[R3,H16] a released client stops before losing an exceptional merged note', async t => {
+  const box = await fixture(t);
+  const directory = join(box.dir, 'released');
+  mkdirSync(directory);
+  const archive = execFileSync('git', ['archive', 'v0.8.3'], { cwd: resolve(import.meta.dirname, '..'), maxBuffer: 32 * 1024 * 1024 });
+  execFileSync('tar', ['-x', '-C', directory], { input: archive });
+  const released = await import(pathToFileURL(join(directory, 'src/engine.js')).href);
+  const machine = await import(pathToFileURL(join(directory, 'src/machine.js')).href);
+  assert.equal(machine.ENGINE_VERSION, 6, 'exercise the actual released client');
+  const move = prepareEngineMove(box.board, 'merged', [box.id, {
+    agentId: 'coordinator', commit: box.base, note: 'recorded outside trunk',
+  }]);
+  const before = exportBoard(box.board);
+  const receipt = { sequence: 1, at: '2026-10-10T00:00:00.000Z' };
+  assert.throws(() => released.applyEngineMove(box.board, move, receipt), error => {
+    assert.equal(error.code, 'ENGINE_VERSION');
+    assert.match(error.message, new RegExp(`version ${move.engine}.*version 6.*upgrade`, 'iu'));
+    return true;
+  });
+  assert.deepEqual(exportBoard(box.board), before, 'an old client does not drop the note or advance the replay cursor');
+  const outcome = applyEngineMove(box.board, move, receipt);
+  assert.equal(Boolean(outcome.error), false);
+  assert.equal(mergeEvent(box).note, 'recorded outside trunk', 'the current engine retains the sealed explanation');
 });
