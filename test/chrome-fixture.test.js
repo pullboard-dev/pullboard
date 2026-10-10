@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { tmpdir } from 'node:os';
+import { loadavg, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { findChromeExecutable, launchChromeProcess, startChrome } from './chrome-fixture.js';
 
@@ -180,10 +181,21 @@ test('a stalled condition uses its remaining operation budget [C7]', {
 }, async t => {
   const chrome = await startChrome();
   t.after(() => chrome.close());
-  const started = Date.now();
-  await assert.rejects(chrome.waitFor('new Promise(() => {})', 250, 'bounded condition'),
-    /Browser condition "bounded condition" did not arrive within 250ms/u);
-  assert.ok(Date.now() - started < 10_000, 'the 250ms operation never consumes the 15000ms command allowance');
+  const budgetMs = 250;
+  const scheduler = monitorEventLoopDelay({ resolution: 10 });
+  scheduler.enable();
+  const startedAt = performance.now();
+  let failure;
+  try { await chrome.waitFor('new Promise(() => {})', budgetMs, 'bounded condition'); }
+  catch (error) { failure = error; }
+  const elapsedMs = performance.now() - startedAt;
+  scheduler.disable();
+  const schedulerSlackMs = Math.ceil(scheduler.max / 1e6);
+  const details = `budget=${budgetMs}ms elapsed=${Math.round(elapsedMs)}ms schedulerSlack=${schedulerSlackMs}ms loadavg=${JSON.stringify(loadavg())}`;
+  assert.ok(failure instanceof Error && /Browser condition "bounded condition" did not arrive within 250ms/u.test(failure.message),
+    `the stalled page condition should time out at its operation budget; ${details}; failure=${failure?.message ?? 'none'}`);
+  assert.ok(elapsedMs <= budgetMs + schedulerSlackMs,
+    `the 250ms condition stayed within its measured budget plus scheduler delay; ${details}`);
   assert.equal(await chrome.evaluate('1 + 1'), 2, 'timing out one command leaves the real DevTools connection usable');
 });
 
