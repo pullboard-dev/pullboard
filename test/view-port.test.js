@@ -28,7 +28,7 @@ test("a named port that is busy is refused with the way out, not a stack trace [
     cwd: dir, env, encoding: 'utf8',
   });
   assert.equal(result.status, 1, `a refusal, not a crash or a hang: ${result.stderr}`);
-  const json = spawnSync(process.execPath, [BIN, 'view', '--no-open', '--port', String(port), '--json'], {
+  const json = runFixtureChild(process.execPath, [BIN, 'view', '--no-open', '--port', String(port), '--json'], {
     cwd: dir, env, encoding: 'utf8', timeout: 20000,
   });
   assert.equal(json.status, 1, json.stderr);
