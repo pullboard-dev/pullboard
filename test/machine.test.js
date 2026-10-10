@@ -14,7 +14,7 @@ import { HELP } from '../src/cli.js';
 import { loadConfig } from '../src/config.js';
 import { Refused } from '../src/refused.js';
 import { BLANKS, IN_STATE, MACHINE, effectiveGuards, lifecycleHelp, lifecycleMarkdown, machineProblems, storeTriggers } from '../src/machine.js';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 
 /**
  * Refusals that are not about an item's lifecycle, so no move declares them: command input, caller
@@ -30,6 +30,8 @@ const NOT_MOVES = {
   BAD_GATE_SLOTS: 'machine-wide gate capacity checked before a command runs',
   NO_AGENT: 'a linked coordinator must already be registered before an item move',
   EVENT_LOG_VERSION: 'the local board format is checked before opening it for an item move',
+  NOT_YOUR_CHECKOUT: 'the caller owns the checkout session, checked before any item move',
+  CHECKOUT_SESSION: 'the checkout-local session binding is readable before any item move',
 };
 
 /**
@@ -60,7 +62,7 @@ const CAUGHT = { 'cli.js#submitHere': ['cli.js#freezer'], 'cli.js#verifyHere': [
  * Encrypted transport authenticates/orders a move; its board operation is walked separately above.
  * Keep walking the CLI dispatcher itself so a new item rule there cannot hide behind this boundary.
  */
-const TRANSPORT_BOUNDARIES = new Set(['relay.js#relayLinked', 'relay.js#relayOperation']);
+const TRANSPORT_BOUNDARIES = new Set(['relay.js#relayLinked', 'relay.js#relayOperation', 'relay.js#relayRecovered', 'relay.js#relayCommandReceipt', 'relay.js#relayCommandReceiptReported']);
 
 /** A top-level function, or a top-level arrow function bound to a const. */
 const START = /^(?:export )?(?:(?:async )?function (\w+)\(|const (\w+) = (?:async )?(?:\([^)]*\)|\w+) =>)/;
@@ -451,7 +453,7 @@ test('a broken copy of the declaration fails the check against the code, both wa
 });
 
 test('a broken copy of the code fails the check: a refusal added wherever a move reaches [M1, M4]', () => {
-  const inFreeze = editedSource('spec.js', /^export function frozenCriterion\(spec, item\) \{$/m, "$&\n  if (item.item_title === 'moon') throw new Refused('MOON_PHASE', 'wait for the full moon');");
+  const inFreeze = editedSource('spec.js', /^export function frozenCriterion\(spec, item, doctrine = null\) \{$/m, "$&\n  if (item.item_title === 'moon') throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(MACHINE, inFreeze).sort(), [
     'MOON_PHASE is raised by claim but not declared there',
     'MOON_PHASE is raised by refreeze but not declared there',
@@ -764,7 +766,7 @@ test('the page and the help follow the declaration: a new move appears in both [
 });
 
 test('pullboard help lists each role\'s moves from the declaration, and pullboard lifecycle prints the page [M1, P4]', () => {
-  const help = spawnSync(process.execPath, [BIN, 'help', '--all'], { encoding: 'utf8' });
+  const help = runFixtureChild(process.execPath, [BIN, 'help', '--all'], { encoding: 'utf8' });
   assert.equal(help.status, 0, help.stderr);
   for (const role of MACHINE.roles) {
     const line = help.stdout.split('\n').find((text) => text.startsWith(`  ${role} `));
@@ -773,7 +775,7 @@ test('pullboard help lists each role\'s moves from the declaration, and pullboar
     assert.deepEqual(listed.sort(), MACHINE.moves.filter((move) => move.by.includes(role)).map((move) => move.verb).sort(), `${role}'s moves`);
   }
   assert.ok(HELP.all.includes(lifecycleHelp()), 'the full help screen carries the generated section, not a typed copy');
-  const printed = spawnSync(process.execPath, [BIN, 'lifecycle'], { encoding: 'utf8' });
+  const printed = runFixtureChild(process.execPath, [BIN, 'lifecycle'], { encoding: 'utf8' });
   assert.equal(printed.status, 0, printed.stderr);
   assert.equal(printed.stdout, lifecycleMarkdown());
 });
@@ -781,9 +783,9 @@ test('pullboard help lists each role\'s moves from the declaration, and pullboar
 /** Guards the CLI checks before it asks the board: the board's own order starts after them. */
 const CLI_CHECKED = {
   claim: ['joined'],
-  submit: ['joined', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'gateConfigured', 'gateGreen', 'treeStillDuringGate'],
+  submit: ['joined', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'trunkMergeClean', 'gateConfigured', 'gateGreen', 'treeStillDuringGate', 'noUnverifiedStack'],
   reserve: ['coordinatorSaysAs', 'joined'],
-  accept: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit', 'itemCheckGreen'],
+  accept: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit', 'trunkMergeClean', 'itemCheckGreen', 'noUnverifiedStack'],
   reject: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit'],
 };
 
@@ -851,7 +853,10 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     store.claim(board, dependency, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
     store.submit(board, dependency, { agentId: 'web-1', commit: SHA_A, tree: 'tree' });
     store.holdLane(board, 'web', { agentId: 'coordinator', reason: 'pause' });
-    const fired = [claimAs(999, light, 'api'), claimAs(done, light, 'api'), claimAs(target, light, 'api'), claimAs(target, light, 'web'), claimAs(target, strong, 'web')];
+    store.holdItem(board, target, { agentId: 'coordinator', reason: 'item pause' });
+    const fired = [claimAs(999, light, 'api'), claimAs(done, light, 'api'), claimAs(target, light, 'api')];
+    store.releaseItemHold(board, target, { agentId: 'coordinator' });
+    fired.push(claimAs(target, light, 'api'), claimAs(target, light, 'web'), claimAs(target, strong, 'web'));
     verdictOn(board, dependency, 'web-2', 'ACCEPT');
     fired.push(claimAs(target, strong, 'web'));
     store.release(board, target, 'web-2');
@@ -862,7 +867,7 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     store.release(board, spare, strong);
     fired.push(claimAs(target, strong, 'web'), claimAs(target, strong, 'web', freeze));
     assert.deepEqual(fired, [...declaredBoardOrder('claim'), 'ok']);
-    assert.deepEqual(fired, ['NO_ITEM', 'NOT_CLAIMABLE', 'WRONG_LANE', 'ROUTE', 'BLOCKED', 'HELD', 'LANE_HELD', 'ONE_CLAIM', 'UNKNOWN_SPEC', 'ok']);
+    assert.deepEqual(fired, ['NO_ITEM', 'NOT_CLAIMABLE', 'ITEM_HELD', 'WRONG_LANE', 'ROUTE', 'BLOCKED', 'HELD', 'LANE_HELD', 'ONE_CLAIM', 'UNKNOWN_SPEC', 'ok']);
   } finally {
     lab.done();
   }
@@ -926,11 +931,14 @@ test('reserve refuses in the declared order, one failure peeled at a time [V15, 
     const built = submittedItem(board);
     const open = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
     const reserveAs = (id, agentId, policy = 'coordinator', familyPolicy = 'off') => outcome(() => store.reserveReview(board, id, { agentId, leaseMs: 3_600_000, policy, familyPolicy }));
-    const fired = [reserveAs(999, 'web-2'), reserveAs(open, 'web-2'), reserveAs(built, 'web-1'), reserveAs(built, light), reserveAs(built, 'web-2')];
+    const cooling = submittedItem(board);
+    store.reserveReview(board, cooling, { agentId: 'web-2', leaseMs: 3_600_000, policy: 'any' });
+    store.release(board, cooling, 'web-2', 'another reviewer should take it');
+    const fired = [reserveAs(999, 'web-2'), reserveAs(open, 'web-2'), reserveAs(cooling, 'web-2'), reserveAs(built, 'web-1'), reserveAs(built, light), reserveAs(built, 'web-2')];
     store.reserveReview(board, built, { agentId: other, leaseMs: 3_600_000, policy: 'any' });
     fired.push(reserveAs(built, other, 'any', 'require'), reserveAs(built, 'web-2', 'any'), reserveAs(built, other, 'any'));
     assert.deepEqual(fired, [...declaredBoardOrder('reserve'), 'ok']);
-    assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'O2_FAMILY_MATCH', 'REVIEW_HELD', 'ok']);
+    assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'REVIEW_COOLDOWN', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'O2_FAMILY_MATCH', 'REVIEW_HELD', 'ok']);
   } finally {
     lab.done();
   }
@@ -1023,9 +1031,9 @@ test('next --verify reserves the review for the reviewLease and says until when;
       GIT_COMMITTER_EMAIL: 'agent@example.com',
       PULLBOARD_HOME: join(dir, 'home'),
     };
-    const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
-    // A command that never returns fails the test after a minute instead of holding the gate open.
-    const run = (cwd, ...args) => spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8', timeout: 60_000 });
+    const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
+    // The test runner's per-test timeout bounds hangs without killing this CLI early under load.
+    const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
     const repo = join(dir, 'repo');
     mkdirSync(repo);
     git(repo, 'init', '-q', '-b', 'main');

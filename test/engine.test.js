@@ -1,12 +1,14 @@
 /** Real-SQLite tests for the deterministic, sequence-ordered move engine [H3,H16]. */
 import assert from 'node:assert/strict';
+import { runFixtureExecFile as execFileSync } from './fixture-child.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { exportBoard, importBoard, restoreRelaySnapshot } from '../src/exchange.js';
-import { applyEngineMove, applyRelayMove, prepareEngineMove, appliedSequence, engineReceipt, startRelayEpoch } from '../src/engine.js';
+import { applyEngineMove, applyRelayMove, prepareEngineMove, appliedSequence, engineReceipt, startRelayEpoch, checkpointSequence, ENGINE_OPERATIONS } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { Refused } from '../src/refused.js';
 
@@ -58,6 +60,92 @@ function boardRows(board, itemId) {
     events: store.events(board),
   };
 }
+
+test('authenticated relay senders bind every move and refusals preserve replica prefixes [H2,H9,H3,H16]', (t) => {
+  const { copies, item } = engineCopies(t);
+  const [one, two] = copies;
+  const claim = claimMove(one, item, 'web-1');
+  const actorlessClaim = { ...claim, id: 'actorless-person-claim' };
+  delete actorlessClaim.actor;
+  const mismatchedArgs = prepareEngineMove(one, 'claim', [item, { ...claim.args[1], agentId: 'web-2' }], {
+    id: 'sealed-actor-mismatch', actor: 'web-1',
+  });
+  const personalAnswer = prepareEngineMove(one, 'answerDecision', [1, {
+    asPerson: true, agentId: 'coordinator', text: 'fixture answer', lanes: ['web'],
+  }], { id: 'agent-person-answer' });
+  const cases = [
+    { move: actorlessClaim, sender: undefined, expected: 'RELAY_SENDER' },
+    { move: claim, sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-2' } },
+    { move: mismatchedArgs, sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } },
+    { move: prepareEngineMove(one, 'register', [{ lane: 'web', path: '/fixture/enroll' }], { id: 'agent-enrollment' }), sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } },
+    { move: personalAnswer, sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' }, expected: 'RELAY_PERSON_ONLY' },
+    { move: prepareEngineMove(one, 'shout', [{ from: 'web-2', agentId: 'web-1', to: 'all', text: 'spoof', lanes: ['web'] }], { id: 'shadowed-shout', actor: 'web-1' }), sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } },
+    { move: prepareEngineMove(one, 'addItem', [{ by: 'coordinator', agentId: 'web-1', lane: 'web', title: 'spoof' }], { id: 'shadowed-add', actor: 'web-1' }), sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } },
+  ];
+
+  cases.forEach(({ move, sender, expected = 'RELAY_SENDER_MISMATCH' }, index) => {
+    const sequence = index + 1;
+    for (const board of copies) {
+      const before = boardRows(board, item);
+      const outcome = applyRelayMove(board, move, { sequence, at: CLAIM_AT, kind: 'move', sender });
+      assert.equal(outcome.error?.code, expected, `case ${index + 1} must refuse before native writes`);
+      const after = boardRows(board, item);
+      assert.deepEqual(after.item, before.item, `case ${index + 1} leaves native item rows unchanged`);
+      assert.deepEqual(after.events.slice(0, -1), before.events, `case ${index + 1} preserves every prior event`);
+      assert.equal(after.events.length, before.events.length + 1, 'only the mandated refusal event is appended');
+      assert.equal(after.events.at(-1).event_kind, 'relay_refused');
+      assert.equal(after.events.at(-1).event_by, sender?.kind === 'agent' ? sender.agent : 'relay');
+      assert.equal(replayCursor(board), sequence, `case ${index + 1} commits the refusal prefix`);
+    }
+  });
+
+  const validClaim = { ...claim, id: 'valid-claim-after-refusals' };
+  const agent = { kind: 'agent', userId: 'fixture-user', agent: 'web-1' };
+  const claimOne = applyRelayMove(one, validClaim, { sequence: cases.length + 1, at: CLAIM_AT, kind: 'move', sender: agent });
+  const claimTwo = applyRelayMove(two, validClaim, { sequence: cases.length + 1, at: CLAIM_AT, kind: 'move', sender: agent });
+  assert.deepEqual(claimOne, claimTwo);
+  assert.equal(store.getItem(one, item).item_owner, 'web-1');
+
+  const shout = prepareEngineMove(one, 'shout', [{ from: 'web-1', to: 'all', text: 'authenticated fixture', lanes: ['web'] }], { id: 'valid-shout-after-refusals' });
+  const shoutOne = applyRelayMove(one, shout, { sequence: cases.length + 2, at: CLAIM_AT, kind: 'move', sender: agent });
+  const shoutTwo = applyRelayMove(two, shout, { sequence: cases.length + 2, at: CLAIM_AT, kind: 'move', sender: agent });
+  assert.deepEqual(shoutOne, shoutTwo);
+  assert.deepEqual(boardRows(one, item), boardRows(two, item), 'valid claim and shout replay identically after refusal prefix');
+  assert.equal(replayCursor(one), cases.length + 2);
+  assert.equal(replayCursor(two), cases.length + 2);
+});
+
+test('person sessions delegate native agent moves under the shared sender policy [H2,H9,H16]', (t) => {
+  const { copies, item } = engineCopies(t);
+  const move = claimMove(copies[0], item, 'web-1');
+  delete move.actor;
+  const outcomes = copies.map(board => applyRelayMove(board, move, {
+    sequence: 1, at: CLAIM_AT, kind: 'move', sender: { kind: 'person', userId: 'fixture-user' },
+  }));
+  assert.deepEqual(outcomes[0], outcomes[1]);
+  assert.equal(outcomes[0].error, undefined);
+  for (const board of copies) assert.equal(store.getItem(board, item).item_owner, 'web-1');
+});
+
+test('authenticated coordinator milestones replay and reject foreign sender identity [H2,H9,H3,H16]', (t) => {
+  const { copies, item } = engineCopies(t);
+  const [one, two] = copies;
+  const move = prepareEngineMove(one, 'addMilestone', [{ agentId: 'coordinator', name: 'Fixture milestone', items: [item] }], { id: 'coordinator-milestone', actor: 'coordinator' });
+  for (const board of copies) {
+    const before = store.milestones(board);
+    const refused = applyRelayMove(board, move, { sequence: 1, at: CLAIM_AT, kind: 'move', sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } });
+    assert.equal(refused.error?.code, 'RELAY_SENDER_MISMATCH');
+    assert.deepEqual(store.milestones(board), before, 'a foreign scoped token cannot change milestone metadata');
+  }
+  const valid = { ...move, id: 'valid-coordinator-milestone' };
+  const sender = { kind: 'agent', userId: 'fixture-user', agent: 'coordinator' };
+  const outcomes = copies.map((board) => applyRelayMove(board, valid, { sequence: 2, at: CLAIM_AT, kind: 'move', sender }));
+  assert.deepEqual(outcomes[0], outcomes[1]);
+  assert.equal(outcomes[0].error, undefined, 'the coordinator scoped token binds the native milestone actor');
+  assert.deepEqual(store.milestones(one), [{ name: 'Fixture milestone', note: null, items: [item] }]);
+  assert.deepEqual(store.milestones(one), store.milestones(two));
+  assert.deepEqual(store.events(one), store.events(two));
+});
 
 test('person answer channel replays identically on agent and plain replicas [B26,H16]', t => {
   const questions = [];
@@ -115,6 +203,148 @@ test('missing relay senders are refused deterministically without poisoning a la
     assert.deepEqual(exportBoard(board), after, 'repeated refusal returns its own receipt without moving the cursor backwards');
   }
   assert.deepEqual(exportBoard(one).tables, exportBoard(two).tables);
+});
+
+test('sealed shouts cannot bypass addressee, already answered or person decision rules [H16,B26]', t => {
+  const questions = [];
+  const { copies } = engineCopies(t, source => {
+    const lanes = ['web'];
+    questions.push(store.shout(source, { from: 'coordinator', to: 'person', text: 'Person decision', decision: true, lanes }));
+    questions.push(store.shout(source, { from: 'coordinator', to: 'web-2', text: 'Another agent decision', decision: true, lanes }));
+    const closed = store.shout(source, { from: 'coordinator', to: 'web-1', text: 'Already answered decision', decision: true, lanes });
+    store.answerDecision(source, closed, { agentId: 'web-1', text: 'Original answer', lanes });
+    questions.push(closed);
+    questions.push(store.shout(source, { from: 'web-1', to: 'coordinator', text: 'Needs passing', decision: true, lanes }));
+  });
+  for (const board of copies) {
+    const original = exportBoard(board);
+    let sequence = 0;
+    for (const sender of [{ kind: 'agent', userId: 'fixture-user', agent: 'web-1' }, { kind: 'person', userId: 'fixture-user' }]) {
+      for (const answers of questions.slice(0, 3)) {
+        const move = prepareEngineMove(board, 'shout', [{ from: 'web-1', to: 'coordinator', text: 'Bypass attempted', answers, lanes: ['web'] }], { id: 'bypass-' + ++sequence });
+        const refused = applyRelayMove(board, move, { sequence, at: CLAIM_AT, kind: 'move', sender });
+        assert.equal(refused.error?.code, 'RELAY_ANSWER');
+        assert.match(refused.error.next, /pullboard answer.*pullboard pass/);
+        assert.deepEqual(exportBoard(board).tables.shout, original.tables.shout);
+        assert.deepEqual(exportBoard(board).tables.item, original.tables.item);
+      }
+    }
+    const agentSender = { kind: 'agent', userId: 'fixture-user', agent: 'web-1' };
+    for (const [index, expected] of ['NOT_YOUR_DECISION', 'NOT_YOUR_DECISION', 'ALREADY_ANSWERED'].entries()) {
+      const move = prepareEngineMove(board, 'answerDecision', [questions[index], { agentId: 'web-1', text: 'Guarded attempt', lanes: ['web'] }], { id: 'answer-' + ++sequence });
+      assert.equal(applyRelayMove(board, move, { sequence, at: CLAIM_AT, kind: 'move', sender: agentSender }).error.code, expected);
+      assert.deepEqual(exportBoard(board).tables.shout, original.tables.shout);
+    }
+    assert.deepEqual(store.openDecisions(board, 'person').map(row => row.shout_id), [questions[0]]);
+    const permitted = prepareEngineMove(board, 'answerDecision', [questions[0], { agentId: 'coordinator', asPerson: true, text: 'Person answered', lanes: ['web'], channel: 'view' }], { id: 'person-answer' });
+    assert.equal(Boolean(applyRelayMove(board, permitted, { sequence: ++sequence, at: CLAIM_AT, kind: 'move', sender: { kind: 'person', userId: 'fixture-user' } }).error), false);
+    assert.deepEqual(store.openDecisions(board, 'person'), []);
+    const personSender = { kind: 'person', userId: 'fixture-user' };
+    const pass = prepareEngineMove(board, 'passDecision', [questions[3], { agentId: 'coordinator', note: 'Needs the person', lanes: ['web'] }], { id: 'guarded-pass' });
+    const passed = applyRelayMove(board, pass, { sequence: ++sequence, at: CLAIM_AT, kind: 'move', sender: personSender });
+    assert.equal(Boolean(passed.error), false);
+    assert.deepEqual(store.openDecisions(board, 'person').map(row => row.shout_id), [passed.result]);
+    const response = prepareEngineMove(board, 'answerDecision', [passed.result, { agentId: 'coordinator', asPerson: true, text: 'Passed decision answered', lanes: ['web'] }], { id: 'passed-answer' });
+    assert.equal(Boolean(applyRelayMove(board, response, { sequence: ++sequence, at: CLAIM_AT, kind: 'move', sender: personSender }).error), false);
+    assert.deepEqual(store.openDecisions(board, 'person'), []);
+    assert.deepEqual(store.openDecisions(board, 'coordinator'), []);
+    assert.ok(exportBoard(board).tables.shout.some(row => row.shout_answers === questions[3] && row.shout_from === 'person'), 'guarded person answers reach the original asker');
+  }
+  assert.deepEqual(exportBoard(copies[0]).tables, exportBoard(copies[1]).tables);
+});
+
+test('future engine relay records stop before every sender shape without changing a replica [H16]', t => {
+  const { copies, item } = engineCopies(t);
+  const move = { ...claimMove(copies[0], item, 'web-1'), engine: ENGINE_VERSION + 1 };
+  for (const sender of [undefined, {}, { kind: 'person', userId: 'fixture-user' }, { kind: 'agent', userId: 'fixture-user', agent: 'web-2' }]) {
+    for (const board of copies) {
+      const before = exportBoard(board);
+      assert.throws(() => applyRelayMove(board, move, { sequence: 1, at: CLAIM_AT, kind: 'request', sender }), error => error.code === 'ENGINE_VERSION');
+      assert.deepEqual(exportBoard(board), before);
+      assert.equal(appliedSequence(board), 0);
+    }
+  }
+});
+
+test('released engine 3 stops a background completion before changing rows or its cursor [V2,H16]', async t => {
+  const { directory, copies, item } = engineCopies(t);
+  const archive = execFileSync('git', ['archive', 'v0.8.1'], { cwd: resolve(import.meta.dirname, '..'), maxBuffer: 32 * 1024 * 1024 });
+  execFileSync('tar', ['-x', '-C', directory], { input: archive });
+  const released = await import(pathToFileURL(join(directory, 'src/engine.js')).href);
+  const releasedMachine = await import(pathToFileURL(join(directory, 'src/machine.js')).href);
+  assert.equal(releasedMachine.ENGINE_VERSION, 3, 'exercise the actual released client');
+  assert.equal(released.ENGINE_OPERATIONS.includes('completeCheckBaseline'), false);
+  assert.ok(ENGINE_OPERATIONS.includes('completeCheckBaseline'));
+  const expected = { command: 'true', main: 'a'.repeat(40), request: '12345678-1234-1234-1234-123456789abc' };
+  const baseline = { ...expected, result: 'green' };
+  const sender = { kind: 'agent', userId: 'fixture-user', agent: 'coordinator' };
+  for (const board of copies) {
+    store.editItem(board, item, { agentId: 'coordinator', check: expected.command, checkBaseline: { ...expected, result: 'pending' } });
+    checkpointSequence(board, 7);
+    const currentMove = prepareEngineMove(board, 'completeCheckBaseline', [item, { agentId: 'coordinator', expected, baseline }]);
+    assert.equal(currentMove.engine, ENGINE_VERSION);
+    assert.ok(ENGINE_VERSION >= 4, 'the current engine supports background completions');
+    const move = { ...currentMove, engine: 4 }; // Keep the actual v4-versus-released-v3 compatibility boundary.
+    const before = exportBoard(board);
+    assert.throws(() => released.applyRelayMove(board, move, { sequence: 8, at: CLAIM_AT, kind: 'move', sender }), error => {
+      assert.equal(error.code, 'ENGINE_VERSION');
+      assert.match(error.message, /version 4.*version 3.*upgrade/i);
+      return true;
+    });
+    assert.deepEqual(exportBoard(board), before, 'no refusal, receipt, item or replay metadata changes');
+    assert.equal(released.appliedSequence(board), 7);
+    const receipt = applyRelayMove(board, move, { sequence: 8, at: CLAIM_AT, kind: 'move', sender });
+    assert.equal(Boolean(receipt.error), false);
+    assert.equal(receipt.result, true);
+    assert.equal(appliedSequence(board), 8);
+    assert.equal(store.events(board).at(-1).event_kind, 'check-baseline');
+  }
+});
+
+test('an engine 6 client meets an item hold and is told to upgrade [H16,M1]', async t => {
+  const { directory, copies, item } = engineCopies(t);
+  const archive = execFileSync('git', ['archive', 'v0.8.3'], { cwd: resolve(import.meta.dirname, '..'), maxBuffer: 32 * 1024 * 1024 });
+  execFileSync('tar', ['-x', '-C', directory], { input: archive });
+  const released = await import(pathToFileURL(join(directory, 'src/engine.js')).href);
+  const releasedMachine = await import(pathToFileURL(join(directory, 'src/machine.js')).href);
+  assert.equal(releasedMachine.ENGINE_VERSION, 6, 'exercise the actual 0.8.3 client');
+  assert.equal(released.ENGINE_OPERATIONS.includes('holdItem'), false);
+  assert.equal(released.ENGINE_OPERATIONS.includes('releaseItemHold'), false);
+  assert.ok(ENGINE_VERSION >= 7, 'the current engine supports item holds');
+  assert.ok(ENGINE_OPERATIONS.includes('holdItem'));
+
+  const board = copies[0];
+  const oldMove = released.prepareEngineMove(board, 'claim', [item, {
+    agentId: 'web-1', lane: 'web', leaseMs: 2 * HOUR, head: 'a'.repeat(40),
+    freeze: () => ({ text: '{"rows":[]}', digest: 'f'.repeat(64) }),
+  }], { id: 'engine-6-understood-claim' });
+  assert.equal(oldMove.engine, 6);
+  const sender = { kind: 'agent', userId: 'fixture-user', agent: 'web-1' };
+  const oldOutcome = released.applyRelayMove(board, oldMove, { sequence: 1, at: CLAIM_AT, kind: 'move', sender });
+  assert.equal(Boolean(oldOutcome.error), false, 'the old client still applies an operation it understands');
+  assert.equal(appliedSequence(board), 1);
+
+  const hold = prepareEngineMove(board, 'holdItem', [item, {
+    agentId: 'coordinator', reason: 'review the release',
+  }], { id: 'engine-7-item-hold', actor: 'coordinator' });
+  assert.equal(hold.engine, ENGINE_VERSION);
+  const engine7Hold = { ...hold, engine: 7 };
+  const before = exportBoard(board);
+  let refusal;
+  let refusalOutcome;
+  try {
+    refusalOutcome = released.applyRelayMove(board, engine7Hold, {
+      sequence: 2, at: CLAIM_AT, kind: 'move', sender: { kind: 'agent', userId: 'fixture-user', agent: 'coordinator' },
+    });
+  } catch (error) {
+    refusal = error;
+  }
+  const refusalCode = refusal?.code ?? refusalOutcome?.error?.code;
+  const refusalMessage = refusal?.message ?? refusalOutcome?.error?.message ?? '';
+  assert.equal(refusalCode, 'ENGINE_VERSION');
+  assert.match(refusalMessage, /engine version 7.*engine version 6.*upgrade pullboard/i);
+  assert.deepEqual(exportBoard(board), before, 'the old client refuses before changing item rows or replay receipts');
+  assert.equal(appliedSequence(board), 1, 'the hold refusal does not advance the old client cursor');
 });
 
 test('a relay refusal receipt failure rolls back its log and cursor together [H2,H16]', t => {

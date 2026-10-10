@@ -1,6 +1,6 @@
 /** First-run guidance on private Git repos, including unrelated files setup must not stage [I1,I2]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -14,14 +14,14 @@ function project(t) {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', PULLBOARD_HOME: join(root, '.private-home') };
   /** Read a private Git command's result without inheriting the maintainer's configuration. */
-  const git = (...args) => execFileSync('git', args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+  const git = (...args) => runFixtureGit(args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' });
   /** Preserve CLI output so guidance is checked exactly as a newcomer receives it. */
-  const run = (...args) => spawnSync(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
+  const run = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   return { root, env, git, run };
 }
 
-test('init ends with a working staging line for exactly its own writes [I1,I2]', (t) => {
+test('init ends with a working staging line for exactly its own writes [I1,I2,D1,D2]', (t) => {
   const box = project(t);
   writeFileSync(join(box.root, '.env.local'), 'LOCAL=1\n');
   writeFileSync(join(box.root, 'notes.txt'), 'keep this out of the initial commit\n');
@@ -45,8 +45,9 @@ test('init ends with a working staging line for exactly its own writes [I1,I2]',
     '.claude/skills/pullboard-signoff/SKILL.md',
     '.claude/skills/pullboard-spec-review/SKILL.md',
     '.claude/skills/pullboard-verify/SKILL.md',
-    '.githooks/commit-msg', '.githooks/pre-push',
-    'AGENTS.md', 'PRACTICE.md', 'SPEC.md', 'pullboard.json',
+    '.githooks/commit-msg', '.githooks/pre-merge-commit', '.githooks/pre-push',
+    '.gitignore',
+    'AGENTS.md', 'DOCTRINE.md', 'SPEC.md', 'pullboard.json',
   ]);
   assert.equal(readFileSync(join(box.root, '.env.local'), 'utf8'), 'LOCAL=1\n');
   assert.equal(readFileSync(join(box.root, '.githooks', 'pre-commit'), 'utf8'), '#!/bin/sh\n# My hook\n');
@@ -54,9 +55,8 @@ test('init ends with a working staging line for exactly its own writes [I1,I2]',
   const rerun = box.run('init');
   assert.equal(rerun.status, 0, rerun.stderr);
   const secondStage = rerun.stdout.trimEnd().split('\n').at(-1);
-  assert.match(secondStage, /^git add -f -- /);
-  assert.equal(spawnSync('sh', ['-c', secondStage], { cwd: box.root, env: box.env }).status, 0);
-  assert.deepEqual(box.git('diff', '--cached', '--name-only').split('\n'), ['.githooks/commit-msg', '.githooks/pre-push']);
+  assert.doesNotMatch(secondStage, /^git add -f -- /, 'idempotent setup writes and stages nothing on its second run');
+  assert.equal(box.git('diff', '--cached', '--name-only'), '');
 });
 
 test('init detects language gates and gives an example in the same ecosystem [I1,I2]', (t) => {

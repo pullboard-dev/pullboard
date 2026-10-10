@@ -3,14 +3,14 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
+import { runFixtureChild } from './fixture-child.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 
 /** Run settings in an isolated machine home, returning its structured CLI result. */
 function settings(home, ...args) {
-  return spawnSync(process.execPath, [BIN, 'settings', ...args, '--json'], {
+  return runFixtureChild(process.execPath, [BIN, 'settings', ...args, '--json'], {
     encoding: 'utf8', env: { ...process.env, PULLBOARD_HOME: home },
   });
 }

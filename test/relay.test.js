@@ -1,14 +1,19 @@
 /** Relay identity, expiry, permission freshness and scoped credential isolation [H8, H1]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { runFixtureChild as spawnSync } from './fixture-child.js';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
+import { DatabaseSync } from 'node:sqlite';
+import { ENGINE_VERSION } from '../src/machine.js';
 import { createGitHubClient } from '../relay/github.js';
 import { createRelayAuth, ACCESS_WINDOW_MS } from '../relay/auth.js';
 import { serveRelay } from '../relay/service.js';
 import { githubFixture } from './relay-fixture.js';
 import { relayClientFixture } from './relay-client-fixture.js';
+import { serveView } from '../src/serve.js';
+import { fetchFresh } from './http-fixture.js';
 
 /** Use real private SQLite and an actual HTTP provider with a controllable expiry clock. */
 async function fixture(t, options = {}) {
@@ -93,6 +98,42 @@ test('lost GitHub read access takes effect at ten minutes and before every board
   assert.deepEqual(await box.auth.boardsFor(signed.token), [], 'a denied write invalidates an earlier allowed read');
 });
 
+test('person token management lists only owned scoped metadata and preserves independent revocation [H2,H9]', async (t) => {
+  const box = await fixture(t);
+  const person = await login(box);
+  await box.auth.linkBoard(person.token, 'alpha', 'fixture/repository');
+  await box.auth.linkBoard(person.token, 'beta', 'fixture/repository');
+  const first = await box.auth.issueToken(person.token, { board: 'alpha', agent: 'worker-one' });
+  const second = await box.auth.issueToken(person.token, { board: 'alpha', agent: 'worker-two' });
+  const other = await box.auth.issueToken(person.token, { board: 'beta', agent: 'worker-one' });
+  const foreign = new DatabaseSync(box.database);
+  try {
+    foreign.prepare('INSERT INTO relay_users(id,login) VALUES (?,?)').run('8', 'other-person');
+    foreign.prepare('INSERT INTO relay_credentials(id,hash,kind,user_id,board,agent,expires) VALUES (?,?,?,?,?,?,?)')
+      .run('foreign-private-fixture', 'f'.repeat(64), 'board', '8', 'alpha', 'foreign-worker', Date.now() + 60_000);
+  } finally { foreign.close(); }
+  const listed = await box.auth.listTokens(person.token, 'alpha');
+  assert.equal(listed.length, 2);
+  assert.deepEqual(listed.map((row) => row.agent), ['worker-one', 'worker-two']);
+  for (const row of listed) {
+    assert.deepEqual(Object.keys(row).sort(), ['agent', 'board', 'created', 'expires', 'id', 'revoked']);
+    assert.equal(row.board, 'alpha');
+    assert.equal(row.revoked, false);
+  }
+  for (const secret of [person.token, first.token, second.token, other.token]) {
+    assert.equal(JSON.stringify(listed).includes(secret), false, 'listing never includes a credential value');
+  }
+  await assert.rejects(box.auth.listTokens(first.token, 'alpha'), { code: 'HUMAN_REQUIRED' });
+  await assert.rejects(box.auth.listTokens(first.token, 'beta'), { code: 'TOKEN_BOARD' });
+  await box.auth.revoke(person.token, first.id);
+  assert.equal((await box.auth.listTokens(person.token, 'alpha')).find((row) => row.id === first.id).revoked, true);
+  await assert.rejects(box.auth.authenticate(first.token, { board: 'alpha', write: true }), { code: 'AUTH_REQUIRED' });
+  assert.equal((await box.auth.authenticate(second.token, { board: 'alpha', write: true })).agent, 'worker-two');
+  assert.equal((await box.auth.authenticate(other.token, { board: 'beta', write: true })).agent, 'worker-one');
+  box.state.permission = 'read';
+  await assert.rejects(box.auth.listTokens(person.token, 'alpha'), { code: 'WRITE_REQUIRED' });
+});
+
 test('credentials are hash-only, expire, revoke individually and survive relay restart [H8, H1]', async (t) => {
   const box = await fixture(t, { sessionTTL: 30_000 });
   const signed = await login(box);
@@ -150,7 +191,7 @@ test('revoking a board credential while its upload body is open stores nothing [
   const origin = `http://127.0.0.1:${service.port}`;
   const snapshot = await fetch(`${origin}/api/v1/boards/${board}/state`, {
     method: 'PUT',
-    headers: { authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
+    headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
     body: JSON.stringify({ sequence: 0, sealed: 'AQ' }),
   });
   assert.equal(snapshot.status, 200);
@@ -170,7 +211,7 @@ test('revoking a board credential while its upload body is open stores nothing [
   let stream;
   const upload = fetch(`${origin}/api/v1/boards/${board}/moves`, {
     method: 'POST',
-    headers: { authorization: `Bearer ${agent.token}`, 'content-type': 'application/json' },
+    headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${agent.token}`, 'content-type': 'application/json' },
     body: new ReadableStream({ start(controller) { stream = controller; controller.enqueue(Buffer.from('{"sequence":1,"sealed":"')); } }),
     duplex: 'half',
   });
@@ -186,7 +227,7 @@ test('revoking a board credential while its upload body is open stores nothing [
   assert.equal(response.status, 401, JSON.stringify(refusal));
   assert.equal(refusal.error.code, 'AUTH_REQUIRED');
   const events = await fetch(`${origin}/api/v1/boards/${board}/events?after=0`, {
-    headers: { authorization: `Bearer ${person.token}` },
+    headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}` },
   });
   assert.equal(events.status, 200);
   assert.deepEqual((await events.json()).events, [], 'the revoked upload never appends a move');
@@ -207,7 +248,7 @@ test('revoking a person token during snapshot upload preserves the prior snapsho
   const origin = `http://127.0.0.1:${service.port}`;
   const firstSnapshot = await fetch(`${origin}/api/v1/boards/${board}/state`, {
     method: 'PUT',
-    headers: { authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
+    headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
     body: JSON.stringify({ sequence: 0, sealed: 'AQ' }),
   });
   assert.equal(firstSnapshot.status, 200);
@@ -227,7 +268,7 @@ test('revoking a person token during snapshot upload preserves the prior snapsho
   let stream;
   const upload = fetch(`${origin}/api/v1/boards/${board}/state`, {
     method: 'PUT',
-    headers: { authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
+    headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
     body: new ReadableStream({ start(controller) { stream = controller; controller.enqueue(Buffer.from('{"sequence":0,"sealed":"')); } }),
     duplex: 'half',
   });
@@ -243,7 +284,7 @@ test('revoking a person token during snapshot upload preserves the prior snapsho
   assert.equal(response.status, 401, JSON.stringify(refusal));
   assert.equal(refusal.error.code, 'AUTH_REQUIRED');
   const current = await fetch(`${origin}/api/v1/boards/${board}/state`, {
-    headers: { authorization: `Bearer ${observer.token}` },
+    headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${observer.token}` },
   });
   assert.equal(current.status, 200);
   const saved = await current.json();
@@ -348,21 +389,32 @@ test('an explicit read role still hides a public board below triage [H13,H14,H8]
   await assert.rejects(box.auth.issueToken(signed.token, { board: 'alpha', agent: 'worker' }), { code: 'BOARD_NOT_LINKED' });
 });
 
-test('relay off forgets expired and independently unlinked boards while preserving local rows [H1,H7,H18]', async (t) => {
+test('relay off forgets expired and remotely deleted boards while preserving local rows [H1,H7,H18]', async (t) => {
   for (const cause of ['expired', 'other-client']) await t.test(cause, async (t) => {
     const box = await relayClientFixture(t);
     await box.link();
-    const localBeforeDeletion = (await box.cli('export')).document.tables;
+    const localBeforeOff = (await box.cli('export')).document.tables;
+    const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
     if (cause === 'expired') box.advance(90);
-    else assert.equal(await box.otherDeviceOff(), 0, 'a second real CLI device unlinks the shared board');
+    else {
+      const phone = await box.phoneSession();
+      const deleted = await fetchFresh(`${box.origin}/api/v1/boards/${link.board}`, {
+        method: 'DELETE', headers: { authorization: `Bearer ${phone.token}`, 'x-pullboard-engine': String(ENGINE_VERSION) },
+      });
+      assert.equal(deleted.status, 200, 'an explicit person HTTP DELETE removes the remote board');
+    }
+    const callsBeforeOff = box.calls.length;
     const off = await box.cli('relay', 'off');
     assert.equal(off.code, 0);
     assert.equal(off.document.linked, false);
-    assert.equal(off.document.alreadyDeleted, true);
-    assert.match(off.document.notice, /already deleted/);
+    assert.match(off.document.notice, /Local link removed/u);
     assert.equal(existsSync(box.linkFile), false, 'local link metadata is forgotten');
     assert.equal(existsSync(box.keyFile), false, 'device-only fallback key is forgotten');
-    assert.deepEqual((await box.cli('export')).document.tables, localBeforeDeletion, 'local board is complete after remote deletion');
+    assert.deepEqual((await box.cli('export')).document.tables, localBeforeOff, 'local rows and event history survive remote deletion or expiry');
+    assert.ok(JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'relay-machine/state.json'), 'utf8')).excluded.includes(box.root),
+      'the local opt-out remains durable after unlink');
+    assert.equal(box.calls.slice(callsBeforeOff).some(call => call.method === 'DELETE'), false,
+      'relay off never deletes the relay copy without its separate phone approval');
     const count = box.calls.length;
     assert.equal((await box.cli('relay', 'off')).code, 0);
     assert.equal((await box.cli('status')).code, 0);
@@ -370,23 +422,22 @@ test('relay off forgets expired and independently unlinked boards while preservi
   });
 });
 
-test('relay off retains credentials and metadata after non-missing or unsupported refusals [H1,H7]', async (t) => {
+test('relay off completes local unlink when the relay is offline [H1,H7,H18]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
-  for (const failure of [
-    { status: 403, code: 'NO_REPO_ACCESS' },
-    { status: 401, code: 'AUTH_REQUIRED' },
-    { status: 500, code: 'NO_BOARD' },
-    { status: 404, code: 'NO_BOARD', version: 2 },
-  ]) {
-    box.overrideDelete(failure);
-    assert.notEqual((await box.cli('relay', 'off')).code, 0, 'only a supported missing-board response permits cleanup');
-    assert.equal(existsSync(box.linkFile), true);
-    assert.equal(existsSync(box.keyFile), true);
-  }
-  box.overrideDelete(null);
-  assert.equal((await box.cli('relay', 'off')).code, 0);
+  const localBeforeOff = (await box.cli('export')).document.tables;
+  await box.stopRelay();
+  const callsBeforeOff = box.calls.length;
+  const off = await box.cli('relay', 'off');
+  assert.equal(off.code, 0, 'local unlink succeeds without a reachable relay');
+  assert.match(off.document.notice, /relay copy stays until you approve deleting it on your phone/u);
+  assert.equal(existsSync(box.linkFile), false);
   assert.equal(existsSync(box.keyFile), false);
+  assert.ok(JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'relay-machine/state.json'), 'utf8')).excluded.includes(box.root),
+    'the local opt-out remains durable');
+  assert.deepEqual((await box.cli('export')).document.tables, localBeforeOff, 'offline unlink preserves all local rows');
+  assert.equal(box.calls.length, callsBeforeOff, 'offline local unlink makes no relay request');
+  assert.equal(box.calls.some(call => call.method === 'DELETE'), false, 'offline local unlink cannot delete the remote copy');
 });
 
 test('BOARD_INACTIVE appears once per command and resets for a second command in the same process [H18]', async (t) => {
@@ -430,7 +481,7 @@ test('unlinked board commands attempt zero outbound requests [H1,P5]', async (t)
     const codes = [];
     for (const args of [
       ['status'], ['list'], ['show', '1'], ['add', ${JSON.stringify(box.lane)}, 'another fixture item'],
-      ['shout', 'coordinator', 'fixture local message'], ['relay'], ['relay', 'off'],
+      ['shout', ${JSON.stringify(box.lane)}, 'fixture local message'], ['relay'], ['relay', 'off'],
     ]) {
       try {
         codes.push(await main([...args, '--json'], {
@@ -445,18 +496,321 @@ test('unlinked board commands attempt zero outbound requests [H1,P5]', async (t)
   assert.ok(result.document.codes.every(code => code === 0), 'all ordinary local board commands succeed without transport');
 });
 
-test('plain relay off explains an already-deleted board without printing credentials [H1,H18]', async (t) => {
+
+test('offline linked reads use the local board, moves refuse, and the same relay resumes [H10]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
-  box.advance(90);
+  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const boardFile = join(box.root, '.git', 'pullboard', 'board.sqlite');
+  const beforeBytes = readFileSync(boardFile);
+  const beforeTables = (await box.cli('export')).document.tables;
+  const beforeEvents = beforeTables.event;
+  const oldEnvironment = new Map(['HOME', 'PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME']
+    .map(name => [name, process.env[name]]));
+  for (const name of oldEnvironment.keys()) process.env[name] = box.env[name];
+  let view;
+  try {
+    view = await serveView({ port: 0 });
+    const page = await fetchFresh(view.url);
+    assert.equal(page.status, 200, 'the real local view page remains available');
+    assert.match(page.headers.get('content-type') ?? '', /text\/html/);
+
+    await box.stopRelay();
+    const status = await box.cli('status');
+    const listed = await box.cli('list', '--all');
+    const shown = await box.cli('show', '1');
+    assert.equal(status.code, 0, 'status reads its local board while disconnected');
+    assert.equal(listed.code, 0, 'list reads its local board while disconnected');
+    assert.ok(listed.document.items.some(item => item.item_title === 'private cleanup fixture item'));
+    assert.equal(shown.code, 0, 'show reads its local board while disconnected');
+    assert.equal(shown.document.item_title, 'private cleanup fixture item');
+
+    const viewKey = new URL(view.url).searchParams.get('k');
+    const localBoardsUrl = new URL('/api/v1/boards', view.url);
+    localBoardsUrl.searchParams.set('k', viewKey);
+    const localBoardsResponse = await fetchFresh(localBoardsUrl);
+    assert.equal(localBoardsResponse.status, 200, 'the local view API remains available offline');
+    const localBoards = await localBoardsResponse.json();
+    const localBoard = localBoards.boards.find(board => board.root === box.root);
+    assert.ok(localBoard, 'the local view still lists the linked project from its local registry');
+    const localStateUrl = new URL(`/api/v1/boards/${localBoard.id}/state`, view.url);
+    localStateUrl.searchParams.set('k', viewKey);
+    const localStateResponse = await fetchFresh(localStateUrl);
+    assert.equal(localStateResponse.status, 200);
+    const localState = await localStateResponse.json();
+    assert.ok(localState.state.items.some(item => item.title === 'private cleanup fixture item'),
+      'the local view reads the same private board contents while the relay is stopped');
+
+    for (const args of [
+      ['add', box.lane, 'refused offline add'],
+      ['shout', 'coordinator', 'refused offline shout'],
+    ]) {
+      const refused = await box.cli(...args);
+      assert.equal(refused.code, 1);
+      assert.equal(refused.document.error.code, 'RELAY_UNAVAILABLE');
+      assert.ok(refused.document.error.message.includes(box.origin), 'the refusal names the address attempted');
+      assert.match(refused.document.error.message, /retry this move when the relay is reachable/);
+    }
+    const viewMoveUrl = new URL(`/api/v1/boards/${localBoard.id}/moves`, view.url);
+    viewMoveUrl.searchParams.set('k', viewKey);
+    const viewMove = await fetchFresh(viewMoveUrl, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ verb: 'add', args: { lane: box.lane, title: 'refused offline view move' } }),
+    });
+    assert.equal(viewMove.status, 409, 'the local view API uses the linked move refusal path');
+    assert.equal((await viewMove.json()).error.code, 'RELAY_UNAVAILABLE');
+
+    assert.deepEqual(readFileSync(boardFile), beforeBytes, 'offline reads and refused moves leave the native board bytes unchanged');
+    assert.deepEqual((await box.cli('export')).document.tables, beforeTables, 'no speculative local move or event was applied');
+
+    await box.restartRelay();
+    const resumed = await box.cli('add', box.lane, 'move after relay returns');
+    assert.equal(resumed.code, 0, 'the relay resumes without relay off/on repair');
+    assert.equal(resumed.document.item.item_title, 'move after relay returns');
+    const afterTables = (await box.cli('export')).document.tables;
+    assert.equal(afterTables.event.length, beforeEvents.length + 1, 'only the acknowledged recovery move is recorded locally');
+    assert.equal(afterTables.event.at(-1).event_kind, 'add');
+    const remoteStateResponse = await fetch(`${box.origin}/api/v1/boards/${link.board}/state`, {
+      headers: { authorization: `Bearer ${link.token}`, 'x-pullboard-engine': String(ENGINE_VERSION) },
+    });
+    assert.equal(remoteStateResponse.status, 200);
+    assert.equal((await remoteStateResponse.json()).state.sequence, 1, 'the resumed move has exactly one relay position');
+  } finally {
+    if (view) await view.close();
+    for (const [name, value] of oldEnvironment) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+});
+
+test('a linked device without its key reads locally and refuses moves with both repairs [H10,H17]', async (t) => {
+  const box = await relayClientFixture(t);
+  // The isolated PATH must install the real CLI for Git's generated hooks in the new worktree.
+  symlinkSync(resolve(import.meta.dirname, '../bin/pullboard.js'), join(box.env.PATH, 'pullboard'));
+  const staged = spawnSync('git', ['add', '-A'], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  assert.equal(staged.status, 0, staged.stderr);
+  const seeded = spawnSync('git', ['commit', '-m', 'chore(test): seed fixture'], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  assert.equal(seeded.status, 0, seeded.stderr);
+  const agentRoot = join(box.root, '..', 'missing-key-agent');
+  const worktree = spawnSync('git', ['worktree', 'add', '-b', 'fixture-missing-key-agent', agentRoot, 'HEAD'], {
+    cwd: box.root, env: box.env, encoding: 'utf8',
+  });
+  assert.equal(worktree.status, 0, worktree.stderr);
+  const prepare = await box.script(`
+    import { main } from ${JSON.stringify(box.mainURL)};
+    for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
+    /** Run a real CLI command from the fixture worktree and capture its JSON result. */
+    async function command(cwd, args) {
+      let output = '';
+      const code = await main([...args, '--json'], { cwd, stdout: { isTTY: false, write: value => { output += value; } }, stderr: { write() {} }, stdin: process.stdin });
+      return { code, document: JSON.parse(output) };
+    }
+    const joined = await command(${JSON.stringify(agentRoot)}, ['join', ${JSON.stringify(box.lane)}, '--route', 'mid']);
+    const asked = await command(${JSON.stringify(agentRoot)}, ['shout', 'coordinator', 'Should this fixture continue?', '--decision']);
+    process.stdout.write(JSON.stringify({ joined, asked }));
+  `);
+  assert.equal(prepare.document.joined.code, 0, 'the real agent worktree joins its lane');
+  assert.equal(prepare.document.asked.code, 0, 'the agent creates a real open decision before its key is removed');
+  const decision = prepare.document.asked.document.id;
+  assert.ok(Number.isSafeInteger(decision));
+  await box.link();
+  const boardFile = join(box.root, '.git', 'pullboard', 'board.sqlite');
+  const beforeBytes = readFileSync(boardFile);
+  const callsBefore = box.calls.length;
+  assert.equal(existsSync(box.keyFile), true);
+  rmSync(box.keyFile);
+  assert.equal(existsSync(box.keyFile), false, 'the isolated device key is actually absent');
+
+  const reads = await box.script(`
+    import { main } from ${JSON.stringify(box.mainURL)};
+    for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
+    /** Run one local read and capture its JSON document and diagnostics. */
+    async function command(args) {
+      let output = '';
+      const code = await main([...args, '--json'], { cwd: process.cwd(), stdout: { isTTY: false, write: value => { output += value; } }, stderr: { write() {} }, stdin: process.stdin });
+      return { code, document: JSON.parse(output) };
+    }
+    const status = await command(['status']);
+    const list = await command(['list', '--all']);
+    const show = await command(['show', '1']);
+    const decisions = await command(['decisions']);
+    process.stdout.write(JSON.stringify({ status, list, show, decisions }));
+  `);
+  const localReads = Object.values(reads.document);
+  for (const result of localReads) {
+    assert.equal(result.code, 0, JSON.stringify(result.document));
+    assert.equal(result.document.diagnostics?.length, 1, 'each read gets one missing-key line despite sync before and after the command');
+    assert.match(result.document.diagnostics[0], /RELAY_KEY_MISSING|board key is missing/);
+    assert.match(result.document.diagnostics[0], /moves are off until the key is reachable/);
+    assert.match(result.document.diagnostics[0], /run this command where the key is available, or pair this device/);
+  }
+  assert.ok(reads.document.list.document.items.some(item => item.item_title === 'private cleanup fixture item'), 'list returns the local item');
+  assert.equal(reads.document.show.document.item_title, 'private cleanup fixture item', 'show returns the local item');
+  assert.ok(reads.document.decisions.document.decisions.some(ask => ask.shout_id === decision), 'decisions returns the locally stored open question');
+  assert.equal(box.calls.length, callsBefore, 'missing key is detected before any relay request');
+
+  const moves = await box.script(`
+    import { main } from ${JSON.stringify(box.mainURL)};
+    for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
+    /** Run one linked move and capture its refusal document. */
+    async function command(cwd, args) {
+      let output = '';
+      const code = await main([...args, '--json'], { cwd, stdout: { isTTY: false, write: value => { output += value; } }, stderr: { write() {} }, stdin: process.stdin });
+      return { code, document: JSON.parse(output) };
+    }
+    const claim = await command(${JSON.stringify(agentRoot)}, ['claim', '1']);
+    const shout = await command(${JSON.stringify(agentRoot)}, ['shout', 'coordinator', 'must not be sent']);
+    const answer = await command(${JSON.stringify(box.root)}, ['answer', ${JSON.stringify(String(decision))}, 'yes']);
+    process.stdout.write(JSON.stringify({ claim, shout, answer }));
+  `);
+  for (const result of Object.values(moves.document)) {
+    assert.equal(result.code, 1);
+    assert.equal(result.document.error.code, 'RELAY_KEY_MISSING');
+    assert.match(result.document.error.message, /board key is missing/);
+    assert.match(result.document.error.message, /run this command where the key is available, or pair this device/);
+  }
+  assert.deepEqual(readFileSync(boardFile), beforeBytes, 'reads and refused moves leave the local board unchanged');
+  assert.equal(box.calls.length, callsBefore, 'no read or refused move reaches the relay');
+});
+
+test('a linked device with an unreadable key reads locally and refuses moves with both repairs [H10,H17]', async (t) => {
+  const box = await relayClientFixture(t);
+  // The isolated PATH must install the real CLI for Git's generated hooks in the new worktree.
+  symlinkSync(resolve(import.meta.dirname, '../bin/pullboard.js'), join(box.env.PATH, 'pullboard'));
+  const staged = spawnSync('git', ['add', '-A'], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  assert.equal(staged.status, 0, staged.stderr);
+  const seeded = spawnSync('git', ['commit', '-m', 'chore(test): seed fixture'], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  assert.equal(seeded.status, 0, seeded.stderr);
+  const agentRoot = join(box.root, '..', 'missing-key-agent');
+  const worktree = spawnSync('git', ['worktree', 'add', '-b', 'fixture-missing-key-agent', agentRoot, 'HEAD'], {
+    cwd: box.root, env: box.env, encoding: 'utf8',
+  });
+  assert.equal(worktree.status, 0, worktree.stderr);
+  const prepare = await box.script(`
+    import { main } from ${JSON.stringify(box.mainURL)};
+    for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
+    /** Run a real CLI command from the fixture worktree and capture its JSON result. */
+    async function command(cwd, args) {
+      let output = '';
+      const code = await main([...args, '--json'], { cwd, stdout: { isTTY: false, write: value => { output += value; } }, stderr: { write() {} }, stdin: process.stdin });
+      return { code, document: JSON.parse(output) };
+    }
+    const joined = await command(${JSON.stringify(agentRoot)}, ['join', ${JSON.stringify(box.lane)}, '--route', 'mid']);
+    const asked = await command(${JSON.stringify(agentRoot)}, ['shout', 'coordinator', 'Should this fixture continue?', '--decision']);
+    process.stdout.write(JSON.stringify({ joined, asked }));
+  `);
+  assert.equal(prepare.document.joined.code, 0, 'the real agent worktree joins its lane');
+  assert.equal(prepare.document.asked.code, 0, 'the agent creates a real open decision before its key is removed');
+  const decision = prepare.document.asked.document.id;
+  assert.ok(Number.isSafeInteger(decision));
+  await box.link();
+  const boardFile = join(box.root, '.git', 'pullboard', 'board.sqlite');
+  const beforeBytes = readFileSync(boardFile);
+  const callsBefore = box.calls.length;
+  assert.equal(existsSync(box.keyFile), true);
+  chmodSync(box.keyFile, 0o000);
+  t.after(() => { if (existsSync(box.keyFile)) chmodSync(box.keyFile, 0o600); });
+  assert.throws(() => readFileSync(box.keyFile), { code: 'EACCES' }, 'the real key file is denied to this shell');
+
+  const reads = await box.script(`
+    import { main } from ${JSON.stringify(box.mainURL)};
+    for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
+    /** Run one local read and capture its JSON document and diagnostics. */
+    async function command(args) {
+      let output = '';
+      try {
+        const code = await main([...args, '--json'], { cwd: process.cwd(), stdout: { isTTY: false, write: value => { output += value; } }, stderr: { write() {} }, stdin: process.stdin });
+        return { code, document: JSON.parse(output) };
+      } catch (error) {
+        return { code: error.code, document: { thrown: error.message } };
+      }
+    }
+    const status = await command(['status']);
+    const list = await command(['list', '--all']);
+    const show = await command(['show', '1']);
+    const decisions = await command(['decisions']);
+    process.stdout.write(JSON.stringify({ status, list, show, decisions }));
+  `);
+  const localReads = Object.values(reads.document);
+  for (const result of localReads) {
+    assert.equal(result.code, 0, JSON.stringify(result.document));
+    assert.equal(result.document.diagnostics?.length, 1, 'each read gets one unreadable-key line despite sync before and after the command');
+    assert.match(result.document.diagnostics[0], /board key is unreadable in this shell \(EACCES\)/);
+    assert.match(result.document.diagnostics[0], /moves are off until the key is reachable/);
+    assert.match(result.document.diagnostics[0], /run this command where the key is available, or pair this device/);
+  }
+  assert.ok(reads.document.list.document.items.some(item => item.item_title === 'private cleanup fixture item'), 'list returns the local item');
+  assert.equal(reads.document.show.document.item_title, 'private cleanup fixture item', 'show returns the local item');
+  assert.ok(reads.document.decisions.document.decisions.some(ask => ask.shout_id === decision), 'decisions returns the locally stored open question');
+  assert.equal(box.calls.length, callsBefore, 'unreadable key is detected before any relay request');
+
+  const moves = await box.script(`
+    import { main } from ${JSON.stringify(box.mainURL)};
+    for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
+    /** Run one linked move and capture its refusal document. */
+    async function command(cwd, args) {
+      let output = '';
+      try {
+        const code = await main([...args, '--json'], { cwd, stdout: { isTTY: false, write: value => { output += value; } }, stderr: { write() {} }, stdin: process.stdin });
+        return { code, document: JSON.parse(output) };
+      } catch (error) {
+        return { code: error.code, document: { thrown: error.message } };
+      }
+    }
+    const claim = await command(${JSON.stringify(agentRoot)}, ['claim', '1']);
+    const shout = await command(${JSON.stringify(agentRoot)}, ['shout', 'coordinator', 'must not be sent']);
+    const answer = await command(${JSON.stringify(box.root)}, ['answer', ${JSON.stringify(String(decision))}, 'yes']);
+    process.stdout.write(JSON.stringify({ claim, shout, answer }));
+  `);
+  for (const result of Object.values(moves.document)) {
+    assert.equal(result.code, 1);
+    assert.equal(result.document.error.code, 'RELAY_KEY_MISSING');
+    assert.match(result.document.error.message, /board key is unreadable in this shell \(EACCES\)/);
+    assert.match(result.document.error.message, /run this command where the key is available, or pair this device/);
+  }
+  assert.deepEqual(readFileSync(boardFile), beforeBytes, 'reads and refused moves leave the local board unchanged');
+  assert.equal(box.calls.length, callsBefore, 'no read or refused move reaches the relay');
+});
+
+test('plain relay off explains the retained relay copy without printing credentials [H1,H18]', async (t) => {
+  const box = await relayClientFixture(t);
+  await box.link();
+  const localBeforeOff = (await box.cli('export')).document.tables;
+  const callsBeforeOff = box.calls.length;
   const result = await box.script(`
     import { main } from ${JSON.stringify(box.mainURL)};
     let output = '';
     const code = await main(['relay', 'off'], {
       cwd: process.cwd(), stdout: { write(part) { output += part; } }, stderr: { write() {} },
     });
-    console.log(JSON.stringify({ code, explained: output.includes('already deleted'), credential: /ps_|key=/.test(output) }));
+    console.log(JSON.stringify({ code,
+      retained: output.includes('relay copy stays until you approve deleting it on your phone'),
+      credential: /(?:ps|pm|pa|pg)_[A-Za-z0-9_-]{43}|key=/u.test(output) }));
   `);
   assert.equal(result.code, 0);
-  assert.deepEqual(result.document, { code: 0, explained: true, credential: false });
+  assert.deepEqual(result.document, { code: 0, retained: true, credential: false });
+  assert.equal(existsSync(box.linkFile), false, 'plain local off removes the device link');
+  assert.equal(existsSync(box.keyFile), false, 'plain local off forgets the device key');
+  assert.ok(JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'relay-machine/state.json'), 'utf8')).excluded.includes(box.root));
+  assert.deepEqual((await box.cli('export')).document.tables, localBeforeOff, 'plain local off preserves native rows');
+  assert.equal(box.calls.slice(callsBeforeOff).some(call => call.method === 'DELETE'), false,
+    'plain local off never deletes the remote copy without phone approval');
+});
+
+
+test('every real CLI relay request declares its engine including sign-in, reads, writes and unlink [H16,H3]', async t => {
+  const box = await relayClientFixture(t);
+  await box.link();
+  assert.equal((await box.cli('export')).code, 0);
+  assert.equal((await box.cli('add', box.lane, 'Declared-engine fixture move')).code, 0);
+  const off = await box.cli('relay', 'off');
+  assert.equal(off.code, 0);
+  assert.match(off.document.notice, /relay copy stays until you approve deleting it on your phone/u);
+  assert.ok(box.calls.some(call => call.path.startsWith('/auth/')));
+  assert.ok(box.calls.some(call => call.method === 'GET' && call.path.includes('/events')));
+  assert.ok(box.calls.some(call => call.method === 'POST' && call.path.endsWith('/moves')));
+  assert.ok(box.calls.some(call => call.method === 'PUT' && call.path.endsWith('/state')));
+  assert.equal(box.calls.some(call => call.method === 'DELETE'), false, 'local off does not send remote deletion without phone approval');
+  assert.ok(box.calls.every(call => call.engine === String(ENGINE_VERSION)), 'every request from the real CLI carries the current engine version');
 });

@@ -9,6 +9,9 @@ import { chmodSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from '
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { displayAgentName } from './agent-names.js';
+import { loadConfig } from './config.js';
+import { registerProjectAndLink } from './projects.js';
 
 const BIN = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
 
@@ -19,6 +22,8 @@ const SPEC = `# Greeter
 `;
 
 const CONFIG = {
+  name: 'demo',
+  project: 'Pullboard tour demo',
   gate: 'node --test',
   spec: 'SPEC.md',
   verify: { policy: 'any', family: 'off' },
@@ -75,9 +80,9 @@ function pause(ms) {
  * Run the tour. Pauses only when a person is watching a terminal.
  *
  * @param {{ say: (line: string) => void, stdout: any }} io
- * @returns {number}
+ * @returns {Promise<number>}
  */
-export function tour(io) {
+export async function tour(io) {
   const color = colorEnabled(io);
   const pace = io.stdout.isTTY ? 1 : 0;
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-tour-')));
@@ -99,7 +104,7 @@ export function tour(io) {
    */
   const run = (who, file, args, { label = `${file} ${typed(args)}`, show = /./, fails = false, tone } = {}) => {
     pause(400 * pace);
-    if (label) io.say(`   ${paint(who, PROMPT_COLOR[who], color)} $ ${label}`);
+    if (label) io.say(`   ${paint(displayAgentName({ agent_id: who, agent_model: who === 'coordinator' ? null : 'Scripted' }), PROMPT_COLOR[who], color)} $ ${label}`);
     const result = spawnSync(file, args, {
       cwd: where[who],
       encoding: 'utf8',
@@ -184,7 +189,9 @@ export function tour(io) {
     io.say(`The repo is at ${repo}`);
     return 1;
   }
+  await registerProjectAndLink(repo, new Date(), loadConfig(repo), io);
   io.say('\nNothing shipped until a second agent verified it.');
   io.say(`Look around: cd ${repo} && pullboard log`);
+  io.say('see it: pullboard view');
   return 0;
 }

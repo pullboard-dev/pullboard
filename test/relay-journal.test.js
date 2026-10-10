@@ -1,15 +1,16 @@
 /** Opaque relay transport ordering, independent of the pending record interpretation [A4,H7]. */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { mkdtempSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
+import { cleanupFixtureChildren, runFixtureChildAsync } from './fixture-child.js';
 import { createRelayJournal } from '../relay/journal.js';
 
 const ID = 'a'.repeat(32);
 const AGENT = { kind: 'agent', userId: '101', agent: 'client-one' };
 const PERSON = { kind: 'person', userId: '101' };
+after(cleanupFixtureChildren);
 
 /** Give each test a private directory and close every journal before deleting its files. */
 function fixture(t, options = {}) {
@@ -97,19 +98,10 @@ test('[A4,H7] two real processes cannot publish the same next sequence', async (
   ].join('\n'));
   /** Capture only the synthetic sequence/refusal result of one owned worker. */
   function run(label) {
-    return new Promise((done, fail) => {
-      const child = spawn(process.execPath, [worker, box.directory, ID, label], { stdio: ['ignore', 'pipe', 'pipe'] });
-      let out = '';
-      let diagnostics = '';
-      child.stdout.on('data', (chunk) => { out += chunk; });
-      child.stderr.on('data', (chunk) => { diagnostics += chunk; });
-      const timer = setTimeout(() => { child.kill('SIGKILL'); fail(new Error('journal worker timed out')); }, 10_000);
-      child.once('error', (error) => { clearTimeout(timer); fail(error); });
-      child.once('exit', (code) => {
-        clearTimeout(timer);
-        if (code !== 0) return fail(new Error('journal worker failed: ' + diagnostics));
-        try { done(JSON.parse(out)); } catch (error) { fail(error); }
-      });
+    return runFixtureChildAsync(process.execPath, [worker, box.directory, ID, label]).then((result) => {
+      if (result.failure) throw new Error(result.failure);
+      try { return JSON.parse(result.stdout); }
+      catch { throw new Error(result.context); }
     });
   }
   const results = await Promise.all([run('first record'), run('second record')]);

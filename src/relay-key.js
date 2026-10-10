@@ -1,7 +1,7 @@
 /** Device-only board keys, kept outside repositories and relay requests [H1,H15,H17]. */
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { decodeBoardKey, encodeBoardKey } from './seal.js';
@@ -13,7 +13,7 @@ function identity(boardId) {
   return boardId;
 }
 
-/** Locate the private fallback without putting a board key in a repository. */
+/** Locate the owner-only key under the machine pullboard home, outside repositories. */
 function keyFile(boardId) {
   return join(process.env.PULLBOARD_HOME || join(homedir(), '.pullboard'), 'relay-keys', identity(boardId) + '.key');
 }
@@ -30,26 +30,8 @@ function keychain() {
   return null;
 }
 
-/** Save a generated key in the keychain, or atomically in an owner-only fallback file. */
-export function storeBoardKey(boardId, key) {
-  const id = identity(boardId);
-  const encoded = encodeBoardKey(key);
-  const service = keychain();
-  if (service) {
-    // security's interactive mode receives the key through a pipe, never process arguments.
-    const saved = spawnSync(service, service === 'security' ? ['-i']
-      : ['store', '--label=Pullboard board key', 'application', 'pullboard', 'board', id], {
-      encoding: 'utf8', timeout: 10000,
-      input: service === 'security' ? `add-generic-password -U -a ${id} -s pullboard.board-key -w ${encoded}\n` : encoded,
-    });
-    if (saved.status !== 0) throw new Refused('RELAY_KEYCHAIN', 'unlock the system keychain and run pullboard relay on again');
-    // Interactive security may exit successfully after a failed command; check the stored value.
-    if (service === 'security') {
-      const found = spawnSync(service, ['find-generic-password', '-a', id, '-s', 'pullboard.board-key', '-w'], { encoding: 'utf8', timeout: 10000 });
-      if (found.status !== 0 || found.stdout.trim() !== encoded) throw new Refused('RELAY_KEYCHAIN', 'unlock the system keychain and run pullboard relay on again');
-    }
-    return 'keychain';
-  }
+/** Persist a device key atomically in a private file, independent of keychain availability. */
+function writeKeyFile(id, encoded) {
   const file = keyFile(id);
   const directory = join(file, '..');
   mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -60,17 +42,43 @@ export function storeBoardKey(boardId, key) {
     writeFileSync(temporary, encoded + '\n', { mode: 0o600, flag: 'wx' });
     renameSync(temporary, file);
   } finally { rmSync(temporary, { force: true }); }
+  return file;
+}
+
+/** Save a generated key in its owner-only device file, even when a keychain is available. */
+export function storeBoardKey(boardId, key) {
+  const id = identity(boardId);
+  writeKeyFile(id, encodeBoardKey(key));
   return 'file';
 }
 
-/** Read a board key only from this device's private file or operating-system keychain. */
+/** Remove a legacy keychain value after its validated key has been copied to the private file. */
+function removeKeychainValue(service, id) {
+  const removed = spawnSync(service, service === 'security'
+    ? ['delete-generic-password', '-a', id, '-s', 'pullboard.board-key']
+    : ['clear', 'application', 'pullboard', 'board', id], { encoding: 'utf8', timeout: 10000 });
+  const absent = service === 'security' ? removed.status === 44 : removed.status === 1 && !removed.stderr;
+  if (removed.status !== 0 && !absent) throw new Refused('RELAY_KEYCHAIN', 'unlock the system keychain to finish moving this board key');
+}
+
+/** Read device storage first, migrating legacy keychain values before using an environment fallback. */
 export function readBoardKey(boardId) {
   const id = identity(boardId);
   const file = keyFile(id);
   if (existsSync(file)) {
     const stat = lstatSync(file);
     if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077)) throw new Refused('RELAY_KEY_STORAGE', 'restore the board key as an owner-only regular file with mode 600');
-    return decodeBoardKey(readFileSync(file, 'utf8').trim());
+    let encoded;
+    try { encoded = readFileSync(file, 'utf8').trim(); }
+    catch (error) {
+      if (!['EACCES', 'EPERM'].includes(error.code)) throw error;
+      throw new Refused('RELAY_KEY_MISSING', 'the board key is unreadable in this shell (' + error.code + '); run this command where the key is available, or pair this device');
+    }
+    const key = decodeBoardKey(encoded);
+    if (process.env.PULLBOARD_RELAY_KEY !== undefined && process.env.PULLBOARD_RELAY_KEY !== encoded) {
+      throw new Refused('RELAY_KEY_FILE_ENV_MISMATCH', 'PULLBOARD_RELAY_KEY differs from this board key file; unset PULLBOARD_RELAY_KEY or set it to the key from this device file');
+    }
+    return key;
   }
   const service = keychain();
   if (service) {
@@ -78,16 +86,27 @@ export function readBoardKey(boardId) {
       ? ['find-generic-password', '-a', id, '-s', 'pullboard.board-key', '-w']
       : ['lookup', 'application', 'pullboard', 'board', id];
     const found = spawnSync(service, args, { encoding: 'utf8', timeout: 10000 });
-    if (found.status === 0) return decodeBoardKey(found.stdout.trim());
+    if (found.status === 0) {
+      const encoded = found.stdout.trim();
+      const key = decodeBoardKey(encoded);
+      // Keep the legacy value until a verified private file exists; roll back if deletion fails.
+      const migrated = writeKeyFile(id, encoded);
+      try { removeKeychainValue(service, id); }
+      catch (error) { rmSync(migrated, { force: true }); throw error; }
+      return key;
+    }
   }
-  throw new Refused('RELAY_KEY_MISSING', 'the board key is missing on this device; pair this device again, or run pullboard relay off then relay on to upload a new sealed snapshot');
+  if (process.env.PULLBOARD_RELAY_KEY !== undefined) return decodeBoardKey(process.env.PULLBOARD_RELAY_KEY);
+  throw new Refused('RELAY_KEY_MISSING', 'the board key is missing on this device; set PULLBOARD_RELAY_KEY from your local secret store, pair this device again, or run pullboard relay off then relay on to upload a new sealed snapshot; run this command where the key is available, or pair this device');
 }
 
 /** Remove the device key after a successful unlink, leaving all local board records untouched. */
 export function forgetBoardKey(boardId, storage) {
   const id = identity(boardId);
-  const service = keychain();
-  if (!service && storage === 'keychain') throw new Refused('RELAY_KEYCHAIN', 'unlock the system keychain and run pullboard relay off again to finish forgetting its key');
+  const file = keyFile(id);
+  const hasFile = existsSync(file);
+  const service = hasFile ? null : keychain();
+  if (!hasFile && !service && storage === 'keychain') throw new Refused('RELAY_KEYCHAIN', 'unlock the system keychain and run pullboard relay off again to finish forgetting its key');
   if (service) {
     const removed = spawnSync(service, service === 'security'
       ? ['delete-generic-password', '-a', id, '-s', 'pullboard.board-key']
@@ -95,5 +114,18 @@ export function forgetBoardKey(boardId, storage) {
     const absent = service === 'security' ? removed.status === 44 : removed.status === 1 && !removed.stderr;
     if (removed.status !== 0 && !absent) throw new Refused('RELAY_KEYCHAIN', 'unlock the system keychain and run pullboard relay off again to finish forgetting its key');
   }
-  rmSync(keyFile(id), { force: true });
+  rmSync(file, { force: true });
+}
+
+/** Delete the retired same-user person-session files without ever reading or hydrating a credential. */
+export function scrubLegacyPersonSessions() {
+  const directory = join(keyFile('0'.repeat(32)), '..');
+  if (!existsSync(directory)) return;
+  const parent = lstatSync(directory);
+  if (!parent.isDirectory() || parent.isSymbolicLink() || (parent.mode & 0o077)) {
+    throw new Refused('RELAY_KEY_STORAGE', 'Restore the owner-only relay-keys directory before removing retired person sessions.');
+  }
+  for (const name of readdirSync(directory)) {
+    if (/^[0-9a-f]{32}\.session\.json(?:\.[0-9a-f-]+\.tmp)?$/u.test(name)) rmSync(join(directory, name), { force: true });
+  }
 }

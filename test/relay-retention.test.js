@@ -1,6 +1,6 @@
 /** Real private relay lifecycle storage, controlled clocks and HTTP authorization [H18]. */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { startFixtureChild as spawn } from './fixture-child.js';
 import { DatabaseSync } from 'node:sqlite';
 import { createCipheriv, randomBytes } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -60,7 +60,7 @@ async function fixture(t) {
   /** Return status/body without ever placing credentials in diagnostic text or URLs. */
   async function call(id, { path = '/state', method = 'GET', token = signed.token, body } = {}) {
     const response = await fetch('http://127.0.0.1:' + relay.port + '/api/v1/boards' + (id ? '/' + id + path : ''), {
-      method, headers: { authorization: 'Bearer ' + token, ...(body ? { 'content-type': 'application/json' } : {}) },
+      method, headers: { 'x-pullboard-engine': '3', authorization: 'Bearer ' + token, ...(body ? { 'content-type': 'application/json' } : {}) },
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
     return { status: response.status, body: await response.json() };
@@ -88,7 +88,7 @@ test('[H18] warnings begin at sixty days on authorized contact; compaction and r
   warningTimeout.unref();
   t.after(() => { clearTimeout(warningTimeout); controller.abort(); });
   const stream = await fetch('http://127.0.0.1:' + box.relay.port + '/api/v1/boards/' + A + '/events?after=0', {
-    headers: { authorization: 'Bearer ' + box.signed.token, accept: 'text/event-stream' }, signal: controller.signal,
+    headers: { 'x-pullboard-engine': '3', authorization: 'Bearer ' + box.signed.token, accept: 'text/event-stream' }, signal: controller.signal,
   });
   const reader = stream.body.getReader();
   let delivered = '';

@@ -3,6 +3,7 @@
  * every coding agent reads (AGENTS.md, which CLAUDE.md points at).
  */
 import { doctrineText, standardDoctrine } from './doctrine.js';
+import { DOCTRINE_FILE } from './config.js';
 
 export const AGENTS_START = '<!-- pullboard:start -->';
 export const AGENTS_END = '<!-- pullboard:end -->';
@@ -19,7 +20,7 @@ export function configTemplate(gate, fix = []) {
     gate,
     ...(fix.length ? { fix } : {}),
     spec: 'SPEC.md',
-    practice: 'PRACTICE.md',
+    practice: DOCTRINE_FILE,
     verify: { policy: 'any', family: 'off' },
     agents: { names: 'suffix' },
     lease: '2h',
@@ -64,7 +65,9 @@ Write each requirement as one row under its section, in this format. The fence k
  * @returns {string}
  */
 export function practiceTemplate() {
-  return `# Practice
+  return `# Doctrine
+
+Our house rules for agentic development.
 
 Inherits Pullboard standard doctrine version 1.
 
@@ -74,7 +77,7 @@ Inherits Pullboard standard doctrine version 1.
 
 ## T · Tests
 
-## G · Git and the gate
+## P · Git and the gate
 
 ## D · Dependencies
 
@@ -95,7 +98,7 @@ This repo runs on pullboard: a work board, lanes and a spec that live in git. No
 
 **Source of truth.** \`SPEC.md\` holds every requirement as a row with an id, like \`G1.2\`. Code follows the spec. Commits cite the ids they serve: \`feat(scope): subject [G1.2]\`. Only a person approves or changes an approved row. Ids are permanent: a row the person cuts stays, marked \`wont\` (won't build), so every commit that cites it keeps its meaning.
 
-**House rules.** This repo inherits Pullboard standard doctrine version 1. PRACTICE.md adds the repo's own rows, overrides a standard rule by its PB id, or declines it with a wont row and its reason as the row text: - PB7 [wont] <why>. Approved rows are in force; follow them as you would the spec. Run pullboard spec --json to read the current merged rules. Re-run pullboard init after changing PRACTICE.md to refresh this managed guidance.
+**Doctrine.** Our house rules for agentic development. This repo inherits Pullboard standard doctrine version 1. ${doctrine.repo ? doctrine.name : DOCTRINE_FILE} adds the repo's own rows, overrides a standard rule by its PB id, or declines it with a wont row and its reason as the row text: - PB7 [wont] <why>. Approved rows are in force; follow them as you would the spec. Run pullboard spec --json to read the current merged rules. Re-run pullboard init after changing the doctrine to refresh this managed guidance.
 
 ### Current doctrine
 

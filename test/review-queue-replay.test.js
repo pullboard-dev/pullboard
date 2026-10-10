@@ -77,6 +77,60 @@ test('review-skip semantics seal after released engine 1, accept legacy claims a
   assert.deepEqual(exportBoard(one), before, 'future-engine refusal preserves all rows and the replay cursor');
 });
 
+test('v4 review releases keep their replay semantics; v5 notes add cooldowns [V1,R1,H16]', (t) => {
+  const { copies: [legacyBoard, currentBoard], item } = memoryCopies(t);
+  for (const board of [legacyBoard, currentBoard]) {
+    store.claim(board, item, { agentId: 'web-1', lane: 'web', leaseMs: LEASE_MS,
+      freeze: () => ({ text: 'review criterion', digest: 'c'.repeat(64) }) });
+    store.submit(board, item, { agentId: 'web-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
+    store.reserveReview(board, item, { agentId: 'web-2', leaseMs: LEASE_MS, policy: 'any' });
+  }
+  assert.throws(() => prepareEngineMove(currentBoard, 'release', [item, 'web-2']), (error) => error.code === 'NOTE_REQUIRED');
+
+  const legacy = { version: 1, engine: 4, id: 'legacy-review-release', operation: 'release', args: [item, 'web-2', 'ignored by engine 4'] };
+  const applied = applyEngineMove(legacyBoard, legacy, { sequence: 1, at: '2026-10-08T08:00:30.000Z' });
+  assert.equal(applied.error, undefined, 'an engine-4 sealed release remains replayable');
+  assert.equal(applied.events[0].event_kind, 'release');
+  assert.equal(applied.events[0].event_detail, '{}', 'engine 4 ignores the later reason field');
+  assert.equal(legacyBoard.executionEngineVersion, undefined, 'successful replay restores the live engine context');
+  assert.deepEqual(store.reviewQueueBreakdown(legacyBoard).releasedItems, [
+    { item, releases: 1, reason: 'reason not recorded' },
+  ]);
+  const legacyNext = applyEngineMove(legacyBoard, { version: 1, engine: 4, id: 'legacy-review-reserve', operation: 'reserveNextReview',
+    args: [{ agentId: 'web-2', lane: 'web', leaseMs: LEASE_MS, policy: 'any' }] }, { sequence: 2, at: '2026-10-08T08:00:31.000Z' });
+  assert.equal(legacyNext.error, undefined, 'engine 4 nextFor does not apply the new reviewer cooldown');
+  assert.equal(legacyNext.result.item.item_id, item);
+  assert.equal(legacyBoard.executionEngineVersion, undefined, 'reserve replay restores the live engine context');
+  assert.throws(() => prepareEngineMove(legacyBoard, 'release', [item, 'web-2']), (error) => error.code === 'NOTE_REQUIRED',
+    'a live constructor does not inherit the preceding v4 replay context');
+  const oldTwoArgRelease = applyEngineMove(legacyBoard, { version: 1, engine: 4, id: 'legacy-two-arg-release', operation: 'release', args: [item, 'web-2'] },
+    { sequence: 3, at: '2026-10-08T08:00:32.000Z' });
+  assert.equal(oldTwoArgRelease.error, undefined, 'a historical two-argument release remains valid');
+  assert.equal(oldTwoArgRelease.events[0].event_detail, '{}');
+  const oldReserve = applyEngineMove(legacyBoard, { version: 1, engine: 4, id: 'legacy-explicit-reserve', operation: 'reserveReview',
+    args: [item, { agentId: 'web-2', leaseMs: LEASE_MS, policy: 'any' }] }, { sequence: 4, at: '2026-10-08T08:00:33.000Z' });
+  assert.equal(oldReserve.error, undefined, 'engine 4 permits the same reviewer to reserve after the old release');
+  assert.equal(legacyBoard.executionEngineVersion, undefined);
+
+  const missingModernNote = applyEngineMove(currentBoard, { version: 1, engine: 5, id: 'current-review-release-missing-note', operation: 'release', args: [item, 'web-2'] },
+    { sequence: 1, at: '2026-10-08T09:00:30.000Z' });
+  assert.equal(missingModernNote.error.code, 'NOTE_REQUIRED', 'the v5 replay receiver enforces the new construction contract');
+  assert.equal(missingModernNote.events, undefined);
+  assert.equal(currentBoard.executionEngineVersion, undefined, 'a refused replay restores the live engine context');
+  const modernRelease = prepareEngineMove(currentBoard, 'release', [item, 'web-2', 'recheck the submitted tree'], { id: 'current-review-release' });
+  assert.equal(modernRelease.engine, ENGINE_VERSION);
+  const modern = applyEngineMove(currentBoard, modernRelease, { sequence: 2, at: '2026-10-08T09:00:31.000Z' });
+  assert.equal(modern.error, undefined);
+  assert.deepEqual(JSON.parse(modern.events[0].event_detail), { review: true, reason: 'recheck the submitted tree' });
+  assert.equal(currentBoard.executionEngineVersion, undefined);
+  const filtered = store.reserveNextReview(currentBoard, { agentId: 'web-2', lane: 'web', leaseMs: LEASE_MS, policy: 'any' });
+  assert.equal(filtered.item, null, 'engine 5 nextFor hides work released by this reviewer during cooldown');
+  const modernReserve = applyEngineMove(currentBoard, prepareEngineMove(currentBoard, 'reserveReview', [item,
+    { agentId: 'web-2', leaseMs: LEASE_MS, policy: 'any' }], { id: 'current-review-reserve' }), { sequence: 3, at: '2026-10-08T09:00:32.000Z' });
+  assert.equal(modernReserve.error.code, 'REVIEW_COOLDOWN');
+  assert.equal(currentBoard.executionEngineVersion, undefined, 'a refused v5 replay restores the live engine context');
+});
+
 test('sealed review-skip claims replay identically, while renewals and refusals add no skipped claim [Q1,V15,H3,H16]', (t) => {
   const { copies: [one, two], item } = memoryCopies(t);
   const freshOne = claimMove(one, item, 'web-1', 'queue-claim');

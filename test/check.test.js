@@ -1,11 +1,12 @@
 /** Coordinator-owned check commands and explicit caller consent [V2,N23]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, startFixtureChild as spawn, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { after, test } from 'node:test';
+import { removeFixtureDirectory } from './cleanup-diagnostics.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -16,7 +17,7 @@ const SPEC = `# Check ownership fixture
 `;
 
 after(() => {
-  for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
+  for (const dir of TEMP_DIRS) removeFixtureDirectory(dir);
 });
 
 /** Quote a literal executable path for the fixture hook's POSIX shim. */
@@ -44,10 +45,10 @@ function sandbox() {
     PULLBOARD_HOME: join(dir, 'pullboard-home'),
   };
   /** Run Git with private fixture identity and config. */
-  const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   /** Run the production CLI in a separate process, optionally with piped stdin. */
-  const run = (cwd, args, input) => spawnSync(process.execPath, [BIN, ...args], {
-    cwd, env, encoding: 'utf8', timeout: 10_000, ...(input === undefined ? {} : { input }),
+  const run = (cwd, args, input) => runFixtureChild(process.execPath, [BIN, ...args], {
+    cwd, env, encoding: 'utf8', ...(input === undefined ? {} : { input }),
   });
   return { dir, env, git, run };
 }
@@ -133,13 +134,12 @@ async function confirmInteractively(box, itemId, command, markerFile, json = fal
   child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk; answerPrompt(); });
   child.once('error', promptReject);
   const closed = new Promise((resolveClose, rejectClose) => {
-    child.once('close', (code, signal) => resolveClose({ code, signal }));
+    child.once('close', (code, signal) => {
+      if (!sent) promptReject(new Error(child.fixtureFailure ?? 'check exited before its prompt'));
+      resolveClose({ code, signal, failure: child.fixtureFailure });
+    });
     child.once('error', rejectClose);
   });
-  const timer = setTimeout(() => {
-    promptReject(new Error('timed out waiting for the coordinator check prompt'));
-    child.kill('SIGKILL');
-  }, 10_000);
   try {
     await prompt;
     const result = await closed;
@@ -149,8 +149,6 @@ async function confirmInteractively(box, itemId, command, markerFile, json = fal
     child.kill('SIGKILL');
     await Promise.race([closed, new Promise((resolveClose) => setTimeout(resolveClose, 1_000))]);
     throw error;
-  } finally {
-    clearTimeout(timer);
   }
 }
 

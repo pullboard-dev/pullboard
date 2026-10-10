@@ -9,7 +9,7 @@ You turn what the client asked for into SPEC.md rows. You draft; the person deci
 
 ## Before you start
 
-- Read every document in `ask/`, or the brief the person points you to. Read SPEC.md and PRACTICE.md if they exist.
+- Read every document in `ask/`, or the brief the person points you to. Read SPEC.md and DOCTRINE.md (or PRACTICE.md when it is the only legacy file) if they exist.
 - Run `pullboard spec check`, so you start from a clean spec.
 
 ## The row format

@@ -1,11 +1,12 @@
 /** Check baselines run against main and travel with deterministic board moves [V2,H3,H16,N23]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { openBoard, closeBoard } from '../src/board.js';
+import { openBoard, closeBoard, getItem } from '../src/board.js';
+import { checkBaseline, prepareCheckBaseline } from '../src/check-baseline.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 
@@ -50,13 +51,13 @@ function sandbox() {
   });
   /** Run Git with only this fixture's config and identity. */
   function git(cwd, ...args) {
-    return execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+    return runFixtureGit(args, { cwd, env });
   }
   /** Run a real pullboard CLI process with optional stdin. */
-  function run(cwd, args, input) {
-    return spawnSync(process.execPath, [BIN, ...args], {
-      cwd, env, encoding: 'utf8', timeout: 20_000,
-      ...(input === undefined ? {} : { input }),
+  function run(cwd, args, input, options = {}) {
+    return runFixtureChild(process.execPath, [BIN, ...args], {
+      cwd, env, encoding: 'utf8',
+      ...(input === undefined ? {} : { input }), ...options,
     });
   }
   return { dir, env, git, run };
@@ -119,7 +120,7 @@ function fileCheck(expected, marker = 'check-marker.txt', observations = null) {
 
 /** Add a check-bearing item as coordinator and return its JSON result and item id. */
 function addChecked(box, title, check) {
-  const result = box.run(box.repo, ['add', 'web', title, '--specs', 'G1', '--criterion', 'the check is measured on main', '--check', check, '--json']);
+  const result = box.run(box.repo, ['add', 'web', title, '--specs', 'G1', '--criterion', 'the check is measured on main', '--check', check, '--wait', '--json']);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   assert.equal(result.stderr, '', 'add writes no baseline diagnostics to stderr');
   return { result, item: JSON.parse(result.stdout).item };
@@ -131,6 +132,84 @@ function showItem(box, id, cwd = box.repo) {
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   return { result, item: JSON.parse(result.stdout) };
 }
+
+/** Await an actual fixture state, with a deadline used only to prevent a stranded child. */
+async function waitForState(read, description) {
+  const deadline = Date.now() + 30_000;
+  while (!read() && Date.now() < deadline) await new Promise((done) => setTimeout(done, 25));
+  assert.ok(read(), description);
+}
+
+/** Build a check held on a release file; its finite fallback lets a blocking mutant finish red. */
+function heldCheck(box, name) {
+  const started = join(box.dir, `${name}-started.json`);
+  const finished = join(box.dir, `${name}-finished`);
+  const release = join(box.dir, `${name}-release`);
+  const script = [
+    "const fs=require('node:fs');",
+    `fs.writeFileSync(${JSON.stringify(started)},JSON.stringify({cwd:process.cwd(),content:fs.readFileSync('web/result.txt','utf8').trim()}));`,
+    `const until=Date.now()+20000;while(!fs.existsSync(${JSON.stringify(release)})&&Date.now()<until)Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,25);`,
+    `fs.writeFileSync(${JSON.stringify(finished)},'finished');`,
+  ].join('');
+  return { started, finished, release, command: `${shellWord(process.execPath)} -e ${shellWord(script)}` };
+}
+
+test('[V2,H16] add and edit return while isolated background checks are held, then publish their results', async (t) => {
+  const box = project({ content: 'committed' });
+  const originalMain = box.git(box.repo, 'rev-parse', 'main');
+  writeFileSync(join(box.repo, 'web/result.txt'), 'dirty live checkout\n');
+  const addition = heldCheck(box, 'add-background');
+  const edit = heldCheck(box, 'edit-background');
+  t.after(() => {
+    writeFileSync(addition.release, 'release');
+    writeFileSync(edit.release, 'release');
+  });
+  const added = box.run(box.repo, ['add', 'web', 'Background check', '--check', addition.command, '--json']);
+  assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
+  assert.equal(existsSync(addition.finished), false, 'add returns before its baseline finishes');
+  const item = JSON.parse(added.stdout).item;
+  assert.equal(item.item_check_baseline.result, 'pending');
+  assert.equal(item.item_check_baseline.main, originalMain);
+  await waitForState(() => existsSync(addition.started), 'the detached add worker runs after the caller exits');
+  const observed = JSON.parse(readFileSync(addition.started, 'utf8'));
+  assert.notEqual(observed.cwd, box.repo);
+  assert.equal(observed.content, 'committed', 'the baseline sees committed main, never dirty live content');
+  writeFileSync(addition.release, 'release');
+  await waitForState(() => withBoard(join(box.repo, BOARD_FILE), (board) => getItem(board, item.item_id).item_check_baseline?.result === 'green'), 'the background add result is recorded');
+  assert.equal(existsSync(observed.cwd), false, 'the isolated checkout is removed after its check');
+  assert.match(box.run(box.repo, ['show', String(item.item_id)]).stdout, /CRITERION_PROVES_NOTHING/u);
+  const edited = box.run(box.repo, ['edit', String(item.item_id), '--check', edit.command, '--json']);
+  assert.equal(edited.status, 0, `${edited.stdout}${edited.stderr}`);
+  assert.equal(existsSync(edit.finished), false, 'edit returns before its changed check finishes');
+  assert.equal(JSON.parse(edited.stdout).item.item_check_baseline.result, 'pending');
+  await waitForState(() => existsSync(edit.started), 'the detached edit worker starts');
+  writeFileSync(edit.release, 'release');
+  await waitForState(() => withBoard(join(box.repo, BOARD_FILE), (board) => getItem(board, item.item_id).item_check_baseline?.result === 'green'), 'the background edit result is recorded');
+  const final = showItem(box, item.item_id).item;
+  assert.equal(final.item_check_baseline.command, edit.command);
+  assert.equal(final.item_check_baseline.warning, 'CRITERION_PROVES_NOTHING');
+  assert.equal(readFileSync(join(box.repo, 'web/result.txt'), 'utf8'), 'dirty live checkout\n');
+});
+
+test('[V2,H16] --wait keeps the check blocking and the captured base survives a later main commit', (t) => {
+  const box = project({ content: 'original' });
+  const held = heldCheck(box, 'wait-background');
+  t.after(() => writeFileSync(held.release, 'release'));
+  const waited = box.run(box.repo, ['add', 'web', 'Wait for check', '--check', held.command, '--wait', '--json']);
+  assert.equal(waited.status, 0, `${waited.stdout}${waited.stderr}`);
+  assert.equal(existsSync(held.finished), true, '--wait returns only after the held check finishes');
+  assert.equal(JSON.parse(waited.stdout).item.item_check_baseline.result, 'green');
+  const command = fileCheck('original', 'captured-base-marker.txt');
+  const captured = prepareCheckBaseline(box.repo, command);
+  writeFileSync(join(box.repo, 'web/result.txt'), 'new main\n');
+  box.git(box.repo, 'add', 'web/result.txt');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: change captured main fixture');
+  const completed = checkBaseline(box.repo, command, { main: captured.main });
+  assert.notEqual(captured.main, box.git(box.repo, 'rev-parse', 'main'));
+  assert.equal(completed.main, captured.main);
+  assert.equal(completed.result, 'green', 'a later main cannot change the queued observation');
+  assert.equal(existsSync(join(box.repo, 'captured-base-marker.txt')), false);
+});
 
 test('[V2,H3,H16] baseline comes from committed main while manual check uses the branch', async function baselineUsesMain() {
   const box = project({ content: 'red', worktrees: true });
@@ -173,7 +252,7 @@ test('[V2,H3,H16] green baseline warns through add edit show and private next ve
   assert.equal(existsSync(join(box.repo, 'first-check-marker.txt')), false, 'the passing baseline ran in its temporary clone');
 
   const changedCheck = fileCheck('green', 'edited-check-marker.txt');
-  const edited = box.run(box.repo, ['edit', String(item.item_id), '--check', changedCheck, '--json']);
+  const edited = box.run(box.repo, ['edit', String(item.item_id), '--check', changedCheck, '--wait', '--json']);
   assert.equal(edited.status, 0, `${edited.stdout}${edited.stderr}`);
   assert.equal(edited.stderr, '', 'edit writes no baseline diagnostics to stderr');
   assert.match(edited.stdout, /CRITERION_PROVES_NOTHING/u);
@@ -183,10 +262,10 @@ test('[V2,H3,H16] green baseline warns through add edit show and private next ve
   const shown = box.run(box.repo, ['show', String(item.item_id)]);
   assert.equal(shown.status, 0, shown.stderr);
   assert.match(shown.stdout, /CRITERION_PROVES_NOTHING/u);
-  const textAdded = box.run(box.repo, ['add', 'web', 'Text baseline warning', '--check', check]);
+  const textAdded = box.run(box.repo, ['add', 'web', 'Text baseline warning', '--check', check, '--wait']);
   assert.equal(textAdded.status, 0, textAdded.stderr);
   assert.match(textAdded.stdout, /warning: \[CRITERION_PROVES_NOTHING\]/u);
-  const textEdited = box.run(box.repo, ['edit', String(item.item_id), '--check', `${changedCheck}\n# a distinct command`]);
+  const textEdited = box.run(box.repo, ['edit', String(item.item_id), '--check', `${changedCheck}\n# a distinct command`, '--wait']);
   assert.equal(textEdited.status, 0, textEdited.stderr);
   assert.match(textEdited.stdout, /warning: \[CRITERION_PROVES_NOTHING\]/u);
 
@@ -229,7 +308,7 @@ test('[V2,H3,H16] repo gates skip command execution and baselines preserve clear
   const changedExecutions = join(box.dir, 'changed-check-executions.txt');
   const changedCheck = fileCheck('green', 'changed-check-marker.txt', changedExecutions);
   writeFileSync(configFile, JSON.stringify({ ...JSON.parse(readFileSync(configFile, 'utf8')), gate: changedCheck }));
-  const changed = box.run(box.repo, ['edit', String(gated.item_id), '--check', changedCheck, '--json']);
+  const changed = box.run(box.repo, ['edit', String(gated.item_id), '--check', changedCheck, '--wait', '--json']);
   assert.equal(changed.status, 0, `${changed.stdout}${changed.stderr}`);
   const changedBaseline = JSON.parse(changed.stdout).item.item_check_baseline;
   assert.equal(changedBaseline.command, changedCheck);
@@ -282,8 +361,8 @@ function applyInReplica(file, replicaDir, moveFile, env, at = '2026-10-07T12:00:
     'try { applyEngineMove(board, JSON.parse(readFileSync(process.argv[2], "utf8")), { sequence: Number(process.argv[3]), at: process.argv[4] }); }',
     'finally { closeBoard(board); }',
   ].join('\n');
-  return spawnSync(process.execPath, ['--input-type=module', '-e', source, file, moveFile, String(env.sequence), at], {
-    cwd: replicaDir, env, encoding: 'utf8', timeout: 10_000,
+  return runFixtureChild(process.execPath, ['--input-type=module', '-e', source, file, moveFile, String(env.sequence), at], {
+    cwd: replicaDir, env, encoding: 'utf8',
   });
 }
 

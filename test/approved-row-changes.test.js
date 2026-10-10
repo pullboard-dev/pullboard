@@ -1,11 +1,13 @@
 /** Approved-row edits need an exact person decision or staged SSH receipt [S19,V3]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { runFixtureExecFile as execFileSync, startFixtureChild as spawn, runFixtureChild as spawnSync, fixtureChildMessage, runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
+import { once } from 'node:events';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { AGENT_SHELL_MARKERS } from '../src/person.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import { removeFixtureDirectory } from './cleanup-diagnostics.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -19,7 +21,16 @@ const SPEC = `# Approved row edit fixture
 
 /** Delete every private repo, key and home created by this file. */
 function cleanup() {
-  for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
+  for (const dir of TEMP_DIRS) removeFixtureDirectory(dir);
+}
+
+/** Wait for an owned child to close, clearing the timeout as soon as it settles. */
+function waitForClose(closePromise, timeoutMs) {
+  let timer;
+  return Promise.race([
+    closePromise,
+    new Promise(resolvePromise => { timer = setTimeout(() => resolvePromise(false), timeoutMs); }),
+  ]).finally(() => clearTimeout(timer));
 }
 
 after(cleanup);
@@ -28,7 +39,7 @@ after(cleanup);
 function isolatedEnvironment(source) {
   const env = { ...source };
   for (const name of Object.keys(env)) {
-    if (name.startsWith('GIT_') || AGENT_SHELL_MARKERS.includes(name)) delete env[name];
+    if (name.startsWith('GIT_') || AGENT_SHELL_MARKERS.includes(name) || SSH_SHELL_MARKERS.includes(name)) delete env[name];
   }
   return env;
 }
@@ -42,7 +53,7 @@ function shellWord(value) {
 function fixture(t, { signer = false, doctrine = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-approved-row-'));
   TEMP_DIRS.push(dir);
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  t.after(() => removeFixtureDirectory(dir));
   const root = join(dir, 'repo');
   const bin = join(dir, 'bin');
   mkdirSync(root);
@@ -57,33 +68,42 @@ function fixture(t, { signer = false, doctrine = false } = {}) {
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_COUNT: '3',
+    GIT_CONFIG_KEY_0: 'user.useConfigOnly',
+    GIT_CONFIG_VALUE_0: 'true',
+    GIT_CONFIG_KEY_1: 'gc.auto',
+    GIT_CONFIG_VALUE_1: '0',
+    GIT_CONFIG_KEY_2: 'maintenance.auto',
+    GIT_CONFIG_VALUE_2: 'false',
   };
   /** Run Git while preserving this fixture's local identity and the hook's active index. */
   function git(...args) {
-    return execFileSync('git', args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+    return runFixtureGit(args, { cwd: root, env });
   }
   /** Run Pullboard in the fixture repo and retain both output streams for assertions. */
   function pullboard(...args) {
-    return spawnSync(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8', timeout: 20_000 });
+    return runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
   }
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Approved-row fixture');
   git('config', 'user.email', 'approved-row@example.invalid');
+  // Seed the legacy file before init so the conventional rename test starts with one doctrine.
+  if (doctrine) writeFileSync(join(root, 'PRACTICE.md'), '# Local rules\n\n## L · Local\n- L1 [approved] Keep the local rule exact. | gate: true\n');
   const initialized = pullboard('init');
   assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
   const configPath = join(root, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   writeFileSync(configPath, `${JSON.stringify({ ...config, gate: 'true', spec: 'SPEC.md' }, null, 2)}\n`);
   writeFileSync(join(root, 'SPEC.md'), SPEC);
-  if (doctrine) writeFileSync(join(root, 'PRACTICE.md'), '# Local rules\n\n## L · Local\n- L1 [approved] Keep the local rule exact. | gate: true\n');
   mkdirSync(join(root, 'test'));
   writeFileSync(join(root, 'test', 'promise.test.js'), "import assert from 'node:assert/strict';\nimport { readFileSync } from 'node:fs';\nimport { test } from 'node:test';\ntest('approved promise remains documented [G1]', () => { assert.match(readFileSync('SPEC.md', 'utf8'), /G1 \\[approved/); });\n");
   git('add', '-A');
-  const initial = spawnSync('git', ['commit', '-q', '-m', 'chore: initialize approved-row fixture'], { cwd: root, env, encoding: 'utf8', timeout: 20_000 });
-  assert.equal(initial.status, 0, `${initial.stdout}${initial.stderr}`);
+  const initial = runFixtureChild('git', ['commit', '-q', '-m', 'chore: initialize approved-row fixture'], { cwd: root, env, encoding: 'utf8' });
+  assert.equal(initial.status, 0, fixtureChildMessage(initial));
   if (signer) {
     const key = join(dir, 'co-signing-key');
-    execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', 'approved-row@example.invalid', '-f', key], { stdio: 'pipe' });
+    const generated = runFixtureChild('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', 'approved-row@example.invalid', '-f', key], { encoding: 'utf8' });
+    assert.equal(generated.status, 0, fixtureChildMessage(generated));
     git('config', 'user.signingkey', key);
     const added = pullboard('spec', 'signers', 'add', '--key', `${key}.pub`, '--by', 'CO');
     assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
@@ -93,6 +113,61 @@ function fixture(t, { signer = false, doctrine = false } = {}) {
   }
   return { dir, root, env, git, pullboard };
 }
+
+test('[C7] cleanup diagnostics capture a forced late writer without hiding ENOTEMPTY', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-cleanup-control-'));
+  t.after(() => removeFixtureDirectory(directory));
+  const target = join(directory, 'repo');
+  mkdirSync(target);
+  writeFileSync(join(target, 'initial'), 'force a real non-empty-directory error');
+  const lateFile = join(target, 'late-write');
+  const source = `const fs = require('node:fs'); let descriptor; process.stdin.setEncoding('utf8'); process.stdin.on('data', data => { if (data.includes('write')) { descriptor = fs.openSync(${JSON.stringify(lateFile + '.pending')}, 'w'); fs.writeSync(descriptor, 'written after the cleanup failure'); fs.renameSync(${JSON.stringify(lateFile + '.pending')}, ${JSON.stringify(lateFile)}); console.log('late-write-ready'); } if (data.includes('exit')) { if (descriptor !== undefined) fs.closeSync(descriptor); process.exit(0); } }); console.log('writer-ready');`;
+  const writer = spawn(process.execPath, ['-e', source], { stdio: ['pipe', 'pipe', 'pipe'], env: { PATH: process.env.PATH } });
+  const writerClosed = once(writer, 'close').then(() => true, () => true);
+  let output = '';
+  writer.stdout.setEncoding('utf8');
+  writer.stdout.on('data', chunk => { output += chunk; });
+  /** Wait for a child control handshake while keeping the owning test responsible for cleanup. */
+  const waitForOutput = async (text) => {
+    const deadline = Date.now() + 5_000;
+    while (!output.includes(text) && Date.now() < deadline) await new Promise(resolvePromise => setTimeout(resolvePromise, 10));
+    assert.ok(output.includes(text), `writer output did not include ${text}: ${output}`);
+  };
+  try {
+    await waitForOutput('writer-ready');
+    let report = '';
+    let failure;
+    try {
+      removeFixtureDirectory(target, {
+        remove: () => {
+          try { rmdirSync(target); } catch (error) { failure = error; }
+          assert.equal(failure?.code, 'ENOTEMPTY', 'the control uses a real filesystem cleanup failure');
+          writer.stdin.write('write\n');
+          const deadline = Date.now() + 5_000;
+          // Publish the completed write by rename so its mtime cannot change after this handshake.
+          while (!existsSync(lateFile) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+          assert.ok(existsSync(lateFile), 'the child made a real late file after cleanup failed');
+          throw failure;
+        },
+        emit: message => { report += message; },
+      });
+    } catch (error) { failure = error; }
+    assert.equal(failure?.code, 'ENOTEMPTY', 'diagnostic capture preserves the original cleanup error');
+    assert.match(report, /late-write/);
+    const lateMtime = new Date(statSync(lateFile).mtimeMs).toISOString();
+    assert.ok(report.includes(lateMtime), `the report records the actual late-file mtime ${lateMtime}`);
+    const owners = report.split('open-file owners:\n')[1] ?? '';
+    if (process.platform === 'darwin') assert.match(owners, new RegExp(`pid=${writer.pid}\\b`));
+    else assert.ok(owners.includes(`pid=${writer.pid}`) || owners.startsWith('unavailable'), owners);
+  } finally {
+    if (writer.exitCode === null && writer.signalCode === null) writer.stdin.end('exit\n');
+    let closed = await waitForClose(writerClosed, 2_000);
+    if (!closed) writer.kill('SIGTERM');
+    if (!closed) closed = await waitForClose(writerClosed, 2_000);
+    if (!closed) writer.kill('SIGKILL');
+    if (!closed) await writerClosed;
+  }
+});
 
 /** Replace one row's prose while preserving status, tier and every trailing field. */
 function setRowText(box, id, text) {
@@ -105,7 +180,7 @@ function setRowText(box, id, text) {
 
 /** Attempt a real commit through the installed Pullboard pre-commit and commit-msg hooks. */
 function commit(box, subject = 'docs: update approved row') {
-  return spawnSync('git', ['commit', '-m', subject], { cwd: box.root, env: box.env, encoding: 'utf8', timeout: 30_000 });
+  return runFixtureChild('git', ['commit', '-m', subject], { cwd: box.root, env: box.env, encoding: 'utf8' });
 }
 
 /** Stage SPEC.md and any explicitly named supporting receipt files. */

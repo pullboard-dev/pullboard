@@ -1,12 +1,12 @@
 /** Approved row edits identify every affected frozen item without rewriting receipts [S19,V3]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { AGENT_SHELL_MARKERS } from '../src/person.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -43,7 +43,7 @@ function project(t) {
   writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec ${shellWord(process.execPath)} ${shellWord(BIN)} "$@"\n`);
   chmodSync(join(bin, 'pullboard'), 0o755);
   const env = { ...process.env };
-  for (const name of Object.keys(env)) if (name.startsWith('GIT_') || AGENT_SHELL_MARKERS.includes(name)) delete env[name];
+  for (const name of Object.keys(env)) if (name.startsWith('GIT_') || AGENT_SHELL_MARKERS.includes(name) || SSH_SHELL_MARKERS.includes(name)) delete env[name];
   Object.assign(env, {
     PATH: `${bin}:${process.env.PATH}`,
     HOME: join(dir, 'home'),
@@ -52,13 +52,13 @@ function project(t) {
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
   });
-  /** Run a bounded real Pullboard CLI process in one fixture checkout. */
+  /** Run the real Pullboard CLI in one fixture checkout; the test runner owns the hang bound. */
   function pullboard(cwd, ...args) {
-    return spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8', timeout: 30_000 });
+    return runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   }
   /** Run real Git with isolated identity while preserving hook-provided index variables. */
   function git(cwd, ...args) {
-    return execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+    return runFixtureGit(args, { cwd, env });
   }
   git(root, 'init', '-q', '-b', 'main');
   git(root, 'config', 'user.name', 'Stale-frozen fixture');
@@ -72,7 +72,7 @@ function project(t) {
   writeFileSync(join(root, 'SPEC.md'), OLD_SPEC);
   mkdirSync(join(root, 'web'));
   git(root, 'add', '-A');
-  const initial = spawnSync('git', ['commit', '-q', '-m', 'chore: initialize stale-frozen fixture'], { cwd: root, env, encoding: 'utf8', timeout: 30_000 });
+  const initial = runFixtureChild('git', ['commit', '-q', '-m', 'chore: initialize stale-frozen fixture'], { cwd: root, env, encoding: 'utf8' });
   assert.equal(initial.status, 0, `${initial.stdout}${initial.stderr}`);
   git(root, 'worktree', 'add', '-q', web, '-b', 'web/stale-frozen');
   const joined = pullboard(web, 'join', 'web');
@@ -99,14 +99,15 @@ function claim(box, id) {
   succeeds(box, box.web, 'claim', String(id));
 }
 
-/** Make, submit and return a real lane commit for an item. */
+/** Submit independent lane history so the lifecycle fixture never stacks unverified items. */
 function submit(box, id, name) {
+  box.git(box.web, 'reset', '--hard', 'main');
   claim(box, id);
   const relative = `web/${name}.txt`;
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, relative), `${name}\n`);
   box.git(box.web, 'add', relative);
-  const committed = spawnSync('git', ['commit', '-m', `feat(web): build ${name} [G1]`], { cwd: box.web, env: box.env, encoding: 'utf8', timeout: 30_000 });
+  const committed = runFixtureChild('git', ['commit', '-m', `feat(web): build ${name} [G1]`], { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}`);
   const head = box.git(box.web, 'rev-parse', 'HEAD');
   succeeds(box, box.web, 'submit', String(id));
@@ -176,7 +177,7 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
   assert.equal(decision.status, 0, `${decision.stdout}${decision.stderr}`);
   succeeds(box, box.root, 'spec', 'apply', '--json');
   box.git(box.root, 'add', 'SPEC.md');
-  const appliedCommit = spawnSync('git', ['commit', '-m', 'docs: update approved G1 wording [G1]'], { cwd: box.root, env: box.env, encoding: 'utf8', timeout: 30_000 });
+  const appliedCommit = runFixtureChild('git', ['commit', '-m', 'docs: update approved G1 wording [G1]'], { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.equal(appliedCommit.status, 0, `${appliedCommit.stdout}${appliedCommit.stderr}`);
   assert.ok(readFileSync(join(box.root, 'SPEC.md'), 'utf8').includes(NEW_TEXT));
 
@@ -218,7 +219,12 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
     }
   }
   const resumeText = succeeds(box, box.root, 'resume');
-  for (const id of expected) assert.match(resumeText.stdout, new RegExp(`item #${id}\\b`));
+  assert.match(resumeText.stdout, new RegExp(`${expected.length} stale follow-ups; list them with pullboard resume --json`));
+  assert.equal((resumeText.stdout.match(/^stale:/gmu) ?? []).length, 0, 'the coordinator sees one counted line, with details in JSON');
+  assert.equal(resumeDocument.staleFollowUps.count, expected.length);
+  assert.equal(resumeDocument.staleFollowUps.list, 'pullboard resume --json');
+  assert.deepEqual(resumeDocument.staleFollowUps.items.map((item) => item.id).sort((a, b) => a - b), expected,
+    'the named listing retains every stale item across every lifecycle state');
   assert.deepEqual(receiptSnapshot(box), afterResumeBaseline, 'resume leaves frozen fields, merge receipts and accepted verdicts unchanged');
   assert.deepEqual(receiptSnapshot(box), before, 'diagnostics do not alter accepted receipts or frozen bars');
   assert.ok(!findings.some((finding) => finding.message.includes(`item #${ids.unaffected} `)), 'the item frozen on G3 remains unaffected');
@@ -227,4 +233,29 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
   assert.deepEqual(afterRefreeze.stale.map((item) => item.id).sort((a, b) => a - b), expected.filter((id) => id !== ids.open), 'explicit refreeze clears only the active item repaired against new text');
   const historical = (snapshot) => snapshot.items.filter((item) => item.item_status === 'verified');
   assert.deepEqual(historical(receiptSnapshot(box)), historical(before), 'refreezing active work preserves every accepted historical receipt');
+});
+
+
+test('[A5,S19,V3] doctor and resume distinguish unchanged doctrine citations from changed doctrine text', (t) => {
+  const box = project(t);
+  const doctrineItem = addItem(box, 'Doctrine citation', 'doctrine:PB1');
+  claim(box, doctrineItem);
+  succeeds(box, box.web, 'release', String(doctrineItem));
+  const specItem = addItem(box, 'Unchanged spec citation', 'G3');
+  claim(box, specItem);
+  succeeds(box, box.web, 'release', String(specItem));
+  const baseline = receiptSnapshot(box);
+  const before = JSON.parse(succeeds(box, box.root, 'resume', '--json').stdout);
+  assert.deepEqual(before.stale, [], 'a namespaced citation with unchanged inherited text is current');
+  const doctorBefore = JSON.parse(box.pullboard(box.root, 'doctor', '--json').stdout);
+  assert.deepEqual(doctorBefore.problems.filter(problem => problem.code === 'STALE_ITEM'), []);
+  const path = join(box.root, 'DOCTRINE.md');
+  writeFileSync(path, readFileSync(path, 'utf8') + '\n## Local override\n- PB1 [approved, must] Updated inherited rule. | gate: true\n');
+  const after = JSON.parse(succeeds(box, box.root, 'resume', '--json').stdout);
+  assert.deepEqual(after.stale.map(item => [item.id, item.rows]), [[doctrineItem, ['doctrine:PB1']]]);
+  const doctorAfter = JSON.parse(box.pullboard(box.root, 'doctor', '--json').stdout);
+  const findings = doctorAfter.problems.filter(problem => problem.code === 'STALE_ITEM');
+  assert.equal(findings.length, 1);
+  assert.match(findings[0].message, /old text of doctrine:PB1/);
+  assert.deepEqual(receiptSnapshot(box), baseline, 'diagnostics preserve frozen evidence and unrelated SPEC citations');
 });

@@ -1,12 +1,15 @@
 /** Person terminal identity and immutable channel receipts on real repositories [B26]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { startFixtureChild as spawn, fixtureChildMessage, reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { performance } from 'node:perf_hooks';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { once } from 'node:events';
 import { test } from 'node:test';
+import { SSH_SHELL_MARKERS } from '../src/person.js';
+import { fetchFresh } from './http-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const MARKERS = {
@@ -29,6 +32,7 @@ const TEMP_DIRS = [];
 function cleanEnvironment(source) {
   const env = { ...source };
   for (const key of Object.keys(MARKERS)) delete env[key];
+  for (const key of SSH_SHELL_MARKERS) delete env[key];
   return env;
 }
 
@@ -57,10 +61,10 @@ function sandbox() {
     PULLBOARD_HOME: join(dir, 'pullboard-home'),
   });
   /** Run real Git commands under isolated author and configuration settings. */
-  const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   /** Run the real Pullboard CLI in its own process with optional environment markers. */
-  const run = (cwd, args, extraEnv = {}) => spawnSync(process.execPath, [BIN, ...args], {
-    cwd, env: { ...env, ...extraEnv }, encoding: 'utf8', timeout: 10_000,
+  const run = (cwd, args, extraEnv = {}) => runFixtureChild(process.execPath, [BIN, ...args], {
+    cwd, env: { ...env, ...extraEnv }, encoding: 'utf8',
   });
   return { dir, env, git, run };
 }
@@ -72,7 +76,7 @@ function project() {
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
   const initialized = box.run(repo, ['init']);
-  assert.equal(initialized.status, 0, initialized.stderr);
+  assert.equal(initialized.status, 0, fixtureChildMessage(initialized));
   const configPath = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   writeFileSync(configPath, `${JSON.stringify({
@@ -149,13 +153,21 @@ test('[B26] person answers refuse agent environments without writes and record t
   const answer = JSON.parse(terminal.stdout);
   assert.equal(answer.version, 1);
   assert.equal(lastAnswerDetail(database).channel, 'terminal');
+  const db = new DatabaseSync(database, { readOnly: true });
+  try {
+    const replies = db.prepare("SELECT event_detail FROM event WHERE event_kind = 'answer' AND event_by = 'person' ORDER BY event_id").all();
+    assert.equal(replies.length, 2, 'both the person decision and its forwarded reply have receipts');
+    assert.deepEqual(replies.map((row) => JSON.parse(row.event_detail).channel), ['terminal', 'terminal']);
+  } finally { db.close(); }
 });
 
 
 /** Start the actual view in an agent environment and retain only its private request credentials. */
-async function startView(t, box) {
-  const child = spawn(process.execPath, [BIN, 'view', '--no-open', '--port', '0', '--json'], {
-    cwd: box.repo, env: { ...box.env, ...MARKERS }, stdio: ['ignore', 'pipe', 'pipe'],
+async function startView(t, box, extraEnv = {}) {
+  const args = [BIN, 'view', '--no-open', '--port', '0', '--json'];
+  const startedAt = performance.now();
+  const child = spawn(process.execPath, args, {
+    cwd: box.repo, env: { ...box.env, ...MARKERS, ...extraEnv }, stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
   let diagnostics = '';
@@ -172,27 +184,82 @@ async function startView(t, box) {
     clearTimeout(timer);
   });
   const document = await new Promise((ready, fail) => {
-    const timer = setTimeout(() => fail(new Error('the private view did not start: ' + diagnostics)), 10_000);
+    let settled = false;
+    const failStartup = (detail, status = child.exitCode, signal = child.signalCode) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fail(new Error(reportFixtureChildFailure({ command: process.execPath, args, status, signal,
+        elapsedMs: performance.now() - startedAt, stderr: diagnostics, env: box.env, detail })));
+    };
+    const timer = setTimeout(() => failStartup('private view readiness deadline (10000ms) expired'), 10_000);
     child.stdout.on('data', (part) => {
       output += part;
       try {
         const value = JSON.parse(output);
+        if (settled) return;
+        settled = true;
         clearTimeout(timer);
         ready(value);
       } catch { /* The JSON envelope may arrive in several chunks. */ }
     });
-    child.once('error', (error) => { clearTimeout(timer); fail(error); });
-    child.once('close', () => { clearTimeout(timer); fail(new Error('the private view exited: ' + diagnostics)); });
+    child.once('error', (error) => failStartup(error.message, null, null));
+    child.once('close', (code, signal) => failStartup('private view exited before readiness', code, signal));
   });
   const address = new URL(document.url);
   const secret = address.searchParams.get('k');
   assert.ok(secret, 'the actual view starts with its private session credentials');
   /** Send bounded authenticated requests through the same adapter the view uses. */
-  const request = (path, options = {}) => fetch(new URL(path, address.origin), {
+  const request = (path, options = {}) => fetchFresh(new URL(path, address.origin), {
     ...options, headers: { 'x-pullboard-key': secret, ...options.headers }, signal: AbortSignal.timeout(10_000),
   });
   return request;
 }
+
+test('[B26,B3] person actions over SSH refuse terminals while the authenticated view remains available', async (t) => {
+  const box = project();
+  t.after(() => rmSync(box.dir, { recursive: true, force: true }));
+  /** Create a real person decision by passing a worktree agent's request. */
+  const createPersonDecision = (text) => {
+    const asked = box.run(box.web, ['shout', 'coordinator', text, '--decision', '--json']);
+    assert.equal(asked.status, 0, asked.stderr);
+    const passed = box.run(box.repo, ['pass', String(JSON.parse(asked.stdout).id), 'The person should decide.', '--json']);
+    assert.equal(passed.status, 0, passed.stderr);
+    return JSON.parse(passed.stdout).id;
+  };
+  const terminalPerson = createPersonDecision('Answer from a local terminal?');
+  const viewPerson = createPersonDecision('Answer from the view over SSH?');
+  const database = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  const before = boardCounts(database);
+  for (const remote of [
+    { SSH_CONNECTION: '192.0.2.10 12345 192.0.2.20 22' },
+    { SSH_TTY: '/dev/pts/7' },
+  ]) {
+    const refused = box.run(box.repo, ['answer', String(terminalPerson), 'Ship it.', '--as', 'person', '--json'], remote);
+    assert.equal(refused.status, 1, refused.stdout + refused.stderr);
+    const error = JSON.parse(refused.stdout).error;
+    assert.equal(error.code, 'B26_PERSON_CHANNEL');
+    assert.match(error.message, /remote SSH shell/iu);
+    assert.match(error.next, /pullboard view/iu);
+    assert.deepEqual(boardCounts(database), before, 'SSH refusals append no answer or event');
+  }
+  const local = box.run(box.repo, ['answer', String(terminalPerson), 'Ship it.', '--as', 'person', '--json'], cleanEnvironment(box.env));
+  assert.equal(local.status, 0, local.stderr);
+  assert.equal(lastAnswerDetail(database).channel, 'terminal');
+
+  const request = await startView(t, box, { SSH_CONNECTION: '192.0.2.10 12345 192.0.2.20 22', SSH_TTY: '/dev/pts/7' });
+  const listing = await (await request('/api/v1/boards')).json();
+  const board = listing.boards.find((entry) => entry.root === box.repo);
+  assert.ok(board, 'view remains available when launched with SSH environment markers');
+  const response = await request(`/api/v1/boards/${board.id}/moves`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ verb: 'answer', item: viewPerson, agent: 'coordinator', args: { text: 'Yes.', as: 'person' } }),
+  });
+  assert.equal(response.status, 200, await response.clone().text());
+  const answer = await response.json();
+  assert.equal(answer.event.event_by, 'person');
+  assert.equal(JSON.parse(answer.event.event_detail).channel, 'view');
+});
 
 test('[B26,B27] a view launched by an agent records view on both person answer receipts', async (t) => {
   const box = project();
@@ -262,7 +329,7 @@ test('[B26,S18] signer enrollment refuses agent shells without creating or chang
   const box = project();
   t.after(() => rmSync(box.dir, { recursive: true, force: true }));
   const key = join(box.dir, 'fixture-signing-key');
-  const generated = spawnSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', key], { env: box.env, stdio: 'ignore' });
+  const generated = runFixtureChild('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', key], { env: box.env, stdio: 'ignore' });
   assert.equal(generated.status, 0, 'the fixture creates a disposable signing identity');
   const files = ['signers', 'signers.initial', 'first-commit', 'signoffs.jsonl'].map(name => join(box.repo, '.pullboard', name));
   /** Read only private fixture trust bytes; assertions never print key contents. */
@@ -283,4 +350,65 @@ test('[B26,S18] signer enrollment refuses agent shells without creating or chang
     assert.equal(refused.status, 1, name);
     assert.equal(JSON.stringify(trustBytes()) === JSON.stringify(enrolled), true, 'refused enrollment preserves every trust byte');
   }
+});
+
+
+test('[B26,S19] row approvals and declines refuse agent shells and preserve terminal or view channels', async (t) => {
+  const box = project();
+  t.after(() => rmSync(box.dir, { recursive: true, force: true }));
+  const file = join(box.repo, 'SPEC.md');
+  const rows = ['G2', 'G3', 'G4', 'G5'].map((id) => `- ${id} [draft, aim] The person decides ${id}. | gate: review`).join('\n');
+  writeFileSync(file, SPEC + rows + '\n');
+  box.git(box.repo, 'add', 'SPEC.md');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: add draft person decision rows');
+  const beforeFile = readFileSync(file, 'utf8');
+  const database = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  const before = boardCounts(database);
+  for (const [marker, value] of Object.entries(MARKERS)) {
+    for (const decision of ['approve', 'decline']) {
+      const args = ['spec', decision, 'G2', '--json'];
+      if (decision === 'decline') args.push('--reason', 'The person declines this draft.');
+      const refused = box.run(box.repo, args, { [marker]: value });
+      assert.equal(refused.status, 1, `${marker} ${decision}: ${refused.stdout}${refused.stderr}`);
+      const error = JSON.parse(refused.stdout).error;
+      assert.equal(error.code, 'B26_PERSON_CHANNEL');
+      assert.match(error.next, /pullboard view/iu);
+      assert.deepEqual(boardCounts(database), before, 'refused row decisions append no board events');
+      assert.equal(readFileSync(file, 'utf8'), beforeFile, 'refused row decisions preserve the spec bytes');
+    }
+  }
+  for (const [decision, id] of [['approve', 'G2'], ['decline', 'G3']]) {
+    const args = ['spec', decision, id, '--json'];
+    if (decision === 'decline') args.push('--reason', 'The person declines this draft.');
+    const result = box.run(box.repo, args);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    const receipt = JSON.parse(result.stdout).decisions[0];
+    assert.equal(receipt.id, id);
+    assert.equal(receipt.decision, decision);
+  }
+  const request = await startView(t, box);
+  const listing = await (await request('/api/v1/boards')).json();
+  const board = listing.boards.find((entry) => entry.root === box.repo);
+  assert.ok(board);
+  for (const [decision, id] of [['approve', 'G4'], ['decline', 'G5']]) {
+    const args = { ids: id };
+    if (decision === 'decline') args.reason = 'The person declines from the view.';
+    const response = await request(`/api/v1/boards/${board.id}/moves`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ verb: 'spec-' + decision, args }),
+    });
+    assert.equal(response.status, 200, await response.clone().text());
+    const document = await response.json();
+    assert.equal(document.event.event_by, 'person');
+    assert.equal(JSON.parse(document.event.event_detail).channel, 'view');
+    assert.equal(document.result.decisions[0].id, id);
+    assert.equal(document.result.decisions[0].decision, decision);
+  }
+  const db = new DatabaseSync(database, { readOnly: true });
+  try {
+    const events = db.prepare("SELECT event_detail FROM event WHERE event_kind = 'row_decision' ORDER BY event_id").all();
+    assert.equal(events.length, 4);
+    assert.deepEqual(events.map((event) => JSON.parse(event.event_detail).channel), ['terminal', 'terminal', 'view', 'view']);
+  } finally { db.close(); }
+  assert.equal(readFileSync(file, 'utf8'), beforeFile, 'approval receipts await coordinator apply; neither channel edits the row file');
 });
