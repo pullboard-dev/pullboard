@@ -400,6 +400,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .lane:first-child { border-top: 0; }
 .rows-filter { display: flex; padding: 10px 10px 2px; }
 .rows { padding: 4px 10px 10px; }
+.section-source { margin-left: 6px; color: var(--ink-faint); font: 500 11.5px var(--sans); letter-spacing: 0; text-transform: none; }
 .spec-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0 4px; }
 .rows h4 { margin: 0; font-size: 12.5px; color: var(--ink-muted); }
 /* Deciding a row is a quiet word beside it, no box: Approve in the accent, Decline in grey, each lit only on hover. */

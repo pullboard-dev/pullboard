@@ -354,7 +354,9 @@ function factCodeRef(ref) {
 }
 const tone = (s) => s === 'approved' ? 'ok' : s === 'pending' ? 'no' : s === 'draft' ? 'warn' : '';
 /** A doctrine rule's source, with a version only when it comes from the shipped standard. */
-const ruleSource = (row) => row.origin === 'standard' ? 'standard ' + row.version : 'repo';
+// Where a rule comes from, in words: Pullboard's standard rules, or this repo's own; the standard's version is on hover.
+const ruleSource = (row) => row.origin === 'standard' ? 'From Pullboard' : 'This repo';
+const ruleSourceTitle = (row) => row.origin === 'standard' ? 'Pullboard standard rules, version ' + row.version : 'Written in this repo';
 const count = (n, one, many = one) => n + ' ' + (n === 1 ? one : many);
 // What needs the person in a project, as its Needs-you list counts it: only the person's calls (B26),
 // the decisions passed up to them, spec rows waiting for them, and held lanes, which only the main
@@ -1350,14 +1352,19 @@ function render() {
     const feedbackId = feedback && (shownRows.some((r) => r.id === feedback.id) ? feedback.id : shownRows.some((r) => r.id === feedback.next) ? feedback.next : shownRows[0]?.id);
     let section = null;
     const implied = filter === 'decide' ? 'draft' : 'approved';
+    // A Doctrine section is usually all Pullboard's rules or all this repo's, so its header says which; a row says so only
+    // where it differs from its section, such as a standard rule this repo changed.
+    const sectionSource = new Map();
+    if (kind === 'doctrine') for (const r of rows) { const was = sectionSource.get(r.section); sectionSource.set(r.section, was === undefined || was === ruleSource(r) ? ruleSource(r) : null); }
     $(kind + '-list').innerHTML = shownRows.length ? shownRows.map((r) => {
       const sectionRows = !snapshot && (!readOnly || requests) && kind === 'spec' && r.section !== section ? rows.filter((entry) => entry.section === r.section && undecided(entry)) : [];
-      const head = r.section !== section ? '<div class="spec-section-head"><h4>' + esc(r.section) + '</h4>' + (sectionRows.length ? '<button class="spec-section-approve" data-section-approve="' + esc(r.section) + '" type="button">Approve all ' + sectionRows.length + ' in this section</button>' : '') + '</div>' : '';
+      const head = r.section !== section ? '<div class="spec-section-head"><h4>' + esc(r.section) + (sectionSource.get(r.section) ? ' <small class="section-source" title="' + esc(ruleSourceTitle(r)) + '">' + esc(sectionSource.get(r.section)) + '</small>' : '') + '</h4>' + (sectionRows.length ? '<button class="spec-section-approve" data-section-approve="' + esc(r.section) + '" type="button">Approve all ' + sectionRows.length + ' in this section</button>' : '') + '</div>' : '';
       section = r.section;
       const declined = kind === 'doctrine' && r.status === 'wont';
       const text = declined ? '<s>' + linked(r.standardText || r.text, titles) + '</s>' : linked(r.text, titles);
       const reason = declined && r.reason ? '<small class="rule-reason">Reason: ' + linked(r.reason, titles) + '</small>' : '';
-      const source = kind === 'doctrine' ? '<small class="rule-source">' + esc(ruleSource(r)) + '</small>' : '';
+      // Most rules are Pullboard's own; only the exception, a rule this repo wrote or changed, is marked in the list.
+      const source = kind === 'doctrine' && sectionSource.get(r.section) !== ruleSource(r) ? '<small class="rule-source" title="' + esc(ruleSourceTitle(r)) + '">' + esc(ruleSource(r)) + '</small>' : '';
       // A row reads as its id and its words; a chip only where its status is not the one the filter already says.
       const chip = r.status === implied ? '' : '<span class="chip ' + tone(r.status) + '">' + esc(r.stage || r.status) + '</span>';
       return head + (feedback && feedbackId === r.id ? specFeedback(feedback) : '') + '<div class="srow' + (view.row[kind] === r.id ? ' on' : '') + '" data-row="' + kind + ':' + esc(r.id) + '"><code>' + esc(r.id) + '</code><span class="srow-text">' + chip + source + text + reason + '</span></div>';
@@ -1367,7 +1374,7 @@ function render() {
     const citing = row ? p.items.filter((i) => i.specs.includes(row.id)) : [];
     const declined = kind === 'doctrine' && row && row.status === 'wont';
     const text = row ? declined ? '<s>' + linked(row.standardText || row.text, titles) + '</s>' : linked(row.text, titles) : '';
-    const source = kind === 'doctrine' && row ? '<span class="chip">' + esc(ruleSource(row)) + '</span>' : '';
+    const source = kind === 'doctrine' && row ? '<span class="chip" title="' + esc(ruleSourceTitle(row)) + '">' + esc(ruleSource(row)) + '</span>' : '';
     const reason = declined && row.reason ? '<dt>reason</dt><dd>' + linked(row.reason, titles) + '</dd>' : '';
     const home = kind === 'doctrine' && row && row.origin === 'standard' ? 'Standard rules come with Pullboard; override or decline one in DOCTRINE.md.' : 'Rows change in ' + (kind === 'spec' ? 'SPEC.md' : 'DOCTRINE.md') + ', and only you approve them.';
     const rowStatus = row?.stage || row?.status;
