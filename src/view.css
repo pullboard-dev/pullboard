@@ -368,6 +368,11 @@ form.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; paddin
 .shout .to, .shout .item { color: var(--ink-faint); }
 .shout .item { font: 12px var(--mono); }
 .shout header time { margin-left: auto; color: var(--ink-faint); font-size: 12px; white-space: nowrap; }
+/* A waiting ask keeps its address and age whole; a wider fallback font shortens its kind instead. */
+#decisions .shout header { flex-wrap: nowrap; }
+#decisions .shout .who, #decisions .shout .to { flex: 0 1 auto; min-width: min-content; white-space: nowrap; }
+#decisions .shout header .mark { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#decisions .shout header time { flex: none; }
 .shout .text { margin-top: 3px; overflow-wrap: break-word; }
 .shout.clamp:not(.open) .text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
 .shout .more { display: none; align-items: center; min-height: var(--tap); margin: -8px 0 -10px; padding: 0; border: 0; background: none; color: var(--accent-strong); font-weight: 600; font-size: 13px; cursor: pointer; }
