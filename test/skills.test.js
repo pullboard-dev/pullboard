@@ -156,6 +156,28 @@ test('skills --update never replaces an edited skill [I2]', () => {
   }]);
 });
 
+test('doctor and skills --update report missing guidance in an edited old skill [I2]', () => {
+  const box = project();
+  const editedOld = legacySkill('decompose').replace('if they exist.', 'if present.');
+  const file = installText(box, 'decompose', editedOld);
+  const before = readFileSync(file);
+
+  const doctor = box.run('doctor', '--json');
+  assert.equal(doctor.status, 1, doctor.stdout);
+  assert.equal(doctor.stderr, '');
+  const finding = JSON.parse(doctor.stdout).problems.find((problem) => problem.code === 'SKILL_EDITED_OUTDATED');
+  assert.ok(finding, 'doctor identifies the edited, outdated skill');
+  assert.match(finding.message, /missing changes: add current DOCTRINE\.md guidance/u);
+  assert.match(finding.message, /DOCTRINE\.md/u);
+
+  const update = json(box, 'skills', '--update');
+  assert.deepEqual(readFileSync(file), before, 'the edited old skill remains byte-for-byte unchanged');
+  assert.equal(update.customized.length, 1);
+  assert.equal(update.customized[0].path, '.claude/skills/pullboard-decompose/SKILL.md');
+  assert.equal(update.customized[0].missing.length, 1);
+  assert.match(update.customized[0].missing[0], /add current DOCTRINE\.md guidance/u);
+});
+
 /** Keep the CLI's displayed action stable without copying a second formatter into the assertion. */
 function expectMissingChange() {
   return 'replace “SPEC.md and PRACTICE.md if they exist.” with “SPEC.md and DOCTRINE.md (or PRACTICE.md when it is the only legacy file) if they exist.”';

@@ -96,9 +96,11 @@ function shippedVersion(role, digest) {
 function missingSkillChanges(role, text) {
   const oldLine = LEGACY_SKILL_TEXT[role];
   const currentLine = CURRENT_SKILL_TEXT[role];
-  return oldLine && text.includes(oldLine)
-    ? [`replace “${oldLine}” with “${currentLine}”`]
-    : [];
+  if (oldLine && text.includes(oldLine)) return [`replace “${oldLine}” with “${currentLine}”`];
+  if (currentLine && text.includes('PRACTICE.md') && !text.includes('DOCTRINE.md')) {
+    return [`add current DOCTRINE.md guidance: “${currentLine}”`];
+  }
+  return [];
 }
 
 /** Find outdated shipped or edited-old skill files without treating unknown edits as history. */
