@@ -12,6 +12,82 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { BIN, sandbox, project } = e2e;
 
+const TOUR_STEPS = [
+  '1  The person approved one spec row. The coordinator files it as work.',
+  '2  A builder agent gets its own worktree in the app lane and claims the next item. Its criterion freezes.',
+  '3  It writes greet(), tests the happy path and submits. Its own gate is green.',
+  '4  A second agent checks out exactly that commit and tries the edge the builder skipped.',
+  "5  The builder's next session starts from the board, not from memory.",
+  '6  It fixes the edge, adds a test that pins it, and submits a new commit.',
+  '7  The verifier breaks the fix on purpose, to prove the new test can fail, then restores it and accepts.',
+  '8  The coordinator merges it. The ledger is the receipt.',
+];
+
+/** Return the numbered steps printed by the scripted tour. */
+function tourSteps(stdout) {
+  return [...stdout.matchAll(/^(\d+)  (.+)$/gmu)].map((match) => `${match[1]}  ${match[2]}`);
+}
+
+/** Create private loader fixtures that vary only the production tour module. */
+function createTourVariantHarness(box) {
+  const moduleUrl = new URL('../src/tour.js', import.meta.url).href;
+  const loader = join(box.dir, 'tour-variant-loader.mjs');
+  const timerGuard = join(box.dir, 'tour-timer-guard.mjs');
+  writeFileSync(loader, `
+    /** Load the real tour module with one requested private test variation. */
+    export async function load(url, context, nextLoad) {
+      const loaded = await nextLoad(url, context);
+      if (url !== process.env.PULLBOARD_TOUR_TEST_MODULE) return loaded;
+      let source = String(loaded.source);
+      if (process.env.PULLBOARD_TOUR_TEST_VARIANT === 'prompt') {
+        const marker = '  try {\\n    mkdirSync(repo);';
+        const replacement = [
+          '  try {',
+          "    io.say('Model name?');",
+          "    let modelInput = '';",
+          '    for await (const chunk of process.stdin) modelInput += chunk;',
+          "    if (!modelInput.trim()) throw new TourStopped('model prompt reached EOF');",
+          '    mkdirSync(repo);',
+        ].join('\\n');
+        if (!source.includes(marker)) throw new Error('tour prompt marker not found');
+        source = source.replace(marker, replacement);
+      } else if (process.env.PULLBOARD_TOUR_TEST_VARIANT === 'sleep') {
+        const marker = '    pause(1200 * pace);';
+        if (!source.includes(marker)) throw new Error('tour step pause marker not found');
+        source = source.replace(marker, '    pause(1);\\n' + marker);
+      } else {
+        throw new Error('unknown private tour variant');
+      }
+      return { ...loaded, source };
+    }
+  `);
+  writeFileSync(timerGuard, `
+    if (process.argv[2] === 'tour') {
+      const originalWait = Atomics.wait;
+      /** Turn a production tour pause into a deterministic error, not elapsed time. */
+      Atomics.wait = (array, index, value, timeout) => {
+        if (timeout > 0) throw new Error('tour timer wait detected');
+        return originalWait(array, index, value, timeout);
+      };
+    }
+  `);
+  return { loader, moduleUrl, timerGuard };
+}
+
+/** Run the real CLI tour with stdin closed and an optional private source variation. */
+function runTour(box, harness, variant = '') {
+  const activeHarness = harness ?? createTourVariantHarness(box);
+  const env = { ...box.env, TMPDIR: box.dir, PULLBOARD_TOUR_TEST_MODULE: activeHarness.moduleUrl };
+  delete env.PULLBOARD_MODEL;
+  delete env.NO_COLOR;
+  delete env.FORCE_COLOR;
+  if (variant) env.PULLBOARD_TOUR_TEST_VARIANT = variant;
+  const args = ['--import', activeHarness.timerGuard];
+  if (variant) args.push('--experimental-loader', activeHarness.loader);
+  args.push(BIN, 'tour');
+  return runFixtureChild(process.execPath, args, { cwd: box.dir, env, encoding: 'utf8', input: '' });
+}
+
 test('model names label CLI actors without changing IDs, messages, or the context prompt [O8,O3]', () => {
   for (const style of ['suffix', 'prefix']) {
     const box = sandbox();
@@ -185,15 +261,25 @@ test('model names label CLI actors without changing IDs, messages, or the contex
 
 test('the scripted tour names its model without PULLBOARD_MODEL [N10,O8]', () => {
   const box = sandbox();
-  const env = { ...box.env, TMPDIR: box.dir };
-  delete env.PULLBOARD_MODEL;
-  delete env.NO_COLOR;
-  delete env.FORCE_COLOR;
-  const startedAt = Date.now();
-  const result = runFixtureChild(process.execPath, [BIN, 'tour'], { cwd: box.dir, env, encoding: 'utf8' });
+  const result = runTour(box);
+  assert.deepEqual(tourSteps(result.stdout), TOUR_STEPS, result.failure ?? result.stdout);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
-  assert.ok(Date.now() - startedAt < 30_000, 'the tour remains a short scripted example');
   assert.match(result.stdout, /app-1 \(Scripted\) \$ pullboard next/);
   assert.match(result.stdout, /sent back: #1 BEHAVIOR_MISMATCH by review-1 \(Scripted\):/);
   assert.match(result.stdout, /\| 1 \| app \| Greeting \| G1 \| app-1 \(Scripted\) \| review-1 \(Scripted\) \|/);
+});
+
+test('the tour never waits on input or a timer [N10,O8]', () => {
+  const box = sandbox();
+  const harness = createTourVariantHarness(box);
+  const prompting = runTour(box, harness, 'prompt');
+  assert.equal(prompting.status, 1, `${prompting.stdout}${prompting.stderr}`);
+  assert.match(prompting.stdout, /Model name\?/u);
+  assert.match(prompting.stdout, /The tour stopped: model prompt reached EOF/u);
+  assert.deepEqual(tourSteps(prompting.stdout), []);
+
+  const sleeping = runTour(box, harness, 'sleep');
+  assert.equal(sleeping.status, 1, `${sleeping.stdout}${sleeping.stderr}`);
+  assert.match(sleeping.stderr, /tour timer wait detected/u);
+  assert.notDeepEqual(tourSteps(sleeping.stdout), TOUR_STEPS, 'the timer mutant leaves the ordered tour transcript incomplete');
 });
