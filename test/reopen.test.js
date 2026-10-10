@@ -158,6 +158,17 @@ test('a reopened item resubmits at a new head after a criterion edit [V2,V6,H16]
     assert.equal(JSON.parse(store.events(replica).at(-1).event_detail).judgment, null);
     assert.equal(appliedSequence(replica), 1);
     assert.equal(engineReceipt(replica, move.id).sequence, 1);
+    const forged = { ...move, id: 'forged-reopen' };
+    const refusal = applyRelayMove(replica, forged, {
+      sequence: 2, at: '2026-10-10T12:00:01.000Z', kind: 'move',
+      sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' },
+    });
+    assert.equal(refusal.error.code, 'RELAY_SENDER_MISMATCH');
+    const refusedEvent = store.events(replica, { itemId: 1 }).at(-1);
+    assert.equal(refusedEvent.event_kind, 'relay_refused', 'a forged reopen is visible in the item history');
+    assert.equal(refusedEvent.item_id, 1);
+    assert.equal(refusedEvent.event_by, 'web-1');
+    assert.equal(appliedSequence(replica), 2);
   }
 
   const reopened = box.run(box.repo, 'reopen', '1', '--note', 'correct the frozen criterion');
