@@ -86,6 +86,7 @@ function itemStages(item, now) {
 /** Count current queues and name the longest wait, with item id as the deterministic tie breaker. */
 function queuesFrom(items, now) {
   const queues = Object.fromEntries(['open', 'claimed', 'submitted', 'accepted'].map(state => [state, { size: 0, oldest: null }]));
+  const unreviewed = { size: 0, oldest: null };
   const openByLane = new Map();
   const accepted = [];
   for (const item of items) {
@@ -97,10 +98,17 @@ function queuesFrom(items, now) {
     const ageMinutes = interval(start, now);
     if (ageMinutes !== null && (!queue.oldest || ageMinutes > queue.oldest.ageMinutes ||
       ageMinutes === queue.oldest.ageMinutes && item.id < queue.oldest.id)) queue.oldest = { id: item.id, since: new Date(start).toISOString(), ageMinutes };
+    if (item.state === 'submitted' && (!item.reserve || Number.isFinite(item.reserve.until) && item.reserve.until <= now)) {
+      unreviewed.size += 1;
+      if (ageMinutes !== null && (!unreviewed.oldest || ageMinutes > unreviewed.oldest.ageMinutes ||
+        ageMinutes === unreviewed.oldest.ageMinutes && item.id < unreviewed.oldest.id)) {
+        unreviewed.oldest = { id: item.id, since: new Date(start).toISOString(), ageMinutes };
+      }
+    }
     if (item.state === 'open') openByLane.set(item.lane, (openByLane.get(item.lane) ?? 0) + 1);
     if (item.state === 'accepted') accepted.push(item.id);
   }
-  return { queues, openByLane, accepted: accepted.sort((a, b) => a - b) };
+  return { queues, unreviewed, openByLane, accepted: accepted.sort((a, b) => a - b) };
 }
 
 /** Attribute last-hour activity using the latest recorded role, including a prior role when only shouts are recent. */
@@ -194,7 +202,7 @@ export function flowStats(history, boundary, now, counts) {
   } : { stage: null, share: null, completedItems, fullyMeasuredCycles: 0, totalCycleMinutes: 0, lowConfidence: completedItems > 0,
     message: completedItems ? `not enough measured flow to name a bottleneck (${completedItems} items completed since ${boundary ?? 'the beginning'}, none with every stage measured)` :
       `not enough flow to name a bottleneck (0 items completed since ${boundary ?? 'the beginning'})`, recommendation: null };
-  return { asOf: new Date(now).toISOString(), stages, queues: queueData.queues, daily: [...daily.values()].sort((a, b) => a.date.localeCompare(b.date)),
+  return { asOf: new Date(now).toISOString(), stages, queues: queueData.queues, unreviewed: queueData.unreviewed, daily: [...daily.values()].sort((a, b) => a.date.localeCompare(b.date)),
     submitsPerMerged: completedItems ? counts.submissions / completedItems : 0, activeAgents, bottleneck };
 }
 
@@ -217,4 +225,18 @@ export function flowLines(flow) {
   lines.push(`bottleneck: ${bottleneck.message}${bottleneck.share === null ? '' : ` (${minutes(bottleneck.share * 100)}%)`}${bottleneck.lowConfidence ? ' · low confidence' : ''}`);
   if (bottleneck.recommendation) lines.push(`next: ${bottleneck.recommendation}`);
   return lines;
+}
+
+/** Name a tripped documented threshold using the same measured flow and action as stats [N32]. */
+export function flowAlertLine(flow) {
+  const average = flow.stages.reviewWait.averageMinutes;
+  const oldest = flow.unreviewed.oldest;
+  const thresholds = [];
+  if (average > 60) thresholds.push(`review wait average ${minutes(average)} min (${flow.stages.reviewWait.count} measured; > 60 min)`);
+  if (oldest?.ageMinutes > 180) thresholds.push(`unreviewed #${oldest.id} waiting ${minutes(oldest.ageMinutes)} min (> 180 min)`);
+  if (!thresholds.length) return null;
+  const bottleneck = flow.bottleneck;
+  const measured = bottleneck.stage === null ? 'bottleneck: not measured yet' :
+    `bottleneck: ${LABELS[bottleneck.stage]} (${minutes(bottleneck.share * 100)}% of ${minutes(bottleneck.totalCycleMinutes)} measured cycle min); next: ${bottleneck.recommendation}`;
+  return `flow: ${thresholds.join('; ')}; ${measured}`;
 }
