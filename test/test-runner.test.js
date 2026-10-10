@@ -25,6 +25,7 @@ test('tests run without inherited Git identity or config and refuse ambient pull
   assert.equal(process.env.SSH_CLIENT, undefined);
   assert.equal(process.env.SSH_TTY, undefined);
   assert.equal(process.env.HOME, process.env.PULLBOARD_HOME);
+  assert.ok(process.env.PULLBOARD_MACHINE_HOME.startsWith(join(process.env.TMPDIR, 'machine')));
   assert.ok(process.env.PULLBOARD_TEST_FILE.endsWith('test/test-runner.test.js'));
 
   const root = mkdtempSync(join(tmpdir(), 'pullboard-runner-git-'));

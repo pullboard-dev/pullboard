@@ -1,8 +1,8 @@
 /** Machine-wide settings shared by every Pullboard checkout on this machine. */
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { machineHome } from './machine-home.js';
 import { setResourceCapacity } from './resources.js';
 import { Refused } from './refused.js';
 
@@ -10,7 +10,7 @@ const DEFAULT_GATE_SLOTS = 2;
 
 /** Resolve the separate machine settings file. */
 export function machineSettingsFile() {
-  return join(process.env.PULLBOARD_HOME || join(homedir(), '.pullboard'), 'settings.json');
+  return join(machineHome(), 'settings.json');
 }
 
 /** Read and validate machine settings, preserving any unrelated settings. */

@@ -27,6 +27,7 @@ function fixture() {
     GIT_COMMITTER_NAME: 'Queue Test',
     GIT_COMMITTER_EMAIL: 'queue@example.invalid',
     PULLBOARD_HOME: join(dir, 'home'),
+    PULLBOARD_MACHINE_HOME: join(dir, 'home'),
   };
   return { dir, events, env };
 }
@@ -151,6 +152,68 @@ test('[Q4,O5,O6] gate processes run one at a time in FIFO order when machine slo
   assert.equal(maximum, 1);
 });
 
+test('[Q4] gates with different PULLBOARD_HOME values share the machine pool unless explicitly separated', async () => {
+  const shared = fixture();
+  const releaseShared = join(shared.dir, 'release-shared');
+  const firstRoot = gateRepo(shared, 'shared-first', 0, releaseShared);
+  const otherBoardHome = { ...shared, env: { ...shared.env, PULLBOARD_HOME: join(shared.dir, 'other-board-home') } };
+  const secondRoot = gateRepo(otherBoardHome, 'shared-second', 0, releaseShared);
+  const setting = spawnSync(process.execPath, [BIN, 'settings', 'gateSlots', '1'], { cwd: firstRoot, env: shared.env, encoding: 'utf8' });
+  assert.equal(setting.status, 0, setting.stderr);
+  const first = launch(shared, firstRoot);
+  let second;
+  try {
+    await waitFor(() => events(shared).includes('shared-first start'), 'first shared-pool gate to start');
+    second = launch(otherBoardHome, secondRoot);
+    await waitFor(
+      () => second.stdoutText.includes('place 1') || events(shared).includes('shared-second start'),
+      'gate with another board home to queue or start on the shared machine pool',
+    );
+    assert.ok(second.stdoutText.includes('place 1'), 'the other board home is queued behind the first gate');
+    assert.deepEqual(events(shared), ['shared-first start']);
+    writeFileSync(releaseShared, 'release');
+    const results = await Promise.all([first.closed, second.closed]);
+    assert.deepEqual(results.map(({ code }) => code), [0, 0], `${first.stderrText}${second.stderrText}`);
+    assert.deepEqual(events(shared), ['shared-first start', 'shared-first end', 'shared-second start', 'shared-second end']);
+  } finally {
+    writeFileSync(releaseShared, 'release');
+    await Promise.all([first, second].filter(Boolean).map((child) => child.closed));
+  }
+
+  const separated = fixture();
+  const releaseSeparated = join(separated.dir, 'release-separated');
+  const firstPool = { ...separated, env: { ...separated.env, PULLBOARD_MACHINE_HOME: join(separated.dir, 'machine-first') } };
+  const secondPool = {
+    ...separated,
+    env: {
+      ...separated.env,
+      PULLBOARD_MACHINE_HOME: join(separated.dir, 'machine-second'),
+    },
+  };
+  const isolatedFirstRoot = gateRepo(firstPool, 'isolated-first', 0, releaseSeparated);
+  const isolatedSecondRoot = gateRepo(secondPool, 'isolated-second', 0, releaseSeparated);
+  for (const [box, root] of [[firstPool, isolatedFirstRoot], [secondPool, isolatedSecondRoot]]) {
+    const configured = spawnSync(process.execPath, [BIN, 'settings', 'gateSlots', '1'], { cwd: root, env: box.env, encoding: 'utf8' });
+    assert.equal(configured.status, 0, configured.stderr);
+  }
+  const isolatedFirst = launch(firstPool, isolatedFirstRoot);
+  let isolatedSecond;
+  try {
+    await waitFor(() => events(separated).includes('isolated-first start'), 'first isolated-pool gate to start');
+    isolatedSecond = launch(secondPool, isolatedSecondRoot);
+    await waitFor(() => events(separated).includes('isolated-second start'), 'explicit private pool to acquire while the first pool is occupied');
+    assert.deepEqual(events(separated), ['isolated-first start', 'isolated-second start']);
+    writeFileSync(releaseSeparated, 'release');
+    const results = await Promise.all([isolatedFirst.closed, isolatedSecond.closed]);
+    assert.deepEqual(results.map(({ code }) => code), [0, 0], `${isolatedFirst.stderrText}${isolatedSecond.stderrText}`);
+    assert.deepEqual(events(separated).slice(0, 2), ['isolated-first start', 'isolated-second start']);
+    assert.deepEqual(events(separated).slice(2).sort(), ['isolated-first end', 'isolated-second end']);
+  } finally {
+    writeFileSync(releaseSeparated, 'release');
+    await Promise.all([isolatedFirst, isolatedSecond].filter(Boolean).map((child) => child.closed));
+  }
+});
+
 test('[Q4] an exact-tree cached gate starts while another machine gate holds the only slot', async () => {
   const box = fixture();
   const cachedRoot = gateRepo(box, 'cached', 0.1);
@@ -165,7 +228,7 @@ test('[Q4] an exact-tree cached gate starts while another machine gate holds the
   const refusedChange = spawnSync(process.execPath, [BIN, 'settings', 'gateSlots', '2', '--json'], { cwd: cachedRoot, env: box.env, encoding: 'utf8' });
   assert.equal(refusedChange.status, 1);
   assert.equal(JSON.parse(refusedChange.stdout).error.code, 'RESOURCE_BUSY');
-  assert.equal(JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'settings.json'), 'utf8')).gateSlots, 1);
+  assert.equal(JSON.parse(readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8')).gateSlots, 1);
   const cached = runFixtureChild(process.execPath, [BIN, 'gate'], { cwd: cachedRoot, env: box.env, encoding: 'utf8' });
   assert.equal(cached.status, 0, cached.stderr);
   assert.match(cached.stdout, /already passed/);

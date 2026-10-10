@@ -43,6 +43,7 @@ function sandbox() {
     GIT_COMMITTER_NAME: 'Check owner test',
     GIT_COMMITTER_EMAIL: 'check-owner@example.invalid',
     PULLBOARD_HOME: join(dir, 'pullboard-home'),
+    PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
   };
   /** Run Git with private fixture identity and config. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
