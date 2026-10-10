@@ -24,6 +24,7 @@ import { storeBoardKey } from '../src/relay-key.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { presentationShout } from '../src/relay-presentation.js';
 import { fetchFresh } from './http-fixture.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
 
 const SIGN_INS = new Map();
 
@@ -152,6 +153,8 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
     GIT_COMMITTER_NAME: 'Relay Test',
     GIT_COMMITTER_EMAIL: 'relay-test@example.com',
   };
+  for (const name of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[name];
+  for (const name of ['PULLBOARD_RELAY_KEY', 'PULLBOARD_RELAY_TOKEN']) delete env[name];
   const provider = await githubFixture(t);
   let signIns = 0;
   SIGN_INS.set(root, async () => {
@@ -201,6 +204,7 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   await assert.rejects(cli(root, relayEnv, 'relay', 'on', '--url', relay.origin), /RELAY_KEY_STORAGE/);
   assert.deepEqual(await auth.boardsFor(person.token), [], 'a failed device key save creates no remote link');
   assert.ok(!relay.calls.some((call) => call.path === '/auth/boards/link'));
+  assert.equal(signIns, 0, 'a failed key save does not start a foreground person sign-in');
   chmodSync(keysDirectory, 0o700);
   const on = await cli(root, relayEnv, 'relay', 'on', '--url', relay.origin);
   const linkedAt = auth.linkedBoards().find(link => link.id === boardId).linkedAt;
@@ -219,9 +223,15 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   assert.equal(new URLSearchParams(fragment).get('board'), boardId);
   assert.equal(new URLSearchParams(fragment).get('key'), keyText, 'the phone link carries this board key only after #');
 
-  /** Fetch a public sealed document and authenticate it locally with the device-only key. */
-  async function get(path) {
-    const response = await fetch(relay.origin + path, { headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}` } });
+  const linkFile = join(root, '.git', 'pullboard', 'relay.json');
+  const machineLink = JSON.parse(readFileSync(linkFile, 'utf8'));
+  assert.match(machineLink.token, /^pm_[A-Za-z0-9_-]{43}$/u, 'the board stores its scoped machine credential');
+  assert.notEqual(machineLink.token, person.token, 'the short-lived person session is not stored in the board link');
+  assert.equal(machineLink.account, person.user.id);
+  assert.equal(typeof machineLink.machine, 'string');
+  /** Fetch a public sealed document with the current board-scoped machine credential. */
+  async function get(path, token = JSON.parse(readFileSync(linkFile, 'utf8')).token) {
+    const response = await fetch(relay.origin + path, { headers: { 'x-pullboard-engine': String(ENGINE_VERSION), authorization: `Bearer ${token}` } });
     return { status: response.status, body: await response.json() };
   }
   const remoteState = await get(`/api/v1/boards/${boardId}/state`);
@@ -260,7 +270,6 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
     assert.ok(Array.isArray(opened.args));
   }
 
-  const linkFile = join(root, '.git', 'pullboard', 'relay.json');
   const oldLink = JSON.parse(readFileSync(linkFile, 'utf8'));
   await auth.revoke(person.token, oldLink.tokenId);
   const expired = await cli(root, relayEnv, 'status');
@@ -270,7 +279,7 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   assert.equal(renewed.sequence, 2, 'renewing sign-in preserves the relay cursor');
   assert.equal((await get(`/api/v1/boards/${boardId}/state`)).body.state.sealed, nativeAfterMoves.body.state.sealed,
     'renewing sign-in does not replace the acknowledged checkpoint');
-  assert.ok(signIns >= 3, 'JSON mode exposes each device code before waiting for sign-in');
+  assert.equal(signIns, 2, 'JSON mode exposes each device code for the initial successful link and explicit renewal');
 
   relay.failMoves(true);
   const beforeOffline = localEvents(boardFile);
@@ -321,7 +330,7 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   }
   assert.equal(uniqueMoves.size, 3, 'a lost reply recovers the exact send without inventing a second operation');
   await legacyMirrorQueueFragment({ relay, root, relayEnv, boardFile, linkFile, lane, lanes: Object.keys(config.lanes), boardId, key,
-    currentPersonToken: JSON.parse(readFileSync(linkFile, 'utf8')).token, localEvents, cli, store, unseal });
+    currentMachineToken: JSON.parse(readFileSync(linkFile, 'utf8')).token, localEvents, cli, store, unseal });
   relay.advance(80);
   const warned = await cli(root, relayEnv, 'status');
   assert.match((warned.diagnostics ?? []).join('\n'), /BOARD_INACTIVE.*10 days left.*Make a board move/i, 'the next linked command shows the real relay retention notice and repair');
@@ -335,21 +344,37 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   assert.equal(stored.includes(Buffer.from(encodeBoardKey(key))), false, 'relay journal does not contain the encoded key');
 
   await legacyForeignPrefixFragment({ relay, root, relayEnv, boardFile, linkFile, lane, boardId,
-    currentPersonToken: JSON.parse(readFileSync(linkFile, 'utf8')).token, localEvents, cliResult });
+    currentMachineToken: JSON.parse(readFileSync(linkFile, 'utf8')).token, localEvents, cliResult });
   const localBeforeOff = await cli(root, relayEnv, 'export');
   const off = await cli(root, relayEnv, 'relay', 'off');
   assert.equal(off.linked, false);
+  assert.match(off.notice, /Local link removed\. The relay copy stays until you approve deleting it on your phone\./u);
   assert.deepEqual((await cli(root, env, 'export')).tables, localBeforeOff.tables, 'unlink leaves local rows and counters unchanged');
-  assert.deepEqual(await auth.boardsFor(person.token), [], 'unlink removes the repository link');
-  const session = await fetch(relay.origin + '/auth/session', { headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}` } });
+  assert.deepEqual(await auth.boardsFor(person.token), [{ id: boardId, repository: 'fixture/repository', linkedAt }],
+    'zero-tap local unlink leaves the remote board linked');
+  const session = await fetch(relay.origin + '/auth/session', { headers: { 'x-pullboard-engine': String(ENGINE_VERSION), authorization: `Bearer ${person.token}` } });
   assert.equal(session.status, 200, 'unlink preserves the person session');
-  assert.equal((await get(`/api/v1/boards/${boardId}/state`)).status, 404);
-  assert.equal(readdirSync(relayDirectory).some((name) => name.startsWith(boardId + '.journal.sqlite')), false,
-    'off removes the relay journal and SQLite sidecars');
+  const remoteAfterOff = await fetch(`${relay.origin}/api/v1/boards/${boardId}/state`, {
+    headers: { 'x-pullboard-engine': String(ENGINE_VERSION), authorization: `Bearer ${person.token}` },
+  });
+  assert.equal(remoteAfterOff.status, 200, 'the relay copy remains until explicit person authorization');
+  assert.equal(readdirSync(relayDirectory).some((name) => name.startsWith(boardId + '.journal.sqlite')), true,
+    'local off leaves the remote journal and SQLite sidecars in place');
   const afterOffCalls = relay.calls.length;
   await cli(root, env, 'status');
   assert.equal(relay.calls.length, afterOffCalls, 'unlinked commands stop connecting immediately');
   assert.equal(existsSync(keyFile), false, 'successful off removes this device copy of the board key');
+  const deleted = await fetch(`${relay.origin}/api/v1/boards/${boardId}`, {
+    method: 'DELETE', headers: { 'x-pullboard-engine': String(ENGINE_VERSION), authorization: `Bearer ${person.token}` },
+  });
+  assert.equal(deleted.status, 200, 'a separate person HTTP DELETE removes the retained relay copy');
+  assert.deepEqual(await auth.boardsFor(person.token), [], 'the real person deletion unlinks the remote board');
+  const afterDelete = await fetch(`${relay.origin}/api/v1/boards/${boardId}/state`, {
+    headers: { 'x-pullboard-engine': String(ENGINE_VERSION), authorization: `Bearer ${person.token}` },
+  });
+  assert.equal(afterDelete.status, 404);
+  assert.equal(readdirSync(relayDirectory).some((name) => name.startsWith(boardId + '.journal.sqlite')), false,
+    'person deletion removes the relay journal and SQLite sidecars');
 });
 
 test('[H3,H16] three cloned linked replicas order competing claims and recover lost replies once', { timeout: 240_000 }, async (t) => {
@@ -371,6 +396,8 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
   const envs = homes.map((home) => {
     const env = { ...process.env, HOME: home, USERPROFILE: home, PULLBOARD_HOME: join(home, '.pullboard'), PATH: privateBin };
     for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
+    for (const key of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[key];
+    for (const key of ['PULLBOARD_RELAY_KEY', 'PULLBOARD_RELAY_TOKEN']) delete env[key];
     Object.assign(env, {
       GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
       GIT_AUTHOR_NAME: 'Relay Clone Test', GIT_AUTHOR_EMAIL: 'relay-clone@example.com',
@@ -445,6 +472,7 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
   await auth.linkBoard(person.token, boardId, 'fixture/repository');
 
   const key = await generateBoardKey();
+  const cloneCredentials = [];
   const savedPath = process.env.PATH;
   const savedHome = process.env.PULLBOARD_HOME;
   try {
@@ -454,9 +482,14 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
       assert.equal(storeBoardKey(boardId, key), 'file', 'the isolated PATH forces the private file fallback');
       const keyFile = join(envs[index].PULLBOARD_HOME, 'relay-keys', `${boardId}.key`);
       assert.equal(statSync(keyFile).mode & 0o777, 0o600);
+      const machine = 'machine-clone-' + (index + 1);
+      const machineCredential = await auth.issueMachine(person.token, { board: boardId, machine });
+      cloneCredentials.push(machineCredential);
+      assert.match(machineCredential.token, /^pm_[A-Za-z0-9_-]{43}$/u);
       const state = {
         version: 1, mode: 'ordered', board: boardId, url: relay.origin, repository: 'fixture/repository',
-        token: person.token, tokenId: person.id, keyStorage: 'file', sequence: 0,
+        token: machineCredential.token, tokenId: machineCredential.id, account: person.user.id, machine,
+        keyStorage: 'file', sequence: 0,
         cursor: snapshot.tables.event.at(-1)?.event_id ?? 0,
       };
       const linkFile = join(commonDir(clones[index], envs[index]), 'pullboard', 'relay.json');
@@ -467,12 +500,14 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
     if (savedPath === undefined) delete process.env.PATH; else process.env.PATH = savedPath;
     if (savedHome === undefined) delete process.env.PULLBOARD_HOME; else process.env.PULLBOARD_HOME = savedHome;
   }
+  assert.equal(new Set(cloneCredentials.map(value => value.token)).size, clones.length,
+    'each clone receives a distinct real board-scoped machine credential');
 
   const sealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(snapshot)), {
     boardId, kind: 'snapshot', sequence: 0,
   })).toString('base64url');
   const uploaded = await fetch(`${relay.origin}/api/v1/boards/${boardId}/state`, {
-    method: 'PUT', headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${person.token}`, 'content-type': 'application/json' },
+    method: 'PUT', headers: { 'x-pullboard-engine': String(ENGINE_VERSION), authorization: `Bearer ${cloneCredentials[0].token}`, 'content-type': 'application/json' },
     body: JSON.stringify({ sequence: 0, sealed }),
   });
   assert.equal(uploaded.status, 200, await uploaded.text());
@@ -560,7 +595,7 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
     boardId, kind: 'move', sequence: next,
   })).toString('base64url');
   const coordinatorCredential = await auth.issueToken(person.token, { board: boardId, agent: 'coordinator' });
-  const headers = { 'x-pullboard-engine': '3', authorization: 'Bearer ' + coordinatorCredential.token, 'content-type': 'application/json' };
+  const headers = { 'x-pullboard-engine': String(ENGINE_VERSION), authorization: 'Bearer ' + coordinatorCredential.token, 'content-type': 'application/json' };
   assert.equal((await fetch(`${relay.origin}/api/v1/boards/${boardId}/moves`, {
     method: 'POST', headers, body: JSON.stringify({ sequence: next, sealed: earlierSealed }),
   })).status, 200);
@@ -743,7 +778,7 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
 
 /** Exercise migration of an old local-first mirror queue into the ordered native checkpoint. */
 async function legacyMirrorQueueFragment({
-  relay, root, relayEnv, boardFile, linkFile, lane, lanes, boardId, key, currentPersonToken,
+  relay, root, relayEnv, boardFile, linkFile, lane, lanes, boardId, key, currentMachineToken,
   localEvents, cli, store, unseal,
 }) {
   const priorRows = localEvents(boardFile);
@@ -792,7 +827,7 @@ async function legacyMirrorQueueFragment({
   assert.equal(openedLegacy[0].presentation, undefined, 'the historical first move cannot attest the later row');
   assert.equal(openedLegacy[1].presentation.state.events[0].event_id, queuedEvents.at(-1).event_id, 'the final legacy move carries only its matching projection');
 
-  const authorization = { 'x-pullboard-engine': '3', authorization: `Bearer ${currentPersonToken}` };
+  const authorization = { 'x-pullboard-engine': String(ENGINE_VERSION), authorization: `Bearer ${currentMachineToken}` };
   const stateResponse = await fetch(`${relay.origin}/api/v1/boards/${boardId}/state`, { headers: authorization });
   assert.equal(stateResponse.status, 200);
   const stateDocument = await stateResponse.json();
@@ -815,7 +850,7 @@ async function legacyMirrorQueueFragment({
 
 /** Confirm migration refuses an unrecognized remote prefix before executing another local move. */
 async function legacyForeignPrefixFragment({
-  relay, root, relayEnv, boardFile, linkFile, lane, boardId, currentPersonToken, localEvents, cliResult,
+  relay, root, relayEnv, boardFile, linkFile, lane, boardId, currentMachineToken, localEvents, cliResult,
 }) {
   const originalLink = readFileSync(linkFile, 'utf8');
   const link = JSON.parse(originalLink);
@@ -827,7 +862,7 @@ async function legacyForeignPrefixFragment({
 
   const foreign = await fetch(`${relay.origin}/api/v1/boards/${boardId}/moves`, {
     method: 'POST',
-    headers: { 'x-pullboard-engine': '3', authorization: `Bearer ${currentPersonToken}`, 'content-type': 'application/json' },
+    headers: { 'x-pullboard-engine': String(ENGINE_VERSION), authorization: `Bearer ${currentMachineToken}`, 'content-type': 'application/json' },
     body: JSON.stringify({ sequence: link.sequence + 1, sealed: 'AQ' }),
   });
   assert.equal(foreign.status, 200, await foreign.text());

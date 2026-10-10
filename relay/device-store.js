@@ -3,6 +3,7 @@ import { chmodSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { Refused } from '../src/refused.js';
+import { approvalContext } from '../src/relay-approval.js';
 
 /** Keep device revocations durable so an in-flight native wrap cannot recreate deleted grants. */
 export function createDeviceStore({ directory, now = Date.now }) {
@@ -17,7 +18,11 @@ export function createDeviceStore({ directory, now = Date.now }) {
       opened.exec(`PRAGMA busy_timeout=30000;
         CREATE TABLE IF NOT EXISTS device (account TEXT NOT NULL, id TEXT NOT NULL, revoked INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(account,id));
         CREATE TABLE IF NOT EXISTS wrapped_key (account TEXT NOT NULL, device TEXT NOT NULL, board TEXT NOT NULL, engine INTEGER NOT NULL, wrapped TEXT NOT NULL, PRIMARY KEY(account,device,board));
-        CREATE TABLE IF NOT EXISTS enrollment (account TEXT NOT NULL, locator TEXT NOT NULL, expires INTEGER NOT NULL, payload TEXT, PRIMARY KEY(account,locator));`);
+        CREATE TABLE IF NOT EXISTS enrollment (account TEXT NOT NULL, locator TEXT NOT NULL, expires INTEGER NOT NULL, payload TEXT, PRIMARY KEY(account,locator));
+        CREATE TABLE IF NOT EXISTS phone_approval (id TEXT PRIMARY KEY, account TEXT NOT NULL, publisher TEXT NOT NULL,
+          board TEXT NOT NULL, device TEXT NOT NULL, action TEXT NOT NULL, machine TEXT NOT NULL, expires INTEGER NOT NULL,
+          context TEXT NOT NULL, sealed TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'waiting', response TEXT);
+        CREATE UNIQUE INDEX IF NOT EXISTS phone_approval_pending ON phone_approval(account,board,action) WHERE state='waiting';`);
       db = opened;
       return db;
     } catch (error) { opened.close(); throw error; }
@@ -35,7 +40,55 @@ export function createDeviceStore({ directory, now = Date.now }) {
     if (!row) throw new Refused('DEVICE_PAIR_EXPIRED', 'Run pullboard relay on --all for a fresh one-time pairing link.');
     return row;
   }
+  /** Keep expired approval metadata visible without renewing it or silently asking the phone again. */
+  function expireApprovals() {
+    database().prepare("UPDATE phone_approval SET state='expired', response=NULL WHERE expires<=? AND state IN ('waiting','approved')").run(now());
+  }
+  /** Return public immutable context and opaque envelopes, never a plaintext credential. */
+  function approval(row) {
+    return row ? { context: JSON.parse(row.context), sealed: row.sealed, state: row.state, response: row.response } : null;
+  }
   return {
+    /** Enqueue one immutable action for this account's already enrolled phone; PM cannot approve it. */
+    requestApproval(account, value, sealed) {
+      const context = approvalContext(value);
+      if (context.account !== account || context.expires <= now() || context.expires > now() + 630_000 ||
+          typeof sealed !== 'string' || !/^[A-Za-z0-9_-]{1,32000}$/u.test(sealed)) throw new Refused('PHONE_APPROVAL_CONTEXT', 'send a bounded ten-minute sealed approval for this account');
+      active(account, context.device);
+      database().exec('BEGIN IMMEDIATE');
+      try {
+        expireApprovals();
+        const existing = database().prepare('SELECT * FROM phone_approval WHERE id=?').get(context.id);
+        if (existing && (existing.context !== JSON.stringify(context) || existing.sealed !== sealed)) throw new Refused('PHONE_APPROVAL_CONTEXT', 'this request id already names another action');
+        const other = database().prepare("SELECT id FROM phone_approval WHERE account=? AND board=? AND action=? AND state='waiting'").get(account, context.board, context.action);
+        if (other && other.id !== context.id) throw new Refused('PHONE_APPROVAL_PENDING', 'one approval for this board and action is already waiting; use it or wait for its visible expiry');
+        if (!existing) database().prepare('INSERT INTO phone_approval(id,account,publisher,board,device,action,machine,expires,context,sealed) VALUES(?,?,?,?,?,?,?,?,?,?)')
+          .run(context.id, account, context.publisher, context.board, context.device, context.action, context.machine, context.expires, JSON.stringify(context), sealed);
+        database().exec('COMMIT');
+        return approval(existing ?? database().prepare('SELECT * FROM phone_approval WHERE id=?').get(context.id));
+      } catch (error) { database().exec('ROLLBACK'); throw error; }
+    },
+    /** Read one request only within its account and, for PM callers, its exact publisher and machine. */
+    approval(account, id, scope) {
+      expireApprovals();
+      const row = database().prepare('SELECT * FROM phone_approval WHERE account=? AND id=?').get(account, id);
+      if (!row || scope && (scope.board !== row.publisher || scope.machine !== row.machine)) throw new Refused('PHONE_APPROVAL_MISSING', 'use the approval published by this machine and board');
+      return approval(row);
+    },
+    /** List only this paired phone's account inbox; a machine never gets the account inventory. */
+    approvals(account, device) {
+      active(account, device);
+      expireApprovals();
+      return database().prepare("SELECT * FROM phone_approval WHERE account=? AND device=? AND state='waiting' ORDER BY expires,id").all(account, device).map(approval);
+    },
+    /** Persist only the phone-encrypted reply, rejecting expired or twice-completed approval. */
+    completeApproval(account, id, response) {
+      if (typeof response !== 'string' || !/^[A-Za-z0-9_-]{1,32000}$/u.test(response)) throw new Refused('PHONE_APPROVAL_CONTEXT', 'send the encrypted phone reply');
+      expireApprovals();
+      const result = database().prepare("UPDATE phone_approval SET response=?,state='approved' WHERE account=? AND id=? AND state='waiting' AND expires>?").run(response, account, id, now());
+      if (!result.changes) throw new Refused('PHONE_APPROVAL_USED', 'this request was approved or expired; use its existing reply');
+      return { recorded: true };
+    },
     /** Initialize an account-owned ten-minute locator without storing its secret. */
     begin(account, locator) {
       database().prepare('DELETE FROM enrollment WHERE expires<=?').run(now());

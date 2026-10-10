@@ -1,10 +1,12 @@
-/** Owner-only machine sessions, authenticated device roster and one-use enrollment [H5,H15,H17]. */
+/** Owner-only machine metadata, authenticated device roster and one-use enrollment [H5,H15,H17]. */
 import { randomUUID } from 'node:crypto';
-import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { authenticateDeviceEnrollment, devicePublicKey, wrapDeviceBoardKey } from './relay-device-keys.js';
+import { scrubLegacyPersonSessions } from './relay-key.js';
+import { approvalContext } from './relay-approval.js';
 import { createPairingCode } from './pairing.js';
 import { Refused } from './refused.js';
 
@@ -26,28 +28,44 @@ function privateEntry(path, folder = false) {
 
 /** Return the empty durable format without sharing mutable arrays between callers. */
 function emptyState() {
-  return { v: 1, autoLink: false, session: null, devices: [], excluded: [], pending: null, revocations: [] };
+  return { v: 2, autoLink: false, owner: null, machine: 'machine-' + randomUUID(), devices: [], excluded: [], pending: null, revocations: [], approvals: [] };
 }
 
 /** Validate machine metadata before any mutation can overwrite the trusted device roster. */
 function validate(state) {
-  if (!state || state.v !== 1 || typeof state.autoLink !== 'boolean' || !Array.isArray(state.devices) ||
+  if (!state || ![1, 2].includes(state.v) || typeof state.autoLink !== 'boolean' || !Array.isArray(state.devices) ||
       !Array.isArray(state.excluded) || !Array.isArray(state.revocations) || state.excluded.some(root => typeof root !== 'string') ||
       state.devices.some(device => !DEVICE.test(device?.deviceId ?? '') || typeof device.account !== 'string' || typeof device.url !== 'string' ||
         !/^[0-9a-f]{64}$/u.test(device.fingerprint ?? '') || typeof device.label !== 'string' || typeof device.createdAt !== 'string') ||
-      (state.session !== null && (!state.session || !/^ps_[A-Za-z0-9_-]{43}$/u.test(state.session.token ?? '') ||
+      (state.session != null && (!state.session || !/^ps_[A-Za-z0-9_-]{43}$/u.test(state.session.token ?? '') ||
         typeof state.session.account !== 'string' || typeof state.session.url !== 'string')) ||
       (state.pending !== null && (!state.pending || !/^[A-Za-z0-9_-]{43}$/u.test(state.pending.secret ?? '') ||
         !/^[A-Za-z0-9_-]{22}$/u.test(state.pending.locator ?? '') || typeof state.pending.account !== 'string' ||
         typeof state.pending.url !== 'string' || !Number.isSafeInteger(state.pending.expires)))) {
     throw new Refused('RELAY_MACHINE_STORAGE', 'Restore supported machine relay settings without replacing the trusted device list.');
   }
+  if (state.v === 2 && (!/^[A-Za-z0-9_-]{1,128}$/u.test(state.machine ?? '') || !Array.isArray(state.approvals) ||
+      (state.owner !== null && (!state.owner || typeof state.owner.account !== 'string' || !state.owner.account ||
+        typeof state.owner.url !== 'string' || !state.owner.url || Object.keys(state.owner).some(key => !['account', 'url'].includes(key)))))) {
+    throw new Refused('RELAY_MACHINE_STORAGE', 'Restore the supported machine identity and phone-link metadata, or sign in again explicitly.');
+  }
+  for (const entry of state.approvals ?? []) {
+    try {
+      const context = approvalContext(entry.context);
+      if (context.action !== 'link' || typeof entry.root !== 'string' || typeof entry.publisherRoot !== 'string' ||
+          typeof entry.published !== 'boolean' || typeof entry.sealed !== 'string' || !/^[A-Za-z0-9_-]{1,40000}$/u.test(entry.sealed) ||
+          !/^[A-Za-z0-9_-]{43}$/u.test(entry.replyKey?.d ?? '') ||
+          Object.keys(entry).some(key => !['root', 'publisherRoot', 'context', 'sealed', 'replyKey', 'published'].includes(key))) throw new Error('metadata');
+      const { d, key_ops, ...publicKey } = entry.replyKey;
+      devicePublicKey(publicKey);
+    } catch { throw new Refused('RELAY_MACHINE_STORAGE', 'Restore the pending phone-link proposal; person-action replies must stay in memory.'); }
+  }
   for (const device of state.devices) devicePublicKey(device.publicKey);
   return state;
 }
 
 /** Read the durable machine state without creating a directory or touching the network. */
-export function readRelayMachine() {
+function readState() {
   const folder = directory();
   if (!existsSync(folder)) return emptyState();
   privateEntry(folder, true);
@@ -58,6 +76,19 @@ export function readRelayMachine() {
   try { state = JSON.parse(readFileSync(file, 'utf8')); }
   catch { throw new Refused('RELAY_MACHINE_STORAGE', 'Restore valid machine relay settings before signing in or pairing again.'); }
   return validate(state);
+}
+
+/** Scrub legacy person sessions before returning settings to any native or agent command. */
+export function readRelayMachine() {
+  scrubLegacyPersonSessions();
+  const state = readState();
+  const folder = directory();
+  const fragments = existsSync(folder) && readdirSync(folder).some(name => /^state\.[0-9]+\.[0-9a-f-]+\.tmp$/u.test(name));
+  if (state.v === 1 || state.session != null || fragments) {
+    updateRelayMachine(() => {});
+    return readState();
+  }
+  return state;
 }
 
 /** Serialize cross-process read-modify-write and atomically replace the private machine file. */
@@ -74,8 +105,18 @@ export function updateRelayMachine(mutate) {
     db.exec('PRAGMA busy_timeout = 30000');
     db.exec('CREATE TABLE IF NOT EXISTS machine_lock (id INTEGER PRIMARY KEY)');
     db.exec('BEGIN IMMEDIATE');
-    const state = readRelayMachine();
+    // A crashed legacy writer may have left a complete person session beside state.json.
+    for (const name of readdirSync(folder)) {
+      if (/^state\.[0-9]+\.[0-9a-f-]+\.tmp$/u.test(name)) rmSync(join(folder, name), { force: true });
+    }
+    const state = readState();
+    state.owner ??= state.session ? { account: state.session.account, url: state.session.url } : null;
+    state.machine ??= 'machine-' + randomUUID();
+    state.approvals ??= [];
+    state.v = 2;
+    delete state.session;
     const result = mutate(state);
+    delete state.session;
     validate(state);
     temporary = join(folder, `state.${process.pid}.${randomUUID()}.tmp`);
     const fd = openSync(temporary, 'wx', 0o600);

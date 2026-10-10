@@ -12,8 +12,10 @@ import { terminalQr } from './qr.js';
 import { DEFAULT_RELAY, originRepository, relayStatus, syncRelay } from './relay.js';
 import { ENGINE_VERSION } from './machine.js';
 import { Refused } from './refused.js';
+import { requirePersonChannel } from './person.js';
+import { updateRelayMachine } from './relay-machine.js';
 
-const TOKEN = /^ps_[A-Za-z0-9_-]{43}$/;
+const TOKEN = /^pm_[A-Za-z0-9_-]{43}$/;
 const BOARD = /^[0-9a-f]{32}$/;
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
@@ -87,7 +89,7 @@ async function signIn(url, io) {
     if (Date.now() >= deadline) throw new Refused('OAUTH_EXPIRED', 'GitHub device sign-in expired; run pullboard relay join again with a fresh code');
     const result = await relayRequest(url, '', '/auth/device/poll', { ticket: start.ticket });
     if (!result.pending) {
-      if (!TOKEN.test(result.token)) throw new Refused('RELAY_RESPONSE', 'the relay did not issue a person session; sign in again');
+      if (!/^ps_[A-Za-z0-9_-]{43}$/.test(result.token)) throw new Refused('RELAY_RESPONSE', 'the relay did not issue a person session; sign in again');
       return result;
     }
     wait = result.retryAfter ?? start.interval;
@@ -181,6 +183,7 @@ function requireMissingKey(board) {
 
 /** Consume a printed one-time code, restore the board and save this device's own link. */
 export async function relayJoin(root, code, address, io) {
+  requirePersonChannel(io.personChannel);
   const parsed = parsePairingCode(code);
   const url = relayOrigin(address || DEFAULT_RELAY);
   requireFreshTarget(root);
@@ -194,6 +197,9 @@ export async function relayJoin(root, code, address, io) {
   if (new URL(bundle.url).origin !== new URL(url).origin) throw new Refused('PAIR_RELAY', 'this code belongs to another relay; rerun join with that relay address');
   const file = linkFile(root);
   if (existsSync(file)) throw new Refused('RELAY_LINKED', 'this clone already has relay link metadata; use a fresh clone to join another device');
+  const machine = updateRelayMachine(state => state.machine);
+  const issued = await relayRequest(url, signed.token, '/auth/machines', { board: bundle.board, machine });
+  if (!TOKEN.test(issued.token) || issued.board !== bundle.board || issued.machine !== machine) throw new Refused('RELAY_RESPONSE', 'the relay did not issue this joined board’s machine credential; pair again');
   let keyStorage;
   try {
     keyStorage = storeBoardKey(bundle.board, Buffer.from(bundle.key, 'base64url'));
@@ -204,7 +210,7 @@ export async function relayJoin(root, code, address, io) {
     saveState(file, {
       version: 1, board: bundle.board, url: bundle.url, repository: bundle.repository,
       mode: bundle.mode,
-      token: signed.token, tokenId: signed.id, keyStorage,
+      token: issued.token, tokenId: issued.id, machine, account: signed.user.id, keyStorage,
       sequence: bundle.sequence, cursor: bundle.cursor,
     });
   } catch (error) {

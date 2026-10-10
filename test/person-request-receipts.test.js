@@ -11,7 +11,7 @@ import { refusalDocument } from '../src/json.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { preparePersonRequest } from '../src/person-request.js';
 import { Refused } from '../src/refused.js';
-import { personRequestRecords, personRequestStatuses, receivePersonRequest } from '../src/relay-requests.js';
+import { personRequestRecords, personRequestStatuses, receivePersonRequest, requestIntentDigest, requestStageText } from '../src/relay-requests.js';
 
 const at = '2026-10-08T12:34:56.000Z';
 const person = { kind: 'person', userId: 'github-person-1' };
@@ -42,7 +42,8 @@ function claimMove(board, id, executor, moveId = 'claim-stage') {
   const move = prepareEngineMove(board, 'shout', [{
     from: 'person', to: 'coordinator', text: 'View request ' + id + ': Received a request from the paired view.', lanes: [],
   }], { id: moveId });
-  move.personRequest = { id, executor, phase: 'claim' };
+  const record = personRequestRecords(board).find(entry => entry.id === id && !entry.duplicateOf);
+  move.personRequest = { id, executor, phase: 'claim', digest: requestIntentDigest(record) };
   return move;
 }
 
@@ -93,6 +94,7 @@ test('[H12,H16] elected executor commits one ordinary engine move and replay ret
   const board = box.board;
   const document = preparePersonRequest({ verb: 'shout', args: { to: 'coordinator', text: 'Please review this' } }, 'shout-1');
   receivePersonRequest(board, document, { sequence: 1, at, sender: person });
+  const digest = requestIntentDigest(personRequestRecords(board).find(record => record.id === document.id));
 
   const claim = claimMove(board, document.id, 'device-a');
   assert.equal(claim.engine, ENGINE_VERSION);
@@ -101,14 +103,14 @@ test('[H12,H16] elected executor commits one ordinary engine move and replay ret
   assert.equal(personRequestRecords(board)[0].executor, 'device-a');
 
   const badId = prepareEngineMove(board, 'shout', [{ from: 'person', to: 'coordinator', text: 'wrong request', lanes: [] }], { id: 'bad-request-id' });
-  badId.personRequest = { id: 'missing-request', executor: 'device-a', phase: 'execute' };
+  badId.personRequest = { id: 'missing-request', executor: 'device-a', phase: 'execute', digest };
   assert.equal(applyEngineMove(board, badId, { sequence: 3, at }).error?.code, 'PERSON_REQUEST_CLOSED');
   const wrongOperation = prepareEngineMove(board, 'addItem', [{ by: 'person', lane: 'web', title: 'Wrong action' }], { id: 'wrong-operation' });
-  wrongOperation.personRequest = { id: document.id, executor: 'device-a', phase: 'execute' };
+  wrongOperation.personRequest = { id: document.id, executor: 'device-a', phase: 'execute', digest };
   assert.equal(applyEngineMove(board, wrongOperation, { sequence: 4, at }).error?.code, 'PERSON_REQUEST_RECEIPT');
 
   const wrongArguments = prepareEngineMove(board, 'shout', [{ from: 'person', to: 'coordinator', text: 'A different question', lanes: [] }], { id: 'wrong-arguments' });
-  wrongArguments.personRequest = { id: document.id, executor: 'device-a', phase: 'execute' };
+  wrongArguments.personRequest = { id: document.id, executor: 'device-a', phase: 'execute', digest };
   assert.equal(applyEngineMove(board, wrongArguments, { sequence: 5, at }).error?.code, 'PERSON_REQUEST_RECEIPT', 'an ordinary move must fulfil the exact queued intent');
 
   const losingClaim = claimMove(board, document.id, 'device-b', 'claim-stage-other');
@@ -119,7 +121,7 @@ test('[H12,H16] elected executor commits one ordinary engine move and replay ret
   const execution = prepareEngineMove(board, 'shout', [{
     from: 'person', to: 'coordinator', text: 'Please review this', lanes: [],
   }], { id: 'execute-shout-1' });
-  execution.personRequest = { id: document.id, executor: 'device-a', phase: 'execute' };
+  execution.personRequest = { id: document.id, executor: 'device-a', phase: 'execute', digest };
   assert.equal(execution.engine, ENGINE_VERSION);
   const result = applyEngineMove(board, execution, { sequence: 7, at });
   assert.ok(result.result);
@@ -147,9 +149,9 @@ test('[H12,H16] native CLI refusal fields remain attached to the durable request
 
   const cliError = refusalDocument(new Refused('UNKNOWN_SPEC', 'G999 is not in SPEC.md')).error;
   const refusal = prepareEngineMove(board, 'shout', [{
-    from: 'person', to: 'coordinator', text: `View request ${document.id}: [${cliError.code}] ${cliError.message}`, lanes: [],
+    from: 'person', to: 'coordinator', text: requestStageText(personRequestRecords(board).find(record => record.id === document.id), 'refuse'), lanes: [],
   }], { id: 'refusal-stage' });
-  refusal.personRequest = { id: document.id, executor: 'device-a', phase: 'refuse', error: cliError };
+  refusal.personRequest = { id: document.id, executor: 'device-a', phase: 'refuse', digest: requestIntentDigest(personRequestRecords(board).find(record => record.id === document.id)), error: cliError };
   assert.equal(refusal.engine, ENGINE_VERSION);
   const outcome = applyEngineMove(board, refusal, { sequence: 3, at });
   assert.ok(outcome.result);
