@@ -548,18 +548,21 @@ function whoAmI(ctx, board) {
 }
 
 /**
- * Freeze a criterion from committed policy, preserving legacy bytes except on an explicit refreeze.
+ * Freeze a criterion from committed policy, refreshing trunk policy only on an explicit refreeze.
  *
  * @param {any} ctx
  * @param {{ captureVerifyPolicy?: boolean }} [options]
  * @returns {(item: any) => { text: string, digest: string }}
  */
 function freezer(ctx, { captureVerifyPolicy = false } = {}) {
-  /** Freeze the item's criterion and, when requested, its committed verifier policy. */
+  /** Freeze the criterion and, when requested, the trunk lane and verifier policy. */
   return (item) => {
     const prior = item.item_frozen ? JSON.parse(item.item_frozen) : null;
     const needsPinnedPolicy = !prior || captureVerifyPolicy;
-    let policy = prior?.policy ?? (needsPinnedPolicy && !(ctx.info.isMain && !headCommit(ctx.info.root)) ? { version: 1, commit: mainPolicy(ctx.info.root).commit } : null);
+    let policy = prior?.policy ?? null;
+    if (needsPinnedPolicy && !(ctx.info.isMain && !headCommit(ctx.info.root))) {
+      policy = { version: 1, commit: mainPolicy(ctx.info.root).commit };
+    }
     let config;
     if (policy && needsPinnedPolicy) {
       const commit = /^[0-9a-f]{40,64}$/.test(policy.commit ?? '')
