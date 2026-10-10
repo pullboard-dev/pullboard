@@ -19,7 +19,7 @@ import { exportBoard, importBoard } from '../src/exchange.js';
 import { checkpointSequence } from '../src/engine.js';
 import { serveApi } from '../src/api.js';
 import { main } from '../src/cli.js';
-import { appliedSequence, prepareEngineMove } from '../src/engine.js';
+import { appliedSequence, engineReceipt, prepareEngineMove } from '../src/engine.js';
 import { storeBoardKey } from '../src/relay-key.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { presentationShout } from '../src/relay-presentation.js';
@@ -377,7 +377,7 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
     'person deletion removes the relay journal and SQLite sidecars');
 });
 
-test('[H3,H16] three cloned linked replicas order competing claims and recover lost replies once', { timeout: 240_000 }, async (t) => {
+test('[H3,H16,V1,V17] three cloned linked replicas order competing claims and recover lost replies once', { timeout: 240_000 }, async (t) => {
   const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-relay-clone-race-')));
   const seed = join(scratch, 'seed');
   const clones = [join(scratch, 'clone-a'), join(scratch, 'clone-b'), join(scratch, 'clone-c')];
@@ -750,6 +750,105 @@ test('[H3,H16] three cloned linked replicas order competing claims and recover l
   assert.equal(relay.uploads.length, beforeAutomatic + 1, 'automatic recovery keeps one ordered move');
   assert.equal(JSON.parse(readFileSync(join(commonDir(clones[2], envs[2]), 'pullboard', 'relay.json'), 'utf8')).recovered,
     undefined, 'automatic success consumes its recovered outcome');
+
+  await Promise.all(worktrees.map((root, index) => cli(root, envs[index], 'status')));
+
+  // A lost submit reply is already an outcome, even if another item becomes stacked while this
+  // replica is behind. A third, receipt-missing recovered descriptor still takes the fresh guard.
+  const stackBrief = join(scratch, 'recovered-stack-brief.md');
+  writeFileSync(stackBrief, 'Files: web/\nTest: only an exact durable receipt bypasses the fresh stack guard.\n');
+  const stackedA = (await cli(clones[0], envs[0], 'add', 'web', 'Relay recovered stack A', '--route', 'light', '--brief-file', stackBrief, '--specs', 'G1', '--criterion', 'exact durable receipt preserves recovery and missing receipts enforce stacking', '--check', 'true')).item.item_id;
+  const stackedB = (await cli(clones[0], envs[0], 'add', 'web', 'Relay recovered stack B', '--route', 'light', '--brief-file', stackBrief, '--specs', 'G1', '--criterion', 'exact durable receipt preserves recovery and missing receipts enforce stacking', '--check', 'true')).item.item_id;
+  const freshB = (await cli(clones[0], envs[0], 'add', 'web', 'Receipt-missing recovered stack', '--route', 'light', '--brief-file', stackBrief, '--specs', 'G1', '--criterion', 'exact durable receipt preserves recovery and missing receipts enforce stacking', '--check', 'true')).item.item_id;
+  await cli(worktrees[0], envs[0], 'claim', String(stackedB));
+  await cli(worktrees[1], envs[1], 'claim', String(stackedA));
+  await cli(worktrees[2], envs[2], 'claim', String(freshB));
+
+  writeFileSync(join(worktrees[1], 'web', 'recovery-a.txt'), 'the first submitted commit\n');
+  gitAt(worktrees[1], envs[1], 'add', 'web/recovery-a.txt');
+  gitAt(worktrees[1], envs[1], 'commit', '-q', '-m', 'test: create first recovery commit [G1]');
+  const firstRecoveryCommit = gitAt(worktrees[1], envs[1], 'rev-parse', 'HEAD');
+  for (const candidate of [worktrees[0], worktrees[2]]) {
+    const env = candidate === worktrees[0] ? envs[0] : envs[2];
+    gitAt(candidate, env, 'fetch', '-q', worktrees[1], firstRecoveryCommit);
+    gitAt(candidate, env, 'merge', '--no-ff', '-m', 'test: merge first recovery candidate [G1]', firstRecoveryCommit);
+  }
+  for (const [candidate, env, file, body, title] of [
+    [worktrees[0], envs[0], 'web/recovery-b.txt', 'the lost-ack candidate\n', 'recovered B'],
+    [worktrees[2], envs[2], 'web/recovery-fresh.txt', 'the receipt-missing candidate\n', 'fresh B'],
+  ]) {
+    writeFileSync(join(candidate, file), body);
+    gitAt(candidate, env, 'add', file);
+    gitAt(candidate, env, 'commit', '-q', '-m', `test: create ${title} candidate [G1]`);
+  }
+  const recoveredStackCommit = gitAt(worktrees[0], envs[0], 'rev-parse', 'HEAD');
+  const freshStackCommit = gitAt(worktrees[2], envs[2], 'rev-parse', 'HEAD');
+
+  const beforeRecoveredStack = relay.uploads.length;
+  relay.dropNextReply({ offline: true });
+  const lostStackSubmit = await cliResult(worktrees[0], envs[0], 'submit', String(stackedB));
+  assert.equal(lostStackSubmit.status, 1);
+  assert.equal(lostStackSubmit.document.error.code, 'RELAY_UNAVAILABLE');
+  relay.failReads(false);
+  const laterA = await cliResult(worktrees[1], envs[1], 'submit', String(stackedA));
+  assert.equal(laterA.status, 0, laterA.stderr);
+  assert.equal(laterA.document.commit, firstRecoveryCommit);
+  await cli(clones[0], envs[0], 'status');
+
+  const recoveredLink = join(commonDir(clones[0], envs[0]), 'pullboard', 'relay.json');
+  const pendingOutcome = JSON.parse(readFileSync(recoveredLink, 'utf8')).recovered;
+  assert.equal(pendingOutcome.move.operation, 'submit');
+  assert.equal(pendingOutcome.move.args[0], stackedB);
+  assert.ok(pendingOutcome.move.args[1].commit === recoveredStackCommit);
+  const recoveredReceipt = receipts(replicaFiles[0]).find((receipt) => JSON.parse(receipt.move).id === pendingOutcome.move.id);
+  assert.deepEqual(JSON.parse(recoveredReceipt.move), pendingOutcome.move, 'the pending reply has the exact durable engine receipt');
+  const beforeOutcomeRetry = relay.uploads.length;
+  assert.equal(beforeOutcomeRetry, beforeRecoveredStack + 2, 'the relay applied B and then A once each');
+  const originalOutcome = await cli(worktrees[0], envs[0], 'submit', String(stackedB));
+  assert.equal(originalOutcome.commit, recoveredStackCommit);
+  assert.match(originalOutcome.gate.report, /recovered the original submission/u);
+  assert.equal(relay.uploads.length, beforeOutcomeRetry, 'reporting the durable outcome creates no new relay move');
+
+  await cli(clones[2], envs[2], 'status');
+  const freshLinkFile = join(commonDir(clones[2], envs[2]), 'pullboard', 'relay.json');
+  const freshLink = JSON.parse(readFileSync(freshLinkFile, 'utf8'));
+  const freshBoard = store.openBoard(replicaFiles[2]);
+  let fabricatedReceiptlessMove;
+  try {
+    const freshItem = store.getItem(freshBoard, freshB);
+    const args = [freshB, {
+      agentId: freshItem.item_owner,
+      commit: freshStackCommit,
+      tree: gitAt(worktrees[2], envs[2], 'rev-parse', 'HEAD^{tree}'),
+      files: ['web/recovery-a.txt', 'web/recovery-fresh.txt'],
+      policyCommit: gitAt(clones[2], envs[2], 'rev-parse', 'main'),
+    }];
+    fabricatedReceiptlessMove = prepareEngineMove(freshBoard, 'submit', args);
+    assert.equal(appliedSequence(freshBoard) > 0, true);
+    assert.equal(engineReceipt(freshBoard, fabricatedReceiptlessMove.id), null,
+      'the recovery descriptor has no durable engine receipt');
+  } finally { store.closeBoard(freshBoard); }
+  const freshSequence = freshLink.sequence + 1;
+  const freshSealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(fabricatedReceiptlessMove)), {
+    boardId, kind: 'move', sequence: freshSequence,
+  })).toString('base64url');
+  freshLink.recovered = {
+    move: fabricatedReceiptlessMove,
+    intent: JSON.stringify({ operation: 'submit', args: fabricatedReceiptlessMove.args }),
+    sequence: freshSequence,
+    sealed: freshSealed,
+  };
+  writeFileSync(freshLinkFile, JSON.stringify(freshLink) + '\n', { mode: 0o600 });
+  const beforeFreshRefusal = relay.uploads.length;
+  const freshRefusal = await cliResult(worktrees[2], envs[2], 'submit', String(freshB));
+  assert.equal(freshRefusal.status, 1);
+  assert.equal(freshRefusal.document.error.code, 'STACKED_ON_UNVERIFIED');
+  assert.match(freshRefusal.document.error.message, new RegExp(`#${stackedA}\\b`, 'u'));
+  assert.ok(freshRefusal.document.error.message.includes(firstRecoveryCommit));
+  assert.equal(relay.uploads.length, beforeFreshRefusal, 'a receipt-missing recovered descriptor is refused before relay upload');
+  const freshAfter = store.openBoard(replicaFiles[2]);
+  try { assert.equal(store.getItem(freshAfter, freshB).item_status, 'claimed'); }
+  finally { store.closeBoard(freshAfter); }
 
   await Promise.all(worktrees.map((root, index) => cli(root, envs[index], 'status')));
   const updated = store.openBoard(replicaFiles[0]);

@@ -42,7 +42,16 @@ export function trunkRef(root, branch) {
   return branch;
 }
 
-/** Refuse a candidate that conflicts with the current primary branch, without touching an index or worktree [B34,V6]. */
+/** Resolve the trunk snapshot and refuse a conflict without touching an index or worktree [B34,V6].
+ *
+ * Returning the exact ref and tip lets later candidate checks use the same snapshot this merge
+ * check validated.
+ *
+ * @param {string} root
+ * @param {string} commit
+ * @param {string} [retainedRef]
+ * @returns {{ ref: string, commit: string }}
+ */
 export function requireTrunkMerge(root, commit, retainedRef = trunkRef(root)) {
   const checkout = mainCheckout(root);
   const branchRef = checkout?.branch ?? retainedRef;
@@ -52,7 +61,7 @@ export function requireTrunkMerge(root, commit, retainedRef = trunkRef(root)) {
   const result = spawnSync('git', ['--no-replace-objects', '-c', 'core.quotepath=false', 'merge-tree', '--write-tree', '--name-only', '-z', tip.stdout.trim(), commit], {
     cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 32 * 1024 * 1024,
   });
-  if (result.status === 0) return;
+  if (result.status === 0) return { ref: branchRef, commit: tip.stdout.trim() };
   if (result.status !== 1) throw new Refused('MERGE_CHECK_FAILED', 'Git could not check the candidate against the trunk; use Git 2.38 or newer, restore its objects and retry');
   const records = result.stdout.split('\0').slice(1);
   const end = records.indexOf('');
