@@ -1,13 +1,8 @@
 import { effectiveGuards, IN_STATE, MACHINE } from './machine.js';
+import { commandPhrases } from './help.js';
 
-/**
- * The command phrases the CLI declares, as help --all prints them (HELP.all) and as each command's usage
- * lines do, longest first. Inline text chips "pullboard" only with one of
- * these (test/cockpit.test.js keeps the list equal to HELP), so the words after a command stay prose.
- */
-export const PULLBOARD_COMMANDS = Object.freeze(["spec signers add","hook commit-msg","hook pre-commit","hook pre-merge-commit","hook pre-push","milestone add","milestone edit","milestone items","milestone move","milestone remove","prompt decompose","prompt plan","prompt review","prompt signoff","prompt verify","relay devices","relay join","relay off","relay on","relay pair","relay revoke","relay tokens","spec apply","spec approve","spec check","spec show","spec signoff","spec unmet","spec view","add","answer","check","claim","decisions","doctor","done","edit","escalate","export","fact","forget","gate","help","hold","hook","hooks","import","inbox","init","join","lanes","ledger","lifecycle","list","log","merged","milestone","next","pass","prompt","refreeze","relay","release","resources","resume","roadmap","run","serve","settings","shout","show","spec","stats","status","submit","sweep","takeover","tour","verify","version","view","whoami","withdraw","worktree"]);
-/** A command in prose: its phrase, then only flags, numbers, #ids, quoted text, CAPS names, paths and agent ids. */
-const COMMAND_SOURCE = 'pullboard (?:' + PULLBOARD_COMMANDS.join('|') + ')(?![\\w-])(?: (?:--?[\\w-]+|\\d+|#\\d+|"[^"\\n]*"|[A-Z][A-Z0-9_]*|[\\w-]*[\\/.:@][^\\s"]*|[a-z]+-\\d+)(?![\\w-]))*';
+/** The CLI's default phrases, ordered by depth for the existing prose inventory guard. */
+export const PULLBOARD_COMMANDS = Object.freeze(commandPhrases().sort((left, right) => right.split(' ').length - left.split(' ').length));
 
 /**
  * The item lifecycle as the page draws it (M1): each state with what it means and, for a final
@@ -47,6 +42,9 @@ function lifecycle() {
  * @returns {string}
  */
 export function cockpitPage(key = '', { snapshot = false, readOnly = false, requests = false, transportModule = null, apiBase = '', apiHeaders = { 'x-pullboard-key': key }, stylesheet = null, paths = false } = {}) {
+  // Derive the current CLI inventory for every served, relay or exported page.
+  const COMMAND_SOURCE = 'pullboard (?:' + commandPhrases().join('|') + ')(?![\\w-])(?: (?:--?[\\w-]+|\\d+|#\\d+|"[^"\\n]*"|[A-Z][A-Z0-9_]*|[\\w-]*[\\/.:@][^\\s"]*|[a-z]+-\\d+)(?![\\w-]))*';
+
   if (transportModule !== null && (typeof transportModule !== 'string' || !transportModule.trim())) throw new TypeError('transportModule must be a non-empty module URL or null');
   const connection = JSON.stringify(transportModule ? { base: '', headers: {} } : { base: apiBase.replace(/\/$/, ''), headers: apiHeaders }).replace(/</g, '\\u003c');
   const moduleOption = JSON.stringify(transportModule).replace(/</g, '\\u003c');
@@ -67,7 +65,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
 <aside class="side" id="side" aria-label="Projects">
   <div class="side-top">
     <button class="brand" id="side-toggle" type="button" aria-pressed="false" aria-controls="side-body" aria-label="Collapse the project list" title="Collapse the project list"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg><span>Pullboard</span></button>
-    <button class="switch-btn" id="proj-switch" type="button" aria-expanded="false" aria-controls="side-body"><span id="proj-name">Projects</span><b class="need" id="proj-elsewhere" title="Needs you in other projects" hidden></b><small>▾</small></button>
+    <button class="switch-btn" id="proj-switch" type="button" aria-expanded="false" aria-controls="side-body"><span id="proj-name">Projects</span><small>▾</small></button>
     <button class="theme-btn" id="theme" type="button" title="Theme: system"><svg class="sys" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="currentColor" d="M8 2a6 6 0 0 1 0 12Z"/></svg><svg class="sun" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M8 1.5v1.2M8 13.3v1.2M1.5 8h1.2M13.3 8h1.2M3.4 3.4l.85.85M11.75 11.75l.85.85M3.4 12.6l.85-.85M11.75 4.25l.85-.85"/></svg><svg class="moon" viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M13.6 9.6A6 6 0 1 1 6.4 2.4a5.2 5.2 0 0 0 7.2 7.2Z"/></svg></button>
   </div>
   <div class="side-body" id="side-body">
@@ -79,14 +77,13 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
 <div class="body">
 <header class="top">
   <nav class="tabs" id="tabs" aria-label="Board">
-    <button class="tab" data-tab="items" type="button">Items<b id="count-items"></b></button>
-    <button class="tab" data-tab="shouts" type="button">Shouts<b id="count-shouts"></b></button>
-    <button class="tab" data-tab="spec" type="button">Spec<b id="count-spec"></b></button>
-    <button class="tab" data-tab="doctrine" type="button">Doctrine<b id="count-doctrine"></b></button>
+    <button class="tab" data-tab="items" type="button">Items</button>
+    <button class="tab" data-tab="shouts" type="button">Shouts</button>
+    <button class="tab" data-tab="spec" type="button">Spec</button>
+    <button class="tab" data-tab="doctrine" type="button">Doctrine</button>
     <button class="tab" data-tab="activity" type="button">Activity</button>
     <button class="tab" data-tab="roadmap" type="button">Roadmap</button>
   </nav>
-  <span class="live" id="live"></span>
 </header>
 <main>
   <section class="card-panel first">
@@ -107,7 +104,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   <section class="card-panel person-requests" id="person-requests" aria-label="Your requests" aria-live="polite" hidden></section>
   <section data-pane="items" class="two">
     <div class="primary">
-      <div class="card-panel toolbar"><div class="seg" id="state-chips" role="group" aria-label="Show"></div><input id="q" type="search" placeholder="Search" aria-label="Search titles, lanes or ids"><button class="go" id="new-item" type="button">New item</button></div>
+      <div class="card-panel toolbar"><div class="seg" id="state-chips" role="group" aria-label="Show"></div><div class="find"><select id="lane-pick" aria-label="Lane"></select><input id="q" type="search" placeholder="Search" aria-label="Search titles, lanes or ids"></div><button class="go" id="new-item" type="button">New item</button></div>
       <section class="needs-you" id="needs" aria-label="What needs you" hidden></section>
       <ol class="card-panel chain" id="chain" aria-label="Items"></ol>
     </div>
@@ -137,11 +134,11 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
     </aside>
   </section>
   <section data-pane="spec" class="two">
-    <div class="primary"><div class="card-panel rows-card"><div class="rows-filter"><div class="seg" id="spec-chips" role="group" aria-label="Show"></div></div><div class="rows" id="spec-list"></div></div></div>
+    <div class="primary"><div class="card-panel rows-card"><div class="rows-filter"><div class="seg" id="spec-chips" role="group" aria-label="Show"></div></div><div class="rows" id="spec-list" tabindex="0" aria-label="Spec rows"></div></div></div>
     <aside class="card-panel detail" aria-label="Spec row"><div id="spec-detail"></div></aside>
   </section>
   <section data-pane="doctrine" class="two">
-    <div class="primary"><div class="card-panel rows-card"><div class="rows-filter"><div class="seg" id="doctrine-chips" role="group" aria-label="Show"></div></div><div class="rows" id="doctrine-list"></div></div></div>
+    <div class="primary"><div class="card-panel rows-card"><div class="rows-filter"><div class="seg" id="doctrine-chips" role="group" aria-label="Show"></div></div><div class="rows" id="doctrine-list" tabindex="0" aria-label="Doctrine rows"></div></div></div>
     <aside class="card-panel detail" aria-label="Practice row"><div id="doctrine-detail"></div></aside>
   </section>
   <section data-pane="activity">
@@ -153,6 +150,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
 </main>
 </div>
 </div>
+<footer class="status${snapshot ? ' snap' : ''}" aria-label="Board status"><span class="live" id="live"></span><span class="status-board" id="status-board"></span></footer>
 <div class="spec-reason-backdrop" id="spec-decline-dialog" hidden>
   <form class="spec-reason-dialog" id="spec-decline-form" aria-labelledby="spec-decline-title">
     <h2 id="spec-decline-title">Decline spec row</h2>
@@ -184,7 +182,7 @@ function homeTab() {
   const kept = keep('pb.tab');
   return kept && kept !== 'roadmap' ? kept : 'items';
 }
-const view = { root: keep('pb.project'), tab: addressTab() || homeTab(), seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null }, agent: null, agentsHidden: keep('pb.agents') === 'hidden', allAgents: false };
+const view = { root: keep('pb.project'), tab: addressTab() || homeTab(), seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null }, agent: null, allAgents: false, agentsHidden: keep('pb.agents') === 'hidden', open: {} };
 if (snapshot) view.state = 'all';
 let data = null;
 let seen = '';
@@ -354,7 +352,9 @@ function factCodeRef(ref) {
 }
 const tone = (s) => s === 'approved' ? 'ok' : s === 'pending' ? 'no' : s === 'draft' ? 'warn' : '';
 /** A doctrine rule's source, with a version only when it comes from the shipped standard. */
-const ruleSource = (row) => row.origin === 'standard' ? 'standard ' + row.version : 'repo';
+// Where a rule comes from, in words: Pullboard's standard rules, or this repo's own; the standard's version is on hover.
+const ruleSource = (row) => row.origin === 'standard' ? 'From Pullboard' : 'This repo';
+const ruleSourceTitle = (row) => row.origin === 'standard' ? 'Pullboard standard rules, version ' + row.version : 'Written in this repo';
 const count = (n, one, many = one) => n + ' ' + (n === 1 ? one : many);
 // What needs the person in a project, as its Needs-you list counts it: only the person's calls (B26),
 // the decisions passed up to them, spec rows waiting for them, and held lanes, which only the main
@@ -777,7 +777,7 @@ async function refresh() {
     snapshotReplay.index = snapshotReplay.events.length;
     replayControls();
   }
-  $('live').textContent = snapshot ? 'read-only snapshot' : 'live · ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+  $('live').textContent = snapshot ? 'read-only snapshot' : '';
 }
 
 /** Display the current event and make the replay's play, pause and end states explicit. */
@@ -914,11 +914,6 @@ function renderSide() {
   }).join('');
   const loose = data.projects.filter((repo) => !groupedRoots.has(repo.root)).map(repoButton).join('');
   $('proj-list').innerHTML = grouped || loose ? grouped + loose : '<div class="empty">None yet.</div>';
-  const currentGroup = data.groups.find((group) => group.key === view.root);
-  const currentRoots = new Set(currentGroup ? currentGroup.repos.map((repo) => repo.root) : [view.root]);
-  const elsewhere = data.projects.filter((x) => !currentRoots.has(x.root)).reduce((n, x) => n + needCount(x), 0);
-  $('proj-elsewhere').textContent = elsewhere ? elsewhere + ' elsewhere' : '';
-  $('proj-elsewhere').hidden = !elsewhere;
   const p = data.project;
   const selectedGroup = data.groups.find((group) => group.key === view.root);
   $('proj-name').textContent = selectedGroup?.name || (p ? (data.projects.find((x) => x.root === view.root) || { name: p.root.split('/').pop() }).name : 'No project');
@@ -1099,9 +1094,12 @@ function milestoneRow(row, titles) {
  * highlighted line. A milestone with no items says so, rather than draw an empty bar.
  */
 function roadmapCards(p, titles) {
-  const milestones = p.milestones || [];
+  // Opened from the status bar's release, the Roadmap is that release alone, with a way back to all of them.
+  const only = view.roadmapOnly && (p.milestones || []).some((m) => m.name === view.roadmapOnly) ? view.roadmapOnly : null;
+  const milestones = (p.milestones || []).filter((m) => !only || m.name === only);
+  const lead = only ? '<div class="roadmap-only"><span>' + esc(only) + '</span><button class="link" data-roadmap-all type="button">show all</button></div>' : '';
   if (!milestones.length) return '<div class="card-panel empty">No milestones yet. The coordinator adds one with <code class="inline">pullboard milestone add</code>.</div>';
-  return milestones.map((milestone) => {
+  return lead + milestones.map((milestone) => {
     const rows = milestone.items.map((entry) => milestoneItem(entry, p));
     const done = rows.filter((row) => row.state === 'verified').length;
     const name = esc(milestone.name);
@@ -1138,9 +1136,6 @@ function render() {
   }).join('');
   const items = p.items.filter((i) => i.status !== 'withdrawn');
   const active = items.filter((i) => stateOf(i) !== 'verified');
-  $('count-items').textContent = active.length || '';
-  $('count-spec').textContent = p.spec.filter((r) => ['pending', 'draft'].includes(r.status) && !r.decision).length || '';
-  $('count-doctrine').textContent = p.practice.filter((r) => ['pending', 'draft'].includes(r.status)).length || '';
   const titles = new Map(p.items.map((i) => [String(i.id), i.title]));
   $('roadmap').innerHTML = roadmapCards(p, titles);
 
@@ -1179,28 +1174,47 @@ function render() {
   // state, withdrawn items included; browsing leaves those out.
   const matching = (q ? p.items : items)
     .filter((i) => !q || ('#' + i.id + ' ' + i.title + ' ' + i.lane + ' ' + i.specs.join(' ') + ' ' + (i.criterion || '')).toLowerCase().includes(q));
-  const inState = (s) => (i) => s === 'all' || (s === 'active' ? !['verified', 'withdrawn'].includes(stateOf(i)) : stateOf(i) === s);
+  // Gated is one test, shared by the rows, the Gated filter and the status bar: open and waiting on an item or a held lane.
+  const heldLanes = new Map(p.holds.map((h) => [h.hold_lane, h]));
+  const gatedOf = (i) => stateOf(i) === 'open' && (i.blockedBy.length > 0 || heldLanes.has(i.lane));
+  const inState = (s) => (i) => s === 'all' || (s === 'active' ? !['verified', 'withdrawn'].includes(stateOf(i)) : s === 'gated' ? gatedOf(i) : stateOf(i) === s);
   const names = { active: 'Active', verified: 'Verified', all: 'All' };
-  $('state-chips').innerHTML = Object.keys(names).map((s) => '<button data-state="' + s + '" class="' + (view.state === s ? 'on' : '') + '" type="button">' + names[s] + '<b>' + matching.filter(inState(s)).length + '</b></button>').join('');
-  const shown = matching.filter(inState(view.state)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  // The status bar can open a narrower list; it shows as a fourth choice until another is picked.
+  if (view.state === 'verify') names.verify = 'To verify';
+  if (view.state === 'gated') names.gated = 'Gated';
+  // A lane narrows the list as a state does, and each counts within the other's choice.
+  const inLane = (lane) => (i) => !lane || i.lane === lane;
+  if (view.lane && !matching.some(inLane(view.lane))) view.lane = null;
+  $('state-chips').innerHTML = Object.keys(names).map((s) => '<button data-state="' + s + '" class="' + (view.state === s ? 'on' : '') + '" type="button">' + names[s] + '<b>' + matching.filter(inLane(view.lane)).filter(inState(s)).length + '</b></button>').join('');
+  const inView = matching.filter(inState(view.state));
+  const laneCounts = [...inView.reduce((m, i) => m.set(i.lane, (m.get(i.lane) || 0) + 1), new Map())].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  if (view.lane && !laneCounts.some(([lane]) => lane === view.lane)) laneCounts.push([view.lane, 0]);
+  const pick = $('lane-pick'), options = [['', 'All lanes'], ...laneCounts.map(([lane, n]) => [lane, lane + ' · ' + n])].map(([lane, label]) => '<option value="' + esc(lane) + '">' + esc(label) + '</option>').join('');
+  // Rewriting an open picker closes it, so it is rewritten only when the lanes or their counts change.
+  if (pick.dataset.options !== options) { pick.innerHTML = options; pick.dataset.options = options; }
+  pick.value = view.lane || '';
+  pick.hidden = laneCounts.length < 2 && !view.lane;
+  const shown = inView.filter(inLane(view.lane)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   // With nothing picked, the detail shows the first row, and keeps it when a refresh reorders the list.
   // While another project loads, the item picked there waits for its own board.
   if (data.root === view.root && !view.adding && !p.items.some((i) => i.id === view.item)) view.item = shown.length ? shown[0].id : null;
-  const heldLanes = new Map(p.holds.map((h) => [h.hold_lane, h]));
   // An open item's chip, the same in its row and its detail: gated, its lane held, or unclaimed.
   const openChip = (i) => i.blockedBy.length || heldLanes.has(i.lane) ? '<span class="chip gate">' + (i.blockedBy.length ? 'gated' : 'lane held') + '</span>' : chip('open');
   $('chain').innerHTML = shown.length ? shown.map((i) => {
     const s = stateOf(i);
-    const who = s === 'building' ? i.owner : [i.builtBy, i.verifiedBy].filter(Boolean).join(' → ');
     // What an open item waits on, if anything: items not yet verified, or a hold on its lane.
     const hold = s === 'open' ? heldLanes.get(i.lane) : null;
     const waits = s === 'open' && i.blockedBy.length ? i.blockedBy : [];
-    const gated = waits.length > 0 || !!hold;
+    const gated = gatedOf(i);
     const pills = (waits.length ? '<span class="gate">' + waits.map((id, index) => '<span class="wait-unit">' + (index ? '' : 'waits on ') + '<button class="ref" data-go="item:' + id + '" type="button">#' + id + '</button></span>').join(', ') + '</span>' : '') + (hold ? '<span class="gate">lane held: ' + linked(hold.hold_reason, titles) + '</span>' : '');
     const tag = s === 'building' && i.owner ? '<span class="chip busy" title="building, held by ' + esc(i.owner) + '">' + esc(i.owner) + '</span>'
       : s === 'verify' && i.reviewer ? '<span class="chip warn" title="reviewing until ' + esc(when(i.reviewUntil)) + '">' + esc(i.reviewer) + ' reviewing</span>'
       : s === 'open' ? openChip(i) : chip(s);
-    return '<li class="row' + (view.item === i.id ? ' on' : '') + (gated ? ' gated' : '') + '" data-item="' + i.id + '" title="' + esc(i.title) + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + rich(i.title, titles) + '</div><div class="meta"><span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span>' + esc(i.specs.join(', ')) + '</span>' : '') + (who ? '<span class="who">' + esc(who) + '</span>' : '') + pills + '<span>' + age(i.updatedAt) + '</span>' + (rejected(i) ? '<span class="why">' + linked(i.verdict.reason + ': ' + firstLine(i.verdict.note), titles) + '</span>' : '') + '</div></div>' + tag + '</li>';
+    return '<li class="row s-' + s + (view.item === i.id ? ' on' : '') + (gated ? ' gated' : '') + '" data-item="' + i.id + '" title="' + esc(i.title) + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + rich(i.title, titles) + '</div><span class="row-age">' + age(i.updatedAt) + '</span><div class="meta">'
+      // A rejected row's second line is its verdict; any other row's is its lane and the spec ids it serves.
+      + (rejected(i) ? '<span class="why"><b>' + esc(i.verdict.reason) + '</b> ' + linked(firstLine(i.verdict.note), titles) + '</span>'
+        : '<span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span class="specs" title="' + esc(i.specs.join(', ')) + '">' + esc(i.specs.slice(0, 3).join(', ') + (i.specs.length > 3 ? ' +' + (i.specs.length - 3) : '')) + '</span>' : ''))
+      + pills + '</div></div>' + tag + '</li>';
   }).join('') : '<li class="empty">' + (items.length ? 'No items match.' : snapshot ? 'No items at this event.' : 'No items yet. Add the first one with New item.') + '</li>';
 
   const item = p.items.find((i) => i.id === view.item);
@@ -1272,8 +1286,11 @@ function render() {
   // The coordinator's mark is the board's own: a square with the Pullboard logo, so it stands out from the agents.
   const LEAD = '<svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg>';
   const lead = (from) => from === 'coordinator';
-  const heard = view.agent ? p.shouts.filter((x) => x.shout_from === view.agent || x.shout_to === view.agent) : p.shouts;
-  const bar = '<div class="feed-bar">' + (view.agent ? '<span>Shouts with <b>' + esc(view.agent) + '</b> <button class="link" data-agent="" type="button">show all</button></span>' : '<span></span>')
+  // Opened from the status bar's unread, the feed is exactly those shouts, the ones after the mark the person had.
+  const unread = view.unread?.root === view.root ? view.unread : null;
+  const heard = unread ? p.shouts.filter((x) => x.shout_id > unread.after) : view.agent ? p.shouts.filter((x) => x.shout_from === view.agent || x.shout_to === view.agent) : p.shouts;
+  const bar = '<div class="feed-bar">' + (unread ? '<span><b>' + heard.length + '</b> unread <button class="link" data-unread type="button">show all</button></span>'
+    : view.agent ? '<span>Shouts with <b>' + esc(view.agent) + '</b> <button class="link" data-agent="" type="button">show all</button></span>' : '<span></span>')
     + '<button class="link" data-agents-toggle type="button">' + (view.agentsHidden ? 'Show agents' : 'Hide agents') + '</button></div>';
   $('shouts-pane').classList.toggle('bare', view.agentsHidden);
   // Who has heard a shout of the person's: the agents it reached whose inbox has read past it. Each agent's read
@@ -1294,14 +1311,16 @@ function render() {
     + (lead(x.shout_from) ? '<span class="avatar">' + LEAD + '</span>' : '<span class="avatar' + (initials(x.shout_from).length > 3 ? ' wide' : '') + '" aria-hidden="true">' + esc(initials(x.shout_from)) + '</span>') + '<div class="shout-main"><header><b class="who">' + esc(x.shout_from) + '</b><span class="to">→ ' + esc(x.shout_to) + '</span>'
     + (itemOf(x) ? '<span class="item">#' + esc(itemOf(x)) + '</span>' : '') + mark(x) + '<time class="long" data-ago="' + esc(x.shout_at) + '" title="' + esc(when(x.shout_at)) + '">' + agoLong(x.shout_at) + '</time></header>'
     + '<div class="text">' + rich(x.shout_text, titles) + '</div><button class="more" data-more type="button">' + (openShouts.has(x.shout_id) ? 'less' : 'more') + '</button>' + (inFeed ? band(x) + heardBy(x) : '') + evidence(x) + tail + '</div></article>';
-  $('feed').innerHTML = bar + (heard.length ? dayRules(heard, (x) => x.shout_at, card) : '<div class="empty">' + (view.agent ? 'No shouts with ' + esc(view.agent) + ' among the last forty.' : 'No shouts yet.') + '</div>');
+  $('feed').innerHTML = bar + (heard.length ? dayRules(heard, (x) => x.shout_at, card) : '<div class="empty">' + (unread ? 'No unread shouts.' : view.agent ? 'No shouts with ' + esc(view.agent) + ' among the last forty.' : 'No shouts yet.') + '</div>');
   foldShouts();
   // Each ask waits here until it is answered (B21); the answer itself is typed in the form below. The
   // person answers the ones passed up to them; the rest wait on whoever holds them (B26).
   $('decisions').hidden = !p.decisions.length && !p.asked.length;
   // The asks as the feed's cards, folded to three lines: the person's to answer, then those waiting on others.
   $('decisions').innerHTML = (p.decisions.length ? '<div class="head"><i></i>Decision needed</div>' + p.decisions.map((d) => card(d, '<button class="ghost answer" data-go="decide:' + d.shout_id + '" type="button">Answer</button>', false)).join('') : '')
-    + (p.asked.length ? '<div class="head quiet">Waiting on others</div>' + p.asked.map((d) => card(d, '', false)).join('') : '');
+    // Asks waiting on someone else are not the person's to answer, so they fold to one line that opens on demand.
+    + (p.asked.length ? foldLine('waiting', p.asked.length + (p.asked.length === 1 ? ' ask' : ' asks') + ' waiting on others', p.asked.map((d) => d.shout_from + ' asks ' + d.shout_to).join(', '))
+      + (view.open.waiting ? p.asked.map((d) => card(d, '', false)).join('') : '') : '');
   foldShouts();
   // Each agent with what it holds: its claim, then its work sent back, then its work waiting for a
   // verdict. The worktree path is there on hover; what the person reads is who is doing what.
@@ -1328,10 +1347,27 @@ function render() {
       + '<span class="agent-doing"><span class="agent-what"><i>#' + first.id + '</i> ' + esc(first.title) + '</span>' + state(a, first) + (mine.length > 1 ? '<span class="agent-more">+' + (mine.length - 1) + '</span>' : '') + '</span></button>'
       + (view.agent === a.agent_id ? mine.map((i) => '<div class="agent-work" data-item="' + i.id + '" data-go="item:' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span>' + state(a, i) + '</div>').join('') : '') + '</div>';
   };
+  // The panel is for who is doing what: agents holding nothing fold to one line that opens to each of them, and stays
+  // open while one of them is picked.
+  if (idle.some((a) => a.agent_id === view.agent)) view.open.idle = true;
+  // Show all ends the open fold while some agents have not moved lately, or stands alone when none is idle.
+  const allAgents = p.agents.length > p.agents.filter(recent).length ? '<button class="link all-agents" data-all-agents type="button">' + (view.allAgents ? 'show only agents at work' : 'show all ' + p.agents.length) + '</button>' : '';
+  const idleBlock = () => !idle.length ? allAgents : '<div class="agents-idle">' + foldLine('idle', idle.length + ' idle', idle.map((a) => a.agent_id).join(', '))
+    + (view.open.idle ? '<div class="idle-list">' + idle.map(pill).join('') + '</div>' + allAgents : '') + '</div>';
   const pill = (a) => '<button class="agent-pill' + marks(a) + '" data-agent="' + esc(a.agent_id) + '" title="' + esc(tip(a)) + '" type="button"><span>' + face(a) + esc(a.agent_id) + '</span></button>';
-  $('agents').innerHTML = (listed.length ? busy.map(row).join('') + (idle.length ? '<div class="agents-idle"><span class="agents-label">Idle</span>' + idle.map(pill).join('') + '</div>' : '')
-    : '<div class="empty">' + (p.agents.length ? 'No agent has moved today.' : 'No agents yet.') + '</div>')
-    + (p.agents.length > p.agents.filter(recent).length ? '<button class="link all-agents" data-all-agents type="button">' + (view.allAgents ? 'show only agents at work' : 'show all ' + p.agents.length) + '</button>' : '');
+  $('agents').innerHTML = (listed.length ? busy.map(row).join('') + idleBlock()
+    : '<div class="empty">' + (p.agents.length ? 'No agent has moved today.' : 'No agents yet.') + '</div>');
+  // The status bar: what the board is doing, along the foot of the window. Each number is the length of the list its
+  // click opens (the Active and To verify filters, the gated rows, the agents panel's rows), and a part with none hides.
+  // countUnseen fills the unread shouts once the tab is drawn.
+  const release = (p.milestones || []).find((m) => m.done < m.total), last = p.events[0];
+  const part = (to, n, words, title) => n ? '<button type="button" data-status="' + to + '" title="' + esc(title) + '"><b>' + n + '</b> ' + words + '</button>' : '';
+  $('status-board').innerHTML = part('items', active.length, 'items', 'Show the active items') + '<button type="button" id="status-unread" data-status="unread" title="Show the shouts you have not read" hidden></button>'
+    + part('agents', busy.length, busy.length === 1 ? 'agent' : 'agents', 'Show the agents holding work: ' + busy.map((a) => a.agent_id).join(', '))
+    + part('verify', active.filter((i) => stateOf(i) === 'verify').length, 'to verify', 'Show the items waiting on a verdict')
+    + part('gated', active.filter(gatedOf).length, 'gated', 'Show the open items waiting on another item or a held lane')
+    + (release ? '<button type="button" data-status="release" title="' + esc('Show this release on the Roadmap: ' + (release.note || release.name)) + '">' + esc(release.name) + ' <b>' + release.done + '/' + release.total + '</b></button>' : '')
+    + (last ? '<button type="button" class="end" data-status="' + (last.item_id ? 'item:' + last.item_id : 'activity') + '" title="' + esc(last.event_at) + '">' + esc(last.event_by) + ' ' + esc(last.event_kind) + (last.item_id ? ' #' + last.item_id : '') + ' · ' + age(last.event_at) + '</button>' : '');
   const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
   $('lanes').innerHTML = working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no">held by ' + esc(held.get(l).hold_by) + '</span> <span class="muted">' + linked(held.get(l).hold_reason, titles) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join('');
 
@@ -1346,37 +1382,40 @@ function render() {
     const shownRows = rows.filter((r) => filter === 'all' || (filter === 'decide' ? undecided(r) : r.status === 'approved'));
     // With no row picked, or the pick filtered out, the detail opens on the first row shown, as Items does.
     if (!shownRows.some((r) => r.id === view.row[kind])) view.row[kind] = shownRows[0]?.id ?? null;
-    const feedback = kind === 'spec' && view.specFeedback?.root === view.root && view.specFeedback.from === 'list' ? view.specFeedback : null;
+    const feedback = view.specFeedback?.kind === kind && view.specFeedback.root === view.root && view.specFeedback.from === 'list' ? view.specFeedback : null;
     const feedbackId = feedback && (shownRows.some((r) => r.id === feedback.id) ? feedback.id : shownRows.some((r) => r.id === feedback.next) ? feedback.next : shownRows[0]?.id);
     let section = null;
+    const implied = filter === 'decide' ? 'draft' : 'approved';
+    // A Doctrine section is usually all Pullboard's rules or all this repo's, so its header says which; a row says so only
+    // where it differs from its section, such as a standard rule this repo changed.
+    const sectionSource = new Map();
+    if (kind === 'doctrine') for (const r of rows) { const was = sectionSource.get(r.section); sectionSource.set(r.section, was === undefined || was === ruleSource(r) ? ruleSource(r) : null); }
     $(kind + '-list').innerHTML = shownRows.length ? shownRows.map((r) => {
       const sectionRows = !snapshot && (!readOnly || requests) && kind === 'spec' && r.section !== section ? rows.filter((entry) => entry.section === r.section && undecided(entry)) : [];
-      const head = r.section !== section ? '<div class="spec-section-head"><h4>' + esc(r.section) + '</h4>' + (sectionRows.length ? '<button class="spec-section-approve" data-section-approve="' + esc(r.section) + '" type="button">Approve all ' + sectionRows.length + ' in this section</button>' : '') + '</div>' : '';
+      const head = r.section !== section ? '<div class="spec-section-head"><h4>' + esc(r.section) + (sectionSource.get(r.section) ? ' <small class="section-source" title="' + esc(ruleSourceTitle(r)) + '">' + esc(sectionSource.get(r.section)) + '</small>' : '') + '</h4>' + (sectionRows.length ? '<button class="spec-section-approve" data-section-approve="' + esc(r.section) + '" type="button">Approve all ' + sectionRows.length + ' in this section</button>' : '') + '</div>' : '';
       section = r.section;
       const declined = kind === 'doctrine' && r.status === 'wont';
       const text = declined ? '<s>' + linked(r.standardText || r.text, titles) + '</s>' : linked(r.text, titles);
       const reason = declined && r.reason ? '<small class="rule-reason">Reason: ' + linked(r.reason, titles) + '</small>' : '';
-      const source = kind === 'doctrine' ? '<small class="rule-source">' + esc(ruleSource(r)) + '</small>' : '';
-      const status = r.stage || r.status;
-      /** Render person-only row decisions in both the list and its detail pane. */
-      const decisionActions = (!snapshot && (!readOnly || requests) && kind === 'spec' && undecided(r))
-        ? '<span class="spec-decision-actions"><button class="approve-row" data-row-decision="approve" data-row-id="' + esc(r.id) + '" type="button">Approve</button><button class="decline-row" data-row-decision="decline" data-row-id="' + esc(r.id) + '" type="button">Decline</button></span>'
-        : '';
-      return head + (feedback && feedbackId === r.id ? specFeedback(feedback) : '') + '<div class="srow' + (view.row[kind] === r.id ? ' on' : '') + '" data-row="' + kind + ':' + esc(r.id) + '"><code>' + esc(r.id) + '</code><span><span class="chip ' + tone(r.status) + '">' + esc(status) + '</span>' + source + '</span><span>' + text + reason + '</span>' + decisionActions + '</div>';
+      // Most rules are Pullboard's own; only the exception, a rule this repo wrote or changed, is marked in the list.
+      const source = kind === 'doctrine' && sectionSource.get(r.section) !== ruleSource(r) ? '<small class="rule-source" title="' + esc(ruleSourceTitle(r)) + '">' + esc(ruleSource(r)) + '</small>' : '';
+      // A row reads as its id and its words; a chip only where its status is not the one the filter already says.
+      const chip = r.status === implied ? '' : '<span class="chip ' + tone(r.status) + '">' + esc(r.stage || r.status) + '</span>';
+      return head + (feedback && feedbackId === r.id ? specFeedback(feedback) : '') + '<div class="srow' + (view.row[kind] === r.id ? ' on' : '') + '" data-row="' + kind + ':' + esc(r.id) + '"><code>' + esc(r.id) + '</code><span class="srow-text">' + chip + source + text + reason + '</span></div>';
     }).join('') : '<div class="empty">' + (rows.length ? 'No rows match.' : kind === 'spec' ? 'No spec rows yet. Each requirement is one row in SPEC.md, such as G1 [draft, must] and a line; write them, or ask an agent to, and they show up here.' : 'No doctrine rows yet: they live in DOCTRINE.md.') + '</div>';
     if (feedback && !shownRows.length) $(kind + '-list').innerHTML += specFeedback(feedback);
     const row = rows.find((r) => r.id === view.row[kind]);
     const citing = row ? p.items.filter((i) => i.specs.includes(row.id)) : [];
     const declined = kind === 'doctrine' && row && row.status === 'wont';
     const text = row ? declined ? '<s>' + linked(row.standardText || row.text, titles) + '</s>' : linked(row.text, titles) : '';
-    const source = kind === 'doctrine' && row ? '<span class="chip">' + esc(ruleSource(row)) + '</span>' : '';
+    const source = kind === 'doctrine' && row ? '<span class="chip" title="' + esc(ruleSourceTitle(row)) + '">' + esc(ruleSource(row)) + '</span>' : '';
     const reason = declined && row.reason ? '<dt>reason</dt><dd>' + linked(row.reason, titles) + '</dd>' : '';
     const home = kind === 'doctrine' && row && row.origin === 'standard' ? 'Standard rules come with Pullboard; override or decline one in DOCTRINE.md.' : 'Rows change in ' + (kind === 'spec' ? 'SPEC.md' : 'DOCTRINE.md') + ', and only you approve them.';
     const rowStatus = row?.stage || row?.status;
-    const rowDecisionActions = !snapshot && (!readOnly || requests) && row && kind === 'spec' && undecided(row)
-      ? '<div class="spec-decision-actions detail-decision-actions"><button class="approve-row" data-row-decision="approve" data-row-id="' + esc(row.id) + '" type="button">Approve</button><button class="decline-row" data-row-decision="decline" data-row-id="' + esc(row.id) + '" type="button">Decline</button></div>'
+    const rowDecisionActions = !snapshot && (!readOnly || requests) && row && undecided(row) && (kind === 'spec' || row.origin !== 'standard')
+      ? '<div class="spec-decision-actions detail-decision-actions"><button class="approve-row" data-row-decision="approve" data-row-kind="' + kind + '" data-row-id="' + esc(row.id) + '" title="Approve (A, from the list)" type="button">Approve</button><button class="decline-row" data-row-decision="decline" data-row-kind="' + kind + '" data-row-id="' + esc(row.id) + '" title="Decline (D, from the list)" type="button">Decline</button></div>'
       : '';
-    $(kind + '-detail').innerHTML = row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div>' + rowDecisionActions + (kind === 'spec' && view.specFeedback?.root === view.root && view.specFeedback.from === 'detail' && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '') + '<dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<div class="links-item" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span></div>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div><div class="muted">' + home + '</div></div>' : '<div class="empty">Pick a row to see it, and the items that cite it.</div>';
+    $(kind + '-detail').innerHTML = row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div>' + rowDecisionActions + (kind === 'spec' && view.specFeedback?.kind === kind && view.specFeedback.root === view.root && view.specFeedback.from === 'detail' && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '') + '<dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<div class="links-item" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span></div>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div><div class="muted">' + home + '</div></div>' : '<div class="empty">Pick a row to see it, and the items that cite it.</div>';
   }
 
   if (keep('pb.flow') !== 'hidden') $('flow').innerHTML = flowSvg(p);
@@ -1476,15 +1515,16 @@ function countUnseen() {
   const newest = p.shouts.length ? p.shouts[0].shout_id : 0;
   const seen = view.tab === 'shouts' || kept === null || kept === undefined ? newest : Number(kept);
   if (String(seen) !== String(kept)) { view.seen[key] = seen; keep(key, String(seen)); }
-  $('count-shouts').textContent = (p.unseen && p.unseen.since === seen ? p.unseen.count : p.shouts.filter((x) => x.shout_id > seen).length) || '';
+  const unread = (p.unseen && p.unseen.since === seen ? p.unseen.count : p.shouts.filter((x) => x.shout_id > seen).length) || 0;
+  const slot = $('status-unread');
+  if (slot) { slot.innerHTML = '<b>' + unread + '</b> unread'; slot.hidden = !unread; }
 }
 
-/**
- * Put the shout form in answer mode for an open decision (B21), or back to a plain shout with null.
- * The form is never redrawn, so what the person types survives every refresh; only its answer line,
- * its To and its button change. The To the person had comes back when the answer is done. An answer
- * belongs to the project whose question it shows: leaving that project leaves answer mode.
- */
+/** A quiet line that opens what it counts: what it says, everything it holds on hover, and show or hide. */
+function foldLine(name, text, names) {
+  return '<button class="fold-line" data-fold="' + name + '" type="button" aria-expanded="' + Boolean(view.open[name]) + '" title="' + esc(names) + '"><span>' + esc(text) + '</span><span class="fold-more">' + (view.open[name] ? 'hide' : 'show') + '</span></button>';
+}
+
 /**
  * Address the composer: the coordinator unless someone else is named, who then shows as a chip the person can clear.
  */
@@ -1496,6 +1536,12 @@ function addressTo(to) {
   $('shout-text').placeholder = 'Shout to ' + (who === 'coordinator' ? 'the coordinator' : who);
 }
 
+/**
+ * Put the shout form in answer mode for an open decision (B21), or back to a plain shout with null.
+ * The form is never redrawn, so what the person types survives every refresh; only its answer line,
+ * its To and its button change. The To the person had comes back when the answer is done. An answer
+ * belongs to the project whose question it shows: leaving that project leaves answer mode.
+ */
 function answer(id) {
   const ask = id === null ? null : data.project.decisions.find((d) => d.shout_id === id) || null;
   if (ask && !view.answering) view.to = $('shout-to').value;
@@ -1513,6 +1559,29 @@ function answer(id) {
   $('shout-send').setAttribute('aria-label', verb);
   $('shout-send').title = verb + ' (Enter; Shift+Enter for a new line)';
   if (ask) $('shout-text').focus();
+}
+
+/** Open what a status-bar part counts: its tab, narrowed to exactly those. */
+function statusGo(to) {
+  view.unread = null;
+  view.roadmapOnly = null;
+  if (to.startsWith('item:')) return go(to);
+  if (to === 'items') { view.state = 'active'; view.lane = null; view.before = null; $('q').value = ''; openTab('items'); }
+  else if (to === 'verify' || to === 'gated') { view.state = to; view.lane = null; view.before = null; $('q').value = ''; openTab('items'); }
+  else if (to === 'unread') {
+    // Only the shouts after the mark the person had; opening Shouts then moves the mark past them.
+    const key = 'pb.seen.' + view.root;
+    view.unread = { root: view.root, after: Number(view.seen[key] ?? keep(key) ?? 0) };
+    view.agent = null;
+    openTab('shouts');
+  }
+  // The agents it counts are the panel's rows, so it opens the panel even where the person hid it.
+  else if (to === 'agents') { view.agentsHidden = false; keep('pb.agents', 'shown'); view.agent = null; openTab('shouts'); }
+  // The release it counts is one milestone, so the Roadmap opens on that one alone.
+  else if (to === 'release') { view.roadmapOnly = (data.project.milestones || []).find((m) => m.done < m.total)?.name ?? null; openTab('roadmap'); }
+  else openTab(to);
+  showTab();
+  render();
 }
 
 /**
@@ -1671,26 +1740,44 @@ function specFeedback(feedback) {
   return '<div class="spec-feedback ' + feedback.tone + '" role="status">' + esc(feedback.text) + '</div>';
 }
 
-/** Record a Spec decision beside its row and retain the list's reading position (B26, N26). */
-async function decideSpec(command, args, anchor) {
+/** Ask why a Spec row or Doctrine rule is declined; the reason, once given, is recorded where it was asked. */
+function askDecline(kind, id, from) {
+  view.declining = id;
+  view.declineKind = kind;
+  view.declineFrom = from;
+  $('spec-decline-title').textContent = 'Decline ' + id;
+  $('spec-decline-reason').value = '';
+  $('spec-decline-dialog').hidden = false;
+  $('spec-decline-reason').focus();
+}
+
+/**
+ * Record a Spec or Doctrine decision beside its row and retain the list's reading position (B26, N26). A Doctrine rule
+ * goes to the board by its qualified id, doctrine:D1, as the command line names it (pullboard spec approve doctrine:D1).
+ */
+async function decideRow(kind, command, args, anchor) {
   if (snapshot || (readOnly && !requests)) return false;
   const root = view.root, scroll = window.scrollY;
   const ids = String(args.ids).split(/\s+/);
-  const rows = [...$('spec-list').querySelectorAll('[data-row]')];
-  const index = rows.findIndex((row) => row.dataset.row === 'spec:' + ids[0]);
-  const next = rows.slice(index + 1).find((row) => !ids.includes(row.dataset.row.slice(5)))?.dataset.row.slice(5);
-  const feedback = { root, id: ids[0], next, from: anchor?.closest('#spec-detail') ? 'detail' : 'list', tone: '', text: 'Recording decision…' };
+  const prefix = kind + ':';
+  const rows = [...$(kind + '-list').querySelectorAll('[data-row]')];
+  const index = rows.findIndex((row) => row.dataset.row === prefix + ids[0]);
+  const next = rows.slice(index + 1).find((row) => !ids.includes(row.dataset.row.slice(prefix.length)))?.dataset.row.slice(prefix.length);
+  const feedback = { kind, root, id: ids[0], next, from: anchor?.closest('#' + kind + '-detail') ? 'detail' : 'list', tone: '', text: 'Recording decision…' };
   view.specFeedback = feedback;
   render();
   window.scrollTo({ top: scroll, behavior: 'instant' });
   try {
-    const move = pageMove(command, args);
+    const move = pageMove(command, kind === 'doctrine' ? { ...args, ids: ids.map((id) => 'doctrine:' + id).join(' ') } : args);
     const result = requests ? await sendPersonRequest(root, move.body) : await api(boardPath(root) + '/moves', move.body);
     const request = requests && result?.result?.request;
     if (requests && (!request?.id || !['waiting', 'done', 'refused'].includes(request.status))) throw new Error('The request did not include its status; refresh the board to check it.');
     feedback.tone = requests ? request.status === 'done' ? 'ok' : request.status === 'refused' ? 'no' : '' : 'ok';
     feedback.text = requests ? requestNotice(request) : moveMessage(move.body, result.result);
     if (requests) { feedback.requestId = request.id; feedback.status = request.status; }
+    // Decided from the list, the pick moves on to the next row before the board redraws without the decided one, so
+    // the next key decides that one.
+    if (feedback.from === 'list' && feedback.tone !== 'no' && next && view.row[kind] === ids[0] && root === view.root) view.row[kind] = next;
     await refresh();
   } catch (error) {
     feedback.tone = 'no';
@@ -1815,9 +1902,13 @@ $('shouts-pane').addEventListener('click', (event) => {
     return;
   }
   if (event.target.closest('[data-to-clear]')) { addressTo('coordinator'); $('shout-text').focus(); return; }
+  const folded = event.target.closest('[data-fold]');
+  if (folded) { view.open[folded.dataset.fold] = !view.open[folded.dataset.fold]; render(); return; }
   if (event.target.closest('[data-all-agents]')) { view.allAgents = !view.allAgents; render(); return; }
   if (event.target.closest('[data-agents-toggle]')) { view.agentsHidden = !view.agentsHidden; keep('pb.agents', view.agentsHidden ? 'hidden' : 'shown'); render(); return; }
+  if (event.target.closest('[data-unread]')) { view.unread = null; render(); return; }
   if (!pick) return;
+  view.unread = null;
   view.agent = pick.dataset.agent && pick.dataset.agent !== view.agent ? pick.dataset.agent : null;
   if (!view.answering) addressTo(view.agent);
   render();
@@ -1825,35 +1916,37 @@ $('shouts-pane').addEventListener('click', (event) => {
 // Enter shouts; Shift+Enter starts a new line.
 $('shout-text').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('shout-form').requestSubmit(); } });
 document.addEventListener('click', (event) => {
-  const t = event.target.closest('[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],#proj-switch,#console');
+  const t = event.target.closest('[data-status],[data-roadmap-all],[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],#proj-switch,#console');
   if (!event.target.closest('.side')) fold(false);
   if (!t) return;
   if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
   if (t.id === 'console') { t.hidden = true; return; }
+  if (t.dataset.status) { statusGo(t.dataset.status); return; }
+  if ('roadmapAll' in t.dataset) { view.roadmapOnly = null; render(); return; }
   if (t.dataset.root) switchTo(t.dataset.root, t.dataset.go || '');
-  else if (t.dataset.tab) { openTab(t.dataset.tab); showTab(); }
+  else if (t.dataset.tab) { view.unread = null; view.roadmapOnly = null; openTab(t.dataset.tab); showTab(); }
   else if (t.dataset.go) go(t.dataset.go, t.dataset.board);
   else if (t.dataset.item) pick(Number(t.dataset.item));
   else if (t.dataset.state) { view.state = t.dataset.state; render(); }
   else if (t.dataset.rows) { const [kind, f] = t.dataset.rows.split(':'); view.rows[kind] = f; render(); }
   else if (t.dataset.rowDecision) {
-    const id = t.dataset.rowId;
-    if (t.dataset.rowDecision === 'approve') decideSpec('spec-approve', { ids: id }, t);
-    else {
-      view.declining = id;
-      view.declineFrom = t.closest('#spec-detail') ? 'detail' : 'list';
-      $('spec-decline-title').textContent = 'Decline ' + id;
-      $('spec-decline-reason').value = '';
-      $('spec-decline-dialog').hidden = false;
-      $('spec-decline-reason').focus();
-    }
+    const id = t.dataset.rowId, kind = t.dataset.rowKind;
+    if (t.dataset.rowDecision === 'approve') decideRow(kind, 'spec-approve', { ids: id }, t);
+    else askDecline(kind, id, t.closest('#' + kind + '-detail') ? 'detail' : 'list');
   }
   else if (t.dataset.sectionApprove) {
     const section = t.dataset.sectionApprove;
     const ids = data.project.spec.filter((row) => row.section === section && ['pending', 'draft'].includes(row.status) && !row.decision).map((row) => row.id);
-    if (ids.length && window.confirm('Approve all ' + ids.length + ' undecided rows in “' + section + '”?')) decideSpec('spec-approve', { ids: ids.join(' ') }, t);
+    if (ids.length && window.confirm('Approve all ' + ids.length + ' undecided rows in “' + section + '”?')) decideRow('spec', 'spec-approve', { ids: ids.join(' ') }, t);
   }
-  else if (t.dataset.row) { const [kind, id] = t.dataset.row.split(':'); view.row[kind] = id; render(); }
+  else if (t.dataset.row) {
+    const [kind, id] = t.dataset.row.split(':');
+    view.row[kind] = id;
+    render();
+    $(kind + '-list').focus({ preventScroll: true });
+    // Where the list and the detail stack, the picked row's detail, with its buttons, comes into view.
+    if (matchMedia('(max-width: 900px)').matches) $(kind + '-detail').scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
   else if (t.dataset.codeAll) showAllCode(t.dataset.codeAll, t.dataset.before || '');
   else if (t.dataset.codeLess) showLessCode(t.dataset.codeLess, t.dataset.before || '');
   else if (t.dataset.code) code(t.dataset.code, t.dataset.before || '');
@@ -1869,19 +1962,37 @@ document.addEventListener('keydown', (event) => {
   event.preventDefault();
   go(row.dataset.go, row.dataset.board || view.root);
 });
+// In a focused Spec or Doctrine list the arrow keys move the pick, and A approves the picked row and D asks why it is
+// declined, as the detail's buttons do, wherever the detail offers that decision.
+for (const kind of ['spec', 'doctrine']) $(kind + '-list').addEventListener('keydown', (event) => {
+  if (event.target !== event.currentTarget || event.metaKey || event.ctrlKey || event.altKey) return;
+  const ids = [...event.currentTarget.querySelectorAll('[data-row]')].map((row) => row.dataset.row.slice(kind.length + 1));
+  const at = ids.indexOf(view.row[kind]);
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault();
+    const next = ids[Math.min(ids.length - 1, Math.max(0, at + (event.key === 'ArrowDown' ? 1 : -1)))];
+    if (next && next !== view.row[kind]) { view.row[kind] = next; render(); event.currentTarget.querySelector('.srow.on')?.scrollIntoView({ block: 'nearest' }); }
+  } else if ((event.key === 'a' || event.key === 'd') && view.row[kind] && $(kind + '-detail').querySelector('.approve-row')) {
+    // Only a row still waiting on the person has a decision to make; the detail shows it.
+    event.preventDefault();
+    if (event.key === 'a') decideRow(kind, 'spec-approve', { ids: view.row[kind] }, event.currentTarget);
+    else askDecline(kind, view.row[kind], 'list');
+  }
+});
 // The form covers the picked item rather than dropping it, so Cancel brings it back.
 $('new-item').addEventListener('click', () => { view.adding = true; render(); $('add-title').focus(); });
 $('add-cancel').addEventListener('click', () => { view.adding = false; render(); });
-$('spec-decline-cancel').addEventListener('click', () => { view.declining = null; $('spec-decline-dialog').hidden = true; });
+$('spec-decline-cancel').addEventListener('click', () => { view.declining = null; $('spec-decline-dialog').hidden = true; if (view.declineFrom === 'list') $(view.declineKind + '-list').focus({ preventScroll: true }); });
 $('spec-decline-form').addEventListener('submit', (event) => {
   event.preventDefault();
-  const id = view.declining;
+  const id = view.declining, kind = view.declineKind;
   const reason = $('spec-decline-reason').value.trim();
   if (!id || !reason) return;
   view.declining = null;
   $('spec-decline-dialog').hidden = true;
-  const anchor = view.declineFrom === 'detail' ? $('spec-detail') : [...$('spec-list').querySelectorAll('[data-row]')].find((row) => row.dataset.row === 'spec:' + id);
-  decideSpec('spec-decline', { ids: id, reason }, anchor);
+  if (view.declineFrom === 'list') $(kind + '-list').focus({ preventScroll: true });
+  const anchor = view.declineFrom === 'detail' ? $(kind + '-detail') : [...$(kind + '-list').querySelectorAll('[data-row]')].find((row) => row.dataset.row === kind + ':' + id);
+  decideRow(kind, 'spec-decline', { ids: id, reason }, anchor);
 });
 $('answer-cancel').addEventListener('click', () => answer(null));
 $('flow-hide').addEventListener('click', () => showFlow(false));
@@ -1903,6 +2014,7 @@ $('theme').addEventListener('click', () => {
   theme(next);
 });
 $('q').addEventListener('input', search);
+$('lane-pick').addEventListener('change', (event) => { view.lane = event.target.value || null; render(); });
 $('add-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   if (await act('add', { lane: $('add-lane').value, title: $('add-title').value, criterion: $('add-criterion').value, specs: $('add-specs').value, brief: $('add-brief').value }, event.currentTarget)) {

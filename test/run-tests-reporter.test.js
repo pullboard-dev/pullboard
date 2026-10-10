@@ -10,7 +10,7 @@ import { test } from 'node:test';
 const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
 
 /** Create a fixture that observes actual child arguments and returns the runner result. */
-function runReporterFixture(t, reporterArgs = []) {
+function runReporterFixture(t, reporterArgs = [], extraEnv = {}) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-run-tests-reporter-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const fixture = join(root, 'reporter.test.js');
@@ -36,6 +36,7 @@ syncBuiltinESMExports();
     cwd: root,
     env: {
       ...process.env,
+      ...extraEnv,
       NODE_OPTIONS: `--import="${preload}"`,
       PULLBOARD_REPORTER_CAPTURE_FILE: capture,
     },
@@ -67,4 +68,18 @@ test('run-tests prints TAP on every Node version and keeps a caller reporter [C7
   assert.equal(splitCallerReporter.childArgs[splitReporterIndex + 1], 'spec');
   assert.ok(!splitCallerReporter.childArgs.includes('--test-reporter=tap'), 'the default does not override the separate caller option');
   assert.doesNotMatch(splitCallerReporter.output, /^TAP version \d+/mu);
+});
+
+test('run-tests never injects timing reporters beside caller reporter options [C7,V10]', (t) => {
+  for (const reporterArgs of [
+    ['--test-reporter=spec'], ['--test-reporter', 'spec'],
+    ['--test-reporter=spec', '--test-reporter-destination=stdout'],
+    ['--test-reporter', 'spec', '--test-reporter-destination', 'stdout'],
+  ]) {
+    const run = runReporterFixture(t, reporterArgs, { PULLBOARD_TEST_TIMING_PROFILE: join(tmpdir(), 'must-not-inject') });
+    assert.equal(run.result.status, 0, run.output);
+    assert.deepEqual(run.childArgs.slice(4, -1), reporterArgs, 'only the exact caller reporter flags reach Node');
+    assert.match(run.output, /ℹ tests 1/u);
+    assert.doesNotMatch(run.output, /gate-profile-reporter|"files":/u);
+  }
 });

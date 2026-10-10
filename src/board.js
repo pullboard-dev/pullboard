@@ -1,5 +1,5 @@
 /**
- * The board (B1–B7, V1–V8, R1, R2): items, claims, submissions, verdicts and shouts in one SQLite
+ * The board (B1–B7, V1–V8, R1–R3): items, claims, submissions, verdicts and shouts in one SQLite
  * file in the git common dir, so every worktree sees the same board and nothing is committed.
  *
  * Every move is one immediate transaction (B2), so two agents can never claim the same item, and
@@ -1345,9 +1345,9 @@ function coordinatorOnly(agentId, what) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, commit: string }} merge
+ * @param {{ agentId: string, commit: string, note?: string }} merge
  */
-export function merged(board, id, { agentId, commit }) {
+export function merged(board, id, { agentId, commit, note = '' }) {
   coordinatorOnly(agentId, 'records merges');
   atomic(board, () => {
     const item = itemById(board, id);
@@ -1355,7 +1355,7 @@ export function merged(board, id, { agentId, commit }) {
       throw new Refused('NOT_VERIFIED', `item #${id} is ${item.item_status}; merge verified work only`);
     }
     setItem(board, id, { item_merged_commit: commit });
-    logEvent(board, agentId, 'merged', id, { commit });
+    logEvent(board, agentId, 'merged', id, { commit, ...(note.trim() ? { note: note.trim() } : {}) });
   });
 }
 

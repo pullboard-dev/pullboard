@@ -96,11 +96,30 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .tab { border: 0; background: none; padding: 6px 10px; border-radius: 6px; align-self: center; cursor: pointer; color: var(--ink-muted); white-space: nowrap; }
 .tab:hover { color: var(--ink); }
 .tab.on { color: var(--ink); background: var(--surface-2); font-weight: 600; }
-.tab b { font: 600 11px var(--mono); color: var(--ink-faint); margin-left: 4px; }
-.live { margin-left: auto; align-self: center; font-size: 12px; color: var(--ink-faint); white-space: nowrap; }
+.live { margin-left: auto; align-self: center; font-size: 12px; color: var(--warn); white-space: nowrap; }
 .switching main, .switching .products { opacity: .45; transition: opacity .12s; }
 
-main { padding: 16px 18px 28px; }
+main { padding: 16px 18px 56px; }
+/* The status bar: the page's own surface, frosted so the list shows faintly through it; red when the view is cut off, violet on a snapshot. Each part opens what it counts. */
+.status { --status-bg: color-mix(in srgb, var(--surface) 68%, transparent); --status-ink: var(--ink-muted); --status-strong: var(--ink); --status-hover: color-mix(in srgb, var(--ink) 7%, transparent); -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3); position: fixed; left: 0; right: 0; bottom: 0; z-index: 12; display: flex; align-items: stretch; height: 28px; padding: 0 6px; background: var(--status-bg); color: var(--status-ink); font-size: 12px; white-space: nowrap; overflow: hidden; }
+.status.snap { --status-bg: color-mix(in srgb, var(--violet-soft) 80%, transparent); --status-ink: var(--violet); --status-strong: var(--violet); }
+.status:not(.snap):has(.live:not(:empty)) { --status-bg: color-mix(in srgb, var(--reject-soft) 85%, transparent); --status-ink: var(--reject); --status-strong: var(--reject); }
+.status b { color: var(--status-strong); font: 600 11.5px var(--mono); }
+.status .live { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 0 8px; color: inherit; }
+.status .live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--reject); }
+.status .live:empty::before { background: var(--accent); }
+.status .live:empty::after { content: 'live'; }
+.status-board { display: flex; flex: 1; min-width: 0; align-items: stretch; overflow: hidden; }
+.status-group { display: inline-flex; align-items: center; padding-left: 8px; }
+.status button { display: inline-flex; align-items: center; gap: 5px; min-height: 0; padding: 0 8px; border: 0; border-radius: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.status button:hover { background: var(--status-hover); color: var(--status-strong); }
+.status button:focus-visible { outline: 2px solid var(--status-strong); outline-offset: -2px; }
+.status-board .end { margin-left: auto; opacity: .85; }
+.status #status-unread[hidden] { display: none; }
+/* With touch its parts are 44px targets; a mouse keeps the thin strip. On a phone it shows only when the view is cut off. */
+@media (pointer: coarse) { .status { height: 44px; } .status button { min-height: 44px; } main { padding-bottom: 72px; } }
+@media (width < 480px) { .status:not(:has(.live:not(:empty))) { display: none; } .status { height: 44px; } .status button { min-height: 44px; } main { padding-bottom: 28px; } }
+.side { padding-bottom: 44px; }
 .first { display: none; max-width: 520px; margin: 10vh auto 0; padding: 22px 24px; }
 .first h2 { margin: 0 0 6px; font-size: 18px; }
 .first p { margin: 0; color: var(--ink-muted); }
@@ -151,13 +170,21 @@ main { padding: 16px 18px 28px; }
   .tabs { flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: auto; gap: 0; }
   /* Six labels share the bar, so they scale with the screen: 13.5px at 375, 11px at the narrowest, where a
    * classic scrollbar and wide fonts leave about 290px of bar. */
-  .tab { display: grid; grid-template-rows: auto 13px; justify-items: center; align-content: center; padding: 7px 2px 5px; font-size: clamp(11px, 3.6vw, 13.5px); }
-  .tab b { margin: 0; line-height: 13px; }
+  .tab { display: grid; justify-items: center; align-content: center; padding: 7px 2px; font-size: clamp(11px, 3.6vw, 13.5px); }
 }
 .primary { display: grid; gap: 12px; min-width: 0; }
 .card-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); min-width: 0; }
-.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; container-type: inline-size; }
+@container (min-width: 380px) and (max-width: 500px) { .toolbar .find { order: 3; flex-basis: 100%; } .toolbar .go { margin-left: auto; } }
 .toolbar input { flex: 1 1 96px; }
+/* Lane and words share one field: the lane picks the list, the words narrow within it. */
+.find { flex: 1 1 172px; display: flex; min-width: 0; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); }
+.find:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.find select, .find input { border: 0; border-radius: 0; background: transparent; }
+.find select:focus-visible, .find input:focus-visible { outline: 0; }
+.find select { flex: none; field-sizing: content; max-width: 9.5em; padding: 0 4px 0 9px; border-right: 1px solid var(--line); color: var(--ink-muted); font-size: 13px; cursor: pointer; }
+.find select[hidden] { display: none; }
+.toolbar .find input { flex: 1 1 64px; }
 input, select, textarea { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 8px; padding: 7px 9px; min-width: 0; }
 input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .go { border: 0; background: var(--ink); color: var(--surface); border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 600; white-space: nowrap; }
@@ -194,13 +221,23 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .chain { list-style: none; margin: 0; padding: 6px; display: grid; gap: 2px; }
 .row { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 9px; border-radius: 10px; border: 1px solid transparent; cursor: pointer; }
 .row:hover { background: var(--surface-2); }
-.row.on { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+/* A row's whole shade says where it stands: blocked rows light red, rows waiting on a verdict light yellow. */
+.row.gated { border-color: light-dark(#ca9d96, #86403b); }
+.row.s-verify { background: light-dark(#fefaea, #262112); }
+.row.s-verify:hover { background: light-dark(#fcf3d6, #2e2816); }
+.row.s-verify:not(.gated) { border-color: light-dark(transparent, #6e5722); }
+.row.on { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+/* What a blocked row waits on stands at the right of its line, beside the gated badge. */
+.row .meta > .gate { margin-left: auto; }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line-strong); }
 .dot.building { background: var(--blue); } .dot.verify { background: var(--warn); } .dot.back { background: var(--reject); } .dot.verified { background: var(--accent); }
 /* A row holds its shape: the title takes the whole first line and the meta and chip share the second,
  * each line cut with an ellipsis, so every row in a list is as tall as the next. The whole title is the
  * row's tooltip and opens in the detail. */
-.row { grid-template-areas: "dot t t" "dot meta chip"; row-gap: 3px; }
+/* The second line starts at the row's edge: a rejected row's verdict, or the lane and the spec ids it serves. */
+.row { grid-template-areas: "dot t age" "dot meta chip"; row-gap: 3px; }
+.row .meta > .specs { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.row .row-age { grid-area: age; justify-self: end; color: var(--ink-faint); font: 12px var(--mono); }
 .row > div { display: contents; }
 .row > .dot { grid-area: dot; }
 .row .t { grid-area: t; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -209,7 +246,9 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .meta { display: flex; flex-wrap: wrap; gap: 4px 8px; color: var(--ink-muted); font-size: 12px; margin-top: 2px; }
 .row .meta { grid-area: meta; min-width: 0; margin-top: 0; flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
 .row .meta > * { flex: none; }
-.row .meta > .who, .row .meta > .gate, .row .meta > .why { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* A row's second line is its lane, then what holds it up; the spec ids it serves are in its detail. */
+.row .meta { align-items: center; }
+.row .meta > .gate, .row .meta > .why { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .row .meta > .why { flex-grow: 1; }
 .row > .chip { grid-area: chip; justify-self: end; max-width: 10rem; overflow: hidden; text-overflow: ellipsis; }
 .chip { font: 600 10.5px/1 var(--mono); letter-spacing: .03em; padding: 4px 6px; border-radius: 5px; background: var(--surface-2); color: var(--ink-muted); white-space: nowrap; }
@@ -219,8 +258,7 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .chip.busy { background: var(--blue-soft); color: var(--blue); }
 .chip.free { background: var(--violet-soft); color: var(--violet); }
 .chip.gate { background: none; color: var(--ink-muted); outline: 1px dashed var(--line-strong); outline-offset: -1px; }
-.row.gated { border-color: color-mix(in srgb, var(--reject) 40%, var(--line)); }
-.meta .gate { padding: 0 7px; border-radius: 999px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--reject) 35%, var(--line)); }
+.meta .gate { color: var(--ink-muted); }
 .meta .gate .wait-unit, .kv dd.waits-on .wait-unit { white-space: nowrap; }
 .meta .gate button.ref { min-height: 0; }
 .meta button.ref { border: 0; background: none; padding: 0; font: inherit; color: var(--accent-strong); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
@@ -249,7 +287,9 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .sentback { border: 1px solid color-mix(in srgb, var(--reject) 40%, var(--line)); background: color-mix(in srgb, var(--reject) 6%, var(--surface)); border-radius: 10px; padding: 10px 12px; }
 .sentback h3 { color: var(--reject); }
 .sentback .verdict { margin: 0; }
-.meta .why { flex-basis: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--reject); }
+/* A rejected row keeps its verdict's code in the warning colour while it is reworked; the note after it stays quiet. */
+.meta .why b { color: var(--warn); font-weight: 600; }
+.meta .why { flex-basis: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-faint); font-size: 11.5px; }
 .tl { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
 .tl li { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 10px; padding: 0 0 12px 20px; --c: var(--line-strong); }
 .tl li::before { content: ''; position: absolute; left: 0; top: 4px; width: 10px; height: 10px; border-radius: 50%; box-sizing: border-box; border: 2px solid var(--c); background: var(--c); }
@@ -309,7 +349,6 @@ form.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; paddin
 #decisions > .head + .shout { border-top: 0; }
 #decisions .shout.clamp:not(.open) .text { -webkit-line-clamp: 3; }
 #decisions .answer { margin-top: 6px; }
-.all-agents { margin-top: 2px; font-size: 13px; }
 /* Shouts as cards (#250): who and when on top, what was said below, each agent in a colour of its own. No
  * card carries a coloured edge; colour lives in the avatar, the name and the chips. */
 :root { --hue-0: light-dark(#0f766e, #5eead4); --hue-1: light-dark(#1d4ed8, #93b4f8); --hue-2: light-dark(#6d28d9, #c4b5fd); --hue-3: light-dark(#be185d, #f9a8d4);
@@ -400,6 +439,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .lane:first-child { border-top: 0; }
 .rows-filter { display: flex; padding: 10px 10px 2px; }
 .rows { padding: 4px 10px 10px; }
+.section-source { margin-left: 6px; color: var(--ink-faint); font: 500 11.5px var(--sans); letter-spacing: 0; text-transform: none; }
 .spec-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0 4px; }
 .rows h4 { margin: 0; font-size: 12.5px; color: var(--ink-muted); }
 /* Deciding a row is a quiet word beside it, no box: Approve in the accent, Decline in grey, each lit only on hover. */
@@ -418,13 +458,17 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .spec-reason-dialog input { width: 100%; min-height: 44px; padding: 7px 9px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 13px; }
 .spec-reason-dialog .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .spec-reason-dialog .actions button { min-height: 44px; }
-.srow { display: grid; grid-template-columns: 4.4em minmax(6.2em, max-content) minmax(0, 1fr) auto; gap: 8px; padding: 6px 4px; border-top: 1px solid var(--line); align-items: baseline; cursor: pointer; border-radius: 6px; }
+.srow { display: grid; grid-template-columns: 3.4em minmax(0, 1fr); gap: 10px; padding: 9px 8px; border-top: 1px solid var(--line); align-items: baseline; cursor: pointer; }
 .srow:hover { background: var(--surface-2); }
-.srow.on { background: var(--accent-soft); }
-.srow code { font: 600 12px var(--mono); }
+.srow.on { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.srow code { font: 600 12px var(--mono); color: var(--ink-muted); }
+.srow.on code { color: var(--ink); }
+.srow-text .chip { margin-right: 6px; }
+#spec-list:focus, #doctrine-list:focus { outline: none; }
+#spec-list:focus-visible, #doctrine-list:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
 .rule-source, .rule-reason { display: block; color: var(--ink-muted); font-size: 11.5px; line-height: 1.5; }
 .rule-reason { margin-top: 3px; }
-@media (width < 480px) { .srow { grid-template-columns: auto minmax(0, 1fr); } .srow > span:nth-child(3), .srow > .spec-decision-actions { grid-column: 1 / -1; } .srow > .spec-decision-actions { margin: -6px 0 -8px -10px; } }
+@media (width < 480px) { .srow { grid-template-columns: 3em minmax(0, 1fr); gap: 8px; } }
 .flow { position: relative; margin: 0 0 12px; padding: 10px 12px 8px; overflow-x: auto; }
 .flow svg { display: block; width: 100%; min-width: 680px; max-width: 920px; height: auto; margin: 0 auto; }
 .flow figcaption { color: var(--ink-faint); font-size: 12px; padding: 2px 34px 0 2px; }
@@ -463,7 +507,8 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .request-error { color: var(--reject); }
 .request-next { color: var(--ink-muted); }
 
-/* Every action keeps a usable touch target at either viewport, including inline controls. */
+/* Every action keeps a usable touch target at either viewport, including inline controls; the one exception is the
+ * status bar under a mouse, whose parts are as tall as its thin strip. */
 button, input, select, textarea, [data-item], [data-row] { min-height: 44px; }
 .theme-btn, .flow-hide { width: 44px; height: 44px; }
 .seg { flex-wrap: wrap; max-width: 100%; }
@@ -494,10 +539,24 @@ button, input, select, textarea, [data-item], [data-row] { min-height: 44px; }
 .agent-doing .chip { flex: none; font-size: 10.5px; padding-block: 0; }
 .agent-more { flex: none; font: 11px var(--mono); color: var(--ink-faint); }
 .agent-card .agent-work { padding: 0 8px 0 46px; font-size: 12.5px; }
-.agents-idle { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; margin-top: 4px; padding: 2px 4px 0; border-top: 1px solid var(--line); }
-.agents-label { width: 100%; padding: 8px 4px 0; color: var(--ink-faint); font: 600 10.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
-.agent-pill { display: inline-flex; align-items: center; min-height: 44px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
-.agent-pill > span { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink-muted); font-size: 12.5px; }
+.fold-line { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 8px; border: 0; border-radius: 10px; background: none; color: var(--ink-muted); font: inherit; font-size: 12.5px; text-align: left; cursor: pointer; }
+.fold-line:hover { background: var(--surface-2); }
+.fold-more { margin-left: auto; color: var(--accent-strong); font-weight: 600; }
+/* The fold line reaches 4px from the card edge on every side, its words in line with the card text. */
+#decisions > .fold-line { margin: 2px -8px 0; width: calc(100% + 16px); }
+#decisions:has(> .fold-line:first-child) { padding-top: 4px; }
+#decisions > .fold-line:first-child { margin-top: 0; }
+.agents-quiet { margin: 4px 0 0; padding: 10px 8px 2px; border-top: 1px solid var(--line); color: var(--ink-faint); font-size: 12.5px; }
+.all-agents { margin-top: 2px; font-size: 13px; }
+.agents-idle { margin-top: 4px; padding-top: 2px; border-top: 1px solid var(--line); }
+.idle-summary { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 8px; border: 0; border-radius: 10px; background: none; color: var(--ink-muted); font: inherit; font-size: 12.5px; text-align: left; cursor: pointer; }
+.idle-summary:hover { background: var(--surface-2); }
+.idle-more { margin-left: auto; color: var(--accent-strong); font-weight: 600; }
+.idle-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+.agent-pill { display: flex; align-items: center; min-width: 0; min-height: 44px; padding: 0 8px; border: 0; border-radius: 10px; background: none; color: inherit; font: inherit; cursor: pointer; }
+.agent-pill:hover { background: var(--surface-2); }
+.agent-pill.on { background: color-mix(in srgb, var(--h) 9%, transparent); }
+.agent-pill > span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--ink-muted); font-size: 12.5px; }
 .agent-pill:hover > span, .agent-pill.on > span { border-color: var(--h); color: var(--h); }
 .agent-pill .avatar { width: 20px; height: 20px; font-size: 8px; }
 .agent-pill .avatar.wide { font-size: 6.5px; }
@@ -515,3 +574,4 @@ button, input, select, textarea, [data-item], [data-row] { min-height: 44px; }
 .heard-face { display: grid; place-items: center; width: 18px; height: 18px; margin-right: -5px; border: 1.5px solid var(--surface); border-radius: 50%; background: color-mix(in srgb, var(--h) 16%, var(--surface)); color: var(--h); font: 700 7px var(--mono); }
 .heard-face.lead { border-radius: 5px; background: var(--ink); color: var(--surface); }
 .heard-face svg { width: 11px; height: 11px; }
+.roadmap-only { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px; color: var(--ink-muted); font-size: 13px; }
