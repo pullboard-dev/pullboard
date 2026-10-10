@@ -4,6 +4,21 @@ Notable changes to Pullboard, for people using it. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-10-10
+
+### Changed
+
+- Agents can never act as you on the relay. `relay on` gives each machine its own credential that only mints agent tokens for its linked boards, so agents keep working with no tap, and no file on the machine can act as you. A person-level action from the Mac asks for one tap on your paired phone; the grant is used once and never stored.
+- Boards use engine 6. Upgrade every linked device: once a machine on a board has its own credential, older clients on that board stop and say to upgrade.
+- Relay snapshots are compressed inside the seal, so a large board syncs.
+- Pullboard View: shouts read as cards, with an avatar, name and chips, and decisions and receipts set apart. You shout from a composer, and an agents panel shows who is holding what.
+
+### Fixed
+
+- A refused relay upload never blocks board moves: agents keep working, and each move prints one line saying why.
+- A board with no snapshot yet waits on the phone instead of reloading in a loop.
+- A recovered relay snapshot clears its stale timeout notice.
+
 ## [0.8.2] - 2026-10-09
 
 ### Added
@@ -126,7 +141,8 @@ Notable changes to Pullboard, for people using it. The format follows [Keep a Ch
 - A local, spec-backed work board gives each item a frozen criterion, a separate worktree lane, a gated submission, and an independent review receipt.
 - The timed tour demonstrates a change being rejected, corrected, and accepted with proof.
 
-[Unreleased]: https://github.com/pullboard-dev/pullboard/compare/v0.8.2...HEAD
+[Unreleased]: https://github.com/pullboard-dev/pullboard/compare/v0.8.3...HEAD
+[0.8.3]: https://github.com/pullboard-dev/pullboard/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/pullboard-dev/pullboard/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/pullboard-dev/pullboard/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/pullboard-dev/pullboard/compare/v0.7.0...v0.8.0
