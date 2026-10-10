@@ -109,6 +109,7 @@ export const GUARDS = [
   { id: 'notHeldByAnother', refuse: 'HELD', rule: 'no other agent holds it under a live lease', next: 'pullboard next', source: 'board' },
   { id: 'laneOpen', refuse: 'LANE_HELD', rule: 'nobody holds its lane', next: 'pullboard next --wait 9 (minutes)', source: 'board', when: 'unless the caller is renewing its own live claim' },
   { id: 'itemNotHeld', refuse: 'ITEM_HELD', rule: 'the coordinator has not put this item on hold', next: 'the coordinator lifts it with pullboard hold <id> --off', source: 'board', when: 'unless the caller is renewing its own live claim' },
+  { id: 'correctionRefrozen', refuse: 'PENDING_REFREEZE', rule: 'no coordinator correction to a claimed criterion or check is waiting to be frozen', next: 'pullboard refreeze <id>', source: 'board' },
   { id: 'oneLiveClaim', refuse: 'ONE_CLAIM', rule: 'the caller holds no other live top-level claim, reworks of its own rejected items aside', next: 'submit or release the other item first; child items are free', source: 'board' },
   { id: 'rowsInForce', refuse: 'UNKNOWN_SPEC', alsoRefuses: [{ code: 'A5_GRAMMAR_VERSION', next: 'upgrade Pullboard or use a file written for grammar 1' }, { code: 'NO_POLICY', next: 'restore the committed coordinator policy' }, { code: 'BAD_CONFIG', next: 'repair and commit the coordinator configuration' }], rule: 'every row the item cites exists and is in force', next: 'fix the spec, or the coordinator withdraws the item', source: 'board', when: 'only where the criterion freezes: claiming an item with no frozen criterion, and refreeze' },
   { id: 'criterionUnchanged', refuse: 'CRITERIA_CHANGED', rule: 'the criterion and the rows it cites read as they did at claim', next: 'the coordinator runs pullboard refreeze <id>', source: 'cli' },
@@ -142,7 +143,7 @@ export const GUARDS = [
 export const MOVES = [
   {
     verb: 'claim', from: ['open', 'claimed'], to: 'claimed', by: ['agent', 'coordinator'], refuse: 'NOT_CLAIMABLE',
-    guards: ['joined', 'itemExists', IN_STATE, 'itemNotHeld', 'inLane', 'routeAllows', 'dependenciesVerified', 'notHeldByAnother', 'laneOpen', 'oneLiveClaim', 'rowsInForce'],
+    guards: ['joined', 'itemExists', IN_STATE, 'itemNotHeld', 'inLane', 'routeAllows', 'dependenciesVerified', 'notHeldByAnother', 'correctionRefrozen', 'laneOpen', 'oneLiveClaim', 'rowsInForce'],
     sets: ['item_owner', 'item_lease_until', 'item_frozen_digest'], command: 'pullboard claim <id>',
   },
   {
@@ -152,7 +153,7 @@ export const MOVES = [
   { verb: 'lapse', from: ['claimed'], to: 'open', by: ['clock'], guards: [], when: 'its lease runs out' },
   {
     verb: 'submit', from: ['claimed'], to: 'submitted', by: ['agent', 'coordinator'], refuse: 'NOT_YOURS',
-    guards: ['joined', 'itemExists', IN_STATE, 'isHolder', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'trunkMergeClean', 'noUnverifiedStack', 'gateConfigured', 'gateGreen', 'treeStillDuringGate', 'childrenDone', 'headIsNew'],
+    guards: ['joined', 'itemExists', IN_STATE, 'isHolder', 'correctionRefrozen', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'trunkMergeClean', 'noUnverifiedStack', 'gateConfigured', 'gateGreen', 'treeStillDuringGate', 'childrenDone', 'headIsNew'],
     sets: ['item_built_by', 'item_commit'], command: 'pullboard submit <id>',
   },
   {
@@ -183,7 +184,14 @@ export const MOVES = [
   {
     verb: 'refreeze', from: ['open', 'claimed', 'submitted'], to: 'open', by: ['coordinator'], refuse: 'CLOSED',
     guards: ['joined', 'coordinatorOnly', 'itemExists', IN_STATE, 'rowsInForce'],
+    when: 'there is no live claim awaiting a coordinator correction',
     sets: ['item_frozen_digest'], command: 'pullboard refreeze <id>',
+  },
+  {
+    verb: 'refreeze', from: ['claimed'], to: 'claimed', by: ['agent', 'coordinator'], refuse: 'CLOSED',
+    guards: ['joined', 'itemExists', 'holderOrCoordinator', IN_STATE, 'rowsInForce'],
+    when: 'a live claim has a pending coordinator correction',
+    sets: ['item_frozen', 'item_frozen_digest'], command: 'pullboard refreeze <id>',
   },
   {
     verb: 'withdraw', from: ['open', 'claimed', 'submitted'], to: 'withdrawn', by: ['coordinator'], refuse: 'CLOSED',
@@ -570,8 +578,10 @@ export function lifecycleMarkdown(machine = MACHINE) {
 export function lifecycleHelp(machine = MACHINE) {
   const lines = machine.roles.map((role) => {
     const moves = machine.moves.filter((move) => move.by.includes(role));
-    const when = moves.filter((move) => move.when).map((move) => `${move.verb} (when ${move.when})`);
-    const plain = moves.filter((move) => !move.when).map((move) => move.verb);
+    const counts = new Map();
+    for (const move of moves) counts.set(move.verb, (counts.get(move.verb) ?? 0) + 1);
+    const when = moves.filter((move) => move.when && counts.get(move.verb) === 1).map((move) => `${move.verb} (when ${move.when})`);
+    const plain = [...new Set(moves.filter((move) => !move.when || counts.get(move.verb) > 1).map((move) => move.verb))];
     return `  ${role.padEnd(13)} ${[...plain, ...when].join(', ')}`;
   });
   return ['Lifecycle, read from src/machine.js', '  pullboard lifecycle         the states, moves, guards and refusals as a markdown page, with a diagram', ...lines].join('\n');

@@ -285,6 +285,12 @@ function recordEventContract() {
   submit(board, rejected, { agentId: builder, commit: rejectedCommit, tree: 'e'.repeat(40) });
   verify(board, rejected, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'the fixture failed', head: rejectedCommit, digest: 'rejected', policy: 'agents' });
 
+  const corrected = addItem(board, { by: coordinator, lane: 'docs', title: 'Corrected live claim' });
+  claim(board, corrected, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('before-correction') });
+  editItem(board, corrected, { agentId: coordinator, criterion: 'Corrected criterion' });
+  assert.deepEqual(JSON.parse(events(board).filter((row) => row.event_kind === 'edit').at(-1).event_detail).pendingRefreeze, ['criterion']);
+  refreeze(board, corrected, { agentId: builder, freeze: freeze('adopted-correction') });
+
   const withdrawn = addItem(board, { by: coordinator, lane: 'docs', title: 'Withdrawn example' });
   withdraw(board, withdrawn, { agentId: coordinator, reason: 'duplicate fixture' });
   holdLane(board, 'view', { agentId: coordinator, reason: 'fixture hold' });
@@ -562,7 +568,9 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
   for (const row of actualRows) {
     const kind = row.event_kind;
     const entry = actual[kind] ?? { actors: new Set(), fields: new Set() };
-    const actor = actorByKind[kind] ?? actors[row.event_by] ?? 'unknown';
+    const actor = kind === 'refreeze' && row.event_by !== COORDINATOR
+      ? 'live holder adopting a pending correction'
+      : actorByKind[kind] ?? actors[row.event_by] ?? 'unknown';
     entry.actors.add(actor);
     for (const field of Object.keys(row.detail)) {
       if (field !== 'model') entry.fields.add(field);
@@ -573,7 +581,7 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
   assert.deepEqual(Object.keys(documented).sort(), Object.keys(actual).sort());
   assert.match(block('<!-- pass-rule:start -->', '<!-- pass-rule:end -->'), /passDecision` only for the coordinator/);
   for (const [kind, expected] of Object.entries(documented)) {
-    assert.deepEqual([...actual[kind].actors].sort(), [expected.actor]);
+    assert.deepEqual([...actual[kind].actors].sort(), expected.actor.split(', or ').sort());
     assert.deepEqual([...actual[kind].fields].sort(), expected.fields);
   }
 });
