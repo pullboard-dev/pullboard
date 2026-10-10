@@ -1322,7 +1322,7 @@ function render() {
   // a number that names no item stays text. A path:lines@commit reference opens that code (B23). It
   // counts only as a whole word, never as the tail of one, so what it opens is what it says, and the
   // view refuses what is no path in the repo.
-  const mark = (x) => (x.shout_decision ? '<span class="mark ask">decision</span> ' : x.shout_answers ? '<span class="mark">answer</span> ' : '');
+  const mark = (x) => (x.shout_decision ? '<span class="mark ask" role="group" title="decision" aria-label="decision">decision</span> ' : x.shout_answers ? '<span class="mark" role="group" title="answer" aria-label="answer">answer</span> ' : '');
   // Evidence a shout carries (B22), as the fields it is: its kind and outcome, the item, who sent it,
   // and the commit, shortened, with the full SHA on hover.
   const evidence = (x) => (x.shout_evidence_kind ? '<div class="receipt"><div><span class="badge">' + esc(x.shout_evidence_kind) + '</span> <span class="outcome">' + esc(x.shout_evidence_outcome) + '</span></div>'
