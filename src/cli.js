@@ -68,7 +68,7 @@ import { doctorProblems, doctrineProblems } from './doctor.js';
 import { staleFrozenItems, staleItemFinding } from './approved-rows.js';
 import { mainPolicy, policyAt, itemPolicy, submissionPaths, frozenCheck, checkAtCommit, dependencySnapshots, requireTrunkMerge, trunkRef } from './trusted-policy.js';
 import { proofStats } from './stats.js';
-import { flowLines } from './stats-flow.js';
+import { flowLines, flowAlertLine } from './stats-flow.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
@@ -935,7 +935,8 @@ function resumeHere(io) {
     return {
       me,
       all,
-      ...(decisionSections ? { ...decisions, ...verifiedMergeGroups(root, toMerge, shouts, ctx.clock.now().getTime()) } : {}),
+      ...(decisionSections ? { ...decisions, ...verifiedMergeGroups(root, toMerge, shouts, ctx.clock.now().getTime()),
+        flow: proofStats(board, { now: ctx.clock.now().getTime() }).flow } : {}),
       requests: me.id === COORDINATOR ? store.openRequests(board) : [],
       holding: all.filter((item) => item.item_status === 'claimed' && item.item_owner === me.id),
       sentBack: all
@@ -1033,6 +1034,8 @@ function resumeHere(io) {
   else next = 'nothing open in your lane; pullboard next --verify names work you can check';
   io.result?.({ ...card, root, dirty, next });
   say(`next: ${next}`);
+  const flowAlert = isMain ? flowAlertLine(card.flow) : null;
+  if (flowAlert) say(flowAlert);
   return 0;
 }
 
