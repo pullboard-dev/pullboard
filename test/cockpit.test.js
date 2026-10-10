@@ -2031,7 +2031,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     assert.equal(page.element('decisions').hidden, true, 'an ask waiting on others stays folded');
     assert.match(page.show('asks-slot'), /^<button class="asks-toggle" data-fold="waiting" type="button" aria-expanded="false" title="Asks between agents, waiting on others: web-1 asks coordinator">1 ask waiting <span aria-hidden="true">▾<\/span><\/button>$/, 'its toggle sits at the end of the composer line');
     page.run('view.open.waiting = true; render();');
-    assert.match(page.show('decisions'), new RegExp(`^<article class="shout h\\d" data-shout-id="1"><span class="avatar" aria-hidden="true">W1</span><div class="shout-main"><header><b class="who">web-1</b><span class="to">→ coordinator</span><span class="mark ask">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">now</time></header><div class="text">${question}</div><button class="more" data-more type="button">more</button></div></article>$`), 'above the shouts as a card, saying who asked whom, with no Answer button');
+    assert.match(page.show('decisions'), new RegExp(`^<article class="shout h\\d" data-shout-id="1"><span class="avatar" aria-hidden="true">W1</span><div class="shout-main"><header><b class="who">web-1</b><span class="to">→ coordinator</span><span class="mark ask" role="group" title="decision" aria-label="decision">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">now</time></header><div class="text">${question}</div><button class="more" data-more type="button">more</button></div></article>$`), 'above the shouts as a card, saying who asked whom, with no Answer button');
     assert.doesNotMatch(page.show('feed'), /Greet in/, 'though the feed no longer reaches it');
 
     // The coordinator passes it up with its note (B27): now it is the person's call.
@@ -2039,7 +2039,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     await page.run('refresh()');
     const passed = `Passed up from web-1: ${question}\nCoordinator note: over to you`;
     assert.match(page.show('needs'), new RegExp(`^<li class="row ask" data-go="decide:42"><span class="dot ask"></span><div><div class="t">${passed.replace('\n', '<br>')}</div><span class="row-age"><time data-ago="[^"]+">now</time></span><div class="meta"><span class="why"><b>NEEDS YOU</b> a decision, asked by coordinator</span></div></div><span class="chip warn">decide</span></li>`), "first in Needs-you: who passed it, what, and since when");
-    assert.match(page.show('decisions'), new RegExp(`^<div class="head"><i></i>Decision needed</div><article class="shout h\\d lead" data-shout-id="42"><span class="avatar"><svg [\\s\\S]*?</svg></span><div class="shout-main"><header><b class="who">coordinator</b><span class="to">→ person</span><span class="mark ask">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">now</time></header><div class="text">${passed.replace('\n', '<br>')}</div><button class="more" data-more type="button">more</button><button class="ghost answer" data-go="decide:42" type="button">Answer</button></div></article>$`), 'and above the shouts as the coordinator\'s card, with an Answer button');
+    assert.match(page.show('decisions'), new RegExp(`^<div class="head"><i></i>Decision needed</div><article class="shout h\\d lead" data-shout-id="42"><span class="avatar"><svg [\\s\\S]*?</svg></span><div class="shout-main"><header><b class="who">coordinator</b><span class="to">→ person</span><span class="mark ask" role="group" title="decision" aria-label="decision">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">now</time></header><div class="text">${passed.replace('\n', '<br>')}</div><button class="more" data-more type="button">more</button><button class="ghost answer" data-go="decide:42" type="button">Answer</button></div></article>$`), 'and above the shouts as the coordinator\'s card, with an Answer button');
 
     const form = () => ({
       answering: !page.element('answering').hidden,
@@ -2073,8 +2073,8 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     box.run(alpha.repo, 'pass', '45', 'yours');
     await page.run('refresh()');
     const feed = page.show('feed');
-    assert.match(feed, /<b class="who">web-1<\/b><span class="to">→ coordinator<\/span><span class="mark ask">decision<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">Ship today\?<\/div>/, 'the feed marks an ask');
-    assert.match(feed, /<b class="who">person<\/b><span class="to">→ coordinator<\/span><span class="mark">answer<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">French, then English<\/div>/, 'and an answer');
+    assert.match(feed, /<b class="who">web-1<\/b><span class="to">→ coordinator<\/span><span class="mark ask" role="group" title="decision" aria-label="decision">decision<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">Ship today\?<\/div>/, 'the feed marks an ask');
+    assert.match(feed, /<b class="who">person<\/b><span class="to">→ coordinator<\/span><span class="mark" role="group" title="answer" aria-label="answer">answer<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">French, then English<\/div>/, 'and an answer');
     assert.match(page.show('needs'), /data-go="decide:46"/);
 
     // An answer belongs to the project whose question it shows.
