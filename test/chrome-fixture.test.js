@@ -5,9 +5,9 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { createServer } from 'node:http';
 import { loadavg, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
+import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { test } from 'node:test';
-import { findChromeExecutable, launchChromeProcess, startChrome } from './chrome-fixture.js';
+import { findChromeExecutable, isRoundedBudgetBoundary, launchChromeProcess, startChrome } from './chrome-fixture.js';
 
 /** Pause between checks while waiting for a fixture helper's readiness marker. */
 function pause(ms) {
@@ -184,19 +184,32 @@ test('a stalled condition uses its remaining operation budget [C7]', {
   const budgetMs = 250;
   const scheduler = monitorEventLoopDelay({ resolution: 10 });
   scheduler.enable();
-  const startedAt = performance.now();
+  const startedAt = Date.now();
   let failure;
   try { await chrome.waitFor('new Promise(() => {})', budgetMs, 'bounded condition'); }
   catch (error) { failure = error; }
-  const elapsedMs = performance.now() - startedAt;
+  const elapsedMs = Date.now() - startedAt;
   scheduler.disable();
   const schedulerSlackMs = Math.ceil(scheduler.max / 1e6);
   const details = `budget=${budgetMs}ms elapsed=${Math.round(elapsedMs)}ms schedulerSlack=${schedulerSlackMs}ms loadavg=${JSON.stringify(loadavg())}`;
-  assert.ok(failure instanceof Error && /Browser condition "bounded condition" did not arrive within 250ms/u.test(failure.message),
+  const cdpTimeout = failure instanceof Error
+    && /DevTools Runtime\.evaluate "bounded condition" timed out after (\d+)ms/u.exec(failure.message);
+  const conditionTimeout = failure instanceof Error
+    && /Browser condition "bounded condition" did not arrive within 250ms/u.test(failure.message);
+  assert.ok(conditionTimeout || (cdpTimeout && isRoundedBudgetBoundary(Number(cdpTimeout[1]), elapsedMs, budgetMs)),
     `the stalled page condition should time out at its operation budget; ${details}; failure=${failure?.message ?? 'none'}`);
   assert.ok(elapsedMs <= budgetMs + schedulerSlackMs,
     `the 250ms condition stayed within its measured budget plus scheduler delay; ${details}`);
   assert.equal(await chrome.evaluate('1 + 1'), 2, 'timing out one command leaves the real DevTools connection usable');
+});
+
+test('a timeout at the budget boundary passes [C7]', () => {
+  assert.equal(isRoundedBudgetBoundary(249, 250, 250), true,
+    'a 249ms CDP report rounded to 250ms by the shared wall clock is at the budget boundary');
+  assert.equal(isRoundedBudgetBoundary(248, 250, 250), false,
+    'a two-millisecond early CDP timeout is outside the rounding boundary');
+  assert.equal(isRoundedBudgetBoundary(249, 251, 250), false,
+    'elapsed time beyond the budget is not accepted as a rounding boundary');
 });
 
 test('a wait that throws while the page changes keeps waiting [C7]', async (t) => {
