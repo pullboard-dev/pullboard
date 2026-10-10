@@ -7439,7 +7439,7 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
 
     // On a phone the lane picker shows while a lane narrows the list, so the person sees where they are and can leave
     // it; with every lane shown it drops again. A coordinator item makes a second lane to pick between.
-    box.run(alpha.repo, 'add', 'coordinator', 'Plan the release', '--criterion', 'planned');
+    box.run(alpha.repo, 'add', 'coordinator', 'Plan the greeting release', '--criterion', 'planned');
     await chrome.waitFor('data.project.items.length === 9', 15_000);
     const lane = (name) => chrome.evaluate(`(() => { const pick = document.querySelector('#lane-pick'); pick.value = ${JSON.stringify(name)}; pick.dispatchEvent(new Event('change', { bubbles: true })); })()`);
     for (const scheme of ['light', 'dark']) {
@@ -7455,9 +7455,26 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
       const narrowed = await read();
       assert.deepEqual(narrowed.bar.map((part) => part.name), ['active', 'verified', 'lane-pick', 'new-item'], `375px ${scheme}: a picked lane keeps its picker: ${JSON.stringify(narrowed.bar)}`);
       assert.ok(narrowed.bar.every((part) => Math.abs(part.middle - narrowed.bar[0].middle) <= 2) && narrowed.page.scroll <= narrowed.page.width, `375px ${scheme}: still one row, no sideways scroll: ${JSON.stringify(narrowed)}`);
+      // With the lane still picked, a search that opens an item makes All the selected filter too: both filters show,
+      // New item is a + that is still named New item, and the row holds.
+      await search('greeting');
+      await key('Enter', 'Enter', 13, '\r');
+      await chrome.waitFor("view.tab === 'items' && !!view.item && view.state === 'all' && view.lane === 'web' && document.querySelector('#find-results').hidden");
+      const both = await read();
+      assert.deepEqual(both.bar.map((part) => [part.name, part.on]), [['active', false], ['verified', false], ['all', true], ['lane-pick', false], ['new-item', false]], `375px ${scheme}: All and the picked lane both show: ${JSON.stringify(both.bar)}`);
+      assert.ok(both.bar.every((part) => Math.abs(part.middle - both.bar[0].middle) <= 2) && both.page.scroll <= both.page.width && both.page.body <= both.page.width, `375px ${scheme}: both filters on one row, no sideways scroll: ${JSON.stringify(both)}`);
+      assert.deepEqual(JSON.parse(await chrome.evaluate("JSON.stringify((() => { const go = document.querySelector('#new-item'); return [go.textContent, getComputedStyle(go, '::before').content, Math.round(go.getBoundingClientRect().width)]; })())")), ['New item', '"+"', 44], `375px ${scheme}: New item is a 44px + that keeps its name`);
+      // A long lane name gives way rather than the row: with the coordinator lane picked, still one row.
+      await lane('coordinator');
+      await chrome.waitFor("view.lane === 'coordinator'");
+      const long = await read();
+      assert.deepEqual(long.bar.map((part) => part.name), ['active', 'verified', 'all', 'lane-pick', 'new-item'], `375px ${scheme}: a long lane keeps every control: ${JSON.stringify(long.bar)}`);
+      assert.ok(long.bar.every((part) => Math.abs(part.middle - long.bar[0].middle) <= 2) && long.page.scroll <= long.page.width && long.page.body <= long.page.width, `375px ${scheme}: a long lane name gives way, not the row: ${JSON.stringify(long)}`);
+      await chrome.evaluate("document.querySelector('[data-state=active]').click()");
       await lane('');
       await chrome.waitFor('view.lane === null');
       assert.deepEqual((await read()).bar.map((part) => part.name), ['active', 'verified', 'new-item'], `375px ${scheme}: every lane shown, the picker drops again`);
+      assert.equal(await chrome.evaluate("getComputedStyle(document.querySelector('#new-item'), '::before').content"), 'none', `375px ${scheme}: with only Active and Verified, New item has its words`);
     }
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });

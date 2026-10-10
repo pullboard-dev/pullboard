@@ -514,10 +514,16 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .seg { flex-wrap: wrap; max-width: 100%; }
 .inline > label { min-width: 0; }
 /* On a phone the Items toolbar is one row, Active and Verified with New item at its end, as the person chose; All and
- * the lane picker drop out unless one of them is what narrows the list now. */
+ * the lane picker drop out unless one of them is what narrows the list now. While a filter beyond Active and Verified
+ * shows, New item is a + (its name is still New item), so the row holds both filters; a long lane name gives way, the
+ * picker shrinking to show what it can, rather than the row. */
 @media (width < 480px) {
   .toolbar { flex-wrap: nowrap; }
+  .toolbar .seg, .toolbar .go { flex: none; }
+  .toolbar .lane-pick { flex: 0 1 auto; min-width: 4em; }
   .toolbar .seg [data-state="all"]:not(.on), .toolbar .lane-pick:not(:has(option:checked:not([value=""]))) { display: none; }
+  .toolbar:has(.seg button.on:not([data-state="active"]):not([data-state="verified"]), .lane-pick option:checked:not([value=""])) .go { width: var(--tap); padding: 0; font-size: 0; }
+  .toolbar:has(.seg button.on:not([data-state="active"]):not([data-state="verified"]), .lane-pick option:checked:not([value=""])) .go::before { content: "+"; font-size: 22px; font-weight: 500; line-height: 1; }
 }
 
 .spec-feedback { margin: 8px 0; padding: 8px; border: 1px solid var(--line-strong); border-radius: 8px; overflow-wrap: anywhere; font-size: 13px; }
