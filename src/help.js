@@ -101,6 +101,32 @@ Coordinator
 
 Receipts
   pullboard stats [--since <date>]      proof numbers from the event log; --json for sites and tools
+                                        stage averages/medians count ends inside the inclusive UTC window;
+                                        build: first claim to final submit (including rework);
+                                        review wait: final submit to the closing review reservation;
+                                        released/expired reservations remain wait, not review;
+                                        review: closing reservation to verdict; merge wait: accept to first merge
+                                        unfinished stages are omitted; missing legacy reservations are unmeasured
+                                        queues include all current work, even added before --since;
+                                        open age restarts on add, reopen, reject, release or claim lapse;
+                                        claimed age starts at claim (not renewal), submitted at final submit,
+                                        accepted-not-merged at accept; oldest ties use the lower item id
+                                        daily additions and first merges use UTC dates; repeated merge receipts count once
+                                        active agents moved in the last 60 minutes (inclusive), by role and lane;
+                                        role is latest role-bearing move, falling back to earlier history or unknown:
+                                        claim/submit/build release = builder; reserve/verdict/review release = verifier;
+                                        the coordinator is coordinator; shouts and joins never imply a role
+                                        bottleneck: largest summed stage share over fully measured first-merge cycles;
+                                        ties: build, review wait, review, merge wait; print fully measured/total cycles;
+                                        fewer than half fully measured means low confidence; no measured cycles means no action
+                                        one action, first matching rule:
+                                        review wait + fewer than 1 verifier per 4 active builders: add a verifier
+                                        review wait otherwise: review the oldest submission first (#N)
+                                        build + more than 30% sent back: tighten criteria or briefs: N of M submissions were sent back
+                                        build otherwise: add a builder in the lane with most open items (lane-name tie)
+                                        review: reviews are slow (median X min): check how long the frozen checks take
+                                        merge wait: land the accepted items: #A, #B
+                                        when that queue is empty, the action says none waiting or waits for open work
   pullboard ledger                      markdown: what was built, by whom, verified by whom
   pullboard log [id]                    every move, in order
 

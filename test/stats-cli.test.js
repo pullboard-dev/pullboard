@@ -65,6 +65,9 @@ test('[R1,R2,A1] stats JSON is versioned, text states the same proof numbers and
   assert.match(text.stdout, /agents: coordinator \(unknown; \d+ moves\), review-1 \(unknown; \d+ moves\), web-1 \(unknown; \d+ moves\)/u);
   assert.ok(text.stdout.includes(expected.firstEventAt));
   assert.ok(text.stdout.includes(expected.lastEventAt));
+  assert.match(text.stdout, /build: average 0 min · median 0 min · 1 measured/u);
+  assert.match(text.stdout, /review: average unmeasured min · median unmeasured min · 0 measured; 1 of 1 completed items unmeasured/u);
+  assert.match(text.stdout, /not enough measured flow to name a bottleneck \(1 items completed since the beginning, none with every stage measured\)/u);
   assert.deepEqual(store.events(board), before, 'reading statistics appends no move');
 });
 

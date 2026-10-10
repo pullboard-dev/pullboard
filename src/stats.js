@@ -1,6 +1,7 @@
 /** Public proof numbers derived from the append-only event log [R1,R2]. */
 import { events } from './board.js';
 import { Refused } from './refused.js';
+import { flowStats } from './stats-flow.js';
 
 /** Parse an inclusive UTC date boundary, refusing malformed or impossible dates. */
 export function sinceDate(value) {
@@ -93,8 +94,9 @@ function actorsFrom(history, boundary) {
 }
 
 /** Assemble the public statistics shared by the CLI and local board state from one event snapshot. */
-export function proofStats(board, { since } = {}) {
+export function proofStats(board, { since, now = Date.now() } = {}) {
   const boundary = sinceDate(since);
   const history = events(board);
-  return { ...countsFrom(history, boundary), ...actorsFrom(history, boundary) };
+  const counts = countsFrom(history, boundary);
+  return { ...counts, ...actorsFrom(history, boundary), flow: flowStats(history, boundary, now, counts) };
 }
