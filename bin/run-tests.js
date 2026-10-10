@@ -156,15 +156,22 @@ function runTests(args, env) {
   return spawnSync(process.execPath, nodeArgs, { env, stdio: 'inherit' });
 }
 
-const NODE_TEST_OPTIONS_WITH_VALUES = new Set([
-  '--test-name-pattern', '--test-skip-pattern', '--test-reporter', '--test-reporter-destination',
-  '--test-timeout', '--test-concurrency', '--import', '--require', '--conditions', '--loader',
-  '--experimental-loader', '--inspect-port', '-r', '-C',
-  '--test-shard', '--test-coverage-branches', '--test-coverage-exclude',
-  '--test-coverage-functions', '--test-coverage-include', '--test-coverage-lines',
-  '--test-global-setup', '--test-random-seed', '--test-rerun-failures',
-  '--experimental-test-isolation', '--test-isolation',
-]);
+let nodeOptionsWithValues;
+
+/** Read Node option arity from this runtime so supported option values cannot bypass the machine pool. */
+function optionTakesValue(argument) {
+  if (!nodeOptionsWithValues) {
+    nodeOptionsWithValues = new Set();
+    const help = execFileSync(process.execPath, ['--help'], { encoding: 'utf8' });
+    for (const line of help.split(/\r?\n/u)) {
+      const signature = line.match(/^  (-\S.*?)(?: {2,}|$)/u)?.[1];
+      if (!signature || !signature.includes('=') || signature.includes('[=')) continue;
+      for (const option of signature.matchAll(/--?[A-Za-z][A-Za-z0-9-]*/gu)) nodeOptionsWithValues.add(option[0]);
+    }
+
+  }
+  return nodeOptionsWithValues.has(argument.replaceAll('_', '-'));
+}
 
 /** Distinguish file selection from option values so filtered discovery still takes a full-suite slot. */
 function hasTestFiles(args) {
@@ -174,7 +181,7 @@ function hasTestFiles(args) {
     if (takesValue) { takesValue = false; continue; }
     if (argument === '--') return index < args.length - 1;
     if (argument.startsWith('-')) {
-      if (!argument.includes('=')) takesValue = NODE_TEST_OPTIONS_WITH_VALUES.has(argument);
+      if (!argument.includes('=')) takesValue = optionTakesValue(argument);
       continue;
     }
     return true;

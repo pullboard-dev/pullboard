@@ -368,7 +368,11 @@ test('[Q1,Q2,V18] item checks wait for a gate slot and ordinary gates precede th
 });
 
 test('a raw full-suite run takes a machine gate slot [Q4]', async () => {
-  const modes = [[], ['--test-name-pattern', PROBE_PATTERN, '--test-reporter', 'tap', '--test-concurrency', '1', '--test-shard', '1/1', '--experimental-test-isolation', 'process']];
+  const modes = [
+    [],
+    ['--test-name-pattern', PROBE_PATTERN, '--test-reporter', 'tap', '--test-concurrency', '1', '--test-shard', '1/1', '--experimental-test-isolation', 'process'],
+    ['--disable-warning', 'ExperimentalWarning', '--title', 'pullboard-slot-probe', '--max-http-header-size', '16384'],
+  ];
   for (const args of modes) {
     const box = fixture();
     const release = join(box.dir, 'release-full-suite-holder');
@@ -434,6 +438,7 @@ test('a focused run takes no slot [Q4]', async () => {
     await waitFor(() => events(box).includes('focused-holder start'), 'the fixture gate to hold its only machine slot');
     focusedRun = launchTestRunner(box, suiteRoot, [
       '--test-name-pattern', PROBE_PATTERN,
+      '--disable-warning', 'ExperimentalWarning', '--title', 'focused-slot-probe',
       'test/probe.test.js',
     ], marker);
     const outcome = await waitFor(() => {
