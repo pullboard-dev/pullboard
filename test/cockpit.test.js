@@ -566,7 +566,7 @@ test('the sidebar lists every project and what needs the person [N26]', async ()
     assert.match(page.show('chain'), /Gamma page/, 'the main column shows the project picked');
     assert.doesNotMatch(page.show('chain'), /Greeting/);
     assert.equal(page.element('proj-name').textContent, 'gam<i>ma');
-    assert.equal(page.element('proj-elsewhere').textContent, '2 elsewhere', 'the folded button counts what needs the person elsewhere: beta\'s question and held lane, not alpha\'s agents\' work');
+    assert.ok(!page.html.includes('proj-elsewhere'), 'the folded button carries no count: what needs the person in each project is in the list it opens');
 
     await page.click({ id: 'proj-switch', classes: 'switch-btn side' });
     assert.ok(page.element('side').classList.contains('open'), 'the project button opens the list');
@@ -815,11 +815,10 @@ test('the tabs fit one row on a phone [N26]', async () => {
     const phone = /@media \(width < 480px\) \{\n([^@]*?)\n\}/.exec(style)?.[1] ?? '';
     assert.doesNotMatch(style, /max-width: 480px/, 'at 480px itself the tabs keep their row');
     assert.match(phone, /\.tabs \{ flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: auto;/, 'under 480px the tabs share the bar: each as wide as its label, plus an even share of the room left');
-    assert.match(phone, /\.tab \{ display: grid; grid-template-rows: auto 13px; justify-items: center;/, 'each tab stacks its label over its count');
-    assert.match(phone, /\.tab b \{ margin: 0;/);
+    assert.match(phone, /\.tab \{ display: grid; justify-items: center; align-content: center;/, 'each tab centres its label in its share');
     assert.match(style, /\n\.tabs \{ display: flex; flex-wrap: wrap; gap: 2px; \}\n/, 'wider, the tabs keep the row they have');
-    const tabs = [...html.matchAll(/<button class="tab" data-tab="([a-z]+)" type="button">([A-Za-z]+)(<b id="count-([a-z]+)"><\/b>)?<\/button>/g)];
-    assert.deepEqual(tabs.map((match) => [match[2], match[4] === match[1]]), [['Items', true], ['Shouts', true], ['Spec', true], ['Doctrine', true], ['Activity', false], ['Roadmap', false]], 'six tabs: a label, then its count where it has one');
+    const tabs = [...html.matchAll(/<button class="tab" data-tab="([a-z]+)" type="button">([A-Za-z]+)<\/button>/g)];
+    assert.deepEqual(tabs.map((match) => match[2]), ['Items', 'Shouts', 'Spec', 'Doctrine', 'Activity', 'Roadmap'], 'six tabs, each its label alone: their counts are in the status bar');
   } finally {
     await view.stop();
   }
@@ -1137,6 +1136,9 @@ test('the agents panel says what each agent holds [N26]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    assert.deepEqual(agentEntries(page.show('agents')).map((agent) => agent.id), ['web-1', 'web-2'], 'an agent holding nothing waits in the idle fold, closed');
+    assert.match(page.show('agents'), /<button class="fold-line" data-fold="idle" type="button" aria-expanded="false" title="coordinator"><span>1 idle<\/span>/);
+    page.run('view.open.idle = true; render();');
     const agents = agentEntries(page.show('agents'));
     assert.deepEqual(agents.map((agent) => [agent.id, agent.holds, agent.more, agent.idle]), [
       // An agent holding work is a row with its first thing: the claim, then work sent back, then work waiting for a verdict.
@@ -1175,6 +1177,7 @@ test('a review in progress names its reviewer [N26]', async () => {
     const page = await openPage(view);
     assert.match(itemRow(page.show('chain'), 1), /<span class="chip warn" title="reviewing until [^"]+">web-2 reviewing<\/span><\/li>$/, 'the row names who holds the review');
     assert.doesNotMatch(page.show('needs'), /Greeting/, "a review is the agents' work, so it stays out of Needs-you");
+    page.run('view.open.idle = true; render();');
     const holds = (id) => agentEntries(page.show('agents')).find((agent) => agent.id === id).holds;
     assert.deepEqual(holds('web-2'), ['#1 Greeting: reviewing'], 'the reviewer holds it');
     assert.deepEqual(holds('web-1'), ['#1 Greeting: to verify'], 'the builder waits on it');
@@ -1242,7 +1245,6 @@ test('an open decision counts in the sidebar and the tab title [B21, B26, N26]',
     await page.run('refresh()');
     assert.deepEqual(rows(), [['alpha', '', 'nothing open'], ['beta', '1', '1 decision']], "passed up, it needs the person, from alpha too");
     assert.equal(page.run('document.title'), '(1) alpha · Pullboard');
-    assert.equal(page.element('proj-elsewhere').textContent, '1 elsewhere', 'and on a phone');
 
     box.run(beta.repo, 'shout', 'person', 'And the docs?', '--decision');
     await page.run('refresh()');
@@ -1255,7 +1257,6 @@ test('an open decision counts in the sidebar and the tab title [B21, B26, N26]',
     assert.deepEqual(replies.map((shout) => [shout.shout_from, shout.shout_to, shout.shout_answers, shout.shout_text]),
       [['person', 'web-1', 1, 'Person answered #2: yes']], "the person's answer reaches the agent that asked");
     assert.equal(page.run('document.title'), 'alpha · Pullboard');
-    assert.equal(page.element('proj-elsewhere').hidden, true);
   } finally {
     await view.stop();
   }
@@ -1706,9 +1707,9 @@ test('a sent-back item shows why first [N26]', async () => {
     const needs = page.show('needs');
     assert.doesNotMatch(needs, /Greeting|Farewell/, "work sent back is the agents' to move, so it stays out of Needs-you; its row says why");
     const row = itemRow(page.show('chain'), 1);
-    assert.ok(row.includes('BEHAVIOR_MISMATCH: no &lt;b&gt;greeting&lt;/b&gt; on the page'), row);
+    assert.ok(row.includes('<b>BEHAVIOR_MISMATCH</b> no &lt;b&gt;greeting&lt;/b&gt; on the page'), row);
     assert.ok(!row.includes('second line'), 'the row shows the first line of the note only');
-    assert.ok(itemRow(page.show('chain'), 2).includes('BEHAVIOR_MISMATCH: the farewell is missing'));
+    assert.ok(itemRow(page.show('chain'), 2).includes('<b>BEHAVIOR_MISMATCH</b> the farewell is missing'));
 
     await page.click({ item: '1', classes: 'row' });
     const detail = page.show('detail');
@@ -1728,7 +1729,7 @@ test('a sent-back item shows why first [N26]', async () => {
     await page.click({ item: '2', classes: 'row' });
     assert.match(beforeCriterion(), /<h3>Sent back, resubmitted<\/h3>[^]*the farewell is missing/);
 
-    assert.ok(itemRow(page.show('chain'), 5).includes('BEHAVIOR_MISMATCH: the footer is empty'), 'a row being reworked still says why');
+    assert.ok(itemRow(page.show('chain'), 5).includes('<b>BEHAVIOR_MISMATCH</b> the footer is empty'), 'a row being reworked still says why');
     await page.click({ item: '5', classes: 'row' });
     assert.match(beforeCriterion(), /<h3>Sent back, being reworked<\/h3>[^]*<b>REJECT BEHAVIOR_MISMATCH<\/b>[^]*the footer is empty/);
 
@@ -1770,7 +1771,7 @@ test('the list shows active, verified or all [N26]', async () => {
     assert.deepEqual(rows(), [1]);
     await page.click({ state: 'all' });
     assert.deepEqual(rows(), [1, 2]);
-    assert.match(page.html, /<div class="card-panel toolbar"><div class="seg" id="state-chips" role="group" aria-label="Show"><\/div><input id="q" type="search"/, 'the control sits in the toolbar beside the search');
+    assert.match(page.html, /<div class="card-panel toolbar"><div class="seg" id="state-chips" role="group" aria-label="Show"><\/div><div class="find"><select id="lane-pick" aria-label="Lane"><\/select><input id="q" type="search"/, 'the control sits in the toolbar beside the search, whose field holds the lane picker');
     assert.doesNotMatch(page.html, /id="lane-filter"|class="chips" id="state-chips"/, 'no lane menu and no row of chips');
 
     await page.click({ state: 'active' });
@@ -1866,7 +1867,9 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     // An agent asks its coordinator (B25): the ask waits on the board with who holds it, never in Needs-you.
     assert.doesNotMatch(page.show('needs'), /decide:/, "an agent's ask is its coordinator's to answer");
     assert.equal(page.element('decisions').hidden, false);
-    assert.match(page.show('decisions'), new RegExp(`^<div class="head quiet">Waiting on others</div><article class="shout h\\d" data-shout-id="1"><span class="avatar" aria-hidden="true">W1</span><div class="shout-main"><header><b class="who">web-1</b><span class="to">→ coordinator</span><span class="mark ask">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">now</time></header><div class="text">${question}</div><button class="more" data-more type="button">more</button></div></article>$`), 'above the shouts as a card, saying who asked whom, with no Answer button');
+    assert.match(page.show('decisions'), /^<button class="fold-line" data-fold="waiting" type="button" aria-expanded="false" title="web-1 asks coordinator"><span>1 ask waiting on others<\/span><span class="fold-more">show<\/span><\/button>$/, 'an ask waiting on others folds to one line');
+    page.run('view.open.waiting = true; render();');
+    assert.match(page.show('decisions'), new RegExp(`^<button class="fold-line" data-fold="waiting" type="button" aria-expanded="true"[^>]*><span>1 ask waiting on others</span><span class="fold-more">hide</span></button><article class="shout h\\d" data-shout-id="1"><span class="avatar" aria-hidden="true">W1</span><div class="shout-main"><header><b class="who">web-1</b><span class="to">→ coordinator</span><span class="mark ask">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">now</time></header><div class="text">${question}</div><button class="more" data-more type="button">more</button></div></article>$`), 'above the shouts as a card, saying who asked whom, with no Answer button');
     assert.doesNotMatch(page.show('feed'), /Greet in/, 'though the feed no longer reaches it');
 
     // The coordinator passes it up with its note (B27): now it is the person's call.
@@ -1967,9 +1970,10 @@ test("needs-you holds only the person's calls; the rest show on the board with w
     assert.match(needs, /<code>web<\/code><span class="ny-text">G3 is open<\/span><button class="ny-open" data-go="tab:shouts" type="button"><em>lane held by coordinator, <time data-ago="[^"]+">(?:now|\d+[mhd])<\/time> →<\/em><\/button>/, 'a held lane says who set it and shows the API-provided hold age');
 
     // Each of the rest is on the board, with who holds it.
-    assert.match(page.show('decisions'), /<div class="head quiet">Waiting on others<\/div><article class="shout h\d" data-shout-id="\d+"><span class="avatar" aria-hidden="true">W1<\/span><div class="shout-main"><header><b class="who">web-1<\/b><span class="to">→ coordinator<\/span>/, "the agent's ask waits on its coordinator");
+    page.run('view.open.waiting = true; render();');
+    assert.match(page.show('decisions'), /<button class="fold-line" data-fold="waiting" type="button" aria-expanded="true"[^>]*><span>1 ask waiting on others<\/span><span class="fold-more">hide<\/span><\/button><article class="shout h\d" data-shout-id="\d+"><span class="avatar" aria-hidden="true">W1<\/span><div class="shout-main"><header><b class="who">web-1<\/b><span class="to">→ coordinator<\/span>/, "the agent's ask waits on its coordinator");
     assert.match(itemRow(page.show('chain'), 1), /<span class="chip [^"]*">to verify<\/span><\/li>$/, 'work waiting for a verdict');
-    assert.ok(itemRow(page.show('chain'), 2).includes('BEHAVIOR_MISMATCH: no farewell yet'), 'and work sent back, with why');
+    assert.ok(itemRow(page.show('chain'), 2).includes('<b>BEHAVIOR_MISMATCH</b> no farewell yet'), 'and work sent back, with why');
     page.run("view.agent = 'web-1'; render();");
     assert.deepEqual(agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1').holds, ['#2 Farewell: sent back', '#1 Greeting: to verify'], 'the agent that built them holds both');
     page.run('view.agent = null; render();');
@@ -2026,7 +2030,7 @@ test('the shouts tab counts shouts you have not seen [N26]', async () => {
   const view = await startView(box);
   try {
     const store = storage();
-    const count = (page) => page.element('count-shouts').textContent;
+    const count = (page) => { const unread = page.element('status-unread'); return unread.hidden ? '' : /<b>(\d+)<\/b> unread/.exec(unread.innerHTML)?.[1] ?? unread.innerHTML; };
     const page = await openPage(view, { store });
     assert.equal(count(page), '', 'the shouts there before the first look count as seen, not as 2');
 
@@ -2099,7 +2103,7 @@ test('the detail opens on the top item, not a blank form [N26]', async () => {
   try {
     const page = await openPage(view);
     const shown = () => /<h2><span>#(\d+)<\/span>([^<]*)</.exec(page.show('detail'))?.slice(1).join(' ');
-    const rows = () => [...page.show('chain').matchAll(/<li class="row( on)?" data-item="(\d+)"/g)].map((match) => match[2] + (match[1] ? '*' : ''));
+    const rows = () => [...page.show('chain').matchAll(/<li class="row s-[a-z]+( on)?[^"]*" data-item="(\d+)"/g)].map((match) => match[2] + (match[1] ? '*' : ''));
     const form = () => [page.element('add-form').hidden, page.element('detail').hidden];
 
     assert.equal(shown(), '2 Farewell', 'the first row, the item updated last');
@@ -3804,7 +3808,7 @@ test('read-only Needs-you preserves each entry as text while its transport stays
     const calls = JSON.parse(await chrome.evaluate('JSON.stringify(window.__transportCalls)'));
     assert.ok(calls.some((call) => call.path === '/api/v1/boards'));
     assert.ok(calls.some((call) => call.path.startsWith('/api/v1/boards/') && call.path.endsWith('/state')));
-    assert.match(await chrome.evaluate("document.querySelector('#live').textContent"), /^live · /, 'read-only transport keeps the page live');
+    assert.equal(await chrome.evaluate("document.querySelector('#live').textContent"), '', 'read-only transport keeps the page live, which says nothing');
     const actionSelectors = ['#new-item', '#add-form', '#shout-form', '#hold-form', '[data-release]', '[data-shout]', '[data-new]', '[data-go^="decide:"]'];
     const actionMatches = JSON.parse(await chrome.evaluate(`JSON.stringify(${JSON.stringify(actionSelectors)}.map((selector) => ({ selector, count: document.querySelectorAll(selector).length, visible: [...document.querySelectorAll(selector)].some((node) => !node.hidden && getComputedStyle(node).display !== 'none') })))`));
     assert.ok(actionMatches.every((entry) => entry.count > 0), 'the seeded item, decision and hold exercise every action selector');
@@ -4010,7 +4014,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       return JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
       const visible=e=>{const s=getComputedStyle(e),r=e.getBoundingClientRect();return !e.disabled&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&r.width>0&&r.height>0&&!e.closest('[hidden]')};
       const selector='button,a[href],input:not([type=hidden]),select,textarea,[role=button],[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-release],[data-shout],[data-new],[data-code]';
-      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,inlineReference:e.matches('.feed button.ref, .shout button.ref, .shout .band a, .detail button.ref')||!!e.closest('#chain .meta .gate, #detail .kv dd.waits-on')}});
+      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,inlineReference:e.matches('.feed button.ref, .shout button.ref, .shout .band a, .detail button.ref')||!!e.closest('#chain .meta .gate, #detail .kv dd.waits-on'),statusBar:!!e.closest('.status')&&matchMedia('(pointer: fine)').matches}});
       const notice=document.querySelector('#console');
       const noticeBox=visible(notice)?notice.getBoundingClientRect():null;
       const toast=noticeBox?{x:noticeBox.x,y:noticeBox.y,right:noticeBox.right,bottom:noticeBox.bottom,visible:noticeBox.y>=0&&noticeBox.bottom<=innerHeight,
@@ -4027,7 +4031,8 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       const layout = await snapshot();
       assert.ok(fitsViewport(layout),
         `${width} ${place}: no horizontal overflow: ${JSON.stringify(layout)}`);
-      const short = layout.controls.filter((control) => control.height < 44 && !control.inlineReference);
+      // The status bar under a mouse is a thin strip, the one named exception; with touch its parts are 44px too.
+      const short = layout.controls.filter((control) => control.height < 44 && !control.inlineReference && !control.statusBar);
       assert.deepEqual(short, [], `${width} ${place}: visible enabled actions are at least 44px high: ${JSON.stringify(short)}`);
       if (layout.toast) assert.deepEqual(layout.toast.overlaps, [], `${width} ${place}: the result toast clears every visible control: ${JSON.stringify(layout.toast)}`);
       if (place === 'successful add toast') assert.equal(layout.toast?.visible, true, `${width}: the successful action toast remains in the viewport: ${JSON.stringify(layout.toast)}`);
@@ -4087,6 +4092,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
           assert.ok(wrap.tokenLines > 1, `${width}: only the overflowing unbroken token splits: ${JSON.stringify(wrap)}`);
         }
         if (tab === 'shouts') {
+          await chrome.evaluate("(() => { const fold = document.querySelector('.fold-line[data-fold=\"waiting\"]'); if (fold && fold.getAttribute('aria-expanded') !== 'true') fold.click(); })()");
           await waitRendered(['#decisions .shout:not(:has(.answer)) header', '#decisions .shout:not(:has(.answer)) .text', '#decisions .shout .answer']);
           const asks = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
             const waiting = document.querySelector('#decisions .shout:not(:has(.answer))');
@@ -4442,7 +4448,7 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
       await chrome.evaluate("document.querySelector('[data-tab=spec]').click()");
       await chrome.waitFor(`innerWidth === ${width} && !!document.querySelector('#spec-list [data-row="spec:G1"]')`);
       await chrome.evaluate("document.querySelector('#spec-chips [data-rows=\"spec:all\"]').click()");
-      await chrome.waitFor("document.querySelector('#spec-list [data-row=\"spec:G2\"]') && document.querySelector('#count-spec').textContent === '31'");
+      await chrome.waitFor("document.querySelector('#spec-list [data-row=\"spec:G2\"]') && document.querySelector('#spec-chips [data-rows=\"spec:decide\"] b')?.textContent === '31'");
 
       const geometry = JSON.parse(await chrome.evaluate(`JSON.stringify({
         overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
@@ -4474,7 +4480,7 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
       assert.equal(state.spec.find((row) => row.id === 'G2')?.decision, undefined, `${width}: and nothing else`);
       await chrome.waitFor("view.row.spec === 'G2' && document.querySelector('#spec-detail h2 span')?.textContent === 'G2'");
       assert.ok(await chrome.evaluate(`(() => { const e=document.querySelector('#spec-list [data-row="spec:G2"]'); const r=e.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; })()`), `${width}: next undecided G2 stays in the viewport after G1 approval`);
-      assert.equal(await chrome.evaluate("document.querySelector('#count-spec').textContent"), '30', `${width}: Spec badge excludes the decided row`);
+      assert.equal(await chrome.evaluate("document.querySelector('#spec-chips [data-rows=\"spec:decide\"] b').textContent"), '30', `${width}: Needs your decision excludes the decided row`);
       if (width === 1280) assert.ok(await chrome.evaluate(`(() => {
         const row=document.querySelector('#spec-list [data-row="spec:G1"]');
         const chip=row.querySelector('.srow-text .chip').getBoundingClientRect();
@@ -4938,6 +4944,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
     await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 12');
     await chrome.evaluate("document.querySelector('[data-tab=shouts]').click()");
     await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
+    await chrome.evaluate("(() => { const fold = document.querySelector('.fold-line[data-fold=\"waiting\"]'); if (fold && fold.getAttribute('aria-expanded') !== 'true') fold.click(); })()");
     const ids = JSON.parse(await chrome.evaluate('JSON.stringify(Object.fromEntries(data.project.shouts.map((s) => [s.shout_text, s.shout_id])))'));
     const answerId = await chrome.evaluate(`data.project.shouts.find((s) => s.shout_answers === ${asked.shout_id}).shout_id`);
     const stamps = JSON.parse(await chrome.evaluate('JSON.stringify(data.project.shouts.map((s) => [s.shout_id, s.shout_at]))'));
@@ -5058,7 +5065,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
         // A long shout folds at six lines; the asks above the composer are the same cards, folded at three.
         assert.deepEqual([folded.text.lines, folded.text.clamped, folded.more], [6, true, 'more'], `${at}: a long shout folds at six lines with more`);
         assert.equal(old.more, null, `${at}: a short shout has no more`);
-        assert.deepEqual(r.heads, ['Decision needed', 'Waiting on others'], `${at}: the asks above the composer`);
+        assert.deepEqual(r.heads, ['Decision needed'], `${at}: the asks above the composer: the person's under their head, the rest opened from their fold line`);
         assert.deepEqual([r.asks.friday.answer, r.asks.colour.answer], ['Answer', null], `${at}: the person's ask has an Answer button; one waiting on others has none`);
         assert.deepEqual([r.asks.colour.text.lines, r.asks.colour.text.clamped, r.asks.colour.more], [3, true, 'more'], `${at}: an ask folds at three lines`);
         assert.ok(r.asks.friday.avatar.svg && r.asks.friday.who.text === 'coordinator', `${at}: the asks are the feed's cards`);
@@ -5142,6 +5149,7 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
     await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 4');
     await chrome.evaluate("document.querySelector('[data-tab=shouts]').click()");
     await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
+    await chrome.evaluate("(() => { const fold = document.querySelector('.fold-line[data-fold=\"idle\"]'); if (fold && fold.getAttribute('aria-expanded') !== 'true') fold.click(); })()");
     const agents = JSON.parse(await chrome.evaluate('JSON.stringify(data.project.agents.map((a) => [a.agent_id, a.agent_path]))'));
     assert.deepEqual(agents.filter(([, path]) => [alpha.web, idle, fresh].includes(path)).map(([id]) => id).sort(), ['web-1', 'web-2', 'web-3'], 'three agents joined the web lane');
     const total = await chrome.evaluate('data.project.shouts.length');
@@ -5175,7 +5183,7 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
         for (const part of ['message', 'send']) assert.ok(s[part].top >= s.composer.top - 0.5 && s[part].bottom <= s.composer.bottom + 0.5, `${at}: the ${part} sits inside the composer bar: ${JSON.stringify(s)}`);
         assert.ok(s.pickers === 0 && s.message.right <= s.send.left + 0.5 && s.composer.right - s.send.right < 12, `${at}: the message, then send: ${JSON.stringify(s)}`);
         assert.ok(s.send.width >= 44 && s.send.height >= 44, `${at}: the send button is a 44px target`);
-        // Only agents at work are listed, with show all.
+        // Only agents at work are listed, the idle ones in their fold, which ends with show all.
         assert.ok(s.panel && s.listed.includes('web-1') && s.listed.includes('web-3') && !s.listed.includes('web-2'), `${at}: the agents at work, and not the idle one: ${s.listed}`);
         assert.equal(s.all, `show all ${agents.length}`, `${at}: every agent is one click away`);
       }
@@ -5269,6 +5277,8 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
     await chrome.waitFor('typeof data !== "undefined" && data?.project?.agents?.length >= 4 && data.project.shouts.length >= 2');
     await chrome.evaluate("document.querySelector('[data-tab=shouts]').click()");
     await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #agents [data-agent]")');
+    assert.equal(await chrome.evaluate("document.querySelectorAll('#agents .agent-pill').length + ':' + document.querySelector('#agents .fold-line[data-fold=\"idle\"]').getAttribute('aria-expanded')"), '0:false', 'the idle agents start folded');
+    await chrome.evaluate("(() => { const fold = document.querySelector('.fold-line[data-fold=\"idle\"]'); if (fold && fold.getAttribute('aria-expanded') !== 'true') fold.click(); })()");
     const agents = await chrome.evaluate('data.project.agents.length');
     /** The panel as it reads: each row and pill, measured where it stands. */
     const panel = async () => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
@@ -5283,7 +5293,7 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
             work: [...card.querySelectorAll('.agent-work[data-item]')].map((work) => [work.dataset.item, box(work).height]) };
         }),
         pills: [...list.querySelectorAll('.agent-pill')].map((pill) => ({ id: pill.dataset.agent, title: pill.title, height: box(pill).height, on: pill.classList.contains('on') })),
-        idle: list.querySelector('.agents-label')?.textContent ?? null, all: list.querySelector('.all-agents')?.textContent ?? null, height: box(list).height,
+        idle: list.querySelector('.fold-line[data-fold="idle"] span')?.textContent ?? null, all: list.querySelector('.all-agents')?.textContent ?? null, height: box(list).height,
         chip: document.querySelector('#shout-to-chip').hidden ? null : document.querySelector('#shout-to-chip').textContent, to: document.querySelector('#shout-to').value,
         cards: [...document.querySelectorAll('#feed .shout')].map((card) => [card.querySelector('.who').textContent, card.querySelector('.to').textContent.replace('→ ', '')]),
       };
@@ -5302,8 +5312,8 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
         assert.equal(row.face, row.name, `${at}: the name is in its avatar's colour, as in the feed`);
         assert.ok(row.height >= 44, `${at}: the row is a 44px target`);
         assert.ok(!/strong/.test(row.text) && row.title.includes('web · strong') && row.title.includes(alpha.web), `${at}: lane, route and path are on hover, not in the row: ${row.title}`);
-        // Agents holding nothing are pills under Idle; one that has not moved in the last hour waits behind show all.
-        assert.deepEqual([p.idle, p.pills.map((pill) => pill.id)], ['Idle', ['coordinator', 'web-2']], `${at}: the idle agents are pills`);
+        // Agents holding nothing are pills in the idle fold; one that has not moved in the last hour waits behind show all.
+        assert.deepEqual([p.idle, p.pills.map((pill) => pill.id)], ['2 idle', ['coordinator', 'web-2']], `${at}: the idle agents are pills`);
         assert.ok(p.pills.every((pill) => pill.height >= 44 && pill.title.includes(' · ')), `${at}: each pill a 44px target with its lane on hover`);
         assert.equal(p.all, `show all ${agents}`, `${at}: every agent one click away`);
         assert.ok(p.height < 260, `${at}: four agents take little room: ${p.height}px`);
@@ -5351,6 +5361,7 @@ test('the composer goes to the coordinator and says who heard [N26]', { timeout:
     await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 1');
     await chrome.evaluate("document.querySelector('[data-tab=shouts]').click()");
     await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
+    await chrome.evaluate("document.querySelector('#agents .fold-line[data-fold=\"idle\"]').click()");
     /** The composer and every shout of the person's, with what its Heard line says. */
     const read = async () => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
       const chip = document.querySelector('#shout-to-chip'), clear = chip.querySelector('[data-to-clear]');
@@ -6332,5 +6343,237 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
     if (chrome) await closeSnapshotChrome(chrome);
     await host.close();
     rmSync(profile, { recursive: true, force: true });
+  }
+});
+
+test('the board reads at a glance from the status bar [N26]', { timeout: 180_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for status bar checks.');
+
+  const box = machine();
+  const lanes = { web: { owns: ['web/'], specs: ['G'] }, api: { owns: ['api/'], specs: ['G'] } };
+  const spec = `${SPEC}- G3 [approved, must] The page has a footer. | gate: web test\n- G4 [approved, must] The page has a header. | gate: web test\n`;
+  const alpha = project(box, 'glance', spec, { lanes });
+  const add = (lane, title, ...more) => box.run(alpha.repo, 'add', lane, title, '--specs', 'G1', '--criterion', 'renders', ...more);
+  add('web', 'Free', '--specs', 'G1,G2,G3,G4');
+  add('web', 'Base');
+  add('web', 'Depends', '--after', '2');
+  add('api', 'Api work');
+  add('web', 'Shipped');
+  add('web', 'Bounced');
+  add('web', 'Done');
+  build(box, alpha, 5, 'shipped.html');
+  build(box, alpha, 6, 'bounced.html');
+  build(box, alpha, 7, 'done.html');
+  sendBack(box, alpha, 6, 'the footer is missing\nand more on the next line');
+  accept(box, alpha, 7);
+  box.run(alpha.web, 'claim', '2');
+  box.run(alpha.repo, 'hold', 'api', '--reason', 'API freeze');
+  box.run(alpha.repo, 'milestone', 'add', '1.0: first cut', '--note', 'The first pages', '--items', '1,5,7');
+  const second = join(box.dir, 'glance-web-2');
+  box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/glance2');
+  box.run(second, 'join', 'web');
+  box.run(second, 'shout', 'coordinator', 'Free when you need me.');
+  box.run(alpha.web, 'shout', 'coordinator', 'Which colour for the button?', '--decision');
+
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-glance-chrome-'));
+  let chrome;
+  /** The page as it reads: the header, the bar's parts, the list's rows and the toolbar, measured where they stand. */
+  const read = async () => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+    const box = (e) => { if (!e) return null; const r = e.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height }; };
+    const rgb = (css) => { const n = (css.match(/[\\d.]+/g) || []).map(Number); return css.startsWith('color(srgb') ? [n[0] * 255, n[1] * 255, n[2] * 255, n[3] ?? 1] : [n[0], n[1], n[2], n[3] ?? 1]; };
+    const words = (e) => [...e.children].map((child) => child.textContent.replace(/\\s+/g, ' ').trim()).join(' ');
+    const probe = document.createElement('i');
+    probe.style.color = 'var(--warn)';
+    document.body.append(probe);
+    const warn = getComputedStyle(probe).color;
+    probe.remove();
+    const rows = [...document.querySelectorAll('#chain .row')].map((row) => {
+      const s = getComputedStyle(row), why = row.querySelector('.meta .why b');
+      return { id: row.dataset.item, row: box(row), title: box(row.querySelector('.t')), age: box(row.querySelector('.row-age')),
+        meta: words(row.querySelector('.meta')), chip: row.querySelector(':scope > .chip')?.textContent ?? null,
+        why: why ? { text: why.textContent, color: getComputedStyle(why).color } : null, gated: row.classList.contains('gated'),
+        border: rgb(s.borderTopColor), borderWidth: s.borderTopWidth, edges: [s.borderTopColor, s.borderRightColor, s.borderBottomColor, s.borderLeftColor].every((c) => c === s.borderTopColor),
+        tint: rgb(s.backgroundColor) };
+    });
+    const status = document.querySelector('.status');
+    return {
+      page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth },
+      tabs: [...document.querySelectorAll('#tabs .tab')].map((tab) => tab.textContent),
+      header: document.querySelector('.top').innerText.replace(/\\s+/g, ' ').trim(), live: document.querySelector('#live').textContent, liveInBar: !!document.querySelector('.status #live'),
+      bar: [...document.querySelectorAll('.status [data-status]')].filter((part) => !part.hidden).map((part) => ({ to: part.dataset.status, text: part.textContent.replace(/\\s+/g, ' ').trim(), height: part.getBoundingClientRect().height })),
+      barShown: getComputedStyle(status).display !== 'none', barBox: box(status), barTint: rgb(getComputedStyle(status).backgroundColor), barBlur: getComputedStyle(status).backdropFilter,
+      rows, warn, state: view.state, lane: view.lane, tab: view.tab,
+      chips: [...document.querySelectorAll('#state-chips button')].map((chip) => [chip.firstChild.textContent, chip.querySelector('b').textContent, chip.classList.contains('on')]),
+      lanes: [...document.querySelectorAll('#lane-pick option')].map((option) => option.textContent), pick: box(document.querySelector('#lane-pick')),
+      seg: box(document.querySelector('#state-chips')), find: box(document.querySelector('.find')), go: box(document.querySelector('#new-item')), toolbar: box(document.querySelector('.toolbar')),
+      waiting: (() => { const fold = document.querySelector('#decisions .fold-line[data-fold="waiting"]'); return fold && { text: words(fold), open: fold.getAttribute('aria-expanded'), height: fold.getBoundingClientRect().height, offset: fold.getBoundingClientRect().top - fold.parentElement.getBoundingClientRect().top, cards: document.querySelectorAll('#decisions .shout').length }; })(),
+      idle: (() => { const fold = document.querySelector('#agents .fold-line[data-fold="idle"]'); return fold && { text: words(fold), open: fold.getAttribute('aria-expanded'), height: fold.getBoundingClientRect().height, pills: document.querySelectorAll('#agents .agent-pill').length }; })(),
+      agentRows: document.querySelectorAll('#agents .agent-card').length,
+    };
+  })())`));
+  const part = (r, to) => r.bar.find((p) => p.to === to);
+  const number = (p) => Number(/^(\d+)/.exec(p?.text ?? '')?.[1] ?? NaN);
+  const click = async (selector) => chrome.evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+  const settle = () => chrome.evaluate('new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))');
+  /** Pick a lane the way the picker does: its value, then its change event. */
+  const lane = async (name) => { await chrome.evaluate(`(() => { const pick = document.querySelector('#lane-pick'); pick.value = ${JSON.stringify(name)}; pick.dispatchEvent(new Event('change')); })()`); await settle(); };
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("typeof data === 'object' && data?.project?.items?.length === 7 && !!document.querySelector('.status [data-status=\"items\"]')");
+    for (const scheme of ['light', 'dark']) {
+      for (const width of [1280, 375]) {
+        await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+        await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
+        await chrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${scheme})').matches`);
+        await click('[data-tab=items]');
+        await click('[data-state=active]');
+        await settle();
+        const at = `${width}px ${scheme}`;
+        const r = await read();
+        assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll: ${JSON.stringify(r.page)}`);
+        // The header carries the tabs and nothing else: no counts, no clock.
+        assert.deepEqual(r.tabs, ['Items', 'Shouts', 'Spec', 'Doctrine', 'Activity', 'Roadmap'], `${at}: the tabs carry no counts`);
+        assert.ok(r.live === '' && r.liveInBar && !/live|\d\d:\d\d/.test(r.header), `${at}: a live board says nothing in the header: ${r.header}`);
+        // On a phone the bar stays out of the way while the board is live.
+        if (width === 375) assert.equal(r.barShown, false, `${at}: no status bar on a phone while live`);
+        // The bar: a frosted strip along the foot, the counts the tabs used to carry, and a part only where there is one.
+        if (width === 1280) {
+          assert.ok(Math.abs(r.barBox.bottom - 900) <= 1 && r.barBox.left === 0 && Math.abs(r.barBox.width - r.page.width) <= 1, `${at}: the bar runs along the foot: ${JSON.stringify(r.barBox)}`);
+          assert.ok(r.barTint[3] > 0 && r.barTint[3] < 1 && /blur/.test(r.barBlur), `${at}: the bar is see-through and frosted: ${JSON.stringify([r.barTint, r.barBlur])}`);
+          assert.deepEqual(r.bar.map((p) => p.to).filter((to) => !to.startsWith('item:') && to !== 'activity'), ['items', 'shouts', 'verify', 'gated', 'roadmap'], `${at}: items, agents, to verify, gated and the release, then the last event: ${JSON.stringify(r.bar)}`);
+          assert.deepEqual([part(r, 'items').text, part(r, 'verify').text, part(r, 'gated').text, part(r, 'roadmap').text], ['6 items', '1 to verify', '2 gated', '1.0: first cut 1/3'], `${at}: what the parts say`);
+        }
+        // Rows: two lines, the age at the top right, the lane and up to three spec ids below, or the verdict instead.
+        const row = Object.fromEntries(r.rows.map((x) => [x.id, x]));
+        assert.deepEqual(r.rows.map((x) => x.id).sort(), ['1', '2', '3', '4', '5', '6'], `${at}: the active items`);
+        const heights = r.rows.map((x) => Math.round(x.row.height));
+        assert.ok(Math.max(...heights) - Math.min(...heights) <= 1 && Math.max(...heights) <= 64, `${at}: every row two lines and as tall as the next: ${heights}`);
+        for (const x of r.rows) {
+          assert.ok(x.row.right - x.age.right <= 14 && x.age.top < x.title.bottom && x.age.bottom > x.title.top, `${at}: #${x.id}'s age stands at the top right: ${JSON.stringify([x.row, x.title, x.age])}`);
+        }
+        assert.equal(row['1'].meta, 'web G1, G2, G3 +1', `${at}: the lane and the first three spec ids, then how many more`);
+        assert.deepEqual([row['6'].why?.text, row['6'].why?.color === r.warn, /\bweb\b/.test(row['6'].meta.replace('BEHAVIOR_MISMATCH', '')), /next line/.test(row['6'].meta)], ['BEHAVIOR_MISMATCH', true, false, false],
+          `${at}: a sent-back row says why in the warning colour, first line only, in place of its lane: ${row['6'].meta}`);
+        // Blocked: a red outline on every side, and what it waits on beside the gated chip. Waiting on a verdict: shaded gold.
+        for (const id of ['3', '4']) {
+          const [red, green, blue] = row[id].border;
+          assert.ok(row[id].gated && row[id].edges && row[id].borderWidth === '1px' && red > green + 30 && red > blue + 30, `${at}: #${id} has a red outline: ${JSON.stringify(row[id])}`);
+        }
+        assert.match(row['3'].meta, /waits on #2$/, `${at}: #3 says what it waits on`);
+        assert.equal(row['3'].chip, 'gated');
+        const [tr, tg, tb] = row['5'].tint;
+        assert.ok(tr >= tg && tg > tb && row['5'].tint.join() !== row['1'].tint.join(), `${at}: a row waiting on a verdict is shaded gold: ${JSON.stringify([row['5'].tint, row['1'].tint])}`);
+        if (scheme === 'dark') {
+          const [gr, gg, gb] = row['5'].border;
+          assert.ok(row['5'].edges && gr > gb + 30 && gg > gb + 20, `${at}: in dark it has a gold outline too: ${row['5'].border}`);
+        }
+        // The lane picker sits in the search field; the toolbar keeps one line while it fits.
+        assert.deepEqual(r.lanes, ['All lanes', 'web · 5', 'api · 1'], `${at}: each lane with its count under Active`);
+        if (width === 1280) assert.ok(Math.abs(r.seg.top - r.find.top) <= 4 && Math.abs(r.find.top - r.go.top) <= 4, `${at}: one line: ${JSON.stringify([r.seg, r.find, r.go])}`);
+        else assert.ok(r.find.top >= r.seg.bottom && Math.abs(r.find.top - r.go.top) <= 4, `${at}: the states take the first line, search and New item the second: ${JSON.stringify([r.seg, r.find, r.go, r.toolbar])}`);
+        if (width === 375) assert.ok(r.pick.height >= 44, `${at}: the lane picker is a 44px target`);
+      }
+    }
+
+    // Between the two, where the list column is narrow, the states and New item share a line and search takes its own.
+    // The width that gives the toolbar that room depends on the columns around it, so the test finds one.
+    let middle = null;
+    for (const width of [900, 940, 980, 1020, 1060, 1100, 1140, 1180]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.waitFor(`innerWidth === ${width}`);
+      await settle();
+      const room = await chrome.evaluate("(() => { const t = document.querySelector('.toolbar'), s = getComputedStyle(t); return t.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight); })()");
+      if (room >= 400 && room <= 490) { middle = { width, room, r: await read() }; break; }
+    }
+    assert.ok(middle, 'some desktop width gives the toolbar between 400 and 490px');
+    const r0 = middle.r, centre = (b) => b.top + b.height / 2;
+    assert.ok(Math.abs(centre(r0.seg) - centre(r0.go)) <= 4 && r0.find.top >= r0.seg.bottom && r0.find.width >= r0.toolbar.width - 24,
+      `${middle.width}px (${middle.room}px of toolbar): the states and New item, then search on its own line: ${JSON.stringify([r0.seg, r0.find, r0.go, r0.toolbar])}`);
+
+    // Each part opens exactly what it counts: its number is the length of the list it opens.
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
+    await chrome.waitFor('innerWidth === 1280');
+    await click('[data-state=all]');
+    let r = await read();
+    for (const [to, state, label] of [['verify', 'verify', 'To verify'], ['gated', 'gated', 'Gated'], ['items', 'active', 'Active']]) {
+      const n = number(part(r, to));
+      await click(`.status [data-status="${to}"]`);
+      await chrome.waitFor(`view.tab === 'items' && view.state === '${state}'`);
+      await settle();
+      r = await read();
+      const on = r.chips.find(([, , isOn]) => isOn);
+      assert.deepEqual([on?.[0], Number(on?.[1]), r.rows.length], [label, n, n], `${to}: the bar's ${n} opens ${label}, which counts and lists the same ${n}: ${JSON.stringify(r.chips)}`);
+      if (to === 'gated') assert.ok(r.rows.every((x) => x.gated), 'every row it opens is a gated row');
+    }
+    await click('[data-state=active]');
+    await click('.status [data-status="shouts"]');
+    await chrome.waitFor("view.tab === 'shouts' && !document.querySelector('[data-pane=shouts]').hidden");
+    r = await read();
+    assert.equal(number(part(r, 'shouts')), r.agentRows, 'the agents part counts the rows of the agents panel it opens');
+    await click('.status [data-status="roadmap"]');
+    await chrome.waitFor("view.tab === 'roadmap'");
+    const last = r.bar.find((p) => p.to.startsWith('item:'));
+    if (last) {
+      await click(`.status [data-status="${last.to}"]`);
+      await chrome.waitFor(`view.tab === 'items' && view.item === ${Number(last.to.slice(5))}`);
+    }
+
+    // Lanes narrow the list as states do, each counting within the other's choice.
+    await click('[data-state=active]');
+    await lane('api');
+    r = await read();
+    assert.deepEqual([r.lane, r.rows.map((x) => x.id), r.chips.find(([name]) => name === 'Active')[1], r.chips.find(([name]) => name === 'Verified')[1]], ['api', ['4'], '1', '0'], 'api narrows the list and the state counts');
+    await lane('');
+    await click('[data-state=verified]');
+    await lane('web');
+    r = await read();
+    assert.deepEqual([r.lane, r.rows.map((x) => x.id), r.lanes], ['web', ['7'], ['All lanes', 'web · 1']], 'under Verified the lanes count what is verified');
+    await lane('');
+    await click('[data-state=active]');
+
+    // Shouts: asks waiting on others and idle agents each fold to one line, closed until opened.
+    await click('[data-tab=shouts]');
+    await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden && !!document.querySelector('#decisions .fold-line')");
+    r = await read();
+    const shut = r.waiting.offset;
+    assert.deepEqual([r.waiting.text, r.waiting.open, r.waiting.cards], ['1 ask waiting on others show', 'false', 0], `the ask waiting on others folds to a line: ${JSON.stringify(r.waiting)}`);
+    assert.ok(/^\d+ idle show$/.test(r.idle.text) && r.idle.open === 'false' && r.idle.pills === 0, `the idle agents fold to a line: ${JSON.stringify(r.idle)}`);
+    await click('#decisions .fold-line[data-fold="waiting"]');
+    await click('#agents .fold-line[data-fold="idle"]');
+    r = await read();
+    assert.deepEqual([r.waiting.open, r.waiting.cards, r.idle.open, r.idle.pills > 0], ['true', 1, 'true', true], 'each opens on a click');
+    assert.equal(r.waiting.offset, shut, 'and the line stays where it was as its cards open under it');
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor('innerWidth === 375');
+    r = await read();
+    assert.ok(r.waiting.height >= 44 && r.idle.height >= 44, 'each fold line is a 44px target');
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor('innerWidth === 1280');
+
+    // A shout that lands while Items is open counts as unread in the bar; opening it reads it.
+    await click('[data-tab=items]');
+    box.run(alpha.web, 'shout', 'coordinator', 'web-1 is on it');
+    await chrome.waitFor("!document.querySelector('#status-unread')?.hidden && document.querySelector('#status-unread')?.textContent === '1 unread'", 15_000);
+    await click('#status-unread');
+    await chrome.waitFor("view.tab === 'shouts' && document.querySelector('#status-unread')?.hidden === true");
+
+    // Cut off from the board, the bar turns red and says why.
+    await chrome.evaluate("globalThis.fetch = () => Promise.reject(new TypeError('Failed to fetch'))");
+    await chrome.waitFor("document.querySelector('#live').textContent.startsWith('offline')", 15_000);
+    r = await read();
+    const [red, green, blue] = r.barTint;
+    assert.ok(red > green + 10 && red > blue + 10 && r.bar.length > 0, `the bar turns red and keeps its parts: ${JSON.stringify(r.barTint)}`);
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor('innerWidth === 375');
+    r = await read();
+    assert.ok(r.barShown && r.live.startsWith('offline'), 'on a phone too, a view cut off from the board says so');
+    assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
   }
 });
