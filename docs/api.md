@@ -232,6 +232,8 @@ Only the coordinator runs `spec apply`. It preflights every pending row against 
 
 To approve new wording, the person uses `spec approve <one-id> --text "exact proposed text"`, or `spec-approve` with `args: {ids: "G1", text: "exact proposed text"}`. This records the same exact-row receipt; files wait for coordinator apply. Text must be one nonempty line without a field separator. Pre-commit checks the staged row against that person decision or a verified staged SSH sign-off; unstaged receipts cannot authorize a commit.
 
+A coordinator criterion or check correction on a live claim remains pending until its holder or the coordinator runs `pullboard refreeze <id>`. Renewal and submission refuse with `PENDING_REFREEZE` until then. This refreeze keeps the holder, lease and claim base, and returns `retainedClaim: true` in JSON.
+
 Doctor and resume report every stale frozen item after cited text changes. Open, claimed and submitted items suggest coordinator refreeze. Verified and merged items keep their receipts, report that they shipped against the old text, and suggest adding a follow-up citing the changed row. Resume JSON includes these findings in `stale`.
 
 The SQLite schema marker is now `PRAGMA user_version = 2`. Opening an older board upgrades it in place: `board_meta` stores the id as `meta_key = "board_id"` and a 32-character hexadecimal `meta_value`; `shout_request` and `shout_request_outcome` mark requests and their answers. Existing items, agents and events remain intact. The HTTP envelope stays at version 1 independently of the SQLite schema marker.
