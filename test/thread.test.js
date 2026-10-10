@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { serveApi } from '../src/api.js';
 import { main } from '../src/cli.js';
-import { relayPresentation } from '../src/relay-presentation.js';
+import { relayPresentation, relaySnapshot } from '../src/relay-presentation.js';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
@@ -346,4 +346,16 @@ test('[B29,B30,B31,B32,A2] CLI and HTTP facts share stamped threads, guard judge
     { id: observationId, text: '--literal evidence', supersedes: null },
     { id: holderCorrection.id, text: 'corrected evidence', supersedes: observationId },
   ]);
+
+  const borrowed = store.openBoard(':memory:');
+  try {
+    importBoard(borrowed, relaySnapshot(box.root));
+    store.appendFact(borrowed, id, { agentId: 'coordinator', kind: 'note', text: 'staged-only relay observation', factId: 'staged-relay-fact' });
+    const staged = relaySnapshot(box.root, { board: borrowed });
+    const stagedThread = staged.presentation.state.items.find((entry) => entry.id === id).thread;
+    assert.equal(stagedThread.some((entry) => entry.id === 'staged-relay-fact'), true, 'the supplied board drives item-thread projection too');
+    assert.equal(relayPresentation(box.root).state.items.find((entry) => entry.id === id).thread.some((entry) => entry.id === 'staged-relay-fact'), false,
+      'the ordinary source-board presentation does not include a staged-only fact');
+    assert.ok(borrowed.db.prepare('SELECT COUNT(*) AS count FROM event').get().count > 0, 'the borrowed board remains open after projection');
+  } finally { store.closeBoard(borrowed); }
 });
