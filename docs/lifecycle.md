@@ -21,6 +21,7 @@ stateDiagram-v2
   submitted --> submitted: reserve
   submitted --> verified: accept
   submitted --> open: reject
+  submitted --> open: reopen
   open --> open: escalate
   claimed --> open: escalate
   open --> open: refreeze
@@ -56,6 +57,7 @@ Each move checks its guards in this order and refuses with the first one that do
 | reserve | submitted | submitted | agent, coordinator | coordinatorSaysAs (MAIN_IS_COORDINATOR), joined (NOT_JOINED), roadmapReadable (MILESTONES_CORRUPT), itemExists (NO_ITEM), inState (NOT_SUBMITTED), reviewCooldownElapsed (REVIEW_COOLDOWN), notBuilder (SELF_VERIFY), routeAllows (ROUTE), policyAllows (COORDINATOR_VERIFIES), familyAllows (O2_FAMILY_MATCH), reviewFree (REVIEW_HELD) |
 | accept | submitted | verified | agent, coordinator | coordinatorSaysAs (MAIN_IS_COORDINATOR), joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_SUBMITTED), atSubmittedCommit (NOT_AT_COMMIT or OUTSIDE_LANE or NO_POLICY or BAD_CONFIG or GIT_GRAFTS), notBuilder (SELF_VERIFY), routeAllows (ROUTE), policyAllows (COORDINATOR_VERIFIES), familyAllows (O2_FAMILY_MATCH), reviewFree (REVIEW_HELD), criterionUnchanged (CRITERIA_CHANGED), reasonIsMet (BAD_REASON), trunkMergeClean (MERGE_CONFLICT or MERGE_CHECK_FAILED or NO_POLICY or NO_TRUNK), noUnverifiedStack (STACKED_ON_UNVERIFIED), itemCheckGreen (CHECK_RED or CHECK_UNVERIFIED), proofNoted (PROOF_REQUIRED) |
 | reject | submitted | open | agent, coordinator | coordinatorSaysAs (MAIN_IS_COORDINATOR), joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_SUBMITTED), atSubmittedCommit (NOT_AT_COMMIT or OUTSIDE_LANE or NO_POLICY or BAD_CONFIG or GIT_GRAFTS), notBuilder (SELF_VERIFY), routeAllows (ROUTE), policyAllows (COORDINATOR_VERIFIES), familyAllows (O2_FAMILY_MATCH), reviewFree (REVIEW_HELD), criterionUnchanged (CRITERIA_CHANGED), reasonCoded (BAD_REASON), noteGiven (NOTE_REQUIRED) |
+| reopen | submitted | open | coordinator | joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_SUBMITTED), coordinatorOnly (COORDINATOR_ONLY), noteGiven (NOTE_REQUIRED) |
 | escalate | open, claimed | open | agent, coordinator | joined (NOT_JOINED), noteGiven (NOTE_REQUIRED), itemExists (NO_ITEM), holderOrCoordinator (NOT_YOURS), inState (CLOSED) |
 | refreeze | open, claimed, submitted | open | coordinator | joined (NOT_JOINED), coordinatorOnly (COORDINATOR_ONLY), itemExists (NO_ITEM), inState (CLOSED), rowsInForce (UNKNOWN_SPEC or A5_GRAMMAR_VERSION or NO_POLICY or BAD_CONFIG) |
 | withdraw | open, claimed, submitted | withdrawn | coordinator | joined (NOT_JOINED), coordinatorOnly (COORDINATOR_ONLY), noteGiven (NOTE_REQUIRED), itemExists (NO_ITEM), inState (CLOSED) |
@@ -77,6 +79,7 @@ Each move checks its guards in this order and refuses with the first one that do
 | NOT_SUBMITTED | reserve: the item is in submitted | pullboard show <id> |
 | NOT_SUBMITTED | accept: the item is in submitted | pullboard show <id> |
 | NOT_SUBMITTED | reject: the item is in submitted | pullboard show <id> |
+| NOT_SUBMITTED | reopen: the item is in submitted | pullboard show <id> |
 | CLOSED | escalate: the item is in open, claimed | pullboard show <id> |
 | CLOSED | refreeze: the item is in open, claimed, submitted | pullboard show <id> |
 | CLOSED | withdraw: the item is in open, claimed, submitted | pullboard show <id> |

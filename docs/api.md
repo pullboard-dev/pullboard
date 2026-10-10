@@ -71,6 +71,7 @@ The board-state API's item projection includes `check` and, when recorded, `chec
 | `merged` | `version:number`, `id:number`, `commit:string` |
 | `withdraw` | `version:number`, `id:number`, `reason:string` |
 | `refreeze` | `version:number`, `id:number`, `after:string` |
+| `reopen` | `version:number`, `id:number`, `commit:string` |
 | `shout` | `version:number`, `id:number`, `decision:boolean` |
 | `answer` | `version:number`, `id:number`, `answers:number` |
 | `pass` | `version:number`, `id:number`, `answers:number` |
@@ -204,7 +205,7 @@ The coordinator maintains the roadmap with `milestone add <name> [--note ...] [-
 | `stream` | `version:number`, `event:object` |
 <!-- api-http-shapes:end -->
 
-A move body is `{verb, item, args, agent}`. `item` is the positive integer id when the move needs one. `args` names its CLI positional arguments and flags; text values stay literal, including leading dashes. Omit `agent` to act as the coordinator, or name a registered agent to run in its worktree. Coordinator verification takes `args.as: "coordinator"`, matching the CLI's explicit identity check. The local session secret may act as any agent on that board. `result` is the CLI's JSON result. `next` claims work atomically; when a claim is already held it renews it and returns the renewal event. With no work available it returns the CLI's `NOTHING_FREE` refusal. Waiting remains a CLI option.
+A move body is `{verb, item, args, agent}`. `item` is the positive integer id when the move needs one. `args` names its CLI positional arguments and flags; text values stay literal, including leading dashes. Omit `agent` to act as the coordinator, or name a registered agent to run in its worktree. Coordinator verification takes `args.as: "coordinator"`, matching the CLI's explicit identity check. The local session secret may act as any agent on that board. `result` is the CLI's JSON result. `next` claims work atomically; when a claim is already held it renews it and returns the renewal event. With no work available it returns the CLI's `NOTHING_FREE` refusal. Waiting remains a CLI option. `reopen` is coordinator-only: `args.note` is required, and it returns a submitted item to open without adding a verdict or replacing its last submitted commit.
 
 Decision moves keep the CLI's routing: `shout` with `args.decision: true` may omit `args.to`; agents ask their coordinator, and the coordinator asks the person. `pass` takes the decision's id as `item` and `args.note`. Answering a decision addressed to the person requires `answer` with `args.as: "person"` from the coordinator's main checkout. Other callers receive the CLI's refusal.
 

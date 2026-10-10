@@ -171,6 +171,12 @@ export const MOVES = [
     command: 'pullboard verify <id> reject --reason CODE --note "..."',
   },
   {
+    verb: 'reopen', from: ['submitted'], to: 'open', by: ['coordinator'], refuse: 'NOT_SUBMITTED',
+    guards: ['joined', 'itemExists', IN_STATE, 'coordinatorOnly', 'noteGiven'],
+    sets: ['item_verdict', 'item_verified_by', 'item_owner', 'item_lease_until', 'item_review_by', 'item_review_until'],
+    command: 'pullboard reopen <id> --note "why"',
+  },
+  {
     verb: 'escalate', from: ['open', 'claimed'], to: 'open', by: ['agent', 'coordinator'], refuse: 'CLOSED',
     guards: ['joined', 'noteGiven', 'itemExists', 'holderOrCoordinator', IN_STATE], command: 'pullboard escalate <id> --note "..."',
   },

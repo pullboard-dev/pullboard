@@ -1059,9 +1059,12 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
             .get(id);
           return total ? new Refused('CHILDREN_OPEN', `item #${id} has ${total} unfinished child items`) : null;
         },
-        headIsNew: () => {
+        headIsNew: (found) => {
           const wasRejected = board.db.prepare("SELECT 1 FROM verdict WHERE item_id = ? AND verdict_decision = 'REJECT' AND verdict_commit = ?").get(id, commit);
-          return wasRejected ? new Refused('HEAD_NOT_NEW', `#${id} was rejected at ${commit.slice(0, 12)}; commit the rework first`) : null;
+          const sameReopenedHead = found.item_verdict === null && found.item_commit === commit;
+          return wasRejected || sameReopenedHead
+            ? new Refused('HEAD_NOT_NEW', `#${id} already has a submission at ${commit.slice(0, 12)}; commit the rework first`)
+            : null;
         },
       },
       set: (found) => ({
@@ -1326,6 +1329,41 @@ export function verify(board, id, { agentId, decision, reason, note = '', head, 
     if (isAccept && check !== undefined) detail.check = check;
     logEvent(board, agentId, verb, id, detail);
     return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}) };
+  });
+}
+
+/** Return a submission for criterion correction without recording a verifier's judgment [V2,V6].
+ * The prior commit remains as the base the builder must change before resubmitting.
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {{ agentId: string, note: string }} request
+ * @returns {{ id: number, commit: string }}
+ */
+export function reopen(board, id, { agentId, note }) {
+  return atomic(board, () => {
+    let submittedCommit = null;
+    const item = moveItem(board, id, 'reopen', {
+      checks: {
+        joined: null,
+        [IN_STATE]: (found) => new Refused('NOT_SUBMITTED', `item #${id} is ${current(board, found).item_status}, not submitted`),
+        coordinatorOnly: () => onlyCoordinator(agentId, 'reopens submissions'),
+        noteGiven: () => (note.trim() ? null : new Refused('NOTE_REQUIRED', 'say why the criterion needs correction: --note "why"')),
+      },
+      set: (found) => {
+        submittedCommit = found.item_commit;
+        return {
+          item_verdict: null,
+          item_verified_by: null,
+          item_owner: null,
+          item_lease_until: null,
+          item_review_by: null,
+          item_review_until: null,
+        };
+      },
+    });
+    logEvent(board, agentId, 'reopen', id, { commit: submittedCommit, note: note.trim(), judgment: null });
+    return { id: item.item_id, commit: submittedCommit };
   });
 }
 

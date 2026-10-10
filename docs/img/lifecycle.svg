@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 392" width="840" height="392" role="img" aria-labelledby="title desc">
-<title id="title">An item's life</title><desc id="desc">Drawn from src/machine.js. An item starts open and ends verified or withdrawn. open to claimed: claim. claimed to open: release, lapse (clock), escalate, refreeze. claimed to submitted: submit. submitted to verified: accept. submitted to open: reject, refreeze. open to withdrawn: withdraw. claimed to withdrawn: withdraw. submitted to withdrawn: withdraw.</desc>
+<title id="title">An item's life</title><desc id="desc">Drawn from src/machine.js. An item starts open and ends verified or withdrawn. open to claimed: claim. claimed to open: release, lapse (clock), escalate, refreeze. claimed to submitted: submit. submitted to verified: accept. submitted to open: reject, reopen, refreeze. open to withdrawn: withdraw. claimed to withdrawn: withdraw. submitted to withdrawn: withdraw.</desc>
 <style>
 text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif; fill: #1f2328; }
 .mono { font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace; }
@@ -68,7 +68,7 @@ text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', 
 <path class="edge" d="M 605 179 L 651 179" marker-end="url(#tip)"/>
 <text class="label" x="628" y="171" text-anchor="middle">accept</text>
 <path class="edge back" d="M 545 150 L 545 66 L 115 66 L 115 146" marker-end="url(#tip-back)"/>
-<text class="label back" x="330" y="58" text-anchor="middle">reject · refreeze</text>
+<text class="label back" x="330" y="58" text-anchor="middle">reject · reopen · refreeze</text>
 <path class="edge" d="M 105 208 L 105 313 L 441 313" marker-end="url(#tip)"/>
 <text class="label" x="210" y="305" text-anchor="middle">withdraw</text>
 <path class="edge" d="M 315 208 L 315 313"/>

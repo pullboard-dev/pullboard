@@ -7,16 +7,19 @@ import { Refused } from './refused.js';
 import { requestMoveProblem, recordRequestMove } from './relay-requests.js';
 import { relayMoveActor, relaySenderProblem, validRelaySender } from './relay-sender.js';
 
-const ITEM_ID_FIRST_ARGUMENT = new Set(['editItem', 'escalate', 'recordAttempt', 'claim', 'release', 'submit', 'reserveReview', 'verify', 'merged', 'withdraw', 'refreeze', 'appendFact']);
+const ITEM_ID_FIRST_ARGUMENT = new Set(['editItem', 'escalate', 'recordAttempt', 'claim', 'release', 'submit', 'reserveReview', 'verify', 'merged', 'withdraw', 'refreeze', 'reopen', 'appendFact']);
 
 /** Only these public board operations may be requested by an encrypted move. */
 export const ENGINE_OPERATIONS = Object.freeze([
   'register', 'ensureCoordinator', 'addItem', 'editItem', 'completeCheckBaseline', 'escalate', 'recordAttempt',
   'claim', 'release', 'submit', 'reserveReview', 'reserveNextReview', 'verify', 'merged',
-  'withdraw', 'refreeze', 'shout', 'passDecision', 'answerDecision', 'holdLane', 'releaseLane', 'holdItem', 'releaseItemHold',
+  'withdraw', 'refreeze', 'reopen', 'shout', 'passDecision', 'answerDecision', 'holdLane', 'releaseLane', 'holdItem', 'releaseItemHold',
   'addMilestone', 'editMilestoneItems', 'moveMilestone', 'editMilestone', 'removeMilestone',
   'recordRowDecisions', 'applyRowDecisions', 'appendFact',
 ]);
+
+/** Engine version at which each ordered operation first has stable replay semantics. */
+const OPERATION_ENGINE = Object.freeze({ reopen: 8 });
 
 /** Read a replica's committed prefix without trusting an independently saved transport cursor. */
 export function appliedSequence(board) {
@@ -54,6 +57,8 @@ export function startRelayEpoch(board) {
 /** Turn caller-only callbacks into deterministic values before sealing an executable operation. */
 export function prepareEngineMove(board, operation, args, { id = randomUUID(), actor } = {}) {
   if (!ENGINE_OPERATIONS.includes(operation) || !Array.isArray(args)) throw new Refused('RELAY_MOVE', 'use a supported board-engine operation with its argument array');
+  const minimumEngine = OPERATION_ENGINE[operation] ?? 1;
+  if (ENGINE_VERSION < minimumEngine) throw new Refused('ENGINE_VERSION', `${operation} requires engine version ${minimumEngine}; this pullboard uses engine ${ENGINE_VERSION}; upgrade before sending it`);
   const values = args.map((value) => value && typeof value === 'object' ? { ...value } : value);
   if (operation === 'release') {
     const problem = store.reviewReleaseNoteProblem(board, values[0], values[1], values[2]);
@@ -90,6 +95,8 @@ function validateMove(move) {
   if (!move || move.version !== 1 || !Number.isSafeInteger(move.engine) || move.engine < 1) throw new Refused('RELAY_MOVE', 'this executable move format is invalid; upgrade pullboard or restore a consistent relay snapshot');
   requireSupportedEngine(move);
   if (typeof move.id !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(move.id) || !ENGINE_OPERATIONS.includes(move.operation) || !Array.isArray(move.args)) throw new Refused('RELAY_MOVE', 'this sealed operation is invalid; use a supported board-engine operation');
+  const minimumEngine = OPERATION_ENGINE[move.operation] ?? 1;
+  if (move.engine < minimumEngine) throw new Refused('RELAY_MOVE', `${move.operation} cannot be replayed from engine version ${move.engine}; it was introduced in engine ${minimumEngine}; restore a consistent relay prefix`);
 }
 
 /** Restore only the frozen criterion callback; no receiver runs another machine's Git or shell. */
