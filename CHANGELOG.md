@@ -4,9 +4,57 @@ Notable changes to Pullboard, for people using it. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-10-10
+
 ### Changed
 
-- Background check results replay with move engine 4. Upgrade every linked device before using these moves; older clients stop replay with upgrade guidance before changing their board or cursor.
+- Agents can never act as you on the relay. `relay on` gives each machine its own credential that only mints agent tokens for its linked boards, so agents keep working with no tap, and no file on the machine can act as you. A person-level action from the Mac asks for one tap on your paired phone; the grant is used once and never stored.
+- Boards use engine 6. Upgrade every linked device: once a machine on a board has its own credential, older clients on that board stop and say to upgrade.
+- Relay snapshots are compressed inside the seal, so a large board syncs.
+- Pullboard View: shouts read as cards, with an avatar, name and chips, and decisions and receipts set apart. You shout from a composer, and an agents panel shows who is holding what.
+
+### Fixed
+
+- A refused relay upload never blocks board moves: agents keep working, and each move prints one line saying why.
+- A board with no snapshot yet waits on the phone instead of reloading in a loop.
+- A recovered relay snapshot clears its stale timeout notice.
+
+## [0.8.2] - 2026-10-09
+
+### Added
+
+- `pullboard relay on --all` sets up the relay once: it links every board on the machine, links boards registered later on its own, and one phone pairing opens all of them.
+- Another machine joins a linked board by pairing.
+- Each agent has its own relay token.
+- From the relay page you can act on your board through sealed requests, and Pullboard View shows each one as waiting, done or refused.
+- An item's detail shows its check baseline and warns when the check proves nothing.
+
+### Changed
+
+- Commands ask git each question once, so they run about 4x faster.
+- Submit can run only the tests a change affects: set `affectedTests` in pullboard.json to the command that runs selected test files. Without it, submit runs your gate in full.
+- A piped gate fails when any stage fails, so a red test piped to `tail` can't read green.
+- `pullboard add` returns at once; a check's baseline runs in the background (`--wait` waits for it).
+- A review released without a verdict goes to another reviewer, and needs a one-line `--note`.
+- Boards use engine 5. Upgrade every linked device; an older client stops at the first new record and says to upgrade.
+- Item checks and verify runs wait for a machine gate slot, and a waiting gate goes first.
+- A checkout speaks for one agent session.
+- A red check at verify shows why it failed.
+- Duplicate ids across SPEC.md and DOCTRINE.md are refused; ones PRACTICE.md already had stay warnings after the rename.
+- Lane checks can't be bypassed by unstaged config, auto-merges or grafts.
+
+### Fixed
+
+- `pullboard relay on` works over SSH: relay keys live in an owner-only file, not the system keychain.
+- Without its board key, a device still reads its linked board locally.
+- A registered board behind an unreadable folder stays listed, with one warning.
+- `spec check` works in a detached checkout.
+- A shell reached over SSH is never treated as your terminal.
+- `pullboard edit` on an item whose claim expired reopens it instead of crashing.
+- `init` ignores agent worktrees under .claude, so they never block submit.
+- A note in a brief's Files entry no longer trips the lane check.
+- Pullboard View: only a command becomes a code chip and it stays inline, briefs show their lists as lists, the page never scrolls sideways on a phone, the project list folds into the tab bar on a laptop, and Activity says what each shout said.
+- The coordinator's resume is a full handoff brief.
 
 ## [0.8.1] - 2026-10-09
 
@@ -93,7 +141,9 @@ Notable changes to Pullboard, for people using it. The format follows [Keep a Ch
 - A local, spec-backed work board gives each item a frozen criterion, a separate worktree lane, a gated submission, and an independent review receipt.
 - The timed tour demonstrates a change being rejected, corrected, and accepted with proof.
 
-[Unreleased]: https://github.com/pullboard-dev/pullboard/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/pullboard-dev/pullboard/compare/v0.8.3...HEAD
+[0.8.3]: https://github.com/pullboard-dev/pullboard/compare/v0.8.2...v0.8.3
+[0.8.2]: https://github.com/pullboard-dev/pullboard/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/pullboard-dev/pullboard/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/pullboard-dev/pullboard/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/pullboard-dev/pullboard/compare/v0.6.1...v0.7.0

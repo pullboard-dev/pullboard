@@ -182,7 +182,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     move: (board, body) => executeMove(board.root, body, runCommand),
     request: (board, body) => createRequest(board.root, body),
     tokens: async (board) => (await relayTokens(board.root, { err() {} })).tokens,
-    revokeToken: (board, id) => relayRevoke(board.root, id, { err() {} }),
+    revokeToken: (board, id) => relayRevoke(board.root, id, { personChannel: 'view', say() {}, err() {} }),
   });
 }
 

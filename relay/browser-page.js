@@ -23,6 +23,9 @@ function respond(res, type, content, scriptHashes = []) {
 export function createRelayBrowserHandler({ authenticate }) {
   const assets = new Map([
     ['/view.css', ['text/css', STYLES]],
+    ['/relay/device-keys.js', ['text/javascript', readFileSync(new URL('../src/relay-device-keys.js', import.meta.url), 'utf8')]],
+    ['/relay/relay-approval.js', ['text/javascript', readFileSync(new URL('../src/relay-approval.js', import.meta.url), 'utf8').replace("'./relay-device-keys.js'", "'./device-keys.js'")]],
+    ['/relay/browser-devices.js', ['text/javascript', readFileSync(new URL('./browser-devices.js', import.meta.url), 'utf8')]],
     ['/relay/client.js', ['text/javascript', readFileSync(new URL('./browser-client.js', import.meta.url), 'utf8')]],
     ['/relay/browser-notice.js', ['text/javascript', readFileSync(new URL('./browser-notice.js', import.meta.url), 'utf8')]],
     ['/relay/browser-stream.js', ['text/javascript', readFileSync(new URL('./browser-stream.js', import.meta.url), 'utf8')]],
@@ -51,7 +54,7 @@ export function createRelayBrowserHandler({ authenticate }) {
       respond(res, 'text/html', SIGN_IN, [createHash('sha256').update(script).digest('base64')]);
       return true;
     }
-    const page = cockpitPage('', { readOnly: true, transportModule: '/relay/client.js', apiHeaders: {}, stylesheet: '/view.css' })
+    const page = cockpitPage('', { readOnly: true, requests: true, transportModule: '/relay/client.js', apiHeaders: {}, stylesheet: '/view.css' })
       .replace('<main>', '<main><section class="card-panel" id="relay-notice" role="status"><p>Pairing this browser…</p></section>');
     const scripts = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(match => createHash('sha256').update(match[1]).digest('base64'));
     respond(res, 'text/html', page, scripts);

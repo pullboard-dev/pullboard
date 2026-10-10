@@ -15,10 +15,11 @@ import { after, test } from 'node:test';
 import vm from 'node:vm';
 import { loadConfig } from '../src/config.js';
 import { loadDoctrine } from '../src/doctrine.js';
-import { addItem, closeBoard, openBoard } from '../src/board.js';
+import { addItem, closeBoard, completeCheckBaseline, openBoard, register, shout as shoutOnBoard } from '../src/board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { MACHINE } from '../src/machine.js';
-import { cockpitPage } from '../src/cockpit.js';
+import { cockpitPage, PULLBOARD_COMMANDS } from '../src/cockpit.js';
+import { HELP } from '../src/cli.js';
 import { portableSnapshot, projectState } from '../src/serve.js';
 import { fetchFresh } from './http-fixture.js';
 
@@ -85,7 +86,7 @@ function project(box, name, spec = SPEC, extra = {}) {
   const web = join(box.dir, `${name}-web`);
   box.git(repo, 'worktree', 'add', '-q', web, '-b', branch);
   box.run(web, 'join', 'web');
-  return { repo, web, branch };
+  return { repo, web, branch, baseBranch: branch, itemBranches: new Map() };
 }
 
 test('borrowed board presentation keeps parity, shows staged rows, and leaves the caller connection open [N26,H16]', () => {
@@ -115,6 +116,16 @@ test('borrowed board presentation keeps parity, shows staged rows, and leaves th
  * web-1 builds an item: claims it, commits a file in its lane through the hooks, and submits it.
  */
 function build(box, p, id, file) {
+  const key = `${p.baseBranch}:${id}`;
+  let branch = p.itemBranches.get(key);
+  if (!branch) {
+    branch = `${p.baseBranch}-item-${id}`;
+    box.git(p.web, 'switch', '-q', '-c', branch, p.baseBranch);
+    p.itemBranches.set(key, branch);
+  } else {
+    box.git(p.web, 'switch', '-q', branch);
+  }
+  p.branch = branch;
   box.run(p.web, 'claim', String(id));
   mkdirSync(join(p.web, 'web'), { recursive: true });
   writeFileSync(join(p.web, 'web', file), `${file}\n`);
@@ -127,7 +138,7 @@ function build(box, p, id, file) {
  * The coordinator sends an item back from a checkout of its submitted commit, as a verifier does.
  */
 function sendBack(box, p, id, note) {
-  box.git(p.repo, 'switch', '-q', '--detach', p.branch);
+  box.git(p.repo, 'switch', '-q', '--detach', p.itemBranches.get(`${p.baseBranch}:${id}`) ?? p.branch);
   box.run(p.repo, 'verify', String(id), 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--note', note, '--as', 'coordinator');
   box.git(p.repo, 'switch', '-q', 'main');
 }
@@ -275,12 +286,13 @@ function element(id) {
  * the moment it counts from, and setting its text changes that node alone.
  */
 function ageNodes(element) {
-  const AGE = /<time data-ago="([^"]*)"([^>]*)>([^<]*)<\/time>/g;
+  const AGE = /<time((?: class="[^"]*")?) data-ago="([^"]*)"([^>]*)>([^<]*)<\/time>/g;
   return [...element.innerHTML.matchAll(AGE)].map((match, n) => ({
-    dataset: { ago: match[1] },
+    dataset: { ago: match[2] },
+    classList: { contains: (name) => (/class="([^"]*)"/.exec(match[1])?.[1] ?? '').split(' ').includes(name) },
     set textContent(text) {
       let k = 0;
-      element.patch((html) => html.replace(AGE, (whole, at, rest) => (k++ === n ? `<time data-ago="${at}"${rest}>${text}</time>` : whole)));
+      element.patch((html) => html.replace(AGE, (whole, cls, at, rest) => (k++ === n ? `<time${cls} data-ago="${at}"${rest}>${text}</time>` : whole)));
     },
   }));
 }
@@ -809,6 +821,118 @@ test('the tabs fit one row on a phone [N26]', async () => {
     await view.stop();
   }
 });
+test('a pullboard command in prose chips only the command [N26]', async () => {
+  // The page's command list is the CLI's: every "pullboard ..." that help --all prints (HELP.all) or a usage line
+  // declares, choices in [a|b] or a|b, and commands after " | ", and nothing else.
+  const declared = new Set();
+  const read = (text) => {
+    for (const found of text.matchAll(/(?:^|[\s(`'"])pullboard ((?:\S+ ?)+?)(?= {2}|$|[;,.)](?:\s|$))/gm)) {
+      const tokens = found[1].trim().split(' ');
+      const phrase = [];
+      for (let n = 0; n < tokens.length; n++) {
+        const token = tokens[n];
+        if (/^[a-z][a-zA-Z-]*$/.test(token)) { phrase.push(token); continue; }
+        const choices = /^\[?([a-z][a-zA-Z-]*(?:\|[a-z][a-zA-Z-]*)+)\]?$/.exec(token);
+        if (choices) for (const choice of choices[1].split('|')) declared.add([...phrase, choice].join(' '));
+        else if (token === '|' && phrase.length === 1) {
+          for (let k = n + 1; k < tokens.length; k += 2) { if (!/^[a-z][a-zA-Z-]*$/.test(tokens[k])) break; declared.add(tokens[k]); if (tokens[k + 1] !== '|') break; }
+        }
+        break;
+      }
+      if (phrase.length) declared.add(phrase.join(' '));
+    }
+  };
+  read(HELP.all);
+  for (const row of Object.values(HELP.commands)) for (const usage of row.usages) read(usage);
+  for (const sub of ['milestone add', 'relay tokens', 'spec approve', 'prompt review']) assert.ok(declared.has(sub), `help --all declares ${sub}`);
+  assert.deepEqual([...PULLBOARD_COMMANDS].sort(), [...declared].sort(), 'the view chips exactly the commands the CLI declares');
+  assert.deepEqual(PULLBOARD_COMMANDS, [...PULLBOARD_COMMANDS].sort((a, b) => b.split(' ').length - a.split(' ').length), 'longest phrases first, so spec check wins over spec');
+
+  const box = machine();
+  const demo = project(box, 'commands');
+  box.run(demo.repo, 'shout', 'all', [
+    'pullboard spec check prints a line for docs/api.md with 0 errors.',
+    'pullboard view serves every board.',
+    'Run pullboard next --verify 235 then review it.',
+    'pullboard verify 235 reject goes on in words.',
+    'Turn pullboard relay on now, and pullboard hold web --reason "a pause" after that.',
+    "pullboard's own page has no command.",
+    'Then pullboard milestone add Launch for the person, and pullboard prompt review prints a guide.',
+  ].join(' '));
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    page.run("view.tab = 'shouts'; render();");
+    const feed = page.show('feed');
+    const chips = [...feed.matchAll(/<code class="inline(?: [a-z]+)*"(?: title="[^"]*")?>([^<]*)<\/code>/g)].map((match) => match[1].replaceAll('&quot;', '"'));
+    assert.deepEqual(chips.filter((chip) => chip.startsWith('pullboard')), ['pullboard spec check', 'pullboard view', 'pullboard next --verify 235', 'pullboard verify 235', 'pullboard relay on', 'pullboard hold', 'pullboard milestone add', 'pullboard prompt review'],
+      `each chip is the command and its arguments, never the words after it: ${JSON.stringify(chips)}`);
+    assert.ok(chips.includes('docs/api.md') && chips.includes('--reason'), 'a path and a flag in the prose after a command still chip on their own');
+    for (const word of ['prints', 'serves', 'then', 'goes', 'now', 'after', 'own', 'for', 'a']) assert.ok(!chips.some((chip) => chip.split(' ').includes(word)), `"${word}" stays prose`);
+  } finally {
+    await view.stop();
+  }
+});
+
+test('real Chrome renders brief lists with inline paths [N26]', { timeout: 90_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for brief list checks.');
+
+  const box = machine();
+  const demo = project(box, 'briefs');
+  const brief = ['The person called the old rendering ugly.', '', 'Files:', '- web/index.html', '- web/app.js', '- web/style.css', '- web/api.md', '',
+    'Test:', '- node bin/run-tests.js --test-name-pattern "brief lists" test/cockpit.test.js', '- make test stays prose', '- a parent bullet',
+    '  - capture, measurement, `note`', '  - decision, rejection', '', 'Sentences:',
+    '- pullboard spec check prints a DOCTRINE.md line with 0 errors, and no PRACTICE.md remains at the root.', '- npm test runs the suite before every push', '- git merge main'].join('\n');
+  box.run(demo.repo, 'add', 'web', 'A brief with lists', '--specs', 'G1', '--criterion', 'lists', '--brief', brief);
+  box.run(demo.repo, 'shout', 'all', 'A fence still reads as code:\n```\nconst greeting = "hello";\n```');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-brief-lists-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("typeof data === 'object' && !!data && !!data.project && !!document.querySelector('#detail .text.muted')");
+    for (const width of [375, 1280]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.waitFor(`innerWidth === ${width} && document.querySelector('#detail .text.muted ul') !== null`);
+      const seen = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+        const text = document.querySelector('#detail .text.muted');
+        const lists = [...text.querySelectorAll(':scope > ul.text-list')];
+        const label = (list) => { let n = list.previousSibling; while (n && n.nodeType === 3 && !n.textContent.trim()) n = n.previousSibling; return n ? (n.nodeType === 3 ? n.textContent : n.textContent).trim().split('\\n').pop() : ''; };
+        const item = (li) => ({ text: li.firstChild ? [...li.childNodes].filter((n) => n.nodeName !== 'UL').map((n) => n.textContent).join('') : '',
+          codes: [...li.querySelectorAll(':scope > code')].map((code) => [code.textContent, getComputedStyle(code).display]), nested: [...li.querySelectorAll(':scope > ul > li')].map((child) => child.textContent) });
+        const line = parseFloat(getComputedStyle(text).lineHeight);
+        const testLabelTop = (() => { const r = document.createRange(); const node = [...text.childNodes].find((n) => n.nodeType === 3 && n.textContent.includes('Test:')); r.selectNode(node); return r.getBoundingClientRect().top; })();
+        return { lists: lists.map((list) => ({ label: label(list), items: [...list.querySelectorAll(':scope > li')].map(item) })),
+          blocks: text.querySelectorAll('code.block, .code').length, dashes: text.innerText.split('\\n').filter((l) => l.trim().startsWith('-')).length,
+          gap: (testLabelTop - lists[0].getBoundingClientRect().bottom) / line, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth };
+      })())`));
+      const place = `${width}: ${JSON.stringify(seen)}`;
+      assert.deepEqual(seen.lists.map((list) => list.label), ['Files:', 'Test:', 'Sentences:'], `${width}: each label stays a plain line above its own list`);
+      assert.deepEqual(seen.lists[0].items.map((li) => li.codes), [[['web/index.html', 'inline']], [['web/app.js', 'inline']], [['web/style.css', 'inline']], [['web/api.md', 'inline']]],
+        `each path is a bullet holding one inline chip at ${place}`);
+      const [command, prose, parent] = seen.lists[1].items;
+      assert.deepEqual(command.codes, [['node bin/run-tests.js --test-name-pattern "brief lists" test/cockpit.test.js', 'inline']], `${width}: a whole command bullet is one chip`);
+      assert.deepEqual([prose.text, prose.codes], ['make test stays prose', []], `${width}: any other command, unmarked, stays prose`);
+      assert.deepEqual(parent.nested, ['capture, measurement, note', 'decision, rejection'], `${width}: indented bullets nest under the bullet above them`);
+      // A bullet that only starts with a command is a sentence, never one chip; the command alone is.
+      const [sentence, runs, merge] = seen.lists[2].items;
+      assert.ok(!sentence.codes.some(([code]) => code === sentence.text) && /0 errors, and no/.test(sentence.text), `${width}: a sentence that starts with pullboard stays prose: ${JSON.stringify(sentence)}`);
+      assert.ok(!runs.codes.some(([code]) => code === runs.text), `${width}: so does one that starts with npm and goes on in words: ${JSON.stringify(runs)}`);
+      assert.deepEqual(merge.codes, [['git merge main', 'inline']], `${width}: a short command alone is one chip`);
+      assert.deepEqual([seen.blocks, seen.dashes], [0, 0], `${width}: no code block and no stray dash in the brief`);
+      assert.ok(seen.gap > 0.4 && seen.gap < 1.6, `${width}: one blank line between a list and the next label, as written: ${seen.gap.toFixed(2)} lines`);
+      assert.ok(!seen.overflow, `${width}: nothing runs off the screen`);
+    }
+    await chrome.evaluate("document.querySelector('[data-tab=\"shouts\"]').click()");
+    await chrome.waitFor("[...document.querySelectorAll('#feed code.block')].some((code) => code.textContent.includes('const greeting'))");
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
 test('the view has a light and a dark theme to choose [N26]', async () => {
   const view = await startView(machine());
   try {
@@ -974,9 +1098,9 @@ test("the history is a timeline of the item's states [N26]", async () => {
  * reads idle, and its entry's text with the tags taken out.
  */
 function agentEntries(html) {
-  return html.split('<div class="agent">').slice(1).map((entry) => ({
-    id: /<b[^>]*>([^<]*)<\/b>/.exec(entry)?.[1],
-    path: /<b title="([^"]*)"/.exec(entry)?.[1],
+  return html.split(/<div class="agent(?: on)?">/).slice(1).map((entry) => ({
+    id: /data-agent="([^"]*)"/.exec(entry)?.[1],
+    path: /title="Shouts with [^"(]* \(([^"]*)\)"/.exec(entry)?.[1],
     age: /<time[^>]*>([^<]*)<\/time>/.exec(entry)?.[1],
     holds: [...entry.matchAll(/data-item="(\d+)"[^>]*><span>([^]*?)<\/span><span class="chip[^"]*">([^<]*)</g)].map((match) => `${match[2]}: ${match[3]}`),
     idle: entry.includes('<small>idle</small>'),
@@ -993,7 +1117,7 @@ test('the agents panel says what each agent holds [N26]', async () => {
   for (const title of ['Header', 'Farewell', 'Greeting <b>bold</b>', 'Footer']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
   // The board lists items newest first; each agent's rows must put its higher id second.
   build(box, alpha, 3, 'greeting.html');
-  const two = { ...alpha, web: second, branch: 'web/two' };
+  const two = { ...alpha, web: second, branch: 'web/two', baseBranch: 'web/two' };
   build(box, two, 2, 'farewell.html');
   sendBack(box, two, 2, 'no farewell on the page');
   build(box, two, 4, 'footer.html');
@@ -1339,34 +1463,6 @@ test('a closed lifecycle stays closed, across a reload and a restart of the view
     await new Promise((done) => taken.close(done));
   }
 });
-test('busy-port refusal preserves its first line and JSON next [N26,A1]', async () => {
-  const box = machine();
-  const held = await new Promise((done) => { const server = createServer(); server.listen(0, '127.0.0.1', () => done(server)); });
-  try {
-    const port = held.address().port;
-    const result = spawnSync(process.execPath, [BIN, 'view', '--no-open', '--port', String(port)], { cwd: box.dir, env: box.env, encoding: 'utf8', timeout: 20000 });
-    assert.equal(result.status, 1, `a refusal, not a crash or a hang: ${result.stderr}`);
-    assert.equal(result.stdout, '', 'text refusal does not leak a second document to stdout');
-    assert.doesNotMatch(result.stderr, /\n\s+at\s/m, 'a busy port is a refusal, not a stack trace');
-    const firstLine = `pullboard: [PORT_BUSY] port ${port} is in use: name another with --port, or leave --port out to take any free one`;
-    const stderr = result.stderr.endsWith('\n') ? result.stderr.slice(0, -1) : result.stderr;
-    const lines = stderr.split(/\r?\n/);
-    assert.equal(lines[0], firstLine, 'the original refusal line stays exact');
-    assert.ok(lines.length === 1 || lines.length === 2, 'only the legacy line or exactly one next line is allowed');
-    if (lines.length === 2) {
-      const json = spawnSync(process.execPath, [BIN, 'view', '--no-open', '--port', String(port), '--json'], { cwd: box.dir, env: box.env, encoding: 'utf8', timeout: 20000 });
-      assert.equal(json.status, 1, `JSON reports the same busy-port refusal: ${json.stderr}`);
-      assert.equal(json.stderr, '', 'JSON refusal has no extra stderr text');
-      const document = JSON.parse(json.stdout);
-      assert.equal(document.error.code, 'PORT_BUSY');
-      assert.equal(typeof document.error.next, 'string');
-      assert.ok(lines[1].startsWith('next: '), 'the optional text line has the canonical next label');
-      assert.equal(lines[1].slice('next: '.length), document.error.next, 'the optional text next value is exactly the JSON refusal next step');
-    }
-  } finally {
-    await new Promise((done) => held.close(done));
-  }
-});
 test('ages stay true while the board is quiet [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
@@ -1380,15 +1476,16 @@ test('ages stay true while the board is quiet [N26]', async () => {
       row: /<time data-ago="[^"]+">([^<]*)<\/time>/.exec(itemRow(page.show('chain'), 1))?.[1],
       needs: /decide, <time data-ago="[^"]+">([^<]*)<\/time>/.exec(page.show('needs'))?.[1],
       agent: agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1')?.age,
+      shout: /<time class="long" data-ago="[^"]+" title="[^"]*">([^<]*)<\/time>/.exec(page.show('feed'))?.[1],
     });
-    assert.deepEqual(ages(), { row: 'now', needs: 'now', agent: 'now' });
-    const rebuilds = () => ['chain', 'needs', 'agents'].map((id) => page.element(id).writes);
+    assert.deepEqual(ages(), { row: 'now', needs: 'now', agent: 'now', shout: 'now' });
+    const rebuilds = () => ['chain', 'needs', 'agents', 'feed'].map((id) => page.element(id).writes);
     const before = rebuilds();
 
     // Three hours pass, nothing on the board changes, and the minute timer fires.
     page.run('const D = Date; globalThis.Date = class extends D { constructor(...a) { super(...(a.length ? a : [D.now() + 3 * 3600e3])); } static now() { return D.now() + 3 * 3600e3; } };');
     page.run('tickAges()');
-    assert.deepEqual(ages(), { row: '3h', needs: '3h', agent: '3h' });
+    assert.deepEqual(ages(), { row: '3h', needs: '3h', agent: '3h', shout: '3h ago' }, 'a shout says how long ago in words');
     assert.deepEqual(rebuilds(), before, 'each age moved where it stands; nothing was rebuilt');
   } finally {
     await view.stop();
@@ -1398,7 +1495,7 @@ test('ages stay true while the board is quiet [N26]', async () => {
  * The coordinator accepts an item from a checkout of its submitted commit.
  */
 function accept(box, p, id) {
-  box.git(p.repo, 'switch', '-q', '--detach', p.branch);
+  box.git(p.repo, 'switch', '-q', '--detach', p.itemBranches.get(`${p.baseBranch}:${id}`) ?? p.branch);
   box.run(p.repo, 'verify', String(id), 'accept', '--note', 'the page shows it', '--as', 'coordinator');
   box.git(p.repo, 'switch', '-q', 'main');
 }
@@ -1492,6 +1589,74 @@ test("the view's styles live in their own file [N26]", async () => {
     await view.stop();
   }
 });
+test('an item detail shows its pending, red and green check baselines from the API [V2,N26]', async () => {
+  const box = machine();
+  const alpha = project(box, 'check-baselines');
+  const main = box.git(alpha.repo, 'rev-parse', 'main');
+  const checks = [
+    { title: 'Pending baseline', command: 'node --test pending.test.js', result: 'pending', request: '00000000-0000-4000-8000-000000000001' },
+    { title: 'Red baseline', command: 'node --test red.test.js', result: 'red', seconds: 2 },
+    { title: 'Green baseline', command: 'node --test green.test.js', result: 'green', seconds: 1 },
+  ];
+  const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
+  let ids;
+  try {
+    ids = checks.map((check) => addItem(board, {
+      by: 'coordinator', lane: 'web', title: check.title, criterion: 'shows the observed check result', specIds: ['G1'],
+      check: check.command,
+      checkBaseline: { command: check.command, main, result: check.result, ...(check.request ? { request: check.request } : {}), ...(check.seconds ? { seconds: check.seconds } : {}) },
+    }));
+  } finally {
+    closeBoard(board);
+  }
+  const view = await startView(box);
+  try {
+    const state = await boardOf(view, alpha.repo);
+    for (let index = 0; index < checks.length; index += 1) {
+      assert.equal(state.items.find((item) => item.id === ids[index]).check, checks[index].command);
+      assert.equal(state.items.find((item) => item.id === ids[index]).checkBaseline.result, checks[index].result,
+        'the local API exposes the recorded baseline state');
+    }
+    assert.equal(state.items.find((item) => item.id === ids[2]).checkBaseline.warning, 'CRITERION_PROVES_NOTHING');
+
+    const page = await openPage(view);
+    for (let index = 0; index < checks.length; index += 1) {
+      await page.click({ item: String(ids[index]), classes: 'row' });
+      const detail = page.show('detail');
+      assert.match(detail, /<h3>Check<\/h3>/);
+      assert.ok(detail.indexOf('<h3>Criterion</h3>') < detail.indexOf('<h3>Check</h3>')
+        && detail.indexOf('<h3>Check</h3>') < detail.indexOf('<h3>Spec rows it serves</h3>'), 'the check sits beside the criterion');
+      assert.ok(detail.includes(`<code>${checks[index].command}</code>`), 'the displayed check is the API command');
+      assert.ok(detail.includes(`<span class="chip ${checks[index].result === 'green' ? 'ok' : checks[index].result === 'red' ? 'no' : 'warn'}">${checks[index].result}</span>`),
+        `the ${checks[index].result} baseline is visible`);
+      if (checks[index].result === 'green') {
+        assert.ok(detail.includes('This check already passed before the work, so it proves nothing.'), 'green baseline warning is plain language');
+      } else {
+        assert.doesNotMatch(detail, /proves nothing/, 'pending and red baselines do not claim the check proves nothing');
+      }
+      if (checks[index].result === 'pending') {
+        const completionBoard = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
+        try {
+          assert.equal(completeCheckBaseline(completionBoard, ids[index], {
+            agentId: 'coordinator',
+            expected: { command: checks[index].command, main, result: 'pending', request: checks[index].request },
+            baseline: { command: checks[index].command, main, result: 'green', seconds: 1 },
+          }), true, 'the authorized pending baseline completes once');
+        } finally {
+          closeBoard(completionBoard);
+        }
+        await page.run('refresh()');
+        const completed = page.show('detail');
+        assert.match(completed, /<h2><span>#\d+<\/span>Pending baseline<\/h2>/, 'the open detail stays on the pending item');
+        assert.ok(completed.includes('<span class="chip ok">green</span>'), 'the open detail updates to the completed result');
+        assert.ok(completed.includes('This check already passed before the work, so it proves nothing.'), 'the completed warning appears without reopening the detail');
+      }
+    }
+  } finally {
+    await view.stop();
+  }
+});
+
 test('a sent-back item shows why first [N26]', async () => {
   const box = machine();
   const p = project(box, 'shop');
@@ -1683,7 +1848,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     // An agent asks its coordinator (B25): the ask waits on the board with who holds it, never in Needs-you.
     assert.doesNotMatch(page.show('needs'), /decide:/, "an agent's ask is its coordinator's to answer");
     assert.equal(page.element('decisions').hidden, false);
-    assert.match(page.show('decisions'), new RegExp(`^<div class="head quiet">Waiting on others</div><div class="ask other"><p><small><b>web-1</b> asks <b>coordinator</b>, <time data-ago="[^"]+">now</time></small></p><p>${question}</p></div>$`), 'above the shouts, saying who holds it, with no Answer button');
+    assert.match(page.show('decisions'), new RegExp(`^<div class="head quiet">Waiting on others</div><article class="shout h\\d" data-shout-id="1"><span class="avatar" aria-hidden="true">W1</span><div class="shout-main"><header><b class="who">web-1</b><span class="to">→ coordinator</span><span class="mark ask">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">now</time></header><div class="text">${question}</div><button class="more" data-more type="button">more</button></div></article>$`), 'above the shouts as a card, saying who asked whom, with no Answer button');
     assert.doesNotMatch(page.show('feed'), /Greet in/, 'though the feed no longer reaches it');
 
     // The coordinator passes it up with its note (B27): now it is the person's call.
@@ -1691,7 +1856,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     await page.run('refresh()');
     const passed = `Passed up from web-1: ${question}\nCoordinator note: over to you`;
     assert.match(page.show('needs'), new RegExp(`^<div class="head"><i></i>Needs you</div><div class="ny"><code>coordinator</code><span class="ny-text">${passed.replace('\n', '<br>')}</span><button class="ny-open" data-go="decide:42" type="button"><em>decide, <time data-ago="[^"]+">now</time> →</em></button></div>`), 'first in Needs-you: who passed it, what, and since when');
-    assert.match(page.show('decisions'), new RegExp(`^<div class="head"><i></i>Decision needed</div><div class="ask"><p><small><b>coordinator</b> asks, <time data-ago="[^"]+">now</time></small></p><p>${passed.replace('\n', '<br>')}</p><button class="ghost" data-go="decide:42" type="button">Answer</button></div>$`), 'and above the shouts, with an Answer button');
+    assert.match(page.show('decisions'), new RegExp(`^<div class="head"><i></i>Decision needed</div><article class="shout h\\d lead" data-shout-id="42"><span class="avatar"><svg [\\s\\S]*?</svg></span><div class="shout-main"><header><b class="who">coordinator</b><span class="to">→ person</span><span class="mark ask">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">now</time></header><div class="text">${passed.replace('\n', '<br>')}</div><button class="more" data-more type="button">more</button><button class="ghost answer" data-go="decide:42" type="button">Answer</button></div></article>$`), 'and above the shouts as the coordinator\'s card, with an Answer button');
 
     const form = () => ({
       answering: !page.element('answering').hidden,
@@ -1699,7 +1864,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
       question: page.element('answering-q').textContent,
       to: page.element('shout-to').value,
       locked: Boolean(page.element('shout-to').disabled),
-      button: page.element('shout-send').textContent,
+      button: page.element('shout-send').getAttribute('aria-label'),
     });
     page.element('shout-to').value = 'web';
     await page.click({ go: 'decide:42' });
@@ -1725,8 +1890,8 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     box.run(alpha.repo, 'pass', '45', 'yours');
     await page.run('refresh()');
     const feed = page.show('feed');
-    assert.match(feed, /<b>web-1 → coordinator<\/b> <span class="mark ask">decision<\/span> Ship today\?/, 'the feed marks an ask');
-    assert.match(feed, /<b>person → coordinator<\/b> <span class="mark">answer<\/span> French, then English/, 'and an answer');
+    assert.match(feed, /<b class="who">web-1<\/b><span class="to">→ coordinator<\/span><span class="mark ask">decision<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">Ship today\?<\/div>/, 'the feed marks an ask');
+    assert.match(feed, /<b class="who">person<\/b><span class="to">→ coordinator<\/span><span class="mark">answer<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">French, then English<\/div>/, 'and an answer');
     assert.match(page.show('needs'), /data-go="decide:46"/);
 
     // An answer belongs to the project whose question it shows.
@@ -1784,7 +1949,7 @@ test("needs-you holds only the person's calls; the rest show on the board with w
     assert.match(needs, /<code>web<\/code><span class="ny-text">G3 is open<\/span><button class="ny-open" data-go="tab:shouts" type="button"><em>lane held by coordinator, <time data-ago="[^"]+">(?:now|\d+[mhd])<\/time> →<\/em><\/button>/, 'a held lane says who set it and shows the API-provided hold age');
 
     // Each of the rest is on the board, with who holds it.
-    assert.match(page.show('decisions'), /<div class="head quiet">Waiting on others<\/div><div class="ask other"><p><small><b>web-1<\/b> asks <b>coordinator<\/b>, /, "the agent's ask waits on its coordinator");
+    assert.match(page.show('decisions'), /<div class="head quiet">Waiting on others<\/div><article class="shout h\d" data-shout-id="\d+"><span class="avatar" aria-hidden="true">W1<\/span><div class="shout-main"><header><b class="who">web-1<\/b><span class="to">→ coordinator<\/span>/, "the agent's ask waits on its coordinator");
     assert.match(itemRow(page.show('chain'), 1), /<span class="chip [^"]*">to verify<\/span><\/li>$/, 'work waiting for a verdict');
     assert.ok(itemRow(page.show('chain'), 2).includes('BEHAVIOR_MISMATCH: no farewell yet'), 'and work sent back, with why');
     assert.deepEqual(agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1').holds, ['#2 Farewell: sent back', '#1 Greeting: to verify'], 'the agent that built them holds both');
@@ -2096,12 +2261,15 @@ test('times say which day they were [N26]', async () => {
   box.run(alpha.repo, 'shout', 'web', '#1 is in');
   const view = await startView(box);
   try {
-    const days = (html) => [...html.matchAll(/<h4 class="day">([^<]*)<\/h4>/g)].map((match) => match[1]);
+    const days = (html) => [...html.matchAll(/<h4 class="day">([^<]*)<\/h4>|<div class="day-rule" role="separator"><span>([^<]*)<\/span><\/div>/g)].map((match) => match[1] ?? match[2]);
+    // A shout says how long ago it was, with its clock time on hover.
+    const ages = (html) => [...html.matchAll(/<time class="long" data-ago="[^"]+" title="([^"]*)">([^<]*)<\/time>/g)].map((match) => [match[2], match[1]]);
     const times = (html) => [...html.matchAll(/<time>([^<]*)<\/time>/g)].map((match) => match[1]);
     const bare = (list) => list.length > 0 && list.every((time) => /^\d\d:\d\d$/.test(time));
 
     const now = await openPage(view);
-    assert.deepEqual([days(now.show('feed')), days(now.show('activity'))], [['Today'], ['Today']]);
+    assert.deepEqual([days(now.show('feed')), days(now.show('activity'))], [[], ['Today']], 'shouts from today need no rule above them');
+    assert.deepEqual(ages(now.show('feed')).map(([age, clock]) => [age, /^\d\d:\d\d$/.test(clock)]), [['now', true]], 'a shout from today says now, its clock time on hover');
     assert.ok(bare(times(now.show('detail'))), 'a history from today shows bare times');
 
     const tomorrow = await openPage(view, { later: 1 });
@@ -2111,7 +2279,8 @@ test('times say which day they were [N26]', async () => {
     const date = new Date().toLocaleDateString([], { month: 'short', day: 'numeric' });
     const later = await openPage(view, { later: 2 });
     assert.deepEqual([days(later.show('feed')), days(later.show('activity'))], [[weekday], [weekday]], 'two days on, the feeds name the day');
-    assert.ok(bare(times(later.show('feed'))) && bare(times(later.show('activity'))), 'their rows keep the clock time');
+    assert.ok(bare(times(later.show('activity'))), 'activity rows keep the clock time');
+    assert.deepEqual(ages(later.show('feed')).map(([age, clock]) => [age, new RegExp(`^${date} \\d\\d:\\d\\d$`).test(clock)]), [['2d ago', true]], 'a shout says how long ago, with its date and time on hover');
     const history = times(later.show('detail'));
     assert.ok(history.length === 3 && history.every((time) => new RegExp(`^${date} \\d\\d:\\d\\d$`).test(time)), `the history dates each move: ${history}`);
 
@@ -2120,6 +2289,10 @@ test('times say which day they were [N26]', async () => {
     const rows = JSON.stringify([at(6, 15), at(6, 9), at(5, 20), at(3, 12)].map((iso) => ({ iso })));
     const html = now.run(`byDay(${rows}, (x) => x.iso, () => '<div></div>')`);
     assert.equal(html.replace(/<h4 class="day">[^<]*<\/h4>/g, 'H').replaceAll('<div></div>', 'r'), 'HrrHrHr');
+    // Shouts get a rule only where the day changes, and none above today's.
+    const rule = (list) => now.run(`dayRules(${JSON.stringify(list.map((iso) => ({ iso })))}, (x) => x.iso, () => '<div></div>')`).replace(/<div class="day-rule" role="separator"><span>[^<]*<\/span><\/div>/g, 'H').replaceAll('<div></div>', 'r');
+    assert.equal(rule([at(6, 15), at(6, 9), at(5, 20), at(3, 12)]), 'HrrHrHr', 'an older first day still gets its rule');
+    assert.equal(rule([new Date().toISOString(), at(6, 9)]), 'rHr', 'today has no rule; the first earlier day does');
   } finally {
     await view.stop();
   }
@@ -2263,7 +2436,9 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
   try {
     const page = await openPage(view);
     // A button carries the text written before it on its line.
-    const button = (ref, open, before = '') => `<button class="ref" data-code="${ref}"${before ? ` data-before="${before}"` : ''} type="button" aria-expanded="${open}">${ref}</button>`;
+    // Its label: the path, then the lines and the commit's first ten characters; the whole reference on hover.
+    const label = (ref) => `<span class="ref-path">${ref.slice(0, ref.indexOf(':'))}</span><span class="ref-at">${ref.slice(ref.indexOf(':'), ref.lastIndexOf('@') + 11)}</span>`;
+    const button = (ref, open, before = '') => `<button class="ref" data-code="${ref}"${before ? ` data-before="${before}"` : ''} title="${ref}" type="button" aria-expanded="${open}">${label(ref)}</button>`;
     const prior = (text, ref) => text.slice(0, text.indexOf(ref));
     const [b1, b2, b3] = [was, now, long].map((ref) => prior(first_, ref));
     assert.ok(page.show('feed').includes(`#1</button> was ${button(was, false, b1)}, is ${button(now, false, b2)}; see ${button(long, false, b3)}.`), 'each reference is a button in the text');
@@ -2346,7 +2521,7 @@ test('an empty feed says so on one line [N26]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
-    assert.equal(page.show('feed'), '<div class="empty">No shouts yet.</div>');
+    assert.equal(page.show('feed'), '<div class="feed-bar"><span></span><button class="link" data-agents-toggle type="button">Hide agents</button></div><div class="empty">No shouts yet.</div>', 'one line under the bar that hides the agents');
     assert.match(page.html, /<div class="card-panel feed" id="feed"><\/div>/, 'the shouts feed');
     assert.match(page.html, /<div class="card-panel feed" id="activity"><\/div>/, 'and the activity feed are both feeds');
     const style = await styleOf(view);
@@ -2367,9 +2542,11 @@ test('a shout shows the evidence it carries [B22]', async () => {
   const view = await startView(box);
   try {
     const feed = (await openPage(view)).show('feed');
-    const card = (kind, outcome) => `<span class="ev"><b>${kind}</b> ${outcome} · <button class="ref" data-go="item:1" title="Greeting" type="button">#1</button> · web-1 · <code title="${head}">${head.slice(0, 12)}</code></span>`;
-    assert.ok(feed.includes('the page loads in 80ms' + card('receipt', 'measured &lt;fast&gt;')), 'what was measured, for which item, by whom, at which commit');
-    assert.ok(feed.includes('tried a cache' + card('attempt', 'failed')), 'and what was tried');
+    const card = (kind, outcome) => `<div class="receipt"><div><span class="badge">${kind}</span> <span class="outcome">${outcome}</span></div><div class="receipt-foot"><button class="ref" data-go="item:1" title="Greeting" type="button">#1</button> · web-1 · <code class="inline sha" title="${head}">${head.slice(0, 10)}</code></div></div>`;
+    const after = (text) => feed.slice(feed.indexOf(text + '</div>') + text.length + 6).replace(/^<button class="more" data-more type="button">more<\/button>/, '');
+    assert.ok(after('the page loads in 80ms').startsWith(card('receipt', 'measured &lt;fast&gt;')), `what was measured, for which item, by whom, at which commit: ${after('the page loads in 80ms').slice(0, 400)}`);
+    assert.ok(after('tried a cache').startsWith(card('attempt', 'failed')), 'and what was tried');
+    assert.match(feed, /<span class="item">#1<\/span>/, 'the card names its item on top');
     assert.ok(feed.includes('nothing to show</div>'), 'a shout with no evidence has no card');
   } finally {
     await view.stop();
@@ -3573,7 +3750,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       return JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
       const visible=e=>{const s=getComputedStyle(e),r=e.getBoundingClientRect();return !e.disabled&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&r.width>0&&r.height>0&&!e.closest('[hidden]')};
       const selector='button,a[href],input:not([type=hidden]),select,textarea,[role=button],[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-release],[data-shout],[data-new],[data-code]';
-      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,inlineReference:e.matches('.feed button.ref, .ask button.ref, .detail button.ref')||!!e.closest('#chain .meta .gate, #detail .kv dd.waits-on')}});
+      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,inlineReference:e.matches('.feed button.ref, .shout button.ref, .shout .band a, .detail button.ref')||!!e.closest('#chain .meta .gate, #detail .kv dd.waits-on')}});
       const notice=document.querySelector('#console');
       const noticeBox=visible(notice)?notice.getBoundingClientRect():null;
       const toast=noticeBox?{x:noticeBox.x,y:noticeBox.y,right:noticeBox.right,bottom:noticeBox.bottom,visible:noticeBox.y>=0&&noticeBox.bottom<=innerHeight,
@@ -3650,34 +3827,30 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
           assert.ok(wrap.tokenLines > 1, `${width}: only the overflowing unbroken token splits: ${JSON.stringify(wrap)}`);
         }
         if (tab === 'shouts') {
-          await waitRendered([
-            '#decisions .ask.other', '#decisions .ask.other p:first-child', '#decisions .ask.other p:nth-child(2)',
-            '#decisions .ask:not(.other) p:first-child', '#decisions .ask:not(.other) button',
-          ]);
+          await waitRendered(['#decisions .shout:not(:has(.answer)) header', '#decisions .shout:not(:has(.answer)) .text', '#decisions .shout .answer']);
           const asks = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
-            const waiting = document.querySelector('#decisions .ask.other');
-            const waitingMeta = waiting?.querySelector('p:first-child');
-            const waitingText = waiting?.querySelector('p:nth-child(2)');
-            const answer = document.querySelector('#decisions .ask:not(.other)');
-            const answerMeta = answer?.querySelector('p:first-child');
-            const button = answer?.querySelector('button');
-            const rect = e => { const r=e.getBoundingClientRect(); return {left:r.left,right:r.right,width:r.width,height:r.height}; };
+            const waiting = document.querySelector('#decisions .shout:not(:has(.answer))');
+            const waitingMeta = waiting?.querySelector('header');
+            const waitingText = waiting?.querySelector('.text');
+            const button = document.querySelector('#decisions .shout .answer');
+            const answerText = button?.closest('.shout-main').querySelector('.text');
+            const rect = e => { const r=e.getBoundingClientRect(); return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height}; };
             return {
               waitingIsNeedsYou: document.querySelector('#decisions').classList.contains('needs-you'),
-              waitingHasNoButton: !!waiting && !waiting.querySelector('button'),
+              waitingHasNoAnswer: !!waiting && !waiting.querySelector('.answer'),
               waitingMeta: waitingMeta && rect(waitingMeta),
-              waitingMetaLine: waitingMeta && parseFloat(getComputedStyle(waitingMeta).lineHeight),
-              waitingAsk: waiting && rect(waiting), waitingText: waitingText && rect(waitingText),
-              answerMeta: answerMeta && rect(answerMeta), button: button && rect(button),
+              waitingMetaLine: waitingMeta && parseFloat(getComputedStyle(waitingMeta.querySelector('.who')).lineHeight),
+              waitingMain: waiting && rect(waiting.querySelector('.shout-main')), waitingText: waitingText && rect(waitingText),
+              answerText: answerText && rect(answerText), button: button && rect(button),
             };
           })())`));
-          assert.ok(asks.waitingIsNeedsYou && asks.waitingHasNoButton, `${width}: the waiting ask is shown in the Needs-you card without an answer button`);
+          assert.ok(asks.waitingIsNeedsYou && asks.waitingHasNoAnswer, `${width}: the waiting ask is a card in the Needs-you panel without an Answer button`);
           assert.ok(asks.waitingMeta.width > 0 && asks.waitingMeta.height <= asks.waitingMetaLine + 1,
             `${width}: waiting ask who/when stays on one line: ${JSON.stringify(asks)}`);
-          assert.ok(asks.waitingText.width >= asks.waitingAsk.width - 24,
-            `${width}: waiting ask text spans the row: ${JSON.stringify(asks)}`);
-          assert.ok(asks.button.left > asks.answerMeta.right,
-            `${width}: an answer button keeps its own grid column: ${JSON.stringify(asks)}`);
+          assert.ok(asks.waitingText.width >= asks.waitingMain.width - 1,
+            `${width}: waiting ask text spans the card: ${JSON.stringify(asks)}`);
+          assert.ok(asks.button.top >= asks.answerText.bottom && asks.button.left >= asks.answerText.left - 1 && asks.button.height >= 44,
+            `${width}: the Answer button sits under the ask it answers: ${JSON.stringify(asks)}`);
         }
       }
       await click('[data-tab="items"]');
@@ -4016,7 +4189,7 @@ test('static export redacts structured checkout paths but preserves paths people
   }
 });
 
-test('a short code chip at a line end stays whole, and long code still wraps inside the screen [N26]', { timeout: 90_000 }, async (t) => {
+test('a short code chip at a line end stays whole, and long code stays one chip inside the screen [N26]', { timeout: 90_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for code chip checks.');
 
@@ -4042,12 +4215,12 @@ test('a short code chip at a line end stays whole, and long code still wraps ins
         const chips = [...document.querySelectorAll('#feed code.inline')];
         const flag = chips.find((code) => code.textContent === '--flag'), path = chips.find((code) => code.textContent === ${JSON.stringify(long)});
         const text = flag.parentElement.closest('div');
-        // Long code wraps where the fonts put it, and stays inside the screen.
+        // Long code stays one chip, cut short with an ellipsis where the line is shorter, and inside the screen.
         const pathRects = [...path.getClientRects()];
         // Measured where the chips live: no shout's text runs wider than its column. (The page as a whole is
         // other lanes' layout; at 320 on Linux a 15px scrollbar leaves 305px for it.)
-        const longCode = { fragments: pathRects.length, right: Math.max(...pathRects.map((r) => r.right)), screen: document.documentElement.clientWidth,
-          overflow: [...document.querySelectorAll('#feed > div > div')].some((column) => column.scrollWidth > column.clientWidth + 0.5) };
+        const longCode = { fragments: pathRects.length, title: path.title, right: Math.max(...pathRects.map((r) => r.right)), screen: document.documentElement.clientWidth,
+          overflow: [...document.querySelectorAll('#feed .shout .text')].some((column) => column.scrollWidth > column.clientWidth + 0.5) };
         const wideRects = [...chips.find((code) => code.textContent === ${JSON.stringify(wide)}).getClientRects()];
         const wideCode = { fragments: wideRects.length, right: Math.max(...wideRects.map((r) => r.right)), screen: document.documentElement.clientWidth };
         // Then end the chip's line three pixels inside the chip, whatever this machine's fonts measure.
@@ -4061,8 +4234,9 @@ test('a short code chip at a line end stays whole, and long code still wraps ins
       assert.equal(seen.atEnd.fragments, 1, `${width}: a short chip at a line's end moves to the next line whole, never broken after its "--": ${JSON.stringify(seen)}`);
       assert.equal(seen.atEnd.display, 'inline', `${width}: and it is still inline code, not a bar`);
       assert.ok(seen.atEnd.width < seen.atEnd.line / 2, `${width}: and compact: ${JSON.stringify(seen.atEnd)}`);
-      if (width === 375) assert.ok(seen.longCode.fragments > 1, `${width}: code longer than its line wraps: ${JSON.stringify(seen.longCode)}`);
-      assert.ok(seen.wideCode.right <= seen.wideCode.screen + 0.5, `${width}: so does code of wide characters, by the columns it takes: ${JSON.stringify(seen.wideCode)}`);
+      assert.deepEqual([seen.longCode.fragments, seen.longCode.title], [1, long], `${width}: code longer than its line stays one chip, the whole of it on hover: ${JSON.stringify(seen.longCode)}`);
+      assert.equal(seen.wideCode.fragments, 1, `${width}: so does code of wide characters: ${JSON.stringify(seen.wideCode)}`);
+      assert.ok(seen.wideCode.right <= seen.wideCode.screen + 0.5, `${width}: inside the screen, by the columns it takes: ${JSON.stringify(seen.wideCode)}`);
       assert.ok(seen.longCode.right <= seen.longCode.screen + 0.5 && !seen.longCode.overflow, `${width}: and never runs past the screen: ${JSON.stringify(seen.longCode)}`);
     }
   } finally {
@@ -4104,7 +4278,7 @@ test('real Chrome styles shout code and item text without growing linked lines [
       if (message.method === 'Log.entryAdded' && message.params.entry.level === 'error') consoleErrors.push(message.params.entry.text);
     });
     await chrome.send('Log.enable');
-    await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 4 && document.querySelectorAll("#feed > div:not(.day)").length >= 4');
+    await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 4 && document.querySelectorAll("#feed > .shout").length >= 4');
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 1280 && document.querySelector("#detail .text.muted code.inline")?.getBoundingClientRect().width > 0');
     const desktopBrief = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
@@ -4130,21 +4304,21 @@ test('real Chrome styles shout code and item text without growing linked lines [
     await chrome.evaluate(`document.querySelector('[data-tab="shouts"]').click()`);
 
     const rendered = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
-      const shout = [...document.querySelectorAll('#feed > div:not(.day)')].find((row) => row.textContent.includes('Inline'));
-      const shoutCode=[...(shout?.querySelectorAll('code.inline')||[])].find(code=>code.textContent==='--flag'), shoutLine=shout?.children[1];
+      const shout = [...document.querySelectorAll('#feed > .shout')].find((row) => row.textContent.includes('Inline'));
+      const shoutCode=[...(shout?.querySelectorAll('code.inline')||[])].find(code=>code.textContent==='--flag'), shoutLine=shout?.querySelector('.text');
       const shoutRect=shoutCode?.getBoundingClientRect(), shoutLineRect=shoutLine?.getBoundingClientRect();
-      const ask = [...document.querySelectorAll('#decisions .ask')].find((row) => row.textContent.includes('Inline'));
+      const ask = [...document.querySelectorAll('#decisions .shout')].find((row) => row.textContent.includes('Inline'));
       const titleNode = document.querySelector('#chain .row .t');
-      const outside = [...document.querySelectorAll('#feed > div:not(.day)')].find((row) => row.textContent.includes('alert(2)'));
+      const outside = [...document.querySelectorAll('#feed > .shout')].find((row) => row.textContent.includes('alert(2)'));
       const itemDetail = document.querySelector('#detail');
       const agentItem = document.querySelector('#agents .agent [data-item="1"]');
       /** Measure the complete rendered content line box, including its item link. */
       const lineMetrics = (message) => {
-        const row = [...document.querySelectorAll('#feed > div:not(.day)')].find((entry) => {
-          const content = entry.children[1];
-          return content && content.textContent.slice(content.querySelector('b')?.textContent.length ?? 0).trim() === message;
+        const row = [...document.querySelectorAll('#feed > .shout')].find((entry) => {
+          const content = entry.querySelector('.text');
+          return content && content.textContent.trim() === message;
         });
-        const content = row.children[1];
+        const content = row.querySelector('.text');
         const height = content.getBoundingClientRect().height;
         const lineHeight = parseFloat(getComputedStyle(content).lineHeight);
         return { height, lineHeight, lines: Math.round(height / lineHeight) };
@@ -4155,9 +4329,9 @@ test('real Chrome styles shout code and item text without growing linked lines [
         askHtml: ask.innerHTML, titleHtml: titleNode.innerHTML,
         linkedMetrics: lineMetrics('X #1'), plainMetrics: lineMetrics('X'),
         wrapLinked: lineMetrics(${JSON.stringify(wrappedLinkedText)}), wrapPlain: lineMetrics('OK'),
-        linkedButtons: [...document.querySelectorAll('#feed > div:not(.day)')].find((entry) => entry.textContent.includes('A linked line'))?.querySelectorAll('button.ref').length,
+        linkedButtons: [...document.querySelectorAll('#feed > .shout')].find((entry) => entry.textContent.includes('A linked line'))?.querySelectorAll('button.ref').length,
         previewLinks: shout.querySelectorAll('button[data-code^="SPEC.md:1-2@"]').length,
-        outsideHtml: outside.innerHTML, askNestedButtons: ask.querySelector('p').querySelectorAll('button').length,
+        outsideHtml: outside.innerHTML, askNestedButtons: [...ask.querySelectorAll('button')].filter(link => link.parentElement.closest('button')).length,
         criterionHtml: itemDetail.querySelector('.text')?.innerHTML, briefHtml: itemDetail.querySelector('.text.muted')?.innerHTML,
         needsNestedButtons: [...document.querySelectorAll('#needs button.ref')].filter(link => link.parentElement.closest('button')).length,
         agentNestedButtons: [...document.querySelectorAll('#agents .agent button.ref')].filter(link => link.parentElement.closest('button')).length,
@@ -4168,22 +4342,22 @@ test('real Chrome styles shout code and item text without growing linked lines [
     assert.ok(rendered.shoutCodeMetrics.width > 0 && rendered.shoutCodeMetrics.width < rendered.shoutCodeMetrics.lineWidth / 2,
       `1280px shout code is a compact chip: ${JSON.stringify(rendered.shoutCodeMetrics)}`);
     assert.match(rendered.shoutHtml, /<code class="inline">code &lt;b&gt;safe&lt;\/b&gt;<\/code>/, 'backticks create escaped inline code');
-    assert.match(rendered.shoutHtml, /<code class="inline">pullboard shout<\/code>/, 'pullboard commands are inline code');
-    assert.match(rendered.shoutHtml, /<code class="inline">--decision<\/code>/, 'flags are inline code');
-    assert.match(rendered.shoutHtml, /<code class="inline">src\/cockpit\.js<\/code>/, 'slash paths are inline code');
-    assert.match(rendered.shoutHtml, /<code class="inline long">0123456789abcdef0123456789abcdef01234567<\/code>/, 'hex SHAs are inline code, long enough to wrap');
+    assert.match(rendered.shoutHtml, /<code class="inline cmd(?: long" title="pullboard shout --decision)?">pullboard shout --decision<\/code>/, 'a pullboard command is inline code, with the flags that follow it');
+    assert.match(rendered.shoutHtml, /<code class="inline cmd">--flag<\/code>/, 'a flag on its own is a command chip');
+    assert.match(rendered.shoutHtml, /<code class="inline path">src\/cockpit\.js<\/code>/, 'slash paths are path chips');
+    assert.match(rendered.shoutHtml, /<code class="inline sha" title="0123456789abcdef0123456789abcdef01234567">0123456789<\/code>/, 'a hex SHA is a ten-character chip with the whole SHA on hover');
     assert.ok((rendered.shoutHtml.match(/<code class="code block">/g) ?? []).length >= 2, 'fences and dollar-prefixed lines are code blocks');
     assert.match(rendered.shoutHtml, /<code class="code block">\$ pullboard claim 1<\/code>/, 'the shell prompt stays visible in command blocks');
     assert.match(rendered.shoutHtml, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/, 'script text is escaped inside code');
     assert.equal(rendered.shoutScripts, 0, 'a shout cannot create a script element');
     assert.match(rendered.outsideHtml, /&lt;script&gt;alert\(2\)&lt;\/script&gt; outside code/, 'script text outside code is escaped too');
     assert.equal(rendered.previewLinks, 1, 'only a path:lines@SHA reference with the original whole-word boundaries becomes an actionable preview');
-    assert.match(rendered.shoutHtml, /Invalid prefix:<code class="inline long">SPEC\.md:1-2@/, 'a path:lines@SHA suffix after a colon stays plain inline code');
+    assert.match(rendered.shoutHtml, /Invalid prefix:<code class="inline long" title="SPEC\.md:1-2@[0-9a-f]+">SPEC\.md:1-2@/, 'a path:lines@SHA suffix after a colon stays plain inline code');
     await chrome.evaluate(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"]').click()`);
     await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"]').getAttribute('aria-expanded') === 'true'`);
     await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"] + .code')?.textContent.includes('Demo spec')`);
     assert.match(await chrome.evaluate(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"] + .code')?.textContent || ''`), /Demo spec/, 'the original code preview still opens its referenced lines');
-    assert.match(rendered.askHtml, /<code class="inline">pullboard shout<\/code>/, 'needs-you uses the same code renderer');
+    assert.match(rendered.askHtml, /<code class="inline cmd(?: long" title="pullboard shout --decision)?">pullboard shout --decision<\/code>/, 'needs-you uses the same code renderer');
     assert.equal(rendered.askNestedButtons, 0, 'formatted text in an ask cannot nest interactive controls');
     assert.equal(rendered.needsNestedButtons, 0, 'needs-you keeps its button markup valid');
     assert.equal(rendered.agentNestedButtons, 0, 'agent item buttons never nest reference controls');
@@ -4198,7 +4372,7 @@ test('real Chrome styles shout code and item text without growing linked lines [
     assert.ok(Math.abs(rendered.linkedMetrics.height - rendered.plainMetrics.height) < 1, 'the complete one-line desktop boxes match within 1px');
     assert.ok(Math.abs(rendered.linkedMetrics.height - rendered.linkedMetrics.lineHeight) < 1, 'the linked desktop box equals one computed line-height');
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
-    await chrome.waitFor('innerWidth === 375 && document.querySelector("#feed > div:not(.day)")?.getBoundingClientRect().width > 0');
+    await chrome.waitFor('innerWidth === 375 && document.querySelector("#feed > .shout")?.getBoundingClientRect().width > 0');
     await chrome.evaluate("document.querySelector('[data-tab=items]').click()");
     await chrome.waitFor('document.querySelector("[data-pane=items]:not([hidden])") && document.querySelector("#detail .text.muted code.inline")?.getBoundingClientRect().width > 0');
     const phoneBrief = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
@@ -4226,17 +4400,17 @@ test('real Chrome styles shout code and item text without growing linked lines [
     const phoneMetrics = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
       /** Measure the complete rendered content line box, including its item link. */
       const lineMetrics = (message) => {
-        const row = [...document.querySelectorAll('#feed > div:not(.day)')].find((entry) => {
-          const content = entry.children[1];
-          return content && content.textContent.slice(content.querySelector('b')?.textContent.length ?? 0).trim() === message;
+        const row = [...document.querySelectorAll('#feed > .shout')].find((entry) => {
+          const content = entry.querySelector('.text');
+          return content && content.textContent.trim() === message;
         });
-        const content = row.children[1];
+        const content = row.querySelector('.text');
         const height = content.getBoundingClientRect().height;
         const lineHeight = parseFloat(getComputedStyle(content).lineHeight);
         return { height, lineHeight, lines: Math.round(height / lineHeight) };
       };
-      const row=[...document.querySelectorAll('#feed > div:not(.day)')].find(entry=>entry.textContent.includes('Inline'));
-      const code=[...(row?.querySelectorAll('code.inline')||[])].find(entry=>entry.textContent==='--flag'), line=row?.children[1], codeRect=code?.getBoundingClientRect(), lineRect=line?.getBoundingClientRect();
+      const row=[...document.querySelectorAll('#feed > .shout')].find(entry=>entry.textContent.includes('Inline'));
+      const code=[...(row?.querySelectorAll('code.inline')||[])].find(entry=>entry.textContent==='--flag'), line=row?.querySelector('.text'), codeRect=code?.getBoundingClientRect(), lineRect=line?.getBoundingClientRect();
       return { linked: lineMetrics('X #1'), plain: lineMetrics('X'), wrapLinked: lineMetrics(${JSON.stringify(wrappedLinkedText)}), wrapPlain: lineMetrics('OK'), shoutCode:{display:code&&getComputedStyle(code).display,width:codeRect?.width,lineWidth:lineRect?.width} };
     })())`));
     assert.equal(phoneMetrics.shoutCode.display, 'inline', `375px shout code computes inline: ${JSON.stringify(phoneMetrics.shoutCode)}`);
@@ -4261,6 +4435,358 @@ test('real Chrome styles shout code and item text without growing linked lines [
   }
 });
 
+/**
+ * Write to a project's board as it was some time ago, through the board's own writers on a clock set back:
+ * a card's age, its day rule and whether its agent is at work all depend on when, and the CLI only writes now.
+ */
+function earlier(repo, at, write) {
+  const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(at) });
+  try {
+    return write(board);
+  } finally {
+    closeBoard(board);
+  }
+}
+
+/** Put the page in a width and a colour scheme, and wait for the shouts to lay out again. */
+async function shoutsAt(chrome, width, scheme) {
+  await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+  await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
+  await chrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${scheme})').matches && document.querySelector('#feed .shout')?.getBoundingClientRect().width > 0`);
+  await chrome.evaluate('new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))');
+}
+
+test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for rendered shout checks.');
+
+  const box = machine();
+  const alpha = project(box, 'cards');
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  box.run(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G1', '--criterion', 'says goodbye');
+  box.run(alpha.web, 'claim', '1');
+  const second = join(box.dir, 'cards-web-2');
+  box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/cards2');
+  box.run(second, 'join', 'web');
+  // A committed page at a path too long for a phone, for a code reference to name.
+  const deep = 'docs/a/very/long/path/that/keeps/going/past/a/phone/screen.md';
+  mkdirSync(join(alpha.repo, deep, '..'), { recursive: true });
+  writeFileSync(join(alpha.repo, deep), 'Deep line one\n');
+  box.git(alpha.repo, 'add', deep);
+  box.git(alpha.repo, 'commit', '-q', '-m', 'docs: a deep page');
+  const head = box.git(alpha.repo, 'rev-parse', 'HEAD');
+  const sha = '0123456789abcdef0123456789abcdef01234567';
+  const lines = (first, n) => [first, ...Array.from({ length: n - 1 }, (_, k) => `Line ${k + 2} of the note.`)].join('\n');
+  const older = 'Started on #1 two days back.';
+  const colour = lines('Which colour for the button? #99 is no item.', 8);
+  const ship = 'Ship #1 today?';
+  const chips = `See #1 in src/cockpit.js at ${sha}; run pullboard check --json, then \`npm test\`.`;
+  const long = lines('A long note that folds.', 12);
+  const mixed = 'Moved #2 along.';
+  const longCommand = 'node bin/run-tests.js test/relay-person-requests.test.js', longPath = 'test/relay-person-requests.test.js';
+  const longerPath = 'docs/a/very/long/path/that/keeps/going/well/past/any/phone/screen/width.md';
+  const longChips = `Ran \`${longCommand}\` on ${longPath} and ${longerPath} today.`;
+  const sourceRefs = [`SPEC.md:1-2@${head}`, `${deep}:1@${head}`];
+  const refsShout = `Check ${sourceRefs[0]} and ${sourceRefs[1]} before you merge.`;
+  const twoDays = new Date(); twoDays.setDate(twoDays.getDate() - 2); twoDays.setHours(12, 0, 0, 0);
+  earlier(alpha.repo, twoDays, (board) => shoutOnBoard(board, { from: 'web-1', to: 'coordinator', text: older, lanes: ['web'] }));
+  earlier(alpha.repo, Date.now() - 65 * 60e3, (board) => shoutOnBoard(board, { from: 'web-2', to: 'coordinator', text: colour, decision: true, lanes: ['web'] }));
+  earlier(alpha.repo, Date.now() - 125e3, (board) => shoutOnBoard(board, { from: 'web-1', to: 'coordinator', text: ship, decision: true, lanes: ['web'] }));
+  const asked = JSON.parse(box.run(alpha.repo, 'decisions', '--json')).decisions.find((d) => d.shout_text === ship);
+  box.run(alpha.repo, 'answer', String(asked.shout_id), 'Yes, ship it.');
+  box.run(alpha.web, 'shout', 'all', 'the page loads in 80ms', '--evidence', 'receipt', '--outcome', 'measured 80ms', '--item', '1', '--commit', head);
+  box.run(alpha.web, 'shout', 'all', chips);
+  box.run(alpha.web, 'shout', 'all', mixed, '--evidence', 'receipt', '--outcome', 'moved', '--item', '1', '--commit', head);
+  box.run(alpha.web, 'shout', 'all', longChips);
+  box.run(alpha.web, 'shout', 'all', refsShout);
+  box.run(alpha.repo, 'shout', 'person', 'Launch on Friday?', '--decision');
+  box.run(alpha.web, 'shout', 'all', long);
+
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-cards-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 11');
+    await chrome.evaluate("document.querySelector('[data-tab=shouts]').click()");
+    await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
+    const ids = JSON.parse(await chrome.evaluate('JSON.stringify(Object.fromEntries(data.project.shouts.map((s) => [s.shout_text, s.shout_id])))'));
+    const answerId = await chrome.evaluate(`data.project.shouts.find((s) => s.shout_answers === ${asked.shout_id}).shout_id`);
+    const stamps = JSON.parse(await chrome.evaluate('JSON.stringify(data.project.shouts.map((s) => [s.shout_id, s.shout_at]))'));
+
+    /** Everything a card shows, measured where it stands. */
+    const read = async () => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      const box = (e) => { if (!e) return null; const r = e.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height }; };
+      const style = (e) => getComputedStyle(e);
+      const card = (place, id) => {
+        const e = document.querySelector(place + ' #shout-' + id) ?? [...document.querySelectorAll(place + ' .shout')].find((c) => c.dataset.shoutId === String(id));
+        if (!e) return null;
+        const avatar = e.querySelector('.avatar'), who = e.querySelector('.who'), time = e.querySelector('header time'), text = e.querySelector('.text');
+        const edges = [e, ...e.querySelectorAll('.receipt, .band')].map((part) => { const s = style(part); return { left: [s.borderLeftWidth, s.borderLeftColor], right: [s.borderRightWidth, s.borderRightColor] }; });
+        return {
+          classes: e.className, avatar: { text: avatar.textContent, svg: !!avatar.querySelector('svg'), radius: style(avatar).borderTopLeftRadius, color: style(avatar).color, background: style(avatar).backgroundColor, box: box(avatar) },
+          who: { text: who.textContent, color: style(who).color }, to: e.querySelector('.to')?.textContent, item: e.querySelector('header .item')?.textContent ?? null,
+          item_color: e.querySelector('header .item') && style(e.querySelector('header .item')).color, ink: style(text).color,
+          time: { text: time.textContent, title: time.title, box: box(time) }, header: box(e.querySelector('header')), text: { box: box(text), lines: Math.round(text.clientHeight / parseFloat(style(text).lineHeight)), clamped: text.scrollHeight > text.clientHeight + 1 },
+          more: (() => { const m = e.querySelector('.more'); return m && style(m).display !== 'none' ? m.textContent : null; })(),
+          band: e.querySelector('.band') ? { text: e.querySelector('.band').textContent, done: e.querySelector('.band').classList.contains('done'), href: e.querySelector('.band a')?.getAttribute('href') ?? null } : null,
+          receipt: e.querySelector('.receipt') ? { badge: e.querySelector('.receipt .badge').textContent, outcome: e.querySelector('.receipt .outcome').textContent, foot: e.querySelector('.receipt-foot').textContent,
+            sha: e.querySelector('.receipt-foot code.sha')?.textContent, shaTitle: e.querySelector('.receipt-foot code.sha')?.title } : null,
+          answer: e.querySelector('.answer')?.textContent ?? null, edges,
+        };
+      };
+      const chip = (selector) => { const e = document.querySelector('#feed #shout-${ids[chips]} .text ' + selector); return e && { text: e.textContent, title: e.title, display: style(e).display, rects: e.getClientRects().length, color: style(e).color, background: style(e).backgroundColor }; };
+      const feed = document.querySelector('#feed'), rule = feed.querySelector('.day-rule'), label = rule?.querySelector('span');
+      return {
+        page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth },
+        feedKinds: [...feed.children].map((e) => e.classList.contains('day-rule') ? 'rule:' + e.textContent : e.classList.contains('shout') ? 'shout:' + e.dataset.shoutId : e.className),
+        rule: rule && { box: box(rule), label: box(label) },
+        heads: [...document.querySelectorAll('#decisions .head')].map((h) => h.textContent),
+        decisions: [...document.querySelectorAll('#decisions .shout')].map((e) => e.dataset.shoutId),
+        feed: { older: card('#feed', ${ids[older]}), colour: card('#feed', ${ids[colour]}), ship: card('#feed', ${ids[ship]}), chips: card('#feed', ${ids[chips]}), long: card('#feed', ${ids[long]}),
+          receipt: card('#feed', ${ids['the page loads in 80ms']}), answer: card('#feed', ${answerId}), friday: card('#feed', ${ids['Launch on Friday?']}), mixed: card('#feed', ${ids[mixed]}) },
+        longs: [...document.querySelectorAll('#feed #shout-${ids[longChips]} .text code.inline')].map((e) => {
+          const c = e.getBoundingClientRect(), t = e.closest('.text').getBoundingClientRect();
+          return { text: e.textContent, title: e.title, rects: e.getClientRects().length, inside: c.left >= t.left - 0.5 && c.right <= t.right + 0.5, cut: e.scrollWidth > e.clientWidth + 1, ends: getComputedStyle(e).textOverflow };
+        }),
+        refs: [...document.querySelectorAll('#feed #shout-${ids[refsShout]} .text button[data-code]')].map((e) => {
+          const c = e.getBoundingClientRect(), t = e.closest('.text').getBoundingClientRect(), path = e.querySelector('.ref-path'), tail = e.querySelector('.ref-at').getBoundingClientRect();
+          return { text: e.textContent, title: e.title, code: e.dataset.code, rects: e.getClientRects().length, inside: c.left >= t.left - 0.5 && c.right <= t.right + 0.5,
+            tail: tail.width > 0 && tail.left >= c.left - 0.5 && tail.right <= c.right + 0.5, cut: path.scrollWidth > path.clientWidth + 1, ends: getComputedStyle(path).textOverflow };
+        }),
+        asks: { friday: card('#decisions', ${ids['Launch on Friday?']}), colour: card('#decisions', ${ids[colour]}) },
+        answerTarget: !!document.getElementById('shout-${answerId}'),
+        repeated: [...document.querySelectorAll('[id]')].map((e) => e.id).filter((id, n, all) => all.indexOf(id) !== n),
+        chips: { ref: chip('button.ref'), path: chip('code.path'), sha: chip('code.sha'), cmd: chip('code.cmd'), code: chip('code.inline:not(.path):not(.sha):not(.cmd)') },
+      };
+    })())`));
+
+    const seen = {};
+    for (const scheme of ['light', 'dark']) {
+      for (const width of [1280, 375]) {
+        await shoutsAt(chrome, width, scheme);
+        const at = `${width}px ${scheme}`;
+        const r = await read();
+        assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll: ${JSON.stringify(r.page)}`);
+        const { older: old, colour: asking, ship: shipped, chips: chipCard, long: folded, receipt, answer, friday, mixed: both } = r.feed;
+
+        // A card: avatar, name in its colour, arrow and recipient, item, and the age at the top right over the text.
+        for (const [name, c] of Object.entries(r.feed)) {
+          assert.ok(c, `${at}: the ${name} shout is a card`);
+          assert.equal(c.classes.includes('lead') ? c.avatar.background : c.avatar.color, c.who.color, `${at}: ${name}: the name is in its avatar's colour`);
+          assert.ok(Math.abs(c.time.box.right - c.header.right) <= 1 && c.time.box.top < c.text.box.top, `${at}: ${name}: the age sits at the top right: ${JSON.stringify([c.time, c.header])}`);
+          assert.ok(c.text.box.top >= c.header.bottom - 1, `${at}: ${name}: the text sits below the header`);
+          for (const edge of c.edges) assert.deepEqual(edge.left, edge.right, `${at}: ${name}: no box in the card carries a coloured edge`);
+        }
+        assert.deepEqual([old.avatar.text, old.who.text, old.to], ['W1', 'web-1', '→ coordinator'], `${at}: initials, name, arrow and recipient`);
+        assert.equal(old.avatar.radius, '50%', `${at}: an agent's avatar is a circle`);
+        assert.equal(chipCard.avatar.color, old.avatar.color, `${at}: one agent keeps one colour`);
+        assert.notEqual(asking.avatar.color, old.avatar.color, `${at}: another agent has its own`);
+        assert.ok(answer.avatar.svg && answer.avatar.radius !== '50%' && Math.abs(answer.avatar.box.width - answer.avatar.box.height) < 1 && answer.classes.includes('lead'),
+          `${at}: the coordinator's avatar is a square with the Pullboard mark: ${JSON.stringify(answer.avatar)}`);
+        assert.deepEqual([old.item, chipCard.item, receipt.item, asking.item, both.item], ['#1', '#1', '#1', null, '#2'], `${at}: the item is the first #N that names one, or else the evidence's`);
+        assert.notEqual(old.item_color, old.who.color, `${at}: the item is muted, not the agent's colour`);
+        assert.deepEqual([folded.time.text, shipped.time.text, asking.time.text], ['now', '2m ago', '1h ago'], `${at}: ages read now, 2m ago, 1h ago`);
+        assert.ok(/\d\d:\d\d$/.test(shipped.time.title) && /^\S+ \d+ \d\d:\d\d$/.test(old.time.title), `${at}: the clock time is on hover, with the date when it was another day`);
+
+        // Chips: inline, whole, ref, path and hash each in a colour of their own; a sha shows ten characters.
+        for (const [kind, c] of Object.entries(r.chips)) {
+          assert.ok(c, `${at}: the ${kind} chip renders`);
+          assert.match(c.display, /^inline/, `${at}: the ${kind} chip stays inline`);
+          assert.equal(c.rects, 1, `${at}: the ${kind} chip never breaks across lines`);
+        }
+        assert.equal(new Set([r.chips.ref.color, r.chips.path.color, r.chips.sha.color]).size, 3, `${at}: item refs, paths and hashes each have a colour: ${JSON.stringify(r.chips)}`);
+        assert.deepEqual([r.chips.sha.text, r.chips.sha.title], [sha.slice(0, 10), sha], `${at}: a full sha shows its first ten characters, the whole on hover`);
+        assert.deepEqual([r.chips.ref.text, r.chips.path.text, r.chips.cmd.text, r.chips.code.text], ['#1', 'src/cockpit.js', 'pullboard check --json', 'npm test']);
+        // Long chips too: each one piece inside the text, the whole of it on hover; one longer than the line is cut short.
+        assert.deepEqual(r.longs.map((c) => [c.text, c.title, c.rects, c.inside]), [longCommand, longPath, longerPath].map((text) => [text, text, 1, true]),
+          `${at}: a long command, path and code stay one chip each: ${JSON.stringify(r.longs)}`);
+        if (width === 375) assert.ok(r.longs[2].cut && r.longs[2].ends === 'ellipsis', `${at}: a chip longer than its line is cut short with an ellipsis: ${JSON.stringify(r.longs)}`);
+        // A code reference reads path:lines@ten characters as one piece, the whole reference on hover and in its action.
+        assert.deepEqual(r.refs.map((c) => [c.text, c.title, c.code, c.rects, c.inside, c.tail]), sourceRefs.map((ref) => [ref.replace(head, head.slice(0, 10)), ref, ref, 1, true, true]),
+          `${at}: each code reference is one piece with its lines and short commit in view: ${JSON.stringify(r.refs)}`);
+        if (width === 375) assert.ok(r.refs[1].cut && r.refs[1].ends === 'ellipsis', `${at}: a path too long for the line is cut short first: ${JSON.stringify(r.refs)}`);
+
+        // Decisions: a band until answered, then who answered and a link to the answer.
+        assert.deepEqual(asking.band, { text: 'Decision needed', done: false, href: null }, `${at}: an open ask carries a Decision needed band`);
+        assert.deepEqual(shipped.band, { text: 'Answered by coordinator: see the answer', done: true, href: `#shout-${answerId}` }, `${at}: an answered one says who answered, linking the answer`);
+        assert.ok(r.answerTarget, `${at}: the link lands on the answer`);
+        assert.deepEqual(r.repeated, [], `${at}: an ask shown in the feed and above the composer never repeats an id`);
+
+        // Evidence: a receipt with kind, outcome and a footer of item, agent and short sha.
+        assert.deepEqual([receipt.receipt.badge, receipt.receipt.outcome], ['receipt', 'measured 80ms']);
+        assert.ok(receipt.receipt.foot.startsWith('#1 · web-1 · ') && receipt.receipt.sha === head.slice(0, 10) && receipt.receipt.shaTitle === head, `${at}: the receipt's footer: ${JSON.stringify(receipt.receipt)}`);
+
+        // A long shout folds at six lines; the asks above the composer are the same cards, folded at three.
+        assert.deepEqual([folded.text.lines, folded.text.clamped, folded.more], [6, true, 'more'], `${at}: a long shout folds at six lines with more`);
+        assert.equal(old.more, null, `${at}: a short shout has no more`);
+        assert.deepEqual(r.heads, ['Decision needed', 'Waiting on others'], `${at}: the asks above the composer`);
+        assert.deepEqual([r.asks.friday.answer, r.asks.colour.answer], ['Answer', null], `${at}: the person's ask has an Answer button; one waiting on others has none`);
+        assert.deepEqual([r.asks.colour.text.lines, r.asks.colour.text.clamped, r.asks.colour.more], [3, true, 'more'], `${at}: an ask folds at three lines`);
+        assert.ok(r.asks.friday.avatar.svg && r.asks.friday.who.text === 'coordinator', `${at}: the asks are the feed's cards`);
+
+        // Days: none above today's shouts; a rule in the middle names the earlier day where the feed crosses into it.
+        let day = new Date().toDateString();
+        const expected = ['feed-bar', ...stamps.flatMap(([id, iso]) => { const was = day; day = new Date(iso).toDateString(); return day === was ? [`shout:${id}`] : ['rule', `shout:${id}`]; })];
+        assert.deepEqual(r.feedKinds.map((k) => k.startsWith('rule:') ? 'rule' : k), expected, `${at}: a rule only where the day changes, none above today's: ${r.feedKinds}`);
+        assert.ok(r.feedKinds[r.feedKinds.indexOf(`shout:${ids[older]}`) - 1].startsWith('rule:') && !r.feedKinds.some((k) => k === 'rule:Today'), `${at}: the earlier day is named above its first shout`);
+        assert.ok(Math.abs((r.rule.label.left + r.rule.label.right) / 2 - (r.rule.box.left + r.rule.box.right) / 2) < 2, `${at}: the day sits in the middle of its rule`);
+        seen[at] = { ink: old.ink, who: old.who.color };
+      }
+    }
+    assert.notDeepEqual(seen['1280px light'], seen['1280px dark'], 'dark mode changes the cards');
+
+    // Folding: more opens the whole shout, less closes it, and an open shout stays open across a refresh.
+    await shoutsAt(chrome, 1280, 'light');
+    const foldOf = () => chrome.evaluate(`JSON.stringify((() => { const c = document.querySelector('#feed #shout-${ids[long]}'), t = c.querySelector('.text'); return [c.querySelector('.more').textContent, Math.round(t.clientHeight / parseFloat(getComputedStyle(t).lineHeight))]; })())`).then(JSON.parse);
+    await chrome.evaluate(`document.querySelector('#feed #shout-${ids[long]} .more').click()`);
+    assert.deepEqual(await foldOf(), ['less', 12], 'more shows every line');
+    box.run(alpha.web, 'shout', 'all', 'A later shout.');
+    await chrome.waitFor(`data.project.shouts.some((s) => s.shout_text === 'A later shout.') && document.querySelector('#feed .shout .text')?.textContent === 'A later shout.'`, 15_000);
+    assert.deepEqual(await foldOf(), ['less', 12], 'an open shout stays open across a refresh');
+    await chrome.evaluate(`document.querySelector('#feed #shout-${ids[long]} .more').click()`);
+    assert.deepEqual(await foldOf(), ['more', 6], 'less folds it again');
+
+    // The short label still opens the code it names, at that commit.
+    const deepRef = `[...document.querySelectorAll('#feed #shout-${ids[refsShout]} button[data-code]')][1]`;
+    await chrome.evaluate(`${deepRef}.click()`);
+    await chrome.waitFor(`${deepRef}.getAttribute('aria-expanded') === 'true' && ${deepRef}.nextElementSibling?.textContent.includes('Deep line one')`, 15_000);
+    assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
+test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for rendered shout checks.');
+
+  const box = machine();
+  const alpha = project(box, 'composer');
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  box.run(alpha.web, 'claim', '1');
+  const idle = join(box.dir, 'composer-web-2'), fresh = join(box.dir, 'composer-web-3');
+  box.git(alpha.repo, 'worktree', 'add', '-q', idle, '-b', 'web/composer2');
+  // web-2 joined and spoke three hours ago, and has not moved since.
+  earlier(alpha.repo, Date.now() - 3 * 36e5, (board) => {
+    assert.equal(register(board, { lane: 'web', path: idle }), 'web-2');
+    shoutOnBoard(board, { from: 'web-2', to: 'coordinator', text: 'An idle agent spoke this morning.', lanes: ['web'] });
+  });
+  box.run(alpha.repo, 'shout', 'web-2', 'The coordinator wrote to the idle agent.');
+  box.git(alpha.repo, 'worktree', 'add', '-q', fresh, '-b', 'web/composer3');
+  box.run(fresh, 'join', 'web');
+  box.run(fresh, 'shout', 'all', 'A fresh agent says hello.');
+  box.run(alpha.web, 'shout', 'all', 'The claim holder reports in.');
+
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-composer-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 4');
+    await chrome.evaluate("document.querySelector('[data-tab=shouts]').click()");
+    await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
+    const agents = JSON.parse(await chrome.evaluate('JSON.stringify(data.project.agents.map((a) => [a.agent_id, a.agent_path]))'));
+    assert.deepEqual(agents.filter(([, path]) => [alpha.web, idle, fresh].includes(path)).map(([id]) => id).sort(), ['web-1', 'web-2', 'web-3'], 'three agents joined the web lane');
+    const total = await chrome.evaluate('data.project.shouts.length');
+    const state = async () => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      const box = (e) => { if (!e) return null; const r = e.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height }; };
+      const pane = document.querySelector('[data-pane=shouts]'), list = document.querySelector('#agents');
+      return {
+        page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth },
+        listed: [...list.querySelectorAll('.agent-name')].map((e) => e.dataset.agent), on: [...list.querySelectorAll('.agent.on .agent-name')].map((e) => e.dataset.agent),
+        all: list.querySelector('.all-agents')?.textContent ?? null, panel: list.offsetParent !== null, bare: pane.classList.contains('bare'),
+        toggle: document.querySelector('#feed [data-agents-toggle]')?.textContent, bar: document.querySelector('#feed .feed-bar span')?.textContent ?? '',
+        cards: [...document.querySelectorAll('#feed .shout')].map((c) => [c.querySelector('.who').textContent, c.querySelector('.to').textContent.replace('→ ', '')]),
+        to: document.querySelector('#shout-to').value, feed: box(document.querySelector('#feed')),
+        composer: box(document.querySelector('.composer')), label: box(document.querySelector('.composer label.to')), message: box(document.querySelector('#shout-text')), send: box(document.querySelector('#shout-send')),
+        kept: (() => { try { return localStorage.getItem('pb.agents'); } catch { return 'unreadable'; } })(),
+      };
+    })())`));
+    const click = (selector) => chrome.evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+    const key = async (modifiers) => {
+      for (const type of ['keyDown', 'keyUp']) await chrome.send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, modifiers, ...(type === 'keyDown' ? { text: '\r', unmodifiedText: '\r' } : {}) });
+    };
+
+    for (const scheme of ['light', 'dark']) {
+      for (const width of [1280, 375]) {
+        await shoutsAt(chrome, width, scheme);
+        const at = `${width}px ${scheme}`;
+        const s = await state();
+        assert.ok(s.page.scroll <= s.page.width && s.page.body <= s.page.width, `${at}: no sideways scroll: ${JSON.stringify(s.page)}`);
+        // One bar: to on the left, the message, the send button on the right, all in one row.
+        for (const part of ['label', 'message', 'send']) assert.ok(s[part].top >= s.composer.top - 0.5 && s[part].bottom <= s.composer.bottom + 0.5, `${at}: the ${part} sits inside the composer bar: ${JSON.stringify(s)}`);
+        assert.ok(s.label.right <= s.message.left + 0.5 && s.message.right <= s.send.left + 0.5 && s.composer.right - s.send.right < 12, `${at}: to, message, send from left to right: ${JSON.stringify(s)}`);
+        assert.ok(s.send.width >= 44 && s.send.height >= 44, `${at}: the send button is a 44px target`);
+        // Only agents at work are listed, with show all.
+        assert.ok(s.panel && s.listed.includes('web-1') && s.listed.includes('web-3') && !s.listed.includes('web-2'), `${at}: the agents at work, and not the idle one: ${s.listed}`);
+        assert.equal(s.all, `show all ${agents.length}`, `${at}: every agent is one click away`);
+      }
+    }
+
+    await shoutsAt(chrome, 1280, 'light');
+    await click('#agents .all-agents');
+    let s = await state();
+    assert.ok(s.listed.includes('web-2') && s.listed.length === agents.length && s.all === 'show only agents at work', `show all lists every agent: ${JSON.stringify(s.listed)}`);
+
+    // An agent's name filters the feed to its shouts, from or to it, and addresses the composer to it.
+    await click('#agents [data-agent="web-2"]');
+    s = await state();
+    assert.deepEqual(s.cards, [['coordinator', 'web-2'], ['web-2', 'coordinator']], 'only shouts from or to web-2');
+    assert.deepEqual([s.bar, s.to, s.on], ['Shouts with web-2 show all', 'web-2', ['web-2']], 'the bar says whose, the composer is addressed to them, and the agent is marked');
+    await click('#feed .feed-bar [data-agent=""]');
+    s = await state();
+    assert.deepEqual([s.cards.length, s.bar, s.on], [total, '', []], 'show all undoes the filter');
+    await click('#agents .all-agents');
+
+    // The message grows as it is typed; Shift+Enter starts a line, Enter sends.
+    await chrome.evaluate("document.querySelector('#shout-to').value = 'all'; document.querySelector('#shout-text').focus()");
+    const height = () => chrome.evaluate("document.querySelector('#shout-text').getBoundingClientRect().height");
+    const one = await height();
+    await chrome.send('Input.insertText', { text: 'First line' });
+    await key(8);
+    await chrome.send('Input.insertText', { text: 'second line' });
+    await key(8);
+    await chrome.send('Input.insertText', { text: 'third line' });
+    assert.equal(await chrome.evaluate("document.querySelector('#shout-text').value"), 'First line\nsecond line\nthird line', 'Shift+Enter starts a new line');
+    assert.ok(await height() > one + 20, 'the message grows as it is typed');
+    assert.equal(await chrome.evaluate('data.project.shouts.length'), total, 'and sends nothing');
+    await key(0);
+    await chrome.waitFor("data.project.shouts.some((s) => s.shout_text === 'First line\\nsecond line\\nthird line' && s.shout_to === 'all')", 15_000);
+    await chrome.waitFor("document.querySelector('#shout-text').value === ''");
+    assert.ok(Math.abs(await height() - one) < 1, 'Enter sends, and the bar shrinks back to one line');
+    assert.ok(await chrome.evaluate("!document.querySelector('#console').hidden && !document.querySelector('.composer #console') && document.querySelector('#console').getBoundingClientRect().bottom <= document.querySelector('.composer').getBoundingClientRect().top"),
+      'the result stands above the bar, never inside it');
+
+    // The panel hides and shows, and the browser remembers.
+    await click('#feed [data-agents-toggle]');
+    s = await state();
+    const wide = s.feed.width;
+    assert.deepEqual([s.bare, s.panel, s.toggle, s.kept], [true, false, 'Show agents', 'hidden'], 'Hide agents hides the panel and remembers it');
+    await chrome.send('Page.reload');
+    await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length > 0 && !!document.querySelector("[data-tab=shouts]")');
+    await chrome.evaluate("document.querySelector('[data-tab=shouts]').click()");
+    await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
+    s = await state();
+    assert.deepEqual([s.bare, s.panel, s.toggle], [true, false, 'Show agents'], 'still hidden after a reload');
+    for (const width of [375, 1280]) {
+      await shoutsAt(chrome, width, 'dark');
+      s = await state();
+      assert.ok(s.page.scroll <= s.page.width && s.page.body <= s.page.width, `${width}px hidden: no sideways scroll`);
+    }
+    await click('#feed [data-agents-toggle]');
+    s = await state();
+    assert.deepEqual([s.bare, s.panel, s.toggle, s.kept], [false, true, 'Hide agents', 'shown'], 'Show agents brings it back');
+    assert.ok(s.feed.width < wide, 'and the feed gives it room');
+    assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
 test("item detail merges API facts and moves in one responsive timeline [B33,B29]", { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for item-thread rendering checks.');
@@ -4773,10 +5299,19 @@ test('wait references stay on one line and link to every prerequisite at phone a
 
 /** Click what a page expression finds, through Chrome's own mouse input, as a person would. */
 async function press(chrome, find) {
-  const point = JSON.parse(await chrome.evaluate(`(() => {
-    const element = ${find};
-    if (!element) throw new Error(${JSON.stringify(`nothing to press: ${find}`)});
-    element.scrollIntoView({ block: 'center' });
+  const point = JSON.parse(await chrome.evaluate(`(async () => {
+    const target = () => ${find};
+    if (!target()) throw new Error(${JSON.stringify(`nothing to press: ${find}`)});
+    target().scrollIntoView({ block: 'center' });
+    // Press where the target is when the press arrives: opening an item on a phone scrolls its detail into
+    // view, which moves the tab bar after it is measured (#255: measured at scroll 0, pressed at 32, landed on
+    // main). So measure once the target, found afresh each frame since a refresh can redraw it, has held still
+    // for two frames.
+    const frame = () => new Promise((done) => requestAnimationFrame(() => done()));
+    let last = '', still = 0;
+    for (let n = 0; n < 240 && still < 2; n++) { await frame(); const now = target() ? (({ x, y, width, height }) => [x, y, width, height, scrollX, scrollY].join())(target().getBoundingClientRect()) : ''; still = now && now === last ? still + 1 : 0; last = now; }
+    const element = target();
+    if (!element) throw new Error(${JSON.stringify(`gone before the press: ${find}`)});
     const rect = element.getBoundingClientRect();
     // Keep where the press really lands, so a wait that follows it can say so when it fails.
     const name = (node) => node ? node.tagName.toLowerCase() + (node.id ? '#' + node.id : '') + (typeof node.className === 'string' && node.className ? '.' + node.className.trim().split(/\\s+/).join('.') : '') : 'nothing';

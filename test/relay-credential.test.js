@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { ENGINE_OPERATIONS } from '../src/engine.js';
+import { ENGINE_VERSION } from '../src/machine.js';
 import { decodeBoardKey, unseal } from '../src/seal.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 
@@ -14,8 +15,8 @@ test('every current operation selects its native actor credential without a seco
   const cases = ENGINE_OPERATIONS.map(operation => {
     let args = [999999, options];
     let kind = 'agent';
-    if (operation === 'register') { args = [{ lane: box.lane, path: '/private/credential-enrollment' }]; kind = 'person'; }
-    if (operation === 'ensureCoordinator') { args = [box.root]; kind = 'person'; }
+    if (operation === 'register') { args = [{ lane: box.lane, path: '/private/credential-enrollment' }]; kind = 'machine'; }
+    if (operation === 'ensureCoordinator') { args = [box.root]; kind = 'machine'; }
     if (operation === 'addItem') args = [{ by: actor, lane: box.lane, title: 'credential actor fixture' }];
     if (operation === 'shout') args = [{ from: actor, to: 'all', text: 'credential actor fixture', lanes: [box.lane] }];
     if (operation === 'release') args = [999999, actor];
@@ -29,14 +30,14 @@ test('every current operation selects its native actor credential without a seco
     if (['holdLane', 'releaseLane'].includes(operation)) args = [box.lane, options];
     if (operation === 'applyRowDecisions') args = [{ agentId: actor, events: [] }];
     if (operation === 'recordRowDecisions') { args = [{ agentId: 'person', channel: 'terminal', decisions: [] }]; kind = 'person'; }
-    return { operation, args, kind };
+    return { operation, args, kind, ...(kind === 'person' ? { sent: false } : {}) };
   });
   cases.push(
-    { operation: 'answerDecision', args: [999999, { ...options, asPerson: true, channel: 'terminal' }], kind: 'person' },
-    { operation: 'holdLane', args: [box.lane, { ...options, asPerson: true, channel: 'terminal' }], kind: 'person' },
-    { operation: 'releaseLane', args: [box.lane, { ...options, asPerson: true, channel: 'terminal' }], kind: 'person' },
-    { operation: 'shout', args: [{ from: actor, to: 'all', text: 'person request fixture', lanes: [box.lane], request: true }], kind: 'person' },
-    { operation: 'applyRowDecisions', args: [{ agentId: actor, events: [] }], kind: 'person', personRequest: { id: 'credential-request', stage: 'apply' } },
+    { operation: 'answerDecision', args: [999999, { ...options, asPerson: true, channel: 'terminal' }], kind: 'person', sent: false },
+    { operation: 'holdLane', args: [box.lane, { ...options, asPerson: true, channel: 'terminal' }], kind: 'person', sent: false },
+    { operation: 'releaseLane', args: [box.lane, { ...options, asPerson: true, channel: 'terminal' }], kind: 'person', sent: false },
+    { operation: 'shout', args: [{ from: actor, to: 'all', text: 'person request fixture', lanes: [box.lane], request: true }], kind: 'person', sent: false },
+    { operation: 'applyRowDecisions', args: [{ agentId: actor, events: [] }], kind: 'machine', sent: false, expected: 'PERSON_REQUEST_CLOSED', personRequest: { id: 'credential-request', executor: actor, phase: 'execute', digest: '0'.repeat(64) } },
   );
   const start = box.moveAcks.length;
   const results = [];
@@ -61,16 +62,28 @@ test('every current operation selects its native actor credential without a seco
     results.push(...result.document.results);
   }
   const records = box.moveAcks.slice(start);
-  assert.equal(records.length, cases.length, 'each operation is acknowledged once even when native preconditions refuse it');
+  const sentCases = cases.filter(entry => entry.sent !== false);
+  assert.equal(records.length, sentCases.length, 'agent and machine moves are acknowledged; person-only moves stop before transport');
   const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
   const state = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  let recordIndex = 0;
   for (const [index, entry] of cases.entries()) {
-    const record = records[index];
+    if (entry.sent === false) {
+      assert.equal(results[index], entry.expected ?? 'HUMAN_REQUIRED', `${entry.operation} cannot use the saved machine credential for a person action`);
+      continue;
+    }
+    const record = records[recordIndex++];
     const move = JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(record.sealed, 'base64url'), { boardId: state.board, kind: record.kind, sequence: record.event_id })));
     assert.equal(move.operation, entry.operation);
+    assert.equal(move.engine, ENGINE_VERSION, 'the current engine version is recorded on every sealed operation');
     assert.equal(record.sender.kind, entry.kind, `${entry.operation} selects the correct authenticated credential`);
     if (entry.kind === 'agent') assert.equal(record.sender.agent, actor, 'the scoped credential belongs to the native actor');
-    assert.ok(!['RELAY_ACTOR', 'RELAY_SENDER', 'RELAY_SENDER_MISMATCH', 'RELAY_PERSON_ONLY'].includes(results[index]),
-      `${entry.operation} passes main's shared sender policy`);
+    if (entry.kind === 'machine') assert.equal(record.sender.machine, state.machine, 'the machine credential is attributed to this native machine');
+    if (entry.personRequest) {
+      assert.equal(results[index], 'RELAY_PERSON_ONLY', 'a machine cannot execute an unauthenticated synthetic person request');
+    } else {
+      assert.ok(!['RELAY_ACTOR', 'RELAY_SENDER', 'RELAY_SENDER_MISMATCH', 'RELAY_PERSON_ONLY'].includes(results[index]),
+        `${entry.operation} passes main's shared sender policy`);
+    }
   }
 });

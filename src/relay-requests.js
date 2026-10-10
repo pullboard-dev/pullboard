@@ -1,11 +1,17 @@
 /** Durable sealed request intake and ordinary-move receipts; no replica executes CLI intent [H12,H16]. */
 import * as store from './board.js';
+import { createHash } from 'node:crypto';
 import { refusalDocument } from './json.js';
 import { Refused } from './refused.js';
 import { validatePersonRequest } from './person-request.js';
 import { relayMoveActor } from './relay-sender.js';
 
 const INDEX = 'relay_person_requests';
+
+/** Bind each machine receipt to the exact earlier authenticated phone document. */
+export function requestIntentDigest(record) {
+  return createHash('sha256').update(record.encoded).digest('hex');
+}
 
 /** Read all durable request receipts so an offline browser can still resolve an old request. */
 export function personRequestRecords(board) {
@@ -71,10 +77,17 @@ function fulfilsIntent(record, move) {
   const options = move.args[1];
   if (intent.verb === 'add') return value?.by === 'person' && value.lane === args.lane && value.title === args.title
     && value.criterion === (args.criterion ?? '') && value.brief === (args.brief ?? '')
-    && value.route === (args.route ?? 'strong')
+    && value.route === (args.route ?? 'strong') && (value.check ?? '') === (args.check ?? '')
+    && (value.parentId ?? null) === (args.parent ? Number(args.parent.replace(/^#/, '')) : null)
+    && JSON.stringify(value.after ?? []) === JSON.stringify((args.after ?? '').split(',').map(id => id.trim()).filter(Boolean).map(id => Number(id.replace(/^#/, ''))))
+    && (!args.wait || !value.checkBaseline || value.checkBaseline.result !== 'pending')
     && JSON.stringify(value.specIds) === JSON.stringify((args.specs ?? '').split(',').map(id => id.trim()).filter(Boolean));
   if (intent.verb === 'shout') return value?.from === 'person' && value.text === args.text
-    && (args.to === undefined || value.to === args.to) && Boolean(value.decision) === Boolean(args.decision);
+    && value.to === (args.to ?? (args.decision ? 'person' : args.text)) && Boolean(value.decision) === Boolean(args.decision)
+    && !value.request && value.answers == null
+    && (args.evidence === undefined ? value.evidence == null : value.evidence?.kind === args.evidence
+      && value.evidence.outcome === (args.outcome ?? '') && value.evidence.item === Number(args.item)
+      && /^[0-9a-f]{40,64}$/u.test(args.commit ?? '') && value.evidence.commit === args.commit);
   if (intent.verb === 'answer') return value === intent.item && options?.asPerson === true && options.channel === 'view' && options.text === args.text;
   if (intent.verb === 'hold') return value === args.lane && options?.asPerson === true && options.channel === 'view'
     && (args.off || options.reason === (args.reason ?? ''));
@@ -87,30 +100,61 @@ function fulfilsIntent(record, move) {
       && (args.text === undefined || row.text === args.text.trim()));
 }
 
-/** Require an existing person intent and its first elected native executor before an ordinary move. */
-export function requestMoveProblem(board, move) {
+/** Keep receipt shouts fixed so a valid request cannot authorize unrelated person text or flags. */
+export function requestStageText(record, phase) {
+  const text = phase === 'claim' ? 'Received a request from the paired view.'
+    : phase === 'refuse' ? 'Could not fulfil this request. Read its recorded refusal and next step.'
+    : 'Apply the person’s recorded row decision with pullboard spec apply, or decline this request with a reason. '
+      + record.move.verb + ': ' + record.move.args.ids;
+  return 'View request ' + record.id + ': ' + text;
+}
+
+/** Match the receipt's entire effect, including the absence of decision, answer and evidence flags. */
+function fulfilsStage(record, move, tag) {
+  const value = move.args[0];
+  return move.operation === 'shout' && move.args.length === 1 && value?.from === 'person' && value.to === 'coordinator'
+    && value.text === requestStageText(record, tag.phase, tag.error) && !value.decision && value.answers == null && value.evidence == null
+    && Boolean(value.request) === (tag.phase === 'repo-request')
+    && (tag.phase !== 'repo-request' || ['spec-approve', 'spec-decline'].includes(record.move.verb))
+    && Object.keys(value).every(key => ['from', 'to', 'text', 'lanes', 'request', 'decision', 'answers', 'evidence'].includes(key));
+}
+
+/** Bind a receipt to phone intent; executor takeover uses ordered relay time, not a local preflight clock. */
+export function requestMoveProblem(board, move, { checkExecutorLease = true } = {}) {
   const tag = move.personRequest;
   if (!tag) return null;
   if (!tag || typeof tag !== 'object' || typeof tag.id !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/u.test(tag.id)
-      || Object.keys(tag).some(key => !['id', 'executor', 'phase', 'error'].includes(key)) || typeof tag.executor !== 'string'
+      || Object.keys(tag).some(key => !['id', 'executor', 'phase', 'error', 'digest'].includes(key)) || typeof tag.executor !== 'string'
       || !/^[A-Za-z0-9_-]{1,80}$/u.test(tag.executor) || !['claim', 'execute', 'repo-request', 'refuse'].includes(tag.phase)) {
     return new Refused('PERSON_REQUEST_RECEIPT', 'the request receipt is malformed; upgrade the linked machine before fulfilling requests');
   }
   const record = personRequestRecords(board).find(entry => entry.id === tag.id && !entry.duplicateOf);
   if (!record || record.status !== 'waiting') return new Refused('PERSON_REQUEST_CLOSED', 'this request is missing or already resolved; read its original receipt');
+  if (move.engine >= 6) {
+    let source;
+    try { source = JSON.parse(record.received); } catch { /* Missing authenticated provenance refuses below. */ }
+    const cursor = Number(board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get('relay_applied_sequence')?.meta_value ?? 0);
+    if (source?.sender?.kind !== 'person' || typeof source.sender.userId !== 'string' || !source.sender.userId ||
+        JSON.stringify(source.document) !== record.encoded || JSON.stringify(source.document?.move) !== JSON.stringify(record.move) ||
+        !Number.isSafeInteger(record.sequence) || record.sequence < 1 || record.sequence > cursor ||
+        tag.digest !== requestIntentDigest(record)) return new Refused('PERSON_REQUEST_RECEIPT', 'match the exact earlier authenticated phone request and its payload digest');
+    if ((tag.phase === 'execute' && Object.hasOwn(record, 'resultSequence')) ||
+        (tag.phase === 'repo-request' && Object.hasOwn(record, 'coordinatorRequest'))) return new Refused('PERSON_REQUEST_CLOSED', 'this phone request already has its execution receipt; read the original result');
+  }
   const actor = relayMoveActor(move);
   if (!['coordinator', 'person'].includes(actor)) return new Refused('PERSON_REQUEST_RECEIPT', 'only the coordinator fulfils an authenticated person request');
   if (tag.phase === 'execute') {
     const expected = { add: 'addItem', shout: 'shout', answer: 'answerDecision', hold: record.move.args.off ? 'releaseLane' : 'holdLane', 'spec-approve': 'recordRowDecisions', 'spec-decline': 'recordRowDecisions' }[record.move.verb];
     if (move.operation !== expected || !fulfilsIntent(record, move)) return new Refused('PERSON_REQUEST_RECEIPT', 'the ordinary move does not fulfil this request; execute its original CLI intent');
   }
+  if (move.engine >= 6 && ['claim', 'repo-request', 'refuse'].includes(tag.phase) && !fulfilsStage(record, move, tag)) return new Refused('PERSON_REQUEST_RECEIPT', 'publish only the exact stage for this authenticated phone request');
   if (['claim', 'repo-request', 'refuse'].includes(tag.phase) && !(move.operation === 'shout' && move.args[0]?.from === 'person' && move.args[0]?.to === 'coordinator'
       && move.args[0]?.text?.startsWith('View request ' + tag.id + ': '))) return new Refused('PERSON_REQUEST_RECEIPT', 'publish the original person request stage with its matching id');
   if (tag.phase === 'refuse' && !['code', 'message', 'next'].every(key => typeof tag.error?.[key] === 'string' && tag.error[key])) return new Refused('PERSON_REQUEST_RECEIPT', 'publish the original CLI refusal code, reason and next step');
   if (tag.phase === 'repo-request' && !(move.args[0]?.from === 'person' && move.args[0]?.to === 'coordinator' && move.args[0]?.request)) return new Refused('PERSON_REQUEST_RECEIPT', 'repo changes must reach the coordinator as a person request');
   if (tag.phase === 'claim') {
     if (move.operation !== 'shout') return new Refused('PERSON_REQUEST_RECEIPT', 'claim a request with its ordinary coordinator receipt');
-    if (record.executor && record.executor !== tag.executor && Date.parse(record.executorUntil ?? record.at) > board.clock.now().getTime()) return new Refused('PERSON_REQUEST_TAKEN', 'another linked machine is fulfilling this request; wait for its receipt');
+    if (checkExecutorLease && record.executor && record.executor !== tag.executor && Date.parse(record.executorUntil ?? record.at) > board.clock.now().getTime()) return new Refused('PERSON_REQUEST_TAKEN', 'another linked machine is fulfilling this request; wait for its receipt');
   } else if (record.executor !== tag.executor) {
     return new Refused('PERSON_REQUEST_TAKEN', 'this linked machine did not win the request; wait for its original receipt');
   }

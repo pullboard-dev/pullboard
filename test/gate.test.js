@@ -10,6 +10,8 @@ import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { digestOf } from '../src/gate.js';
 
+const PRIVATE_WORKER = resolve(import.meta.dirname, '../src/private-check-worker.js');
+
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const dirs = [];
 after(() => {
@@ -21,8 +23,9 @@ after(() => {
  * to runs.log beside the repo, so a test can count the runs.
  *
  * @param {string} gate
+ * @param {string} [check]
  */
-function repoWithGate(gate) {
+function repoWithGate(gate, check = '') {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-gate-')));
   dirs.push(dir);
   const repo = join(dir, 'repo');
@@ -44,7 +47,8 @@ function repoWithGate(gate) {
   writeFileSync(join(repo, 'SPEC.md'), '# Demo\n\n## G · Goals\n- G1 [approved, must] It works. | gate: test\n');
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: a spec');
-  assert.equal(run('add', 'coordinator', 'Work').status, 0);
+  const added = run('add', 'coordinator', 'Work', ...(check ? ['--check', check, '--wait'] : []));
+  assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
   assert.equal(run('claim', '1').status, 0);
   const runs = () => {
     try {
@@ -53,7 +57,7 @@ function repoWithGate(gate) {
       return 0;
     }
   };
-  return { repo, git, run, runs };
+  return { dir, repo, env, git, run, runs };
 }
 
 test('a digest keeps the failures and the end within its cap, however long one line is [V10]', () => {
@@ -137,5 +141,74 @@ test('submit refuses a tree its gate left changed: a new commit, or an edited tr
     assert.match(refused.stderr, /MOVED_DURING_GATE/, moves);
     assert.ok(refused.stderr.includes(head.slice(0, 12)), `${moves}: the refusal names the commit the gate was meant to check`);
     assert.equal(box.runs(), 1, moves);
+  }
+});
+
+
+/** Quote a test executable or path as one shell word. */
+function shellWord(value) {
+  return "'" + String(value).replaceAll("'", "'\\''") + "'";
+}
+
+/** Run the production private-check worker with a real shell and durable output file. */
+function privateCheck(box, command) {
+  const logPath = join(box.dir, 'private-command.log');
+  const pidFile = logPath + '.pid';
+  const run = spawnSync(process.execPath, [PRIVATE_WORKER], {
+    cwd: box.repo, env: box.env, encoding: 'utf8',
+    input: JSON.stringify({ command, timeout: 30_000, pidFile, logPath }), timeout: 35_000,
+  });
+  rmSync(pidFile, { force: true });
+  assert.equal(run.status, 0, `${run.stdout}${run.stderr}`);
+  return JSON.parse(run.stdout);
+}
+
+test('a piped gate fails on any red stage without changing its existing shell [V16,C7]', () => {
+  const supported = spawnSync('set -o pipefail', { shell: true }).status === 0;
+  const failing = repoWithGate('sh -c "exit 7" | tail -1');
+  const red = failing.run('gate', '--json');
+  assert.equal(red.status, 1, 'a failing producer cannot leave the gate green');
+  if (supported) assert.equal(JSON.parse(red.stdout).green, false);
+  else {
+    const error = JSON.parse(red.stdout).error;
+    assert.equal(error.code, 'PIPEFAIL_UNAVAILABLE');
+    assert.match(error.message, /rewrite the gate without a pipe/u);
+    assert.equal(failing.runs(), 0, 'an unsupported gate never starts');
+  }
+  const plain = repoWithGate('sh -c "exit 7"');
+  assert.equal(plain.run('gate').status, 1, 'plain failure remains red');
+  const passing = repoWithGate("printf 'pipeline-ok\\n' | grep -q pipeline-ok");
+  const green = passing.run('gate', '--json');
+  if (supported) assert.equal(green.status, 0, `${green.stdout}${green.stderr}`);
+  else assert.equal(JSON.parse(green.stdout).error.code, 'PIPEFAIL_UNAVAILABLE');
+  const ordinary = repoWithGate('true');
+  assert.equal(ordinary.run('gate').status, 0, 'a plain passing gate needs no pipefail capability');
+});
+
+test('a piped gate fails safely while named-test item checks keep last-stage semantics [V16,C7]', () => {
+  const box = repoWithGate('true');
+  const fixture = join(box.dir, 'named-output.test.js');
+  writeFileSync(fixture, `import {test} from 'node:test';
+import {setTimeout} from 'node:timers/promises';
+test('passing named item check', () => {});
+test('output after the match', async () => {
+  await setTimeout(25);
+  process.stdout.write('x'.repeat(1024 * 1024));
+});
+`);
+  const runner = resolve(import.meta.dirname, '../bin/run-tests.js');
+  const named = `${shellWord(process.execPath)} ${shellWord(runner)} ${shellWord(fixture)} 2>&1 | grep -Eq '^ok [0-9]+ - passing named item check'`;
+  for (const command of [named, 'yes | grep -q y', 'sh -c "exit 7" | tail -1']) {
+    const item = repoWithGate('true', command);
+    const baseline = JSON.parse(item.run('show', '1', '--json').stdout).item_check_baseline;
+    assert.equal(baseline.result, 'green', 'background baselines preserve last-stage semantics');
+    const checked = item.run('check', '1', '--yes');
+    assert.equal(checked.status, 0, `${checked.stdout}${checked.stderr}`);
+    const submitted = item.run('submit', '1', '--json');
+    assert.equal(submitted.status, 0, `${submitted.stdout}${submitted.stderr}`);
+    assert.equal(JSON.parse(submitted.stdout).gate.check.green, true, 'submission uses the same check semantics');
+    const verified = privateCheck(item, command);
+    assert.equal(verified.status, 0, JSON.stringify(verified));
+    assert.equal(verified.error, null, 'the private verifier keeps its original shell behavior');
   }
 });

@@ -95,13 +95,23 @@ export function isStampedGreen(root) {
  *
  * @param {string} root
  * @param {string} command
- * @param {{ env?: NodeJS.ProcessEnv }} [options] - Additional child environment values.
+ * @param {{ pipefail?: boolean, env?: NodeJS.ProcessEnv }} [options] - Gate-only pipefail and additional child environment values.
  * @returns {{ isGreen: boolean, output: string, seconds: number }}
  */
-export function runShell(root, command, { env = {} } = {}) {
+export function runShell(root, command, { pipefail = false, env = {} } = {}) {
   const started = Date.now();
+  const options = { cwd: root, env: { ...gitChildEnv(root), ...env }, shell: true, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', maxBuffer: 2 ** 30 };
+  let prefix = '';
+  if (pipefail) {
+    // Probe the same shell as the command, with no load-sensitive deadline or alternate shell.
+    const probe = spawnSync('set -o pipefail', options);
+    if (probe.status === 0) prefix = 'set -o pipefail\n';
+    else if (hasPipeline(command)) {
+      throw new Refused('PIPEFAIL_UNAVAILABLE', 'the repo gate shell cannot enable pipefail; rewrite the gate without a pipe');
+    }
+  }
   // Newlines, not spaces, around the command, so a trailing comment in it cannot swallow the `)`.
-  const result = spawnSync(`(\n${command}\n) 2>&1`, { cwd: root, env: { ...gitChildEnv(root), ...env }, shell: true, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', maxBuffer: 2 ** 30 });
+  const result = spawnSync(`${prefix}(\n${command}\n) 2>&1`, options);
   invalidateGitFacts();
   return { isGreen: result.status === 0, output: `${result.stdout ?? ''}${result.stderr ?? ''}`, seconds: Math.round((Date.now() - started) / 1000) };
 }
@@ -118,10 +128,10 @@ function safeLog(output) {
 /** Run a command with Node's event reporter and persist its timing profile beside its log.
  * @param {string} root
  * @param {string} command
- * @param {{ waitMs?: number, artifactDirectory?: string, artifactPrefix?: string, persistLog?: boolean, profileFile?: string }} [options]
+ * @param {{ waitMs?: number, artifactDirectory?: string, artifactPrefix?: string, persistLog?: boolean, profileFile?: string, pipefail?: boolean }} [options]
  * @returns {{ isGreen: boolean, output: string, seconds: number, profile: object, profilePath: string, logPath: string|null }}
  */
-export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile } = {}) {
+export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false } = {}) {
   const directory = artifactDirectory ?? dirname(gitPath(root, LOG));
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const id = randomUUID();
@@ -132,7 +142,7 @@ export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory,
   const logPath = persistLog ? join(directory, `${artifactPrefix}-${id}.log`) : null;
   const started = Date.now();
   try {
-    const run = runShell(root, command, { env: { PULLBOARD_TEST_TIMING_PROFILE: eventsPath } });
+    const run = runShell(root, command, { env: { PULLBOARD_TEST_TIMING_PROFILE: eventsPath }, pipefail });
     const events = readTimingProfiles(eventsPath);
     const profile = writeTimingProfile(profilePath, {
       version: 1,
@@ -194,6 +204,14 @@ function readTimingProfiles(prefix) {
   return { files: profiles.flatMap(profile => Array.isArray(profile.files) ? profile.files : []), tests: profiles.flatMap(profile => Array.isArray(profile.tests) ? profile.tests : []) };
 }
 
+/** Conservatively detect a pipe when the configured gate shell cannot enforce every stage's status. */
+function hasPipeline(command) {
+  for (let index = 0; index < command.length; index += 1) {
+    if (command[index] === '|' && command[index + 1] !== '|' && command[index - 1] !== '|') return true;
+  }
+  return false;
+}
+
 /** Run work under the machine gate queue, keeping landing gates ahead of ordinary gates and item checks last.
  *
  * @param {string} root - Checkout used to locate the machine resource database.
@@ -247,7 +265,7 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
 function fullGateRun(root, config, trustStamp = false, { waitMs = 0, log = gitPath(root, LOG) } = {}) {
   if (trustStamp && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
   const before = committedTree(root);
-  const { isGreen, output, seconds, profile, profilePath } = runProfiledShell(root, config.gate, { waitMs, profileFile: `${log}.profile.json` });
+  const { isGreen, output, seconds, profile, profilePath } = runProfiledShell(root, config.gate, { waitMs, pipefail: true, profileFile: `${log}.profile.json` });
   writeFileSync(log, output);
   if (isGreen && before !== null && committedTree(root) === before) writeFileSync(gitPath(root, STAMP), `${before}\n`);
   return { isGreen, isCached: false, output, seconds, log, profile, profilePath };
@@ -269,7 +287,9 @@ function commandWord(value) {
  */
 export async function runSubmitGate(root, config, { base, trunk, changed, check, onWait }) {
   if (!config.gate.trim()) throw new Refused('NO_GATE', 'no gate configured; set "gate" in pullboard.json, e.g. "npm test"');
-  const selection = selectAffectedTests(root, { base, trunk, changed });
+  const selection = config.affectedTests
+    ? selectAffectedTests(root, { base, trunk, changed })
+    : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] };
   return await withGateSlot(root, (lease) => {
     const startedAt = Date.now();
     const log = gitPath(root, 'pullboard-submit.log');
@@ -302,8 +322,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     if (selection.full) proof = fullGateRun(root, config, false, { waitMs: proofWait, log: proofLog });
     else if (!selection.files.length) proof = { isGreen: true, output: '', seconds: 0, isCached: false, log: '' };
     else {
-      const runner = existsSync(join(root, 'bin/run-tests.js')) ? [process.execPath, 'bin/run-tests.js'] : [process.execPath, '--test'];
-      const command = [...runner, ...selection.files.map(path => './' + path)].map(commandWord).join(' ');
+      const command = `${config.affectedTests.trimEnd()} ${selection.files.map(path => commandWord('./' + path)).join(' ')}`;
       proof = { ...runProfiledShell(root, command, { waitMs: proofWait, profileFile: `${proofLog}.profile.json` }), isCached: false, log: proofLog };
       writeFileSync(proofLog, proof.output);
     }
