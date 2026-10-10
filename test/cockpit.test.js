@@ -3648,14 +3648,14 @@ test('relay person requests stay explicit, read-only and visible [H12,H5]', { ti
     const beforeDisabled = intents.length;
     await chrome.evaluate("document.querySelector('[data-tab=\"spec\"]').click(); document.querySelector('#spec-list [data-row=\"spec:G2\"]').click()");
     await chrome.waitFor("view.row.spec === 'G2'");
-    assert.equal(await chrome.evaluate(`(async () => decideSpec('spec-approve', { ids: 'G2' }, document.querySelector('#spec-list [data-row=\"spec:G2\"]')))()`), false, 'the decision handler itself refuses without request capability');
+    assert.equal(await chrome.evaluate(`(async () => decideRow('spec', 'spec-approve', { ids: 'G2' }, document.querySelector('#spec-list [data-row=\"spec:G2\"]')))()`), false, 'the decision handler itself refuses without request capability');
     assert.equal(await chrome.evaluate('!view.specFeedback'), true, 'a disabled decision refuses before creating decision feedback');
     assert.equal(intents.length, beforeDisabled, 'a direct no-capability decision never reaches the request transport');
     for (const [action, args] of allActions) assert.equal(await chrome.evaluate(`act(${JSON.stringify(action)}, ${JSON.stringify(args)})`), false, `${action} stays refused without the capability`);
     assert.equal(intents.length, beforeDisabled, 'read-only without the explicit request capability refuses every action');
     await chrome.send('Page.navigate', { url: `http://127.0.0.1:${pageServer.address().port}/snapshot` });
     await chrome.waitFor("typeof data === 'object' && !!data?.project && document.body?.classList.contains('snapshot')");
-    assert.equal(await chrome.evaluate(`(async () => decideSpec('spec-approve', { ids: 'G2' }, null))()`), false, 'the decision handler itself refuses in a snapshot');
+    assert.equal(await chrome.evaluate(`(async () => decideRow('spec', 'spec-approve', { ids: 'G2' }, null))()`), false, 'the decision handler itself refuses in a snapshot');
     for (const [action, args] of allActions) assert.equal(await chrome.evaluate(`act(${JSON.stringify(action)}, ${JSON.stringify(args)})`), false, `${action} stays refused in a snapshot`);
     assert.match(await chrome.evaluate(`(async () => { try { await api('/api/v1/boards/demo/moves', { verb: 'shout' }); return 'unexpected'; } catch (error) { return error.message; } })()`), /read-only snapshot/i);
     assert.equal(intents.length, beforeDisabled, 'snapshot mode cannot use the explicit request capability');
