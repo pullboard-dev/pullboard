@@ -116,6 +116,7 @@ function testEnvironment(sandbox) {
   env.HOME = home;
   env.USERPROFILE = home;
   env.PULLBOARD_HOME = home;
+  env.PULLBOARD_MACHINE_HOME = join(sandbox, 'machine');
   env.TMPDIR = sandbox;
   env.TMP = sandbox;
   env.TEMP = sandbox;
