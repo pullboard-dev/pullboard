@@ -34,3 +34,7 @@ pullboard status
 ## Done
 
 Every approved row is cited by an item that is verified and merged, or the person has decided it needs none. `pullboard status` shows nothing open, claimed or awaiting a verdict.
+
+## Report flow
+
+At the start of every coordinator cycle, check the flow from the `flow:` line in `pullboard resume`, or from `pullboard stats --json`. When it names a bottleneck, use `pullboard shout person "..."` to tell the person in one plain sentence what is slow, the reported numbers, and the action that would fix it. Use the reported values and recommendation; do not calculate new numbers. Ask for a decision only when the fix needs the person's choice or authorization, such as starting another agent. Otherwise report the action without a question.
