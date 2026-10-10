@@ -1178,7 +1178,9 @@ test("the history is a timeline of the item's states [N26]", async () => {
 function agentEntries(html) {
   const rows = html.split(/<div class="agent-card[^"]*">/).slice(1).map((entry) => {
     const opened = [...entry.matchAll(/data-item="(\d+)"[^>]*><span>([^]*?)<\/span><span class="chip[^"]*">([^<]*)</g)].map((match) => `${match[2]}: ${match[3]}`);
-    const first = /<span class="agent-what"><i>(#\d+)<\/i> ([^]*?)<\/span><span class="chip[^"]*">([^<]*)</.exec(entry);
+    // The state is a word beside the name; what it holds follows at the full width.
+    const what = /<span class="agent-what"><i>(#\d+)<\/i> ([^]*?)<\/span>/.exec(entry), word = /<span class="agent-who">[^]*?<span class="chip[^"]*">([^<]*)</.exec(entry);
+    const first = what && word ? [null, what[1], what[2], word[1]] : null;
     return {
       id: /data-agent="([^"]*)"/.exec(entry)?.[1],
       path: /title="Shouts with [^"(]* \(([^"]*)\)"/.exec(entry)?.[1],
@@ -1568,7 +1570,7 @@ test('ages stay true while the board is quiet [N26]', async () => {
     const page = await openPage(view);
     const ages = () => ({
       row: /<time data-ago="[^"]+">([^<]*)<\/time>/.exec(itemRow(page.show('chain'), 1))?.[1],
-      needs: /decide, <time data-ago="[^"]+">([^<]*)<\/time>/.exec(page.show('needs'))?.[1],
+      needs: /data-go="decide:[^"]*"[^]*?<span class="row-age"><time data-ago="[^"]+">([^<]*)<\/time>/.exec(page.show('needs'))?.[1],
       agent: agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1')?.age,
       shout: /<time class="long" data-ago="[^"]+" title="[^"]*">([^<]*)<\/time>/.exec(page.show('feed'))?.[1],
     });
@@ -1592,6 +1594,14 @@ function accept(box, p, id) {
   box.git(p.repo, 'switch', '-q', '--detach', p.itemBranches.get(`${p.baseBranch}:${id}`) ?? p.branch);
   box.run(p.repo, 'verify', String(id), 'accept', '--note', 'the page shows it', '--as', 'coordinator');
   box.git(p.repo, 'switch', '-q', 'main');
+}
+
+/**
+ * One item's row in the list, or '' when the list does not show it.
+ */
+function needEntries(html) {
+  return [...html.matchAll(/<li class="row ask"(?: data-go="([^"]*)")?><span class="dot ask"><\/span><div><div class="t">(?:<span>([^<]*)<\/span>)?([^]*?)<\/div>(?:<span class="row-age">[^]*?<\/span>)?<div class="meta"><span class="why"><b>NEEDS YOU<\/b> ([^<]*)<\/span><\/div><\/div><span class="chip warn">([^<]*)<\/span><\/li>/g)]
+    .map((row) => [row[1] ?? null, row[2] ?? null, row[3], row[4], row[5]]);
 }
 
 /**
@@ -2018,17 +2028,17 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     const question = 'Greet in &lt;b&gt;French&lt;/b&gt; first\\?';
     // An agent asks its coordinator (B25): the ask waits on the board with who holds it, never in Needs-you.
     assert.doesNotMatch(page.show('needs'), /decide:/, "an agent's ask is its coordinator's to answer");
-    assert.equal(page.element('decisions').hidden, false);
-    assert.match(page.show('decisions'), /^<button class="fold-line" data-fold="waiting" type="button" aria-expanded="false" title="web-1 asks coordinator"><span>1 ask waiting on others<\/span><span class="fold-more">show<\/span><\/button>$/, 'an ask waiting on others folds to one line');
+    assert.equal(page.element('decisions').hidden, true, 'an ask waiting on others stays folded');
+    assert.match(page.show('asks-slot'), /^<button class="asks-toggle" data-fold="waiting" type="button" aria-expanded="false" title="Asks between agents, waiting on others: web-1 asks coordinator">1 ask waiting <span aria-hidden="true">▾<\/span><\/button>$/, 'its toggle sits at the end of the composer line');
     page.run('view.open.waiting = true; render();');
-    assert.match(page.show('decisions'), new RegExp(`^<button class="fold-line" data-fold="waiting" type="button" aria-expanded="true"[^>]*><span>1 ask waiting on others</span><span class="fold-more">hide</span></button><article class="shout h\\d" data-shout-id="1"><span class="avatar" aria-hidden="true">W1</span><div class="shout-main"><header><b class="who">web-1</b><span class="to">→ coordinator</span><span class="mark ask">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">now</time></header><div class="text">${question}</div><button class="more" data-more type="button">more</button></div></article>$`), 'above the shouts as a card, saying who asked whom, with no Answer button');
+    assert.match(page.show('decisions'), new RegExp(`^<article class="shout h\\d" data-shout-id="1"><span class="avatar" aria-hidden="true">W1</span><div class="shout-main"><header><b class="who">web-1</b><span class="to">→ coordinator</span><span class="mark ask">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">now</time></header><div class="text">${question}</div><button class="more" data-more type="button">more</button></div></article>$`), 'above the shouts as a card, saying who asked whom, with no Answer button');
     assert.doesNotMatch(page.show('feed'), /Greet in/, 'though the feed no longer reaches it');
 
     // The coordinator passes it up with its note (B27): now it is the person's call.
     box.run(alpha.repo, 'pass', '1', 'over to you');
     await page.run('refresh()');
     const passed = `Passed up from web-1: ${question}\nCoordinator note: over to you`;
-    assert.match(page.show('needs'), new RegExp(`^<div class="head"><i></i>Needs you</div><div class="ny"><code>coordinator</code><span class="ny-text">${passed.replace('\n', '<br>')}</span><button class="ny-open" data-go="decide:42" type="button"><em>decide, <time data-ago="[^"]+">now</time> →</em></button></div>`), 'first in Needs-you: who passed it, what, and since when');
+    assert.match(page.show('needs'), new RegExp(`^<li class="row ask" data-go="decide:42"><span class="dot ask"></span><div><div class="t">${passed.replace('\n', '<br>')}</div><span class="row-age"><time data-ago="[^"]+">now</time></span><div class="meta"><span class="why"><b>NEEDS YOU</b> a decision, asked by coordinator</span></div></div><span class="chip warn">decide</span></li>`), "first in Needs-you: who passed it, what, and since when");
     assert.match(page.show('decisions'), new RegExp(`^<div class="head"><i></i>Decision needed</div><article class="shout h\\d lead" data-shout-id="42"><span class="avatar"><svg [\\s\\S]*?</svg></span><div class="shout-main"><header><b class="who">coordinator</b><span class="to">→ person</span><span class="mark ask">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">now</time></header><div class="text">${passed.replace('\n', '<br>')}</div><button class="more" data-more type="button">more</button><button class="ghost answer" data-go="decide:42" type="button">Answer</button></div></article>$`), 'and above the shouts as the coordinator\'s card, with an Answer button');
 
     const form = () => ({
@@ -2112,18 +2122,19 @@ test("needs-you holds only the person's calls; the rest show on the board with w
   try {
     const page = await openPage(view);
     const needs = page.show('needs');
-    assert.deepEqual([...needs.matchAll(/<div class="ny"><code>([^<]*)<\/code><span class="ny-text">([^<]*)<\/span><button class="ny-open" data-go="([^:"]+):[^"]*" type="button"><em>/g)].map((line) => [line[3], line[1], line[2]]), [
-      ['decide', 'coordinator', 'Launch on Friday?'],
+    assert.deepEqual(needEntries(needs).map(([go, ref, words]) => [go.split(':')[0], ref, words]), [
+      ['decide', null, 'Launch on Friday?'],
       ['spec', 'G3', 'Greet in French?'],
       ['tab', 'web', 'G3 is open'],
       ['tab', '1', 'draft spec rows to approve or drop'],
     ], "the person's calls, and only those: the decision asked of them, the spec's question, the held lane, the draft row");
+    assert.equal(needEntries(needs)[0][3], 'a decision, asked by coordinator', 'a decision says below who asked it');
     assert.doesNotMatch(needs, /Which colour|Greeting|Farewell/, "an agent's ask, work waiting for a verdict and work sent back are not the person's");
-    assert.match(needs, /<code>web<\/code><span class="ny-text">G3 is open<\/span><button class="ny-open" data-go="tab:shouts" type="button"><em>lane held by coordinator, <time data-ago="[^"]+">(?:now|\d+[mhd])<\/time> →<\/em><\/button>/, 'a held lane says who set it and shows the API-provided hold age');
+    assert.match(needs, /<li class="row ask" data-go="tab:shouts"><span class="dot ask"><\/span><div><div class="t"><span>web<\/span>G3 is open<\/div><span class="row-age"><time data-ago="[^"]+">(?:now|\d+[mhd])<\/time><\/span><div class="meta"><span class="why"><b>NEEDS YOU<\/b> lane held by coordinator<\/span><\/div><\/div><span class="chip warn">release<\/span><\/li>/, 'a held lane says who set it and shows the API-provided hold age');
 
     // Each of the rest is on the board, with who holds it.
     page.run('view.open.waiting = true; render();');
-    assert.match(page.show('decisions'), /<button class="fold-line" data-fold="waiting" type="button" aria-expanded="true"[^>]*><span>1 ask waiting on others<\/span><span class="fold-more">hide<\/span><\/button><article class="shout h\d" data-shout-id="\d+"><span class="avatar" aria-hidden="true">W1<\/span><div class="shout-main"><header><b class="who">web-1<\/b><span class="to">→ coordinator<\/span>/, "the agent's ask waits on its coordinator");
+    assert.match(page.show('decisions'), /<article class="shout h\d" data-shout-id="\d+"><span class="avatar" aria-hidden="true">W1<\/span><div class="shout-main"><header><b class="who">web-1<\/b><span class="to">→ coordinator<\/span>/, "the agent's ask waits on its coordinator");
     assert.match(itemRow(page.show('chain'), 1), /<span class="chip [^"]*">to verify<\/span><\/li>$/, 'work waiting for a verdict');
     assert.ok(itemRow(page.show('chain'), 2).includes('<b>BEHAVIOR_MISMATCH</b> no farewell yet'), 'and work sent back, with why');
     page.run("view.agent = 'web-1'; render();");
@@ -2936,8 +2947,8 @@ test('an empty feed says so on one line [N26]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
-    assert.equal(page.show('feed'), '<div class="feed-bar"><span></span><button class="link" data-agents-toggle type="button">Hide agents</button></div><div class="empty">No shouts yet.</div>', 'one line under the bar that hides the agents');
-    assert.match(page.html, /<div class="card-panel feed" id="feed"><\/div>/, 'the shouts feed');
+    assert.equal(page.show('feed'), '<div class="empty">No shouts yet.</div>', 'one line, with no bar while the feed shows everything');
+    assert.match(page.html, /<div class="card-panel shouts-card">[^]*<div class="feed" id="feed"><\/div><\/div>/, 'the shouts feed, in the Shouts card');
     assert.match(page.html, /<div class="card-panel feed" id="activity"><\/div>/, 'and the activity feed are both feeds');
     const style = await styleOf(view);
     assert.match(style, /\n\.feed > div \{ display: grid; grid-template-columns: 4\.6em minmax\(0, 1fr\);[^\n]*\n\.feed > \.empty \{ display: block; \}\n/, 'a feed row has a time column; its empty note takes the whole width');
@@ -3054,10 +3065,9 @@ test('needs-you lines keep their titles on a phone [N26]', async () => {
   try {
     const page = await openPage(view, { width: 375 });
     const style = await styleOf(view);
-    assert.match(style, /\n\.ny \{ display: grid; grid-template-columns: auto minmax\(5em, 1fr\) minmax\(0, max-content\);/, 'wider, a line keeps its single row');
-    assert.match(style, /\n@media \(width < 480px\) \{ \.ny \{ grid-template-columns: auto minmax\(0, 1fr\); row-gap: 1px; \} \.ny \.ny-open \{ grid-column: 2; \} \}\n/, 'under 480px, the action moves under the text');
-    // The row keeps its reference, text and action in three columns.
-    assert.match(page.show('needs'), /<div class="ny"><code>G3<\/code><span class="ny-text">Should a greeting with a title long enough to need the room wrap\?<\/span><button class="ny-open" data-go="spec:G3" type="button"><em>answer in SPEC\.md →<\/em><\/button><\/div>/);
+    // A need is an item's row: its reference and words on the title line, NEEDS YOU and its kind below, its action at the right.
+    assert.match(style, /\n\.row \.t \{ grid-area: t; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; \}/, 'the title line ends in an ellipsis rather than wrap');
+    assert.deepEqual(needEntries(page.show('needs')), [['spec:G3', 'G3', 'Should a greeting with a title long enough to need the room wrap?', 'an open question in SPEC.md', 'answer']]);
   } finally {
     await view.stop();
   }
@@ -3938,21 +3948,20 @@ test('read-only Needs-you preserves each entry as text while its transport stays
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, live.link.href, profile);
-    await chrome.waitFor("typeof data === 'object' && !!data?.project && document.querySelector('#needs .ny')?.textContent.includes('Should the read-only fixture ship?')");
+    await chrome.waitFor("typeof data === 'object' && !!data?.project && document.querySelector('#needs .row')?.textContent.includes('Should the read-only fixture ship?')");
     /** Read Needs-you labels with absolute API age timestamps so the comparison survives minute ticks. */
-    const readNeedEntries = () => chrome.evaluate(`JSON.stringify([...document.querySelectorAll('#needs .ny')].map((row) => {
-      const em = row.querySelector('em');
-      const time = em.querySelector('time');
-      return [row.querySelector('code')?.textContent, row.querySelector('span')?.textContent,
-        time ? em.textContent.replace(time.textContent, '@' + time.dataset.ago) : em.textContent];
+    const readNeedEntries = () => chrome.evaluate(`JSON.stringify([...document.querySelectorAll('#needs .row')].map((row) => {
+      const time = row.querySelector('.row-age time'), ref = row.querySelector('.t > span');
+      return [ref?.textContent, row.querySelector('.t').textContent.slice((ref?.textContent ?? '').length),
+        row.querySelector('.meta .why').textContent + (time ? ' @' + time.dataset.ago : '')];
     }))`);
     const normalEntries = JSON.parse(await readNeedEntries());
-    assert.deepEqual(normalEntries.map((row) => row[0]), ['coordinator', 'G3', 'web', '1'], 'the normal Needs-you list contains the decision, pending row, held lane, and draft summary');
-    assert.match(normalEntries[0][2], /decide, @[^ ]+ →/, 'the API-provided decision timestamp is shown as an age');
-    assert.match(normalEntries[2][2], /lane held by coordinator, @[^ ]+ →/, 'the holder and API-provided hold timestamp are shown as an age');
+    assert.deepEqual(normalEntries.map((row) => row[0]), [null, 'G3', 'web', '1'], 'the normal Needs-you list contains the decision, pending row, held lane, and draft summary');
+    assert.match(normalEntries[0][2], /^NEEDS YOU a decision, asked by [^ ]+ @[^ ]+$/, 'the API-provided decision timestamp is shown as an age');
+    assert.match(normalEntries[2][2], /^NEEDS YOU lane held by coordinator @[^ ]+$/, 'the holder and API-provided hold timestamp are shown as an age');
     await chrome.send('Page.navigate', { url: `http://127.0.0.1:${address.port}/` });
     await chrome.waitFor("typeof data === 'object' && document.body?.classList.contains('read-only') && !!data?.project && typeof window.__transportUpdate === 'function'");
-    await chrome.waitFor("document.querySelector('#needs .ny')?.textContent.includes('Should the read-only fixture ship?')");
+    await chrome.waitFor("document.querySelector('#needs .row')?.textContent.includes('Should the read-only fixture ship?')");
     const readOnlyEntries = JSON.parse(await readNeedEntries());
     assert.deepEqual(readOnlyEntries, normalEntries, 'read-only Needs-you preserves the normal entries and their API-provided asker and ages');
     assert.equal(await chrome.evaluate("document.querySelectorAll('#needs button, #needs [data-go], #needs [data-new], #needs [data-shout], #needs [data-release]').length"), 0,
@@ -4166,7 +4175,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       return JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
       const visible=e=>{const s=getComputedStyle(e),r=e.getBoundingClientRect();return !e.disabled&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&r.width>0&&r.height>0&&!e.closest('[hidden]')};
       const selector='button,a[href],input:not([type=hidden]),select,textarea,[role=button],[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-release],[data-shout],[data-new],[data-code]';
-      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,inlineReference:e.matches('.feed button.ref, .shout button.ref, .shout .band a, .detail button.ref')||!!e.closest('#chain .meta .gate, #detail .kv dd.waits-on'),statusBar:!!e.closest('.status')&&!matchMedia('(pointer: coarse)').matches,oneLine:!e.closest('.status')||getComputedStyle(e).whiteSpace==='nowrap'}});
+      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,inlineReference:e.matches('.feed button.ref, .shout button.ref, .shout .band a, .detail button.ref')||!!e.closest('#chain .meta .gate, #detail .kv dd.waits-on'),statusBar:(!!e.closest('.status')||(!!e.closest('.composer')&&innerWidth>=900))&&!matchMedia('(pointer: coarse)').matches,oneLine:!e.closest('.status')||getComputedStyle(e).whiteSpace==='nowrap'}});
       const notice=document.querySelector('#console');
       const noticeBox=visible(notice)?notice.getBoundingClientRect():null;
       const toast=noticeBox?{x:noticeBox.x,y:noticeBox.y,right:noticeBox.right,bottom:noticeBox.bottom,visible:noticeBox.y>=0&&noticeBox.bottom<=innerHeight,
@@ -4249,7 +4258,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
           assert.ok(wrap.tokenLines > 1, `${width}: only the overflowing unbroken token splits: ${JSON.stringify(wrap)}`);
         }
         if (tab === 'shouts') {
-          await chrome.evaluate("(() => { const fold = document.querySelector('.fold-line[data-fold=\"waiting\"]'); if (fold && fold.getAttribute('aria-expanded') !== 'true') fold.click(); })()");
+          await chrome.evaluate("(() => { const fold = document.querySelector('.asks-toggle[data-fold=\"waiting\"]'); if (fold && fold.getAttribute('aria-expanded') !== 'true') fold.click(); })()");
           await waitRendered(['#decisions .shout:not(:has(.answer)) header', '#decisions .shout:not(:has(.answer)) .text', '#decisions .shout .answer']);
           const asks = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
             const waiting = document.querySelector('#decisions .shout:not(:has(.answer))');
@@ -5282,7 +5291,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
     await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 12');
     await chrome.evaluate("document.querySelector('[data-tab=shouts]').click()");
     await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
-    await chrome.evaluate("(() => { const fold = document.querySelector('.fold-line[data-fold=\"waiting\"]'); if (fold && fold.getAttribute('aria-expanded') !== 'true') fold.click(); })()");
+    await chrome.evaluate("(() => { const fold = document.querySelector('.asks-toggle[data-fold=\"waiting\"]'); if (fold && fold.getAttribute('aria-expanded') !== 'true') fold.click(); })()");
     const ids = JSON.parse(await chrome.evaluate('JSON.stringify(Object.fromEntries(data.project.shouts.map((s) => [s.shout_text, s.shout_id])))'));
     const answerId = await chrome.evaluate(`data.project.shouts.find((s) => s.shout_answers === ${asked.shout_id}).shout_id`);
     const stamps = JSON.parse(await chrome.evaluate('JSON.stringify(data.project.shouts.map((s) => [s.shout_id, s.shout_at]))'));
@@ -5410,7 +5419,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
 
         // Days: none above today's shouts; a rule in the middle names the earlier day where the feed crosses into it.
         let day = new Date().toDateString();
-        const expected = ['feed-bar', ...stamps.flatMap(([id, iso]) => { const was = day; day = new Date(iso).toDateString(); return day === was ? [`shout:${id}`] : ['rule', `shout:${id}`]; })];
+        const expected = [...stamps.flatMap(([id, iso]) => { const was = day; day = new Date(iso).toDateString(); return day === was ? [`shout:${id}`] : ['rule', `shout:${id}`]; })];
         assert.deepEqual(r.feedKinds.map((k) => k.startsWith('rule:') ? 'rule' : k), expected, `${at}: a rule only where the day changes, none above today's: ${r.feedKinds}`);
         assert.ok(r.feedKinds[r.feedKinds.indexOf(`shout:${ids[older]}`) - 1].startsWith('rule:') && !r.feedKinds.some((k) => k === 'rule:Today'), `${at}: the earlier day is named above its first shout`);
         assert.ok(Math.abs((r.rule.label.left + r.rule.label.right) / 2 - (r.rule.box.left + r.rule.box.right) / 2) < 2, `${at}: the day sits in the middle of its rule`);
@@ -5498,7 +5507,7 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
         page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth },
         listed: [...list.querySelectorAll('[data-agent]')].map((e) => e.dataset.agent), on: [...list.querySelectorAll('.agent-card.on [data-agent], .agent-pill.on')].map((e) => e.dataset.agent),
         all: list.querySelector('.all-agents')?.textContent ?? null, panel: list.offsetParent !== null, bare: pane.classList.contains('bare'),
-        toggle: document.querySelector('#feed [data-agents-toggle]')?.textContent, bar: document.querySelector('#feed .feed-bar span')?.textContent ?? '',
+        toggle: document.querySelector('.asks-slot [data-agents-toggle], .panel-head [data-agents-toggle]')?.textContent, bar: document.querySelector('#feed .feed-bar span')?.textContent ?? '',
         cards: [...document.querySelectorAll('#feed .shout')].map((c) => [c.querySelector('.who').textContent, c.querySelector('.to').textContent.replace('→ ', '')]),
         to: document.querySelector('#shout-to').value, feed: box(document.querySelector('#feed')),
         composer: box(document.querySelector('.composer')), message: box(document.querySelector('#shout-text')), send: box(document.querySelector('#shout-send')),
@@ -5562,7 +5571,7 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
       'the result stands above the bar, never inside it');
 
     // The panel hides and shows, and the browser remembers.
-    await click('#feed [data-agents-toggle]');
+    await click('.panel-head [data-agents-toggle]');
     s = await state();
     const wide = s.feed.width;
     assert.deepEqual([s.bare, s.panel, s.toggle, s.kept], [true, false, 'Show agents', 'hidden'], 'Hide agents hides the panel and remembers it');
@@ -5577,9 +5586,9 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
       s = await state();
       assert.ok(s.page.scroll <= s.page.width && s.page.body <= s.page.width, `${width}px hidden: no sideways scroll`);
     }
-    await click('#feed [data-agents-toggle]');
+    await click('.asks-slot [data-agents-toggle]');
     s = await state();
-    assert.deepEqual([s.bare, s.panel, s.toggle, s.kept], [false, true, 'Hide agents', 'shown'], 'Show agents brings it back');
+    assert.deepEqual([s.bare, s.panel, s.toggle, s.kept], [false, true, 'hide', 'shown'], 'Show agents brings it back');
     assert.ok(s.feed.width < wide, 'and the feed gives it room');
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
   } finally {
@@ -5646,7 +5655,7 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
         // The agent holding work is one row: avatar, name, age, its first thing with that item's state, and how many more.
         assert.deepEqual(p.rows.map((row) => row.id), ['web-1'], `${at}: only an agent holding work takes a row`);
         const [row] = p.rows;
-        assert.match(row.text, /^W1 web-1 (?:now|\d+[mhd]) #1 Header building \+1$/, `${at}: what the row says: ${row.text}`);
+        assert.match(row.text, /^W1 web-1 building \+1 (?:now|\d+[mhd]) #1 Header$/, `${at}: what the row says: ${row.text}`);
         assert.equal(row.face, row.name, `${at}: the name is in its avatar's colour, as in the feed`);
         assert.ok(row.height >= tapTarget(width), `${at}: the row is a target`);
         assert.ok(!/strong/.test(row.text) && row.title.includes('web · strong') && row.title.includes(alpha.web), `${at}: lane, route and path are on hover, not in the row: ${row.title}`);
@@ -5913,18 +5922,20 @@ test('in-text item references stay inline and open their target at phone and des
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
-    await chrome.waitFor('document.querySelectorAll("#chain .row").length >= 2 && document.querySelector("#needs .ny")');
+    await chrome.waitFor('document.querySelectorAll("#chain .row").length >= 2 && document.querySelector("#needs .row")');
 
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      // Needs you heads the Items list under Active; the steps below leave other tabs and filters open.
+      await chrome.evaluate("document.querySelector('[data-tab=items]').click(); document.querySelector('[data-state=active]').click()");
       // The row inlineReference stays on its title line beside the text.
       const rendered = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
         const row = document.querySelector('#chain .row[data-item="2"]');
         const plain = document.querySelector('#chain .row[data-item="1"]');
         const titleRef = row?.querySelector('.t button.ref');
-        const need = [...document.querySelectorAll('#needs .ny')].find((entry) => entry.textContent.includes('Please choose'));
-        const needRef = need?.querySelector('button.ref');
-        const needAction = need?.querySelector('.ny-open');
+        const need = [...document.querySelectorAll('#needs .row')].find((entry) => entry.textContent.includes('Please choose'));
+        const needRef = need?.querySelector('.t button.ref');
+        const needAction = need;
         const realButton = document.querySelector('#new-item');
         /** Measure the element box independently of the inline-link assertion. */
         const rect = node => { const r=node.getBoundingClientRect(); return {height:r.height,width:r.width}; };
@@ -5933,7 +5944,7 @@ test('in-text item references stay inline and open their target at phone and des
           linkedTitle: row && rect(row.querySelector('.t')),
           plainTitle: plain && rect(plain.querySelector('.t')),
           needRef: needRef && { ...rect(needRef), border:getComputedStyle(needRef).borderWidth, lineHeight:getComputedStyle(needRef).lineHeight },
-          needText: need?.querySelector('.ny-text') && rect(need.querySelector('.ny-text')),
+          needText: need?.querySelector('.t') && rect(need.querySelector('.t')),
           needAction: needAction && rect(needAction), realButton: realButton && rect(realButton),
         };
       })())`));
@@ -5990,7 +6001,7 @@ test('in-text item references stay inline and open their target at phone and des
 
       await chrome.evaluate(`document.querySelector('#chain .row[data-item="2"] .t button.ref').click()`);
       await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Target item')");
-      await chrome.evaluate(`document.querySelector('#needs .ny button.ref').click()`);
+      await chrome.evaluate(`document.querySelector('#needs .row .t button.ref').click()`);
       await chrome.waitFor("document.querySelector('[data-tab=items].on') && document.querySelector('#detail h2')?.textContent.includes('Target item')");
 
       await chrome.evaluate(`document.querySelector('[data-tab="activity"]').click()`);
@@ -6160,7 +6171,7 @@ test('Roadmap and rule prose references stay inline and open the item on their o
       assert.equal(await chrome.evaluate("document.querySelectorAll('#detail .verdict .note .ref').length"), 1, 'verdict prose keeps its item reference');
       await chrome.evaluate("document.querySelector('#detail .verdict .note .ref').click()");
       await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Local target')");
-      await chrome.evaluate("document.querySelector('#needs .ny-open[data-go^=\"decide:\"]').click()");
+      await chrome.evaluate("document.querySelector('#needs .row[data-go^=\"decide:\"]').click()");
       assert.equal(await chrome.evaluate("document.querySelectorAll('#answering-q .ref').length"), 1, 'the answering question keeps its inline item reference');
       await chrome.evaluate("document.querySelector('#answering-q .ref').click()");
       await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Local target') && document.querySelector('[data-tab=items].on')");
@@ -6749,7 +6760,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
       chips: [...document.querySelectorAll('#state-chips button')].map((chip) => [chip.firstChild.textContent, chip.querySelector('b').textContent, chip.classList.contains('on')]),
       lanes: [...document.querySelectorAll('#lane-pick option')].map((option) => option.textContent), pick: box(document.querySelector('#lane-pick')),
       seg: box(document.querySelector('#state-chips')), find: box(document.querySelector('.find')), go: box(document.querySelector('#new-item')), toolbar: box(document.querySelector('.toolbar')),
-      waiting: (() => { const fold = document.querySelector('#decisions .fold-line[data-fold="waiting"]'); return fold && { text: words(fold), open: fold.getAttribute('aria-expanded'), height: fold.getBoundingClientRect().height, offset: fold.getBoundingClientRect().top - fold.parentElement.getBoundingClientRect().top, cards: document.querySelectorAll('#decisions .shout').length }; })(),
+      waiting: (() => { const fold = document.querySelector('.asks-toggle[data-fold="waiting"]'); return fold && { text: fold.textContent.replace(/\\s+/g, ' ').trim(), open: fold.getAttribute('aria-expanded'), height: fold.getBoundingClientRect().height, offset: fold.getBoundingClientRect().top - fold.closest('.shouts-card').getBoundingClientRect().top, cards: document.querySelectorAll('#decisions .shout').length }; })(),
       idle: (() => { const fold = document.querySelector('#agents .fold-line[data-fold="idle"]'); return fold && { text: words(fold), open: fold.getAttribute('aria-expanded'), height: fold.getBoundingClientRect().height, pills: document.querySelectorAll('#agents .agent-pill').length }; })(),
       agentRows: [...document.querySelectorAll('#agents .agent-card')].filter((card) => card.getBoundingClientRect().height > 0).length,
     };
@@ -6855,7 +6866,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     r = await read();
     assert.ok(r.agentRows > 0 && number(part(r, 'agents')) === r.agentRows, `the agents part counts the ${r.agentRows} rows of the agents panel it opens`);
     // Hidden by the person, the panel comes back when the part that counts its rows is opened.
-    await click('#feed [data-agents-toggle]');
+    await click('.panel-head [data-agents-toggle]');
     await chrome.waitFor('view.agentsHidden === true');
     await click('[data-tab=items]');
     await click('.status [data-status="agents"]');
@@ -6891,12 +6902,12 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
 
     // Shouts: asks waiting on others and idle agents each fold to one line, closed until opened.
     await click('[data-tab=shouts]');
-    await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden && !!document.querySelector('#decisions .fold-line')");
+    await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden && !!document.querySelector('.asks-toggle[data-fold=\"waiting\"]')");
     r = await read();
     const shut = r.waiting.offset;
-    assert.deepEqual([r.waiting.text, r.waiting.open, r.waiting.cards], ['1 ask waiting on others show', 'false', 0], `the ask waiting on others folds to a line: ${JSON.stringify(r.waiting)}`);
+    assert.deepEqual([r.waiting.text, r.waiting.open, r.waiting.cards], ['1 ask waiting ▾', 'false', 0], `the ask waiting on others folds to a toggle on the composer line: ${JSON.stringify(r.waiting)}`);
     assert.ok(/^\d+ idle show$/.test(r.idle.text) && r.idle.open === 'false' && r.idle.pills === 0, `the idle agents fold to a line: ${JSON.stringify(r.idle)}`);
-    await click('#decisions .fold-line[data-fold="waiting"]');
+    await click('.asks-toggle[data-fold="waiting"]');
     await click('#agents .fold-line[data-fold="idle"]');
     r = await read();
     assert.deepEqual([r.waiting.open, r.waiting.cards, r.idle.open, r.idle.pills > 0], ['true', 1, 'true', true], 'each opens on a click');
@@ -7147,6 +7158,140 @@ test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 15
     // line of its words, is exempt. The same check refuses a standalone button.
     assert.deepEqual([touchItems.exempt, touchShouts.exempt.map((e) => [e.text, e.inLine, e.height >= 44])], [[], [['#2', false, true], ['#2', true, false]]], `touch: #2 alone is a target, #2 in its sentence the only exemption: ${JSON.stringify([touchItems.exempt, touchShouts.exempt])}`);
     assert.equal(touchItems.standalone, false, `touch: a standalone button is never inside a line of text`);
+    assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
+test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for Needs you and Shouts checks.');
+  const box = machine();
+  const spec = `${SPEC}- G3 [pending] Should the greeting name the visitor? | gate: review\n- G4 [draft, must] The footer links home. | gate: web test\n- G5 [draft, aim] The header stays put. | gate: web test\n`;
+  const alpha = project(box, 'asks', spec);
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  box.run(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
+  box.run(alpha.web, 'claim', '1');
+  const second = join(box.dir, 'asks-web-2');
+  box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/asks2');
+  box.run(second, 'join', 'web');
+  // The person's calls: a decision passed up to them, the spec's open question, a held lane and two draft rows. And an
+  // agent's ask that waits on its coordinator, not on the person.
+  box.run(alpha.web, 'shout', 'coordinator', 'Which colour for the button?', '--decision');
+  box.run(alpha.repo, 'pass', '1', 'over to you');
+  box.run(second, 'shout', 'coordinator', 'Ship the footer first?', '--decision');
+  box.run(alpha.repo, 'hold', 'web', '--reason', 'Freeze for the demo');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-asks-chrome-'));
+  let chrome;
+  /** Items' head and Shouts' card as they read. */
+  const read = async () => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+    const box = (e) => { if (!e) return null; const r = e.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height }; };
+    const shown = (e) => !!e && !e.closest('[hidden]') && e.getBoundingClientRect().height > 0;
+    const probe = document.createElement('i'); probe.style.color = 'var(--warn)'; document.body.append(probe); const warn = getComputedStyle(probe).color; probe.remove();
+    const needs = document.querySelector('#needs');
+    const card = document.querySelector('.shouts-card'), decisions = document.querySelector('#decisions');
+    return {
+      page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth },
+      needsShown: shown(needs), inList: needs.parentElement === document.querySelector('#chain').parentElement, separateCard: !!document.querySelector('section.needs-you#needs'),
+      needs: [...needs.querySelectorAll(':scope > .row')].map((row) => ({ go: row.dataset.go ?? null, words: row.querySelector('.t').textContent, ref: row.querySelector('.t > span')?.textContent ?? null,
+        kind: row.querySelector('.meta .why').textContent, label: getComputedStyle(row.querySelector('.meta .why b')).color === warn && getComputedStyle(row.querySelector('.meta .why')).color === warn, chip: row.querySelector(':scope > .chip').textContent, age: !!row.querySelector('.row-age') })),
+      card: card ? [...card.children].map((e) => e.id || e.className) : null,
+      composer: box(document.querySelector('.shout-form .composer')), asks: box(document.querySelector('.asks-toggle[data-fold="waiting"]')),
+      asksOpen: document.querySelector('.asks-toggle[data-fold="waiting"]')?.getAttribute('aria-expanded') ?? null, showAgents: box(document.querySelector('.asks-slot [data-agents-toggle]')),
+      decisions: shown(decisions) ? [...decisions.querySelectorAll('.shout .text')].map((text) => text.textContent) : [], groupTint: getComputedStyle(decisions).backgroundColor, cardTint: card ? getComputedStyle(card).backgroundColor : null,
+      firstRule: decisions.querySelector('.shout') ? getComputedStyle(decisions.querySelector('.shout')).borderTopWidth : null,
+      feedBar: !!document.querySelector('#feed .feed-bar'), panelShown: shown(document.querySelector('#agents')), hide: !!document.querySelector('.panel-head [data-agents-toggle]'),
+      agents: [...document.querySelectorAll('#agents .agent-card')].filter(shown).map((row) => ({ who: [...row.querySelector('.agent-who').children].map((part) => part.textContent.trim()).join(' '), what: row.querySelector('.agent-doing').textContent.trim(), chipInDoing: !!row.querySelector('.agent-doing .chip'), whatWidth: box(row.querySelector('.agent-what')).width, doingWidth: box(row.querySelector('.agent-doing')).width })),
+      okNote: (() => { const c = document.querySelector('#console'); return !!c && !c.hidden && getComputedStyle(c).display !== 'none' && c.classList.contains('ok'); })(),
+    };
+  })())`));
+  const click = (selector) => chrome.evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("typeof data === 'object' && data?.project?.decisions?.length === 1 && data.project.asked.length === 1 && data.project.holds.length === 1");
+    for (const scheme of ['light', 'dark']) {
+      for (const width of [1280, 375]) {
+        await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+        await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
+        await chrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${scheme})').matches`);
+        const at = `${width}px ${scheme}`;
+        await click('[data-tab=items]');
+        await click('[data-state=active]');
+        let r = await read();
+        assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll on Items`);
+        // Needs you heads the list: each call a row shaped like an item, NEEDS YOU and its kind (for a decision, who
+        // asked) in the warning colour below.
+        assert.deepEqual([r.needsShown, r.inList, r.separateCard], [true, true, false], `${at}: Needs you is the head of the Items list, not a card of its own`);
+        assert.deepEqual(r.needs.map(({ go, ref, words, kind, chip }) => [go.split(':')[0], ref, words.includes('Which colour for the button?') ? 'Which colour…' : words, kind, chip]), [
+          ['decide', null, 'Which colour…', 'NEEDS YOU a decision, asked by coordinator', 'decide'],
+          ['spec', 'G3', 'G3Should the greeting name the visitor?', 'NEEDS YOU an open question in SPEC.md', 'answer'],
+          ['tab', 'web', 'webFreeze for the demo', 'NEEDS YOU lane held by coordinator', 'release'],
+          ['tab', '2', '2draft spec rows to approve or drop', 'NEEDS YOU Spec rows waiting on you', 'review'],
+        ], `${at}: the person's calls, each a row, the drafts one row with their count`);
+        assert.ok(r.needs.every((need) => need.label), `${at}: NEEDS YOU and its kind in the warning colour`);
+        assert.deepEqual(r.needs.map((need) => need.age), [true, false, true, false], `${at}: a call that has an age shows it at the right`);
+
+        await click('[data-tab=shouts]');
+        await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden && !!document.querySelector('#feed .shout')");
+        r = await read();
+        assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll on Shouts`);
+        // One card: the composer's line, the asks, the feed.
+        assert.deepEqual(r.card, ['shout-form', 'decisions', 'feed'], `${at}: Shouts is one card`);
+        if (width === 1280) assert.ok(Math.abs((r.composer.top + r.composer.height / 2) - (r.asks.top + r.asks.height / 2)) <= 4 && r.asks.left >= r.composer.right, `${at}: the asks waiting sit at the end of the composer's line: ${JSON.stringify([r.composer, r.asks])}`);
+        assert.deepEqual([r.asksOpen, r.decisions.length, /Which colour for the button\?/.test(r.decisions[0] ?? '')], ['false', 1, true], `${at}: the asks waiting on others stay folded; the person's own decision shows`);
+        assert.equal(r.feedBar, false, `${at}: no bar above the feed while it shows every shout`);
+        assert.ok(r.hide && r.panelShown, `${at}: the agents panel carries its own hide`);
+        // An agent's row: its name and state in words, then what it holds at the full width.
+        const holder = r.agents.find((agent) => agent.who.startsWith('web-1'));
+        assert.ok(holder && /^web-1 building (?:now|\d+[mhd])$/.test(holder.who) && holder.what === '#1 Greeting' && !holder.chipInDoing, `${at}: web-1's row reads as an item's: ${JSON.stringify(holder)}`);
+      }
+    }
+
+    // Opened, the asks waiting on others are a group set apart from the feed, with no rule above the first.
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
+    await chrome.waitFor('innerWidth === 1280');
+    await click('.asks-toggle[data-fold="waiting"]');
+    let r = await read();
+    assert.deepEqual([r.asksOpen, r.decisions.length, r.decisions[1]], ['true', 2, 'Ship the footer first?'], 'the toggle opens the ask waiting on others');
+    assert.ok(r.groupTint !== r.cardTint && r.firstRule === '0px', `a tinted group with no rule above its first card: ${JSON.stringify([r.groupTint, r.cardTint, r.firstRule])}`);
+    // Hidden, the agents come back from the composer's line, after the asks.
+    await click('.panel-head [data-agents-toggle]');
+    r = await read();
+    assert.ok(!r.panelShown && r.showAgents && r.showAgents.left >= r.asks.right, `hidden, Show agents sits on the composer's line after the asks: ${JSON.stringify([r.asks, r.showAgents])}`);
+    await click('.asks-slot [data-agents-toggle]');
+    assert.ok((await read()).panelShown, 'and brings the panel back');
+    // A sent shout shows as its card; no note pushes into the composer's line.
+    await chrome.evaluate("document.querySelector('#shout-text').focus()");
+    await chrome.send('Input.insertText', { text: 'Footer after the greeting.' });
+    await click('#shout-send');
+    await chrome.waitFor("[...document.querySelectorAll('#feed .shout .text')].some((text) => text.textContent === 'Footer after the greeting.')", 15_000);
+    r = await read();
+    assert.equal(r.okNote, false, 'a sent shout is its card, with no note beside the composer');
+    // However many calls there are, each is a row: six more decisions make ten rows, none folded into a count.
+    for (const n of [1, 2, 3, 4, 5, 6]) box.run(alpha.repo, 'shout', 'person', `Ship part ${n} today?`, '--decision');
+    await click('[data-tab=items]');
+    await chrome.waitFor("document.querySelectorAll('#needs > .row').length >= 10", 15_000);
+    r = await read();
+    assert.deepEqual([r.needs.length, r.needs.filter((need) => /^Ship part [1-6] today\?$/.test(need.words)).length, r.needs.every((need) => need.label)], [10, 6, true],
+      `ten calls, ten rows, each with its kind in the warning colour: ${JSON.stringify(r.needs)}`);
+    assert.equal(await chrome.evaluate("document.querySelector('#needs').textContent.includes('more need you')"), false, 'no call is folded into a count');
+    // Narrowed to the unread shouts from the status bar, the feed carries its bar with show all; show all clears it.
+    box.run(alpha.web, 'shout', 'coordinator', 'Greeting is half done.');
+    await chrome.waitFor("!document.querySelector('#status-unread')?.hidden", 15_000);
+    await click('#status-unread');
+    await chrome.waitFor("view.tab === 'shouts' && !!document.querySelector('#feed .feed-bar')");
+    assert.match(await chrome.evaluate("document.querySelector('#feed .feed-bar').textContent"), /^\d+ unread\s*show all$/, 'narrowed to the unread shouts, the feed carries its bar with show all');
+    await click('#feed [data-unread]');
+    assert.equal((await read()).feedBar, false, 'show all brings back every shout and clears the bar');
+    // Under Verified, or a lane, the list is narrowed and Needs you steps aside.
+    await click('[data-state=verified]');
+    assert.equal((await read()).needsShown, false, 'under Verified, Needs you steps aside');
+    await click('[data-state=active]');
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
