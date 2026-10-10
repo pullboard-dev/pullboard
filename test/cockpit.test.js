@@ -7436,6 +7436,32 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
     await chrome.evaluate("document.querySelector('#shout-text').focus()");
     await key('/', 'Slash', 191, '/');
     assert.equal(await chrome.evaluate("document.querySelector('#shout-text').value"), '/', 'and in a field it is only a slash');
+
+    // On a phone the lane picker shows while a lane narrows the list, so the person sees where they are and can leave
+    // it; with every lane shown it drops again. A coordinator item makes a second lane to pick between.
+    box.run(alpha.repo, 'add', 'coordinator', 'Plan the release', '--criterion', 'planned');
+    await chrome.waitFor('data.project.items.length === 9', 15_000);
+    const lane = (name) => chrome.evaluate(`(() => { const pick = document.querySelector('#lane-pick'); pick.value = ${JSON.stringify(name)}; pick.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    for (const scheme of ['light', 'dark']) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
+      await chrome.waitFor(`innerWidth === 1280 && matchMedia('(prefers-color-scheme: ${scheme})').matches`);
+      await chrome.evaluate("document.querySelector('[data-tab=items]').click(); document.querySelector('[data-state=active]').click()");
+      await lane('web');
+      await chrome.waitFor("view.lane === 'web'");
+      assert.ok((await read()).bar.some((part) => part.name === 'lane-pick'), `1280px ${scheme}: the lane picker is in the toolbar`);
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.waitFor('innerWidth === 375');
+      const narrowed = await read();
+      assert.deepEqual(narrowed.bar.map((part) => part.name), ['active', 'verified', 'lane-pick', 'new-item'], `375px ${scheme}: a picked lane keeps its picker: ${JSON.stringify(narrowed.bar)}`);
+      assert.ok(narrowed.bar.every((part) => Math.abs(part.middle - narrowed.bar[0].middle) <= 2) && narrowed.page.scroll <= narrowed.page.width, `375px ${scheme}: still one row, no sideways scroll: ${JSON.stringify(narrowed)}`);
+      await lane('');
+      await chrome.waitFor('view.lane === null');
+      assert.deepEqual((await read()).bar.map((part) => part.name), ['active', 'verified', 'new-item'], `375px ${scheme}: every lane shown, the picker drops again`);
+    }
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
+    await chrome.waitFor('innerWidth === 1280');
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
