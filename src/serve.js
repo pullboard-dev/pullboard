@@ -14,6 +14,7 @@ import { createServer } from 'node:http';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import * as store from './board.js';
 import { cockpitPage } from './cockpit.js';
+import { displayAgentName } from './agent-names.js';
 import { COORDINATOR, loadConfig } from './config.js';
 import { loadDoctrine, standardDoctrine } from './doctrine.js';
 import { repoInfo, resolveCommit } from './git.js';
@@ -222,7 +223,7 @@ export function projectState(root, { seen = null, board: providedBoard = null } 
       decisions: store.openDecisions(board, store.PERSON),
       asked: store.openDecisions(board).filter((ask) => ask.shout_to !== store.PERSON),
       events: log.slice(-80).reverse(),
-      agents: store.listAgents(board).map((agent) => ({ ...agent, lastMoveAt: lastMove.get(agent.agent_id) ?? null })),
+      agents: store.listAgents(board).map((agent) => ({ ...agent, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names), lastMoveAt: lastMove.get(agent.agent_id) ?? null })),
       holds: store.laneHolds(board),
       spec: rows(config.spec),
       practice: doctrine.rows.map(({ id, status: state, tier, text, gate, serves, section, origin, version, reason }) => ({
