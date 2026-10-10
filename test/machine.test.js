@@ -780,11 +780,11 @@ test('pullboard help lists each role\'s moves from the declaration, and pullboar
   assert.equal(printed.stdout, lifecycleMarkdown());
 });
 
-/** Guards the CLI checks before it asks the board: the board's own order starts after them. */
-const CLI_CHECKED = {
+/** Guards checked before the explicit transition: CLI facts and optional roadmap selection. */
+const PRECHECKED = {
   claim: ['joined'],
   submit: ['joined', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'trunkMergeClean', 'gateConfigured', 'gateGreen', 'treeStillDuringGate'],
-  reserve: ['coordinatorSaysAs', 'joined'],
+  reserve: ['coordinatorSaysAs', 'joined', 'roadmapReadable'],
   accept: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit', 'trunkMergeClean', 'itemCheckGreen'],
   reject: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit'],
 };
@@ -798,7 +798,7 @@ const CLI_CHECKED = {
 function declaredBoardOrder(verb) {
   const move = moveOf(MACHINE, verb);
   return effectiveGuards(move)
-    .filter((id) => !CLI_CHECKED[verb].includes(id))
+    .filter((id) => !PRECHECKED[verb].includes(id))
     .map((id) => (id === IN_STATE ? move.refuse : MACHINE.guards.find((guard) => guard.id === id).refuse));
 }
 

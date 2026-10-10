@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { ENGINE_VERSION } from '../src/machine.js';
 
 const HOUR = 60 * 60 * 1000;
 const MID_ITEM_DETAILS = {
@@ -90,4 +92,21 @@ test('a builder gets the earliest milestone\'s open items first [B16]', (t) => {
   const resumed = store.nextFor(board, { agentId: builder, lane: 'core' });
   assert.equal(resumed.item.item_id, sameMilestoneStrong, 'an existing held claim still resumes first');
   assert.notEqual(resumed.item.item_id, unlistedStrong);
+});
+
+test('recorded reserve-next moves retain their versioned ordering [B16,H16]', (t) => {
+  assert.ok(ENGINE_VERSION >= 8, 'roadmap selection is carried by engine 8 or newer');
+  for (const version of [1, 2, 3, 4, 5, 6, 7, ENGINE_VERSION]) {
+    const { board, builder, reviewer } = boardFixture();
+    t.after(() => store.closeBoard(board));
+    const laterStrong = submitted(board, builder, 'later strong', 'strong', 1);
+    const earliestMid = submitted(board, builder, 'earliest mid', 'mid', 2);
+    store.addMilestone(board, { agentId: 'coordinator', name: 'first', items: [earliestMid] });
+    store.addMilestone(board, { agentId: 'coordinator', name: 'later', items: [laterStrong] });
+    const move = prepareEngineMove(board, 'reserveNextReview', [{ agentId: reviewer, lane: 'review', leaseMs: HOUR, policy: 'any' }]);
+    assert.equal(move.engine, ENGINE_VERSION, 'new moves carry the current engine');
+    const outcome = applyEngineMove(board, { ...move, engine: version }, { sequence: 1, at: new Date().toISOString() });
+    assert.equal(outcome.error, undefined, JSON.stringify(outcome.error));
+    assert.equal(outcome.result.item.item_id, version < 8 ? laterStrong : earliestMid, `engine ${version} retains its recorded selection`);
+  }
 });
