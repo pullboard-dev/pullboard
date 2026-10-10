@@ -7466,3 +7466,65 @@ test('staged and exported boards carry API model display names [O8,N26,A10]', as
     closeBoard(source);
   }
 });
+
+test('the project switcher\'s arrow turns with the list [N26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for project switcher checks.');
+  const box = machine();
+  project(box, 'arrow-alpha');
+  project(box, 'arrow-beta');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-arrow-chrome-'));
+  let chrome;
+  /** The switcher's arrow as it reads: shown, its size, which way it points, and whether it animates. */
+  const read = async () => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+    const arrow = document.querySelector('#proj-switch small'), svg = arrow.querySelector('svg'), s = getComputedStyle(arrow), r = svg.getBoundingClientRect();
+    return {
+      page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth },
+      shown: s.display !== 'none' && r.width > 0, size: [Math.round(r.width), Math.round(r.height)], faint: s.color === (() => { const p = document.createElement('i'); p.style.color = 'var(--ink-faint)'; document.body.append(p); const c = getComputedStyle(p).color; p.remove(); return c; })(),
+      turn: s.transform, motion: [s.transitionDuration, s.animationName], open: document.querySelector('#proj-switch').getAttribute('aria-expanded'),
+    };
+  })())`));
+  const click = (selector) => chrome.evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+  /** One drawn frame after a click: an arrow that animated would still be part way round. */
+  const frame = () => chrome.evaluate('new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))');
+  const DOWN = 'none', UP = 'matrix(-1, 0, 0, -1, 0, 0)';
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("typeof data === 'object' && data?.projects?.length === 2 && !!document.querySelector('#proj-list .proj.repo')");
+    for (const scheme of ['light', 'dark']) {
+      for (const width of [1280, 375]) {
+        await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+        await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
+        await chrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${scheme})').matches`);
+        const at = `${width}px ${scheme}`;
+        if (width === 1280) {
+          // Docked, the name opens no list, so there is no arrow; collapsed, the list drops from the name.
+          if (await chrome.evaluate("document.documentElement.dataset.side === 'collapsed'")) await click('#side-toggle');
+          await chrome.waitFor("document.documentElement.dataset.side !== 'collapsed'");
+          assert.equal((await read()).shown, false, `${at}: docked, with no list to drop, there is no arrow`);
+          await click('#side-toggle');
+          await chrome.waitFor("document.documentElement.dataset.side === 'collapsed'");
+        }
+        const closed = await read();
+        assert.ok(closed.page.scroll <= closed.page.width, `${at}: no sideways scroll`);
+        assert.deepEqual([closed.shown, closed.size, closed.faint, closed.open, closed.turn], [true, [16, 16], true, 'false', DOWN], `${at}: a 16px chevron in the faint ink, pointing down while the list is closed: ${JSON.stringify(closed)}`);
+        assert.deepEqual(closed.motion, ['0s', 'none'], `${at}: the arrow never animates: ${JSON.stringify(closed.motion)}`);
+        // Open, it points up at once: one frame after the click it is all the way round. Closed again, down.
+        await click('#proj-switch');
+        await frame();
+        const opened = await read();
+        assert.deepEqual([opened.open, opened.turn], ['true', UP], `${at}: open, it points up at once: ${JSON.stringify(opened)}`);
+        await click('#proj-switch');
+        await frame();
+        const shut = await read();
+        assert.deepEqual([shut.open, shut.turn], ['false', DOWN], `${at}: closed again, it points down at once: ${JSON.stringify(shut)}`);
+      }
+    }
+    assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});

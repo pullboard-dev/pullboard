@@ -32,7 +32,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .brand svg { width: 22px; height: 22px; flex: none; }
 .switch-btn { display: none; align-items: center; gap: 8px; min-width: 0; border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-weight: 600; }
 .switch-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.switch-btn small { color: var(--ink-faint); font-weight: 400; }
+.switch-btn small { display: grid; place-items: center; color: var(--ink-faint); }
+.switch-btn small svg { width: 16px; height: 16px; }
+/* While the project list is open the arrow points up at once, so the switcher says it will close what it opened. */
+.switch-btn[aria-expanded="true"] small { transform: rotate(180deg); }
 .theme-btn { flex: none; margin-left: auto; display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 8px; background: none; color: var(--ink-faint); cursor: pointer; }
 .theme-btn:hover { color: var(--ink); background: var(--surface-2); }
 .theme-btn svg { display: none; width: 16px; height: 16px; }
