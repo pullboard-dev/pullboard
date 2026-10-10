@@ -91,6 +91,9 @@ const SCHEMA = `
     item_verified_by TEXT,
     item_merged_commit TEXT,
     item_withdrawn_reason TEXT,
+    item_hold_reason TEXT,
+    item_hold_by TEXT,
+    item_hold_at TEXT,
     item_created_by TEXT NOT NULL,
     item_created_at TEXT NOT NULL,
     item_updated_at TEXT NOT NULL
@@ -240,6 +243,9 @@ function migrate(db) {
     ['item', 'item_files', "TEXT NOT NULL DEFAULT ''"],
     ['item', 'item_review_by', 'TEXT'],
     ['item', 'item_review_until', 'TEXT'],
+    ['item', 'item_hold_reason', 'TEXT'],
+    ['item', 'item_hold_by', 'TEXT'],
+    ['item', 'item_hold_at', 'TEXT'],
     ['shout', 'shout_decision', 'INTEGER NOT NULL DEFAULT 0'],
     ['shout', 'shout_answers', 'INTEGER'],
     ['shout', 'shout_evidence_kind', 'TEXT'],
@@ -933,6 +939,12 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null, 
           const paused = laneHold(board, found.item_lane);
           return paused && !isRenewal(found)
             ? new Refused('LANE_HELD', `${paused.hold_by} holds the ${found.item_lane} lane: ${paused.hold_reason}. Wait for it: pullboard next --wait 9 (minutes)`)
+            : null;
+        },
+        itemNotHeld: (found) => {
+          const held = itemHold(board, found.item_id);
+          return held && !isRenewal(found)
+            ? new Refused('ITEM_HELD', `item #${id} is held by coordinator: ${held.item_hold_reason}; wait for the coordinator to lift it with pullboard hold ${id} --off`)
             : null;
         },
         oneLiveClaim: (found) => {
@@ -1782,8 +1794,8 @@ export function appendFact(board, id, { agentId, kind, text, ref = null, superse
 export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', runnable = false, routes = ROUTES, warm = [] }) {
   const route = routeOf(board, agentId);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
-  const items = listItems(board)
-    .reverse()
+  const allItems = listItems(board).reverse();
+  const items = allItems
     .filter((entry) => canTake(route, entry.item_route) && routes.includes(entry.item_route) && (!runnable || entry.item_check))
     .sort((first, second) => tier(second) - tier(first));
   const tiers = route === 'strong' ? '' : `${ROUTES.slice(0, ROUTES.indexOf(route) + 1).reverse().join(' or ')} `;
@@ -1811,24 +1823,26 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   }
   const held = items.find((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null);
   if (held) return { item: held, reasons: [] };
+  const reasons = allItems.filter((entry) => entry.item_status === 'open' && entry.item_lane === lane && entry.item_hold_reason)
+    .map((entry) => `#${entry.item_id} is held by coordinator: ${entry.item_hold_reason}`);
   const paused = laneHold(board, lane);
-  if (paused) return { item: null, reasons: [`${paused.hold_by} holds the ${lane} lane: ${paused.hold_reason}`] };
+  if (paused) return { item: null, reasons: [`${paused.hold_by} holds the ${lane} lane: ${paused.hold_reason}`, ...reasons] };
   const recent = new Set(warm);
-  const mine = items
-    .filter((entry) => entry.item_status === 'open' && entry.item_lane === lane)
+  const laneItems = items.filter((entry) => entry.item_status === 'open' && entry.item_lane === lane);
+  const mine = laneItems
+    .filter((entry) => !itemHold(board, entry.item_id))
     .map((entry, order) => ({ entry, order, shared: itemFiles(entry).filter((path) => recent.has(path)) }))
     .sort((first, second) => tier(second.entry) - tier(first.entry) || second.shared.length - first.shared.length || first.order - second.order);
-  const reasons = [];
   for (const { entry, shared } of mine) {
     const waiting = (entry.item_after ? entry.item_after.split(',').map(Number) : [])
       .map((id) => current(board, itemById(board, id)))
       .filter((before) => before.item_status !== 'verified');
-    if (!waiting.length) return { item: entry, reasons: [], shared };
+    if (!waiting.length) return { item: entry, reasons, shared };
     reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
   }
-  if (!mine.length) reasons.push(idleReason(items, lane, routed));
+  if (!mine.length && !reasons.length) reasons.push(idleReason(items, lane, routed));
   // Nothing to claim, yet work above the agent's tier is open: name it and the ways through (B16).
-  for (const entry of listItems(board).filter((open) => open.item_status === 'open' && open.item_lane === lane && !canTake(route, open.item_route))) {
+  for (const entry of listItems(board).filter((open) => open.item_status === 'open' && open.item_lane === lane && !open.item_hold_reason && !canTake(route, open.item_route))) {
     reasons.push(`#${entry.item_id} (${entry.item_route}) is open in the ${lane} lane, above your ${route} route: a ${entry.item_route} agent takes it, or, if ${route} can build it, the coordinator reroutes it: pullboard edit ${entry.item_id} --route ${route}`);
   }
   return { item: null, reasons };
@@ -1958,6 +1972,43 @@ export function laneHold(board, lane) {
  */
 export function laneHolds(board) {
   return board.db.prepare('SELECT * FROM hold ORDER BY hold_lane').all();
+}
+
+/** Read an item's coordinator hold, or null when it is available for claims. */
+export function itemHold(board, id) {
+  const item = getItem(board, id);
+  return item.item_hold_reason ? {
+    item_id: item.item_id, item_hold_reason: item.item_hold_reason,
+    item_hold_by: item.item_hold_by, item_hold_at: item.item_hold_at,
+  } : null;
+}
+
+/** Hold an open or already-claimed item without changing its current lifecycle state. */
+export function holdItem(board, id, { agentId, reason }) {
+  coordinatorOnly(agentId, 'holds an item');
+  const text = String(reason ?? '').trim();
+  if (!text) throw new Refused('USAGE', `a hold needs a reason: pullboard hold ${id} "why"`);
+  return atomic(board, () => {
+    const item = getItem(board, id);
+    if (!['open', 'claimed'].includes(item.item_status)) {
+      throw new Refused('ITEM_NOT_OPEN', `item #${id} is ${item.item_status}; only open or claimed items can be held`);
+    }
+    const at = now(board);
+    setItem(board, id, { item_hold_reason: text, item_hold_by: agentId, item_hold_at: at });
+    logEvent(board, agentId, 'hold_item', id, { reason: text });
+    return itemHold(board, id);
+  });
+}
+
+/** Lift an item's coordinator hold without changing any other item state. */
+export function releaseItemHold(board, id, { agentId }) {
+  coordinatorOnly(agentId, 'lifts an item hold');
+  return atomic(board, () => {
+    const held = itemHold(board, id);
+    if (!held) throw new Refused('NOT_HELD', `item #${id} is not held`);
+    setItem(board, id, { item_hold_reason: null, item_hold_by: null, item_hold_at: null });
+    logEvent(board, agentId, 'unhold_item', id, { reason: held.item_hold_reason });
+  });
 }
 
 /** Read named milestones from board metadata; older boards simply have none. */
