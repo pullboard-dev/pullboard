@@ -11,15 +11,20 @@ export function relayMoveActor(move) {
   if (move.operation === 'release') return args[1] ?? null;
   if (['reserveNextReview', 'addMilestone', 'recordRowDecisions', 'applyRowDecisions'].includes(move.operation)) return args[0]?.agentId ?? null;
   if (['completeCheckBaseline', 'appendFact', 'editItem', 'escalate', 'recordAttempt', 'claim', 'submit', 'reserveReview', 'verify', 'merged', 'withdraw', 'refreeze',
-    'passDecision', 'answerDecision', 'holdLane', 'releaseLane', 'holdItem', 'releaseItemHold', 'editMilestoneItems', 'moveMilestone', 'editMilestone', 'removeMilestone'].includes(move.operation)) return args[1]?.agentId ?? null;
+    'passDecision', 'answerDecision', 'holdLane', 'releaseLane', 'holdItem', 'releaseItemHold', 'reopen', 'editMilestoneItems', 'moveMilestone', 'editMilestone', 'removeMilestone'].includes(move.operation)) return args[1]?.agentId ?? null;
   return null;
+}
+
+/** Validate the complete relay-authenticated sender envelope before attributing a refusal. */
+export function validRelaySender(sender) {
+  return Boolean(sender && ['person', 'agent', 'machine'].includes(sender.kind) && typeof sender.userId === 'string' && sender.userId.length > 0 && sender.userId.length <= 256 &&
+    (sender.kind !== 'agent' || (typeof sender.agent === 'string' && sender.agent.length > 0 && sender.agent.length <= 256)) &&
+    (sender.kind !== 'machine' || (typeof sender.machine === 'string' && sender.machine.length > 0 && sender.machine.length <= 256)));
 }
 
 /** Make the same authorization decision on every device, without inspecting its shell or checkout. */
 export function relaySenderProblem(move, sender, kind, { phoneReceipt = false } = {}) {
-  if (!sender || !['person', 'agent', 'machine'].includes(sender.kind) || typeof sender.userId !== 'string' || !sender.userId.length || sender.userId.length > 256 ||
-    (sender.kind === 'agent' && (typeof sender.agent !== 'string' || !sender.agent.length || sender.agent.length > 256)) ||
-    (sender.kind === 'machine' && (typeof sender.machine !== 'string' || !sender.machine.length || sender.machine.length > 256))) {
+  if (!validRelaySender(sender)) {
     return new Refused('RELAY_SENDER', 'this relay record has no authenticated sender; restore attribution before replaying it');
   }
   if (move?.operation === 'shout' && move.args?.[0]?.answers != null) {

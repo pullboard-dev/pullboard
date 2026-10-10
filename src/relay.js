@@ -1,11 +1,11 @@
 /** Opt-in, sealed relay ordering, with crash-safe migration from the older mirror [H1,H3,H5,H16,H17,P5]. */
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import * as store from './board.js';
-import { exportBoard, restoreRelaySnapshot } from './exchange.js';
-import { appliedSequence, applyRelayMove, checkpointSequence, engineReceipt, prepareEngineMove, requireSupportedEngine, startRelayEpoch } from './engine.js';
+import { exportBoard, importBoard, restoreRelaySnapshot, semanticBoardDigest } from './exchange.js';
+import { appliedSequence, applyRelayMove, checkpointSequence, engineReceipt, prepareEngineMove, refuseRelayMove, requireSupportedEngine, startRelayEpoch } from './engine.js';
 import { relayMoveActor } from './relay-sender.js';
 import { ENGINE_VERSION } from './machine.js';
 import { presentationDigest, relayPresentation, relaySnapshot } from './relay-presentation.js';
@@ -32,6 +32,9 @@ const CHECKPOINT_NOTICES = new WeakMap();
 const CHECKPOINT_MOVES = new WeakMap();
 const BASELINE_LOCAL_MOVES = new WeakSet();
 const BASELINE_FAILURES = new WeakMap();
+const AUTH_NOTICES = new WeakSet();
+const ORDERED_MOVE_COMMANDS = new Set(['add', 'edit', 'fact', 'escalate', 'run', 'sweep', 'next', 'claim', 'hold', 'release',
+  'submit', 'done', 'verify', 'merged', 'withdraw', 'refreeze', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget', 'join', 'worktree']);
 
 /** Require a trusted origin; HTTP exists only for loopback development and test relays. */
 export function relayOrigin(address) {
@@ -182,20 +185,51 @@ function localRecords(root, work) {
   try { return work(board); } finally { store.closeBoard(board); }
 }
 
+/** Fingerprint native board contents so async recovery can refuse concurrent local writes. */
+function nativeBoardDigest(board) {
+  return semanticBoardDigest(exportBoard(board));
+}
+
+/** Confirm a recovered checkpoint contains the same durable refusal for the blocked transport slot. */
+function recoveryRefusalMatches(document, recovery) {
+  const boardMeta = Array.isArray(document?.tables?.board_meta) ? document.tables.board_meta : [];
+  const events = Array.isArray(document?.tables?.event) ? document.tables.event : [];
+  const meta = boardMeta.find((row) => row?.meta_key === 'relay_refusal_' + recovery.skip);
+  if (!meta || typeof meta.meta_value !== 'string') return false;
+  let refusal;
+  try { refusal = JSON.parse(meta.meta_value); } catch { return false; }
+  if (typeof refusal?.outcome?.error?.code !== 'string' ||
+      (recovery.blockerDigest && refusal.record !== recovery.blockerDigest)) return false;
+  return events.some((event) => {
+    if (event?.event_kind !== 'relay_refused' || typeof event.event_detail !== 'string') return false;
+    try {
+      const detail = JSON.parse(event.event_detail);
+      return detail.sequence === recovery.skip && detail.code === refusal.outcome.error.code;
+    } catch { return false; }
+  });
+}
+
 /** Count unapplied uploads using durable event ids, without counting relay transport metadata. */
 function behind(root, state) {
   return localRecords(root, (board) => board.db.prepare('SELECT COUNT(*) AS count FROM event WHERE event_id > ?').get(state.cursor).count);
 }
 
+/** Expose only the actionable recovery choice; checkpoint ciphertext and local digests stay private. */
+function recoverySummary(state) {
+  const skip = Number.isSafeInteger(state?.recovery?.skip) ? state.recovery.skip : 0;
+  return { pending: skip > 0, skip, next: skip > 0 ? `pullboard relay recover --skip ${skip}` : '' };
+}
+
 /** Expose key-free link status; only an explicit link operation includes its pairing carrier. */
 function summary(root, state, { pairing = false } = {}) {
-  if (!state) return { linked: false, board: '', url: '', link: '', sequence: 0, behind: 0 };
-  if (state.unlinking) return { linked: false, board: state.board, url: state.url, link: '', sequence: state.sequence, behind: 0, cleanup: true };
+  if (!state) return { linked: false, board: '', url: '', link: '', sequence: 0, behind: 0, recovery: recoverySummary(null) };
+  if (state.unlinking) return { linked: false, board: state.board, url: state.url, link: '', sequence: state.sequence, behind: 0, cleanup: true, recovery: recoverySummary(state) };
   const fragment = pairing ? '&key=' + encodeBoardKey(readBoardKey(state.board)) : '';
   const oversizedSnapshot = snapshotSize(state);
   return { linked: true, board: state.board, url: state.url,
     link: 'https://app.pullboard.dev/#board=' + state.board + fragment,
     sequence: state.sequence, behind: (state.baselinePause ? behind(root, state) : state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)),
+    recovery: recoverySummary(state),
     ...(oversizedSnapshot ? { oversizedSnapshot } : {}),
     ...(state.baselinePause ? { pausedUpload: structuredClone(state.baselinePause) } : {}),
     ...(state.checkpointRefusal ? { refusedCheckpoint: checkpointProblem(state) } : {}) };
@@ -231,6 +265,32 @@ function safePauseMessage(error) {
     .replace(/[\r\n\t\x00-\x1f\x7f]+/gu, ' ')
     .replace(/\s+/gu, ' ').trim();
   return message.slice(0, 240) || 'the relay refused the baseline upload';
+}
+
+/** Whether the CLI command will make an ordered move whose refusal should be reported at dispatch. */
+function orderedMoveCommand(io) {
+  const command = io.relayCommand;
+  if (command?.cliOperation === 'spec') return ['approve', 'decline', 'apply'].includes(command.positionals?.[0]);
+  return ORDERED_MOVE_COMMANDS.has(command?.cliOperation);
+}
+
+/** Give a local read a single safe explanation when its signed relay read is refused. */
+function reportExpiredSignIn(state, io) {
+  if (AUTH_NOTICES.has(io)) return;
+  AUTH_NOTICES.add(io);
+  const fix = process.env.PULLBOARD_RELAY_TOKEN !== undefined
+    ? 'unset PULLBOARD_RELAY_TOKEN to use this machine credential or supply a current PULLBOARD_RELAY_TOKEN'
+    : 'run pullboard relay on to sign in again or pullboard relay off to stop syncing';
+  io.err(`pullboard: [AUTH_REQUIRED] relay sign-in expired or was revoked for board ${state.board}; ${fix}`);
+}
+
+/** Preserve the ordered-move refusal while naming this board and both recovery choices. */
+function expiredSignInMoveRefusal(state, error) {
+  const reason = safePauseMessage(error);
+  if (process.env.PULLBOARD_RELAY_TOKEN !== undefined) {
+    return new Refused('AUTH_REQUIRED', `the supplied PULLBOARD_RELAY_TOKEN was refused for board ${state.board}: ${reason}; unset PULLBOARD_RELAY_TOKEN to use this machine credential or supply a current PULLBOARD_RELAY_TOKEN`);
+  }
+  return new Refused('AUTH_REQUIRED', `relay sign-in expired or was revoked for board ${state.board}: ${reason}; run pullboard relay on to give this machine a credential or pullboard relay off to stop syncing`);
 }
 
 /** Pause only definitive baseline 4xx refusals; throttling and transient errors retain retries. */
@@ -526,6 +586,26 @@ async function decoded(key, record, state, kind, sequence) {
   }
 }
 
+/** Replay one authenticated record, auto-refusing only deterministic current-format record failures. */
+async function replayRelayRecord(board, key, state, record) {
+  let move;
+  try {
+    move = await decoded(key, record, state, record.kind, record.event_id);
+    requireSupportedEngine(move);
+    if (record.kind === 'request') return receivePersonRequest(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender });
+    return applyRelayMove(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender, kind: record.kind,
+      digest: createHash('sha256').update(record.sealed).digest('hex') });
+  } catch (error) {
+    if (!(error instanceof Refused) || !['RELAY_MOVE', 'RELAY_RESPONSE', 'SEAL_FORMAT', 'SEAL_AUTH_FAILED'].includes(error.code)) throw error;
+    return refuseRelayMove(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender, kind: record.kind,
+      code: error.code === 'SEAL_AUTH_FAILED' ? 'RELAY_SEAL' : error.code,
+      digest: createHash('sha256').update(String(record.sealed)).digest('hex'),
+      refusal: error.code === 'SEAL_AUTH_FAILED'
+        ? new Refused('RELAY_SEAL', 'this relay record failed authentication and was logged as refused; run pullboard relay to continue with the next ordered record')
+        : error });
+  }
+}
+
 /** Persist the exact checkpoint before uploading, so a lost reply retries identical ciphertext. */
 async function publishCheckpoint(root, file, state, io) {
   if (!state.token?.startsWith('pm_') || process.env.PULLBOARD_RELAY_TOKEN) return;
@@ -635,22 +715,18 @@ async function catchUp(root, file, state, io) {
     if (localRecords(root, appliedSequence) <= after) throw new Refused('RELAY_RESPONSE', 'the relay checkpoint did not advance the missing prefix; fetch a consistent newer snapshot');
     return catchUp(root, file, state, io);
   }
-  if (!Array.isArray(remote.events) || remote.events.some((record, index) => !record || record.event_id !== after + index + 1 || !['move', 'request'].includes(record.kind) || typeof record.sealed !== 'string' || !record.sender || !['person', 'agent', 'machine'].includes(record.sender.kind) || typeof record.sender.userId !== 'string' || (record.sender.kind === 'agent' && typeof record.sender.agent !== 'string') || (record.sender.kind === 'machine' && typeof record.sender.machine !== 'string'))) {
+  if (!Array.isArray(remote.events) || remote.events.some((record, index) => !record || record.event_id !== after + index + 1 || !['move', 'request'].includes(record.kind) || typeof record.sealed !== 'string')) {
     throw new Refused('RELAY_RESPONSE', 'the relay returned an invalid ordered prefix; fetch a consistent relay snapshot');
   }
   let pendingRefusal;
   for (const record of remote.events) {
-    const move = await decoded(key, record, state, record.kind, record.event_id);
-    // Legacy executable documents in the request channel still fail closed before attribution.
-    if (record.kind === 'request' && move?.engine !== undefined) requireSupportedEngine(move);
-    const outcome = localRecords(root, (board) => {
-      if (record.kind === 'request') return receivePersonRequest(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender });
-      else return applyRelayMove(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender, kind: record.kind });
-    });
-    // Sender refusals have a sequence receipt, not an executable-ID receipt: never resend them.
+    const board = store.openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite'));
+    let outcome;
+    try { outcome = await replayRelayRecord(board, key, state, record); } finally { store.closeBoard(board); }
+    // Exact ciphertext identifies an interrupted send even when its document was refused before replay.
     if (record.kind === 'move' && state.pending?.move && record.event_id === state.pending.sequence
-        && record.sealed === state.pending.sealed && JSON.stringify(move) === JSON.stringify(state.pending.move)
-        && outcome?.error && !localRecords(root, board => engineReceipt(board, move.id))) {
+        && record.sealed === state.pending.sealed && outcome?.error
+        && !localRecords(root, board => engineReceipt(board, state.pending.move.id))) {
       pendingRefusal = outcome.error;
       delete state.pending;
       delete state.recovered;
@@ -667,6 +743,7 @@ async function catchUp(root, file, state, io) {
 
 /** Finish a durable executable send; a collision reseals its unchanged id after applying the winner. */
 async function sendPending(root, file, state, io) {
+  let renewedAgentToken = false;
   for (let tries = 0; state.pending && tries < 100; tries += 1) {
     const pending = state.pending;
     try {
@@ -674,6 +751,16 @@ async function sendPending(root, file, state, io) {
       const reply = await request(transport, '/api/v1/boards/' + state.board + '/moves', { method: 'POST', body: { sequence: pending.sequence, sealed: pending.sealed } }, io);
       if (reply.event?.event_id !== pending.sequence || reply.event.sealed !== pending.sealed) throw new Refused('RELAY_RESPONSE', 'the relay acknowledgement differs from this executable send; fetch the configured relay');
     } catch (error) {
+      const actor = credentialActor(pending.move);
+      if (error.code === 'AUTH_REQUIRED' && !renewedAgentToken && actor !== 'machine' && actor !== 'person'
+          && process.env.PULLBOARD_RELAY_TOKEN === undefined && state.token?.startsWith('pm_') && state.agentTokens?.[actor]?.token) {
+        // A revoked/expired PA cache can be replaced once by this board's existing PM credential.
+        delete state.agentTokens[actor];
+        saveLink(file, state);
+        renewedAgentToken = true;
+        await actorTransport(root, file, state, actor, io);
+        continue;
+      }
       if (!['SEQUENCE_REPEAT', 'SEQUENCE_GAP'].includes(error.code)) throw error;
       await catchUp(root, file, state, io);
       if (state.pending) {
@@ -698,7 +785,7 @@ function credentialActor(move) {
   return relayMoveActor(move);
 }
 
-/** Select one scoped credential without renewing a revoked or expired agent cache. */
+/** Select a scoped credential; sendPending alone may renew a failed cached token once. */
 async function actorTransport(root, file, state, actor, io) {
   if (typeof actor !== 'string' || !/^[A-Za-z0-9_.-]{1,128}$/.test(actor)) {
     throw new Refused('RELAY_ACTOR', 'name the registered agent performing this move before sending it');
@@ -777,6 +864,7 @@ export async function relayOperation(root, operation, args, io, command, applyLo
   return locked(file, async () => {
     const state = loadLink(file);
     if (!state || state.unlinking) throw new Refused('RELAY_UNLINK_PENDING', 'finish unlinking this device with pullboard relay off before sending a move');
+    if (state.recovery) throw new Refused('RELAY_RECOVERY_PENDING', `finish the saved recovery for sequence ${state.recovery.skip} before sending a linked move`);
     let moves = CHECKPOINT_MOVES.get(io);
     if (!moves) { moves = new Set(); CHECKPOINT_MOVES.set(io, moves); }
     if (moves.has(state.board)) CHECKPOINT_NOTICES.get(io)?.delete(state.board);
@@ -785,60 +873,69 @@ export async function relayOperation(root, operation, args, io, command, applyLo
     const applyPausedMoveLocally = () => typeof applyLocally === 'function'
       ? applyLocally()
       : localRecords(root, (board) => store[operation](board, ...args));
-    if (!await ensureOrdered(root, file, state, io)) {
-      // Preflight's notice covers the first move; long-running commands still name every later move.
-      if (BASELINE_LOCAL_MOVES.has(io)) BASELINE_NOTICES.delete(io);
-      reportBaselinePause(state, io);
-      BASELINE_LOCAL_MOVES.add(io);
-      return applyPausedMoveLocally();
-    }
-    await catchUp(root, file, state, io);
-    if (state.pending) {
-      delete state.pending;
-      saveLink(file, state);
-    }
-    const previousReceipt = io.personRequestMoveId && localRecords(root, board => engineReceipt(board, io.personRequestMoveId));
-    if (previousReceipt) {
-      if (state.recovered?.move?.id === io.personRequestMoveId) {
-        delete state.recovered;
+    try {
+      if (!await ensureOrdered(root, file, state, io)) {
+        // Preflight's notice covers the first move; long-running commands still name every later move.
+        if (BASELINE_LOCAL_MOVES.has(io)) BASELINE_NOTICES.delete(io);
+        reportBaselinePause(state, io);
+        BASELINE_LOCAL_MOVES.add(io);
+        return applyPausedMoveLocally();
+      }
+      await catchUp(root, file, state, io);
+      if (state.pending) {
+        delete state.pending;
         saveLink(file, state);
       }
-      if (previousReceipt.outcome.error) throw new Refused(previousReceipt.outcome.error.code, previousReceipt.outcome.error.message);
-      for (const event of previousReceipt.outcome.events ?? []) io.onEvent?.(event);
-      return previousReceipt.outcome.result;
-    }
-    let move = recoveredMove(root, state, operation, args, command);
-    if (!move) {
-      move = localRecords(root, (board) => prepareEngineMove(board, operation, args, io.personRequestMoveId ? { id: io.personRequestMoveId } : {}));
-      if (io.personRequest) move.personRequest = structuredClone(io.personRequest);
-      const problem = move.personRequest && localRecords(root, board => requestMoveProblem(board, move, { checkExecutorLease: false }));
-      if (problem) throw problem;
-      move.actor = relayMoveActor(move) ?? credentialActor(move);
-      await actorTransport(root, file, state, credentialActor(move), io);
-      const sequence = state.sequence + 1;
-      state.pending = { move, intent: operationIntent(operation, args),
-        ...(command ? { command, commandIntent: operationIntent('cli:' + command.cliOperation, command) } : {}), sequence,
-        sealed: await sealedRecord(readBoardKey(state.board), move, state, 'move', sequence) };
-      saveLink(file, state);
-      try { await sendPending(root, file, state, io); }
-      catch (error) {
-        if (!['RELAY_UNAVAILABLE', 'RELAY_RESPONSE'].includes(error.code)) throw error;
-        // A lost acknowledgement can be recovered now without asking the caller to retry side effects.
-        try { await catchUp(root, file, state, io); } catch { throw error; }
-        if (!localRecords(root, (board) => engineReceipt(board, move.id))) throw error;
+      const previousReceipt = io.personRequestMoveId && localRecords(root, board => engineReceipt(board, io.personRequestMoveId));
+      if (previousReceipt) {
+        if (state.recovered?.move?.id === io.personRequestMoveId) {
+          delete state.recovered;
+          saveLink(file, state);
+        }
+        if (previousReceipt.outcome.error) throw new Refused(previousReceipt.outcome.error.code, previousReceipt.outcome.error.message);
+        for (const event of previousReceipt.outcome.events ?? []) io.onEvent?.(event);
+        return previousReceipt.outcome.result;
       }
+      let move = recoveredMove(root, state, operation, args, command);
+      if (!move) {
+        move = localRecords(root, (board) => prepareEngineMove(board, operation, args, io.personRequestMoveId ? { id: io.personRequestMoveId } : {}));
+        if (io.personRequest) move.personRequest = structuredClone(io.personRequest);
+        const problem = move.personRequest && localRecords(root, board => requestMoveProblem(board, move, { checkExecutorLease: false }));
+        if (problem) throw problem;
+        move.actor = relayMoveActor(move) ?? credentialActor(move);
+        await actorTransport(root, file, state, credentialActor(move), io);
+        const sequence = state.sequence + 1;
+        state.pending = { move, intent: operationIntent(operation, args),
+          ...(command ? { command, commandIntent: operationIntent('cli:' + command.cliOperation, command) } : {}), sequence,
+          sealed: await sealedRecord(readBoardKey(state.board), move, state, 'move', sequence) };
+        saveLink(file, state);
+        try { await sendPending(root, file, state, io); }
+        catch (error) {
+          if (!['RELAY_UNAVAILABLE', 'RELAY_RESPONSE'].includes(error.code)) throw error;
+          // A lost acknowledgement can be recovered now without asking the caller to retry side effects.
+          try { await catchUp(root, file, state, io); } catch { throw error; }
+          if (!localRecords(root, (board) => engineReceipt(board, move.id))) throw error;
+        }
+      }
+      const receipt = localRecords(root, (board) => engineReceipt(board, move.id));
+      if (!receipt) throw new Refused('RELAY_RESPONSE', 'the acknowledged operation has no replay receipt; fetch a consistent relay snapshot');
+      delete state.recovered;
+      saveLink(file, state);
+      // A phone can read a compacted checkpoint; failed presentation uploads do not undo the move.
+      try { await publishCheckpoint(root, file, state, io); }
+      catch (error) {
+        if (!(error instanceof Refused)) throw error;
+        if (error.code === 'AUTH_REQUIRED') reportExpiredSignIn(state, io);
+        else io.err(`pullboard: ${error.message}`);
+      }
+      if (receipt.outcome.error) throw new Refused(receipt.outcome.error.code, receipt.outcome.error.message);
+      if (['register', 'ensureCoordinator'].includes(operation)) await actorTransport(root, file, state, receipt.outcome.result, io);
+      for (const event of receipt.outcome.events ?? []) io.onEvent?.(event);
+      return receipt.outcome.result;
+    } catch (error) {
+      if (error instanceof Refused && error.code === 'AUTH_REQUIRED') throw expiredSignInMoveRefusal(state, error);
+      throw error;
     }
-    const receipt = localRecords(root, (board) => engineReceipt(board, move.id));
-    if (!receipt) throw new Refused('RELAY_RESPONSE', 'the acknowledged operation has no replay receipt; fetch a consistent relay snapshot');
-    delete state.recovered;
-    saveLink(file, state);
-    // A phone can read a compacted checkpoint; failed presentation uploads do not undo the move.
-    try { await publishCheckpoint(root, file, state, io); }
-    catch (error) { if (!(error instanceof Refused)) throw error; io.err(`pullboard: ${error.message}`); }
-    if (receipt.outcome.error) throw new Refused(receipt.outcome.error.code, receipt.outcome.error.message);
-    if (['register', 'ensureCoordinator'].includes(operation)) await actorTransport(root, file, state, receipt.outcome.result, io);
-    for (const event of receipt.outcome.events ?? []) io.onEvent?.(event);
-    return receipt.outcome.result;
   });
 }
 
@@ -855,6 +952,7 @@ export async function syncRelay(root, io) {
     if (!state) return null;
     if (state.unlinking) { io.err('pullboard: [RELAY_UNLINK_PENDING] the remote board is deleted; run pullboard relay off to finish forgetting this device key'); return summary(root, state); }
     try {
+      if (state.recovery) throw new Refused('RELAY_RECOVERY_PENDING', `a relay recovery for sequence ${state.recovery.skip} is pending; retry pullboard relay recover --skip ${state.recovery.skip} before syncing`);
       if (!await ensureOrdered(root, file, state, io)) return summary(root, state);
       await catchUp(root, file, state, io);
       if (state.pending) {
@@ -874,16 +972,19 @@ export async function syncRelay(root, io) {
           KEY_WARNED_COMMANDS.add(io);
           io.err(`pullboard: ${error.message}; moves are off until the key is reachable`);
         }
+      } else if (error.code === 'AUTH_REQUIRED') {
+        if (!orderedMoveCommand(io)) reportExpiredSignIn(state, io);
       } else io.err(`pullboard: ${error.message}; run pullboard status to see pending uploads`);
       return { linked: true, board: state.board, url: state.url, sequence: state.sequence,
-        behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)) };
+        behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)),
+        recovery: recoverySummary(state) };
     }
   });
 }
 
 /** Return token-management context without opening a board-key pairing link or exposing any credential. */
 function tokenContext(state) {
-  return { linked: true, board: state.board, url: state.url, link: '', sequence: state.sequence, behind: 0 };
+  return { linked: true, board: state.board, url: state.url, link: '', sequence: state.sequence, behind: 0, recovery: recoverySummary(state) };
 }
 
 /** Require the existing board delegate before listing metadata or requesting an approved revocation. */
@@ -971,6 +1072,95 @@ export async function relayCommandReceiptReported(root, moveId) {
 export function relayRecovered(root) {
   return loadLink(linkFile(root))?.recovered?.move ?? null;
 }
+
+/** Explicitly refuse one blocked position, replay its valid tail on a private copy, then publish it. */
+export async function relayRecover(root, skip, io) {
+  const file = linkFile(root);
+  return locked(file, async () => {
+    const state = loadLink(file);
+    if (!state || state.unlinking || state.mode !== 'ordered') throw new Refused('RELAY_LINKED', 'link this ordered relay board before recovering a blocked sequence');
+    const boardFile = join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite');
+    const source = store.openBoard(boardFile);
+    const staged = store.openBoard(':memory:');
+    try {
+      const cursor = appliedSequence(source);
+      const sourceDigest = nativeBoardDigest(source);
+      if (!Number.isSafeInteger(skip) || skip !== cursor + 1) throw new Refused('RELAY_SEQUENCE', `only the blocked next sequence ${cursor + 1} can be skipped; inspect pullboard relay and retry`);
+      if (state.recovery && (state.recovery.skip !== skip || state.recovery.cursor !== cursor)) {
+        throw new Refused('RELAY_RECOVERY_PENDING', `finish the saved recovery for sequence ${state.recovery.skip} before choosing another; retry pullboard relay recover --skip ${state.recovery.skip}`);
+      }
+      if (state.recovery && state.recovery.sourceDigest !== sourceDigest) throw new Refused('RELAY_LOCAL_CHANGED', 'the local board changed while recovery was pending; local rows are preserved, but this recovery cannot be retried from the changed board; keep an export and ask the person to reconcile the relay checkpoint');
+      if (nativeBoardDigest(source) !== sourceDigest) throw new Refused('RELAY_LOCAL_CHANGED', 'the local board changed while recovery started; no recovery data was published, retry after preserving that change');
+      importBoard(staged, exportBoard(source));
+      const key = readBoardKey(state.board);
+      if (state.recovery) {
+        const saved = await request(state, '/api/v1/boards/' + state.board + '/state', {}, io);
+        if (Number.isSafeInteger(saved.state?.sequence) && saved.state.sequence >= state.recovery.sequence) {
+          const ownAcknowledgement = saved.state.sequence === state.recovery.sequence && saved.state.sealed === state.recovery.sealed;
+          const senderProblem = relaySenderProblem(null, saved.state.sender, 'snapshot');
+          if (senderProblem) throw senderProblem;
+          const native = await decoded(key, saved.state, state, 'snapshot', saved.state.sequence);
+          if (!recoveryRefusalMatches(native, state.recovery) || (!ownAcknowledgement && !state.recovery.blockerDigest)) {
+            throw new Refused('RELAY_RECOVERY_PENDING', 'the checkpoint does not prove this blocked sequence was refused; keep this device unchanged and ask the person to inspect the relay checkpoint');
+          }
+          if (nativeBoardDigest(source) !== sourceDigest) throw new Refused('RELAY_LOCAL_CHANGED', 'the local board changed while recovery was pending; local rows are preserved, but this checkpoint cannot be adopted over those changes; keep an export and ask the person to reconcile the relay checkpoint');
+          restoreRelaySnapshot(source, native, saved.state.sequence, sourceDigest);
+          state.sequence = saved.state.sequence;
+          state.cursor = saved.state.sequence;
+          delete state.recovery;
+          saveLink(file, state);
+          return { ...summary(root, state), skipped: skip, ...(!ownAcknowledgement ? { adopted: true } : {}) };
+        }
+      }
+      const remote = await request(state, '/api/v1/boards/' + state.board + '/events?after=' + cursor, {}, io);
+      if (!Array.isArray(remote.events) || !remote.events.length || remote.events[0]?.event_id !== skip) throw new Refused('RELAY_SEQUENCE', `relay sequence ${skip} is not available as the next record; fetch the current relay prefix`);
+      const blocker = remote.events[0];
+      let decodedMove = null;
+      let blockerCode = 'RELAY_RECORD';
+      try {
+        decodedMove = await decoded(key, blocker, state, blocker.kind, blocker.event_id);
+        requireSupportedEngine(decodedMove);
+        throw new Refused('RELAY_RECOVERY_HEALTHY', 'the selected record is readable by this pullboard version; run pullboard relay to replay it normally');
+      } catch (error) {
+        if (!(error instanceof Refused) || (error.code !== 'ENGINE_VERSION' && !['SEAL_VERSION', 'RELAY_MOVE', 'RELAY_RESPONSE', 'SEAL_FORMAT', 'SEAL_AUTH_FAILED'].includes(error.code))) throw error;
+        blockerCode = error.code;
+        // A person may explicitly bypass this one authenticated transport slot; it remains in the receipt log.
+      }
+      if (decodedMove?.engine > ENGINE_VERSION) blockerCode = 'ENGINE_VERSION';
+      const blockerDigest = createHash('sha256').update(String(blocker.sealed)).digest('hex');
+      refuseRelayMove(staged, decodedMove, { sequence: skip, at: blocker.event_at, sender: blocker.sender, kind: blocker.kind,
+        code: blockerCode,
+        digest: blockerDigest,
+        refusal: new Refused(blockerCode, 'person recovery logged this blocked record as refused; run pullboard relay to apply the remaining ordered tail') });
+      for (const record of remote.events.slice(1)) {
+        try { await replayRelayRecord(staged, key, state, record); }
+        catch (error) {
+          // A later unsupported record needs its own explicit choice; it cannot undo this selected skip.
+          if (!(error instanceof Refused) || !['ENGINE_VERSION', 'SEAL_VERSION'].includes(error.code)) throw error;
+          break;
+        }
+      }
+      const document = relaySnapshot(root, { board: staged });
+      const sequence = appliedSequence(staged);
+      if (nativeBoardDigest(source) !== sourceDigest) throw new Refused('RELAY_LOCAL_CHANGED', 'the local board changed while recovery was staged; no recovery checkpoint was published, export the new local change and retry');
+      const candidate = state.recovery?.sequence === sequence
+        ? { sequence, sealed: state.recovery.sealed }
+        : { sequence, sealed: await sealedRecord(key, document, state, 'snapshot', sequence) };
+      state.recovery = { skip, cursor, sourceDigest, blockerDigest, ...candidate };
+      saveLink(file, state);
+      const reply = await request(state, '/api/v1/boards/' + state.board + '/state', { method: 'PUT', body: candidate }, io);
+      if (reply.state?.sequence !== sequence || reply.state.sealed !== candidate.sealed) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge the recovery checkpoint; local board was left unchanged, retry recovery');
+      if (nativeBoardDigest(source) !== sourceDigest) throw new Refused('RELAY_LOCAL_CHANGED', 'the local board changed before checkpoint acknowledgement; local rows are preserved, but the checkpoint may already be accepted and this recovery cannot be retried from the changed board; keep an export and ask the person to reconcile the relay checkpoint');
+      restoreRelaySnapshot(source, document, sequence, sourceDigest);
+      state.sequence = sequence;
+      state.cursor = sequence;
+      delete state.recovery;
+      saveLink(file, state);
+      return { ...summary(root, state), skipped: skip };
+    } finally { store.closeBoard(staged); store.closeBoard(source); }
+  });
+}
+
 /** Read the local link and lag without opening a network connection or revealing its relay token. */
 export function relayStatus(root) { return summary(root, loadLink(linkFile(root))); }
 
@@ -1088,7 +1278,7 @@ export async function relayOff(root, io) {
     } catch (error) {
       if (proposal) remote = warnPhoneApproval(proposal, error, io, 'Local link removed. Manage the relay copy from the phone, or relink this board and run pullboard relay off again explicitly.');
     }
-    return { linked: false, board: state.board, url: state.url, link: '', sequence: state.sequence, behind: 0,
+    return { linked: false, board: state.board, url: state.url, link: '', sequence: state.sequence, behind: 0, recovery: recoverySummary(null),
       ...(remote ? { remote } : {}),
       notice: 'Local link removed. The relay copy stays until you approve deleting it on your phone.' + (requested ? '' : ' Open the phone to manage the relay copy.') };
   });

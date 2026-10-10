@@ -18,9 +18,10 @@ import { once } from 'node:events';
 import { join, dirname, resolve, basename, delimiter } from 'node:path';
 import { after, test } from 'node:test';
 import { resultCommands } from '../src/cli.js';
-import { allShouts, closeBoard, EVENT_LOG_VERSION, openBoard } from '../src/board.js';
+import { allShouts, EVENT_LOG_VERSION, closeBoard, openBoard } from '../src/board.js';
 import { presentationShout, relayPresentation } from '../src/relay-presentation.js';
 import { JSON_SHAPES } from '../src/json.js';
+import { projectState } from '../src/serve.js';
 import { SSH_SHELL_MARKERS } from '../src/person.js';
 import { fetchFresh } from './http-fixture.js';
 
@@ -279,6 +280,7 @@ test('[A1] command results match the catalog across roots and subcommands', () =
   json(box, repo, 'status');
   json(box, repo, 'stats');
   json(box, repo, 'doctor');
+  json(box, repo, 'skills', ['--update']);
   const plainStatus = box.run(repo, 'status');
   assert.equal(plainStatus.status, 0, plainStatus.stderr);
   assert.equal(plainStatus.stderr, '');
@@ -637,15 +639,32 @@ test('[A1] every catalog command and subcommand has a real CLI exercise', () => 
   json(source, source.repo, 'milestone', ['edit', 'Catalog', '--name', 'Release', '--note', 'Catalog coverage'], 'edit');
   json(source, source.repo, 'milestone', ['remove', 'Later'], 'remove');
   json(source, source.repo, 'milestone', ['remove', 'Release'], 'remove');
+  const reopenItem = json(source, source.repo, 'add', ['coordinator', 'Reopen catalog item', '--criterion', 'Exercise the versioned reopen result.', '--check', 'true'], 'add').item;
+  json(source, source.repo, 'claim', [String(reopenItem.item_id)]);
+  json(source, source.repo, 'submit', [String(reopenItem.item_id)]);
+  json(source, source.repo, 'reopen', [String(reopenItem.item_id), '--note', 'exercise the versioned reopen result']);
   json(source, source.repo, 'spec', ['approve', 'G1'], 'approve');
   json(source, source.repo, 'spec', ['decline', 'G1', '--reason', 'Catalog decline'], 'decline');
   json(source, source.repo, 'spec', ['apply'], 'apply');
+
   /** Exercise the agent-only takeover with a private explicit session, leaving later terminal calls markerless. */
   const sessionSource = { ...source, run: (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env: { ...source.env, CODEX_SESSION_ID: 'api-catalog-session' }, encoding: 'utf8' }) };
   json(sessionSource, source.repo, 'takeover');
   const missing = Object.keys(JSON_SHAPES.commands).filter((key) => !covered.has(key));
   assert.deepEqual(missing, [], `add real-repo invocations for undocumented coverage gaps: ${missing.join(', ')}`);
   assert.deepEqual([...coveredRoots].sort(), resultCommands(), 'every actual root/factory command has an invocation');
+});
+
+test('[A2] API projection from a borrowed staged board matches the normal view and leaves it open', () => {
+  const box = project();
+  json(box, box.repo, 'add', ['app', 'Projection fixture', '--criterion', 'same projector']);
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  try {
+    const ordinary = projectState(box.repo);
+    const staged = projectState(box.repo, { board });
+    assert.deepEqual(staged, ordinary, 'the staged path uses the exact API projectState projection');
+    assert.doesNotThrow(() => board.db.prepare('SELECT 1').get(), 'the caller retains ownership of its borrowed board connection');
+  } finally { closeBoard(board); }
 });
 
 test('[N26,A2] roadmap text, JSON and API state follow live local and registered repo items', async (t) => {

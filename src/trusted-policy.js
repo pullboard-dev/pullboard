@@ -1,12 +1,14 @@
 /** Coordinator policy and immutable submission checks cannot come from a builder's candidate [V4,V16,L3,M3]. */
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { digestOf } from './gate.js';
+import { digestOf, writeTimingProfile } from './gate.js';
+import { timingFromOutput, timingFromLog, timingRunner } from './timing.js';
 import { closeSync, existsSync, mkdtempSync, mkdirSync, openSync, readFileSync, readSync, rmSync, writeSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath } from 'node:url';
+import { GATE_SLOT_HELD_ENV } from './resources.js';
 import { configFromSource } from './config.js';
 import { cleanGitEnvironment, gitConfig, invalidateGitFacts, mainCheckout, refuseGrafts } from './git.js';
 import { secretsIn } from './hooks.js';
@@ -134,8 +136,12 @@ export function frozenCheck(item) {
   return frozen?.check ?? (item.item_frozen ? '' : item.item_check ?? '');
 }
 
-/** Run the frozen check at the exact submitted commit in a private clone, leaving live worktrees untouched. */
-export function checkAtCommit(root, item) {
+/** Run the frozen check at the exact submitted commit in a private clone, leaving live worktrees untouched.
+ * @param {string} root
+ * @param {object} item
+ * @param {{ waitMs?: number, gateSlotHeld?: boolean }} [options] - Queue wait before the private check started.
+ */
+export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false } = {}) {
   const command = frozenCheck(item);
   if (!command) return { state: 'pass', green: true, checked: false, report: '' };
   let config;
@@ -150,15 +156,21 @@ export function checkAtCommit(root, item) {
   const verifierHome = process.env.HOME ?? process.env.USERPROFILE;
   const npmCache = process.env.npm_config_cache ?? join(verifierHome ?? home, '.npm');
   const env = { ...cleanGitEnvironment(), HOME: home, PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(home, 'machine'), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', npm_config_cache: npmCache };
+  if (gateSlotHeld) env[GATE_SLOT_HELD_ENV] = '1';
   delete env.PULLBOARD_RELAY_TOKEN;
   let installOutput = '';
   let checkOutput = '';
+  const checkStartedAt = Date.now();
   let installLogPath = '';
   let checkLogPath = '';
+  let timingProfile = { files: [], tests: [] };
   /** Format one completed check phase with the private captures and durable artifact locations. */
-  const finish = (state, stage) => checkResult(state, stage, installOutput, checkOutput, {
-    root, item, installLogPath, checkLogPath,
-  });
+  const finish = (state, stage) => {
+    const runner = timingRunner(command);
+    const events = checkLogPath && existsSync(checkLogPath) ? timingFromLog(checkLogPath, runner) : timingFromOutput(checkOutput, runner);
+    timingProfile = { ...events, wallMs: Math.max(0, Date.now() - checkStartedAt) };
+    return checkResult(state, stage, installOutput, checkOutput, { root, item, installLogPath, checkLogPath, timingProfile, waitMs });
+  };
   try {
     const common = policyGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
     const clone = spawnSync('git', ['clone', '--quiet', '--shared', '--no-checkout', common, copy], { env, stdio: 'ignore' });
@@ -204,7 +216,9 @@ export function checkAtCommit(root, item) {
     if (run.status === null) return finish('unverified', 'check could not start (CHECK_RUNNER)');
     return finish(run.status === 0 ? 'pass' : 'red', run.status === 0 ? 'check' : `check failed (exit ${run.status})`);
   } catch { return finish('unverified', 'check could not complete'); }
-  finally { rmSync(scratch, { recursive: true, force: true }); }
+  finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
 }
 
 /** Run one shell command in a bounded private process group and capture its combined output. */
@@ -343,7 +357,7 @@ function streamSanitizedLog(path, fallback, label, writeArtifact) {
 }
 
 /** Persist a sanitized full diagnostic outside the temporary checkout so a refusal can name it. */
-function checkResult(state, stage, installCapture, checkCapture, { root = '', item = {}, installLogPath = '', checkLogPath = '' } = {}) {
+function checkResult(state, stage, installCapture, checkCapture, { root = '', item = {}, installLogPath = '', checkLogPath = '', timingProfile = null, waitMs = 0 } = {}) {
   const boundedInstall = secretScanned(installCapture, 'check install capture');
   const boundedCheck = secretScanned(checkCapture, 'frozen check capture');
   const install = digestOf(boundedInstall) || '(no output)';
@@ -352,7 +366,7 @@ function checkResult(state, stage, installCapture, checkCapture, { root = '', it
   let outputPath = null;
   let outputError = null;
   let artifactFd = null;
-  if (state !== 'pass' && root) {
+  if (root && (state !== 'pass' || checkLogPath || timingProfile)) {
     try {
       const common = policyGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
       const directory = join(common, 'pullboard', 'check-output');
@@ -388,15 +402,23 @@ function checkResult(state, stage, installCapture, checkCapture, { root = '', it
   };
   let installLog;
   let checkLog;
+  let profilePath = null;
   try {
     installLog = writePhase('install', installLogPath, installCapture, 'check install output', '(no output)');
     appendArtifact('\n');
     checkLog = writePhase('check', checkLogPath, checkCapture, 'frozen check output',
       !checkLogPath && !checkCapture ? '(not run or no output)' : '(no output)');
     if (artifactFd !== null) closeSync(artifactFd);
+    if (outputPath && timingProfile) {
+      profilePath = `${outputPath}.profile.json`;
+      const profile = writeTimingProfile(profilePath, { ...timingProfile, waitMs: Math.max(0, Math.round(waitMs)) });
+      timingProfile = profile;
+    }
   } catch (error) {
     if (artifactFd !== null) { try { closeSync(artifactFd); } catch { /* The descriptor may already be closed. */ } }
     if (outputPath) { try { rmSync(outputPath, { force: true }); } catch { /* Keep the refusal typed if cleanup also fails. */ } }
+    if (profilePath) { try { rmSync(profilePath, { force: true }); } catch { /* Keep the refusal typed if cleanup also fails. */ } }
+    profilePath = null;
     outputPath = null;
     outputError = error.code ?? 'CHECK_DIAGNOSTIC';
     installLog = streamSanitizedLog('', installCapture, 'check install capture', null);
@@ -408,5 +430,5 @@ function checkResult(state, stage, installCapture, checkCapture, { root = '', it
   const failure = state === 'red' ? 'failed' : /timed out/u.test(stage) ? 'timed out'
     : /could not start/u.test(stage) ? "couldn't start" : state === 'unverified' ? 'could not be verified' : 'passed';
   const output = `install output:\n${boundedInstall || '(no output)'}\ncheck output:\n${boundedCheck || '(not run or no output)'}`;
-  return { state, green: state === 'pass', checked: true, stage, failure, report, output, outputTail, outputPath, outputError };
+  return { state, green: state === 'pass', checked: true, stage, failure, report, output, outputTail, outputPath, outputError, profilePath, profile: timingProfile ? { ...timingProfile, profilePath } : null };
 }

@@ -16,6 +16,7 @@ const MOVES = {
   merged: { item: true, positions: ['commit'] },
   withdraw: { item: true, positions: ['reason'] },
   refreeze: { item: true },
+  reopen: { item: true, flags: ['note'] },
   escalate: { item: true, flags: ['note'] },
   hold: { positions: ['lane'], flags: ['reason'], booleans: ['off'] },
   shout: { positions: ['to', 'text'], optional: ['to'], booleans: ['decision'], flags: ['evidence', 'outcome', 'item', 'commit'] },

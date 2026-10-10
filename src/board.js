@@ -1,5 +1,5 @@
 /**
- * The board (B1–B7, V1–V8, R1, R2): items, claims, submissions, verdicts and shouts in one SQLite
+ * The board (B1–B7, V1–V8, R1–R3): items, claims, submissions, verdicts and shouts in one SQLite
  * file in the git common dir, so every worktree sees the same board and nothing is committed.
  *
  * Every move is one immediate transaction (B2), so two agents can never claim the same item, and
@@ -377,8 +377,8 @@ function logEvent(board, by, kind, itemId, detail = {}) {
 }
 
 /** Log an authenticated relay refusal without making an item, shout or verdict move [H2,H16]. */
-export function recordRelayRefusal(board, { by, sequence, kind, operation, actor, code }) {
-  logEvent(board, by, 'relay_refused', null, { sequence, kind, operation, actor, code });
+export function recordRelayRefusal(board, { by, sequence, kind, operation, actor, code, itemId = null }) {
+  logEvent(board, by, 'relay_refused', itemId, { sequence, kind, operation, actor, code });
 }
 
 /**
@@ -1090,9 +1090,12 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
             .get(id);
           return total ? new Refused('CHILDREN_OPEN', `item #${id} has ${total} unfinished child items`) : null;
         },
-        headIsNew: () => {
+        headIsNew: (found) => {
           const wasRejected = board.db.prepare("SELECT 1 FROM verdict WHERE item_id = ? AND verdict_decision = 'REJECT' AND verdict_commit = ?").get(id, commit);
-          return wasRejected ? new Refused('HEAD_NOT_NEW', `#${id} was rejected at ${commit.slice(0, 12)}; commit the rework first`) : null;
+          const sameReopenedHead = found.item_verdict === null && found.item_commit === commit;
+          return wasRejected || sameReopenedHead
+            ? new Refused('HEAD_NOT_NEW', `#${id} already has a submission at ${commit.slice(0, 12)}; commit the rework first`)
+            : null;
         },
       },
       set: (found) => ({
@@ -1360,6 +1363,41 @@ export function verify(board, id, { agentId, decision, reason, note = '', head, 
   });
 }
 
+/** Return a submission for criterion correction without recording a verifier's judgment [V2,V6].
+ * The prior commit remains as the base the builder must change before resubmitting.
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {{ agentId: string, note: string }} request
+ * @returns {{ id: number, commit: string }}
+ */
+export function reopen(board, id, { agentId, note }) {
+  return atomic(board, () => {
+    let submittedCommit = null;
+    const item = moveItem(board, id, 'reopen', {
+      checks: {
+        joined: null,
+        [IN_STATE]: (found) => new Refused('NOT_SUBMITTED', `item #${id} is ${current(board, found).item_status}, not submitted`),
+        coordinatorOnly: () => onlyCoordinator(agentId, 'reopens submissions'),
+        noteGiven: () => (note.trim() ? null : new Refused('NOTE_REQUIRED', 'say why the criterion needs correction: --note "why"')),
+      },
+      set: (found) => {
+        submittedCommit = found.item_commit;
+        return {
+          item_verdict: null,
+          item_verified_by: null,
+          item_owner: null,
+          item_lease_until: null,
+          item_review_by: null,
+          item_review_until: null,
+        };
+      },
+    });
+    logEvent(board, agentId, 'reopen', id, { commit: submittedCommit, note: note.trim(), judgment: null });
+    return { id: item.item_id, commit: submittedCommit };
+  });
+}
+
 /**
  * Refuse unless the acting agent is the coordinator.
  *
@@ -1376,9 +1414,9 @@ function coordinatorOnly(agentId, what) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, commit: string }} merge
+ * @param {{ agentId: string, commit: string, note?: string }} merge
  */
-export function merged(board, id, { agentId, commit }) {
+export function merged(board, id, { agentId, commit, note = '' }) {
   coordinatorOnly(agentId, 'records merges');
   atomic(board, () => {
     const item = itemById(board, id);
@@ -1386,7 +1424,7 @@ export function merged(board, id, { agentId, commit }) {
       throw new Refused('NOT_VERIFIED', `item #${id} is ${item.item_status}; merge verified work only`);
     }
     setItem(board, id, { item_merged_commit: commit });
-    logEvent(board, agentId, 'merged', id, { commit });
+    logEvent(board, agentId, 'merged', id, { commit, ...(note.trim() ? { note: note.trim() } : {}) });
   });
 }
 

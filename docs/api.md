@@ -20,6 +20,8 @@ The board-state API's item projection includes `check` and, when recorded, `chec
 
 `agentCount` counts distinct event actors other than `board` and `person`; the coordinator and join moves are included. `agents` lists `{id, moves, families}` for each actor. `families` lists `{name, agents, moves}` by recorded family label, and `familyCount` counts these buckets, including `unknown`. Labels are not inferred from a model name or current agent, item, or verdict rows. A family's first recorded event snapshot applies to that move and following moves, until another snapshot changes or clears it; earlier unattributed moves remain `unknown`. Date windows preserve earlier recorded declarations but count only selected moves. Arrays are sorted by identifier or label. Local HTTP board state carries the same full-history object as `state.proofStats`.
 
+`merged <id> <commit>` records only a commit reachable from the primary checkout's branch that contains the item's submitted commit or has the same stable patch id as the item's change from its claim base. Other commits are refused with `NOT_MERGED`; `--note "why"` records an exceptional receipt and keeps the note in that item's `merged` event.
+
 <!-- api-command-shapes:start -->
 | Command | Required top-level fields |
 | --- | --- |
@@ -35,7 +37,7 @@ The board-state API's item projection includes `check` and, when recorded, `chec
 | `lanes` | `version:number`, `lanes:object`, `shared:array`, `coordinator:string` |
 | `resources` | `version:number`, `resources:array` |
 | `settings` | `version:number`, `settings:object` |
-| `relay` | `version:number`, `linked:boolean`, `board:string`, `url:string`, `link:string`, `sequence:number`, `behind:number` |
+| `relay` | `version:number`, `linked:boolean`, `board:string`, `url:string`, `link:string`, `sequence:number`, `behind:number`, `recovery:object` |
 | `list` | `version:number`, `items:array` |
 | `roadmap` | `version:number`, `milestones:array` |
 | `milestone add` | `version:number`, `milestone:object` |
@@ -45,8 +47,9 @@ The board-state API's item projection includes `check` and, when recorded, `chec
 | `milestone remove` | `version:number`, `milestone:object` |
 | `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array`, `thread:array` |
 | `stats` | `version:number`, `stats:object` |
-| `status` | `version:number`, `me:object`, `mine:array`, `stats:object`, `reviewQueue:object`, `unread:number` |
+| `status` | `version:number`, `me:object`, `mine:array`, `stats:object`, `reviewQueue:object`, `unread:number`, `relay:object` |
 | `doctor` | `version:number`, `problems:array` |
+| `skills` | `version:number`, `updated:array`, `current:array`, `customized:array` |
 | `inbox` | `version:number`, `shouts:array` |
 | `decisions` | `version:number`, `decisions:array` |
 | `ledger` | `version:number`, `items:array`, `stats:object` |
@@ -68,6 +71,7 @@ The board-state API's item projection includes `check` and, when recorded, `chec
 | `merged` | `version:number`, `id:number`, `commit:string` |
 | `withdraw` | `version:number`, `id:number`, `reason:string` |
 | `refreeze` | `version:number`, `id:number`, `after:string` |
+| `reopen` | `version:number`, `id:number`, `commit:string` |
 | `shout` | `version:number`, `id:number`, `decision:boolean` |
 | `answer` | `version:number`, `id:number`, `answers:number` |
 | `pass` | `version:number`, `id:number`, `answers:number` |
@@ -149,7 +153,7 @@ Only the coordinator sets or edits an item's `--check`. `pullboard check [id]` p
 | `error` | `code:string`, `message:string`, `next:string` |
 <!-- api-refusal-shapes:end -->
 
-`relay on`, `relay`, and `relay off` share the relay result shape. `status` adds a `relay` object with the current sequence and pending upload count. Successful results may include `diagnostics` for a relay refusal or inactivity notice; a local move still succeeds when its upload must wait. Device sign-in instructions are written immediately to stderr, including with `--json`, so the person can sign in before the command returns.
+`relay on`, `relay`, and `relay off` share the relay result shape. Successful `pullboard relay recover --skip N` returns that same shape with optional `skipped: N` naming the explicitly refused sequence and `adopted: true` when it adopts a different authenticated person checkpoint that proves the same blocked refusal. Every relay result includes `recovery: { pending, skip, next }`; when a saved recovery is pending, `next` is the exact retry command. The `behind` count remains the number of pending uploads and does not include recovery. `status` includes this relay object alongside the local board summary. Human status and relay output show the recovery sequence and retry command when one is saved. The local `agent_last_shout_id` inbox read cursor is metadata: recovery ignores only that field in its guarded digest and preserves the greater valid cursor for matching agents. Other native changes remain protected; if a semantic local write changes while recovery is pending, the CLI preserves it and refuses automatic restoration. Exporting alone does not unblock that conflict; this prototype has no merge or discard command, so the person must reconcile the export and remote checkpoint before continuing. Successful results may include `diagnostics` for a relay refusal or inactivity notice; a local move still succeeds when its upload must wait. Device sign-in instructions are written immediately to stderr, including with `--json`, so the person can sign in before the command returns.
 
 `relay on --all [--url <address>]` returns `{version, linked: [{project, root, board}], failed: [{project, root, reason}], paired, autoLink: true}`. Its status is nonzero when a project failed; successful links remain available. With no paired phone, the command prints one tappable pairing link and QR, then waits in the foreground up to ten minutes. Interruption or expiration leaves completed links intact and exits zero when no link failed. Every explicit invocation signs in afresh; no person session is retained on the Mac. Later project registrations publish one sealed phone-link proposal and keep working locally until its single approval tap. `doctor` and `resume` name the waiting project and its expiry; expiration requires an explicit fresh sign-in rather than silently asking again. `relay off` excludes that project from automatic linking; explicit `relay on` clears the exclusion.
 
@@ -201,7 +205,7 @@ The coordinator maintains the roadmap with `milestone add <name> [--note ...] [-
 | `stream` | `version:number`, `event:object` |
 <!-- api-http-shapes:end -->
 
-A move body is `{verb, item, args, agent}`. `item` is the positive integer id when the move needs one. `args` names its CLI positional arguments and flags; text values stay literal, including leading dashes. Omit `agent` to act as the coordinator, or name a registered agent to run in its worktree. Coordinator verification takes `args.as: "coordinator"`, matching the CLI's explicit identity check. The local session secret may act as any agent on that board. `result` is the CLI's JSON result. `next` claims work atomically; when a claim is already held it renews it and returns the renewal event. With no work available it returns the CLI's `NOTHING_FREE` refusal. Waiting remains a CLI option.
+A move body is `{verb, item, args, agent}`. `item` is the positive integer id when the move needs one. `args` names its CLI positional arguments and flags; text values stay literal, including leading dashes. Omit `agent` to act as the coordinator, or name a registered agent to run in its worktree. Coordinator verification takes `args.as: "coordinator"`, matching the CLI's explicit identity check. The local session secret may act as any agent on that board. `result` is the CLI's JSON result. `next` claims work atomically; when a claim is already held it renews it and returns the renewal event. With no work available it returns the CLI's `NOTHING_FREE` refusal. Waiting remains a CLI option. `reopen` is coordinator-only: `args.note` is required, and it returns a submitted item to open without adding a verdict or replacing its last submitted commit.
 
 Decision moves keep the CLI's routing: `shout` with `args.decision: true` may omit `args.to`; agents ask their coordinator, and the coordinator asks the person. `pass` takes the decision's id as `item` and `args.note`. Answering a decision addressed to the person requires `answer` with `args.as: "person"` from the coordinator's main checkout. Other callers receive the CLI's refusal.
 

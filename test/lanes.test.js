@@ -2,10 +2,11 @@
  * Lanes (L1, L2) and the config they live in.
  */
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
+import { createE2eHelpers } from './e2e-helpers.js';
 import { configProblems, defaults, durationMs, loadConfig } from '../src/config.js';
 import { isLane, laneNames, laneOf, outOfLane } from '../src/lanes.js';
 
@@ -97,4 +98,78 @@ test("a claim's lease is 2h unless pullboard.json says otherwise [B4]", () => {
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+
+const policyFixtures = createE2eHelpers();
+after(policyFixtures.cleanup);
+
+/** Claim a real item before the coordinator moves one API path into its web lane. */
+function reassignedPathFixture() {
+  const box = policyFixtures.project('true');
+  mkdirSync(join(box.repo, 'api'));
+  writeFileSync(join(box.repo, 'api/shared.js'), 'original\n');
+  box.git(box.repo, 'add', 'api/shared.js');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: create coordinator fixture path');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  const added = box.run(box.repo, 'add', 'web', 'Update reassigned path', '--specs', 'G1',
+    '--criterion', 'the reassigned path has the new content', '--check', 'true');
+  assert.equal(added.code, 0, added.err);
+  const claimed = box.run(box.web, 'claim', '1');
+  assert.equal(claimed.code, 0, claimed.err);
+  const before = JSON.parse(box.run(box.web, 'show', '1', '--json').out);
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  config.lanes.web.owns.push('api/shared.js');
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: reassign fixture path to web');
+  const trunkPolicy = box.git(box.repo, 'rev-parse', 'HEAD');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  const committed = policyFixtures.commitFile(box, box.web, 'api/shared.js', 'changed\n',
+    'feat(web): update reassigned fixture path [G1]');
+  assert.equal(committed.status, 0, committed.failure ?? committed.stderr);
+  return { box, before, trunkPolicy };
+}
+
+test('refreeze picks up a lane change made after the claim [V2,L3]', () => {
+  const { box, before, trunkPolicy } = reassignedPathFixture();
+  const refused = box.run(box.web, 'submit', '1', '--json');
+  assert.equal(refused.code, 1);
+  assert.equal(JSON.parse(refused.out).error.code, 'OUTSIDE_LANE',
+    'a landed lane change does not silently widen the frozen claim');
+  const refreshed = box.run(box.repo, 'refreeze', '1');
+  assert.equal(refreshed.code, 0, refreshed.err);
+  const refrozen = JSON.parse(box.run(box.repo, 'show', '1', '--json').out);
+  const originalFreeze = JSON.parse(before.item_frozen);
+  const currentFreeze = JSON.parse(refrozen.item_frozen);
+  assert.equal(currentFreeze.policy.commit, trunkPolicy,
+    'explicit refreeze captures the coordinator trunk policy rather than the candidate or first claim');
+  assert.notEqual(currentFreeze.policy.commit, originalFreeze.policy.commit);
+  assert.deepEqual({ ...currentFreeze, policy: originalFreeze.policy }, originalFreeze,
+    'a lane-only policy change keeps the criterion, title, check and cited rows unchanged');
+  assert.equal(refrozen.item_status, 'open');
+  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  const submitted = box.run(box.web, 'submit', '1', '--json');
+  assert.equal(submitted.code, 0, submitted.err || submitted.out);
+  const item = JSON.parse(box.run(box.web, 'show', '1', '--json').out);
+  assert.equal(item.item_status, 'submitted');
+  assert.equal(JSON.parse(item.item_frozen).policy.commit, trunkPolicy,
+    'reclaim and submission retain the explicitly refreshed policy');
+});
+
+test('a claimed item keeps its policy until refreeze [V2,L3]', () => {
+  const { box, before, trunkPolicy } = reassignedPathFixture();
+  const renewed = box.run(box.web, 'claim', '1');
+  assert.equal(renewed.code, 0, renewed.err);
+  assert.equal(box.run(box.web, 'release', '1').code, 0);
+  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  const reclaimed = JSON.parse(box.run(box.web, 'show', '1', '--json').out);
+  assert.equal(reclaimed.item_frozen, before.item_frozen,
+    'renewing, releasing and reclaiming keep the first claim policy and criterion bytes');
+  assert.equal(reclaimed.item_frozen_digest, before.item_frozen_digest);
+  assert.notEqual(JSON.parse(reclaimed.item_frozen).policy.commit, trunkPolicy);
+  const refused = box.run(box.web, 'submit', '1', '--json');
+  assert.equal(refused.code, 1);
+  assert.equal(JSON.parse(refused.out).error.code, 'OUTSIDE_LANE',
+    'submission still enforces the old ownership until an explicit coordinator refreeze');
 });

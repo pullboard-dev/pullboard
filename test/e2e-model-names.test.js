@@ -21,6 +21,14 @@ test('model names label CLI actors without changing IDs, messages, or the contex
     assert.equal(legacyJoin.code, 0, legacyJoin.err || legacyJoin.out);
     assert.equal(JSON.parse(legacyJoin.out).model, 'Test Model', 'the model environment identifies the initial join');
 
+    if (style === 'suffix') {
+      for (const command of ['join', 'worktree']) {
+        const help = box.run(repo.repo, 'help', command);
+        assert.equal(help.code, 0, help.err);
+        assert.ok(help.out.includes(`Usage: pullboard ${command} <lane> --model <name>`), help.out);
+        assert.match(help.out, /--model <name> — identifies the agent model; required unless PULLBOARD_MODEL is set/);
+      }
+    }
     delete box.env.PULLBOARD_MODEL;
     const missingWorktree = box.run(repo.repo, 'worktree', 'api', '--json');
     assert.equal(missingWorktree.code, 1);
