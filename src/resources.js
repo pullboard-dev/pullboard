@@ -1,11 +1,11 @@
 /** Machine and repository queues persist leases; landings, gates, and item checks run by priority [Q1,Q2,Q3,V18]. */
 import { mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { repoInfo } from './git.js';
+import { machineHome } from './machine-home.js';
 import { Refused } from './refused.js';
 
 const LEASE_MS = 20_000;
@@ -17,7 +17,7 @@ const processIdentities = new Map();
 /** Resolve the local database for the requested scope. */
 function databaseFile(scope, root) {
   if (scope === 'board') throw new Refused('BOARD_SCOPE_UNAVAILABLE', 'board-scoped resources need the relay; run pullboard relay on');
-  if (scope === 'machine') return join(process.env.PULLBOARD_HOME || join(homedir(), '.pullboard'), 'resources.sqlite');
+  if (scope === 'machine') return join(machineHome(), 'resources.sqlite');
   if (scope === 'repo') return join(repoInfo(root).commonDir, 'pullboard', 'resources.sqlite');
   throw new Refused('BAD_RESOURCE_SCOPE', `unknown resource scope "${scope}"; use machine or repo`);
 }

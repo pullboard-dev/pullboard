@@ -77,12 +77,12 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 ## O · Options
 - O1 [draft, must] pullboard.json options switch declared guards on or off per repo; show and the view list them. | gate: test/machine.test.js | serves: M1
 - O2 [draft, aim] verify.family: off, prefer or require a verifier from a model family that built none of it. | gate: test/board.test.js | serves: V1
-- O3 [draft, aim] Agents declare their model family on joining; submissions and verdicts record it. | gate: test/board.test.js | serves: O2
+- O3 [approved, aim] Agents declare their model family on joining; submissions and verdicts record it. | gate: test/board.test.js | serves: O2
 - O4 [retired] Merged into V13.
 - O5 [approved, aim] Machine settings in ~/.pullboard hold what belongs to the machine: gate concurrency, run's tier commands, the view's port. | gate: test/settings.test.js
 - O6 [approved, aim] Each setting has one home: board rules in the repo, machine capacity and tools in ~/.pullboard; flags override. | gate: test/settings.test.js | serves: O5
 - O7 [retired] Merged into Q4.
-- O8 [draft, must] Every agent declares the model that runs it; names show it, as web-1 (Claude) or claude-web-1 by option. | gate: test/board.test.js | serves: O3
+- O8 [approved, must] Every agent declares the model that runs it; names show it, as web-1 (Claude) or claude-web-1 by option. | gate: test/board.test.js | serves: O3
 
 ## L · Lanes
 - L1 [approved, must] Lanes live in pullboard.json: folders owned, spec prefixes, when it starts. | gate: test/lanes.test.js
