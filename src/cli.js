@@ -2767,7 +2767,7 @@ async function runCommand(argv, io) {
   } catch (error) {
     if (error instanceof Refused) {
       io.refusal?.(error);
-      io.err(`pullboard: ${error.message}; next: ${refusalDocument(error).error.next}`);
+      io.err(`pullboard: ${error.message}\nnext: ${refusalDocument(error).error.next}`);
       return 1;
     }
     throw error;
@@ -2819,7 +2819,7 @@ async function runMain(argv, streams) {
     } catch (error) {
       if (!(error instanceof Refused)) throw error;
       io.refusal(error);
-      io.err(`pullboard: ${error.message}; next: ${refusalDocument(error).error.next}`);
+      io.err(`pullboard: ${error.message}\nnext: ${refusalDocument(error).error.next}`);
       io.flush(1);
       return 1;
     }
@@ -2833,7 +2833,7 @@ async function runMain(argv, streams) {
       }
       catch (error) {
         if (!(error instanceof Refused)) throw error;
-        if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}; next: ${refusalDocument(error).error.next}`);
+        if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}\nnext: ${refusalDocument(error).error.next}`);
       }
     };
     if (needsRepo) rememberTrunk(io);
@@ -2843,7 +2843,7 @@ async function runMain(argv, streams) {
       try { await executePersonRequests(io.cwd, io, main); }
       catch (error) {
         if (!(error instanceof Refused)) throw error;
-        if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}; next: ${refusalDocument(error).error.next}`);
+        if (!['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'].includes(error.code)) io.err(`pullboard: ${error.message}\nnext: ${refusalDocument(error).error.next}`);
       }
     }
     const code = await runCommand(argv, io);

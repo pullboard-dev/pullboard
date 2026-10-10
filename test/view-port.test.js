@@ -28,5 +28,11 @@ test("a named port that is busy is refused with the way out, not a stack trace [
     cwd: dir, env, encoding: 'utf8', timeout: 20000,
   });
   assert.equal(result.status, 1, `a refusal, not a crash or a hang: ${result.stderr}`);
-  assert.equal(result.stderr.trim(), `pullboard: [PORT_BUSY] port ${port} is in use: name another with --port, or leave --port out to take any free one`);
+  const json = spawnSync(process.execPath, [BIN, 'view', '--no-open', '--port', String(port), '--json'], {
+    cwd: dir, env, encoding: 'utf8', timeout: 20000,
+  });
+  assert.equal(json.status, 1, json.stderr);
+  const refusal = JSON.parse(json.stdout).error;
+  assert.equal(refusal.code, 'PORT_BUSY');
+  assert.equal(result.stderr.trim(), `pullboard: [PORT_BUSY] port ${port} is in use: name another with --port, or leave --port out to take any free one\nnext: ${refusal.next}`);
 });
