@@ -187,7 +187,7 @@ globalThis.fetch = function tracedFetch(input, init) {
   provider.state.deviceAuthorized = true;
   const authDatabase = join(scratch, 'auth.sqlite');
   let auth;
-  let time = Date.now();
+  let timeOffsetMs = 0;
   let override = null;
   let mintFailures = 0;
   let refuseEventReads = false;
@@ -351,7 +351,7 @@ globalThis.fetch = function tracedFetch(input, init) {
   const origin = 'http://127.0.0.1:' + relayPort;
   auth = createRelayAuth({ database: authDatabase, github: createGitHubClient({ ...provider.config, callbackURL: origin + '/auth/github/callback' }) });
   signIn = createAuthHandler({ auth, publicOrigin: origin });
-  api = createRelayHandler({ directory: join(scratch, 'relay'), auth, publicOrigin: origin, pollMs: 10, maintenanceMs: 0, now: () => time });
+  api = createRelayHandler({ directory: join(scratch, 'relay'), auth, publicOrigin: origin, pollMs: 10, maintenanceMs: 0, now: () => Date.now() + timeOffsetMs });
   /** Sign a separate phone in over actual OAuth HTTP; its person session stays only in fixture RAM. */
   async function phoneSession() {
     if (phone) return phone;
@@ -567,7 +567,8 @@ globalThis.fetch = function tracedFetch(input, init) {
     },
     /** Interleave one real authenticated relay write immediately before the next native move. */
     beforeNextMove(action) { beforeMove = action; },
-    advance(days) { time = Date.now() + days * 86400000; },
+    /** Move the relay clock by an explicit offset while preserving elapsed native wall time. */
+    advance(days) { timeOffsetMs = days * 86400000; },
     overrideDelete(value) { override = value; },
     failTokenMints(count) { mintFailures = count; },
     refuseSnapshotWrites(value) { refuseSnapshotWrites = value; },

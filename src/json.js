@@ -115,6 +115,7 @@ export function commandOutput(argv, streams) {
   let enabled = argv.slice(0, argv.indexOf('--') < 0 ? argv.length : argv.indexOf('--')).includes('--json');
   let result;
   let refusal;
+  let remote;
   let written = false;
   const messages = [];
   const diagnostics = [];
@@ -142,6 +143,7 @@ export function commandOutput(argv, streams) {
       document = native && !Array.isArray(native) && typeof native.version === 'number'
         ? { ...native, ...(diagnostics.length ? { diagnostics } : {}) } : { version: JSON_SHAPES.version, messages, ...(diagnostics.length ? { diagnostics } : {}) };
     }
+    if (remote) document.remote = remote;
     streams.stdout.write(`${JSON.stringify(document, null, 2)}\n`);
   };
   return {
@@ -151,6 +153,8 @@ export function commandOutput(argv, streams) {
     err: (line) => emit(streams.stderr, diagnostics, line),
     result: (value) => { result = value; },
     refusal: (error) => { refusal = error; },
+    remote: (value) => { remote = value; },
+    exitCode: (code) => code || (remote ? 1 : 0),
     jsonMode: (value) => { enabled = Boolean(value); },
     flush,
   };
