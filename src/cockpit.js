@@ -1657,7 +1657,11 @@ function findAll(words) {
   const has = (...parts) => parts.join(' ').toLowerCase().includes(q);
   const items = p.items.filter((i) => has('#' + i.id, i.title, i.lane, i.specs.join(' '), i.criterion || ''))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map((i) => ({ go: 'item:' + i.id, id: '#' + i.id, text: i.title, note: stateLabel(i) }));
-  const rows = (kind, list) => list.filter((r) => has(r.id, r.text)).map((r) => ({ go: kind + ':' + r.id, id: r.id, text: r.text, note: r.stage || r.status }));
+  // A Spec row or Doctrine rule is as new as the commit that added it (0 not yet committed; a standard rule, never added
+  // here, last); rows one commit added together read newest first by their place in the file.
+  const rows = (kind, list) => list.map((r, at) => ({ r, at })).filter(({ r }) => has(r.id, r.text))
+    .sort((a, b) => (a.r.added ?? Infinity) - (b.r.added ?? Infinity) || b.at - a.at)
+    .map(({ r }) => ({ go: kind + ':' + r.id, id: r.id, text: r.text, note: r.stage || r.status }));
   const shouts = p.shouts.filter((x) => has(x.shout_from, x.shout_to, x.shout_text)).map((x) => ({ go: 'shout:' + x.shout_id, id: '#' + x.shout_id, text: firstLine(x.shout_text), note: shoutKind(x) }));
   return [['Items', items], ['Spec', rows('spec', p.spec)], ['Doctrine', rows('doctrine', p.practice)], ['Shouts', shouts]].filter(([, list]) => list.length);
 }

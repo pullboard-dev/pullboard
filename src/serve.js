@@ -15,8 +15,9 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 import * as store from './board.js';
 import { cockpitPage } from './cockpit.js';
 import { COORDINATOR, loadConfig } from './config.js';
-import { loadDoctrine, standardDoctrine } from './doctrine.js';
+import { doctrineHistory, loadDoctrine, standardDoctrine } from './doctrine.js';
 import { repoInfo, resolveCommit } from './git.js';
+import { committedIds } from './history.js';
 import { productSummaries } from './products.js';
 import { listApiProjects, registryFile } from './projects.js';
 import { Refused } from './refused.js';
@@ -164,6 +165,30 @@ function withProject(root, read, providedBoard = null) {
 }
 
 /**
+ * How new each row of a spec or doctrine file is, by the commit that added it: 1 for a row the newest commit to touch
+ * the file added, 2 for the commit before, and so on. A row on disk but not yet committed is missing here, and the
+ * state counts it 0, newer than any. Walking a file's history is the slowest read behind a state, so each file's ages
+ * are kept until HEAD moves, one entry a file.
+ *
+ * @param {string} root
+ * @param {string} file
+ * @param {(root: string, file: string) => { ids: Map<string, string> }} [history]
+ * @returns {Map<string, number>}
+ */
+function rowAges(root, file, history = committedIds) {
+  const head = resolveCommit(root, 'HEAD');
+  const key = root + '\0' + file, kept = agesKept.get(key);
+  if (kept && kept.head === head) return kept.ages;
+  const log = head ? spawnSync('git', ['log', '--follow', '--format=%H', 'HEAD', '--', file], { cwd: root, encoding: 'utf8' }) : null;
+  const place = new Map((log?.status === 0 ? log.stdout : '').split('\n').filter(Boolean).map((commit, n) => [commit, n + 1]));
+  const ages = new Map([...history(root, file).ids].map(([id, commit]) => [id, place.get(commit) ?? place.size + 1]));
+  agesKept.set(key, { head, ages });
+  return ages;
+}
+/** @type {Map<string, { head: string | null, ages: Map<string, number> }>} */
+const agesKept = new Map();
+
+/**
  * Everything the page shows for one project. Given the newest shout the person has seen there,
  * it also counts every shout since, which the forty it sends cannot always show.
  *
@@ -175,8 +200,13 @@ export function projectState(root, { seen = null, board: providedBoard = null } 
   return withProject(root, (board, info, config) => {
     const all = store.listItems(board, { all: true });
     const status = new Map(all.map((item) => [item.item_id, item.item_status]));
-    const rows = (file) => loadSpec(info.root, { ...config, spec: file }).rows.map(({ id, status: state, tier, text, gate, serves, section }) => ({ id, status: state, tier, text, gate, serves, section }));
+    const rows = (file) => {
+      const ages = rowAges(info.root, file);
+      return loadSpec(info.root, { ...config, spec: file }).rows.map(({ id, status: state, tier, text, gate, serves, section }) => ({ id, status: state, tier, text, gate, serves, section, added: ages.get(id) ?? 0 }));
+    };
     const doctrine = loadDoctrine(info.root, config);
+    // A standard rule was never added to this repo, so it has no age here; the repo's own rows have.
+    const doctrineAges = rowAges(info.root, doctrine.name, doctrineHistory);
     // A decline's text is its reason. Keep the inherited rule available so the page strikes the
     // rule itself, while showing the repo's reason beside it.
     const inherited = new Map(standardDoctrine().rows.map((row) => [row.id, row.text]));
@@ -226,7 +256,7 @@ export function projectState(root, { seen = null, board: providedBoard = null } 
       holds: store.laneHolds(board),
       spec: rows(config.spec),
       practice: doctrine.rows.map(({ id, status: state, tier, text, gate, serves, section, origin, version, reason }) => ({
-        id, status: state, tier, text, gate, serves, section, origin, version, reason,
+        id, status: state, tier, text, gate, serves, section, origin, version, reason, added: origin === 'standard' ? null : doctrineAges.get(id) ?? 0,
         ...(state === 'wont' && inherited.has(id) ? { standardText: inherited.get(id) } : {}),
       })),
       unseen: seen === null ? null : { since: seen, count: board.db.prepare('SELECT COUNT(*) AS n FROM shout WHERE shout_id > ?').get(seen).n },

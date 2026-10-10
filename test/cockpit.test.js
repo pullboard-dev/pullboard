@@ -7311,7 +7311,7 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
       inTop: !!document.querySelector('.top .top-find #q'), toolbar: [...document.querySelector('.toolbar').children].filter((e) => e.offsetParent !== null || e.tagName === 'SELECT').map((e) => e.id || e.className),
       field: box(document.querySelector('#q')), tabs: box(document.querySelector('#tabs')), top: box(document.querySelector('header.top')), theme: box(document.querySelector('#theme')),
       bar: [...document.querySelectorAll('.toolbar #state-chips button, .toolbar #lane-pick, .toolbar #new-item')].filter((e) => e.getClientRects().length > 0)
-        .map((e) => ({ name: e.dataset.state || e.id, middle: Math.round(e.getBoundingClientRect().top + e.getBoundingClientRect().height / 2) })),
+        .map((e) => ({ name: e.dataset.state || e.id, on: e.classList.contains('on'), middle: Math.round(e.getBoundingClientRect().top + e.getBoundingClientRect().height / 2) })),
       shoutIds: data.project.shouts.map((x) => '#' + x.shout_id), focused: document.activeElement?.id ?? null, value: document.querySelector('#q').value,
       shown: !results.hidden, groups: [...results.querySelectorAll('h4')].map((h) => [h.firstChild.textContent, h.querySelector('span').textContent]),
       hits: [...results.querySelectorAll('.find-hit')].map((hit) => ({ go: hit.dataset.find, id: hit.querySelector('code').textContent, note: hit.querySelector('small').textContent, on: hit.classList.contains('on') })),
@@ -7380,6 +7380,40 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
     await key('ArrowDown', 'ArrowDown', 40);
     await key('Enter', 'Enter', 13, '\r');
     await chrome.waitFor(`view.tab === 'items' && view.item === ${Number(third.slice(5))} && document.querySelector('#find-results').hidden`);
+
+    // On a phone, a search that opens an item shows All, since All is then the selected filter, so the person sees where
+    // they are and can leave it; Active again drops All.
+    for (const scheme of ['light', 'dark']) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
+      await chrome.waitFor(`innerWidth === 375 && matchMedia('(prefers-color-scheme: ${scheme})').matches`);
+      await search('greeting');
+      await key('Enter', 'Enter', 13, '\r');
+      await chrome.waitFor("view.tab === 'items' && !!view.item && document.querySelector('#find-results').hidden");
+      const opened = (await read()).bar;
+      assert.deepEqual(opened.map((part) => [part.name, part.on]), [['active', false], ['verified', false], ['all', true], ['new-item', false]], `375px ${scheme}: a search that opens an item shows All, selected: ${JSON.stringify(opened)}`);
+      assert.ok(opened.every((part) => Math.abs(part.middle - opened[0].middle) <= 2), `375px ${scheme}: still one row: ${JSON.stringify(opened)}`);
+      await chrome.evaluate("document.querySelector('[data-state=active]').click()");
+      assert.deepEqual((await read()).bar.map((part) => part.name), ['active', 'verified', 'new-item'], `375px ${scheme}: back on Active, All drops again`);
+    }
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
+    await chrome.waitFor('innerWidth === 1280');
+
+    // Spec rows and Doctrine rules read newest first by when each was added, not by where it sits in its file: R1 is
+    // committed, then R2 and G4 appended, then G5 inserted above G3.
+    box.git(alpha.repo, 'add', 'ways.md');
+    box.git(alpha.repo, 'commit', '-q', '-m', 'docs(rules): keep the local rules [G1]');
+    writeFileSync(join(alpha.repo, 'ways.md'), '# Local rules\n\n## Team\n- R1 [approved, must] Every greeting is read by a person. | gate: review\n- R2 [approved, must] A greeting never shouts. | gate: review\n');
+    writeFileSync(join(alpha.repo, 'SPEC.md'), `${spec}- G4 [approved, must] The greeting waves back. | gate: web test\n`);
+    box.git(alpha.repo, 'commit', '-q', '-am', 'docs(spec): the greeting waves back [G1]');
+    writeFileSync(join(alpha.repo, 'SPEC.md'), spec.replace('- G3 ', '- G5 [approved, must] The greeting fits a phone. | gate: web test\n- G3 ') + '- G4 [approved, must] The greeting waves back. | gate: web test\n');
+    box.git(alpha.repo, 'commit', '-q', '-am', 'docs(spec): the greeting fits a phone [G1]');
+    await chrome.waitFor("data.project.spec.some((row) => row.id === 'G5') && data.project.practice.some((row) => row.id === 'R2')", 15_000);
+    await search('greeting');
+    const added = (await read()).hits.filter((hit) => /^(spec|doctrine):/.test(hit.go)).map((hit) => hit.id);
+    assert.deepEqual(added, ['G5', 'G4', 'G3', 'R2', 'R1'], `Spec and Doctrine newest first by when each row was added: ${JSON.stringify(added)}`);
+    await key('Escape', 'Escape', 27);
 
     // A click opens a Spec row, a Doctrine rule or a shout where it lives.
     await search('greeting');
