@@ -246,11 +246,11 @@ test("the coordinator's handoff brief orders current work and leaves agent resum
   assert.ok(resumed.out.length < 4_000, `handoff brief should stay short (${resumed.out.length} characters)`);
   assert.equal((resumed.out.match(/^open decision /gmu) ?? []).length, 3, 'text caps each section while JSON keeps all records');
   assert.doesNotMatch(resumed.out, /Old answer stays in history/u);
-  assert.match(resumed.out, new RegExp(`open decision #${openId} from web-1 \\(2h\\): Need a decision`));
-  assert.match(resumed.out, /recent decision .*person answered coordinator \(1h ago\): Yes, after the review\./u);
+  assert.match(resumed.out, new RegExp(`open decision #${openId} from web-1 \\(Test Model\\) \\(2h\\): Need a decision`));
+  assert.match(resumed.out, /recent decision .*person answered coordinator \(unknown\) \(1h ago\): Yes, after the review\./u);
   assert.match(resumed.out, new RegExp(`merges cleanly: #${cleanId} Clean item`));
   assert.match(resumed.out, new RegExp(`conflicts: #${conflictId} Conflict item \\(web/shared\\.txt\\)`));
-  assert.match(resumed.out, new RegExp(`claimed for integration: #${activeId} by web-3 at .*\\(${descendant.slice(0, 12)}\\)`));
+  assert.match(resumed.out, new RegExp(`claimed for integration: #${activeId} by web-3 \\(Test Model\\) at .*\\(${descendant.slice(0, 12)}\\)`));
   assert.doesNotMatch(resumed.out, new RegExp(`claimed for integration: #(?:${supersededId}|${plainId}|${factId}|${unrelatedId}|${expiredId})\\b`),
     'a later same-actor receipt, plain shout/fact text, non-ancestor SHA, or expired attempt is not an active integration claim');
   assert.match(resumed.out, new RegExp(`waiting on the person: #${personQuestionId} from coordinator`));

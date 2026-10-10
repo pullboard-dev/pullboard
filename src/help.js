@@ -10,9 +10,10 @@ Nothing ships until a second agent verifies it.
 Set up
   pullboard tour                        see it work: a reject and its rework, scripted, in thirty seconds
   pullboard init                        config, SPEC.md, agent instructions, git hooks, board
-  pullboard worktree <lane> [--route light] [--family <name>]   make and join a worktree for a new agent
-  pullboard join <lane> [--route light] [--family <name>]       register this worktree as an agent
-                                        --route sets which work the model can take; --family records its name
+  pullboard worktree <lane> --model <name> [--route light] [--family <name>]   make and join a worktree for a new agent
+  pullboard join <lane> --model <name> [--route light] [--family <name>]       register this worktree as an agent
+                                        A model is required (or set PULLBOARD_MODEL); family is a separate declaration
+                                        pullboard.json agents.names: suffix (default) or prefix
   pullboard whoami | lanes | status     who you are, the lanes, the board at a glance
   pullboard takeover                   rebind this checkout when the same agent starts a new session
   pullboard resources                  local resource holders and their FIFO queues
@@ -221,6 +222,7 @@ const HELP_FLAG_EXPLANATIONS = {
   '--brief': 'what a cold agent needs',
   '--check': 'the command that proves it',
   '--family': 'records the family name',
+  '--model': 'identifies the agent model; required unless PULLBOARD_MODEL is set',
   '--landing': 'prioritizes a trunk landing in the machine gate queue',
   '--json': 'prints one versioned document',
   '--note': 'what was checked stays with the receipt',

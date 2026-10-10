@@ -22,6 +22,7 @@ export function configTemplate(gate, fix = []) {
     spec: 'SPEC.md',
     practice: DOCTRINE_FILE,
     verify: { policy: 'any', family: 'off' },
+    agents: { names: 'suffix' },
     lease: '2h',
     lanes: { review: { owns: [], starts: 'any time: verifiers check submitted work and own no folders' } },
     shared: [],
@@ -107,9 +108,9 @@ ${doctrineText(doctrine)}
 
 **Who you are.** An agent is its worktree. The main checkout is the coordinator. Every other agent gets its own worktree, already joined to one lane, from the main checkout:
 
-    pullboard worktree <lane>
+    pullboard worktree <lane> --model "<model name>"
 
-It prints the folder to work in and what to run there first. A smaller model joins with \`--route light\` or \`--route mid\` and takes items at its tier and below. Work only in that folder. Your shell may start every command in the main checkout, where pullboard takes you for the coordinator, so begin each command with \`cd <your worktree> &&\`. Verifiers take the \`review\` lane, which owns no folders. Keep your worktree and branch until your items are merged.
+It prints the folder to work in and what to run there first. Every join needs the exact model label, either with \`--model\` or the \`PULLBOARD_MODEL\` environment variable; family is separate and never supplies the model. A smaller model joins with \`--route light\` or \`--route mid\` and takes items at its tier and below. Work only in that folder. Your shell may start every command in the main checkout, where pullboard takes you for the coordinator, so begin each command with \`cd <your worktree> &&\`. Verifiers take the \`review\` lane, which owns no folders. Keep your worktree and branch until your items are merged.
 
 **The loop.**
 1. \`pullboard resume\` at the start of every session and after your context is compacted: your claim, what came back, unread shouts and the next step. Then \`pullboard inbox\`.

@@ -363,11 +363,15 @@ export function atomic(board, work) {
  * @param {object} [detail]
  */
 function logEvent(board, by, kind, itemId, detail = {}) {
+  const model = agentModel(board, by);
+  const isAgent = Boolean(board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(by));
+  const recorded = (board.executionEngineVersion ?? ENGINE_VERSION) >= 8 && isAgent
+    ? { ...detail, model: model ?? 'unknown' } : detail;
   const inserted = board.db
     .prepare(
       'INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)',
     )
-    .run(now(board), by, kind, itemId, JSON.stringify(detail));
+    .run(now(board), by, kind, itemId, JSON.stringify(recorded));
   board.lastEvent = board.db.prepare('SELECT * FROM event WHERE event_id = ?').get(inserted.lastInsertRowid);
   (board.emittedEvents ??= []).push(board.lastEvent);
 }
@@ -436,7 +440,28 @@ function current(board, item) {
  * @returns {any}
  */
 export function agentAt(board, path) {
-  return board.db.prepare('SELECT * FROM agent WHERE agent_path = ?').get(path);
+  const agent = board.db.prepare('SELECT * FROM agent WHERE agent_path = ?').get(path);
+  return withModel(board, agent);
+}
+
+/** Read the model label kept beside other board metadata, avoiding any board-schema migration. */
+function agentModel(board, id) {
+  return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`agent_model:${id}`)?.meta_value ?? null;
+}
+
+/** Attach an agent's model to a row from the legacy stable agent table. */
+function withModel(board, agent) {
+  return agent ? { ...agent, agent_model: agentModel(board, agent.agent_id) } : agent;
+}
+
+/** Save or clear a model label without changing the shared SQLite schema. */
+function saveAgentModel(board, id, model) {
+  if (model === null || model === undefined) {
+    board.db.prepare('DELETE FROM board_meta WHERE meta_key = ?').run(`agent_model:${id}`);
+    return;
+  }
+  board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?) ON CONFLICT(meta_key) DO UPDATE SET meta_value = excluded.meta_value')
+    .run(`agent_model:${id}`, model);
 }
 
 /**
@@ -444,13 +469,14 @@ export function agentAt(board, path) {
  * worktree as the next agent in its lane (`web-1`, `web-2`, ...), on a route: the tier of model
  * behind it, which decides the items it may take (B13). The optional family is free text supplied
  * by the agent; the board neither names nor infers it. Registering again preserves the agent id;
- * an explicitly supplied family updates the declaration, while omission preserves it.
+ * explicitly supplied family and model values update their declarations, while omission preserves them.
  *
  * @param {any} board
- * @param {{ lane: string, path: string, route?: string, family?: string | null }} who
+ * @param {{ lane: string, path: string, route?: string, family?: string | null, model?: string | null }} who
  * @returns {string} The agent's id.
  */
-export function register(board, { lane, path, route = 'strong', family }) {
+export function register(board, { lane, path, route = 'strong', family, model }) {
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) < 8) model = undefined;
   checkRoute(route);
   if (lane === COORDINATOR && route !== 'strong') {
     throw new Refused('BAD_ROUTE', 'the coordinator plans, merges and verifies; it is always strong');
@@ -468,6 +494,10 @@ export function register(board, { lane, path, route = 'strong', family }) {
         board.db.prepare('UPDATE agent SET agent_family = ? WHERE agent_id = ?').run(family, existing.agent_id);
         logEvent(board, existing.agent_id, 'family', null, { family });
       }
+      if (model !== undefined && model !== existing.agent_model) {
+        saveAgentModel(board, existing.agent_id, model);
+        logEvent(board, existing.agent_id, 'model', null, { model: model ?? 'unknown' });
+      }
       return existing.agent_id;
     }
     const { total } = board.db
@@ -482,6 +512,7 @@ export function register(board, { lane, path, route = 'strong', family }) {
         'INSERT INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_family, agent_created_at) VALUES (?, ?, ?, ?, ?, ?)',
       )
       .run(id, lane, path, route, family ?? null, now(board));
+    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= 8) saveAgentModel(board, id, model);
     logEvent(board, id, 'join', null, route === 'strong' ? { lane } : { lane, route });
     return id;
   });
@@ -514,7 +545,7 @@ export function ensureCoordinator(board, path) {
  * @returns {any[]}
  */
 export function listAgents(board) {
-  return board.db.prepare('SELECT * FROM agent ORDER BY rowid').all();
+  return board.db.prepare('SELECT * FROM agent ORDER BY rowid').all().map((agent) => withModel(board, agent));
 }
 
 /**

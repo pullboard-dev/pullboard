@@ -44,6 +44,40 @@ test('[A5] append-only event records expose format version one', () => {
   assert.equal(EVENT_LOG_VERSION, 1);
 });
 
+test('[O8] authenticated API state exposes model labels and configured stable display names', async (t) => {
+  const box = project();
+  const created = box.run(box.repo, 'worktree', 'app', '--model', 'Claude Sonnet', '--json');
+  assert.equal(created.status, 0, created.stderr || created.stdout);
+  const createdAgent = JSON.parse(created.stdout);
+  assert.equal(createdAgent.agent, 'app-1');
+  assert.equal(createdAgent.model, 'Claude Sonnet');
+  const api = await startApi(t, box);
+  const boards = await (await apiFetch(api, '/api/v1/boards')).json();
+  const board = boards.boards.find((entry) => entry.root === box.repo);
+  assert.ok(board?.id);
+  const stateUrl = `/api/v1/boards/${board.id}/state`;
+  const suffixResponse = await apiFetch(api, stateUrl);
+  assert.equal(suffixResponse.status, 200);
+  const suffix = (await suffixResponse.json()).state.agents;
+  const suffixAgent = suffix.find((agent) => agent.agent_id === 'app-1');
+  assert.equal(suffixAgent.model, 'Claude Sonnet');
+  assert.equal(suffixAgent.displayName, 'app-1 (Claude Sonnet)');
+  const legacy = suffix.find((agent) => agent.agent_id === 'coordinator');
+  assert.equal(legacy.model, 'unknown');
+  assert.equal(legacy.displayName, 'coordinator (unknown)');
+
+  const configFile = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  config.agents = { names: 'prefix' };
+  writeFileSync(configFile, `${JSON.stringify(config, null, 2)}\n`);
+  const prefixResponse = await apiFetch(api, stateUrl);
+  assert.equal(prefixResponse.status, 200);
+  const prefix = (await prefixResponse.json()).state.agents;
+  assert.equal(prefix.find((agent) => agent.agent_id === 'app-1').agent_id, 'app-1', 'display styles do not change stable ids');
+  assert.equal(prefix.find((agent) => agent.agent_id === 'app-1').displayName, 'claude-sonnet-app-1');
+  assert.equal(prefix.find((agent) => agent.agent_id === 'coordinator').displayName, 'unknown-coordinator');
+});
+
 /** Quote a literal executable path for the fixture hook's POSIX shim. */
 function shellWord(value) {
   return "'" + value.replace(/'/g, "'\\''") + "'";
@@ -187,7 +221,7 @@ function json(box, cwd, command, args = [], subcommand) {
   assert.equal(result.status, 0, `${command} ${args.join(' ')}: ${result.stderr}${result.stdout}`);
   const document = JSON.parse(result.stdout);
   if (command === 'check') {
-    assert.equal(result.stderr, `check #${document.id} set by ${document.by}: ${document.check}\n`, 'check attribution is visible before execution while stdout remains one JSON document');
+    assert.equal(result.stderr, `check #${document.id} set by ${document.by} (unknown): ${document.check}\n`, 'check attribution is visible before execution while stdout remains one JSON document');
   } else assert.equal(result.stderr, '', `${command} --json must keep stderr empty`);
   assert.equal(document.version, 1, `${command} --json has a version 1 envelope`);
   assertRequiredShape(document, shapeFor(command, subcommand).required, command);
@@ -250,7 +284,7 @@ test('[A1] command results match the catalog across roots and subcommands', () =
   const plainStatus = box.run(repo, 'status');
   assert.equal(plainStatus.status, 0, plainStatus.stderr);
   assert.equal(plainStatus.stderr, '');
-  assert.match(plainStatus.stdout, /^coordinator: /, 'ordinary text mode remains readable');
+  assert.match(plainStatus.stdout, /^coordinator \(unknown\): /, 'ordinary text mode remains readable');
   assert.throws(() => JSON.parse(plainStatus.stdout));
   json(box, repo, 'inbox');
   json(box, repo, 'decisions');

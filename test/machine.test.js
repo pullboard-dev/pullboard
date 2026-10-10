@@ -1069,17 +1069,17 @@ test('next --verify reserves the review for the reviewLease and says until when;
     assert.ok(until, first.stdout);
     const lease = 45 * 60_000;
     assert.ok(Date.parse(until) >= before + lease && Date.parse(until) <= after + lease, `${until} is 45 minutes on, the repo's reviewLease`);
-    assert.ok(run(repo, 'show', '1').stdout.includes(`under review by web-2 until ${until}`), 'show names the holder and the time');
+    assert.ok(run(repo, 'show', '1').stdout.includes(`under review by web-2 (Test Model) until ${until}`), 'show names the holder and the time');
 
     const passed = run(other, 'next', '--verify');
     assert.equal(passed.status, 1, passed.stdout);
     assert.match(passed.stderr, /NOTHING_FREE/);
-    assert.ok(passed.stderr.includes(`web-2 holds the review of #1 until ${until}`), passed.stderr);
+    assert.ok(passed.stderr.includes(`web-2 (Test Model) holds the review of #1 until ${until}`), passed.stderr);
     git(other, 'switch', '-q', '--detach', commit);
     const refused = run(other, 'verify', '1', 'accept', '--note', 'it greets');
     assert.equal(refused.status, 1, refused.stdout);
     assert.match(refused.stderr, /REVIEW_HELD/);
-    assert.ok(refused.stderr.includes(`web-2 holds the review of #1 until ${until}`), refused.stderr);
+    assert.ok(refused.stderr.includes(`web-2 (Test Model) holds the review of #1 until ${until}`), refused.stderr);
 
     const renewed = run(holder, 'next', '--verify');
     const again = /reserved for you until (\S+):/.exec(renewed.stdout)?.[1];

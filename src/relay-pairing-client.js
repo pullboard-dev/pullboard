@@ -158,7 +158,14 @@ function requireFreshTarget(root) {
   const events = tables.event;
   const sequence = tables.sqlite_sequence;
   let initialDetail = false;
-  try { initialDetail = JSON.stringify(JSON.parse(events[0]?.event_detail)) === JSON.stringify({ lane: 'coordinator' }); }
+  try {
+    const detail = JSON.parse(events[0]?.event_detail);
+    // Init has no declared model; engine 8 records that absence explicitly.
+    if (detail.model === undefined || detail.model === 'unknown') {
+      delete detail.model;
+      initialDetail = JSON.stringify(detail) === JSON.stringify({ lane: 'coordinator' });
+    }
+  }
   catch { /* A non-init history cannot be safely replaced by a paired snapshot. */ }
   if (meta.length !== 2 || !BOARD.test(metadata.get('board_id') ?? '') ||
       metadata.get('event_log_version') !== String(store.EVENT_LOG_VERSION) ||

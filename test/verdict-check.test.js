@@ -144,7 +144,7 @@ test('rework keeps historical rejection unknown and shows the latest accept chec
     const rows = succeeds(box, repo, 'ledger').split('\n').filter((line) => line.startsWith(`| ${item.id} |`));
     assert.equal(rows.length, 1);
     assert.match(rows[0], /\| unchecked \|/);
-    assert.doesNotMatch(rows[0], /unknown/);
+    assert.equal(rows[0].split('|')[7].trim(), 'unchecked', 'the check column describes the latest accept');
   } finally { clean(box); }
 });
 

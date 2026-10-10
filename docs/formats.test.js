@@ -230,6 +230,7 @@ function recordEventContract() {
   const coordinator = ensureCoordinator(board, '/coordinator');
   const builder = register(board, { lane: 'docs', path: '/builder' });
   register(board, { lane: 'docs', path: '/builder', family: 'codex' });
+  register(board, { lane: 'docs', path: '/builder', model: 'Fixture Model' });
   const reviewer = register(board, { lane: 'tests', path: '/reviewer' });
   register(board, { lane: 'small', path: '/small', route: 'light' });
   ensureCoordinator(board, '/coordinator-moved');
@@ -538,6 +539,7 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
   const actorByKind = {
     join: 'joining agent',
     family: 'agent',
+    model: 'agent',
     moved: 'coordinator',
     add: 'item creator',
     edit: 'editor',
@@ -553,7 +555,9 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
     const entry = actual[kind] ?? { actors: new Set(), fields: new Set() };
     const actor = actorByKind[kind] ?? actors[row.event_by] ?? 'unknown';
     entry.actors.add(actor);
-    for (const field of Object.keys(row.detail)) entry.fields.add(field);
+    for (const field of Object.keys(row.detail)) {
+      if (field !== 'model') entry.fields.add(field);
+    }
     actual[kind] = entry;
   }
   const documented = documentedEvents();

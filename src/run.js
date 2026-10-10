@@ -396,7 +396,7 @@ async function buildItem(ctx, item, { agents, attempts, minutes, deps, me }) {
 export async function runItems(io, values, deps) {
   const ctx = deps.context(io);
   if (ctx.info.isMain) {
-    throw new Refused('MAIN_IS_COORDINATOR', 'the runner builds lane items, so it runs in a lane worktree: pullboard worktree <lane> --route light, then run it there');
+    throw new Refused('MAIN_IS_COORDINATOR', 'the runner builds lane items, so it runs in a lane worktree: pullboard worktree <lane> --model "<model name>" --route light, then run it there');
   }
   const agents = Object.fromEntries(
     store.ROUTES.map((route) => [route, String(values[`agent-${route}`] ?? values.agent ?? '').trim()]).filter(([, command]) => command),
@@ -415,7 +415,7 @@ export async function runItems(io, values, deps) {
   const me = deps.withBoard(ctx, (board) => deps.whoAmI(ctx, board));
   const above = Object.keys(agents).filter((route) => !store.canTake(me.route, route) && values[`agent-${route}`]);
   if (above.length) {
-    throw new Refused('ROUTE', `this worktree joined on the ${me.route} route, so it cannot take ${above.join(' or ')} items; make one that can: pullboard worktree ${me.lane} --route ${above.at(-1)}`);
+    throw new Refused('ROUTE', `this worktree joined on the ${me.route} route, so it cannot take ${above.join(' or ')} items; make one that can: pullboard worktree ${me.lane} --model "<model name>" --route ${above.at(-1)}`);
   }
   const routes = Object.keys(agents).filter((route) => store.canTake(me.route, route));
   const totals = { submitted: 0, escalated: 0 };
