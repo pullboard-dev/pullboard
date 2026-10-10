@@ -1764,6 +1764,25 @@ export function appendFact(board, id, { agentId, kind, text, ref = null, superse
 }
 
 /**
+ * Rank items by the first unfinished milestone that contains them, leaving unlisted work last.
+ * A finished milestone no longer holds back later releases.
+ *
+ * @param {any} board
+ * @returns {(entry: any) => number}
+ */
+function milestonePriorities(board) {
+  const ordered = milestones(board);
+  const items = new Map(listItems(board, { all: true }).map((entry) => [entry.item_id, entry]));
+  const priorities = new Map();
+  for (const [index, milestone] of ordered.entries()) {
+    const unfinished = milestone.items.some((id) => typeof id !== 'number' || items.get(id)?.item_status !== 'verified');
+    if (!unfinished) continue;
+    for (const id of milestone.items) if (!priorities.has(id)) priorities.set(id, index);
+  }
+  return (entry) => priorities.get(entry.item_id) ?? ordered.length;
+}
+
+/**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
  * dependencies are verified; for a verifier, the oldest submitted item it did not build. An agent
  * sees items at its tier and below, its own tier first, so lighter work waits for lighter models
@@ -1800,8 +1819,11 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
       holder: reviewHolder(board, entry),
       cooldown: reviewReleaseCooldown(board, entry.item_id, agentId),
     }));
-    const item = candidates.find((candidate) => candidate.holder === agentId)?.entry
-      ?? candidates.find((candidate) => !candidate.holder && !candidate.cooldown)?.entry;
+    const heldByMe = candidates.find((candidate) => candidate.holder === agentId)?.entry;
+    if (heldByMe) return { item: heldByMe, reasons: [] };
+    const milestonePriority = milestonePriorities(board);
+    candidates.sort((first, second) => milestonePriority(first.entry) - milestonePriority(second.entry));
+    const item = candidates.find((candidate) => !candidate.holder && !candidate.cooldown)?.entry;
     if (item) return { item, reasons: [] };
     const held = candidates.filter((candidate) => candidate.holder && candidate.holder !== agentId)
       .map(({ entry, holder: reviewer }) => `${reviewer} holds the review of #${entry.item_id} until ${entry.item_review_until}`);
@@ -1813,11 +1835,13 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   if (held) return { item: held, reasons: [] };
   const paused = laneHold(board, lane);
   if (paused) return { item: null, reasons: [`${paused.hold_by} holds the ${lane} lane: ${paused.hold_reason}`] };
+  const milestonePriority = milestonePriorities(board);
   const recent = new Set(warm);
   const mine = items
     .filter((entry) => entry.item_status === 'open' && entry.item_lane === lane)
     .map((entry, order) => ({ entry, order, shared: itemFiles(entry).filter((path) => recent.has(path)) }))
-    .sort((first, second) => tier(second.entry) - tier(first.entry) || second.shared.length - first.shared.length || first.order - second.order);
+    .sort((first, second) => milestonePriority(first.entry) - milestonePriority(second.entry)
+      || tier(second.entry) - tier(first.entry) || second.shared.length - first.shared.length || first.order - second.order);
   const reasons = [];
   for (const { entry, shared } of mine) {
     const waiting = (entry.item_after ? entry.item_after.split(',').map(Number) : [])
