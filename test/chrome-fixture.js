@@ -11,11 +11,6 @@ const CLEANUP_TIMEOUT_MS = 5_000;
 const GROUP_POLL_MS = 20;
 const STDERR_LIMIT = 128 * 1024;
 
-/** Treat only a one-millisecond CDP timer rounding difference as the exact operation-budget boundary. */
-export function isRoundedBudgetBoundary(reportedMs, elapsedMs, budgetMs) {
-  return reportedMs === budgetMs - 1 && elapsedMs === budgetMs;
-}
-
 /** Find an installed Chrome without making browser availability a product-test failure. */
 export function findChromeExecutable() {
   return [process.env.PULLBOARD_CHROME, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -152,21 +147,14 @@ export async function startChrome({
     }
     /** Wait until a page expression becomes truthy, treating document-transition evaluation errors as pending. */
     async function waitFor(expression, timeoutMs = commandTimeoutMs, label = 'wait for page condition') {
-      const waitStartedAt = Date.now();
-      const waitDeadline = waitStartedAt + timeoutMs;
+      const waitDeadline = Date.now() + timeoutMs;
       let lastEvaluationError = null;
       while (Date.now() < waitDeadline) {
         try {
           if (await evaluate(expression, label, waitDeadline - Date.now())) return;
         } catch (error) {
           if (error instanceof Error && error.message.startsWith('Browser evaluation failed:')) lastEvaluationError = error;
-          else {
-            const cdpTimeout = error.code === 'CDP_TIMEOUT'
-              && /timed out after (\d+)ms/u.exec(error.message);
-            const roundedBoundary = cdpTimeout
-              && isRoundedBudgetBoundary(Number(cdpTimeout[1]), Date.now() - waitStartedAt, timeoutMs);
-            if (error.code !== 'CDP_TIMEOUT' || (Date.now() < waitDeadline && !roundedBoundary)) throw error;
-          }
+          else if (error.code !== 'CDP_TIMEOUT' || Date.now() < waitDeadline) throw error;
         }
         await pause(Math.max(0, Math.min(50, waitDeadline - Date.now())));
       }
@@ -290,8 +278,11 @@ async function connectDevTools(debuggerUrl, deadline) {
   return socket;
 }
 
-/** Create a CDP command sender that correlates responses and bounds every request. */
-function createSender(socket, pending, nextId, timeoutMs, loopDelay, relayRequests) {
+/** Create a CDP sender with a deadline checked on the same clock used by timeout diagnostics. */
+export function createSender(socket, pending, nextId, timeoutMs, loopDelay, relayRequests, timers = {}) {
+  const now = timers.now ?? Date.now;
+  const schedule = timers.setTimeout ?? setTimeout;
+  const cancel = timers.clearTimeout ?? clearTimeout;
   /** Resolve or reject the request matching one CDP response without logging its payload. */
   function onMessage(event) {
     let message;
@@ -310,29 +301,44 @@ function createSender(socket, pending, nextId, timeoutMs, loopDelay, relayReques
     const waiter = pending.get(message.id);
     if (!waiter) return;
     pending.delete(message.id);
-    clearTimeout(waiter.timer);
+    cancel(waiter.timer);
     if (message.error) waiter.reject(new Error(`DevTools command failed: ${waiter.method}.`));
     else waiter.resolve(message.result);
   }
   socket.addEventListener('message', onMessage);
   return (method, params = {}, label = method, remainingMs = timeoutMs) => new Promise((resolveResult, rejectResult) => {
     const requestId = nextId();
-    const startedAt = Date.now();
+    const startedAt = now();
+    const durationMs = Math.max(1, Math.min(timeoutMs, remainingMs));
+    const deadline = startedAt + durationMs;
     const maxDelayAtSend = loopDelay.max;
-    const timeoutMessage = () => {
+    /** Format the timeout using the elapsed value already checked against this command deadline. */
+    const timeoutMessage = elapsedMs => {
       const maxDelayRise = Math.max(0, loopDelay.max - maxDelayAtSend);
-      return `DevTools ${method} "${label}" timed out after ${Date.now() - startedAt}ms; maximum event-loop delay ${Math.round(maxDelayRise / 1e6)}ms; relay request pending: ${relayRequests.size > 0}.`;
+      return `DevTools ${method} "${label}" timed out after ${elapsedMs}ms; maximum event-loop delay ${Math.round(maxDelayRise / 1e6)}ms; relay request pending: ${relayRequests.size > 0}.`;
     };
-    const timer = setTimeout(() => {
+    let timer;
+    /** Re-arm an early callback so timeout reporting cannot precede the armed deadline. */
+    const expire = () => {
+      if (!pending.has(requestId)) return;
+      const currentTime = now();
+      const elapsedMs = currentTime - startedAt;
+      const remaining = deadline - currentTime;
+      if (remaining > 0) {
+        timer = schedule(expire, remaining);
+        pending.get(requestId).timer = timer;
+        return;
+      }
       pending.delete(requestId);
-      const error = new Error(timeoutMessage());
+      const error = new Error(timeoutMessage(elapsedMs));
       error.code = 'CDP_TIMEOUT';
       rejectResult(error);
-    }, Math.max(1, Math.min(timeoutMs, remainingMs)));
+    };
+    timer = schedule(expire, durationMs);
     pending.set(requestId, { resolve: resolveResult, reject: rejectResult, timer, method, label });
     try { socket.send(JSON.stringify({ id: requestId, method, params })); }
     catch {
-      clearTimeout(timer);
+      cancel(timer);
       pending.delete(requestId);
       rejectResult(new Error(`DevTools command could not be sent: ${method}.`));
     }

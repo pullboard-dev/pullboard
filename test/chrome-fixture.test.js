@@ -7,7 +7,7 @@ import { loadavg, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { test } from 'node:test';
-import { findChromeExecutable, isRoundedBudgetBoundary, launchChromeProcess, startChrome } from './chrome-fixture.js';
+import { createSender, findChromeExecutable, launchChromeProcess, startChrome } from './chrome-fixture.js';
 
 /** Pause between checks while waiting for a fixture helper's readiness marker. */
 function pause(ms) {
@@ -192,24 +192,49 @@ test('a stalled condition uses its remaining operation budget [C7]', {
   scheduler.disable();
   const schedulerSlackMs = Math.ceil(scheduler.max / 1e6);
   const details = `budget=${budgetMs}ms elapsed=${Math.round(elapsedMs)}ms schedulerSlack=${schedulerSlackMs}ms loadavg=${JSON.stringify(loadavg())}`;
-  const cdpTimeout = failure instanceof Error
-    && /DevTools Runtime\.evaluate "bounded condition" timed out after (\d+)ms/u.exec(failure.message);
   const conditionTimeout = failure instanceof Error
     && /Browser condition "bounded condition" did not arrive within 250ms/u.test(failure.message);
-  assert.ok(conditionTimeout || (cdpTimeout && isRoundedBudgetBoundary(Number(cdpTimeout[1]), elapsedMs, budgetMs)),
+  assert.ok(conditionTimeout,
     `the stalled page condition should time out at its operation budget; ${details}; failure=${failure?.message ?? 'none'}`);
   assert.ok(elapsedMs <= budgetMs + schedulerSlackMs,
     `the 250ms condition stayed within its measured budget plus scheduler delay; ${details}`);
   assert.equal(await chrome.evaluate('1 + 1'), 2, 'timing out one command leaves the real DevTools connection usable');
 });
 
-test('a timeout at the budget boundary passes [C7]', () => {
-  assert.equal(isRoundedBudgetBoundary(249, 250, 250), true,
-    'a 249ms CDP report rounded to 250ms by the shared wall clock is at the budget boundary');
-  assert.equal(isRoundedBudgetBoundary(248, 250, 250), false,
-    'a two-millisecond early CDP timeout is outside the rounding boundary');
-  assert.equal(isRoundedBudgetBoundary(249, 251, 250), false,
-    'elapsed time beyond the budget is not accepted as a rounding boundary');
+test('a DevTools timer that fires early still times out at its budget [C7]', async () => {
+  let now = 10_000;
+  const scheduled = [];
+  const timers = {
+    /** Read the simulated clock used by both timer arming and diagnostics. */
+    now() { return now; },
+    /** Capture each timer so the test can fire the first one exactly 1ms early. */
+    setTimeout(callback, delay) {
+      const timer = { callback, delay };
+      scheduled.push(timer);
+      return timer;
+    },
+    /** Mark cancellation without advancing simulated time. */
+    clearTimeout(timer) {
+      timer.cleared = true;
+    },
+  };
+  const socket = { addEventListener() {}, send() {} };
+  const pending = new Map();
+  const send = createSender(socket, pending, () => 1, 250, { max: 0 }, new Set(), timers);
+  const result = send('Runtime.evaluate', {}, 'early timer').catch(error => error);
+  assert.equal(scheduled[0].delay, 250, 'the first timer receives the full command budget');
+
+  now += 249;
+  scheduled.shift().callback();
+  assert.equal(scheduled.length, 1, 'a timer firing 1ms early is re-armed');
+  assert.equal(scheduled[0].delay, 1, 'the re-armed timer uses only the remaining budget');
+
+  now += 1;
+  scheduled.shift().callback();
+  const error = await result;
+  assert.equal(error.code, 'CDP_TIMEOUT');
+  assert.match(error.message, /timed out after 250ms/u, 'the reported duration reaches its budget');
+  assert.equal(pending.size, 0, 'the timed-out command is removed from the pending set');
 });
 
 test('a wait that throws while the page changes keeps waiting [C7]', async (t) => {
