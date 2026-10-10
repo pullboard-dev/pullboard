@@ -166,6 +166,7 @@ const NODE_TEST_OPTIONS_WITH_VALUES = new Set([
   '--test-shard', '--test-coverage-branches', '--test-coverage-exclude',
   '--test-coverage-functions', '--test-coverage-include', '--test-coverage-lines',
   '--test-global-setup', '--test-random-seed', '--test-rerun-failures',
+  '--experimental-test-isolation', '--test-isolation',
 ]);
 
 /** Distinguish file selection from option values so filtered discovery still takes a full-suite slot. */
