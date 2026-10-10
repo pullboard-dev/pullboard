@@ -11,7 +11,7 @@ import { dirname, join } from 'node:path';
 import { gitChildEnv, gitPath, headTree, invalidateGitFacts, isClean, untracked } from './git.js';
 import { secretsIn } from './hooks.js';
 import { Refused } from './refused.js';
-import { takeResource } from './resources.js';
+import { GATE_SLOT_HELD_ENV, takeResource } from './resources.js';
 import { loadMachineSettings } from './settings.js';
 import { selectAffectedTests } from './affected-tests.js';
 import { timingFromOutput, timingRunner } from './timing.js';
@@ -129,16 +129,16 @@ function safeLog(output) {
 /** Run the unchanged caller command and profile only timings already present in its output.
  * @param {string} root
  * @param {string} command
- * @param {{ waitMs?: number, artifactDirectory?: string, artifactPrefix?: string, persistLog?: boolean, profileFile?: string, pipefail?: boolean }} [options]
+ * @param {{ waitMs?: number, artifactDirectory?: string, artifactPrefix?: string, persistLog?: boolean, profileFile?: string, pipefail?: boolean, gateSlotHeld?: boolean }} [options]
  */
-export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false } = {}) {
+export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false, gateSlotHeld = false } = {}) {
   const directory = artifactDirectory ?? dirname(gitPath(root, LOG));
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const id = randomUUID();
   const profilePath = profileFile ?? join(directory, `${artifactPrefix}-${id}.profile.json`);
   const logPath = persistLog ? join(directory, `${artifactPrefix}-${id}.log`) : null;
   const started = Date.now();
-  const run = runShell(root, command, { pipefail });
+  const run = runShell(root, command, { pipefail, env: gateSlotHeld ? { [GATE_SLOT_HELD_ENV]: '1' } : {} });
   const profile = writeTimingProfile(profilePath, {
     ...timingFromOutput(run.output, timingRunner(command)),
     waitMs: Math.max(0, Math.round(waitMs)), wallMs: Math.max(0, Date.now() - started),
@@ -246,7 +246,7 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
 function fullGateRun(root, config, trustStamp = false, { waitMs = 0, log = gitPath(root, LOG) } = {}) {
   if (trustStamp && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
   const before = committedTree(root);
-  const { isGreen, output, seconds, profile, profilePath } = runProfiledShell(root, config.gate, { waitMs, pipefail: true, profileFile: `${log}.profile.json` });
+  const { isGreen, output, seconds, profile, profilePath } = runProfiledShell(root, config.gate, { waitMs, pipefail: true, profileFile: `${log}.profile.json`, gateSlotHeld: true });
   writeFileSync(log, output);
   if (isGreen && before !== null && committedTree(root) === before) writeFileSync(gitPath(root, STAMP), `${before}\n`);
   return { isGreen, isCached: false, output, seconds, log, profile, profilePath };
@@ -277,7 +277,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     const checkLog = `${log}.check.log`;
     const proofLog = `${log}.proof.log`;
     const criterion = check ? runProfiledShell(root, check, {
-      waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`,
+      waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateSlotHeld: true,
     }) : { isGreen: true, output: '', seconds: 0 };
     if (check) writeFileSync(checkLog, safeLog(criterion.output), { mode: 0o600 });
     const receipt = { command: check, green: criterion.isGreen, seconds: criterion.seconds, checked: Boolean(check),
@@ -307,7 +307,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     else if (!selection.files.length) proof = { isGreen: true, output: '', seconds: 0, isCached: false, log: '' };
     else {
       const command = `${config.affectedTests.trimEnd()} ${selection.files.map(path => commandWord('./' + path)).join(' ')}`;
-      proof = { ...runProfiledShell(root, command, { waitMs: proofWait, profileFile: `${proofLog}.profile.json` }), isCached: false, log: proofLog };
+      proof = { ...runProfiledShell(root, command, { waitMs: proofWait, profileFile: `${proofLog}.profile.json`, gateSlotHeld: true }), isCached: false, log: proofLog };
       writeFileSync(proofLog, proof.output);
     }
     writeFileSync(log, `item check:\n${criterion.output}\n${selection.full ? 'full gate' : 'affected tests'}:\n${proof.output}`);
