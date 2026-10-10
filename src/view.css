@@ -508,13 +508,15 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .request-error { color: var(--reject); }
 .request-next { color: var(--ink-muted); }
 
-/* Where a finger taps, under a coarse pointer or in a window under 900px, every action keeps a 44px target, inline
- * references in running text excepted as they always were. Under a mouse on a wide screen there is no blanket minimum:
- * controls size to their words, and those that need room to be clicked take --tap, 32px there. */
+/* Where a finger taps, under a coarse pointer or in a window under 900px, every action keeps a 44px target, a
+ * reference inside running text excepted, as WCAG 2.5.8 exempts inline targets; a reference standing alone is a target
+ * like any button. Under a mouse on a wide screen there is no blanket minimum: controls size to their words, and those
+ * that need room to be clicked take --tap, 32px there. */
 :root { --tap: 32px; }
 @media (pointer: coarse), (width < 900px) {
   :root { --tap: 44px; }
   button, input, select, textarea, [data-item], [data-row] { min-height: 44px; }
+  button.ref.alone { display: inline-flex; align-items: center; min-height: 44px; vertical-align: middle; }
   .theme-btn, .flow-hide { width: 44px; height: 44px; }
 }
 /* A clickable row is never shorter than the target. */
