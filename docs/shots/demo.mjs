@@ -57,7 +57,7 @@ async function buildBoard(base, env) {
   await mkdir(repo, { recursive: true });
   command('git', ['init', '-q', '-b', 'main'], repo, env);
   command(process.execPath, [BIN, 'init'], repo, env);
-  await writeFile(join(repo, 'pullboard.json'), JSON.stringify({ name: 'Demo board', project: 'Pullboard demo', gate: 'node --check src/demo.js', spec: 'SPEC.md', verify: { policy: 'any', family: 'require' }, lease: '2h', lanes: { app: { owns: ['src/'], specs: ['G'] }, review: { owns: [], specs: [] } }, shared: [] }, null, 2) + '\n');
+  await writeFile(join(repo, 'pullboard.json'), JSON.stringify({ name: 'Demo board', project: 'Demo project', gate: 'node --check src/demo.js', spec: 'SPEC.md', verify: { policy: 'any', family: 'require' }, lease: '2h', lanes: { app: { owns: ['src/'], specs: ['G'] }, review: { owns: [], specs: [] } }, shared: [] }, null, 2) + '\n');
   await writeFile(join(repo, 'SPEC.md'), '# Demo\n\n## G · Goals\n- G1 [approved, must] A demo item exists to show the board. | gate: none\n- G2 [approved, must] The verified item shows its review history. | gate: none\n');
   command('git', ['add', '-A'], repo, env);
   command('git', ['commit', '-q', '-m', 'chore: initialize demo board'], repo, env);
@@ -70,12 +70,12 @@ async function buildBoard(base, env) {
   pb(repo, 'add', 'app', 'Withdrawn example', '--specs', 'G1', '--criterion', 'The demo includes withdrawn work.');
   pb(repo, 'withdraw', '6', 'this example was dropped');
 
-  const app = pb(repo, 'worktree', 'app').match(/made (.+) on branch app\/1/)?.[1];
+  const app = pb(repo, 'worktree', 'app', '--model', 'Demo builder').match(/made (.+) on branch app\/1/)?.[1];
   if (!app) throw new Error('Could not create the demo builder worktree');
-  pb(app, 'join', 'app', '--family', 'codex');
-  const review = pb(repo, 'worktree', 'review').match(/made (.+) on branch review\/1/)?.[1];
+  pb(app, 'join', 'app', '--family', 'codex', '--model', 'Demo builder');
+  const review = pb(repo, 'worktree', 'review', '--model', 'Demo reviewer').match(/made (.+) on branch review\/1/)?.[1];
   if (!review) throw new Error('Could not create the demo reviewer worktree');
-  pb(review, 'join', 'review', '--family', 'claude');
+  pb(review, 'join', 'review', '--family', 'claude', '--model', 'Demo reviewer');
   pb(app, 'next');
   await mkdir(join(app, 'src'), { recursive: true });
   await writeFile(join(app, 'src', 'demo.js'), 'export const reviewed = false;\n');
@@ -95,24 +95,22 @@ async function buildBoard(base, env) {
   pb(review, 'verify', '1', 'accept', '--note', 'Tried the edge that failed before; the revised demo passes.');
   command('git', ['merge', '-q', '--ff-only', 'app/1'], repo, env);
   pb(repo, 'merged', '1', second);
-  const app2 = pb(repo, 'worktree', 'app').match(/made (.+) on branch app\/2/)?.[1];
-  if (!app2) throw new Error('Could not create the second demo builder worktree');
-  pb(app2, 'join', 'app', '--family', 'codex');
-  pb(app2, 'claim', '3');
-  await mkdir(join(app2, 'src'), { recursive: true });
-  await writeFile(join(app2, 'src', 'review.js'), 'export const ready = true;\n');
-  command('git', ['add', '-A'], app2, env);
-  command('git', ['commit', '-q', '-m', 'feat(app): prepare the next review [G1]'], app2, env);
-  pb(app2, 'submit', '3');
-  const app3 = pb(repo, 'worktree', 'app').match(/made (.+) on branch app\/3/)?.[1];
-  if (!app3) throw new Error('Could not create the third demo builder worktree');
-  pb(app3, 'join', 'app', '--family', 'codex');
-  pb(app3, 'claim', '4');
-  const decision = pb(app3, 'shout', 'coordinator', 'The review is complete. May the verified change proceed?', '--decision').match(/as #(\d+)/)?.[1];
+  command('git', ['switch', '-q', '-c', 'app/next-review', 'main'], app, env);
+  pb(app, 'claim', '3');
+  await writeFile(join(app, 'src', 'review.js'), 'export const ready = true;\n');
+  command('git', ['add', '-A'], app, env);
+  command('git', ['commit', '-q', '-m', 'feat(app): prepare the next review [G1]'], app, env);
+  pb(app, 'submit', '3');
+  pb(app, 'claim', '4');
+  pb(review, 'shout', 'coordinator', `#1 passes the edge that failed before. The fix is in src/demo.js:1@${second}.`, '--evidence', 'receipt', '--outcome', 'edge passes', '--item', '1', '--commit', second);
+  const decision = pb(app, 'shout', 'coordinator', 'The review is complete. May the verified change proceed?', '--decision').match(/as #(\d+)/)?.[1];
   if (!decision) throw new Error('The demo decision request was not recorded.');
   const passed = pb(repo, 'pass', decision, 'The review passed; ask the person before proceeding.').match(/as #(\d+)/)?.[1];
   if (!passed) throw new Error('The coordinator did not pass the demo decision to the person.');
   pb(repo, 'answer', passed, 'Proceed with the verified change.', '--as', 'person');
+  pb(repo, 'inbox');
+  pb(app, 'inbox');
+  pb(repo, 'shout', 'app-1', '#4 can continue while #3 waits for review.');
   pb(repo, 'hold', 'review', '--reason', 'Waiting for the next demo item.');
   if (!/1 withdrawn/.test(pb(repo, 'status'))) throw new Error('The demo board must include a withdrawn item.');
   const item = JSON.parse(pb(repo, 'show', '1', '--json'));
@@ -145,9 +143,11 @@ async function recordTour(env) {
   await writeFile(join(OUTPUT, 'tour.svg'), renderTour(lines));
 }
 
+const boardOnly = process.argv.includes('--board-only');
+const screenshotsOnly = process.argv.includes('--screenshots-only');
 const tourOnly = process.argv.includes('--tour-only');
-const chrome = !tourOnly && CHROME.find((path) => { try { return spawnSync(path, ['--version'], { stdio: 'ignore' }).status === 0; } catch { return false; } });
-if (!chrome && !tourOnly) { process.stderr.write('pullboard demo: install Google Chrome to capture the board screenshots.\n'); process.exitCode = 1; }
+const chrome = !tourOnly && !boardOnly && CHROME.find((path) => { try { return spawnSync(path, ['--version'], { stdio: 'ignore' }).status === 0; } catch { return false; } });
+if (!chrome && !tourOnly && !boardOnly) { process.stderr.write('pullboard demo: install Google Chrome to capture the board screenshots.\n'); process.exitCode = 1; }
 else {
   const base = await realpath(await mkdtemp(join(tmpdir(), 'pullboard-readme-demo-')));
   let view;
@@ -161,29 +161,38 @@ else {
     } else {
       const repo = await buildBoard(base, env);
       await exportBoard(repo, env);
-      server = spawn(process.execPath, [BIN, 'view', '--no-open'], { cwd: repo, env, stdio: ['ignore', 'pipe', 'ignore'] });
-      const url = await new Promise((resolveUrl, reject) => {
-        let output = '';
-        const timer = setTimeout(() => reject(new Error('The demo view did not start')), 10000);
-        server.stdout.setEncoding('utf8');
-        server.stdout.on('data', (chunk) => { output += chunk; const match = /Pullboard view: (http:\/\/[^\s]+)/.exec(output); if (match) { clearTimeout(timer); resolveUrl(match[1]); } });
-        server.once('close', () => { clearTimeout(timer); reject(new Error('The demo view stopped before it opened')); });
-      });
-      view = await browser(chrome, join(base, 'chrome-profile'), url);
-      await waitForDemoBoard(view, repo);
-      await view.viewport(1440, 700);
-      await view.evaluate("document.querySelector('[data-state=all]').click()");
-      await view.waitFor("!!document.querySelector('#chain .row[data-item=\"1\"]')", 'accepted item in All');
-      await view.evaluate("(()=>{document.documentElement.dataset.theme='light'; localStorage.setItem('pb.theme','light'); document.querySelector('#chain .row[data-item=\"1\"]').click()})()");
-      await view.waitFor("view.item === 1 && !!document.querySelector('#chain .row.on[data-item=\"1\"]') && document.querySelector('#detail').textContent.includes('Reviewed and accepted') && document.querySelector('#detail').textContent.includes('REJECT') && document.querySelector('#detail').textContent.includes('ACCEPT')", 'selected accepted item and both verdicts');
-      await view.evaluate('document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))');
-      await view.screenshot(join(OUTPUT, 'desktop.png'));
-      await view.viewport(390, 900);
-      await view.evaluate("(()=>{document.documentElement.dataset.theme='dark'; localStorage.setItem('pb.theme','dark'); const item=document.querySelector('[data-item=\"1\"]'); const detail=document.querySelector('#detail')?.textContent??''; if(document.documentElement.dataset.theme!=='dark'||!item||!detail.includes('ACCEPT')) throw new Error('The phone screenshot must show the selected accepted item in dark mode'); return true})()");
-      await view.screenshot(join(OUTPUT, 'phone.png'));
-      await view.close(); view = null;
-      await stop(server); server = null;
-      await recordTour(env);
+      if (!boardOnly) {
+        server = spawn(process.execPath, [BIN, 'view', '--no-open'], { cwd: repo, env, stdio: ['ignore', 'pipe', 'ignore'] });
+        const url = await new Promise((resolveUrl, reject) => {
+          let output = '';
+          const timer = setTimeout(() => reject(new Error('The demo view did not start')), 10000);
+          server.stdout.setEncoding('utf8');
+          server.stdout.on('data', (chunk) => { output += chunk; const match = /Pullboard view: (http:\/\/[^\s]+)/.exec(output); if (match) { clearTimeout(timer); resolveUrl(match[1]); } });
+          server.once('close', () => { clearTimeout(timer); reject(new Error('The demo view stopped before it opened')); });
+        });
+        view = await browser(chrome, join(base, 'chrome-profile'), url);
+        await waitForDemoBoard(view, repo);
+        await view.viewport(1440, 900);
+        await view.evaluate("document.querySelector('[data-state=all]').click()");
+        await view.waitFor("!!document.querySelector('#chain .row[data-item=\"1\"]')", 'accepted item in All');
+        await view.evaluate("(()=>{document.documentElement.dataset.theme='light'; localStorage.setItem('pb.theme','light'); document.querySelector('#chain .row[data-item=\"1\"]').click()})()");
+        await view.waitFor("view.item === 1 && !!document.querySelector('#chain .row.on[data-item=\"1\"]') && document.querySelector('#detail').textContent.includes('Reviewed and accepted') && document.querySelector('#detail').textContent.includes('REJECT') && document.querySelector('#detail').textContent.includes('ACCEPT')", 'selected accepted item and both verdicts');
+        await view.evaluate("document.querySelector('[data-state=active]').click()");
+        await view.waitFor("!document.querySelector('#needs').hidden && document.querySelector('#needs').textContent.includes('NEEDS YOU') && document.querySelector('#detail').textContent.includes('ACCEPT')", 'Active items, Needs you and the selected review history');
+        await view.evaluate('document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))');
+        await view.screenshot(join(OUTPUT, 'desktop.png'));
+        await view.viewport(390, 900);
+        await view.evaluate("(()=>{document.documentElement.dataset.theme='dark'; localStorage.setItem('pb.theme','dark'); const item=document.querySelector('[data-item=\"4\"]'); const detail=document.querySelector('#detail')?.textContent??''; if(document.documentElement.dataset.theme!=='dark'||!item||!detail.includes('ACCEPT')||document.querySelector('#needs').hidden) throw new Error('The phone screenshot must show active work and Needs you in dark mode'); return true})()");
+        await view.screenshot(join(OUTPUT, 'phone.png'));
+        await view.viewport(1440, 900);
+        await view.evaluate("document.documentElement.dataset.theme='light'; localStorage.setItem('pb.theme','light'); document.querySelector('[data-tab=\"shouts\"]').click()");
+        await view.waitFor("!document.querySelector('#shouts-pane').hidden && !!document.querySelector('#feed .heard:not(.not)') && !!document.querySelector('#feed .receipt') && !!document.querySelector('#feed [data-code]') && !!document.querySelector('#feed .band.done')", 'answered conversation, Heard, receipt and code reference');
+        await view.evaluate('document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))');
+        await view.screenshot(join(OUTPUT, 'shouts.png'));
+        await view.close(); view = null;
+        await stop(server); server = null;
+        if (!screenshotsOnly) await recordTour(env);
+      }
     }
   } finally {
     if (view) await view.close();
