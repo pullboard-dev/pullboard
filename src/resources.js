@@ -162,7 +162,7 @@ function pause(ms) { return new Promise((resolvePromise) => setTimeout(resolvePr
  * Join the queue, preserving FIFO within landing, ordinary-gate, and item-check classes.
  *
  * @param {{ name: string, capacity: number, capacityProvider?: () => number, scope?: 'machine'|'repo'|'board', root?: string, agent?: string, repo?: string, landing?: boolean, itemCheck?: boolean, onWait?: (state: object) => void, allowIdleCapacityUpdate?: boolean }} options - Resource identity and queue class.
- * @returns {Promise<{ name: string, scope: string, token: string, release: () => void, renew: () => void }>}
+ * @returns {Promise<{ name: string, scope: string, token: string, waitMs: number, release: () => void, renew: () => void }>}
  */
 export async function takeResource(options) {
   const { name, capacity, scope = 'machine', root = process.cwd(), allowIdleCapacityUpdate = false } = options;
@@ -174,6 +174,7 @@ export async function takeResource(options) {
   const file = databaseFile(scope, root);
   const db = open(file);
   const token = randomUUID();
+  const requestedAt = Date.now();
   const pid = process.pid;
   const agent = options.agent ?? process.env.PULLBOARD_AGENT ?? `pid-${pid}`;
   const started = processStarted(pid);
@@ -243,7 +244,7 @@ export async function takeResource(options) {
             throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
           }
         };
-        return { name, scope, token, release, renew };
+        return { name, scope, token, waitMs: Math.max(0, Date.now() - requestedAt), release, renew };
       }
       options.onWait?.(acquired.state);
       await pause(POLL_MS);

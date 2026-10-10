@@ -14,7 +14,7 @@ import { doctrineHistory, loadDoctrine } from './doctrine.js';
 import { agentSessionDigest, requirePersonChannel } from './person.js';
 import { bindLocalSession } from './agent-session.js';
 import { decisionProjection, planRowApply, prepareRowDecisions, restoreRowApply, writeRowApply } from './row-decisions.js';
-import { digestOf, gateReport, runGate, runShell, runSubmitGate, submitGateReport, withGateSlot } from './gate.js';
+import { digestOf, gateReport, runGate, runProfiledShell, runSubmitGate, submitGateReport, timingDigest, withGateSlot } from './gate.js';
 import { bareWorktreeFinding, contains, differFromHead, git, gitChildEnv, headCommit, headTree, invalidateGitFacts, isClean, mainCheckout, repoInfo, resolveCommit, tryGit, untracked, withGitFacts } from './git.js';
 import {
   FIX_NOTE,
@@ -1795,7 +1795,8 @@ async function submitHere(ctx, id) {
     refuseUnverifiedStack(root, board, store.getItem(board, id), commit, currentTrunk);
     return await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit }]);
   });
-  return reportSubmission(ctx, id, commit, { green: gate.isGreen, report: submitGateReport(gate), files: gate.files, full: gate.full, reason: gate.reason, check: gate.check });
+  return reportSubmission(ctx, id, commit, { green: gate.isGreen, report: submitGateReport(gate), files: gate.files, full: gate.full, reason: gate.reason, check: gate.check,
+    log: gate.log, profile: gate.profile, profilePath: gate.profilePath, proofLog: gate.proofLog, proofProfilePath: gate.proofProfilePath });
 }
 
 /** Report and pin the original submitted commit, including a recovered acknowledged outcome. */
@@ -1823,6 +1824,7 @@ async function verifyHere(ctx, id, { second, values }) {
   const decision = { accept: 'ACCEPT', reject: 'REJECT' }[String(second ?? '').toLowerCase()];
   if (!decision) throw new Refused('USAGE', 'pullboard verify <id> accept, or reject --reason CODE --note "..."');
   const { root } = ctx.info;
+  let verificationProfile = null;
   const result = await withBoard(ctx, async (board) => {
     checkMainVerifier(ctx, board, values);
     const me = whoAmI(ctx, board);
@@ -1862,12 +1864,15 @@ async function verifyHere(ctx, id, { second, values }) {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
       const trunk = requireTrunkMerge(root, commit);
       refuseUnverifiedStack(root, board, item, commit, trunk);
-      check = await withGateSlot(root, () => checkAtCommit(root, item), { itemCheck: true, onWait: gateWaitReporter(ctx.io) });
+      check = await withGateSlot(root, (lease) => checkAtCommit(root, item, { waitMs: lease.waitMs }), { itemCheck: true, onWait: gateWaitReporter(ctx.io) });
+      verificationProfile = check.profile ?? null;
       const evidence = check.checked
         ? `\nlast output lines (up to 40):\n${(check.outputTail ?? '(no output)').split('\n').map((line) => `  ${line}`).join('\n')}\nfull output file: ${check.outputPath ?? `(unavailable${check.outputError ? `: ${check.outputError}` : ''})`}`
         : '';
-      if (check.state === 'unverified') throw new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the submitted commit; restore the install or check environment, then retry verification; output digest:\n${check.report.replace(/^/gm, '  ')}${evidence}`);
-      if (check.state === 'red') throw new Refused('CHECK_RED', `the frozen item check is red at the submitted commit (${check.stage}); check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit; output digest:\n${check.report.replace(/^/gm, '  ')}${evidence}`);
+      const checkTimings = timingDigest(check.profile);
+      const timingEvidence = check.profilePath ? `\n${checkTimings}\ntiming profile: ${check.profilePath}` : '';
+      if (check.state === 'unverified') throw new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the submitted commit; restore the install or check environment, then retry verification; output digest:\n${check.report.replace(/^/gm, '  ')}${evidence}${timingEvidence}`);
+      if (check.state === 'red') throw new Refused('CHECK_RED', `the frozen item check is red at the submitted commit (${check.stage}); check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit; output digest:\n${check.report.replace(/^/gm, '  ')}${evidence}${timingEvidence}`);
       const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
       submissionPaths(root, item, commit, { mainCommit: receipt?.policyCommit, dependencies: dependencySnapshots(board.db, item) });
       const currentTrunk = requireTrunkMerge(root, commit); // Re-read after the frozen check, before accepting.
@@ -1886,8 +1891,10 @@ async function verifyHere(ctx, id, { second, values }) {
     }]);
   });
   ctx.io.result?.({ id, ...result });
+  const verifiedSummary = timingDigest(verificationProfile);
+  const verifiedTiming = result.decision === 'ACCEPT' && verificationProfile && verifiedSummary ? `\n${verifiedSummary}\ntiming profile: ${verificationProfile.profilePath ?? '(not saved)'}` : '';
   ctx.io.say(result.decision === 'ACCEPT'
-    ? `verified #${id}: ${result.reason}${result.check === 'none' ? '; no frozen check ran' : ''}`
+    ? `verified #${id}: ${result.reason}${result.check === 'none' ? '; no frozen check ran' : ''}${verifiedTiming}`
     : `rejected #${id}: ${result.reason}; it is open again for rework`);
   return 0;
 }
@@ -2244,9 +2251,16 @@ function workCommands(io, args) {
           throw new Refused('CHECK_CONFIRM', `the check set by ${by} was not run: ${check}; run pullboard check ${item.item_id} --yes after reading the command, or answer yes at the prompt`);
         }
       }
-      const run = await withGateSlot(ctx.info.root, () => runShell(ctx.info.root, check), { itemCheck: true, onWait: gateWaitReporter(io) });
+      const run = await withGateSlot(ctx.info.root, (lease) => runProfiledShell(ctx.info.root, check, { waitMs: lease.waitMs, artifactPrefix: `pullboard-check-${item.item_id}`, persistLog: true }), { itemCheck: true, onWait: gateWaitReporter(io) });
       io.result?.({ id: item.item_id, green: run.isGreen, seconds: run.seconds, check, by, report: run.isGreen ? '' : digestOf(run.output) });
-      io.say(`check ${run.isGreen ? 'green' : 'red'} in ${run.seconds}s: ${check}`);
+      const timings = timingDigest(run.profile);
+      const compact = timings && !run.profile.files.length
+        ? `; ${timings.replaceAll('\n', '; ')}; timing profile: ${run.profilePath}` : '';
+      io.say(`check ${run.isGreen ? 'green' : 'red'} in ${run.seconds}s: ${check}${compact}`);
+      if (timings && run.profile.files.length) {
+        io.say(timings);
+        io.say(`timing profile: ${run.profilePath}`);
+      }
       if (!run.isGreen) io.say(digestOf(run.output).replace(/^/gm, '  '));
       return run.isGreen ? 0 : 1;
     },

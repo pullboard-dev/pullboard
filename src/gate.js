@@ -5,12 +5,16 @@
  * run, not the run (V10): a passing suite's output costs tokens and says nothing.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { gitChildEnv, gitPath, headTree, invalidateGitFacts, isClean, untracked } from './git.js';
+import { secretsIn } from './hooks.js';
 import { Refused } from './refused.js';
 import { takeResource } from './resources.js';
 import { loadMachineSettings } from './settings.js';
 import { selectAffectedTests } from './affected-tests.js';
+import { timingFromOutput, timingRunner } from './timing.js';
 
 const STAMP = 'pullboard-gate-green';
 const LOG = 'pullboard-gate.log';
@@ -92,12 +96,12 @@ export function isStampedGreen(root) {
  *
  * @param {string} root
  * @param {string} command
- * @param {{ pipefail?: boolean }} [options] - Enable every-stage failures only for the configured repo gate.
+ * @param {{ pipefail?: boolean, env?: NodeJS.ProcessEnv }} [options] - Gate-only pipefail and additional child environment values.
  * @returns {{ isGreen: boolean, output: string, seconds: number }}
  */
-export function runShell(root, command, { pipefail = false } = {}) {
+export function runShell(root, command, { pipefail = false, env = {} } = {}) {
   const started = Date.now();
-  const options = { cwd: root, env: gitChildEnv(root), shell: true, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', maxBuffer: 2 ** 30 };
+  const options = { cwd: root, env: { ...gitChildEnv(root), ...env }, shell: true, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', maxBuffer: 2 ** 30 };
   let prefix = '';
   if (pipefail) {
     // Probe the same shell as the command, with no load-sensitive deadline or alternate shell.
@@ -113,6 +117,74 @@ export function runShell(root, command, { pipefail = false } = {}) {
   return { isGreen: result.status === 0, output: `${result.stdout ?? ''}${result.stderr ?? ''}`, seconds: Math.round((Date.now() - started) / 1000) };
 }
 
+/** Replace a possible secret-bearing line before persisting a direct item-check log. */
+function safeLog(output) {
+  return output.split('\n').map((line, index) => {
+    if (Buffer.byteLength(line, 'utf8') > 64 * 1024) return '[redacted output line exceeds 64 KiB safe-scan limit]';
+    const findings = secretsIn([{ path: 'item check output', line: index + 1, text: line }]);
+    return findings.length ? `[redacted ${findings.map(finding => finding.slice(0, finding.lastIndexOf(' at '))).join(', ')}]` : line;
+  }).join('\n');
+}
+
+/** Run the unchanged caller command and profile only timings already present in its output.
+ * @param {string} root
+ * @param {string} command
+ * @param {{ waitMs?: number, artifactDirectory?: string, artifactPrefix?: string, persistLog?: boolean, profileFile?: string, pipefail?: boolean }} [options]
+ */
+export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false } = {}) {
+  const directory = artifactDirectory ?? dirname(gitPath(root, LOG));
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const id = randomUUID();
+  const profilePath = profileFile ?? join(directory, `${artifactPrefix}-${id}.profile.json`);
+  const logPath = persistLog ? join(directory, `${artifactPrefix}-${id}.log`) : null;
+  const started = Date.now();
+  const run = runShell(root, command, { pipefail });
+  const profile = writeTimingProfile(profilePath, {
+    ...timingFromOutput(run.output, timingRunner(command)),
+    waitMs: Math.max(0, Math.round(waitMs)), wallMs: Math.max(0, Date.now() - started),
+  });
+  if (logPath) writeFileSync(logPath, safeLog(run.output), { mode: 0o600 });
+  return { ...run, profile, profilePath, logPath };
+}
+
+/** Persist one sanitized timing profile as a private artifact.
+ * @param {string} path
+ * @param {{ files?: Array<object>, tests?: Array<object>, [key: string]: any }} profile
+ * @returns {object} The sanitized profile written to disk.
+ */
+export function writeTimingProfile(path, profile) {
+  /** Sanitize one reporter-controlled string before persistence or display.
+   * @param {unknown} value
+   * @param {string} label
+   * @returns {unknown}
+   */
+  const sanitize = (value, label) => {
+    if (typeof value !== 'string') return value;
+    if (Buffer.byteLength(value, 'utf8') > 64 * 1024) return '[redacted profile field exceeds 64 KiB safe-scan limit]';
+    const findings = secretsIn([{ path: `timing profile ${label}`, line: 1, text: value }]);
+    return findings.length ? `[redacted ${findings.map(finding => finding.slice(0, finding.lastIndexOf(' at '))).join(', ')}]` : value;
+  };
+  /** Accept only measured, nonnegative durations from reporter events. */
+  const validDuration = value => Number.isFinite(value) && value >= 0;
+  const files = (profile.files ?? []).filter(file => typeof file?.path === 'string' && validDuration(file.durationMs))
+    .map(file => ({ path: sanitize(file.path, 'file path'), durationMs: file.durationMs }));
+  const tests = (profile.tests ?? []).filter(test => (typeof test?.file === 'string' || test?.file === null) && typeof test?.name === 'string' && validDuration(test.durationMs))
+    .map(test => ({ file: sanitize(test.file, 'test file'), name: sanitize(test.name, 'test name'), durationMs: test.durationMs, passed: test.passed === true }));
+  const sanitized = {
+    version: 1,
+    waitMs: validDuration(profile.waitMs) ? profile.waitMs : 0,
+    wallMs: validDuration(profile.wallMs) ? profile.wallMs : null,
+    files,
+    tests,
+    runner: sanitize(profile.runner ?? 'shell', 'runner'),
+    format: sanitize(profile.format ?? 'none', 'format'),
+    unavailable: sanitize(profile.unavailable ?? null, 'availability'),
+  };
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+  writeFileSync(path, `${JSON.stringify(sanitized, null, 2)}\n`, { mode: 0o600 });
+  return sanitized;
+}
+
 /** Conservatively detect a pipe when the configured gate shell cannot enforce every stage's status. */
 function hasPipeline(command) {
   for (let index = 0; index < command.length; index += 1) {
@@ -124,7 +196,7 @@ function hasPipeline(command) {
 /** Run work under the machine gate queue, keeping landing gates ahead of ordinary gates and item checks last.
  *
  * @param {string} root - Checkout used to locate the machine resource database.
- * @param {() => any | Promise<any>} action - Work to perform while holding a slot.
+ * @param {(lease: { waitMs: number }) => any | Promise<any>} action - Work to perform while holding a slot.
  * @param {{ landing?: boolean, itemCheck?: boolean, onWait?: (state: object) => void }} [options] - Queue class and progress reporter.
  * @returns {Promise<any>} The action's result after releasing its lease.
  */
@@ -143,7 +215,7 @@ export async function withGateSlot(root, action, { landing = false, itemCheck = 
     onWait,
   });
   try {
-    return await action();
+    return await action(lease);
   } finally {
     lease.release();
   }
@@ -160,25 +232,24 @@ export async function withGateSlot(root, action, { landing = false, itemCheck = 
  * @param {string} root
  * @param {any} config
  * @param {{ trustStamp?: boolean, onWait?: (state: object) => void, landing?: boolean }} [options]
- * @returns {Promise<{ isGreen: boolean, isCached: boolean, output: string, seconds: number, log: string }>}
+ * @returns {Promise<{ isGreen: boolean, isCached: boolean, output: string, seconds: number, log: string, profile?: object, profilePath?: string }>}
  */
 export async function runGate(root, config, { trustStamp = true, onWait, landing = false } = {}) {
   if (!config.gate.trim()) {
     throw new Refused('NO_GATE', 'no gate configured; set "gate" in pullboard.json, e.g. "npm test"');
   }
   if (trustStamp && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
-  return await withGateSlot(root, () => fullGateRun(root, config, trustStamp), { landing, onWait });
+  return await withGateSlot(root, (lease) => fullGateRun(root, config, trustStamp, { waitMs: lease.waitMs }), { landing, onWait });
 }
 
 /** Run a full gate while its caller owns the queue lease; only a full run may stamp its tree. */
-function fullGateRun(root, config, trustStamp = false) {
+function fullGateRun(root, config, trustStamp = false, { waitMs = 0, log = gitPath(root, LOG) } = {}) {
   if (trustStamp && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
   const before = committedTree(root);
-  const { isGreen, output, seconds } = runShell(root, config.gate, { pipefail: true });
-  const log = gitPath(root, LOG);
+  const { isGreen, output, seconds, profile, profilePath } = runProfiledShell(root, config.gate, { waitMs, pipefail: true, profileFile: `${log}.profile.json` });
   writeFileSync(log, output);
   if (isGreen && before !== null && committedTree(root) === before) writeFileSync(gitPath(root, STAMP), `${before}\n`);
-  return { isGreen, isCached: false, output, seconds, log };
+  return { isGreen, isCached: false, output, seconds, log, profile, profilePath };
 }
 
 /** Quote a fixed executable or selected path without permitting shell expansion. */
@@ -200,23 +271,47 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   const selection = config.affectedTests
     ? selectAffectedTests(root, { base, trunk, changed })
     : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] };
-  return await withGateSlot(root, () => {
-    const criterion = check ? runShell(root, check) : { isGreen: true, output: '', seconds: 0 };
-    const receipt = { command: check, green: criterion.isGreen, seconds: criterion.seconds, checked: Boolean(check) };
+  return await withGateSlot(root, (lease) => {
+    const startedAt = Date.now();
     const log = gitPath(root, 'pullboard-submit.log');
+    const checkLog = `${log}.check.log`;
+    const proofLog = `${log}.proof.log`;
+    const criterion = check ? runProfiledShell(root, check, {
+      waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`,
+    }) : { isGreen: true, output: '', seconds: 0 };
+    if (check) writeFileSync(checkLog, safeLog(criterion.output), { mode: 0o600 });
+    const receipt = { command: check, green: criterion.isGreen, seconds: criterion.seconds, checked: Boolean(check),
+      ...(check ? { log: checkLog, profilePath: criterion.profilePath, profile: criterion.profile } : {}) };
+    /** Persist the whole submission's wall time and queue wait once, alongside its combined raw log. */
+    const finish = (proof) => {
+      const profilePath = `${log}.profile.json`;
+      const profiles = [criterion.profile, proof.profile].filter(Boolean);
+      const profile = writeTimingProfile(profilePath, {
+        waitMs: lease.waitMs, wallMs: Math.max(0, Date.now() - startedAt),
+        files: profiles.flatMap(value => value.files), tests: profiles.flatMap(value => value.tests),
+        runner: [...new Set(profiles.map(value => value.runner))].join(', '),
+        format: [...new Set(profiles.map(value => value.format))].join('+'),
+        unavailable: profiles.some(value => value.unavailable) ? 'per-test timing unavailable: output was not TAP or JUnit (one or more phases)' : null,
+      });
+      return { ...proof, log, seconds: criterion.seconds + proof.seconds, ...selection, check: receipt,
+        profile, profilePath, proofProfilePath: proof.profilePath, proofLog: proof.log };
+    };
     if (!criterion.isGreen) {
       writeFileSync(log, criterion.output);
-      return { isGreen: false, isCached: false, output: criterion.output, seconds: criterion.seconds, log, ...selection, check: receipt };
+      return finish({ isGreen: false, isCached: false, output: criterion.output, seconds: 0, log: '' });
     }
+    // The proof already owns this lease: its phase profile has no additional queue wait.
+    const proofWait = check ? 0 : lease.waitMs;
     let proof;
-    if (selection.full) proof = fullGateRun(root, config);
-    else if (!selection.files.length) proof = { isGreen: true, output: '', seconds: 0, isCached: false, log };
+    if (selection.full) proof = fullGateRun(root, config, false, { waitMs: proofWait, log: proofLog });
+    else if (!selection.files.length) proof = { isGreen: true, output: '', seconds: 0, isCached: false, log: '' };
     else {
       const command = `${config.affectedTests.trimEnd()} ${selection.files.map(path => commandWord('./' + path)).join(' ')}`;
-      proof = { ...runShell(root, command), isCached: false, log };
+      proof = { ...runProfiledShell(root, command, { waitMs: proofWait, profileFile: `${proofLog}.profile.json` }), isCached: false, log: proofLog };
+      writeFileSync(proofLog, proof.output);
     }
     writeFileSync(log, `item check:\n${criterion.output}\n${selection.full ? 'full gate' : 'affected tests'}:\n${proof.output}`);
-    return { ...proof, log, seconds: criterion.seconds + proof.seconds, ...selection, check: receipt };
+    return finish(proof);
   }, { onWait });
 }
 
@@ -224,18 +319,36 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
 export function submitGateReport(gate) {
   const check = gate.check.checked ? `item check ${gate.check.green ? 'green' : 'red'} in ${gate.check.seconds}s` : 'no item check';
   const selection = gate.full ? `full gate: ${gate.reason}` : `affected tests: ${gate.files.length ? gate.files.join(', ') : 'none'}`;
-  const result = gate.isGreen && !gate.full ? `affected tests green in ${gate.seconds}s` : gateReport(gate);
+  const timings = timingDigest(gate.profile);
+  const detail = timings ? `\n${timings}\ntiming profile: ${gate.profilePath}` : '';
+  const result = gate.isGreen && !gate.full ? `affected tests green in ${gate.seconds}s${detail}` : gateReport(gate);
   return `${check}; ${selection}; ${result}`;
+}
+
+/** Show wall and queue wait for every run; rank files only when their durations were printed. */
+export function timingDigest(profile) {
+  if (!profile) return '';
+  const measured = value => Number.isFinite(value) ? `${(value / 1000).toFixed(2)}s` : 'unavailable';
+  const summary = `timing (${profile.runner ?? 'shell'}): wall ${measured(profile.wallMs)}, slot wait ${measured(profile.waitMs)}`;
+  const rows = [...(profile.files ?? [])].filter(file => typeof file.path === 'string' && Number.isFinite(file.durationMs) && file.durationMs >= 0).sort((left, right) => right.durationMs - left.durationMs).slice(0, 10);
+  const files = rows.length ? `\nslowest test files:\n${rows.map(file => `  ${file.path}: ${(file.durationMs / 1000).toFixed(2)}s`).join('\n')}` : '';
+  return `${summary}${profile.unavailable ? `\n${profile.unavailable}` : ''}${files}`;
 }
 
 /**
  * What an agent sees of a gate run (V10): one line when green; when red, the digest and where the
  * whole output is.
  *
- * @param {{ isGreen: boolean, isCached: boolean, output: string, seconds: number, log: string }} gate
+ * @param {{ isGreen: boolean, isCached: boolean, output: string, seconds: number, log: string, profile?: object, profilePath?: string }} gate
  * @returns {string}
  */
 export function gateReport(gate) {
-  if (gate.isGreen) return gate.isCached ? 'gate green (this tree already passed)' : `gate green in ${gate.seconds}s`;
-  return `gate red in ${gate.seconds}s:\n${digestOf(gate.output).replace(/^/gm, '  ')}\nthe whole output is in ${gate.log}`;
+  const timings = timingDigest(gate.profile);
+  const profilePath = timings && gate.profilePath ? `\ntiming profile: ${gate.profilePath}` : '';
+  if (gate.isGreen) {
+    const summary = gate.isCached ? 'gate green (this tree already passed)' : `gate green in ${gate.seconds}s`;
+    if (!gate.profile?.files?.length) return timings ? `${summary}; ${timings.replaceAll('\n', '; ')}${gate.profilePath ? `; timing profile: ${gate.profilePath}` : ''}` : summary;
+    return `${summary}\n${timings}${profilePath}`;
+  }
+  return `gate red in ${gate.seconds}s:\n${digestOf(gate.output).replace(/^/gm, '  ')}\n${timings ? `${timings}\n` : ''}the whole output is in ${gate.log}${profilePath}`;
 }
