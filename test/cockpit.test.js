@@ -7068,12 +7068,28 @@ test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 15
     const visible = (e) => { const s = getComputedStyle(e), r = e.getBoundingClientRect(); return !e.disabled && s.display !== 'none' && s.visibility !== 'hidden' && r.width > 0 && r.height > 0 && !e.closest('[hidden]'); };
     const height = (s) => { const e = document.querySelector(s); return e && visible(e) ? Math.round(e.getBoundingClientRect().height) : null; };
     const selector = 'button,a[href],input:not([type=hidden]),select,textarea,[role=button],[data-tab],[data-go],[data-item],[data-state],[data-row],[data-new]';
+    // A reference inside running text is exempt from 44px, as WCAG 2.5.8 exempts inline targets: only the elements named
+    // here, and only where text that is not itself a control shares their line in the same block.
+    const named = (e) => e.matches('.feed button.ref, .shout button.ref, .shout .band a, .detail button.ref, .t button.ref') || !!e.closest('#chain .meta .gate, #detail .kv dd.waits-on');
+    const inLine = (e) => {
+      let block = e.parentElement;
+      while (block.parentElement && getComputedStyle(block).display.startsWith('inline')) block = block.parentElement;
+      const r = e.getBoundingClientRect(), walk = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+      for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+        if (e.contains(node) || !node.textContent.trim() || node.parentElement.closest(selector)) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        if ([...range.getClientRects()].some((line) => line.width > 0 && line.top < r.bottom && line.bottom > r.top)) return true;
+      }
+      return false;
+    };
     const controls = [...new Set(document.querySelectorAll(selector))].filter(visible).map((e) => ({ text: (e.innerText || e.getAttribute('aria-label') || e.id || e.className).trim().slice(0, 40), height: e.getBoundingClientRect().height,
-      inline: e.matches('.feed button.ref, .shout button.ref, .shout .band a, .detail button.ref, .t button.ref') || !!e.closest('#chain .meta .gate, #detail .kv dd.waits-on') }));
+      inline: named(e) && inLine(e), named: named(e), inLine: inLine(e) }));
     return {
       page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth },
       tap: getComputedStyle(document.documentElement).getPropertyValue('--tap').trim(), coarse: matchMedia('(pointer: coarse)').matches,
       short: controls.filter((c) => c.height < 44 && !c.inline), count: controls.length,
+      exempt: controls.filter((c) => c.named).map((c) => ({ text: c.text, height: Math.round(c.height), inLine: c.inLine })), standalone: inLine(document.querySelector('#new-item')),
       toolbar: { states: [...document.querySelectorAll('#state-chips button')].filter(visible).map((b) => Math.round(b.getBoundingClientRect().height)), lane: height('#lane-pick'), go: height('#new-item') },
       composer: { text: height('#shout-text'), send: height('#shout-send') }, status: [...document.querySelectorAll('.status [data-status]')].filter(visible).map((b) => Math.round(b.getBoundingClientRect().height)),
     };
@@ -7097,6 +7113,10 @@ test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 15
           // In a narrow window every action is a 44px target, as a finger needs.
           assert.equal(items.tap, '44px', `${at}: the target is 44px`);
           for (const [name, r] of [['Items', items], ['Shouts', shouts]]) assert.deepEqual(r.short, [], `${at} ${name}: every action at least 44px high: ${JSON.stringify(r.short)}`);
+          // The exemptions, named: only the reference inside the shout's sentence, which sits in a line of its words; the
+          // same check refuses a standalone button.
+          assert.deepEqual([items.exempt, shouts.exempt.map((e) => [e.text, e.inLine])], [[], [['#2', true]]], `${at}: the only exemption is #2 inside its sentence: ${JSON.stringify([items.exempt, shouts.exempt])}`);
+          assert.equal(items.standalone, false, `${at}: a standalone button is never inside a line of text`);
         } else {
           // Under a mouse on a wide screen controls size to their words: the Items toolbar at 32px, the composer one line.
           assert.equal(items.tap, '32px', `${at}: the target is 32px under a mouse`);
@@ -7120,6 +7140,10 @@ test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 15
     assert.equal(touchItems.tap, '44px', 'under touch the target is 44px');
     for (const [name, r] of [['Items', touchItems], ['Shouts', touchShouts]]) assert.deepEqual(r.short, [], `touch ${name}: every action at least 44px high: ${JSON.stringify(r.short)}`);
     assert.ok(touchItems.status.every((h) => h >= 44), `touch: the status bar's parts are 44px: ${JSON.stringify(touchItems.status)}`);
+    // The exemptions, named: only the reference inside the shout's sentence, which sits in a line of its words; the
+    // same check refuses a standalone button.
+    assert.deepEqual([touchItems.exempt, touchShouts.exempt.map((e) => [e.text, e.inLine])], [[], [['#2', true]]], `touch: the only exemption is #2 inside its sentence: ${JSON.stringify([touchItems.exempt, touchShouts.exempt])}`);
+    assert.equal(touchItems.standalone, false, `touch: a standalone button is never inside a line of text`);
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
