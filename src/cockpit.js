@@ -1692,11 +1692,18 @@ function showFound() {
     + list.slice(0, 5).map((hit) => '<button class="find-hit' + (n++ === view.foundAt ? ' on' : '') + '" data-find="' + esc(hit.go) + '" type="button" role="option"><code>' + esc(hit.id) + '</code><span>' + esc(hit.text) + '</span><small>' + esc(hit.note) + '</small></button>').join('')).join('')
     : '<div class="find-empty">Nothing on this board matches “' + esc(words.trim()) + '”.</div>';
   box.hidden = !words.trim();
+  box.dataset.why = box.hidden ? 'no words' : '';
+}
+
+/** Put the search's results away, and say why on the box, so whoever finds them gone can name what closed them. */
+function hideFound(why) {
+  $('find-results').hidden = true;
+  $('find-results').dataset.why = why;
 }
 
 /** Open what a result names, and put the results away. */
 function openFound(target) {
-  $('find-results').hidden = true;
+  hideFound('opened');
   $('q').blur();
   go(target);
 }
@@ -2115,16 +2122,22 @@ $('theme').addEventListener('click', () => {
   theme(next);
 });
 $('q').addEventListener('input', () => { search(); view.foundAt = 0; showFound(); });
-$('q').addEventListener('focus', () => { if ($('q').value.trim()) showFound(); });
+// Leaving the field closes the results a moment later, so a press on a result lands first; coming back to the field
+// before then keeps them, or a search begun straight after Esc would lose its new results to the old close.
+let closingFound = 0;
+$('q').addEventListener('focus', () => { clearTimeout(closingFound); if ($('q').value.trim()) showFound(); });
 $('q').addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') { $('q').value = ''; search(); $('find-results').hidden = true; $('q').blur(); return; }
+  if (event.key === 'Escape') { $('q').value = ''; search(); hideFound('escape'); $('q').blur(); return; }
   if (!view.found?.length || $('find-results').hidden) return;
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); view.foundAt = (view.foundAt + (event.key === 'ArrowDown' ? 1 : view.found.length - 1)) % view.found.length; showFound(); }
   else if (event.key === 'Enter') { event.preventDefault(); openFound(view.found[view.foundAt].go); }
 });
 // A press on a result opens it before the field loses focus and the results close.
 $('find-results').addEventListener('mousedown', (event) => { const hit = event.target.closest('[data-find]'); if (hit) { event.preventDefault(); openFound(hit.dataset.find); } });
-$('q').addEventListener('blur', () => setTimeout(() => { $('find-results').hidden = true; }, 120));
+$('q').addEventListener('blur', () => {
+  clearTimeout(closingFound);
+  closingFound = setTimeout(() => hideFound('left the field'), 120);
+});
 // "/" goes to the search from anywhere but a field.
 document.addEventListener('keydown', (event) => {
   if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey || event.target.closest('input, textarea, select, [contenteditable]')) return;
