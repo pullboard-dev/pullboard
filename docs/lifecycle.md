@@ -51,7 +51,7 @@ Each move checks its guards in this order and refuses with the first one that do
 
 | Move | From | To | Who | Guards, in order |
 | --- | --- | --- | --- | --- |
-| claim | open, claimed | claimed | agent, coordinator | joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_CLAIMABLE), itemNotHeld (ITEM_HELD), inLane (WRONG_LANE), routeAllows (ROUTE), dependenciesVerified (BLOCKED), notHeldByAnother (HELD), correctionRefrozen (PENDING_REFREEZE), laneOpen (LANE_HELD), oneLiveClaim (ONE_CLAIM), rowsInForce (UNKNOWN_SPEC or A5_GRAMMAR_VERSION or NO_POLICY or BAD_CONFIG) |
+| claim | open, claimed | claimed | agent, coordinator | joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_CLAIMABLE), itemNotHeld (ITEM_HELD), inLane (WRONG_LANE), routeAllows (ROUTE), dependenciesVerified (BLOCKED), notHeldByAnother (HELD), correctionRefrozen (PENDING_REFREEZE), laneOpen (LANE_HELD), oneLiveClaim (ONE_CLAIM), rowsInForce (UNKNOWN_SPEC or A5_GRAMMAR_VERSION or NO_POLICY or BAD_CONFIG or SPEC_BEHIND_MAIN) |
 | release | claimed | open | agent, coordinator | joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_YOURS), isHolder (NOT_YOURS), reviewReleaseExplained (NOTE_REQUIRED) |
 | lapse | claimed | open | clock, when its lease runs out | none |
 | submit | claimed | submitted | agent, coordinator | joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_YOURS), isHolder (NOT_YOURS), correctionRefrozen (PENDING_REFREEZE), criterionUnchanged (CRITERIA_CHANGED), treeClean (DIRTY), nothingUntracked (UNTRACKED), hasCommit (NO_COMMIT), withinLane (OUTSIDE_LANE or NO_POLICY or BAD_CONFIG or GIT_GRAFTS), trunkMergeClean (MERGE_CONFLICT or MERGE_CHECK_FAILED or NO_POLICY or NO_TRUNK), noUnverifiedStack (STACKED_ON_UNVERIFIED), gateConfigured (NO_GATE), gateGreen (GATE_RED or PIPEFAIL_UNAVAILABLE), treeStillDuringGate (MOVED_DURING_GATE), childrenDone (CHILDREN_OPEN), headIsNew (HEAD_NOT_NEW) |
@@ -60,8 +60,8 @@ Each move checks its guards in this order and refuses with the first one that do
 | reject | submitted | open | agent, coordinator | coordinatorSaysAs (MAIN_IS_COORDINATOR), joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_SUBMITTED), atSubmittedCommit (NOT_AT_COMMIT or OUTSIDE_LANE or NO_POLICY or BAD_CONFIG or GIT_GRAFTS), notBuilder (SELF_VERIFY), routeAllows (ROUTE), policyAllows (COORDINATOR_VERIFIES), familyAllows (O2_FAMILY_MATCH), reviewFree (REVIEW_HELD), criterionUnchanged (CRITERIA_CHANGED), reasonCoded (BAD_REASON), noteGiven (NOTE_REQUIRED) |
 | reopen | submitted | open | coordinator | joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_SUBMITTED), coordinatorOnly (COORDINATOR_ONLY), noteGiven (NOTE_REQUIRED) |
 | escalate | open, claimed | open | agent, coordinator | joined (NOT_JOINED), noteGiven (NOTE_REQUIRED), itemExists (NO_ITEM), holderOrCoordinator (NOT_YOURS), inState (CLOSED) |
-| refreeze | open, claimed, submitted | open | coordinator, when there is no live claim awaiting a coordinator correction | joined (NOT_JOINED), coordinatorOnly (COORDINATOR_ONLY), itemExists (NO_ITEM), inState (CLOSED), rowsInForce (UNKNOWN_SPEC or A5_GRAMMAR_VERSION or NO_POLICY or BAD_CONFIG) |
-| refreeze | claimed | claimed | agent, coordinator, when a live claim has a pending coordinator correction | joined (NOT_JOINED), itemExists (NO_ITEM), holderOrCoordinator (NOT_YOURS), inState (CLOSED), rowsInForce (UNKNOWN_SPEC or A5_GRAMMAR_VERSION or NO_POLICY or BAD_CONFIG) |
+| refreeze | open, claimed, submitted | open | coordinator, when there is no live claim awaiting a coordinator correction | joined (NOT_JOINED), coordinatorOnly (COORDINATOR_ONLY), itemExists (NO_ITEM), inState (CLOSED), rowsInForce (UNKNOWN_SPEC or A5_GRAMMAR_VERSION or NO_POLICY or BAD_CONFIG or SPEC_BEHIND_MAIN) |
+| refreeze | claimed | claimed | agent, coordinator, when a live claim has a pending coordinator correction | joined (NOT_JOINED), itemExists (NO_ITEM), holderOrCoordinator (NOT_YOURS), inState (CLOSED), rowsInForce (UNKNOWN_SPEC or A5_GRAMMAR_VERSION or NO_POLICY or BAD_CONFIG or SPEC_BEHIND_MAIN) |
 | withdraw | open, claimed, submitted | withdrawn | coordinator | joined (NOT_JOINED), coordinatorOnly (COORDINATOR_ONLY), noteGiven (NOTE_REQUIRED), itemExists (NO_ITEM), inState (CLOSED) |
 
 ## Exit guards
@@ -105,6 +105,7 @@ Each move checks its guards in this order and refuses with the first one that do
 | A5_GRAMMAR_VERSION | every row the item cites exists and is in force, only where the criterion freezes: claiming an item with no frozen criterion, and refreeze | upgrade Pullboard or use a file written for grammar 1 |
 | NO_POLICY | every row the item cites exists and is in force, only where the criterion freezes: claiming an item with no frozen criterion, and refreeze | restore the committed coordinator policy |
 | BAD_CONFIG | every row the item cites exists and is in force, only where the criterion freezes: claiming an item with no frozen criterion, and refreeze | repair and commit the coordinator configuration |
+| SPEC_BEHIND_MAIN | every row the item cites exists and is in force, only where the criterion freezes: claiming an item with no frozen criterion, and refreeze | merge main from this worktree, then retry the claim |
 | CRITERIA_CHANGED | the criterion and the rows it cites read as they did at claim | the coordinator runs pullboard refreeze <id> |
 | DIRTY | the worktree has no uncommitted changes | commit your changes, then submit |
 | UNTRACKED | the worktree has no untracked files | commit or ignore them, then submit |
