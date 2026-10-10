@@ -6953,7 +6953,7 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
     const shown = (e) => !!e && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0;
     const rgb = (css) => (css.match(/[\\d.]+/g) || []).map(Number);
     const probe = document.createElement('i'); probe.style.color = 'var(--warn)'; document.body.append(probe); const warn = getComputedStyle(probe).color; probe.remove();
-    const theme = document.querySelector('#theme'), bar = document.querySelector('.top');
+    const theme = document.querySelector('#theme'), bar = document.querySelector('header.top'), side = document.querySelector('#side');
     return {
       page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth },
       mode: document.documentElement.dataset.side || 'docked', logo: box(document.querySelector('#side-toggle svg')), name: box(document.querySelector('#proj-name')),
@@ -6964,12 +6964,13 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
           asks: asks ? { text: asks.textContent, first: row.querySelector('small').firstElementChild === asks, warn: getComputedStyle(asks).color === warn } : null,
           tint: rgb(s.backgroundColor), edge: rgb(s.borderTopColor) };
       }),
-      theme: { scheme: document.documentElement.dataset.scheme || null, title: theme.title, box: box(theme), bar: box(bar), picked: document.documentElement.dataset.theme || null },
+      theme: { scheme: document.documentElement.dataset.scheme || null, title: theme.title, box: box(theme), bar: box(bar), picked: document.documentElement.dataset.theme || null, side: box(side) },
     };
   })())`));
   const click = (selector) => chrome.evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
   /** A drawn frame: the page hears of a colour-scheme change at its next one. */
   const frame = () => chrome.evaluate('new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))');
+  const middle = (b) => b.top + b.height / 2;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor("typeof data === 'object' && data?.projects?.length === 2 && !!document.querySelector('#proj-list .proj.repo')");
@@ -6982,6 +6983,11 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
         const r = await read();
         assert.ok(r.page.scroll <= r.page.width, `${at}: no sideways scroll`);
         assert.equal(r.wordmark, false, `${at}: the corner is the logo mark, never a wordmark`);
+        // The theme button sits centred in the top bar. On a wide screen that is the tab bar; on a phone it is the
+        // project bar, the page's first row (the logo, the project, the theme), with the tabs under it.
+        const top = width === 375 ? r.theme.side : r.theme.bar;
+        assert.ok(Math.abs(middle(r.theme.box) - middle(top)) <= 2 && r.theme.box.left >= top.left && r.theme.box.right <= top.right, `${at}: the theme button sits centred in the top bar: ${JSON.stringify(r.theme)}`);
+        if (width === 375) assert.ok(top.top <= 0.5 && r.theme.bar.top >= top.bottom - 1, `${at}: on a phone the top bar is the project bar, the tabs under it: ${JSON.stringify(r.theme)}`);
         if (width === 375) continue;
         // In the project list: a project is its name and what it holds, what needs the person first in the warning
         // colour; no count pills; the project shown a quiet neutral tint, no coloured edge.
@@ -7011,7 +7017,7 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
     assert.deepEqual([docked.mode, docked.arrow, collapsed.mode, collapsed.arrow], ['docked', false, 'collapsed', true], 'the arrow only where the name opens a list');
 
     // The theme is light or dark: it starts from the system's, each press switches, the title says which, a reload keeps
-    // it; the button sits centred in the top bar.
+    // it; collapsed, the button still sits centred in the top bar.
     assert.deepEqual([collapsed.theme.scheme, collapsed.theme.title, collapsed.theme.picked], ['light', 'Light theme: switch to dark', null], 'none picked yet: the system\'s, light here');
     // With none picked the page follows the system as it changes.
     await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] });
@@ -7021,7 +7027,6 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
     await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
     await frame();
     await chrome.waitFor("document.documentElement.dataset.scheme === 'light'");
-    const middle = (b) => b.top + b.height / 2;
     assert.ok(Math.abs(middle(collapsed.theme.box) - middle(collapsed.theme.bar)) <= 2, `the button sits centred in the top bar: ${JSON.stringify(collapsed.theme)}`);
     await click('#theme');
     assert.deepEqual(Object.values((await read()).theme).slice(0, 2), ['dark', 'Dark theme: switch to light'], 'a press switches to dark');
