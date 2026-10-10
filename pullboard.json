@@ -65,6 +65,7 @@
         "src/serve.js",
         "src/view.css",
         "test/cockpit.test.js",
+        "test/cockpit/",
         "test/journeys.test.js"
       ],
       "specs": [
