@@ -143,14 +143,19 @@ export function runFixtureExec(command, options = {}) {
   return runFixtureExecFile(options.shell ?? '/bin/sh', ['-c', command], options);
 }
 
-/** Observe a spawned fixture without changing its streams, exit events or child-clock policy. */
+/** Observe a spawned fixture, retaining otherwise ignored stderr without changing IPC or exit events. */
 export function startFixtureChild(command, args = [], options = {}) {
   if (!Array.isArray(args)) { options = args; args = []; }
   const started = performance.now();
-  const child = spawn(command, args, options);
+  const stderrIgnored = options.stdio === 'ignore' || (Array.isArray(options.stdio) && options.stdio[2] === 'ignore');
+  const childOptions = stderrIgnored ? { ...options, stdio: options.stdio === 'ignore'
+    ? ['ignore', 'ignore', 'pipe'] : options.stdio.map((stream, index) => index === 2 ? 'pipe' : stream) } : options;
+  const child = spawn(command, args, childOptions);
   let stderr = '';
   let spawnError;
   child.stderr?.on('data', part => { stderr += part.toString(); });
+  // Drain the private capture while preserving the caller's ignored-stream surface.
+  if (stderrIgnored) { child.stderr = null; child.stdio[2] = null; }
   child.once('error', error => { spawnError = error; });
   child.once('close', (status, signal) => {
     if (status !== 0 || signal || spawnError) {
