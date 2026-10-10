@@ -41,10 +41,17 @@ test('timing profile reads direct and native TAP without inventing file rows [C7
     const script = join(repo, 'timed', 'invocation.test.mjs');
     writeFileSync(script, `import { writeFileSync } from 'node:fs'; import { test } from 'node:test'; writeFileSync(${JSON.stringify(trace)}, JSON.stringify({ argv: process.argv.slice(1), execArgv: process.execArgv, nodeOptions: process.env.NODE_OPTIONS ?? '' })); test('native default sample', () => {});`);
     const command = 'node --test timed/invocation.test.mjs';
+    const bareOutput = execFileSync('/bin/sh', ['-c', command], { cwd: repo, encoding: 'utf8' });
+    assert.match(bareOutput, /native default sample/);
+    const callerInvocation = JSON.parse(readFileSync(trace, 'utf8'));
+    assert.deepEqual(callerInvocation.argv, [script]);
+    assert.equal(callerInvocation.nodeOptions, '');
+    // Node may supply default child flags; profiling must preserve the bare command's invocation.
     const native = runProfiledShell(repo, command, { artifactDirectory: join(repo, 'artifacts'), persistLog: true, waitMs: 17 });
     assert.equal(native.isGreen, true, native.output);
     assert.match(native.output, /native default sample/);
-    assert.deepEqual(JSON.parse(readFileSync(trace, 'utf8')), { argv: [script], execArgv: [], nodeOptions: '' });
+    assert.equal(/^TAP version \d+/mu.test(native.output), /^TAP version \d+/mu.test(bareOutput), 'profiling preserves the caller-selected output format');
+    assert.deepEqual(JSON.parse(readFileSync(trace, 'utf8')), callerInvocation);
     assert.deepEqual(native.profile.files, [], 'default TAP does not provide a trustworthy file-duration row');
     if (/^TAP version \d+/mu.test(native.output)) assert.ok(native.profile.tests.some(entry => entry.name.includes('native default sample')));
     else assert.equal(native.profile.unavailable, 'per-test timing unavailable: output was not TAP or JUnit');

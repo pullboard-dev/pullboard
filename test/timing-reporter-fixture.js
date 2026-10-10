@@ -13,7 +13,9 @@ export default async function* junit(events) {
   for await (const event of events) {
     const data = event.data ?? {};
     if (event.type === 'test:summary' && data.file && Number.isFinite(data.duration_ms)) files.set(data.file, data.duration_ms);
-    if (event.type === 'test:complete' && data.details?.type === 'test' && data.file && Number.isFinite(data.details.duration_ms)) {
+    // Node 22.13 omits the ordinary-test type; later versions emit it explicitly.
+    const ordinaryTest = data.details?.type === undefined || data.details.type === 'test';
+    if (event.type === 'test:complete' && ordinaryTest && data.file && Number.isFinite(data.details?.duration_ms)) {
       if (data.line === 1 && data.column === 1 && resolve(data.name) === resolve(data.file)) continue;
       tests.push({file:data.file,name:data.name,durationMs:data.details.duration_ms,passed:data.details.passed===true});
     }
