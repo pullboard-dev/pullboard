@@ -664,3 +664,14 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .find-empty { padding: 10px; color: var(--ink-muted); font-size: 13px; }
 .shout.found { background: color-mix(in srgb, var(--accent) 10%, transparent); transition: background .4s; }
 @media (width < 480px) { .top { flex-wrap: wrap; } .top-find { order: 3; flex-basis: 100%; margin: 0 0 8px; } }
+
+/* Credential ids wrap within the agents panel; every action remains a full touch target. */
+#credentials { min-width: 0; margin-top: 12px; }
+#credentials > .link { min-height: 44px; }
+#credentials p { color: var(--ink-muted); overflow-wrap: anywhere; }
+.credential { display: grid; min-width: 0; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line); }
+.credential > code, .credential > b { overflow-wrap: anywhere; }
+.credential dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 8px; margin: 0; font-size: 12px; }
+.credential dt { color: var(--ink-muted); }
+.credential dd { margin: 0; overflow-wrap: anywhere; }
+.credential > button { justify-self: start; min-height: 44px; }
