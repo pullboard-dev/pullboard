@@ -1094,18 +1094,27 @@ test("the history is a timeline of the item's states [N26]", async () => {
   }
 });
 /**
- * The agents the panel shows: id, the path on hover, its last move, what it holds and whether it
- * reads idle, and its entry's text with the tags taken out.
+ * The agents the panel shows: id, the path on hover, its last move, what it holds and how many more,
+ * whether it reads idle, and its entry's text with the tags taken out. An agent holding work is a row
+ * showing its first thing, or every thing once picked; an agent holding nothing is a pill.
  */
 function agentEntries(html) {
-  return html.split(/<div class="agent(?: on)?">/).slice(1).map((entry) => ({
-    id: /data-agent="([^"]*)"/.exec(entry)?.[1],
-    path: /title="Shouts with [^"(]* \(([^"]*)\)"/.exec(entry)?.[1],
-    age: /<time[^>]*>([^<]*)<\/time>/.exec(entry)?.[1],
-    holds: [...entry.matchAll(/data-item="(\d+)"[^>]*><span>([^]*?)<\/span><span class="chip[^"]*">([^<]*)</g)].map((match) => `${match[2]}: ${match[3]}`),
-    idle: entry.includes('<small>idle</small>'),
-    text: entry.replace(/<[^>]*>/g, ' '),
-  }));
+  const rows = html.split(/<div class="agent-card[^"]*">/).slice(1).map((entry) => {
+    const opened = [...entry.matchAll(/data-item="(\d+)"[^>]*><span>([^]*?)<\/span><span class="chip[^"]*">([^<]*)</g)].map((match) => `${match[2]}: ${match[3]}`);
+    const first = /<span class="agent-what"><i>(#\d+)<\/i> ([^]*?)<\/span><span class="chip[^"]*">([^<]*)</.exec(entry);
+    return {
+      id: /data-agent="([^"]*)"/.exec(entry)?.[1],
+      path: /title="Shouts with [^"(]* \(([^"]*)\)"/.exec(entry)?.[1],
+      age: /<time[^>]*>([^<]*)<\/time>/.exec(entry)?.[1],
+      holds: opened.length ? opened : first ? [`${first[1]} ${first[2]}: ${first[3]}`] : [],
+      more: Number(/<span class="agent-more">\+(\d+)<\/span>/.exec(entry)?.[1] ?? 0),
+      idle: false,
+      text: entry.replace(/<[^>]*>/g, ' '),
+    };
+  });
+  const pills = [...html.matchAll(/<button class="agent-pill[^"]*" data-agent="([^"]*)" title="[^"(]* \(([^"]*)\)"[^>]*>([^]*?)<\/button>/g)]
+    .map((match) => ({ id: match[1], path: match[2], age: undefined, holds: [], more: 0, idle: true, text: match[3].replace(/<[^>]*>/g, ' ') }));
+  return [...rows, ...pills];
 }
 
 test('the agents panel says what each agent holds [N26]', async () => {
@@ -1126,14 +1135,20 @@ test('the agents panel says what each agent holds [N26]', async () => {
   try {
     const page = await openPage(view);
     const agents = agentEntries(page.show('agents'));
-    assert.deepEqual(agents.map((agent) => [agent.id, agent.holds, agent.idle]), [
-      ['coordinator', [], true],
-      // The claim first, then work sent back, then work waiting for a verdict.
-      ['web-1', ['#1 Header: building', '#3 Greeting &lt;b&gt;bold&lt;/b&gt;: to verify'], false],
-      ['web-2', ['#2 Farewell: sent back', '#4 Footer: to verify'], false],
+    assert.deepEqual(agents.map((agent) => [agent.id, agent.holds, agent.more, agent.idle]), [
+      // An agent holding work is a row with its first thing: the claim, then work sent back, then work waiting for a verdict.
+      ['web-1', ['#1 Header: building'], 1, false],
+      ['web-2', ['#2 Farewell: sent back'], 1, false],
+      // One holding nothing is a pill.
+      ['coordinator', [], 0, true],
     ]);
-    for (const agent of agents) assert.match(agent.age, /^(now|\d+[mhd])$/, `${agent.id} shows when it last moved`);
-    assert.deepEqual(agents.map((agent) => agent.path), [alpha.repo, alpha.web, second], 'each path is on hover');
+    for (const agent of agents.filter((entry) => !entry.idle)) assert.match(agent.age, /^(now|\d+[mhd])$/, `${agent.id} shows when it last moved`);
+    assert.deepEqual(agents.map((agent) => agent.path), [alpha.web, second, alpha.repo], 'each path is on hover');
+    // Picked, an agent's row opens to every thing it holds, in that order.
+    const opened = (id) => { page.run(`view.agent = ${JSON.stringify(id)}; render();`); return agentEntries(page.show('agents')).find((agent) => agent.id === id).holds; };
+    assert.deepEqual(opened('web-1'), ['#1 Header: building', '#3 Greeting &lt;b&gt;bold&lt;/b&gt;: to verify']);
+    assert.deepEqual(opened('web-2'), ['#2 Farewell: sent back', '#4 Footer: to verify']);
+    page.run('view.agent = null; render();');
     for (const agent of agents) assert.ok(!agent.text.includes(agent.path), `${agent.id}'s path is not in the text`);
 
     await page.click({ go: 'item:1' });
@@ -1952,7 +1967,9 @@ test("needs-you holds only the person's calls; the rest show on the board with w
     assert.match(page.show('decisions'), /<div class="head quiet">Waiting on others<\/div><article class="shout h\d" data-shout-id="\d+"><span class="avatar" aria-hidden="true">W1<\/span><div class="shout-main"><header><b class="who">web-1<\/b><span class="to">→ coordinator<\/span>/, "the agent's ask waits on its coordinator");
     assert.match(itemRow(page.show('chain'), 1), /<span class="chip [^"]*">to verify<\/span><\/li>$/, 'work waiting for a verdict');
     assert.ok(itemRow(page.show('chain'), 2).includes('BEHAVIOR_MISMATCH: no farewell yet'), 'and work sent back, with why');
+    page.run("view.agent = 'web-1'; render();");
     assert.deepEqual(agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1').holds, ['#2 Farewell: sent back', '#1 Greeting: to verify'], 'the agent that built them holds both');
+    page.run('view.agent = null; render();');
     assert.match(page.show('lanes'), /<b>web<\/b> <span class="chip no">held by coordinator<\/span> <span class="muted">G3 is open<\/span>/, 'a held lane names who holds it');
 
     // The sidebar counts exactly the person's calls; its line still says what the agents are doing.
@@ -4311,7 +4328,7 @@ test('real Chrome styles shout code and item text without growing linked lines [
       const titleNode = document.querySelector('#chain .row .t');
       const outside = [...document.querySelectorAll('#feed > .shout')].find((row) => row.textContent.includes('alert(2)'));
       const itemDetail = document.querySelector('#detail');
-      const agentItem = document.querySelector('#agents .agent [data-item="1"]');
+      const agentItem = document.querySelector('#agents .agent-row');
       /** Measure the complete rendered content line box, including its item link. */
       const lineMetrics = (message) => {
         const row = [...document.querySelectorAll('#feed > .shout')].find((entry) => {
@@ -4334,7 +4351,7 @@ test('real Chrome styles shout code and item text without growing linked lines [
         outsideHtml: outside.innerHTML, askNestedButtons: [...ask.querySelectorAll('button')].filter(link => link.parentElement.closest('button')).length,
         criterionHtml: itemDetail.querySelector('.text')?.innerHTML, briefHtml: itemDetail.querySelector('.text.muted')?.innerHTML,
         needsNestedButtons: [...document.querySelectorAll('#needs button.ref')].filter(link => link.parentElement.closest('button')).length,
-        agentNestedButtons: [...document.querySelectorAll('#agents .agent button.ref')].filter(link => link.parentElement.closest('button')).length,
+        agentNestedButtons: [...document.querySelectorAll('#agents button.ref')].filter(link => link.parentElement.closest('button')).length,
         agentItemHeight: agentItem?.getBoundingClientRect().height,
       };
     })())`));
@@ -4696,12 +4713,13 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
       const pane = document.querySelector('[data-pane=shouts]'), list = document.querySelector('#agents');
       return {
         page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth },
-        listed: [...list.querySelectorAll('.agent-name')].map((e) => e.dataset.agent), on: [...list.querySelectorAll('.agent.on .agent-name')].map((e) => e.dataset.agent),
+        listed: [...list.querySelectorAll('[data-agent]')].map((e) => e.dataset.agent), on: [...list.querySelectorAll('.agent-card.on [data-agent], .agent-pill.on')].map((e) => e.dataset.agent),
         all: list.querySelector('.all-agents')?.textContent ?? null, panel: list.offsetParent !== null, bare: pane.classList.contains('bare'),
         toggle: document.querySelector('#feed [data-agents-toggle]')?.textContent, bar: document.querySelector('#feed .feed-bar span')?.textContent ?? '',
         cards: [...document.querySelectorAll('#feed .shout')].map((c) => [c.querySelector('.who').textContent, c.querySelector('.to').textContent.replace('→ ', '')]),
         to: document.querySelector('#shout-to').value, feed: box(document.querySelector('#feed')),
-        composer: box(document.querySelector('.composer')), label: box(document.querySelector('.composer label.to')), message: box(document.querySelector('#shout-text')), send: box(document.querySelector('#shout-send')),
+        composer: box(document.querySelector('.composer')), message: box(document.querySelector('#shout-text')), send: box(document.querySelector('#shout-send')),
+        pickers: [...document.querySelectorAll('.composer select, .composer datalist, .composer input')].filter((e) => e.type !== 'hidden').length,
         kept: (() => { try { return localStorage.getItem('pb.agents'); } catch { return 'unreadable'; } })(),
       };
     })())`));
@@ -4716,9 +4734,9 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
         const at = `${width}px ${scheme}`;
         const s = await state();
         assert.ok(s.page.scroll <= s.page.width && s.page.body <= s.page.width, `${at}: no sideways scroll: ${JSON.stringify(s.page)}`);
-        // One bar: to on the left, the message, the send button on the right, all in one row.
-        for (const part of ['label', 'message', 'send']) assert.ok(s[part].top >= s.composer.top - 0.5 && s[part].bottom <= s.composer.bottom + 0.5, `${at}: the ${part} sits inside the composer bar: ${JSON.stringify(s)}`);
-        assert.ok(s.label.right <= s.message.left + 0.5 && s.message.right <= s.send.left + 0.5 && s.composer.right - s.send.right < 12, `${at}: to, message, send from left to right: ${JSON.stringify(s)}`);
+        // One bar: the message, the send button on the right, in one row; no recipient picker.
+        for (const part of ['message', 'send']) assert.ok(s[part].top >= s.composer.top - 0.5 && s[part].bottom <= s.composer.bottom + 0.5, `${at}: the ${part} sits inside the composer bar: ${JSON.stringify(s)}`);
+        assert.ok(s.pickers === 0 && s.message.right <= s.send.left + 0.5 && s.composer.right - s.send.right < 12, `${at}: the message, then send: ${JSON.stringify(s)}`);
         assert.ok(s.send.width >= 44 && s.send.height >= 44, `${at}: the send button is a 44px target`);
         // Only agents at work are listed, with show all.
         assert.ok(s.panel && s.listed.includes('web-1') && s.listed.includes('web-3') && !s.listed.includes('web-2'), `${at}: the agents at work, and not the idle one: ${s.listed}`);
@@ -4738,11 +4756,11 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
     assert.deepEqual([s.bar, s.to, s.on], ['Shouts with web-2 show all', 'web-2', ['web-2']], 'the bar says whose, the composer is addressed to them, and the agent is marked');
     await click('#feed .feed-bar [data-agent=""]');
     s = await state();
-    assert.deepEqual([s.cards.length, s.bar, s.on], [total, '', []], 'show all undoes the filter');
+    assert.deepEqual([s.cards.length, s.bar, s.on, s.to], [total, '', [], 'coordinator'], 'show all undoes the filter, and the composer goes back to the coordinator');
     await click('#agents .all-agents');
 
     // The message grows as it is typed; Shift+Enter starts a line, Enter sends.
-    await chrome.evaluate("document.querySelector('#shout-to').value = 'all'; document.querySelector('#shout-text').focus()");
+    await chrome.evaluate("document.querySelector('#shout-text').focus()");
     const height = () => chrome.evaluate("document.querySelector('#shout-text').getBoundingClientRect().height");
     const one = await height();
     await chrome.send('Input.insertText', { text: 'First line' });
@@ -4754,7 +4772,7 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
     assert.ok(await height() > one + 20, 'the message grows as it is typed');
     assert.equal(await chrome.evaluate('data.project.shouts.length'), total, 'and sends nothing');
     await key(0);
-    await chrome.waitFor("data.project.shouts.some((s) => s.shout_text === 'First line\\nsecond line\\nthird line' && s.shout_to === 'all')", 15_000);
+    await chrome.waitFor("data.project.shouts.some((s) => s.shout_text === 'First line\\nsecond line\\nthird line' && s.shout_to === 'coordinator')", 15_000);
     await chrome.waitFor("document.querySelector('#shout-text').value === ''");
     assert.ok(Math.abs(await height() - one) < 1, 'Enter sends, and the bar shrinks back to one line');
     assert.ok(await chrome.evaluate("!document.querySelector('#console').hidden && !document.querySelector('.composer #console') && document.querySelector('#console').getBoundingClientRect().bottom <= document.querySelector('.composer').getBoundingClientRect().top"),
@@ -4780,6 +4798,199 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
     s = await state();
     assert.deepEqual([s.bare, s.panel, s.toggle, s.kept], [false, true, 'Hide agents', 'shown'], 'Show agents brings it back');
     assert.ok(s.feed.width < wide, 'and the feed gives it room');
+    assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+test('the agents panel is rows for work and pills for idle [N26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for rendered agent checks.');
+
+  const box = machine();
+  const alpha = project(box, 'roster');
+  for (const title of ['Header', 'Footer']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
+  // web-1 waits on a verdict for #2 and builds #1: two things, the claim first.
+  build(box, alpha, 2, 'footer.html');
+  box.run(alpha.web, 'claim', '1');
+  const second = join(box.dir, 'roster-web-2'), gone = join(box.dir, 'roster-web-3');
+  box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/roster2');
+  box.run(second, 'join', 'web');
+  box.git(alpha.repo, 'worktree', 'add', '-q', gone, '-b', 'web/roster3');
+  // web-3 joined three hours ago and has not moved since: not at work, so behind show all.
+  earlier(alpha.repo, Date.now() - 3 * 36e5, (board) => assert.equal(register(board, { lane: 'web', path: gone }), 'web-3'));
+  box.run(alpha.web, 'shout', 'coordinator', 'Header is under way.');
+  box.run(second, 'shout', 'coordinator', 'Free when you need me.');
+
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-roster-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor('typeof data !== "undefined" && data?.project?.agents?.length >= 4 && data.project.shouts.length >= 2');
+    await chrome.evaluate("document.querySelector('[data-tab=shouts]').click()");
+    await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #agents [data-agent]")');
+    const agents = await chrome.evaluate('data.project.agents.length');
+    /** The panel as it reads: each row and pill, measured where it stands. */
+    const panel = async () => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      const box = (e) => { const r = e.getBoundingClientRect(); return { height: r.height, width: r.width }; };
+      const list = document.querySelector('#agents');
+      return {
+        page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth },
+        rows: [...list.querySelectorAll('.agent-card')].map((card) => {
+          const row = card.querySelector('.agent-row');
+          return { id: row.dataset.agent, text: row.innerText.replace(/\\s+/g, ' ').trim(), title: row.title, height: box(row).height, on: card.classList.contains('on'),
+            face: getComputedStyle(row.querySelector('.avatar')).color, name: getComputedStyle(row.querySelector('.agent-who b')).color,
+            work: [...card.querySelectorAll('.agent-work[data-item]')].map((work) => [work.dataset.item, box(work).height]) };
+        }),
+        pills: [...list.querySelectorAll('.agent-pill')].map((pill) => ({ id: pill.dataset.agent, title: pill.title, height: box(pill).height, on: pill.classList.contains('on') })),
+        idle: list.querySelector('.agents-label')?.textContent ?? null, all: list.querySelector('.all-agents')?.textContent ?? null, height: box(list).height,
+        chip: document.querySelector('#shout-to-chip').hidden ? null : document.querySelector('#shout-to-chip').textContent, to: document.querySelector('#shout-to').value,
+        cards: [...document.querySelectorAll('#feed .shout')].map((card) => [card.querySelector('.who').textContent, card.querySelector('.to').textContent.replace('→ ', '')]),
+      };
+    })())`));
+
+    for (const scheme of ['light', 'dark']) {
+      for (const width of [1280, 375]) {
+        await shoutsAt(chrome, width, scheme);
+        const at = `${width}px ${scheme}`;
+        const p = await panel();
+        assert.ok(p.page.scroll <= p.page.width && p.page.body <= p.page.width, `${at}: no sideways scroll: ${JSON.stringify(p.page)}`);
+        // The agent holding work is one row: avatar, name, age, its first thing with that item's state, and how many more.
+        assert.deepEqual(p.rows.map((row) => row.id), ['web-1'], `${at}: only an agent holding work takes a row`);
+        const [row] = p.rows;
+        assert.match(row.text, /^W1 web-1 (?:now|\d+[mhd]) #1 Header building \+1$/, `${at}: what the row says: ${row.text}`);
+        assert.equal(row.face, row.name, `${at}: the name is in its avatar's colour, as in the feed`);
+        assert.ok(row.height >= 44, `${at}: the row is a 44px target`);
+        assert.ok(!/strong/.test(row.text) && row.title.includes('web · strong') && row.title.includes(alpha.web), `${at}: lane, route and path are on hover, not in the row: ${row.title}`);
+        // Agents holding nothing are pills under Idle; one that has not moved in the last hour waits behind show all.
+        assert.deepEqual([p.idle, p.pills.map((pill) => pill.id)], ['Idle', ['coordinator', 'web-2']], `${at}: the idle agents are pills`);
+        assert.ok(p.pills.every((pill) => pill.height >= 44 && pill.title.includes(' · ')), `${at}: each pill a 44px target with its lane on hover`);
+        assert.equal(p.all, `show all ${agents}`, `${at}: every agent one click away`);
+        assert.ok(p.height < 260, `${at}: four agents take little room: ${p.height}px`);
+      }
+    }
+
+    // A row filters the feed to that agent and addresses the composer to it, and opens to each thing it holds.
+    await shoutsAt(chrome, 1280, 'light');
+    await chrome.evaluate(`document.querySelector('#agents .agent-row[data-agent="web-1"]').click()`);
+    let p = await panel();
+    assert.deepEqual([p.rows[0].on, p.rows[0].work.map(([id]) => id), p.chip, p.to, p.cards], [true, ['1', '2'], 'to web-1×', 'web-1', [['web-1', 'coordinator']]],
+      `the picked row opens to what it holds, the feed shows its shouts and the composer is addressed to it: ${JSON.stringify(p)}`);
+    assert.ok(p.rows[0].work.every(([, height]) => height >= 44), 'each thing it holds is a 44px target');
+    // A pill does the same.
+    await chrome.evaluate(`document.querySelector('#agents .agent-pill[data-agent="web-2"]').click()`);
+    p = await panel();
+    assert.deepEqual([p.pills.find((pill) => pill.id === 'web-2').on, p.chip, p.cards], [true, 'to web-2×', [['web-2', 'coordinator']]], 'a pill filters and addresses too');
+    // And a thing an agent holds opens its item.
+    await chrome.evaluate(`document.querySelector('#agents .agent-row[data-agent="web-1"]').click()`);
+    await chrome.evaluate(`document.querySelector('#agents .agent-work[data-item="2"]').click()`);
+    await chrome.waitFor(`!document.querySelector('[data-pane=items]').hidden && document.querySelector('#detail h2')?.textContent.includes('Footer')`);
+    assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
+test('the composer goes to the coordinator and says who heard [N26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for rendered composer checks.');
+
+  const box = machine();
+  // A docs lane nobody has joined: a shout to it reaches no agent.
+  const alpha = project(box, 'heard', SPEC, { lanes: { web: { owns: ['web/'], specs: ['G'] }, docs: { owns: ['docs/'], specs: ['G'] } } });
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  box.run(alpha.web, 'shout', 'coordinator', 'Starting on the greeting.');
+  earlier(alpha.repo, Date.now(), (board) => shoutOnBoard(board, { from: 'person', to: 'docs', text: 'Docs, anyone?', lanes: ['web', 'docs'] }));
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-heard-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 1');
+    await chrome.evaluate("document.querySelector('[data-tab=shouts]').click()");
+    await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
+    /** The composer and every shout of the person's, with what its Heard line says. */
+    const read = async () => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      const chip = document.querySelector('#shout-to-chip'), clear = chip.querySelector('[data-to-clear]');
+      return {
+        page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth },
+        pickers: [...document.querySelectorAll('.composer select, .composer datalist, .composer input')].filter((e) => e.type !== 'hidden').length,
+        to: document.querySelector('#shout-to').value, placeholder: document.querySelector('#shout-text').placeholder,
+        chip: chip.hidden ? null : chip.textContent, clear: clear ? [clear.getBoundingClientRect().width, clear.getBoundingClientRect().height] : null,
+        heard: [...document.querySelectorAll('#feed .shout')].filter((card) => card.querySelector('.heard')).map((card) => {
+          const line = card.querySelector('.heard');
+          return [card.querySelector('.text').textContent, line.lastChild.textContent, line.querySelectorAll('.heard-face').length, line.title];
+        }),
+      };
+    })())`));
+    const key = async () => {
+      for (const type of ['keyDown', 'keyUp']) await chrome.send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, ...(type === 'keyDown' ? { text: '\r', unmodifiedText: '\r' } : {}) });
+    };
+    const heardOf = (text) => `[...document.querySelectorAll('#feed .shout')].find((card) => card.querySelector('.text').textContent === ${JSON.stringify(text)})?.querySelector('.heard')?.lastChild.textContent`;
+
+    for (const scheme of ['light', 'dark']) {
+      for (const width of [1280, 375]) {
+        await shoutsAt(chrome, width, scheme);
+        const at = `${width}px ${scheme}`;
+        const r = await read();
+        assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll`);
+        assert.deepEqual([r.pickers, r.to, r.placeholder, r.chip], [0, 'coordinator', 'Shout to the coordinator', null], `${at}: no recipient picker; a shout goes to the coordinator, and says so`);
+        // A shout to a lane no agent has joined reached no one, so it has not been heard.
+        assert.deepEqual(r.heard.find(([text]) => text === 'Docs, anyone?')?.slice(1), ['Not heard yet', 0, ''], `${at}: a shout that reached no agent says Not heard yet`);
+        // A picked agent's chip has an x that is a 44px square target; picking the agent again puts it back.
+        await chrome.evaluate(`document.querySelector('#agents [data-agent="web-1"]').click()`);
+        const picked = await read();
+        assert.ok(picked.chip === 'to web-1×' && picked.clear[0] >= 44 && picked.clear[1] >= 44, `${at}: the chip's x is 44 by 44: ${JSON.stringify(picked.clear)}`);
+        await chrome.evaluate(`document.querySelector('#agents [data-agent="web-1"]').click()`);
+        assert.equal((await read()).chip, null, `${at}: picking the agent again returns the composer to the coordinator`);
+      }
+    }
+
+    // The person shouts with Enter: it goes to the coordinator, and says it is not heard until the coordinator reads it.
+    await shoutsAt(chrome, 1280, 'light');
+    await chrome.evaluate("document.querySelector('#shout-text').focus()");
+    await chrome.send('Input.insertText', { text: 'Ship the greeting?' });
+    await key();
+    await chrome.waitFor("data.project.shouts.some((s) => s.shout_from === 'person' && s.shout_to === 'coordinator' && s.shout_text === 'Ship the greeting?')", 15_000);
+    await chrome.waitFor(`${heardOf('Ship the greeting?')} === 'Not heard yet'`, 15_000);
+    box.run(alpha.repo, 'inbox');
+    await chrome.waitFor(`${heardOf('Ship the greeting?')} === 'Heard by coordinator'`, 15_000);
+    // A shout that reaches everyone says who of them has read it: the coordinator first, then how many agents.
+    // (The person reaches every agent through the relay's requests; here the board records one directly.)
+    earlier(alpha.repo, Date.now(), (board) => shoutOnBoard(board, { from: 'person', to: 'all', text: 'Hold the merge, please.', lanes: ['web'] }));
+    await chrome.waitFor("data.project.shouts.some((s) => s.shout_from === 'person' && s.shout_to === 'all')", 15_000);
+    box.run(alpha.repo, 'inbox');
+    box.run(alpha.web, 'inbox');
+    await chrome.waitFor(`${heardOf('Hold the merge, please.')} === 'Heard by coordinator and 1 agent'`, 15_000);
+    const all = (await read()).heard.find(([text]) => text === 'Hold the merge, please.');
+    assert.deepEqual(all.slice(2), [2, 'Heard by coordinator, web-1'], 'with their avatars, and every name on hover');
+
+    // Picking an agent addresses the composer to it; the chip's x returns it to the coordinator.
+    await chrome.evaluate(`document.querySelector('#agents [data-agent="web-1"]').click()`);
+    let r = await read();
+    assert.deepEqual([r.chip, r.to, r.placeholder], ['to web-1×', 'web-1', 'Shout to web-1'], 'a picked agent shows as a chip');
+    assert.ok(r.clear[0] >= 44 && r.clear[1] >= 44, 'whose x is a 44px square target');
+    await chrome.evaluate(`document.querySelector('#shout-to-chip [data-to-clear]').click()`);
+    r = await read();
+    assert.deepEqual([r.chip, r.to, r.placeholder], [null, 'coordinator', 'Shout to the coordinator'], 'the x returns it to the coordinator');
+    // An item's Shout button addresses its lane the same way.
+    await chrome.evaluate("document.querySelector('[data-tab=items]').click()");
+    await chrome.waitFor('!!document.querySelector("#chain [data-item=\\"1\\"]")');
+    await chrome.evaluate(`document.querySelector('#chain [data-item="1"]').click()`);
+    await chrome.waitFor('!!document.querySelector("#detail [data-shout]")');
+    await chrome.evaluate(`document.querySelector('#detail [data-shout]').click()`);
+    await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden");
+    for (const width of [375, 1280]) {
+      await shoutsAt(chrome, width, 'dark');
+      r = await read();
+      assert.deepEqual([r.chip, r.to], ['to web×', 'web'], `${width}px dark: an item's Shout button names its lane on the chip`);
+      assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${width}px dark: no sideways scroll with the chip`);
+    }
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
@@ -4954,6 +5165,7 @@ test('in-text item references stay inline and open their target at phone and des
       for (const section of ['agents', 'spec', 'doctrine']) {
         if (section === 'agents') {
           await chrome.evaluate(`document.querySelector('[data-tab="shouts"]').click()`);
+          await chrome.evaluate("(() => { const item = data.project.items.find((i) => i.id === 2); const who = item.owner || item.reviewer || item.builtBy; if (!document.querySelector('#agents .agent-card.on [data-agent=\"' + who + '\"]')) document.querySelector('#agents [data-agent=\"' + who + '\"]').click(); })()");
           await chrome.waitFor('document.querySelector("#agents [data-item=\\"2\\"]")');
         } else {
           await chrome.evaluate(`document.querySelector('[data-tab="${section}"]').click()`);
