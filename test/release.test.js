@@ -44,6 +44,7 @@ test('a packed release installs with no network and runs the whole loop from a f
     GIT_COMMITTER_NAME: 'Test Agent',
     GIT_COMMITTER_EMAIL: 'agent@example.com',
     PULLBOARD_HOME: join(dir, 'home'),
+    PULLBOARD_MACHINE_HOME: join(dir, 'home'),
   };
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   /** Run the installed pullboard and require it to succeed. */

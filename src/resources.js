@@ -1,11 +1,11 @@
 /** Machine and repository queues persist leases; landings, gates, and item checks run by priority [Q1,Q2,Q3,V18]. */
 import { mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { repoInfo } from './git.js';
+import { machineHome } from './machine-home.js';
 import { Refused } from './refused.js';
 
 const LEASE_MS = 20_000;
@@ -17,7 +17,7 @@ const processIdentities = new Map();
 /** Resolve the local database for the requested scope. */
 function databaseFile(scope, root) {
   if (scope === 'board') throw new Refused('BOARD_SCOPE_UNAVAILABLE', 'board-scoped resources need the relay; run pullboard relay on');
-  if (scope === 'machine') return join(process.env.PULLBOARD_HOME || join(homedir(), '.pullboard'), 'resources.sqlite');
+  if (scope === 'machine') return join(machineHome(), 'resources.sqlite');
   if (scope === 'repo') return join(repoInfo(root).commonDir, 'pullboard', 'resources.sqlite');
   throw new Refused('BAD_RESOURCE_SCOPE', `unknown resource scope "${scope}"; use machine or repo`);
 }
@@ -162,7 +162,7 @@ function pause(ms) { return new Promise((resolvePromise) => setTimeout(resolvePr
  * Join the queue, preserving FIFO within landing, ordinary-gate, and item-check classes.
  *
  * @param {{ name: string, capacity: number, capacityProvider?: () => number, scope?: 'machine'|'repo'|'board', root?: string, agent?: string, repo?: string, landing?: boolean, itemCheck?: boolean, onWait?: (state: object) => void, allowIdleCapacityUpdate?: boolean }} options - Resource identity and queue class.
- * @returns {Promise<{ name: string, scope: string, token: string, release: () => void, renew: () => void }>}
+ * @returns {Promise<{ name: string, scope: string, token: string, waitMs: number, release: () => void, renew: () => void }>}
  */
 export async function takeResource(options) {
   const { name, capacity, scope = 'machine', root = process.cwd(), allowIdleCapacityUpdate = false } = options;
@@ -174,6 +174,7 @@ export async function takeResource(options) {
   const file = databaseFile(scope, root);
   const db = open(file);
   const token = randomUUID();
+  const requestedAt = Date.now();
   const pid = process.pid;
   const agent = options.agent ?? process.env.PULLBOARD_AGENT ?? `pid-${pid}`;
   const started = processStarted(pid);
@@ -243,7 +244,7 @@ export async function takeResource(options) {
             throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
           }
         };
-        return { name, scope, token, release, renew };
+        return { name, scope, token, waitMs: Math.max(0, Date.now() - requestedAt), release, renew };
       }
       options.onWait?.(acquired.state);
       await pause(POLL_MS);

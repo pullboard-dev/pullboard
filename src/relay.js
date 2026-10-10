@@ -32,6 +32,9 @@ const CHECKPOINT_NOTICES = new WeakMap();
 const CHECKPOINT_MOVES = new WeakMap();
 const BASELINE_LOCAL_MOVES = new WeakSet();
 const BASELINE_FAILURES = new WeakMap();
+const AUTH_NOTICES = new WeakSet();
+const ORDERED_MOVE_COMMANDS = new Set(['add', 'edit', 'fact', 'escalate', 'run', 'sweep', 'next', 'claim', 'hold', 'release',
+  'submit', 'done', 'verify', 'merged', 'withdraw', 'refreeze', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget', 'join', 'worktree']);
 
 /** Require a trusted origin; HTTP exists only for loopback development and test relays. */
 export function relayOrigin(address) {
@@ -262,6 +265,32 @@ function safePauseMessage(error) {
     .replace(/[\r\n\t\x00-\x1f\x7f]+/gu, ' ')
     .replace(/\s+/gu, ' ').trim();
   return message.slice(0, 240) || 'the relay refused the baseline upload';
+}
+
+/** Whether the CLI command will make an ordered move whose refusal should be reported at dispatch. */
+function orderedMoveCommand(io) {
+  const command = io.relayCommand;
+  if (command?.cliOperation === 'spec') return ['approve', 'decline', 'apply'].includes(command.positionals?.[0]);
+  return ORDERED_MOVE_COMMANDS.has(command?.cliOperation);
+}
+
+/** Give a local read a single safe explanation when its signed relay read is refused. */
+function reportExpiredSignIn(state, io) {
+  if (AUTH_NOTICES.has(io)) return;
+  AUTH_NOTICES.add(io);
+  const fix = process.env.PULLBOARD_RELAY_TOKEN !== undefined
+    ? 'unset PULLBOARD_RELAY_TOKEN to use this machine credential or supply a current PULLBOARD_RELAY_TOKEN'
+    : 'run pullboard relay on to sign in again or pullboard relay off to stop syncing';
+  io.err(`pullboard: [AUTH_REQUIRED] relay sign-in expired or was revoked for board ${state.board}; ${fix}`);
+}
+
+/** Preserve the ordered-move refusal while naming this board and both recovery choices. */
+function expiredSignInMoveRefusal(state, error) {
+  const reason = safePauseMessage(error);
+  if (process.env.PULLBOARD_RELAY_TOKEN !== undefined) {
+    return new Refused('AUTH_REQUIRED', `the supplied PULLBOARD_RELAY_TOKEN was refused for board ${state.board}: ${reason}; unset PULLBOARD_RELAY_TOKEN to use this machine credential or supply a current PULLBOARD_RELAY_TOKEN`);
+  }
+  return new Refused('AUTH_REQUIRED', `relay sign-in expired or was revoked for board ${state.board}: ${reason}; run pullboard relay on to give this machine a credential or pullboard relay off to stop syncing`);
 }
 
 /** Pause only definitive baseline 4xx refusals; throttling and transient errors retain retries. */
@@ -714,6 +743,7 @@ async function catchUp(root, file, state, io) {
 
 /** Finish a durable executable send; a collision reseals its unchanged id after applying the winner. */
 async function sendPending(root, file, state, io) {
+  let renewedAgentToken = false;
   for (let tries = 0; state.pending && tries < 100; tries += 1) {
     const pending = state.pending;
     try {
@@ -721,6 +751,16 @@ async function sendPending(root, file, state, io) {
       const reply = await request(transport, '/api/v1/boards/' + state.board + '/moves', { method: 'POST', body: { sequence: pending.sequence, sealed: pending.sealed } }, io);
       if (reply.event?.event_id !== pending.sequence || reply.event.sealed !== pending.sealed) throw new Refused('RELAY_RESPONSE', 'the relay acknowledgement differs from this executable send; fetch the configured relay');
     } catch (error) {
+      const actor = credentialActor(pending.move);
+      if (error.code === 'AUTH_REQUIRED' && !renewedAgentToken && actor !== 'machine' && actor !== 'person'
+          && process.env.PULLBOARD_RELAY_TOKEN === undefined && state.token?.startsWith('pm_') && state.agentTokens?.[actor]?.token) {
+        // A revoked/expired PA cache can be replaced once by this board's existing PM credential.
+        delete state.agentTokens[actor];
+        saveLink(file, state);
+        renewedAgentToken = true;
+        await actorTransport(root, file, state, actor, io);
+        continue;
+      }
       if (!['SEQUENCE_REPEAT', 'SEQUENCE_GAP'].includes(error.code)) throw error;
       await catchUp(root, file, state, io);
       if (state.pending) {
@@ -745,7 +785,7 @@ function credentialActor(move) {
   return relayMoveActor(move);
 }
 
-/** Select one scoped credential without renewing a revoked or expired agent cache. */
+/** Select a scoped credential; sendPending alone may renew a failed cached token once. */
 async function actorTransport(root, file, state, actor, io) {
   if (typeof actor !== 'string' || !/^[A-Za-z0-9_.-]{1,128}$/.test(actor)) {
     throw new Refused('RELAY_ACTOR', 'name the registered agent performing this move before sending it');
@@ -833,60 +873,69 @@ export async function relayOperation(root, operation, args, io, command, applyLo
     const applyPausedMoveLocally = () => typeof applyLocally === 'function'
       ? applyLocally()
       : localRecords(root, (board) => store[operation](board, ...args));
-    if (!await ensureOrdered(root, file, state, io)) {
-      // Preflight's notice covers the first move; long-running commands still name every later move.
-      if (BASELINE_LOCAL_MOVES.has(io)) BASELINE_NOTICES.delete(io);
-      reportBaselinePause(state, io);
-      BASELINE_LOCAL_MOVES.add(io);
-      return applyPausedMoveLocally();
-    }
-    await catchUp(root, file, state, io);
-    if (state.pending) {
-      delete state.pending;
-      saveLink(file, state);
-    }
-    const previousReceipt = io.personRequestMoveId && localRecords(root, board => engineReceipt(board, io.personRequestMoveId));
-    if (previousReceipt) {
-      if (state.recovered?.move?.id === io.personRequestMoveId) {
-        delete state.recovered;
+    try {
+      if (!await ensureOrdered(root, file, state, io)) {
+        // Preflight's notice covers the first move; long-running commands still name every later move.
+        if (BASELINE_LOCAL_MOVES.has(io)) BASELINE_NOTICES.delete(io);
+        reportBaselinePause(state, io);
+        BASELINE_LOCAL_MOVES.add(io);
+        return applyPausedMoveLocally();
+      }
+      await catchUp(root, file, state, io);
+      if (state.pending) {
+        delete state.pending;
         saveLink(file, state);
       }
-      if (previousReceipt.outcome.error) throw new Refused(previousReceipt.outcome.error.code, previousReceipt.outcome.error.message);
-      for (const event of previousReceipt.outcome.events ?? []) io.onEvent?.(event);
-      return previousReceipt.outcome.result;
-    }
-    let move = recoveredMove(root, state, operation, args, command);
-    if (!move) {
-      move = localRecords(root, (board) => prepareEngineMove(board, operation, args, io.personRequestMoveId ? { id: io.personRequestMoveId } : {}));
-      if (io.personRequest) move.personRequest = structuredClone(io.personRequest);
-      const problem = move.personRequest && localRecords(root, board => requestMoveProblem(board, move, { checkExecutorLease: false }));
-      if (problem) throw problem;
-      move.actor = relayMoveActor(move) ?? credentialActor(move);
-      await actorTransport(root, file, state, credentialActor(move), io);
-      const sequence = state.sequence + 1;
-      state.pending = { move, intent: operationIntent(operation, args),
-        ...(command ? { command, commandIntent: operationIntent('cli:' + command.cliOperation, command) } : {}), sequence,
-        sealed: await sealedRecord(readBoardKey(state.board), move, state, 'move', sequence) };
-      saveLink(file, state);
-      try { await sendPending(root, file, state, io); }
-      catch (error) {
-        if (!['RELAY_UNAVAILABLE', 'RELAY_RESPONSE'].includes(error.code)) throw error;
-        // A lost acknowledgement can be recovered now without asking the caller to retry side effects.
-        try { await catchUp(root, file, state, io); } catch { throw error; }
-        if (!localRecords(root, (board) => engineReceipt(board, move.id))) throw error;
+      const previousReceipt = io.personRequestMoveId && localRecords(root, board => engineReceipt(board, io.personRequestMoveId));
+      if (previousReceipt) {
+        if (state.recovered?.move?.id === io.personRequestMoveId) {
+          delete state.recovered;
+          saveLink(file, state);
+        }
+        if (previousReceipt.outcome.error) throw new Refused(previousReceipt.outcome.error.code, previousReceipt.outcome.error.message);
+        for (const event of previousReceipt.outcome.events ?? []) io.onEvent?.(event);
+        return previousReceipt.outcome.result;
       }
+      let move = recoveredMove(root, state, operation, args, command);
+      if (!move) {
+        move = localRecords(root, (board) => prepareEngineMove(board, operation, args, io.personRequestMoveId ? { id: io.personRequestMoveId } : {}));
+        if (io.personRequest) move.personRequest = structuredClone(io.personRequest);
+        const problem = move.personRequest && localRecords(root, board => requestMoveProblem(board, move, { checkExecutorLease: false }));
+        if (problem) throw problem;
+        move.actor = relayMoveActor(move) ?? credentialActor(move);
+        await actorTransport(root, file, state, credentialActor(move), io);
+        const sequence = state.sequence + 1;
+        state.pending = { move, intent: operationIntent(operation, args),
+          ...(command ? { command, commandIntent: operationIntent('cli:' + command.cliOperation, command) } : {}), sequence,
+          sealed: await sealedRecord(readBoardKey(state.board), move, state, 'move', sequence) };
+        saveLink(file, state);
+        try { await sendPending(root, file, state, io); }
+        catch (error) {
+          if (!['RELAY_UNAVAILABLE', 'RELAY_RESPONSE'].includes(error.code)) throw error;
+          // A lost acknowledgement can be recovered now without asking the caller to retry side effects.
+          try { await catchUp(root, file, state, io); } catch { throw error; }
+          if (!localRecords(root, (board) => engineReceipt(board, move.id))) throw error;
+        }
+      }
+      const receipt = localRecords(root, (board) => engineReceipt(board, move.id));
+      if (!receipt) throw new Refused('RELAY_RESPONSE', 'the acknowledged operation has no replay receipt; fetch a consistent relay snapshot');
+      delete state.recovered;
+      saveLink(file, state);
+      // A phone can read a compacted checkpoint; failed presentation uploads do not undo the move.
+      try { await publishCheckpoint(root, file, state, io); }
+      catch (error) {
+        if (!(error instanceof Refused)) throw error;
+        if (error.code === 'AUTH_REQUIRED') reportExpiredSignIn(state, io);
+        else io.err(`pullboard: ${error.message}`);
+      }
+      if (receipt.outcome.error) throw new Refused(receipt.outcome.error.code, receipt.outcome.error.message);
+      if (['register', 'ensureCoordinator'].includes(operation)) await actorTransport(root, file, state, receipt.outcome.result, io);
+      for (const event of receipt.outcome.events ?? []) io.onEvent?.(event);
+      return receipt.outcome.result;
+    } catch (error) {
+      if (error instanceof Refused && error.code === 'AUTH_REQUIRED') throw expiredSignInMoveRefusal(state, error);
+      throw error;
     }
-    const receipt = localRecords(root, (board) => engineReceipt(board, move.id));
-    if (!receipt) throw new Refused('RELAY_RESPONSE', 'the acknowledged operation has no replay receipt; fetch a consistent relay snapshot');
-    delete state.recovered;
-    saveLink(file, state);
-    // A phone can read a compacted checkpoint; failed presentation uploads do not undo the move.
-    try { await publishCheckpoint(root, file, state, io); }
-    catch (error) { if (!(error instanceof Refused)) throw error; io.err(`pullboard: ${error.message}`); }
-    if (receipt.outcome.error) throw new Refused(receipt.outcome.error.code, receipt.outcome.error.message);
-    if (['register', 'ensureCoordinator'].includes(operation)) await actorTransport(root, file, state, receipt.outcome.result, io);
-    for (const event of receipt.outcome.events ?? []) io.onEvent?.(event);
-    return receipt.outcome.result;
   });
 }
 
@@ -923,6 +972,8 @@ export async function syncRelay(root, io) {
           KEY_WARNED_COMMANDS.add(io);
           io.err(`pullboard: ${error.message}; moves are off until the key is reachable`);
         }
+      } else if (error.code === 'AUTH_REQUIRED') {
+        if (!orderedMoveCommand(io)) reportExpiredSignIn(state, io);
       } else io.err(`pullboard: ${error.message}; run pullboard status to see pending uploads`);
       return { linked: true, board: state.board, url: state.url, sequence: state.sequence,
         behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)),

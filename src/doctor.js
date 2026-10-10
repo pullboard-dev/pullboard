@@ -11,7 +11,7 @@ import { readEventLogVersion, SCHEMA_VERSION } from './board.js';
 import { staleFrozenItems, staleItemFinding } from './approved-rows.js';
 import { loadSpec } from './spec.js';
 import { loadDoctrine } from './doctrine.js';
-import { preMergeHookProblems } from './hooks.js';
+import { preMergeHookProblems, unwiredHookProblems } from './hooks.js';
 const blankCharacters = new Set(BLANKS.map((point) => String.fromCodePoint(point)));
 
 /** Offer a working tracked or untracked rename without rewriting the repo's doctrine [D1,D2]. */
@@ -46,6 +46,7 @@ export function doctorProblems(file, root, tryGit, config) {
     const layout = layoutProblems(db);
     return [
       ...preMergeHookProblems(root),
+      ...unwiredHookProblems(root),
       ...triggerProblems(db),
       ...layout.problems,
       ...(layout.itemFields ? itemProblems(db) : []),

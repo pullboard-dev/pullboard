@@ -67,6 +67,7 @@ function sandbox() {
     GIT_COMMITTER_NAME: 'API Test',
     GIT_COMMITTER_EMAIL: 'api@example.invalid',
     PULLBOARD_HOME: join(dir, 'home'),
+    PULLBOARD_MACHINE_HOME: join(dir, 'home'),
   };
   for (const marker of SSH_SHELL_MARKERS) delete env[marker];
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });

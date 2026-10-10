@@ -1,6 +1,6 @@
 /**
  * The few git facts pullboard needs: where the repo is, which worktree this is, what HEAD holds,
- * and whether the tree is clean. Every call is a plain `git` child process.
+ * and whether the tree is clean (R3). Every call is a plain `git` child process.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -166,6 +166,22 @@ export function tryGit(cwd, args) {
   const result = spawnSync('git', [...GIT_FLAGS, ...args], { cwd, encoding: 'utf8' });
   if (changesGitFacts(args)) invalidateGitFacts();
   return { status: result.status ?? 1, stdout: (result.stdout ?? '').trim() };
+}
+
+/**
+ * Compute the stable patch id for a commit range, or null when Git cannot produce one.
+ *
+ * @param {string} root
+ * @param {string} base
+ * @param {string} commit
+ * @returns {string | null}
+ */
+export function patchId(root, base, commit) {
+  const env = cleanGitEnvironment();
+  const diff = spawnSync('git', [...GIT_FLAGS, 'diff', base, commit], { cwd: root, env, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+  if (diff.status !== 0 || !diff.stdout) return null;
+  const result = spawnSync('git', [...GIT_FLAGS, 'patch-id', '--stable'], { cwd: root, env, encoding: 'utf8', input: diff.stdout });
+  return result.status === 0 ? result.stdout.trim().split(/\s+/u)[0] || null : null;
 }
 
 /**

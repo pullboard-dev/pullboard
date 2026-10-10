@@ -1,5 +1,5 @@
 /**
- * The board (B1–B7, V1–V8, R1, R2): items, claims, submissions, verdicts and shouts in one SQLite
+ * The board (B1–B7, V1–V8, R1–R3): items, claims, submissions, verdicts and shouts in one SQLite
  * file in the git common dir, so every worktree sees the same board and nothing is committed.
  *
  * Every move is one immediate transaction (B2), so two agents can never claim the same item, and
@@ -1251,6 +1251,7 @@ function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'of
     checks: {
       coordinatorSaysAs: null,
       joined: null,
+      roadmapReadable: null, // Selection reads it before this move; explicit ids need no roadmap.
       [IN_STATE]: (found) => new Refused('NOT_SUBMITTED', `item #${id} is ${current(board, found).item_status}, not submitted`),
       /** Enforce the cooldown after state validation and before reviewer eligibility [V1]. */
       reviewCooldownElapsed: () => {
@@ -1344,9 +1345,9 @@ function coordinatorOnly(agentId, what) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, commit: string }} merge
+ * @param {{ agentId: string, commit: string, note?: string }} merge
  */
-export function merged(board, id, { agentId, commit }) {
+export function merged(board, id, { agentId, commit, note = '' }) {
   coordinatorOnly(agentId, 'records merges');
   atomic(board, () => {
     const item = itemById(board, id);
@@ -1354,7 +1355,7 @@ export function merged(board, id, { agentId, commit }) {
       throw new Refused('NOT_VERIFIED', `item #${id} is ${item.item_status}; merge verified work only`);
     }
     setItem(board, id, { item_merged_commit: commit });
-    logEvent(board, agentId, 'merged', id, { commit });
+    logEvent(board, agentId, 'merged', id, { commit, ...(note.trim() ? { note: note.trim() } : {}) });
   });
 }
 
@@ -1799,6 +1800,26 @@ export function appendFact(board, id, { agentId, kind, text, ref = null, superse
 }
 
 /**
+ * Rank items by the first unfinished milestone that contains them, leaving unlisted work last.
+ * A finished milestone no longer holds back later releases.
+ *
+ * @param {any} board
+ * @returns {(entry: any) => number}
+ */
+function milestonePriorities(board) {
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) < 8) return () => 0;
+  const ordered = milestones(board);
+  const items = new Map(listItems(board, { all: true }).map((entry) => [entry.item_id, entry]));
+  const priorities = new Map();
+  for (const [index, milestone] of ordered.entries()) {
+    const unfinished = milestone.items.some((id) => typeof id !== 'number' || items.get(id)?.item_status !== 'verified');
+    if (!unfinished) continue;
+    for (const id of milestone.items) if (!priorities.has(id)) priorities.set(id, index);
+  }
+  return (entry) => priorities.get(entry.item_id) ?? ordered.length;
+}
+
+/**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
  * dependencies are verified; for a verifier, the oldest submitted item it did not build. An agent
  * sees items at its tier and below, its own tier first, so lighter work waits for lighter models
@@ -1835,8 +1856,11 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
       holder: reviewHolder(board, entry),
       cooldown: reviewReleaseCooldown(board, entry.item_id, agentId),
     }));
-    const item = candidates.find((candidate) => candidate.holder === agentId)?.entry
-      ?? candidates.find((candidate) => !candidate.holder && !candidate.cooldown)?.entry;
+    const heldByMe = candidates.find((candidate) => candidate.holder === agentId)?.entry;
+    if (heldByMe) return { item: heldByMe, reasons: [] };
+    const milestonePriority = milestonePriorities(board);
+    candidates.sort((first, second) => milestonePriority(first.entry) - milestonePriority(second.entry));
+    const item = candidates.find((candidate) => !candidate.holder && !candidate.cooldown)?.entry;
     if (item) return { item, reasons: [] };
     const held = candidates.filter((candidate) => candidate.holder && candidate.holder !== agentId)
       .map(({ entry, holder: reviewer }) => `${reviewer} holds the review of #${entry.item_id} until ${entry.item_review_until}`);
@@ -1850,12 +1874,14 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     .map((entry) => `#${entry.item_id} is held by coordinator: ${entry.item_hold_reason}`);
   const paused = laneHold(board, lane);
   if (paused) return { item: null, reasons: [`${paused.hold_by} holds the ${lane} lane: ${paused.hold_reason}`, ...reasons] };
+  const milestonePriority = milestonePriorities(board);
   const recent = new Set(warm);
   const laneItems = items.filter((entry) => entry.item_status === 'open' && entry.item_lane === lane);
   const mine = laneItems
     .filter((entry) => !itemHold(board, entry.item_id))
     .map((entry, order) => ({ entry, order, shared: itemFiles(entry).filter((path) => recent.has(path)) }))
-    .sort((first, second) => tier(second.entry) - tier(first.entry) || second.shared.length - first.shared.length || first.order - second.order);
+    .sort((first, second) => milestonePriority(first.entry) - milestonePriority(second.entry)
+      || tier(second.entry) - tier(first.entry) || second.shared.length - first.shared.length || first.order - second.order);
   for (const { entry, shared } of mine) {
     const waiting = (entry.item_after ? entry.item_after.split(',').map(Number) : [])
       .map((id) => current(board, itemById(board, id)))

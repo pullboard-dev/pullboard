@@ -8,7 +8,7 @@ Decision shouts without a recipient go to the agent's coordinator, or to `person
 
 A successful command returns the fields listed below. `version` is always the number `1`. The catalog lists required top-level fields; nested objects and arrays are command data, and optional top-level fields may be added.
 
-`pullboard settings` reads machine-wide settings from `~/.pullboard/settings.json`; `pullboard settings gateSlots <n>` changes the gate queue capacity, which defaults to `2`. Capacity changes are refused while a gate is running or waiting, so existing holders and FIFO order remain intact.
+`pullboard settings` reads machine-wide settings from the OS account's `~/.pullboard/settings.json`; the gate queue database is beside it. This location does not follow `HOME` or `PULLBOARD_HOME`, so agents with private board homes still share one machine gate limit. Set `PULLBOARD_MACHINE_HOME` to an explicit directory only when a separate private machine settings and gate pool is intended; tests use this override. `pullboard settings gateSlots <n>` changes the gate queue capacity, which defaults to `2`. Capacity changes are refused while a gate is running or waiting, so existing holders and FIFO order remain intact.
 
 When `add` or `edit` supplies a new nonempty check, it records the item before measuring that check in a background temporary checkout of the captured `main` commit. Use `--wait` to wait for the measurement before returning, or `args.wait: true` for an HTTP add/edit move. The item returned by `add`, `edit`, `show`, and `next --verify` may include `item_check_baseline`: `{command, main, result, request?, seconds?, reason?, warning?}`. `main` is the commit id or `null`, and `result` is `pending`, `green`, `red`, or `unavailable`. A background request carries an opaque `request` identity; an older completion cannot overwrite a newly edited or cleared check.
 
@@ -19,6 +19,8 @@ The board-state API's item projection includes `check` and, when recorded, `chec
 `firstEventAt` and `lastEventAt` are the first and latest dates in the selected window, or `null` when it is empty. `since` is the inclusive boundary as an ISO UTC timestamp, or `null` for the full history. Dates accept `YYYY-MM-DD` or an ISO UTC timestamp ending in `Z`; invalid dates return `BAD_SINCE` with repair guidance.
 
 `agentCount` counts distinct event actors other than `board` and `person`; the coordinator and join moves are included. `agents` lists `{id, moves, families}` for each actor. `families` lists `{name, agents, moves}` by recorded family label, and `familyCount` counts these buckets, including `unknown`. Labels are not inferred from a model name or current agent, item, or verdict rows. A family's first recorded event snapshot applies to that move and following moves, until another snapshot changes or clears it; earlier unattributed moves remain `unknown`. Date windows preserve earlier recorded declarations but count only selected moves. Arrays are sorted by identifier or label. Local HTTP board state carries the same full-history object as `state.proofStats`.
+
+`merged <id> <commit>` records only a commit reachable from the primary checkout's branch that contains the item's submitted commit or has the same stable patch id as the item's change from its claim base. Other commits are refused with `NOT_MERGED`; `--note "why"` records an exceptional receipt and keeps the note in that item's `merged` event.
 
 <!-- api-command-shapes:start -->
 | Command | Required top-level fields |
