@@ -121,7 +121,7 @@ test('[C7] cleanup diagnostics capture a forced late writer without hiding ENOTE
   mkdirSync(target);
   writeFileSync(join(target, 'initial'), 'force a real non-empty-directory error');
   const lateFile = join(target, 'late-write');
-  const source = `const fs = require('node:fs'); let descriptor; process.stdin.setEncoding('utf8'); process.stdin.on('data', data => { if (data.includes('write')) { descriptor = fs.openSync(${JSON.stringify(lateFile)}, 'w'); fs.writeSync(descriptor, 'written after the cleanup failure'); console.log('late-write-ready'); } if (data.includes('exit')) { if (descriptor !== undefined) fs.closeSync(descriptor); process.exit(0); } }); console.log('writer-ready');`;
+  const source = `const fs = require('node:fs'); let descriptor; process.stdin.setEncoding('utf8'); process.stdin.on('data', data => { if (data.includes('write')) { descriptor = fs.openSync(${JSON.stringify(lateFile + '.pending')}, 'w'); fs.writeSync(descriptor, 'written after the cleanup failure'); fs.renameSync(${JSON.stringify(lateFile + '.pending')}, ${JSON.stringify(lateFile)}); console.log('late-write-ready'); } if (data.includes('exit')) { if (descriptor !== undefined) fs.closeSync(descriptor); process.exit(0); } }); console.log('writer-ready');`;
   const writer = spawn(process.execPath, ['-e', source], { stdio: ['pipe', 'pipe', 'pipe'], env: { PATH: process.env.PATH } });
   const writerClosed = once(writer, 'close').then(() => true, () => true);
   let output = '';
@@ -144,6 +144,7 @@ test('[C7] cleanup diagnostics capture a forced late writer without hiding ENOTE
           assert.equal(failure?.code, 'ENOTEMPTY', 'the control uses a real filesystem cleanup failure');
           writer.stdin.write('write\n');
           const deadline = Date.now() + 5_000;
+          // Publish the completed write by rename so its mtime cannot change after this handshake.
           while (!existsSync(lateFile) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
           assert.ok(existsSync(lateFile), 'the child made a real late file after cleanup failed');
           throw failure;
