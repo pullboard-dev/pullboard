@@ -485,7 +485,7 @@ async function bindCheckoutSession(io, positionals, values) {
     throw new Refused('USAGE', 'pullboard takeover takes no arguments; run pullboard takeover [--json]');
   }
   const writes = ['init', 'join', 'worktree', 'hooks', 'hook', 'add', 'edit', 'fact', 'escalate', 'run', 'sweep',
-    'next', 'claim', 'hold', 'release', 'submit', 'done', 'verify', 'merged', 'withdraw', 'refreeze', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget'];
+    'next', 'claim', 'hold', 'release', 'submit', 'done', 'verify', 'merged', 'withdraw', 'refreeze', 'reopen', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget'];
   if (!writes.includes(command) && !(command === 'settings' && first) && !(command === 'spec' && first === 'apply') && !(command === 'relay' && ['on', 'off'].includes(first))) return;
   if (command === 'answer' && values.as === 'person') return;
   const digest = agentSessionDigest();
@@ -2093,6 +2093,12 @@ function workCommands(io, args) {
       const result = await ordered(ctx, board, 'refreeze', [idArg(first), { agentId: me.id, freeze: freezer(ctx, { captureVerifyPolicy: true }) }]);
       io.result?.({ id: idArg(first), ...result });
       io.say(`#${first} refrozen ${String(result.before).slice(0, 12)} -> ${result.after.slice(0, 12)}; open again`);
+      return 0;
+    }),
+    reopen: () => act(async (ctx, board, me) => {
+      const result = await ordered(ctx, board, 'reopen', [idArg(first), { agentId: me.id, note: textArg(io, values, 'note') ?? '' }]);
+      io.result?.(result);
+      io.say(`reopened #${first} without a verdict; previous commit ${result.commit.slice(0, 12)} remains recorded`);
       return 0;
     }),
     shout: () => act(async (ctx, board, me) => {

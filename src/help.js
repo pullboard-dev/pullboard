@@ -92,6 +92,7 @@ Coordinator
   pullboard merged <id> <commit>        record where verified work landed
   pullboard withdraw <id> <reason>      drop an item nobody should build
   pullboard refreeze <id>               re-freeze a criterion after its spec rows changed
+  pullboard reopen <id> --note "why"    return a submission for criterion correction without a verdict
   pullboard hold <lane> --reason "..."   pause a lane: next there claims nothing and names the reason
   pullboard hold <id> "reason"          hold one item so next skips it
   pullboard hold <lane|id> --off        lift a lane or item hold
@@ -130,7 +131,7 @@ const HELP_NAMES = [
   'tour', 'init', 'worktree', 'join', 'takeover', 'whoami', 'lanes', 'status', 'resources', 'settings', 'view', 'view export',
   'serve', 'relay', 'resume', 'hooks', 'add', 'edit', 'escalate', 'run', 'list', 'doctor', 'show', 'next',
   'check', 'claim', 'release', 'submit', 'done', 'verify', 'fact', 'shout', 'answer', 'pass', 'decisions', 'inbox', 'export', 'import',
-  'sweep', 'merged', 'withdraw', 'refreeze', 'hold', 'stats', 'ledger', 'log', 'spec', 'spec check', 'spec view',
+  'sweep', 'merged', 'withdraw', 'refreeze', 'reopen', 'hold', 'stats', 'ledger', 'log', 'spec', 'spec check', 'spec view',
   'spec show', 'spec unmet', 'spec signoff', 'spec signers', 'spec signers add', 'forget', 'prompt', 'gate', 'hook',
   'hook pre-commit', 'hook pre-merge-commit', 'hook commit-msg', 'hook pre-push', 'view export', 'version', 'lifecycle', 'help',
   'roadmap', 'milestone',
@@ -153,6 +154,7 @@ const HELP_EXAMPLES = {
   status: 'pullboard status', view: 'pullboard view', stats: 'pullboard stats --since 2026-10-08', log: 'pullboard log 12', ledger: 'pullboard ledger',
   roadmap: 'pullboard roadmap', milestone: 'pullboard milestone add "0.7.0" --items 12,13',
   edit: 'pullboard edit 12 --brief "Add the upload page"', release: 'pullboard release 12',
+  reopen: 'pullboard reopen 12 --note "correct the frozen criterion"',
   escalate: 'pullboard escalate 12 --note "needs a manual step"', next: 'pullboard next',
   run: 'pullboard run --agent "node agent.js"', 'view export': 'pullboard view --export ./site',
   'spec check': 'pullboard spec check',

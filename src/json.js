@@ -54,6 +54,7 @@ export const JSON_SHAPES = {
     merged: shape({ id: 'number', commit: 'string' }),
     withdraw: shape({ id: 'number', reason: 'string' }),
     refreeze: shape({ id: 'number', after: 'string' }),
+    reopen: shape({ id: 'number', commit: 'string' }),
     shout: shape({ id: 'number', decision: 'boolean' }),
     answer: shape({ id: 'number', answers: 'number' }),
     pass: shape({ id: 'number', answers: 'number' }),
