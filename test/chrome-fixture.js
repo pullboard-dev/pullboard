@@ -11,6 +11,11 @@ const CLEANUP_TIMEOUT_MS = 5_000;
 const GROUP_POLL_MS = 20;
 const STDERR_LIMIT = 128 * 1024;
 
+/** Treat only a one-millisecond CDP timer rounding difference as the exact operation-budget boundary. */
+export function isRoundedBudgetBoundary(reportedMs, elapsedMs, budgetMs) {
+  return reportedMs === budgetMs - 1 && elapsedMs === budgetMs;
+}
+
 /** Find an installed Chrome without making browser availability a product-test failure. */
 export function findChromeExecutable() {
   return [process.env.PULLBOARD_CHROME, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -147,14 +152,21 @@ export async function startChrome({
     }
     /** Wait until a page expression becomes truthy, treating document-transition evaluation errors as pending. */
     async function waitFor(expression, timeoutMs = commandTimeoutMs, label = 'wait for page condition') {
-      const waitDeadline = Date.now() + timeoutMs;
+      const waitStartedAt = Date.now();
+      const waitDeadline = waitStartedAt + timeoutMs;
       let lastEvaluationError = null;
       while (Date.now() < waitDeadline) {
         try {
           if (await evaluate(expression, label, waitDeadline - Date.now())) return;
         } catch (error) {
           if (error instanceof Error && error.message.startsWith('Browser evaluation failed:')) lastEvaluationError = error;
-          else if (error.code !== 'CDP_TIMEOUT' || Date.now() < waitDeadline) throw error;
+          else {
+            const cdpTimeout = error.code === 'CDP_TIMEOUT'
+              && /timed out after (\d+)ms/u.exec(error.message);
+            const roundedBoundary = cdpTimeout
+              && isRoundedBudgetBoundary(Number(cdpTimeout[1]), Date.now() - waitStartedAt, timeoutMs);
+            if (error.code !== 'CDP_TIMEOUT' || (Date.now() < waitDeadline && !roundedBoundary)) throw error;
+          }
         }
         await pause(Math.max(0, Math.min(50, waitDeadline - Date.now())));
       }
