@@ -2,6 +2,7 @@
  * Export and import whole board files (A7), including their AUTOINCREMENT counters, so a copy can
  * continue producing the same ids after its rows are restored.
  */
+import { createHash } from 'node:crypto';
 import { Refused } from './refused.js';
 import { ENGINE_VERSION, storeTriggers } from './machine.js';
 import { EVENT_LOG_VERSION } from './board.js';
@@ -55,6 +56,25 @@ export function exportBoard(board) {
     db.exec('ROLLBACK');
     throw error;
   }
+}
+
+/** Hash semantic native state while excluding only per-agent inbox read cursors. */
+export function semanticBoardDigest(document) {
+  const tables = document?.tables;
+  if (!tables || !Array.isArray(tables.agent)) throw new TypeError('semantic board digest needs exported agent rows');
+  const normalized = {
+    ...document,
+    tables: {
+      ...tables,
+      agent: tables.agent.map(({ agent_last_shout_id, ...row }) => row),
+    },
+  };
+  return createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
+}
+
+/** Recognize only nonnegative SQLite-safe inbox cursors for monotonic checkpoint preservation. */
+function validReadCursor(value) {
+  return Number.isSafeInteger(value) && value >= 0;
 }
 
 /**
@@ -151,7 +171,7 @@ export function importBoard(board, document) {
  * Restore an authenticated, newer checkpoint of this same relay board, preserving receipts.
  * Ordinary CLI imports still require an empty board; only the ordered replica uses this path.
  */
-export function restoreRelaySnapshot(board, document, sequence) {
+export function restoreRelaySnapshot(board, document, sequence, expectedNativeDigest = null) {
   validateDocument(board.db, document, tableNames(board.db));
   const meta = new Map(document.tables.board_meta.map((row) => [row.meta_key, row.meta_value]));
   const current = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get('board_id')?.meta_value;
@@ -162,16 +182,26 @@ export function restoreRelaySnapshot(board, document, sequence) {
   const engine = Number(meta.get('relay_engine_version'));
   if (!Number.isSafeInteger(engine) || engine < 1) throw new Refused('RELAY_SNAPSHOT', 'this checkpoint has no supported engine version; upgrade pullboard or join by pairing');
   if (engine > ENGINE_VERSION) throw new Refused('ENGINE_VERSION', `snapshot engine version ${engine} is newer than this pullboard engine version ${ENGINE_VERSION}; upgrade pullboard before applying the relay order`);
-  return restoreDocument(board, document, true);
+  return restoreDocument(board, document, true, expectedNativeDigest);
 }
 
 /** Restore validated native rows with lifecycle guards suspended only inside the transaction. */
-function restoreDocument(board, document, replace = false) {
+function restoreDocument(board, document, replace = false, expectedNativeDigest = null) {
   const db = board.db;
   const names = tableNames(db);
   validateDocument(db, document, names);
   db.exec('PRAGMA defer_foreign_keys = ON; BEGIN IMMEDIATE');
   try {
+    let localAgentCursors = null;
+    if (expectedNativeDigest !== null) {
+      const current = { version: VERSION, tables: Object.fromEntries(names.map((table) => [
+        table,
+        db.prepare(`SELECT * FROM ${identifier(table)} ORDER BY ${table === 'sqlite_sequence' ? 'name' : 'rowid'}`).all(),
+      ])) };
+      const actual = semanticBoardDigest(current);
+      if (actual !== expectedNativeDigest) throw new Refused('RELAY_LOCAL_CHANGED', 'the local board changed before checkpoint restore; its changes were preserved, export them and retry recovery');
+      localAgentCursors = new Map(current.tables.agent.map((row) => [row.agent_id, row.agent_last_shout_id]));
+    }
     const onlyIdentity = hasOnlyIdentity(db);
     const occupied = names.filter((table) => !(table === 'board_meta' && onlyIdentity) && db.prepare(`SELECT 1 FROM ${identifier(table)} LIMIT 1`).get());
     const initCoordinator = occupied.length > 0 && hasOnlyInitCoordinator(db, names);
@@ -190,7 +220,15 @@ function restoreDocument(board, document, replace = false) {
       const columns = columnsOf(db, table);
       const sql = `INSERT INTO ${identifier(table)} (${columns.map(identifier).join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`;
       const insert = db.prepare(sql);
-      for (const row of document.tables[table]) insert.run(...columns.map((column) => row[column]));
+      for (const row of document.tables[table]) {
+        let restored = row;
+        if (replace && expectedNativeDigest !== null && table === 'agent' && localAgentCursors.has(row.agent_id)) {
+          const localCursor = localAgentCursors.get(row.agent_id);
+          const cursors = [localCursor, row.agent_last_shout_id].filter(validReadCursor);
+          if (cursors.length) restored = { ...row, agent_last_shout_id: Math.max(...cursors) };
+        }
+        insert.run(...columns.map((column) => restored[column]));
+      }
     }
     db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?) ON CONFLICT(meta_key) DO UPDATE SET meta_value = excluded.meta_value')
       .run('event_log_version', String(EVENT_LOG_VERSION));

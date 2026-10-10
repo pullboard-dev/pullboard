@@ -6,17 +6,22 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSyn
 import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { gunzipSync } from 'node:zlib';
 import { createServer } from 'node:http';
 import { after, test } from 'node:test';
 import { serveRelay } from '../relay/service.js';
 import { createRelayAuth } from '../relay/auth.js';
 import { createGitHubClient } from '../relay/github.js';
 import { githubFixture } from './relay-fixture.js';
+import { serveApi } from '../src/api.js';
 import * as store from '../src/board.js';
-import { exportBoard } from '../src/exchange.js';
-import { checkpointSequence, engineReceipt, prepareEngineMove } from '../src/engine.js';
-import { seal as sealMove } from '../src/seal.js';
+
+import { main } from '../src/cli.js';
+import { exportBoard, restoreRelaySnapshot, semanticBoardDigest } from '../src/exchange.js';
+import { appliedSequence, checkpointSequence, engineReceipt, prepareEngineMove, requireSupportedEngine } from '../src/engine.js';
+import { seal as sealMove, unseal as openSealed } from '../src/seal.js';
 import { ENGINE_VERSION } from '../src/machine.js';
+import { relayRecover, syncRelay } from '../src/relay.js';
 
 after(cleanupFixtureChildren);
 
@@ -37,6 +42,14 @@ function unseal(key, value, binding) {
   decipher.setAuthTag(bytes.subarray(-16));
   decipher.setAAD(Buffer.from(JSON.stringify(binding)));
   return JSON.parse(Buffer.concat([decipher.update(bytes.subarray(13, -16)), decipher.final()]).toString());
+}
+
+/** Open actual sealed checkpoints, accepting compressed and released legacy JSON snapshots. */
+async function openCheckpoint(box, snapshot) {
+  const bytes = await openSealed(box.key, Buffer.from(snapshot.sealed, 'base64url'),
+    { boardId: box.id, kind: 'snapshot', sequence: snapshot.sequence });
+  const plain = bytes[0] === 0x1f && bytes[1] === 0x8b ? gunzipSync(bytes) : bytes;
+  return JSON.parse(new TextDecoder().decode(plain));
 }
 
 /** Create a real private CLI board, actual stand-in GitHub sign-in, and an ephemeral relay server. */
@@ -368,6 +381,20 @@ test('two real clients stop before sender checks for newer operations and actor 
   }
 });
 
+/** Link one private fixture to a real relay with an engine-99 blocker at sequence one. */
+async function blockedRecoveryFixture(box) {
+  mkdirSync(join(box.home, 'relay-keys'), { mode: 0o700 });
+  writeFileSync(join(box.home, 'relay-keys', box.id + '.key'), box.key.toString('base64url') + '\n', { mode: 0o600 });
+  writeFileSync(join(box.root, '.git/pullboard/relay.json'), JSON.stringify({ version: 1, mode: 'ordered', board: box.id,
+    url: box.origin, repository: 'fixture/repository', token: box.machines[0].token, sequence: 0, cursor: box.document.tables.event.at(-1).event_id }) + '\n', { mode: 0o600 });
+  const initial = Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(box.document)), { boardId: box.id, kind: 'snapshot', sequence: 0 })).toString('base64url');
+  assert.equal((await box.call(box.path + '/state', { method: 'PUT', token: box.person.token, body: { sequence: 0, sealed: initial } })).status, 200);
+  const future = { version: 1, engine: 99, id: 'future-engine-record', operation: 'futureOperation', args: [] };
+  const sealed = Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(future)), { boardId: box.id, kind: 'move', sequence: 1 })).toString('base64url');
+  assert.equal((await box.call(box.path + '/moves', { method: 'POST', token: box.one.token, body: { sequence: 1, sealed } })).status, 200);
+  return { future, sealed };
+}
+
 test('two real clients refuse forged relay actors and person-only requests while advancing identically [H2,H16]', async t => {
   const box = await fixture(t);
   const source = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
@@ -384,6 +411,7 @@ test('two real clients refuse forged relay actors and person-only requests while
       prepareEngineMove(source, 'answerDecision', [question, { agentId: 'coordinator', asPerson: true, text: 'forged person answer', lanes: [lane] }]),
       { version: 1, type: 'person-request', id: 'forged-person-request', move: { verb: 'shout', args: { to: 'coordinator', text: 'forged person request' } } },
       prepareEngineMove(source, 'recordRowDecisions', [{ agentId: 'remote-1', channel: 'view', decisions: [] }]),
+      prepareEngineMove(source, 'appendFact', [1, { agentId: 'coordinator', kind: 'note', text: 'forged fact' }]),
       prepareEngineMove(source, 'shout', [{ from: 'remote-1', to: 'all', text: 'valid remote observation', lanes: [lane] }]),
     ];
     document = JSON.parse(JSON.stringify(exportBoard(source)));
@@ -422,11 +450,17 @@ test('two real clients refuse forged relay actors and person-only requests while
   assert.equal(newShouts[0].shout_from, 'remote-1');
   assert.equal(newShouts[0].shout_text, 'valid remote observation');
   const refused = result.tables.event.filter(row => row.event_kind === 'relay_refused');
-  assert.equal(refused.length, 4);
+  assert.equal(refused.length, 5);
   assert.ok(refused.every(row => row.event_by === 'remote-1'), 'the log attributes every attempted forgery to its authenticated sender');
-  assert.deepEqual(refused.map(row => JSON.parse(row.event_detail).code), ['RELAY_SENDER_MISMATCH', 'RELAY_PERSON_ONLY', 'RELAY_PERSON_ONLY', 'RELAY_PERSON_ONLY']);
+  assert.deepEqual(refused.map(row => JSON.parse(row.event_detail).code), ['RELAY_SENDER_MISMATCH', 'RELAY_PERSON_ONLY', 'RELAY_PERSON_ONLY', 'RELAY_PERSON_ONLY', 'RELAY_SENDER_MISMATCH']);
   assert.equal(JSON.parse(refused[0].event_detail).actor, 'coordinator');
-  assert.equal(result.tables.board_meta.find(row => row.meta_key === 'relay_applied_sequence').meta_value, '5');
+  assert.equal(result.tables.board_meta.find(row => row.meta_key === 'relay_applied_sequence').meta_value, '6');
+  assert.equal(refused[4].item_id, 1, 'a refused appendFact names its existing item');
+  for (let index = 0; index < roots.length; index += 1) {
+    const itemLog = await replayClient(roots[index], envs[index], 'log', '1');
+    assert.ok(itemLog.events.some(row => row.event_kind === 'relay_refused' && JSON.parse(row.event_detail).operation === 'appendFact'),
+      'each real CLI item log includes the refused fact');
+  }
   const log = await replayClient(roots[1], envs[1], 'log');
   assert.deepEqual(log.events.filter(row => row.event_kind === 'relay_refused'), refused, 'pullboard log exposes the sending agent and attempted actor');
   assert.deepEqual((await replayClient(roots[0], envs[0], 'export')).tables, result.tables, 'repeat catch-up does not duplicate refusals or actions');
@@ -589,6 +623,566 @@ test('two real clients enforce the verify policy captured in the item freeze [H1
     ['COORDINATOR_VERIFIES', 'NO_POLICY', 'O2_FAMILY_MATCH', 'NO_POLICY', 'NO_POLICY'],
     ['COORDINATOR_VERIFIES', 'NO_POLICY', 'O2_FAMILY_MATCH', 'NO_POLICY', 'NO_POLICY'],
   ]);
+});
+
+test('person recovery explicitly skips one future-engine blocker and publishes a refusal checkpoint [H3,H16]', async (t) => {
+  const box = await fixture(t);
+  for (const args of [['help', 'relay', 'recover'], ['relay', 'recover', '--help'], ['help', '--all']]) {
+    const help = spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args],
+      { cwd: box.root, env: box.env, encoding: 'utf8' });
+    assert.equal(help.status, 0, `recovery help succeeds: ${args.join(' ')}`);
+    assert.match(help.stdout, /relay recover --skip <sequence>/u, 'public help retains the recovery retry command');
+  }
+  const seededBoard = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  try {
+    store.shout(seededBoard, { from: 'person', to: 'coordinator', text: 'read cursor recovery probe', lanes: ['web'], request: true });
+    box.document = exportBoard(seededBoard);
+  } finally { store.closeBoard(seededBoard); }
+  const keyDirectory = join(box.home, 'relay-keys');
+  mkdirSync(keyDirectory, { mode: 0o700 });
+  writeFileSync(join(keyDirectory, box.id + '.key'), box.key.toString('base64url') + '\n', { mode: 0o600 });
+  writeFileSync(join(box.root, '.git/pullboard/relay.json'), JSON.stringify({ version: 1, mode: 'ordered', board: box.id,
+    url: box.origin, repository: 'fixture/repository', token: box.machines[0].token, sequence: 0, cursor: box.document.tables.event.at(-1).event_id }) + '\n', { mode: 0o600 });
+  assert.equal((await box.call(box.path + '/state', { method: 'PUT', token: box.person.token,
+    body: { sequence: 0, sealed: Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(box.document)), { boardId: box.id, kind: 'snapshot', sequence: 0 })).toString('base64url') } })).status, 200);
+  const future = { version: 1, engine: 99, id: 'future-engine-record', operation: 'unknownFromFuture', args: [] };
+  assert.throws(() => requireSupportedEngine(future), { code: 'ENGINE_VERSION' });
+  assert.equal((await box.call(box.path + '/moves', { method: 'POST', token: box.one.token,
+    body: { sequence: 1, sealed: Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(future)), { boardId: box.id, kind: 'move', sequence: 1 })).toString('base64url') } })).status, 200);
+  assert.equal((await box.call(box.path + '/events?after=0')).body.events.length, 1);
+  const diagnostics = [];
+  const io = { err: (message) => diagnostics.push(message), say: () => {} };
+  const previousPullboardHome = process.env.PULLBOARD_HOME;
+  process.env.PULLBOARD_HOME = box.home;
+  t.after(() => { if (previousPullboardHome === undefined) delete process.env.PULLBOARD_HOME; else process.env.PULLBOARD_HOME = previousPullboardHome; });
+  const secondRoot = join(box.directory, 'recovery-replica');
+  const secondHome = join(box.directory, 'recovery-replica-home');
+  mkdirSync(secondRoot); mkdirSync(secondHome, { mode: 0o700 });
+  assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: secondRoot, env: box.env }).status, 0);
+  await replayClient(secondRoot, { ...box.env, HOME: secondHome, PULLBOARD_HOME: secondHome }, 'init');
+  const initialFile = join(box.directory, 'recovery-initial.json');
+  writeFileSync(initialFile, JSON.stringify(box.document), { mode: 0o600 });
+  await replayClient(secondRoot, { ...box.env, HOME: secondHome, PULLBOARD_HOME: secondHome }, 'import', initialFile);
+  const secondKeyDirectory = join(secondHome, 'relay-keys');
+  mkdirSync(secondKeyDirectory, { mode: 0o700 });
+  writeFileSync(join(secondKeyDirectory, box.id + '.key'), box.key.toString('base64url') + '\n', { mode: 0o600 });
+  writeFileSync(join(secondRoot, '.git/pullboard/relay.json'), JSON.stringify({ version: 1, mode: 'ordered', board: box.id,
+    url: box.origin, repository: 'fixture/repository', token: box.machines[0].token, sequence: 0, cursor: box.document.tables.event.at(-1).event_id }) + '\n', { mode: 0o600 });
+  const blocked = await box.call(box.path + '/events?after=0');
+  assert.equal(blocked.body.events.length, 1);
+  const ordinary = await syncRelay(box.root, io);
+  assert.match(diagnostics.join('\n'), /ENGINE_VERSION/);
+  assert.equal(ordinary.sequence, 0, 'ordinary catch-up stops without advancing either replica');
+  await assert.rejects(() => relayRecover(box.root, 2, io), /blocked next sequence 1/);
+  const agentAttempt = spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), 'relay', 'recover', '--skip', '1', '--json'],
+    { cwd: box.root, env: { ...box.env, CODEX_THREAD_ID: 'private-agent-test' }, encoding: 'utf8' });
+  assert.equal(agentAttempt.status, 1);
+  assert.match(agentAttempt.stdout, /B26_PERSON_CHANNEL/);
+  const originalBoard = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  const originalDocument = exportBoard(originalBoard);
+  store.closeBoard(originalBoard);
+  const realFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = realFetch; });
+  globalThis.fetch = async (url, options = {}) => {
+    if (options.method === 'PUT' && String(url).endsWith('/state')) {
+      return new Response(JSON.stringify({ version: 1, error: { code: 'CHECKPOINT_TEMPORARY', message: 'temporary fixture refusal' } }),
+        { status: 503, headers: { 'content-type': 'application/json' } });
+    }
+    return realFetch(url, options);
+  };
+  await assert.rejects(() => relayRecover(box.root, 1, io), { code: 'CHECKPOINT_TEMPORARY' });
+  const savedBeforeRetry = JSON.parse(readFileSync(join(box.root, '.git/pullboard/relay.json'), 'utf8')).recovery;
+  assert.equal(savedBeforeRetry.skip, 1, 'the exact staged recovery remains durable after a known publish failure');
+  assert.equal((await box.call(box.path + '/state')).body.state.sequence, 0, 'a failed publish does not replace the remote checkpoint');
+  globalThis.fetch = async (url, options = {}) => {
+    if (options.method === 'PUT' && String(url).endsWith('/state')) {
+      await realFetch(url, options);
+      throw new Error('fixture dropped the checkpoint acknowledgement');
+    }
+    return realFetch(url, options);
+  };
+  await assert.rejects(() => relayRecover(box.root, 1, io), { code: 'RELAY_UNAVAILABLE' });
+  globalThis.fetch = realFetch;
+  const linkFile = join(box.root, '.git/pullboard/relay.json');
+  const pendingRecovery = JSON.parse(readFileSync(linkFile, 'utf8')).recovery;
+  assert.equal(pendingRecovery.skip, 1);
+  globalThis.fetch = async (url, options = {}) => {
+    const response = await realFetch(url, options);
+    if (options.method !== 'GET' || !String(url).endsWith('/state')) return response;
+    const document = await response.json();
+    document.state.sender = { kind: 'agent', agent: 'client-one', userId: 'fixture-user' };
+    return new Response(JSON.stringify(document), { status: response.status, headers: { 'content-type': 'application/json' } });
+  };
+  await assert.rejects(() => relayRecover(box.root, 1, io), { code: 'RELAY_PERSON_ONLY' },
+    'a lost-ACK checkpoint still requires the relay-authenticated person sender');
+  globalThis.fetch = realFetch;
+  const pendingStatus = await replayClient(box.root, { ...box.env, PULLBOARD_HOME: box.home }, 'status');
+  assert.equal(pendingStatus.relay.behind, 0, 'recovery remains separate from pending upload count');
+  assert.deepEqual(pendingStatus.relay.recovery, { pending: true, skip: 1, next: 'pullboard relay recover --skip 1' }, 'actual status JSON exposes the saved recovery retry');
+  const humanStatus = spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), 'status'],
+    { cwd: box.root, env: { ...box.env, PULLBOARD_HOME: box.home }, encoding: 'utf8' });
+  assert.equal(humanStatus.status, 0);
+  assert.equal(humanStatus.stdout.includes('recovery pending for sequence 1; retry pullboard relay recover --skip 1'), true,
+    'human status shows the actionable recovery without counting it as an upload');
+  const localApi = await serveApi({ runCommand: main, projects: () => [{ root: box.root, name: 'private recovery fixture' }] });
+  try {
+    const apiAddress = new URL(localApi.url);
+    const apiRequest = await fetch(apiAddress.origin + '/api/v1/boards/' + box.id + '/requests', {
+      method: 'POST', headers: { 'x-pullboard-key': apiAddress.searchParams.get('k'), 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'request while recovery is pending' }),
+    });
+    const apiRequestResult = await apiRequest.json();
+    assert.equal(apiRequestResult.error.code, 'RELAY_RECOVERY_PENDING', 'linked local API requests are guarded by the recovery lock');
+    const afterApiRequest = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+    try { assert.deepEqual(exportBoard(afterApiRequest), originalDocument, 'the refused API request leaves native tables unchanged'); }
+    finally { store.closeBoard(afterApiRequest); }
+  } finally { await localApi.close(); }
+  const beforeInbox = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  let cursorBeforeInbox;
+  try { cursorBeforeInbox = beforeInbox.db.prepare("SELECT agent_last_shout_id FROM agent WHERE agent_id='coordinator'").get().agent_last_shout_id; }
+  finally { store.closeBoard(beforeInbox); }
+  const inboxCommand = spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), 'inbox'],
+    { cwd: box.root, env: { ...box.env, PULLBOARD_HOME: box.home }, encoding: 'utf8' });
+  assert.equal(inboxCommand.status, 0, inboxCommand.stderr);
+  assert.match(inboxCommand.stdout, /read cursor recovery probe/);
+  const afterInbox = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  let cursorAfterInbox;
+  try { cursorAfterInbox = afterInbox.db.prepare("SELECT agent_last_shout_id FROM agent WHERE agent_id='coordinator'").get().agent_last_shout_id; }
+  finally { store.closeBoard(afterInbox); }
+  assert.ok(cursorAfterInbox > cursorBeforeInbox, 'the actual inbox read advances the durable read cursor');
+  const acceptedCheckpoint = (await box.call(box.path + '/state')).body.state;
+  assert.equal(acceptedCheckpoint.sequence, pendingRecovery.sequence);
+  assert.equal(acceptedCheckpoint.sealed, pendingRecovery.sealed, 'a lost ACK retains the exact sealed checkpoint candidate');
+  const unchanged = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  try { assert.equal(semanticBoardDigest(exportBoard(unchanged)), semanticBoardDigest(originalDocument), 'known failure and lost ACK do not change semantic native state'); }
+  finally { store.closeBoard(unchanged); }
+  const recovered = await relayRecover(box.root, 1, io);
+  assert.equal(recovered.sequence, 1);
+  assert.equal(recovered.skipped, 1);
+  assert.deepEqual(recovered.recovery, { pending: false, skip: 0, next: '' }, 'successful recovery clears the public pending state');
+  const cursorAfterRecovery = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  try {
+    assert.equal(cursorAfterRecovery.db.prepare("SELECT agent_last_shout_id FROM agent WHERE agent_id='coordinator'").get().agent_last_shout_id,
+      cursorAfterInbox, 'checkpoint restore retains the greater local inbox cursor');
+  } finally { store.closeBoard(cursorAfterRecovery); }
+  const events = await box.call(box.path + '/events?after=0');
+  assert.equal(events.status, 409, 'person recovery publishes and compacts an ordinary sealed checkpoint');
+  const snapshot = (await box.call(box.path + '/state')).body.state;
+  assert.equal(snapshot.sequence, 1);
+  const document = await openCheckpoint(box, snapshot);
+  assert.equal(document.tables.board_meta.find(row => row.meta_key === 'relay_applied_sequence').meta_value, '1');
+  assert.equal(document.tables.event.at(-1).event_kind, 'relay_refused');
+  assert.equal(document.tables.event.at(-1).event_by, 'client-one');
+  const blockedReason = JSON.parse(document.tables.board_meta.find(row => row.meta_key === 'relay_refusal_1').meta_value).outcome.error;
+  assert.match(blockedReason.message, /person recovery logged this blocked record as refused; run pullboard relay/);
+  const secondEnv = { ...box.env, HOME: secondHome, PULLBOARD_HOME: secondHome };
+  await replayClient(secondRoot, secondEnv, 'relay');
+  const firstBoard = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  const secondBoard = store.openBoard(join(secondRoot, '.git/pullboard/board.sqlite'));
+  try {
+    assert.equal(secondBoard.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='relay_applied_sequence'").get().meta_value, '1');
+    assert.equal(secondBoard.db.prepare("SELECT agent_last_shout_id FROM agent WHERE agent_id='coordinator'").get().agent_last_shout_id,
+      0, 'the other replica retains its own checkpoint cursor rather than inheriting this device’s local read');
+    assert.deepEqual(store.events(secondBoard).map(row => row.event_kind), store.events(firstBoard).map(row => row.event_kind));
+  } finally { store.closeBoard(secondBoard); store.closeBoard(firstBoard); }
+  process.env.PULLBOARD_HOME = box.home;
+  const personRequest = (id, text) => ({ version: 1, type: 'person-request', id, move: { verb: 'shout', args: { to: 'coordinator', text } } });
+  const later = personRequest('later-person-request', 'Later person move');
+  assert.equal((await box.call(box.path + '/requests', { method: 'POST', token: box.person.token,
+    body: { sequence: 2, sealed: Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(later)), { boardId: box.id, kind: 'request', sequence: 2 })).toString('base64url') } })).status, 200);
+  const invalid = { version: 1, engine: 3, id: 'known-item-forged-claim', operation: 'claim', args: [1, { agentId: 'forged-agent' }] };
+  const sealFor = async (value, kind, sequence) => Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(value)), { boardId: box.id, kind, sequence })).toString('base64url');
+  const append = (sequence, kind, sealed, token = box.one.token) => box.call(box.path + (kind === 'request' ? '/requests' : '/moves'), { method: 'POST', token, body: { sequence, sealed } });
+  assert.equal((await append(3, 'move', await sealFor(invalid, 'move', 3))).status, 200);
+  assert.equal((await append(4, 'move', Buffer.from([1]).toString('base64url'), box.two.token)).status, 200, 'the relay stores current-version ciphertext opaquely');
+  const repeated = personRequest('reused-content-id', 'First request');
+  assert.equal((await append(5, 'request', await sealFor(repeated, 'request', 5), box.person.token)).status, 200);
+  const changed = personRequest('reused-content-id', 'Changed request');
+  assert.equal((await append(6, 'request', await sealFor(changed, 'request', 6), box.person.token)).status, 200);
+  const unknownCurrent = { version: 1, engine: 3, id: 'unknown-current-operation', operation: 'notAnOperation', args: [] };
+  assert.equal((await append(7, 'move', await sealFor(unknownCurrent, 'move', 7), box.one.token)).status, 200);
+  let suppressCheckpointWrites = true;
+  const proxy = createServer(async (incoming, outgoing) => {
+    const chunks = [];
+    for await (const chunk of incoming) chunks.push(chunk);
+    const body = Buffer.concat(chunks);
+    if (suppressCheckpointWrites && incoming.method === 'PUT' && incoming.url.endsWith('/state')) {
+      outgoing.writeHead(503, { 'content-type': 'application/json' });
+      outgoing.end(JSON.stringify({ version: 1, error: { code: 'CHECKPOINT_SUPPRESSED', message: 'private test keeps the event tail for both clients' } }));
+      return;
+    }
+    const response = await fetch(box.origin + incoming.url, { method: incoming.method,
+      headers: { ...(incoming.headers.authorization ? { authorization: incoming.headers.authorization } : {}),
+        'x-pullboard-engine': incoming.headers['x-pullboard-engine'] ?? '', ...(body.length ? { 'content-type': 'application/json' } : {}) },
+      ...(body.length ? { body } : {}) });
+    let payload = await response.text();
+    if (incoming.url.includes('/events?after=')) {
+      const document = JSON.parse(payload);
+      const record = document.events?.find(event => event.event_id === 3);
+      if (record) record.sender = { kind: 'agent', agent: 'client-one', userId: 'x'.repeat(257) };
+      payload = JSON.stringify(document);
+    }
+    outgoing.writeHead(response.status, { 'content-type': 'application/json' });
+    outgoing.end(payload);
+  });
+  await new Promise(resolve => proxy.listen(0, '127.0.0.1', resolve));
+  t.after(() => proxy.close());
+  const proxyUrl = 'http://127.0.0.1:' + proxy.address().port;
+  for (const root of [box.root, secondRoot]) {
+    const path = join(root, '.git/pullboard/relay.json');
+    const link = JSON.parse(readFileSync(path, 'utf8'));
+    link.url = proxyUrl;
+    writeFileSync(path, JSON.stringify(link) + '\n', { mode: 0o600 });
+  }
+  await replayClient(box.root, { ...box.env, PULLBOARD_HOME: box.home }, 'relay');
+  const one = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  try {
+    assert.equal(appliedSequence(one), 11, diagnostics.join('\n'));
+    const refusals = store.events(one).filter(row => row.event_kind === 'relay_refused');
+    assert.deepEqual(refusals.map(row => JSON.parse(row.event_detail).code).slice(-4), ['RELAY_SENDER', 'SEAL_FORMAT', 'PERSON_REQUEST_ID', 'RELAY_SENDER_MISMATCH']);
+    assert.ok(refusals.some(row => row.item_id === 1 && row.event_by === 'relay'), 'malformed sender is normalized to relay and refusal names existing item #1');
+    const unsupportedOperation = JSON.parse(one.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='relay_refusal_7'").get().meta_value).outcome.error;
+    assert.equal(unsupportedOperation.code, 'RELAY_SENDER_MISMATCH', 'an unknown operation is refused before a replica can interpret it');
+    assert.equal(store.events(one).filter(row => row.event_kind === 'shout').length, 5, 'the two valid person requests each produce a claim and their real CLI shout');
+    const requests = JSON.parse(one.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='relay_person_requests'").get().meta_value);
+    assert.deepEqual(requests.map(({ id, status, error }) => ({ id, status, code: error?.code ?? null })), [
+      { id: 'later-person-request', status: 'done', code: null },
+      { id: 'reused-content-id', status: 'done', code: null },
+      { id: 'reused-content-id-6', status: 'refused', code: 'PERSON_REQUEST_ID' },
+    ], 'recovery and the native executor preserve person request identities and their outcomes');
+  } finally { store.closeBoard(one); }
+  await replayClient(secondRoot, { ...box.env, HOME: secondHome, PULLBOARD_HOME: secondHome }, 'relay');
+  const firstAfterTail = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  const secondAfterTail = store.openBoard(join(secondRoot, '.git/pullboard/board.sqlite'));
+  try {
+    assert.equal(appliedSequence(secondAfterTail), 11);
+    assert.deepEqual(store.events(secondAfterTail).map(row => row.event_detail), store.events(firstAfterTail).map(row => row.event_detail));
+    assert.equal(semanticBoardDigest(exportBoard(secondAfterTail)), semanticBoardDigest(exportBoard(firstAfterTail)),
+      'both replicas converge on semantic state after later person moves; their inbox cursors remain local metadata');
+  } finally { store.closeBoard(secondAfterTail); store.closeBoard(firstAfterTail); }
+  const logged = await replayClient(box.root, { ...box.env, PULLBOARD_HOME: box.home }, 'log', '1');
+  assert.ok(logged.events.some(row => row.event_kind === 'relay_refused' && row.item_id === 1), 'pullboard log #1 exposes the refusal');
+  const current = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  const healthySequence = appliedSequence(current) + 1;
+  store.closeBoard(current);
+  const healthyRequest = personRequest('healthy-request-after-refusals', 'Healthy request must not be skipped');
+  assert.equal((await append(healthySequence, 'request', await sealFor(healthyRequest, 'request', healthySequence), box.person.token)).status, 200);
+  await assert.rejects(() => relayRecover(box.root, healthySequence, io), { code: 'RELAY_RECOVERY_HEALTHY' });
+  const stillAtSeven = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  try { assert.equal(appliedSequence(stillAtSeven), healthySequence - 1); }
+  finally { store.closeBoard(stillAtSeven); }
+  await replayClient(box.root, { ...box.env, PULLBOARD_HOME: box.home }, 'relay');
+  await replayClient(secondRoot, secondEnv, 'relay');
+  const beforeHeader = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  const futureSequence = appliedSequence(beforeHeader) + 1;
+  store.closeBoard(beforeHeader);
+  const futureSealHeader = Buffer.from([2]).toString('base64url');
+  assert.equal((await append(futureSequence, 'move', futureSealHeader, box.one.token)).status, 200);
+  const sealBlocked = await replayClient(box.root, { ...box.env, PULLBOARD_HOME: box.home }, 'relay');
+  assert.ok(sealBlocked.diagnostics.some(line => line.includes('SEAL_VERSION')));
+  const atEight = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  try { assert.equal(appliedSequence(atEight), futureSequence - 1); }
+  finally { store.closeBoard(atEight); }
+  suppressCheckpointWrites = false;
+  const headerRecovery = await replayClient(box.root, { ...box.env, PULLBOARD_HOME: box.home }, 'relay', 'recover', '--skip', String(futureSequence));
+  assert.equal(headerRecovery.version, 1);
+  assert.equal(headerRecovery.linked, true);
+  assert.equal(headerRecovery.board, box.id);
+  assert.equal(headerRecovery.sequence, futureSequence);
+  assert.equal(headerRecovery.skipped, futureSequence);
+  assert.equal(typeof headerRecovery.url, 'string');
+  assert.equal(typeof headerRecovery.link, 'string');
+  assert.equal(typeof headerRecovery.behind, 'number');
+  await replayClient(secondRoot, secondEnv, 'relay');
+  const restoredSecond = store.openBoard(join(secondRoot, '.git/pullboard/board.sqlite'));
+  try { assert.equal(appliedSequence(restoredSecond), futureSequence, 'second CLI client restores the sealed future-header recovery checkpoint'); }
+  finally { store.closeBoard(restoredSecond); }
+  process.env.PULLBOARD_HOME = box.home;
+  const local = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  try {
+    assert.equal(appliedSequence(local), futureSequence);
+    const requests = JSON.parse(local.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='relay_person_requests'").get().meta_value);
+    assert.ok(requests.some(row => row.id === 'healthy-request-after-refusals' && row.status === 'done'), 'the later sealed person request was executed and receipted after recovery');
+  } finally { store.closeBoard(local); }
+});
+
+test('two future-engine blockers recover one durable position at a time on two real clients [H3,H16]', async t => {
+  const box = await fixture(t);
+  const roots = [box.root, join(box.directory, 'second-recovery-client')];
+  const homes = [box.home, join(box.directory, 'second-recovery-home')];
+  const envs = homes.map(home => ({ ...box.env, HOME: home, PULLBOARD_HOME: home }));
+  const source = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  let document;
+  try { checkpointSequence(source, 0); document = exportBoard(source); }
+  finally { store.closeBoard(source); }
+  mkdirSync(roots[1]); mkdirSync(homes[1], { mode: 0o700 });
+  assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: roots[1], env: envs[1] }).status, 0);
+  await replayClient(roots[1], envs[1], 'init');
+  const initial = join(box.directory, 'two-blockers-native.json');
+  writeFileSync(initial, JSON.stringify(document), { mode: 0o600 });
+  await replayClient(roots[1], envs[1], 'import', initial);
+  for (let index = 0; index < roots.length; index += 1) {
+    mkdirSync(join(homes[index], 'relay-keys'), { mode: 0o700 });
+    writeFileSync(join(homes[index], 'relay-keys', box.id + '.key'), box.key.toString('base64url') + '\n', { mode: 0o600 });
+    writeFileSync(join(roots[index], '.git/pullboard/relay.json'), JSON.stringify({ version: 1, mode: 'ordered', board: box.id,
+      url: box.origin, repository: 'fixture/repository', token: box.machines[index].token, sequence: 0,
+      cursor: document.tables.event.at(-1).event_id }) + '\n', { mode: 0o600 });
+  }
+  /** Upload only sealed records through the real authenticated relay. */
+  async function upload(value, kind, sequence, token) {
+    const sealed = Buffer.from(await sealMove(box.key, Buffer.from(JSON.stringify(value)), { boardId: box.id, kind, sequence })).toString('base64url');
+    const reply = await box.call(box.path + (kind === 'snapshot' ? '/state' : '/moves'), {
+      method: kind === 'snapshot' ? 'PUT' : 'POST', token, body: { sequence, sealed },
+    });
+    assert.equal(reply.status, 200);
+  }
+  await upload(document, 'snapshot', 0, box.person.token);
+  for (let sequence = 1; sequence <= 5; sequence += 1) await upload({ version: 1, engine: ENGINE_VERSION,
+    id: 'prefix-' + sequence, operation: 'unknownCurrentOperation', args: [] }, 'move', sequence, box.one.token);
+  for (let index = 0; index < roots.length; index += 1) await replayClient(roots[index], envs[index], 'relay');
+  for (const sequence of [6, 7]) await upload({ version: 1, engine: 99, id: 'future-' + sequence,
+    operation: 'futureOperation', args: [] }, 'move', sequence, box.one.token);
+  await upload({ version: 1, engine: ENGINE_VERSION, id: 'later-person-eight', operation: 'shout',
+    args: [{ from: 'person', to: 'coordinator', text: 'Person after two blockers', lanes: ['web'] }] }, 'move', 8, box.person.token);
+  const previousHome = process.env.PULLBOARD_HOME;
+  t.after(() => { if (previousHome === undefined) delete process.env.PULLBOARD_HOME; else process.env.PULLBOARD_HOME = previousHome; });
+  process.env.PULLBOARD_HOME = box.home;
+  const io = { say: () => {}, err: () => {} };
+  assert.equal((await syncRelay(box.root, io)).sequence, 5);
+  const first = await relayRecover(box.root, 6, io);
+  assert.equal(first.sequence, 6, 'later engine99 record cannot roll back the selected skip');
+  assert.equal((await box.call(box.path + '/state')).body.state.sequence, 6, 'skip6 is durably published before skip7');
+  await replayClient(roots[1], envs[1], 'relay');
+  const afterFirst = await replayClient(roots[1], envs[1], 'export');
+  assert.equal(afterFirst.tables.board_meta.find(row => row.meta_key === 'relay_applied_sequence').meta_value, '6');
+  assert.ok(afterFirst.tables.event.some(row => row.event_kind === 'relay_refused' && JSON.parse(row.event_detail).sequence === 6));
+  assert.equal(afterFirst.tables.shout.some(row => row.shout_text === 'Person after two blockers'), false);
+  const second = await relayRecover(box.root, 7, io);
+  assert.equal(second.sequence, 8, 'the second explicit skip replays the later person move');
+  const exports = [];
+  for (let index = 0; index < roots.length; index += 1) exports.push(await replayClient(roots[index], envs[index], 'export'));
+  assert.deepEqual(exports[0].tables, exports[1].tables, 'both native replicas converge without off/on');
+  assert.equal(exports[0].tables.shout.filter(row => row.shout_text === 'Person after two blockers').length, 1);
+  assert.deepEqual(exports[0].tables.event.filter(row => row.event_kind === 'relay_refused').map(row => JSON.parse(row.event_detail).sequence).slice(-2), [6, 7]);
+});
+
+test('recovery collision status preserves the retry while the winner catches an appended tail [H16]', async (t) => {
+  const box = await fixture(t);
+  await blockedRecoveryFixture(box);
+  const secondRoot = join(box.directory, 'recovery-collision-replica');
+  const secondHome = join(box.directory, 'recovery-collision-home');
+  mkdirSync(secondRoot);
+  mkdirSync(secondHome, { mode: 0o700 });
+  const secondEnv = { ...box.env, HOME: secondHome, PULLBOARD_HOME: secondHome };
+  assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: secondRoot, env: secondEnv }).status, 0);
+  await replayClient(secondRoot, secondEnv, 'init');
+  const snapshotFile = join(box.directory, 'collision-initial.json');
+  writeFileSync(snapshotFile, JSON.stringify(box.document), { mode: 0o600 });
+  await replayClient(secondRoot, secondEnv, 'import', snapshotFile);
+  mkdirSync(join(secondHome, 'relay-keys'), { mode: 0o700 });
+  writeFileSync(join(secondHome, 'relay-keys', box.id + '.key'), box.key.toString('base64url') + '\n', { mode: 0o600 });
+  writeFileSync(join(secondRoot, '.git/pullboard/relay.json'), JSON.stringify({ version: 1, mode: 'ordered', board: box.id,
+    url: box.origin, repository: 'fixture/repository', token: box.machines[0].token, sequence: 0, cursor: box.document.tables.event.at(-1).event_id }) + '\n', { mode: 0o600 });
+
+  const previousHome = process.env.PULLBOARD_HOME;
+  const previousFetch = globalThis.fetch;
+  t.after(() => {
+    if (previousHome === undefined) delete process.env.PULLBOARD_HOME;
+    else process.env.PULLBOARD_HOME = previousHome;
+    globalThis.fetch = previousFetch;
+  });
+  globalThis.fetch = async (url, options = {}) => {
+    if (options.method === 'PUT' && String(url).endsWith('/state')) {
+      return new Response(JSON.stringify({ version: 1, error: { code: 'CHECKPOINT_TEST', message: 'private collision fixture' } }),
+        { status: 503, headers: { 'content-type': 'application/json' } });
+    }
+    return previousFetch(url, options);
+  };
+  process.env.PULLBOARD_HOME = box.home;
+  await assert.rejects(() => relayRecover(box.root, 1, { err: () => {}, say: () => {} }), { code: 'CHECKPOINT_TEST' });
+  process.env.PULLBOARD_HOME = secondHome;
+  await assert.rejects(() => relayRecover(secondRoot, 1, { err: () => {}, say: () => {} }), { code: 'CHECKPOINT_TEST' });
+  const firstLink = JSON.parse(readFileSync(join(box.root, '.git/pullboard/relay.json'), 'utf8'));
+  const secondLink = JSON.parse(readFileSync(join(secondRoot, '.git/pullboard/relay.json'), 'utf8'));
+  assert.notEqual(firstLink.recovery.sealed, secondLink.recovery.sealed, 'each replica stages its own exact encrypted checkpoint');
+
+  globalThis.fetch = previousFetch;
+  process.env.PULLBOARD_HOME = box.home;
+  await relayRecover(box.root, 1, { err: () => {}, say: () => {} });
+  const winningCheckpoint = (await box.call(box.path + '/state')).body.state;
+  const winningNative = await openCheckpoint(box, winningCheckpoint);
+  process.env.PULLBOARD_HOME = secondHome;
+  const futureNative = structuredClone(winningNative);
+  futureNative.tables.board_meta.find((row) => row.meta_key === 'relay_engine_version').meta_value = '99';
+  const futureSeal = Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(futureNative)),
+    { boardId: box.id, kind: 'snapshot', sequence: 1 })).toString('base64url');
+  assert.equal((await box.call(box.path + '/state', { method: 'PUT', token: box.person.token, body: { sequence: 1, sealed: futureSeal } })).status, 200);
+  await assert.rejects(() => relayRecover(secondRoot, 1, { err: () => {}, say: () => {} }), { code: 'ENGINE_VERSION' },
+    'an authenticated winning snapshot still stops at its newer engine version');
+  const noProofNative = structuredClone(winningNative);
+  noProofNative.tables.board_meta = noProofNative.tables.board_meta.filter((row) => row.meta_key !== 'relay_refusal_1');
+  const noProofSeal = Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(noProofNative)),
+    { boardId: box.id, kind: 'snapshot', sequence: 1 })).toString('base64url');
+  assert.equal((await box.call(box.path + '/state', { method: 'PUT', token: box.person.token, body: { sequence: 1, sealed: noProofSeal } })).status, 200);
+  await assert.rejects(() => relayRecover(secondRoot, 1, { err: () => {}, say: () => {} }), { code: 'RELAY_RECOVERY_PENDING' },
+    'a person checkpoint without the selected refusal proof cannot resolve the pending recovery');
+  assert.equal((await box.call(box.path + '/state', { method: 'PUT', token: box.person.token,
+    body: { sequence: winningCheckpoint.sequence, sealed: winningCheckpoint.sealed } })).status, 200);
+  globalThis.fetch = async (url, options = {}) => {
+    const response = await previousFetch(url, options);
+    if (options.method !== 'GET' || !String(url).endsWith('/state')) return response;
+    const document = await response.json();
+    document.state.sender = { kind: 'agent', agent: 'client-two', userId: 'fixture-user' };
+    return new Response(JSON.stringify(document), { status: response.status, headers: { 'content-type': 'application/json' } });
+  };
+  await assert.rejects(() => relayRecover(secondRoot, 1, { err: () => {}, say: () => {} }), { code: 'RELAY_PERSON_ONLY' },
+    'the checkpoint sender must be a person even when its ciphertext matches a saved recovery');
+  globalThis.fetch = previousFetch;
+  const markers = ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL'];
+  const previousMarkers = Object.fromEntries(markers.map((marker) => [marker, process.env[marker]]));
+  t.after(() => markers.forEach((marker) => {
+    if (previousMarkers[marker] === undefined) delete process.env[marker];
+    else process.env[marker] = previousMarkers[marker];
+  }));
+  for (const marker of markers) delete process.env[marker];
+  let adoptedOutput = '';
+  const streams = { cwd: secondRoot, stdout: { isTTY: false, write: (text) => { adoptedOutput += text; } }, stderr: { isTTY: false, write: () => {} } };
+  assert.equal(await main(['relay', 'recover', '--skip', '1'], streams), 0);
+  assert.equal(adoptedOutput.includes('relay recovery adopted the authenticated checkpoint at sequence 1; blocked sequence 1 remains recorded as refused'), true,
+    'the CLI reports adoption rather than claiming it published the winner');
+  const syncDiagnostics = [];
+  const syncSummary = await syncRelay(secondRoot, { err: (line) => syncDiagnostics.push(line), say: () => {} });
+  assert.deepEqual(syncSummary.recovery, { pending: false, skip: 0, next: '' }, 'adoption clears the durable recovery');
+  assert.equal(syncDiagnostics.length, 0);
+  const collisionStatus = await replayClient(secondRoot, secondEnv, 'status');
+  assert.equal(collisionStatus.relay.behind, 0);
+  assert.deepEqual(collisionStatus.relay.recovery, { pending: false, skip: 0, next: '' }, 'actual status reports the adopted checkpoint as complete');
+  const humanStatus = spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), 'status'],
+    { cwd: secondRoot, env: secondEnv, encoding: 'utf8' });
+  assert.equal(humanStatus.status, 0);
+  assert.equal(humanStatus.stdout.includes('recovery pending for sequence 1; retry pullboard relay recover --skip 1'), false);
+  const humanRelay = spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), 'relay'],
+    { cwd: secondRoot, env: secondEnv, encoding: 'utf8' });
+  assert.equal(humanRelay.status, 0);
+  assert.equal(humanRelay.stdout.includes('recovery pending for sequence 1; retry pullboard relay recover --skip 1'), false);
+  const stillBlocked = store.openBoard(join(secondRoot, '.git/pullboard/board.sqlite'));
+  try { assert.equal(appliedSequence(stillBlocked), 1, 'the losing client adopts the authenticated winning checkpoint'); }
+  finally { store.closeBoard(stillBlocked); }
+
+  const lane = Object.keys(JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8')).lanes)[0];
+  const tail = { version: 1, engine: 3, id: 'recovery-tail-after-collision', operation: 'shout',
+    args: [{ from: 'person', to: 'coordinator', request: true, text: 'Tail after recovery checkpoint', lanes: [lane] }] };
+  const sealed = Buffer.from(await sealMove(box.key, new TextEncoder().encode(JSON.stringify(tail)),
+    { boardId: box.id, kind: 'request', sequence: 2 })).toString('base64url');
+  assert.equal((await box.call(box.path + '/requests', { method: 'POST', token: box.person.token, body: { sequence: 2, sealed } })).status, 200);
+  process.env.PULLBOARD_HOME = box.home;
+  await replayClient(box.root, box.env, 'relay');
+  process.env.PULLBOARD_HOME = secondHome;
+  await replayClient(secondRoot, secondEnv, 'relay');
+  const winner = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  const other = store.openBoard(join(secondRoot, '.git/pullboard/board.sqlite'));
+  try {
+    assert.equal(appliedSequence(winner), 2, 'the winner catches the appended tail after recovery');
+    assert.equal(appliedSequence(other), 2, 'the adopted client also catches the appended person move');
+    assert.deepEqual(exportBoard(other).tables, exportBoard(winner).tables, 'both actual clients converge on the same native rows');
+  }
+  finally { store.closeBoard(other); store.closeBoard(winner); }
+});
+
+test('recovery preserves a local write racing its first staged publish [H16]', async (t) => {
+  const box = await fixture(t);
+  await blockedRecoveryFixture(box);
+  const priorHome = process.env.PULLBOARD_HOME;
+  process.env.PULLBOARD_HOME = box.home;
+  t.after(() => { if (priorHome === undefined) delete process.env.PULLBOARD_HOME; else process.env.PULLBOARD_HOME = priorHome; });
+  const priorFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = priorFetch; });
+  let wrote = false;
+  globalThis.fetch = async (url, options = {}) => {
+    const response = await priorFetch(url, options);
+    if (!wrote && String(url).includes('/events?after=0')) {
+      wrote = true;
+      const board = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+      try {
+        const lane = Object.keys(JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8')).lanes)[0];
+        store.addItem(board, { by: 'coordinator', lane, title: 'Concurrent local write', criterion: 'Keep this row' });
+      } finally { store.closeBoard(board); }
+    }
+    return response;
+  };
+  await assert.rejects(() => relayRecover(box.root, 1, { err: () => {}, say: () => {} }), { code: 'RELAY_LOCAL_CHANGED' });
+  globalThis.fetch = priorFetch;
+  assert.equal((await box.call(box.path + '/state')).body.state.sequence, 0, 'no checkpoint is published after a local edit races staging');
+  const board = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  try { assert.ok(store.listItems(board, { all: true }).some(item => item.item_title === 'Concurrent local write')); }
+  finally { store.closeBoard(board); }
+  const diagnostics = [];
+  await syncRelay(box.root, { err: line => diagnostics.push(line), say: () => {} });
+  assert.match(diagnostics.join('\n'), /ENGINE_VERSION/);
+  const afterSync = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  try { assert.ok(store.listItems(afterSync, { all: true }).some(item => item.item_title === 'Concurrent local write')); }
+  finally { store.closeBoard(afterSync); }
+});
+
+test('lost-ACK recovery retry refuses to overwrite a concurrent local write [H16]', async (t) => {
+  const box = await fixture(t);
+  await blockedRecoveryFixture(box);
+  const priorHome = process.env.PULLBOARD_HOME;
+  process.env.PULLBOARD_HOME = box.home;
+  t.after(() => { if (priorHome === undefined) delete process.env.PULLBOARD_HOME; else process.env.PULLBOARD_HOME = priorHome; });
+  const priorFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = priorFetch; });
+  let wrote = false;
+  globalThis.fetch = async (url, options = {}) => {
+    const response = await priorFetch(url, options);
+    if (!wrote && options.method === 'PUT' && String(url).endsWith('/state')) {
+      wrote = true;
+      const board = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+      try {
+        const lane = Object.keys(JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8')).lanes)[0];
+        store.addItem(board, { by: 'coordinator', lane, title: 'Write during lost ACK', criterion: 'Keep this row' });
+      } finally { store.closeBoard(board); }
+      throw new Error('fixture lost the accepted checkpoint ACK');
+    }
+    return response;
+  };
+  await assert.rejects(() => relayRecover(box.root, 1, { err: () => {}, say: () => {} }), { code: 'RELAY_UNAVAILABLE' });
+  globalThis.fetch = priorFetch;
+  const recovery = JSON.parse(readFileSync(join(box.root, '.git/pullboard/relay.json'), 'utf8')).recovery;
+  assert.equal(recovery.skip, 1);
+  assert.equal((await box.call(box.path + '/state')).body.state.sealed, recovery.sealed);
+  await assert.rejects(() => relayRecover(box.root, 1, { err: () => {}, say: () => {} }),
+    { code: 'RELAY_LOCAL_CHANGED', message: /cannot be retried from the changed board/ },
+    'a local change is preserved and the message does not suggest export alone will unblock retry');
+  const diagnostics = [];
+  await syncRelay(box.root, { err: line => diagnostics.push(line), say: () => {} });
+  assert.match(diagnostics.join('\n'), /RELAY_RECOVERY_PENDING/);
+  const board = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  try {
+    assert.ok(store.listItems(board, { all: true }).some(item => item.item_title === 'Write during lost ACK'));
+    assert.equal(appliedSequence(board), 0);
+  } finally { store.closeBoard(board); }
+});
+
+test('checkpoint restore checks native digest after BEGIN IMMEDIATE against a separate connection [H16]', async (t) => {
+  const box = await fixture(t);
+  await blockedRecoveryFixture(box);
+  const database = join(box.root, '.git/pullboard/board.sqlite');
+  const source = store.openBoard(database);
+  const concurrent = store.openBoard(database);
+  try {
+    source.db.prepare("INSERT INTO board_meta (meta_key, meta_value) VALUES ('relay_applied_sequence', '0'), ('relay_engine_version', '3')").run();
+    const expectedDocument = exportBoard(source);
+    const expectedDigest = semanticBoardDigest(expectedDocument);
+    const lane = Object.keys(JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8')).lanes)[0];
+    store.addItem(concurrent, { by: 'coordinator', lane, title: 'Write before transactional guard', criterion: 'Preserve this row' });
+    assert.throws(() => restoreRelaySnapshot(source, expectedDocument, 0, expectedDigest), { code: 'RELAY_LOCAL_CHANGED' });
+    assert.ok(store.listItems(source, { all: true }).some(item => item.item_title === 'Write before transactional guard'));
+    assert.equal(appliedSequence(source), 0);
+  } finally {
+    store.closeBoard(concurrent);
+    store.closeBoard(source);
+  }
 });
 
 test('relay accepts engine 4 clients carrying sealed background completions [V2,H16]', async t => {
