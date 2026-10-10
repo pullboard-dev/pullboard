@@ -57,7 +57,7 @@ test('an item carries a brief to whoever claims it; a light agent sees only its 
   assert.match(box.run(box.web, 'next').out, /claimed #1: Design the page/);
   assert.equal(box.run(box.repo, 'edit', '1', '--brief', 'Start from the sketch in docs/page.md.').code, 0);
   assert.match(box.run(box.web, 'show', '1').out, /brief:\n {2}Start from the sketch in docs\/page.md./);
-  assert.match(box.run(box.web, 'edit', '2', '--brief', 'mine').err, /NOT_YOURS/);
+  assert.match(box.run(box.web, 'edit', '2', '--brief', 'mine').err, /HELD/);
 });
 
 test('run builds routed items unattended: the failure feeds the next attempt; red work escalates, pinned [N14, B15]', () => {

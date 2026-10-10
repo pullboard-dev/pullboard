@@ -1593,6 +1593,8 @@ async function submitHere(ctx, id) {
     const me = whoAmI(ctx, board);
     const item = store.getItem(board, id);
     if (item.item_status !== 'claimed' || item.item_owner !== me.id) throw new Refused('NOT_YOURS', 'claim this item before submitting it');
+    const correction = store.pendingRefreezeProblem(board, id);
+    if (correction) throw correction;
     return item;
   });
   const policy = itemPolicy(root, held);
@@ -2232,7 +2234,7 @@ function workCommands(io, args) {
     refreeze: () => act(async (ctx, board, me) => {
       const result = await ordered(ctx, board, 'refreeze', [idArg(first), { agentId: me.id, freeze: freezer(ctx, { captureVerifyPolicy: true }) }]);
       io.result?.({ id: idArg(first), ...result });
-      io.say(`#${first} refrozen ${String(result.before).slice(0, 12)} -> ${result.after.slice(0, 12)}; open again`);
+      io.say(`#${first} refrozen ${String(result.before).slice(0, 12)} -> ${result.after.slice(0, 12)}; ${result.retainedClaim ? 'claim retained' : 'open again'}`);
       return 0;
     }),
     reopen: () => act(async (ctx, board, me) => {

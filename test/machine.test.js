@@ -364,7 +364,7 @@ test('the declared lifecycle is sound: reachable, no traps, no second door, ever
   assert.deepEqual(machineProblems(), []);
   assert.deepEqual(MACHINE.states.map((state) => state.id), ['open', 'claimed', 'submitted', 'verified', 'withdrawn']);
   assert.deepEqual(MACHINE.states.filter((state) => state.final).map((state) => state.id), ['verified', 'withdrawn']);
-  assert.deepEqual(MACHINE.moves.map((move) => move.verb), ['claim', 'release', 'lapse', 'submit', 'reserve', 'accept', 'reject', 'reopen', 'escalate', 'refreeze', 'withdraw']);
+  assert.deepEqual(MACHINE.moves.map((move) => move.verb), ['claim', 'release', 'lapse', 'submit', 'reserve', 'accept', 'reject', 'reopen', 'escalate', 'refreeze', 'refreeze', 'withdraw']);
 });
 
 for (const broken of BROKEN) {
@@ -773,7 +773,7 @@ test('pullboard help lists each role\'s moves from the declaration, and pullboar
     const line = help.stdout.split('\n').find((text) => text.startsWith(`  ${role} `));
     assert.ok(line, `help has a line for ${role}`);
     const listed = line.slice(role.length + 2).split(',').map((part) => part.trim().split(' ')[0]).filter(Boolean);
-    assert.deepEqual(listed.sort(), MACHINE.moves.filter((move) => move.by.includes(role)).map((move) => move.verb).sort(), `${role}'s moves`);
+    assert.deepEqual(listed.sort(), [...new Set(MACHINE.moves.filter((move) => move.by.includes(role)).map((move) => move.verb))].sort(), `${role}'s moves`);
   }
   assert.ok(HELP.all.includes(lifecycleHelp()), 'the full help screen carries the generated section, not a typed copy');
   const printed = runFixtureChild(process.execPath, [BIN, 'lifecycle'], { encoding: 'utf8' });
@@ -860,7 +860,10 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     fired.push(claimAs(target, light, 'api'), claimAs(target, light, 'web'), claimAs(target, strong, 'web'));
     verdictOn(board, dependency, 'web-2', 'ACCEPT');
     fired.push(claimAs(target, strong, 'web'));
+    store.editItem(board, target, { agentId: 'coordinator', criterion: 'Pending correction before the lane guard.' });
     store.release(board, target, 'web-2');
+    fired.push(claimAs(target, strong, 'web'));
+    store.refreeze(board, target, { agentId: 'coordinator', freeze });
     store.editItem(board, target, { agentId: 'coordinator', criterion: 'A new bar, so the next claim freezes it.' });
     fired.push(claimAs(target, strong, 'web'));
     store.releaseLane(board, 'web', { agentId: 'coordinator' });
@@ -868,7 +871,7 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     store.release(board, spare, strong);
     fired.push(claimAs(target, strong, 'web'), claimAs(target, strong, 'web', freeze));
     assert.deepEqual(fired, [...declaredBoardOrder('claim'), 'ok']);
-    assert.deepEqual(fired, ['NO_ITEM', 'NOT_CLAIMABLE', 'ITEM_HELD', 'WRONG_LANE', 'ROUTE', 'BLOCKED', 'HELD', 'LANE_HELD', 'ONE_CLAIM', 'UNKNOWN_SPEC', 'ok']);
+    assert.deepEqual(fired, ['NO_ITEM', 'NOT_CLAIMABLE', 'ITEM_HELD', 'WRONG_LANE', 'ROUTE', 'BLOCKED', 'HELD', 'PENDING_REFREEZE', 'LANE_HELD', 'ONE_CLAIM', 'UNKNOWN_SPEC', 'ok']);
   } finally {
     lab.done();
   }
@@ -884,6 +887,10 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
     const submits = [submitAs(999, 'web-1', SHA_A), submitAs(piece, 'web-1', SHA_A)];
     store.claim(board, piece, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
     submits.push(submitAs(piece, 'web-2', SHA_A));
+    store.editItem(board, piece, { agentId: 'coordinator', criterion: 'A correction before submission.' });
+    submits.push(submitAs(piece, 'web-1', SHA_A));
+    assert.equal(submits.at(-1), 'PENDING_REFREEZE', 'a pending correction stops the board submission before later guards');
+    store.refreeze(board, piece, { agentId: 'web-1', freeze });
     store.submit(board, piece, { agentId: 'web-1', commit: SHA_A, tree: 'tree' });
     verdictOn(board, piece, 'web-2', 'REJECT');
     store.claim(board, piece, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
@@ -1153,7 +1160,7 @@ test('the lifecycle page and the help show the reservation: reserve, and reviewF
   assert.match(page, /^\| reserve \| submitted \| submitted \| agent, coordinator \| .*reviewFree \(REVIEW_HELD\) \|$/m);
   for (const verb of ['accept', 'reject']) assert.match(page, new RegExp(`^\\| ${verb} \\| submitted \\| .*policyAllows \\(COORDINATOR_VERIFIES\\), familyAllows \\(O2_FAMILY_MATCH\\), reviewFree \\(REVIEW_HELD\\), criterionUnchanged`, 'm'));
   assert.match(page, /^\| REVIEW_HELD \| no other agent holds its review under a live lease \| pullboard next --verify/m);
-  assert.match(HELP.all, /^ {2}agent +claim, release, submit, reserve, accept, reject, escalate$/m);
+  assert.match(HELP.all, /^ {2}agent +claim, release, submit, reserve, accept, reject, escalate, refreeze \(when a live claim has a pending coordinator correction\)$/m);
   assert.match(HELP.all, /pullboard next --verify +reserve the next submitted item you can check/);
 });
 

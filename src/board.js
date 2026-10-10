@@ -647,11 +647,9 @@ export function validateItemAddition(board, { by, lane, title, criterion = '', p
 }
 
 /**
- * Change an item's brief, route, criterion or check (B10, B13, B14). The brief says how to build it
- * and may change until the item is verified or withdrawn. The route, the criterion and the check
- * change only while nobody holds the item; changing the criterion or the check drops the frozen
- * bar, so the next claim freezes the new one, in the log for anyone to see. The coordinator or the
- * agent that added the item may edit it.
+ * Change an item's brief, route, criterion or check (B10, B13, B14). The coordinator may make a
+ * claimed criterion/check correction at engine 8; the live holder must refreeze before renewal or
+ * submission, and keeps the claim while adopting the new frozen bar.
  *
  * @param {any} board
  * @param {number} id
@@ -663,7 +661,13 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, c
     const expiredHolder = stored.item_status === 'claimed' && !isHeld(board, stored) ? stored.item_owner : null;
     const { item, next, command, unfreeze } = validateItemEdit(board, id, { agentId, brief, route, criterion, check });
     const baseline = normalizeCheckBaseline(agentId, command, checkBaseline);
-    const clearFrozen = unfreeze || Boolean(expiredHolder);
+    const pendingFields = [
+      ...(next.item_criterion !== item.item_criterion ? ['criterion'] : []),
+      ...(command !== undefined && next.item_check !== item.item_check ? ['check'] : []),
+    ];
+    const pendingRefreeze = (board.executionEngineVersion ?? ENGINE_VERSION) >= 8
+      && item.item_status === 'claimed' && agentId === COORDINATOR && pendingFields.length > 0;
+    const clearFrozen = (unfreeze && !pendingRefreeze) || Boolean(expiredHolder);
     if (expiredHolder) {
       moveItem(board, id, 'lapse', { checks: {}, set: () => ({ item_owner: null, item_lease_until: null }) });
     }
@@ -675,19 +679,32 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, c
       ...(next.item_criterion !== item.item_criterion ? { criterion: next.item_criterion } : {}),
       ...(command !== undefined ? { check: next.item_check } : {}),
       ...(baseline ? { checkBaseline: baseline } : {}),
+      ...(pendingRefreeze ? { pendingRefreeze: pendingFields } : {}),
       ...(clearFrozen && item.item_frozen_digest ? { unfrozen: item.item_frozen_digest } : {}),
       ...(expiredHolder ? { expiredHolder } : {}),
     });
+    if (pendingRefreeze) {
+      insertShout(board, {
+        from: COORDINATOR,
+        to: item.item_owner,
+        text: `The coordinator has a pending ${pendingFields.join(' and ')} correction for #${id}; refreeze it before renewing or submitting.\nnext: pullboard refreeze ${id}`,
+        lanes: [],
+      });
+    }
   });
 }
 
 /** Validate an edit without side effects, so a refused change never starts a shell baseline. */
 export function validateItemEdit(board, id, { agentId, brief, route, criterion, check }) {
+  let item = (board.executionEngineVersion ?? ENGINE_VERSION) >= 8 ? current(board, itemById(board, id)) : null;
+  if (item?.item_status === 'claimed' && agentId !== COORDINATOR) {
+    throw new Refused('HELD', `item #${id} is claimed; only the coordinator may edit it while held; shout coordinator`);
+  }
   const command = coordinatorCheck(agentId, check);
   if ([brief, route, criterion, check].every((value) => value === undefined)) {
     throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "..." or --check "<command>"');
   }
-  const item = current(board, itemById(board, id));
+  item ??= current(board, itemById(board, id));
   if (agentId !== COORDINATOR && agentId !== item.item_created_by) {
     throw new Refused('NOT_YOURS', `only the coordinator or ${item.item_created_by}, who added #${id}, edits it; shout them instead`);
   }
@@ -702,7 +719,11 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
   };
   checkRoute(next.item_route);
   const moved = ['item_route', 'item_criterion', 'item_check'].filter((key) => next[key] !== item[key]);
-  if (moved.length && item.item_status !== 'open') {
+  const routeChanged = next.item_route !== item.item_route;
+  const correctionWhileClaimed = (board.executionEngineVersion ?? ENGINE_VERSION) >= 8
+    && item.item_status === 'claimed' && agentId === COORDINATOR
+    && (next.item_criterion !== item.item_criterion || next.item_check !== item.item_check);
+  if (moved.length && item.item_status !== 'open' && (routeChanged || !correctionWhileClaimed)) {
     throw new Refused('HELD', `item #${id} is ${item.item_status}; change its route, criterion or check only while it is open`);
   }
   checkRouted({ brief: next.item_brief, route: next.item_route, criterion: next.item_criterion, check: next.item_check });
@@ -820,11 +841,11 @@ function declaredCodes(move, id) {
  * @param {any} board
  * @param {number} id
  * @param {string} verb
- * @param {{ checks: Record<string, ((item: any) => Refused | null) | null>, set?: (item: any) => object, before?: (item: any) => void }} how
+ * @param {{ checks: Record<string, ((item: any) => Refused | null) | null>, set?: (item: any) => object, before?: (item: any) => void, transition?: object }} how
  * @returns {any} The item as it was before the move.
  */
-function moveItem(board, id, verb, { checks, set = () => ({}), before = () => {} }) {
-  const move = MOVES.find((entry) => entry.verb === verb);
+function moveItem(board, id, verb, { checks, set = () => ({}), before = () => {}, transition = null }) {
+  const move = transition ?? MOVES.find((entry) => entry.verb === verb);
   if (!move) throw new Refused(UNKNOWN_MOVE.refuse, `${UNKNOWN_MOVE.rule}: ${UNKNOWN_MOVE.next}`);
   let item = null;
   for (const guard of effectiveGuards(move)) {
@@ -965,6 +986,7 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null, 
           return null;
         },
         notHeldByAnother: (found) => (isHeld(board, found) && found.item_owner !== agentId ? new Refused('HELD', `item #${id} is held by ${found.item_owner} until ${found.item_lease_until}`) : null),
+        correctionRefrozen: () => pendingRefreezeProblem(board, id),
         laneOpen: (found) => {
           // Declared: not checked when the caller renews its own live claim.
           const paused = laneHold(board, found.item_lane);
@@ -1074,6 +1096,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
         joined: null,
         [IN_STATE]: notYours,
         isHolder: (found) => (found.item_owner === agentId ? null : notYours()),
+        correctionRefrozen: () => pendingRefreezeProblem(board, id),
         criterionUnchanged: null,
         treeClean: null,
         nothingUntracked: null,
@@ -1451,22 +1474,33 @@ export function withdraw(board, id, { agentId, reason }) {
 }
 
 /**
- * Freeze an item's criterion again after its spec rows changed, and reopen it, so the next claim
- * builds against the text a verdict will check (V3). Explicit and logged: the bar moves only in
- * the open.
+ * Freeze the current criterion and rows again (V2,V3). A pending coordinator correction is
+ * adopted within its live claim, keeping the holder, lease and base; other refreezes reopen the
+ * item so its next claim builds against the bar a verdict will check.
  *
  * @param {any} board
  * @param {number} id
  * @param {{ agentId: string, freeze: (item: any) => { text: string, digest: string } }} who
- * @returns {{ before: string | null, after: string }}
+ * @returns {{ before: string | null, after: string, retainedClaim?: true }}
  */
 export function refreeze(board, id, { agentId, freeze }) {
   return atomic(board, () => {
     let frozen = null;
+    const currentItem = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(id);
+    const pending = currentItem ? pendingRefreeze(board, id) : [];
+    const retainsClaim = (board.executionEngineVersion ?? ENGINE_VERSION) >= 8
+      && currentItem?.item_status === 'claimed' && isHeld(board, currentItem) && pending.length > 0;
+    const transition = MOVES.find((move) => move.verb === 'refreeze' && move.to === (retainsClaim ? 'claimed' : 'open'));
     const item = moveItem(board, id, 'refreeze', {
       checks: {
         joined: null,
         coordinatorOnly: () => onlyCoordinator(agentId, 'refreezes a criterion'),
+        holderOrCoordinator: (found) => {
+          const live = current(board, found);
+          return live.item_owner === agentId || agentId === COORDINATOR
+            ? null
+            : new Refused('NOT_YOURS', `item #${id} is not claimed by you; only its holder or the coordinator refreezes it`);
+        },
         [IN_STATE]: (found) => new Refused('CLOSED', `item #${id} is ${found.item_status}`),
         rowsInForce: (found) => {
           try {
@@ -1478,11 +1512,37 @@ export function refreeze(board, id, { agentId, freeze }) {
           }
         },
       },
-      set: () => ({ item_frozen: frozen.text, item_frozen_digest: frozen.digest, item_owner: null, item_lease_until: null }),
+      set: () => ({
+        item_frozen: frozen.text,
+        item_frozen_digest: frozen.digest,
+        ...(!retainsClaim ? { item_owner: null, item_lease_until: null } : {}),
+      }),
+      transition,
     });
-    logEvent(board, agentId, 'refreeze', id, { before: item.item_frozen_digest, after: frozen.digest });
-    return { before: item.item_frozen_digest, after: frozen.digest };
+    logEvent(board, agentId, 'refreeze', id, { before: item.item_frozen_digest, after: frozen.digest, ...(retainsClaim ? { retainedClaim: true } : {}) });
+    return { before: item.item_frozen_digest, after: frozen.digest, ...(retainsClaim ? { retainedClaim: true } : {}) };
   });
+}
+
+/** Return a pending coordinator correction until a later refreeze event adopts it [V2]. */
+export function pendingRefreeze(board, id) {
+  const lastRefreeze = board.db.prepare("SELECT COALESCE(MAX(event_id), 0) AS event_id FROM event WHERE item_id = ? AND event_kind = 'refreeze'").get(id).event_id;
+  const edits = board.db.prepare("SELECT event_detail FROM event WHERE item_id = ? AND event_kind = 'edit' AND event_id > ? ORDER BY event_id DESC").all(id, lastRefreeze);
+  const fields = new Set();
+  for (const edit of edits) {
+    const details = JSON.parse(edit.event_detail);
+    for (const field of details.pendingRefreeze ?? []) if (['criterion', 'check'].includes(field)) fields.add(field);
+  }
+  return [...fields].sort();
+}
+
+/** Refuse a stale claim action with the exact coordinator repair command [V2]. */
+export function pendingRefreezeProblem(board, id) {
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) < 8) return null;
+  const fields = pendingRefreeze(board, id);
+  return fields.length
+    ? new Refused('PENDING_REFREEZE', `item #${id} has a pending ${fields.join(' and ')} correction; refreeze it before renewing or submitting.\nnext: pullboard refreeze ${id}`)
+    : null;
 }
 
 /**
