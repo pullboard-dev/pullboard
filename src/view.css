@@ -592,7 +592,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 @media (width > 900px) {
   .side-top { gap: 6px; }
   .brand span { display: none; }
-  .brand { justify-content: center; width: 44px; height: 44px; margin: 0 0 0 -10px; padding: 0; }
+  .brand { justify-content: center; width: var(--tap); height: var(--tap); margin: 0 0 0 -10px; padding: 0; }
   :root[data-side="collapsed"] .brand { margin: 0; }
   .switch-btn, :root[data-side="collapsed"] .switch-btn { display: flex; max-width: 16rem; padding: 6px 8px; border-color: transparent; background: none; font-size: 15px; font-weight: 700; }
   :root[data-side="collapsed"] .switch-btn:hover { background: var(--surface-2); }
