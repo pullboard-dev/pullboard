@@ -280,6 +280,10 @@ The `event` table is a SQLite schema object governed by `SCHEMA_VERSION`; its ap
 | `accept` | reviewer | `reason`, `commit` |
 | `reject` | reviewer | `reason`, `commit` |
 | `merged` | coordinator | `commit` |
+| `landing_batch` | coordinator | `batch` |
+| `landing_waiver` | person | `waiver` |
+| `landing_flake` | coordinator | `flake` |
+| `main-moved` | coordinator | `batch`, `items`, `sha` |
 | `withdraw` | coordinator | `reason` |
 | `refreeze` | coordinator | `before`, `after` |
 | `hold` | coordinator | `lane`, `reason` |
@@ -337,3 +341,9 @@ The `pass` event is emitted by `passDecision` only for the coordinator; another 
 <!-- snapshot-files:end -->
 
 The schema, trigger and parser tables are checked against live `openBoard(':memory:')` and `parseSpec` results. The static export is generated and its files, API v1 shapes and page readers are checked by `docs/formats.test.js`.
+
+### Landing records
+
+Engine 8 adds `recordLandingBatch`, `recordLandingWaiver`, `recordLandingFlake` and `finishLandingBatch`. Older engines stop before applying these operations. Their append-only events need no schema migration. A batch snapshot has version 1, identity, base and tip commits, trunk branch, landing worktree, items with their first-containing merge commits, state, owner, log path and revision. Additional owner-lease and environment fields can be added without changing version 1. A revision refuses stale updates. Successful push precedes the atomic merged receipts and single `main-moved` event.
+
+A person waiver records its identity, named test, expiry, reason and person channel. A distinct landing proof records the exact batch tree and each failing test with its covering waiver identity. Pre-push checks every waiver against the current time; this proof never writes an ordinary green-gate stamp. Flake records retain a test path, source digest, failing names and one defect item, so a repeated observation does not create another defect.

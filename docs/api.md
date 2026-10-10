@@ -86,6 +86,7 @@ For example: `flow: review wait average 61 min (1 measured; > 60 min); bottlenec
 | `done` | `version:number`, `id:number`, `commit:string`, `pin:string`, `gate:object` |
 | `verify` | `version:number`, `id:number`, `decision:string`, `reason:string` |
 | `merged` | `version:number`, `id:number`, `commit:string` |
+| `land` | `version:number`, `batch:object\|null`, `landed:array`, `conflicts:array`, `blocked:array`, `culprits:array`, `flakes:array` |
 | `withdraw` | `version:number`, `id:number`, `reason:string` |
 | `refreeze` | `version:number`, `id:number`, `after:string` |
 | `reopen` | `version:number`, `id:number`, `commit:string` |
@@ -280,3 +281,9 @@ A browser action's decoded response is `{version: 1, event, result: {request}}`;
 Row approval and decline first record the person's exact decision through the same authenticated view boundary as the local view, without editing any file. They then create a person-to-coordinator request to run `spec apply`. That request is first in coordinator `resume` and `inbox`. Its status stays `waiting` until the coordinator applies it and answers `done`, or answers `declined <reason>`. Decline resolves the request as `refused` with `REQUEST_DECLINED`, the coordinator's reason and a next step. The browser and relay never run `spec apply`.
 
 `pullboard hold <id> "reason"` holds one open or claimed item; `pullboard hold <id> --off` lifts that hold. Both retain the `hold` JSON shape (`lane`, `held`) and add `id` and `reason` (null when lifted). Held open items are skipped by `next` and refuse new claims with `ITEM_HELD`; an existing live holder can renew and submit. `show` and `list` include the hold actor and reason. Successful `next --json` results may include `reasons` naming skipped holds.
+
+### Landing batches
+
+`pullboard land [--max N] [--dry-run] [--adopt]` is coordinator-only. It merges verified items in verdict order in a separate landing worktree, gates the batch once and records pushed merges. Conflicts and stacked unverified items are named separately. Reproducible failures are bisected; a failing file which passes alone files one flake and holds the batch without retries. Resume includes `landingBatches`, each with its state, owner, exact tip, items and log path.
+
+Only the person can run `pullboard land --waive <test> --until <date> --reason "why"`. A waiver retains every test in the full gate. The batch records its exact tree and each failing test with its covering live waiver; pre-push validates that distinct proof and creates no ordinary green stamp. Expired waivers cannot authorize a push. Existing gate-stamped pushes and `pullboard merged` remain available.

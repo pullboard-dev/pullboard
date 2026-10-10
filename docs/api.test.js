@@ -17,7 +17,7 @@ function readShapeTable(start, end) {
   for (const line of section.split(/\r?\n/)) {
     const row = /^\| \x60([^\x60]+)\x60 \| (.+) \|$/.exec(line);
     if (!row) continue;
-    const fields = [...row[2].matchAll(/\x60([^:\x60]+):([^\x60]+)\x60/g)].map((match) => [match[1], match[2]]);
+    const fields = [...row[2].matchAll(/\x60([^:\x60]+):([^\x60]+)\x60/g)].map((match) => [match[1], match[2].replaceAll('\\|', '|')]);
     assert.ok(fields.length, 'shape row lists fields: ' + row[1]);
     assert.equal(rows.has(row[1]), false, 'shape row is unique: ' + row[1]);
     rows.set(row[1], Object.fromEntries(fields));

@@ -92,6 +92,8 @@ Work
 Coordinator
   pullboard sweep --run "<checker>" --check "<checker on {file}>" [--route light] [--max 20] [--dry-run]
                                         file one item per file a linter, type checker or test reporter flags
+  pullboard land [--max N] [--dry-run] [--adopt]  gate and push a durable batch of verified items
+  pullboard land --waive <test> --until <date> --reason \"why\"  the person records an expiring test waiver
   pullboard merged <id> <commit>        record where verified work landed
   pullboard withdraw <id> <reason>      drop an item nobody should build
   pullboard refreeze <id>               re-freeze a criterion after its spec rows changed
@@ -160,7 +162,7 @@ Reject reasons: TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HE
 
 const HELP_NAMES = [
   'tour', 'init', 'worktree', 'join', 'takeover', 'whoami', 'lanes', 'status', 'resources', 'settings', 'view', 'view export',
-  'serve', 'relay', 'relay recover', 'resume', 'hooks', 'add', 'edit', 'escalate', 'run', 'list', 'doctor', 'skills', 'show', 'next',
+  'serve', 'relay', 'relay recover', 'resume', 'hooks', 'add', 'edit', 'escalate', 'run', 'list', 'doctor', 'skills', 'show', 'next', 'land',
   'check', 'claim', 'release', 'submit', 'done', 'verify', 'fact', 'shout', 'answer', 'pass', 'decisions', 'inbox', 'export', 'import',
   'sweep', 'merged', 'withdraw', 'refreeze', 'reopen', 'hold', 'stats', 'ledger', 'log', 'spec', 'spec check', 'spec view',
   'spec show', 'spec unmet', 'spec signoff', 'spec signers', 'spec signers add', 'forget', 'prompt', 'gate', 'hook',
@@ -186,6 +188,7 @@ const HELP_EXAMPLES = {
   status: 'pullboard status', view: 'pullboard view', stats: 'pullboard stats --since 2026-10-08', log: 'pullboard log 12', ledger: 'pullboard ledger',
   roadmap: 'pullboard roadmap', milestone: 'pullboard milestone add "0.7.0" --items 12,13',
   edit: 'pullboard edit 12 --brief "Add the upload page"', release: 'pullboard release 12',
+  land: 'pullboard land --max 4',
   reopen: 'pullboard reopen 12 --note "correct the frozen criterion"',
   escalate: 'pullboard escalate 12 --note "needs a manual step"', next: 'pullboard next',
   run: 'pullboard run --agent "node agent.js"', 'view export': 'pullboard view --export ./site',

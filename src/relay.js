@@ -34,7 +34,7 @@ const BASELINE_LOCAL_MOVES = new WeakSet();
 const BASELINE_FAILURES = new WeakMap();
 const AUTH_NOTICES = new WeakSet();
 const ORDERED_MOVE_COMMANDS = new Set(['add', 'edit', 'fact', 'escalate', 'run', 'sweep', 'next', 'claim', 'hold', 'release',
-  'submit', 'done', 'verify', 'merged', 'withdraw', 'refreeze', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget', 'join', 'worktree']);
+  'submit', 'done', 'verify', 'merged', 'land', 'withdraw', 'refreeze', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget', 'join', 'worktree']);
 
 /** Require a trusted origin; HTTP exists only for loopback development and test relays. */
 export function relayOrigin(address) {
@@ -779,7 +779,7 @@ async function sendPending(root, file, state, io) {
 function credentialActor(move) {
   const args = move.args;
   if (move.personRequest || ['register', 'ensureCoordinator'].includes(move.operation)) return 'machine';
-  if (move.operation === 'recordRowDecisions'
+  if (['recordRowDecisions', 'recordLandingWaiver'].includes(move.operation)
     || move.operation === 'answerDecision' && args[1]?.asPerson
     || move.operation === 'shout' && args[0]?.request) return 'person';
   return relayMoveActor(move);

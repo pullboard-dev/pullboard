@@ -26,6 +26,8 @@ test('every current operation selects its native actor credential without a seco
       expected: { command: 'true', main: 'a'.repeat(40), result: 'pending', request: '11111111-1111-4111-8111-111111111111' },
       baseline: { command: 'true', main: 'a'.repeat(40), result: 'green' },
     }];
+    if (['recordLandingBatch', 'recordLandingFlake', 'finishLandingBatch'].includes(operation)) args = [options];
+    if (operation === 'recordLandingWaiver') { args = [{ ...options, agentId: 'person', channel: 'terminal' }]; kind = 'person'; }
     if (operation === 'addMilestone') args = [{ agentId: actor, name: 'Credential fixture', items: [] }];
     if (['holdLane', 'releaseLane'].includes(operation)) args = [box.lane, options];
     if (operation === 'applyRowDecisions') args = [{ agentId: actor, events: [] }];
