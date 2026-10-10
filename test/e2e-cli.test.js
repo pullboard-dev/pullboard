@@ -92,7 +92,8 @@ test('the tour runs a reject and its rework on a throwaway repo, in under thirty
     .replace(/\b[0-9a-f]{12}\b/g, '<sha>')
     .replace(/claimed #1 until \S+ criterion frozen/g, 'claimed #1 until <time> criterion frozen')
     // A gate's rounded wall time is not output NO_COLOR could change, so a slower gate must still compare equal.
-    .replace(/gate (green|red) in \d+s/g, 'gate $1 in <n>s');
+    .replace(/gate (green|red) in \d+s/g, 'gate $1 in <n>s')
+    .replace(/\b(wall|slot wait) [0-9.]+s/g, '$1 <n>s');
   assert.equal(normalizeTourRoot(noColor.stdout), normalizeTourRoot(shown.stdout), 'NO_COLOR preserves the plain tour output');
 
   const repo = /Look around: cd (\S+) && pullboard log/.exec(shown.stdout)[1];
