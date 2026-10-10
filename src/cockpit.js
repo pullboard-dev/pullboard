@@ -105,8 +105,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   <section data-pane="items" class="two">
     <div class="primary">
       <div class="card-panel toolbar"><div class="seg" id="state-chips" role="group" aria-label="Show"></div><div class="find"><select id="lane-pick" aria-label="Lane"></select><input id="q" type="search" placeholder="Search" aria-label="Search titles, lanes or ids"></div><button class="go" id="new-item" type="button">New item</button></div>
-      <section class="needs-you" id="needs" aria-label="What needs you" hidden></section>
-      <ol class="card-panel chain" id="chain" aria-label="Items"></ol>
+      <div class="card-panel list-card"><ol class="needs" id="needs" aria-label="What needs you" hidden></ol><ol class="chain" id="chain" aria-label="Items"></ol></div>
     </div>
     <aside class="card-panel detail" aria-label="Item detail">
       <div id="detail"></div>
@@ -123,12 +122,10 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   </section>
   <section data-pane="shouts" class="two narrow" id="shouts-pane">
     <div class="primary">
-      <section class="needs-you" id="decisions" aria-label="Decisions needed" hidden></section>
-      <form id="shout-form" class="card-panel shout-form"><p class="answering" id="answering" hidden><span>Answering <b id="answering-who"></b>: <span id="answering-q"></span></span><button class="ghost" id="answer-cancel" type="button">Cancel</button></p><div class="composer"><input id="shout-to" type="hidden" value="coordinator"><span class="to-chip" id="shout-to-chip" hidden></span><textarea id="shout-text" required rows="1" placeholder="Shout to the coordinator" aria-label="Message"></textarea><button class="send" id="shout-send" type="submit" aria-label="Shout" title="Shout (Enter; Shift+Enter for a new line)"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button></div></form>
-      <div class="card-panel feed" id="feed"></div>
+      <div class="card-panel shouts-card"><form id="shout-form" class="shout-form"><p class="answering" id="answering" hidden><span>Answering <b id="answering-who"></b>: <span id="answering-q"></span></span><button class="ghost" id="answer-cancel" type="button">Cancel</button></p><div class="composer"><input id="shout-to" type="hidden" value="coordinator"><span class="to-chip" id="shout-to-chip" hidden></span><textarea id="shout-text" required rows="1" placeholder="Shout to the coordinator" aria-label="Message"></textarea><button class="send" id="shout-send" type="submit" aria-label="Shout" title="Shout (Enter; Shift+Enter for a new line)"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button></div><span class="asks-slot" id="asks-slot"></span></form><section class="needs-you" id="decisions" aria-label="Decisions needed" hidden></section><div class="feed" id="feed"></div></div>
     </div>
     <aside class="card-panel detail" aria-label="Agents and lanes">
-      <div><h3>Agents</h3><div id="agents"></div></div>
+      <div><h3 class="panel-head">Agents<button class="link" data-agents-toggle type="button">hide</button></h3><div id="agents"></div></div>
       <div><h3>Lanes</h3><div id="lanes"></div></div>
       <form id="hold-form" class="panel-form"><label>Hold a lane<select id="hold-lane"></select></label><label>Why<input id="hold-reason" required placeholder="What its agents should wait for"></label><button class="go" type="submit">Hold lane</button></form>
     </aside>
@@ -1193,14 +1190,16 @@ function render() {
     ...p.holds.map((h) => ['tab:shouts', h.hold_lane, h.hold_reason, 'lane held by ' + agentName(h.hold_by), h.hold_at]),
   ];
   const drafts = p.spec.filter((r) => r.status === 'draft' && !r.decision).length;
-  $('needs').hidden = !needs.length && !drafts;
-  /** Render the same Needs-you entry as linked text and an action, or plain read-only text. */
-  const needRow = ([target, ref, text, what, at]) => {
-    const status = '<em>' + esc(what) + (at ? ', ' + age(at) : '') + ' →</em>';
-    const action = readOnly ? status : '<button class="ny-open" data-go="' + esc(target) + '" type="button">' + status + '</button>';
-    return '<div class="ny"><code>' + esc(ref) + '</code><span class="ny-text">' + rich(text, titles, !readOnly) + '</span>' + action + '</div>';
-  };
-  $('needs').innerHTML = '<div class="head"><i></i>Needs you</div>' + needs.slice(0, 6).map(needRow).join('') + (needs.length > 6 ? '<div class="muted more">and ' + (needs.length - 6) + ' more</div>' : '') + (drafts ? needRow(['tab:spec', String(drafts), 'draft spec rows to approve or drop', 'review']) : '');
+  // Each of the person's calls is a row at the head of Active, shaped like an item: what it is first, then NEEDS YOU and
+  // its kind where an item has its lane, and what to do at the right. Every call is a row; the draft rows are one row
+  // with their count. Read-only, a row is its words, opening nothing.
+  $('needs').hidden = (!needs.length && !drafts) || view.state !== 'active' || Boolean(view.lane);
+  const needRow = ([target, ref, text, what, at], kind, action) => '<li class="row ask"' + (readOnly ? '' : ' data-go="' + esc(target) + '"') + '><span class="dot ask"></span><div><div class="t">' + (ref ? '<span>' + esc(ref) + '</span>' : '') + rich(text, titles, !readOnly) + '</div>'
+    + (at ? '<span class="row-age">' + age(at) + '</span>' : '') + '<div class="meta"><span class="why"><b>NEEDS YOU</b> ' + esc(kind) + '</span></div></div><span class="chip warn">' + esc(action) + '</span></li>';
+  const needKind = (entry) => entry[3] === 'decide' ? needRow([entry[0], '', entry[2], entry[3], entry[4]], 'a decision, asked by ' + entry[1], 'decide')
+    : entry[0].startsWith('spec:') ? needRow(entry, 'an open question in SPEC.md', 'answer') : needRow(entry, entry[3], 'release');
+  $('needs').innerHTML = needs.map(needKind).join('')
+    + (drafts ? needRow(['tab:spec', String(drafts), 'draft spec rows to approve or drop'], 'Spec rows waiting on you', 'review') : '');
 
   const lanes = p.lanes;
   const working = lanes.filter((l) => l !== 'coordinator');
@@ -1334,9 +1333,8 @@ function render() {
   // Opened from the status bar's unread, the feed is exactly those shouts, the ones after the mark the person had.
   const unread = view.unread?.root === view.root ? view.unread : null;
   const heard = unread ? p.shouts.filter((x) => x.shout_id > unread.after) : view.agent ? p.shouts.filter((x) => x.shout_from === view.agent || x.shout_to === view.agent) : p.shouts;
-  const bar = '<div class="feed-bar">' + (unread ? '<span><b>' + heard.length + '</b> unread <button class="link" data-unread type="button">show all</button></span>'
-    : view.agent ? '<span>Shouts with <b>' + esc(agentName(view.agent)) + '</b> <button class="link" data-agent="" type="button">show all</button></span>' : '<span></span>')
-    + '<button class="link" data-agents-toggle type="button">' + (view.agentsHidden ? 'Show agents' : 'Hide agents') + '</button></div>';
+  const bar = !unread && !view.agent ? '' : '<div class="feed-bar">' + (unread ? '<span><b>' + heard.length + '</b> unread <button class="link" data-unread type="button">show all</button></span>'
+    : '<span>Shouts with <b>' + esc(agentName(view.agent)) + '</b> <button class="link" data-agent="" type="button">show all</button></span>') + '</div>';
   $('shouts-pane').classList.toggle('bare', view.agentsHidden);
   // Who has heard a shout of the person's: the agents it reached whose inbox has read past it. Each agent's read
   // cursor is already on the board, so this is presentation only; reading is all it says, not acting on it.
@@ -1360,12 +1358,14 @@ function render() {
   foldShouts();
   // Each ask waits here until it is answered (B21); the answer itself is typed in the form below. The
   // person answers the ones passed up to them; the rest wait on whoever holds them (B26).
-  $('decisions').hidden = !p.decisions.length && !p.asked.length;
+  $('decisions').hidden = !p.decisions.length && !(p.asked.length && view.open.waiting);
+  // The asks waiting on others are a toggle at the end of the composer's line, beside Show agents while the panel is hidden.
+  $('asks-slot').innerHTML = (p.asked.length ? '<button class="asks-toggle" data-fold="waiting" type="button" aria-expanded="' + Boolean(view.open.waiting) + '" title="' + esc('Asks between agents, waiting on others: ' + p.asked.map((d) => agentName(d.shout_from) + ' asks ' + agentName(d.shout_to)).join(', ')) + '">' + p.asked.length + (p.asked.length === 1 ? ' ask' : ' asks') + ' waiting <span aria-hidden="true">' + (view.open.waiting ? '▴' : '▾') + '</span></button>' : '')
+    + (view.agentsHidden ? '<button class="asks-toggle" data-agents-toggle type="button">Show agents</button>' : '');
   // The asks as the feed's cards, folded to three lines: the person's to answer, then those waiting on others.
   $('decisions').innerHTML = (p.decisions.length ? '<div class="head"><i></i>Decision needed</div>' + p.decisions.map((d) => card(d, '<button class="ghost answer" data-go="decide:' + d.shout_id + '" type="button">Answer</button>', false)).join('') : '')
-    // Asks waiting on someone else are not the person's to answer, so they fold to one line that opens on demand.
-    + (p.asked.length ? foldLine('waiting', p.asked.length + (p.asked.length === 1 ? ' ask' : ' asks') + ' waiting on others', p.asked.map((d) => agentName(d.shout_from) + ' asks ' + agentName(d.shout_to)).join(', '))
-      + (view.open.waiting ? p.asked.map((d) => card(d, '', false)).join('') : '') : '');
+    // Asks waiting on someone else are not the person's to answer: they show only once the composer's toggle opens them.
+    + (p.asked.length && view.open.waiting ? p.asked.map((d) => card(d, '', false)).join('') : '');
   foldShouts();
   // Each agent with what it holds: its claim, then its work sent back, then its work waiting for a
   // verdict. The worktree path is there on hover; what the person reads is who is doing what.
@@ -1388,8 +1388,8 @@ function render() {
   const row = (a) => {
     const mine = holding(a), first = mine[0];
     return '<div class="agent-card' + marks(a) + '"><button class="agent-row" data-agent="' + esc(a.agent_id) + '" title="' + esc(tip(a)) + '" type="button">' + face(a)
-      + '<span class="agent-who"><b>' + esc(agentName(a.agent_id)) + '</b>' + (a.lastMoveAt ? '<time data-ago="' + esc(a.lastMoveAt) + '">' + ago(a.lastMoveAt) + '</time>' : '') + '</span>'
-      + '<span class="agent-doing"><span class="agent-what"><i>#' + first.id + '</i> ' + esc(first.title) + '</span>' + state(a, first) + (mine.length > 1 ? '<span class="agent-more">+' + (mine.length - 1) + '</span>' : '') + '</span></button>'
+      + '<span class="agent-who"><b>' + esc(agentName(a.agent_id)) + '</b>' + state(a, first) + (mine.length > 1 ? '<span class="agent-more">+' + (mine.length - 1) + '</span>' : '') + (a.lastMoveAt ? '<time data-ago="' + esc(a.lastMoveAt) + '">' + ago(a.lastMoveAt) + '</time>' : '') + '</span>'
+      + '<span class="agent-doing"><span class="agent-what"><i>#' + first.id + '</i> ' + esc(first.title) + '</span></span></button>'
       + (view.agent === a.agent_id ? mine.map((i) => '<div class="agent-work" data-item="' + i.id + '" data-go="item:' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span>' + state(a, i) + '</div>').join('') : '') + '</div>';
   };
   // The panel is for who is doing what: agents holding nothing fold to one line that opens to each of them, and stays
