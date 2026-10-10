@@ -86,7 +86,7 @@ For example: `flow: review wait average 61 min (1 measured; > 60 min); bottlenec
 | `done` | `version:number`, `id:number`, `commit:string`, `pin:string`, `gate:object` |
 | `verify` | `version:number`, `id:number`, `decision:string`, `reason:string` |
 | `merged` | `version:number`, `id:number`, `commit:string` |
-| `land` | `version:number`, `batch:object`, `landed:array`, `conflicts:array`, `blocked:array`, `culprits:array`, `flakes:array` |
+| `land` | `version:number`, `batch:object\|null`, `landed:array`, `conflicts:array`, `blocked:array`, `culprits:array`, `flakes:array` |
 | `withdraw` | `version:number`, `id:number`, `reason:string` |
 | `refreeze` | `version:number`, `id:number`, `after:string` |
 | `reopen` | `version:number`, `id:number`, `commit:string` |

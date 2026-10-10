@@ -201,6 +201,7 @@ function shapeFor(command, subcommand) {
 
 /** Match one catalog field to its declared JSON value type. */
 function hasType(value, type) {
+  if (type.includes('|')) return type.split('|').some((part) => hasType(value, part));
   if (type === 'array') return Array.isArray(value);
   if (type === 'object') return value !== null && typeof value === 'object' && !Array.isArray(value);
   if (type === 'null') return value === null;
@@ -630,6 +631,10 @@ test('[A1] every catalog command and subcommand has a real CLI exercise', () => 
   json(source, source.repo, 'relay');
   json(source, source.repo, 'relay', ['off']);
   const catalog = json(source, source.repo, 'add', ['app', 'Catalog item', '--criterion', 'catalog coverage'], 'add').item;
+  const landing = json(source, source.repo, 'land', ['--dry-run']);
+  assert.equal(landing.batch, null);
+  assert.deepEqual(landing.landed, []);
+  assert.deepEqual(landing.items, []);
   json(source, source.repo, 'roadmap');
   json(source, source.repo, 'milestone', ['add', 'Catalog', '--items', String(catalog.item_id)], 'add');
   json(source, source.repo, 'milestone', ['items', 'Catalog', '--remove', String(catalog.item_id)], 'items');
