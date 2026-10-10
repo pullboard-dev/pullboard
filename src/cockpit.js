@@ -67,7 +67,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
 <aside class="side" id="side" aria-label="Projects">
   <div class="side-top">
     <button class="brand" id="side-toggle" type="button" aria-pressed="false" aria-controls="side-body" aria-label="Collapse the project list" title="Collapse the project list"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg><span>Pullboard</span></button>
-    <button class="switch-btn" id="proj-switch" type="button" aria-expanded="false" aria-controls="side-body"><span id="proj-name">Projects</span><b class="need" id="proj-elsewhere" title="Needs you in other projects" hidden></b><small>▾</small></button>
+    <button class="switch-btn" id="proj-switch" type="button" aria-expanded="false" aria-controls="side-body"><span id="proj-name">Projects</span><small>▾</small></button>
     <button class="theme-btn" id="theme" type="button" title="Theme: system"><svg class="sys" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="currentColor" d="M8 2a6 6 0 0 1 0 12Z"/></svg><svg class="sun" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M8 1.5v1.2M8 13.3v1.2M1.5 8h1.2M13.3 8h1.2M3.4 3.4l.85.85M11.75 11.75l.85.85M3.4 12.6l.85-.85M11.75 4.25l.85-.85"/></svg><svg class="moon" viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M13.6 9.6A6 6 0 1 1 6.4 2.4a5.2 5.2 0 0 0 7.2 7.2Z"/></svg></button>
   </div>
   <div class="side-body" id="side-body">
@@ -79,14 +79,13 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
 <div class="body">
 <header class="top">
   <nav class="tabs" id="tabs" aria-label="Board">
-    <button class="tab" data-tab="items" type="button">Items<b id="count-items"></b></button>
-    <button class="tab" data-tab="shouts" type="button">Shouts<b id="count-shouts"></b></button>
-    <button class="tab" data-tab="spec" type="button">Spec<b id="count-spec"></b></button>
-    <button class="tab" data-tab="doctrine" type="button">Doctrine<b id="count-doctrine"></b></button>
+    <button class="tab" data-tab="items" type="button">Items</button>
+    <button class="tab" data-tab="shouts" type="button">Shouts</button>
+    <button class="tab" data-tab="spec" type="button">Spec</button>
+    <button class="tab" data-tab="doctrine" type="button">Doctrine</button>
     <button class="tab" data-tab="activity" type="button">Activity</button>
     <button class="tab" data-tab="roadmap" type="button">Roadmap</button>
   </nav>
-  <span class="live" id="live"></span>
 </header>
 <main>
   <section class="card-panel first">
@@ -107,7 +106,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   <section class="card-panel person-requests" id="person-requests" aria-label="Your requests" aria-live="polite" hidden></section>
   <section data-pane="items" class="two">
     <div class="primary">
-      <div class="card-panel toolbar"><div class="seg" id="state-chips" role="group" aria-label="Show"></div><input id="q" type="search" placeholder="Search" aria-label="Search titles, lanes or ids"><button class="go" id="new-item" type="button">New item</button></div>
+      <div class="card-panel toolbar"><div class="seg" id="state-chips" role="group" aria-label="Show"></div><div class="find"><select id="lane-pick" aria-label="Lane"></select><input id="q" type="search" placeholder="Search" aria-label="Search titles, lanes or ids"></div><button class="go" id="new-item" type="button">New item</button></div>
       <section class="needs-you" id="needs" aria-label="What needs you" hidden></section>
       <ol class="card-panel chain" id="chain" aria-label="Items"></ol>
     </div>
@@ -153,6 +152,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
 </main>
 </div>
 </div>
+<footer class="status${snapshot ? ' snap' : ''}" aria-label="Board status"><span class="live" id="live"></span><span class="status-board" id="status-board"></span></footer>
 <div class="spec-reason-backdrop" id="spec-decline-dialog" hidden>
   <form class="spec-reason-dialog" id="spec-decline-form" aria-labelledby="spec-decline-title">
     <h2 id="spec-decline-title">Decline spec row</h2>
@@ -184,7 +184,7 @@ function homeTab() {
   const kept = keep('pb.tab');
   return kept && kept !== 'roadmap' ? kept : 'items';
 }
-const view = { root: keep('pb.project'), tab: addressTab() || homeTab(), seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null }, agent: null, agentsHidden: keep('pb.agents') === 'hidden', allAgents: false };
+const view = { root: keep('pb.project'), tab: addressTab() || homeTab(), seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null }, agent: null, allAgents: false, agentsHidden: keep('pb.agents') === 'hidden', open: {} };
 if (snapshot) view.state = 'all';
 let data = null;
 let seen = '';
@@ -779,7 +779,7 @@ async function refresh() {
     snapshotReplay.index = snapshotReplay.events.length;
     replayControls();
   }
-  $('live').textContent = snapshot ? 'read-only snapshot' : 'live · ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+  $('live').textContent = snapshot ? 'read-only snapshot' : '';
 }
 
 /** Display the current event and make the replay's play, pause and end states explicit. */
@@ -916,11 +916,6 @@ function renderSide() {
   }).join('');
   const loose = data.projects.filter((repo) => !groupedRoots.has(repo.root)).map(repoButton).join('');
   $('proj-list').innerHTML = grouped || loose ? grouped + loose : '<div class="empty">None yet.</div>';
-  const currentGroup = data.groups.find((group) => group.key === view.root);
-  const currentRoots = new Set(currentGroup ? currentGroup.repos.map((repo) => repo.root) : [view.root]);
-  const elsewhere = data.projects.filter((x) => !currentRoots.has(x.root)).reduce((n, x) => n + needCount(x), 0);
-  $('proj-elsewhere').textContent = elsewhere ? elsewhere + ' elsewhere' : '';
-  $('proj-elsewhere').hidden = !elsewhere;
   const p = data.project;
   const selectedGroup = data.groups.find((group) => group.key === view.root);
   $('proj-name').textContent = selectedGroup?.name || (p ? (data.projects.find((x) => x.root === view.root) || { name: p.root.split('/').pop() }).name : 'No project');
@@ -1101,9 +1096,12 @@ function milestoneRow(row, titles) {
  * highlighted line. A milestone with no items says so, rather than draw an empty bar.
  */
 function roadmapCards(p, titles) {
-  const milestones = p.milestones || [];
+  // Opened from the status bar's release, the Roadmap is that release alone, with a way back to all of them.
+  const only = view.roadmapOnly && (p.milestones || []).some((m) => m.name === view.roadmapOnly) ? view.roadmapOnly : null;
+  const milestones = (p.milestones || []).filter((m) => !only || m.name === only);
+  const lead = only ? '<div class="roadmap-only"><span>' + esc(only) + '</span><button class="link" data-roadmap-all type="button">show all</button></div>' : '';
   if (!milestones.length) return '<div class="card-panel empty">No milestones yet. The coordinator adds one with <code class="inline">pullboard milestone add</code>.</div>';
-  return milestones.map((milestone) => {
+  return lead + milestones.map((milestone) => {
     const rows = milestone.items.map((entry) => milestoneItem(entry, p));
     const done = rows.filter((row) => row.state === 'verified').length;
     const name = esc(milestone.name);
@@ -1140,9 +1138,6 @@ function render() {
   }).join('');
   const items = p.items.filter((i) => i.status !== 'withdrawn');
   const active = items.filter((i) => stateOf(i) !== 'verified');
-  $('count-items').textContent = active.length || '';
-  $('count-spec').textContent = p.spec.filter((r) => ['pending', 'draft'].includes(r.status) && !r.decision).length || '';
-  $('count-doctrine').textContent = p.practice.filter((r) => ['pending', 'draft'].includes(r.status)).length || '';
   const titles = new Map(p.items.map((i) => [String(i.id), i.title]));
   $('roadmap').innerHTML = roadmapCards(p, titles);
 
@@ -1181,28 +1176,47 @@ function render() {
   // state, withdrawn items included; browsing leaves those out.
   const matching = (q ? p.items : items)
     .filter((i) => !q || ('#' + i.id + ' ' + i.title + ' ' + i.lane + ' ' + i.specs.join(' ') + ' ' + (i.criterion || '')).toLowerCase().includes(q));
-  const inState = (s) => (i) => s === 'all' || (s === 'active' ? !['verified', 'withdrawn'].includes(stateOf(i)) : stateOf(i) === s);
+  // Gated is one test, shared by the rows, the Gated filter and the status bar: open and waiting on an item or a held lane.
+  const heldLanes = new Map(p.holds.map((h) => [h.hold_lane, h]));
+  const gatedOf = (i) => stateOf(i) === 'open' && (i.blockedBy.length > 0 || heldLanes.has(i.lane));
+  const inState = (s) => (i) => s === 'all' || (s === 'active' ? !['verified', 'withdrawn'].includes(stateOf(i)) : s === 'gated' ? gatedOf(i) : stateOf(i) === s);
   const names = { active: 'Active', verified: 'Verified', all: 'All' };
-  $('state-chips').innerHTML = Object.keys(names).map((s) => '<button data-state="' + s + '" class="' + (view.state === s ? 'on' : '') + '" type="button">' + names[s] + '<b>' + matching.filter(inState(s)).length + '</b></button>').join('');
-  const shown = matching.filter(inState(view.state)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  // The status bar can open a narrower list; it shows as a fourth choice until another is picked.
+  if (view.state === 'verify') names.verify = 'To verify';
+  if (view.state === 'gated') names.gated = 'Gated';
+  // A lane narrows the list as a state does, and each counts within the other's choice.
+  const inLane = (lane) => (i) => !lane || i.lane === lane;
+  if (view.lane && !matching.some(inLane(view.lane))) view.lane = null;
+  $('state-chips').innerHTML = Object.keys(names).map((s) => '<button data-state="' + s + '" class="' + (view.state === s ? 'on' : '') + '" type="button">' + names[s] + '<b>' + matching.filter(inLane(view.lane)).filter(inState(s)).length + '</b></button>').join('');
+  const inView = matching.filter(inState(view.state));
+  const laneCounts = [...inView.reduce((m, i) => m.set(i.lane, (m.get(i.lane) || 0) + 1), new Map())].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  if (view.lane && !laneCounts.some(([lane]) => lane === view.lane)) laneCounts.push([view.lane, 0]);
+  const pick = $('lane-pick'), options = [['', 'All lanes'], ...laneCounts.map(([lane, n]) => [lane, lane + ' · ' + n])].map(([lane, label]) => '<option value="' + esc(lane) + '">' + esc(label) + '</option>').join('');
+  // Rewriting an open picker closes it, so it is rewritten only when the lanes or their counts change.
+  if (pick.dataset.options !== options) { pick.innerHTML = options; pick.dataset.options = options; }
+  pick.value = view.lane || '';
+  pick.hidden = laneCounts.length < 2 && !view.lane;
+  const shown = inView.filter(inLane(view.lane)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   // With nothing picked, the detail shows the first row, and keeps it when a refresh reorders the list.
   // While another project loads, the item picked there waits for its own board.
   if (data.root === view.root && !view.adding && !p.items.some((i) => i.id === view.item)) view.item = shown.length ? shown[0].id : null;
-  const heldLanes = new Map(p.holds.map((h) => [h.hold_lane, h]));
   // An open item's chip, the same in its row and its detail: gated, its lane held, or unclaimed.
   const openChip = (i) => i.blockedBy.length || heldLanes.has(i.lane) ? '<span class="chip gate">' + (i.blockedBy.length ? 'gated' : 'lane held') + '</span>' : chip('open');
   $('chain').innerHTML = shown.length ? shown.map((i) => {
     const s = stateOf(i);
-    const who = s === 'building' ? i.owner : [i.builtBy, i.verifiedBy].filter(Boolean).join(' → ');
     // What an open item waits on, if anything: items not yet verified, or a hold on its lane.
     const hold = s === 'open' ? heldLanes.get(i.lane) : null;
     const waits = s === 'open' && i.blockedBy.length ? i.blockedBy : [];
-    const gated = waits.length > 0 || !!hold;
+    const gated = gatedOf(i);
     const pills = (waits.length ? '<span class="gate">' + waits.map((id, index) => '<span class="wait-unit">' + (index ? '' : 'waits on ') + '<button class="ref" data-go="item:' + id + '" type="button">#' + id + '</button></span>').join(', ') + '</span>' : '') + (hold ? '<span class="gate">lane held: ' + linked(hold.hold_reason, titles) + '</span>' : '');
     const tag = s === 'building' && i.owner ? '<span class="chip busy" title="building, held by ' + esc(i.owner) + '">' + esc(i.owner) + '</span>'
       : s === 'verify' && i.reviewer ? '<span class="chip warn" title="reviewing until ' + esc(when(i.reviewUntil)) + '">' + esc(i.reviewer) + ' reviewing</span>'
       : s === 'open' ? openChip(i) : chip(s);
-    return '<li class="row' + (view.item === i.id ? ' on' : '') + (gated ? ' gated' : '') + '" data-item="' + i.id + '" title="' + esc(i.title) + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + rich(i.title, titles) + '</div><div class="meta"><span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span>' + esc(i.specs.join(', ')) + '</span>' : '') + (who ? '<span class="who">' + esc(who) + '</span>' : '') + pills + '<span>' + age(i.updatedAt) + '</span>' + (rejected(i) ? '<span class="why">' + linked(i.verdict.reason + ': ' + firstLine(i.verdict.note), titles) + '</span>' : '') + '</div></div>' + tag + '</li>';
+    return '<li class="row s-' + s + (view.item === i.id ? ' on' : '') + (gated ? ' gated' : '') + '" data-item="' + i.id + '" title="' + esc(i.title) + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + rich(i.title, titles) + '</div><span class="row-age">' + age(i.updatedAt) + '</span><div class="meta">'
+      // A rejected row's second line is its verdict; any other row's is its lane and the spec ids it serves.
+      + (rejected(i) ? '<span class="why"><b>' + esc(i.verdict.reason) + '</b> ' + linked(firstLine(i.verdict.note), titles) + '</span>'
+        : '<span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span class="specs" title="' + esc(i.specs.join(', ')) + '">' + esc(i.specs.slice(0, 3).join(', ') + (i.specs.length > 3 ? ' +' + (i.specs.length - 3) : '')) + '</span>' : ''))
+      + pills + '</div></div>' + tag + '</li>';
   }).join('') : '<li class="empty">' + (items.length ? 'No items match.' : snapshot ? 'No items at this event.' : 'No items yet. Add the first one with New item.') + '</li>';
 
   const item = p.items.find((i) => i.id === view.item);
@@ -1274,8 +1288,11 @@ function render() {
   // The coordinator's mark is the board's own: a square with the Pullboard logo, so it stands out from the agents.
   const LEAD = '<svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg>';
   const lead = (from) => from === 'coordinator';
-  const heard = view.agent ? p.shouts.filter((x) => x.shout_from === view.agent || x.shout_to === view.agent) : p.shouts;
-  const bar = '<div class="feed-bar">' + (view.agent ? '<span>Shouts with <b>' + esc(view.agent) + '</b> <button class="link" data-agent="" type="button">show all</button></span>' : '<span></span>')
+  // Opened from the status bar's unread, the feed is exactly those shouts, the ones after the mark the person had.
+  const unread = view.unread?.root === view.root ? view.unread : null;
+  const heard = unread ? p.shouts.filter((x) => x.shout_id > unread.after) : view.agent ? p.shouts.filter((x) => x.shout_from === view.agent || x.shout_to === view.agent) : p.shouts;
+  const bar = '<div class="feed-bar">' + (unread ? '<span><b>' + heard.length + '</b> unread <button class="link" data-unread type="button">show all</button></span>'
+    : view.agent ? '<span>Shouts with <b>' + esc(view.agent) + '</b> <button class="link" data-agent="" type="button">show all</button></span>' : '<span></span>')
     + '<button class="link" data-agents-toggle type="button">' + (view.agentsHidden ? 'Show agents' : 'Hide agents') + '</button></div>';
   $('shouts-pane').classList.toggle('bare', view.agentsHidden);
   // Who has heard a shout of the person's: the agents it reached whose inbox has read past it. Each agent's read
@@ -1296,14 +1313,16 @@ function render() {
     + (lead(x.shout_from) ? '<span class="avatar">' + LEAD + '</span>' : '<span class="avatar' + (initials(x.shout_from).length > 3 ? ' wide' : '') + '" aria-hidden="true">' + esc(initials(x.shout_from)) + '</span>') + '<div class="shout-main"><header><b class="who">' + esc(x.shout_from) + '</b><span class="to">→ ' + esc(x.shout_to) + '</span>'
     + (itemOf(x) ? '<span class="item">#' + esc(itemOf(x)) + '</span>' : '') + mark(x) + '<time class="long" data-ago="' + esc(x.shout_at) + '" title="' + esc(when(x.shout_at)) + '">' + agoLong(x.shout_at) + '</time></header>'
     + '<div class="text">' + rich(x.shout_text, titles) + '</div><button class="more" data-more type="button">' + (openShouts.has(x.shout_id) ? 'less' : 'more') + '</button>' + (inFeed ? band(x) + heardBy(x) : '') + evidence(x) + tail + '</div></article>';
-  $('feed').innerHTML = bar + (heard.length ? dayRules(heard, (x) => x.shout_at, card) : '<div class="empty">' + (view.agent ? 'No shouts with ' + esc(view.agent) + ' among the last forty.' : 'No shouts yet.') + '</div>');
+  $('feed').innerHTML = bar + (heard.length ? dayRules(heard, (x) => x.shout_at, card) : '<div class="empty">' + (unread ? 'No unread shouts.' : view.agent ? 'No shouts with ' + esc(view.agent) + ' among the last forty.' : 'No shouts yet.') + '</div>');
   foldShouts();
   // Each ask waits here until it is answered (B21); the answer itself is typed in the form below. The
   // person answers the ones passed up to them; the rest wait on whoever holds them (B26).
   $('decisions').hidden = !p.decisions.length && !p.asked.length;
   // The asks as the feed's cards, folded to three lines: the person's to answer, then those waiting on others.
   $('decisions').innerHTML = (p.decisions.length ? '<div class="head"><i></i>Decision needed</div>' + p.decisions.map((d) => card(d, '<button class="ghost answer" data-go="decide:' + d.shout_id + '" type="button">Answer</button>', false)).join('') : '')
-    + (p.asked.length ? '<div class="head quiet">Waiting on others</div>' + p.asked.map((d) => card(d, '', false)).join('') : '');
+    // Asks waiting on someone else are not the person's to answer, so they fold to one line that opens on demand.
+    + (p.asked.length ? foldLine('waiting', p.asked.length + (p.asked.length === 1 ? ' ask' : ' asks') + ' waiting on others', p.asked.map((d) => d.shout_from + ' asks ' + d.shout_to).join(', '))
+      + (view.open.waiting ? p.asked.map((d) => card(d, '', false)).join('') : '') : '');
   foldShouts();
   // Each agent with what it holds: its claim, then its work sent back, then its work waiting for a
   // verdict. The worktree path is there on hover; what the person reads is who is doing what.
@@ -1330,10 +1349,27 @@ function render() {
       + '<span class="agent-doing"><span class="agent-what"><i>#' + first.id + '</i> ' + esc(first.title) + '</span>' + state(a, first) + (mine.length > 1 ? '<span class="agent-more">+' + (mine.length - 1) + '</span>' : '') + '</span></button>'
       + (view.agent === a.agent_id ? mine.map((i) => '<div class="agent-work" data-item="' + i.id + '" data-go="item:' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span>' + state(a, i) + '</div>').join('') : '') + '</div>';
   };
+  // The panel is for who is doing what: agents holding nothing fold to one line that opens to each of them, and stays
+  // open while one of them is picked.
+  if (idle.some((a) => a.agent_id === view.agent)) view.open.idle = true;
+  // Show all ends the open fold while some agents have not moved lately, or stands alone when none is idle.
+  const allAgents = p.agents.length > p.agents.filter(recent).length ? '<button class="link all-agents" data-all-agents type="button">' + (view.allAgents ? 'show only agents at work' : 'show all ' + p.agents.length) + '</button>' : '';
+  const idleBlock = () => !idle.length ? allAgents : '<div class="agents-idle">' + foldLine('idle', idle.length + ' idle', idle.map((a) => a.agent_id).join(', '))
+    + (view.open.idle ? '<div class="idle-list">' + idle.map(pill).join('') + '</div>' + allAgents : '') + '</div>';
   const pill = (a) => '<button class="agent-pill' + marks(a) + '" data-agent="' + esc(a.agent_id) + '" title="' + esc(tip(a)) + '" type="button"><span>' + face(a) + esc(a.agent_id) + '</span></button>';
-  $('agents').innerHTML = (listed.length ? busy.map(row).join('') + (idle.length ? '<div class="agents-idle"><span class="agents-label">Idle</span>' + idle.map(pill).join('') + '</div>' : '')
-    : '<div class="empty">' + (p.agents.length ? 'No agent has moved today.' : 'No agents yet.') + '</div>')
-    + (p.agents.length > p.agents.filter(recent).length ? '<button class="link all-agents" data-all-agents type="button">' + (view.allAgents ? 'show only agents at work' : 'show all ' + p.agents.length) + '</button>' : '');
+  $('agents').innerHTML = (listed.length ? busy.map(row).join('') + idleBlock()
+    : '<div class="empty">' + (p.agents.length ? 'No agent has moved today.' : 'No agents yet.') + '</div>');
+  // The status bar: what the board is doing, along the foot of the window. Each number is the length of the list its
+  // click opens (the Active and To verify filters, the gated rows, the agents panel's rows), and a part with none hides.
+  // countUnseen fills the unread shouts once the tab is drawn.
+  const release = (p.milestones || []).find((m) => m.done < m.total), last = p.events[0];
+  const part = (to, n, words, title) => n ? '<button type="button" data-status="' + to + '" title="' + esc(title) + '"><b>' + n + '</b> ' + words + '</button>' : '';
+  $('status-board').innerHTML = part('items', active.length, 'items', 'Show the active items') + '<button type="button" id="status-unread" data-status="unread" title="Show the shouts you have not read" hidden></button>'
+    + part('agents', busy.length, busy.length === 1 ? 'agent' : 'agents', 'Show the agents holding work: ' + busy.map((a) => a.agent_id).join(', '))
+    + part('verify', active.filter((i) => stateOf(i) === 'verify').length, 'to verify', 'Show the items waiting on a verdict')
+    + part('gated', active.filter(gatedOf).length, 'gated', 'Show the open items waiting on another item or a held lane')
+    + (release ? '<button type="button" data-status="release" title="' + esc('Show this release on the Roadmap: ' + (release.note || release.name)) + '">' + esc(release.name) + ' <b>' + release.done + '/' + release.total + '</b></button>' : '')
+    + (last ? '<button type="button" class="end" data-status="' + (last.item_id ? 'item:' + last.item_id : 'activity') + '" title="' + esc(last.event_at) + '">' + esc(last.event_by) + ' ' + esc(last.event_kind) + (last.item_id ? ' #' + last.item_id : '') + ' · ' + age(last.event_at) + '</button>' : '');
   const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
   $('lanes').innerHTML = working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no">held by ' + esc(held.get(l).hold_by) + '</span> <span class="muted">' + linked(held.get(l).hold_reason, titles) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join('');
 
@@ -1481,15 +1517,16 @@ function countUnseen() {
   const newest = p.shouts.length ? p.shouts[0].shout_id : 0;
   const seen = view.tab === 'shouts' || kept === null || kept === undefined ? newest : Number(kept);
   if (String(seen) !== String(kept)) { view.seen[key] = seen; keep(key, String(seen)); }
-  $('count-shouts').textContent = (p.unseen && p.unseen.since === seen ? p.unseen.count : p.shouts.filter((x) => x.shout_id > seen).length) || '';
+  const unread = (p.unseen && p.unseen.since === seen ? p.unseen.count : p.shouts.filter((x) => x.shout_id > seen).length) || 0;
+  const slot = $('status-unread');
+  if (slot) { slot.innerHTML = '<b>' + unread + '</b> unread'; slot.hidden = !unread; }
 }
 
-/**
- * Put the shout form in answer mode for an open decision (B21), or back to a plain shout with null.
- * The form is never redrawn, so what the person types survives every refresh; only its answer line,
- * its To and its button change. The To the person had comes back when the answer is done. An answer
- * belongs to the project whose question it shows: leaving that project leaves answer mode.
- */
+/** A quiet line that opens what it counts: what it says, everything it holds on hover, and show or hide. */
+function foldLine(name, text, names) {
+  return '<button class="fold-line" data-fold="' + name + '" type="button" aria-expanded="' + Boolean(view.open[name]) + '" title="' + esc(names) + '"><span>' + esc(text) + '</span><span class="fold-more">' + (view.open[name] ? 'hide' : 'show') + '</span></button>';
+}
+
 /**
  * Address the composer: the coordinator unless someone else is named, who then shows as a chip the person can clear.
  */
@@ -1501,6 +1538,12 @@ function addressTo(to) {
   $('shout-text').placeholder = 'Shout to ' + (who === 'coordinator' ? 'the coordinator' : who);
 }
 
+/**
+ * Put the shout form in answer mode for an open decision (B21), or back to a plain shout with null.
+ * The form is never redrawn, so what the person types survives every refresh; only its answer line,
+ * its To and its button change. The To the person had comes back when the answer is done. An answer
+ * belongs to the project whose question it shows: leaving that project leaves answer mode.
+ */
 function answer(id) {
   const ask = id === null ? null : data.project.decisions.find((d) => d.shout_id === id) || null;
   if (ask && !view.answering) view.to = $('shout-to').value;
@@ -1518,6 +1561,29 @@ function answer(id) {
   $('shout-send').setAttribute('aria-label', verb);
   $('shout-send').title = verb + ' (Enter; Shift+Enter for a new line)';
   if (ask) $('shout-text').focus();
+}
+
+/** Open what a status-bar part counts: its tab, narrowed to exactly those. */
+function statusGo(to) {
+  view.unread = null;
+  view.roadmapOnly = null;
+  if (to.startsWith('item:')) return go(to);
+  if (to === 'items') { view.state = 'active'; view.lane = null; view.before = null; $('q').value = ''; openTab('items'); }
+  else if (to === 'verify' || to === 'gated') { view.state = to; view.lane = null; view.before = null; $('q').value = ''; openTab('items'); }
+  else if (to === 'unread') {
+    // Only the shouts after the mark the person had; opening Shouts then moves the mark past them.
+    const key = 'pb.seen.' + view.root;
+    view.unread = { root: view.root, after: Number(view.seen[key] ?? keep(key) ?? 0) };
+    view.agent = null;
+    openTab('shouts');
+  }
+  // The agents it counts are the panel's rows, so it opens the panel even where the person hid it.
+  else if (to === 'agents') { view.agentsHidden = false; keep('pb.agents', 'shown'); view.agent = null; openTab('shouts'); }
+  // The release it counts is one milestone, so the Roadmap opens on that one alone.
+  else if (to === 'release') { view.roadmapOnly = (data.project.milestones || []).find((m) => m.done < m.total)?.name ?? null; openTab('roadmap'); }
+  else openTab(to);
+  showTab();
+  render();
 }
 
 /**
@@ -1838,9 +1904,13 @@ $('shouts-pane').addEventListener('click', (event) => {
     return;
   }
   if (event.target.closest('[data-to-clear]')) { addressTo('coordinator'); $('shout-text').focus(); return; }
+  const folded = event.target.closest('[data-fold]');
+  if (folded) { view.open[folded.dataset.fold] = !view.open[folded.dataset.fold]; render(); return; }
   if (event.target.closest('[data-all-agents]')) { view.allAgents = !view.allAgents; render(); return; }
   if (event.target.closest('[data-agents-toggle]')) { view.agentsHidden = !view.agentsHidden; keep('pb.agents', view.agentsHidden ? 'hidden' : 'shown'); render(); return; }
+  if (event.target.closest('[data-unread]')) { view.unread = null; render(); return; }
   if (!pick) return;
+  view.unread = null;
   view.agent = pick.dataset.agent && pick.dataset.agent !== view.agent ? pick.dataset.agent : null;
   if (!view.answering) addressTo(view.agent);
   render();
@@ -1848,13 +1918,15 @@ $('shouts-pane').addEventListener('click', (event) => {
 // Enter shouts; Shift+Enter starts a new line.
 $('shout-text').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('shout-form').requestSubmit(); } });
 document.addEventListener('click', (event) => {
-  const t = event.target.closest('[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],#proj-switch,#console');
+  const t = event.target.closest('[data-status],[data-roadmap-all],[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],#proj-switch,#console');
   if (!event.target.closest('.side')) fold(false);
   if (!t) return;
   if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
   if (t.id === 'console') { t.hidden = true; return; }
+  if (t.dataset.status) { statusGo(t.dataset.status); return; }
+  if ('roadmapAll' in t.dataset) { view.roadmapOnly = null; render(); return; }
   if (t.dataset.root) switchTo(t.dataset.root, t.dataset.go || '');
-  else if (t.dataset.tab) { openTab(t.dataset.tab); showTab(); }
+  else if (t.dataset.tab) { view.unread = null; view.roadmapOnly = null; openTab(t.dataset.tab); showTab(); }
   else if (t.dataset.go) go(t.dataset.go, t.dataset.board);
   else if (t.dataset.item) pick(Number(t.dataset.item));
   else if (t.dataset.state) { view.state = t.dataset.state; render(); }
@@ -1944,6 +2016,7 @@ $('theme').addEventListener('click', () => {
   theme(next);
 });
 $('q').addEventListener('input', search);
+$('lane-pick').addEventListener('change', (event) => { view.lane = event.target.value || null; render(); });
 $('add-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   if (await act('add', { lane: $('add-lane').value, title: $('add-title').value, criterion: $('add-criterion').value, specs: $('add-specs').value, brief: $('add-brief').value }, event.currentTarget)) {
