@@ -297,3 +297,57 @@ test('set up once reports a newly registered project when its stored session is 
   assert.equal(resume.document.relayProblems.some(problem => problem.message === message), true);
   assert.equal(box.calls.filter(call => call.path === '/auth/device/start').length, 0, 'registration never silently starts another GitHub sign-in');
 });
+
+test('a set-up-once run stretched past 30 seconds still gets its approval card [H5,C7]', {
+  skip: !findChromeExecutable() && 'Chrome is not installed',
+}, async t => {
+  const box = await relayClientFixture(t);
+  let chrome;
+  let setup;
+  t.after(async () => {
+    await chrome?.close();
+    if (setup?.child.exitCode === null) setup.child.kill('SIGTERM');
+    await setup?.done.catch(() => {});
+  });
+
+  const machineFile = join(box.env.PULLBOARD_HOME, 'relay-machine/state.json');
+  setup = command(box.root, box.env, ['relay', 'on', '--all', '--url', box.origin], 90_000);
+  const pending = await waitFor(() => {
+    if (!existsSync(machineFile)) return null;
+    return JSON.parse(readFileSync(machineFile, 'utf8')).pending;
+  }, 'set-up-once publishes a real pending phone enrollment');
+  const profileDirectory = join(dirname(box.root), 'stretched-approval-phone-profile');
+  chrome = await startChrome({ profileDirectory });
+  const session = await box.phoneSession();
+  assert.equal((await chrome.send('Network.setCookie', { name: 'pb_session', value: session.token,
+    url: box.origin, httpOnly: true, sameSite: 'Lax' })).success, true);
+  await chrome.navigate(box.origin + '/#device=' + pending.locator + '.' + pending.secret);
+  const completed = await setup.done;
+  assert.equal(completed.code, 0, 'the actual machine setup pairs the phone');
+  assert.equal(completed.document.paired, true);
+  await chrome.waitFor("document.querySelectorAll('#proj-list .proj.repo').length === 1");
+
+  const stretchStarted = Date.now();
+  await new Promise(resolve => setTimeout(resolve, 40_100));
+  const elapsed = Date.now() - stretchStarted;
+  assert.ok(elapsed >= 40_000, 'the fixture waits at least 40 real seconds; it does not advance a frozen relay clock');
+
+  const delayed = await project(box, 'delayed-approval-project');
+  const proposal = JSON.parse(readFileSync(machineFile, 'utf8')).approvals.find(entry => entry.root === delayed);
+  assert.ok(proposal, 'the later real project registration creates its phone approval');
+  const button = '#phone-approve-' + proposal.context.id;
+  await assert.doesNotReject(
+    chrome.waitFor(`document.querySelector(${JSON.stringify(button)}) !== null`),
+    'the elapsed-clock approval becomes a visible card',
+  );
+  assert.equal(proposal.published, true, 'the relay accepts the native approval after the elapsed delay');
+  const card = await chrome.evaluate(`({text: document.querySelector('.phone-approval[data-request="${proposal.context.id}"]').innerText,
+    action: document.querySelector(${JSON.stringify(button)}).innerText})`);
+  assert.match(card.text, /Link delayed-approval-project\?/u);
+  assert.equal(card.action, 'Link project');
+  await chrome.evaluate(`document.querySelector(${JSON.stringify(button)}).click()`);
+  await chrome.waitFor(`document.querySelector(${JSON.stringify(button)}) === null`);
+  const consumed = await command(delayed, box.env, ['status']).done;
+  assert.equal(consumed.code, 0, 'the real native follow-up consumes the phone approval');
+  assert.equal(existsSync(join(delayed, '.git/pullboard/relay.json')), true);
+});
