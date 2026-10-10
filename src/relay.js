@@ -17,7 +17,7 @@ import { Refused } from './refused.js';
 import { relaySenderProblem } from './relay-sender.js';
 import { readRelayMachine, removeRecordedDevice, updateRelayMachine, wrapForRecordedDevice } from './relay-machine.js';
 import { receivePersonRequest, requestMoveProblem } from './relay-requests.js';
-import { nativePhoneAction, phoneProposal } from './relay-phone.js';
+import { nativePhoneAction, phoneProposal, publishPhoneApproval, warnPhoneApproval } from './relay-phone.js';
 import { requirePersonChannel } from './person.js';
 import { listApiProjects } from './projects.js';
 
@@ -1080,13 +1080,16 @@ export async function relayOff(root, io) {
     try { forgetBoardKey(state.board, state.keyStorage); }
     catch { /* The local opt-out is complete even when secure key storage is temporarily locked. */ }
     let requested = false;
+    let remote;
     try {
       if (!proposal) throw new Refused('PHONE_NOT_PAIRED', 'Manage the relay copy from your phone.');
-      const { context, sealed } = proposal;
-      await request(state, '/api/v1/devices/approvals', { method: 'POST', body: { context, sealed } }, io);
+      await publishPhoneApproval(state, proposal, io, request);
       requested = true;
-    } catch { /* The local link is already gone; no outage may undo local unlinking. */ }
+    } catch (error) {
+      if (proposal) remote = warnPhoneApproval(proposal, error, io, 'Local link removed. Manage the relay copy from the phone, or relink this board and run pullboard relay off again explicitly.');
+    }
     return { linked: false, board: state.board, url: state.url, link: '', sequence: state.sequence, behind: 0,
+      ...(remote ? { remote } : {}),
       notice: 'Local link removed. The relay copy stays until you approve deleting it on your phone.' + (requested ? '' : ' Open the phone to manage the relay copy.') };
   });
 }

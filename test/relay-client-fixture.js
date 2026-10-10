@@ -2,7 +2,8 @@ import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
 /** Private real CLI, auth and relay fixture; credentials never enter assertion messages [H1,H7,H18]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { spawn, spawnSync } from 'node:child_process';
+import { startFixtureChild as spawn, reportFixtureChildFailure, runFixtureChild } from './fixture-child.js';
+import { performance } from 'node:perf_hooks';
 import { createServer } from 'node:http';
 import { Transform } from 'node:stream';
 import { once } from 'node:events';
@@ -64,12 +65,13 @@ export function assertSnapshotCheckpoints(trace, expected) {
 /** Capture a real child result without exposing its private output in failure diagnostics. */
 function childResult(root, env, argv, observedSnapshotUploads, initialSnapshotUploads = DEFAULT_SNAPSHOT_UPLOADS) {
   return new Promise((resolveResult, reject) => {
-    const startedAt = Date.now();
-    const command = argv[0] === CLI ? (argv[1] ?? 'CLI') : (argv[0] ?? 'script');
-    let deadlineAt = startedAt + cliChildDeadlineMs(initialSnapshotUploads);
+    const startedAt = performance.now();
+    let deadlineMs = cliChildDeadlineMs(initialSnapshotUploads);
     const child = spawn(process.execPath, argv, { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
+    let stderr = '';
     let exceededDeadline = false;
+    let settled = false;
     const timer = setInterval(() => {
       const count = observedSnapshotUploads?.() ?? initialSnapshotUploads;
       if (count > MAX_OBSERVED_SNAPSHOT_UPLOADS) {
@@ -77,22 +79,34 @@ function childResult(root, env, argv, observedSnapshotUploads, initialSnapshotUp
         child.kill('SIGKILL');
         return;
       }
-      deadlineAt = Math.max(deadlineAt, startedAt + cliChildDeadlineMs(count));
-      if (Date.now() >= deadlineAt) { exceededDeadline = true; child.kill('SIGKILL'); }
+      deadlineMs = Math.max(deadlineMs, cliChildDeadlineMs(count));
+      if (performance.now() - startedAt >= deadlineMs) { exceededDeadline = true; child.kill('SIGKILL'); }
     }, 20);
     child.stdout.setEncoding('utf8').on('data', part => { stdout += part; });
-    child.stderr.resume();
-    child.once('error', error => { clearInterval(timer); reject(error); });
-    child.once('close', (code, signal) => {
+    child.stderr.setEncoding('utf8').on('data', part => { stderr += part; });
+    /** Retain the exact command and work-derived bound without exposing credentials. */
+    const reportFailure = (code, signal, detail = '') => reportFixtureChildFailure({
+      command: process.execPath, args: argv, status: code, signal,
+      elapsedMs: performance.now() - startedAt, stderr, env, detail,
+    });
+    child.once('error', error => {
+      if (settled) return;
+      settled = true;
       clearInterval(timer);
-      if (signal) return reject(new Error(exceededDeadline
-        ? `Private relay fixture ${command} exceeded its ${deadlineAt - startedAt}ms upload-derived deadline after ${Date.now() - startedAt}ms.`
-        : `Private relay fixture ${command} ended with signal ${signal} after ${Date.now() - startedAt}ms.`));
+      reject(new Error(reportFailure(null, null, error.message)));
+    });
+    child.once('close', (code, signal) => {
+      if (settled) return;
+      settled = true;
+      clearInterval(timer);
+      if (signal) return reject(new Error(reportFailure(code, signal, exceededDeadline
+        ? `upload-derived child deadline ${deadlineMs}ms exceeded` : '')));
+      const failure = code === 0 ? null : reportFailure(code, signal);
       let document;
       try { document = JSON.parse(stdout); }
-      catch { return reject(new Error('private relay fixture child did not return JSON')); }
-      resolveResult({ code, document, snapshotUploads: observedSnapshotUploads?.() ?? initialSnapshotUploads,
-        snapshotDeadlineMs: deadlineAt - startedAt });
+      catch (error) { return reject(new Error(reportFailure(code, signal, `private relay fixture child did not return JSON: ${error.message}`))); }
+      resolveResult({ code, document, failure, snapshotUploads: observedSnapshotUploads?.() ?? initialSnapshotUploads,
+        snapshotDeadlineMs: deadlineMs });
     });
   });
 }
@@ -173,7 +187,7 @@ globalThis.fetch = function tracedFetch(input, init) {
   provider.state.deviceAuthorized = true;
   const authDatabase = join(scratch, 'auth.sqlite');
   let auth;
-  let time = Date.now();
+  let timeOffsetMs = 0;
   let override = null;
   let mintFailures = 0;
   let refuseEventReads = false;
@@ -337,7 +351,7 @@ globalThis.fetch = function tracedFetch(input, init) {
   const origin = 'http://127.0.0.1:' + relayPort;
   auth = createRelayAuth({ database: authDatabase, github: createGitHubClient({ ...provider.config, callbackURL: origin + '/auth/github/callback' }) });
   signIn = createAuthHandler({ auth, publicOrigin: origin });
-  api = createRelayHandler({ directory: join(scratch, 'relay'), auth, publicOrigin: origin, pollMs: 10, maintenanceMs: 0, now: () => time });
+  api = createRelayHandler({ directory: join(scratch, 'relay'), auth, publicOrigin: origin, pollMs: 10, maintenanceMs: 0, now: () => Date.now() + timeOffsetMs });
   /** Sign a separate phone in over actual OAuth HTTP; its person session stays only in fixture RAM. */
   async function phoneSession() {
     if (phone) return phone;
@@ -450,12 +464,12 @@ globalThis.fetch = function tracedFetch(input, init) {
     cliChildDeadlineMs(snapshotUploads);
     return runCliChild(args, snapshotUploads, true);
   }
-  assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, env }).status, 0);
+  assert.equal(runFixtureChild('git', ['init', '-q', '-b', 'main'], { cwd: root, env, encoding: 'utf8' }).status, 0);
   writeFileSync(join(root, 'README.md'), 'private relay fixture project\n', { mode: 0o600 });
-  assert.equal(spawnSync('git', ['add', 'README.md'], { cwd: root, env }).status, 0);
-  assert.equal(spawnSync('git', ['commit', '-q', '-m', 'fixture base'], { cwd: root, env }).status, 0, 'fixture clone starts from a committed project');
+  assert.equal(runFixtureChild('git', ['add', 'README.md'], { cwd: root, env, encoding: 'utf8' }).status, 0);
+  assert.equal(runFixtureChild('git', ['commit', '-q', '-m', 'fixture base'], { cwd: root, env, encoding: 'utf8' }).status, 0, 'fixture clone starts from a committed project');
   assert.equal((await cli('init')).code, 0);
-  assert.equal(spawnSync('git', ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git'], { cwd: root, env }).status, 0);
+  assert.equal(runFixtureChild('git', ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git'], { cwd: root, env, encoding: 'utf8' }).status, 0);
   const lane = Object.keys(JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8')).lanes)[0];
   assert.equal((await cli('add', lane, 'private cleanup fixture item')).code, 0);
   const before = (await cli('export')).document;
@@ -483,9 +497,9 @@ globalThis.fetch = function tracedFetch(input, init) {
     const otherEnv = { ...env, HOME: otherHome, PULLBOARD_HOME: join(otherHome, '.pullboard') };
     /** Invoke the independent device's production CLI without retaining its output in diagnostics. */
     const run = (...args) => childResult(otherRoot, otherEnv, [CLI, ...args, '--json']);
-    assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: otherRoot, env: otherEnv }).status, 0);
+    assert.equal(runFixtureChild('git', ['init', '-q', '-b', 'main'], { cwd: otherRoot, env: otherEnv, encoding: 'utf8' }).status, 0);
     assert.equal((await run('init')).code, 0);
-    assert.equal(spawnSync('git', ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git'], { cwd: otherRoot, env: otherEnv }).status, 0);
+    assert.equal(runFixtureChild('git', ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git'], { cwd: otherRoot, env: otherEnv, encoding: 'utf8' }).status, 0);
     const snapshot = join(scratch, 'snapshot.json');
     writeFileSync(snapshot, JSON.stringify(before), { mode: 0o600 });
     assert.equal((await run('import', snapshot)).code, 0, 'second device imports the same real board');
@@ -499,9 +513,9 @@ globalThis.fetch = function tracedFetch(input, init) {
     const otherHome = join(scratch, 'paired-home');
     mkdirSync(otherHome, { mode: 0o700 });
     const otherEnv = { ...env, HOME: otherHome, PULLBOARD_HOME: join(otherHome, '.pullboard'), PULLBOARD_MACHINE_HOME: join(scratch, 'paired-machine') };
-    assert.equal(spawnSync('git', ['clone', '--bare', root, bare], { cwd: scratch, env: otherEnv }).status, 0, 'fixture project creates a private bare remote');
-    assert.equal(spawnSync('git', ['clone', bare, otherRoot], { cwd: scratch, env: otherEnv }).status, 0, 'second device is a real clone');
-    assert.equal(spawnSync('git', ['remote', 'set-url', 'origin', 'git@github.com:fixture/repository.git'], { cwd: otherRoot, env: otherEnv }).status, 0, 'clone names the same authorized repository');
+    assert.equal(runFixtureChild('git', ['clone', '--bare', root, bare], { cwd: scratch, env: otherEnv, encoding: 'utf8' }).status, 0, 'fixture project creates a private bare remote');
+    assert.equal(runFixtureChild('git', ['clone', bare, otherRoot], { cwd: scratch, env: otherEnv, encoding: 'utf8' }).status, 0, 'second device is a real clone');
+    assert.equal(runFixtureChild('git', ['remote', 'set-url', 'origin', 'git@github.com:fixture/repository.git'], { cwd: otherRoot, env: otherEnv, encoding: 'utf8' }).status, 0, 'clone names the same authorized repository');
     const run = (...args) => childResult(otherRoot, otherEnv, [CLI, ...args, '--json']);
     assert.equal((await run('init')).code, 0, 'the cloned project initializes its private local board');
     const joined = await run('relay', 'join', code, '--url', origin);
@@ -530,9 +544,9 @@ globalThis.fetch = function tracedFetch(input, init) {
     const nextEnv = { ...env, HOME: nextHome, PULLBOARD_HOME: join(nextHome, '.pullboard') };
     /** Run this separate board without retaining credentials in diagnostic output. */
     const run = (...args) => childResult(nextRoot, nextEnv, [CLI, ...args, '--json']);
-    assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: nextRoot, env: nextEnv }).status, 0);
+    assert.equal(runFixtureChild('git', ['init', '-q', '-b', 'main'], { cwd: nextRoot, env: nextEnv, encoding: 'utf8' }).status, 0);
     assert.equal((await run('init')).code, 0);
-    assert.equal(spawnSync('git', ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git'], { cwd: nextRoot, env: nextEnv }).status, 0);
+    assert.equal(runFixtureChild('git', ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git'], { cwd: nextRoot, env: nextEnv, encoding: 'utf8' }).status, 0);
     assert.equal((await run('add', lane, title)).code, 0);
     assert.equal((await run('relay', 'on', '--url', origin)).code, 0);
     const state = JSON.parse(readFileSync(join(nextRoot, '.git', 'pullboard', 'relay.json'), 'utf8'));
@@ -553,7 +567,8 @@ globalThis.fetch = function tracedFetch(input, init) {
     },
     /** Interleave one real authenticated relay write immediately before the next native move. */
     beforeNextMove(action) { beforeMove = action; },
-    advance(days) { time = Date.now() + days * 86400000; },
+    /** Move the relay clock by an explicit offset while preserving elapsed native wall time. */
+    advance(days) { timeOffsetMs = days * 86400000; },
     overrideDelete(value) { override = value; },
     failTokenMints(count) { mintFailures = count; },
     refuseSnapshotWrites(value) { refuseSnapshotWrites = value; },

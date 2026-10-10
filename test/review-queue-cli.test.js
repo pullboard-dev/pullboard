@@ -1,7 +1,7 @@
 /** Real CLI and authenticated API review suggestions preserve explicit build and review intent [Q1,V15,A1,A2]. */
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { runFixtureGit } from './fixture-child.js';
 import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -40,7 +40,7 @@ async function project(t, ratio = 3) {
     GIT_AUTHOR_NAME: 'Review fixture', GIT_AUTHOR_EMAIL: 'review@example.invalid',
     GIT_COMMITTER_NAME: 'Review fixture', GIT_COMMITTER_EMAIL: 'review@example.invalid' };
   /** Execute private Git commands with synthetic identity and the actual hook shim. */
-  const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, stdio: 'pipe', encoding: 'utf8' });
+  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, stdio: 'pipe', encoding: 'utf8' });
   let at = Date.parse('2026-10-08T12:00:00.000Z');
   const clock = { now: () => new Date(at), advance: (ms) => { at += ms; } };
   const box = { root, dir, clock, git };

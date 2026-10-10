@@ -204,7 +204,8 @@ Coordinator
   pullboard withdraw <id> <reason>      drop an item nobody should build
   pullboard refreeze <id>               re-freeze a criterion after its spec rows changed
   pullboard hold <lane> --reason "..."   pause a lane: next there claims nothing and names the reason
-  pullboard hold <lane> --off           release it
+  pullboard hold <id> "reason"          hold one item so next skips it
+  pullboard hold <lane|id> --off        lift a lane or item hold
 
 Receipts
   pullboard stats [--since <date>]      proof numbers from the event log; --json for sites and tools
@@ -892,7 +893,8 @@ function itemLine(item) {
   const after = item.item_after ? `  after ${item.item_after.split(',').map((id) => `#${id}`).join(',')}` : '';
   const rejected = item.item_status === 'open' && item.item_verdict === 'REJECT' ? ' (rejected)' : '';
   const light = item.item_route === 'strong' ? '' : `  ${item.item_route}`;
-  return `#${item.item_id}  ${item.item_status}${holder}${verifier}${rejected}  ${item.item_lane}  ${item.item_title}${specs}${parent}${after}${light}`;
+  const hold = item.item_hold_reason ? `  held by ${item.item_hold_by}: ${item.item_hold_reason}` : '';
+  return `#${item.item_id}  ${item.item_status}${holder}${verifier}${rejected}  ${item.item_lane}  ${item.item_title}${specs}${parent}${after}${light}${hold}`;
 }
 
 /**
@@ -1871,10 +1873,10 @@ async function nextOnce(ctx, values) {
     try {
       await ordered(ctx, board, 'claim', [item.item_id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: freezer(ctx), head: headCommit(ctx.info.root), reviewSkipped }]);
     } catch (error) {
-      if (error instanceof Refused && ['HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true };
+      if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true };
       throw error;
     }
-    return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped };
+    return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped, reasons };
   });
 }
 
@@ -1924,7 +1926,8 @@ async function nextHere(io, values) {
     if (found.item) {
       if (found.offer) { sayReviewOffer(ctx, found); return 0; }
       const item = found.item;
-      io.result?.({ item, review: Boolean(values.verify), held: Boolean(found.held), shared: found.shared ?? [] });
+      io.result?.({ item, review: Boolean(values.verify), held: Boolean(found.held), shared: found.shared ?? [], reasons: found.reasons ?? [] });
+      for (const reason of found.reasons ?? []) io.say(reason);
       const here = cdTo(ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (values.verify) {
@@ -2208,6 +2211,20 @@ function workCommands(io, args) {
       return 0;
     }),
     hold: () => act(async (ctx, board, me) => {
+      const itemTarget = /^#?\d+$/u.test(first ?? '');
+      if (itemTarget) {
+        const id = idArg(first);
+        const reason = values.reason ?? [second, ...rest].filter(Boolean).join(' ');
+        if (values.off) {
+          await ordered(ctx, board, 'releaseItemHold', [id, { agentId: me.id }]);
+          io.say(`lifted the hold on #${id}`);
+        } else {
+          await ordered(ctx, board, 'holdItem', [id, { agentId: me.id, reason }]);
+          io.say(`holding #${id}: ${reason}. Lift it with: pullboard hold ${id} --off`);
+        }
+        io.result?.({ id, lane: store.getItem(board, id).item_lane, held: !values.off, reason: values.off ? null : reason });
+        return 0;
+      }
       if (!first || !isLane(ctx.config, first)) throw new Refused('NO_LANE', `no lane "${first ?? ''}"; see: pullboard lanes`);
       if (values.off) {
         await ordered(ctx, board, 'releaseLane', [first, { agentId: me.id, asPerson: io.personChannel === 'view', channel: io.personChannel ?? 'terminal' }]);
@@ -2855,8 +2872,9 @@ async function runMain(argv, streams) {
     const code = await runCommand(argv, io);
     if (code === 0) await checkoutSession?.finish?.();
     if (sync && code === 0) await retry();
-    io.flush(code);
-    return code;
+    const status = io.exitCode(code);
+    io.flush(status);
+    return status;
   } finally {
     CHECKOUT_LEASES.delete(io);
     checkoutSession?.lease?.release();

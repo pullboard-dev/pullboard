@@ -1,6 +1,6 @@
 /** Device-side sealing is the same bytes and WebCrypto code in Node and Chrome (H15, H17). */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { runFixtureChild as spawnSync } from './fixture-child.js';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -140,7 +140,7 @@ test('generate, encode, decode, seal and unseal never write to console or output
     process.stdout.write(String(outputCalls));
     process.exitCode = failed ? 1 : 0;
   `;
-  const result = spawnSync(process.execPath, ['--input-type=module', '-e', harness], { encoding: 'utf8', timeout: 10_000 });
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', harness], { encoding: 'utf8' });
   assert.equal(result.status, 0, 'the isolated output-capture probe completed its operations');
   assert.equal(result.stderr.length, 0, 'the probe wrote nothing to stderr');
   assert.equal(Number(result.stdout), 0, 'no console, stdout or stderr output was attempted');

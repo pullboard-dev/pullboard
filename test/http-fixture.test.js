@@ -1,6 +1,7 @@
 /** Fixture requests reach a live server even after the test blocked its own event loop past keep-alive [C7]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { startFixtureChild as spawn, reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { performance } from 'node:perf_hooks';
 import { once } from 'node:events';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -29,15 +30,17 @@ function privateBoard(t) {
   mkdirSync(root);
   mkdirSync(home);
   const env = { ...process.env, HOME: home, PULLBOARD_HOME: home, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
-  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root, env });
-  const init = spawnSync(process.execPath, [BIN, 'init', '--json'], { cwd: root, env, encoding: 'utf8' });
-  assert.equal(init.status, 0, `${init.stdout}${init.stderr}`);
+  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env });
+  const init = runFixtureChild(process.execPath, [BIN, 'init', '--json'], { cwd: root, env, encoding: 'utf8' });
+  assert.equal(init.status, 0, init.failure ?? `${init.stdout}${init.stderr}`);
   return { root, env };
 }
 
 /** Start the real view as a child process, stop it with the test, and return its origin and key. */
 async function startView(t, box) {
-  const child = spawn(process.execPath, [BIN, 'view', '--no-open', '--port', '0', '--json'], {
+  const args = [BIN, 'view', '--no-open', '--port', '0', '--json'];
+  const startedAt = performance.now();
+  const child = spawn(process.execPath, args, {
     cwd: box.root, env: box.env, stdio: ['ignore', 'pipe', 'pipe'],
   });
   const closed = once(child, 'close');
@@ -50,13 +53,28 @@ async function startView(t, box) {
   let stderr = '';
   child.stderr.setEncoding('utf8').on('data', (part) => { stderr += part; });
   const document = await new Promise((ready, fail) => {
-    const timer = setTimeout(() => fail(new Error(`view printed no address within 30 s: ${stderr}`)), 30_000);
+    let settled = false;
+    const failStartup = (detail, status = child.exitCode, signal = child.signalCode) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fail(new Error(reportFixtureChildFailure({ command: process.execPath, args, status, signal,
+        elapsedMs: performance.now() - startedAt, stderr, env: box.env, detail })));
+    };
+    const timer = setTimeout(() => failStartup('view readiness deadline (30000ms) expired'), 30_000);
     child.stdout.setEncoding('utf8').on('data', (part) => {
       stdout += part;
-      try { ready(JSON.parse(stdout)); clearTimeout(timer); }
+      try {
+        const document = JSON.parse(stdout);
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        ready(document);
+      }
       catch { /* Wait until the one JSON document is complete. */ }
     });
-    child.once('close', (code) => { clearTimeout(timer); fail(new Error(`view exited ${code} before printing its address: ${stderr}`)); });
+    child.once('close', (code, signal) => failStartup('view exited before printing its address', code, signal));
+    child.once('error', (error) => failStartup(error.message, null, null));
   });
   const url = new URL(document.url);
   return { origin: url.origin, key: url.searchParams.get('k') };

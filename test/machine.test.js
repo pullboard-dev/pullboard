@@ -14,7 +14,7 @@ import { HELP } from '../src/cli.js';
 import { loadConfig } from '../src/config.js';
 import { Refused } from '../src/refused.js';
 import { BLANKS, IN_STATE, MACHINE, effectiveGuards, lifecycleHelp, lifecycleMarkdown, machineProblems, storeTriggers } from '../src/machine.js';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 
 /**
  * Refusals that are not about an item's lifecycle, so no move declares them: command input, caller
@@ -766,7 +766,7 @@ test('the page and the help follow the declaration: a new move appears in both [
 });
 
 test('pullboard help lists each role\'s moves from the declaration, and pullboard lifecycle prints the page [M1, P4]', () => {
-  const help = spawnSync(process.execPath, [BIN, 'help', '--all'], { encoding: 'utf8' });
+  const help = runFixtureChild(process.execPath, [BIN, 'help', '--all'], { encoding: 'utf8' });
   assert.equal(help.status, 0, help.stderr);
   for (const role of MACHINE.roles) {
     const line = help.stdout.split('\n').find((text) => text.startsWith(`  ${role} `));
@@ -775,7 +775,7 @@ test('pullboard help lists each role\'s moves from the declaration, and pullboar
     assert.deepEqual(listed.sort(), MACHINE.moves.filter((move) => move.by.includes(role)).map((move) => move.verb).sort(), `${role}'s moves`);
   }
   assert.ok(HELP.all.includes(lifecycleHelp()), 'the full help screen carries the generated section, not a typed copy');
-  const printed = spawnSync(process.execPath, [BIN, 'lifecycle'], { encoding: 'utf8' });
+  const printed = runFixtureChild(process.execPath, [BIN, 'lifecycle'], { encoding: 'utf8' });
   assert.equal(printed.status, 0, printed.stderr);
   assert.equal(printed.stdout, lifecycleMarkdown());
 });
@@ -853,7 +853,10 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     store.claim(board, dependency, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
     store.submit(board, dependency, { agentId: 'web-1', commit: SHA_A, tree: 'tree' });
     store.holdLane(board, 'web', { agentId: 'coordinator', reason: 'pause' });
-    const fired = [claimAs(999, light, 'api'), claimAs(done, light, 'api'), claimAs(target, light, 'api'), claimAs(target, light, 'web'), claimAs(target, strong, 'web')];
+    store.holdItem(board, target, { agentId: 'coordinator', reason: 'item pause' });
+    const fired = [claimAs(999, light, 'api'), claimAs(done, light, 'api'), claimAs(target, light, 'api')];
+    store.releaseItemHold(board, target, { agentId: 'coordinator' });
+    fired.push(claimAs(target, light, 'api'), claimAs(target, light, 'web'), claimAs(target, strong, 'web'));
     verdictOn(board, dependency, 'web-2', 'ACCEPT');
     fired.push(claimAs(target, strong, 'web'));
     store.release(board, target, 'web-2');
@@ -864,7 +867,7 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     store.release(board, spare, strong);
     fired.push(claimAs(target, strong, 'web'), claimAs(target, strong, 'web', freeze));
     assert.deepEqual(fired, [...declaredBoardOrder('claim'), 'ok']);
-    assert.deepEqual(fired, ['NO_ITEM', 'NOT_CLAIMABLE', 'WRONG_LANE', 'ROUTE', 'BLOCKED', 'HELD', 'LANE_HELD', 'ONE_CLAIM', 'UNKNOWN_SPEC', 'ok']);
+    assert.deepEqual(fired, ['NO_ITEM', 'NOT_CLAIMABLE', 'ITEM_HELD', 'WRONG_LANE', 'ROUTE', 'BLOCKED', 'HELD', 'LANE_HELD', 'ONE_CLAIM', 'UNKNOWN_SPEC', 'ok']);
   } finally {
     lab.done();
   }
@@ -1028,9 +1031,9 @@ test('next --verify reserves the review for the reviewLease and says until when;
       GIT_COMMITTER_EMAIL: 'agent@example.com',
       PULLBOARD_HOME: join(dir, 'home'),
     };
-    const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
-    // A command that never returns fails the test after a minute instead of holding the gate open.
-    const run = (cwd, ...args) => spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8', timeout: 60_000 });
+    const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
+    // The test runner's per-test timeout bounds hangs without killing this CLI early under load.
+    const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
     const repo = join(dir, 'repo');
     mkdirSync(repo);
     git(repo, 'init', '-q', '-b', 'main');

@@ -4,6 +4,24 @@ Notable changes to Pullboard, for people using it. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-10-10
+
+### Added
+
+- The coordinator can hold an item: `pullboard hold <id> "reason"` keeps it out of `next` and `claim` on every device until `pullboard hold <id> --off`.
+
+### Changed
+
+- Pullboard View: the Shouts tab's agents panel is compact. Each agent holding work is one row with its avatar, the age of its latest move and the first thing it holds; idle agents are small pills; lane and route show on hover. Pick an agent to filter the feed and address the composer to it.
+- Each of your shouts says who has heard it: "Heard by coordinator", "Heard by coordinator and N agents", or "Not heard yet".
+- The composer sends to the coordinator, with no recipient picker; a picked agent shows as a chip you can clear.
+- A code reference on its own line in a shout, and every one in an item's thread, opens as a block, collapsed until asked, with the exact lines from that commit highlighted; one inside a sentence stays a short label that opens the same block.
+- Boards use engine 7. Upgrade every linked device; a 0.8.3 device stops at the first new record and says to upgrade.
+
+### Fixed
+
+- A person-level relay action the relay refuses now fails at once, naming the refusal, its reason and the request id, instead of waiting for a phone card that never comes. A step that half succeeds (the local unlink done, the remote delete refused) exits nonzero and says which part failed.
+
 ## [0.8.3] - 2026-10-10
 
 ### Changed
@@ -141,7 +159,8 @@ Notable changes to Pullboard, for people using it. The format follows [Keep a Ch
 - A local, spec-backed work board gives each item a frozen criterion, a separate worktree lane, a gated submission, and an independent review receipt.
 - The timed tour demonstrates a change being rejected, corrected, and accepted with proof.
 
-[Unreleased]: https://github.com/pullboard-dev/pullboard/compare/v0.8.3...HEAD
+[Unreleased]: https://github.com/pullboard-dev/pullboard/compare/v0.8.4...HEAD
+[0.8.4]: https://github.com/pullboard-dev/pullboard/compare/v0.8.3...v0.8.4
 [0.8.3]: https://github.com/pullboard-dev/pullboard/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/pullboard-dev/pullboard/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/pullboard-dev/pullboard/compare/v0.8.0...v0.8.1

@@ -1,6 +1,6 @@
 /** The frozen check outcome travels with accepts without changing the board schema [V19,V8]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -32,11 +32,11 @@ function sandbox() {
   });
   mkdirSync(env.HOME);
   /** Run isolated Git commands for this fixture. */
-  const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
   /** Run the checked-out CLI without invoking any shared board. */
   const run = (cwd, ...args) => {
-    const result = spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
-    return { code: result.status, out: result.stdout, err: result.stderr };
+    const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+    return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
   };
   return { dir, env, git, run };
 }
@@ -63,7 +63,7 @@ function project(box) {
 /** Run a fixture command and fail with its captured diagnostics if it refuses. */
 function succeeds(box, cwd, ...args) {
   const result = box.run(cwd, ...args);
-  assert.equal(result.code, 0, `${result.out}\n${result.err}`);
+  assert.equal(result.code, 0, result.failure ?? `${result.out}\n${result.err}`);
   return result.out;
 }
 

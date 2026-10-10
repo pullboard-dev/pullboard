@@ -1,7 +1,7 @@
 /** Set up a machine once, enroll its phone in the foreground and link later registrations [H5,H17]. */
 import { join } from 'node:path';
 import * as store from './board.js';
-import { phoneProposal } from './relay-phone.js';
+import { phoneProposal, publishPhoneApproval, warnPhoneApproval } from './relay-phone.js';
 import { openApproval, restoreLinkReply } from './relay-approval.js';
 import { requirePersonChannel } from './person.js';
 import { repoInfo } from './git.js';
@@ -35,8 +35,8 @@ export async function autoLinkProject(root, io) {
   const project = repoInfo(root).root;
   if (machine.excluded.includes(project) || relayStatus(project).linked) return;
   const name = listApiProjects().find(entry => entry.root === project)?.name ?? project;
+  let pending = machine.approvals.find(entry => entry.root === project);
   try {
-    let pending = machine.approvals.find(entry => entry.root === project);
     if (pending && Date.now() >= pending.context.expires) throw new Refused('PHONE_APPROVAL_EXPIRED', 'Link approval expired; run pullboard relay on --all explicitly to link this project.');
     let source;
     if (pending) source = relayMachineContext(pending.publisherRoot);
@@ -57,7 +57,7 @@ export async function autoLinkProject(root, io) {
     }
     if (!source?.token?.startsWith('pm_')) throw new Refused('RELAY_SESSION', 'Restore the publishing board link or run pullboard relay on --all.');
     if (!pending.published) {
-      await relayDeviceRequest(source, '/api/v1/devices/approvals', { method: 'POST', body: { context: pending.context, sealed: pending.sealed } }, io);
+      await publishPhoneApproval(source, pending, io, relayDeviceRequest);
       updateRelayMachine(state => { const entry = state.approvals.find(value => value.context.id === pending.context.id); if (entry) entry.published = true; });
     }
     const document = await relayDeviceRequest(source, '/api/v1/devices/approvals/' + pending.context.id, {}, io);
@@ -70,6 +70,10 @@ export async function autoLinkProject(root, io) {
     await relayOn(project, source.url, io, { credential, quiet: true, strict: true });
     updateRelayMachine(state => { state.approvals = state.approvals.filter(entry => entry.context.id !== pending.context.id); });
   } catch (error) {
+    if (pending) {
+      warnPhoneApproval(pending, error, io, 'Local registration is complete; run pullboard relay on --all explicitly to link this project.');
+      return;
+    }
     io.err('not linked: ' + name + '; ' + (error instanceof Refused ? error.message : 'Restore the pending phone approval or run pullboard relay on --all.'));
   }
 }
