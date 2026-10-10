@@ -23,8 +23,8 @@ async function waitFor(read, message, timeoutMs = 20_000) {
 }
 
 /** Run the production CLI in the isolated project, preserving JSON for precise refusal checks. */
-function cliCommand(root, env, args, timeoutMs = APPROVAL_TIMEOUT_MS) {
-  const child = spawn(process.execPath, [CLI, ...args, '--json'], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
+function cliCommand(root, env, args, timeoutMs = APPROVAL_TIMEOUT_MS, { json = true } = {}) {
+  const child = spawn(process.execPath, [CLI, ...args, ...(json ? ['--json'] : [])], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = '';
   let stderr = '';
   child.stdout.setEncoding('utf8').on('data', chunk => { stdout += chunk; });
@@ -35,7 +35,7 @@ function cliCommand(root, env, args, timeoutMs = APPROVAL_TIMEOUT_MS) {
     child.once('close', (code, signal) => {
       clearTimeout(timer);
       if (signal) return reject(new Error('A private native approval command exceeded its finite fixture bound.'));
-      try { resolveResult({ code, document: JSON.parse(stdout), stderr }); }
+      try { resolveResult({ code, document: json ? JSON.parse(stdout) : null, stdout, stderr }); }
       catch { reject(new Error('The private approval command did not return JSON.')); }
     });
   });
@@ -317,45 +317,58 @@ function unregisteredProject(box, name) {
   return root;
 }
 
-/** Compare one nonblocking warning with the actual rejected HTTP proposal and reason. */
-function assertRemoteWarning(box, before, result, action) {
+/** Match a real publication refusal to its native partial failure and preserved local outcome. */
+function assertRemoteFailure(box, before, result, action, completed) {
   const post = box.transit.slice(before).find(record => record.method === 'POST'
     && record.path === '/api/v1/devices/approvals');
-  assert.ok(post, 'the nonblocking operation attempted its real remote approval');
+  assert.ok(post, 'the operation attempted its real remote approval');
   const context = JSON.parse(post.request.toString('utf8')).context;
   const response = JSON.parse(post.response.toString('utf8'));
   assert.equal(context.action, action);
-  assert.equal(result.code, 0, 'the completed local operation remains successful');
-  assert.deepEqual(result.document.remote, { code: 'PHONE_APPROVAL_CONTEXT',
-    reason: 'the relay ' + box.origin + ': ' + response.error.message, requestId: context.id }, 'JSON preserves the original remote refusal separately');
-  assert.ok(Array.isArray(result.document.diagnostics), 'local success carries the remote warning');
-  const warnings = result.document.diagnostics.filter(line => line.includes('Remote approval request'));
-  assert.equal(warnings.length, 1, 'exactly one remote warning accompanies local success');
-  assert.ok(warnings[0].includes(context.id), 'the warning identifies the refused request');
-  assert.ok(warnings[0].includes(response.error.message), 'the warning retains the relay reason');
-  assert.match(warnings[0], /\[PHONE_APPROVAL_CONTEXT\]/u);
-  assert.match(warnings[0], /explicitly/u, 'the warning gives an explicit recovery step');
+  assert.equal(response.error.code, 'PHONE_APPROVAL_CONTEXT', 'the actual relay refused the proposal');
+  assert.equal(result.code, 1, 'a remote publication refusal makes the native command fail');
+  if (result.document) {
+    assert.deepEqual(result.document.remote, { code: 'PHONE_APPROVAL_CONTEXT',
+      reason: 'the relay ' + box.origin + ': ' + response.error.message, requestId: context.id }, 'JSON preserves the original remote refusal separately');
+    assert.ok(Array.isArray(result.document.diagnostics), 'the partial failure carries its named diagnostic');
+  }
+  const lines = result.document?.diagnostics ?? result.stderr.split('\n');
+  const refusals = lines.filter(line => line.includes('Remote approval request'));
+  assert.equal(refusals.length, 1, 'exactly one line names the partial failure');
+  assert.ok(refusals[0].includes(context.id), 'the refusal identifies the exact request');
+  assert.ok(refusals[0].includes(response.error.message), 'the refusal retains the relay reason');
+  assert.ok(refusals[0].includes(completed), 'the same line names the completed local action');
+  assert.match(refusals[0], /\[PHONE_APPROVAL_CONTEXT\]/u);
+  assert.match(refusals[0], /explicitly/u, 'the refusal gives an explicit recovery step');
+  assert.equal(box.transit.slice(before).some(record => record.method === 'GET'
+    && record.path === '/api/v1/devices/approvals/' + context.id), false, 'refused publication never waits for an approval');
 }
 
-test('local unlink and registration succeed with one named remote refusal [H15,H12]', {
+test('local unlink and registration fail on a remote refusal while retaining local work [H15,H12]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
-  const box = await relayClientFixture(t);
-  const { native } = await pairPhone(box, t);
-  const project = unregisteredProject(box, 'remote-refused-registration');
-  box.advance(-31 / 86400);
-  const registerBefore = box.transit.length;
-  const registration = cliCommand(project, box.env, ['init']);
-  native.push(registration);
-  assertRemoteWarning(box, registerBefore, await registration.done, 'link');
-  assert.equal(existsSync(join(project, '.git/pullboard/board.sqlite')), true, 'registration persists the local board');
-  assert.equal(existsSync(join(project, '.git/pullboard/relay.json')), false, 'refused linking does not invent a linked board');
-  const offBefore = box.transit.length;
-  const off = await box.cli('relay', 'off');
-  assertRemoteWarning(box, offBefore, off, 'delete-board');
-  assert.equal(off.document.linked, false);
-  assert.equal(existsSync(box.linkFile), false, 'local unlink is durable despite the remote publication refusal');
-  box.advance(0);
+  for (const json of [true, false]) await t.test(json ? 'JSON partial failures' : 'text partial failures', async t => {
+    const box = await relayClientFixture(t);
+    const { native, machineFile } = await pairPhone(box, t);
+    const project = unregisteredProject(box, 'remote-refused-registration');
+    box.advance(-31 / 86400);
+    const registerBefore = box.transit.length;
+    const registration = cliCommand(project, box.env, ['init'], APPROVAL_TIMEOUT_MS, { json });
+    native.push(registration);
+    const registered = await registration.done;
+    const offBefore = box.transit.length;
+    const unlink = cliCommand(box.root, box.env, ['relay', 'off'], APPROVAL_TIMEOUT_MS, { json });
+    native.push(unlink);
+    const off = await unlink.done;
+    assert.deepEqual([registered.code, off.code], [1, 1], 'both real native publication-refusal paths fail immediately');
+    assertRemoteFailure(box, registerBefore, registered, 'link', 'Local registration is complete');
+    assertRemoteFailure(box, offBefore, off, 'delete-board', 'Local link removed');
+    assert.equal(existsSync(join(project, '.git/pullboard/board.sqlite')), true, 'registration persists the local board');
+    assert.equal(existsSync(join(project, '.git/pullboard/relay.json')), false, 'refused linking does not invent a linked board');
+    if (json) assert.equal(off.document.linked, false);
+    assert.equal(existsSync(box.linkFile), false, 'local unlink is durable despite the remote publication refusal');
+    assert.ok(JSON.parse(readFileSync(machineFile, 'utf8')).excluded.includes(box.root), 'the local opt-out remains durable');
+  });
 });
 
 test('expired and unreachable approvals fail with their exact request id [H15,H12]', {

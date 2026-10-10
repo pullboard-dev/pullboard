@@ -1086,7 +1086,7 @@ export async function relayOff(root, io) {
       await publishPhoneApproval(state, proposal, io, request);
       requested = true;
     } catch (error) {
-      if (proposal) remote = warnPhoneApproval(proposal, error, io, 'Manage the relay copy from the phone, or relink this board and run pullboard relay off again explicitly.');
+      if (proposal) remote = warnPhoneApproval(proposal, error, io, 'Local link removed. Manage the relay copy from the phone, or relink this board and run pullboard relay off again explicitly.');
     }
     return { linked: false, board: state.board, url: state.url, link: '', sequence: state.sequence, behind: 0,
       ...(remote ? { remote } : {}),

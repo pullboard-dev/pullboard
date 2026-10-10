@@ -43,7 +43,7 @@ export async function publishPhoneApproval(state, proposal, io, send) {
   } catch (error) { throw approvalRefusal(context, error); }
 }
 
-/** Report a refused remote approval without undoing a completed local action. */
+/** Record a partial failure and its request identity without undoing the completed local action. */
 export function warnPhoneApproval(proposal, error, io, next) {
   const code = error instanceof Refused ? error.code : 'PHONE_APPROVAL_UNAVAILABLE';
   let reason = error instanceof Refused ? error.message.replace(/^\[[A-Z][A-Z0-9_]*\] /u, '')

@@ -2843,8 +2843,9 @@ async function runMain(argv, streams) {
     const code = await runCommand(argv, io);
     if (code === 0) await checkoutSession?.finish?.();
     if (sync && code === 0) await retry();
-    io.flush(code);
-    return code;
+    const status = io.exitCode(code);
+    io.flush(status);
+    return status;
   } finally {
     CHECKOUT_LEASES.delete(io);
     checkoutSession?.lease?.release();

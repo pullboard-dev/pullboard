@@ -143,7 +143,7 @@ export function commandOutput(argv, streams) {
       document = native && !Array.isArray(native) && typeof native.version === 'number'
         ? { ...native, ...(diagnostics.length ? { diagnostics } : {}) } : { version: JSON_SHAPES.version, messages, ...(diagnostics.length ? { diagnostics } : {}) };
     }
-    if (code === 0 && remote) document.remote = remote;
+    if (remote) document.remote = remote;
     streams.stdout.write(`${JSON.stringify(document, null, 2)}\n`);
   };
   return {
@@ -154,6 +154,7 @@ export function commandOutput(argv, streams) {
     result: (value) => { result = value; },
     refusal: (error) => { refusal = error; },
     remote: (value) => { remote = value; },
+    exitCode: (code) => code || (remote ? 1 : 0),
     jsonMode: (value) => { enabled = Boolean(value); },
     flush,
   };
