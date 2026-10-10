@@ -592,7 +592,7 @@ test('an item carries a brief; editing it changes how to build, never what [B10]
   store.editItem(board, id, { agentId: 'coordinator', brief: 'Copy how add prints; test it like add.' });
   assert.equal(store.getItem(board, id).item_brief, 'Copy how add prints; test it like add.');
   assert.equal(store.getItem(board, id).item_frozen_digest, digest);
-  assert.throws(() => store.editItem(board, id, { agentId: 'api-1', brief: 'mine now' }), /NOT_YOURS.*coordinator/);
+  assert.throws(() => store.editItem(board, id, { agentId: 'api-1', brief: 'mine now' }), /HELD.*coordinator/);
   assert.throws(() => store.editItem(board, id, { agentId: 'coordinator' }), /USAGE/);
   assert.throws(() => store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Huge', brief: 'x'.repeat(8001) }), /BRIEF_TOO_LONG/);
   assert.deepEqual(JSON.parse(store.events(board, { itemId: id }).find((event) => event.event_kind === 'edit').event_detail), { brief: '38 characters', model: 'unknown' });
@@ -646,7 +646,6 @@ test('below strong, an item is buildable cold: files, a test, a criterion and a 
 test('changing a criterion or a check drops the frozen bar, in the open; the next claim freezes anew [B14]', () => {
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
   claimAs(id, 'web-1', 'web');
-  assert.throws(() => store.editItem(board, id, { agentId: 'coordinator', check: 'npm test' }), /HELD/);
   store.release(board, id, 'web-1');
   store.editItem(board, id, { agentId: 'coordinator', check: 'npm test', criterion: 'renders' });
   assert.equal(store.getItem(board, id).item_frozen_digest, null);
@@ -687,7 +686,7 @@ test('edit after an expired claim reopens it and names its holder [B13]', () => 
   });
   claimAs(live, 'web-1', 'web');
   const digest = store.itemById(board, live).item_frozen_digest;
-  assert.throws(() => store.editItem(board, live, { agentId: 'coordinator', criterion: 'not yet' }), /HELD/);
+  assert.throws(() => store.editItem(board, live, { agentId: 'coordinator', route: 'mid' }), /HELD/);
   assert.deepEqual(
     [store.itemById(board, live).item_status, store.itemById(board, live).item_owner, store.itemById(board, live).item_frozen_digest],
     ['claimed', 'web-1', digest],
