@@ -1933,7 +1933,8 @@ test('the list shows active, verified or all [N26]', async () => {
     assert.deepEqual(rows(), [1]);
     await page.click({ state: 'all' });
     assert.deepEqual(rows(), [1, 2]);
-    assert.match(page.html, /<div class="card-panel toolbar"><div class="seg" id="state-chips" role="group" aria-label="Show"><\/div><div class="find"><select id="lane-pick" aria-label="Lane"><\/select><input id="q" type="search"/, 'the control sits in the toolbar beside the search, whose field holds the lane picker');
+    assert.match(page.html, /<div class="card-panel toolbar"><div class="seg" id="state-chips" role="group" aria-label="Show"><\/div><select class="lane-pick" id="lane-pick" aria-label="Lane"><\/select><button class="go" id="new-item"/, 'the control sits in the toolbar beside the lane picker and New item');
+    assert.match(page.html, /<header class="top">[^]*<div class="top-find"><input id="q" type="search"[^]*<\/header>/, 'and the search is in the top bar');
     assert.doesNotMatch(page.html, /id="lane-filter"|class="chips" id="state-chips"/, 'no lane menu and no row of chips');
 
     await page.click({ state: 'active' });
@@ -6759,7 +6760,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
       rows, warn, state: view.state, lane: view.lane, tab: view.tab,
       chips: [...document.querySelectorAll('#state-chips button')].map((chip) => [chip.firstChild.textContent, chip.querySelector('b').textContent, chip.classList.contains('on')]),
       lanes: [...document.querySelectorAll('#lane-pick option')].map((option) => option.textContent), pick: box(document.querySelector('#lane-pick')),
-      seg: box(document.querySelector('#state-chips')), find: box(document.querySelector('.find')), go: box(document.querySelector('#new-item')), toolbar: box(document.querySelector('.toolbar')),
+      seg: box(document.querySelector('#state-chips')), go: box(document.querySelector('#new-item')), toolbar: box(document.querySelector('.toolbar')),
       waiting: (() => { const fold = document.querySelector('.asks-toggle[data-fold="waiting"]'); return fold && { text: fold.textContent.replace(/\\s+/g, ' ').trim(), open: fold.getAttribute('aria-expanded'), height: fold.getBoundingClientRect().height, offset: fold.getBoundingClientRect().top - fold.closest('.shouts-card').getBoundingClientRect().top, cards: document.querySelectorAll('#decisions .shout').length }; })(),
       idle: (() => { const fold = document.querySelector('#agents .fold-line[data-fold="idle"]'); return fold && { text: words(fold), open: fold.getAttribute('aria-expanded'), height: fold.getBoundingClientRect().height, pills: document.querySelectorAll('#agents .agent-pill').length }; })(),
       agentRows: [...document.querySelectorAll('#agents .agent-card')].filter((card) => card.getBoundingClientRect().height > 0).length,
@@ -6821,28 +6822,14 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
           const [gr, gg, gb] = row['5'].border;
           assert.ok(row['5'].edges && gr > gb + 30 && gg > gb + 20, `${at}: in dark it has a gold outline too: ${row['5'].border}`);
         }
-        // The lane picker sits in the search field; the toolbar keeps one line while it fits.
+        // The toolbar is the states, the lane picker and New item on one line; on a phone, as the person chose (#368), the
+        // states and New item, with the lane picker dropped.
         assert.deepEqual(r.lanes, ['All lanes', 'web · 5', 'api · 1'], `${at}: each lane with its count under Active`);
-        if (width === 1280) assert.ok(Math.abs(r.seg.top - r.find.top) <= 4 && Math.abs(r.find.top - r.go.top) <= 4, `${at}: one line: ${JSON.stringify([r.seg, r.find, r.go])}`);
-        else assert.ok(r.find.top >= r.seg.bottom && Math.abs(r.find.top - r.go.top) <= 4, `${at}: the states take the first line, search and New item the second: ${JSON.stringify([r.seg, r.find, r.go, r.toolbar])}`);
-        if (width === 375) assert.ok(r.pick.height >= 44, `${at}: the lane picker is a 44px target`);
+        const centre = (b) => b.top + b.height / 2;
+        if (width === 1280) assert.ok(Math.abs(centre(r.seg) - centre(r.pick)) <= 4 && Math.abs(centre(r.pick) - centre(r.go)) <= 4, `${at}: one line: ${JSON.stringify([r.seg, r.pick, r.go])}`);
+        else assert.ok(r.pick.width === 0 && Math.abs(centre(r.seg) - centre(r.go)) <= 4, `${at}: the states and New item on one line, no lane picker: ${JSON.stringify([r.seg, r.pick, r.go, r.toolbar])}`);
       }
     }
-
-    // Between the two, where the list column is narrow, the states and New item share a line and search takes its own.
-    // The width that gives the toolbar that room depends on the columns around it, so the test finds one.
-    let middle = null;
-    for (const width of [900, 940, 980, 1020, 1060, 1100, 1140, 1180]) {
-      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      await chrome.waitFor(`innerWidth === ${width}`);
-      await settle();
-      const room = await chrome.evaluate("(() => { const t = document.querySelector('.toolbar'), s = getComputedStyle(t); return t.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight); })()");
-      if (room >= 400 && room <= 490) { middle = { width, room, r: await read() }; break; }
-    }
-    assert.ok(middle, 'some desktop width gives the toolbar between 400 and 490px');
-    const r0 = middle.r, centre = (b) => b.top + b.height / 2;
-    assert.ok(Math.abs(centre(r0.seg) - centre(r0.go)) <= 4 && r0.find.top >= r0.seg.bottom && r0.find.width >= r0.toolbar.width - 24,
-      `${middle.width}px (${middle.room}px of toolbar): the states and New item, then search on its own line: ${JSON.stringify([r0.seg, r0.find, r0.go, r0.toolbar])}`);
 
     // Each part opens exactly what it counts: its number is the length of the list it opens.
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -7292,6 +7279,129 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
     await click('[data-state=verified]');
     assert.equal((await read()).needsShown, false, 'under Verified, Needs you steps aside');
     await click('[data-state=active]');
+    assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
+test('search in the top bar finds anything on the board [N26]', { timeout: 150_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for search checks.');
+  const box = machine();
+  const spec = `${SPEC}- G3 [approved, must] The greeting names the visitor. | gate: web test\n`;
+  const alpha = project(box, 'finder', spec, { practice: 'ways.md' });
+  writeFileSync(join(alpha.repo, 'ways.md'), '# Local rules\n\n## Team\n- R1 [approved, must] Every greeting is read by a person. | gate: review\n');
+  box.run(alpha.repo, 'add', 'web', 'Farewell page', '--specs', 'G1', '--criterion', 'renders');
+  // Seven items match, so the Items group shows five of them and says how many there are.
+  for (let n = 1; n <= 7; n += 1) box.run(alpha.repo, 'add', 'web', `Greeting variant ${n}`, '--specs', 'G1', '--criterion', 'renders');
+  box.run(alpha.web, 'shout', 'coordinator', 'The greeting is ready for review.');
+  box.run(alpha.web, 'shout', 'coordinator', 'Should the greeting wave?', '--decision');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-finder-chrome-'));
+  let chrome;
+  /** The top bar's search and its results as they read. */
+  const read = async () => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+    const box = (e) => { if (!e) return null; const r = e.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height }; };
+    const results = document.querySelector('#find-results');
+    return {
+      page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth },
+      inTop: !!document.querySelector('.top .top-find #q'), toolbar: [...document.querySelector('.toolbar').children].filter((e) => e.offsetParent !== null || e.tagName === 'SELECT').map((e) => e.id || e.className),
+      field: box(document.querySelector('#q')), tabs: box(document.querySelector('#tabs')), top: box(document.querySelector('header.top')), theme: box(document.querySelector('#theme')),
+      bar: [...document.querySelectorAll('.toolbar #state-chips button, .toolbar #lane-pick, .toolbar #new-item')].filter((e) => e.getClientRects().length > 0)
+        .map((e) => ({ name: e.dataset.state || e.id, middle: Math.round(e.getBoundingClientRect().top + e.getBoundingClientRect().height / 2) })),
+      shoutIds: data.project.shouts.map((x) => '#' + x.shout_id), focused: document.activeElement?.id ?? null, value: document.querySelector('#q').value,
+      shown: !results.hidden, groups: [...results.querySelectorAll('h4')].map((h) => [h.firstChild.textContent, h.querySelector('span').textContent]),
+      hits: [...results.querySelectorAll('.find-hit')].map((hit) => ({ go: hit.dataset.find, id: hit.querySelector('code').textContent, note: hit.querySelector('small').textContent, on: hit.classList.contains('on') })),
+      tab: view.tab, item: view.item, spec: view.row.spec, doctrine: view.row.doctrine,
+    };
+  })())`));
+  const key = async (name, code, keyCode, text) => {
+    for (const type of ['keyDown', 'keyUp']) await chrome.send('Input.dispatchKeyEvent', { type, key: name, code, windowsVirtualKeyCode: keyCode, ...(type === 'keyDown' && text ? { text, unmodifiedText: text } : {}) });
+  };
+  const tap = async (selector) => {
+    const point = JSON.parse(await chrome.evaluate(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return JSON.stringify({ x: r.x + r.width / 2, y: r.y + r.height / 2 }); })()`));
+    for (const type of ['mousePressed', 'mouseReleased']) await chrome.send('Input.dispatchMouseEvent', { type, ...point, button: 'left', clickCount: 1 });
+  };
+  /** Type the words into the search as a keyboard does, from an empty field. */
+  const search = async (words) => {
+    await chrome.evaluate("document.querySelector('#q').focus(); document.querySelector('#q').select()");
+    await chrome.send('Input.insertText', { text: words });
+    await chrome.waitFor(`document.querySelector('#q').value === ${JSON.stringify(words)} && !document.querySelector('#find-results').hidden`);
+  };
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("typeof data === 'object' && data?.project?.items?.length === 8 && data.project.shouts.length >= 2");
+    for (const scheme of ['light', 'dark']) {
+      for (const width of [1280, 375]) {
+        await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+        await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
+        await chrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${scheme})').matches`);
+        await chrome.evaluate("document.querySelector('[data-tab=items]').click()");
+        const at = `${width}px ${scheme}`;
+        // The Items toolbar is one row: Active, Verified and All, the lane picker, New item at its end; on a phone Active
+        // and Verified with New item, All and the lane picker dropped.
+        const bar = (await read()).bar, names = bar.map((part) => part.name);
+        if (width === 375) assert.deepEqual(names, ['active', 'verified', 'new-item'], `${at}: on a phone the toolbar is Active, Verified and New item`);
+        else assert.deepEqual([names.slice(0, 3), names.at(-1)], [['active', 'verified', 'all'], 'new-item'], `${at}: the toolbar's states, then New item at its end`);
+        assert.ok(bar.every((part) => Math.abs(part.middle - bar[0].middle) <= 2), `${at}: the toolbar is one row: ${JSON.stringify(bar)}`);
+        await search('greeting');
+        const r = await read();
+        assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll`);
+        // The search is the top bar's; the Items toolbar keeps the states, the lane picker and New item.
+        assert.ok(r.inTop, `${at}: the search sits in the top bar`);
+        assert.deepEqual(r.toolbar, ['state-chips', 'lane-pick', 'new-item'], `${at}: the Items toolbar has no search field`);
+        if (width === 375) assert.ok(r.field.top >= r.tabs.bottom - 1 && r.field.width >= r.page.width - 40, `${at}: on a phone the search is its own row under the tabs: ${JSON.stringify([r.field, r.tabs])}`);
+        else assert.ok(Math.abs((r.field.top + r.field.height / 2) - (r.top.top + r.top.height / 2)) <= 2 && r.field.left >= r.tabs.right && r.field.right <= r.theme.left, `${at}: the search sits in the top bar between the tabs and the theme button: ${JSON.stringify([r.tabs, r.field, r.theme, r.top])}`);
+        // Results group by kind, five a group with how many there are, the first ready for Enter.
+        assert.deepEqual(r.groups, [['Items', '5 of 7'], ['Spec', '1'], ['Doctrine', '1'], ['Shouts', '2']], `${at}: grouped, newest first, five a group`);
+        assert.deepEqual([r.hits.length, r.hits.findIndex((hit) => hit.on), r.hits.slice(5).map((hit) => hit.id)], [9, 0, ['G3', 'R1', ...r.shoutIds]], `${at}: every group's results, the first highlighted`);
+        // A shout's result is its own id, its words and its kind, newest first.
+        assert.deepEqual(r.hits.slice(7).map((hit) => hit.note), ['decision', 'shout'], `${at}: a shout's result names its kind: ${JSON.stringify(r.hits.slice(7))}`);
+        await key('Escape', 'Escape', 27);
+        const cleared = await read();
+        assert.deepEqual([cleared.value, cleared.shown], ['', false], `${at}: Esc clears the search and closes its results`);
+      }
+    }
+
+    // The arrows move the highlight and Enter opens it: here the third item, the third newest.
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
+    await chrome.waitFor('innerWidth === 1280');
+    await search('greeting');
+    let r = await read();
+    const third = r.hits[2].go;
+    await key('ArrowDown', 'ArrowDown', 40);
+    await key('ArrowDown', 'ArrowDown', 40);
+    assert.equal((await read()).hits.findIndex((hit) => hit.on), 2, 'down twice highlights the third');
+    await key('ArrowUp', 'ArrowUp', 38);
+    await key('ArrowDown', 'ArrowDown', 40);
+    await key('Enter', 'Enter', 13, '\r');
+    await chrome.waitFor(`view.tab === 'items' && view.item === ${Number(third.slice(5))} && document.querySelector('#find-results').hidden`);
+
+    // A click opens a Spec row, a Doctrine rule or a shout where it lives.
+    await search('greeting');
+    await tap('#find-results [data-find="spec:G3"]');
+    await chrome.waitFor("view.tab === 'spec' && view.row.spec === 'G3' && document.querySelector('#spec-detail h2 span')?.textContent === 'G3'");
+    await search('greeting');
+    await tap('#find-results [data-find="doctrine:R1"]');
+    await chrome.waitFor("view.tab === 'doctrine' && view.row.doctrine === 'R1' && document.querySelector('#doctrine-detail h2 span')?.textContent === 'R1'");
+    await search('greeting');
+    const shout = (await read()).hits.find((hit) => hit.go.startsWith('shout:')).go;
+    await tap(`#find-results [data-find="${shout}"]`);
+    await chrome.waitFor(`view.tab === 'shouts' && document.getElementById('shout-${shout.slice(6)}')?.classList.contains('found')`);
+
+    // "/" goes to the search from the page, never from a field.
+    await chrome.evaluate("document.activeElement.blur(); document.body.focus()");
+    await key('/', 'Slash', 191, '/');
+    r = await read();
+    const selected = await chrome.evaluate("(() => { const q = document.querySelector('#q'); return q.selectionStart === 0 && q.selectionEnd === q.value.length; })()");
+    assert.deepEqual([r.focused, selected], ['q', true], '"/" puts the cursor in the search, its last words selected to type over');
+    await chrome.evaluate("document.querySelector('#shout-text').focus()");
+    await key('/', 'Slash', 191, '/');
+    assert.equal(await chrome.evaluate("document.querySelector('#shout-text').value"), '/', 'and in a field it is only a slash');
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
