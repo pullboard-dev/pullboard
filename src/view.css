@@ -197,13 +197,6 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .needs-you .head i { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); display: inline-block; }
 .needs-you .head.quiet { color: var(--ink-muted); font-weight: 600; }
 .needs-you .more { padding: 2px 4px; }
-.ny { display: grid; grid-template-columns: auto minmax(5em, 1fr) minmax(0, max-content); gap: 10px; align-items: baseline; text-align: left; border: 0; background: none; padding: 6px 4px; border-radius: 8px; width: 100%; min-height: var(--tap); }
-.ny:has(.ny-open):hover { background: color-mix(in srgb, var(--warn) 10%, var(--surface)); }
-.ny code { font: 600 12px var(--mono); }
-.ny .ny-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); }
-.ny .ny-open { min-height: var(--tap); border: 0; padding: 0; background: none; color: var(--warn); cursor: pointer; text-align: right; }
-.ny em { font-style: normal; color: var(--warn); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-@media (width < 480px) { .ny { grid-template-columns: auto minmax(0, 1fr); row-gap: 1px; } .ny .ny-open { grid-column: 2; } }
 .answering { flex: 1 1 100%; display: flex; gap: 10px; align-items: baseline; justify-content: space-between; margin: 0; font-size: 13px; color: var(--ink-muted); }
 .answering > span { min-width: 0; overflow-wrap: anywhere; }
 .mark { font: 600 11px var(--mono); padding: 0 6px; border-radius: 999px; background: var(--surface-2); color: var(--ink-muted); }
@@ -556,9 +549,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .fold-line:hover { background: var(--surface-2); }
 .fold-more { margin-left: auto; color: var(--accent-strong); font-weight: 600; }
 /* The fold line reaches 4px from the card edge on every side, its words in line with the card text. */
-#decisions > .fold-line { margin: 2px -8px 0; width: calc(100% + 16px); }
-#decisions:has(> .fold-line:first-child) { padding-top: 4px; }
-#decisions > .fold-line:first-child { margin-top: 0; }
+
 .agents-quiet { margin: 4px 0 0; padding: 10px 8px 2px; border-top: 1px solid var(--line); color: var(--ink-faint); font-size: 12.5px; }
 .all-agents { margin-top: 2px; font-size: 13px; }
 .agents-idle { margin-top: 4px; padding-top: 2px; border-top: 1px solid var(--line); }
@@ -601,3 +592,41 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
   :root:not([data-side="collapsed"]) .switch-btn { cursor: default; }
   :root:not([data-side="collapsed"]) .switch-btn small { display: none; }
 }
+/* Needs you heads the Items list: each call a row shaped like an item, its kind in the warning colour as a sent-back
+ * verdict is, set off from the items under it by a rule. */
+.list-card { display: grid; gap: 2px; padding: 6px; }
+.list-card > .chain { padding: 0; }
+.needs { display: grid; gap: 2px; margin: 0 0 4px; padding: 0 0 4px; list-style: none; border-bottom: 1px solid var(--line); }
+.needs[hidden] { display: none; }
+.dot.ask { background: var(--warn); }
+.row.ask .meta .why { color: var(--warn); }
+/* Shouts is one card: the composer's line at its head with the asks and Show agents at its end, then the asks once
+ * opened, as a tinted group set apart from the feed, then the feed. */
+.shouts-card { display: grid; min-width: 0; padding: 0; }
+.shouts-card > .shout-form { flex-wrap: wrap; align-items: center; padding: 10px 10px 4px; }
+.shout-form > .composer { flex: 1 1 0; }
+.asks-slot { display: flex; flex: none; gap: 2px; }
+.asks-slot:empty { display: none; }
+.asks-toggle { flex: none; padding: 6px 8px; border: 0; border-radius: 8px; background: none; color: var(--ink-muted); font: inherit; font-size: 13px; white-space: nowrap; cursor: pointer; }
+.asks-toggle:hover, .asks-toggle[aria-expanded="true"] { background: var(--surface-2); color: var(--ink); }
+.shouts-card > #decisions { margin: 2px 10px 8px; padding: 2px 10px; border: 0; border-radius: 10px; background: var(--surface-2); box-shadow: none; }
+.shouts-card > #decisions[hidden] { display: none; }
+.shouts-card > #decisions > .shout:first-child { border-top: 0; }
+.shouts-card > .feed { min-width: 0; }
+/* A sent shout shows as its card in the feed, so only a refusal speaks, on its own line above the composer. */
+.shout-form > .console { flex: 1 1 100%; order: -1; margin: 0; }
+.shout-form > .console.ok { display: none; }
+/* Under a mouse the composer is as tall as a line of text. */
+@media (pointer: fine) and (width >= 900px) {
+  .composer { padding: 3px; border-radius: 10px; }
+  .composer textarea { min-height: 32px; padding: 6px 8px; }
+  .composer .send { width: 32px; height: 32px; border-radius: 8px; }
+  .composer .send svg { width: 15px; height: 15px; }
+}
+/* A panel's heading carries its own control at the right. */
+.detail h3.panel-head { display: flex; align-items: center; justify-content: space-between; }
+.detail h3.panel-head .link { min-height: 44px; margin: -16px -6px -16px 0; padding: 0 6px; color: var(--ink-faint); font: 500 12px var(--sans); letter-spacing: 0; text-transform: none; }
+.detail h3.panel-head .link:hover { color: var(--accent-strong); }
+/* In an agent's row the state is a coloured word beside the name, so what it holds has the row's full width. */
+.agent-who { gap: 6px; }
+.agent-who .chip { flex: none; padding: 0; border: 0; background: none; font: 600 11.5px var(--sans); letter-spacing: 0; }
