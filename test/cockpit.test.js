@@ -632,7 +632,7 @@ test('projects group repos with combined needs and activity, while ungrouped and
     assert.match(page.show('group-needs'), /Core API/);
     assert.match(page.show('group-needs'), /Web UI/);
     assert.match(page.show('group-needs'), /<b>Core API<\/b><code>G3<\/code><span>Should <button class="ref" data-root="[^"]+" data-go="item:1" title="Core target #1" type="button">#1<\/button> greet in French\?<\/span><button data-root="[^"]+" type="button"><em>answer in SPEC\.md →<\/em><\/button>/, "a question in one repo's spec");
-    assert.match(page.show('group-needs'), /<b>Web UI<\/b><code>coordinator<\/code><span>Ship <button class="ref" data-root="[^"]+" data-go="item:1" title="Target for #1" type="button">#1<\/button> today\?<\/span><button data-root="[^"]+" type="button"><em>decision, /, "and a decision in another's");
+    assert.match(page.show('group-needs'), /<b>Web UI<\/b><code>coordinator \(unknown\)<\/code><span>Ship <button class="ref" data-root="[^"]+" data-go="item:1" title="Target for #1" type="button">#1<\/button> today\?<\/span><button data-root="[^"]+" type="button"><em>decision, /, "and a decision in another's");
     assert.doesNotMatch(page.show('group-needs'), /sent back|to verify|Greeting|Header/, "work sent back or waiting for a verdict is the agents', not the person's");
     assert.match(page.show('group-activity'), /Core API/);
     assert.match(page.show('group-activity'), /Web UI/);
@@ -1122,14 +1122,14 @@ test("the history is a timeline of the item's states [N26]", async () => {
     await page.click({ go: 'item:1' });
     const done = timelineRows(page.show('detail'));
     assert.deepEqual(done.map((row) => [row.dot, row.event]), [
-      ['tl-open', 'add coordinator'],
-      ['tl-claimed', 'claim web-1'],
-      ['tl-submitted', 'submit web-1'],
-      ['tl-open tl-back', 'reject coordinator'],
-      ['tl-claimed', 'claim web-1'],
-      ['tl-submitted', 'submit web-1'],
-      ['tl-verified', 'accept coordinator'],
-      ['tl-verified tl-quiet', 'merged coordinator'],
+      ['tl-open', 'add coordinator (unknown)'],
+      ['tl-claimed', 'claim web-1 (Test Model)'],
+      ['tl-submitted', 'submit web-1 (Test Model)'],
+      ['tl-open tl-back', 'reject coordinator (unknown)'],
+      ['tl-claimed', 'claim web-1 (Test Model)'],
+      ['tl-submitted', 'submit web-1 (Test Model)'],
+      ['tl-verified', 'accept coordinator (unknown)'],
+      ['tl-verified tl-quiet', 'merged coordinator (unknown)'],
     ], 'a dot per event in the colour of the state it led to; a merge moves nothing');
     assert.deepEqual(done.map((row) => row.stay.replace(/ for .*/, ' for')), ['open for', 'claimed for', 'submitted for', 'sent back for', 'claimed for', 'submitted for', '', ''], 'each stay until the next move; a final state has none');
     assert.ok(done.slice(0, 6).every((row) => / for (under a minute|\d+m)$/.test(row.stay)), done.map((row) => row.stay).join(', '));
@@ -1146,8 +1146,8 @@ test("the history is a timeline of the item's states [N26]", async () => {
     const item = { status: 'claimed', history: [{ kind: 'add', by: 'web-1', at: at(0) }, { kind: 'claim', by: 'web-1', at: at(5) }, { kind: 'claim', by: 'web-2', at: at(200) }] };
     const lapsed = timelineRows(page.run(`timeline(${JSON.stringify(item)})`));
     assert.deepEqual(lapsed.map((row) => [row.dot, row.event, row.time === '']), [
-      ['tl-open', 'add web-1', false],
-      ['tl-claimed', 'claim web-1', false],
+      ['tl-open', 'add web-1 (Test Model)', false],
+      ['tl-claimed', 'claim web-1 (Test Model)', false],
       ['tl-open', 'lapse the clock', true],
       ['tl-claimed', 'claim web-2', false],
     ]);
@@ -1162,8 +1162,8 @@ test("the history is a timeline of the item's states [N26]", async () => {
     // A lease that ran out with nothing after it: the item reads open, and has been since the lapse.
     const idle = { status: 'open', history: [{ kind: 'add', by: 'web-1', at: at(0) }, { kind: 'claim', by: 'web-1', at: at(5) }] };
     assert.deepEqual(timelineRows(page.run(`timeline(${JSON.stringify(idle)})`)).map((row) => [row.event, row.stay]), [
-      ['add web-1', 'open for 5m'],
-      ['claim web-1', 'claimed until the lapse, length not logged'],
+      ['add web-1 (Test Model)', 'open for 5m'],
+      ['claim web-1 (Test Model)', 'claimed until the lapse, length not logged'],
       ['lapse the clock', 'open so far since the lapse, length not logged'],
     ]);
   } finally {
@@ -1183,7 +1183,7 @@ function agentEntries(html) {
     const first = what && word ? [null, what[1], what[2], word[1]] : null;
     return {
       id: /data-agent="([^"]*)"/.exec(entry)?.[1],
-      path: /title="Shouts with [^"(]* \(([^"]*)\)"/.exec(entry)?.[1],
+      path: /title="Shouts with [^"]* \(([^"]*)\)"/.exec(entry)?.[1],
       age: /<time[^>]*>([^<]*)<\/time>/.exec(entry)?.[1],
       holds: opened.length ? opened : first ? [`${first[1]} ${first[2]}: ${first[3]}`] : [],
       more: Number(/<span class="agent-more">\+(\d+)<\/span>/.exec(entry)?.[1] ?? 0),
@@ -1191,7 +1191,7 @@ function agentEntries(html) {
       text: entry.replace(/<[^>]*>/g, ' '),
     };
   });
-  const pills = [...html.matchAll(/<button class="agent-pill[^"]*" data-agent="([^"]*)" title="[^"(]* \(([^"]*)\)"[^>]*>([^]*?)<\/button>/g)]
+  const pills = [...html.matchAll(/<button class="agent-pill[^"]*" data-agent="([^"]*)" title="[^"]* \(([^"]*)\)"[^>]*>([^]*?)<\/button>/g)]
     .map((match) => ({ id: match[1], path: match[2], age: undefined, holds: [], more: 0, idle: true, text: match[3].replace(/<[^>]*>/g, ' ') }));
   return [...rows, ...pills];
 }
@@ -1214,7 +1214,7 @@ test('the agents panel says what each agent holds [N26]', async () => {
   try {
     const page = await openPage(view);
     assert.deepEqual(agentEntries(page.show('agents')).map((agent) => agent.id), ['web-1', 'web-2'], 'an agent holding nothing waits in the idle fold, closed');
-    assert.match(page.show('agents'), /<button class="fold-line" data-fold="idle" type="button" aria-expanded="false" title="coordinator"><span>1 idle<\/span>/);
+    assert.match(page.show('agents'), /<button class="fold-line" data-fold="idle" type="button" aria-expanded="false" title="coordinator \(unknown\)"><span>1 idle<\/span>/);
     page.run('view.open.idle = true; render();');
     const agents = agentEntries(page.show('agents'));
     assert.deepEqual(agents.map((agent) => [agent.id, agent.holds, agent.more, agent.idle]), [
@@ -1252,7 +1252,7 @@ test('a review in progress names its reviewer [N26]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
-    assert.match(itemRow(page.show('chain'), 1), /<span class="chip warn" title="reviewing until [^"]+">web-2 reviewing<\/span><\/li>$/, 'the row names who holds the review');
+    assert.match(itemRow(page.show('chain'), 1), /<span class="chip warn" title="reviewing until [^"]+">web-2 \(Test Model\) reviewing<\/span><\/li>$/, 'the row names who holds the review');
     assert.doesNotMatch(page.show('needs'), /Greeting/, "a review is the agents' work, so it stays out of Needs-you");
     page.run('view.open.idle = true; render();');
     const holds = (id) => agentEntries(page.show('agents')).find((agent) => agent.id === id).holds;
@@ -1363,7 +1363,7 @@ test('each row says what it waits on [N26]', async () => {
       waits: [...row.matchAll(/<span class="gate">(.*?)<\/span>/g)].map((match) => match[1]),
     }]));
     assert.deepEqual(rows['1'], { chip: 'free: unclaimed', edge: false, waits: [] }, 'free to claim');
-    assert.deepEqual(rows['2'], { chip: 'busy: web-1', edge: false, waits: [] }, 'a claim names its holder');
+    assert.deepEqual(rows['2'], { chip: 'busy: web-1 (Test Model)', edge: false, waits: [] }, 'a claim names its holder');
     assert.deepEqual(rows['3'], { chip: 'gate: gated', edge: true, waits: ['<span class="wait-unit">waits on <button class="ref" data-go="item:2" type="button">#2</button>'] }, 'gated on #2, which is still being built');
     assert.deepEqual(rows['4'], { chip: 'gate: lane held', edge: true, waits: ['lane held: API &lt;freeze&gt; until Friday'] });
     assert.deepEqual(rows['5'], { chip: 'warn: to verify', edge: false, waits: [] });
@@ -1881,7 +1881,7 @@ test('a sent-back item shows why first [N26]', async () => {
     assert.ok(detail.indexOf('<h3>Criterion</h3>') > 0, 'the criterion is shown');
     assert.match(top, /<h3>Sent back<\/h3>/);
     assert.match(top, /<b>REJECT BEHAVIOR_MISMATCH<\/b>/);
-    assert.match(top, new RegExp(`coordinator · (\\w+ \\d+ )?${time} · at ${verdict.commit.slice(0, 12)}`), 'who sent it back, when, and at which commit');
+    assert.match(top, new RegExp(`coordinator \\(unknown\\) · (\\w+ \\d+ )?${time} · at ${verdict.commit.slice(0, 12)}`), 'who sent it back, when, and at which commit');
     assert.ok(top.includes('no &lt;b&gt;greeting&lt;/b&gt; on the page\nsecond line of the note'), 'the full note, escaped, before the criterion');
     assert.ok(!detail.includes('<b>greeting</b>'), 'the note cannot inject markup');
     assert.ok(detail.indexOf('<h3>Criterion</h3>') < detail.indexOf('<h3>Spec rows it serves</h3>'));
@@ -2012,6 +2012,11 @@ test('shout ids, search and narrow windows reach the item [N26]', async () => {
   }
 });
 
+/** Unwrap only the name layout spans so full-card assertions keep checking their text and structure. */
+function shoutNameText(html) {
+  return html.replace(/<span class="agent-label(?: prefix)?" title="[^"]*" role="group" aria-label="[^"]*"><span class="agent-(?:id|model)">([^]*?)<\/span><span class="agent-(?:id|model)">([^]*?)<\/span><\/span>/g, '$1$2');
+}
+
 test('a decision waits in needs-you until the view answers it [B21, B26, N27]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
@@ -2029,17 +2034,17 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     // An agent asks its coordinator (B25): the ask waits on the board with who holds it, never in Needs-you.
     assert.doesNotMatch(page.show('needs'), /decide:/, "an agent's ask is its coordinator's to answer");
     assert.equal(page.element('decisions').hidden, true, 'an ask waiting on others stays folded');
-    assert.match(page.show('asks-slot'), /^<button class="asks-toggle" data-fold="waiting" type="button" aria-expanded="false" title="Asks between agents, waiting on others: web-1 asks coordinator">1 ask waiting <span aria-hidden="true">▾<\/span><\/button>$/, 'its toggle sits at the end of the composer line');
+    assert.match(page.show('asks-slot'), /^<button class="asks-toggle" data-fold="waiting" type="button" aria-expanded="false" title="Asks between agents, waiting on others: web-1 \(Test Model\) asks coordinator \(unknown\)">1 ask waiting <span aria-hidden="true">▾<\/span><\/button>$/, 'its toggle sits at the end of the composer line');
     page.run('view.open.waiting = true; render();');
-    assert.match(page.show('decisions'), new RegExp(`^<article class="shout h\\d" data-shout-id="1"><span class="avatar" aria-hidden="true">W1</span><div class="shout-main"><header><b class="who">web-1</b><span class="to">→ coordinator</span><span class="mark ask">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">now</time></header><div class="text">${question}</div><button class="more" data-more type="button">more</button></div></article>$`), 'above the shouts as a card, saying who asked whom, with no Answer button');
+    assert.match(shoutNameText(page.show('decisions')), new RegExp(`^<article class="shout h\\d" data-shout-id="1"><span class="avatar" aria-hidden="true">W1</span><div class="shout-main"><header><b class="who">web-1 \\(Test Model\\)</b><span class="to">→ coordinator \\(unknown\\)</span><span class="mark ask">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">now</time></header><div class="text">${question}</div><button class="more" data-more type="button">more</button></div></article>$`), 'above the shouts as a card, saying who asked whom, with no Answer button');
     assert.doesNotMatch(page.show('feed'), /Greet in/, 'though the feed no longer reaches it');
 
     // The coordinator passes it up with its note (B27): now it is the person's call.
     box.run(alpha.repo, 'pass', '1', 'over to you');
     await page.run('refresh()');
     const passed = `Passed up from web-1: ${question}\nCoordinator note: over to you`;
-    assert.match(page.show('needs'), new RegExp(`^<li class="row ask" data-go="decide:42"><span class="dot ask"></span><div><div class="t">${passed.replace('\n', '<br>')}</div><span class="row-age"><time data-ago="[^"]+">now</time></span><div class="meta"><span class="why"><b>NEEDS YOU</b> a decision, asked by coordinator</span></div></div><span class="chip warn">decide</span></li>`), "first in Needs-you: who passed it, what, and since when");
-    assert.match(page.show('decisions'), new RegExp(`^<div class="head"><i></i>Decision needed</div><article class="shout h\\d lead" data-shout-id="42"><span class="avatar"><svg [\\s\\S]*?</svg></span><div class="shout-main"><header><b class="who">coordinator</b><span class="to">→ person</span><span class="mark ask">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">now</time></header><div class="text">${passed.replace('\n', '<br>')}</div><button class="more" data-more type="button">more</button><button class="ghost answer" data-go="decide:42" type="button">Answer</button></div></article>$`), 'and above the shouts as the coordinator\'s card, with an Answer button');
+    assert.match(page.show('needs'), new RegExp(`^<li class="row ask" data-go="decide:42"><span class="dot ask"></span><div><div class="t">${passed.replace('\n', '<br>')}</div><span class="row-age"><time data-ago="[^"]+">now</time></span><div class="meta"><span class="why"><b>NEEDS YOU</b> a decision, asked by coordinator \\(unknown\\)</span></div></div><span class="chip warn">decide</span></li>`), "first in Needs-you: who passed it, what, and since when");
+    assert.match(shoutNameText(page.show('decisions')), new RegExp(`^<div class="head"><i></i>Decision needed</div><article class="shout h\\d lead" data-shout-id="42"><span class="avatar"><svg [\\s\\S]*?</svg></span><div class="shout-main"><header><b class="who">coordinator \\(unknown\\)</b><span class="to">→ person</span><span class="mark ask">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">now</time></header><div class="text">${passed.replace('\n', '<br>')}</div><button class="more" data-more type="button">more</button><button class="ghost answer" data-go="decide:42" type="button">Answer</button></div></article>$`), 'and above the shouts as the coordinator\'s card, with an Answer button');
 
     const form = () => ({
       answering: !page.element('answering').hidden,
@@ -2052,7 +2057,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     page.element('shout-to').value = 'web';
     await page.click({ go: 'decide:42' });
     assert.equal(page.run('view.tab'), 'shouts');
-    assert.deepEqual(form(), { answering: true, who: 'coordinator', question: 'Passed up from web-1: Greet in <b>French</b> first?\nCoordinator note: over to you', to: 'coordinator', locked: true, button: 'Answer' }, 'Answer turns the form to answering the one who asked');
+    assert.deepEqual(form(), { answering: true, who: 'coordinator (unknown)', question: 'Passed up from web-1: Greet in <b>French</b> first?\nCoordinator note: over to you', to: 'coordinator', locked: true, button: 'Answer' }, 'Answer turns the form to answering the one who asked');
     await page.fire('answer-cancel', 'click');
     assert.deepEqual(form(), { answering: false, who: '', question: '', to: 'web', locked: false, button: 'Shout' }, 'Cancel gives back the plain shout');
 
@@ -2072,9 +2077,9 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     box.run(alpha.web, 'shout', 'coordinator', 'Ship today?', '--decision');
     box.run(alpha.repo, 'pass', '45', 'yours');
     await page.run('refresh()');
-    const feed = page.show('feed');
-    assert.match(feed, /<b class="who">web-1<\/b><span class="to">→ coordinator<\/span><span class="mark ask">decision<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">Ship today\?<\/div>/, 'the feed marks an ask');
-    assert.match(feed, /<b class="who">person<\/b><span class="to">→ coordinator<\/span><span class="mark">answer<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">French, then English<\/div>/, 'and an answer');
+    const feed = shoutNameText(page.show('feed'));
+    assert.match(feed, /<b class="who">web-1 \(Test Model\)<\/b><span class="to">→ coordinator \(unknown\)<\/span><span class="mark ask">decision<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">Ship today\?<\/div>/, 'the feed marks an ask');
+    assert.match(feed, /<b class="who">person<\/b><span class="to">→ coordinator \(unknown\)<\/span><span class="mark">answer<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">French, then English<\/div>/, 'and an answer');
     assert.match(page.show('needs'), /data-go="decide:46"/);
 
     // An answer belongs to the project whose question it shows.
@@ -2128,19 +2133,19 @@ test("needs-you holds only the person's calls; the rest show on the board with w
       ['tab', 'web', 'G3 is open'],
       ['tab', '1', 'draft spec rows to approve or drop'],
     ], "the person's calls, and only those: the decision asked of them, the spec's question, the held lane, the draft row");
-    assert.equal(needEntries(needs)[0][3], 'a decision, asked by coordinator', 'a decision says below who asked it');
+    assert.equal(needEntries(needs)[0][3], 'a decision, asked by coordinator (unknown)', 'a decision says below who asked it');
     assert.doesNotMatch(needs, /Which colour|Greeting|Farewell/, "an agent's ask, work waiting for a verdict and work sent back are not the person's");
-    assert.match(needs, /<li class="row ask" data-go="tab:shouts"><span class="dot ask"><\/span><div><div class="t"><span>web<\/span>G3 is open<\/div><span class="row-age"><time data-ago="[^"]+">(?:now|\d+[mhd])<\/time><\/span><div class="meta"><span class="why"><b>NEEDS YOU<\/b> lane held by coordinator<\/span><\/div><\/div><span class="chip warn">release<\/span><\/li>/, 'a held lane says who set it and shows the API-provided hold age');
+    assert.match(needs, /<li class="row ask" data-go="tab:shouts"><span class="dot ask"><\/span><div><div class="t"><span>web<\/span>G3 is open<\/div><span class="row-age"><time data-ago="[^"]+">(?:now|\d+[mhd])<\/time><\/span><div class="meta"><span class="why"><b>NEEDS YOU<\/b> lane held by coordinator \(unknown\)<\/span><\/div><\/div><span class="chip warn">release<\/span><\/li>/, 'a held lane says who set it and shows the API-provided hold age');
 
     // Each of the rest is on the board, with who holds it.
     page.run('view.open.waiting = true; render();');
-    assert.match(page.show('decisions'), /<article class="shout h\d" data-shout-id="\d+"><span class="avatar" aria-hidden="true">W1<\/span><div class="shout-main"><header><b class="who">web-1<\/b><span class="to">→ coordinator<\/span>/, "the agent's ask waits on its coordinator");
+    assert.match(shoutNameText(page.show('decisions')), /<article class="shout h\d" data-shout-id="\d+"><span class="avatar" aria-hidden="true">W1<\/span><div class="shout-main"><header><b class="who">web-1 \(Test Model\)<\/b><span class="to">→ coordinator \(unknown\)<\/span>/, "the agent's ask waits on its coordinator");
     assert.match(itemRow(page.show('chain'), 1), /<span class="chip [^"]*">to verify<\/span><\/li>$/, 'work waiting for a verdict');
     assert.ok(itemRow(page.show('chain'), 2).includes('<b>BEHAVIOR_MISMATCH</b> no farewell yet'), 'and work sent back, with why');
     page.run("view.agent = 'web-1'; render();");
     assert.deepEqual(agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1').holds, ['#2 Farewell: sent back', '#1 Greeting: to verify'], 'the agent that built them holds both');
     page.run('view.agent = null; render();');
-    assert.match(page.show('lanes'), /<b>web<\/b> <span class="chip no">held by coordinator<\/span> <span class="muted">G3 is open<\/span>/, 'a held lane names who holds it');
+    assert.match(page.show('lanes'), /<b>web<\/b> <span class="chip no">held by coordinator \(unknown\)<\/span> <span class="muted">G3 is open<\/span>/, 'a held lane names who holds it');
 
     // The sidebar counts exactly the person's calls; its line still says what the agents are doing.
     assert.deepEqual(projectRows(page.show('proj-list')).map((row) => [row.needs, row.line]), [['4', '1 decision · 1 question · 1 draft row · 1 lane held · 1 sent back · 1 to verify']]);
@@ -2968,7 +2973,7 @@ test('a shout shows the evidence it carries [B22]', async () => {
   const view = await startView(box);
   try {
     const feed = (await openPage(view)).show('feed');
-    const card = (kind, outcome) => `<div class="receipt"><div><span class="badge">${kind}</span> <span class="outcome">${outcome}</span></div><div class="receipt-foot"><button class="ref" data-go="item:1" title="Greeting" type="button">#1</button> · web-1 · <code class="inline sha" title="${head}">${head.slice(0, 10)}</code></div></div>`;
+    const card = (kind, outcome) => `<div class="receipt"><div><span class="badge">${kind}</span> <span class="outcome">${outcome}</span></div><div class="receipt-foot"><button class="ref" data-go="item:1" title="Greeting" type="button">#1</button> · web-1 (Test Model) · <code class="inline sha" title="${head}">${head.slice(0, 10)}</code></div></div>`;
     const after = (text) => feed.slice(feed.indexOf(text + '</div>') + text.length + 6).replace(/^<button class="more" data-more type="button">more<\/button>/, '');
     assert.ok(after('the page loads in 80ms').startsWith(card('receipt', 'measured &lt;fast&gt;')), `what was measured, for which item, by whom, at which commit: ${after('the page loads in 80ms').slice(0, 400)}`);
     assert.ok(after('tried a cache').startsWith(card('attempt', 'failed')), 'and what was tried');
@@ -3005,7 +3010,7 @@ test('activity rows say what each shout and answer said [N26]', { timeout: 120_0
     await chrome.waitFor('!!document.querySelector(\'[data-tab="activity"]\')');
     await chrome.waitFor("typeof data === 'object' && !!data && !!data.project");
     await chrome.evaluate('document.querySelector(\'[data-tab="activity"]\').click()');
-    await chrome.waitFor(`[...document.querySelectorAll('#activity .act')].some((row) => row.textContent.startsWith('coordinator answered'))`);
+    await chrome.waitFor(`[...document.querySelectorAll('#activity .act')].some((row) => row.textContent.startsWith('coordinator (unknown) answered'))`);
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       // Measure only laid-out previews: on Activity, at this width, each preview with a box of its own.
@@ -3019,17 +3024,17 @@ test('activity rows say what each shout and answer said [N26]', { timeout: 120_0
           cut: said ? said.scrollWidth > said.clientWidth : null };
       }))`));
       const find = (start) => rows.find((row) => row.text.startsWith(start) && (row.said ?? '').length > 0);
-      const told = find('coordinator shouted to web' + 'Please take');
+      const told = find('coordinator (unknown) shouted to web' + 'Please take');
       assert.ok(told, `${width}: a shout reads sender, shouted to, recipient, then what it said: ${JSON.stringify(rows.slice(0, 4))}`);
       assert.deepEqual([told.said, told.tip], [long.replaceAll("`", ""), long], `${width}: its first line, as written in the tooltip and rendered in the row, never its second`);
       assert.ok(told.lines === 1 && told.ellipsis, `${width}: on one line, set to end in an ellipsis: ${JSON.stringify(told)}`);
       if (width === 375) assert.ok(told.cut, `${width}: cut on a phone, so the ellipsis shows`);
       assert.deepEqual([told.refs, told.code], [1, ['pullboard next']], `${width}: keeping the item link and the inline code`);
-      assert.ok(find(`${asker} asked coordinator` + 'Ship the greeting today?'), `${width}: a decision reads asked`);
-      assert.ok(find(`coordinator answered ${asker}` + 'Yes, ship it once'), `${width}: an answer reads who answered whom, then the answer`);
-      const oldest = rows.filter((row) => row.text.startsWith('coordinator shouted to web')).at(-1);
-      assert.deepEqual([oldest.text, oldest.said], ['coordinator shouted to web', null], `${width}: a shout older than the forty on hand still names who it went to`);
-      assert.ok(rows.some((row) => row.text === 'coordinator add #1 Greet the visitor'), `${width}: other rows read as before`);
+      assert.ok(find(`${asker} (Test Model) asked coordinator (unknown)` + 'Ship the greeting today?'), `${width}: a decision reads asked`);
+      assert.ok(find(`coordinator (unknown) answered ${asker} (Test Model)` + 'Yes, ship it once'), `${width}: an answer reads who answered whom, then the answer`);
+      const oldest = rows.filter((row) => row.text.startsWith('coordinator (unknown) shouted to web')).at(-1);
+      assert.deepEqual([oldest.text, oldest.said], ['coordinator (unknown) shouted to web', null], `${width}: a shout older than the forty on hand still names who it went to`);
+      assert.ok(rows.some((row) => row.text === 'coordinator (unknown) add #1 Greet the visitor'), `${width}: other rows read as before`);
     }
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
@@ -3957,8 +3962,8 @@ test('read-only Needs-you preserves each entry as text while its transport stays
     }))`);
     const normalEntries = JSON.parse(await readNeedEntries());
     assert.deepEqual(normalEntries.map((row) => row[0]), [null, 'G3', 'web', '1'], 'the normal Needs-you list contains the decision, pending row, held lane, and draft summary');
-    assert.match(normalEntries[0][2], /^NEEDS YOU a decision, asked by [^ ]+ @[^ ]+$/, 'the API-provided decision timestamp is shown as an age');
-    assert.match(normalEntries[2][2], /^NEEDS YOU lane held by coordinator @[^ ]+$/, 'the holder and API-provided hold timestamp are shown as an age');
+    assert.match(normalEntries[0][2], /^NEEDS YOU a decision, asked by coordinator \(unknown\) @[^ ]+$/, 'the API-provided decision timestamp is shown as an age');
+    assert.match(normalEntries[2][2], /^NEEDS YOU lane held by coordinator \(unknown\) @[^ ]+$/, 'the holder and API-provided hold timestamp are shown as an age');
     await chrome.send('Page.navigate', { url: `http://127.0.0.1:${address.port}/` });
     await chrome.waitFor("typeof data === 'object' && document.body?.classList.contains('read-only') && !!data?.project && typeof window.__transportUpdate === 'function'");
     await chrome.waitFor("document.querySelector('#needs .row')?.textContent.includes('Should the read-only fixture ship?')");
@@ -5367,7 +5372,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
           assert.ok(c.text.box.top >= c.header.bottom - 1, `${at}: ${name}: the text sits below the header`);
           for (const edge of c.edges) assert.deepEqual(edge.left, edge.right, `${at}: ${name}: no box in the card carries a coloured edge`);
         }
-        assert.deepEqual([old.avatar.text, old.who.text, old.to], ['W1', 'web-1', '→ coordinator'], `${at}: initials, name, arrow and recipient`);
+        assert.deepEqual([old.avatar.text, old.who.text, old.to], ['W1', 'web-1 (Test Model)', '→ coordinator (unknown)'], `${at}: initials, name, arrow and recipient`);
         assert.equal(old.avatar.radius, '50%', `${at}: an agent's avatar is a circle`);
         assert.equal(chipCard.avatar.color, old.avatar.color, `${at}: one agent keeps one colour`);
         assert.notEqual(asking.avatar.color, old.avatar.color, `${at}: another agent has its own`);
@@ -5401,13 +5406,13 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
 
         // Decisions: a band until answered, then who answered and a link to the answer.
         assert.deepEqual(asking.band, { text: 'Decision needed', done: false, href: null }, `${at}: an open ask carries a Decision needed band`);
-        assert.deepEqual(shipped.band, { text: 'Answered by coordinator: see the answer', done: true, href: `#shout-${answerId}` }, `${at}: an answered one says who answered, linking the answer`);
+        assert.deepEqual(shipped.band, { text: 'Answered by coordinator (unknown): see the answer', done: true, href: `#shout-${answerId}` }, `${at}: an answered one says who answered, linking the answer`);
         assert.ok(r.answerTarget, `${at}: the link lands on the answer`);
         assert.deepEqual(r.repeated, [], `${at}: an ask shown in the feed and above the composer never repeats an id`);
 
         // Evidence: a receipt with kind, outcome and a footer of item, agent and short sha.
         assert.deepEqual([receipt.receipt.badge, receipt.receipt.outcome], ['receipt', 'measured 80ms']);
-        assert.ok(receipt.receipt.foot.startsWith('#1 · web-1 · ') && receipt.receipt.sha === head.slice(0, 10) && receipt.receipt.shaTitle === head, `${at}: the receipt's footer: ${JSON.stringify(receipt.receipt)}`);
+        assert.ok(receipt.receipt.foot.startsWith('#1 · web-1 (Test Model) · ') && receipt.receipt.sha === head.slice(0, 10) && receipt.receipt.shaTitle === head, `${at}: the receipt's footer: ${JSON.stringify(receipt.receipt)}`);
 
         // A long shout folds at six lines; the asks above the composer are the same cards, folded at three.
         assert.deepEqual([folded.text.lines, folded.text.clamped, folded.more], [6, true, 'more'], `${at}: a long shout folds at six lines with more`);
@@ -5415,7 +5420,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
         assert.deepEqual(r.heads, ['Decision needed'], `${at}: the asks above the composer: the person's under their head, the rest opened from their fold line`);
         assert.deepEqual([r.asks.friday.answer, r.asks.colour.answer], ['Answer', null], `${at}: the person's ask has an Answer button; one waiting on others has none`);
         assert.deepEqual([r.asks.colour.text.lines, r.asks.colour.text.clamped, r.asks.colour.more], [3, true, 'more'], `${at}: an ask folds at three lines`);
-        assert.ok(r.asks.friday.avatar.svg && r.asks.friday.who.text === 'coordinator', `${at}: the asks are the feed's cards`);
+        assert.ok(r.asks.friday.avatar.svg && r.asks.friday.who.text === 'coordinator (unknown)', `${at}: the asks are the feed's cards`);
 
         // Days: none above today's shouts; a rule in the middle names the earlier day where the feed crosses into it.
         let day = new Date().toDateString();
@@ -5544,8 +5549,8 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
     // An agent's name filters the feed to its shouts, from or to it, and addresses the composer to it.
     await click('#agents [data-agent="web-2"]');
     s = await state();
-    assert.deepEqual(s.cards, [['coordinator', 'web-2'], ['web-2', 'coordinator']], 'only shouts from or to web-2');
-    assert.deepEqual([s.bar, s.to, s.on], ['Shouts with web-2 show all', 'web-2', ['web-2']], 'the bar says whose, the composer is addressed to them, and the agent is marked');
+    assert.deepEqual(s.cards, [['coordinator (unknown)', 'web-2 (unknown)'], ['web-2 (unknown)', 'coordinator (unknown)']], 'only shouts from or to web-2');
+    assert.deepEqual([s.bar, s.to, s.on], ['Shouts with web-2 (unknown) show all', 'web-2', ['web-2']], 'the bar says whose, the composer is addressed to them, and the agent is marked');
     await click('#feed .feed-bar [data-agent=""]');
     s = await state();
     assert.deepEqual([s.cards.length, s.bar, s.on, s.to], [total, '', [], 'coordinator'], 'show all undoes the filter, and the composer goes back to the coordinator');
@@ -5655,7 +5660,7 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
         // The agent holding work is one row: avatar, name, age, its first thing with that item's state, and how many more.
         assert.deepEqual(p.rows.map((row) => row.id), ['web-1'], `${at}: only an agent holding work takes a row`);
         const [row] = p.rows;
-        assert.match(row.text, /^W1 web-1 building \+1 (?:now|\d+[mhd]) #1 Header$/, `${at}: what the row says: ${row.text}`);
+        assert.match(row.text, /^W1 web-1 \(Test Model\) building \+1 (?:now|\d+[mhd]) #1 Header$/, `${at}: what the row says: ${row.text}`);
         assert.equal(row.face, row.name, `${at}: the name is in its avatar's colour, as in the feed`);
         assert.ok(row.height >= tapTarget(width), `${at}: the row is a target`);
         assert.ok(!/strong/.test(row.text) && row.title.includes('web · strong') && row.title.includes(alpha.web), `${at}: lane, route and path are on hover, not in the row: ${row.title}`);
@@ -5671,13 +5676,13 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
     await shoutsAt(chrome, 1280, 'light');
     await chrome.evaluate(`document.querySelector('#agents .agent-row[data-agent="web-1"]').click()`);
     let p = await panel();
-    assert.deepEqual([p.rows[0].on, p.rows[0].work.map(([id]) => id), p.chip, p.to, p.cards], [true, ['1', '2'], 'to web-1×', 'web-1', [['web-1', 'coordinator']]],
+    assert.deepEqual([p.rows[0].on, p.rows[0].work.map(([id]) => id), p.chip, p.to, p.cards], [true, ['1', '2'], 'to web-1 (Test Model)×', 'web-1', [['web-1 (Test Model)', 'coordinator (unknown)']]],
       `the picked row opens to what it holds, the feed shows its shouts and the composer is addressed to it: ${JSON.stringify(p)}`);
     assert.ok(p.rows[0].work.every(([, height]) => height >= tapTarget(1280)), 'each thing it holds is a target');
     // A pill does the same.
     await chrome.evaluate(`document.querySelector('#agents .agent-pill[data-agent="web-2"]').click()`);
     p = await panel();
-    assert.deepEqual([p.pills.find((pill) => pill.id === 'web-2').on, p.chip, p.cards], [true, 'to web-2×', [['web-2', 'coordinator']]], 'a pill filters and addresses too');
+    assert.deepEqual([p.pills.find((pill) => pill.id === 'web-2').on, p.chip, p.cards], [true, 'to web-2 (Test Model)×', [['web-2 (Test Model)', 'coordinator (unknown)']]], 'a pill filters and addresses too');
     // And a thing an agent holds opens its item.
     await chrome.evaluate(`document.querySelector('#agents .agent-row[data-agent="web-1"]').click()`);
     await chrome.evaluate(`document.querySelector('#agents .agent-work[data-item="2"]').click()`);
@@ -5740,7 +5745,7 @@ test('the composer goes to the coordinator and says who heard [N26]', { timeout:
         // A picked agent's chip has an x that is a 44px square target; picking the agent again puts it back.
         await chrome.evaluate(`document.querySelector('#agents [data-agent="web-1"]').click()`);
         const picked = await read();
-        assert.ok(picked.chip === 'to web-1×' && picked.clear[0] >= tapTarget(width) && picked.clear[1] >= tapTarget(width), `${at}: the chip's x is a square target: ${JSON.stringify(picked.clear)}`);
+        assert.ok(picked.chip === 'to web-1 (Test Model)×' && picked.clear[0] >= tapTarget(width) && picked.clear[1] >= tapTarget(width), `${at}: the chip's x is a square target: ${JSON.stringify(picked.clear)}`);
         await chrome.evaluate(`document.querySelector('#agents [data-agent="web-1"]').click()`);
         assert.equal((await read()).chip, null, `${at}: picking the agent again returns the composer to the coordinator`);
       }
@@ -5754,21 +5759,21 @@ test('the composer goes to the coordinator and says who heard [N26]', { timeout:
     await chrome.waitFor("data.project.shouts.some((s) => s.shout_from === 'person' && s.shout_to === 'coordinator' && s.shout_text === 'Ship the greeting?')", 15_000);
     await chrome.waitFor(`${heardOf('Ship the greeting?')} === 'Not heard yet'`, 15_000);
     box.run(alpha.repo, 'inbox');
-    await chrome.waitFor(`${heardOf('Ship the greeting?')} === 'Heard by coordinator'`, 15_000);
+    await chrome.waitFor(`${heardOf('Ship the greeting?')} === 'Heard by coordinator (unknown)'`, 15_000);
     // A shout that reaches everyone says who of them has read it: the coordinator first, then how many agents.
     // (The person reaches every agent through the relay's requests; here the board records one directly.)
     earlier(alpha.repo, Date.now(), (board) => shoutOnBoard(board, { from: 'person', to: 'all', text: 'Hold the merge, please.', lanes: ['web'] }));
     await chrome.waitFor("data.project.shouts.some((s) => s.shout_from === 'person' && s.shout_to === 'all')", 15_000);
     box.run(alpha.repo, 'inbox');
     box.run(alpha.web, 'inbox');
-    await chrome.waitFor(`${heardOf('Hold the merge, please.')} === 'Heard by coordinator and 1 agent'`, 15_000);
+    await chrome.waitFor(`${heardOf('Hold the merge, please.')} === 'Heard by coordinator (unknown) and 1 agent'`, 15_000);
     const all = (await read()).heard.find(([text]) => text === 'Hold the merge, please.');
-    assert.deepEqual(all.slice(2), [2, 'Heard by coordinator, web-1'], 'with their avatars, and every name on hover');
+    assert.deepEqual(all.slice(2), [2, 'Heard by coordinator (unknown), web-1 (Test Model)'], 'with their avatars, and every name on hover');
 
     // Picking an agent addresses the composer to it; the chip's x returns it to the coordinator.
     await chrome.evaluate(`document.querySelector('#agents [data-agent="web-1"]').click()`);
     let r = await read();
-    assert.deepEqual([r.chip, r.to, r.placeholder], ['to web-1×', 'web-1', 'Shout to web-1'], 'a picked agent shows as a chip');
+    assert.deepEqual([r.chip, r.to, r.placeholder], ['to web-1 (Test Model)×', 'web-1', 'Shout to web-1 (Test Model)'], 'a picked agent shows as a chip');
     const clearAt = tapTarget(await chrome.evaluate('innerWidth'));
     assert.ok(r.clear[0] >= clearAt && r.clear[1] >= clearAt, 'whose x is a square target');
     await chrome.evaluate(`document.querySelector('#shout-to-chip [data-to-clear]').click()`);
@@ -5865,7 +5870,7 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
       assert.equal(rendered.rows, expected.length, `${width}px: each API event appears exactly once`);
       const expectedFacts = expected.filter((entry) => entry.type === 'fact');
       assert.deepEqual(rendered.kinds, expectedFacts.map((entry) => entry.kind), `${width}px: every fact kind is a visible chip`);
-      assert.deepEqual(rendered.authors, expectedFacts.map((entry) => entry.by), `${width}px: each fact names its API author`);
+      assert.deepEqual(rendered.authors, expectedFacts.map((entry) => entry.by + ' (Test Model)'), `${width}px: each fact names its API author`);
       assert.equal(rendered.ages, expectedFacts.length, `${width}px: each fact shows its age`);
       assert.match(rendered.oldClass, /tl-superseded/, `${width}px: the earlier fact is visibly dimmed`);
       assert.equal(rendered.replacementHref, `#fact-${replacement.id}`, `${width}px: the earlier fact links to its replacement`);
@@ -6075,7 +6080,7 @@ test('list rows hold their shape: one-line titles end in an ellipsis, every row 
       assert.equal(new Set(rows.map((row) => row.chipHeight)).size, 1, `${width}: every chip is the same size`);
       const chips = Object.fromEntries(rows.map((row) => [row.id, row.chip]));
       assert.deepEqual([chips[1], chips[2], chips[3], chips[4]], ['chip free: unclaimed', 'chip free: unclaimed', 'chip gate: gated', 'chip no: sent back'], `${width}: each state's chip in the list`);
-      assert.match(chips[5], /^chip busy: web-\d+$/, `${width}: a claimed item names who builds it, in the building colour`);
+      assert.match(chips[5], /^chip busy: web-\d+ \(Test Model\)$/, `${width}: a claimed item names who builds it, in the building colour`);
       // The same state wears the same chip in the item's detail as in its row.
       for (const row of rows) {
         await chrome.evaluate(`document.querySelector('#chain .row[data-item="${row.id}"]').click()`);
@@ -7227,9 +7232,9 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
         // asked) in the warning colour below.
         assert.deepEqual([r.needsShown, r.inList, r.separateCard], [true, true, false], `${at}: Needs you is the head of the Items list, not a card of its own`);
         assert.deepEqual(r.needs.map(({ go, ref, words, kind, chip }) => [go.split(':')[0], ref, words.includes('Which colour for the button?') ? 'Which colour…' : words, kind, chip]), [
-          ['decide', null, 'Which colour…', 'NEEDS YOU a decision, asked by coordinator', 'decide'],
+          ['decide', null, 'Which colour…', 'NEEDS YOU a decision, asked by coordinator (unknown)', 'decide'],
           ['spec', 'G3', 'G3Should the greeting name the visitor?', 'NEEDS YOU an open question in SPEC.md', 'answer'],
-          ['tab', 'web', 'webFreeze for the demo', 'NEEDS YOU lane held by coordinator', 'release'],
+          ['tab', 'web', 'webFreeze for the demo', 'NEEDS YOU lane held by coordinator (unknown)', 'release'],
           ['tab', '2', '2draft spec rows to approve or drop', 'NEEDS YOU Spec rows waiting on you', 'review'],
         ], `${at}: the person's calls, each a row, the drafts one row with their count`);
         assert.ok(r.needs.every((need) => need.label), `${at}: NEEDS YOU and its kind in the warning colour`);
@@ -7247,7 +7252,7 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
         assert.ok(r.hide && r.panelShown, `${at}: the agents panel carries its own hide`);
         // An agent's row: its name and state in words, then what it holds at the full width.
         const holder = r.agents.find((agent) => agent.who.startsWith('web-1'));
-        assert.ok(holder && /^web-1 building (?:now|\d+[mhd])$/.test(holder.who) && holder.what === '#1 Greeting' && !holder.chipInDoing, `${at}: web-1's row reads as an item's: ${JSON.stringify(holder)}`);
+        assert.ok(holder && /^web-1 \(Test Model\) building (?:now|\d+[mhd])$/.test(holder.who) && holder.what === '#1 Greeting' && !holder.chipInDoing, `${at}: web-1's row reads as an item's: ${JSON.stringify(holder)}`);
       }
     }
 
@@ -7305,7 +7310,8 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
   assert.ok(executable, 'Chrome is required for model-name viewport proof');
   const box = machine();
   const alpha = project(box, 'model-names');
-  box.run(alpha.web, 'join', 'web', '--model', 'GPT-6');
+  const model = 'GPT-6 with a very long model declaration for readable agent names';
+  box.run(alpha.web, 'join', 'web', '--model', model);
   const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try { register(board, { lane: 'coordinator', path: alpha.repo, model: 'Claude' }); }
   finally { closeBoard(board); }
@@ -7351,8 +7357,8 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
         await chrome.evaluate('refresh()');
       }
       const expected = style === 'suffix'
-        ? { builder: 'web-1 (GPT-6)', reviewer: 'coordinator (Claude)', unknown: 'web-2 (unknown)' }
-        : { builder: 'gpt-6-web-1', reviewer: 'claude-coordinator', unknown: 'unknown-web-2' };
+        ? { builder: 'web-1 (' + model + ')', reviewer: 'coordinator (Claude)', unknown: 'web-2 (unknown)' }
+        : { builder: 'gpt-6-with-a-very-long-model-declaration-for-readable-agent-names-web-1', reviewer: 'claude-coordinator', unknown: 'unknown-web-2' };
       const apiNames = JSON.parse(await chrome.evaluate('JSON.stringify(Object.fromEntries(data.project.agents.map(a => [a.agent_id, a.displayName])))'));
       assert.deepEqual(apiNames, { coordinator: expected.reviewer, 'web-1': expected.builder, 'web-2': expected.unknown }, `${style}: authoritative API names`);
       for (const width of [375, 1280]) {
@@ -7385,6 +7391,32 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
         const feed = await text('#feed');
         assert.ok(feed.includes(expected.builder) && feed.includes(expected.unknown) && feed.includes(expected.reviewer), `${at}: shout sender and recipient names`);
         assert.ok(feed.includes('→ all') && feed.includes('→ person'), `${at}: person and broadcast recipients keep their names`);
+        const headers = JSON.parse(await chrome.evaluate(`JSON.stringify([...document.querySelectorAll('#feed .shout header')].map(header => {
+          const rect = header.getBoundingClientRect();
+          return { height: rect.height, line: parseFloat(getComputedStyle(header.querySelector('.who')).lineHeight),
+            labels: [...header.querySelectorAll('.agent-label')].map(label => {
+              const id = label.querySelector('.agent-id'), part = label.querySelector('.agent-model'), box = id.getBoundingClientRect();
+              return { name: label.textContent, title: label.title, aria: label.getAttribute('aria-label'), id: id.textContent,
+                left: box.left, right: box.right, headerLeft: rect.left, headerRight: rect.right, idWidth: id.clientWidth, idScroll: id.scrollWidth,
+                ellipsis: getComputedStyle(part).textOverflow, clipped: part.scrollWidth > part.clientWidth };
+            }) };
+        }))`));
+        assert.ok(headers.length > 0, `${at}: real shout headers render`);
+        const accessible = await chrome.send('Accessibility.getFullAXTree');
+        const names = accessible.nodes.filter(node => node.role?.value === 'group' && !node.ignored).map(node => node.name?.value);
+        assert.ok(names.includes(expected.builder) && names.includes(expected.unknown) && names.includes(expected.reviewer), `${at}: Chrome exposes complete model names to assistive readers`);
+
+        for (const header of headers) {
+          assert.ok(header.height <= header.line + 1, `${at}: shout identity stays on one line: ${JSON.stringify(header)}`);
+          for (const label of header.labels) {
+            assert.equal(label.title, apiNames[label.id], `${at}: full API name stays in the tooltip`);
+            assert.equal(label.aria, apiNames[label.id], `${at}: full API name stays accessible`);
+            assert.equal(label.idWidth, label.idScroll, `${at}: the address is never clipped`);
+            assert.ok(label.left >= label.headerLeft - 1 && label.right <= label.headerRight + 1, `${at}: address stays inside its header`);
+          }
+        }
+        if (width === 375) assert.ok(headers.flatMap(h => h.labels).some(label => label.id === 'web-1' && label.clipped && label.ellipsis === 'ellipsis'), `${at}: only the long model shortens with an ellipsis`);
+
         await press(chrome, 'document.querySelector("#agents [data-agent=\\"web-1\\"]")');
         await settled(chrome, 'view.agent === "web-1"');
         assert.equal(await chrome.evaluate('view.agent'), 'web-1', `${at}: filtering retains the raw API id`);
