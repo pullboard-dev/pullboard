@@ -178,17 +178,11 @@ main { padding: 16px 18px 56px; }
 }
 .primary { display: grid; gap: 12px; min-width: 0; }
 .card-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); min-width: 0; }
-.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; container-type: inline-size; }
-@container (min-width: 380px) and (max-width: 500px) { .toolbar .find { order: 3; flex-basis: 100%; } .toolbar .go { margin-left: auto; } }
-.toolbar input { flex: 1 1 96px; }
-/* Lane and words share one field: the lane picks the list, the words narrow within it. */
-.find { flex: 1 1 172px; display: flex; min-width: 0; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); }
-.find:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.find select, .find input { border: 0; border-radius: 0; background: transparent; }
-.find select:focus-visible, .find input:focus-visible { outline: 0; }
-.find select { flex: none; field-sizing: content; max-width: 9.5em; padding: 0 4px 0 9px; border-right: 1px solid var(--line); color: var(--ink-muted); font-size: 13px; cursor: pointer; }
-.find select[hidden] { display: none; }
-.toolbar .find input { flex: 1 1 64px; }
+/* The Items toolbar is one row: the states, the lane picker, and New item at its end. */
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; }
+.toolbar .lane-pick { flex: none; field-sizing: content; max-width: 11em; padding: 0 8px; color: var(--ink-muted); font-size: 13px; cursor: pointer; }
+.toolbar .lane-pick[hidden] { display: none; }
+.toolbar .go { margin-left: auto; }
 input, select, textarea { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 8px; padding: 7px 9px; min-width: 0; }
 input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .go { border: 0; background: var(--ink); color: var(--surface); border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 600; white-space: nowrap; }
@@ -532,8 +526,17 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .toolbar .go, .toolbar select, .toolbar input { padding-block: 0; }
 .seg { flex-wrap: wrap; max-width: 100%; }
 .inline > label { min-width: 0; }
+/* On a phone the Items toolbar is one row, Active and Verified with New item at its end, as the person chose; All and
+ * the lane picker drop out unless one of them is what narrows the list now. While a filter beyond Active and Verified
+ * shows, New item is a + (its name is still New item), so the row holds both filters; a long lane name gives way, the
+ * picker shrinking to show what it can, rather than the row. */
 @media (width < 480px) {
-  .toolbar .seg { flex: 1 1 100%; }
+  .toolbar { flex-wrap: nowrap; }
+  .toolbar .seg, .toolbar .go { flex: none; }
+  .toolbar .lane-pick { flex: 0 1 auto; min-width: 4em; }
+  .toolbar .seg [data-state="all"]:not(.on), .toolbar .lane-pick:not(:has(option:checked:not([value=""]))) { display: none; }
+  .toolbar:has(.seg button.on:not([data-state="active"]):not([data-state="verified"]), .lane-pick option:checked:not([value=""])) .go { width: var(--tap); padding: 0; font-size: 0; }
+  .toolbar:has(.seg button.on:not([data-state="active"]):not([data-state="verified"]), .lane-pick option:checked:not([value=""])) .go::before { content: "+"; font-size: 22px; font-weight: 500; line-height: 1; }
 }
 
 .spec-feedback { margin: 8px 0; padding: 8px; border: 1px solid var(--line-strong); border-radius: 8px; overflow-wrap: anywhere; font-size: 13px; }
@@ -643,6 +646,23 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 /* In an agent's row the state is a coloured word beside the name, so what it holds has the row's full width. */
 .agent-who { gap: 6px; }
 .agent-who .chip { flex: none; padding: 0; border: 0; background: none; font: 600 11.5px var(--sans); letter-spacing: 0; }
+/* Search lives in the top bar and covers the whole board; its results drop down under it, grouped, and open what they name. */
+.top-find { position: relative; flex: 0 1 280px; min-width: 150px; margin-left: auto; align-self: center; }
+.top .tabs { flex-wrap: nowrap; }
+.top-find input { width: 100%; padding: 5px 10px 5px 30px; border: 1px solid transparent; border-radius: 8px; background: var(--surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='7' cy='7' r='4.5' fill='none' stroke='%237a887f' stroke-width='1.6'/%3E%3Cpath d='M10.5 10.5 14 14' stroke='%237a887f' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat 10px center / 14px; font-size: 13px; }
+.top-find input:focus { outline: 0; border-color: var(--line-strong); background-color: var(--surface); }
+.find-results { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; width: min(480px, 92vw); max-height: 70vh; overflow-y: auto; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); }
+.find-results h4 { display: flex; justify-content: space-between; margin: 8px 8px 4px; color: var(--ink-faint); font: 600 11px var(--sans); letter-spacing: .04em; text-transform: uppercase; }
+.find-results h4:first-child { margin-top: 2px; }
+.find-results h4 span { font: 500 11px var(--mono); letter-spacing: 0; text-transform: none; }
+.find-hit { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; padding: 4px 8px; border: 0; border-radius: 8px; background: none; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.find-hit code { overflow: hidden; color: var(--ink-faint); font: 600 12px var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.find-hit span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.find-hit small { color: var(--ink-faint); font-size: 11.5px; white-space: nowrap; }
+.find-hit.on, .find-hit:hover { background: var(--surface-2); }
+.find-empty { padding: 10px; color: var(--ink-muted); font-size: 13px; }
+.shout.found { background: color-mix(in srgb, var(--accent) 10%, transparent); transition: background .4s; }
+@media (width < 480px) { .top { flex-wrap: wrap; } .top-find { order: 3; flex-basis: 100%; margin: 0 0 8px; } }
 
 /* Credential ids wrap within the agents panel; every action remains a full touch target. */
 #credentials { min-width: 0; margin-top: 12px; }

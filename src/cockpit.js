@@ -84,6 +84,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
     <button class="tab" data-tab="activity" type="button">Activity</button>
     <button class="tab" data-tab="roadmap" type="button">Roadmap</button>
   </nav>
+  <div class="top-find"><input id="q" type="search" placeholder="Search" aria-label="Search items, Spec, Doctrine and shouts" autocomplete="off"><div class="find-results" id="find-results" role="listbox" aria-label="Search results" hidden></div></div>
 </header>
 <main>
   <section class="card-panel first">
@@ -104,7 +105,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   <section class="card-panel person-requests" id="person-requests" aria-label="Your requests" aria-live="polite" hidden></section>
   <section data-pane="items" class="two">
     <div class="primary">
-      <div class="card-panel toolbar"><div class="seg" id="state-chips" role="group" aria-label="Show"></div><div class="find"><select id="lane-pick" aria-label="Lane"></select><input id="q" type="search" placeholder="Search" aria-label="Search titles, lanes or ids"></div><button class="go" id="new-item" type="button">New item</button></div>
+      <div class="card-panel toolbar"><div class="seg" id="state-chips" role="group" aria-label="Show"></div><select class="lane-pick" id="lane-pick" aria-label="Lane"></select><button class="go" id="new-item" type="button">New item</button></div>
       <div class="card-panel list-card"><ol class="needs" id="needs" aria-label="What needs you" hidden></ol><ol class="chain" id="chain" aria-label="Items"></ol></div>
     </div>
     <aside class="card-panel detail" aria-label="Item detail">
@@ -1701,11 +1702,56 @@ function go(target, root = view.root) {
   let tab = view.tab;
   if (kind === 'item') { tab = 'items'; view.state = 'all'; view.before = null; }
   else if (kind === 'spec') { tab = 'spec'; view.row.spec = id; view.rows.spec = 'all'; }
+  else if (kind === 'doctrine') { tab = 'doctrine'; view.row.doctrine = id; view.rows.doctrine = 'all'; }
+  else if (kind === 'shout') { tab = 'shouts'; view.agent = null; view.unread = null; }
   else if (kind === 'tab') tab = id;
   else if (kind === 'decide') { tab = 'shouts'; answer(Number(id)); }
   openTab(tab);
   if (kind === 'item') pick(Number(id), root);
   else render();
+  if (kind === 'shout') { const card = document.getElementById('shout-' + id); card?.scrollIntoView({ block: 'center' }); card?.classList.add('found'); setTimeout(() => card?.classList.remove('found'), 1600); }
+}
+
+/** An item's state as a word, for a search result. */
+const stateLabel = (i) => ({ building: 'building', verify: 'to verify', verified: 'verified', back: 'sent back', open: 'open', withdrawn: 'withdrawn' })[stateOf(i)] || stateOf(i);
+
+/** A shout's kind as a word, for a search result. */
+const shoutKind = (x) => (x.shout_decision ? 'decision' : x.shout_answers ? 'answer' : x.shout_evidence_kind ? 'evidence' : 'shout');
+
+/** Everything on the board that matches the top bar's words: items, Spec rows, Doctrine rules and shouts, newest first. */
+function findAll(words) {
+  const p = data?.project, q = words.trim().toLowerCase();
+  if (!p || !q) return [];
+  const has = (...parts) => parts.join(' ').toLowerCase().includes(q);
+  const items = p.items.filter((i) => has('#' + i.id, i.title, i.lane, i.specs.join(' '), i.criterion || ''))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map((i) => ({ go: 'item:' + i.id, id: '#' + i.id, text: i.title, note: stateLabel(i) }));
+  // A Spec row or Doctrine rule is as new as the commit that added it (0 not yet committed; a standard rule, never added
+  // here, last); rows one commit added together read newest first by their place in the file.
+  const rows = (kind, list) => list.map((r, at) => ({ r, at })).filter(({ r }) => has(r.id, r.text))
+    .sort((a, b) => (a.r.added ?? Infinity) - (b.r.added ?? Infinity) || b.at - a.at)
+    .map(({ r }) => ({ go: kind + ':' + r.id, id: r.id, text: r.text, note: r.stage || r.status }));
+  const shouts = p.shouts.filter((x) => has(x.shout_from, x.shout_to, x.shout_text)).map((x) => ({ go: 'shout:' + x.shout_id, id: '#' + x.shout_id, text: firstLine(x.shout_text), note: shoutKind(x) }));
+  return [['Items', items], ['Spec', rows('spec', p.spec)], ['Doctrine', rows('doctrine', p.practice)], ['Shouts', shouts]].filter(([, list]) => list.length);
+}
+
+/** Draw the search's results under it: up to five a group, the highlighted one ready for Enter. */
+function showFound() {
+  const box = $('find-results'), words = $('q').value;
+  const groups = findAll(words);
+  view.found = groups.flatMap(([, list]) => list.slice(0, 5));
+  view.foundAt = Math.min(view.foundAt || 0, Math.max(0, view.found.length - 1));
+  let n = 0;
+  box.innerHTML = groups.length ? groups.map(([name, list]) => '<h4>' + name + '<span>' + (list.length > 5 ? '5 of ' + list.length : list.length) + '</span></h4>'
+    + list.slice(0, 5).map((hit) => '<button class="find-hit' + (n++ === view.foundAt ? ' on' : '') + '" data-find="' + esc(hit.go) + '" type="button" role="option"><code>' + esc(hit.id) + '</code><span>' + esc(hit.text) + '</span><small>' + esc(hit.note) + '</small></button>').join('')).join('')
+    : '<div class="find-empty">Nothing on this board matches “' + esc(words.trim()) + '”.</div>';
+  box.hidden = !words.trim();
+}
+
+/** Open what a result names, and put the results away. */
+function openFound(target) {
+  $('find-results').hidden = true;
+  $('q').blur();
+  go(target);
 }
 
 /** Show an item's detail, on another project's board when root names one. */
@@ -2124,7 +2170,24 @@ $('theme').addEventListener('click', () => {
   keep('pb.theme', next);
   theme(next);
 });
-$('q').addEventListener('input', search);
+$('q').addEventListener('input', () => { search(); view.foundAt = 0; showFound(); });
+$('q').addEventListener('focus', () => { if ($('q').value.trim()) showFound(); });
+$('q').addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') { $('q').value = ''; search(); $('find-results').hidden = true; $('q').blur(); return; }
+  if (!view.found?.length || $('find-results').hidden) return;
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); view.foundAt = (view.foundAt + (event.key === 'ArrowDown' ? 1 : view.found.length - 1)) % view.found.length; showFound(); }
+  else if (event.key === 'Enter') { event.preventDefault(); openFound(view.found[view.foundAt].go); }
+});
+// A press on a result opens it before the field loses focus and the results close.
+$('find-results').addEventListener('mousedown', (event) => { const hit = event.target.closest('[data-find]'); if (hit) { event.preventDefault(); openFound(hit.dataset.find); } });
+$('q').addEventListener('blur', () => setTimeout(() => { $('find-results').hidden = true; }, 120));
+// "/" goes to the search from anywhere but a field.
+document.addEventListener('keydown', (event) => {
+  if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey || event.target.closest('input, textarea, select, [contenteditable]')) return;
+  event.preventDefault();
+  $('q').focus();
+  $('q').select();
+});
 $('lane-pick').addEventListener('change', (event) => { view.lane = event.target.value || null; render(); });
 $('add-form').addEventListener('submit', async (event) => {
   event.preventDefault();
