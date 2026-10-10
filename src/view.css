@@ -362,7 +362,8 @@ form.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; paddin
 .shout .agent-label { display: inline-grid; grid-template-columns: max-content minmax(0, 1fr); min-width: 0; }
 .shout .agent-label.prefix { grid-template-columns: minmax(0, 1fr) max-content; }
 .shout .agent-model { overflow: hidden; text-overflow: ellipsis; white-space: pre; }
-.shout header .mark, .shout header time { flex: none; }
+.shout header .mark { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shout header time { flex: none; }
 .shout .who { color: var(--h); font-weight: 700; }
 .shout .to, .shout .item { color: var(--ink-faint); }
 .shout .item { font: 12px var(--mono); }
