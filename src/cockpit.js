@@ -105,6 +105,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   <section class="card-panel person-requests" id="person-requests" aria-label="Your requests" aria-live="polite" hidden></section>
   <section data-pane="items" class="two">
     <div class="primary">
+      <section class="card-panel proof-stats" id="proof-stats" aria-label="Board proof stats" hidden></section>
       <div class="card-panel toolbar"><div class="seg" id="state-chips" role="group" aria-label="Show"></div><select class="lane-pick" id="lane-pick" aria-label="Lane"></select><button class="go" id="new-item" type="button">New item</button></div>
       <div class="card-panel list-card"><ol class="needs" id="needs" aria-label="What needs you" hidden></ol><ol class="chain" id="chain" aria-label="Items"></ol></div>
     </div>
@@ -729,6 +730,35 @@ function boardSummary(board, state) {
   };
 }
 
+/** Render the event-log totals already supplied by the shared stats API [V2]. */
+function proofStatsCard(stats) {
+  if (!stats) return '<span class="muted">Stats unavailable</span>';
+  const families = stats.families || [];
+  const agents = stats.agents || [];
+  const percentage = (Number(stats.rejectionShare) * 100).toFixed(1) + '%';
+  const familyDetail = families.map((family) => family.name + ' (' + family.agents + ' agents, ' + family.moves + ' moves)').join(' · ') || 'none';
+  const agentDetail = agents.map((agent) => agent.id + ' (' + agent.families.join('/') + '; ' + agent.moves + ' moves)').join(' · ') || 'none';
+  /** Format an API timestamp for the card without recalculating event statistics.
+   * @param {string|number|null} value
+   * @returns {string}
+   */
+  const dateText = (value) => value ? new Date(value).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' }) : 'none';
+  const firstAt = stats.firstEventAt ?? '';
+  const lastAt = stats.lastEventAt ?? '';
+  return '<div class="proof-stats-head"><b>Proof stats</b><span>from recorded moves</span></div>'
+    + '<div class="proof-stats-grid">'
+    + '<div><span>Submissions</span><b data-stat="submissions" data-value="' + esc(stats.submissions) + '">' + esc(stats.submissions) + '</b></div>'
+    + '<div><span>Rejections</span><b data-stat="rejections" data-value="' + esc(stats.rejections) + '">' + esc(stats.rejections) + '</b></div>'
+    + '<div><span>Sent back</span><b data-stat="rejectionShare" data-value="' + esc(percentage) + '">' + esc(percentage) + '</b></div>'
+    + '<div><span>Merged</span><b data-stat="merged" data-value="' + esc(stats.merged) + '">' + esc(stats.merged) + '</b></div>'
+    + '<div><span>Without accept</span><b data-stat="mergedWithoutAccept" data-value="' + esc(stats.mergedWithoutAccept) + '">' + esc(stats.mergedWithoutAccept) + '</b></div>'
+    + '<div><span>Agents</span><b data-stat="agentCount" data-value="' + esc(stats.agentCount) + '">' + esc(stats.agentCount) + '</b></div>'
+    + '<div><span>Families</span><b data-stat="familyCount" data-value="' + esc(stats.familyCount) + '">' + esc(stats.familyCount) + '</b></div>'
+    + '<div><span>First · latest</span><small><time data-stat="firstEventAt" data-value="' + esc(firstAt) + '" datetime="' + esc(firstAt) + '">' + esc(dateText(firstAt)) + '</time> · <time data-stat="lastEventAt" data-value="' + esc(lastAt) + '" datetime="' + esc(lastAt) + '">' + esc(dateText(lastAt)) + '</time></small></div>'
+    + '</div><details class="proof-stats-detail"><summary>Agents and families</summary>'
+    + '<p><b>Families:</b> ' + esc(familyDetail) + '</p><p><b>Agents:</b> ' + esc(agentDetail) + '</p></details>';
+}
+
 /** Resolve a displayed repo to the persistent board identity supplied by API v1. */
 function boardPath(root) {
   const board = data && data.projects.find((entry) => entry.root === root && entry.ok);
@@ -1221,6 +1251,8 @@ function render() {
   const p = data.project;
   const group = data.group;
   renderSide();
+  $('proof-stats').hidden = true;
+  $('proof-stats').innerHTML = '';
   if (view.answering && view.answering.root !== view.root) answer(null);
   // Until the first board arrives the page shows no tabs or panes, so a machine with none never
   // flashes them; with no board to show, one message says how a board starts, in their place.
@@ -1234,6 +1266,8 @@ function render() {
   renderCredentials();
   if (group) { renderGroup(group); return; }
   if (!p) return;
+  $('proof-stats').hidden = false;
+  $('proof-stats').innerHTML = proofStatsCard(p.proofStats);
   // Each product's progress (N28): the rows an accepted item cites, and its items by state.
   $('prod-list').innerHTML = p.products.map((x) => {
     const states = [['open', '', x.items.open], ['building', 'building', x.items.claimed], ['to verify', 'verify', x.items.submitted], ['verified', 'verified', x.items.verified]].filter(([, , n]) => n);
