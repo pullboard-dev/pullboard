@@ -172,7 +172,8 @@ test('[R1,R2] explicit snapshots override prior state, null clears it, and syste
 test('[R1,R2] an empty board reports no agents or family buckets', (t) => {
   const board = openBoard(':memory:');
   t.after(() => closeBoard(board));
-  assert.deepEqual(proofStats(board), {
+  const { flow, ...historical } = proofStats(board);
+  assert.deepEqual(historical, {
     since: null,
     submissions: 0,
     rejections: 0,

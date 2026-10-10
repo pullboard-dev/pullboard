@@ -67,6 +67,7 @@ import { doctorProblems, doctrineProblems } from './doctor.js';
 import { staleFrozenItems, staleItemFinding } from './approved-rows.js';
 import { mainPolicy, policyAt, itemPolicy, submissionPaths, frozenCheck, checkAtCommit, dependencySnapshots, requireTrunkMerge, trunkRef } from './trusted-policy.js';
 import { proofStats } from './stats.js';
+import { flowLines } from './stats-flow.js';
 import { exportBoard, importBoard } from './exchange.js';
 import { addSigner, assertRequiredSigners, defaultPrincipal, hasSignerFile } from './signature.js';
 import { loadMachineSettings, setGateSlots } from './settings.js';
@@ -1430,6 +1431,7 @@ function readCommands(io, { first, second, rest, values }) {
       io.say(`${stats.agentCount} agents · ${stats.familyCount} family buckets: ${stats.families.map((family) => `${family.name} (${family.agents} agents, ${family.moves} moves)`).join('; ') || 'none'}`);
       io.say(`agents: ${stats.agents.map((agent) => `${agent.id} (${agent.families.join('/')}; ${agent.moves} moves)`).join(', ') || 'none'}`);
       io.say(`events: ${stats.firstEventAt ?? 'none'} to ${stats.lastEventAt ?? 'none'}${stats.since ? ` (since ${stats.since})` : ''}`);
+      for (const line of flowLines(stats.flow)) io.say(line);
       return 0;
     },
     ledger: () => {

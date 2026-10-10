@@ -4157,12 +4157,14 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       return JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
       const visible=e=>{const s=getComputedStyle(e),r=e.getBoundingClientRect();return !e.disabled&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&r.width>0&&r.height>0&&!e.closest('[hidden]')};
       const selector='button,a[href],input:not([type=hidden]),select,textarea,[role=button],[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-release],[data-shout],[data-new],[data-code]';
-      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,inlineReference:e.matches('.feed button.ref, .shout button.ref, .shout .band a, .detail button.ref')||!!e.closest('#chain .meta .gate, #detail .kv dd.waits-on'),statusBar:!!e.closest('.status')&&matchMedia('(pointer: fine)').matches}});
+      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,inlineReference:e.matches('.feed button.ref, .shout button.ref, .shout .band a, .detail button.ref')||!!e.closest('#chain .meta .gate, #detail .kv dd.waits-on'),statusBar:!!e.closest('.status')&&!matchMedia('(pointer: coarse)').matches,oneLine:!e.closest('.status')||getComputedStyle(e).whiteSpace==='nowrap'}});
       const notice=document.querySelector('#console');
       const noticeBox=visible(notice)?notice.getBoundingClientRect():null;
       const toast=noticeBox?{x:noticeBox.x,y:noticeBox.y,right:noticeBox.right,bottom:noticeBox.bottom,visible:noticeBox.y>=0&&noticeBox.bottom<=innerHeight,
         overlaps:controls.filter(c=>c.x<noticeBox.right&&c.right>noticeBox.x&&c.y<noticeBox.bottom&&c.bottom>noticeBox.y).map(c=>c.id||c.text)}:null;
       return {width:innerWidth,clientWidth:document.documentElement.clientWidth,documentWidth:document.documentElement.scrollWidth,bodyWidth:document.body.scrollWidth,
+        pointer:{fine:matchMedia('(pointer: fine)').matches,coarse:matchMedia('(pointer: coarse)').matches,none:matchMedia('(pointer: none)').matches},
+        statusParts:[...document.querySelectorAll('.status [data-status]')].filter(visible).map(part=>({label:part.textContent.replace(/\\s+/g,' ').trim(),height:part.getBoundingClientRect().height})),
         projectList:visible(document.querySelector('#proj-list')),needs:visible(document.querySelector('#needs')),
         detail:visible(document.querySelector('#detail')),controls,toast};
     })())`));
@@ -4174,8 +4176,9 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       const layout = await snapshot();
       assert.ok(fitsViewport(layout),
         `${width} ${place}: no horizontal overflow: ${JSON.stringify(layout)}`);
-      // The status bar under a mouse is a thin strip, the one named exception; with touch its parts are 44px too.
+      // The status bar is thin unless the pointer is coarse; no pointer reads like a mouse. Its labels stay on one line.
       const short = layout.controls.filter((control) => control.height < 44 && !control.inlineReference && !control.statusBar);
+      assert.deepEqual(layout.controls.filter((control) => !control.oneLine), [], `${width} ${place}: status labels stay on one line`);
       assert.deepEqual(short, [], `${width} ${place}: visible enabled actions are at least 44px high: ${JSON.stringify(short)}`);
       if (layout.toast) assert.deepEqual(layout.toast.overlaps, [], `${width} ${place}: the result toast clears every visible control: ${JSON.stringify(layout.toast)}`);
       if (place === 'successful add toast') assert.equal(layout.toast?.visible, true, `${width}: the successful action toast remains in the viewport: ${JSON.stringify(layout.toast)}`);
@@ -4297,6 +4300,18 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       await click('#lanes [data-release="web"]');
       await chrome.waitFor("!document.querySelector('#lanes [data-release=web]')");
     }
+
+    const originalPointer = JSON.parse(await chrome.evaluate(`JSON.stringify({ fine:matchMedia('(pointer: fine)').matches, coarse:matchMedia('(pointer: coarse)').matches, none:matchMedia('(pointer: none)').matches })`));
+    await chrome.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
+    await chrome.waitFor("matchMedia('(pointer: coarse)').matches");
+    await setViewport(1280);
+    await checkLayout(1280, 'coarse touch status and controls');
+    const touchLayout = await snapshot();
+    assert.deepEqual(touchLayout.pointer, { fine: false, coarse: true, none: false }, `1280 touch emulation selects the coarse primary pointer: ${JSON.stringify(touchLayout.pointer)}`);
+    assert.ok(touchLayout.statusParts.length > 0, 'the real status bar exposes its visible controls');
+    assert.ok(touchLayout.statusParts.every((part) => part.height >= 44), `1280 touch status controls keep a 44px target: ${JSON.stringify(touchLayout.statusParts)}`);
+    await chrome.send('Emulation.setTouchEmulationEnabled', { enabled: false });
+    await chrome.waitFor(`matchMedia('(pointer: fine)').matches === ${originalPointer.fine} && matchMedia('(pointer: coarse)').matches === ${originalPointer.coarse} && matchMedia('(pointer: none)').matches === ${originalPointer.none}`);
 
     await chrome.evaluate(`(() => {
       const probe = document.createElement('div');
@@ -4556,6 +4571,115 @@ test('spec rows read as a list, decided in the panel [N26]', { timeout: 300_000 
   }
 });
 
+test('the status bar holds one line under no pointer [N26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for status bar media checks.');
+
+  const box = machine();
+  const demo = project(box, 'pointer-none');
+  for (let index = 1; index <= 3; index += 1) {
+    box.run(demo.repo, 'add', 'web', `Status item ${index}`, '--specs', 'G1', '--criterion', 'visible on the board');
+  }
+  box.run(demo.web, 'shout', 'coordinator', 'Which status label should we use?');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-status-none-'));
+  const wrapper = join(profile, 'chrome-pointer-none');
+  const quotedExecutable = "'" + executable.replaceAll("'", "'\\''") + "'";
+  writeFileSync(wrapper, '#!/bin/sh\nexec ' + quotedExecutable + ' --blink-settings=primaryPointerType=1,availablePointerTypes=1 "$@"\n');
+  chmodSync(wrapper, 0o755);
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(wrapper, view.link.href, profile);
+    await chrome.waitFor("typeof data === 'object' && !!data && data.project?.items?.length === 3");
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    const layout = JSON.parse(await chrome.evaluate(`JSON.stringify({
+      pointer: { none: matchMedia('(pointer: none)').matches, fine: matchMedia('(pointer: fine)').matches, coarse: matchMedia('(pointer: coarse)').matches },
+      parts: [...document.querySelectorAll('.status [data-status]')].filter((button) => !button.hidden && button.getBoundingClientRect().width > 0).map((button) => {
+        const rects = [...button.childNodes].flatMap((node) => {
+          const range = document.createRange(); range.selectNodeContents(node);
+          return [...range.getClientRects()].map((rect) => ({ top: rect.top, height: rect.height }));
+        });
+        const lineTops = [];
+        for (const rect of rects) if (!lineTops.some((top) => Math.abs(top - rect.top) <= 2)) lineTops.push(rect.top);
+        return { label: button.textContent.replace(/\\s+/g, ' ').trim(), height: button.getBoundingClientRect().height, minHeight: getComputedStyle(button).minHeight, rects, lineTops };
+      })
+    })`));
+    console.log('375 pointer none raw layout', JSON.stringify(layout));
+    assert.deepEqual(layout.pointer, { none: true, fine: false, coarse: false }, `wrapper produces real pointer:none CSS state: ${JSON.stringify(layout.pointer)}`);
+    assert.ok(layout.parts.some((part) => part.label === '3 items'), `the real board's Items status part is present: ${JSON.stringify(layout.parts)}`);
+    const audit = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      const visible=e=>{const s=getComputedStyle(e),r=e.getBoundingClientRect();return !e.disabled&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&r.width>0&&r.height>0&&!e.closest('[hidden]')};
+      const selector='button,a[href],input:not([type=hidden]),select,textarea,[role=button],[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-release],[data-shout],[data-new],[data-code]';
+      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {text:(e.innerText||e.getAttribute('aria-label')||'').trim(),height:r.height,inlineReference:e.matches('.feed button.ref, .shout button.ref, .shout .band a, .detail button.ref')||!!e.closest('#chain .meta .gate, #detail .kv dd.waits-on'),statusBar:!!e.closest('.status')&&!matchMedia('(pointer: coarse)').matches,oneLine:!e.closest('.status')||getComputedStyle(e).whiteSpace==='nowrap'}});
+      return {controls,short:controls.filter(c=>c.height<44&&!c.inlineReference&&!c.statusBar),wrapped:controls.filter(c=>!c.oneLine)};
+    })())`));
+    assert.deepEqual(audit.short, [], `the demo's visible controls meet its 44px audit with the status exception determined by DOM and coarse pointer: ${JSON.stringify(audit.controls)}`);
+    assert.deepEqual(audit.wrapped, [], `the demo's visible status labels stay on one line at 1280: ${JSON.stringify(audit.controls)}`);
+    assert.deepEqual(layout.parts.filter((part) => part.lineTops.length !== 1), [], `each status part occupies one text line: ${JSON.stringify(layout.parts)}`);
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
+/** Capture bounded, sanitized browser state only when a Spec selection wait times out. */
+async function watchSpecDecisionWait(chrome) {
+  const pending = new Map();
+  const onMessage = ({ data }) => {
+    let message;
+    try { message = JSON.parse(String(data)); } catch { return; }
+    if (message.method === 'Network.requestWillBeSent') {
+      const request = message.params.request;
+      pending.set(message.params.requestId, { method: request.method, path: new URL(request.url).pathname.slice(0, 160) });
+      while (pending.size > 20) pending.delete(pending.keys().next().value);
+    } else if (message.method === 'Network.loadingFinished' || message.method === 'Network.loadingFailed') {
+      pending.delete(message.params.requestId);
+    }
+  };
+  chrome.socket.addEventListener('message', onMessage);
+  await chrome.evaluate(`(() => {
+    if (window.__pullboardSpecKeys) return;
+    window.__pullboardSpecKeys = [];
+    const record = (event) => {
+      window.__pullboardSpecKeys.push({ type:event.type, key:event.key, code:event.code, target:event.target?.id || event.target?.tagName || '' });
+      if (window.__pullboardSpecKeys.length > 20) window.__pullboardSpecKeys.shift();
+    };
+    document.addEventListener('keydown', record, true);
+    document.addEventListener('keyup', record, true);
+    window.__pullboardSpecKeysDispose = () => {
+      document.removeEventListener('keydown', record, true);
+      document.removeEventListener('keyup', record, true);
+      delete window.__pullboardSpecKeys;
+      delete window.__pullboardSpecKeysDispose;
+    };
+  })()`);
+  return {
+    /** Run the browser wait with its normal deadline and attach bounded state only on timeout. */
+    async waitFor(expression, timeoutMs) {
+      try {
+        return timeoutMs === undefined ? await chrome.waitFor(expression) : await chrome.waitFor(expression, timeoutMs);
+      } catch (error) {
+        const page = JSON.parse(await chrome.evaluate(`JSON.stringify({
+          selectedRow:typeof view === 'object' ? view.row?.spec ?? null : null,
+          focusedElement:{tag:document.activeElement?.tagName||'',id:document.activeElement?.id||'',className:String(document.activeElement?.className||'')},
+          lastKeyEvents:(window.__pullboardSpecKeys||[]).slice(-20)
+        })`));
+        const diagnostic = { ...page, pendingRequests: [...pending.values()] };
+        error.diagnostic = diagnostic;
+        error.message += `; Spec wait state ${JSON.stringify(diagnostic)}`;
+        throw error;
+      }
+    },
+    /** Remove the CDP and page listeners installed for this observation. */
+    async dispose() {
+      chrome.socket.removeEventListener('message', onMessage);
+      pending.clear();
+      await chrome.evaluate('window.__pullboardSpecKeysDispose?.()');
+    },
+  };
+}
+
 test('real Chrome records Spec row decisions from the row, detail and confirmed section controls [B26,N26]', { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for Spec decision checks.');
@@ -4584,6 +4708,7 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
     const view = await startView(box);
     const profile = mkdtempSync(join(tmpdir(), `pullboard-spec-decisions-${width}-`));
     let chrome;
+    let diagnostics;
     try {
       chrome = await openSnapshotChrome(executable, view.link.href, profile);
       await chrome.waitFor("typeof data === 'object' && !!data && !!data.project");
@@ -4592,7 +4717,6 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
       await chrome.waitFor(`innerWidth === ${width} && !!document.querySelector('#spec-list [data-row="spec:G1"]')`);
       await chrome.evaluate("document.querySelector('#spec-chips [data-rows=\"spec:all\"]').click()");
       await chrome.waitFor("document.querySelector('#spec-list [data-row=\"spec:G2\"]') && document.querySelector('#spec-chips [data-rows=\"spec:decide\"] b')?.textContent === '31'");
-
       const geometry = JSON.parse(await chrome.evaluate(`JSON.stringify({
         overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
         controls: [...document.querySelectorAll('#spec-list button[data-row-decision],#spec-list button[data-section-approve]')].map(e=>({height:e.getBoundingClientRect().height})),
@@ -4613,9 +4737,11 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
       await chrome.evaluate("document.querySelector('#spec-list [data-row=\"spec:G2\"]').click()");
       await chrome.waitFor("document.querySelector('#spec-detail h2 span')?.textContent === 'G2'");
       assert.ok(await chrome.evaluate("document.querySelector('#spec-detail [data-row-decision=approve]') && document.querySelector('#spec-detail [data-row-decision=decline]')"), `${width}: selected G2 has both detail decisions`);
+      diagnostics = await watchSpecDecisionWait(chrome);
       // Picked from the list, A approves G1, and the pick moves on to the next row.
       await click(chrome, '#spec-list [data-row="spec:G1"]');
-      await chrome.waitFor("view.row.spec === 'G1' && document.activeElement === document.querySelector('#spec-list')");
+      const specFocusCondition = "view.row.spec === 'G1' && document.activeElement === document.querySelector('#spec-list')";
+      await diagnostics.waitFor(specFocusCondition);
       for (const type of ['keyDown', 'keyUp']) await chrome.send('Input.dispatchKeyEvent', { type, key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, ...(type === 'keyDown' ? { text: 'a', unmodifiedText: 'a' } : {}) });
       await chrome.waitFor("!!document.querySelector('#spec-list .spec-feedback.ok,#spec-list .spec-feedback.no')");
       let state = await boardOf(view, demo.repo);
@@ -4686,15 +4812,73 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
       assert.ok(await chrome.evaluate("document.querySelector('#spec-chips [data-rows=\"spec:decide\"]').innerText.includes('27')"), `${width}: Needs your decision excludes all four decided rows`);
       assert.deepEqual(chrome.exceptions, [], `${width}: Chrome reports no uncaught exceptions`);
     } finally {
-      if (chrome) await closeSnapshotChrome(chrome);
-      await view.stop();
-      rmSync(profile, { recursive: true, force: true });
+      try { await diagnostics?.dispose(); }
+      finally {
+        try { if (chrome) await closeSnapshotChrome(chrome); }
+        finally {
+          try { await view.stop(); }
+          finally { rmSync(profile, { recursive: true, force: true }); }
+        }
+      }
     }
   };
 
   await runWidth(375);
   await runWidth(1280);
 });
+
+test('the spec decision wait names its state on timeout [N26]', { timeout: 60_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for Spec wait diagnostics.');
+
+  const spec = '# Timeout probe\n\n## G · Goals\n- G1 [draft, must] First goal. | gate: web test\n- G2 [draft, must] Second goal. | gate: web test\n';
+  const box = machine();
+  const demo = project(box, 'spec-wait-timeout', spec);
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-spec-timeout-'));
+  let chrome;
+  let diagnostics;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("typeof data === 'object' && !!data?.project");
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.evaluate("document.querySelector('[data-tab=spec]').click()");
+    await chrome.waitFor("!!document.querySelector('#spec-list [data-row=\"spec:G1\"]') && !!document.querySelector('#spec-list [data-row=\"spec:G2\"]')");
+    diagnostics = await watchSpecDecisionWait(chrome);
+    const point = JSON.parse(await chrome.evaluate(`(() => {
+      const row=document.querySelector('#spec-list [data-row="spec:G1"]');
+      row.scrollIntoView({block:'center'});
+      const r=row.getBoundingClientRect();
+      return JSON.stringify({x:r.x+r.width/2,y:r.y+r.height/2});
+    })()`));
+    await chrome.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
+    await chrome.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
+    await chrome.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
+    await chrome.waitFor("view.row.spec === 'G1' && document.activeElement === document.querySelector('#spec-list')");
+    for (const type of ['keyDown', 'keyUp']) await chrome.send('Input.dispatchKeyEvent', { type, key: 'ArrowDown', code: 'ArrowDown', windowsVirtualKeyCode: 40 });
+    await chrome.waitFor("view.row.spec === 'G2'");
+
+    let timeout;
+    try { await diagnostics.waitFor('false', 10); } catch (error) { timeout = error; }
+    assert.match(timeout?.message ?? '', /Browser condition did not arrive: false/, 'the test deliberately drives the real wait helper to timeout');
+    assert.deepEqual(timeout.diagnostic.selectedRow, 'G2', 'the timeout record names the currently selected row');
+    assert.equal(timeout.diagnostic.focusedElement.id, 'spec-list', 'the timeout record names the focused list');
+    assert.ok(Array.isArray(timeout.diagnostic.pendingRequests), 'the timeout record includes bounded in-flight requests');
+    assert.deepEqual(timeout.diagnostic.lastKeyEvents.slice(-2).map(({ type, key, code }) => [type, key, code]), [
+      ['keydown', 'ArrowDown', 'ArrowDown'], ['keyup', 'ArrowDown', 'ArrowDown'],
+    ], 'the timeout record includes the last real key events');
+  } finally {
+    try { await diagnostics?.dispose(); }
+    finally {
+      try { if (chrome) await closeSnapshotChrome(chrome); }
+      finally {
+        try { rmSync(profile, { recursive: true, force: true }); }
+        finally { await view.stop(); }
+      }
+    }
+  }
+});
+
 test('static export redacts structured checkout paths but preserves paths people wrote [A10]', async () => {
   const box = machine();
   const alpha = project(box, 'private-project');

@@ -111,7 +111,7 @@ main { padding: 16px 18px 56px; }
 .status .live:empty::after { content: 'live'; }
 .status-board { display: flex; flex: 1; min-width: 0; align-items: stretch; overflow: hidden; }
 .status-group { display: inline-flex; align-items: center; padding-left: 8px; }
-.status button { display: inline-flex; align-items: center; gap: 5px; min-height: 0; padding: 0 8px; border: 0; border-radius: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.status button { display: inline-flex; flex: none; align-items: center; gap: 5px; min-height: 0; padding: 0 8px; border: 0; border-radius: 0; background: none; color: inherit; font: inherit; white-space: nowrap; cursor: pointer; }
 .status button:hover { background: var(--status-hover); color: var(--status-strong); }
 .status button:focus-visible { outline: 2px solid var(--status-strong); outline-offset: -2px; }
 .status-board .end { margin-left: auto; opacity: .85; }

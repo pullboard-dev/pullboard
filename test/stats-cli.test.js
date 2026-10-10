@@ -51,10 +51,13 @@ function fixture(t) {
 test('[R1,R2,A1] stats JSON is versioned, text states the same proof numbers and neither records a move', async (t) => {
   const { root, board } = fixture(t);
   const before = store.events(board);
-  const expected = proofStats(board);
+  const observationBefore = Date.now();
   const json = await run(root, ['stats', '--json']);
   assert.equal(json.code, 0, json.stderr);
   assert.equal(json.stderr, '');
+  const observed = Date.parse(json.data.stats.flow.asOf);
+  assert.ok(observed >= observationBefore && observed <= Date.now(), 'the CLI records its own observation clock');
+  const expected = proofStats(board, { now: observed });
   assert.deepEqual(json.data, { version: 1, stats: expected });
   assert.deepEqual([expected.submissions, expected.rejections, expected.rejectionShare, expected.merged, expected.mergedWithoutAccept], [2, 1, 0.5, 1, 0]);
   const text = await run(root, ['stats']);
@@ -65,6 +68,9 @@ test('[R1,R2,A1] stats JSON is versioned, text states the same proof numbers and
   assert.match(text.stdout, /agents: coordinator \(unknown; \d+ moves\), review-1 \(unknown; \d+ moves\), web-1 \(unknown; \d+ moves\)/u);
   assert.ok(text.stdout.includes(expected.firstEventAt));
   assert.ok(text.stdout.includes(expected.lastEventAt));
+  assert.match(text.stdout, /build: average 0 min · median 0 min · 1 measured/u);
+  assert.match(text.stdout, /review: average unmeasured min · median unmeasured min · 0 measured; 1 of 1 completed items unmeasured/u);
+  assert.match(text.stdout, /not enough measured flow to name a bottleneck \(1 items completed since the beginning, none with every stage measured\)/u);
   assert.deepEqual(store.events(board), before, 'reading statistics appends no move');
 });
 
@@ -72,7 +78,7 @@ test('[R2,A1] stats forwards the inclusive date window and returns an actionable
   const { root, board } = fixture(t);
   const json = await run(root, ['stats', '--since', '2026-10-09', '--json']);
   assert.equal(json.code, 0, json.stderr);
-  assert.deepEqual(json.data.stats, proofStats(board, { since: '2026-10-09' }));
+  assert.deepEqual(json.data.stats, proofStats(board, { since: '2026-10-09', now: Date.parse(json.data.stats.flow.asOf) }));
   assert.equal(json.data.stats.submissions, 0);
   assert.equal(json.data.stats.firstEventAt, null);
   const bad = await run(root, ['stats', '--since', '2026-02-30', '--json']);
@@ -98,5 +104,9 @@ test('[R1,R2,A2] local HTTP state exposes exactly the command statistics', async
   const command = await run(root, ['stats', '--json']);
   assert.equal(command.code, 0, command.stderr);
   assert.equal(document.version, 1);
-  assert.deepEqual(document.state.proofStats, command.data.stats);
+  const observed = Date.parse(document.state.proofStats.flow.asOf);
+  assert.deepEqual(document.state.proofStats, proofStats(board, { now: observed }));
+  assert.deepEqual(command.data.stats, proofStats(board, { now: Date.parse(command.data.stats.flow.asOf) }));
+  assert.deepEqual({ ...document.state.proofStats, flow: { ...document.state.proofStats.flow, asOf: command.data.stats.flow.asOf } },
+    command.data.stats, 'the two observations retain every invariant field exactly');
 });
