@@ -6,14 +6,15 @@
  */
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { gitChildEnv, gitPath, headTree, invalidateGitFacts, isClean, untracked } from './git.js';
 import { secretsIn } from './hooks.js';
 import { Refused } from './refused.js';
 import { takeResource } from './resources.js';
 import { loadMachineSettings } from './settings.js';
 import { selectAffectedTests } from './affected-tests.js';
+import { timingFromOutput, timingRunner } from './timing.js';
 
 const STAMP = 'pullboard-gate-green';
 const LOG = 'pullboard-gate.log';
@@ -125,35 +126,25 @@ function safeLog(output) {
   }).join('\n');
 }
 
-/** Run a command with Node's event reporter and persist its timing profile beside its log.
+/** Run the unchanged caller command and profile only timings already present in its output.
  * @param {string} root
  * @param {string} command
  * @param {{ waitMs?: number, artifactDirectory?: string, artifactPrefix?: string, persistLog?: boolean, profileFile?: string, pipefail?: boolean }} [options]
- * @returns {{ isGreen: boolean, output: string, seconds: number, profile: object, profilePath: string, logPath: string|null }}
  */
 export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false } = {}) {
   const directory = artifactDirectory ?? dirname(gitPath(root, LOG));
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const id = randomUUID();
-  const eventsDirectory = join(directory, `.${artifactPrefix}-${id}.timings`);
-  mkdirSync(eventsDirectory, { mode: 0o700 });
-  const eventsPath = join(eventsDirectory, 'events.json');
   const profilePath = profileFile ?? join(directory, `${artifactPrefix}-${id}.profile.json`);
   const logPath = persistLog ? join(directory, `${artifactPrefix}-${id}.log`) : null;
   const started = Date.now();
-  try {
-    const run = runShell(root, command, { env: { PULLBOARD_TEST_TIMING_PROFILE: eventsPath }, pipefail });
-    const events = readTimingProfiles(eventsPath);
-    const profile = writeTimingProfile(profilePath, {
-      version: 1,
-      waitMs: Math.max(0, Math.round(waitMs)),
-      wallMs: Math.max(0, Date.now() - started),
-      files: events.files,
-      tests: events.tests,
-    });
-    if (logPath) writeFileSync(logPath, safeLog(run.output), { mode: 0o600 });
-    return { ...run, profile, profilePath, logPath };
-  } finally { rmSync(eventsDirectory, { recursive: true, force: true }); }
+  const run = runShell(root, command, { pipefail });
+  const profile = writeTimingProfile(profilePath, {
+    ...timingFromOutput(run.output, timingRunner(command)),
+    waitMs: Math.max(0, Math.round(waitMs)), wallMs: Math.max(0, Date.now() - started),
+  });
+  if (logPath) writeFileSync(logPath, safeLog(run.output), { mode: 0o600 });
+  return { ...run, profile, profilePath, logPath };
 }
 
 /** Persist one sanitized timing profile as a private artifact.
@@ -177,7 +168,7 @@ export function writeTimingProfile(path, profile) {
   const validDuration = value => Number.isFinite(value) && value >= 0;
   const files = (profile.files ?? []).filter(file => typeof file?.path === 'string' && validDuration(file.durationMs))
     .map(file => ({ path: sanitize(file.path, 'file path'), durationMs: file.durationMs }));
-  const tests = (profile.tests ?? []).filter(test => typeof test?.file === 'string' && typeof test?.name === 'string' && validDuration(test.durationMs))
+  const tests = (profile.tests ?? []).filter(test => (typeof test?.file === 'string' || test?.file === null) && typeof test?.name === 'string' && validDuration(test.durationMs))
     .map(test => ({ file: sanitize(test.file, 'test file'), name: sanitize(test.name, 'test name'), durationMs: test.durationMs, passed: test.passed === true }));
   const sanitized = {
     version: 1,
@@ -185,23 +176,13 @@ export function writeTimingProfile(path, profile) {
     wallMs: validDuration(profile.wallMs) ? profile.wallMs : null,
     files,
     tests,
+    runner: sanitize(profile.runner ?? 'shell', 'runner'),
+    format: sanitize(profile.format ?? 'none', 'format'),
+    unavailable: sanitize(profile.unavailable ?? null, 'availability'),
   };
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   writeFileSync(path, `${JSON.stringify(sanitized, null, 2)}\n`, { mode: 0o600 });
   return sanitized;
-}
-
-/** Combine distinct Node reporter invocations whose names share a private per-run prefix. */
-function readTimingProfiles(prefix) {
-  const directory = dirname(prefix);
-  const base = `${basename(prefix)}.`;
-  const profiles = [];
-  let names = [];
-  try { names = readdirSync(directory).filter(name => name.startsWith(base) && name.endsWith('.json')); } catch { return { files: [], tests: [] }; }
-  for (const name of names) {
-    try { profiles.push(JSON.parse(readFileSync(join(directory, name), 'utf8'))); } catch { /* Ignore incomplete reporters from a killed test process. */ }
-  }
-  return { files: profiles.flatMap(profile => Array.isArray(profile.files) ? profile.files : []), tests: profiles.flatMap(profile => Array.isArray(profile.tests) ? profile.tests : []) };
 }
 
 /** Conservatively detect a pipe when the configured gate shell cannot enforce every stage's status. */
@@ -308,6 +289,9 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       const profile = writeTimingProfile(profilePath, {
         waitMs: lease.waitMs, wallMs: Math.max(0, Date.now() - startedAt),
         files: profiles.flatMap(value => value.files), tests: profiles.flatMap(value => value.tests),
+        runner: [...new Set(profiles.map(value => value.runner))].join(', '),
+        format: [...new Set(profiles.map(value => value.format))].join('+'),
+        unavailable: profiles.some(value => value.unavailable) ? 'per-test timing unavailable: output was not TAP or JUnit (one or more phases)' : null,
       });
       return { ...proof, log, seconds: criterion.seconds + proof.seconds, ...selection, check: receipt,
         profile, profilePath, proofProfilePath: proof.profilePath, proofLog: proof.log };
@@ -341,14 +325,14 @@ export function submitGateReport(gate) {
   return `${check}; ${selection}; ${result}`;
 }
 
-/** Show the ten slowest files, preserving actual Node timings rather than parsing TAP titles.
- * @param {{ files?: Array<{path: string, durationMs: number}> }|null} profile
- * @returns {string}
- */
+/** Show wall and queue wait for every run; rank files only when their durations were printed. */
 export function timingDigest(profile) {
-  if (!profile?.files?.length) return '';
-  const rows = [...profile.files].filter(file => typeof file.path === 'string' && Number.isFinite(file.durationMs) && file.durationMs >= 0).sort((left, right) => right.durationMs - left.durationMs).slice(0, 10);
-  return `slowest test files:\n${rows.map(file => `  ${file.path}: ${(file.durationMs / 1000).toFixed(2)}s`).join('\n')}`;
+  if (!profile) return '';
+  const measured = value => Number.isFinite(value) ? `${(value / 1000).toFixed(2)}s` : 'unavailable';
+  const summary = `timing (${profile.runner ?? 'shell'}): wall ${measured(profile.wallMs)}, slot wait ${measured(profile.waitMs)}`;
+  const rows = [...(profile.files ?? [])].filter(file => typeof file.path === 'string' && Number.isFinite(file.durationMs) && file.durationMs >= 0).sort((left, right) => right.durationMs - left.durationMs).slice(0, 10);
+  const files = rows.length ? `\nslowest test files:\n${rows.map(file => `  ${file.path}: ${(file.durationMs / 1000).toFixed(2)}s`).join('\n')}` : '';
+  return `${summary}${profile.unavailable ? `\n${profile.unavailable}` : ''}${files}`;
 }
 
 /**

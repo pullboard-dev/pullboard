@@ -2,9 +2,10 @@
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { digestOf, writeTimingProfile } from './gate.js';
-import { closeSync, existsSync, mkdtempSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, rmSync, writeSync } from 'node:fs';
+import { timingFromOutput, timingFromLog, timingRunner } from './timing.js';
+import { closeSync, existsSync, mkdtempSync, mkdirSync, openSync, readFileSync, readSync, rmSync, writeSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath } from 'node:url';
 import { configFromSource } from './config.js';
@@ -144,8 +145,7 @@ export function checkAtCommit(root, item, { waitMs = 0 } = {}) {
   mkdirSync(home, { mode: 0o700 });
   const verifierHome = process.env.HOME ?? process.env.USERPROFILE;
   const npmCache = process.env.npm_config_cache ?? join(verifierHome ?? home, '.npm');
-  const timingEventsPath = join(scratch, 'check-timings.events.json');
-  const env = { ...cleanGitEnvironment(), HOME: home, PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(home, 'machine'), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', npm_config_cache: npmCache, PULLBOARD_TEST_TIMING_PROFILE: timingEventsPath };
+  const env = { ...cleanGitEnvironment(), HOME: home, PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(home, 'machine'), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', npm_config_cache: npmCache };
   delete env.PULLBOARD_RELAY_TOKEN;
   let installOutput = '';
   let checkOutput = '';
@@ -155,7 +155,8 @@ export function checkAtCommit(root, item, { waitMs = 0 } = {}) {
   let timingProfile = { files: [], tests: [] };
   /** Format one completed check phase with the private captures and durable artifact locations. */
   const finish = (state, stage) => {
-    const events = readTimingProfiles(timingEventsPath);
+    const runner = timingRunner(command);
+    const events = checkLogPath && existsSync(checkLogPath) ? timingFromLog(checkLogPath, runner) : timingFromOutput(checkOutput, runner);
     timingProfile = { ...events, wallMs: Math.max(0, Date.now() - checkStartedAt) };
     return checkResult(state, stage, installOutput, checkOutput, { root, item, installLogPath, checkLogPath, timingProfile, waitMs });
   };
@@ -205,7 +206,6 @@ export function checkAtCommit(root, item, { waitMs = 0 } = {}) {
     return finish(run.status === 0 ? 'pass' : 'red', run.status === 0 ? 'check' : `check failed (exit ${run.status})`);
   } catch { return finish('unverified', 'check could not complete'); }
   finally {
-    removeTimingProfiles(timingEventsPath);
     rmSync(scratch, { recursive: true, force: true });
   }
 }
@@ -231,31 +231,6 @@ function runPrivateCommand(root, env, command, timeout, logPath) {
       rmSync(pidFile, { force: true });
     }
   }
-}
-
-/** Read every reporter invocation produced by this private check, including nested npm scripts.
- * @param {string} prefix
- * @returns {{ files: Array<object>, tests: Array<object> }}
- */
-function readTimingProfiles(prefix) {
-  const directory = dirname(prefix);
-  const base = `${basename(prefix)}.`;
-  let names = [];
-  try { names = readdirSync(directory).filter(name => name.startsWith(base) && name.endsWith('.json')); } catch { return { files: [], tests: [] }; }
-  const profiles = [];
-  for (const name of names) {
-    try { profiles.push(JSON.parse(readFileSync(join(directory, name), 'utf8'))); } catch { /* Ignore a reporter interrupted with its process. */ }
-  }
-  return { files: profiles.flatMap(profile => Array.isArray(profile.files) ? profile.files : []), tests: profiles.flatMap(profile => Array.isArray(profile.tests) ? profile.tests : []) };
-}
-
-/** Remove the private reporter artifacts before the scratch clone is discarded.
- * @param {string} prefix
- */
-function removeTimingProfiles(prefix) {
-  const directory = dirname(prefix);
-  const base = `${basename(prefix)}.`;
-  try { for (const name of readdirSync(directory)) if (name.startsWith(base) && name.endsWith('.json')) rmSync(join(directory, name), { force: true }); } catch { /* No reporter artifacts were created. */ }
 }
 
 const CHECK_LOG_READ_BYTES = 32 * 1024;
@@ -425,7 +400,7 @@ function checkResult(state, stage, installCapture, checkCapture, { root = '', it
     if (artifactFd !== null) closeSync(artifactFd);
     if (outputPath && timingProfile) {
       profilePath = `${outputPath}.profile.json`;
-      const profile = writeTimingProfile(profilePath, { version: 1, waitMs: Math.max(0, Math.round(waitMs)), wallMs: timingProfile.wallMs ?? null, files: timingProfile.files ?? [], tests: timingProfile.tests ?? [] });
+      const profile = writeTimingProfile(profilePath, { ...timingProfile, waitMs: Math.max(0, Math.round(waitMs)) });
       timingProfile = profile;
     }
   } catch (error) {

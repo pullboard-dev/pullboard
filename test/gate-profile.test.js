@@ -1,4 +1,4 @@
-/** Real gate, item-check and verifier profiles use Node's test events [C7,V10]. */
+/** Real gate, item-check and verifier profiles parse emitted timings [C7,V10]. */
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
@@ -12,6 +12,7 @@ import * as store from '../src/board.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const RUNNER = resolve(import.meta.dirname, '../bin/run-tests.js');
+const CALLER_REPORTER = resolve(import.meta.dirname, 'timing-reporter-fixture.js');
 const RESOURCE_MODULE = resolve(import.meta.dirname, '../src/resources.js');
 const TEMP = [];
 const SPEC = '# Demo\n\n## G · Goals\n- G1 [approved, must] The page renders. | gate: web test\n- G2 [approved, must] The API answers. | gate: api test\n';
@@ -174,7 +175,7 @@ test('a timing profile records two runner invocations and the real gate-slot wai
   assert.ok(queued, 'the gate joined the real private machine queue');
   const elapsedMs = Date.now() - started;
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /slowest test files:[\s\S]*slow\.test\.js:/);
+  assert.match(result.stdout, /timing \(node\): wall/);
   const profilePath = /timing profile: ([^\n]+)/.exec(result.stdout)?.[1];
   assert.ok(profilePath, result.stdout);
   assert.ok(profilePath.endsWith('pullboard-gate.log.profile.json'), 'the full gate profile is paired with its canonical raw log');
@@ -183,11 +184,10 @@ test('a timing profile records two runner invocations and the real gate-slot wai
   assert.equal(statSync(profilePath).mode & 0o777, 0o600);
   assert.ok(profile.waitMs >= 100, `recorded queue wait ${profile.waitMs}ms`);
   assert.ok(profile.wallMs > 0 && elapsedMs + 30 >= profile.waitMs + profile.wallMs, `${elapsedMs}ms total vs ${profile.waitMs}ms wait + ${profile.wallMs}ms wall`);
-  assert.deepEqual(profile.files.map(file => file.path).sort(), ['timed/fast.test.js', 'timed/slow.test.js']);
+  assert.deepEqual(profile.files, [], 'ordinary TAP supplies no file wall measurements');
   assert.deepEqual(profile.tests.map(test => test.name).sort(), ['[redacted GitHub token]', 'fast timing profile sample', 'nested timing profile sample'].sort());
-  assert.ok(profile.files.find(file => file.path.endsWith('slow.test.js')).durationMs >= 130);
   assert.ok(profile.tests.find(test => test.name === '[redacted GitHub token]').durationMs >= 130, 'the actual slow test duration is retained');
-  assert.match(result.stdout.split('slowest test files:\n')[1]?.split('\n')[0] ?? '', /^\s*timed\/slow\.test\.js:/);
+  assert.doesNotMatch(result.stdout, /slowest test files:/);
   assert.ok(!result.stdout.includes(FAKE_SECRET));
   assert.ok(!readFileSync(profilePath, 'utf8').includes(FAKE_SECRET));
   assert.match(readFileSync(profilePath, 'utf8'), /redacted GitHub token/);
@@ -197,14 +197,14 @@ test('a timing profile records two runner invocations and the real gate-slot wai
   box.git(fixture.repo, 'commit', '-q', '-m', 'test: configure red profiled runner gate');
   const red = box.run(fixture.repo, 'gate');
   assert.equal(red.status, 1, red.stdout);
-  assert.match(red.stdout, /gate red in \d+s:[\s\S]*slowest test files:[\s\S]*slow\.test\.js:/);
+  assert.match(red.stdout, /gate red in \d+s:/);
   const redProfilePath = /timing profile: ([^\n]+)/.exec(red.stdout)?.[1];
   assert.ok(redProfilePath, red.stdout);
   const redProfile = JSON.parse(readFileSync(redProfilePath, 'utf8'));
   assert.equal(statSync(redProfilePath).mode & 0o777, 0o600);
   assert.equal(redProfile.tests.length, 4);
   assert.equal(redProfile.tests.find(test => test.name === 'failing timing profile sample').passed, false);
-  assert.match(red.stdout.split('slowest test files:\n')[1]?.split('\n')[0] ?? '', /^\s*timed\/slow\.test\.js:/);
+  assert.doesNotMatch(red.stdout, /slowest test files:/);
 });
 
 test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,V10]', () => {
@@ -214,6 +214,8 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   mkdirSync(join(box.repo, '.timed'));
   writeFileSync(join(box.repo, '.timed/fast.test.js'), "import { test } from 'node:test'; test('fast timing profile check', () => {});\n");
   writeFileSync(join(box.repo, '.timed/slow.test.js'), "import { test } from 'node:test'; test('slow timing profile check', async () => new Promise(resolve => setTimeout(resolve, 40)));\n");
+  writeFileSync(join(box.repo, '.timed/middle.test.mjs'), "import { test } from 'node:test'; test('buried timing profile sample', () => {});\n");
+  writeFileSync(join(box.repo, '.timed/middle-output.mjs'), "import {spawnSync} from 'node:child_process'; const noise=['-e',\"process.stdout.write(('harmless padding '.repeat(30)+'\\\\n').repeat(10000))\"]; spawnSync(process.execPath,noise,{stdio:'inherit'}); const child=spawnSync(process.execPath,['--test-reporter=tap','.timed/middle.test.mjs'],{stdio:'inherit'}); spawnSync(process.execPath,noise,{stdio:'inherit'}); process.exitCode=child.status;\n");
   box.git(box.repo, 'add', '.timed');
   box.git(box.repo, 'commit', '-q', '-m', 'test: add timing profile check fixtures');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
@@ -225,12 +227,12 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
 
   const direct = box.run(box.web, 'check', '--yes');
   assert.equal(direct.status, 0, direct.stderr);
-  assert.match(direct.stdout, /slowest test files:[\s\S]*slow\.test\.js:/);
+  assert.match(direct.stdout, /timing \(node\): wall/);
   const directPath = /timing profile: ([^\n]+)/.exec(direct.stdout)?.[1];
   assert.ok(directPath, direct.stdout);
   assert.equal(statSync(directPath).mode & 0o777, 0o600);
   const directProfile = JSON.parse(readFileSync(directPath, 'utf8'));
-  assert.ok(directProfile.files.some(file => file.path.endsWith('.timed/slow.test.js')));
+  assert.deepEqual(directProfile.files, []);
   assert.ok(directProfile.tests.find(test => test.name === 'slow timing profile check').durationMs >= 30);
   assert.ok(existsSync(directPath.slice(0, -'.profile.json'.length) + '.log'));
 
@@ -240,7 +242,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   assert.match(box.run(review, 'join', 'api').stdout, /joined as api/);
   const accepted = box.run(review, 'verify', '1', 'accept', '--note', 'timings were retained');
   assert.equal(accepted.status, 0, accepted.stderr);
-  assert.match(accepted.stdout, /slowest test files:[\s\S]*slow\.test\.js:/);
+  assert.match(accepted.stdout, /timing \(node\): wall/);
   const verifyPath = /timing profile: ([^\n]+)/.exec(accepted.stdout)?.[1];
   assert.ok(verifyPath, accepted.stdout);
   assert.ok(verifyPath.endsWith('.log.profile.json'));
@@ -248,7 +250,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   assert.equal(statSync(verifyPath.slice(0, -'.profile.json'.length)).mode & 0o777, 0o600);
   const verified = JSON.parse(readFileSync(verifyPath, 'utf8'));
   assert.ok(verified.waitMs >= 0 && verified.wallMs > 0);
-  assert.ok(verified.files.some(file => file.path.endsWith('.timed/slow.test.js')));
+  assert.deepEqual(verified.files, []);
   assert.ok(verified.tests.find(test => test.name === 'slow timing profile check').durationMs >= 30);
 
   assert.equal(box.run(box.repo, 'add', 'web', 'Shell-only check', '--specs', 'G1', '--criterion', 'shell-only checks still save timings', '--check', 'true').status, 0);
@@ -281,6 +283,16 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   assert.deepEqual(shellVerify.profile.tests, []);
   assert.equal(shellVerify.profile.waitMs, 17);
   assert.ok(shellVerify.profile.wallMs > 0 && existsSync(shellVerify.profilePath));
+  const context = process.env.NODE_TEST_CONTEXT;
+  delete process.env.NODE_TEST_CONTEXT;
+  let buried;
+  try { buried = checkAtCommit(box.repo, { ...item, item_commit: shellCommit, item_frozen: JSON.stringify({ ...frozen, check: 'node .timed/middle-output.mjs' }) }); }
+  finally { if (context !== undefined) process.env.NODE_TEST_CONTEXT = context; }
+
+  assert.equal(buried.state, 'pass', buried.report);
+  assert.doesNotMatch(buried.output, /buried timing profile sample/u, 'the bounded worker capture omits the middle');
+  assert.ok(buried.profile.tests.some(value => value.name === 'buried timing profile sample'), 'the complete private log retains middle timing data');
+
 });
 
 
@@ -293,7 +305,7 @@ test('a timing profile keeps every selected file while its digest names only ten
     writeFileSync(join(fixture.repo, path), `import { test } from 'node:test'; test('selected timing case ${index}', () => {});\n`);
   }
   writeFileSync(join(fixture.repo, 'timed/unselected.test.js'), "throw new Error('an unselected file must not run');\n");
-  const command = `node '${RUNNER.replaceAll("'", "'\\''")}' ${paths.join(' ')}`;
+  const command = `node '${RUNNER.replaceAll("'", "'\\''")}' --test-reporter='${CALLER_REPORTER}' ${paths.join(' ')}`;
   writeFileSync(join(fixture.repo, 'pullboard.json'), JSON.stringify({ gate: command }));
   box.git(fixture.repo, 'add', '-A');
   box.git(fixture.repo, 'commit', '-q', '-m', 'test: select twelve timing files');
@@ -350,7 +362,7 @@ function copyProfileRunner(box) {
   const source = resolve(import.meta.dirname, '..');
   mkdirSync(join(box.repo, 'bin'), { recursive: true });
   mkdirSync(join(box.repo, 'src'), { recursive: true });
-  for (const file of ['bin/run-tests.js', 'bin/gate-profile-reporter.js', 'src/person.js', 'src/refused.js']) {
+  for (const file of ['bin/run-tests.js', 'src/person.js', 'src/refused.js']) {
     writeFileSync(join(box.repo, file), readFileSync(join(source, file)));
   }
 }
@@ -453,7 +465,7 @@ test('a submit timing profile records both phases and one queue wait for selecte
       '  assert.equal(1, 1);',
       '});',
     ].join('\n') + '\n');
-    writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: gateCommand }, null, 2));
+    writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: gateCommand, ...(scenario.full ? {} : { affectedTests: 'node bin/run-tests.js' }) }, null, 2));
     box.git(box.repo, 'add', '-A');
     box.git(box.repo, 'commit', '-q', '-m', 'test: build isolated submit profile fixture');
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
@@ -477,9 +489,9 @@ test('a submit timing profile records both phases and one queue wait for selecte
     assert.equal(gate.check.checked, true);
     assert.equal(gate.check.command, checkCommand);
     assert.equal(gate.reason === '', !scenario.full);
-    if (scenario.full) assert.deepEqual(gate.files, ['api/untouched.test.js', 'timed/check.test.js', 'web/affected.test.js']);
+    if (scenario.full) assert.deepEqual(gate.files, []);
     if (!scenario.full) assert.deepEqual(gate.files, ['web/affected.test.js']);
-    if (scenario.full) assert.match(gate.reason, /web\/README\.txt/u);
+    if (scenario.full) assert.match(gate.reason, /affected-test selection is not enabled/u);
 
     assert.ok(gate.check.log.endsWith('pullboard-submit.log.check.log'));
     assert.equal(gate.check.profilePath, `${gate.check.log}.profile.json`);
@@ -494,23 +506,23 @@ test('a submit timing profile records both phases and one queue wait for selecte
     if (scenario.queue) assert.ok(checkProfile.waitMs >= 100, `actual queued check waited ${checkProfile.waitMs}ms`);
     const proofProfile = JSON.parse(readFileSync(gate.proofProfilePath, 'utf8'));
     const combined = JSON.parse(readFileSync(gate.profilePath, 'utf8'));
-    assert.deepEqual(checkProfile.files.map(file => file.path), ['timed/check.test.js']);
-    assert.ok(checkProfile.files[0].durationMs >= 50, 'the check profile retains the real slow check file duration');
+    assert.deepEqual(checkProfile.files, [], 'TAP test timings are not invented file measurements');
     assert.equal(checkProfile.tests[0].name, 'frozen check profile sample [C7]');
     assert.ok(checkProfile.tests[0].durationMs >= 50);
-    assert.deepEqual(proofProfile.files.map(file => file.path).sort(), scenario.full
-      ? ['api/untouched.test.js', 'timed/check.test.js', 'web/affected.test.js']
-      : ['web/affected.test.js']);
-    assert.ok(proofProfile.files.every(file => file.durationMs > 0));
+    assert.deepEqual(proofProfile.files, []);
+    assert.deepEqual(proofProfile.tests.map(value => value.name).sort(), scenario.full
+      ? ['unaffected proof profile sample [C7]', 'frozen check profile sample [C7]', 'affected proof profile sample [C7]'].sort()
+      : ['affected proof profile sample [C7]']);
     assert.equal(proofProfile.waitMs, 0, 'the second phase reuses the submission lease instead of queueing again');
     assert.equal(combined.waitMs, checkProfile.waitMs, 'the combined profile records the real queue wait once');
     assert.ok(combined.wallMs >= checkProfile.wallMs + proofProfile.wallMs - 25,
       'the combined wall time includes both measured phases without adding their queue waits');
     assert.ok(submission.elapsedMs + 50 >= combined.waitMs + combined.wallMs,
       `${submission.elapsedMs}ms total vs ${combined.waitMs}ms one wait + ${combined.wallMs}ms combined work`);
-    assert.ok(combined.files.some(file => file.path === 'timed/check.test.js'));
-    assert.ok(combined.files.some(file => file.path === 'web/affected.test.js'));
-    if (scenario.full) assert.ok(combined.files.some(file => file.path === 'api/untouched.test.js'));
+    assert.deepEqual(combined.files, []);
+    assert.ok(combined.tests.some(value => value.name === 'frozen check profile sample [C7]'));
+    assert.ok(combined.tests.some(value => value.name === 'affected proof profile sample [C7]'));
+    if (scenario.full) assert.ok(combined.tests.some(value => value.name === 'unaffected proof profile sample [C7]'));
 
     const ran = readFileSync(trace, 'utf8').trim().split(/\r?\n/u).sort();
     assert.equal(ran.filter(line => line === 'check').length, scenario.full ? 2 : 1,
