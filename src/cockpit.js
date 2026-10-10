@@ -241,8 +241,23 @@ const firstLine = (text) => String(text ?? '').split('\\n').map((line) => line.t
 // The latest verdict is a reject and no accept followed: open again, being reworked, resubmitted, or
 // withdrawn after it.
 const rejected = (i) => i.status !== 'verified' && !!i.verdict && i.verdict.decision === 'REJECT';
+/** Resolve visible agent text from this board's API without changing action identities. */
+function agentName(id, project = data?.project) {
+  const agent = project?.agents?.find((entry) => entry.agent_id === id);
+  return agent?.displayName || (agent ? id + ' (' + (agent.model || agent.agent_model || 'unknown') + ')' : id);
+}
+/** Keep a shout address whole while its model can shorten, retaining the API name for assistive readers. */
+function shoutAgentName(id) {
+  const name = agentName(id);
+  if (name === id) return esc(id);
+  const prefix = name.endsWith('-' + id);
+  const model = prefix ? name.slice(0, -id.length) : name.slice(id.length);
+  const address = '<span class="agent-id">' + esc(id) + '</span>';
+  const label = '<span class="agent-model">' + esc(model) + '</span>';
+  return '<span class="agent-label' + (prefix ? ' prefix' : '') + '" title="' + esc(name) + '" role="group" aria-label="' + esc(name) + '">' + (prefix ? label + address : address + label) + '</span>';
+}
 /** Render a review note with escaped text and references bound to the selected board. */
-const verdictHtml = (v, titles) => '<div class="verdict ' + (v.decision === 'ACCEPT' ? 'yes' : 'no') + '"><b>' + esc(v.decision) + ' ' + esc(v.reason) + '</b><span class="by">' + esc(v.by) + ' · ' + when(v.at) + ' · at ' + esc(String(v.commit || '').slice(0, 12)) + '</span><div class="note">' + linked(v.note, titles) + '</div></div>';
+const verdictHtml = (v, titles) => '<div class="verdict ' + (v.decision === 'ACCEPT' ? 'yes' : 'no') + '"><b>' + esc(v.decision) + ' ' + esc(v.reason) + '</b><span class="by">' + esc(agentName(v.by)) + ' · ' + when(v.at) + ' · at ' + esc(String(v.commit || '').slice(0, 12)) + '</span><div class="note">' + linked(v.note, titles) + '</div></div>';
 const stateOf = (i) => i.status === 'claimed' ? 'building' : i.status === 'submitted' ? 'verify' : i.status === 'verified' ? 'verified' : i.status === 'withdrawn' ? 'withdrawn' : i.verdict && i.verdict.decision === 'REJECT' ? 'back' : 'open';
 const STATES = { building: ['building', 'busy'], verify: ['to verify', 'warn'], back: ['sent back', 'no'], verified: ['verified', 'ok'], open: ['unclaimed', 'free'], withdrawn: ['withdrawn', ''] };
 const chip = (s) => '<span class="chip ' + STATES[s][1] + '">' + STATES[s][0] + '</span>';
@@ -367,9 +382,9 @@ const doing = (x) => [x.decisions && count(x.decisions, 'decision', 'decisions')
 /** The person's calls in one repo, as its Needs-you panel shows them, reused by a combined project view. */
 function projectNeeds(p) {
   return [
-    ...p.decisions.map((d) => ({ ref: d.shout_from, text: d.shout_text, what: 'decision', at: d.shout_at })),
+    ...p.decisions.map((d) => ({ ref: agentName(d.shout_from, p), text: d.shout_text, what: 'decision', at: d.shout_at })),
     ...p.spec.filter((row) => row.status === 'pending' && !row.decision).map((row) => ({ ref: row.id, text: row.text, what: 'answer in SPEC.md' })),
-    ...p.holds.map((hold) => ({ ref: hold.hold_lane, text: hold.hold_reason, what: 'lane held by ' + hold.hold_by })),
+    ...p.holds.map((hold) => ({ ref: hold.hold_lane, text: hold.hold_reason, what: 'lane held by ' + agentName(hold.hold_by, p) })),
     ...(p.spec.some((row) => row.status === 'draft' && !row.decision) ? [{ ref: String(p.spec.filter((row) => row.status === 'draft' && !row.decision).length), text: 'draft spec rows to approve or drop', what: 'review in SPEC.md', target: 'tab:spec' }] : []),
   ];
 }
@@ -450,13 +465,13 @@ function timeline(item) {
       : !next ? esc(named) + ' for ' + age(s.at) + ' so far'
       : !next.at ? esc(named + ' until the ' + next.kind + ', length not logged')
       : esc(named + ' for ' + span(Date.parse(next.at) - Date.parse(s.at)));
-    rows.push('<li class="tl-' + esc(state) + (s.kind === 'reject' ? ' tl-back' : '') + (enters ? '' : ' tl-quiet') + '"' + (event ? ' data-event-id="' + event.eventId + '"' : '') + '><time>' + (s.at ? when(s.at) : '') + '</time><span><b>' + esc(s.kind) + '</b> ' + esc(s.by) + '</span>' + (stay ? '<small>' + stay + '</small>' : '') + '</li>');
+    rows.push('<li class="tl-' + esc(state) + (s.kind === 'reject' ? ' tl-back' : '') + (enters ? '' : ' tl-quiet') + '"' + (event ? ' data-event-id="' + event.eventId + '"' : '') + '><time>' + (s.at ? when(s.at) : '') + '</time><span><b>' + esc(s.kind) + '</b> ' + esc(agentName(s.by)) + '</span>' + (stay ? '<small>' + stay + '</small>' : '') + '</li>');
   };
   /** Render one API fact with its identity, replacement and committed code binding. */
   const factRow = (fact) => {
     const replacement = replacements.get(fact.id);
     const judgement = ['decision', 'rejection', 'supersession', 'root-cause'].includes(fact.kind);
-    rows.push('<li id="fact-' + esc(fact.id) + '" class="tl-fact' + (judgement ? ' tl-judgement' : '') + (replacement ? ' tl-superseded' : '') + '" data-event-id="' + fact.eventId + '"><time>' + when(fact.at) + '</time><span class="tl-fact-head"><span class="chip">' + esc(fact.kind) + '</span> <b>' + esc(fact.by) + '</b></span><span class="tl-body">' + esc(fact.text) + '</span><small>' + age(fact.at) + (replacement ? ' · <a class="thread-replacement" href="#fact-' + esc(replacement.id) + '">replaced by ' + esc(replacement.kind) + '</a>' : '') + '</small>' + (fact.ref ? '<div class="tl-code">' + codeRef(factCodeRef(fact.ref), '') + '</div>' : '') + '</li>');
+    rows.push('<li id="fact-' + esc(fact.id) + '" class="tl-fact' + (judgement ? ' tl-judgement' : '') + (replacement ? ' tl-superseded' : '') + '" data-event-id="' + fact.eventId + '"><time>' + when(fact.at) + '</time><span class="tl-fact-head"><span class="chip">' + esc(fact.kind) + '</span> <b>' + esc(agentName(fact.by)) + '</b></span><span class="tl-body">' + esc(fact.text) + '</span><small>' + age(fact.at) + (replacement ? ' · <a class="thread-replacement" href="#fact-' + esc(replacement.id) + '">replaced by ' + esc(replacement.kind) + '</a>' : '') + '</small>' + (fact.ref ? '<div class="tl-code">' + codeRef(factCodeRef(fact.ref), '') + '</div>' : '') + '</li>');
   };
   for (const entry of entries) {
     if (entry.type === 'fact') { factRow(entry); continue; }
@@ -1044,7 +1059,7 @@ function renderGroup(group) {
     const titles = new Map(repo.board.items.map((item) => [String(item.id), item.title]));
     return repo.board.events.map((event) => ({ ...event, repo, titles, title: event.item_id ? titles.get(String(event.item_id)) : null }));
   }).sort((a, b) => b.event_at.localeCompare(a.event_at)).slice(0, 80);
-  $('group-activity').innerHTML = events.length ? byDay(events, (event) => event.event_at, (event) => '<div><time>' + clock(event.event_at) + '</time><div class="act"><b class="repo-label">' + esc(event.repo.name) + '</b> <span>' + esc(event.event_by) + ' ' + esc(event.event_kind) + (event.item_id ? ' #' + event.item_id + (event.title ? ' ' + rich(event.title, event.titles).replaceAll('<button class="ref" data-go=', '<button class="ref" data-root="' + esc(event.repo.root) + '" data-go=') : '') : '') + '</span></div></div>') : '<div class="empty">No activity yet.</div>';
+  $('group-activity').innerHTML = events.length ? byDay(events, (event) => event.event_at, (event) => '<div><time>' + clock(event.event_at) + '</time><div class="act"><b class="repo-label">' + esc(event.repo.name) + '</b> <span>' + esc(agentName(event.event_by, event.repo.board)) + ' ' + esc(event.event_kind) + (event.item_id ? ' #' + event.item_id + (event.title ? ' ' + rich(event.title, event.titles).replaceAll('<button class="ref" data-go=', '<button class="ref" data-root="' + esc(event.repo.root) + '" data-go=') : '') : '') + '</span></div></div>') : '<div class="empty">No activity yet.</div>';
 }
 
 /**
@@ -1180,9 +1195,9 @@ function render() {
   // questions in the spec, held lanes, then draft rows. Work waiting for a verdict or sent back shows
   // on the board with who holds it; it is the agents' to move.
   const needs = [
-    ...p.decisions.map((d) => ['decide:' + d.shout_id, d.shout_from, d.shout_text, 'decide', d.shout_at]),
+    ...p.decisions.map((d) => ['decide:' + d.shout_id, agentName(d.shout_from, p), d.shout_text, 'decide', d.shout_at]),
     ...p.spec.filter((r) => r.status === 'pending' && !r.decision).map((r) => ['spec:' + r.id, r.id, r.text, 'answer in SPEC.md']),
-    ...p.holds.map((h) => ['tab:shouts', h.hold_lane, h.hold_reason, 'lane held by ' + h.hold_by, h.hold_at]),
+    ...p.holds.map((h) => ['tab:shouts', h.hold_lane, h.hold_reason, 'lane held by ' + agentName(h.hold_by), h.hold_at]),
   ];
   const drafts = p.spec.filter((r) => r.status === 'draft' && !r.decision).length;
   // Each of the person's calls is a row at the head of Active, shaped like an item: what it is first, then NEEDS YOU and
@@ -1246,8 +1261,8 @@ function render() {
     const waits = s === 'open' && i.blockedBy.length ? i.blockedBy : [];
     const gated = gatedOf(i);
     const pills = (waits.length ? '<span class="gate">' + waits.map((id, index) => '<span class="wait-unit">' + (index ? '' : 'waits on ') + '<button class="ref" data-go="item:' + id + '" type="button">#' + id + '</button></span>').join(', ') + '</span>' : '') + (hold ? '<span class="gate">lane held: ' + linked(hold.hold_reason, titles) + '</span>' : '');
-    const tag = s === 'building' && i.owner ? '<span class="chip busy" title="building, held by ' + esc(i.owner) + '">' + esc(i.owner) + '</span>'
-      : s === 'verify' && i.reviewer ? '<span class="chip warn" title="reviewing until ' + esc(when(i.reviewUntil)) + '">' + esc(i.reviewer) + ' reviewing</span>'
+    const tag = s === 'building' && i.owner ? '<span class="chip busy" title="building, held by ' + esc(agentName(i.owner)) + '">' + esc(agentName(i.owner)) + '</span>'
+      : s === 'verify' && i.reviewer ? '<span class="chip warn" title="reviewing until ' + esc(when(i.reviewUntil)) + '">' + esc(agentName(i.reviewer)) + ' reviewing</span>'
       : s === 'open' ? openChip(i) : chip(s);
     return '<li class="row s-' + s + (view.item === i.id ? ' on' : '') + (gated ? ' gated' : '') + '" data-item="' + i.id + '" title="' + esc(i.title) + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + rich(i.title, titles) + '</div><span class="row-age">' + age(i.updatedAt) + '</span><div class="meta">'
       // A rejected row's second line is its verdict; any other row's is its lane and the spec ids it serves.
@@ -1280,10 +1295,10 @@ function render() {
       const safeCommit = /^[0-9a-f]{40}$/.test(commit);
       if (!safePath || !safeRange || !safeCommit) {
         const missing = [!safePath && 'repository path', !safeRange && 'line range', !safeCommit && 'full commit SHA'].filter(Boolean).join(', ');
-        return '<div class="fact-code"><span class="chip">' + esc(fact.kind) + '</span> <span class="muted">' + esc(fact.by) + ' · ' + age(fact.at) + '</span><div class="code no ref-missing" role="status">Code reference unavailable: missing or invalid ' + esc(missing) + '.</div></div>';
+        return '<div class="fact-code"><span class="chip">' + esc(fact.kind) + '</span> <span class="muted">' + esc(agentName(fact.by)) + ' · ' + age(fact.at) + '</span><div class="code no ref-missing" role="status">Code reference unavailable: missing or invalid ' + esc(missing) + '.</div></div>';
       }
       const range = path + ':' + start + (end === start ? '' : '-' + end) + '@' + commit;
-      return '<div class="fact-code"><span class="chip">' + esc(fact.kind) + '</span> <span class="muted">' + esc(fact.by) + ' · ' + age(fact.at) + '</span>' + codeRef(range, '', true) + '</div>';
+      return '<div class="fact-code"><span class="chip">' + esc(fact.kind) + '</span> <span class="muted">' + esc(agentName(fact.by)) + ' · ' + age(fact.at) + '</span>' + codeRef(range, '', true) + '</div>';
     }).join('') + '</div>' : '';
     // Why it came back is the first thing the person reads; the verdicts before it stay below.
     const back = rejected(item);
@@ -1296,7 +1311,7 @@ function render() {
       + referencedCode
       + (cited.length ? '<div><h3>Spec rows it serves</h3>' + cited.map((r) => '<div class="rowref"><code>' + esc(r.id) + '</code><div>' + linked(r.text, titles) + ' <span class="chip ' + tone(r.status) + '">' + esc(r.status) + '</span></div></div>').join('') + '</div>' : '')
       + (item.brief ? '<div><h3>Brief</h3><div class="text muted">' + rich(item.brief, titles) + '</div></div>' : '')
-      + '<div><h3>People and commits</h3><dl class="kv">' + (item.owner && s === 'building' ? '<dt>holding</dt><dd>' + esc(item.owner) + '</dd>' : '') + (item.builtBy ? '<dt>built by</dt><dd>' + esc(item.builtBy) + '</dd>' : '') + (item.verifiedBy ? '<dt>verified by</dt><dd>' + esc(item.verifiedBy) + '</dd>' : '') + (item.commit ? '<dt>commit</dt><dd><code>' + esc(item.commit.slice(0, 12)) + '</code></dd>' : '') + (item.merged ? '<dt>merged</dt><dd><code>' + esc(item.merged.slice(0, 12)) + '</code></dd>' : '') + (item.blockedBy.length ? '<dt>waits on</dt><dd class="waits-on">' + item.blockedBy.map((id) => '<span class="wait-unit"><button class="ref" data-go="item:' + id + '" type="button">#' + id + '</button></span>').join(', ') + '</dd>' : '') + '</dl></div>'
+      + '<div><h3>People and commits</h3><dl class="kv">' + (item.owner && s === 'building' ? '<dt>holding</dt><dd>' + esc(agentName(item.owner)) + '</dd>' : '') + (item.builtBy ? '<dt>built by</dt><dd>' + esc(agentName(item.builtBy)) + '</dd>' : '') + (item.verifiedBy ? '<dt>verified by</dt><dd>' + esc(agentName(item.verifiedBy)) + '</dd>' : '') + (item.commit ? '<dt>commit</dt><dd><code>' + esc(item.commit.slice(0, 12)) + '</code></dd>' : '') + (item.merged ? '<dt>merged</dt><dd><code>' + esc(item.merged.slice(0, 12)) + '</code></dd>' : '') + (item.blockedBy.length ? '<dt>waits on</dt><dd class="waits-on">' + item.blockedBy.map((id) => '<span class="wait-unit"><button class="ref" data-go="item:' + id + '" type="button">#' + id + '</button></span>').join(', ') + '</dd>' : '') + '</dl></div>'
       + (back && !earlier.length ? '' : '<div><h3>' + (back ? 'Earlier verdicts' : 'Verdicts') + '</h3>' + (earlier.length ? earlier.map((v) => verdictHtml(v, titles)).join('') : '<div class="muted">None yet.</div>') + '</div>')
       + '<div><h3>History</h3>' + timeline(item) + '</div>'
       + '<div class="links"><button data-shout="' + esc(item.lane) + '" data-about="' + item.id + '" type="button">Shout the ' + esc(item.lane) + ' lane about #' + item.id + '</button><button data-new type="button">New item</button></div></div>';
@@ -1311,7 +1326,7 @@ function render() {
   // Evidence a shout carries (B22), as the fields it is: its kind and outcome, the item, who sent it,
   // and the commit, shortened, with the full SHA on hover.
   const evidence = (x) => (x.shout_evidence_kind ? '<div class="receipt"><div><span class="badge">' + esc(x.shout_evidence_kind) + '</span> <span class="outcome">' + esc(x.shout_evidence_outcome) + '</span></div>'
-    + '<div class="receipt-foot">' + linked('#' + x.shout_evidence_item, titles) + ' · ' + esc(x.shout_from) + ' · ' + codeChip(String(x.shout_evidence_commit), 'sha') + '</div></div>' : '');
+    + '<div class="receipt-foot">' + linked('#' + x.shout_evidence_item, titles) + ' · ' + esc(agentName(x.shout_from)) + ' · ' + codeChip(String(x.shout_evidence_commit), 'sha') + '</div></div>' : '');
   // A shout as a card (#250): who, in a colour of their own, to whom, its item and when on top; what was said
   // below. An ask carries a band until it is answered; a long shout folds at six lines.
   const hue = (id) => [...String(id)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 8;
@@ -1319,7 +1334,7 @@ function render() {
   const open = new Set([...p.decisions, ...p.asked].map((d) => d.shout_id));
   const answerOf = new Map(p.shouts.filter((y) => y.shout_answers).map((y) => [y.shout_answers, y]));
   const band = (x) => !x.shout_decision ? '' : open.has(x.shout_id) ? '<div class="band">Decision needed</div>'
-    : '<div class="band done">Answered' + (answerOf.has(x.shout_id) ? ' by ' + esc(answerOf.get(x.shout_id).shout_from) + ': <a href="#shout-' + answerOf.get(x.shout_id).shout_id + '">see the answer</a>' : '') + '</div>';
+    : '<div class="band done">Answered' + (answerOf.has(x.shout_id) ? ' by ' + esc(agentName(answerOf.get(x.shout_id).shout_from)) + ': <a href="#shout-' + answerOf.get(x.shout_id).shout_id + '">see the answer</a>' : '') + '</div>';
   // The shout's item: the first #N in its text that names an item on this board, or else its evidence's.
   const itemOf = (x) => [...String(x.shout_text).matchAll(/#(\\d+)/g)].map((m) => String(Number(m[1]))).find((id) => titles.has(id)) || x.shout_evidence_item;
   // The coordinator's mark is the board's own: a square with the Pullboard logo, so it stands out from the agents.
@@ -1329,7 +1344,7 @@ function render() {
   const unread = view.unread?.root === view.root ? view.unread : null;
   const heard = unread ? p.shouts.filter((x) => x.shout_id > unread.after) : view.agent ? p.shouts.filter((x) => x.shout_from === view.agent || x.shout_to === view.agent) : p.shouts;
   const bar = !unread && !view.agent ? '' : '<div class="feed-bar">' + (unread ? '<span><b>' + heard.length + '</b> unread <button class="link" data-unread type="button">show all</button></span>'
-    : '<span>Shouts with <b>' + esc(view.agent) + '</b> <button class="link" data-agent="" type="button">show all</button></span>') + '</div>';
+    : '<span>Shouts with <b>' + esc(agentName(view.agent)) + '</b> <button class="link" data-agent="" type="button">show all</button></span>') + '</div>';
   $('shouts-pane').classList.toggle('bare', view.agentsHidden);
   // Who has heard a shout of the person's: the agents it reached whose inbox has read past it. Each agent's read
   // cursor is already on the board, so this is presentation only; reading is all it says, not acting on it.
@@ -1341,21 +1356,21 @@ function render() {
     // A shout that reaches no agent at all, such as one to a lane nobody has joined, has not been heard either.
     if (!by.length) return '<div class="heard not">Not heard yet</div>';
     const first = by.find((a) => lead(a.agent_id)) || by[0], rest = by.length - 1;
-    return '<div class="heard" title="Heard by ' + esc(by.map((a) => a.agent_id).join(', ')) + '"><span class="heard-faces">' + [first, ...by.filter((a) => a !== first)].slice(0, 4).map(dot).join('') + '</span>Heard by ' + esc(first.agent_id) + (rest ? ' and ' + rest + (rest === 1 ? ' agent' : ' agents') : '') + '</div>';
+    return '<div class="heard" title="Heard by ' + esc(by.map((a) => agentName(a.agent_id)).join(', ')) + '"><span class="heard-faces">' + [first, ...by.filter((a) => a !== first)].slice(0, 4).map(dot).join('') + '</span>Heard by ' + esc(agentName(first.agent_id)) + (rest ? ' and ' + rest + (rest === 1 ? ' agent' : ' agents') : '') + '</div>';
   };
   // One card for a shout, in the feed and among the asks; tail adds what the place needs, such as Answer. Only the
   // feed's copy carries the band and the id an answer's link lands on, so an ask shown twice never repeats an id.
   const card = (x, tail = '', inFeed = true) => '<article class="shout h' + hue(x.shout_from) + (lead(x.shout_from) ? ' lead' : '') + (openShouts.has(x.shout_id) ? ' open' : '') + '"' + (inFeed ? ' id="shout-' + x.shout_id + '"' : '') + ' data-shout-id="' + x.shout_id + '">'
-    + (lead(x.shout_from) ? '<span class="avatar">' + LEAD + '</span>' : '<span class="avatar' + (initials(x.shout_from).length > 3 ? ' wide' : '') + '" aria-hidden="true">' + esc(initials(x.shout_from)) + '</span>') + '<div class="shout-main"><header><b class="who">' + esc(x.shout_from) + '</b><span class="to">→ ' + esc(x.shout_to) + '</span>'
+    + (lead(x.shout_from) ? '<span class="avatar">' + LEAD + '</span>' : '<span class="avatar' + (initials(x.shout_from).length > 3 ? ' wide' : '') + '" aria-hidden="true">' + esc(initials(x.shout_from)) + '</span>') + '<div class="shout-main"><header><b class="who">' + shoutAgentName(x.shout_from) + '</b><span class="to">→ ' + shoutAgentName(x.shout_to) + '</span>'
     + (itemOf(x) ? '<span class="item">#' + esc(itemOf(x)) + '</span>' : '') + mark(x) + '<time class="long" data-ago="' + esc(x.shout_at) + '" title="' + esc(when(x.shout_at)) + '">' + agoLong(x.shout_at) + '</time></header>'
     + '<div class="text">' + rich(x.shout_text, titles) + '</div><button class="more" data-more type="button">' + (openShouts.has(x.shout_id) ? 'less' : 'more') + '</button>' + (inFeed ? band(x) + heardBy(x) : '') + evidence(x) + tail + '</div></article>';
-  $('feed').innerHTML = bar + (heard.length ? dayRules(heard, (x) => x.shout_at, card) : '<div class="empty">' + (unread ? 'No unread shouts.' : view.agent ? 'No shouts with ' + esc(view.agent) + ' among the last forty.' : 'No shouts yet.') + '</div>');
+  $('feed').innerHTML = bar + (heard.length ? dayRules(heard, (x) => x.shout_at, card) : '<div class="empty">' + (unread ? 'No unread shouts.' : view.agent ? 'No shouts with ' + esc(agentName(view.agent)) + ' among the last forty.' : 'No shouts yet.') + '</div>');
   foldShouts();
   // Each ask waits here until it is answered (B21); the answer itself is typed in the form below. The
   // person answers the ones passed up to them; the rest wait on whoever holds them (B26).
   $('decisions').hidden = !p.decisions.length && !(p.asked.length && view.open.waiting);
   // The asks waiting on others are a toggle at the end of the composer's line, beside Show agents while the panel is hidden.
-  $('asks-slot').innerHTML = (p.asked.length ? '<button class="asks-toggle" data-fold="waiting" type="button" aria-expanded="' + Boolean(view.open.waiting) + '" title="' + esc('Asks between agents, waiting on others: ' + p.asked.map((d) => d.shout_from + ' asks ' + d.shout_to).join(', ')) + '">' + p.asked.length + (p.asked.length === 1 ? ' ask' : ' asks') + ' waiting <span aria-hidden="true">' + (view.open.waiting ? '▴' : '▾') + '</span></button>' : '')
+  $('asks-slot').innerHTML = (p.asked.length ? '<button class="asks-toggle" data-fold="waiting" type="button" aria-expanded="' + Boolean(view.open.waiting) + '" title="' + esc('Asks between agents, waiting on others: ' + p.asked.map((d) => agentName(d.shout_from) + ' asks ' + agentName(d.shout_to)).join(', ')) + '">' + p.asked.length + (p.asked.length === 1 ? ' ask' : ' asks') + ' waiting <span aria-hidden="true">' + (view.open.waiting ? '▴' : '▾') + '</span></button>' : '')
     + (view.agentsHidden ? '<button class="asks-toggle" data-agents-toggle type="button">Show agents</button>' : '');
   // The asks as the feed's cards, folded to three lines: the person's to answer, then those waiting on others.
   $('decisions').innerHTML = (p.decisions.length ? '<div class="head"><i></i>Decision needed</div>' + p.decisions.map((d) => card(d, '<button class="ghost answer" data-go="decide:' + d.shout_id + '" type="button">Answer</button>', false)).join('') : '')
@@ -1377,13 +1392,13 @@ function render() {
   // to that agent's shouts, its lane and route on hover, and the picked agent's row opens out to each thing it holds.
   const busy = listed.filter((a) => holding(a).length), idle = listed.filter((a) => !holding(a).length);
   const face = (a) => lead(a.agent_id) ? '<span class="avatar">' + LEAD + '</span>' : '<span class="avatar' + (initials(a.agent_id).length > 3 ? ' wide' : '') + '" aria-hidden="true">' + esc(initials(a.agent_id)) + '</span>';
-  const tip = (a) => 'Shouts with ' + a.agent_id + ' · ' + a.agent_lane + ' · ' + a.agent_route + ' (' + a.agent_path + ')';
+  const tip = (a) => 'Shouts with ' + agentName(a.agent_id) + ' · ' + a.agent_lane + ' · ' + a.agent_route + ' (' + a.agent_path + ')';
   const state = (a, i) => i.reviewer === a.agent_id ? '<span class="chip warn">reviewing</span>' : chip(stateOf(i));
   const marks = (a) => ' h' + hue(a.agent_id) + (lead(a.agent_id) ? ' lead' : '') + (view.agent === a.agent_id ? ' on' : '');
   const row = (a) => {
     const mine = holding(a), first = mine[0];
     return '<div class="agent-card' + marks(a) + '"><button class="agent-row" data-agent="' + esc(a.agent_id) + '" title="' + esc(tip(a)) + '" type="button">' + face(a)
-      + '<span class="agent-who"><b>' + esc(a.agent_id) + '</b>' + state(a, first) + (mine.length > 1 ? '<span class="agent-more">+' + (mine.length - 1) + '</span>' : '') + (a.lastMoveAt ? '<time data-ago="' + esc(a.lastMoveAt) + '">' + ago(a.lastMoveAt) + '</time>' : '') + '</span>'
+      + '<span class="agent-who"><b>' + esc(agentName(a.agent_id)) + '</b>' + state(a, first) + (mine.length > 1 ? '<span class="agent-more">+' + (mine.length - 1) + '</span>' : '') + (a.lastMoveAt ? '<time data-ago="' + esc(a.lastMoveAt) + '">' + ago(a.lastMoveAt) + '</time>' : '') + '</span>'
       + '<span class="agent-doing"><span class="agent-what"><i>#' + first.id + '</i> ' + esc(first.title) + '</span></span></button>'
       + (view.agent === a.agent_id ? mine.map((i) => '<div class="agent-work" data-item="' + i.id + '" data-go="item:' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span>' + state(a, i) + '</div>').join('') : '') + '</div>';
   };
@@ -1392,9 +1407,9 @@ function render() {
   if (idle.some((a) => a.agent_id === view.agent)) view.open.idle = true;
   // Show all ends the open fold while some agents have not moved lately, or stands alone when none is idle.
   const allAgents = p.agents.length > p.agents.filter(recent).length ? '<button class="link all-agents" data-all-agents type="button">' + (view.allAgents ? 'show only agents at work' : 'show all ' + p.agents.length) + '</button>' : '';
-  const idleBlock = () => !idle.length ? allAgents : '<div class="agents-idle">' + foldLine('idle', idle.length + ' idle', idle.map((a) => a.agent_id).join(', '))
+  const idleBlock = () => !idle.length ? allAgents : '<div class="agents-idle">' + foldLine('idle', idle.length + ' idle', idle.map((a) => agentName(a.agent_id)).join(', '))
     + (view.open.idle ? '<div class="idle-list">' + idle.map(pill).join('') + '</div>' + allAgents : '') + '</div>';
-  const pill = (a) => '<button class="agent-pill' + marks(a) + '" data-agent="' + esc(a.agent_id) + '" title="' + esc(tip(a)) + '" type="button"><span>' + face(a) + esc(a.agent_id) + '</span></button>';
+  const pill = (a) => '<button class="agent-pill' + marks(a) + '" data-agent="' + esc(a.agent_id) + '" title="' + esc(tip(a)) + '" type="button"><span>' + face(a) + esc(agentName(a.agent_id)) + '</span></button>';
   $('agents').innerHTML = (listed.length ? busy.map(row).join('') + idleBlock()
     : '<div class="empty">' + (p.agents.length ? 'No agent has moved today.' : 'No agents yet.') + '</div>');
   // The status bar: what the board is doing, along the foot of the window. Each number is the length of the list its
@@ -1403,13 +1418,13 @@ function render() {
   const release = (p.milestones || []).find((m) => m.done < m.total), last = p.events[0];
   const part = (to, n, words, title) => n ? '<button type="button" data-status="' + to + '" title="' + esc(title) + '"><b>' + n + '</b> ' + words + '</button>' : '';
   $('status-board').innerHTML = part('items', active.length, 'items', 'Show the active items') + '<button type="button" id="status-unread" data-status="unread" title="Show the shouts you have not read" hidden></button>'
-    + part('agents', busy.length, busy.length === 1 ? 'agent' : 'agents', 'Show the agents holding work: ' + busy.map((a) => a.agent_id).join(', '))
+    + part('agents', busy.length, busy.length === 1 ? 'agent' : 'agents', 'Show the agents holding work: ' + busy.map((a) => agentName(a.agent_id)).join(', '))
     + part('verify', active.filter((i) => stateOf(i) === 'verify').length, 'to verify', 'Show the items waiting on a verdict')
     + part('gated', active.filter(gatedOf).length, 'gated', 'Show the open items waiting on another item or a held lane')
     + (release ? '<button type="button" data-status="release" title="' + esc('Show this release on the Roadmap: ' + (release.note || release.name)) + '">' + esc(release.name) + ' <b>' + release.done + '/' + release.total + '</b></button>' : '')
-    + (last ? '<button type="button" class="end" data-status="' + (last.item_id ? 'item:' + last.item_id : 'activity') + '" title="' + esc(last.event_at) + '">' + esc(last.event_by) + ' ' + esc(last.event_kind) + (last.item_id ? ' #' + last.item_id : '') + ' · ' + age(last.event_at) + '</button>' : '');
+    + (last ? '<button type="button" class="end" data-status="' + (last.item_id ? 'item:' + last.item_id : 'activity') + '" title="' + esc(last.event_at) + '">' + esc(agentName(last.event_by)) + ' ' + esc(last.event_kind) + (last.item_id ? ' #' + last.item_id : '') + ' · ' + age(last.event_at) + '</button>' : '');
   const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
-  $('lanes').innerHTML = working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no">held by ' + esc(held.get(l).hold_by) + '</span> <span class="muted">' + linked(held.get(l).hold_reason, titles) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join('');
+  $('lanes').innerHTML = working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no">held by ' + esc(agentName(held.get(l).hold_by)) + '</span> <span class="muted">' + linked(held.get(l).hold_reason, titles) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join('');
 
   for (const kind of ['spec', 'doctrine']) {
     const rows = kind === 'spec' ? p.spec : p.practice;
@@ -1468,9 +1483,9 @@ function render() {
     const x = said.get(detail.shout) || { shout_to: detail.to, shout_decision: detail.decision, shout_answers: detail.answers };
     const verb = e.event_kind === 'answer' || x.shout_answers ? 'answered' : x.shout_decision ? 'asked' : 'shouted to';
     const line = firstLine(x.shout_text);
-    return '<b>' + esc(e.event_by) + '</b> ' + verb + (x.shout_to ? ' <b>' + esc(x.shout_to) + '</b>' : '') + (line ? '<span class="said" title="' + esc(line) + '">' + inline(line, titles) + '</span>' : '');
+    return '<b>' + esc(agentName(e.event_by)) + '</b> ' + verb + (x.shout_to ? ' <b>' + esc(agentName(x.shout_to)) + '</b>' : '') + (line ? '<span class="said" title="' + esc(line) + '">' + inline(line, titles) + '</span>' : '');
   };
-  $('activity').innerHTML = p.events.length ? byDay(p.events, (e) => e.event_at, (e) => '<div><time>' + clock(e.event_at) + '</time><div class="act">' + (e.event_kind === 'shout' || e.event_kind === 'answer' ? spoke(e) : '<b>' + esc(e.event_by) + '</b> ' + esc(e.event_kind) + (e.item_id ? ' <button class="ref" data-go="item:' + e.item_id + '" type="button">#' + e.item_id + '</button>' + (titles.has(String(e.item_id)) ? ' <span class="what">' + rich(titles.get(String(e.item_id)), titles) + '</span>' : '') : '')) + '</div></div>') : '<div class="empty">No activity yet.</div>';
+  $('activity').innerHTML = p.events.length ? byDay(p.events, (e) => e.event_at, (e) => '<div><time>' + clock(e.event_at) + '</time><div class="act">' + (e.event_kind === 'shout' || e.event_kind === 'answer' ? spoke(e) : '<b>' + esc(agentName(e.event_by)) + '</b> ' + esc(e.event_kind) + (e.item_id ? ' <button class="ref" data-go="item:' + e.item_id + '" type="button">#' + e.item_id + '</button>' + (titles.has(String(e.item_id)) ? ' <span class="what">' + rich(titles.get(String(e.item_id)), titles) + '</span>' : '') : '')) + '</div></div>') : '<div class="empty">No activity yet.</div>';
   showTab();
 }
 
@@ -1572,8 +1587,8 @@ function addressTo(to) {
   const who = to || 'coordinator';
   $('shout-to').value = who;
   $('shout-to-chip').hidden = who === 'coordinator';
-  $('shout-to-chip').innerHTML = who === 'coordinator' ? '' : 'to <b>' + esc(who) + '</b><button class="to-clear" data-to-clear type="button" aria-label="Shout to the coordinator instead">×</button>';
-  $('shout-text').placeholder = 'Shout to ' + (who === 'coordinator' ? 'the coordinator' : who);
+  $('shout-to-chip').innerHTML = who === 'coordinator' ? '' : 'to <b>' + esc(agentName(who)) + '</b><button class="to-clear" data-to-clear type="button" aria-label="Shout to the coordinator instead">×</button>';
+  $('shout-text').placeholder = 'Shout to ' + (who === 'coordinator' ? 'the coordinator' : agentName(who));
 }
 
 /**
@@ -1588,7 +1603,7 @@ function answer(id) {
   if (!ask && view.answering) addressTo(view.to);
   view.answering = ask ? { root: view.root, id: ask.shout_id } : null;
   $('answering').hidden = !ask;
-  $('answering-who').textContent = ask ? ask.shout_from : '';
+  $('answering-who').textContent = ask ? agentName(ask.shout_from) : '';
   const question = ask ? linked(ask.shout_text, new Map(data.project.items.map((i) => [String(i.id), i.title]))) : '';
   if (question.includes('<button class="ref"')) $('answering-q').innerHTML = question;
   else $('answering-q').textContent = ask ? ask.shout_text : '';

@@ -363,7 +363,12 @@ form.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; paddin
 .shout .avatar, .agent-card .avatar, .agent-pill .avatar { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: color-mix(in srgb, var(--h) 16%, var(--surface)); color: var(--h); font: 700 11px var(--mono); }
 .shout .avatar.wide { font-size: 9px; letter-spacing: -.02em; }
 .shout-main { min-width: 0; }
-.shout header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 7px; }
+.shout header { display: flex; flex-wrap: nowrap; align-items: baseline; gap: 2px 7px; }
+.shout .who, .shout .to { display: flex; flex: 0 1 auto; min-width: min-content; white-space: nowrap; }
+.shout .agent-label { display: inline-grid; grid-template-columns: max-content minmax(0, 1fr); min-width: 0; }
+.shout .agent-label.prefix { grid-template-columns: minmax(0, 1fr) max-content; }
+.shout .agent-model { overflow: hidden; text-overflow: ellipsis; white-space: pre; }
+.shout header .mark, .shout header time { flex: none; }
 .shout .who { color: var(--h); font-weight: 700; }
 .shout .to, .shout .item { color: var(--ink-faint); }
 .shout .item { font: 12px var(--mono); }
