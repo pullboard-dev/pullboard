@@ -627,6 +627,12 @@ test('two real clients enforce the verify policy captured in the item freeze [H1
 
 test('person recovery explicitly skips one future-engine blocker and publishes a refusal checkpoint [H3,H16]', async (t) => {
   const box = await fixture(t);
+  for (const args of [['help', 'relay', 'recover'], ['relay', 'recover', '--help'], ['help', '--all']]) {
+    const help = spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args],
+      { cwd: box.root, env: box.env, encoding: 'utf8' });
+    assert.equal(help.status, 0, `recovery help succeeds: ${args.join(' ')}`);
+    assert.match(help.stdout, /relay recover --skip <sequence>/u, 'public help retains the recovery retry command');
+  }
   const seededBoard = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
   try {
     store.shout(seededBoard, { from: 'person', to: 'coordinator', text: 'read cursor recovery probe', lanes: ['web'], request: true });
