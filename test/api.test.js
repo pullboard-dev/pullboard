@@ -605,9 +605,14 @@ test('[A1] every catalog command and subcommand has a real CLI exercise', () => 
   json(source, source.repo, 'milestone', ['edit', 'Catalog', '--name', 'Release', '--note', 'Catalog coverage'], 'edit');
   json(source, source.repo, 'milestone', ['remove', 'Later'], 'remove');
   json(source, source.repo, 'milestone', ['remove', 'Release'], 'remove');
+  const reopenItem = json(source, source.repo, 'add', ['coordinator', 'Reopen catalog item', '--criterion', 'Exercise the versioned reopen result.', '--check', 'true'], 'add').item;
+  json(source, source.repo, 'claim', [String(reopenItem.item_id)]);
+  json(source, source.repo, 'submit', [String(reopenItem.item_id)]);
+  json(source, source.repo, 'reopen', [String(reopenItem.item_id), '--note', 'exercise the versioned reopen result']);
   json(source, source.repo, 'spec', ['approve', 'G1'], 'approve');
   json(source, source.repo, 'spec', ['decline', 'G1', '--reason', 'Catalog decline'], 'decline');
   json(source, source.repo, 'spec', ['apply'], 'apply');
+
   /** Exercise the agent-only takeover with a private explicit session, leaving later terminal calls markerless. */
   const sessionSource = { ...source, run: (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env: { ...source.env, CODEX_SESSION_ID: 'api-catalog-session' }, encoding: 'utf8' }) };
   json(sessionSource, source.repo, 'takeover');

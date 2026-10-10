@@ -47,6 +47,7 @@ const ENTRY_POINTS = [
   { verbs: ['escalate'], at: ['board.js#escalate'] },
   { verbs: ['withdraw'], at: ['board.js#withdraw'] },
   { verbs: ['refreeze'], at: ['board.js#refreeze'] },
+  { verbs: ['reopen'], at: ['board.js#reopen'] },
 ];
 
 /** Board functions handed a function to call, and the one the CLI and the runner hand them. */
@@ -363,7 +364,7 @@ test('the declared lifecycle is sound: reachable, no traps, no second door, ever
   assert.deepEqual(machineProblems(), []);
   assert.deepEqual(MACHINE.states.map((state) => state.id), ['open', 'claimed', 'submitted', 'verified', 'withdrawn']);
   assert.deepEqual(MACHINE.states.filter((state) => state.final).map((state) => state.id), ['verified', 'withdrawn']);
-  assert.deepEqual(MACHINE.moves.map((move) => move.verb), ['claim', 'release', 'lapse', 'submit', 'reserve', 'accept', 'reject', 'escalate', 'refreeze', 'withdraw']);
+  assert.deepEqual(MACHINE.moves.map((move) => move.verb), ['claim', 'release', 'lapse', 'submit', 'reserve', 'accept', 'reject', 'reopen', 'escalate', 'refreeze', 'withdraw']);
 });
 
 for (const broken of BROKEN) {
