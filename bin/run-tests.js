@@ -10,9 +10,6 @@ import { tmpdir } from 'node:os';
 import { after, afterEach, beforeEach } from 'node:test';
 import { Worker } from 'node:worker_threads';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
-import { withGateSlot } from '../src/gate.js';
-import { GATE_SLOT_HELD_ENV } from '../src/resources.js';
-import { loadMachineSettings } from '../src/settings.js';
 
 const runner = fileURLToPath(import.meta.url);
 export const DEFAULT_TEST_TIMEOUT_MS = 660_000;
@@ -188,7 +185,7 @@ function hasTestFiles(args) {
 /** Run tests in the disposable environment, preserving a marker only when a parent holds the slot. */
 function executeTests(args, sandbox, gateSlotHeld) {
   const env = testEnvironment(sandbox);
-  if (gateSlotHeld) env[GATE_SLOT_HELD_ENV] = '1';
+  if (gateSlotHeld) env.PULLBOARD_GATE_SLOT_HELD = '1';
   const result = runTests(args, env);
   if (result.error) throw result.error;
   return result;
@@ -209,7 +206,7 @@ async function main(args) {
     return;
   }
   const fullSuite = !hasTestFiles(args);
-  const inheritedSlot = process.env[GATE_SLOT_HELD_ENV] === '1';
+  const inheritedSlot = process.env.PULLBOARD_GATE_SLOT_HELD === '1';
   let signal = null;
   /** Keep sandbox lifetime inside the held lease, including the complete child process. */
   const run = (gateSlotHeld) => {
@@ -222,6 +219,10 @@ async function main(args) {
   };
   if (!fullSuite || inheritedSlot) run(inheritedSlot);
   else {
+    // Focused and preload-only copies do not need the queue's repository dependencies.
+    const [{ withGateSlot }, { loadMachineSettings }] = await Promise.all([
+      import('../src/gate.js'), import('../src/settings.js'),
+    ]);
     const capacity = loadMachineSettings().gateSlots;
     let announced = false;
     await withGateSlot(process.cwd(), () => run(true), {
