@@ -112,6 +112,66 @@ test('a missing DevTools port fails once with stderr and elapsed launch time [C7
   assert.equal(readFileSync(launches, 'utf8'), 'launch\n', 'the shared launcher never retries');
 });
 
+/** Prove startup timeout diagnostics preserve process and profile state before cleanup [C7]. */
+test("a DevTools port timeout names Chrome's state [C7]", async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-chrome-timeout-state-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const startupTimeoutMs = 2_000;
+  const liveProfile = join(directory, 'live-profile');
+  const liveMarker = join(directory, 'live-starts');
+  const liveExecutable = join(directory, 'chrome-live-no-port');
+  writeFileSync(liveExecutable, [
+    '#!/usr/bin/env node',
+    "const fs = require('node:fs');",
+    "fs.appendFileSync(process.env.CHROME_STARTS, 'start\\n');",
+    "fs.writeFileSync(process.env.CHROME_PROFILE + '/SingletonLock', 'held');",
+    "process.on('SIGTERM', () => process.exit(0));",
+    'setInterval(() => {}, 1000);',
+  ].join('\n'));
+  chmodSync(liveExecutable, 0o700);
+  await assert.rejects(startChrome({
+    executable: liveExecutable,
+    profileDirectory: liveProfile,
+    startupTimeoutMs,
+    env: { ...process.env, CHROME_STARTS: liveMarker, CHROME_PROFILE: liveProfile },
+  }), (error) => {
+    assert.match(error.message, /leader still alive/u);
+    assert.match(error.message, /DevToolsActivePort absent/u);
+    assert.match(error.message, /profile lock present \(SingletonLock\)/u);
+    assert.match(error.message, /elapsed \d+ms; 2000ms DevTools budget/u);
+    assert.match(error.message, /load average \[/u);
+    const elapsed = Number(/Chrome startup state:.*elapsed (\d+)ms/u.exec(error.message)?.[1]);
+    assert.ok(elapsed >= startupTimeoutMs, `the live stand-in reached the startup budget: ${error.message}`);
+    return true;
+  });
+  assert.equal(readFileSync(liveMarker, 'utf8'), 'start\n', 'the live stand-in launched only once');
+
+  const exitedProfile = join(directory, 'exited-profile');
+  const exitedMarker = join(directory, 'exited-starts');
+  const exitedExecutable = join(directory, 'chrome-exits-no-port');
+  writeFileSync(exitedExecutable, [
+    '#!/usr/bin/env node',
+    "const fs = require('node:fs');",
+    "fs.appendFileSync(process.env.CHROME_STARTS, 'start\\n');",
+    'process.exit(7);',
+  ].join('\n'));
+  chmodSync(exitedExecutable, 0o700);
+  await assert.rejects(startChrome({
+    executable: exitedExecutable,
+    profileDirectory: exitedProfile,
+    startupTimeoutMs,
+    env: { ...process.env, CHROME_STARTS: exitedMarker, CHROME_PROFILE: exitedProfile },
+  }), (error) => {
+    assert.match(error.message, /leader exited \(code 7\)/u);
+    assert.match(error.message, /DevToolsActivePort absent/u);
+    assert.match(error.message, /profile lock absent/u);
+    assert.match(error.message, /elapsed \d+ms; 2000ms DevTools budget/u);
+    assert.match(error.message, /load average \[/u);
+    return true;
+  });
+  assert.equal(readFileSync(exitedMarker, 'utf8'), 'start\n', 'the exited stand-in launched only once');
+});
+
 
 /** Prove an unrelated process inheriting stderr cannot keep an exited owned Chrome open. */
 test('Chrome close releases inherited stderr after its owned process group exits [C7]', async t => {

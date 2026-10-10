@@ -1,7 +1,7 @@
 /** Shared isolated Chrome launcher with bounded startup and complete process-group cleanup [C7]. */
 import { startFixtureChild as spawn } from './fixture-child.js';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { loadavg, tmpdir } from 'node:os';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { join, resolve } from 'node:path';
 
@@ -27,6 +27,22 @@ function pause(ms) {
 function appendStderr(current, chunk) {
   const next = current + chunk;
   return next.length <= STDERR_LIMIT ? next : next.slice(-STDERR_LIMIT);
+}
+
+/** Describe launch state before cleanup changes whether the Chrome leader is still alive. */
+function chromeStartupState(profile, launched) {
+  const child = launched?.child;
+  const leader = !child ? 'not started'
+    : child.exitCode !== null ? `exited (code ${child.exitCode})`
+      : child.signalCode !== null ? `exited (signal ${child.signalCode})` : 'still alive';
+  const port = existsSync(join(profile, 'DevToolsActivePort')) ? 'present' : 'absent';
+  const locks = ['SingletonLock', 'SingletonCookie', 'SingletonSocket']
+    .filter((name) => {
+      try { lstatSync(join(profile, name)); return true; }
+      catch { return false; }
+    });
+  const profileLock = locks.length ? `present (${locks.join(', ')})` : 'absent';
+  return `leader ${leader}; DevToolsActivePort ${port}; profile lock ${profileLock}; elapsed ${launched?.launchDurationMs ?? 0}ms; load average ${JSON.stringify(loadavg())}`;
 }
 
 /** Report whether the detached process group still has any members. */
@@ -230,13 +246,14 @@ export async function startChrome({
     rejectPending(pending, 'Isolated Chrome stopped before startup completed.');
     const launchDurationMs = launched?.launchDurationMs ?? 0;
     const stderr = launched?.stderr?.trimEnd();
+    const startupState = chromeStartupState(profile, launched);
     let cleanupFailure = null;
     try { await launched?.close(); }
     catch (cleanupError) { cleanupFailure = cleanupError; }
     if (!cleanupFailure && ownedProfile) rmSync(profile, { recursive: true, force: true });
     const message = sanitizeStartupError(error);
     const cleanup = cleanupFailure ? `\n${cleanupFailure.message}; profile retained until the process group exits` : '';
-    throw new Error(`${message.message} (elapsed ${launchDurationMs}ms; ${startupTimeoutMs}ms DevTools budget)${stderr ? `\nChrome stderr:\n${stderr}` : ''}${cleanup}`);
+    throw new Error(`${message.message} (elapsed ${launchDurationMs}ms; ${startupTimeoutMs}ms DevTools budget)\nChrome startup state: ${startupState}${stderr ? `\nChrome stderr:\n${stderr}` : ''}${cleanup}`);
   }
 }
 
