@@ -176,7 +176,8 @@ const HELP_GROUPS = [
 ];
 
 const HELP_EXAMPLES = {
-  tour: 'pullboard tour', init: 'pullboard init', worktree: 'pullboard worktree web', resume: 'pullboard resume',
+  tour: 'pullboard tour', init: 'pullboard init', worktree: 'pullboard worktree web --model "my-model"',
+  join: 'pullboard join web --model "my-model"', resume: 'pullboard resume',
   add: 'pullboard add web "Upload page" --specs G1', list: 'pullboard list web', show: 'pullboard show 12',
   claim: 'pullboard claim 12', submit: 'pullboard submit 12', 'next --verify': 'pullboard next --verify',
   fact: 'pullboard fact 12 measurement "The check passes in 8 seconds"',

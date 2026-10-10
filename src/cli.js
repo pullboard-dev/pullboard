@@ -503,7 +503,7 @@ async function bindCheckoutSession(io, positionals, values) {
   if (!info.isMain) {
     const ctx = context(io);
     agent = withBoard(ctx, (board) => store.agentAt(board, info.root)?.agent_id);
-    if (!agent && command !== 'join') throw new Refused('NOT_JOINED', 'this worktree has not joined a lane; run pullboard join <lane>');
+    if (!agent && command !== 'join') throw new Refused('NOT_JOINED', 'this worktree has not joined a lane; run pullboard join <lane> --model "<model name>"');
   }
   const lease = await bindLocalSession(info, { agent: agent ?? 'unjoined agent', digest, takeover: command === 'takeover', keepLease: !['run', 'next'].includes(command),
     /** Use an existing ordered shout so takeover has a receipt without changing the board format. */
