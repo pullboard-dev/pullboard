@@ -310,6 +310,7 @@ test('an engine 6 client meets an item hold and is told to upgrade [H16,M1]', as
   assert.equal(releasedMachine.ENGINE_VERSION, 6, 'exercise the actual 0.8.3 client');
   assert.equal(released.ENGINE_OPERATIONS.includes('holdItem'), false);
   assert.equal(released.ENGINE_OPERATIONS.includes('releaseItemHold'), false);
+  assert.ok(ENGINE_VERSION >= 7, 'the current engine supports item holds');
   assert.ok(ENGINE_OPERATIONS.includes('holdItem'));
 
   const board = copies[0];
@@ -327,11 +328,12 @@ test('an engine 6 client meets an item hold and is told to upgrade [H16,M1]', as
     agentId: 'coordinator', reason: 'review the release',
   }], { id: 'engine-7-item-hold', actor: 'coordinator' });
   assert.equal(hold.engine, ENGINE_VERSION);
+  const engine7Hold = { ...hold, engine: 7 };
   const before = exportBoard(board);
   let refusal;
   let refusalOutcome;
   try {
-    refusalOutcome = released.applyRelayMove(board, hold, {
+    refusalOutcome = released.applyRelayMove(board, engine7Hold, {
       sequence: 2, at: CLAIM_AT, kind: 'move', sender: { kind: 'agent', userId: 'fixture-user', agent: 'coordinator' },
     });
   } catch (error) {
