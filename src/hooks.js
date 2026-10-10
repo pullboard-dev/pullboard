@@ -245,7 +245,7 @@ export function preCommitProblems({ root, isMain, config, agent, boardFile }) {
   problems.push(...approvedRowProblems(root, config, boardFile));
   if (isMain) return problems;
   if (!agent) {
-    problems.push('this worktree has not joined a lane: pullboard join <lane>');
+    problems.push('this worktree has not joined a lane: pullboard join <lane> --model "<model name>"');
     return problems;
   }
   const mergeBase = mainMergeBase(root);

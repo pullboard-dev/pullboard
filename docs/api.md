@@ -40,11 +40,11 @@ The single recommended action uses the first matching rule: review wait with few
 | `version` | `version:number`, `release:string` |
 | `init` | `version:number`, `root:string`, `notes:array` |
 | `hooks` | `version:number`, `notes:array` |
-| `join` | `version:number`, `agent:string`, `lane:string`, `route:string`, `path:string` |
+| `join` | `version:number`, `agent:string`, `lane:string`, `route:string`, `path:string`, `model:string`, `displayName:string` |
 | `takeover` | `version:number`, `agent:string`, `path:string` |
-| `worktree` | `version:number`, `agent:string`, `lane:string`, `route:string`, `path:string`, `branch:string`, `prompt:string` |
+| `worktree` | `version:number`, `agent:string`, `lane:string`, `route:string`, `path:string`, `branch:string`, `prompt:string`, `model:string`, `displayName:string` |
 | `resume` | `version:number`, `me:object`, `all:array`, `requests:array`, `holding:array`, `sentBack:array`, `awaiting:array`, `toVerify:array`, `toMerge:array`, `open:array`, `stale:array`, `holds:array`, `unread:number`, `newest:array`, `root:string`, `dirty:number`, `next:string` |
-| `whoami` | `version:number`, `id:string`, `lane:string`, `path:string` |
+| `whoami` | `version:number`, `id:string`, `lane:string`, `path:string`, `model:string`, `displayName:string` |
 | `lanes` | `version:number`, `lanes:object`, `shared:array`, `coordinator:string` |
 | `resources` | `version:number`, `resources:array` |
 | `settings` | `version:number`, `settings:object` |
@@ -114,7 +114,7 @@ The single recommended action uses the first matching rule: review wait with few
 
 `hook pre-merge-commit` runs the same staged checks as `hook pre-commit` before Git creates an automatic merge commit. `init` and `hooks` install it; `doctor` names it when absent at Git's effective hook path. Lane ownership comes from `HEAD:pullboard.json`, so an unstaged configuration edit cannot grant a lane new folders. Lane-sensitive checks refuse a repository with `info/grafts` in its Git common directory because grafts alter ancestry even when replacement objects are disabled.
 
-`join` and `worktree` accept an optional free-text `--family` declaration. Rejoining the same worktree preserves its agent id; a supplied family updates the declaration, while omitting `--family` preserves it. `resume` includes it as `me.family`; `show` includes `item_builder_family` and each verdict's `verdict_verifier_family`. These recorded fields are `null` when the agent did not declare a family, and later declarations do not rewrite prior submissions or verdicts.
+`join` and `worktree` require a free-text `--model` label or `PULLBOARD_MODEL` environment value; labels are not inferred from a provider or family. Rejoining the same worktree preserves its agent id; the model label is required on every join, and omitting the optional `--family` preserves its prior declaration. `pullboard.json` may set `agents.names` to `suffix` (the default, `web-1 (Claude)`) or `prefix` (`claude-web-1`). CLI `agent` fields remain stable ids; `displayName` shows the chosen style. `resume.me` and API state `agents[]` carry `model` and `displayName`; older agents with no model display `unknown`. Each event records the actor model in `event_detail.model` for a registered agent, with `unknown` for legacy agents without a declaration. `show` includes `item_builder_family` and each verdict's `verdict_verifier_family`. These family fields are `null` when the agent did not declare a family, and later declarations do not rewrite prior submissions or verdicts.
 
 Each checkout is bound to the first agent session that writes there. The local Git directory holds only its session digest, agent id and timestamp; bindings are absent from board exports and relay snapshots. Another agent session gets `NOT_YOUR_CHECKOUT` and the command to make its own worktree. The same agent starting a new session runs `pullboard takeover`; the existing ordered shout records the takeover, addressed to the person for the main checkout or the coordinator for a lane checkout. Markerless terminals, reads, the view and person requests keep their existing behavior. A shout or decision addressed to its sender is refused with `SELF_SHOUT`.
 

@@ -65,7 +65,7 @@ function reserveFixtureReview(box) {
   return reviewPath;
 }
 
-test('the coordinator reopens a submitted item without a verdict [V2,V6]', (t) => {
+test('the coordinator reopens a submitted item without a verdict [V2,V6,O8]', (t) => {
   const box = project();
   const submitted = submitFixture(box);
   reserveFixtureReview(box);
@@ -103,7 +103,7 @@ test('the coordinator reopens a submitted item without a verdict [V2,V6]', (t) =
   assert.equal(last.event_kind, 'reopen');
   assert.equal(last.event_by, 'coordinator');
   assert.deepEqual(JSON.parse(last.event_detail), {
-    commit: submitted.commit, note: 'correct the frozen criterion, not the work', judgment: null,
+    commit: submitted.commit, note: 'correct the frozen criterion, not the work', judgment: null, model: 'unknown',
   });
   assert.equal(store.events(board).some((event) => event.event_kind === 'release' && JSON.parse(event.event_detail).review), false);
 

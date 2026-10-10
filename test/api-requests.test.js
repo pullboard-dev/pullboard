@@ -97,7 +97,7 @@ test('[A2] successful shouts and answers each append their corresponding event',
   assert.equal(answerEvent.event_by, 'coordinator');
   assert.equal(answerEvent.event_kind, 'answer');
   assert.deepEqual(JSON.parse(answerEvent.event_detail), {
-    shout: answer, to: 'person', decision: false, request: false, answers: request, outcome: 'done',
+    shout: answer, to: 'person', decision: false, request: false, answers: request, outcome: 'done', model: 'unknown',
   });
   assert.deepEqual(afterAnswer.slice(-2).map((event) => event.event_id), [requestEvent.event_id, answerEvent.event_id]);
   assert.equal(store.getShout(board, answer).shout_answers, request);

@@ -138,7 +138,7 @@ test('a second session cannot write in the main checkout until takeover [B3,B7]'
   assert.equal(takeover.status, 0, `${takeover.stdout}${takeover.stderr}`);
   const rows = boardSnapshot(box.boardFile);
   assert.ok(rows.event.slice(before.event.length).some(row => row.event_kind === 'shout' && row.event_by === 'coordinator'), 'takeover is recorded through an existing ordered shout event');
-  assert.match(rows.shout.at(-1).shout_text, /coordinator took over/);
+  assert.match(rows.shout.at(-1).shout_text, /coordinator \(unknown\) took over/);
   assert.equal(rows.shout.at(-1).shout_to, 'person');
   assert.equal(rows.shout.length, before.shout.length + 1, 'main-checkout takeover records the person notice');
   const after = box.run(box.repo, ['shout', 'web', 'second session owns main', '--json'], { session: second });

@@ -200,12 +200,12 @@ test('the board lives in the git common dir; every worktree sees it; nothing is 
   assert.ok(existsSync(join(box.repo, '.git', 'pullboard', 'board.sqlite')));
   assert.equal(box.git(box.repo, 'status', '--porcelain'), '');
   assert.match(box.run(box.repo, 'whoami').out, /^coordinator/);
-  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(web lane\)/);
+  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(Test Model\) \(web lane\)/);
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
   assert.match(box.run(second, 'join', 'web').out, /joined as web-2/);
-  assert.match(box.run(second, 'whoami').out, /^web-2 \(web lane\)/, 'a second worktree in the same lane is its own agent');
-  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(web lane\)/, 'and the first stays itself');
+  assert.match(box.run(second, 'whoami').out, /^web-2 \(Test Model\) \(web lane\)/, 'a second worktree in the same lane is its own agent');
+  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(Test Model\) \(web lane\)/, 'and the first stays itself');
   assert.match(box.run(box.web, 'init').err, /NOT_MAIN/);
   assert.match(box.run(box.repo, 'join', 'web').err, /MAIN_IS_COORDINATOR/);
 });

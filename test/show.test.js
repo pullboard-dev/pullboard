@@ -103,10 +103,10 @@ test('show prints the latest verdict in full and earlier ones as one line; --his
   assert.equal(plain.status, 0, plain.stderr);
   const verdictLines = plain.stdout.split('\n').filter((line) => /^(REJECT|ACCEPT) /.test(line));
   assert.deepEqual(verdictLines.slice(0, 2), [
-    `REJECT TEST_FAILURE by web-2 at aaaaaaaaaaaa: ${LEAD}${FAMILY}…`,
-    'REJECT TEST_FAILURE by web-2 at bbbbbbbbbbbb: Second reject: the guard returns undefined.',
+    `REJECT TEST_FAILURE by web-2 (unknown) at aaaaaaaaaaaa: ${LEAD}${FAMILY}…`,
+    'REJECT TEST_FAILURE by web-2 (unknown) at bbbbbbbbbbbb: Second reject: the guard returns undefined.',
   ], 'earlier verdicts are one line each: decision, reason, verifier, commit, the note\'s first line cut at 120 characters');
-  assert.ok(plain.stdout.includes(`ACCEPT CRITERION_MET by web-2 at cccccccccccc: ${NOTES[2]}`), 'the latest verdict keeps its full note');
+  assert.ok(plain.stdout.includes(`ACCEPT CRITERION_MET by web-2 (unknown) at cccccccccccc: ${NOTES[2]}`), 'the latest verdict keeps its full note');
   for (const later of ['keeps going past the cut', 'Repro: greet("") throws.', 'Repro: greet("") is undefined.']) {
     assert.ok(!plain.stdout.includes(later), `an earlier note's cut and later lines are left out: ${later}`);
   }
@@ -123,13 +123,13 @@ test('show prints the latest verdict in full and earlier ones as one line; --his
 
   const whole = run('show', '2');
   assert.equal(whole.status, 0, whole.stderr);
-  assert.ok(whole.stdout.includes(`REJECT TEST_FAILURE by web-2 at dddddddddddd: ${EXACT}\n`), 'a first line of exactly 120 characters is printed whole');
+  assert.ok(whole.stdout.includes(`REJECT TEST_FAILURE by web-2 (unknown) at dddddddddddd: ${EXACT}\n`), 'a first line of exactly 120 characters is printed whole');
   assert.doesNotMatch(whole.stdout, /earlier verdicts shortened/, 'no hint when no earlier note was shortened');
 
   const breaks = run('show', '3');
   assert.equal(breaks.status, 0, breaks.stderr);
   Object.keys(BREAKS).forEach((name, round) => {
-    assert.ok(breaks.stdout.includes(`REJECT TEST_FAILURE by web-2 at ${String(round + 1).repeat(12)}: Break ${name} first.\n`), `${name} ends the first line`);
+    assert.ok(breaks.stdout.includes(`REJECT TEST_FAILURE by web-2 (unknown) at ${String(round + 1).repeat(12)}: Break ${name} first.\n`), `${name} ends the first line`);
   });
   assert.doesNotMatch(breaks.stdout, /hidden after/, 'nothing after any break is printed');
 });

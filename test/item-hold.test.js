@@ -44,8 +44,8 @@ test('a held item is never offered or claimed [N2,N22,M1]', t => {
     assert.equal(result.held, true);
     assert.equal(result.reason, reason);
     assert.deepEqual(withoutHold(store.getItem(board, id)), withoutHold(before));
-    assert.match(box.run(box.repo, 'show', String(id)).out, new RegExp(`held by coordinator: ${reason}`));
-    assert.match(box.run(box.repo, 'list', lane).out, new RegExp(`held by coordinator: ${reason}`));
+    assert.match(box.run(box.repo, 'show', String(id)).out, new RegExp(`held by coordinator \\(unknown\\): ${reason}`));
+    assert.match(box.run(box.repo, 'list', lane).out, new RegExp(`held by coordinator \\(unknown\\): ${reason}`));
     held.set(lane, { id, reason });
     for (const route of ['light', 'mid', 'strong']) {
       const actor = jsonSuccess(box, box.repo, 'worktree', lane, '--route', route);

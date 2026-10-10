@@ -67,18 +67,18 @@ test('the tour runs a reject and its rework on a throwaway repo, in under thirty
   assert.equal(shown.status, 0, `${shown.stdout}${shown.stderr}`);
   assert.ok(Date.now() - started < 30_000, 'thirty seconds');
   assert.doesNotMatch(shown.stdout, /\u001b\[/, 'piped output stays plain');
-  assert.match(shown.stdout, /review-1 \$ pullboard verify 1 reject --reason BEHAVIOR_MISMATCH/);
-  assert.match(shown.stdout, /sent back: #1 BEHAVIOR_MISMATCH by review-1: greet\(''\) returns "Hello, !"/);
+  assert.match(shown.stdout, /review-1 \(Scripted\) \$ pullboard verify 1 reject --reason BEHAVIOR_MISMATCH/);
+  assert.match(shown.stdout, /sent back: #1 BEHAVIOR_MISMATCH by review-1 \(Scripted\): greet\(''\) returns "Hello, !"/);
   assert.match(shown.stdout, /with the fix removed\n {7}# pass 1\n {7}# fail 1/);
   assert.match(shown.stdout, /verified #1: CRITERION_MET/);
-  assert.match(shown.stdout, /\| 1 \| app \| Greeting \| G1 \| app-1 \| review-1 \|/);
+  assert.match(shown.stdout, /\| 1 \| app \| Greeting \| G1 \| app-1 \(Scripted\) \| review-1 \(Scripted\) \|/);
 
   const forced = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: { ...plainEnv, FORCE_COLOR: '1' }, encoding: 'utf8' });
   assert.equal(forced.status, 0, `${forced.stdout}${forced.stderr}`);
   assert.match(forced.stdout, /\u001b\[1m1  The person approved one spec row\. The coordinator files it as work\.\u001b\[0m/);
-  assert.match(forced.stdout, /\u001b\[36mcoordinator\u001b\[0m \$/);
-  assert.match(forced.stdout, /\u001b\[33mapp-1\u001b\[0m \$/);
-  assert.match(forced.stdout, /\u001b\[35mreview-1\u001b\[0m \$/);
+  assert.match(forced.stdout, /\u001b\[36mcoordinator \(unknown\)\u001b\[0m \$/);
+  assert.match(forced.stdout, /\u001b\[33mapp-1 \(Scripted\)\u001b\[0m \$/);
+  assert.match(forced.stdout, /\u001b\[35mreview-1 \(Scripted\)\u001b\[0m \$/);
   assert.match(forced.stdout, /\u001b\[31m[^\n]*rejected #1/);
   assert.match(forced.stdout, /\u001b\[31m[^\n]*# fail 1/);
   assert.match(forced.stdout, /\u001b\[32m[^\n]*verified #1: CRITERION_MET/);
@@ -182,7 +182,7 @@ test('a fresh worktree with no install of its own runs pullboard from the main c
   chmodSync(join(bin, 'pullboard'), 0o755);
   const committed = commit();
   assert.equal(committed.status, 0, committed.stderr);
-  assert.match(resume().stdout, /^resume: web-1, web lane/);
+  assert.match(resume().stdout, /^resume: web-1 \(Test Model\), web lane/);
 });
 
 test('the gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir [V10]', () => {
@@ -269,7 +269,7 @@ test('check runs the item\'s own check command, yours by default, and prints a d
   assert.match(green.out, /^check green in \d+s: test -f web\/a.html/m);
   assert.equal(green.out.split('\n').filter(Boolean).length, 2);
   assert.match(green.out, /timing \(test\): wall [0-9.]+s, slot wait [0-9.]+s; per-test timing unavailable: output was not TAP or JUnit; timing profile: /);
-  assert.match(green.out, /^check #1 set by coordinator:/);
+  assert.match(green.out, /^check #1 set by coordinator \(unknown\):/);
   assert.equal(box.run(box.repo, 'check', '1').code, 1, 'named, from another checkout: there the file is missing');
   assert.match(box.run(box.web, 'check', '2').err, /NO_CHECK.*#2 has no check command/);
   assert.match(box.run(box.repo, 'help', '--all').out, /pullboard check \[id\]/);
@@ -389,7 +389,7 @@ test('worktree prints the opening lines of a subagent\'s prompt, with its folder
   const folder = join(box.dir, "my app's $PULLBOARD_PATH_PROBE-web-1");
   const quoted = `'${folder.replaceAll("'", "'\\''")}'`;
   assert.match(made, /For a subagent working here, begin its prompt with:\n/);
-  assert.ok(made.includes(`  You are web-1, in the web lane. Work only in ${quoted}, and start every command with cd ${quoted} &&\n`), made);
+  assert.ok(made.includes(`  You are web-1 (Test Model), in the web lane. Work only in ${quoted}, and start every command with cd ${quoted} &&\n`), made);
   assert.ok(made.includes(`  Read '${folder.replaceAll("'", "'\\''")}/AGENTS.md' first. Its rules govern this work, over any other repo's instructions you were given.\n`), made);
   // Pasted into a shell as printed, the line enters the real folder: nothing in the path expands.
   const cdLine = /start every command with (cd .+ &&)\n/.exec(made)[1];

@@ -96,7 +96,7 @@ export const STATES = [
 /** @type {Guard[]} */
 export const GUARDS = [
   { id: IN_STATE, refuse: '', rule: "the move can start from the item's current state", next: 'pullboard show <id>', source: 'board' },
-  { id: 'joined', refuse: 'NOT_JOINED', rule: 'the caller is the main checkout, or a worktree that joined a lane', next: 'pullboard join <lane> (see: pullboard lanes)', source: 'cli' },
+  { id: 'joined', refuse: 'NOT_JOINED', rule: 'the caller is the main checkout, or a worktree that joined a lane', next: 'pullboard join <lane> --model "<model name>" (see: pullboard lanes)', source: 'cli' },
   { id: 'itemExists', refuse: 'NO_ITEM', rule: 'the item exists', next: 'pullboard list --all', source: 'board' },
   { id: 'coordinatorOnly', refuse: 'COORDINATOR_ONLY', rule: 'the caller is the coordinator', next: 'run it from the main checkout', source: 'board' },
   { id: 'roadmapReadable', refuse: 'MILESTONES_CORRUPT', rule: 'the roadmap is readable when selecting the next review', next: 'restore board metadata from a known-good board export', source: 'board', when: 'only next --verify selection; a review reserved by id does not consult the roadmap' },
