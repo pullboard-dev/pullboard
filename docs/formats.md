@@ -79,7 +79,7 @@ The board file is in the repository's Git common directory at `.git/pullboard/bo
 | `move engine` | `8` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
-Pullboard 0.6.1 released engine 1. Engine 2 records a fresh explicit-build claim's skipped-review snapshot. Pullboard 0.8.1 released engine 3, including lane-sensitive graft refusals and authenticated relay senders. Engine 4 adds captured background-baseline completions through `completeCheckBaseline`; released engine-3 clients stop with `ENGINE_VERSION` before interpreting this new operation or advancing their replay cursor. Engine 5 requires a one-line reason when releasing a review and gives that reviewer a one-hour cooldown for the current submission. Each sealed move replays under its recorded engine version: engines 1 through 4 retain the original release event and review-reservation behavior. Engine 5 retains support for older moves, including engine-4 baseline completions. Engine 6 adds board-scoped machine credentials and permits machine execution only for one exact, earlier authenticated phone request, including its payload digest. Older request receipts retain their recorded engine semantics. Pullboard 0.8.3 released engine 6. Engine 7 adds item holds. Engine 8, shared by the 0.8.5 move changes, retains merged-item exception notes and selects the next review in roadmap order; recorded engines 1 through 7 retain their original tier-first review selection. Upgrade every linked device before using the new moves.
+Pullboard 0.6.1 released engine 1. Engine 2 records a fresh explicit-build claim's skipped-review snapshot. Pullboard 0.8.1 released engine 3, including lane-sensitive graft refusals and authenticated relay senders. Engine 4 adds captured background-baseline completions through `completeCheckBaseline`; released engine-3 clients stop with `ENGINE_VERSION` before interpreting this new operation or advancing their replay cursor. Engine 5 requires a one-line reason when releasing a review and gives that reviewer a one-hour cooldown for the current submission. Each sealed move replays under its recorded engine version: engines 1 through 4 retain the original release event and review-reservation behavior. Engine 5 retains support for older moves, including engine-4 baseline completions. Pullboard 0.8.3 released engine 6, adding board-scoped machine credentials and permitting machine execution only for one exact, earlier authenticated phone request, including its payload digest. Engine 7 adds ordered item holds through `holdItem` and `releaseItemHold`; engine-6 clients stop with `ENGINE_VERSION` before interpreting either operation or advancing their replay cursor. Engine 8, shared by the 0.8.5 move changes, retains merged-item exception notes and selects the next review in roadmap order; recorded engines 1 through 7 retain their original tier-first review selection. Older request receipts retain their recorded engine semantics. Upgrade every linked device before using the new moves.
 
 The CLI declares its engine in every relay request's `X-Pullboard-Engine` header.
 A linked board requires at least engine 3 after issuing any agent token, including
@@ -172,6 +172,9 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `item` | `item_verified_by` | `TEXT` | `nullable` |
 | `item` | `item_merged_commit` | `TEXT` | `nullable` |
 | `item` | `item_withdrawn_reason` | `TEXT` | `nullable` |
+| `item` | `item_hold_reason` | `TEXT` | `nullable` |
+| `item` | `item_hold_by` | `TEXT` | `nullable` |
+| `item` | `item_hold_at` | `TEXT` | `nullable` |
 | `item` | `item_created_by` | `TEXT` | `NOT NULL` |
 | `item` | `item_created_at` | `TEXT` | `NOT NULL` |
 | `item` | `item_updated_at` | `TEXT` | `NOT NULL` |
@@ -274,6 +277,8 @@ The `event` table is a SQLite schema object governed by `SCHEMA_VERSION`; its ap
 | `refreeze` | coordinator | `before`, `after` |
 | `hold` | coordinator | `lane`, `reason` |
 | `unhold` | coordinator | `lane` |
+| `hold_item` | coordinator | `reason` |
+| `unhold_item` | coordinator | `reason` |
 | `guards` | board | `missing`, `changed`, `stale` |
 | `shout` | sender | `shout`, `to`, `decision`, `request`, `answers` |
 | `pass` | coordinator | `shout`, `to`, `decision`, `request`, `answers` |

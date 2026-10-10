@@ -1,6 +1,6 @@
 /** Real gates and item checks share the machine queue; landing priority and lease behavior stay intact [Q1,Q2,Q4,O5,O6,V18]. */
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { startFixtureChild as spawn, runFixtureChild as spawnSync, runFixtureChild } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -35,7 +35,7 @@ function fixture() {
 function gateRepo(box, name, delay = 0.25, releaseFile = null) {
   const root = join(box.dir, name);
   mkdirSync(root);
-  const git = (...args) => spawnSync('git', args, { cwd: root, env: box.env, encoding: 'utf8' });
+  const git = (...args) => runFixtureChild('git', args, { cwd: root, env: box.env, encoding: 'utf8' });
   assert.equal(git('init', '-q', '-b', 'main').status, 0);
   const wait = releaseFile ? `while [ ! -e ${quote(releaseFile)} ]; do sleep 0.02; done` : `sleep ${delay}`;
   const command = `printf '${name} start\\n' >> ${quote(box.events)}; ${wait}; printf '${name} end\\n' >> ${quote(box.events)}`;
@@ -166,7 +166,7 @@ test('[Q4] an exact-tree cached gate starts while another machine gate holds the
   assert.equal(refusedChange.status, 1);
   assert.equal(JSON.parse(refusedChange.stdout).error.code, 'RESOURCE_BUSY');
   assert.equal(JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'settings.json'), 'utf8')).gateSlots, 1);
-  const cached = spawnSync(process.execPath, [BIN, 'gate'], { cwd: cachedRoot, env: box.env, encoding: 'utf8', timeout: 30_000 });
+  const cached = runFixtureChild(process.execPath, [BIN, 'gate'], { cwd: cachedRoot, env: box.env, encoding: 'utf8' });
   assert.equal(cached.status, 0, cached.stderr);
   assert.match(cached.stdout, /already passed/);
   assert.ok(events(box).includes('holder start') && !events(box).includes('holder end'), 'cached gate returned while the other machine gate still held its slot');

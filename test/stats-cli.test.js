@@ -1,6 +1,6 @@
 /** Event-derived proof numbers have the same data in text and versioned JSON [R1,R2,A1]. */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { runFixtureGit } from './fixture-child.js';
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -25,7 +25,7 @@ async function run(root, args) {
 function fixture(t) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-stats-cli-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root, stdio: 'pipe' });
+  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, stdio: 'pipe' });
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ lanes: { web: { owns: ['web/'] } } }));
   writeFileSync(join(root, 'PRACTICE.md'), '');
   const clock = { now: () => new Date('2026-10-08T12:00:00.000Z') };

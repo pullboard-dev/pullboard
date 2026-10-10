@@ -3,7 +3,7 @@
  * selection can stand in for the project gate, which still runs at landing [V4,C7,V16].
  */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -45,11 +45,11 @@ function privateRepo(t) {
   delete env.PULLBOARD_RELAY_TOKEN;
   delete env.NODE_TEST_CONTEXT;
   /** Run real Git in this fixture with only the fixture's configured identity. */
-  const git = (...args) => execFileSync('git', args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+  const git = (...args) => runFixtureGit(args, { cwd: root, env });
   /** Run the real local CLI, retaining JSON stdout and refusal stderr separately. */
   const run = (...args) => {
-    const result = spawnSync(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8', timeout: 90_000 });
-    return { code: result.status, out: result.stdout ?? '', err: result.stderr ?? '' };
+    const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
+    return { code: result.status, out: result.stdout ?? '', err: result.failure ?? result.stderr ?? '', failure: result.failure };
   };
   git('init', '-q', '-b', 'main');
   assert.equal(run('init').code, 0);
@@ -71,11 +71,11 @@ function builderRepo(box) {
   assert.equal(made.code, 0, made.err);
   const root = JSON.parse(made.out).path;
   /** Run Git only in the joined builder. */
-  const git = (...args) => execFileSync('git', args, { cwd: root, env: box.env, encoding: 'utf8', stdio: 'pipe' }).trim();
+  const git = (...args) => runFixtureGit(args, { cwd: root, env: box.env });
   /** Run the real CLI with the joined builder identity. */
   const run = (...args) => {
-    const result = spawnSync(process.execPath, [BIN, ...args], { cwd: root, env: box.env, encoding: 'utf8', timeout: 90_000 });
-    return { code: result.status, out: result.stdout ?? '', err: result.stderr ?? '' };
+    const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env: box.env, encoding: 'utf8' });
+    return { code: result.status, out: result.stdout ?? '', err: result.failure ?? result.stderr ?? '', failure: result.failure };
   };
   return { ...box, root, git, run, coordinator: box.run };
 }
@@ -216,7 +216,7 @@ test('submit runs the frozen check and affected test only; landing and explicit 
   const remote = join(box.dir, 'remote.git');
   box.git('init', '-q', '--bare', remote);
   box.git('remote', 'add', 'origin', remote);
-  const landing = spawnSync('git', ['push', '-q', 'origin', 'HEAD:main'], { cwd: box.root, env: box.env, encoding: 'utf8', timeout: 90_000 });
+  const landing = runFixtureChild('git', ['push', '-q', 'origin', 'HEAD:main'], { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.notEqual(landing.status, 0, 'the landing pre-push hook still runs the full gate');
   assert.match(`${landing.stdout ?? ''}\n${landing.stderr ?? ''}`, /gate is red|not ok 2/);
   assert.equal(existsSync(stamp), false, 'neither subset nor red full gate leaves a green full-gate stamp');
@@ -412,7 +412,7 @@ for (const mode of ['topic parent', 'merge commit']) {
     assert.equal(box.git('rev-list', '--parents', '-n', '1', 'HEAD').split(' ').length, 3, 'the candidate really has two parents');
     const marker = join(box.dir, 'merged-test-ran.log');
     box.env.AFFECTED_MARKER = marker;
-    const standalone = spawnSync(process.execPath, ['--test', 'test/a.test.js'], { cwd: box.root, env: box.env, encoding: 'utf8' });
+    const standalone = runFixtureChild(process.execPath, ['--test', 'test/a.test.js'], { cwd: box.root, env: box.env, encoding: 'utf8' });
     assert.equal(standalone.status, 1, 'the unchanged importer detects the merged source regression');
     assert.match(standalone.stdout, /ERR_ASSERTION/u);
     rmSync(marker);
@@ -526,7 +526,7 @@ for (const mode of ['deleted source', 'topic parent', 'merge commit']) {
     assert.equal(box.git('branch', '--show-current'), 'main', 'submit runs in the actual main checkout');
     const marker = join(box.dir, 'main-importer-ran.log');
     box.env.AFFECTED_MARKER = marker;
-    const standalone = spawnSync(process.execPath, ['--test', 'test/a.test.js'], { cwd: box.root, env: box.env, encoding: 'utf8' });
+    const standalone = runFixtureChild(process.execPath, ['--test', 'test/a.test.js'], { cwd: box.root, env: box.env, encoding: 'utf8' });
     assert.equal(standalone.status, 1, 'the unchanged importer detects the source regression');
     assert.match(standalone.stdout, mode === 'deleted source' ? /ERR_MODULE_NOT_FOUND/u : /ERR_ASSERTION/u);
     rmSync(marker, { force: true });

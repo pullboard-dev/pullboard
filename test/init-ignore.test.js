@@ -1,6 +1,6 @@
 /** Setup preserves local ignore rules and excludes real nested agent worktrees [I1,I2,I16]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -21,14 +21,12 @@ function fixture(t, ignore) {
   Object.assign(env, { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Init Fixture', GIT_AUTHOR_EMAIL: 'init@example.com', GIT_COMMITTER_NAME: 'Init Fixture', GIT_COMMITTER_EMAIL: 'init@example.com' });
   /** Run actual Git and its installed hooks, requiring success. */
   function git(...args) {
-    const result = spawnSync('git', args, { cwd: root, env, encoding: 'utf8' });
-    assert.equal(result.status, 0, result.stderr);
-    return result.stdout;
+    return runFixtureGit(args, { cwd: root, env, encoding: 'utf8' });
   }
   /** Invoke the real command and retain its typed result, including refusals. */
   function cli(...args) {
-    const result = spawnSync(process.execPath, [cliPath, ...args, '--json'], { cwd: root, env, encoding: 'utf8' });
-    return { code: result.status, document: JSON.parse(result.stdout), stderr: result.stderr };
+    const result = runFixtureChild(process.execPath, [cliPath, ...args, '--json'], { cwd: root, env, encoding: 'utf8' });
+    return { code: result.status, document: JSON.parse(result.stdout), stderr: result.failure ?? result.stderr, failure: result.failure };
   }
   git('init', '-q', '-b', 'main');
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', lanes: { web: { owns: ['web/'], specs: [] } } }));

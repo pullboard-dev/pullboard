@@ -23,6 +23,7 @@ import {
   escalate,
   events,
   holdLane,
+  holdItem,
   merged,
   openBoard,
   passDecision,
@@ -34,6 +35,7 @@ import {
   register,
   release,
   releaseLane,
+  releaseItemHold,
   reserveReview,
   SCHEMA_VERSION,
   submit,
@@ -250,6 +252,8 @@ function recordEventContract() {
   const fact = appendFact(board, first, { agentId: builder, kind: 'note', text: 'Captured evidence', ref: 'docs/formats.md:1-3@' + 'a'.repeat(40) });
   appendFact(board, first, { agentId: coordinator, kind: 'measurement', text: 'Corrected evidence', supersedes: fact.id });
   editItem(board, first, { agentId: coordinator, brief: 'Files: docs/formats.md\nTest: docs/formats.test.js', route: 'mid', criterion: 'Changed', check: 'node test' });
+  holdItem(board, first, { agentId: coordinator, reason: 'fixture item hold' });
+  releaseItemHold(board, first, { agentId: coordinator });
   recordAttempt(board, first, { agentId: builder, n: 1, seconds: 2, result: 'failed' });
   claim(board, first, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('first') });
   claim(board, first, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('unused') });

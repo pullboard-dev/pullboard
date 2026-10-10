@@ -1,13 +1,13 @@
 /** Two real clients and encrypted CLI records exercise the relay without sharing their key [A4,H7]. */
 import assert from 'node:assert/strict';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, cleanupFixtureChildren, runFixtureChild, runFixtureGit, runFixtureChildAsync } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createServer } from 'node:http';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import { serveRelay } from '../relay/service.js';
 import { createRelayAuth } from '../relay/auth.js';
 import { createGitHubClient } from '../relay/github.js';
@@ -17,6 +17,8 @@ import { exportBoard } from '../src/exchange.js';
 import { checkpointSequence, engineReceipt, prepareEngineMove } from '../src/engine.js';
 import { seal as sealMove } from '../src/seal.js';
 import { ENGINE_VERSION } from '../src/machine.js';
+
+after(cleanupFixtureChildren);
 
 /** Seal on the test client only; nonce, authentication tag and ciphertext are opaque to the server. */
 function seal(key, value, binding) {
@@ -53,12 +55,11 @@ async function fixture(t, { machineCredentials = true } = {}) {
   writeFileSync(pullboardPath, `#!/bin/sh\nexec ${quoteShell(process.execPath)} ${quoteShell(cliPath)} "$@"\n`);
   chmodSync(pullboardPath, 0o755);
   env.PATH = [privateBin, env.PATH].filter(Boolean).join(delimiter);
-  const git = spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, env, encoding: 'utf8' });
-  assert.equal(git.status, 0, git.stderr);
+  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env, encoding: 'utf8' });
   /** Run the current CLI only in the fixture's private home and Git repository. */
   function cli(...args) {
-    const result = spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args], { cwd: root, env, encoding: 'utf8' });
-    assert.equal(result.status, 0, result.stderr);
+    const result = runFixtureChild(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args], { cwd: root, env, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.failure ?? result.stderr);
     return result.stdout;
   }
   cli('init');
@@ -104,19 +105,12 @@ async function fixture(t, { machineCredentials = true } = {}) {
 
 /** Run a linked CLI asynchronously so the real relay can serve it, keeping credentials out of diagnostics. */
 function replayClient(root, env, ...args) {
-  return new Promise((done, fail) => {
-    const child = spawn(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args, '--json'], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
-    let stdout = '';
-    const timer = setTimeout(() => child.kill('SIGKILL'), 25000);
-    child.stdout.setEncoding('utf8').on('data', part => { stdout += part; });
-    child.stderr.resume();
-    child.once('error', error => { clearTimeout(timer); fail(error); });
-    child.once('close', code => {
-      clearTimeout(timer);
-      if (code !== 0) return fail(new Error('isolated linked CLI command failed'));
-      try { done(JSON.parse(stdout)); } catch { fail(new Error('isolated linked CLI did not return JSON')); }
+  return runFixtureChildAsync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args, '--json'], { cwd: root, env })
+    .then((result) => {
+      if (result.failure) throw new Error(result.failure);
+      try { return JSON.parse(result.stdout); }
+      catch { throw new Error(result.failure ?? result.context); }
     });
-  });
 }
 
 /** Replay through the native CLI while acknowledging but suppressing checkpoint writes to the fixture relay. */
@@ -139,18 +133,10 @@ function replayClientWithoutCheckpoint(root, env) {
     const code = await main(['export', '--json'], { cwd: process.cwd(), stdout: { write(part) { output += part; } }, stderr: { write(part) { diagnostics += part; } } });
     console.log(JSON.stringify({ code, checkpointWrites, document: JSON.parse(output), diagnosticCount: diagnostics.length }));
   `;
-  return new Promise((done, fail) => {
-    const child = spawn(process.execPath, ['--input-type=module', '-e', script], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
-    let stdout = '';
-    const timer = setTimeout(() => child.kill('SIGKILL'), 25000);
-    child.stdout.setEncoding('utf8').on('data', part => { stdout += part; });
-    child.stderr.resume();
-    child.once('error', error => { clearTimeout(timer); fail(error); });
-    child.once('close', code => {
-      clearTimeout(timer);
-      if (code !== 0) return fail(new Error('isolated native client failed during checkpoint-suppressed replay'));
-      try { done(JSON.parse(stdout)); } catch { fail(new Error('checkpoint-suppressed native client returned invalid JSON')); }
-    });
+  return runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', script], { cwd: root, env }).then((result) => {
+    if (result.failure) throw new Error(result.failure);
+    try { return JSON.parse(result.stdout); }
+    catch { throw new Error(result.failure ?? result.context); }
   });
 }
 
@@ -182,20 +168,12 @@ async function independentReplayOrigin(t, origin) {
 
 /** Capture a real linked command's warnings and structured refusal without changing its exit status. */
 function replayResult(root, env, ...args) {
-  return new Promise((done, fail) => {
-    const child = spawn(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args, '--json'], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
-    let stdout = '', stderr = '';
-    const timer = setTimeout(() => child.kill('SIGKILL'), 25000);
-    child.stdout.setEncoding('utf8').on('data', part => { stdout += part; });
-    child.stderr.setEncoding('utf8').on('data', part => { stderr += part; });
-    child.once('error', error => { clearTimeout(timer); fail(error); });
-    child.once('close', code => {
-      clearTimeout(timer);
-      if (code === null) return fail(new Error('isolated relay command did not finish'));
-      try { done({ document: JSON.parse(stdout), stderr, status: code }); }
-      catch { fail(new Error('isolated relay read did not return JSON')); }
+  return runFixtureChildAsync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args, '--json'], { cwd: root, env })
+    .then((result) => {
+      if (result.error) throw new Error(result.failure);
+      try { return { document: JSON.parse(result.stdout), stderr: result.failure ?? result.stderr, status: result.status, failure: result.failure }; }
+      catch { throw new Error(result.failure ?? result.context); }
     });
-  });
 }
 
 test('sealed agent shout cannot answer a person decision on either independent client [H16,B26]', async t => {

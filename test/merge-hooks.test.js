@@ -1,6 +1,6 @@
 /** Real merge indexes prove exact foreign-object preservation without weakening lane ownership [L3]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -12,12 +12,10 @@ const BIN = join(import.meta.dirname, '..', 'bin', 'pullboard.js');
 
 /** Run private Git with an explicit fixture identity, retaining only nonsensitive diagnostics. */
 function git(root, ...args) {
-  const result = spawnSync('git', args, { cwd: root, encoding: 'utf8', env: {
+  return runFixtureGit(args, { cwd: root, encoding: 'utf8', env: {
     ...process.env, GIT_AUTHOR_NAME: 'Merge Fixture', GIT_AUTHOR_EMAIL: 'merge@example.invalid',
     GIT_COMMITTER_NAME: 'Merge Fixture', GIT_COMMITTER_EMAIL: 'merge@example.invalid',
   } });
-  assert.equal(result.status, 0, 'fixture git ' + args[0] + ': ' + result.stderr);
-  return result.stdout.trim();
 }
 
 /** Make separate main and lane checkouts with committed policy and two owned files. */
@@ -62,16 +60,11 @@ function nativeFixture(t) {
     GIT_COMMITTER_NAME: 'Merge Fixture', GIT_COMMITTER_EMAIL: 'merge@example.invalid',
     HOME: join(dir, 'home'), PULLBOARD_HOME: join(dir, 'pullboard-home'), PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
   });
-  const git = (...args) => {
-    const result = spawnSync('git', args, { cwd: main, env, encoding: 'utf8' });
-    assert.equal(result.status, 0, `native fixture git ${args[0]}: ${result.stderr}`);
-    return result.stdout.trim();
-  };
+  const git = (...args) => runFixtureGit(args, { cwd: main, env, encoding: 'utf8' });
   const gitAt = (cwd, ...args) => {
-    const result = spawnSync('git', args, { cwd, env, encoding: 'utf8' });
-    return result;
+    return runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
   };
-  const cli = (cwd, ...args) => spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  const cli = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   assert.equal(cli(main, 'init').status, 0, 'the native CLI installs hooks and initializes the board');
   const config = {
@@ -105,8 +98,8 @@ function diverge(box, { conflict = false } = {}) {
   if (conflict) writeFileSync(join(box.main, 'core', 'file'), 'accepted core\n');
   git(box.main, 'add', '-A');
   git(box.main, 'commit', '-q', '-m', 'test: accepted main change');
-  const result = spawnSync('git', ['merge', '--no-commit', '--no-ff', git(box.main, 'rev-parse', 'HEAD')], { cwd: box.lane, encoding: 'utf8' });
-  assert.equal(result.status, conflict ? 1 : 0, 'a real merge is pending');
+  const result = runFixtureChild('git', ['merge', '--no-commit', '--no-ff', git(box.main, 'rev-parse', 'HEAD')], { cwd: box.lane, encoding: 'utf8' });
+  assert.equal(result.status, conflict ? 1 : 0, result.failure ?? 'a real merge is pending');
 }
 
 test('accepted-main merges preserve exact foreign objects on a primary branch named trunk [L3]', (t) => {
@@ -148,8 +141,8 @@ test('a foreign resolution identical to HEAD is allowed, including literal odd f
   writeFileSync(join(box.main, path), 'accepted other parent\n');
   git(box.main, 'add', '-A');
   git(box.main, 'commit', '-q', '-m', 'test: alternate accepted parent');
-  const result = spawnSync('git', ['merge', '--no-commit', '--no-ff', 'main'], { cwd: box.lane, encoding: 'utf8' });
-  assert.equal(result.status, 1, 'foreign parents conflict');
+  const result = runFixtureChild('git', ['merge', '--no-commit', '--no-ff', 'main'], { cwd: box.lane, encoding: 'utf8' });
+  assert.equal(result.status, 1, result.failure ?? 'foreign parents conflict');
   assert.ok(preCommitProblems(box.context).some((problem) => problem.includes('literal')),
     'unresolved stages are never treated as an absent path');
   git(box.lane, 'restore', '--source=HEAD', '--staged', '--worktree', '--', path);

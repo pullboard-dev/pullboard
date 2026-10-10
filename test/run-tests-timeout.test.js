@@ -1,6 +1,6 @@
 /** Prove each test has a named bounded timeout and the run continues [C7, V10]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { runFixtureChild as spawnSync } from './fixture-child.js';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -32,7 +32,6 @@ function runFixture(t, stalledSource, timeoutOverride = '1200') {
     env: { ...process.env, PULLBOARD_TEST_TIMEOUT_MS: timeoutOverride },
     encoding: 'utf8',
     detached: true,
-    timeout: 15_000,
   });
   if (result.error?.code === 'ETIMEDOUT' && result.pid) {
     try { process.kill(-result.pid, 'SIGKILL'); } catch { /* The owned fixture process group already exited. */ }
@@ -89,7 +88,6 @@ test('a helper-only test file exits after importing the runner [C7, V10]', (t) =
     env: { ...process.env, PULLBOARD_TEST_TIMEOUT_MS: '1200' },
     encoding: 'utf8',
     detached: true,
-    timeout: 10_000,
   });
   if (result.error?.code === 'ETIMEDOUT' && result.pid) {
     try { process.kill(-result.pid, 'SIGKILL'); } catch { /* The owned fixture process group already exited. */ }
@@ -112,7 +110,6 @@ test('must not run [C7,V10]', () => writeFileSync(${JSON.stringify(marker)}, 'ra
     cwd: root,
     env: { ...process.env, PULLBOARD_TEST_TIMEOUT_MS: '0' },
     encoding: 'utf8',
-    timeout: 15_000,
   });
   assert.equal(existsSync(marker), false, 'invalid timeout was refused before the fixture ran');
   assert.equal(result.status, 1, outputOf(result));

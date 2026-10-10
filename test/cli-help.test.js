@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runFixtureChild } from './fixture-child.js';
 import { after, test } from 'node:test';
 import { HELP, resultCommands } from '../src/cli.js';
 
@@ -18,7 +18,7 @@ after(() => {
 function run(...args) {
   const folder = mkdtempSync(join(tmpdir(), 'pullboard-help-'));
   sandboxes.push(folder);
-  return spawnSync(process.execPath, [BIN, ...args], { cwd: folder, encoding: 'utf8' });
+  return runFixtureChild(process.execPath, [BIN, ...args], { cwd: folder, encoding: 'utf8' });
 }
 
 /** Read the flag rows between their heading and the example from one command's help. */
@@ -33,7 +33,7 @@ test('bare help is a short first-run overview generated from its command groups 
   const bare = run();
   const helpFlag = run('--help');
   const helpCommand = run('help');
-  assert.equal(bare.status, 0, bare.stderr);
+  assert.equal(bare.status, 0, bare.failure ?? bare.stderr);
   assert.equal(bare.stdout, `${HELP.firstRun}\n`);
   assert.equal(helpFlag.stdout, bare.stdout);
   assert.equal(helpCommand.stdout, `${HELP.overview}\n`);

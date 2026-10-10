@@ -1,6 +1,6 @@
 /** Check baselines run against main and travel with deterministic board moves [V2,H3,H16,N23]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -51,12 +51,12 @@ function sandbox() {
   });
   /** Run Git with only this fixture's config and identity. */
   function git(cwd, ...args) {
-    return execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+    return runFixtureGit(args, { cwd, env });
   }
   /** Run a real pullboard CLI process with optional stdin. */
   function run(cwd, args, input, options = {}) {
-    return spawnSync(process.execPath, [BIN, ...args], {
-      cwd, env, encoding: 'utf8', timeout: 20_000,
+    return runFixtureChild(process.execPath, [BIN, ...args], {
+      cwd, env, encoding: 'utf8',
       ...(input === undefined ? {} : { input }), ...options,
     });
   }
@@ -164,7 +164,7 @@ test('[V2,H16] add and edit return while isolated background checks are held, th
     writeFileSync(addition.release, 'release');
     writeFileSync(edit.release, 'release');
   });
-  const added = box.run(box.repo, ['add', 'web', 'Background check', '--check', addition.command, '--json'], undefined, { timeout: 45_000 });
+  const added = box.run(box.repo, ['add', 'web', 'Background check', '--check', addition.command, '--json']);
   assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
   assert.equal(existsSync(addition.finished), false, 'add returns before its baseline finishes');
   const item = JSON.parse(added.stdout).item;
@@ -178,7 +178,7 @@ test('[V2,H16] add and edit return while isolated background checks are held, th
   await waitForState(() => withBoard(join(box.repo, BOARD_FILE), (board) => getItem(board, item.item_id).item_check_baseline?.result === 'green'), 'the background add result is recorded');
   assert.equal(existsSync(observed.cwd), false, 'the isolated checkout is removed after its check');
   assert.match(box.run(box.repo, ['show', String(item.item_id)]).stdout, /CRITERION_PROVES_NOTHING/u);
-  const edited = box.run(box.repo, ['edit', String(item.item_id), '--check', edit.command, '--json'], undefined, { timeout: 45_000 });
+  const edited = box.run(box.repo, ['edit', String(item.item_id), '--check', edit.command, '--json']);
   assert.equal(edited.status, 0, `${edited.stdout}${edited.stderr}`);
   assert.equal(existsSync(edit.finished), false, 'edit returns before its changed check finishes');
   assert.equal(JSON.parse(edited.stdout).item.item_check_baseline.result, 'pending');
@@ -195,7 +195,7 @@ test('[V2,H16] --wait keeps the check blocking and the captured base survives a 
   const box = project({ content: 'original' });
   const held = heldCheck(box, 'wait-background');
   t.after(() => writeFileSync(held.release, 'release'));
-  const waited = box.run(box.repo, ['add', 'web', 'Wait for check', '--check', held.command, '--wait', '--json'], undefined, { timeout: 45_000 });
+  const waited = box.run(box.repo, ['add', 'web', 'Wait for check', '--check', held.command, '--wait', '--json']);
   assert.equal(waited.status, 0, `${waited.stdout}${waited.stderr}`);
   assert.equal(existsSync(held.finished), true, '--wait returns only after the held check finishes');
   assert.equal(JSON.parse(waited.stdout).item.item_check_baseline.result, 'green');
@@ -361,8 +361,8 @@ function applyInReplica(file, replicaDir, moveFile, env, at = '2026-10-07T12:00:
     'try { applyEngineMove(board, JSON.parse(readFileSync(process.argv[2], "utf8")), { sequence: Number(process.argv[3]), at: process.argv[4] }); }',
     'finally { closeBoard(board); }',
   ].join('\n');
-  return spawnSync(process.execPath, ['--input-type=module', '-e', source, file, moveFile, String(env.sequence), at], {
-    cwd: replicaDir, env, encoding: 'utf8', timeout: 10_000,
+  return runFixtureChild(process.execPath, ['--input-type=module', '-e', source, file, moveFile, String(env.sequence), at], {
+    cwd: replicaDir, env, encoding: 'utf8',
   });
 }
 

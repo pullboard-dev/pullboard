@@ -49,7 +49,7 @@ Each move checks its guards in this order and refuses with the first one that do
 
 | Move | From | To | Who | Guards, in order |
 | --- | --- | --- | --- | --- |
-| claim | open, claimed | claimed | agent, coordinator | joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_CLAIMABLE), inLane (WRONG_LANE), routeAllows (ROUTE), dependenciesVerified (BLOCKED), notHeldByAnother (HELD), laneOpen (LANE_HELD), oneLiveClaim (ONE_CLAIM), rowsInForce (UNKNOWN_SPEC or A5_GRAMMAR_VERSION or NO_POLICY or BAD_CONFIG) |
+| claim | open, claimed | claimed | agent, coordinator | joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_CLAIMABLE), itemNotHeld (ITEM_HELD), inLane (WRONG_LANE), routeAllows (ROUTE), dependenciesVerified (BLOCKED), notHeldByAnother (HELD), laneOpen (LANE_HELD), oneLiveClaim (ONE_CLAIM), rowsInForce (UNKNOWN_SPEC or A5_GRAMMAR_VERSION or NO_POLICY or BAD_CONFIG) |
 | release | claimed | open | agent, coordinator | joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_YOURS), isHolder (NOT_YOURS), reviewReleaseExplained (NOTE_REQUIRED) |
 | lapse | claimed | open | clock, when its lease runs out | none |
 | submit | claimed | submitted | agent, coordinator | joined (NOT_JOINED), itemExists (NO_ITEM), inState (NOT_YOURS), isHolder (NOT_YOURS), criterionUnchanged (CRITERIA_CHANGED), treeClean (DIRTY), nothingUntracked (UNTRACKED), hasCommit (NO_COMMIT), withinLane (OUTSIDE_LANE or NO_POLICY or BAD_CONFIG or GIT_GRAFTS), trunkMergeClean (MERGE_CONFLICT or MERGE_CHECK_FAILED or NO_POLICY or NO_TRUNK), gateConfigured (NO_GATE), gateGreen (GATE_RED or PIPEFAIL_UNAVAILABLE), treeStillDuringGate (MOVED_DURING_GATE), childrenDone (CHILDREN_OPEN), headIsNew (HEAD_NOT_NEW) |
@@ -92,6 +92,7 @@ Each move checks its guards in this order and refuses with the first one that do
 | BLOCKED | every item it waits on is verified | claim another item, or shout the lane it waits on |
 | HELD | no other agent holds it under a live lease | pullboard next |
 | LANE_HELD | nobody holds its lane, unless the caller is renewing its own live claim | pullboard next --wait 9 (minutes) |
+| ITEM_HELD | the coordinator has not put this item on hold, unless the caller is renewing its own live claim | the coordinator lifts it with pullboard hold <id> --off |
 | ONE_CLAIM | the caller holds no other live top-level claim, reworks of its own rejected items aside | submit or release the other item first; child items are free |
 | UNKNOWN_SPEC | every row the item cites exists and is in force, only where the criterion freezes: claiming an item with no frozen criterion, and refreeze | fix the spec, or the coordinator withdraws the item |
 | A5_GRAMMAR_VERSION | every row the item cites exists and is in force, only where the criterion freezes: claiming an item with no frozen criterion, and refreeze | upgrade Pullboard or use a file written for grammar 1 |

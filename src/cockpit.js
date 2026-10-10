@@ -127,7 +127,7 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   <section data-pane="shouts" class="two narrow" id="shouts-pane">
     <div class="primary">
       <section class="needs-you" id="decisions" aria-label="Decisions needed" hidden></section>
-      <form id="shout-form" class="card-panel shout-form"><p class="answering" id="answering" hidden><span>Answering <b id="answering-who"></b>: <span id="answering-q"></span></span><button class="ghost" id="answer-cancel" type="button">Cancel</button></p><div class="composer"><label class="to"><span>to</span><input id="shout-to" list="shout-targets" required placeholder="all" aria-label="To: all, a lane or an agent"></label><datalist id="shout-targets"></datalist><textarea id="shout-text" required rows="1" placeholder="Shout to the board" aria-label="Message"></textarea><button class="send" id="shout-send" type="submit" aria-label="Shout" title="Shout (Enter; Shift+Enter for a new line)"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button></div></form>
+      <form id="shout-form" class="card-panel shout-form"><p class="answering" id="answering" hidden><span>Answering <b id="answering-who"></b>: <span id="answering-q"></span></span><button class="ghost" id="answer-cancel" type="button">Cancel</button></p><div class="composer"><input id="shout-to" type="hidden" value="coordinator"><span class="to-chip" id="shout-to-chip" hidden></span><textarea id="shout-text" required rows="1" placeholder="Shout to the coordinator" aria-label="Message"></textarea><button class="send" id="shout-send" type="submit" aria-label="Shout" title="Shout (Enter; Shift+Enter for a new line)"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button></div></form>
       <div class="card-panel feed" id="feed"></div>
     </div>
     <aside class="card-panel detail" aria-label="Agents and lanes">
@@ -246,19 +246,105 @@ const verdictHtml = (v, titles) => '<div class="verdict ' + (v.decision === 'ACC
 const stateOf = (i) => i.status === 'claimed' ? 'building' : i.status === 'submitted' ? 'verify' : i.status === 'verified' ? 'verified' : i.status === 'withdrawn' ? 'withdrawn' : i.verdict && i.verdict.decision === 'REJECT' ? 'back' : 'open';
 const STATES = { building: ['building', 'busy'], verify: ['to verify', 'warn'], back: ['sent back', 'no'], verified: ['verified', 'ok'], open: ['unclaimed', 'free'], withdrawn: ['withdrawn', ''] };
 const chip = (s) => '<span class="chip ' + STATES[s][1] + '">' + STATES[s][0] + '</span>';
-// A shout's path:lines@commit reference (B23): a button, and under it, once opened, that code as it
-// was at that commit, with its line numbers. The text before it on its line goes with it, so the view
-// can refuse a reference that text may make part of a longer path.
-const codeRef = (ref, before) => {
+/** Parse the bounded reference syntax before requesting additional committed line windows. */
+function codeReferenceParts(ref) {
+  const match = /^(.+):(\\d+)(?:-(\\d+))?@([0-9a-f]{7,40})$/.exec(String(ref));
+  if (!match) return null;
+  const from = Number(match[2]);
+  const to = Number(match[3] ?? match[2]);
+  return Number.isSafeInteger(from) && Number.isSafeInteger(to) && from > 0 && to >= from
+    ? { path: match[1], from, to, commit: match[4] } : null;
+}
+/**
+ * Escape and color a source line using a small language-neutral set of common code tokens. A block comment or a
+ * template string still open at the line's end is left in state.open, and the next line given the same state goes on
+ * inside it, so a comment or a string spanning lines is colored on every one of them.
+ */
+function highlightCodeLine(line, path, state = {}) {
+  const source = String(line);
+  const extension = String(path).split('.').at(-1).toLowerCase();
+  let output = '', i = 0;
+  if (state.open) {
+    let end = -1;
+    if (state.open === 'comment') { const at = source.indexOf('*/'); end = at < 0 ? -1 : at + 2; }
+    else for (let k = 0; k < source.length; k++) { if (source.charCodeAt(k) === 92) { k++; continue; } if (source.charCodeAt(k) === 96) { end = k + 1; break; } }
+    const kind = state.open === 'comment' ? 'tok-comment' : 'tok-string';
+    if (end < 0) return '<span class="' + kind + '">' + esc(source) + '</span>';
+    output = '<span class="' + kind + '">' + esc(source.slice(0, end)) + '</span>';
+    i = end;
+    state.open = null;
+  } else {
+    // A preview may start inside a block comment, so a line that reads as one is all comment, and so is a whole-line
+    // hash comment where the language has them: their apostrophes are words, not strings.
+    const lead = source.trimStart();
+    if (/^(?:\\*\\/|\\*(?:\\s|$))/.test(lead) || (['py', 'sh', 'yml', 'yaml', 'rb', 'toml'].includes(extension) && lead.startsWith('#'))) return '<span class="tok-comment">' + esc(source) + '</span>';
+  }
+  const keywords = new Set(['const', 'let', 'var', 'function', 'return', 'if', 'else', 'new', 'class', 'export', 'import', 'from', 'async', 'await', 'throw', 'try', 'catch', 'true', 'false', 'null', 'undefined']);
+  while (i < source.length) {
+    if (source.startsWith('//', i) || (extension === 'py' && source[i] === '#')) {
+      output += '<span class="tok-comment">' + esc(source.slice(i)) + '</span>';
+      break;
+    }
+    if (source.startsWith('/*', i)) {
+      const at = source.indexOf('*/', i + 2), end = at < 0 ? source.length : at + 2;
+      output += '<span class="tok-comment">' + esc(source.slice(i, end)) + '</span>';
+      if (at < 0) state.open = 'comment';
+      i = end;
+      continue;
+    }
+    const char = source[i];
+    if (char === '"' || char === "'" || char.charCodeAt(0) === 96) {
+      let end = i + 1, closed = false;
+      while (end < source.length) {
+        if (source.charCodeAt(end) === 92) { end += 2; continue; }
+        if (source[end++] === char) { closed = true; break; }
+      }
+      if (!closed && char.charCodeAt(0) === 96) state.open = 'template';
+      output += '<span class="tok-string">' + esc(source.slice(i, end)) + '</span>';
+      i = end;
+      continue;
+    }
+    const wordStart = (char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z') || char === '_' || char === '$';
+    if (wordStart) {
+      let end = i + 1;
+      while (end < source.length && ((source[end] >= 'A' && source[end] <= 'Z') || (source[end] >= 'a' && source[end] <= 'z') || (source[end] >= '0' && source[end] <= '9') || source[end] === '_' || source[end] === '$')) end++;
+      const word = source.slice(i, end);
+      output += keywords.has(word) ? '<span class="tok-keyword">' + esc(word) + '</span>' : esc(word);
+      i = end;
+      continue;
+    }
+    if (char >= '0' && char <= '9') {
+      let end = i + 1;
+      while (end < source.length && ((source[end] >= '0' && source[end] <= '9') || source[end] === '.')) end++;
+      output += '<span class="tok-number">' + esc(source.slice(i, end)) + '</span>';
+      i = end;
+      continue;
+    }
+    output += esc(char);
+    i++;
+  }
+  return output;
+}
+// A shout or thread fact's path:lines@commit reference: keep only the reference in this button until
+// the person opens it. The text before a shout ref is retained so ambiguous paths can be refused.
+const codeRef = (ref, before, block = false) => {
   const c = view.code[view.root + '\\n' + before + '\\n' + ref];
   const open = Boolean(c && c.open);
-  const shown = !open ? '' : c.error ? '<span class="code no">' + esc(c.error) + '</span>' : !c.lines ? '<span class="code more">loading…</span>'
-    : '<span class="code">' + c.lines.map((line, n) => '<span><i>' + (c.from + n) + '</i>' + esc(line) + '</span>').join('') + (c.more ? '<span class="more">the first ' + c.lines.length + ' lines</span>' : '') + '</span>';
+  const shownLines = c?.all ? c.allLines : c?.lines, carry = {};
+  const shown = !open ? '' : c.error ? '<span class="code no" role="status">' + esc(c.error) + '</span>' : !shownLines ? '<span class="code more">loading…</span>'
+    : '<div class="code-wrap"><pre class="code">' + shownLines.map((line, n) => '<span><i>' + (c.from + n) + '</i>' + highlightCodeLine(line, c.path, carry) + '</span>').join('') + '</pre>'
+      + (c.more && !c.all ? '<button class="code-control" data-code-all="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' type="button"' + (c.allLoading ? ' disabled' : '') + '>' + (c.allLoading ? 'loading all lines…' : 'show all lines') + '</button>' : '')
+      + (c.all ? '<button class="code-control" data-code-less="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' type="button">show less</button>' : '')
+      + '</div>';
   // Its label is one piece: the path, cut short first where the line is narrow, then the lines and the commit's first
   // ten characters; the whole reference is on hover.
   const colon = ref.indexOf(':'), at = ref.lastIndexOf('@');
-  const label = '<span class="ref-path">' + esc(ref.slice(0, colon)) + '</span><span class="ref-at">' + esc(ref.slice(colon, at + 1) + ref.slice(at + 1, at + 11)) + '</span>';
-  return '<button class="ref" data-code="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' title="' + esc(ref) + '" type="button" aria-expanded="' + open + '">' + label + '</button>' + shown;
+  const label = '<span class="ref-path">' + esc(ref.slice(0, colon)) + '</span><span class="ref-at">' + esc(ref.slice(colon, at)) + '<span class="ref-sha">' + esc(ref.slice(at, at + 11)) + '</span></span>';
+  const button = (asBlock) => '<button class="ref' + (asBlock ? ' block' : '') + '" data-code="' + esc(ref) + '"' + (before ? ' data-before="' + esc(before) + '"' : '') + ' title="' + esc(ref) + '" aria-label="Open code reference ' + esc(ref) + '" type="button" aria-expanded="' + open + '">' + label + '</button>';
+  // A reference on a line of its own is a block, collapsed until asked: a caret, the path and lines, the short commit.
+  // One inside a sentence keeps its label, so the prose reads on, and opens that same block below it.
+  return block ? '<div class="code-ref' + (open ? ' open' : '') + '">' + button(true) + shown + '</div>'
+    : button(false) + (open ? '<div class="code-ref open">' + button(true) + shown + '</div>' : '');
 };
 /** Format the API's structured fact binding as the live reference the code preview accepts. */
 function factCodeRef(ref) {
@@ -858,7 +944,7 @@ function renderSide() {
    * @param {boolean} allowLinks
    * @returns {string}
    */
-  function inline(text, titles, allowLinks = true) { return String(text ?? '').split(/(\`[^\`]*\`|[^\\s:@()[\\]{}"'\`]+:\\d+(?:-\\d+)?@[0-9a-f]{7,40}|${COMMAND_SOURCE}|--[\\w-]+|(?:\\/|\\.\\.?\\/|[\\w.-]+\\/)\\w[\\w./-]*\\.[A-Za-z0-9]+|\\b[0-9a-fA-F]{7,40}\\b|#\\d+)/g).map((part, n, parts) => {
+  function inline(text, titles, allowLinks = true) { return String(text ?? '').split(/(\`[^\`]*\`|(?:[^\\s:@()[\\]{}"'\`]+)?:\\d+(?:-\\d+)?@[0-9a-f]{0,40}|${COMMAND_SOURCE}|--[\\w-]+|(?:\\/|\\.\\.?\\/|[\\w.-]+\\/)\\w[\\w./-]*\\.[A-Za-z0-9]+|\\b[0-9a-fA-F]{7,40}\\b|#\\d+)/g).map((part, n, parts) => {
     if (part.startsWith('\`') && part.endsWith('\`')) return codeChip(part.slice(1, -1));
     if (part.includes('@') && part.includes(':')) {
       const textBefore = parts.slice(0, n).join('');
@@ -867,6 +953,11 @@ function renderSide() {
       const leftBoundary = !textBefore || [9, 10, 32, 40, 91, 123, 34, 39, 96].includes(textBefore.at(-1).charCodeAt(0));
       const rightBoundary = !after || [9, 10, 32, 41, 93, 125, 34, 39, 96, 46, 44, 59, 58, 33, 63].includes(after.charCodeAt(0));
       const validRef = leftBoundary && rightBoundary;
+      const partial = /^(?:([^:@()[\\]{}"'\`]+))?:(\\d+)(?:-(\\d+))?@([0-9a-f]*)$/.exec(part);
+      if (validRef && partial && (!partial[1] || partial[4].length < 7)) {
+        const reason = !partial[1] ? 'missing the repository path' : 'missing a usable commit SHA';
+        return '<span class="code no ref-missing" role="status">Code reference unavailable: ' + reason + '.</span>';
+      }
       if (allowLinks && validRef) return codeRef(part, textBefore.slice(-2000));
       return codeChip(part);
     }
@@ -910,6 +1001,8 @@ function renderSide() {
     return list(roots);
   }
 
+  // A line that is nothing but one path:lines@commit reference.
+  const WHOLE_REF = /^\\s*[^\\s:@()[\\]{}"'\`]+:\\d+(?:-\\d+)?@[0-9a-f]{7,40}\\s*$/;
   function rich(text, titles, allowLinks = true) {
     const lines = String(text ?? '').split('\\n');
     const output = [];
@@ -924,18 +1017,20 @@ function renderSide() {
         const block = [];
         while (i < lines.length && lines[i].startsWith('$ ')) block.push(lines[i++]);
         output.push('<code class="code block">' + esc(block.join('\\n')) + '</code>');
+      } else if (allowLinks && WHOLE_REF.test(lines[i])) {
+        output.push({ block: codeRef(lines[i++].trim(), '', true) });
       } else if (/^\\s*- /.test(lines[i])) {
         const run = [];
         while (i < lines.length && /^\\s*- /.test(lines[i])) run.push(lines[i++]);
         output.push({ list: bullets(run, titles, allowLinks) });
       } else {
         const block = [];
-        while (i < lines.length && !lines[i].startsWith('\`\`\`') && !lines[i].startsWith('$ ') && !/^\\s*- /.test(lines[i])) block.push(inline(lines[i++], titles, allowLinks));
+        while (i < lines.length && !lines[i].startsWith('\`\`\`') && !lines[i].startsWith('$ ') && !/^\\s*- /.test(lines[i]) && !(allowLinks && WHOLE_REF.test(lines[i]))) block.push(inline(lines[i++], titles, allowLinks));
         output.push(block.join('<br>'));
       }
     }
     // A list ends its own line, so no break goes beside one: a blank line in the text stays one blank line.
-    return output.map((part, n) => (n && typeof part === 'string' && typeof output[n - 1] === 'string' ? '<br>' : '') + (typeof part === 'string' ? part : part.list)).join('');
+    return output.map((part, n) => (n && typeof part === 'string' && typeof output[n - 1] === 'string' ? '<br>' : '') + (typeof part === 'string' ? part : part.list ?? part.block)).join('');
   }
 
 /** Draw a project's cross-repo Needs-you list and one activity feed. */
@@ -1120,6 +1215,23 @@ function render() {
     const cited = item.specs.map((id) => p.spec.find((r) => r.id === id) || { id, status: 'missing', text: '(not in SPEC.md)' });
     const baseline = item.checkBaseline;
     const baselineClass = baseline?.result === 'green' ? 'ok' : baseline?.result === 'red' ? 'no' : baseline?.result === 'pending' ? 'warn' : '';
+    const factRefs = (item.thread || []).filter((entry) => entry.type === 'fact' && entry.ref);
+    const referencedCode = factRefs.length ? '<div><h3>Referenced code</h3>' + factRefs.map((fact) => {
+      const ref = fact.ref;
+      const path = typeof ref.path === 'string' ? ref.path : '';
+      const start = ref.start;
+      const end = ref.end;
+      const commit = typeof ref.commit === 'string' ? ref.commit : '';
+      const safePath = /^[\\w.-]+(?:\\/[\\w.-]+)*$/.test(path) && !path.split('/').some((part) => part === '.' || part === '..');
+      const safeRange = Number.isSafeInteger(start) && start > 0 && Number.isSafeInteger(end) && end >= start;
+      const safeCommit = /^[0-9a-f]{40}$/.test(commit);
+      if (!safePath || !safeRange || !safeCommit) {
+        const missing = [!safePath && 'repository path', !safeRange && 'line range', !safeCommit && 'full commit SHA'].filter(Boolean).join(', ');
+        return '<div class="fact-code"><span class="chip">' + esc(fact.kind) + '</span> <span class="muted">' + esc(fact.by) + ' · ' + age(fact.at) + '</span><div class="code no ref-missing" role="status">Code reference unavailable: missing or invalid ' + esc(missing) + '.</div></div>';
+      }
+      const range = path + ':' + start + (end === start ? '' : '-' + end) + '@' + commit;
+      return '<div class="fact-code"><span class="chip">' + esc(fact.kind) + '</span> <span class="muted">' + esc(fact.by) + ' · ' + age(fact.at) + '</span>' + codeRef(range, '', true) + '</div>';
+    }).join('') + '</div>' : '';
     // Why it came back is the first thing the person reads; the verdicts before it stay below.
     const back = rejected(item);
     const earlier = back ? item.verdicts.slice(0, -1) : item.verdicts;
@@ -1128,6 +1240,7 @@ function render() {
       + (item.criterion ? '<div><h3>Criterion</h3><div class="text">' + rich(item.criterion, titles) + '</div></div>' : '')
       + (item.check ? '<div><h3>Check</h3><dl class="kv"><dt>command</dt><dd><code>' + esc(item.check) + '</code></dd><dt>baseline</dt><dd><span class="chip ' + baselineClass + '">' + esc(baseline?.result ?? 'not recorded') + '</span></dd></dl>'
         + (baseline?.warning === 'CRITERION_PROVES_NOTHING' ? '<p class="check-warning">This check already passed before the work, so it proves nothing.</p>' : '') + '</div>' : '')
+      + referencedCode
       + (cited.length ? '<div><h3>Spec rows it serves</h3>' + cited.map((r) => '<div class="rowref"><code>' + esc(r.id) + '</code><div>' + linked(r.text, titles) + ' <span class="chip ' + tone(r.status) + '">' + esc(r.status) + '</span></div></div>').join('') + '</div>' : '')
       + (item.brief ? '<div><h3>Brief</h3><div class="text muted">' + rich(item.brief, titles) + '</div></div>' : '')
       + '<div><h3>People and commits</h3><dl class="kv">' + (item.owner && s === 'building' ? '<dt>holding</dt><dd>' + esc(item.owner) + '</dd>' : '') + (item.builtBy ? '<dt>built by</dt><dd>' + esc(item.builtBy) + '</dd>' : '') + (item.verifiedBy ? '<dt>verified by</dt><dd>' + esc(item.verifiedBy) + '</dd>' : '') + (item.commit ? '<dt>commit</dt><dd><code>' + esc(item.commit.slice(0, 12)) + '</code></dd>' : '') + (item.merged ? '<dt>merged</dt><dd><code>' + esc(item.merged.slice(0, 12)) + '</code></dd>' : '') + (item.blockedBy.length ? '<dt>waits on</dt><dd class="waits-on">' + item.blockedBy.map((id) => '<span class="wait-unit"><button class="ref" data-go="item:' + id + '" type="button">#' + id + '</button></span>').join(', ') + '</dd>' : '') + '</dl></div>'
@@ -1163,12 +1276,24 @@ function render() {
   const bar = '<div class="feed-bar">' + (view.agent ? '<span>Shouts with <b>' + esc(view.agent) + '</b> <button class="link" data-agent="" type="button">show all</button></span>' : '<span></span>')
     + '<button class="link" data-agents-toggle type="button">' + (view.agentsHidden ? 'Show agents' : 'Hide agents') + '</button></div>';
   $('shouts-pane').classList.toggle('bare', view.agentsHidden);
+  // Who has heard a shout of the person's: the agents it reached whose inbox has read past it. Each agent's read
+  // cursor is already on the board, so this is presentation only; reading is all it says, not acting on it.
+  const reached = (x, a) => a.agent_id !== x.shout_from && ['all', a.agent_id, a.agent_lane].includes(x.shout_to);
+  const dot = (a) => '<span class="heard-face h' + hue(a.agent_id) + (lead(a.agent_id) ? ' lead' : '') + '">' + (lead(a.agent_id) ? LEAD : esc(initials(a.agent_id))) + '</span>';
+  const heardBy = (x) => {
+    if (x.shout_from !== 'person') return '';
+    const to = p.agents.filter((a) => reached(x, a)), by = to.filter((a) => (a.agent_last_shout_id ?? 0) >= x.shout_id);
+    // A shout that reaches no agent at all, such as one to a lane nobody has joined, has not been heard either.
+    if (!by.length) return '<div class="heard not">Not heard yet</div>';
+    const first = by.find((a) => lead(a.agent_id)) || by[0], rest = by.length - 1;
+    return '<div class="heard" title="Heard by ' + esc(by.map((a) => a.agent_id).join(', ')) + '"><span class="heard-faces">' + [first, ...by.filter((a) => a !== first)].slice(0, 4).map(dot).join('') + '</span>Heard by ' + esc(first.agent_id) + (rest ? ' and ' + rest + (rest === 1 ? ' agent' : ' agents') : '') + '</div>';
+  };
   // One card for a shout, in the feed and among the asks; tail adds what the place needs, such as Answer. Only the
   // feed's copy carries the band and the id an answer's link lands on, so an ask shown twice never repeats an id.
   const card = (x, tail = '', inFeed = true) => '<article class="shout h' + hue(x.shout_from) + (lead(x.shout_from) ? ' lead' : '') + (openShouts.has(x.shout_id) ? ' open' : '') + '"' + (inFeed ? ' id="shout-' + x.shout_id + '"' : '') + ' data-shout-id="' + x.shout_id + '">'
     + (lead(x.shout_from) ? '<span class="avatar">' + LEAD + '</span>' : '<span class="avatar' + (initials(x.shout_from).length > 3 ? ' wide' : '') + '" aria-hidden="true">' + esc(initials(x.shout_from)) + '</span>') + '<div class="shout-main"><header><b class="who">' + esc(x.shout_from) + '</b><span class="to">→ ' + esc(x.shout_to) + '</span>'
     + (itemOf(x) ? '<span class="item">#' + esc(itemOf(x)) + '</span>' : '') + mark(x) + '<time class="long" data-ago="' + esc(x.shout_at) + '" title="' + esc(when(x.shout_at)) + '">' + agoLong(x.shout_at) + '</time></header>'
-    + '<div class="text">' + rich(x.shout_text, titles) + '</div><button class="more" data-more type="button">' + (openShouts.has(x.shout_id) ? 'less' : 'more') + '</button>' + (inFeed ? band(x) : '') + evidence(x) + tail + '</div></article>';
+    + '<div class="text">' + rich(x.shout_text, titles) + '</div><button class="more" data-more type="button">' + (openShouts.has(x.shout_id) ? 'less' : 'more') + '</button>' + (inFeed ? band(x) + heardBy(x) : '') + evidence(x) + tail + '</div></article>';
   $('feed').innerHTML = bar + (heard.length ? dayRules(heard, (x) => x.shout_at, card) : '<div class="empty">' + (view.agent ? 'No shouts with ' + esc(view.agent) + ' among the last forty.' : 'No shouts yet.') + '</div>');
   foldShouts();
   // Each ask waits here until it is answered (B21); the answer itself is typed in the form below. The
@@ -1178,7 +1303,6 @@ function render() {
   $('decisions').innerHTML = (p.decisions.length ? '<div class="head"><i></i>Decision needed</div>' + p.decisions.map((d) => card(d, '<button class="ghost answer" data-go="decide:' + d.shout_id + '" type="button">Answer</button>', false)).join('') : '')
     + (p.asked.length ? '<div class="head quiet">Waiting on others</div>' + p.asked.map((d) => card(d, '', false)).join('') : '');
   foldShouts();
-  $('shout-targets').innerHTML = ['all', ...lanes, ...p.agents.map((a) => a.agent_id)].map((t) => '<option value="' + esc(t) + '">').join('');
   // Each agent with what it holds: its claim, then its work sent back, then its work waiting for a
   // verdict. The worktree path is there on hover; what the person reads is who is doing what.
   // A review an agent holds (V15) comes right after its claim.
@@ -1189,11 +1313,24 @@ function render() {
   const recent = (a) => p.items.some((i) => (i.status === 'claimed' && i.owner === a.agent_id) || (i.status === 'submitted' && i.reviewer === a.agent_id))
     || (a.lastMoveAt && Date.now() - Date.parse(a.lastMoveAt) < 36e5);
   const listed = view.allAgents ? p.agents : p.agents.filter(recent);
-  $('agents').innerHTML = (listed.length ? listed.map((a) => {
-    const mine = holding(a);
-    return '<div class="agent' + (view.agent === a.agent_id ? ' on' : '') + '"><div><button class="agent-name" data-agent="' + esc(a.agent_id) + '" title="Shouts with ' + esc(a.agent_id) + ' (' + esc(a.agent_path) + ')" type="button">' + esc(a.agent_id) + '</button><span class="muted">' + esc(a.agent_lane) + ' · ' + esc(a.agent_route) + '</span>' + (a.lastMoveAt ? '<time data-ago="' + esc(a.lastMoveAt) + '" title="last moved ' + when(a.lastMoveAt) + '">' + ago(a.lastMoveAt) + '</time>' : '') + '</div>'
-      + (mine.length ? mine.map((i) => '<div class="agent-work" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span>' + (i.reviewer === a.agent_id ? '<span class="chip warn">reviewing</span>' : chip(stateOf(i))) + '</div>').join('') : '<small>idle</small>') + '</div>';
-  }).join('') : '<div class="empty">' + (p.agents.length ? 'No agent has moved today.' : 'No agents yet.') + '</div>')
+  // As little room as the panel can take: an agent holding work is one row, with its avatar and colour from the feed,
+  // the age of its latest move and what it holds; an agent holding nothing is a pill. A row or a pill filters the feed
+  // to that agent's shouts, its lane and route on hover, and the picked agent's row opens out to each thing it holds.
+  const busy = listed.filter((a) => holding(a).length), idle = listed.filter((a) => !holding(a).length);
+  const face = (a) => lead(a.agent_id) ? '<span class="avatar">' + LEAD + '</span>' : '<span class="avatar' + (initials(a.agent_id).length > 3 ? ' wide' : '') + '" aria-hidden="true">' + esc(initials(a.agent_id)) + '</span>';
+  const tip = (a) => 'Shouts with ' + a.agent_id + ' · ' + a.agent_lane + ' · ' + a.agent_route + ' (' + a.agent_path + ')';
+  const state = (a, i) => i.reviewer === a.agent_id ? '<span class="chip warn">reviewing</span>' : chip(stateOf(i));
+  const marks = (a) => ' h' + hue(a.agent_id) + (lead(a.agent_id) ? ' lead' : '') + (view.agent === a.agent_id ? ' on' : '');
+  const row = (a) => {
+    const mine = holding(a), first = mine[0];
+    return '<div class="agent-card' + marks(a) + '"><button class="agent-row" data-agent="' + esc(a.agent_id) + '" title="' + esc(tip(a)) + '" type="button">' + face(a)
+      + '<span class="agent-who"><b>' + esc(a.agent_id) + '</b>' + (a.lastMoveAt ? '<time data-ago="' + esc(a.lastMoveAt) + '">' + ago(a.lastMoveAt) + '</time>' : '') + '</span>'
+      + '<span class="agent-doing"><span class="agent-what"><i>#' + first.id + '</i> ' + esc(first.title) + '</span>' + state(a, first) + (mine.length > 1 ? '<span class="agent-more">+' + (mine.length - 1) + '</span>' : '') + '</span></button>'
+      + (view.agent === a.agent_id ? mine.map((i) => '<div class="agent-work" data-item="' + i.id + '" data-go="item:' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span>' + state(a, i) + '</div>').join('') : '') + '</div>';
+  };
+  const pill = (a) => '<button class="agent-pill' + marks(a) + '" data-agent="' + esc(a.agent_id) + '" title="' + esc(tip(a)) + '" type="button"><span>' + face(a) + esc(a.agent_id) + '</span></button>';
+  $('agents').innerHTML = (listed.length ? busy.map(row).join('') + (idle.length ? '<div class="agents-idle"><span class="agents-label">Idle</span>' + idle.map(pill).join('') + '</div>' : '')
+    : '<div class="empty">' + (p.agents.length ? 'No agent has moved today.' : 'No agents yet.') + '</div>')
     + (p.agents.length > p.agents.filter(recent).length ? '<button class="link all-agents" data-all-agents type="button">' + (view.allAgents ? 'show only agents at work' : 'show all ' + p.agents.length) + '</button>' : '');
   const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
   $('lanes').innerHTML = working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no">held by ' + esc(held.get(l).hold_by) + '</span> <span class="muted">' + linked(held.get(l).hold_reason, titles) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join('');
@@ -1348,18 +1485,30 @@ function countUnseen() {
  * its To and its button change. The To the person had comes back when the answer is done. An answer
  * belongs to the project whose question it shows: leaving that project leaves answer mode.
  */
+/**
+ * Address the composer: the coordinator unless someone else is named, who then shows as a chip the person can clear.
+ */
+function addressTo(to) {
+  const who = to || 'coordinator';
+  $('shout-to').value = who;
+  $('shout-to-chip').hidden = who === 'coordinator';
+  $('shout-to-chip').innerHTML = who === 'coordinator' ? '' : 'to <b>' + esc(who) + '</b><button class="to-clear" data-to-clear type="button" aria-label="Shout to the coordinator instead">×</button>';
+  $('shout-text').placeholder = 'Shout to ' + (who === 'coordinator' ? 'the coordinator' : who);
+}
+
 function answer(id) {
   const ask = id === null ? null : data.project.decisions.find((d) => d.shout_id === id) || null;
   if (ask && !view.answering) view.to = $('shout-to').value;
-  if (!ask && view.answering) $('shout-to').value = view.to || '';
+  if (!ask && view.answering) addressTo(view.to);
   view.answering = ask ? { root: view.root, id: ask.shout_id } : null;
   $('answering').hidden = !ask;
   $('answering-who').textContent = ask ? ask.shout_from : '';
   const question = ask ? linked(ask.shout_text, new Map(data.project.items.map((i) => [String(i.id), i.title]))) : '';
   if (question.includes('<button class="ref"')) $('answering-q').innerHTML = question;
   else $('answering-q').textContent = ask ? ask.shout_text : '';
-  if (ask) $('shout-to').value = ask.shout_from;
+  if (ask) addressTo(ask.shout_from);
   $('shout-to').disabled = Boolean(ask);
+  $('shout-to-chip').hidden = Boolean(ask) || $('shout-to').value === 'coordinator';
   const verb = ask ? 'Answer' : 'Shout';
   $('shout-send').setAttribute('aria-label', verb);
   $('shout-send').title = verb + ' (Enter; Shift+Enter for a new line)';
@@ -1423,12 +1572,60 @@ async function code(ref, before) {
   render();
   if (!c.open || c.lines) return;
   c.error = null;
+  if (snapshot) {
+    c.error = 'Source code is not included in this relay snapshot; open the reference in the local project view.';
+    render();
+    return;
+  }
+  if (transportModule) {
+    c.error = 'Source code is unavailable in a relay view; open this reference in the local project view.';
+    render();
+    return;
+  }
   try {
     const reply = await api(boardPath(view.root) + '/code?ref=' + encodeURIComponent(ref) + '&before=' + encodeURIComponent(before));
     Object.assign(c, reply.code);
   } catch (error) {
     c.error = String(error.message || error);
   }
+  render();
+}
+
+/** Fetch the rest of a bounded local reference in API-sized windows after an explicit request. */
+async function showAllCode(ref, before) {
+  const root = view.root;
+  const c = view.code[root + '\\n' + before + '\\n' + ref];
+  const parts = codeReferenceParts(ref);
+  if (!c || c.allLoading) return;
+  if (transportModule) { c.error = 'Source code is unavailable in a relay view; open this reference in the local project view.'; render(); return; }
+  if (!parts) { c.error = 'Code reference has an invalid path, range or commit SHA.'; render(); return; }
+  c.error = null;
+  c.allLoading = true;
+  render();
+  try {
+    const lines = [];
+    for (let from = parts.from; from <= parts.to; from += 60) {
+      const to = Math.min(parts.to, from + 59);
+      const pageRef = parts.path + ':' + from + (to === from ? '' : '-' + to) + '@' + parts.commit;
+      const page = await api(boardPath(root) + '/code?ref=' + encodeURIComponent(pageRef) + '&before=' + encodeURIComponent(before));
+      lines.push(...page.code.lines);
+    }
+    if (lines.length !== parts.to - parts.from + 1) throw new Error('The local view returned an incomplete code range.');
+    c.allLines = lines;
+    c.all = true;
+  } catch (error) {
+    c.error = String(error.message || error);
+  } finally {
+    c.allLoading = false;
+    render();
+  }
+}
+
+/** Return an expanded preview to its first bounded window without closing the reference. */
+function showLessCode(ref, before) {
+  const c = view.code[view.root + '\\n' + before + '\\n' + ref];
+  if (!c) return;
+  c.all = false;
   render();
 }
 
@@ -1528,13 +1725,17 @@ async function act(command, args, anchor) {
   out.textContent = requests ? 'Request waiting…' : 'running…';
   out.scrollIntoView({ block: 'nearest' });
   try {
-    const move = pageMove(command, args);
-    const result = requests ? await sendPersonRequest(root, move.body) : await api(boardPath(root) + '/moves', move.body);
+    // On the local view the person's word to the coordinator is the person's own request, not a shout the
+    // coordinator sends itself; through the relay every action is already a sealed request.
+    const asked = command === 'request' && !requests;
+    const move = asked ? null : pageMove(command === 'request' ? 'shout' : command, command === 'request' ? { to: 'coordinator', text: args.text } : args);
+    const result = asked ? await api(boardPath(root) + '/requests', { text: String(args.text || '').trim() })
+      : requests ? await sendPersonRequest(root, move.body) : await api(boardPath(root) + '/moves', move.body);
     const request = requests && result?.result?.request;
     if (requests && (!request?.id || !['waiting', 'done', 'refused'].includes(request.status))) throw new Error('The request did not include its status; refresh the board to check it.');
     if (latest()) {
       out.className = 'console' + (requests ? request.status === 'done' ? ' ok' : request.status === 'refused' ? ' no' : '' : ' ok');
-      out.textContent = requests ? requestNotice(request) : '$ pullboard ' + move.label + '\\n' + moveMessage(move.body, result.result);
+      out.textContent = requests ? requestNotice(request) : asked ? 'Sent to the coordinator.' : '$ pullboard ' + move.label + '\\n' + moveMessage(move.body, result.result);
       if (requests) view.request = { root, id: request.id, run };
       out.scrollIntoView({ block: 'center' });
       // What went through says so and then steps aside; a refusal stays until the person closes it.
@@ -1613,17 +1814,18 @@ $('shouts-pane').addEventListener('click', (event) => {
     more.textContent = openShouts.has(id) ? 'less' : 'more';
     return;
   }
+  if (event.target.closest('[data-to-clear]')) { addressTo('coordinator'); $('shout-text').focus(); return; }
   if (event.target.closest('[data-all-agents]')) { view.allAgents = !view.allAgents; render(); return; }
   if (event.target.closest('[data-agents-toggle]')) { view.agentsHidden = !view.agentsHidden; keep('pb.agents', view.agentsHidden ? 'hidden' : 'shown'); render(); return; }
   if (!pick) return;
   view.agent = pick.dataset.agent && pick.dataset.agent !== view.agent ? pick.dataset.agent : null;
-  if (view.agent && !view.answering) $('shout-to').value = view.agent;
+  if (!view.answering) addressTo(view.agent);
   render();
 });
 // Enter shouts; Shift+Enter starts a new line.
 $('shout-text').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('shout-form').requestSubmit(); } });
 document.addEventListener('click', (event) => {
-  const t = event.target.closest('[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],#proj-switch,#console');
+  const t = event.target.closest('[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],#proj-switch,#console');
   if (!event.target.closest('.side')) fold(false);
   if (!t) return;
   if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
@@ -1652,9 +1854,11 @@ document.addEventListener('click', (event) => {
     if (ids.length && window.confirm('Approve all ' + ids.length + ' undecided rows in “' + section + '”?')) decideSpec('spec-approve', { ids: ids.join(' ') }, t);
   }
   else if (t.dataset.row) { const [kind, id] = t.dataset.row.split(':'); view.row[kind] = id; render(); }
+  else if (t.dataset.codeAll) showAllCode(t.dataset.codeAll, t.dataset.before || '');
+  else if (t.dataset.codeLess) showLessCode(t.dataset.codeLess, t.dataset.before || '');
   else if (t.dataset.code) code(t.dataset.code, t.dataset.before || '');
   else if (t.dataset.release) act('release', { lane: t.dataset.release }, t);
-  else if (t.dataset.shout) { answer(null); $('shout-to').value = t.dataset.shout; $('shout-text').value = '#' + t.dataset.about + ': '; openTab('shouts'); showTab(); $('shout-text').focus(); }
+  else if (t.dataset.shout) { answer(null); addressTo(t.dataset.shout); $('shout-text').value = '#' + t.dataset.about + ': '; openTab('shouts'); showTab(); $('shout-text').focus(); }
   else if (t.dataset.new !== undefined) { view.adding = true; render(); $('add-title').focus(); }
 });
 /** Let a Roadmap row with independent inline links keep its keyboard button behavior. */
@@ -1713,7 +1917,7 @@ $('shout-form').addEventListener('submit', async (event) => {
   const text = $('shout-text').value;
   const ask = view.answering;
   if (ask && ask.root !== view.root) return answer(null);
-  if (!(await (ask ? act('answer', { id: ask.id, text }, event.currentTarget) : act('shout', { to: $('shout-to').value, text }, event.currentTarget)))) return;
+  if (!(await (ask ? act('answer', { id: ask.id, text }, event.currentTarget) : ($('shout-to').value === 'coordinator' ? act('request', { text }, event.currentTarget) : act('shout', { to: $('shout-to').value, text }, event.currentTarget))))) return;
   $('shout-text').value = '';
   answer(null);
 });

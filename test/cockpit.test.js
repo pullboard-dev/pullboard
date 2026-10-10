@@ -10,7 +10,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSyn
 import { createServer, request } from 'node:http';
 import diagnosticsChannel from 'node:diagnostics_channel';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { delimiter, join, relative, resolve, sep } from 'node:path';
 import { after, test } from 'node:test';
 import vm from 'node:vm';
 import { loadConfig } from '../src/config.js';
@@ -20,8 +20,11 @@ import { exportBoard, importBoard } from '../src/exchange.js';
 import { MACHINE } from '../src/machine.js';
 import { cockpitPage, PULLBOARD_COMMANDS } from '../src/cockpit.js';
 import { HELP } from '../src/cli.js';
-import { portableSnapshot, projectState } from '../src/serve.js';
+import { exportView, portableSnapshot, projectState } from '../src/serve.js';
+import { relayPresentation } from '../src/relay-presentation.js';
 import { fetchFresh } from './http-fixture.js';
+import { relayClientFixture } from './relay-client-fixture.js';
+import { findChromeExecutable, relayWorkBudgetMs, startChrome } from './relay-browser-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const scratch = [];
@@ -1094,18 +1097,27 @@ test("the history is a timeline of the item's states [N26]", async () => {
   }
 });
 /**
- * The agents the panel shows: id, the path on hover, its last move, what it holds and whether it
- * reads idle, and its entry's text with the tags taken out.
+ * The agents the panel shows: id, the path on hover, its last move, what it holds and how many more,
+ * whether it reads idle, and its entry's text with the tags taken out. An agent holding work is a row
+ * showing its first thing, or every thing once picked; an agent holding nothing is a pill.
  */
 function agentEntries(html) {
-  return html.split(/<div class="agent(?: on)?">/).slice(1).map((entry) => ({
-    id: /data-agent="([^"]*)"/.exec(entry)?.[1],
-    path: /title="Shouts with [^"(]* \(([^"]*)\)"/.exec(entry)?.[1],
-    age: /<time[^>]*>([^<]*)<\/time>/.exec(entry)?.[1],
-    holds: [...entry.matchAll(/data-item="(\d+)"[^>]*><span>([^]*?)<\/span><span class="chip[^"]*">([^<]*)</g)].map((match) => `${match[2]}: ${match[3]}`),
-    idle: entry.includes('<small>idle</small>'),
-    text: entry.replace(/<[^>]*>/g, ' '),
-  }));
+  const rows = html.split(/<div class="agent-card[^"]*">/).slice(1).map((entry) => {
+    const opened = [...entry.matchAll(/data-item="(\d+)"[^>]*><span>([^]*?)<\/span><span class="chip[^"]*">([^<]*)</g)].map((match) => `${match[2]}: ${match[3]}`);
+    const first = /<span class="agent-what"><i>(#\d+)<\/i> ([^]*?)<\/span><span class="chip[^"]*">([^<]*)</.exec(entry);
+    return {
+      id: /data-agent="([^"]*)"/.exec(entry)?.[1],
+      path: /title="Shouts with [^"(]* \(([^"]*)\)"/.exec(entry)?.[1],
+      age: /<time[^>]*>([^<]*)<\/time>/.exec(entry)?.[1],
+      holds: opened.length ? opened : first ? [`${first[1]} ${first[2]}: ${first[3]}`] : [],
+      more: Number(/<span class="agent-more">\+(\d+)<\/span>/.exec(entry)?.[1] ?? 0),
+      idle: false,
+      text: entry.replace(/<[^>]*>/g, ' '),
+    };
+  });
+  const pills = [...html.matchAll(/<button class="agent-pill[^"]*" data-agent="([^"]*)" title="[^"(]* \(([^"]*)\)"[^>]*>([^]*?)<\/button>/g)]
+    .map((match) => ({ id: match[1], path: match[2], age: undefined, holds: [], more: 0, idle: true, text: match[3].replace(/<[^>]*>/g, ' ') }));
+  return [...rows, ...pills];
 }
 
 test('the agents panel says what each agent holds [N26]', async () => {
@@ -1126,14 +1138,20 @@ test('the agents panel says what each agent holds [N26]', async () => {
   try {
     const page = await openPage(view);
     const agents = agentEntries(page.show('agents'));
-    assert.deepEqual(agents.map((agent) => [agent.id, agent.holds, agent.idle]), [
-      ['coordinator', [], true],
-      // The claim first, then work sent back, then work waiting for a verdict.
-      ['web-1', ['#1 Header: building', '#3 Greeting &lt;b&gt;bold&lt;/b&gt;: to verify'], false],
-      ['web-2', ['#2 Farewell: sent back', '#4 Footer: to verify'], false],
+    assert.deepEqual(agents.map((agent) => [agent.id, agent.holds, agent.more, agent.idle]), [
+      // An agent holding work is a row with its first thing: the claim, then work sent back, then work waiting for a verdict.
+      ['web-1', ['#1 Header: building'], 1, false],
+      ['web-2', ['#2 Farewell: sent back'], 1, false],
+      // One holding nothing is a pill.
+      ['coordinator', [], 0, true],
     ]);
-    for (const agent of agents) assert.match(agent.age, /^(now|\d+[mhd])$/, `${agent.id} shows when it last moved`);
-    assert.deepEqual(agents.map((agent) => agent.path), [alpha.repo, alpha.web, second], 'each path is on hover');
+    for (const agent of agents.filter((entry) => !entry.idle)) assert.match(agent.age, /^(now|\d+[mhd])$/, `${agent.id} shows when it last moved`);
+    assert.deepEqual(agents.map((agent) => agent.path), [alpha.web, second, alpha.repo], 'each path is on hover');
+    // Picked, an agent's row opens to every thing it holds, in that order.
+    const opened = (id) => { page.run(`view.agent = ${JSON.stringify(id)}; render();`); return agentEntries(page.show('agents')).find((agent) => agent.id === id).holds; };
+    assert.deepEqual(opened('web-1'), ['#1 Header: building', '#3 Greeting &lt;b&gt;bold&lt;/b&gt;: to verify']);
+    assert.deepEqual(opened('web-2'), ['#2 Farewell: sent back', '#4 Footer: to verify']);
+    page.run('view.agent = null; render();');
     for (const agent of agents) assert.ok(!agent.text.includes(agent.path), `${agent.id}'s path is not in the text`);
 
     await page.click({ go: 'item:1' });
@@ -1952,7 +1970,9 @@ test("needs-you holds only the person's calls; the rest show on the board with w
     assert.match(page.show('decisions'), /<div class="head quiet">Waiting on others<\/div><article class="shout h\d" data-shout-id="\d+"><span class="avatar" aria-hidden="true">W1<\/span><div class="shout-main"><header><b class="who">web-1<\/b><span class="to">→ coordinator<\/span>/, "the agent's ask waits on its coordinator");
     assert.match(itemRow(page.show('chain'), 1), /<span class="chip [^"]*">to verify<\/span><\/li>$/, 'work waiting for a verdict');
     assert.ok(itemRow(page.show('chain'), 2).includes('BEHAVIOR_MISMATCH: no farewell yet'), 'and work sent back, with why');
+    page.run("view.agent = 'web-1'; render();");
     assert.deepEqual(agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1').holds, ['#2 Farewell: sent back', '#1 Greeting: to verify'], 'the agent that built them holds both');
+    page.run('view.agent = null; render();');
     assert.match(page.show('lanes'), /<b>web<\/b> <span class="chip no">held by coordinator<\/span> <span class="muted">G3 is open<\/span>/, 'a held lane names who holds it');
 
     // The sidebar counts exactly the person's calls; its line still says what the agents are doing.
@@ -2405,6 +2425,7 @@ test('spec rows read across a phone [N26,D1]', async () => {
 test("a shout's code reference opens that code as it was at that commit [B23]", async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
+  const beta = project(box, 'beta');
   box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   build(box, alpha, 1, 'greeting.html');
   const first = box.git(alpha.web, 'rev-parse', 'HEAD');
@@ -2424,6 +2445,9 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
   const long = `web/long.txt:1-100@${second}`;
   const first_ = `#1 was ${was}, is ${now}; see ${long}.`;
   box.run(alpha.web, 'shout', 'all', first_);
+  box.run(alpha.web, 'fact', '1', 'note', 'review the committed greeting', '--ref', `web/greeting.html:1-2@${second}`);
+  box.run(alpha.web, 'shout', 'all', 'missing commit: web/greeting.html:1@');
+  box.run(alpha.web, 'shout', 'all', `missing path: :1@${second.slice(0, 7)}`);
   const spaced = `web/note.txt:1@${second.slice(0, 7)}`;
   const odd = `absolute /${was} and spaced web/my ${spaced}`;
   box.run(alpha.web, 'shout', 'all', odd);
@@ -2437,8 +2461,8 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
     const page = await openPage(view);
     // A button carries the text written before it on its line.
     // Its label: the path, then the lines and the commit's first ten characters; the whole reference on hover.
-    const label = (ref) => `<span class="ref-path">${ref.slice(0, ref.indexOf(':'))}</span><span class="ref-at">${ref.slice(ref.indexOf(':'), ref.lastIndexOf('@') + 11)}</span>`;
-    const button = (ref, open, before = '') => `<button class="ref" data-code="${ref}"${before ? ` data-before="${before}"` : ''} title="${ref}" type="button" aria-expanded="${open}">${label(ref)}</button>`;
+    const label = (ref) => `<span class="ref-path">${ref.slice(0, ref.indexOf(':'))}</span><span class="ref-at">${ref.slice(ref.indexOf(':'), ref.lastIndexOf('@'))}<span class="ref-sha">${ref.slice(ref.lastIndexOf('@'), ref.lastIndexOf('@') + 11)}</span></span>`;
+    const button = (ref, open, before = '', block = false) => `<button class="ref${block ? ' block' : ''}" data-code="${ref}"${before ? ` data-before="${before}"` : ''} title="${ref}" aria-label="Open code reference ${ref}" type="button" aria-expanded="${open}">${label(ref)}</button>`;
     const prior = (text, ref) => text.slice(0, text.indexOf(ref));
     const [b1, b2, b3] = [was, now, long].map((ref) => prior(first_, ref));
     assert.ok(page.show('feed').includes(`#1</button> was ${button(was, false, b1)}, is ${button(now, false, b2)}; see ${button(long, false, b3)}.`), 'each reference is a button in the text');
@@ -2446,17 +2470,24 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
     await page.click({ code: was, before: b1 });
     await page.click({ code: now, before: b2 });
     let feed = page.show('feed');
-    assert.ok(feed.includes(button(was, true, b1) + '<span class="code"><span><i>1</i>greeting.html</span></span>'), 'the code as it was at that commit');
-    assert.ok(feed.includes(button(now, true, b2) + '<span class="code"><span><i>1</i>  hello &lt;b&gt;there&lt;/b&gt;</span><span><i>2</i>    second line</span></span>'), 'escaped, every indent kept');
+    assert.ok(feed.includes(button(was, true, b1) + '<div class="code-ref open">' + button(was, true, b1, true) + '<div class="code-wrap"><pre class="code"><span><i>1</i>greeting.html</span></pre></div>'), 'the code as it was at that commit');
+    assert.ok(feed.includes(button(now, true, b2) + '<div class="code-ref open">' + button(now, true, b2, true) + '<div class="code-wrap"><pre class="code"><span><i>1</i>  hello &lt;b&gt;there&lt;/b&gt;</span><span><i>2</i>    second line</span></pre></div>'), 'escaped, every indent kept');
 
     await page.click({ code: long, before: b3 });
     feed = page.show('feed');
     const shown = feed.slice(feed.indexOf(button(long, true, b3)));
-    assert.equal([...shown.matchAll(/<span><i>(\d+)<\/i>line \1<\/span>/g)].length, 60, 'at most sixty lines');
-    assert.match(shown, /<i>60<\/i>line 60<\/span><span class="more">the first 60 lines<\/span><\/span>/);
+    assert.equal([...shown.matchAll(/<span><i>\d+<\/i>/g)].length, 60, 'at most sixty lines');
+    assert.match(shown, /<i>60<\/i>line <span class="tok-number">60<\/span><\/span><\/pre><button class="code-control" data-code-all="/);
+    await page.click({ codeAll: long, before: b3 });
+    feed = page.show('feed');
+    const expandedAll = feed.slice(feed.indexOf(button(long, true, b3)));
+    assert.equal([...expandedAll.matchAll(/<span><i>\d+<\/i>/g)].length, 100, 'show all lines fetches every line in the cited range');
+    assert.match(expandedAll, /<i>100<\/i>line <span class="tok-number">100<\/span><\/span><\/pre><button class="code-control" data-code-less="/);
+    await page.click({ codeLess: long, before: b3 });
+    assert.equal([...page.show('feed').slice(page.show('feed').indexOf(button(long, true, b3))).matchAll(/<span><i>\d+<\/i>/g)].length, 60, 'show less returns to the bounded first window');
 
     await page.run('seen = ""; refresh()');
-    assert.ok(page.show('feed').includes(button(was, true, b1) + '<span class="code">'), 'a refresh keeps it open');
+    assert.ok(page.show('feed').includes(button(was, true, b1) + '<div class="code-ref open">' + button(was, true, b1, true) + '<div class="code-wrap">'), 'a refresh keeps it open');
     await page.click({ code: was, before: b1 });
     assert.ok(page.show('feed').includes(button(was, false, b1) + ', is'), 'a second click closes it');
 
@@ -2474,11 +2505,22 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
     await page.click({ code: spaced });
     await page.click({ code: spaced, before: b5 });
     feed = page.show('feed');
-    assert.ok(feed.includes(button('/' + was, true, 'absolute ') + '<span class="code no">[BAD_REF] name a file inside the repo by its path from the top, such as src/serve.js (saw &quot;/web/greeting.html&quot;)</span>'), 'escaped, as every refusal');
-    assert.ok(feed.includes(button('x+' + spaced, true, 'plus ') + '<span class="code no">[BAD_REF] name a file inside the repo by its path from the top, such as src/serve.js (saw &quot;x+web/note.txt&quot;)</span>'));
-    assert.ok(feed.includes(button(spaced, true, b4) + '<span class="code no">[AMBIGUOUS] the text before it may make it &quot;web/my web/note.txt&quot;, which a reference cannot name</span>'));
-    assert.ok(feed.includes(button(spaced, true, b5) + '<span class="code no">[AMBIGUOUS] the text before it may make it &quot;web/one two three four five web/note.txt&quot;, which a reference cannot name</span>'), 'however many words the path has');
-    assert.ok(feed.includes(button(spaced, true) + '<span class="code"><span><i>1</i>plain note</span></span>'), 'a reference standing alone opens, whatever other files there are');
+    assert.ok(feed.includes(button('/' + was, true, 'absolute ') + '<div class="code-ref open">' + button('/' + was, true, 'absolute ', true) + '<span class="code no" role="status">[BAD_REF] name a file inside the repo by its path from the top, such as src/serve.js (saw &quot;/web/greeting.html&quot;)</span>'), 'escaped, as every refusal');
+    assert.ok(feed.includes(button('x+' + spaced, true, 'plus ') + '<div class="code-ref open">' + button('x+' + spaced, true, 'plus ', true) + '<span class="code no" role="status">[BAD_REF] name a file inside the repo by its path from the top, such as src/serve.js (saw &quot;x+web/note.txt&quot;)</span>'));
+    assert.ok(feed.includes(button(spaced, true, b4) + '<div class="code-ref open">' + button(spaced, true, b4, true) + '<span class="code no" role="status">[AMBIGUOUS] the text before it may make it &quot;web/my web/note.txt&quot;, which a reference cannot name</span>'));
+    assert.ok(feed.includes(button(spaced, true, b5) + '<div class="code-ref open">' + button(spaced, true, b5, true) + '<span class="code no" role="status">[AMBIGUOUS] the text before it may make it &quot;web/one two three four five web/note.txt&quot;, which a reference cannot name</span>'), 'however many words the path has');
+    // Inside a block comment a line is all comment: its apostrophe is a word, not the start of a string.
+    assert.deepEqual([" * the verifier's checkout", '/** Version */', ' */', '# a note'].map((line) => page.run(`highlightCodeLine(${JSON.stringify(line)}, 'src/a.js')`)),
+      ["<span class=\"tok-comment\"> * the verifier&#39;s checkout</span>", '<span class="tok-comment">/** Version */</span>', '<span class="tok-comment"> */</span>', '# a note'],
+      'block comment lines are comments; a hash is not one in JavaScript');
+    assert.equal(page.run("highlightCodeLine('# a note', 'tools/run.py')"), '<span class="tok-comment"># a note</span>', 'but is in Python');
+    // A comment or a template string that spans lines is colored on every line of it, and the code after it is code again.
+    const carried = (lines) => JSON.parse(page.run(`JSON.stringify((() => { const state = {}; return ${JSON.stringify(lines)}.map((line) => highlightCodeLine(line, 'src/a.js', state)); })())`));
+    assert.deepEqual(carried(['const s = \`a', "it's b", 'c\`; x', 'y']),
+      ['<span class="tok-keyword">const</span> s = <span class="tok-string">\`a</span>', '<span class="tok-string">it&#39;s b</span>', '<span class="tok-string">c\`</span>; x', 'y'], 'a template string carries across lines');
+    assert.deepEqual(carried(['/* open', "still it's", 'done */ const']),
+      ['<span class="tok-comment">/* open</span>', '<span class="tok-comment">still it&#39;s</span>', '<span class="tok-comment">done */</span> <span class="tok-keyword">const</span>'], 'and so does a block comment');
+    assert.ok(feed.includes('<div class="code-ref open">' + button(spaced, true, '', true) + '<div class="code-wrap"><pre class="code"><span><i>1</i>plain note</span></pre></div></div>'), 'a reference standing alone is a block that opens, whatever other files there are');
 
     const ask = async (ref, { root = alpha.repo, key = view.key, before = '' } = {}) => {
       const id = await boardId(view, root);
@@ -2510,11 +2552,220 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
     box.run(alpha.web, 'shout', 'all', `gone: web/greeting.html:7@${sha}`);
     await page.run('refresh()');
     await page.click({ code: `web/greeting.html:7@${sha}`, before: 'gone: ' });
-    assert.ok(page.show('feed').includes(`<span class="code no">[NO_LINES] web/greeting.html has 1 lines at ${sha}</span>`));
+    assert.ok(page.show('feed').includes(`<span class="code no" role="status">[NO_LINES] web/greeting.html has 1 lines at ${sha}</span>`));
+    assert.match(page.show('feed'), /Code reference unavailable: missing a usable commit SHA\./);
+    assert.match(page.show('feed'), /Code reference unavailable: missing the repository path\./);
+    assert.match(page.show('detail'), /Referenced code/);
+    assert.ok(page.show('detail').includes(button(`web/greeting.html:1-2@${second}`, false)), 'typed thread refs reuse the collapsed reference block');
+    const relay = JSON.stringify(relayPresentation(alpha.repo));
+    assert.ok(relay.includes('"path":"web/greeting.html"') && relay.includes('"commit":"' + second + '"'), 'the relay presentation retains only the typed reference fields');
+    assert.ok(!relay.includes('  hello <b>there</b>'), 'the relay presentation never contains committed source text');
+
+    // Expansion stays attached to the repo that owned the reference if the selected project changes mid-flight.
+    const alphaId = await page.run(`data.projects.find((entry) => entry.root === ${JSON.stringify(alpha.repo)}).id`);
+    const betaId = await page.run(`data.projects.find((entry) => entry.root === ${JSON.stringify(beta.repo)}).id`);
+    await page.run(`let expansionPaths = []; let finishFirstExpansionPage; api = (path) => { expansionPaths.push(path); if (expansionPaths.length === 1) return new Promise((resolve) => { finishFirstExpansionPage = resolve; }); return Promise.resolve({ code: { lines: Array(40).fill('line') } }); };`);
+    await page.click({ codeAll: long, before: b3 });
+    assert.equal(await page.run('expansionPaths.length'), 1, 'the first expansion page is held until the project changes');
+    await page.run(`view.root = ${JSON.stringify(beta.repo)}; finishFirstExpansionPage({ code: { lines: Array(60).fill('line') } });`);
+    for (let turn = 0; turn < 6; turn++) await new Promise((resolve) => setImmediate(resolve));
+    const expansionPaths = JSON.parse(await page.run('JSON.stringify(expansionPaths)'));
+    assert.equal(expansionPaths.length, 2, 'the two-page range completes');
+    assert.ok(expansionPaths.every((path) => path.startsWith('/api/v1/boards/' + encodeURIComponent(alphaId) + '/code?')), 'later pages remain bound to the reference project');
+    assert.ok(!expansionPaths.some((path) => path.startsWith('/api/v1/boards/' + encodeURIComponent(betaId) + '/code?')), 'project switching does not redirect a pending code read');
+    const wideRange = `web/long.txt:1-10001@${second}`;
+    await page.run(`view.root = ${JSON.stringify(alpha.repo)}; view.code[${JSON.stringify(alpha.repo + '\n\n' + wideRange)}] = { open: true, path: 'web/long.txt', from: 1, lines: Array(60).fill('line'), more: true }; let wideCalls = 0; api = () => { wideCalls++; return Promise.resolve({ code: { lines: Array(wideCalls < 167 ? 60 : 41).fill('line') } }); };`);
+    await page.click({ codeAll: wideRange });
+    for (let turn = 0; turn < 6; turn++) await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(await page.run('wideCalls'), 167, 'show all keeps working beyond the former arbitrary 10,000-line cap');
+    assert.equal(await page.run(`view.code[${JSON.stringify(alpha.repo + '\n\n' + wideRange)}].allLines.length`), 10001);
   } finally {
     await view.stop();
   }
 });
+
+test('committed shout and fact references stay local, expand safely at phone and desktop widths, and explain relay snapshots [N26,B33]', { timeout: 180_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to run code-reference viewport checks.');
+  const box = machine();
+  const alpha = project(box, 'local-code');
+  box.run(alpha.repo, 'add', 'web', 'Referenced source', '--specs', 'G1');
+  mkdirSync(join(alpha.web, 'web'), { recursive: true });
+  const sourceText = ['const localOnlyFixture = 42;', ...Array.from({ length: 99 }, (_, index) => `export const row${index + 1} = ${index + 1};`)].join('\n') + '\n';
+  writeFileSync(join(alpha.web, 'web', 'reference.js'), sourceText);
+  build(box, alpha, 1, 'submitted.txt');
+  const sha = box.git(alpha.web, 'rev-parse', 'HEAD');
+  const ref = `web/reference.js:1-100@${sha}`;
+  box.run(alpha.web, 'fact', '1', 'note', 'review the source block', '--ref', ref);
+  box.run(alpha.web, 'shout', 'all', `source: ${ref}`);
+  box.run(alpha.web, 'shout', 'all', 'missing commit: web/reference.js:1@deadbee');
+  box.run(alpha.web, 'shout', 'all', `missing path: :1@${sha.slice(0, 7)}`);
+
+  const presentation = JSON.stringify(relayPresentation(alpha.repo));
+  assert.ok(presentation.includes('"path":"web/reference.js"') && presentation.includes('"commit":"' + sha + '"'), 'relay projection carries the typed reference');
+  assert.ok(!presentation.includes('localOnlyFixture') && !presentation.includes('row99'), 'relay projection contains no source code');
+
+  const view = await startView(box);
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, join(box.dir, 'local-code-chrome'));
+    await chrome.waitFor('typeof data === "object" && data?.project?.shouts?.length >= 3 && data?.project?.items?.[0]?.thread?.some((entry) => entry.type === "fact" && entry.ref)');
+    for (const width of [375, 1280]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
+      await chrome.waitFor(`innerWidth === ${width}`);
+      await chrome.evaluate(`document.querySelector('[data-tab="shouts"]').click()`);
+      await chrome.evaluate(`document.querySelector('#feed button[data-code^="web/reference.js:1-100@"]').click()`);
+      await chrome.waitFor(`document.querySelector('#feed .code-wrap pre.code .tok-keyword')?.textContent === 'const'`);
+      assert.equal(await chrome.evaluate(`document.querySelector('#feed pre.code').textContent.includes('localOnlyFixture = 42')`), true, 'the open local preview reads the exact committed text');
+      assert.equal(await chrome.evaluate(`document.querySelector('#feed pre.code .tok-number')?.textContent`), '42', 'source tokens receive syntax highlighting');
+      assert.equal(await chrome.evaluate(`document.querySelectorAll('#feed pre.code > span').length`), 60, 'the initial preview stays bounded');
+      await chrome.evaluate(`document.querySelector('#feed button[data-code-all]').click()`);
+      await chrome.waitFor(`document.querySelectorAll('#feed pre.code > span').length === 100`);
+      assert.equal(await chrome.evaluate(`document.querySelector('#feed pre.code > span:last-child').textContent.includes('row99 = 99')`), true, 'show all lines fetches the end of the cited range');
+      await chrome.evaluate(`document.querySelector('#feed button[data-code-less]').click()`);
+      await chrome.waitFor(`document.querySelectorAll('#feed pre.code > span').length === 60`);
+      assert.equal(await chrome.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), true, `${width}px page has no sideways overflow`);
+
+      assert.equal(await chrome.evaluate(`!!document.querySelector('#detail .fact-code .code-ref:not(.open) > button.ref.block[aria-expanded="false"]')`), true, 'a fact\'s reference is a collapsed block too');
+      await chrome.evaluate(`document.querySelector('#detail .fact-code button[data-code]').click()`);
+      await chrome.waitFor(`document.querySelector('#detail .fact-code pre.code .tok-keyword')?.textContent === 'const'`);
+      assert.equal(await chrome.evaluate(`document.querySelector('#detail .fact-code pre.code').textContent.includes('localOnlyFixture = 42')`), true, 'typed fact refs use the same local renderer');
+      assert.equal(await chrome.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), true, `${width}px thread ref has no sideways overflow`);
+      await chrome.evaluate(`document.querySelector('#detail .fact-code button[data-code]').click()`);
+      await chrome.evaluate(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"]').click()`);
+      await chrome.waitFor(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"]').getAttribute('aria-expanded') === 'false'`);
+    }
+    await chrome.evaluate(`document.querySelector('#feed button[data-code^="web/reference.js:1@deadbee"]').click()`);
+    await chrome.waitFor(`document.querySelector('#feed button[data-code^=\"web/reference.js:1@deadbee\"] + .code-ref .code, #feed button[data-code^=\"web/reference.js:1@deadbee\"] + .code')?.textContent.includes('[NO_COMMIT]')`);
+    assert.equal(await chrome.evaluate(`document.querySelector('#feed button[data-code^=\"web/reference.js:1@deadbee\"] + .code-ref .code, #feed button[data-code^=\"web/reference.js:1@deadbee\"] + .code').textContent.includes('deadbee')`), true, 'a missing commit produces its readable refusal');
+    assert.equal(await chrome.evaluate(`document.querySelector('#feed .ref-missing')?.textContent.includes('missing the repository path')`), true, 'a reference with no path gives a clear note');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    await view.stop();
+  }
+
+  const snapshotDir = mkdtempSync(join(box.dir, 'relay-snapshot-'));
+  const exported = await exportView(alpha.repo, snapshotDir);
+  const exportedFiles = [];
+  const walk = (directory) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) walk(path); else exportedFiles.push(readFileSync(path, 'utf8'));
+    }
+  };
+  walk(exported.path);
+  assert.ok(exportedFiles.join('\n').includes('web/reference.js:1-100@' + sha), 'static relay view retains the reference');
+  assert.ok(!exportedFiles.join('\n').includes('localOnlyFixture'), 'the static relay artifact never contains the source text');
+  const snapshotServer = createServer((request, response) => {
+    const pathname = new URL(request.url, 'http://127.0.0.1').pathname;
+    const relativePath = pathname === '/' ? 'index.html' : pathname.slice(1);
+    const target = resolve(exported.path, relativePath);
+    if (!target.startsWith(resolve(exported.path) + '/') || !existsSync(target)) { response.writeHead(404).end(); return; }
+    const type = target.endsWith('.css') ? 'text/css; charset=utf-8' : target.endsWith('.json') ? 'application/json; charset=utf-8' : 'text/html; charset=utf-8';
+    response.writeHead(200, { 'content-type': type, 'cache-control': 'no-store' });
+    response.end(readFileSync(target));
+  });
+  await new Promise((resolve) => snapshotServer.listen(0, '127.0.0.1', resolve));
+  let snapshotChrome;
+  try {
+    const address = snapshotServer.address();
+    snapshotChrome = await openSnapshotChrome(executable, `http://127.0.0.1:${address.port}/`, join(box.dir, 'relay-snapshot-chrome'));
+    await snapshotChrome.waitFor(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"]')`);
+    await snapshotChrome.evaluate(`document.querySelector('[data-tab="shouts"]').click()`);
+    await snapshotChrome.evaluate(`document.querySelector('#feed button[data-code^="web/reference.js:1-100@"]').click()`);
+    await snapshotChrome.waitFor(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"]')?.getAttribute('aria-expanded') === 'true'`);
+    assert.match(await snapshotChrome.evaluate(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"] + .code-ref .code, #feed button[data-code^=\"web/reference.js:1-100@\"] + .code')?.textContent || ''`), /Source code is not included in this relay snapshot/);
+    assert.ok(snapshotChrome.requests.every((request) => !request.url.includes('/code?')), 'relay snapshot serves only the reference and sends no code read');
+  } finally {
+    if (snapshotChrome) await closeSnapshotChrome(snapshotChrome);
+    await new Promise((resolve) => snapshotServer.close(resolve));
+  }
+});
+test('a paired relay reference explains that committed source is available only in the local project view [B33]', {
+  // Its relay work is the fixture's setup moves, the browser's pairing and the reference's request: three budgets,
+  // derived from the work as main's relay tests are, so it holds under load.
+  timeout: relayWorkBudgetMs() * 3,
+  skip: !findChromeExecutable() && 'Chrome is not installed',
+}, async t => {
+  const box = await relayClientFixture(t);
+  const sentinel = 'RELAY_SOURCE_MUST_STAY_LOCAL_251';
+  const oldItem = String(box.before.tables.item[0].item_id);
+  assert.equal((await box.cli('withdraw', oldItem, 'replace the fixture item with a source lane')).code, 0,
+    'the private setup item is withdrawn before coordinator setup is committed');
+  const configPath = join(box.root, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  config.lanes.app = { owns: ['src/'], specs: ['G'] };
+  writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+  const fixtureBin = box.env.PATH.split(delimiter)[0];
+  const wrapper = join(fixtureBin, 'pullboard');
+  writeFileSync(wrapper, `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`, { mode: 0o700 });
+  chmodSync(wrapper, 0o700);
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: box.root, env: box.env }).status, 0,
+    'the coordinator stages the private repository setup');
+  const setupCommit = spawnSync('git', ['commit', '-q', '-m', 'chore: set up paired relay source fixture'], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  assert.equal(setupCommit.status, 0, `the fixture config is committed through normal hooks: ${setupCommit.stderr.trim()}`);
+  const sourceWorktree = join(box.root, '..', 'source-worktree');
+  const worktree = spawnSync('git', ['worktree', 'add', '-b', 'app/relay-source', sourceWorktree], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  assert.equal(worktree.status, 0, `the fixture creates a lane-owned source checkout: ${worktree.stderr.trim()}`);
+  const sourceCli = (...args) => spawnSync(process.execPath, [BIN, ...args], { cwd: sourceWorktree, env: box.env, encoding: 'utf8' });
+  const joined = sourceCli('join', 'app');
+  assert.equal(joined.status, 0, `the source checkout joins its lane: ${joined.stderr.trim()}`);
+  const itemTitle = 'private cleanup fixture item 251';
+  const addedItem = await box.cli('add', 'app', itemTitle);
+  assert.equal(addedItem.code, 0, `the coordinator adds a fixture item after the setup commit: ${JSON.stringify(addedItem.document.error ?? addedItem.document)}`);
+  const latest = await box.cli('export');
+  assert.equal(latest.code, 0);
+  const fixtureItem = String(latest.document.tables.item.find(row => row.item_title === itemTitle).item_id);
+  const claimed = sourceCli('claim', fixtureItem);
+  assert.equal(claimed.status, 0, `the source checkout claims the fixture item: ${claimed.stderr.trim()}`);
+  const sourceFile = join(sourceWorktree, 'src', 'local-only.js');
+  mkdirSync(resolve(sourceFile, '..'), { recursive: true });
+  writeFileSync(sourceFile, `export const localOnly = '${sentinel}';\n`);
+  assert.equal(spawnSync('git', ['add', '--', relative(sourceWorktree, sourceFile)], { cwd: sourceWorktree, env: box.env }).status, 0);
+  const subject = 'chore(app): add local-only source';
+  const committed = spawnSync('git', ['commit', '-q', '-m', subject], { cwd: sourceWorktree, env: box.env, encoding: 'utf8' });
+  assert.equal(committed.status, 0, `the reference names a real committed source file: ${committed.stderr.trim()}`);
+  const sha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: sourceWorktree, env: box.env, encoding: 'utf8' }).trim();
+  const sourceRef = relative(sourceWorktree, sourceFile).split(sep).join('/');
+  const ref = `${sourceRef}:1@${sha}`;
+  assert.equal((await box.cli('shout', 'all', `source: ${ref}`)).code, 0);
+  await box.link();
+  assert.equal((await box.cli('status')).code, 0, 'the linked board publishes its reference');
+
+  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const encoded = readFileSync(box.keyFile, 'utf8').trim();
+  const chrome = await startChrome();
+  t.after(() => chrome.close());
+  // Since person power stays on the paired phone, the browser reads the board with the phone's session, not the link's.
+  assert.equal((await chrome.send('Network.setCookie', {
+    name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax',
+  })).success, true, 'the private browser receives the paired phone’s authenticated session');
+  await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + encoded);
+  await chrome.waitFor(`document.querySelector('#chain')?.textContent.includes(${JSON.stringify(itemTitle)})`);
+  await chrome.evaluate(`document.querySelector('[data-tab="shouts"]').click()`);
+  await chrome.waitFor(`document.querySelector('#feed button[data-code^="${sourceRef}:1@"]')`);
+  const beforeOpen = box.calls.length;
+  for (const width of [375, 1280]) {
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor(`innerWidth === ${width}`);
+    const button = `document.querySelector('#feed button[data-code^="${sourceRef}:1@"]')`;
+    if (!await chrome.evaluate(`${button}.getAttribute('aria-expanded') === 'true'`)) await chrome.evaluate(`${button}.click()`);
+    await chrome.waitFor(`${button}.nextElementSibling?.querySelector('.code')?.textContent.includes('local project view')`);
+    assert.equal(await chrome.evaluate(`document.body.textContent.includes(${JSON.stringify(sentinel)})`), false,
+      'the paired relay browser never receives committed source text');
+    assert.equal(await chrome.evaluate(`JSON.stringify(data).includes(${JSON.stringify(sentinel)})`), false,
+      'the decoded relay presentation contains only the reference, not source bytes');
+    assert.equal(await chrome.evaluate(`${button}.nextElementSibling.querySelector('.code').textContent`),
+      'Source code is unavailable in a relay view; open this reference in the local project view.');
+    assert.equal(await chrome.evaluate(`document.querySelector('#feed button[data-code-all]') === null`), true,
+      'a relay reference exposes no control that could request more source');
+    assert.equal(await chrome.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), true,
+      `${width}px relay reference stays within the viewport`);
+  }
+  assert.equal(box.calls.slice(beforeOpen).some(call => /\/code(?:\?|$)/.test(call.path)), false,
+    'opening the reference never asks the relay for source');
+});
+
 test('an empty feed says so on one line [N26]', async () => {
   const box = machine();
   project(box, 'alpha');
@@ -4311,7 +4562,7 @@ test('real Chrome styles shout code and item text without growing linked lines [
       const titleNode = document.querySelector('#chain .row .t');
       const outside = [...document.querySelectorAll('#feed > .shout')].find((row) => row.textContent.includes('alert(2)'));
       const itemDetail = document.querySelector('#detail');
-      const agentItem = document.querySelector('#agents .agent [data-item="1"]');
+      const agentItem = document.querySelector('#agents .agent-row');
       /** Measure the complete rendered content line box, including its item link. */
       const lineMetrics = (message) => {
         const row = [...document.querySelectorAll('#feed > .shout')].find((entry) => {
@@ -4334,7 +4585,7 @@ test('real Chrome styles shout code and item text without growing linked lines [
         outsideHtml: outside.innerHTML, askNestedButtons: [...ask.querySelectorAll('button')].filter(link => link.parentElement.closest('button')).length,
         criterionHtml: itemDetail.querySelector('.text')?.innerHTML, briefHtml: itemDetail.querySelector('.text.muted')?.innerHTML,
         needsNestedButtons: [...document.querySelectorAll('#needs button.ref')].filter(link => link.parentElement.closest('button')).length,
-        agentNestedButtons: [...document.querySelectorAll('#agents .agent button.ref')].filter(link => link.parentElement.closest('button')).length,
+        agentNestedButtons: [...document.querySelectorAll('#agents button.ref')].filter(link => link.parentElement.closest('button')).length,
         agentItemHeight: agentItem?.getBoundingClientRect().height,
       };
     })())`));
@@ -4355,8 +4606,8 @@ test('real Chrome styles shout code and item text without growing linked lines [
     assert.match(rendered.shoutHtml, /Invalid prefix:<code class="inline long" title="SPEC\.md:1-2@[0-9a-f]+">SPEC\.md:1-2@/, 'a path:lines@SHA suffix after a colon stays plain inline code');
     await chrome.evaluate(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"]').click()`);
     await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"]').getAttribute('aria-expanded') === 'true'`);
-    await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"] + .code')?.textContent.includes('Demo spec')`);
-    assert.match(await chrome.evaluate(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"] + .code')?.textContent || ''`), /Demo spec/, 'the original code preview still opens its referenced lines');
+    await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"] + .code-ref .code-wrap > .code')?.textContent.includes('Demo spec')`);
+    assert.match(await chrome.evaluate(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"] + .code-ref .code-wrap > .code')?.textContent || ''`), /Demo spec/, 'the original code preview still opens its referenced lines');
     assert.match(rendered.askHtml, /<code class="inline cmd(?: long" title="pullboard shout --decision)?">pullboard shout --decision<\/code>/, 'needs-you uses the same code renderer');
     assert.equal(rendered.askNestedButtons, 0, 'formatted text in an ask cannot nest interactive controls');
     assert.equal(rendered.needsNestedButtons, 0, 'needs-you keeps its button markup valid');
@@ -4488,6 +4739,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
   const longChips = `Ran \`${longCommand}\` on ${longPath} and ${longerPath} today.`;
   const sourceRefs = [`SPEC.md:1-2@${head}`, `${deep}:1@${head}`];
   const refsShout = `Check ${sourceRefs[0]} and ${sourceRefs[1]} before you merge.`;
+  const blockShout = `Evidence for the page:\n${sourceRefs[0]}`;
   const twoDays = new Date(); twoDays.setDate(twoDays.getDate() - 2); twoDays.setHours(12, 0, 0, 0);
   earlier(alpha.repo, twoDays, (board) => shoutOnBoard(board, { from: 'web-1', to: 'coordinator', text: older, lanes: ['web'] }));
   earlier(alpha.repo, Date.now() - 65 * 60e3, (board) => shoutOnBoard(board, { from: 'web-2', to: 'coordinator', text: colour, decision: true, lanes: ['web'] }));
@@ -4499,6 +4751,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
   box.run(alpha.web, 'shout', 'all', mixed, '--evidence', 'receipt', '--outcome', 'moved', '--item', '1', '--commit', head);
   box.run(alpha.web, 'shout', 'all', longChips);
   box.run(alpha.web, 'shout', 'all', refsShout);
+  box.run(alpha.web, 'shout', 'all', blockShout);
   box.run(alpha.repo, 'shout', 'person', 'Launch on Friday?', '--decision');
   box.run(alpha.web, 'shout', 'all', long);
 
@@ -4507,7 +4760,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 11');
+    await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 12');
     await chrome.evaluate("document.querySelector('[data-tab=shouts]').click()");
     await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
     const ids = JSON.parse(await chrome.evaluate('JSON.stringify(Object.fromEntries(data.project.shouts.map((s) => [s.shout_text, s.shout_id])))'));
@@ -4549,6 +4802,13 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
           const c = e.getBoundingClientRect(), t = e.closest('.text').getBoundingClientRect();
           return { text: e.textContent, title: e.title, rects: e.getClientRects().length, inside: c.left >= t.left - 0.5 && c.right <= t.right + 0.5, cut: e.scrollWidth > e.clientWidth + 1, ends: getComputedStyle(e).textOverflow };
         }),
+        block: (() => {
+          const b = document.querySelector('#feed #shout-${ids[blockShout]} .text .code-ref > button.ref.block');
+          if (!b) return null;
+          const c = b.getBoundingClientRect(), t = b.closest('.text').getBoundingClientRect(), edge = getComputedStyle(b.parentElement);
+          return { label: b.textContent, height: c.height, full: Math.abs(c.width - t.width) < 3, caret: (() => { const k = getComputedStyle(b, '::before'); return k.content === 'none' || k.content === 'normal' || !(parseFloat(k.width) > 0) ? 'none' : k.clipPath.startsWith('polygon') ? 'drawn' : 'unshaped'; })(),
+            edges: [edge.borderLeftWidth, edge.borderLeftColor].join() === [edge.borderRightWidth, edge.borderRightColor].join() };
+        })(),
         refs: [...document.querySelectorAll('#feed #shout-${ids[refsShout]} .text button[data-code]')].map((e) => {
           const c = e.getBoundingClientRect(), t = e.closest('.text').getBoundingClientRect(), path = e.querySelector('.ref-path'), tail = e.querySelector('.ref-at').getBoundingClientRect();
           return { text: e.textContent, title: e.title, code: e.dataset.code, rects: e.getClientRects().length, inside: c.left >= t.left - 0.5 && c.right <= t.right + 0.5,
@@ -4606,6 +4866,9 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
         assert.deepEqual(r.refs.map((c) => [c.text, c.title, c.code, c.rects, c.inside, c.tail]), sourceRefs.map((ref) => [ref.replace(head, head.slice(0, 10)), ref, ref, 1, true, true]),
           `${at}: each code reference is one piece with its lines and short commit in view: ${JSON.stringify(r.refs)}`);
         if (width === 375) assert.ok(r.refs[1].cut && r.refs[1].ends === 'ellipsis', `${at}: a path too long for the line is cut short first: ${JSON.stringify(r.refs)}`);
+        // A reference on a line of its own is a block, collapsed: a caret header the width of the text, no coloured edge.
+        assert.deepEqual(r.block && [r.block.label, r.block.height >= 44, r.block.full, r.block.caret, r.block.edges], [sourceRefs[0].replace(head, head.slice(0, 10)), true, true, 'drawn', true],
+          `${at}: a whole-line reference is a collapsed block: ${JSON.stringify(r.block)}`);
 
         // Decisions: a band until answered, then who answered and a link to the answer.
         assert.deepEqual(asking.band, { text: 'Decision needed', done: false, href: null }, `${at}: an open ask carries a Decision needed band`);
@@ -4647,10 +4910,26 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
     await chrome.evaluate(`document.querySelector('#feed #shout-${ids[long]} .more').click()`);
     assert.deepEqual(await foldOf(), ['more', 6], 'less folds it again');
 
+    // The block opens on its header to the lines it names, in its own frame.
+    const blockRef = `document.querySelector('#feed #shout-${ids[blockShout]} .code-ref > button.ref.block')`;
+    await chrome.evaluate(`${blockRef}.click()`);
+    await chrome.waitFor(`${blockRef}.parentElement.classList.contains('open') && ${blockRef}.getAttribute('aria-expanded') === 'true' && ${blockRef}.parentElement.querySelector('.code-wrap .code')?.textContent.includes('Demo spec')`, 15_000);
+
     // The short label still opens the code it names, at that commit.
     const deepRef = `[...document.querySelectorAll('#feed #shout-${ids[refsShout]} button[data-code]')][1]`;
     await chrome.evaluate(`${deepRef}.click()`);
     await chrome.waitFor(`${deepRef}.getAttribute('aria-expanded') === 'true' && ${deepRef}.nextElementSibling?.textContent.includes('Deep line one')`, 15_000);
+    // An inline reference keeps its label in the sentence and opens the same block a reference on its own line is.
+    const opened = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      const inline = ${deepRef}, block = inline.nextElementSibling, header = block?.querySelector(':scope > button.ref.block');
+      const standalone = document.querySelector('#feed #shout-${ids[blockShout]} .code-ref.open');
+      return { label: !inline.classList.contains('block') && inline.textContent, next: block?.className, header: header && [header.dataset.code, header.textContent, header.getAttribute('aria-expanded')],
+        lines: block?.querySelector(':scope > .code-wrap .code')?.textContent.includes('Deep line one'),
+        shape: block && [...block.children].map((e) => e.className), standalone: standalone && [...standalone.children].map((e) => e.className) };
+    })())`));
+    assert.deepEqual([opened.next, opened.header, opened.lines], ['code-ref open', [sourceRefs[1], opened.label, 'true'], true],
+      `an inline reference opens the collapsed block with its own header, under its label: ${JSON.stringify(opened)}`);
+    assert.deepEqual(opened.shape, opened.standalone, 'the same block a reference on its own line opens to');
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
@@ -4696,12 +4975,13 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
       const pane = document.querySelector('[data-pane=shouts]'), list = document.querySelector('#agents');
       return {
         page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth },
-        listed: [...list.querySelectorAll('.agent-name')].map((e) => e.dataset.agent), on: [...list.querySelectorAll('.agent.on .agent-name')].map((e) => e.dataset.agent),
+        listed: [...list.querySelectorAll('[data-agent]')].map((e) => e.dataset.agent), on: [...list.querySelectorAll('.agent-card.on [data-agent], .agent-pill.on')].map((e) => e.dataset.agent),
         all: list.querySelector('.all-agents')?.textContent ?? null, panel: list.offsetParent !== null, bare: pane.classList.contains('bare'),
         toggle: document.querySelector('#feed [data-agents-toggle]')?.textContent, bar: document.querySelector('#feed .feed-bar span')?.textContent ?? '',
         cards: [...document.querySelectorAll('#feed .shout')].map((c) => [c.querySelector('.who').textContent, c.querySelector('.to').textContent.replace('→ ', '')]),
         to: document.querySelector('#shout-to').value, feed: box(document.querySelector('#feed')),
-        composer: box(document.querySelector('.composer')), label: box(document.querySelector('.composer label.to')), message: box(document.querySelector('#shout-text')), send: box(document.querySelector('#shout-send')),
+        composer: box(document.querySelector('.composer')), message: box(document.querySelector('#shout-text')), send: box(document.querySelector('#shout-send')),
+        pickers: [...document.querySelectorAll('.composer select, .composer datalist, .composer input')].filter((e) => e.type !== 'hidden').length,
         kept: (() => { try { return localStorage.getItem('pb.agents'); } catch { return 'unreadable'; } })(),
       };
     })())`));
@@ -4716,9 +4996,9 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
         const at = `${width}px ${scheme}`;
         const s = await state();
         assert.ok(s.page.scroll <= s.page.width && s.page.body <= s.page.width, `${at}: no sideways scroll: ${JSON.stringify(s.page)}`);
-        // One bar: to on the left, the message, the send button on the right, all in one row.
-        for (const part of ['label', 'message', 'send']) assert.ok(s[part].top >= s.composer.top - 0.5 && s[part].bottom <= s.composer.bottom + 0.5, `${at}: the ${part} sits inside the composer bar: ${JSON.stringify(s)}`);
-        assert.ok(s.label.right <= s.message.left + 0.5 && s.message.right <= s.send.left + 0.5 && s.composer.right - s.send.right < 12, `${at}: to, message, send from left to right: ${JSON.stringify(s)}`);
+        // One bar: the message, the send button on the right, in one row; no recipient picker.
+        for (const part of ['message', 'send']) assert.ok(s[part].top >= s.composer.top - 0.5 && s[part].bottom <= s.composer.bottom + 0.5, `${at}: the ${part} sits inside the composer bar: ${JSON.stringify(s)}`);
+        assert.ok(s.pickers === 0 && s.message.right <= s.send.left + 0.5 && s.composer.right - s.send.right < 12, `${at}: the message, then send: ${JSON.stringify(s)}`);
         assert.ok(s.send.width >= 44 && s.send.height >= 44, `${at}: the send button is a 44px target`);
         // Only agents at work are listed, with show all.
         assert.ok(s.panel && s.listed.includes('web-1') && s.listed.includes('web-3') && !s.listed.includes('web-2'), `${at}: the agents at work, and not the idle one: ${s.listed}`);
@@ -4738,11 +5018,11 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
     assert.deepEqual([s.bar, s.to, s.on], ['Shouts with web-2 show all', 'web-2', ['web-2']], 'the bar says whose, the composer is addressed to them, and the agent is marked');
     await click('#feed .feed-bar [data-agent=""]');
     s = await state();
-    assert.deepEqual([s.cards.length, s.bar, s.on], [total, '', []], 'show all undoes the filter');
+    assert.deepEqual([s.cards.length, s.bar, s.on, s.to], [total, '', [], 'coordinator'], 'show all undoes the filter, and the composer goes back to the coordinator');
     await click('#agents .all-agents');
 
     // The message grows as it is typed; Shift+Enter starts a line, Enter sends.
-    await chrome.evaluate("document.querySelector('#shout-to').value = 'all'; document.querySelector('#shout-text').focus()");
+    await chrome.evaluate("document.querySelector('#shout-text').focus()");
     const height = () => chrome.evaluate("document.querySelector('#shout-text').getBoundingClientRect().height");
     const one = await height();
     await chrome.send('Input.insertText', { text: 'First line' });
@@ -4754,7 +5034,7 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
     assert.ok(await height() > one + 20, 'the message grows as it is typed');
     assert.equal(await chrome.evaluate('data.project.shouts.length'), total, 'and sends nothing');
     await key(0);
-    await chrome.waitFor("data.project.shouts.some((s) => s.shout_text === 'First line\\nsecond line\\nthird line' && s.shout_to === 'all')", 15_000);
+    await chrome.waitFor("data.project.shouts.some((s) => s.shout_text === 'First line\\nsecond line\\nthird line' && s.shout_to === 'coordinator')", 15_000);
     await chrome.waitFor("document.querySelector('#shout-text').value === ''");
     assert.ok(Math.abs(await height() - one) < 1, 'Enter sends, and the bar shrinks back to one line');
     assert.ok(await chrome.evaluate("!document.querySelector('#console').hidden && !document.querySelector('.composer #console') && document.querySelector('#console').getBoundingClientRect().bottom <= document.querySelector('.composer').getBoundingClientRect().top"),
@@ -4780,6 +5060,199 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
     s = await state();
     assert.deepEqual([s.bare, s.panel, s.toggle, s.kept], [false, true, 'Hide agents', 'shown'], 'Show agents brings it back');
     assert.ok(s.feed.width < wide, 'and the feed gives it room');
+    assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+test('the agents panel is rows for work and pills for idle [N26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for rendered agent checks.');
+
+  const box = machine();
+  const alpha = project(box, 'roster');
+  for (const title of ['Header', 'Footer']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
+  // web-1 waits on a verdict for #2 and builds #1: two things, the claim first.
+  build(box, alpha, 2, 'footer.html');
+  box.run(alpha.web, 'claim', '1');
+  const second = join(box.dir, 'roster-web-2'), gone = join(box.dir, 'roster-web-3');
+  box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/roster2');
+  box.run(second, 'join', 'web');
+  box.git(alpha.repo, 'worktree', 'add', '-q', gone, '-b', 'web/roster3');
+  // web-3 joined three hours ago and has not moved since: not at work, so behind show all.
+  earlier(alpha.repo, Date.now() - 3 * 36e5, (board) => assert.equal(register(board, { lane: 'web', path: gone }), 'web-3'));
+  box.run(alpha.web, 'shout', 'coordinator', 'Header is under way.');
+  box.run(second, 'shout', 'coordinator', 'Free when you need me.');
+
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-roster-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor('typeof data !== "undefined" && data?.project?.agents?.length >= 4 && data.project.shouts.length >= 2');
+    await chrome.evaluate("document.querySelector('[data-tab=shouts]').click()");
+    await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #agents [data-agent]")');
+    const agents = await chrome.evaluate('data.project.agents.length');
+    /** The panel as it reads: each row and pill, measured where it stands. */
+    const panel = async () => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      const box = (e) => { const r = e.getBoundingClientRect(); return { height: r.height, width: r.width }; };
+      const list = document.querySelector('#agents');
+      return {
+        page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth },
+        rows: [...list.querySelectorAll('.agent-card')].map((card) => {
+          const row = card.querySelector('.agent-row');
+          return { id: row.dataset.agent, text: row.innerText.replace(/\\s+/g, ' ').trim(), title: row.title, height: box(row).height, on: card.classList.contains('on'),
+            face: getComputedStyle(row.querySelector('.avatar')).color, name: getComputedStyle(row.querySelector('.agent-who b')).color,
+            work: [...card.querySelectorAll('.agent-work[data-item]')].map((work) => [work.dataset.item, box(work).height]) };
+        }),
+        pills: [...list.querySelectorAll('.agent-pill')].map((pill) => ({ id: pill.dataset.agent, title: pill.title, height: box(pill).height, on: pill.classList.contains('on') })),
+        idle: list.querySelector('.agents-label')?.textContent ?? null, all: list.querySelector('.all-agents')?.textContent ?? null, height: box(list).height,
+        chip: document.querySelector('#shout-to-chip').hidden ? null : document.querySelector('#shout-to-chip').textContent, to: document.querySelector('#shout-to').value,
+        cards: [...document.querySelectorAll('#feed .shout')].map((card) => [card.querySelector('.who').textContent, card.querySelector('.to').textContent.replace('→ ', '')]),
+      };
+    })())`));
+
+    for (const scheme of ['light', 'dark']) {
+      for (const width of [1280, 375]) {
+        await shoutsAt(chrome, width, scheme);
+        const at = `${width}px ${scheme}`;
+        const p = await panel();
+        assert.ok(p.page.scroll <= p.page.width && p.page.body <= p.page.width, `${at}: no sideways scroll: ${JSON.stringify(p.page)}`);
+        // The agent holding work is one row: avatar, name, age, its first thing with that item's state, and how many more.
+        assert.deepEqual(p.rows.map((row) => row.id), ['web-1'], `${at}: only an agent holding work takes a row`);
+        const [row] = p.rows;
+        assert.match(row.text, /^W1 web-1 (?:now|\d+[mhd]) #1 Header building \+1$/, `${at}: what the row says: ${row.text}`);
+        assert.equal(row.face, row.name, `${at}: the name is in its avatar's colour, as in the feed`);
+        assert.ok(row.height >= 44, `${at}: the row is a 44px target`);
+        assert.ok(!/strong/.test(row.text) && row.title.includes('web · strong') && row.title.includes(alpha.web), `${at}: lane, route and path are on hover, not in the row: ${row.title}`);
+        // Agents holding nothing are pills under Idle; one that has not moved in the last hour waits behind show all.
+        assert.deepEqual([p.idle, p.pills.map((pill) => pill.id)], ['Idle', ['coordinator', 'web-2']], `${at}: the idle agents are pills`);
+        assert.ok(p.pills.every((pill) => pill.height >= 44 && pill.title.includes(' · ')), `${at}: each pill a 44px target with its lane on hover`);
+        assert.equal(p.all, `show all ${agents}`, `${at}: every agent one click away`);
+        assert.ok(p.height < 260, `${at}: four agents take little room: ${p.height}px`);
+      }
+    }
+
+    // A row filters the feed to that agent and addresses the composer to it, and opens to each thing it holds.
+    await shoutsAt(chrome, 1280, 'light');
+    await chrome.evaluate(`document.querySelector('#agents .agent-row[data-agent="web-1"]').click()`);
+    let p = await panel();
+    assert.deepEqual([p.rows[0].on, p.rows[0].work.map(([id]) => id), p.chip, p.to, p.cards], [true, ['1', '2'], 'to web-1×', 'web-1', [['web-1', 'coordinator']]],
+      `the picked row opens to what it holds, the feed shows its shouts and the composer is addressed to it: ${JSON.stringify(p)}`);
+    assert.ok(p.rows[0].work.every(([, height]) => height >= 44), 'each thing it holds is a 44px target');
+    // A pill does the same.
+    await chrome.evaluate(`document.querySelector('#agents .agent-pill[data-agent="web-2"]').click()`);
+    p = await panel();
+    assert.deepEqual([p.pills.find((pill) => pill.id === 'web-2').on, p.chip, p.cards], [true, 'to web-2×', [['web-2', 'coordinator']]], 'a pill filters and addresses too');
+    // And a thing an agent holds opens its item.
+    await chrome.evaluate(`document.querySelector('#agents .agent-row[data-agent="web-1"]').click()`);
+    await chrome.evaluate(`document.querySelector('#agents .agent-work[data-item="2"]').click()`);
+    await chrome.waitFor(`!document.querySelector('[data-pane=items]').hidden && document.querySelector('#detail h2')?.textContent.includes('Footer')`);
+    assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
+test('the composer goes to the coordinator and says who heard [N26]', { timeout: 120_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for rendered composer checks.');
+
+  const box = machine();
+  // A docs lane nobody has joined: a shout to it reaches no agent.
+  const alpha = project(box, 'heard', SPEC, { lanes: { web: { owns: ['web/'], specs: ['G'] }, docs: { owns: ['docs/'], specs: ['G'] } } });
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  box.run(alpha.web, 'shout', 'coordinator', 'Starting on the greeting.');
+  earlier(alpha.repo, Date.now(), (board) => shoutOnBoard(board, { from: 'person', to: 'docs', text: 'Docs, anyone?', lanes: ['web', 'docs'] }));
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-heard-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 1');
+    await chrome.evaluate("document.querySelector('[data-tab=shouts]').click()");
+    await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
+    /** The composer and every shout of the person's, with what its Heard line says. */
+    const read = async () => JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+      const chip = document.querySelector('#shout-to-chip'), clear = chip.querySelector('[data-to-clear]');
+      return {
+        page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth },
+        pickers: [...document.querySelectorAll('.composer select, .composer datalist, .composer input')].filter((e) => e.type !== 'hidden').length,
+        to: document.querySelector('#shout-to').value, placeholder: document.querySelector('#shout-text').placeholder,
+        chip: chip.hidden ? null : chip.textContent, clear: clear ? [clear.getBoundingClientRect().width, clear.getBoundingClientRect().height] : null,
+        heard: [...document.querySelectorAll('#feed .shout')].filter((card) => card.querySelector('.heard')).map((card) => {
+          const line = card.querySelector('.heard');
+          return [card.querySelector('.text').textContent, line.lastChild.textContent, line.querySelectorAll('.heard-face').length, line.title];
+        }),
+      };
+    })())`));
+    const key = async () => {
+      for (const type of ['keyDown', 'keyUp']) await chrome.send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, ...(type === 'keyDown' ? { text: '\r', unmodifiedText: '\r' } : {}) });
+    };
+    const heardOf = (text) => `[...document.querySelectorAll('#feed .shout')].find((card) => card.querySelector('.text').textContent === ${JSON.stringify(text)})?.querySelector('.heard')?.lastChild.textContent`;
+
+    for (const scheme of ['light', 'dark']) {
+      for (const width of [1280, 375]) {
+        await shoutsAt(chrome, width, scheme);
+        const at = `${width}px ${scheme}`;
+        const r = await read();
+        assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll`);
+        assert.deepEqual([r.pickers, r.to, r.placeholder, r.chip], [0, 'coordinator', 'Shout to the coordinator', null], `${at}: no recipient picker; a shout goes to the coordinator, and says so`);
+        // A shout to a lane no agent has joined reached no one, so it has not been heard.
+        assert.deepEqual(r.heard.find(([text]) => text === 'Docs, anyone?')?.slice(1), ['Not heard yet', 0, ''], `${at}: a shout that reached no agent says Not heard yet`);
+        // A picked agent's chip has an x that is a 44px square target; picking the agent again puts it back.
+        await chrome.evaluate(`document.querySelector('#agents [data-agent="web-1"]').click()`);
+        const picked = await read();
+        assert.ok(picked.chip === 'to web-1×' && picked.clear[0] >= 44 && picked.clear[1] >= 44, `${at}: the chip's x is 44 by 44: ${JSON.stringify(picked.clear)}`);
+        await chrome.evaluate(`document.querySelector('#agents [data-agent="web-1"]').click()`);
+        assert.equal((await read()).chip, null, `${at}: picking the agent again returns the composer to the coordinator`);
+      }
+    }
+
+    // The person shouts with Enter: it goes to the coordinator, and says it is not heard until the coordinator reads it.
+    await shoutsAt(chrome, 1280, 'light');
+    await chrome.evaluate("document.querySelector('#shout-text').focus()");
+    await chrome.send('Input.insertText', { text: 'Ship the greeting?' });
+    await key();
+    await chrome.waitFor("data.project.shouts.some((s) => s.shout_from === 'person' && s.shout_to === 'coordinator' && s.shout_text === 'Ship the greeting?')", 15_000);
+    await chrome.waitFor(`${heardOf('Ship the greeting?')} === 'Not heard yet'`, 15_000);
+    box.run(alpha.repo, 'inbox');
+    await chrome.waitFor(`${heardOf('Ship the greeting?')} === 'Heard by coordinator'`, 15_000);
+    // A shout that reaches everyone says who of them has read it: the coordinator first, then how many agents.
+    // (The person reaches every agent through the relay's requests; here the board records one directly.)
+    earlier(alpha.repo, Date.now(), (board) => shoutOnBoard(board, { from: 'person', to: 'all', text: 'Hold the merge, please.', lanes: ['web'] }));
+    await chrome.waitFor("data.project.shouts.some((s) => s.shout_from === 'person' && s.shout_to === 'all')", 15_000);
+    box.run(alpha.repo, 'inbox');
+    box.run(alpha.web, 'inbox');
+    await chrome.waitFor(`${heardOf('Hold the merge, please.')} === 'Heard by coordinator and 1 agent'`, 15_000);
+    const all = (await read()).heard.find(([text]) => text === 'Hold the merge, please.');
+    assert.deepEqual(all.slice(2), [2, 'Heard by coordinator, web-1'], 'with their avatars, and every name on hover');
+
+    // Picking an agent addresses the composer to it; the chip's x returns it to the coordinator.
+    await chrome.evaluate(`document.querySelector('#agents [data-agent="web-1"]').click()`);
+    let r = await read();
+    assert.deepEqual([r.chip, r.to, r.placeholder], ['to web-1×', 'web-1', 'Shout to web-1'], 'a picked agent shows as a chip');
+    assert.ok(r.clear[0] >= 44 && r.clear[1] >= 44, 'whose x is a 44px square target');
+    await chrome.evaluate(`document.querySelector('#shout-to-chip [data-to-clear]').click()`);
+    r = await read();
+    assert.deepEqual([r.chip, r.to, r.placeholder], [null, 'coordinator', 'Shout to the coordinator'], 'the x returns it to the coordinator');
+    // An item's Shout button addresses its lane the same way.
+    await chrome.evaluate("document.querySelector('[data-tab=items]').click()");
+    await chrome.waitFor('!!document.querySelector("#chain [data-item=\\"1\\"]")');
+    await chrome.evaluate(`document.querySelector('#chain [data-item="1"]').click()`);
+    await chrome.waitFor('!!document.querySelector("#detail [data-shout]")');
+    await chrome.evaluate(`document.querySelector('#detail [data-shout]').click()`);
+    await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden");
+    for (const width of [375, 1280]) {
+      await shoutsAt(chrome, width, 'dark');
+      r = await read();
+      assert.deepEqual([r.chip, r.to], ['to web×', 'web'], `${width}px dark: an item's Shout button names its lane on the chip`);
+      assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${width}px dark: no sideways scroll with the chip`);
+    }
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
@@ -4954,6 +5427,7 @@ test('in-text item references stay inline and open their target at phone and des
       for (const section of ['agents', 'spec', 'doctrine']) {
         if (section === 'agents') {
           await chrome.evaluate(`document.querySelector('[data-tab="shouts"]').click()`);
+          await chrome.evaluate("(() => { const item = data.project.items.find((i) => i.id === 2); const who = item.owner || item.reviewer || item.builtBy; if (!document.querySelector('#agents .agent-card.on [data-agent=\"' + who + '\"]')) document.querySelector('#agents [data-agent=\"' + who + '\"]').click(); })()");
           await chrome.waitFor('document.querySelector("#agents [data-item=\\"2\\"]")');
         } else {
           await chrome.evaluate(`document.querySelector('[data-tab="${section}"]').click()`);

@@ -1,6 +1,7 @@
 /** Exercise the deploy smoke script against a private loopback relay [H5,H18]. */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { startFixtureChild as spawn, reportFixtureChildFailure, safeFixtureDiagnostic } from './fixture-child.js';
+import { performance } from 'node:perf_hooks';
 import { createServer } from 'node:http';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, copyFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -62,9 +63,19 @@ function copiedServer(t, image, port, provider) {
   };
   mkdirSync(env.HOME, { recursive: true, mode: 0o700 });
   t.after(() => rmSync(privateHome, { recursive: true, force: true }));
-  const child = spawn(process.execPath, [join(image, 'relay/server.mjs')], { cwd: image, env, stdio: ['ignore', 'ignore', 'ignore'] });
+  const command = process.execPath;
+  const args = [join(image, 'relay/server.mjs')];
+  const started = performance.now();
+  const child = spawn(command, args, { cwd: image, env, stdio: ['ignore', 'ignore', 'pipe'] });
+  let stderr = '';
+  child.stderr.setEncoding('utf8').on('data', part => { stderr += part; });
+  child.once('close', (status, signal) => {
+    if (child.fixtureExpectedStop || (status === 0 && !signal)) return;
+    child.fixtureFailure = reportFixtureChildFailure({ command, args, status, signal, elapsedMs: performance.now() - started, stderr, env });
+  });
   t.after(async () => {
     if (child.exitCode !== null || child.signalCode !== null) return;
+    child.fixtureExpectedStop = true;
     child.kill('SIGTERM');
     if (await childClosesWithin(child, 5000)) return;
     child.kill('SIGKILL');
@@ -125,22 +136,37 @@ function setting(text, pattern, description) {
 /** Run the checked-in smoke script in a private real repository without retaining its output. */
 function runSmoke(box, address) {
   return new Promise((resolveResult, reject) => {
-    const child = spawn(process.execPath, [SMOKE, address], { cwd: box.root, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const command = process.execPath;
+    const args = [SMOKE, address];
+    const started = performance.now();
+    const child = spawn(command, args, { cwd: box.root, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
+    let stderr = '';
     let safeFailure = '';
-    const timer = setTimeout(() => child.kill('SIGKILL'), 90_000);
     child.stdout.setEncoding('utf8').on('data', (part) => { stdout += part; });
     child.stderr.setEncoding('utf8').on('data', (part) => {
+      stderr += part;
       const line = part.split('\n').find((entry) => entry.startsWith('relay smoke failed:'));
-      if (line) safeFailure = line;
+      if (line) safeFailure = safeFixtureDiagnostic(line, box.env);
     });
-    child.once('error', (error) => { clearTimeout(timer); reject(error); });
+    child.once('error', (error) => {
+      reportFixtureChildFailure({ command, args, status: null, signal: null, elapsedMs: performance.now() - started, stderr, env: box.env, detail: error.message });
+      reject(error);
+    });
     child.once('close', (code, signal) => {
-      clearTimeout(timer);
-      if (signal) return reject(new Error('private relay deployment smoke did not complete'));
-      if (code !== 0) return resolveResult({ code, failure: safeFailure });
+      if (signal) {
+        const failure = reportFixtureChildFailure({ command, args, status: code, signal, elapsedMs: performance.now() - started, stderr, env: box.env, detail: safeFailure || 'smoke process ended before producing a safe summary' });
+        return reject(new Error(failure));
+      }
+      if (code !== 0) {
+        const failure = reportFixtureChildFailure({ command, args, status: code, signal, elapsedMs: performance.now() - started, stderr, env: box.env, detail: safeFailure });
+        return resolveResult({ code, failure });
+      }
       try { resolveResult({ code, result: JSON.parse(stdout) }); }
-      catch { reject(new Error('private relay deployment smoke did not return its safe summary')); }
+      catch (error) {
+        const failure = reportFixtureChildFailure({ command, args, status: code, signal, elapsedMs: performance.now() - started, stderr, env: box.env, detail: `smoke produced invalid safe summary: ${error.message}` });
+        reject(new Error(failure));
+      }
     });
   });
 }
@@ -282,10 +308,18 @@ test('[H5,H18] the container entry point serves readiness and stays available', 
     GITHUB_APP_CLIENT_SECRET: provider.config.clientSecret,
     GITHUB_APP_PRIVATE_KEY: provider.config.privateKey,
   };
-  const child = spawn(process.execPath, [SERVER], { cwd: resolve(import.meta.dirname, '..'), env, stdio: ['ignore', 'ignore', 'pipe'] });
-  child.stderr.resume();
+  const command = process.execPath;
+  const args = [SERVER];
+  const started = performance.now();
+  const child = spawn(command, args, { cwd: resolve(import.meta.dirname, '..'), env, stdio: ['ignore', 'ignore', 'pipe'] });
+  let stderr = '';
+  child.stderr.setEncoding('utf8').on('data', part => { stderr += part; });
+  child.once('close', (status, signal) => {
+    if (child.fixtureExpectedStop || (status === 0 && !signal)) return;
+    child.fixtureFailure = reportFixtureChildFailure({ command, args, status, signal, elapsedMs: performance.now() - started, stderr, env });
+  });
   t.after(async () => {
-    if (child.exitCode === null) child.kill('SIGTERM');
+    if (child.exitCode === null) { child.fixtureExpectedStop = true; child.kill('SIGTERM'); }
     if (child.exitCode === null) await new Promise((ready) => {
       const timer = setTimeout(() => { child.kill('SIGKILL'); ready(); }, 5000);
       child.once('close', () => { clearTimeout(timer); ready(); });

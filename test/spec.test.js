@@ -2,7 +2,7 @@
  * The spec (S1–S5): parsing SPEC.md rows, the lint, the frozen criterion and sign-offs.
  */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -144,8 +144,8 @@ test('spec check lists primary-branch collisions as known warnings [A5]', (t) =>
 test('spec check uses the retained trunk after its coordinator checkout detaches [A5]', (t) => {
   const practice = '# Practice\n\n## P\n- P1 [draft] A local rule.\n';
   const box = specBox(t, { practice });
-  const gitAt = (cwd, ...args) => execFileSync('git', args, { cwd, env: box.env, encoding: 'utf8', stdio: 'pipe' });
-  const runAt = (cwd, ...args) => spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args], {
+  const gitAt = (cwd, ...args) => runFixtureGit(args, { cwd, env: box.env, encoding: 'utf8', stdio: 'pipe' });
+  const runAt = (cwd, ...args) => runFixtureChild(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args], {
     cwd, env: box.env, encoding: 'utf8',
   });
   gitAt(box.root, 'branch', '-m', 'trunk');
@@ -194,8 +194,8 @@ test('a grammar-1 repair can commit after grammar 2 was already recorded [A5,S8]
     GIT_COMMITTER_EMAIL: 'agent@example.com',
     PULLBOARD_HOME: join(root, '.home'),
   };
-  const git = (...args) => execFileSync('git', args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' });
-  const command = (...args) => spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args], { cwd: root, env, encoding: 'utf8' });
+  const git = (...args) => runFixtureGit(args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' });
+  const command = (...args) => runFixtureChild(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args], { cwd: root, env, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Test Agent');
   git('config', 'user.email', 'agent@example.com');
@@ -369,8 +369,8 @@ function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md', practi
   delete env.PULLBOARD_RELAY_TOKEN;
   // These isolated signoff fixtures model the same person terminal as the suite runner.
   for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
-  const git = (...args) => execFileSync('git', args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' });
-  const command = (...args) => spawnSync(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args], { cwd: root, env, encoding: 'utf8' });
+  const git = (...args) => runFixtureGit(args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' });
+  const command = (...args) => runFixtureChild(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args], { cwd: root, env, encoding: 'utf8' });
   const run = (...args) => command('spec', ...args);
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Test Agent');

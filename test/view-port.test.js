@@ -1,6 +1,6 @@
 /** Keep the view's exact named-port refusal covered in a core-owned file [N26]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { runFixtureChild } from './fixture-child.js';
 import { createServer } from 'node:net';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -24,8 +24,8 @@ test("a named port that is busy is refused with the way out, not a stack trace [
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
   };
-  const result = spawnSync(process.execPath, [BIN, 'view', '--no-open', '--port', String(port)], {
-    cwd: dir, env, encoding: 'utf8', timeout: 20000,
+  const result = runFixtureChild(process.execPath, [BIN, 'view', '--no-open', '--port', String(port)], {
+    cwd: dir, env, encoding: 'utf8',
   });
   assert.equal(result.status, 1, `a refusal, not a crash or a hang: ${result.stderr}`);
   assert.equal(result.stderr.trim(), `pullboard: [PORT_BUSY] port ${port} is in use: name another with --port, or leave --port out to take any free one`);

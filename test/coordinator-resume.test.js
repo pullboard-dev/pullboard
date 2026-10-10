@@ -1,6 +1,6 @@
 /** Keep the coordinator's handoff brief short, ordered, and derived from real Git and board state [N19,B3]. */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { DatabaseSync } from 'node:sqlite';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -37,11 +37,11 @@ function fixture() {
   const repo = join(dir, 'repo');
   mkdirSync(repo);
   /** Run Git in this private fixture with its isolated identity. */
-  const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   /** Run the actual CLI in a fixture checkout and retain both output streams. */
   const run = (cwd, ...args) => {
-    const result = spawnSync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8', timeout: 90_000 });
-    return { code: result.status, out: result.stdout ?? '', err: result.stderr ?? '' };
+    const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+    return { code: result.status, out: result.stdout ?? '', err: result.failure ?? result.stderr ?? '', failure: result.failure };
   };
   git(repo, 'init', '-q', '-b', 'main');
   assert.equal(run(repo, 'init').code, 0);
@@ -73,7 +73,7 @@ function commit(git, cwd, message) {
 
 /** Ask real Git whether one fixture commit contains another. */
 function isAncestor(box, cwd, ancestor, commitId) {
-  return spawnSync('git', ['merge-base', '--is-ancestor', ancestor, commitId], { cwd, env: box.env }).status === 0;
+  return runFixtureChild('git', ['merge-base', '--is-ancestor', ancestor, commitId], { cwd, env: box.env }).status === 0;
 }
 
 /** Add a separately joined strong builder so each item's accepted commit has an isolated branch. */

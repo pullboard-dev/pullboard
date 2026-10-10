@@ -1,6 +1,7 @@
 /** Registry metadata, refresh, pruning and forgetting (N33, N35, N36). */
 import assert from 'node:assert/strict';
-import { execFileSync, spawn } from 'node:child_process';
+import { startFixtureChild as spawn, reportFixtureChildFailure, runFixtureGit } from './fixture-child.js';
+import { performance } from 'node:perf_hooks';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
@@ -18,7 +19,7 @@ import { forgetProject, listProjects, registerProject, registryFile } from '../s
 function makeRepo(parent, name) {
   const root = join(parent, name);
   mkdirSync(root, { recursive: true });
-  execFileSync('git', ['init', '--quiet', root]);
+  runFixtureGit(['init', '--quiet', root]);
   return root;
 }
 
@@ -79,9 +80,12 @@ test('registry uses validated repo labels, refreshes metadata, prunes missing ro
  * @returns {{ child: import('node:child_process').ChildProcess, ready: Promise<void>, exited: Promise<{ code: number | null, signal: NodeJS.Signals | null, stderr: string }> }}
  */
 function startNode(args, env) {
-  const child = spawn(process.execPath, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const command = process.execPath;
+  const started = performance.now();
+  const child = spawn(command, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
   let stderr = '';
   let announcedReady = false;
+  let failureReported = false;
   let resolveReady;
   let rejectReady;
   const ready = new Promise((resolvePromise, rejectPromise) => {
@@ -95,10 +99,18 @@ function startNode(args, env) {
     }
   });
   child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk; });
-  child.on('error', (error) => rejectReady(error));
+  child.on('error', (error) => {
+    failureReported = true;
+    reportFixtureChildFailure({ command, args, status: null, signal: null, elapsedMs: performance.now() - started, stderr, env, detail: error.message });
+    rejectReady(error);
+  });
   const exited = new Promise((resolvePromise, rejectPromise) => {
     child.on('error', rejectPromise);
     child.on('close', (code, signal) => {
+      if ((code !== 0 || signal) && !failureReported) {
+        failureReported = true;
+        reportFixtureChildFailure({ command, args, status: code, signal, elapsedMs: performance.now() - started, stderr, env, detail: announcedReady ? '' : 'child exited before ready' });
+      }
       if (!announcedReady) rejectReady(new Error(`child exited before ready (${code ?? signal}): ${stderr}`));
       resolvePromise({ code, signal, stderr });
     });
