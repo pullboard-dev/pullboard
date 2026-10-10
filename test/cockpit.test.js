@@ -7154,3 +7154,138 @@ test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 15
     await view.stop();
   }
 });
+
+test('agent model display names follow the API on phone and desktop [O8,N26]', { timeout: 150_000 }, async (t) => {
+  const executable = chromeExecutable();
+  assert.ok(executable, 'Chrome is required for model-name viewport proof');
+  const box = machine();
+  const alpha = project(box, 'model-names');
+  box.run(alpha.web, 'join', 'web', '--model', 'GPT-6');
+  const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
+  try { register(board, { lane: 'coordinator', path: alpha.repo, model: 'Claude' }); }
+  finally { closeBoard(board); }
+  for (const title of ['Known holder', 'Reviewed model', 'Unknown holder']) {
+    box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'visible');
+  }
+  build(box, alpha, 2, 'reviewed.txt');
+  accept(box, alpha, 2);
+  box.run(alpha.web, 'claim', '1');
+  const unknown = join(box.dir, 'unknown-web');
+  box.git(alpha.repo, 'worktree', 'add', '-q', unknown, '-b', 'web/unknown');
+  // An existing stored registration may have no model even though new CLI joins require one.
+  const legacyBoard = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
+  try { register(legacyBoard, { lane: 'web', path: unknown }); }
+  finally { closeBoard(legacyBoard); }
+  box.run(unknown, 'claim', '3');
+  box.run(alpha.web, 'shout', 'web-2', 'Known sender and unknown recipient');
+  box.run(unknown, 'shout', 'all', 'Unknown sender and a lane-free recipient');
+  box.run(alpha.repo, 'shout', 'person', 'A model decision', '--decision');
+  box.run(alpha.repo, 'hold', 'web', '--reason', 'Wait for the model decision');
+  box.run(alpha.repo, 'milestone', 'add', 'Model release', '--items', '1,2,3');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-model-names-chrome-'));
+  let chrome;
+  /** Read rendered text from the real browser without changing its API data. */
+  const text = (selector) => chrome.evaluate(`document.querySelector(${JSON.stringify(selector)})?.textContent || ''`);
+  /** Press a real control and wait until its requested pane is drawn. */
+  const tab = async (name) => {
+    await press(chrome, `document.querySelector('[data-tab="${name}"]')`);
+    await settled(chrome, `view.tab === ${JSON.stringify(name)}`);
+  };
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await settled(chrome, "data?.project?.agents?.length === 3 && !!document.querySelector('#chain [data-item=\"1\"]')");
+    for (const style of ['suffix', 'prefix']) {
+      if (style === 'prefix') {
+        const configFile = join(alpha.repo, 'pullboard.json');
+        const config = JSON.parse(readFileSync(configFile, 'utf8'));
+        config.agents = { ...(config.agents || {}), names: 'prefix' };
+        writeFileSync(configFile, JSON.stringify(config, null, 2));
+        box.git(alpha.repo, 'add', 'pullboard.json');
+        box.git(alpha.repo, 'commit', '-q', '-m', 'chore: use prefix names');
+        await chrome.evaluate('refresh()');
+      }
+      const expected = style === 'suffix'
+        ? { builder: 'web-1 (GPT-6)', reviewer: 'coordinator (Claude)', unknown: 'web-2 (unknown)' }
+        : { builder: 'gpt-6-web-1', reviewer: 'claude-coordinator', unknown: 'unknown-web-2' };
+      const apiNames = JSON.parse(await chrome.evaluate('JSON.stringify(Object.fromEntries(data.project.agents.map(a => [a.agent_id, a.displayName])))'));
+      assert.deepEqual(apiNames, { coordinator: expected.reviewer, 'web-1': expected.builder, 'web-2': expected.unknown }, `${style}: authoritative API names`);
+      for (const width of [375, 1280]) {
+        await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+        await settled(chrome, `innerWidth === ${width}`);
+        const at = `${style} ${width}`;
+        await tab('items');
+        await press(chrome, 'document.querySelector("[data-state=active]")');
+        await settled(chrome, '!!document.querySelector("#chain [data-item=\\"1\\"]")');
+        assert.equal(await text('#chain [data-item="1"] .chip'), expected.builder, `${at}: item row holder`);
+        assert.equal(await text('#chain [data-item="3"] .chip'), expected.unknown, `${at}: unknown model row`);
+        await press(chrome, 'document.querySelector("#chain [data-item=\\"1\\"]")');
+        await settled(chrome, 'view.item === 1');
+        assert.ok((await text('#detail')).includes(expected.builder), `${at}: held item detail`);
+        await press(chrome, 'document.querySelector("[data-state=verified]")');
+        await settled(chrome, '!!document.querySelector("#chain [data-item=\\"2\\"]")');
+        await press(chrome, 'document.querySelector("#chain [data-item=\\"2\\"]")');
+        await settled(chrome, 'view.item === 2');
+        const detail = await text('#detail');
+        assert.ok(detail.includes(expected.builder) && detail.includes(expected.reviewer), `${at}: builder and verifier detail`);
+        assert.ok((await text('#detail .verdict .by')).startsWith(expected.reviewer), `${at}: verdict identity`);
+        assert.equal(await text('#needs .ny code'), expected.reviewer, `${at}: Needs-you decision author`);
+        assert.ok((await text('#needs .ny:last-child em')).includes('lane held by ' + expected.reviewer), `${at}: Needs-you lane holder`);
+        await tab('shouts');
+        for (const [id, label] of [['web-1', expected.builder], ['web-2', expected.unknown]]) {
+          assert.equal(await text(`#agents [data-agent="${id}"] .agent-who b`), label, `${at}: agent panel ${id}`);
+        }
+        if (!await chrome.evaluate('Boolean(view.open.idle)')) await press(chrome, 'document.querySelector("[data-fold=idle]")');
+        assert.equal((await text('#agents [data-agent="coordinator"]')).trim(), expected.reviewer, `${at}: idle agent model`);
+        const feed = await text('#feed');
+        assert.ok(feed.includes(expected.builder) && feed.includes(expected.unknown) && feed.includes(expected.reviewer), `${at}: shout sender and recipient names`);
+        assert.ok(feed.includes('→ all') && feed.includes('→ person'), `${at}: person and broadcast recipients keep their names`);
+        await press(chrome, 'document.querySelector("#agents [data-agent=\\"web-1\\"]")');
+        await settled(chrome, 'view.agent === "web-1"');
+        assert.equal(await chrome.evaluate('view.agent'), 'web-1', `${at}: filtering retains the raw API id`);
+        await press(chrome, 'document.querySelector("[data-agent=\\"\\"]")');
+        await tab('activity');
+        const activity = await text('#activity');
+        assert.ok(activity.includes(expected.builder) && activity.includes(expected.unknown) && activity.includes(expected.reviewer), `${at}: activity identities`);
+        await tab('roadmap');
+        assert.doesNotMatch(await text('#roadmap'), /web-[12]|coordinator/, `${at}: roadmap rows name no agents`);
+        await press(chrome, 'document.querySelector("#roadmap [data-go=\\"item:1\\"]")');
+        await settled(chrome, 'view.tab === "items" && view.item === 1');
+        assert.ok((await text('#detail')).includes(expected.builder), `${at}: roadmap item opens with the API identity`);
+        assert.ok(await chrome.evaluate('document.documentElement.scrollWidth <= innerWidth'), `${at}: no sideways overflow`);
+      }
+    }
+    assert.deepEqual(chrome.exceptions, [], 'all model-name views run without browser exceptions');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
+});
+
+test('staged and exported boards carry API model display names [O8,N26,A10]', async () => {
+  const box = machine();
+  const alpha = project(box, 'model-export', SPEC, { agents: { names: 'prefix' } });
+  box.run(alpha.web, 'join', 'web', '--model', 'GPT-6');
+  const source = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
+  const staged = openBoard(join(box.dir, 'staged-models.sqlite'));
+  try {
+    const before = exportBoard(source);
+    importBoard(staged, before);
+    const ordinary = projectState(alpha.repo);
+    const borrowed = projectState(alpha.repo, { board: staged });
+    assert.equal(ordinary.agents.find(a => a.agent_id === 'web-1').displayName, 'gpt-6-web-1', 'ordinary projector respects configured API name');
+    assert.equal(borrowed.agents.find(a => a.agent_id === 'web-1').displayName, 'gpt-6-web-1', 'staged projector carries the same name');
+    const directory = join(box.dir, 'exported-models');
+    await exportView(alpha.repo, directory);
+    const boardIds = readdirSync(join(directory, 'api', 'v1', 'boards'));
+    assert.equal(boardIds.length, 1, 'the export contains the real fixture board');
+    const snapshot = JSON.parse(readFileSync(join(directory, 'api', 'v1', 'boards', boardIds[0], 'state.json'), 'utf8'));
+    assert.equal(snapshot.state.agents.find(a => a.agent_id === 'web-1').displayName, 'gpt-6-web-1', 'snapshot API retains the configured model name');
+    assert.deepEqual(exportBoard(source), before, 'presentation does not change the real source board');
+    assert.equal(staged.db.prepare('SELECT 1 AS open').get().open, 1, 'the borrowed file-backed board stays open');
+  } finally {
+    closeBoard(staged);
+    closeBoard(source);
+  }
+});
