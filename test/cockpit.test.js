@@ -6,13 +6,14 @@
  */
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, request } from 'node:http';
 import diagnosticsChannel from 'node:diagnostics_channel';
 import { tmpdir } from 'node:os';
 import { delimiter, join, relative, resolve, sep } from 'node:path';
 import { after, test } from 'node:test';
 import vm from 'node:vm';
+import { pathToFileURL } from 'node:url';
 import { loadConfig } from '../src/config.js';
 import { loadDoctrine } from '../src/doctrine.js';
 import { addItem, closeBoard, completeCheckBaseline, openBoard, register, shout as shoutOnBoard } from '../src/board.js';
@@ -177,8 +178,8 @@ function fetchLive(url, init = {}) {
 }
 
 /** Start the real view and wait for a complete HTTP answer, rather than just its printed link. */
-async function startView(box) {
-  const child = spawn(process.execPath, [BIN, 'view', '--no-open'], { cwd: box.dir, env: box.env });
+async function startView(box, { bin = BIN } = {}) {
+  const child = spawn(process.execPath, [bin, 'view', '--no-open'], { cwd: box.dir, env: box.env });
   const link = await new Promise((found, fail) => {
     let out = '';
     child.stdout.on('data', (chunk) => {
@@ -385,6 +386,7 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
     document,
     location: { search: `?k=${view.key}` },
     URLSearchParams,
+    structuredClone,
     innerWidth: width,
     innerHeight: 800,
     matchMedia: (query) => ({ matches: width <= Number(/max-width:\s*(\d+)px/.exec(query)?.[1] ?? Infinity) }),
@@ -828,6 +830,11 @@ test('a pullboard command in prose chips only the command [N26]', async () => {
   // declares, choices in [a|b] or a|b, and commands after " | ", and nothing else.
   const declared = new Set();
   const read = (text) => {
+    // Usage alternatives may follow an argument: spec approve <ids> | decline <ids>.
+    for (const branch of text.matchAll(/pullboard ((?:[a-z-]+ )+)(?:<[^>]+> )?\| ([a-z-]+)/g)) {
+      const shared = branch[1].trim().split(' ').slice(0, -1);
+      read('pullboard ' + [...shared, branch[2]].join(' '));
+    }
     for (const found of text.matchAll(/(?:^|[\s(`'"])pullboard ((?:\S+ ?)+?)(?= {2}|$|[;,.)](?:\s|$))/gm)) {
       const tokens = found[1].trim().split(' ');
       const phrase = [];
@@ -845,6 +852,7 @@ test('a pullboard command in prose chips only the command [N26]', async () => {
     }
   };
   read(HELP.all);
+  for (const name of Object.keys(HELP.commands)) declared.add(name);
   for (const row of Object.values(HELP.commands)) for (const usage of row.usages) read(usage);
   for (const sub of ['milestone add', 'relay tokens', 'spec approve', 'prompt review']) assert.ok(declared.has(sub), `help --all declares ${sub}`);
   assert.deepEqual([...PULLBOARD_COMMANDS].sort(), [...declared].sort(), 'the view chips exactly the commands the CLI declares');
@@ -874,6 +882,64 @@ test('a pullboard command in prose chips only the command [N26]', async () => {
   } finally {
     await view.stop();
   }
+});
+
+test('the view chips a command the CLI adds [N26]', async (t) => {
+  const box = machine();
+  const demo = project(box, 'help-copy');
+  const cli = join(box.dir, 'cli-copy');
+  mkdirSync(cli);
+  for (const entry of ['bin', 'src', 'relay', 'test', 'skills', 'package.json']) {
+    cpSync(resolve(import.meta.dirname, '..', entry), join(cli, entry), { recursive: true });
+  }
+  const helpFile = join(cli, 'src', 'help.js');
+  const source = readFileSync(helpFile, 'utf8');
+  writeFileSync(helpFile, source
+    .replace('all: ALL_HELP,', "all: ALL_HELP + '\\n  pullboard blueprint apply <path>  a copied CLI extension',")
+    .replace('commands: Object.freeze(commandHelpRows(ALL_HELP)),',
+      "commands: Object.freeze({ ...commandHelpRows(ALL_HELP), 'blueprint inspect': { usages: ['pullboard blueprint inspect <path>'] } }),"));
+  const copiedBin = join(cli, 'bin', 'pullboard.js');
+  box.run(demo.repo, 'shout', 'all', 'A CLI extension says pullboard blueprint apply <file> and pullboard blueprint inspect <path>.');
+  const view = await startView(box, { bin: copiedBin });
+  /** Read actual rendered chips without depending on long-chip classes or title attributes. */
+  const assertChips = (page, where) => {
+    page.run("view.tab = 'shouts'; render();");
+    const chips = [...page.show('feed').matchAll(/<code class="inline(?: [a-z]+)*"(?: title="[^"]*")?>([^<]*)<\/code>/g)].map(match => match[1]);
+    for (const phrase of ['pullboard blueprint apply', 'pullboard blueprint inspect']) {
+      assert.ok(chips.includes(phrase), `${where} chips the copied CLI command ${phrase}: ${JSON.stringify(chips)}`);
+    }
+  };
+  try {
+    assertChips(await openPage(view), 'the live page');
+    const output = join(box.dir, 'snapshot');
+    const exported = spawnSync(process.execPath, [copiedBin, 'view', '--export', output], { cwd: demo.repo, env: box.env, encoding: 'utf8' });
+    assert.equal(exported.status, 0, exported.stderr);
+    const snapshotServer = createServer((req, res) => {
+      const pathname = new URL(req.url, 'http://localhost').pathname;
+      let file = join(output, pathname === '/' ? 'index.html' : pathname.slice(1));
+      if (!existsSync(file) && existsSync(file + '.json')) file += '.json';
+      if (!existsSync(file)) { res.writeHead(404).end(); return; }
+      res.writeHead(200, { 'content-type': file.endsWith('.json') ? 'application/json' : 'text/html' });
+      res.end(readFileSync(file));
+    });
+    await new Promise(resolveListen => snapshotServer.listen(0, '127.0.0.1', resolveListen));
+    try {
+      const base = `http://127.0.0.1:${snapshotServer.address().port}`;
+      assertChips(await openPage({ link: new URL(base + '/'), key: '', base: base + '/' }), 'the exported page');
+    } finally {
+      snapshotServer.closeAllConnections();
+      await new Promise(resolveClose => snapshotServer.close(resolveClose));
+    }
+    const { relayClientFixture: copiedRelayFixture } = await import(pathToFileURL(join(cli, 'test', 'relay-client-fixture.js')));
+    const relay = await copiedRelayFixture(t);
+    const session = await relay.phoneSession();
+    const response = await fetchFresh(relay.origin + '/', { headers: { cookie: 'pb_session=' + session.token } });
+    assert.equal(response.status, 200, 'the copied CLI relay serves its real authenticated person page');
+    const html = await response.text();
+    for (const phrase of ['blueprint apply', 'blueprint inspect']) {
+      assert.match(html, new RegExp('pullboard \\(\\?:[^)]*' + phrase), 'the relay derives copied help phrase ' + phrase);
+    }
+  } finally { await view.stop(); }
 });
 
 test('real Chrome renders brief lists with inline paths [N26]', { timeout: 90_000 }, async (t) => {
