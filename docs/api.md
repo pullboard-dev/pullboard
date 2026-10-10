@@ -20,6 +20,8 @@ The board-state API's item projection includes `check` and, when recorded, `chec
 
 `agentCount` counts distinct event actors other than `board` and `person`; the coordinator and join moves are included. `agents` lists `{id, moves, families}` for each actor. `families` lists `{name, agents, moves}` by recorded family label, and `familyCount` counts these buckets, including `unknown`. Labels are not inferred from a model name or current agent, item, or verdict rows. A family's first recorded event snapshot applies to that move and following moves, until another snapshot changes or clears it; earlier unattributed moves remain `unknown`. Date windows preserve earlier recorded declarations but count only selected moves. Arrays are sorted by identifier or label. Local HTTP board state carries the same full-history object as `state.proofStats`.
 
+`merged <id> <commit>` records only a commit reachable from the primary checkout's branch that contains the item's submitted commit or has the same stable patch id as the item's change from its claim base. Other commits are refused with `NOT_MERGED`; `--note "why"` records an exceptional receipt and keeps the note in that item's `merged` event.
+
 <!-- api-command-shapes:start -->
 | Command | Required top-level fields |
 | --- | --- |
