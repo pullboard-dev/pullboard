@@ -49,7 +49,7 @@ test('a delayed native checkpoint recovers the real page after its visible timeo
   const key = decodeBoardKey(encodedKey);
   const chrome = await startChrome();
   t.after(() => chrome.close());
-  const cookie = await chrome.send('Network.setCookie', { name: 'pb_session', value: link.token,
+  const cookie = await chrome.send('Network.setCookie', { name: 'pb_session', value: (await box.phoneSession()).token,
     url: box.origin, httpOnly: true, sameSite: 'Lax' });
   assert.equal(cookie.success, true);
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + encodedKey);
@@ -65,7 +65,14 @@ test('a delayed native checkpoint recovers the real page after its visible timeo
   let move;
   try { move = prepareEngineMove(board, 'addItem', [{ by: 'coordinator', lane: box.lane, title: recovered }]); }
   finally { closeBoard(board); }
-  const sent = await upload(box, link, 'moves', 1, await encoded(key, move, link.board, 'move', 1));
+  const coordinator = await fetch(box.origin + '/auth/tokens', {
+    method: 'POST', headers: { authorization: 'Bearer ' + link.token,
+      'content-type': 'application/json', 'x-pullboard-engine': String(ENGINE_VERSION) },
+    body: JSON.stringify({ board: link.board, agent: 'coordinator' }),
+  });
+  assert.equal(coordinator.status, 201, 'the board machine mints an ordinary coordinator token without a phone tap');
+  const agent = await coordinator.json();
+  const sent = await upload(box, { ...link, token: agent.token }, 'moves', 1, await encoded(key, move, link.board, 'move', 1));
   const started = Date.now();
   const timeoutText = 'The relay snapshot has not caught up to this move. Retry this board.';
   await chrome.waitFor('document.querySelector("#relay-notice")?.textContent.includes(' + JSON.stringify(timeoutText) + ')',

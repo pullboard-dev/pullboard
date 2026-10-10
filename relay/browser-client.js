@@ -1,5 +1,5 @@
 /** Device-only relay transport: cookie authorization, local keys and authenticated ciphertext [H5,H15,H16,H17]. */
-import { rememberDevicePairing, enrollPhone, deviceBoardKeys } from './browser-devices.js';
+import { rememberDevicePairing, enrollPhone, deviceBoardKeys, installPhoneApprovals } from './browser-devices.js';
 import { decodeBoardKey, encodeBoardKey, seal, unseal } from './seal.js';
 import { preparePersonRequest, validatePersonRequest } from './person-request.js';
 import { snapshotState, presentationState } from './model.js';
@@ -463,6 +463,7 @@ export async function createTransport({ onUpdate = () => {} } = {}) {
   addEventListener('pagehide', () => { for (const entry of paired.values()) entry.stream?.close(); });
   await enrollPhone((path, options) => documentAt(path, denied, options));
   await listing();
+  await installPhoneApprovals((path, options) => documentAt(path, denied, options), keys, async () => { await listing(); onUpdate(); });
   return {
     /** Return decoded API state or seal narrow person intent; no board key or plaintext leaves the device. */
     async request(path, body) {

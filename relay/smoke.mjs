@@ -155,7 +155,10 @@ async function smoke(address) {
     failure = error;
   }
   if (linked) {
-    try { await cli(root, ['relay', 'off']); }
+    try {
+      const off = await cli(root, ['relay', 'off']);
+      if (result) { result.remoteCopyRetained = true; result.notice = off.notice; }
+    }
     catch (error) { failure ??= error; }
   }
   if (failure) throw failure;

@@ -15,6 +15,8 @@ import { decodeBoardKey, unseal } from '../src/seal.js';
 import { frozenCriterion, parseSpec } from '../src/spec.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { fetchFresh } from './http-fixture.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
 
 /** Invoke one real CLI command without retaining stderr or exposing private command output. */
 function runCli(root, env, cli, args) {
@@ -32,6 +34,97 @@ function runCli(root, env, cli, args) {
       catch { reject(new Error(`private agent CLI ${args[0]} did not return JSON (exit ${code ?? 'signal'})`)); }
     });
   });
+}
+
+/** Run a foreground private CLI command while another actor completes its phone approval. */
+function startCli(root, env, cli, args) {
+  const child = spawn(process.execPath, [cli, ...args, '--json'], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  let stdout = '';
+  const timer = setTimeout(() => child.kill('SIGKILL'), 90000);
+  child.stdout.setEncoding('utf8').on('data', part => { stdout += part; });
+  child.stderr.resume();
+  const done = new Promise((resolveResult, reject) => {
+    child.once('error', error => { clearTimeout(timer); reject(error); });
+    child.once('close', (code, signal) => {
+      clearTimeout(timer);
+      if (signal) return reject(new Error('private phone-approved command ended with a signal'));
+      try { resolveResult({ code, document: JSON.parse(stdout) }); }
+      catch { reject(new Error(`private phone-approved command ${args[0]} did not return JSON (exit ${code ?? 'signal'})`)); }
+    });
+  });
+  return { child, done };
+}
+
+/** Poll a real fixture condition without retrying the operation under test. */
+async function waitFor(read, message, timeout = 30000) {
+  const deadline = Date.now() + timeout;
+  do {
+    const value = await read();
+    if (value) return value;
+    await new Promise(resolve => setTimeout(resolve, 25));
+  } while (Date.now() < deadline);
+  assert.fail(message);
+}
+
+/** Read a phone approval proposal from the real relay traffic without exposing its sealed payload. */
+async function waitForPhoneProposal(box, start, target) {
+  return waitFor(() => {
+    const record = box.transit.slice(start).findLast(row => row.method === 'POST' && row.path === '/api/v1/devices/approvals');
+    if (!record) return null;
+    try {
+      const context = JSON.parse(record.request.toString('utf8')).context;
+      if (context?.action !== 'revoke-token' || context.target !== target) return null;
+      const response = JSON.parse(record.response.toString('utf8'));
+      assert.equal(response.error?.code, undefined, 'the relay accepts the exact native approval proposal');
+      assert.equal(response.approval?.state, 'waiting', 'the proposal is durably waiting before any phone tap');
+      assert.equal(response.approval?.context?.id, context.id, 'the relay acknowledges the same proposal id');
+      return context;
+    } catch (error) {
+      if (error?.code === 'ERR_ASSERTION') throw error;
+      return null;
+    }
+  }, 'the revocation publishes one exact phone approval request');
+}
+
+/** Read and click only the paired-phone card for this opaque target id. */
+async function approvePhoneProposal(box, chrome, proposal) {
+  const selector = `.phone-approval[data-request="${proposal.id}"]`;
+  try {
+    await chrome.waitFor(`Boolean(document.querySelector(${JSON.stringify(selector)})?.querySelector('button'))`);
+  } catch (error) {
+    let page = { capture: 'unavailable' };
+    try {
+      page = await chrome.evaluate(`(() => {
+        const panel = document.getElementById('phone-approvals');
+        let boardKeyKnown = false;
+        try { boardKeyKnown = Object.hasOwn(JSON.parse(localStorage.getItem('pullboard.relay.keys.v1') || '{}'), ${JSON.stringify(proposal.publisher)}); } catch {}
+        return { readyState: document.readyState, path: location.pathname, panel: Boolean(panel),
+          panelError: (panel?.getAttribute('data-error') || '').slice(0, 200),
+          cards: panel?.children.length ?? 0, boardKeyKnown,
+          signIn: Boolean(document.querySelector('a[href="/auth/github/start"]')) };
+      })()`, 'redacted phone approval failure capture', 1000);
+    } catch { /* Preserve the original failure when the renderer cannot answer diagnostics. */ }
+    const inboxPath = '/api/v1/devices/' + proposal.device + '/approvals';
+    const inbox = box.transit.findLast(row => row.method === 'GET' && row.path === inboxPath);
+    let response = null;
+    try {
+      const document = JSON.parse(inbox?.response.toString('utf8') || '{}');
+      const row = document.approvals?.find(value => value.context?.id === proposal.id);
+      response = { error: document.error?.code ?? null, pending: document.approvals?.length ?? null,
+        targetPresent: Boolean(row), state: row?.state ?? null };
+    } catch { /* Transport diagnostics retain only known metadata, never ciphertext or credentials. */ }
+    error.message += '; redacted approval evidence: ' + JSON.stringify({ page, response,
+      inboxReads: box.calls.filter(row => row.method === 'GET' && row.path === inboxPath).length });
+    throw error;
+  }
+  const card = await chrome.evaluate(`(() => {
+    const node = document.querySelector(${JSON.stringify(selector)});
+    return { text: node.querySelector('p')?.textContent, action: node.querySelector('button')?.textContent };
+  })()`);
+  assert.match(card.text, /revoke/u);
+  assert.match(card.text, new RegExp(proposal.target));
+  assert.equal(card.action, 'Approve revocation', 'the paired phone presents an explicit revocation action');
+  await chrome.evaluate(`document.querySelector(${JSON.stringify(selector)}).querySelector('button').click(); true`);
 }
 
 /** Run Git in a private fixture and keep all diagnostics credential-free. */
@@ -80,7 +173,10 @@ function assertMetadataOnly(value, credentials, message) {
   for (const row of value.tokens ?? []) assert.equal(Object.hasOwn(row, 'token'), false, message);
 }
 
-test('ordered agent joins mint scoped tokens and retain authenticated native actors [H2,H9]', async (t) => {
+test('ordered agent joins mint scoped tokens and retain authenticated native actors [H2,H9]', {
+  skip: !findChromeExecutable() && 'Chrome is required for real person approval',
+  timeout: 180000,
+}, async (t) => {
   const box = await relayClientFixture(t);
   const cli = join(dirname(fileURLToPath(import.meta.url)), '../bin/pullboard.js');
   const shim = join(box.env.PATH, 'pullboard');
@@ -119,7 +215,29 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
   git(box.root, box.env, ['worktree', 'add', '-q', '-b', 'core/private-agent-one', firstRoot, 'HEAD']);
   git(box.root, box.env, ['worktree', 'add', '-q', '-b', 'core/private-agent-two', secondRoot, 'HEAD']);
 
-  await box.link();
+  const personEnv = { ...box.env };
+  for (const key of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete personEnv[key];
+  const machineFile = join(box.env.PULLBOARD_HOME, 'relay-machine/state.json');
+  const setup = startCli(box.root, personEnv, cli, ['relay', 'on', '--all', '--url', box.origin]);
+  t.after(async () => {
+    if (setup.child.exitCode === null) setup.child.kill('SIGTERM');
+    await setup.done.catch(() => {});
+  });
+  const pending = await waitFor(() => existsSync(machineFile) && JSON.parse(readFileSync(machineFile, 'utf8')).pending,
+    'foreground setup publishes a one-use phone enrollment');
+  const chrome = await startChrome();
+  t.after(() => chrome.close());
+  const phone = await box.phoneSession();
+  assert.equal((await chrome.send('Network.setCookie', {
+    name: 'pb_session', value: phone.token, url: box.origin, httpOnly: true, sameSite: 'Lax',
+  })).success, true);
+  await chrome.navigate(box.origin + '/#device=' + pending.locator + '.' + pending.secret);
+  assert.equal((await setup.done).code, 0, 'foreground sign-in links and pairs the relay');
+  await chrome.waitFor("document.querySelector('#phone-approvals') !== null");
+  assert.match(JSON.parse(readFileSync(box.linkFile, 'utf8')).token, /^pm_[A-Za-z0-9_-]{43}$/u,
+    'the native link holds only a machine credential');
+  assert.equal(Object.hasOwn(JSON.parse(readFileSync(machineFile, 'utf8')), 'session'), false,
+    'the phone session is not persisted in the machine state');
   const firstStart = box.calls.length;
   const firstJoin = await runCli(firstRoot, box.env, cli, ['join', box.lane, '--family', 'codex-fixture']);
   assert.equal(firstJoin.code, 0, 'the first worktree joins through the real linked CLI');
@@ -151,6 +269,9 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
   const secondTokenRow = list.document.tokens.find((row) => row.agent === secondAgent);
   assert.ok(firstTokenRow?.id && secondTokenRow?.id);
 
+  const previousApiHome = process.env.PULLBOARD_HOME;
+  process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
+  t.after(() => { if (previousApiHome === undefined) delete process.env.PULLBOARD_HOME; else process.env.PULLBOARD_HOME = previousApiHome; });
   const localApi = await serveApi({
     runCommand: main,
     projects: () => [{ root: box.root, name: 'private relay fixture', project: 'fixture/repository', added: '2026-10-07T00:00:00.000Z' }],
@@ -181,12 +302,32 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
     ['verify', String(twoItem.document.item.item_id), 'accept', '--note', 'checked the other private submitted proof']);
   assert.equal(secondVerify.code, 0, `the second agent gives an ACCEPT verdict using only its scoped token (${secondVerify.document.error?.code ?? 'no refusal'})`);
 
-  const revoke = await box.cli('relay', 'revoke', firstTokenRow.id);
+  const firstApprovalCount = box.calls.filter((call) => call.path.endsWith('/authorize')).length;
+  const nativeRevokeStart = box.transit.length;
+  const nativeRevoke = startCli(box.root, personEnv, cli, ['relay', 'revoke', firstTokenRow.id]);
+  t.after(async () => { if (nativeRevoke.child.exitCode === null) nativeRevoke.child.kill('SIGTERM'); await nativeRevoke.done.catch(() => {}); });
+  const nativeProposal = await waitForPhoneProposal(box, nativeRevokeStart, firstTokenRow.id);
+  assert.equal(box.calls.filter((call) => call.path.endsWith('/authorize')).length, firstApprovalCount,
+    'native revocation waits for a phone tap');
+  await approvePhoneProposal(box, chrome, nativeProposal);
+  const revoke = await nativeRevoke.done;
   assert.equal(revoke.code, 0, 'CLI revokes one listed opaque token id');
-  const apiRevokeResponse = await fetchFresh(tokenUrl, {
+  assert.equal(box.calls.filter((call) => call.path.endsWith('/authorize')).length, firstApprovalCount + 1,
+    'one explicit phone approval authorizes native revocation');
+
+  const apiApprovalCount = box.calls.filter((call) => call.path.endsWith('/authorize')).length;
+  const apiRevokeStart = box.transit.length;
+  const apiRevokePending = fetchFresh(tokenUrl, {
     method: 'POST', headers: apiHeaders, body: JSON.stringify({ id: firstTokenRow.id }),
   });
+  const apiProposal = await waitForPhoneProposal(box, apiRevokeStart, firstTokenRow.id);
+  assert.equal(box.calls.filter((call) => call.path.endsWith('/authorize')).length, apiApprovalCount,
+    'local API revocation waits for a phone tap');
+  await approvePhoneProposal(box, chrome, apiProposal);
+  const apiRevokeResponse = await apiRevokePending;
   assert.equal(apiRevokeResponse.status, 200, 'local API accepts the opaque id-only revocation body');
+  assert.equal(box.calls.filter((call) => call.path.endsWith('/authorize')).length, apiApprovalCount + 1,
+    'one explicit phone approval authorizes local API revocation');
   const apiRevoke = await apiRevokeResponse.json();
   assert.equal(apiRevoke.id, firstTokenRow.id);
   assert.equal(apiRevoke.revoked, true);
@@ -207,20 +348,20 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
   const cachedMintCount = box.calls.filter((call) => call.method === 'POST' && call.path === '/auth/tokens').length;
   const beforeCachedRefusal = nativeEvents(boardFile);
   const cachedRefusal = await runCli(firstRoot, box.env, cli, ['shout', 'all', 'revoked cache must stay revoked']);
-  assert.equal(cachedRefusal.code, 1, 'a cached revoked credential refuses even while the person session remains valid');
+  assert.equal(cachedRefusal.code, 1, 'a cached revoked credential refuses while the paired phone remains available');
   assert.equal(cachedRefusal.document.error.code, 'AUTH_REQUIRED');
   assert.deepEqual(nativeEvents(boardFile), beforeCachedRefusal, 'revoked cached credentials cannot write native board events');
   assert.equal(box.calls.filter((call) => call.method === 'POST' && call.path === '/auth/tokens').length, cachedMintCount,
-    'a valid person session never silently re-mints its revoked agent cache');
+    'a valid machine credential never silently re-mints its revoked agent cache');
 
   const linkAfterRevoke = JSON.parse(readFileSync(box.linkFile, 'utf8'));
-  const personRevoked = await fetch(box.origin + '/auth/tokens/revoke', {
+  const machineRevoked = await fetch(box.origin + '/auth/tokens/revoke', {
     method: 'POST', headers: { authorization: `Bearer ${linkAfterRevoke.token}`, 'content-type': 'application/json' },
     body: JSON.stringify({ id: linkAfterRevoke.tokenId }),
   });
-  assert.equal(personRevoked.status, 200, 'the private person session is revoked before token-only access');
+  assert.equal(machineRevoked.status, 200, 'the paired machine credential can revoke its own PM');
   const deadSession = await fetch(box.origin + '/auth/session', { headers: { authorization: `Bearer ${linkAfterRevoke.token}` } });
-  assert.equal(deadSession.status, 401);
+  assert.equal(deadSession.status, 401, 'the revoked PM no longer authenticates');
   assert.equal((await deadSession.json()).error.code, 'AUTH_REQUIRED');
 
   const mintCount = box.calls.filter((call) => call.method === 'POST' && call.path === '/auth/tokens').length;
@@ -233,9 +374,9 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
 
   const secondEnv = { ...box.env, PULLBOARD_RELAY_TOKEN: secondToken };
   const tokenOnlyRead = await runCli(secondRoot, secondEnv, cli, ['list', '--all']);
-  assert.equal(tokenOnlyRead.code, 0, 'the other agent reads through its scoped token after person revocation');
+  assert.equal(tokenOnlyRead.code, 0, 'the other agent reads through its scoped token after PM revocation');
   const tokenOnlyWrite = await runCli(secondRoot, secondEnv, cli, ['claim', String(workItem.document.item.item_id)]);
-  assert.equal(tokenOnlyWrite.code, 0, 'the other agent writes through its scoped token after person revocation');
+  assert.equal(tokenOnlyWrite.code, 0, 'the other agent writes through its scoped token after PM revocation');
 
   const native = nativeEvents(boardFile);
   assert.ok(native.some((row) => row.event_by === secondAgent && row.event_kind === 'claim' && row.item_id === workItem.document.item.item_id),

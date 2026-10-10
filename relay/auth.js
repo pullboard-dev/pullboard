@@ -5,6 +5,7 @@ import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { Refused } from '../src/refused.js';
 import { repositoryName } from './github.js';
+import { approvalContext } from '../src/relay-approval.js';
 
 export const ACCESS_WINDOW_MS = 10 * 60_000;
 const MAX_TTL = 30 * 24 * 3600_000;
@@ -43,6 +44,8 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
       CREATE TABLE IF NOT EXISTS relay_boards (id TEXT PRIMARY KEY, repository TEXT NOT NULL, repository_id TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS relay_cleanup (board TEXT PRIMARY KEY);
       CREATE TABLE IF NOT EXISTS relay_credentials (id TEXT PRIMARY KEY, hash TEXT UNIQUE NOT NULL, kind TEXT NOT NULL, user_id TEXT NOT NULL REFERENCES relay_users(id), board TEXT REFERENCES relay_boards(id), agent TEXT, expires INTEGER NOT NULL, revoked INTEGER NOT NULL DEFAULT 0);
+      CREATE TABLE IF NOT EXISTS relay_action_grants (hash TEXT PRIMARY KEY, request TEXT UNIQUE NOT NULL,
+        user_id TEXT NOT NULL, context TEXT NOT NULL, expires INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0);
     `);
     if (!db.prepare('PRAGMA table_info(relay_credentials)').all().some((column) => column.name === 'created')) {
       db.exec('ALTER TABLE relay_credentials ADD COLUMN created INTEGER');
@@ -79,7 +82,7 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
   /** Resolve a current credential and latest account login without storing its plaintext. */
   function credential(token) {
     open();
-    if (typeof token !== 'string' || !/^(ps_|pa_)[A-Za-z0-9_-]{43}$/.test(token)) throw new Refused('AUTH_REQUIRED', 'sign in to the relay or supply a current board token');
+    if (typeof token !== 'string' || !/^(ps_|pa_|pm_)[A-Za-z0-9_-]{43}$/.test(token)) throw new Refused('AUTH_REQUIRED', 'sign in to the relay or supply a current board token');
     const row = db.prepare('SELECT c.*, u.login FROM relay_credentials c JOIN relay_users u ON u.id=c.user_id WHERE c.hash=?').get(hash(token));
     if (!row || row.revoked || row.expires <= now()) throw new Refused('AUTH_REQUIRED', 'this credential is expired or revoked; sign in or obtain a new board token');
     return row;
@@ -88,7 +91,7 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
   /** Mint one independently expiring/revocable credential and persist only its hash. */
   function issue(user, kind, board, agent, ttl) {
     open();
-    const token = random(kind === 'session' ? 'ps_' : 'pa_');
+    const token = random(kind === 'session' ? 'ps_' : kind === 'machine' ? 'pm_' : 'pa_');
     const id = randomUUID();
     const created = now();
     const expires = created + ttl;
@@ -205,6 +208,7 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
     async authenticate(token, { board, write = false } = {}) {
       const row = credential(token);
       if (row.kind === 'board' && board !== row.board) throw new Refused('TOKEN_BOARD', 'use this token only on its named board; obtain another token for another board');
+      if (row.kind === 'machine' && board !== undefined && board !== row.board) throw new Refused('TOKEN_BOARD', 'use this machine credential only on its linked board; ask the paired phone to link another board');
       let repository;
       if (board !== undefined) {
         identifier(board, 'BAD_BOARD');
@@ -212,7 +216,7 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
         if (board !== null && board !== undefined && !db.prepare('SELECT 1 FROM relay_boards WHERE id=?').get(board)) throw new Refused('BOARD_NOT_LINKED', 'link this board again before using it');
         credential(token); // A revocation or expiry during the awaited provider call must take effect.
       }
-      return { id: row.id, kind: row.kind, user: { id: row.user_id, login: row.login }, ...(row.board ? { board: row.board, agent: row.agent } : {}), ...(repository ? { permission: repository.permission, public: repository.public } : {}), expires: row.expires };
+      return { id: row.id, kind: row.kind, user: { id: row.user_id, login: row.login }, ...(row.board ? { board: row.board, ...(row.kind === 'machine' ? { machine: row.agent } : { agent: row.agent }) } : {}), ...(repository ? { permission: repository.permission, public: repository.public } : {}), expires: row.expires };
     },
     /** Accept a link only from a signed-in human with current repository write access. */
     async linkBoard(token, board, repository) {
@@ -269,7 +273,7 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
     /** List only linked boards the current credential and GitHub account may read. */
     async boardsFor(token) {
       const row = credential(token);
-      const boards = row.kind === 'board' ? db.prepare('SELECT * FROM relay_boards WHERE id=?').all(row.board) : db.prepare('SELECT * FROM relay_boards ORDER BY id').all();
+      const boards = row.kind !== 'session' ? db.prepare('SELECT * FROM relay_boards WHERE id=?').all(row.board) : db.prepare('SELECT * FROM relay_boards ORDER BY id').all();
       const visible = [];
       for (const board of boards) {
         try { await auth.authenticate(token, { board: board.id }); visible.push({ id: board.id, repository: board.repository, linkedAt: board.linked_at }); }
@@ -277,11 +281,22 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
       }
       return visible;
     },
-    /** Keep the minimum replay engine at three after any agent token, including revoked or expired tokens. */
+    /** Retain the minimum replay engine after any agent or machine credential, including expired and revoked ones. */
     minimumEngineVersion(board) {
       open();
       identifier(board, 'BAD_BOARD');
+      if (db.prepare("SELECT 1 FROM relay_credentials WHERE board=? AND kind='machine' LIMIT 1").get(board)) return 6;
       return db.prepare("SELECT 1 FROM relay_credentials WHERE board=? AND kind='board' LIMIT 1").get(board) ? 3 : 1;
+    },
+    /** Give a foreground person one board-bound machine delegate, never another person credential. */
+    async issueMachine(token, { board, machine, expiresIn = MAX_TTL }) {
+      identifier(board, 'BAD_BOARD');
+      identifier(machine, 'BAD_MACHINE');
+      if (!Number.isSafeInteger(expiresIn) || expiresIn <= 0 || expiresIn > MAX_TTL) throw new Refused('BAD_EXPIRY', 'choose a machine expiry of at most thirty days');
+      const principal = await auth.authenticate(token, { board, write: true });
+      if (principal.kind !== 'session') throw new Refused('HUMAN_REQUIRED', 'approve this machine from the signed-in phone');
+      credential(token);
+      return { ...issue(principal.user, 'machine', board, machine, expiresIn), board, machine };
     },
     /** Mint an agent credential scoped to a single readable board and immutable human identity. */
     async issueToken(token, { board, agent, expiresIn = tokenTTL }) {
@@ -289,18 +304,54 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
       identifier(agent, 'BAD_AGENT');
       if (!Number.isSafeInteger(expiresIn) || expiresIn <= 0 || expiresIn > MAX_TTL) throw new Refused('BAD_EXPIRY', 'choose a token expiry between one millisecond and thirty days');
       const principal = await auth.authenticate(token, { board, write: true });
-      if (principal.kind !== 'session') throw new Refused('HUMAN_REQUIRED', 'sign in as a person to issue a board token');
+      if (!['session', 'machine'].includes(principal.kind)) throw new Refused('HUMAN_REQUIRED', 'use this board’s machine credential to issue an agent token');
       credential(token);
       return { ...issue(principal.user, 'board', board, agent, expiresIn), board, agent };
     },
-    /** List only owned board-token metadata after a fresh person permission check, never bearer values or hashes. */
+    /** List only owned board-token metadata after a fresh repository write check, never bearer values or hashes. */
     async listTokens(token, board) {
       identifier(board, 'BAD_BOARD');
       const principal = await auth.authenticate(token, { board, write: true });
-      if (principal.kind !== 'session') throw new Refused('HUMAN_REQUIRED', 'sign in as a person to list agent tokens');
+      if (!['session', 'machine'].includes(principal.kind)) throw new Refused('HUMAN_REQUIRED', 'use this board’s machine credential to list agent token ids');
       credential(token);
       return db.prepare('SELECT id,board,agent,created,expires,revoked FROM relay_credentials WHERE user_id=? AND kind=? AND board=? ORDER BY agent,id')
         .all(principal.user.id, 'board', board).map((row) => ({ ...row, revoked: Boolean(row.revoked) }));
+    },
+    /** Mint a short-lived grant only after an authenticated phone approves an immutable action context. */
+    async issueActionGrant(token, value) {
+      const context = approvalContext(value);
+      const principal = await auth.authenticate(token, { board: context.publisher, write: true });
+      if (principal.kind !== 'session' || principal.user.id !== context.account || context.action === 'link') throw new Refused('HUMAN_REQUIRED', 'approve this native action from the signed-in paired phone');
+      credential(token);
+      const grant = random('pg_');
+      const expires = Math.min(context.expires, now() + 120_000);
+      if (expires <= now()) throw new Refused('PHONE_APPROVAL_EXPIRED', 'request a fresh phone approval explicitly');
+      lifecycle(() => {
+        if (db.prepare('SELECT 1 FROM relay_action_grants WHERE request=?').get(context.id)) throw new Refused('PHONE_APPROVAL_USED', 'this action was already approved; use its encrypted reply');
+        db.prepare('INSERT INTO relay_action_grants(hash,request,user_id,context,expires) VALUES(?,?,?,?,?)').run(hash(grant), context.id, principal.user.id, JSON.stringify(context), expires);
+      });
+      return { grant, expires };
+    },
+    /** Atomically consume once before dispatch; an interrupted action needs another explicit phone approval. */
+    async consumeActionGrant(token, grant, value) {
+      const context = approvalContext(value);
+      const principal = await auth.authenticate(token, { board: context.publisher, write: true });
+      if (principal.kind !== 'machine' || principal.user.id !== context.account || principal.machine !== context.machine ||
+          typeof grant !== 'string' || !/^pg_[A-Za-z0-9_-]{43}$/u.test(grant)) throw new Refused('HUMAN_REQUIRED', 'use the one-time grant approved for this exact native command');
+      credential(token);
+      lifecycle(() => {
+        const row = db.prepare('SELECT * FROM relay_action_grants WHERE hash=?').get(hash(grant));
+        if (!row || row.used || row.expires <= now() || row.user_id !== principal.user.id || row.context !== JSON.stringify(context)) throw new Refused('PHONE_APPROVAL_USED', 'this grant was used, expired or names another action; request a fresh approval explicitly');
+        db.prepare('UPDATE relay_action_grants SET used=1 WHERE hash=? AND used=0').run(hash(grant));
+      });
+      return principal;
+    },
+    /** Revoke only a current account's own board token after the native grant boundary consumed approval. */
+    async revokeApprovedToken(principal, id, board) {
+      const target = db.prepare("SELECT * FROM relay_credentials WHERE id=? AND kind='board' AND board=? AND user_id=?").get(id, board, principal.user.id);
+      if (!target) throw new Refused('TOKEN_NOT_OWNED', 'choose an agent token id listed on this board');
+      db.prepare('UPDATE relay_credentials SET revoked=1 WHERE id=?').run(id);
+      return { id, revoked: true };
     },
     /** Revoke one owned credential; this never revokes an unrelated session or board token. */
     async revoke(token, id) {

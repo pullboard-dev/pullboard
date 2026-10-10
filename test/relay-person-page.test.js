@@ -17,7 +17,7 @@ test('the actual relay page seals its shout and refuses generic direct moves [H1
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const chrome = await startChrome();
   t.after(() => chrome.close());
-  const cookie = await chrome.send('Network.setCookie', { name: 'pb_session', value: link.token, url: box.origin, httpOnly: true, sameSite: 'Lax' });
+  const cookie = await chrome.send('Network.setCookie', { name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax' });
   assert.equal(cookie.success, true);
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + readFileSync(box.keyFile, 'utf8').trim());
   await chrome.waitFor('typeof data !== "undefined" && !!data?.project && !!transport');

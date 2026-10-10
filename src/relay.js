@@ -1,6 +1,6 @@
 /** Opt-in, sealed relay ordering, with crash-safe migration from the older mirror [H1,H3,H5,H16,H17,P5]. */
 import { randomUUID } from 'node:crypto';
-import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import * as store from './board.js';
@@ -15,8 +15,11 @@ import { encodeBoardKey, generateBoardKey, seal, unseal } from './seal.js';
 import { terminalQr } from './qr.js';
 import { Refused } from './refused.js';
 import { relaySenderProblem } from './relay-sender.js';
-import { readRelayMachine, updateRelayMachine, wrapForRecordedDevice } from './relay-machine.js';
-import { receivePersonRequest } from './relay-requests.js';
+import { readRelayMachine, removeRecordedDevice, updateRelayMachine, wrapForRecordedDevice } from './relay-machine.js';
+import { receivePersonRequest, requestMoveProblem } from './relay-requests.js';
+import { nativePhoneAction, phoneProposal } from './relay-phone.js';
+import { requirePersonChannel } from './person.js';
+import { listApiProjects } from './projects.js';
 
 export const DEFAULT_RELAY = 'https://app.pullboard.dev';
 const SEALED_SNAPSHOT_LIMIT = 10_000_000;
@@ -72,11 +75,17 @@ function loadLink(file) {
   if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077)) throw new Refused('RELAY_STORAGE', 'restore relay.json as an owner-only regular file with mode 600');
   let state;
   try { state = JSON.parse(readFileSync(file, 'utf8')); } catch { throw new Refused('RELAY_STORAGE', 'restore valid relay link metadata before syncing this board'); }
-  if (!state || typeof state !== 'object' || state.version !== 1 || !/^[0-9a-f]{32}$/.test(state.board) || !/^(ps_|pa_)[A-Za-z0-9_-]{43}$/.test(state.token) ||
+  if (!state || typeof state !== 'object' || state.version !== 1 || !/^[0-9a-f]{32}$/.test(state.board) || !(state.token === undefined || state.personReauth && state.token === null || /^(ps_|pa_|pm_)[A-Za-z0-9_-]{43}$/.test(state.token)) ||
       !Number.isSafeInteger(state.sequence) || state.sequence < 0 || !Number.isSafeInteger(state.cursor) || state.cursor < 0) {
     throw new Refused('RELAY_STORAGE', 'restore supported relay link metadata before syncing this board');
   }
   relayOrigin(state.url);
+  if (state.token === undefined || state.token?.startsWith('ps_')) {
+    state.token = null;
+    delete state.tokenId;
+    state.personReauth = true;
+    saveLink(file, state);
+  }
   return state;
 }
 
@@ -112,7 +121,13 @@ async function locked(file, work) {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
   }
-  try { return await work(); } finally { rmSync(lock, { recursive: true, force: true }); }
+  try {
+    // Only the current lock holder can have a live link write; remove crashed legacy bearer fragments.
+    for (const name of readdirSync(dirname(file))) {
+      if (/^relay\.json\.[0-9a-f-]+\.tmp$/u.test(name)) rmSync(join(dirname(file), name), { force: true });
+    }
+    return await work();
+  } finally { rmSync(lock, { recursive: true, force: true }); }
 }
 
 /** Surface retention notices on the very command that receives them, without exposing credentials. */
@@ -212,7 +227,7 @@ export function formatSnapshotLimit(problem, { paused = false } = {}) {
 function safePauseMessage(error) {
   const message = String(error.relayMessage ?? error.message ?? 'the relay refused the baseline upload')
     .replace(/https?:\/\/[^\s]+/gu, '[relay]')
-    .replace(/\b(?:Bearer\s+)?(?:ps|pa)_[A-Za-z0-9_-]{20,}\b/gu, '[credential]')
+    .replace(/\b(?:Bearer\s+)?(?:ps|pa|pm|pg)_[A-Za-z0-9_-]{20,}\b/gu, '[credential]')
     .replace(/[\r\n\t\x00-\x1f\x7f]+/gu, ' ')
     .replace(/\s+/gu, ' ').trim();
   return message.slice(0, 240) || 'the relay refused the baseline upload';
@@ -513,7 +528,7 @@ async function decoded(key, record, state, kind, sequence) {
 
 /** Persist the exact checkpoint before uploading, so a lost reply retries identical ciphertext. */
 async function publishCheckpoint(root, file, state, io) {
-  if (!state.token.startsWith('ps_') || process.env.PULLBOARD_RELAY_TOKEN) return;
+  if (!state.token?.startsWith('pm_') || process.env.PULLBOARD_RELAY_TOKEN) return;
   const document = relaySnapshot(root);
   const sequence = Number(document.tables.board_meta.find((row) => row.meta_key === 'relay_applied_sequence')?.meta_value ?? 0);
   const digest = presentationDigest(document.presentation);
@@ -620,17 +635,26 @@ async function catchUp(root, file, state, io) {
     if (localRecords(root, appliedSequence) <= after) throw new Refused('RELAY_RESPONSE', 'the relay checkpoint did not advance the missing prefix; fetch a consistent newer snapshot');
     return catchUp(root, file, state, io);
   }
-  if (!Array.isArray(remote.events) || remote.events.some((record, index) => !record || record.event_id !== after + index + 1 || !['move', 'request'].includes(record.kind) || typeof record.sealed !== 'string' || !record.sender || !['person', 'agent'].includes(record.sender.kind) || typeof record.sender.userId !== 'string' || (record.sender.kind === 'agent' && typeof record.sender.agent !== 'string'))) {
+  if (!Array.isArray(remote.events) || remote.events.some((record, index) => !record || record.event_id !== after + index + 1 || !['move', 'request'].includes(record.kind) || typeof record.sealed !== 'string' || !record.sender || !['person', 'agent', 'machine'].includes(record.sender.kind) || typeof record.sender.userId !== 'string' || (record.sender.kind === 'agent' && typeof record.sender.agent !== 'string') || (record.sender.kind === 'machine' && typeof record.sender.machine !== 'string'))) {
     throw new Refused('RELAY_RESPONSE', 'the relay returned an invalid ordered prefix; fetch a consistent relay snapshot');
   }
+  let pendingRefusal;
   for (const record of remote.events) {
     const move = await decoded(key, record, state, record.kind, record.event_id);
     // Legacy executable documents in the request channel still fail closed before attribution.
     if (record.kind === 'request' && move?.engine !== undefined) requireSupportedEngine(move);
-    localRecords(root, (board) => {
-      if (record.kind === 'request') receivePersonRequest(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender });
-      else applyRelayMove(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender, kind: record.kind });
+    const outcome = localRecords(root, (board) => {
+      if (record.kind === 'request') return receivePersonRequest(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender });
+      else return applyRelayMove(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender, kind: record.kind });
     });
+    // Sender refusals have a sequence receipt, not an executable-ID receipt: never resend them.
+    if (record.kind === 'move' && state.pending?.move && record.event_id === state.pending.sequence
+        && record.sealed === state.pending.sealed && JSON.stringify(move) === JSON.stringify(state.pending.move)
+        && outcome?.error && !localRecords(root, board => engineReceipt(board, move.id))) {
+      pendingRefusal = outcome.error;
+      delete state.pending;
+      delete state.recovered;
+    }
   }
   state.sequence = localRecords(root, appliedSequence);
   if (state.pending?.move && localRecords(root, (board) => engineReceipt(board, state.pending.move.id))) {
@@ -638,6 +662,7 @@ async function catchUp(root, file, state, io) {
     delete state.pending;
   }
   saveLink(file, state);
+  if (pendingRefusal) throw new Refused(pendingRefusal.code, pendingRefusal.message);
 }
 
 /** Finish a durable executable send; a collision reseals its unchanged id after applying the winner. */
@@ -666,7 +691,8 @@ async function sendPending(root, file, state, io) {
 /** Choose credentials only; main's relay sender policy remains the sole replay authorization. */
 function credentialActor(move) {
   const args = move.args;
-  if (move.personRequest || ['register', 'ensureCoordinator', 'recordRowDecisions'].includes(move.operation)
+  if (move.personRequest || ['register', 'ensureCoordinator'].includes(move.operation)) return 'machine';
+  if (move.operation === 'recordRowDecisions'
     || move.operation === 'answerDecision' && args[1]?.asPerson
     || move.operation === 'shout' && args[0]?.request) return 'person';
   return relayMoveActor(move);
@@ -678,7 +704,10 @@ async function actorTransport(root, file, state, actor, io) {
     throw new Refused('RELAY_ACTOR', 'name the registered agent performing this move before sending it');
   }
   if (actor === 'person') {
-    if (!state.token.startsWith('ps_')) throw new Refused('HUMAN_REQUIRED', 'sign in as a person to enroll an agent or answer as the person');
+    throw new Refused('HUMAN_REQUIRED', 'send this person action from the paired phone');
+  }
+  if (actor === 'machine') {
+    if (!state.token?.startsWith('pm_')) throw new Refused('HUMAN_REQUIRED', 'run pullboard relay on --all to authorize this board’s machine credential');
     return state;
   }
   const supplied = process.env.PULLBOARD_RELAY_TOKEN;
@@ -689,7 +718,7 @@ async function actorTransport(root, file, state, actor, io) {
     if (identity.session?.kind !== 'board' || identity.session.agent !== actor) throw new Refused('RELAY_ACTOR', 'use the scoped token belonging to this move’s registered agent');
     return transport;
   }
-  if (state.token.startsWith('pa_')) {
+  if (state.token?.startsWith('pa_')) {
     const identity = await request(state, '/auth/session?board=' + state.board, {}, io);
     if (identity.session?.agent !== actor) throw new Refused('RELAY_ACTOR', 'use the scoped token belonging to this move’s registered agent');
     return { ...state, agent: actor };
@@ -782,6 +811,8 @@ export async function relayOperation(root, operation, args, io, command, applyLo
     if (!move) {
       move = localRecords(root, (board) => prepareEngineMove(board, operation, args, io.personRequestMoveId ? { id: io.personRequestMoveId } : {}));
       if (io.personRequest) move.personRequest = structuredClone(io.personRequest);
+      const problem = move.personRequest && localRecords(root, board => requestMoveProblem(board, move, { checkExecutorLease: false }));
+      if (problem) throw problem;
       move.actor = relayMoveActor(move) ?? credentialActor(move);
       await actorTransport(root, file, state, credentialActor(move), io);
       const sequence = state.sequence + 1;
@@ -855,14 +886,14 @@ function tokenContext(state) {
   return { linked: true, board: state.board, url: state.url, link: '', sequence: state.sequence, behind: 0 };
 }
 
-/** Require the signed-in person's existing link before listing or revoking scoped agent credentials. */
+/** Require the existing board delegate before listing metadata or requesting an approved revocation. */
 function managementLink(file) {
   const state = loadLink(file);
   if (!state || state.unlinking) throw new Refused('RELAY_OFF', 'link this board with pullboard relay on before managing its agent tokens');
   return state;
 }
 
-/** List only this person's current board-token metadata, never bearer values or the board key. */
+/** List only this board’s agent-token metadata, never bearer values or the board key. */
 export async function relayTokens(root, io) {
   const file = linkFile(root);
   return locked(file, async () => {
@@ -880,6 +911,7 @@ export async function relayTokens(root, io) {
 
 /** Revoke one credential listed on this board while retaining its cache so it cannot be silently reminted. */
 export async function relayRevoke(root, id, io) {
+  requirePersonChannel(io.personChannel);
   if (typeof id !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) {
     throw new Refused('TOKEN_NOT_OWNED', 'name an opaque token id from pullboard relay tokens, never a credential value');
   }
@@ -890,7 +922,7 @@ export async function relayRevoke(root, id, io) {
     if (!Array.isArray(listed.tokens) || !listed.tokens.some((row) => row.id === id)) {
       throw new Refused('TOKEN_NOT_OWNED', 'choose a token listed on this board by pullboard relay tokens');
     }
-    const result = await request(state, '/auth/tokens/revoke', { method: 'POST', body: { id } }, io);
+    const result = await nativePhoneAction(state, 'revoke-token', id, io, request);
     if (result.id !== id || result.revoked !== true) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge this token revocation; retry its opaque id');
     for (const credential of Object.values(state.agentTokens ?? {})) if (credential.id === id) credential.revoked = true;
     saveLink(file, state);
@@ -962,7 +994,10 @@ async function deviceSignIn(url, io) {
 }
 
 /** Explicitly sign in through the relay and persist a sealed initial snapshot before uploading it. */
-export async function relayOn(root, address, io, { session, quiet = false, strict = false } = {}) {
+export async function relayOn(root, address, io, { session, credential, quiet = false, strict = false } = {}) {
+  if (!credential) requirePersonChannel(io.personChannel);
+  readRelayMachine();
+  for (const project of listApiProjects()) { try { loadLink(linkFile(project.root)); } catch { /* Report this command's own link below. */ } }
   const repository = originRepository(root);
   const file = linkFile(root);
   return locked(file, async () => {
@@ -972,7 +1007,7 @@ export async function relayOn(root, address, io, { session, quiet = false, stric
     const url = relayOrigin(address || state?.url || DEFAULT_RELAY);
     if (state && (state.url !== url || state.repository !== repository)) throw new Refused('RELAY_LINKED', 'this board is linked to another relay or repository; run relay off before changing its link');
     const key = state ? readBoardKey(state.board) : await generateBoardKey();
-    const signed = session ?? await deviceSignIn(url, io);
+    const signed = credential ?? session ?? await deviceSignIn(url, io);
     if (session && session.url !== url) throw new Refused('RELAY_SESSION', 'Sign in again to this relay with pullboard relay on --all.');
     if (!state) {
       const snapshot = localRecords(root, (board) => {
@@ -982,20 +1017,28 @@ export async function relayOn(root, address, io, { session, quiet = false, stric
       snapshot.document = relaySnapshot(root);
       // Save the device key before creating any remote link; a locked keychain cannot strand it.
       const keyStorage = storeBoardKey(snapshot.board, key);
-      state = { version: 1, mode: 'ordered', board: snapshot.board, url, repository, token: signed.token,
-        tokenId: signed.id, keyStorage, presentationDigest: presentationDigest(snapshot.document.presentation), sequence: 0,
+      state = { version: 1, mode: 'ordered', board: snapshot.board, url, repository, token: null, personReauth: true,
+        keyStorage, presentationDigest: presentationDigest(snapshot.document.presentation), sequence: 0,
         cursor: snapshot.document.tables.event.at(-1)?.event_id ?? 0, baselineCursor: snapshot.document.tables.event.at(-1)?.event_id ?? 0,
         baselineAccepted: false, linkPending: true };
       state.snapshot = { sequence: 0, sealed: await sealedRecord(key, snapshot.document, state, 'snapshot', 0) };
-    } else { state.token = signed.token; state.tokenId = signed.id; }
+    }
     state.account = signed.account ?? signed.user?.id;
     // Persist the exact sealed snapshot and a recoverable link intent before making the remote link.
     saveLink(file, state);
     if (state.linkPending) {
-      await request(state, '/auth/boards/link', { method: 'POST', body: { board: state.board, repository } }, io);
+      if (!credential) await request({ ...state, token: signed.token }, '/auth/boards/link', { method: 'POST', body: { board: state.board, repository } }, io);
       delete state.linkPending;
       saveLink(file, state);
     }
+    const machine = updateRelayMachine(settings => settings.machine);
+    const issued = credential ?? await request({ ...state, token: signed.token }, '/auth/machines', { method: 'POST', body: { board: state.board, machine } }, io);
+    if (!/^pm_[A-Za-z0-9_-]{43}$/u.test(issued.token ?? '') || issued.board !== state.board || issued.machine !== machine) throw new Refused('RELAY_RESPONSE', 'the relay did not issue this board’s machine credential; sign in again');
+    state.token = issued.token;
+    state.tokenId = issued.id;
+    state.machine = machine;
+    delete state.personReauth;
+    saveLink(file, state);
     let result;
     try {
       let ready = true;
@@ -1022,23 +1065,29 @@ export async function relayOn(root, address, io, { session, quiet = false, stric
   });
 }
 
-/** Remove the remote board and its link before forgetting this device's private key and metadata. */
+/** Unlink locally without approval, then request a separate phone-approved remote deletion if possible. */
 export async function relayOff(root, io) {
   updateRelayMachine(machine => { const project = repoInfo(root).root; if (!machine.excluded.includes(project)) machine.excluded.push(project); });
   const file = linkFile(root);
   return locked(file, async () => {
     const state = loadLink(file);
     if (!state) return summary(root, null);
-    if (!state.unlinking) {
-      const deleted = await request(state, '/api/v1/boards/' + state.board, { method: 'DELETE', allowMissing: true }, io);
-      if (deleted.alreadyDeleted) state.alreadyDeleted = true;
-      state.unlinking = true;
-      saveLink(file, state);
-    }
-    forgetBoardKey(state.board, state.keyStorage);
+    // Local unlink always completes, including agent shells, outages and a fenced remote baseline.
+    let proposal;
+    try { proposal = await phoneProposal(state, 'delete-board', state.board); }
+    catch { /* Missing key or pairing cannot stop local unlinking. */ }
     rmSync(file, { force: true });
+    try { forgetBoardKey(state.board, state.keyStorage); }
+    catch { /* The local opt-out is complete even when secure key storage is temporarily locked. */ }
+    let requested = false;
+    try {
+      if (!proposal) throw new Refused('PHONE_NOT_PAIRED', 'Manage the relay copy from your phone.');
+      const { context, sealed } = proposal;
+      await request(state, '/api/v1/devices/approvals', { method: 'POST', body: { context, sealed } }, io);
+      requested = true;
+    } catch { /* The local link is already gone; no outage may undo local unlinking. */ }
     return { linked: false, board: state.board, url: state.url, link: '', sequence: state.sequence, behind: 0,
-      ...(state.alreadyDeleted ? { alreadyDeleted: true, notice: 'the relay had already deleted this board; this device is unlinked and the local board is complete' } : {}) };
+      notice: 'Local link removed. The relay copy stays until you approve deleting it on your phone.' + (requested ? '' : ' Open the phone to manage the relay copy.') };
   });
 }
 
@@ -1057,6 +1106,7 @@ export async function relayRequestDevice(root) {
 
 /** Sign in once for machine setup; the saved account is the provider-authenticated identity. */
 export async function relayMachineSignIn(address, io) {
+  requirePersonChannel(io.personChannel);
   const url = relayOrigin(address || DEFAULT_RELAY);
   const signed = await deviceSignIn(url, io);
   if (typeof signed.user?.id !== 'string') throw new Refused('RELAY_RESPONSE', 'Sign in again to receive an authenticated account identity.');
@@ -1079,8 +1129,20 @@ export async function deliverDeviceWraps(root, io) {
   for (const device of devices) {
     const context = { board: state.board, device: device.deviceId, engine: ENGINE_VERSION };
     const wrapped = await wrapForRecordedDevice(key, context, state);
-    await relayDeviceRequest(state, '/api/v1/devices/' + device.deviceId, { method: 'POST', body: {} }, io);
     await relayDeviceRequest(state, '/api/v1/devices/' + device.deviceId + '/boards/' + state.board,
       { method: 'PUT', body: { engine: ENGINE_VERSION, wrapped: Buffer.from(JSON.stringify(wrapped)).toString('base64url') } }, io);
   }
+}
+
+/** Expose board-scoped machine context only to the native setup/approval adapter. */
+export function relayMachineContext(root) { return loadLink(linkFile(root)); }
+
+/** Require one exact phone approval before revoking and removing a device from the trusted roster. */
+export async function relayRevokeDevice(root, deviceId, io) {
+  requirePersonChannel(io.personChannel);
+  const state = managementLink(linkFile(root));
+  const result = await nativePhoneAction(state, 'revoke-device', deviceId, io, request);
+  removeRecordedDevice(deviceId);
+  updateRelayMachine(machine => { machine.revocations = machine.revocations.filter(entry => entry.deviceId !== deviceId); });
+  return { ...result, notice: 'Revoked device; keys it already received remain known. Board key rotation is separate.' };
 }

@@ -389,21 +389,32 @@ test('an explicit read role still hides a public board below triage [H13,H14,H8]
   await assert.rejects(box.auth.issueToken(signed.token, { board: 'alpha', agent: 'worker' }), { code: 'BOARD_NOT_LINKED' });
 });
 
-test('relay off forgets expired and independently unlinked boards while preserving local rows [H1,H7,H18]', async (t) => {
+test('relay off forgets expired and remotely deleted boards while preserving local rows [H1,H7,H18]', async (t) => {
   for (const cause of ['expired', 'other-client']) await t.test(cause, async (t) => {
     const box = await relayClientFixture(t);
     await box.link();
-    const localBeforeDeletion = (await box.cli('export')).document.tables;
+    const localBeforeOff = (await box.cli('export')).document.tables;
+    const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
     if (cause === 'expired') box.advance(90);
-    else assert.equal(await box.otherDeviceOff(), 0, 'a second real CLI device unlinks the shared board');
+    else {
+      const phone = await box.phoneSession();
+      const deleted = await fetchFresh(`${box.origin}/api/v1/boards/${link.board}`, {
+        method: 'DELETE', headers: { authorization: `Bearer ${phone.token}`, 'x-pullboard-engine': String(ENGINE_VERSION) },
+      });
+      assert.equal(deleted.status, 200, 'an explicit person HTTP DELETE removes the remote board');
+    }
+    const callsBeforeOff = box.calls.length;
     const off = await box.cli('relay', 'off');
     assert.equal(off.code, 0);
     assert.equal(off.document.linked, false);
-    assert.equal(off.document.alreadyDeleted, true);
-    assert.match(off.document.notice, /already deleted/);
+    assert.match(off.document.notice, /Local link removed/u);
     assert.equal(existsSync(box.linkFile), false, 'local link metadata is forgotten');
     assert.equal(existsSync(box.keyFile), false, 'device-only fallback key is forgotten');
-    assert.deepEqual((await box.cli('export')).document.tables, localBeforeDeletion, 'local board is complete after remote deletion');
+    assert.deepEqual((await box.cli('export')).document.tables, localBeforeOff, 'local rows and event history survive remote deletion or expiry');
+    assert.ok(JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'relay-machine/state.json'), 'utf8')).excluded.includes(box.root),
+      'the local opt-out remains durable after unlink');
+    assert.equal(box.calls.slice(callsBeforeOff).some(call => call.method === 'DELETE'), false,
+      'relay off never deletes the relay copy without its separate phone approval');
     const count = box.calls.length;
     assert.equal((await box.cli('relay', 'off')).code, 0);
     assert.equal((await box.cli('status')).code, 0);
@@ -411,23 +422,22 @@ test('relay off forgets expired and independently unlinked boards while preservi
   });
 });
 
-test('relay off retains credentials and metadata after non-missing or unsupported refusals [H1,H7]', async (t) => {
+test('relay off completes local unlink when the relay is offline [H1,H7,H18]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
-  for (const failure of [
-    { status: 403, code: 'NO_REPO_ACCESS' },
-    { status: 401, code: 'AUTH_REQUIRED' },
-    { status: 500, code: 'NO_BOARD' },
-    { status: 404, code: 'NO_BOARD', version: 2 },
-  ]) {
-    box.overrideDelete(failure);
-    assert.notEqual((await box.cli('relay', 'off')).code, 0, 'only a supported missing-board response permits cleanup');
-    assert.equal(existsSync(box.linkFile), true);
-    assert.equal(existsSync(box.keyFile), true);
-  }
-  box.overrideDelete(null);
-  assert.equal((await box.cli('relay', 'off')).code, 0);
+  const localBeforeOff = (await box.cli('export')).document.tables;
+  await box.stopRelay();
+  const callsBeforeOff = box.calls.length;
+  const off = await box.cli('relay', 'off');
+  assert.equal(off.code, 0, 'local unlink succeeds without a reachable relay');
+  assert.match(off.document.notice, /relay copy stays until you approve deleting it on your phone/u);
+  assert.equal(existsSync(box.linkFile), false);
   assert.equal(existsSync(box.keyFile), false);
+  assert.ok(JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'relay-machine/state.json'), 'utf8')).excluded.includes(box.root),
+    'the local opt-out remains durable');
+  assert.deepEqual((await box.cli('export')).document.tables, localBeforeOff, 'offline unlink preserves all local rows');
+  assert.equal(box.calls.length, callsBeforeOff, 'offline local unlink makes no relay request');
+  assert.equal(box.calls.some(call => call.method === 'DELETE'), false, 'offline local unlink cannot delete the remote copy');
 });
 
 test('BOARD_INACTIVE appears once per command and resets for a second command in the same process [H18]', async (t) => {
@@ -763,20 +773,29 @@ test('a linked device with an unreadable key reads locally and refuses moves wit
   assert.equal(box.calls.length, callsBefore, 'no read or refused move reaches the relay');
 });
 
-test('plain relay off explains an already-deleted board without printing credentials [H1,H18]', async (t) => {
+test('plain relay off explains the retained relay copy without printing credentials [H1,H18]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
-  box.advance(90);
+  const localBeforeOff = (await box.cli('export')).document.tables;
+  const callsBeforeOff = box.calls.length;
   const result = await box.script(`
     import { main } from ${JSON.stringify(box.mainURL)};
     let output = '';
     const code = await main(['relay', 'off'], {
       cwd: process.cwd(), stdout: { write(part) { output += part; } }, stderr: { write() {} },
     });
-    console.log(JSON.stringify({ code, explained: output.includes('already deleted'), credential: /ps_|key=/.test(output) }));
+    console.log(JSON.stringify({ code,
+      retained: output.includes('relay copy stays until you approve deleting it on your phone'),
+      credential: /(?:ps|pm|pa|pg)_[A-Za-z0-9_-]{43}|key=/u.test(output) }));
   `);
   assert.equal(result.code, 0);
-  assert.deepEqual(result.document, { code: 0, explained: true, credential: false });
+  assert.deepEqual(result.document, { code: 0, retained: true, credential: false });
+  assert.equal(existsSync(box.linkFile), false, 'plain local off removes the device link');
+  assert.equal(existsSync(box.keyFile), false, 'plain local off forgets the device key');
+  assert.ok(JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'relay-machine/state.json'), 'utf8')).excluded.includes(box.root));
+  assert.deepEqual((await box.cli('export')).document.tables, localBeforeOff, 'plain local off preserves native rows');
+  assert.equal(box.calls.slice(callsBeforeOff).some(call => call.method === 'DELETE'), false,
+    'plain local off never deletes the remote copy without phone approval');
 });
 
 
@@ -785,11 +804,13 @@ test('every real CLI relay request declares its engine including sign-in, reads,
   await box.link();
   assert.equal((await box.cli('export')).code, 0);
   assert.equal((await box.cli('add', box.lane, 'Declared-engine fixture move')).code, 0);
-  assert.equal((await box.cli('relay', 'off')).code, 0);
+  const off = await box.cli('relay', 'off');
+  assert.equal(off.code, 0);
+  assert.match(off.document.notice, /relay copy stays until you approve deleting it on your phone/u);
   assert.ok(box.calls.some(call => call.path.startsWith('/auth/')));
   assert.ok(box.calls.some(call => call.method === 'GET' && call.path.includes('/events')));
   assert.ok(box.calls.some(call => call.method === 'POST' && call.path.endsWith('/moves')));
   assert.ok(box.calls.some(call => call.method === 'PUT' && call.path.endsWith('/state')));
-  assert.ok(box.calls.some(call => call.method === 'DELETE'));
+  assert.equal(box.calls.some(call => call.method === 'DELETE'), false, 'local off does not send remote deletion without phone approval');
   assert.ok(box.calls.every(call => call.engine === String(ENGINE_VERSION)), 'every request from the real CLI carries the current engine version');
 });

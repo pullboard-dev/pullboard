@@ -36,18 +36,19 @@ export function createAuthHandler({ auth, publicOrigin }) {
   try { origin = new URL(publicOrigin); } catch { throw new Refused('RELAY_CONFIG', 'configure the relay public origin'); }
   if (origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash || (origin.protocol !== 'https:' && !(origin.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(origin.hostname)))) throw new Refused('RELAY_CONFIG', 'use an HTTPS public origin, or a loopback HTTP origin for local tests');
   const secure = origin.protocol === 'https:' ? '; Secure' : '';
-  const routes = new Set(['GET /auth/github/start', 'GET /auth/github/callback', 'POST /auth/device/start', 'POST /auth/device/poll', 'GET /auth/session', 'GET /auth/boards', 'POST /auth/boards/link', 'GET /auth/tokens', 'POST /auth/tokens', 'POST /auth/tokens/revoke']);
+  const routes = new Set(['GET /auth/github/start', 'GET /auth/github/callback', 'POST /auth/device/start', 'POST /auth/device/poll', 'GET /auth/session', 'GET /auth/boards', 'POST /auth/boards/link', 'POST /auth/machines', 'GET /auth/tokens', 'POST /auth/tokens', 'POST /auth/tokens/revoke']);
 
   /** Resolve a bearer or cookie credential; cookie writes require an exact trusted Origin. */
   function token(req, write = false) {
     const authorization = req.headers.authorization;
     if (authorization) {
-      const match = /^Bearer ((?:ps_|pa_)[A-Za-z0-9_-]{43})$/.exec(authorization);
+      const match = /^Bearer ((?:ps_|pa_|pm_)[A-Za-z0-9_-]{43})$/.exec(authorization);
       if (!match) throw new Refused('AUTH_REQUIRED', 'send a current relay bearer credential');
       return match[1];
     }
     const session = cookie(req, 'pb_session');
     if (write && req.headers.origin !== origin.origin) throw new Refused('BAD_ORIGIN', 'send cookie-authorized writes from the relay origin');
+    if (session !== undefined && !/^ps_[A-Za-z0-9_-]{43}$/.test(session)) throw new Refused('AUTH_REQUIRED', 'sign in to the relay in this browser');
     return session;
   }
 
@@ -80,6 +81,9 @@ export function createAuthHandler({ auth, publicOrigin }) {
         const bearer = token(req, true);
         const input = await body(req);
         json(res, 200, { board: await auth.linkBoard(bearer, input.board, input.repository) });
+      } else if (route === 'POST /auth/machines') {
+        const bearer = token(req, true);
+        json(res, 201, await auth.issueMachine(bearer, await body(req)));
       } else if (route === 'GET /auth/tokens') {
         json(res, 200, { tokens: await auth.listTokens(token(req), url.searchParams.get('board')) });
       } else if (route === 'POST /auth/tokens') {
