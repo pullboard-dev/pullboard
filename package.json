@@ -1,6 +1,6 @@
 {
   "name": "pullboard",
-  "version": "0.8.4",
+  "version": "0.8.5",
   "description": "Pullboard, local-first: a work board, lanes, a spec and git hooks that live in your repo. Nothing ships until a second agent verifies it.",
   "license": "MIT",
   "author": "Corey Olson",

@@ -7575,6 +7575,25 @@ test("a waiting ask's who and when stay on one line with wide fonts [N26]", { ti
   }
 });
 
+/**
+ * Type words into the view's top-bar search as a keyboard does, from an empty field, and wait for their results. On a
+ * timeout it names the stage it stopped at: the field's value, what has focus, whether the page has window focus, and
+ * whether the results are hidden and what closed them (#394).
+ */
+async function searchFor(chrome, words, timeoutMs) {
+  await chrome.evaluate("document.querySelector('#q').focus(); document.querySelector('#q').select()");
+  await chrome.send('Input.insertText', { text: words });
+  try {
+    await chrome.waitFor(`document.querySelector('#q').value === ${JSON.stringify(words)} && !document.querySelector('#find-results').hidden`, timeoutMs);
+  } catch (error) {
+    const state = await chrome.evaluate(`JSON.stringify((() => {
+      const q = document.querySelector('#q'), results = document.querySelector('#find-results'), at = document.activeElement;
+      return { value: q.value, focused: at ? (at.id ? '#' + at.id : at.tagName.toLowerCase()) : null, windowFocus: document.hasFocus(), resultsHidden: results.hidden, closedBy: results.dataset.why || null };
+    })())`);
+    throw new Error(`the search for ${JSON.stringify(words)} did not show its results: ${state}`, { cause: error });
+  }
+}
+
 test('search in the top bar finds anything on the board [N26]', { timeout: 150_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for search checks.');
@@ -7613,12 +7632,7 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
     const point = JSON.parse(await chrome.evaluate(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return JSON.stringify({ x: r.x + r.width / 2, y: r.y + r.height / 2 }); })()`));
     for (const type of ['mousePressed', 'mouseReleased']) await chrome.send('Input.dispatchMouseEvent', { type, ...point, button: 'left', clickCount: 1 });
   };
-  /** Type the words into the search as a keyboard does, from an empty field. */
-  const search = async (words) => {
-    await chrome.evaluate("document.querySelector('#q').focus(); document.querySelector('#q').select()");
-    await chrome.send('Input.insertText', { text: words });
-    await chrome.waitFor(`document.querySelector('#q').value === ${JSON.stringify(words)} && !document.querySelector('#find-results').hidden`);
-  };
+  const search = (words) => searchFor(chrome, words);
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor("typeof data === 'object' && data?.project?.items?.length === 8 && data.project.shouts.length >= 2");
@@ -7653,6 +7667,19 @@ test('search in the top bar finds anything on the board [N26]', { timeout: 150_0
         assert.deepEqual([cleared.value, cleared.shown], ['', false], `${at}: Esc clears the search and closes its results`);
       }
     }
+
+    // A search begun straight after Esc keeps its results: leaving the field closes them a moment later, and coming back
+    // before then must not let that close take the new ones (CI lost them this way between searches, #394).
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor('innerWidth === 1280');
+    await search('greeting');
+    await key('Escape', 'Escape', 27);
+    await search('greeting');
+    await chrome.evaluate('new Promise((done) => setTimeout(done, 250))');
+    const kept = JSON.parse(await chrome.evaluate("JSON.stringify([document.querySelector('#q').value, document.activeElement.id, document.querySelector('#find-results').hidden])"));
+    assert.deepEqual(kept, ['greeting', 'q', false], `a search straight after Esc keeps its results (words, focus, results hidden): ${JSON.stringify(kept)}`);
+    await key('Escape', 'Escape', 27);
+    assert.equal(await chrome.evaluate("document.querySelector('#find-results').dataset.why"), 'escape', 'Esc closes the results and says so');
 
     // The arrows move the highlight and Enter opens it: here the third item, the third newest.
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -7873,6 +7900,41 @@ test('shout cards fit beside a classic scrollbar [N26]', { timeout: 120_000 }, a
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     rmSync(profile, {recursive:true,force:true});
+    await view.stop();
+  }
+});
+
+test('the search step names its state on timeout [N26]', { timeout: 60_000 }, async (t) => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for search checks.');
+  const box = machine();
+  const alpha = project(box, 'stalled-search');
+  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-stalled-search-chrome-'));
+  let chrome;
+  /** The record a timed-out search step carries, read from its message. */
+  const record = (error) => JSON.parse(error.message.slice(error.message.indexOf('{')));
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("typeof data === 'object' && data?.project?.items?.length === 1");
+    // A field that takes no typing: the step times out, and its message says how far the search got.
+    await chrome.evaluate("document.querySelector('#q').disabled = true");
+    let stalled;
+    await assert.rejects(searchFor(chrome, 'greeting', 1_500), (error) => { stalled = error; return true; });
+    assert.match(stalled.message, /^the search for "greeting" did not show its results: \{/, 'the step says which search stalled');
+    assert.deepEqual(Object.keys(record(stalled)), ['value', 'focused', 'windowFocus', 'resultsHidden', 'closedBy'], 'it records the value, the focus, the window focus, and the results with what closed them');
+    assert.deepEqual([record(stalled).value, record(stalled).focused, typeof record(stalled).windowFocus, record(stalled).resultsHidden], ['', 'body', 'boolean', true], `no words reached the field, which never had focus: ${stalled.message}`);
+    // Results that showed and were then closed say what closed them: here, leaving the field.
+    await chrome.evaluate("document.querySelector('#q').disabled = false");
+    await searchFor(chrome, 'greeting');
+    await chrome.evaluate("document.querySelector('#q').blur()");
+    await chrome.waitFor("document.querySelector('#find-results').hidden");
+    assert.equal(await chrome.evaluate("document.querySelector('#find-results').dataset.why"), 'left the field', 'leaving the field closes the results and says so');
+    assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
     await view.stop();
   }
 });
