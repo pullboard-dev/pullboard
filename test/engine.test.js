@@ -1,9 +1,8 @@
 /** Real-SQLite tests for the deterministic, sequence-ordered move engine [H3,H16]. */
 import assert from 'node:assert/strict';
-import { runFixtureExecFile as execFileSync } from './fixture-child.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
@@ -11,6 +10,7 @@ import { exportBoard, importBoard, restoreRelaySnapshot } from '../src/exchange.
 import { applyEngineMove, applyRelayMove, prepareEngineMove, appliedSequence, engineReceipt, refuseRelayMove, startRelayEpoch, checkpointSequence, ENGINE_OPERATIONS } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { Refused } from '../src/refused.js';
+import { unpackRelease } from './release-archive.js';
 
 const HOUR = 3_600_000;
 const CLAIM_AT = '2026-10-07T18:00:00.000Z';
@@ -297,8 +297,7 @@ test('fallback refusal identity hashes operation arguments when no ciphertext di
 
 test('released engine 3 stops a background completion before changing rows or its cursor [V2,H16]', async t => {
   const { directory, copies, item } = engineCopies(t);
-  const archive = execFileSync('git', ['archive', 'v0.8.1'], { cwd: resolve(import.meta.dirname, '..'), maxBuffer: 32 * 1024 * 1024 });
-  execFileSync('tar', ['-x', '-C', directory], { input: archive });
+  unpackRelease('v0.8.1', directory);
   const released = await import(pathToFileURL(join(directory, 'src/engine.js')).href);
   const releasedMachine = await import(pathToFileURL(join(directory, 'src/machine.js')).href);
   assert.equal(releasedMachine.ENGINE_VERSION, 3, 'exercise the actual released client');
@@ -332,8 +331,7 @@ test('released engine 3 stops a background completion before changing rows or it
 
 test('an engine 6 client meets an item hold and is told to upgrade [H16,M1]', async t => {
   const { directory, copies, item } = engineCopies(t);
-  const archive = execFileSync('git', ['archive', 'v0.8.3'], { cwd: resolve(import.meta.dirname, '..'), maxBuffer: 32 * 1024 * 1024 });
-  execFileSync('tar', ['-x', '-C', directory], { input: archive });
+  unpackRelease('v0.8.3', directory);
   const released = await import(pathToFileURL(join(directory, 'src/engine.js')).href);
   const releasedMachine = await import(pathToFileURL(join(directory, 'src/machine.js')).href);
   assert.equal(releasedMachine.ENGINE_VERSION, 6, 'exercise the actual 0.8.3 client');

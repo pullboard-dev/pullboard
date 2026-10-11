@@ -1,9 +1,8 @@
 /** Real Git, SQLite and ordered-engine coverage for coordinator criterion reopen [V2,V6,H16]. */
 import assert from 'node:assert/strict';
-import { runFixtureExecFile as execFileSync } from './fixture-child.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
@@ -11,6 +10,7 @@ import { appliedSequence, applyRelayMove, engineReceipt, prepareEngineMove } fro
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { unpackRelease } from './release-archive.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -128,10 +128,7 @@ test('a reopened item resubmits at a new head after a criterion edit [V2,V6,H16]
   const beforeOldReceiver = exportBoard(oldReceiver);
   const oldDirectory = mkdtempSync(join(tmpdir(), 'pullboard-engine-7-reopen-'));
   t.after(() => rmSync(oldDirectory, { recursive: true, force: true }));
-  const archive = execFileSync('git', ['archive', 'v0.8.4'], {
-    cwd: resolve(import.meta.dirname, '..'), maxBuffer: 32 * 1024 * 1024,
-  });
-  execFileSync('tar', ['-x', '-C', oldDirectory], { input: archive });
+  unpackRelease('v0.8.4', oldDirectory);
   const oldEngine = await import(pathToFileURL(join(oldDirectory, 'src/engine.js')).href);
   const oldMachine = await import(pathToFileURL(join(oldDirectory, 'src/machine.js')).href);
   assert.equal(oldMachine.ENGINE_VERSION, 7, 'exercise the actual released engine-7 client');
