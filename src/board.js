@@ -1961,10 +1961,10 @@ function milestonePriorities(board) {
  * and `shared` names them (N20). A held lane offers nothing new (N22).
  *
  * @param {any} board
- * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[] }} who
+ * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[] }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
-export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', runnable = false, routes = ROUTES, warm = [] }) {
+export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', runnable = false, routes = ROUTES, warm = [], priority = [] }) {
   const route = routeOf(board, agentId);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
   const allItems = listItems(board).reverse();
@@ -2005,12 +2005,24 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   if (paused) return { item: null, reasons: [`${paused.hold_by} holds the ${lane} lane: ${paused.hold_reason}`, ...reasons] };
   const milestonePriority = milestonePriorities(board);
   const recent = new Set(warm);
+  const mainRed = new Set(priority);
   const laneItems = items.filter((entry) => entry.item_status === 'open' && entry.item_lane === lane);
   const mine = laneItems
     .filter((entry) => !itemHold(board, entry.item_id))
     .map((entry, order) => ({ entry, order, shared: itemFiles(entry).filter((path) => recent.has(path)) }))
     .sort((first, second) => milestonePriority(first.entry) - milestonePriority(second.entry)
-      || tier(second.entry) - tier(first.entry) || second.shared.length - first.shared.length || first.order - second.order);
+      || tier(second.entry) - tier(first.entry)
+      || second.shared.length - first.shared.length || first.order - second.order);
+  // Move only evidenced reworks ahead of their own tier; with no evidence, normal order is exact.
+  for (const route of ROUTES) {
+    const routeTier = ROUTES.indexOf(route);
+    const selected = mine.findIndex(({ entry }) => tier(entry) === routeTier && mainRed.has(entry.item_id));
+    const firstTierItem = mine.findIndex(({ entry }) => tier(entry) === routeTier);
+    if (selected > firstTierItem && firstTierItem >= 0) {
+      const [rework] = mine.splice(selected, 1);
+      mine.splice(firstTierItem, 0, rework);
+    }
+  }
   for (const { entry, shared } of mine) {
     const waiting = (entry.item_after ? entry.item_after.split(',').map(Number) : [])
       .map((id) => current(board, itemById(board, id)))

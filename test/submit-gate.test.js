@@ -421,7 +421,7 @@ for (const mode of ['topic parent', 'merge commit']) {
     assert.match(refused.err, /GATE_RED/u);
     assert.match(refused.err, /affected tests:.*test\/a\.test\.js/u);
     assert.match(refused.err, /ERR_ASSERTION/u);
-    assert.equal(readFileSync(marker, 'utf8'), 'ran\n', 'submit actually executed the transitive importer');
+    assert.equal(readFileSync(marker, 'utf8'), 'ran\nran\n', 'submit executes the transitive importer against the candidate and exact main');
   });
 }
 
@@ -535,6 +535,6 @@ for (const mode of ['deleted source', 'topic parent', 'merge commit']) {
     assert.match(refused.err, /GATE_RED/u);
     assert.match(refused.err, /affected tests:.*test\/a\.test\.js/u);
     assert.match(refused.err, mode === 'deleted source' ? /ERR_MODULE_NOT_FOUND/u : /ERR_ASSERTION/u);
-    if (mode !== 'deleted source') assert.equal(readFileSync(marker, 'utf8'), 'ran\n', 'submit executed the unchanged transitive importer');
+    if (mode !== 'deleted source') assert.equal(readFileSync(marker, 'utf8'), 'ran\nran\n', 'submit executes the unchanged transitive importer against the candidate and exact main');
   });
 }
