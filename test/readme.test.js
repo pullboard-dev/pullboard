@@ -15,7 +15,7 @@ const README = readFileSync(join(ROOT, 'README.md'), 'utf8');
 const drawn = Object.keys(FIGURES).map((name) => `docs/img/${name}.svg`).sort();
 const SHOT_FIGURES = [
   { path: 'docs/shots/tour.svg', alt: 'The timed Pullboard tour shows a change submitted, rejected for a missed edge, fixed and accepted.' },
-  { path: 'docs/shots/desktop.png', alt: "The Pullboard board shows open, claimed, submitted and accepted work, with a pending decision and the accepted item's review history." },
+  { path: 'docs/shots/desktop.png', alt: "The desktop board shows open, claimed, submitted and accepted work, a Needs you row for a held lane, search in the top bar, the status bar and an accepted item's review history." },
 ];
 
 /** Average glyph width, in ems, generous enough for the widest system font each figure may get. */
