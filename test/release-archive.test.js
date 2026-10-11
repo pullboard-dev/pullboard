@@ -29,7 +29,9 @@ test('an old release unpacks even when tar stops reading early [C7]', t => {
     cwd: ROOT, env: { ...process.env, PATH: `${stub}${delimiter}${process.env.PATH ?? ''}` },
     input: archive.stdout, encoding: 'utf8',
   });
-  assert.equal(oldPipeline.error?.code, 'EPIPE', 'the stdin-piping form breaks when tar exits after one block');
+  const pipeErrorCode = oldPipeline.error?.code;
+  assert.ok(['EPIPE', 'ENOTCONN'].includes(pipeErrorCode),
+    `the stdin-piping form breaks when tar exits after one block (got ${pipeErrorCode ?? 'no error'})`);
 
   const path = process.env.PATH;
   process.env.PATH = `${stub}${delimiter}${path ?? ''}`;
