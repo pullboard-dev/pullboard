@@ -10,6 +10,7 @@ import { pathToFileURL } from 'node:url';
 import * as store from '../src/board.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard } from '../src/exchange.js';
+import { unpackRelease } from './release-archive.js';
 
 const TEMP_DIRS = [];
 const HOUR = 3_600_000;
@@ -149,8 +150,7 @@ test('[R3,H16] a released client stops before losing an exceptional merged note'
   const box = await fixture(t);
   const directory = join(box.dir, 'released');
   mkdirSync(directory);
-  const archive = execFileSync('git', ['archive', 'v0.8.3'], { cwd: resolve(import.meta.dirname, '..'), maxBuffer: 32 * 1024 * 1024 });
-  execFileSync('tar', ['-x', '-C', directory], { input: archive });
+  unpackRelease('v0.8.3', directory);
   const released = await import(pathToFileURL(join(directory, 'src/engine.js')).href);
   const machine = await import(pathToFileURL(join(directory, 'src/machine.js')).href);
   assert.equal(machine.ENGINE_VERSION, 6, 'exercise the actual released client');
