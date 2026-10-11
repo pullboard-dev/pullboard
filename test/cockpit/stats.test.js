@@ -6,6 +6,19 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { SPEC, machine, project, build, sendBack, startView, accept, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 
+/** Add a real joined worktree to the shared test board.
+ * @param {ReturnType<typeof machine>} box
+ * @param {{ repo: string }} p
+ * @param {string} name
+ * @returns {string}
+ */
+function joinedAgent(box, p, name) {
+  const web = join(box.dir, `${name}-web`);
+  box.git(p.repo, 'worktree', 'add', '-q', web, '-b', `web/${name}`);
+  box.run(web, 'join', 'web');
+  return web;
+}
+
 
 test('[V2,N26] real Chrome shows matching proof stats at phone width and clears on a group [V2,N26]', { timeout: 90_000 }, async (t) => {
   const executable = chromeExecutable();
@@ -68,6 +81,51 @@ test('[V2,N26] real Chrome shows matching proof stats at phone width and clears 
     const { flow: currentFlow, ...currentTotals } = (await boardOf(view, alpha.repo)).proofStats;
     const { flow: expectedFlow, ...expectedTotals } = expected;
     assert.deepEqual(currentTotals, expectedTotals, 'the comparison reads the same live API stats source; queue ages may advance');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    await view.stop();
+    rmSync(profile, { recursive: true, force: true });
+  }
+});
+
+test('[V2,N26] stats counts agree in number', { timeout: 90_000 }, async () => {
+  const executable = chromeExecutable();
+  assert.ok(executable, 'Chrome is required for the stats count wording criterion.');
+
+  const box = machine();
+  const alpha = project(box, 'stats-count-words');
+  box.run(alpha.web, 'join', 'web', '--family', 'solo');
+  const crewOne = joinedAgent(box, alpha, 'stats-crew-one');
+  const crewTwo = joinedAgent(box, alpha, 'stats-crew-two');
+  const crewThree = joinedAgent(box, alpha, 'stats-crew-three');
+  const untouched = joinedAgent(box, alpha, 'stats-untouched');
+  box.run(crewOne, 'join', 'web', '--family', 'crew');
+  for (let move = 0; move < 11; move += 1) {
+    box.run(crewOne, 'join', 'web', '--family', 'other');
+    box.run(crewOne, 'join', 'web', '--family', 'crew');
+  }
+  box.run(crewTwo, 'join', 'web', '--family', 'crew');
+  box.run(crewThree, 'join', 'web', '--family', 'crew');
+  const expected = JSON.parse(box.run(alpha.repo, 'stats', '--json')).stats;
+  assert.deepEqual(expected.families.find(({ name }) => name === 'solo'), { name: 'solo', agents: 1, moves: 1 });
+  assert.deepEqual(expected.families.find(({ name }) => name === 'crew'), { name: 'crew', agents: 3, moves: 14 });
+  assert.equal(expected.agents.find(({ id }) => id === 'web-5')?.moves, 1);
+  assert.equal(expected.agents.find(({ id }) => id === 'web-2')?.moves, 24);
+  assert.ok(untouched, 'the final worktree remains joined without a family change');
+
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-stats-number-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("!!data?.project?.proofStats && document.querySelector('#proof-stats .proof-stats-detail')");
+    await chrome.evaluate(`document.querySelector('[data-root=${JSON.stringify(alpha.repo)}]').click()`);
+    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!document.querySelector('#proof-stats .proof-stats-detail')`);
+    const detail = await chrome.evaluate("document.querySelector('#proof-stats .proof-stats-detail').textContent");
+    assert.match(detail, /solo \(1 agent, 1 move\)/);
+    assert.match(detail, /crew \(3 agents, 14 moves\)/);
+    assert.match(detail, /web-5 \(unknown; 1 move\)/);
+    assert.match(detail, /web-2 \(crew\/other\/unknown; 24 moves\)/);
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     await view.stop();
