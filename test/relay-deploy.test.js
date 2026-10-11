@@ -16,6 +16,7 @@ const SERVER = resolve(import.meta.dirname, '../relay/server.mjs');
 const DOCKERFILE = resolve(import.meta.dirname, '../relay/Dockerfile');
 const README = resolve(import.meta.dirname, '../relay/README.md');
 const ROOT = resolve(import.meta.dirname, '..');
+const DAMAGED_SERVER_FAILURE_FLOOR_MS = 5000;
 
 /** Copy one declared Docker source to its Dockerfile destination, optionally omitting a runtime file. */
 function copyDockerSource(source, destinationPath, omitted) {
@@ -81,7 +82,7 @@ function copiedServer(t, image, port, provider) {
     child.kill('SIGKILL');
     await childClosesWithin(child, 5000);
   });
-  return { child, privateHome };
+  return { child, privateHome, startedAt: started };
 }
 
 /** Fetch with the remaining portion of the copied server's shared readiness deadline. */
@@ -119,11 +120,39 @@ function childClosesWithin(child, milliseconds) {
   });
 }
 
-/** Require an omitted Docker source to produce a real nonzero process exit before readiness. */
-async function copiedServerFailureCode(child) {
-  if (child.exitCode !== null) return child.exitCode;
-  if (!await childClosesWithin(child, 1500)) return null;
-  return child.exitCode;
+/** Wait for an omitted Docker source and retain the observed exit or elapsed timeout. */
+async function copiedServerFailure(child, budgetMs) {
+  const started = performance.now();
+  if (child.exitCode === null && !await childClosesWithin(child, budgetMs)) {
+    return { code: null, description: `still running after ${Math.round(performance.now() - started)} ms (budget ${budgetMs} ms)` };
+  }
+  return { code: child.exitCode, description: `exited ${child.exitCode}` };
+}
+
+/** Require the Docker omission to fail before startup, naming the missing source and observed outcome. */
+async function requireCopiedServerFailure(child, budgetMs, omitted) {
+  const outcome = await copiedServerFailure(child, budgetMs);
+  assert.ok(Number.isInteger(outcome.code) && outcome.code > 0,
+    `omitting ${omitted} from the Dockerfile copy must cause a real nonzero startup exit; observed ${outcome.description}`);
+  return outcome.code;
+}
+
+/** Scale the damaged-copy wait to this test's healthy boot while retaining a useful minimum. */
+function damagedServerFailureBudget(healthyBootMs) {
+  return Math.max(DAMAGED_SERVER_FAILURE_FLOOR_MS, Math.ceil(healthyBootMs * 3));
+}
+
+/** Start an isolated child whose only behavior is determined by the supplied Node script. */
+function standInServer(t, script) {
+  const child = spawn(process.execPath, ['-e', script], { stdio: ['ignore', 'ignore', 'ignore'] });
+  t.after(async () => {
+    if (child.exitCode !== null || child.signalCode !== null) return;
+    child.kill('SIGTERM');
+    if (await childClosesWithin(child, 1000)) return;
+    child.kill('SIGKILL');
+    await childClosesWithin(child, 1000);
+  });
+  return child;
 }
 
 /** Extract a documented setting so the checklist can be checked against executable config. */
@@ -337,6 +366,7 @@ test('[H5,H18] Docker COPY sources boot the relay and serve its browser page, wh
   const running = copiedServer(t, image, port, provider);
   const deadline = Date.now() + 5000;
   assert.equal(await copiedServerHealthy(running.child, origin, deadline), true, 'the Dockerfile-only copy starts the production entry point and reaches health');
+  const failureBudgetMs = damagedServerFailureBudget(performance.now() - running.startedAt);
   const page = await fetchBeforeDeadline(origin, deadline);
   assert.equal(page.status, 200);
   assert.match(await page.text(), /Sign in to see your linked boards/u, 'the copied image serves the browser page');
@@ -359,6 +389,33 @@ test('[H5,H18] Docker COPY sources boot the relay and serve its browser page, wh
     const damagedImage = copiedImage(t, [omitted]);
     const damagedPort = await unusedPort();
     const damaged = copiedServer(t, damagedImage, damagedPort, provider);
-    assert.ok((await copiedServerFailureCode(damaged.child)) > 0, `omitting ${omitted} from the Dockerfile copy causes a real nonzero startup exit`);
+    await requireCopiedServerFailure(damaged.child, failureBudgetMs, omitted);
   }
+});
+
+test('[H5,H18] a damaged relay copy is judged by its own boot time', { timeout: 30_000 }, async (t) => {
+  const budgetMs = DAMAGED_SERVER_FAILURE_FLOOR_MS;
+  assert.ok(damagedServerFailureBudget(budgetMs) > budgetMs, 'a slower healthy boot extends the damaged-copy budget above its stated floor');
+  const slowFailure = standInServer(t, 'setTimeout(() => process.exit(7), 1700)');
+  const slowCode = await requireCopiedServerFailure(slowFailure, budgetMs, 'src/relay/browser-model.js');
+  assert.equal(slowCode, 7, 'a real failure later than the old 1,500 ms cutoff is still observed');
+
+  const neverExits = standInServer(t, 'setInterval(() => {}, 1000)');
+  let neverMessage = '';
+  await assert.rejects(
+    requireCopiedServerFailure(neverExits, budgetMs, 'src/relay/browser-model.js'),
+    (error) => {
+      neverMessage = error.message;
+      return /omitting src\/relay\/browser-model\.js .*still running after (\d+) ms \(budget 5000 ms\)/u.test(error.message);
+    },
+    'a damaged copy that never exits names the omitted file and its observed timeout',
+  );
+  const elapsed = Number(/still running after (\d+) ms/u.exec(neverMessage)?.[1]);
+  assert.ok(elapsed >= budgetMs, `the reported elapsed wait ${elapsed} ms reached the ${budgetMs} ms budget`);
+  const exitsZero = standInServer(t, 'setImmediate(() => process.exit(0))');
+  await assert.rejects(
+    requireCopiedServerFailure(exitsZero, budgetMs, 'src/relay/browser-model.js'),
+    /omitting src\/relay\/browser-model\.js .*exited 0/u,
+    'a clean exit is identified as not being a startup failure',
+  );
 });
