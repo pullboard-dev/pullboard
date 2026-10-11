@@ -184,16 +184,24 @@ test('the stats card shows API flow and bottleneck at 375 and 1280 [N26]', { tim
     await chrome.waitFor('!!data?.project?.proofStats');
     await chrome.evaluate('document.querySelector(' + JSON.stringify('[data-root="' + alpha.repo + '"]') + ').click()');
     await chrome.waitFor('data?.project?.root === ' + JSON.stringify(alpha.repo) + ' && !!document.querySelector("[data-stage=build]")');
+    const backgrounds = {};
     for (const scheme of ['light', 'dark']) for (const width of [375, 1280]) {
       await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))');
       const actual = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
         const card=document.querySelector('#proof-stats');
+        const statement=card.querySelector('.proof-stats-bottleneck');
         const nodes=selector => [...card.querySelectorAll(selector)].map(node => ({ key:node.dataset.stage ?? node.dataset.queue ?? node.dataset.oldest, value:node.dataset.value, text:node.textContent }));
         const rects=[...card.querySelectorAll('.proof-stats-flow, .proof-stats-flow b, .proof-stats-flow small, .proof-stats-bottleneck')].map(node => ({width:node.getBoundingClientRect().width, right:node.getBoundingClientRect().right, overflow:node.scrollWidth > node.clientWidth + 1}));
         return { api:data.project.proofStats.flow, stages:nodes('[data-stage]'), queues:nodes('[data-queue]'), oldest:nodes('[data-oldest]'),
           bottleneck:card.querySelector('[data-flow=bottleneck]')?.textContent, action:card.querySelector('[data-flow=recommendation]')?.textContent,
-          oneLine:card.querySelectorAll('.proof-stats-bottleneck').length === 1 && card.querySelector('.proof-stats-bottleneck')?.contains(card.querySelector('[data-flow=recommendation]')),
+          statementCount:card.querySelectorAll('.proof-stats-bottleneck').length, statementTag:statement?.tagName,
+          statementText:statement?.textContent, visibleStatement:statement?.innerText,
+          oneStatement:statement?.contains(card.querySelector('[data-flow=bottleneck]')) && statement?.contains(card.querySelector('[data-flow=recommendation]')),
+          inlineWords:[...statement.children].every(node => getComputedStyle(node).display === 'inline'),
+          unclipped:statement.scrollHeight <= statement.clientHeight + 1,
+          darkTheme:matchMedia('(prefers-color-scheme: dark)').matches, background:getComputedStyle(document.body).backgroundColor,
           viewport:document.documentElement.clientWidth, pageWidth:document.documentElement.scrollWidth, rects };
       })())`));
       /** Format only the expected API number, independently of the page renderer. */
@@ -203,11 +211,21 @@ test('the stats card shows API flow and bottleneck at 375 and 1280 [N26]', { tim
       assert.deepEqual(actual.oldest, Object.entries(actual.api.queues).map(([key, queue]) => ({key, value:String(queue.oldest?.ageMinutes ?? ''), text:queue.oldest ? 'Oldest: #' + queue.oldest.id + ' · ' + minutes(queue.oldest.ageMinutes) : 'Oldest: none'})), width + ': oldest ages come from the same API observation');
       assert.equal(actual.bottleneck, actual.api.bottleneck.message);
       assert.equal(actual.action, actual.api.bottleneck.recommendation);
-      assert.equal(actual.oneLine, true, 'the API bottleneck and action share one wrapping line');
+      assert.equal(actual.statementCount, 1, 'one element contains the complete API statement');
+      assert.equal(actual.statementTag, 'P', 'the message and action form one paragraph');
+      assert.equal(actual.oneStatement, true, 'the API bottleneck and action share that paragraph');
+      const sentence = 'Bottleneck: ' + actual.api.bottleneck.message + ' · ' + actual.api.bottleneck.recommendation;
+      assert.equal(actual.statementText, sentence, 'the paragraph contains both full API strings');
+      assert.equal(actual.visibleStatement, sentence, 'the entire statement is visible together');
+      assert.equal(actual.inlineWords, true, 'the statement is never split into separate blocks');
+      assert.equal(actual.unclipped, true, 'wrapping never cuts the statement short');
+      assert.equal(actual.darkTheme, scheme === 'dark', 'the browser observes the requested theme');
+      backgrounds[scheme] = actual.background;
       assert.ok(actual.pageWidth <= actual.viewport + 1, width + ': no sideways page scroll');
-      assert.ok(actual.rects.every(rect => rect.width > 0 && rect.right <= actual.viewport + 1 && !rect.overflow), width + ': flow values and line stay inside the card');
+      assert.ok(actual.rects.every(rect => rect.width > 0 && rect.right <= actual.viewport + 1 && !rect.overflow), width + ': flow values and statement stay inside the card');
       if (scheme === 'dark') await proofShot(chrome, 'stats-flow', width);
     }
+    assert.notEqual(backgrounds.light, backgrounds.dark, 'both color themes were rendered');
     await chrome.evaluate('document.querySelector(' + JSON.stringify('[data-root="' + empty.repo + '"]') + ').click()');
     await chrome.waitFor('data?.project?.root === ' + JSON.stringify(empty.repo));
     const blank = JSON.parse(await chrome.evaluate(`JSON.stringify({ stages:[...document.querySelectorAll('[data-stage]')].map(node => node.textContent), oldest:[...document.querySelectorAll('[data-oldest]')].map(node => node.textContent), action:document.querySelector('[data-flow=recommendation]')?.textContent ?? null, message:document.querySelector('[data-flow=bottleneck]')?.textContent, api:data.project.proofStats.flow })`));
