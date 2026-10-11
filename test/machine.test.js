@@ -55,9 +55,13 @@ const CALLBACKS = { 'board.js': { freeze: 'cli.js#freezer' } };
 
 /**
  * Calls whose refusals an entry point catches and reports as another: submit and verify read a
- * cited row taken out of force as a changed criterion, CRITERIA_CHANGED.
+ * cited row taken out of force as a changed criterion, CRITERIA_CHANGED. Submit also keeps its
+ * original gate refusal when a best-effort main comparison or its attribution cannot be read.
  */
-const CAUGHT = { 'cli.js#submitHere': ['cli.js#freezer'], 'cli.js#verifyHere': ['cli.js#freezer'] };
+const CAUGHT = {
+  'cli.js#submitHere': ['cli.js#freezer', 'main-red.js#compareMainFailures', 'main-red.js#matchingReworks'],
+  'cli.js#verifyHere': ['cli.js#freezer'],
+};
 
 /**
  * Encrypted transport authenticates/orders a move; its board operation is walked separately above.
