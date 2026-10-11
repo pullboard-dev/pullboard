@@ -4,7 +4,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { SPEC, machine, project, build, sendBack, startView, accept, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
+import * as store from '../../src/board.js';
+import { SPEC, machine, project, build, sendBack, startView, accept, boardOf, earlier, proofShot, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 
 
 test('[V2,N26] real Chrome shows matching proof stats at phone width and clears on a group [V2,N26]', { timeout: 90_000 }, async (t) => {
@@ -68,6 +69,94 @@ test('[V2,N26] real Chrome shows matching proof stats at phone width and clears 
     const { flow: currentFlow, ...currentTotals } = (await boardOf(view, alpha.repo)).proofStats;
     const { flow: expectedFlow, ...expectedTotals } = expected;
     assert.deepEqual(currentTotals, expectedTotals, 'the comparison reads the same live API stats source; queue ages may advance');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    await view.stop();
+    rmSync(profile, { recursive: true, force: true });
+  }
+});
+
+/** Stage a fully measured cycle and every live queue through native writers on a private clock. */
+function stageFlowBoard(box, alpha) {
+  const base = Date.now() - 120 * 60_000;
+  const commit = box.git(alpha.repo, 'rev-parse', 'HEAD');
+  const tree = box.git(alpha.repo, 'rev-parse', 'HEAD^{tree}');
+  const digest = 'a'.repeat(64);
+  /** Apply one native move at a known minute offset in this fixture's private board. */
+  const at = (minute, write) => earlier(alpha.repo, base + minute * 60_000, write);
+  at(0, board => store.register(board, { lane: 'tests', path: join(box.dir, 'flow-reviewer') }));
+  for (const n of [2, 3]) at(0, board => store.register(board, { lane: 'web', path: join(box.dir, 'flow-builder-' + n) }));
+  at(0, board => store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Flow item 1', specIds: ['G1'], criterion: 'Known flow' }));
+  /** Assign live queues to distinct private builders so every claim remains valid. */
+  const builder = id => id === 5 ? 'web-2' : id === 3 ? 'web-3' : 'web-1';
+  /** Claim one item with a private frozen criterion and a lease that outlasts the observation. */
+  const claim = (id, minute) => at(minute, board => store.claim(board, id, { agentId: builder(id), lane: 'web', leaseMs: 24 * 60 * 60_000, head: commit, freeze: () => ({ text: '{}', digest }) }));
+  /** Record the submitted fixture commit through the actual lifecycle writer. */
+  const submit = (id, minute) => at(minute, board => store.submit(board, id, { agentId: builder(id), commit, tree }));
+  /** Reserve and accept with the private verifier so the review interval is measured. */
+  const review = (id, start, end) => {
+    at(start, board => store.reserveReview(board, id, { agentId: 'tests-1', leaseMs: 24 * 60 * 60_000, policy: 'any' }));
+    at(end, board => store.verify(board, id, { agentId: 'tests-1', decision: 'ACCEPT', note: 'Private timed fixture', head: commit, digest, policy: 'any' }));
+  };
+  claim(1, 10); submit(1, 30); review(1, 70, 80);
+  at(90, board => store.merged(board, 1, { agentId: 'coordinator', commit }));
+  for (const id of [2, 3, 4, 5]) at(100, board => store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Flow item ' + id, specIds: ['G1'], criterion: 'Known flow' }));
+  claim(3, 110); claim(4, 110); claim(5, 110);
+  submit(4, 115); submit(5, 115); review(5, 117, 119);
+}
+
+test('the stats card shows API flow and bottleneck at 375 and 1280 [N26]', { timeout: 90_000 }, async t => {
+  const executable = chromeExecutable();
+  assert.ok(executable, 'Chrome is required for the flow card criterion.');
+  const box = machine();
+  const alpha = project(box, 'flow-card');
+  const empty = project(box, 'flow-empty');
+  stageFlowBoard(box, alpha);
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-flow-card-chrome-'));
+  let chrome;
+  try {
+    const api = (await boardOf(view, alpha.repo)).proofStats.flow;
+    assert.deepEqual(Object.values(api.stages).map(stage => stage.averageMinutes), [10, 21, 6, 10], 'known native moves give measured build20/5/5, wait40/2, review10/2 and merge10 minutes');
+    assert.deepEqual(Object.values(api.queues).map(queue => queue.size), [1, 1, 1, 1]);
+    assert.deepEqual(Object.values(api.queues).map(queue => queue.oldest.id), [2, 3, 4, 5]);
+    assert.equal(api.bottleneck.stage, 'reviewWait');
+    assert.equal(api.bottleneck.recommendation, 'review the oldest submission first (#4)');
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor('!!data?.project?.proofStats');
+    await chrome.evaluate('document.querySelector(' + JSON.stringify('[data-root="' + alpha.repo + '"]') + ').click()');
+    await chrome.waitFor('data?.project?.root === ' + JSON.stringify(alpha.repo) + ' && !!document.querySelector("[data-stage=build]")');
+    for (const scheme of ['light', 'dark']) for (const width of [375, 1280]) {
+      await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      const actual = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
+        const card=document.querySelector('#proof-stats');
+        const nodes=selector => [...card.querySelectorAll(selector)].map(node => ({ key:node.dataset.stage ?? node.dataset.queue ?? node.dataset.oldest, value:node.dataset.value, text:node.textContent }));
+        const rects=[...card.querySelectorAll('.proof-stats-flow, .proof-stats-flow b, .proof-stats-flow small, .proof-stats-bottleneck')].map(node => ({width:node.getBoundingClientRect().width, right:node.getBoundingClientRect().right, overflow:node.scrollWidth > node.clientWidth + 1}));
+        return { api:data.project.proofStats.flow, stages:nodes('[data-stage]'), queues:nodes('[data-queue]'), oldest:nodes('[data-oldest]'),
+          bottleneck:card.querySelector('[data-flow=bottleneck]')?.textContent, action:card.querySelector('[data-flow=recommendation]')?.textContent,
+          oneLine:card.querySelectorAll('.proof-stats-bottleneck').length === 1 && card.querySelector('.proof-stats-bottleneck')?.contains(card.querySelector('[data-flow=recommendation]')),
+          viewport:document.documentElement.clientWidth, pageWidth:document.documentElement.scrollWidth, rects };
+      })())`));
+      /** Format only the expected API number, independently of the page renderer. */
+      const minutes = value => value === null ? 'unmeasured' : Number(value.toFixed(2)) + ' min';
+      assert.deepEqual(actual.stages, Object.entries(actual.api.stages).map(([key, stage]) => ({key, value:String(stage.averageMinutes ?? ''), text:minutes(stage.averageMinutes)})), width + ': every stage displays the API average');
+      assert.deepEqual(actual.queues, Object.entries(actual.api.queues).map(([key, queue]) => ({key, value:String(queue.size), text:String(queue.size)})), width + ': every queue displays the API size');
+      assert.deepEqual(actual.oldest, Object.entries(actual.api.queues).map(([key, queue]) => ({key, value:String(queue.oldest?.ageMinutes ?? ''), text:queue.oldest ? 'Oldest: #' + queue.oldest.id + ' · ' + minutes(queue.oldest.ageMinutes) : 'Oldest: none'})), width + ': oldest ages come from the same API observation');
+      assert.equal(actual.bottleneck, actual.api.bottleneck.message);
+      assert.equal(actual.action, actual.api.bottleneck.recommendation);
+      assert.equal(actual.oneLine, true, 'the API bottleneck and action share one wrapping line');
+      assert.ok(actual.pageWidth <= actual.viewport + 1, width + ': no sideways page scroll');
+      assert.ok(actual.rects.every(rect => rect.width > 0 && rect.right <= actual.viewport + 1 && !rect.overflow), width + ': flow values and line stay inside the card');
+      if (scheme === 'dark') await proofShot(chrome, 'stats-flow', width);
+    }
+    await chrome.evaluate('document.querySelector(' + JSON.stringify('[data-root="' + empty.repo + '"]') + ').click()');
+    await chrome.waitFor('data?.project?.root === ' + JSON.stringify(empty.repo));
+    const blank = JSON.parse(await chrome.evaluate(`JSON.stringify({ stages:[...document.querySelectorAll('[data-stage]')].map(node => node.textContent), oldest:[...document.querySelectorAll('[data-oldest]')].map(node => node.textContent), action:document.querySelector('[data-flow=recommendation]')?.textContent ?? null, message:document.querySelector('[data-flow=bottleneck]')?.textContent, api:data.project.proofStats.flow })`));
+    assert.deepEqual(blank.stages, Array(4).fill('unmeasured'), 'missing measurements are not invented zeroes');
+    assert.deepEqual(blank.oldest, Array(4).fill('Oldest: none'));
+    assert.equal(blank.action, null, 'no action is invented without an API recommendation');
+    assert.equal(blank.message, blank.api.bottleneck.message);
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     await view.stop();
