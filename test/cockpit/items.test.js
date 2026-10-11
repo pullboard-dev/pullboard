@@ -1,12 +1,13 @@
 /** Cockpit items checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import * as store from '../../src/board.js';
 import { addItem, closeBoard, completeCheckBaseline, openBoard } from '../../src/board.js';
-import { tapTarget, SPEC, machine, project, build, sendBack, startView, element, target, openPage, agentEntries, accept, itemRow, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, settled } from './fixture.js';
+import { tapTarget, SPEC, machine, project, build, sendBack, startView, element, target, openPage, agentEntries, accept, itemRow, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, settled, earlier, press, travel } from './fixture.js';
 
 
 test('an added item confirmation names its returned id [A3,N27]', async () => {
@@ -854,124 +855,122 @@ test('list rows hold their shape: one-line titles end in an ellipsis, every row 
   }
 });
 
-test('wait references stay on one line and link to every prerequisite at phone and desktop widths [N26]', { timeout: 90_000 }, async (t) => {
+/** Native lifecycle writers on a private clock give each pipeline stage a known arrival. */
+function pipelineBoard(box, alpha) {
+  const base = Date.now() - 60 * 60_000, commit = box.git(alpha.repo, 'rev-parse', 'HEAD'), tree = box.git(alpha.repo, 'rev-parse', 'HEAD^{tree}'), digest = 'a'.repeat(64);
+  const at = (minute, move) => earlier(alpha.repo, base + minute * 60_000, move);
+  at(0, board => store.register(board, { lane: 'tests', path: join(box.dir, 'pipeline-reviewer') }));
+  for (const [id, minute] of [[1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [6, 2]]) at(minute, board => store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Pipeline item ' + id + (id === 6 ? ' ' + 'Averylongword'.repeat(35) : ''), specIds: ['G1'], criterion: 'Shows the stage' }));
+  const claim = (id, minute) => at(minute, board => store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 24 * 60 * 60_000, head: commit, freeze: () => ({ text: '{}', digest }) }));
+  const submit = (id, minute) => at(minute, board => store.submit(board, id, { agentId: 'web-1', commit, tree }));
+  const acceptAt = (id, minute) => at(minute, board => store.verify(board, id, { agentId: 'tests-1', decision: 'ACCEPT', note: 'Private pipeline fixture', head: commit, digest, policy: 'any' }));
+  claim(1, 3); submit(1, 4); acceptAt(1, 5);
+  at(6, board => store.merged(board, 1, { agentId: 'coordinator', commit }));
+  claim(2, 7); submit(2, 8); acceptAt(2, 9);
+  claim(3, 10); submit(3, 11); claim(4, 12); claim(4, 20);
+  at(20, board => store.editItem(board, 5, { agentId: 'coordinator', brief: 'Edited after the newer open item was added' }));
+  return { base, arrivals: { open: [5, 0], claimed: [4, 12], submitted: [3, 11], accepted: [2, 9], merged: [1, 6] } };
+}
+
+test('Pipeline view shows every stage, status counts, stage ages, detail links and its phone address [N26,N38]', { timeout: 120_000 }, async () => {
   const executable = chromeExecutable();
-  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for prerequisite layout checks.');
-  const box = machine();
-  const demo = project(box, 'waits-demo');
-  box.run(demo.repo, 'add', 'web', 'Prerequisite one', '--specs', 'G1', '--criterion', 'finish first');
-  box.run(demo.repo, 'add', 'web', 'Prerequisite two', '--specs', 'G1', '--criterion', 'finish second');
-  box.run(demo.repo, 'add', 'web', 'Blocked item', '--specs', 'G1', '--criterion', 'wait on both', '--after', '1,2');
-  const view = await startView(box);
+  assert.ok(executable, 'Chrome is required for the Pipeline view criterion');
+  const box = machine(), alpha = project(box, 'pipeline-board');
+  const { base, arrivals } = pipelineBoard(box, alpha);
+  const status = JSON.parse(box.run(alpha.repo, 'status', '--json')).stats.items;
+  assert.deepEqual(status, { open: 2, claimed: 1, submitted: 1, verified: 2, withdrawn: 0 });
+  const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-pipeline-chrome-'));
   let chrome;
   try {
-    chrome = await openSnapshotChrome(executable, view.link.href, join(box.dir, 'waits-chrome'));
-    /** Pick a visible click target only after scrolling and its hit-test position have settled. */
-    const click = async (selector) => {
-      const point = JSON.parse(await chrome.evaluate(`(async () => {
-        const element=document.querySelector(${JSON.stringify(selector)});
-        if (!element) throw Error('missing '+${JSON.stringify(selector)});
-        const visible=()=>{const style=getComputedStyle(element),rect=element.getBoundingClientRect();return style.display!=='none'&&style.visibility!=='hidden'&&rect.width>0&&rect.height>0&&!element.closest('[hidden]');};
-        if(!visible())throw Error('target is not visible: '+${JSON.stringify(selector)});
-        element.scrollIntoView({block:'center'});
-        const point=()=>{const currentElement=document.querySelector(${JSON.stringify(selector)});if(!currentElement)return null;const style=getComputedStyle(currentElement),rect=currentElement.getBoundingClientRect();if(style.display==='none'||style.visibility==='hidden'||rect.width<=0||rect.height<=0||currentElement.closest('[hidden]'))return null;const x=rect.x+rect.width/2,y=rect.y+rect.height/2,hit=document.elementFromPoint(x,y);return {x,y,scrollX,scrollY,rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height},hit:!!hit&&(hit===currentElement||currentElement.contains(hit))};};
-        const targets=[window,document,...(()=>{const nodes=[];for(let node=element.parentElement;node;node=node.parentElement)if(node.scrollHeight>node.clientHeight||node.scrollWidth>node.clientWidth)nodes.push(node);return nodes;})()];
-        let scrolled=false,scrollEnded=false;
-        const onScroll=()=>{scrolled=true;};
-        const onScrollEnd=()=>{scrollEnded=true;};
-        targets.forEach(target=>{target.addEventListener('scroll',onScroll,{passive:true});target.addEventListener('scrollend',onScrollEnd);});
-        try {
-          return JSON.stringify(await new Promise((resolve,reject)=>{
-            let previous=null,stable=0,frameId=0,finished=false;
-            const timeout=setTimeout(()=>{finished=true;cancelAnimationFrame(frameId);reject(Error('scroll did not settle for '+${JSON.stringify(selector)}+': '+JSON.stringify(previous)));},5000);
-            const frame=()=>{
-              if(finished)return;
-              const current=point();
-              if(!current){previous=null;stable=0;frameId=requestAnimationFrame(frame);return;}
-              const same=previous&&Math.abs(current.scrollX-previous.scrollX)<=.1&&Math.abs(current.scrollY-previous.scrollY)<=.1&&Math.abs(current.rect.x-previous.rect.x)<=.1&&Math.abs(current.rect.y-previous.rect.y)<=.1&&Math.abs(current.rect.width-previous.rect.width)<=.1&&Math.abs(current.rect.height-previous.rect.height)<=.1;
-              stable=same?stable+1:0;previous=current;
-              if(stable>=3&&current.hit&&(!scrolled||scrollEnded||stable>=12)){finished=true;clearTimeout(timeout);resolve(current);return;}
-              frameId=requestAnimationFrame(frame);
-            };
-            frameId=requestAnimationFrame(frame);
-          }));
-        } finally { targets.forEach(target=>{target.removeEventListener('scroll',onScroll);target.removeEventListener('scrollend',onScrollEnd);}); }
-      })()`));
-      const deadline = Date.now() + 5000;
-      let ready;
-      let settled = false;
-      while (Date.now() < deadline) {
-        ready = JSON.parse(await chrome.evaluate(`(async()=>{
-          const sample=()=>{const element=document.querySelector(${JSON.stringify(selector)});if(!element)return null;const style=getComputedStyle(element),rect=element.getBoundingClientRect();if(style.display==='none'||style.visibility==='hidden'||rect.width<=0||rect.height<=0||element.closest('[hidden]'))return null;const x=rect.x+rect.width/2,y=rect.y+rect.height/2,hit=document.elementFromPoint(x,y);return {x,y,scrollX,scrollY,rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height},hit:!!hit&&(hit===element||element.contains(hit))};};
-          let previous=null,stable=0,current=null,frameId=0,finished=false;
-          await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>{finished=true;cancelAnimationFrame(frameId);reject(Error('pointer target did not stabilize for '+${JSON.stringify(selector)}));},1500);const frame=()=>{if(finished)return;current=sample();const same=current&&previous&&Math.abs(current.scrollX-previous.scrollX)<=.1&&Math.abs(current.scrollY-previous.scrollY)<=.1&&Math.abs(current.rect.x-previous.rect.x)<=.1&&Math.abs(current.rect.y-previous.rect.y)<=.1&&Math.abs(current.rect.width-previous.rect.width)<=.1&&Math.abs(current.rect.height-previous.rect.height)<=.1;stable=same?stable+1:0;previous=current;if(stable>=2&&current.hit){finished=true;clearTimeout(timeout);resolve();}else frameId=requestAnimationFrame(frame);};frameId=requestAnimationFrame(frame);});
-          return JSON.stringify(current);
-        })()`));
-        await chrome.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: ready.x, y: ready.y });
-        const underPointer = JSON.parse(await chrome.evaluate(`(async()=>{
-          const sample=()=>{const element=document.querySelector(${JSON.stringify(selector)});if(!element)return null;const rect=element.getBoundingClientRect(),hit=document.elementFromPoint(${ready.x},${ready.y});return {scrollX,scrollY,rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height},hit:!!hit&&(hit===element||element.contains(hit))};};
-          let previous=null,stable=0,current=null,frameId=0,finished=false;
-          await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>{finished=true;cancelAnimationFrame(frameId);reject(Error('pointer target did not stabilize for '+${JSON.stringify(selector)}));},1000);const frame=()=>{if(finished)return;current=sample();const same=current&&previous&&Math.abs(current.scrollX-previous.scrollX)<=.1&&Math.abs(current.scrollY-previous.scrollY)<=.1&&Math.abs(current.rect.x-previous.rect.x)<=.1&&Math.abs(current.rect.y-previous.rect.y)<=.1&&Math.abs(current.rect.width-previous.rect.width)<=.1&&Math.abs(current.rect.height-previous.rect.height)<=.1;stable=same?stable+1:0;previous=current;if(stable>=2&&current.hit){finished=true;clearTimeout(timeout);resolve();}else frameId=requestAnimationFrame(frame);};frameId=requestAnimationFrame(frame);});return JSON.stringify({current,stable});
-        })()`));
-        if (underPointer?.current?.hit && underPointer.stable >= 2 && Math.abs(underPointer.current.scrollX-ready.scrollX)<=.1 && Math.abs(underPointer.current.scrollY-ready.scrollY)<=.1 && Math.abs(underPointer.current.rect.x-ready.rect.x)<=.1 && Math.abs(underPointer.current.rect.y-ready.rect.y)<=.1 && Math.abs(underPointer.current.rect.width-ready.rect.width)<=.1 && Math.abs(underPointer.current.rect.height-ready.rect.height)<=.1) {
-          point.x = ready.x;
-          point.y = ready.y;
-          point.scrollX = ready.scrollX;
-          point.scrollY = ready.scrollY;
-          point.rect = ready.rect;
-          settled = true;
-          break;
-        }
-      }
-      assert.ok(settled && ready && point.x === ready.x && point.y === ready.y,
-        `${selector}: scroll and target geometry settle under the pointer before press: ${JSON.stringify({ point, ready })}`);
-      await chrome.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount: 1 });
-      await chrome.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount: 1 });
-    };
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && document.querySelector('#chain [data-item="5"]')`);
+    const listRead = "JSON.stringify([...document.querySelectorAll('#chain > li[data-item]')].map(row => ({id:Number(row.dataset.item),title:row.title,meta:row.querySelector('.meta').textContent,tag:row.lastElementChild.textContent})))";
+    const listBefore = await chrome.evaluate(listRead);
+    await press(chrome, "document.querySelector('[data-items-view=\"pipeline\"]')");
+    assert.equal(await chrome.evaluate('location.hash'), '#items/pipeline', 'Pipeline has its own shareable address');
+    await chrome.waitFor("location.hash === '#items/pipeline' && !document.querySelector('#pipeline').hidden");
+    const expectedCounts = [status.open, status.claimed, status.submitted, 1, 1];
+    const read = JSON.parse(await chrome.evaluate(`JSON.stringify([...document.querySelectorAll('[data-pipeline-stage]')].map(stage => ({ stage:stage.dataset.pipelineStage, label:stage.querySelector('h2').textContent, count:Number(stage.querySelector('[data-stage-count]').textContent), oldest:Number(stage.querySelector('.pipeline-oldest [data-item]')?.dataset.item || 0), since:stage.querySelector('.pipeline-oldest time')?.dataset.ago || null, age:stage.querySelector('.pipeline-oldest time')?.textContent || '', ids:[...stage.querySelectorAll('.pipeline-item')].map(item => Number(item.dataset.item)) })))`));
+    assert.deepEqual(read.map(stage => stage.label), ['Not started', 'Building', 'Waiting for review', 'Accepted, waiting to merge', 'Merged']);
+    assert.deepEqual(read.map(stage => stage.count), expectedCounts, 'open/claimed/submitted match status; accepted plus merged equals verified');
+    assert.equal(read[3].count + read[4].count, status.verified);
+    assert.deepEqual(read.map(stage => stage.ids), [[5, 6], [4], [3], [2], [1]], 'an accept without a merge remains waiting to merge');
+    const observedAt = await chrome.evaluate('Date.now()');
+    for (const stage of read) {
+      const [id, minute] = arrivals[stage.stage], since = new Date(base + minute * 60_000).toISOString();
+      assert.equal(stage.oldest, id, stage.stage + ': oldest item');
+      assert.equal(stage.since, since, stage.stage + ': stage arrival survives edit or lease renewal');
+      assert.ok(stage.age.length > 0, stage.stage + ': visible elapsed age');
+      assert.match(stage.age, /^\d+(m|h)$/, stage.stage + ': a visible elapsed time');
+      const elapsed = parseInt(stage.age, 10) * (stage.age.endsWith('h') ? 60 : 1);
+      assert.ok(Math.abs(elapsed - (observedAt - Date.parse(since)) / 60_000) <= 1, stage.stage + ': elapsed time matches native fixture arrival');
+    }
+    assert.equal(await chrome.evaluate("document.querySelector('#item-list').hidden"), true);
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      await chrome.waitFor(`innerWidth === ${width} && document.querySelector('#chain [data-item="3"] .meta .gate')?.getBoundingClientRect().width > 0`);
-      await click('#chain [data-item="1"] .t');
-      await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Prerequisite one')");
-      const itemIds = await chrome.evaluate('data.project.items.map(item => item.id + ":" + item.title + ":" + item.blockedBy.join(","))');
-      assert.ok(await chrome.evaluate('!!document.querySelector(\'#chain [data-item="3"]\')'), `${width}: blocked item appears among ${itemIds.join('; ')}`);
-      const list = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
-        const gate=document.querySelector('#chain [data-item="3"] .meta .gate');
-        const lineHeight=e=>parseFloat(getComputedStyle(e).lineHeight);
-        const neighbors=[...gate.parentElement.children].filter(e=>e!==gate).map(lineHeight).filter(Number.isFinite);
-        const units=[...gate.querySelectorAll('.wait-unit')];
-        return {height:gate.getBoundingClientRect().height,neighborHeight:Math.max(...neighbors),unitWhiteSpaces:units.map(unit=>getComputedStyle(unit).whiteSpace),unitY:units.map(unit=>unit.getBoundingClientRect().y),links:[...gate.querySelectorAll('button.ref')].map(link=>link.dataset.go)};
-      })())`));
-      t.diagnostic(`${width}px list wait marker: ${list.height}px tall, neighboring metadata line ${list.neighborHeight}px`);
-      assert.ok(list.height <= list.neighborHeight + 1, `${width}: list reference matches neighboring metadata height: ${JSON.stringify(list)}`);
-      assert.deepEqual(list.unitWhiteSpaces, ['nowrap', 'nowrap'], `${width}: each list prerequisite stays intact`);
-      assert.equal(new Set(list.unitY).size, 1, `${width}: both list prerequisites fit on one line: ${JSON.stringify(list)}`);
-      assert.deepEqual(list.links, ['item:1', 'item:2'], `${width}: every prerequisite is a link`);
-
-      await click('#chain [data-item="3"] .t');
-      await chrome.waitFor("!!document.querySelector('#detail .kv dd.waits-on')");
-      const detail = JSON.parse(await chrome.evaluate(`JSON.stringify((() => {
-        const waits=document.querySelector('#detail .kv dd.waits-on');
-        const units=[...waits.querySelectorAll('.wait-unit')];
-        return {height:waits.getBoundingClientRect().height,lineHeight:parseFloat(getComputedStyle(waits).lineHeight),unitWhiteSpaces:units.map(unit=>getComputedStyle(unit).whiteSpace),unitY:units.map(unit=>unit.getBoundingClientRect().y),
-          links:[...waits.querySelectorAll('button.ref')].map(link=>link.dataset.go)};
-      })())`));
-      t.diagnostic(`${width}px detail wait marker: ${detail.height}px tall, neighboring metadata line ${detail.lineHeight}px`);
-      assert.ok(detail.height <= detail.lineHeight + 1, `${width}: detail prerequisite line matches its metadata: ${JSON.stringify(detail)}`);
-      assert.deepEqual(detail.unitWhiteSpaces, ['nowrap', 'nowrap'], `${width}: each detail prerequisite stays intact`);
-      assert.deepEqual(detail.links, ['item:1', 'item:2'], `${width}: detail links every prerequisite`);
-      assert.equal(new Set(detail.unitY).size, 1, `${width}: detail links share one line: ${JSON.stringify(detail)}`);
-      t.diagnostic(`${width}px detail wait links share y=${detail.unitY[0]}`);
-      for (const [id, title] of [['1', 'Prerequisite one'], ['2', 'Prerequisite two']]) {
-        await click('#chain [data-item="3"] .t');
-        await chrome.waitFor("!!document.querySelector('#detail .kv dd.waits-on')");
-        await click(`#detail .waits-on [data-go="item:${id}"]`);
-        await chrome.waitFor(`document.querySelector('#detail h2').textContent.includes(${JSON.stringify(title)})`);
+      await chrome.waitFor(`innerWidth === ${width}`);
+      for (const scheme of ['light', 'dark']) {
+      await chrome.send('Emulation.setEmulatedMedia', { features: [{name:'prefers-color-scheme',value:scheme}] });
+      await chrome.evaluate('(async()=>{await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame)})()');
+      assert.equal(await chrome.evaluate('document.documentElement.dataset.scheme'), scheme);
+      for (const id of [1, 2, 3, 4, 5, 6]) {
+        await press(chrome, `document.querySelector('#pipeline .pipeline-item[data-item="${id}"]')`);
+        assert.equal(await chrome.evaluate('view.item'), id, `${width}: every item opens its detail`);
+        await chrome.waitFor(`document.querySelector('#detail h2')?.textContent.includes('#${id}')`);
+      }
+      const geometry = JSON.parse(await chrome.evaluate("JSON.stringify({ width:innerWidth, body:document.documentElement.scrollWidth, stages:[...document.querySelectorAll('.pipeline-stage')].map(node => ({left:node.getBoundingClientRect().left,right:node.getBoundingClientRect().right})) })"));
+      assert.ok(geometry.body <= width, `${width}: no sideways scroll: ${JSON.stringify(geometry)}`);
+      assert.ok(geometry.stages.every(stage => stage.left >= 0 && stage.right <= width), `${width}: the flow fits the screen`);
+      if (process.env.PULLBOARD_PIPELINE_SHOTS) {
+        mkdirSync(process.env.PULLBOARD_PIPELINE_SHOTS, {recursive:true});
+        await chrome.evaluate('scrollTo(0,0)');
+        const shot = await chrome.send('Page.captureScreenshot', {format:'png',captureBeyondViewport:true});
+        writeFileSync(join(process.env.PULLBOARD_PIPELINE_SHOTS, `pipeline-${width}-${scheme}.png`), Buffer.from(shot.data,'base64'));
+      }
       }
     }
-    assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught page exceptions');
+    box.run(alpha.repo, 'merged', '2', box.git(alpha.repo, 'rev-parse', 'HEAD'));
+    await chrome.waitFor("document.querySelector('[data-stage-count=accepted]').textContent === '0' && document.querySelector('[data-stage-count=merged]').textContent === '2'");
+    assert.equal(await chrome.evaluate("document.querySelector('[data-pipeline-stage=accepted] .pipeline-oldest').textContent"), 'No items', 'a recorded merge advances only the accepted item and leaves an honest empty stage');
+    await press(chrome, "document.querySelector('[data-items-view=\"list\"]')");
+    await chrome.waitFor("!location.hash && !document.querySelector('#item-list').hidden && document.querySelector('#pipeline').hidden");
+    assert.equal(await chrome.evaluate(listRead), listBefore, 'returning to List preserves its Active rows, metadata and ordering');
+    assert.deepEqual(JSON.parse(listBefore).map(row => row.id).sort((a,b)=>a-b), [3,4,5,6]);
+    await travel(chrome, -1);
+    await settled(chrome, "location.hash === '#items/pipeline' && !document.querySelector('#pipeline').hidden");
+    await chrome.send('Page.reload', {});
+    await settled(chrome, "location.hash === '#items/pipeline' && data?.project && !document.querySelector('#pipeline').hidden");
+    assert.equal(await chrome.evaluate("document.querySelector('.tab.on').dataset.tab"), 'items', 'the Pipeline address reloads within Items');
+    await travel(chrome, 1);
+    await settled(chrome, "!location.hash && !document.querySelector('#item-list').hidden");
+    assert.deepEqual(chrome.exceptions, [], 'the pipeline has no uncaught page errors');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     await view.stop();
+    rmSync(profile, { recursive: true, force: true });
   }
+});
+
+test('Pipeline view dates an expired claim from its recorded deadline [N26,N38]', async () => {
+  const box = machine(), alpha = project(box, 'pipeline-lapse');
+  const base = Date.now() - 60 * 60_000, commit = box.git(alpha.repo, 'rev-parse', 'HEAD');
+  const at = (minute, write) => earlier(alpha.repo, base + minute * 60_000, write);
+  at(0, board => store.addItem(board, { by:'coordinator', lane:'web', title:'Expired claim', specIds:['G1'] }));
+  at(10, board => store.claim(board, 1, { agentId:'web-1', lane:'web', leaseMs:30*60_000, head:commit, freeze:()=>({text:'{}',digest:'a'.repeat(64)}) }));
+  at(35, board => store.addItem(board, { by:'coordinator', lane:'web', title:'Older open item', specIds:['G1'] }));
+  const status = JSON.parse(box.run(alpha.repo, 'status', '--json')).stats.items;
+  assert.equal(status.open, 2);
+  assert.equal(status.claimed, 0);
+  const view = await startView(box);
+  try {
+    const page = await openPage(view);
+    await page.click({itemsView:'pipeline'});
+    const open = () => page.show('pipeline').split('data-pipeline-stage="open"')[1].split('</header>')[1].split('</p>')[0];
+    assert.match(open(), /data-item="2"/, 'an open item from minute35 is older than a claim that lapses at minute40');
+    assert.match(open(), new RegExp(new Date(base+35*60_000).toISOString()), 'the oldest open timestamp is the arrival');
+    box.run(alpha.repo, 'withdraw', '2', 'Private fixture now isolates the lapse age');
+    await page.run('refresh()');
+    assert.match(open(), /data-item="1"/);
+    assert.match(open(), new RegExp(new Date(base+40*60_000).toISOString()), 'expired claim age starts at its native lease deadline');
+  } finally { await view.stop(); }
 });

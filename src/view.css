@@ -177,6 +177,19 @@ main { padding: 16px 18px 56px; }
   .tab { display: grid; justify-items: center; align-content: center; padding: 7px 2px; font-size: clamp(11px, 3.6vw, 13.5px); }
 }
 .primary { display: grid; gap: 12px; min-width: 0; }
+.items-view-switch { justify-self: start; }
+.pipeline { display: grid; gap: 24px; list-style: none; margin: 0; padding: 0; min-width: 0; }
+.pipeline-stage { position: relative; min-width: 0; padding: 14px; }
+.pipeline-stage + .pipeline-stage::before { content: '↓'; position: absolute; top: -25px; left: 22px; color: var(--ink-faint); }
+.pipeline-stage header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.pipeline-stage h2 { margin: 0; font-size: 15px; overflow-wrap: anywhere; }
+.pipeline-stage header > b { font: 600 16px var(--mono); }
+.pipeline-oldest { margin: 6px 0 10px; color: var(--ink-muted); font-size: 12px; }
+.pipeline-stage ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.pipeline-item { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; width: 100%; min-height: var(--tap); padding: 6px 8px; text-align: left; border: 0; border-radius: 6px; background: none; cursor: pointer; }
+.pipeline-item:hover, .pipeline-item.on { background: var(--surface-2); }
+.pipeline-item > span:first-child { color: var(--ink-faint); font-family: var(--mono); }
+.pipeline-item > span:last-child { overflow-wrap: anywhere; }
 .card-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); min-width: 0; }
 /* The Items toolbar is one row: the states, the lane picker, and New item at its end. */
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; }
