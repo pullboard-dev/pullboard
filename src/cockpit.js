@@ -770,6 +770,32 @@ function boardSummary(board, state) {
   };
 }
 
+/** Format the API's measured minutes without deriving new times from events [N26]. */
+function flowMinutes(value) {
+  return value === null || value === undefined ? 'unmeasured' : Number(value.toFixed(2)) + ' min';
+}
+
+/** Render the four stages, live queues and single recommendation supplied by stats [N26]. */
+function proofFlowCard(flow) {
+  if (!flow) return '';
+  const stages = [['build', 'Build'], ['reviewWait', 'Review wait'], ['review', 'Review'], ['mergeWait', 'Merge wait']];
+  const queues = [['open', 'Open'], ['claimed', 'Building'], ['submitted', 'In review'], ['accepted', 'Awaiting merge']];
+  const averages = stages.map(([key, label]) => {
+    const average = flow.stages[key].averageMinutes;
+    return '<div><span>' + label + ' average</span><b data-stage="' + key + '" data-value="' + esc(average ?? '') + '">' + esc(flowMinutes(average)) + '</b></div>';
+  }).join('');
+  const waiting = queues.map(([key, label]) => {
+    const queue = flow.queues[key];
+    const oldest = queue.oldest;
+    return '<div><span>' + label + ' queue</span><b data-queue="' + key + '" data-value="' + esc(queue.size) + '">' + esc(queue.size) + '</b>'
+      + '<small data-oldest="' + key + '" data-value="' + esc(oldest?.ageMinutes ?? '') + '">Oldest: ' + (oldest ? '#' + esc(oldest.id) + ' · ' + esc(flowMinutes(oldest.ageMinutes)) : 'none') + '</small></div>';
+  }).join('');
+  const bottleneck = flow.bottleneck;
+  return '<div class="proof-stats-flow"><div class="proof-stats-grid">' + averages + waiting + '</div>'
+    + '<p class="proof-stats-bottleneck"><b>Bottleneck: </b><span data-flow="bottleneck">' + esc(bottleneck.message) + '</span>'
+    + (bottleneck.recommendation ? ' · <span data-flow="recommendation">' + esc(bottleneck.recommendation) + '</span>' : '') + '</p></div>';
+}
+
 /** Format a counted noun for the proof stats detail.
  * @param {number} count
  * @param {string} singular
@@ -780,7 +806,7 @@ function counted(count, singular, plural) {
   return count + ' ' + (count === 1 ? singular : plural);
 }
 
-/** Render the event-log totals already supplied by the shared stats API [V2]. */
+/** Render the event-log totals already supplied by the shared stats API [V2,N26]. */
 function proofStatsCard(stats) {
   if (!stats) return '<span class="muted">Stats unavailable</span>';
   const families = stats.families || [];
@@ -805,7 +831,7 @@ function proofStatsCard(stats) {
     + '<div><span>Agents</span><b data-stat="agentCount" data-value="' + esc(stats.agentCount) + '">' + esc(stats.agentCount) + '</b></div>'
     + '<div><span>Families</span><b data-stat="familyCount" data-value="' + esc(stats.familyCount) + '">' + esc(stats.familyCount) + '</b></div>'
     + '<div><span>First · latest</span><small><time data-stat="firstEventAt" data-value="' + esc(firstAt) + '" datetime="' + esc(firstAt) + '">' + esc(dateText(firstAt)) + '</time> · <time data-stat="lastEventAt" data-value="' + esc(lastAt) + '" datetime="' + esc(lastAt) + '">' + esc(dateText(lastAt)) + '</time></small></div>'
-    + '</div><div class="proof-stats-detail">'
+    + '</div>' + proofFlowCard(stats.flow) + '<div class="proof-stats-detail">'
     + '<p><b>Families:</b> ' + esc(familyDetail) + '</p><p><b>Agents:</b> ' + esc(agentDetail) + '</p></div>';
 }
 

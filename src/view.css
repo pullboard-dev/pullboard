@@ -698,6 +698,8 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .proof-stats-grid > div { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .proof-stats-grid b { font-size: 14px; font-variant-numeric: tabular-nums; }
 .proof-stats-grid small { overflow-wrap: anywhere; font-size: 11px; color: var(--ink-muted); }
+.proof-stats-flow { border-top: 1px solid var(--line); padding-top: 7px; min-width: 0; }
+.proof-stats-bottleneck { margin: 7px 0 0; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .proof-stats-detail { border-top: 1px solid var(--line); padding-top: 5px; font-size: 11px; }
 .proof-stats-detail p { margin: 5px 0 0; overflow-wrap: anywhere; }
 
