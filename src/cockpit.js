@@ -737,14 +737,24 @@ function boardSummary(board, state) {
   };
 }
 
+/** Format a counted noun for the proof stats detail.
+ * @param {number} count
+ * @param {string} singular
+ * @param {string} plural
+ * @returns {string}
+ */
+function counted(count, singular, plural) {
+  return count + ' ' + (count === 1 ? singular : plural);
+}
+
 /** Render the event-log totals already supplied by the shared stats API [V2]. */
 function proofStatsCard(stats) {
   if (!stats) return '<span class="muted">Stats unavailable</span>';
   const families = stats.families || [];
   const agents = stats.agents || [];
   const percentage = (Number(stats.rejectionShare) * 100).toFixed(1) + '%';
-  const familyDetail = families.map((family) => family.name + ' (' + family.agents + ' agents, ' + family.moves + ' moves)').join(' · ') || 'none';
-  const agentDetail = agents.map((agent) => agent.id + ' (' + agent.families.join('/') + '; ' + agent.moves + ' moves)').join(' · ') || 'none';
+  const familyDetail = families.map((family) => family.name + ' (' + counted(family.agents, 'agent', 'agents') + ', ' + counted(family.moves, 'move', 'moves') + ')').join(' · ') || 'none';
+  const agentDetail = agents.map((agent) => agent.id + ' (' + agent.families.join('/') + '; ' + counted(agent.moves, 'move', 'moves') + ')').join(' · ') || 'none';
   /** Format an API timestamp for the card without recalculating event statistics.
    * @param {string|number|null} value
    * @returns {string}
