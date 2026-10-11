@@ -240,6 +240,13 @@ const dayRules = (rows, at, row) => rows.map((x, i) => {
   return (day === before ? '' : '<div class="day-rule" role="separator"><span>' + dayName(at(x)) + '</span></div>') + row(x);
 }).join('');
 const firstLine = (text) => String(text ?? '').split('\\n').map((line) => line.trim()).find(Boolean) || '';
+/** Omit a duplicated leading verdict code from rendered copy while preserving the recorded note. */
+function visibleVerdictNote(reason, note) {
+  const text = String(note ?? '');
+  const code = String(reason ?? '');
+  const remainder = text.slice(code.length);
+  return code && text.startsWith(code) && (!remainder || /^\\s/u.test(remainder)) ? remainder.trimStart() : text;
+}
 // The latest verdict is a reject and no accept followed: open again, being reworked, resubmitted, or
 // withdrawn after it.
 const rejected = (i) => i.status !== 'verified' && !!i.verdict && i.verdict.decision === 'REJECT';
@@ -259,7 +266,7 @@ function shoutAgentName(id) {
   return '<span class="agent-label' + (prefix ? ' prefix' : '') + '" title="' + esc(name) + '" role="group" aria-label="' + esc(name) + '">' + (prefix ? label + address : address + label) + '</span>';
 }
 /** Render a review note with escaped text and references bound to the selected board. */
-const verdictHtml = (v, titles) => '<div class="verdict ' + (v.decision === 'ACCEPT' ? 'yes' : 'no') + '"><b>' + esc(v.decision) + ' ' + esc(v.reason) + '</b><span class="by">' + esc(agentName(v.by)) + ' · ' + when(v.at) + ' · at ' + esc(String(v.commit || '').slice(0, 12)) + '</span><div class="note">' + linked(v.note, titles) + '</div></div>';
+const verdictHtml = (v, titles) => '<div class="verdict ' + (v.decision === 'ACCEPT' ? 'yes' : 'no') + '"><b>' + esc(v.decision) + ' ' + esc(v.reason) + '</b><span class="by">' + esc(agentName(v.by)) + ' · ' + when(v.at) + ' · at ' + esc(String(v.commit || '').slice(0, 12)) + '</span><div class="note">' + linked(visibleVerdictNote(v.reason, v.note), titles) + '</div></div>';
 const stateOf = (i) => i.status === 'claimed' ? 'building' : i.status === 'submitted' ? 'verify' : i.status === 'verified' ? 'verified' : i.status === 'withdrawn' ? 'withdrawn' : i.verdict && i.verdict.decision === 'REJECT' ? 'back' : 'open';
 const STATES = { building: ['building', 'busy'], verify: ['to verify', 'warn'], back: ['sent back', 'no'], verified: ['verified', 'ok'], open: ['unclaimed', 'free'], withdrawn: ['withdrawn', ''] };
 const chip = (s) => '<span class="chip ' + STATES[s][1] + '">' + STATES[s][0] + '</span>';
@@ -1364,7 +1371,7 @@ function render() {
       : s === 'open' ? openChip(i) : chip(s);
     return '<li class="row s-' + s + (view.item === i.id ? ' on' : '') + (gated ? ' gated' : '') + '" data-item="' + i.id + '" title="' + esc(i.title) + '"><span class="dot ' + s + '"></span><div><div class="t"><span>#' + i.id + '</span>' + rich(i.title, titles) + '</div><span class="row-age">' + age(i.updatedAt) + '</span><div class="meta">'
       // A rejected row's second line is its verdict; any other row's is its lane and the spec ids it serves.
-      + (rejected(i) ? '<span class="why"><b>' + esc(i.verdict.reason) + '</b> ' + linked(firstLine(i.verdict.note), titles) + '</span>'
+      + (rejected(i) ? '<span class="why"><b>' + esc(i.verdict.reason) + '</b> ' + linked(firstLine(visibleVerdictNote(i.verdict.reason, i.verdict.note)), titles) + '</span>'
         : '<span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span class="specs" title="' + esc(i.specs.join(', ')) + '">' + esc(i.specs.slice(0, 3).join(', ') + (i.specs.length > 3 ? ' +' + (i.specs.length - 3) : '')) + '</span>' : ''))
       + pills + '</div></div>' + tag + '</li>';
   }).join('') : '<li class="empty">' + (items.length ? 'No items match.' : snapshot ? 'No items at this event.' : 'No items yet. Add the first one with New item.') + '</li>';
