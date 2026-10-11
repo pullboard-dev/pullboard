@@ -106,8 +106,10 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   <section data-pane="items" class="two">
     <div class="primary">
       <section class="card-panel proof-stats" id="proof-stats" aria-label="Board proof stats" hidden></section>
+      <div class="items-view-switch seg" id="items-view-switch" role="group" aria-label="Items view"></div>
       <div class="card-panel toolbar"><div class="seg" id="state-chips" role="group" aria-label="Show"></div><select class="lane-pick" id="lane-pick" aria-label="Lane"></select><button class="go" id="new-item" type="button">New item</button></div>
-      <div class="card-panel list-card"><ol class="needs" id="needs" aria-label="What needs you" hidden></ol><ol class="chain" id="chain" aria-label="Items"></ol></div>
+      <div class="card-panel list-card" id="item-list"><ol class="needs" id="needs" aria-label="What needs you" hidden></ol><ol class="chain" id="chain" aria-label="Items"></ol></div>
+      <ol class="pipeline" id="pipeline" aria-label="Item pipeline" hidden></ol>
     </div>
     <aside class="card-panel detail" aria-label="Item detail">
       <div id="detail"></div>
@@ -174,6 +176,7 @@ const routed = ${JSON.stringify(Boolean(paths) && !snapshot)};
 /** The tab the address names: the Roadmap at its own address, or null at the board's. */
 function addressTab() {
   if (typeof location === 'undefined') return null;
+  if (location.hash === '#items/pipeline') return 'items';
   return (routed ? location.pathname === '/roadmap' : location.hash === '#roadmap') ? 'roadmap' : null;
 }
 /** The tab the board's own address shows: the one last picked there, or Items. */
@@ -181,7 +184,7 @@ function homeTab() {
   const kept = keep('pb.tab');
   return kept && kept !== 'roadmap' ? kept : 'items';
 }
-const view = { root: keep('pb.project'), tab: addressTab() || homeTab(), seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null }, agent: null, allAgents: false, agentsHidden: keep('pb.agents') === 'hidden', open: {} };
+const view = { root: keep('pb.project'), tab: addressTab() || homeTab(), itemsView: typeof location !== 'undefined' && location.hash === '#items/pipeline' ? 'pipeline' : 'list', seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null }, agent: null, allAgents: false, agentsHidden: keep('pb.agents') === 'hidden', open: {} };
 if (snapshot) view.state = 'all';
 let data = null;
 let seen = '';
@@ -426,6 +429,36 @@ function replay(item) {
   const lapse = at === item.status ? null : clock.find((m) => m.from.includes(at) && m.to === item.status);
   if (lapse) step(lapse, null);
   return steps;
+}
+
+/** A recorded merge, rather than an accept, is the end of the shipping pipeline. */
+function pipelineStage(item) {
+  if (item.merged) return 'merged';
+  return item.status === 'verified' ? 'accepted' : item.status;
+}
+
+/** The last arrival in this stage; edits, review reservations and renewals do not restart its age. */
+function pipelineSince(item) {
+  if (item.merged) return item.history.findLast((event) => event.kind === 'merged')?.at || item.updatedAt;
+  const arrival = replay(item).findLast((step) => step.move && step.from !== step.move.to);
+  // Lapses are inferred, but the native claim receipt records the deadline that caused them.
+  if (arrival?.move?.verb === 'lapse') {
+    const claim = item.thread?.findLast((entry) => entry.type === 'move' && ['claim', 'renew'].includes(entry.kind));
+    if (claim?.detail?.leaseUntil) return claim.detail.leaseUntil;
+  }
+  return arrival ? arrival.at || item.updatedAt : item.history.find((event) => event.kind === 'add')?.at || item.updatedAt;
+}
+
+/** Render the same board's items in lifecycle order, retaining every item as a detail link. */
+function pipelineCard(items) {
+  const stages = [['open', 'Not started'], ['claimed', 'Building'], ['submitted', 'Waiting for review'], ['accepted', 'Accepted, waiting to merge'], ['merged', 'Merged']];
+  return stages.map(([stage, label]) => {
+    const rows = items.filter((item) => pipelineStage(item) === stage).sort((a, b) => pipelineSince(a).localeCompare(pipelineSince(b)) || a.id - b.id);
+    const oldest = rows[0];
+    return '<li class="card-panel pipeline-stage" data-pipeline-stage="' + stage + '"><header><h2>' + label + '</h2><b data-stage-count="' + stage + '">' + rows.length + '</b></header>'
+      + (oldest ? '<p class="pipeline-oldest">Oldest <button class="ref" type="button" data-item="' + oldest.id + '">#' + oldest.id + '</button> · ' + age(pipelineSince(oldest)) + ' in this stage</p>' : '<p class="pipeline-oldest">No items</p>')
+      + '<ul>' + rows.map((item) => '<li><button class="pipeline-item' + (view.item === item.id ? ' on' : '') + '" type="button" data-item="' + item.id + '"><span>#' + item.id + '</span><span>' + esc(item.title) + '</span></button></li>').join('') + '</ul></li>';
+  }).join('');
 }
 
 /** How often each move was made on this board, keyed from>to:verb, from every item's replay. */
@@ -1329,6 +1362,11 @@ function render() {
   const approved = p.spec.filter((r) => r.status === 'approved');
   $('add-specs').placeholder = (approved.length ? approved : p.spec).slice(0, 2).map((r) => r.id).join(',') || 'none yet';
   const q = $('q').value.trim().toLowerCase();
+  const pipeline = view.itemsView === 'pipeline';
+  $('items-view-switch').innerHTML = ['list', 'pipeline'].map((mode) => '<button type="button" data-items-view="' + mode + '" aria-pressed="' + (view.itemsView === mode) + '" class="' + (view.itemsView === mode ? 'on' : '') + '">' + (mode === 'list' ? 'List' : 'Pipeline') + '</button>').join('');
+  $('state-chips').hidden = pipeline;
+  $('item-list').hidden = pipeline;
+  $('pipeline').hidden = !pipeline;
   // Each chip counts what it would show under the lane and the search. A search looks through every
   // state, withdrawn items included; browsing leaves those out.
   const matching = (q ? p.items : items)
@@ -1345,7 +1383,7 @@ function render() {
   const inLane = (lane) => (i) => !lane || i.lane === lane;
   if (view.lane && !matching.some(inLane(view.lane))) view.lane = null;
   $('state-chips').innerHTML = Object.keys(names).map((s) => '<button data-state="' + s + '" class="' + (view.state === s ? 'on' : '') + '" type="button">' + names[s] + '<b>' + matching.filter(inLane(view.lane)).filter(inState(s)).length + '</b></button>').join('');
-  const inView = matching.filter(inState(view.state));
+  const inView = pipeline ? matching.filter((item) => item.status !== 'withdrawn') : matching.filter(inState(view.state));
   const laneCounts = [...inView.reduce((m, i) => m.set(i.lane, (m.get(i.lane) || 0) + 1), new Map())].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   if (view.lane && !laneCounts.some(([lane]) => lane === view.lane)) laneCounts.push([view.lane, 0]);
   const pick = $('lane-pick'), options = [['', 'All lanes'], ...laneCounts.map(([lane, n]) => [lane, lane + ' · ' + n])].map(([lane, label]) => '<option value="' + esc(lane) + '">' + esc(label) + '</option>').join('');
@@ -1354,6 +1392,7 @@ function render() {
   pick.value = view.lane || '';
   pick.hidden = laneCounts.length < 2 && !view.lane;
   const shown = inView.filter(inLane(view.lane)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  $('pipeline').innerHTML = pipeline ? pipelineCard(shown) : '';
   // With nothing picked, the detail shows the first row, and keeps it when a refresh reorders the list.
   // While another project loads, the item picked there waits for its own board.
   if (data.root === view.root && !view.adding && !p.items.some((i) => i.id === view.item)) view.item = shown.length ? shown[0].id : null;
@@ -1616,6 +1655,7 @@ function showTab() {
 /** The address that names a tab: the Roadmap's own, or the board's, keeping the rest as it is. */
 function tabHref(tab) {
   const own = tab === 'roadmap';
+  if (tab === 'items' && view.itemsView === 'pipeline') return (routed ? '/' : location.pathname) + location.search + '#items/pipeline';
   return routed ? (own ? '/roadmap' : '/') + location.search : location.pathname + location.search + (own ? '#roadmap' : '');
 }
 
@@ -1627,10 +1667,10 @@ function tabHref(tab) {
  */
 function address(push = true) {
   if (typeof history === 'undefined' || typeof location === 'undefined') return;
-  const state = { tab: view.tab, root: view.root, item: view.item };
+  const state = { tab: view.tab, root: view.root, item: view.item, itemsView: view.itemsView };
   const href = tabHref(view.tab);
   try {
-    if (push && href !== location.pathname + location.search + (routed ? '' : location.hash)) history.pushState(state, '', href);
+    if (push && href !== location.pathname + location.search + (location.hash || '')) history.pushState(state, '', href);
     else history.replaceState(state, '');
   } catch { /* The tab shows all the same. */ }
 }
@@ -1641,6 +1681,7 @@ function address(push = true) {
  */
 function fromAddress(event) {
   const kept = (event && event.state) || {};
+  view.itemsView = location.hash === '#items/pipeline' ? 'pipeline' : kept.itemsView === 'pipeline' && kept.tab !== 'items' ? 'pipeline' : 'list';
   view.tab = addressTab() || (kept.tab && kept.tab !== 'roadmap' ? kept.tab : homeTab());
   if (view.tab !== 'roadmap') keep('pb.tab', view.tab);
   const item = typeof kept.item === 'number' ? kept.item : null;
@@ -2131,12 +2172,13 @@ $('shouts-pane').addEventListener('click', (event) => {
 // Enter shouts; Shift+Enter starts a new line.
 $('shout-text').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('shout-form').requestSubmit(); } });
 document.addEventListener('click', (event) => {
-  const t = event.target.closest('[data-status],[data-roadmap-all],[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-row-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],#proj-switch,#console');
+  const t = event.target.closest('[data-status],[data-roadmap-all],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],#proj-switch,#console');
   if (!event.target.closest('.side')) fold(false);
   if (!t) return;
   if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
   if (t.id === 'console') { t.hidden = true; return; }
   if (t.dataset.status) { statusGo(t.dataset.status); return; }
+  if (t.dataset.itemsView) { view.itemsView = t.dataset.itemsView; address(); render(); return; }
   if ('roadmapAll' in t.dataset) { view.roadmapOnly = null; render(); return; }
   if (t.dataset.root) switchTo(t.dataset.root, t.dataset.go || '');
   else if (t.dataset.tab) { view.unread = null; view.roadmapOnly = null; openTab(t.dataset.tab); showTab(); }
