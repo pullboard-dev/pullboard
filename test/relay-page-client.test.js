@@ -82,6 +82,30 @@ async function fixture(t) {
     loseObjectAck() { loseObjectAck = true; }, corruptRootAck() { corruptRootAck = true; } };
 }
 
+test('paged upload ACK tolerates a concurrent cache commit during an awaited PUT [H15,H17]', async t => {
+  const box = await fixture(t), writer = createRelayPageCache(box.state);
+  t.after(() => writer.close());
+  const request = box.adapter.request;
+  let committed = false;
+  /** Return the real page ACK only after a second connection commits across the await. */
+  box.adapter.request = async (path, options) => {
+    const response = await request(path, options);
+    if (!committed && /\/objects\/[0-9a-f]{64}$/u.test(path)) {
+      await new Promise(resolve => setImmediate(resolve));
+      assert.equal(writer.firstNotice(snapshotSourceId('concurrent-upload-notice')), true);
+      committed = true;
+    }
+    return response;
+  };
+  const pending = { sequence: 0, sealed: 'synthetic-concurrent-upload' };
+  const result = await pagedSnapshotRequest(box.state, { method: 'PUT', body: pending }, box.adapter);
+  assert.equal(committed, true);
+  assert.equal(result.state.sealed, pending.sealed);
+  assert.ok(box.calls.filter(call => call.method === 'PUT').length > 8, 'the real encrypted graph is streamed');
+  assert.deepEqual([...writer.pending(snapshotSourceId(pending.sealed))], []);
+  assert.deepEqual(JSON.parse((await pagedSnapshotRequest(box.state, {}, box.adapter)).state.sealed), box.document);
+});
+
 test('a lost object ACK resumes the exact durable graph and native restore preserves all rows [H15,H17]', async t => {
   const box = await fixture(t);
   const pending = { sequence: 0, sealed: 'synthetic-original-pending-cipher' };
