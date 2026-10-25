@@ -1,3 +1,4 @@
+import { validateItemDependencies } from './item-dependencies.js';
 import { applySpecRowDecisions } from './spec-row-apply.js';
 import { SPEC_REFREEZE } from './spec-row-apply.js';
 import * as reviewFamilies from './required-review-family.js';
@@ -710,29 +711,6 @@ export function planCompanion(board, options) { return companionPlan(board, opti
 /** The single ordered operation permitted to create a child in a different lane. */
 export function requestCompanion(board, options) {
   return applyCompanionRequest(board, options, { validateAddition: validateItemAddition, insertItem });
-}
-
-/** Validate that dependencies exist, remain usable, and cannot lead back to the edited item. */
-function validateItemDependencies(board, itemId, after) {
-  const direct = after.map((dependency) => itemById(board, dependency));
-  const withdrawn = direct.find((dependency) => dependency.item_status === 'withdrawn');
-  if (withdrawn) {
-    throw new Refused('WITHDRAWN', `item #${withdrawn.item_id} is withdrawn; nothing can wait on it`);
-  }
-  if (itemId === null) return;
-
-  const visited = new Set();
-  const pending = [...after];
-  while (pending.length) {
-    const dependency = pending.pop();
-    if (dependency === itemId) {
-      throw new Refused('DEPENDENCY_CYCLE', `item #${itemId} cannot wait on itself through its dependencies; change --after to remove the cycle`);
-    }
-    if (visited.has(dependency)) continue;
-    const item = itemById(board, dependency);
-    visited.add(dependency);
-    pending.push(...(item.item_after ? item.item_after.split(',').map(Number) : []));
-  }
 }
 
 /** Validate an addition before its sender runs a new check, and again when the ordered move applies. */
