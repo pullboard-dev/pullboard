@@ -153,16 +153,16 @@ const OPTIONS = {
   version: { type: 'boolean', short: 'v' },
 };
 
-/** Parse --wait as a switch for add/edit and as minutes for next/run, preserving all other options. */
+/** Parse --wait as a switch for add/edit/submit/done and as minutes for next/run, preserving all other options. */
 function parseCommandArgs(argv) {
   let command;
   for (const wait of [{ type: 'boolean' }, OPTIONS.wait]) {
     try {
       command = parseArgs({ args: argv, options: { ...OPTIONS, wait }, allowPositionals: true }).positionals[0];
-      if (['add', 'edit'].includes(command)) break;
+      if (['add', 'edit', 'submit', 'done'].includes(command)) break;
     } catch { /* The final parser supplies the existing actionable usage error. */ }
   }
-  const options = ['add', 'edit'].includes(command) ? { ...OPTIONS, wait: { type: 'boolean' } } : OPTIONS;
+  const options = ['add', 'edit', 'submit', 'done'].includes(command) ? { ...OPTIONS, wait: { type: 'boolean' } } : OPTIONS;
   return parseArgs({ args: argv, options, allowPositionals: true });
 }
 

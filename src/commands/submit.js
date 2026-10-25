@@ -86,6 +86,7 @@ import {
   withBoard,
 } from '../cli.js';
 import { recordedRecovery } from '../recorded-recovery.js';
+import { waitForSubmissionVerdict } from '../submit-wait.js';
 
 /**
  * Submit: a clean tree, nothing untracked, the gate green at HEAD, then the board (V4).
@@ -238,5 +239,10 @@ export async function submitHere(ctx, id, infra) {
 
 /** Run `pullboard submit` and return its exit code. */
 export async function run(io, { first, values }) {
-  return submitHere(context(io), idArg(first), values.infra);
+  const ctx = context(io);
+  const id = idArg(first);
+  const code = await submitHere(ctx, id, values.infra);
+  if (code !== 0 || !values.wait) return code;
+  const commit = withBoard(ctx, board => store.getItem(board, id).item_commit);
+  return waitForSubmissionVerdict(ctx, id, commit);
 }
