@@ -8,7 +8,7 @@ import { logEvent } from './board-event-log.js';
 import { now } from './board-query.js';
 import { rowDecisions } from './row-decisions-query.js';
 import { markAppliedRevisions } from './spec-revisions.js';
-import { validateSpecRefreezes } from './spec-refreeze.js';
+import { needsSpecRefreezes, validateSpecRefreezes } from './spec-refreeze.js';
 
 /** Private in-process permission: JSON/sealed refreeze moves cannot supply this symbol. */
 export const SPEC_REFREEZE = Symbol('validated cited spec correction');
@@ -26,8 +26,12 @@ export function applySpecRowDecisions(board, options, { refreeze, writeRowDecisi
     const records = rowDecisions(board);
     const found = events.map(event => records.find(record => record.event === event));
     if (found.some(record => !record)) throw new Refused('STALE_ROW_DECISION', 'a row decision was replaced; use pullboard spec apply with the current decisions');
-    const updates = corrected ? validateSpecRefreezes(board, events, options.refreezes) : [];
     const applied = found.filter(record => !record.applied);
+    if (!corrected && (board.executionEngineVersion ?? ENGINE_VERSION) >= AUTOMATIC_DISPATCH_ENGINE
+      && needsSpecRefreezes(applied)) {
+      throw new Refused('ROW_DECISION', 'the spec correction is missing its frozen item payloads; run pullboard spec apply again');
+    }
+    const updates = corrected ? validateSpecRefreezes(board, events, options.refreezes) : [];
     if (!applied.length) return [];
     const at = now(board);
     writeRowDecisions(board, records.map(record => events.includes(record.event) ? { ...record, applied: true, appliedAt: at } : record));

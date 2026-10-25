@@ -25,6 +25,11 @@ function changedRows(records) {
   return changed;
 }
 
+/** Require the correction protocol for every semantic approved-row change, even without citations. */
+export function needsSpecRefreezes(records) {
+  return changedRows(records).size > 0;
+}
+
 /** Snapshot state that must remain unchanged between local payload preparation and relay replay. */
 function itemSnapshot(item) {
   return {
