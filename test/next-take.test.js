@@ -367,14 +367,14 @@ test('a held review still returns a newly conflicting submission before offering
   const head = box.git(box.seats.builder.path, 'rev-parse', 'HEAD');
   submitFixture(box.board, id, { agentId: box.seats.builder.id, commit: head,
     tree: box.git(box.root, 'rev-parse', `${head}^{tree}`) });
-  const first = await cli(box, box.seats.actor.path, ['next', '--take']);
+  const first = await cli(box, box.seats.outside.path, ['next', '--take']);
   assert.equal(first.code, 0, first.out + first.err);
-  assert.equal(store.getItem(box.board, id).item_review_by, box.seats.actor.id);
+  assert.equal(store.getItem(box.board, id).item_review_by, box.seats.outside.id);
   mkdirSync(join(box.root, 'web'), { recursive: true });
   writeFileSync(join(box.root, 'web/dispatch.js'), 'export const side = "main";\n');
   box.git(box.root, 'add', 'web/dispatch.js');
   box.git(box.root, 'commit', '-q', '-m', 'feat(web): move trunk independently [G1]');
-  await cli(box, box.seats.actor.path, ['next', '--take']);
+  await cli(box, box.seats.outside.path, ['next', '--take']);
   const returned = store.getItem(box.board, id);
   assert.equal(returned.item_status, 'open', 'Git conflict preflight also applies to an already reserved review');
   assert.equal(returned.item_review_by, null);
