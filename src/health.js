@@ -23,6 +23,7 @@ import {
   buildOrder,
   canTake,
   listItems,
+  listAgents,
   openBoardReadOnly,
   PERSON,
   ROUTES,
@@ -106,6 +107,9 @@ export function healthReport({ db, root, config, now }) {
   const releases = roadmap(board);
   const found = (list, finding) => list.push(finding);
   let stacks;
+  let presence;
+  /** Read local liveness once per scan; the ordered health receipt retains the observation. */
+  const seats = () => (presence ??= new Map(listAgents(board).map(seat => [seat.agent_id, seat.presence])));
   /** Load the unverified submitted heads once, only when an accepted item needs them. */
   const stacked = () => (stacks ??= unverifiedSubmissions(board));
 
@@ -161,7 +165,19 @@ export function healthReport({ db, root, config, now }) {
 
     if (status === 'open' && !item.item_hold_reason && ['reject', 'reopen'].includes(events.lifecycle?.event_kind)) {
       const move = events.lifecycle;
-      if (age(move.event_at) >= limits.ms.stuck) {
+      const returnedReject = move.event_kind === 'reject';
+      const inactive = returnedReject && seats().get(item.item_built_by) !== 'live';
+      const timedOut = returnedReject && age(move.event_at) >= 600_000;
+      if (inactive || timedOut) {
+        const note = db.prepare("SELECT verdict_note FROM verdict WHERE item_id=? AND verdict_decision='REJECT' ORDER BY verdict_id DESC LIMIT 1").get(id)?.verdict_note ?? '';
+        found(report.stuck, finding('REWORK_UNCLAIMED', item, {
+          since: move.event_at, now: at, title: 'rejected work needs another builder',
+          why: `rejected by ${move.event_by}${rejectReason(move)}: ${note}; ${inactive ? 'its builder is not live' : 'no builder reclaimed it within ten minutes'}`,
+          next: `return it to the queue for the next builder: pullboard claim ${id}`, command: `pullboard claim ${id}`,
+          owner: { role: 'coordinator', who: COORDINATOR },
+          detail: { move: 'reject', by: move.event_by, rejection: move.event_id, builder: item.item_built_by, commit: item.item_commit, reason: inactive ? 'inactive' : 'timeout' },
+        }));
+      } else if (!returnedReject && age(move.event_at) >= limits.ms.stuck) {
         const rank = localReleaseRank(releases, id);
         const later = rank > 0 && rank < releases.length;
         const builder = item.item_built_by;
