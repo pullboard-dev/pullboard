@@ -8,13 +8,22 @@ import { Refused } from './refused.js';
 /** Read under a short-lived connection, releasing it before any sleep or network work. */
 function submissionOutcome(ctx, id, commit, submittedEvent) {
   return withBoardRead(ctx, board => {
-    const history = store.events(board, { itemId: id });
-    const nextSubmission = history.find(event => event.event_kind === 'submit' && event.event_id > submittedEvent)?.event_id ?? Infinity;
-    const receipts = history.filter(event => ['accept', 'reject'].includes(event.event_kind));
-    const verdict = store.verdictsFor(board, id).filter((row, index) =>
-      receipts[index]?.event_id > submittedEvent && receipts[index].event_id < nextSubmission)
-      .findLast(row => row.verdict_commit === commit && !row.withdrawn);
-    return { verdict, item: store.getItem(board, id) };
+    // A verdict can commit between any two reads. One snapshot must cover its event, row and item.
+    board.db.exec('BEGIN');
+    try {
+      const history = store.events(board, { itemId: id });
+      const nextSubmission = history.find(event => event.event_kind === 'submit' && event.event_id > submittedEvent)?.event_id ?? Infinity;
+      const receipts = history.filter(event => ['accept', 'reject'].includes(event.event_kind));
+      const verdict = store.verdictsFor(board, id).filter((row, index) =>
+        receipts[index]?.event_id > submittedEvent && receipts[index].event_id < nextSubmission)
+        .findLast(row => row.verdict_commit === commit && !row.withdrawn);
+      const result = { verdict, item: store.getItem(board, id) };
+      board.db.exec('COMMIT');
+      return result;
+    } catch (error) {
+      board.db.exec('ROLLBACK');
+      throw error;
+    }
   });
 }
 
