@@ -6,6 +6,8 @@ import * as store from '../src/board.js';
 import { loadConfig } from '../src/config.js';
 import { healthReport } from '../src/health.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
+import { context } from '../src/cli-read-context.js';
+import { waitForSubmissionVerdict } from '../src/submit-wait.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const helpers = createE2eHelpers();
@@ -90,4 +92,15 @@ test('submit --wait prints the verdict, and an unclaimed reject returns to the q
 /** The historical alias retains the same versioned submission fields while returning its verdict. */
 test('done --wait preserves submission JSON and prints the exact accepted verdict [V2,A1]', async t => {
   await waitingVerdict(t, 'ACCEPT', { command: 'done', json: true });
+});
+
+/** A withdrawn acceptance must never turn an old attached submission into a successful result. */
+test('a withdrawn verdict does not finish a submission wait successfully [V2,V6]', async t => {
+  const box = await waitingVerdict(t, 'ACCEPT');
+  const commit = onBoard(box, board => store.getItem(board, 1).item_commit);
+  onBoard(box, board => store.reopen(board, 1, { agentId: 'coordinator', withdrawVerdict: true,
+    note: 'The reviewer withdrew this acceptance after a concrete gap was found.' }));
+  const io = { cwd: box.repo, say: () => {}, err: () => {} };
+  await assert.rejects(waitForSubmissionVerdict(context(io), 1, { id: 1, commit }),
+    error => error.code === 'SUBMISSION_CHANGED');
 });
