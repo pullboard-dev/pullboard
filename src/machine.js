@@ -164,6 +164,7 @@ export const MOVES = [
     guards: ['joined', 'itemExists', IN_STATE, 'outsideSubmission'], sets: ['item_built_by', 'item_commit', 'item_frozen_digest'], command: 'pullboard intake <PR> --criterion \"...\" --check \"...\"' },
   {
     verb: 'claim', from: ['open', 'claimed'], to: 'claimed', by: ['agent', 'coordinator'], refuse: 'NOT_CLAIMABLE',
+    alsoRefuses: [{ code: 'ENGINE_VERSION', rule: 'adopting a coordinator correction replays only under an engine defining atomic correction adoption', next: 'upgrade Pullboard on every linked device before adopting a coordinator correction' }],
     guards: ['joined', 'itemExists', IN_STATE, 'checkProvesSomething', 'barReady', 'itemNotHeld', 'inLane', 'routeAllows', 'dependenciesVerified', 'notHeldByAnother', 'builderFirstRefusal', 'correctionRefrozen', 'laneOpen', 'lineCapacity', 'oneLiveClaim', 'rowsInForce'],
     sets: ['item_owner', 'item_lease_until', 'item_frozen_digest'], command: 'pullboard claim <id>',
   },
