@@ -77,7 +77,8 @@ async function fixture(t, { route = 'strong', family = 'off' } = {}) {
   const box = { root, file, board, clock, seats, config, git, advance: ms => { at += ms; } };
   /** File an ordinary runnable item; tests never prefilter a candidate list for next. */
   box.add = (title, options = {}) => store.addItem(board, { by: 'coordinator', lane: 'web', title,
-    criterion: 'The real fixture succeeds.', check: 'true', specIds: ['G1'], ...options });
+    criterion: 'The real fixture succeeds.', check: 'true', specIds: ['G1'],
+    brief: `Files: ${options.lane === 'docs' ? 'docs' : 'web'}/dispatch.js\nTest: the real board selects the eligible item and retains its ownership.`, ...options });
   /** Set up authentic board ownership without claiming execution of a gate. */
   box.claim = (id, seat = seats.builder) => store.claim(board, id, { agentId: seat.id, lane: seat.lane,
     leaseMs: 3_600_000, freeze: item => {
