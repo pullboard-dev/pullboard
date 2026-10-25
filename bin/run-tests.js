@@ -1320,6 +1320,8 @@ async function main(args) {
     return;
   }
   const gui = testsNeedGui(process.cwd(), guiFiles);
+  const { cpuRunnerRequired } = await import('../src/cpu-load-admission.js');
+  const runnerOnly = cpuRunnerRequired(process.cwd(), guiFiles);
   let signal = null;
   /** Keep sandbox lifetime inside the held lease, including the complete child process. */
   const shardLabel = process.env[LANDING_SHARD_ENV];
@@ -1373,7 +1375,7 @@ async function main(args) {
     }
     if (scopedMarker) {
       const inherited = inheritedGateSlot({ root: process.cwd(), browser, namedFiles: shortEligible });
-      if (inherited) await run(gateSlotEnvironment(inherited));
+      if (inherited && (!runnerOnly || inherited.runnerExecution)) await run(gateSlotEnvironment(inherited));
       else await acquire();
     } else if (legacyHeld) {
       throw new Error('this legacy gate marker does not identify a live machine gate lease; restart the parent runner with a scoped gate lease');
@@ -1389,6 +1391,7 @@ async function main(args) {
       let announced = false;
       const runnerPath = relative(process.cwd(), runner);
       const canShipRunner = runnerPath && runnerPath !== '..' && !runnerPath.startsWith(`..${sep}`);
+      if (runnerOnly && !canShipRunner) throw new Error('CPU-load tests require a committed runner inside the checkout; no local fallback is allowed while runners are registered');
       await withGateSlot(process.cwd(), async (lease) => {
         if (!lease.runner) return run(gateSlotEnvironment(lease));
         const { runOnRunner } = await import('../src/runners.js');
@@ -1401,7 +1404,7 @@ async function main(args) {
         process.exitCode = result.exitCode;
       }, {
         browser, gui, kind: fullSuite ? 'gate' : 'focused', shortEligible,
-        remote: Boolean(canShipRunner),
+        remote: Boolean(canShipRunner), runnerOnly,
         onWait: ({ holders, runnerUnavailable }) => {
           if (runnerUnavailable) {
             process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; requeueing the run\n`);

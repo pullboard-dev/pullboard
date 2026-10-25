@@ -78,8 +78,9 @@ const SPEC = `# Demo spec
  * A repo set up with pullboard, two lanes and a spec, committed through its own hooks, plus a
  * worktree joined to the web lane. The coordinator stays deliberately undeclared; later agents
  * retain the runner's model, while initialization model coverage invokes init directly.
+ * Coordinator-only fixtures may omit the unused worktree and its join.
  */
-function project(gate = CONFIG.gate, box = sandbox(), { separateGitDir = false } = {}) {
+function project(gate = CONFIG.gate, box = sandbox(), { separateGitDir = false, withWorktree = true } = {}) {
   const repo = join(box.dir, 'repo');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main', ...(separateGitDir ? ['--separate-git-dir', join(box.dir, 'separate-git')] : []));
@@ -91,6 +92,7 @@ function project(gate = CONFIG.gate, box = sandbox(), { separateGitDir = false }
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: set up pullboard');
+  if (!withWorktree) return { ...box, repo };
   const web = join(box.dir, 'web-1');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
   assert.match(box.run(web, 'join', 'web').out, /joined as web-1/);

@@ -2,6 +2,7 @@
 import * as store from './board.js';
 import { readActivityDelivery } from './activity-delivery-read.js';
 import { handoffMoveProblem } from './handoff-state.js';
+import { Refused } from './refused.js';
 import {
   activityMainFiles,
   activityWorkingFiles,
@@ -64,7 +65,14 @@ export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false,
     // Pending obligations survive an output failure: delivery is not acknowledgement.
     const retired = handoffMoveProblem(board, me.id, 'recordActivityDelivery', [{ agentId: me.id }]);
     if (retired) activity.receipt = { recorded: false, code: retired.code, message: retired.message };
-    else await recordIncluded(ctx, board, me.id, observation);
+    else {
+      try { await recordIncluded(ctx, board, me.id, observation); }
+      catch (error) {
+        if (!(error instanceof Refused) || error.code !== 'RELAY_RECOVERY_PENDING') throw error;
+        // Recovery keeps canonical writes fenced; unread obligations replay until their delivery is recorded.
+        activity.receipt = { recorded: false, code: error.code, message: error.message };
+      }
+    }
     return { shouts, agents: store.listAgents(board), activity, local };
   });
   if (!saveActivityCursor(delivered.local, delivered.activity.cursor)) {

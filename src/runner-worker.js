@@ -943,7 +943,7 @@ async function main() {
     const packFile = join(runDirectory, 'source.pack');
     setupStep = 'runner gate admission';
     lease = await acquireResourceApi(api, {
-      name: 'gate', capacity: gateCapacity, scope: 'machine', root: runnerRoot,
+      name: 'gate', capacity: gateCapacity, scope: 'machine', root: runnerRoot, runnerExecution: true,
       repo: runnerRoot, agent: `pullboard-ssh-${spec.id}`,
       landing: spec.landing === true, itemCheck: spec.itemCheck === true,
       diagnostic: spec.diagnostic === true, browser: spec.browserRequired, timing: spec.timing === true,

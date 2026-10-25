@@ -1448,7 +1448,7 @@ test('a red on a registered runner gets its paired rerun and ledger entry, or st
 });
 
 test('the runner round trip deadline holds under a loaded test machine and still catches a stuck phase [C7]',
-  { timeout: 660_000 }, async t => { // budget: five real paired attempts plus a bounded held phase, below the file hang ceiling.
+  { timeout: 660_000, cpuLoad: true }, async t => { // budget: five real paired attempts plus a bounded held phase, below the file hang ceiling.
     await assertAttemptDeadlineReset(PAIRED_RERUN_FIXTURE);
     await assertRedispatchDeadlineAccounting(PAIRED_RERUN_FIXTURE);
     assertFixtureGroupEpermControls();

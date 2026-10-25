@@ -198,7 +198,7 @@ test('a caller keeps its place while its synchronous call is open, so no other f
   assert.equal(await occupiedPlaces(home), 2, 'the call returned, the caller runs in its own place');
 });
 
-test('a parent that starts its nested run asynchronously keeps its own token, so its nested files take separate ones [C7]', async (t) => {
+test('a parent that starts its nested run asynchronously keeps its own token, so its nested files take separate ones [C7]', { cpuLoad: true }, async (t) => {
   const { root, env, log } = fixture(t, 2);
   for (const file of ['inner-a.test.js', 'inner-b.test.js']) writeFileSync(join(root, file), timedFile(file, 400));
   // The parent starts its nested run without blocking on it and spins the CPU until the run ends.
@@ -454,7 +454,7 @@ test('a broken private pool must not return a live loan', async () => {
   assert.equal(await occupiedPlaces(env.PULLBOARD_MACHINE_HOME), 0);
 });
 
-test('a run a synchronous call leaves behind lends nothing once the call returns [C7]', async (t) => {
+test('a run a synchronous call leaves behind lends nothing once the call returns [C7]', { cpuLoad: true }, async (t) => {
   const { root, env, log } = fixture(t, 1);
   for (const file of ['inner-a.test.js', 'inner-b.test.js']) writeFileSync(join(root, file), timedFile(file, 200));
   // The parent's shell call starts a detached run and returns at once; the parent then works on in its own place.
