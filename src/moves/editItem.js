@@ -12,6 +12,7 @@ import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function minimumEngine(args, board, at) {
+  if (args[1]?.reviewFamily !== undefined) return AUTOMATIC_DISPATCH_ENGINE;
   if (args[1]?.correction === true) return AUTOMATIC_DISPATCH_ENGINE;
   if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:')) return RIGOR_AUTO_ENGINE;
   if (board && barReadySetting(board).enabled) return BAR_READY_ENGINE;
@@ -28,6 +29,7 @@ function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: "editItem", order: 9, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
+  "BAD_REVIEW_FAMILY": "use --review-family with a nonempty declared reviewer family of at most 100 characters",
   "BAD_CHECK": "ask your coordinator to set the check: pullboard edit <id> --check \"<command>\"",
   "BAR_REASON": "say what the old bar got wrong: pullboard edit <id> --reason \"...\"",
   "COORDINATOR_CHECK": "ask your coordinator to set the check: pullboard shout coordinator \"please set a check on #<id>\"",

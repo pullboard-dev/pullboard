@@ -1,3 +1,4 @@
+import { projectReviewFamily } from './required-review-family.js';
 import { withSeatPresence } from './seat-presence.js';
 import { projectItemDecisions } from './item-decision-queue.js';
 import { itemById } from './board-item-read.js';
@@ -59,6 +60,7 @@ export function isHeld(board, item) {
  * @returns {any}
  */
 export function current(board, item) {
+  item = projectReviewFamily(board, item);
   if (item.item_status !== 'claimed' || isHeld(board, item)) return { ...item };
   return { ...item, item_status: 'open', item_owner: null, item_lease_until: null };
 }

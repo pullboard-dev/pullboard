@@ -121,9 +121,11 @@ import {
   reserveRow,
   specProof,
   textArg,
+  freezer,
   whoAmI,
   withBoard,
 } from '../cli.js';
+import { assertNoCitedSpecDecline, prepareSpecRefreezes } from '../spec-refreeze.js';
 
 /** Validate optional verdicts using only existing board state; a check never initializes a board. */
 function verifierFindings(ctx, parsed) {
@@ -292,6 +294,7 @@ export async function specCommand(io, { first, second, rest, values }) {
       if (!ctx.info.isMain || me.id !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator applies row decisions; ask your coordinator to run pullboard spec apply');
       // Every automatic proposal is preflighted before any draft or decision changes a file.
       planRowApply(ctx.info.root, ctx.config, store.rowDecisions(board));
+      assertNoCitedSpecDecline(store.rowDecisions(board), store.listItems(board, { all: true }));
       const automatic = planAutomaticRigorApply(ctx.info.root, ctx.config, store.rowDrafts(board), store.rowDecisions(board));
       writeRowApply(ctx.info.root, automatic);
       automatic.files.forEach(file => io.say(`${file.file}: materialized unproved Rigor drafts for the person's review`));
@@ -302,8 +305,13 @@ export async function specCommand(io, { first, second, rest, values }) {
       const plan = planRowApply(ctx.info.root, ctx.config, store.rowDecisions(board));
       writeRowApply(ctx.info.root, plan);
       let applied;
-      try { applied = await ordered(ctx, board, 'applyRowDecisions', [{ agentId: me.id, events: plan.records.map((record) => record.event) }]); }
-      catch (error) { restoreRowApply(ctx.info.root, plan); throw error; }
+      try {
+        const args = { agentId: me.id, events: plan.records.map((record) => record.event) };
+        const refreezes = prepareSpecRefreezes(plan.records, board.db.prepare('SELECT * FROM item ORDER BY item_id').all(),
+          freezer(ctx, { captureVerifyPolicy: true, board }));
+        if (refreezes !== undefined) args.refreezes = refreezes;
+        applied = await ordered(ctx, board, 'applyRowDecisions', [args]);
+      } catch (error) { restoreRowApply(ctx.info.root, plan); throw error; }
       const verifications = planRowVerificationApply(ctx.info.root, ctx.config, store.rowVerifications(board), store.rowDecisions(board));
       writeRowApply(ctx.info.root, verifications);
       verifications.applied.forEach(id => io.say(`${ctx.config.spec}: ${id} verifier verdict applied`));

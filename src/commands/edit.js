@@ -45,6 +45,7 @@ export async function run(io, args) {
   const change = {
     agentId: me.id,
     brief: brief === undefined ? undefined : briefInLane(ctx, store.getItem(board, id).item_lane, brief),
+    reviewFamily: values['review-family'],
     route: values.route,
     criterion: values.criterion,
     check: values.check,

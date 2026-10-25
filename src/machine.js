@@ -95,6 +95,7 @@ export const STATES = [
 
 /** @type {Guard[]} */
 export const GUARDS = [
+  { id: 'specRefreezeAllowed', refuse: 'CLOSED', rule: 'an unmerged acceptance is refrozen only within a validated cited-spec correction', next: 'apply the person-approved cited spec correction, or reopen through the normal review workflow', source: 'board' },
   { id: 'outsideSubmission', refuse: 'OUTSIDE_SOURCE', rule: 'an outside author and exact fetched commit/tree are recorded with a trusted frozen criterion, without pretending a native builder gated it', next: 'fetch and intake the exact GitHub pull request again', source: 'board' },
   { id: IN_STATE, refuse: '', rule: "the move can start from the item's current state", next: 'pullboard show <id>', source: 'board' },
   { id: 'joined', refuse: 'NOT_JOINED', alsoRefuses: [{ code: 'AGENT_REPLACED', next: 'read the takeover and only shout on its exact hand-off item; continue work from the incoming agent worktree' }, { code: 'SESSION_LEDGER', next: 'make the agent-session ledger named in the message readable and writable by this user, then run the command again' }], rule: 'the caller is the main checkout, or an unreplaced worktree seat that joined a lane; an agent session\'s claims, submits and verdicts can be checked against its local ledger', next: 'pullboard join <lane> --model "<model name>" (see: pullboard lanes)', source: 'cli' },
@@ -142,6 +143,7 @@ export const GUARDS = [
   { id: 'reviewTreeCurrent', refuse: 'STALE_VERDICT', alsoRefuses: [{ code: 'DIRTY', next: 'commit the reviewed composition before re-reviewing' }, { code: 'UNTRACKED', next: 'commit or ignore untracked files before re-reviewing' }, { code: 'VERDICT_TRUNK_MOVED', next: 'merge the latest main and re-review the clean composition' }], rule: 'a stale acceptance is re-reviewed at a clean HEAD containing the current trunk, which stays fixed through its check', next: 'merge current main into the submitted commit and re-review it', source: 'cli' },
   { id: 'notBuilder', refuse: 'SELF_VERIFY', alsoRefuses: [{ code: 'VERIFIER_STANDING', next: 'the coordinator makes an independent verifier from the main checkout: pullboard worktree <lane> --model "<model name>"' }, { code: 'SELF_SESSION_VERIFY', next: 'ask another agent session to verify it: pullboard next --verify from that session\'s own worktree' }], rule: 'the caller did not build it, and its agent session did not build or submit it under any seat; on a linked board, at engine 48 or newer, the caller was enrolled through the relay by a line of creating seats from the coordinator that includes neither the builder nor a machine join', next: 'another agent verifies it: pullboard next --verify', source: 'board' },
   { id: 'policyAllows', refuse: 'COORDINATOR_VERIFIES', rule: "the repo's verify policy lets the caller verify this lane's work", next: 'the coordinator verifies it', source: 'board' },
+  { id: 'requiredReviewFamily', refuse: 'REQUIRED_REVIEW_FAMILY', rule: 'an item required reviewer family matches the declared reviewer family case-insensitively; undeclared is ineligible', next: 'ask a reviewer whose declared family matches the item requirement', source: 'board', when: 'the item declares a required reviewer family' },
   { id: 'familyAllows', refuse: 'O2_FAMILY_MATCH', rule: 'the builder and verifier have different declared families; an undeclared family counts as a match', next: 'ask the coordinator for a verifier from another declared family', source: 'board', when: 'only when verify.family is require' },
   { id: 'reviewFree', refuse: 'REVIEW_HELD', rule: 'no other agent holds its review under a live lease', next: 'pullboard next --verify, which passes over reviews another agent holds', source: 'board' },
   { id: 'reasonIsMet', refuse: 'BAD_REASON', rule: 'an accept gives CRITERION_MET as its reason', next: 'a failed criterion is a reject: pullboard verify <id> reject --reason CODE', source: 'board' },
@@ -181,18 +183,18 @@ export const MOVES = [
   },
   {
     verb: 'reserve', from: ['submitted'], to: 'submitted', by: ['agent', 'coordinator'], refuse: 'NOT_SUBMITTED',
-    guards: ['coordinatorSaysAs', 'joined', 'roadmapReadable', 'itemExists', IN_STATE, 'reviewCooldownElapsed', 'notBuilder', 'routeAllows', 'policyAllows', 'familyAllows', 'reviewFree'],
+    guards: ['coordinatorSaysAs', 'joined', 'roadmapReadable', 'itemExists', IN_STATE, 'reviewCooldownElapsed', 'notBuilder', 'routeAllows', 'policyAllows', 'requiredReviewFamily', 'familyAllows', 'reviewFree'],
     sets: ['item_review_by', 'item_review_until'], command: 'pullboard next --verify',
   },
   {
     verb: 'accept', from: ['submitted', 'verified'], to: 'verified', by: ['agent', 'coordinator'], refuse: 'NOT_SUBMITTED',
-    guards: ['coordinatorSaysAs', 'joined', 'itemExists', IN_STATE, 'atSubmittedCommit', 'notMerged', 'verdictReviewRecorded', 'reviewTreeCurrent', 'notBuilder', 'routeAllows', 'policyAllows', 'familyAllows', 'reviewFree', 'criterionUnchanged', 'reasonIsMet', 'trunkMergeClean', 'noUnverifiedStack', 'queuedItemLease', 'itemCheckGreen', 'proofNoted'],
+    guards: ['coordinatorSaysAs', 'joined', 'itemExists', IN_STATE, 'atSubmittedCommit', 'notMerged', 'verdictReviewRecorded', 'reviewTreeCurrent', 'notBuilder', 'routeAllows', 'policyAllows', 'requiredReviewFamily', 'familyAllows', 'reviewFree', 'criterionUnchanged', 'reasonIsMet', 'trunkMergeClean', 'noUnverifiedStack', 'queuedItemLease', 'itemCheckGreen', 'proofNoted'],
     alsoRefuses: [{ code: 'VERDICT_ENVIRONMENT', rule: 'optional recorded verdict environment contains exact platform, architecture and Node version', next: 'run the frozen check with current Pullboard, then have an independent reviewer record a fresh verdict with its actual executor environment' }, { code: 'LAND_HEADER', rule: 'a displayed merge command fits the commit-header limit', next: 'shorten the item title or cited rows so the merge header fits' }, { code: 'ENGINE_VERSION', rule: 'a verdict that implies items replays only under engine 20 or later', next: 'upgrade Pullboard on every linked device before using --implies' }],
     sets: ['item_verified_by'], command: 'pullboard verify <id> accept --note "..."',
   },
   {
     verb: 'reject', from: ['submitted', 'verified'], to: 'open', by: ['agent', 'coordinator'], refuse: 'NOT_SUBMITTED',
-    guards: ['coordinatorSaysAs', 'joined', 'itemExists', IN_STATE, 'atSubmittedCommit', 'notMerged', 'verdictReviewRecorded', 'reviewTreeCurrent', 'notBuilder', 'routeAllows', 'policyAllows', 'familyAllows', 'reviewFree', 'criterionUnchanged', 'reasonCoded', 'noteGiven', 'causeWellFormed'],
+    guards: ['coordinatorSaysAs', 'joined', 'itemExists', IN_STATE, 'atSubmittedCommit', 'notMerged', 'verdictReviewRecorded', 'reviewTreeCurrent', 'notBuilder', 'routeAllows', 'policyAllows', 'requiredReviewFamily', 'familyAllows', 'reviewFree', 'criterionUnchanged', 'reasonCoded', 'noteGiven', 'causeWellFormed'],
     alsoRefuses: [{ code: 'VERDICT_ENVIRONMENT', rule: 'optional recorded verdict environment contains exact platform, architecture and Node version', next: 'run the frozen check with current Pullboard, then have an independent reviewer record a fresh verdict with its actual executor environment' }, { code: 'LAND_HEADER', rule: 'a displayed merge command fits the commit-header limit', next: 'shorten the item title or cited rows so the merge header fits' }, { code: 'ENGINE_VERSION', rule: 'a verdict that implies items replays only under engine 20 or later', next: 'upgrade Pullboard on every linked device before using --implies' }, { code: 'NOT_YOURS', rule: 'the automatic escalation is authorized as the coordinator or item holder', next: 'ask the coordinator to inspect the item and its route' }, { code: 'CLOSED', rule: 'the rejected item remains open or claimed when automatic escalation starts', next: 'pullboard show <id>, then ask the coordinator to inspect its current state' }],
     command: 'pullboard verify <id> reject --reason CODE --note "..."',
   },
@@ -208,15 +210,15 @@ export const MOVES = [
     guards: ['joined', 'noteGiven', 'itemExists', 'holderOrCoordinator', IN_STATE], command: 'pullboard escalate <id> --note "..."',
   },
   {
-    verb: 'refreeze', from: ['open', 'claimed', 'submitted'], to: 'open', by: ['coordinator'], refuse: 'CLOSED',
-    guards: ['joined', 'coordinatorOnly', 'itemExists', IN_STATE, 'barReady', 'rowsInForce'],
+    verb: 'refreeze', from: ['open', 'claimed', 'submitted', 'verified'], to: 'open', by: ['coordinator'], refuse: 'CLOSED',
+    guards: ['joined', 'coordinatorOnly', 'itemExists', IN_STATE, 'specRefreezeAllowed', 'barReady', 'rowsInForce'],
     when: 'there is no live claim awaiting a coordinator correction',
     sets: ['item_frozen_digest'], command: 'pullboard refreeze <id>',
   },
   {
     verb: 'refreeze', from: ['claimed'], to: 'claimed', by: ['agent', 'coordinator'], refuse: 'CLOSED',
-    guards: ['joined', 'itemExists', 'holderOrCoordinator', IN_STATE, 'barReady', 'rowsInForce'],
-    when: 'a live claim has a pending coordinator correction',
+    guards: ['joined', 'itemExists', 'holderOrCoordinator', IN_STATE, 'specRefreezeAllowed', 'barReady', 'rowsInForce'],
+    when: 'a live claim has a pending coordinator correction or a validated cited-spec correction',
     sets: ['item_frozen', 'item_frozen_digest'], command: 'pullboard refreeze <id>',
   },
   {

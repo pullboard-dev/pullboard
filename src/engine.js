@@ -90,6 +90,7 @@ export function startRelayEpoch(board, boardId) {
 export function prepareEngineMove(board, operation, args, { id = randomUUID(), actor } = {}) {
   if (!ENGINE_OPERATIONS.includes(operation) || !Array.isArray(args)) throw new Refused('RELAY_MOVE', 'use a supported board-engine operation with its argument array');
   const values = args.map((value) => value && typeof value === 'object' ? { ...value } : value);
+  validateSpecRefreezeMarker(operation, values);
   if (operation === 'reopen' && values[1] && typeof values[1] === 'object'
     && manualLandingFailureQuoted(values[1].note)) values[1].quotedLandingFailure = true;
   if (operation === 'submit' && ENGINE_VERSION >= SUBMISSION_PROOF_ENGINE) submissionProof(values[1]?.submissionProof);
@@ -134,11 +135,19 @@ export function requireSupportedEngine(move) {
   if (Number.isSafeInteger(move?.engine) && move.engine > ENGINE_VERSION) throw new Refused('ENGINE_VERSION', `move engine version ${move.engine} is newer than this pullboard engine version ${ENGINE_VERSION}; upgrade pullboard before applying the relay order`);
 }
 
+/** Treat a present correction array, including an empty one, as the new apply protocol marker. */
+function validateSpecRefreezeMarker(operation, args) {
+  if (operation === 'applyRowDecisions' && Object.hasOwn(args[0] ?? {}, 'refreezes') && !Array.isArray(args[0].refreezes)) {
+    throw new Refused('ROW_DECISION', 'the spec correction payload is invalid; run pullboard spec apply again');
+  }
+}
+
 /** Validate protocol identity before a future engine or malformed input can alter any replica. */
 function validateMove(move) {
   if (!move || move.version !== 1 || !Number.isSafeInteger(move.engine) || move.engine < 1) throw new Refused('RELAY_MOVE', 'this executable move format is invalid; upgrade pullboard or restore a consistent relay snapshot');
   requireSupportedEngine(move);
   if (typeof move.id !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(move.id) || !ENGINE_OPERATIONS.includes(move.operation) || !Array.isArray(move.args)) throw new Refused('RELAY_MOVE', 'this sealed operation is invalid; use a supported board-engine operation');
+  validateSpecRefreezeMarker(move.operation, move.args);
   const minimumEngine = minimumOperationEngine(move.operation, move.args);
   if (move.engine < minimumEngine) throw new Refused('RELAY_MOVE', `${move.operation} cannot be replayed from engine version ${move.engine}; it was introduced in engine ${minimumEngine}; restore a consistent relay prefix`);
 }

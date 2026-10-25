@@ -72,7 +72,7 @@ const OPTIONS = {
   section: { type: 'string' },
   blueprint: { type: 'string', multiple: true },
   route: { type: 'string' },
-  family: { type: 'string' },
+  family: { type: 'string' }, 'review-family': { type: 'string' },
   model: { type: 'string' },
   as: { type: 'string' },
   check: { type: 'string' },
