@@ -185,6 +185,23 @@ export async function assertSpecRefreezeReplay(t, { fixture, cli }) {
   assert.deepEqual(applyRelayMove(replica, move, order), replayed, 'a duplicate returns the same apply receipt');
   assert.deepEqual(exportBoard(replica), applied, 'duplicate replay does not refreeze or notify twice');
 
+  const omittedMarker = store.openBoard(':memory:', box.clock);
+  t.after(() => store.closeBoard(omittedMarker));
+  importBoard(omittedMarker, prefix);
+  const omitted = structuredClone(move);
+  delete omitted.args[0].refreezes;
+  assertNoDomainApply(omittedMarker, omitted, order, 'ROW_DECISION');
+
+  const legacy = store.openBoard(':memory:', box.clock);
+  t.after(() => store.closeBoard(legacy));
+  importBoard(legacy, prefix);
+  const historical = structuredClone(omitted);
+  historical.engine = AUTOMATIC_DISPATCH_ENGINE - 1;
+  const legacyItem = store.getItem(legacy, id);
+  const historicalResult = applyRelayMove(legacy, historical, order);
+  assert.equal(historicalResult.error, undefined, 'historical marker-free decisions retain their recorded apply behavior');
+  assert.deepEqual(store.getItem(legacy, id), legacyItem, 'old-engine replay does not invent new refreeze semantics');
+
   const newCitation = store.openBoard(':memory:', box.clock);
   t.after(() => store.closeBoard(newCitation));
   importBoard(newCitation, prefix);
