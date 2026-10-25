@@ -188,7 +188,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - N31 [draft, must] `pullboard prompt run` and the pullboard-run skill guide one agent through the team: spec, plan, builders, verifier, merges. | gate: test/practice.test.js
 - N32 [draft, must] The coordinator's resume names its next step from board and spec: spec, approve, plan, build, verify or merge. | gate: test/e2e.test.js
 - N33 [draft, must] A repo names its project in pullboard.json, and the view lists projects with their repos beneath. | gate: test/cockpit.test.js | serves: N26
-- N34 [approved, must] A project has one Needs-you and one activity feed across its repos; each repo keeps its own board. | gate: test/cockpit.test.js | serves: N33
+- N34 [approved, must] A project has one Needs-you and one activity feed across its repos; each repo keeps its own board. | gate: test/cockpit/needs.test.js | serves: N33
 - N35 [draft, aim] A repo whose folder is gone leaves the view; `pullboard forget <path>` removes one by hand. | gate: test/e2e.test.js | serves: N26
 - N36 [draft, aim] The view names each repo as pullboard.json does, falling back to its folder name. | gate: test/cockpit.test.js | serves: N26
 - N37 [draft, must] pullboard help keeps each command's usage apart from its words, so tools can read it. | gate: test/e2e.test.js

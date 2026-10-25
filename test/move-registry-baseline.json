@@ -6427,6 +6427,8 @@
     }
   ],
   "nextSteps": {
+    "BAD_DECISION_OPTIONS": "ask an item decision with --decision --item <id> --options '[\"first\",\"second\"]'",
+    "NOT_YOUR_ITEM_DECISION": "ask on an item you build or review, or ask the coordinator for a cross-item decision",
     "BAD_VERDICT_WITHDRAW": "use --withdraw-verdict with a note, or report a conflict separately",
     "VERDICT_WITHDRAW_FORBIDDEN": "ask the accepting reviewer or coordinator to withdraw this verdict",
     "VERDICT_WITHDRAW_STATE": "refresh the item; withdraw only a current acceptance before landing",
