@@ -242,7 +242,16 @@ export async function run(io, { first, values }) {
   const submissionResult = {};
   const ctx = { ...context(io), submissionResult };
   const id = idArg(first);
-  const code = await submitHere(ctx, id, values.infra);
+  const previous = io.onOrderedMove;
+  io.onOrderedMove = receipt => {
+    previous?.(receipt);
+    if (receipt.operation !== 'submit') return;
+    const event = receipt.events.find(event => event.event_kind === 'submit' && event.item_id === id);
+    if (event) submissionResult.event = { ...event };
+  };
+  let code;
+  try { code = await submitHere(ctx, id, values.infra); }
+  finally { io.onOrderedMove = previous; }
   if (code !== 0 || !values.wait) return code;
-  return waitForSubmissionVerdict(ctx, id, submissionResult.value);
+  return waitForSubmissionVerdict(ctx, id, submissionResult.value, submissionResult.event);
 }

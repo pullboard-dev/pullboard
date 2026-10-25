@@ -98,9 +98,36 @@ test('done --wait preserves submission JSON and prints the exact accepted verdic
 test('a withdrawn verdict does not finish a submission wait successfully [V2,V6]', async t => {
   const box = await waitingVerdict(t, 'ACCEPT');
   const commit = onBoard(box, board => store.getItem(board, 1).item_commit);
+  const receipt = onBoard(box, board => store.events(board, { itemId: 1 }).findLast(event => event.event_kind === 'submit'));
   onBoard(box, board => store.reopen(board, 1, { agentId: 'coordinator', withdrawVerdict: true,
     note: 'The reviewer withdrew this acceptance after a concrete gap was found.' }));
   const io = { cwd: box.repo, say: () => {}, err: () => {} };
-  await assert.rejects(waitForSubmissionVerdict(context(io), 1, { id: 1, commit }),
+  await assert.rejects(waitForSubmissionVerdict(context(io), 1, { id: 1, commit }, receipt),
+    error => error.code === 'SUBMISSION_CHANGED');
+});
+
+/** Refreezing permits the same SHA again; an older wait must not inherit the newer attempt's verdict. */
+test('a wait keeps its original receipt across a same-SHA refrozen resubmission [V2,V6]', async t => {
+  const box = helpers.project('true');
+  assert.equal(box.run(box.repo, 'add', 'web', 'Same commit, new attempt', '--specs', 'G1',
+    '--criterion', 'The fixture check passes.', '--check', 'true').code, 0);
+  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  assert.equal(helpers.commitFile(box, box.web, 'web/retry.txt', 'same source\n', 'feat(web): pin the attempt [G1]').status, 0);
+  const sent = box.run(box.web, 'submit', '1', '--json');
+  assert.equal(sent.code, 0, sent.out + sent.err);
+  const submission = JSON.parse(sent.out);
+  const receipt = onBoard(box, board => store.events(board, { itemId: 1 }).findLast(event => event.event_kind === 'submit'));
+  onBoard(box, board => store.reopen(board, 1, { agentId: 'coordinator', note: 'Refreeze the review bar before reviewing this source.' }));
+  const refrozen = box.run(box.repo, 'refreeze', '1');
+  assert.equal(refrozen.code, 0, refrozen.out + refrozen.err);
+  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  const resent = box.run(box.web, 'submit', '1', '--json');
+  assert.equal(resent.code, 0, resent.out + resent.err);
+  assert.equal(JSON.parse(resent.out).commit, submission.commit, 'the regression really resubmits the same SHA');
+  onBoard(box, board => store.verify(board, 1, { agentId: 'coordinator', decision: 'REJECT',
+    reason: 'BEHAVIOR_MISMATCH', note: 'This verdict belongs only to the later attempt.', policy: 'any',
+    digest: store.getItem(board, 1).item_frozen_digest, head: submission.commit }));
+  const io = { cwd: box.repo, say: () => {}, err: () => {} };
+  await assert.rejects(waitForSubmissionVerdict(context(io), 1, submission, receipt),
     error => error.code === 'SUBMISSION_CHANGED');
 });

@@ -224,6 +224,7 @@ export async function gitBoardOperation(root, board, operation, args, io = {}) {
       outcome = await settle(root, board, pending);
       if (pending.command === command && pending.move.operation === operation) {
         if (outcome.error) throw new Refused(outcome.error.code, outcome.error.message, outcome.error.next);
+        io.onOrderedMove?.({ operation, events: outcome.events ?? [] });
         return outcome.result;
       }
       if (outcome.error) throw new Refused(outcome.error.code, outcome.error.message, outcome.error.next);
@@ -232,6 +233,7 @@ export async function gitBoardOperation(root, board, operation, args, io = {}) {
     save(file.pending, pending);
     outcome = await settle(root, board, pending);
     if (outcome.error) throw new Refused(outcome.error.code, outcome.error.message, outcome.error.next);
+    io.onOrderedMove?.({ operation, events: outcome.events ?? [] });
     return outcome.result;
   }, io);
 }

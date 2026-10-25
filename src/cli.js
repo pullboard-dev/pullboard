@@ -604,8 +604,10 @@ export async function ordered(ctx, board, operation, args) {
     /** Called only for this requested operation, after its store transaction commits, never for bootstrap. */
     const applyRequested = () => {
       const before = board.lastEvent;
+      const firstEvent = board.emittedEvents?.length ?? 0;
       const result = write();
       if (requested && board.lastEvent !== before) ctx.io.recordedMove = true;
+      ctx.io.onOrderedMove?.({ operation, events: (board.emittedEvents?.slice(firstEvent) ?? []).map(event => ({ ...event })) });
       return result;
     };
     const result = await withItemSession(ctx.info, operation, args, async () => gitSyncLinked(ctx.info.root)
