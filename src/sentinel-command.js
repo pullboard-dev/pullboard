@@ -43,7 +43,7 @@ async function runSentinels({ ctx, withBoard, whoAmI, ordered, healthOnly = fals
           ? { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined } : ctx.io;
         await ordered({ ...ctx, io }, board, 'recordSpecApprovalBaseline', [{ agentId: 'coordinator', baseline }]);
       }
-      const observation = scanHealthSentinel(ctx.file, { root: ctx.info.root, config: ctx.config, now: ctx.clock.now() });
+      const observation = scanHealthSentinel(ctx.file, { root: ctx.info.root, config: ctx.config, now: ctx.clock.now(), returnRejected: me.id === 'coordinator' });
       if (observation) {
         try { await ordered(ctx, board, 'recordHealthFindings', [{ agentId: me.id, ...observation }]); }
         catch (error) { if (!(error instanceof Refused) || error.code !== 'HEALTH_SCAN_STALE') throw error; }

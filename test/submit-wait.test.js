@@ -20,7 +20,7 @@ function onBoard(box, action, clock) {
 }
 
 /** Submit through the public CLI and let a real recorded verdict release its waiting child. */
-async function waitingVerdict(t, decision, { command = 'submit', json = false } = {}) {
+async function waitingVerdict(t, decision, { command = 'submit', json = false, builderHeartbeatOffsetMs = 0 } = {}) {
   const box = helpers.project('true');
   assert.equal(box.run(box.repo, 'add', 'web', 'Wait for the verdict', '--specs', 'G1',
     '--criterion', 'The fixture check passes.', '--check', 'true').code, 0);
@@ -36,6 +36,10 @@ async function waitingVerdict(t, decision, { command = 'submit', json = false } 
   assert.equal(onBoard(box, board => store.getItem(board, 1).item_status), 'submitted', child.stderrText);
   assert.equal(child.exitCode, null, '--wait stays attached until the verdict, not only until submission');
   const note = decision === 'ACCEPT' ? 'The submitted fixture meets its bar.' : 'The fixture deliberately rejects this concrete clause.';
+  if (builderHeartbeatOffsetMs) {
+    onBoard(box, board => heartbeatSeat(board, store.getItem(board, 1).item_built_by),
+      { now: () => new Date(Date.now() + builderHeartbeatOffsetMs) });
+  }
   onBoard(box, board => store.verify(board, 1, { agentId: 'coordinator', decision,
     digest: store.getItem(board, 1).item_frozen_digest, head: store.getItem(board, 1).item_commit,
     reason: decision === 'ACCEPT' ? 'CRITERION_MET' : 'BEHAVIOR_MISMATCH', note, policy: 'any', check: 'green', reopenFirstRefusalMinutes: 30 }));
@@ -81,7 +85,7 @@ test('submit --wait prints the verdict, and an unclaimed reject returns to the q
   assert.ok(finding.why.includes('The fixture deliberately rejects this concrete clause.'), 'queue return retains the reviewer note');
   onBoard(box, board => {
     const observedRevision = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS n FROM event').get().n;
-    store.recordHealthFindings(board, { agentId: 'coordinator', observedRevision, findings: due.stuck });
+    store.recordHealthFindings(board, { agentId: 'coordinator', observedRevision, findings: due.stuck, returnRejected: true });
     store.claim(board, 1, { agentId: nextActor, lane: 'web', leaseMs: 60_000 });
     assert.equal(store.getItem(board, 1).item_owner, nextActor, 'the next builder really receives the rejected item');
     assert.ok(store.verdictsFor(board, 1).some(entry => entry.verdict_decision === 'REJECT'
@@ -130,4 +134,34 @@ test('a wait keeps its original receipt across a same-SHA refrozen resubmission 
   const io = { cwd: box.repo, say: () => {}, err: () => {} };
   await assert.rejects(waitForSubmissionVerdict(context(io), 1, submission, receipt),
     error => error.code === 'SUBMISSION_CHANGED');
+});
+
+/** An already-gone builder returns immediately; only the coordinator can authorize that observation. */
+test('an inactive builder returns its rejected item before ten minutes [B13,A6,H2]', async t => {
+  const box = await waitingVerdict(t, 'REJECT', { builderHeartbeatOffsetMs: -31 * 60_000 });
+  const rejected = onBoard(box, board => store.events(board, { itemId: 1 }).findLast(event => event.event_kind === 'reject'));
+  const now = new Date(Date.parse(rejected.event_at) + 1000);
+  const clock = { now: () => now };
+  const config = loadConfig(box.repo);
+  const due = onBoard(box, board => healthReport({ db: board.db, root: box.repo, config, now }), clock);
+  assert.ok(due.stuck.some(entry => entry.item === 1 && entry.detail.reason === 'inactive'));
+  const nextPath = join(box.dir, 'replacement-builder');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', nextPath, 'main');
+  const nextActor = onBoard(box, board => store.register(board, { lane: 'web', path: nextPath }));
+  onBoard(box, board => {
+    const revision = () => board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS n FROM event').get().n;
+    const before = revision();
+    assert.throws(() => store.recordHealthFindings(board, { agentId: nextActor, observedRevision: before,
+      findings: due.stuck, returnRejected: true }), error => error.code === 'COORDINATOR_ONLY');
+    assert.equal(revision(), before, 'unauthorized return appends no event');
+    store.recordHealthFindings(board, { agentId: 'coordinator', observedRevision: before,
+      findings: due.stuck, returnRejected: true });
+    const returned = store.events(board, { itemId: 1 }).findLast(event => event.event_kind === 'reject_returned');
+    const detail = JSON.parse(returned.event_detail);
+    assert.equal(detail.rejection, rejected.event_id);
+    assert.equal(detail.reason, 'inactive');
+    assert.ok(detail.note.includes('deliberately rejects'));
+    store.claim(board, 1, { agentId: nextActor, lane: 'web', leaseMs: 60_000 });
+    assert.equal(store.getItem(board, 1).item_owner, nextActor);
+  }, clock);
 });

@@ -1,3 +1,5 @@
+import { REJECTED_WORK_RETURN_ENGINE } from './rejected-work-return-engine.js';
+import { rejectedWorkReturns } from './rejected-work-return.js';
 import { heartbeatSeat } from './seat-presence.js';
 import { requireFactKind } from './item-notes.js';
 import { activityNewsFlag } from './activity-news.js';
@@ -1704,7 +1706,7 @@ export function shout(board, message) {
 }
 
 /** Record one current health snapshot atomically, notifying each new or resolved episode once [A6]. */
-export function recordHealthFindings(board, { agentId, observedRevision, findings }) {
+export function recordHealthFindings(board, { agentId, observedRevision, findings, returnRejected = false }) {
   return atomic(board, () => {
     if ((board.executionEngineVersion ?? ENGINE_VERSION) < HEALTH_SENTINEL_ENGINE) {
       throw new Refused('ENGINE_VERSION', `sentinel receipts require engine ${HEALTH_SENTINEL_ENGINE}; upgrade Pullboard before scanning`);
@@ -1716,14 +1718,18 @@ export function recordHealthFindings(board, { agentId, observedRevision, finding
     if (!Number.isSafeInteger(observedRevision) || observedRevision !== revision) {
       throw new Refused('HEALTH_SCAN_STALE', 'the board changed while health was scanning; run pullboard resume again');
     }
+    if (returnRejected && ((board.executionEngineVersion ?? ENGINE_VERSION) < REJECTED_WORK_RETURN_ENGINE || agentId !== COORDINATOR)) {
+      throw new Refused('COORDINATOR_ONLY', 'the coordinator returns unattended rejects; ask it to run pullboard sentinel run');
+    }
     const active = normalizedHealthFindings(findings);
+    const returns = returnRejected ? rejectedWorkReturns(board, findings) : [];
     const last = board.db.prepare("SELECT event_detail FROM event WHERE event_kind = 'health-scan' ORDER BY event_id DESC LIMIT 1").get();
     const previous = last ? JSON.parse(last.event_detail).active : [];
     const before = new Map(previous.map(finding => [healthFindingIdentity(finding), finding]));
     const after = new Map(active.map(finding => [healthFindingIdentity(finding), finding]));
     const added = active.filter(finding => !before.has(healthFindingIdentity(finding)));
     const resolved = previous.filter(finding => !after.has(healthFindingIdentity(finding)));
-    if (!added.length && !resolved.length) return { added: [], resolved: [] };
+    if (!added.length && !resolved.length && !returns.length) return { added: [], resolved: [] };
     const agents = listAgents(board);
     const lanes = [...new Set(agents.map(agent => agent.agent_lane))];
     const engine = board.executionEngineVersion ?? ENGINE_VERSION;
@@ -1737,6 +1743,10 @@ export function recordHealthFindings(board, { agentId, observedRevision, finding
     };
     deliverHealthNotices({ resolved, added, engine, log, coordinator: COORDINATOR, shout: (to, text) => insertShout(board, { from: 'sentinel', to, text, lanes }),
       targets: finding => healthTargets(finding, { engine, coordinator: COORDINATOR, person: PERSON, lanes, agents }) });
+    for (const returned of returns) {
+      const { item, ...detail } = returned;
+      logEvent(board, agentId, 'reject_returned', item, { ...detail, engine: REJECTED_WORK_RETURN_ENGINE });
+    }
     logEvent(board, agentId, 'health-scan', null, { active, engine: HEALTH_SENTINEL_ENGINE });
     return { added: added.map(finding => finding.key), resolved: resolved.map(finding => finding.key) };
   });

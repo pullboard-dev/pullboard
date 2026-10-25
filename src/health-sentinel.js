@@ -1,3 +1,4 @@
+import { rejectedWorkReturns } from './rejected-work-return.js';
 /** Snapshot health without keeping a board write lock across Git's merge checks [A6]. */
 import { existsSync } from 'node:fs';
 import { openBoardReadOnly } from './board.js';
@@ -10,7 +11,7 @@ import {
 } from './health-receipts.js';
 
 /** A missing board or an explicitly disabled sentinel has no observation to publish. */
-export function scanHealthSentinel(file, { root, config, now }) {
+export function scanHealthSentinel(file, { root, config, now, returnRejected = false }) {
   if (!healthSentinelEnabled(config) || !existsSync(file)) return null;
   const db = openBoardReadOnly(file);
   try {
@@ -20,9 +21,10 @@ export function scanHealthSentinel(file, { root, config, now }) {
     const last = db.prepare("SELECT event_detail FROM event WHERE event_kind = 'health-scan' ORDER BY event_id DESC LIMIT 1").get();
     const before = (last ? JSON.parse(last.event_detail).active : []).map(healthFindingIdentity).sort();
     const after = normalizedHealthFindings(report.stuck).map(healthFindingIdentity).sort();
+    const pendingReturns = returnRejected ? rejectedWorkReturns({ db, clock: { now: () => now } }, report.stuck) : [];
     db.exec('COMMIT');
-    if (JSON.stringify(before) === JSON.stringify(after)) return null;
-    return { observedRevision, findings: report.stuck };
+    if (JSON.stringify(before) === JSON.stringify(after) && !pendingReturns.length) return null;
+    return { observedRevision, findings: report.stuck, ...(returnRejected ? { returnRejected: true } : {}) };
   } finally { db.close(); }
 }
 

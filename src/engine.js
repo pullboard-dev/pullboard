@@ -1,3 +1,4 @@
+import { rejectedWorkReturns } from './rejected-work-return.js';
 import {
   handoffMoveProblem,
   requireHandoffActive,
@@ -99,6 +100,11 @@ export function prepareEngineMove(board, operation, args, { id = randomUUID(), a
   if (ENGINE_VERSION < minimumEngine) throw new Refused('ENGINE_VERSION', `${operation} requires engine version ${minimumEngine}; this pullboard uses engine ${ENGINE_VERSION}; upgrade before sending it`);
   // A gate run is sealed only as its gate's own receipt; a run made up by hand is refused before it reaches any replica.
   if (operation === 'recordGateRun') requireBound(board, values[0]?.receipt);
+  // Freeze local liveness only at the authenticated sender; receivers replay this observation.
+  if (operation === 'recordHealthFindings' && values[0]?.returnRejected === true) {
+    if (values[0].agentId !== 'coordinator') throw new Refused('COORDINATOR_ONLY', 'ask the coordinator to return unattended rejects');
+    rejectedWorkReturns(board, values[0].findings);
+  }
   if (operation === 'verify' && values[1]?.sandbox !== undefined) requireOutsideReceipt(board, values[1].sandbox);
   if (operation === 'release') {
     const problem = store.reviewReleaseNoteProblem(board, values[0], values[1], values[2]);
