@@ -158,16 +158,25 @@ const OPTIONS = {
   version: { type: 'boolean', short: 'v' },
 };
 
-/** Parse --wait as a switch for add/edit and as minutes for next/run, preserving all other options. */
+/** Resolve command-specific switches before parsing their ambiguous global string forms. */
 function parseCommandArgs(argv) {
   let command;
-  for (const wait of [{ type: 'boolean' }, OPTIONS.wait]) {
-    try {
-      command = parseArgs({ args: argv, options: { ...OPTIONS, wait }, allowPositionals: true }).positionals[0];
-      if (['add', 'edit'].includes(command)) break;
-    } catch { /* The final parser supplies the existing actionable usage error. */ }
+  choose: for (const wait of [{ type: 'boolean' }, OPTIONS.wait]) {
+    for (const take of [{ type: 'boolean' }, OPTIONS.take]) {
+      try {
+        const candidate = parseArgs({ args: argv, options: { ...OPTIONS, wait, take }, allowPositionals: true }).positionals[0];
+        if (command === undefined) command = candidate;
+        if (['add', 'edit'].includes(candidate) !== (wait.type === 'boolean')) continue;
+        if ((candidate === 'next') !== (take.type === 'boolean')) continue;
+        command = candidate;
+        break choose;
+      } catch { /* The final parser supplies the existing actionable usage error. */ }
+    }
   }
-  const options = ['add', 'edit'].includes(command) ? { ...OPTIONS, wait: { type: 'boolean' } } : OPTIONS;
+  const options = { ...OPTIONS,
+    ...(['add', 'edit'].includes(command) ? { wait: { type: 'boolean' } } : {}),
+    ...(command === 'next' ? { take: { type: 'boolean' } } : {}),
+  };
   // Flow consumes a history file; show retains its existing boolean --history switch.
   const commandOptions = command === 'flow' ? { ...options, history: { type: 'string' } } : options;
   return parseArgs({ args: argv, options: commandOptions, allowPositionals: true });

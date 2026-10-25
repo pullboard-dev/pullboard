@@ -47,9 +47,9 @@ export async function returnUnmergeable(root, board, me, { ordered, trunkMerge }
  * @param {any} board
  * @returns {number[]}
  */
-export function ownSessionReviews(info, board) {
+export function ownSessionReviews(info, board, digest) {
   return store.listItems(board).filter((item) => item.item_status === 'submitted').flatMap((item) => {
-    try { refuseSelfSession(info, item, undefined, itemAuthors(board, item)); return []; }
+    try { refuseSelfSession(info, item, digest, itemAuthors(board, item)); return []; }
     catch (error) { if (error instanceof Refused && error.code === 'SELF_SESSION_VERIFY') return [item.item_id]; throw error; }
   });
 }

@@ -1,3 +1,5 @@
+import { normalizedDispatch } from './dispatch-health.js';
+import { correctedBar } from './corrected-bar.js';
 import { heartbeatSeat } from './seat-presence.js';
 import * as itemDecisions from './item-decision-queue.js';
 import * as activityDeliveryStore from './activity-delivery-store.js';
@@ -736,7 +738,7 @@ export function validateItemAddition(board, { by, lane, title, criterion = '', p
  * @param {number} id
  * @param {{ agentId: string, brief?: string, route?: string, criterion?: string, check?: string, after?: number[] }} change
  */
-export function editItem(board, id, { agentId, brief, route, criterion, check, after, checkBaseline, reason, barActor }) {
+export function editItem(board, id, { agentId, brief, route, criterion, check, after, checkBaseline, reason, barActor, correction, freeze }) {
   atomic(board, () => {
     const stored = itemById(board, id);
     const expiredHolder = stored.item_status === 'claimed' && !isHeld(board, stored) ? stored.item_owner : null;
@@ -747,13 +749,14 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
       ...(command !== undefined && next.item_check !== item.item_check ? ['check'] : []),
       ...(next.item_after !== item.item_after ? ['after'] : []),
     ];
-    const pendingRefreeze = (board.executionEngineVersion ?? ENGINE_VERSION) >= 8
+    const frozen = correctedBar(board, item, next, { correction, freeze });
+    const pendingRefreeze = !frozen && (board.executionEngineVersion ?? ENGINE_VERSION) >= 8
       && item.item_status === 'claimed' && agentId === COORDINATOR && pendingFields.length > 0;
-    const clearFrozen = (unfreeze && !pendingRefreeze) || Boolean(expiredHolder);
+    const clearFrozen = !frozen && ((unfreeze && !pendingRefreeze) || Boolean(expiredHolder));
     if (expiredHolder) {
       moveItem(board, id, 'lapse', { checks: {}, set: () => ({ item_owner: null, item_lease_until: null }) });
     }
-    setItem(board, id, { ...next, ...(clearFrozen ? { item_frozen: null, item_frozen_digest: null } : {}) });
+    setItem(board, id, { ...next, ...(frozen ? { item_frozen: frozen.text, item_frozen_digest: frozen.digest } : {}), ...(clearFrozen ? { item_frozen: null, item_frozen_digest: null } : {}) });
     if (baseline || next.item_check !== item.item_check) saveCheckBaseline(board, id, baseline);
     logEvent(board, agentId, 'edit', id, {
       ...(next.item_brief !== item.item_brief ? { brief: `${next.item_brief.length} characters` } : {}),
@@ -763,12 +766,17 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
       ...(next.item_after !== item.item_after ? { after: next.item_after ? next.item_after.split(',').map(Number) : [] } : {}),
       ...(baseline ? { checkBaseline: baseline } : {}),
       ...(pendingRefreeze ? { pendingRefreeze: pendingFields } : {}),
+      ...(frozen ? { correctedFrozen: frozen.digest } : {}),
       ...(clearFrozen && item.item_frozen_digest ? { unfrozen: item.item_frozen_digest } : {}),
       ...(expiredHolder ? { expiredHolder } : {}),
       ...bar,
     });
     recordBarRevision(board, itemById(board, id), agentId, item, barActor);
     notifyFileGrowth(board, item, itemById(board, id));
+    if (frozen && item.item_status === 'claimed') insertShout(board, {
+      from: COORDINATOR, to: item.item_owner, lanes: [],
+      text: `The coordinator corrected #${id}; its frozen criterion and check are effective now. Your claim and lease are retained. Continue with pullboard show ${id}.`,
+    });
     if (pendingRefreeze) {
       insertShout(board, {
         from: COORDINATOR,
@@ -1718,7 +1726,7 @@ export function shout(board, message) {
 }
 
 /** Record one current health snapshot atomically, notifying each new or resolved episode once [A6]. */
-export function recordHealthFindings(board, { agentId, observedRevision, findings }) {
+export function recordHealthFindings(board, { agentId, observedRevision, findings, dispatch }) {
   return atomic(board, () => {
     const minimum = hasPendingCpuNotices(board) || (Array.isArray(findings) && findings.some(finding => finding?.cause === 'AGENT_CPU')) ? CPU_SENTINEL_ENGINE : HEALTH_SENTINEL_ENGINE;
     if ((board.executionEngineVersion ?? ENGINE_VERSION) < minimum) {
@@ -1734,12 +1742,14 @@ export function recordHealthFindings(board, { agentId, observedRevision, finding
     const active = normalizedHealthFindings(findings);
     const last = board.db.prepare("SELECT event_detail FROM event WHERE event_kind = 'health-scan' ORDER BY event_id DESC LIMIT 1").get();
     const previous = last ? JSON.parse(last.event_detail).active : [];
+    const prospective = dispatch === undefined ? undefined : normalizedDispatch(dispatch);
+    const dispatchChanged = prospective !== undefined && JSON.stringify(prospective) !== JSON.stringify(last ? JSON.parse(last.event_detail).dispatch ?? [] : []);
     const before = new Map(previous.map(finding => [healthFindingIdentity(finding), finding]));
     const after = new Map(active.map(finding => [healthFindingIdentity(finding), finding]));
     const added = active.filter(finding => !before.has(healthFindingIdentity(finding)));
     const resolved = previous.filter(finding => !after.has(healthFindingIdentity(finding)));
     const pending = last ? JSON.parse(last.event_detail).pendingCpu ?? [] : [];
-    if (!added.length && !resolved.length && !pending.length) return { added: [], resolved: [] };
+    if (!added.length && !resolved.length && !pending.length && !dispatchChanged) return { added: [], resolved: [] };
     const agents = listAgents(board);
     const lanes = [...new Set(agents.map(agent => agent.agent_lane))];
     const engine = board.executionEngineVersion ?? ENGINE_VERSION;
@@ -1753,7 +1763,7 @@ export function recordHealthFindings(board, { agentId, observedRevision, finding
     };
     const deferred = deliverHealthNotices({ resolved, added, pending, engine, log, coordinator: COORDINATOR, shout: (to, text) => insertShout(board, { from: 'sentinel', to, text, lanes }),
       targets: finding => healthTargets(finding, { engine, coordinator: COORDINATOR, person: PERSON, lanes, agents }) });
-    logEvent(board, agentId, 'health-scan', null, { active, ...(deferred === undefined ? {} : { pendingCpu: deferred }), engine: HEALTH_SENTINEL_ENGINE });
+    logEvent(board, agentId, 'health-scan', null, { active, ...(prospective === undefined ? {} : { dispatch: prospective }), ...(deferred === undefined ? {} : { pendingCpu: deferred }), engine: HEALTH_SENTINEL_ENGINE });
     return { added: added.map(finding => finding.key), resolved: resolved.map(finding => finding.key) };
   });
 }

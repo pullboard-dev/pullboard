@@ -73,33 +73,21 @@ test("the coordinator corrects a claimed item's criterion without release [V2]",
 
   const corrected = box.run(box.repo, 'edit', String(id), '--criterion', 'the corrected criterion', '--check', 'true && true', '--reason', 'the fixture corrects its bar', '--json');
   assert.equal(corrected.code, 0, corrected.err || corrected.out);
-  const pending = store.getItem(board, id);
-  assert.equal(pending.item_criterion, 'the corrected criterion');
-  assert.equal(pending.item_check, 'true && true');
-  assert.equal(pending.item_frozen_digest, before.item_frozen_digest, 'the original frozen bar remains until refreeze');
-  assert.equal(pending.item_owner, before.item_owner);
-  assert.equal(pending.item_lease_until, before.item_lease_until);
-  const notice = store.inbox(board, before.item_owner).find((entry) => entry.shout_text.includes(`pending criterion and check correction for #${id}`));
-  assert.ok(notice, 'the holder receives the pending correction and refreeze command');
-  assert.ok(notice.shout_text.endsWith(`next: pullboard refreeze ${id}`));
-
-  refusal(box.run(box.web, 'claim', String(id), '--json'), 'PENDING_REFREEZE', id, ['criterion', 'check']);
-  refusal(box.run(box.web, 'submit', String(id), '--json'), 'PENDING_REFREEZE', id, ['criterion', 'check']);
-  assert.equal(store.getItem(board, id).item_claim_head, before.item_claim_head, 'neither refusal changes the claim base');
-
-  const refrozen = box.run(box.web, 'refreeze', String(id), '--json');
-  assert.equal(refrozen.code, 0, refrozen.err || refrozen.out);
-  const result = JSON.parse(refrozen.out);
-  assert.equal(result.retainedClaim, true);
   const adopted = store.getItem(board, id);
+  assert.equal(adopted.item_criterion, 'the corrected criterion');
+  assert.equal(adopted.item_check, 'true && true');
+  assert.notEqual(adopted.item_frozen_digest, before.item_frozen_digest, 'the same edit adopts its corrected bar');
   assert.equal(adopted.item_status, 'claimed');
   assert.equal(adopted.item_owner, before.item_owner);
   assert.equal(adopted.item_lease_until, before.item_lease_until);
   assert.equal(adopted.item_claim_head, before.item_claim_head);
+  assert.deepEqual(store.pendingRefreeze(board, id), []);
+  const notice = store.inbox(board, before.item_owner).find(entry => entry.shout_text.includes(`corrected #${id}`));
+  assert.ok(notice, 'the holder receives the effective correction in the same move');
+  assert.doesNotMatch(notice.shout_text, /pending|refreeze/u);
+  assert.equal(box.run(box.web, 'claim', String(id), '--json').code, 0, 'renewal has no pending-bar refusal');
   assert.deepEqual(JSON.parse(adopted.item_frozen), {
-    title: 'Correct a live bar',
-    criterion: 'the corrected criterion',
-    check: 'true && true',
+    title: 'Correct a live bar', criterion: 'the corrected criterion', check: 'true && true',
     rows: [{ id: 'G1', text: 'The page renders.', gate: 'web test' }],
     policy: { version: 1, commit: JSON.parse(before.item_frozen).policy.commit, verify: { policy: 'any', family: 'off' } },
   });
@@ -128,20 +116,15 @@ test("the coordinator corrects a claimed item's criterion without release [V2]",
   const checkPending = store.getItem(board, checkId);
   assert.equal(checkPending.item_criterion, checkBefore.item_criterion);
   assert.equal(checkPending.item_check, 'true && true');
-  assert.equal(checkPending.item_frozen_digest, checkBefore.item_frozen_digest);
+  assert.notEqual(checkPending.item_frozen_digest, checkBefore.item_frozen_digest);
   assert.equal(checkPending.item_owner, checkBefore.item_owner);
-  assert.deepEqual(store.pendingRefreeze(board, checkId), ['check']);
-  const checkNotice = store.inbox(board, checkBefore.item_owner).find((entry) => entry.shout_text.includes(`pending check correction for #${checkId}`));
-  assert.ok(checkNotice, 'the holder is told that the check correction needs refreezing');
-  assert.ok(checkNotice.shout_text.endsWith(`next: pullboard refreeze ${checkId}`));
-  refusal(box.run(box.web, 'claim', String(checkId), '--json'), 'PENDING_REFREEZE', checkId, ['check']);
-  refusal(box.run(box.web, 'submit', String(checkId), '--json'), 'PENDING_REFREEZE', checkId, ['check']);
-  const checkRefreeze = box.run(box.web, 'refreeze', String(checkId), '--json');
-  assert.equal(checkRefreeze.code, 0, checkRefreeze.err || checkRefreeze.out);
-  assert.equal(JSON.parse(checkRefreeze.out).retainedClaim, true);
-  assert.equal(store.getItem(board, checkId).item_owner, checkBefore.item_owner);
+  assert.deepEqual(store.pendingRefreeze(board, checkId), []);
+  assert.equal(JSON.parse(checkPending.item_frozen).check, 'true && true');
+  const checkNotice = store.inbox(board, checkBefore.item_owner).find(entry => entry.shout_text.includes(`corrected #${checkId}`));
+  assert.ok(checkNotice, 'a check-only correction also notifies the holder');
+  assert.doesNotMatch(checkNotice.shout_text, /pending|refreeze/u);
+  assert.equal(box.run(box.web, 'claim', String(checkId), '--json').code, 0);
   assert.equal(store.getItem(board, checkId).item_status, 'claimed');
-  assert.equal(store.pendingRefreeze(board, checkId).length, 0);
 
 });
 
@@ -194,26 +177,16 @@ test("edit adds and clears an item's dependencies [B3,V2]", (t) => {
   assert.equal(pending.item_owner, beforeCorrection.item_owner);
   assert.equal(pending.item_lease_until, beforeCorrection.item_lease_until);
   assert.equal(pending.item_claim_head, beforeCorrection.item_claim_head);
-  assert.equal(pending.item_frozen_digest, beforeCorrection.item_frozen_digest, 'the holder keeps the old frozen bar until refreeze');
-  assert.deepEqual(store.pendingRefreeze(board, claimed), ['after']);
-  const correctionEvent = store.events(board, { itemId: claimed }).findLast((event) => event.event_kind === 'edit');
-  assert.deepEqual(JSON.parse(correctionEvent.event_detail).pendingRefreeze, ['after']);
+  assert.equal(pending.item_frozen_digest, beforeCorrection.item_frozen_digest, 'dependencies change readiness without changing criterion bytes');
+  assert.deepEqual(store.pendingRefreeze(board, claimed), []);
+  const correctionEvent = store.events(board, { itemId: claimed }).findLast(event => event.event_kind === 'edit');
+  assert.equal(JSON.parse(correctionEvent.event_detail).correctedFrozen, pending.item_frozen_digest);
   assert.deepEqual(JSON.parse(correctionEvent.event_detail).after, [first]);
-  assert.ok(store.inbox(board, beforeCorrection.item_owner).some((entry) =>
-    entry.shout_text.includes(`pending after correction for #${claimed}`)
-      && entry.shout_text.endsWith(`next: pullboard refreeze ${claimed}`)), 'the holder receives the pending-correction instruction');
-  refusal(box.run(box.web, 'submit', String(claimed), '--json'), 'PENDING_REFREEZE', claimed, ['after']);
-
-  const refrozen = box.run(box.web, 'refreeze', String(claimed), '--json');
-  assert.equal(refrozen.code, 0, refrozen.err || refrozen.out);
-  assert.equal(JSON.parse(refrozen.out).retainedClaim, true, 'the holder adopts the corrected bar without losing the claim');
-  const adopted = store.getItem(board, claimed);
-  assert.equal(adopted.item_status, 'claimed');
-  assert.equal(adopted.item_after, String(first));
-  assert.equal(adopted.item_owner, beforeCorrection.item_owner);
-  assert.equal(adopted.item_lease_until, beforeCorrection.item_lease_until);
-  assert.equal(store.pendingRefreeze(board, claimed).length, 0);
-  assert.ok(store.events(board, { itemId: claimed }).some((event) => event.event_kind === 'refreeze'), 'the holder refreeze is recorded in history');
+  assert.ok(store.inbox(board, beforeCorrection.item_owner).some(entry =>
+    entry.shout_text.includes(`corrected #${claimed}`) && !/pending|refreeze/u.test(entry.shout_text)));
+  assert.equal(box.run(box.web, 'claim', String(claimed), '--json').code, 0, 'the existing claim remains renewable');
+  assert.equal(store.getItem(board, claimed).item_status, 'claimed');
+  assert.equal(store.getItem(board, claimed).item_owner, beforeCorrection.item_owner);
 });
 
 /** Exercise real older executables, rather than treating a retagged current move as an old client. */

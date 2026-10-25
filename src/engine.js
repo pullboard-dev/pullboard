@@ -106,13 +106,13 @@ export function prepareEngineMove(board, operation, args, { id = randomUUID(), a
     const problem = store.reviewReleaseNoteProblem(board, values[0], values[1], values[2]);
     if (problem) throw problem;
   }
-  if (['claim', 'refreeze'].includes(operation)) {
+  if (['claim', 'refreeze'].includes(operation) || operation === 'editItem' && values[1]?.correction === true) {
     const options = values[1];
     const item = store.getItem(board, values[0]);
     if (typeof options?.freeze === 'function') {
       let frozen;
       let error;
-      try { frozen = options.freeze(item); }
+      try { frozen = options.freeze(operation === 'editItem' ? { ...item, ...store.validateItemEdit(board, values[0], options).next } : item); }
       catch (cause) {
         if (!(cause instanceof Refused)) throw cause;
         error = recordedRefusal(cause);
@@ -152,7 +152,7 @@ export function executableArgs(move, board) {
   }
   // Implied facts take their ids from the sealed move, so every replica writes the same ones.
   if (['answerDecision', 'verify'].includes(move.operation) && args[1] && typeof args[1] === 'object' && !Array.isArray(args[1])) args[1].impliesId = move.id;
-  if (['claim', 'refreeze'].includes(move.operation)) {
+  if (['claim', 'refreeze'].includes(move.operation) || move.operation === 'editItem' && args[1]?.correction === true) {
     const options = args[1];
     if (!options || !Object.hasOwn(options, 'frozen')) throw new Refused('RELAY_MOVE', 'the claim has no frozen criterion; send it with the current pullboard engine');
     options.freeze = () => {

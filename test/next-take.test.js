@@ -15,6 +15,9 @@ import { addMilestone } from '../src/milestones.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
 import { machineSettingsFile } from '../src/settings.js';
 import { submitFixture } from './board-submit-fixture.js';
+import { exportBoard, importBoard } from '../src/exchange.js';
+import { AUTOMATIC_DISPATCH_ENGINE } from '../src/automatic-dispatch-engine.js';
+import { Refused } from '../src/refused.js';
 import { runFixtureGit } from './fixture-child.js';
 
 /** Run the actual command parser and operation pipeline against this fixture's clock. */
@@ -155,8 +158,9 @@ test('a review goes only to an independent seat [V1,B3]', async t => {
 test('ready work beside an idle seat for five minutes warns the coordinator [A6,N2]', async t => {
   const box = await fixture(t);
   const id = box.add('Unpaired ready work');
+  box.scan(); // Start the prospective observation before advancing the private clock.
   const warnings = () => store.allShouts(box.board).filter(shout => shout.shout_to === 'coordinator'
-    && shout.shout_text.includes(`#${id}`) && shout.shout_text.includes(box.seats.actor.id));
+    && shout.shout_text.startsWith('Stuck:') && shout.shout_text.includes(`#${id}`) && shout.shout_text.includes(box.seats.actor.id));
   box.advance(299_999);
   box.scan();
   assert.equal(warnings().length, 0, 'the five-minute threshold is exact');
@@ -170,6 +174,17 @@ test('ready work beside an idle seat for five minutes warns the coordinator [A6,
   assert.equal(result.code, 0, result.out + result.err);
   box.scan();
   assert.ok(store.getItem(box.board, id).item_owner);
+  assert.equal(warnings().length, 1);
+  assert.ok(store.allShouts(box.board).some(shout => shout.shout_text.startsWith('Resolved:') && shout.shout_text.includes('UNPAIRED_WORK')));
+  store.release(box.board, id, box.seats.actor.id);
+  box.scan();
+  box.advance(299999);
+  heartbeatSeat(box.board, box.seats.actor.id);
+  box.scan();
+  assert.equal(warnings().length, 1, 'a new episode must wait another whole five minutes');
+  box.advance(1);
+  box.scan();
+  assert.equal(warnings().length, 2, 'clearing and reopening a pairing creates one new durable warning');
 });
 
 test('a coordinator edit never leaves an item unclaimable [V2,N2]', async t => {
@@ -196,4 +211,61 @@ test('a coordinator edit never leaves an item unclaimable [V2,N2]', async t => {
   assert.ok(notices.some(shout => /correct/i.test(shout.shout_text) && !/pending|refreeze/i.test(shout.shout_text)));
   const renewed = await cli(box, box.seats.actor.path, ['claim', String(id)]);
   assert.equal(renewed.code, 0, renewed.out + renewed.err);
+});
+
+
+test('an explicit heartbeat and the installed native stop hook dispatch free seats [N2,I6]', async t => {
+  const box = await fixture(t);
+  const id = box.add('A heartbeat assigns work');
+  const taken = await cli(box, box.seats.actor.path, ['heartbeat']);
+  assert.equal(taken.code, 0, taken.out + taken.err);
+  assert.equal(store.getItem(box.board, id).item_owner, box.seats.actor.id);
+  const another = box.add('A busy heartbeat cannot claim twice');
+  await cli(box, box.seats.actor.path, ['heartbeat']);
+  assert.equal(store.getItem(box.board, another).item_owner, null);
+  store.release(box.board, id, box.seats.actor.id);
+  const hook = await cli(box, box.seats.actor.path, ['hook', 'Stop']);
+  assert.equal(hook.code, 0, hook.out + hook.err);
+  assert.equal(store.getItem(box.board, id).item_owner, box.seats.actor.id, hook.out + hook.err);
+  assert.equal(store.getItem(box.board, another).item_owner, null);
+});
+
+test('an atomic correction replays identically and a bad frozen payload changes no item [V2,H16]', async t => {
+  const box = await fixture(t);
+  const id = box.add('A deterministic corrected bar');
+  box.claim(id, box.seats.actor);
+  const replica = store.openBoard(join(box.root, '.git/pullboard/replica.sqlite'), box.clock);
+  t.after(() => store.closeBoard(replica));
+  importBoard(replica, exportBoard(box.board));
+  const change = { agentId: 'coordinator', criterion: 'A sealed correction', reason: 'Correct the actual bar', correction: true,
+    freeze: item => {
+      const text = JSON.stringify({ title: item.item_title, criterion: item.item_criterion, check: item.item_check, rows: [] });
+      return { text, digest: createHash('sha256').update(text).digest('hex') };
+    } };
+  const move = prepareEngineMove(box.board, 'editItem', [id, change], { actor: 'coordinator' });
+  assert.equal(Object.hasOwn(move.args[1], 'freeze'), false, 'no callback travels to another replica');
+  const options = { sequence: 1, at: box.clock.now().toISOString(), kind: 'move',
+    sender: { kind: 'agent', agent: 'coordinator', userId: 'fixture-user' } };
+  const result = applyRelayMove(box.board, move, options);
+  assert.equal(result.error, undefined, JSON.stringify(result));
+  assert.deepEqual(applyRelayMove(replica, move, options), result);
+  assert.deepEqual(exportBoard(replica), exportBoard(box.board), 'rows, notices, events and receipts match exactly');
+  const beforeItem = store.getItem(box.board, id);
+  const refusedFreeze = prepareEngineMove(replica, 'editItem', [id, { ...change,
+    freeze: () => { throw new Refused('SPEC_DRAFT', 'the corrected row must be approved'); } }], { actor: 'coordinator' });
+  const failedFreeze = applyRelayMove(replica, refusedFreeze, { ...options, sequence: 2 });
+  assert.equal(failedFreeze.error?.code, 'SPEC_DRAFT');
+  assert.deepEqual(store.getItem(replica, id), store.getItem(box.board, id));
+  const invalid = structuredClone(move);
+  invalid.id += '-invalid';
+  invalid.args[1].frozen.digest = '0'.repeat(64);
+  const refused = applyRelayMove(box.board, invalid, { ...options, sequence: 2 });
+  assert.equal(refused.error?.code, 'RELAY_MOVE');
+  assert.deepEqual(store.getItem(box.board, id), beforeItem);
+  assert.deepEqual(store.events(box.board), store.events(replica), 'failed correction creates no edit or notice');
+  const old = structuredClone(move);
+  old.id += '-old'; old.engine = AUTOMATIC_DISPATCH_ENGINE - 1;
+  const unchanged = exportBoard(replica);
+  assert.throws(() => applyRelayMove(replica, old, { ...options, sequence: 3 }), error => error.code === 'RELAY_MOVE');
+  assert.deepEqual(exportBoard(replica), unchanged, 'an old envelope cannot disguise the new semantics');
 });

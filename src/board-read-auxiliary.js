@@ -113,6 +113,7 @@ export function pendingRefreeze(board, id) {
   const fields = new Set();
   for (const edit of edits) {
     const details = JSON.parse(edit.event_detail);
+    if (details.correctedFrozen) break; // The same ordered edit adopted every earlier correction.
     for (const field of details.pendingRefreeze ?? []) if (['after', 'criterion', 'check'].includes(field)) fields.add(field);
   }
   return [...fields].sort();

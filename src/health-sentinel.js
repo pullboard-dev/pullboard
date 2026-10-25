@@ -1,3 +1,4 @@
+import { dispatchHealth } from './dispatch-health.js';
 /** Snapshot health without keeping a board write lock across Git's merge checks [A6]. */
 import { existsSync } from 'node:fs';
 import { openBoardReadOnly } from './board.js';
@@ -18,14 +19,17 @@ export function scanHealthSentinel(file, { root, config, now, cpu = agentCpuFind
     db.exec('BEGIN');
     const observedRevision = db.prepare('SELECT COALESCE(MAX(event_id), 0) AS revision FROM event').get().revision;
     const report = healthReport({ db, root, config, now });
+    const { dispatch } = dispatchHealth({ db, clock: { now: () => now } }, config);
     const last = db.prepare("SELECT event_detail FROM event WHERE event_kind = 'health-scan' ORDER BY event_id DESC LIMIT 1").get();
     const processes = cpu(db);
     report.stuck.push(...(processes ?? (last ? JSON.parse(last.event_detail).active : []).filter(finding => finding.cause === 'AGENT_CPU').map(finding => ({ ...finding, owner: { who: finding.owner } }))));
     const before = (last ? JSON.parse(last.event_detail).active : []).map(healthFindingIdentity).sort();
     const after = normalizedHealthFindings(report.stuck).map(healthFindingIdentity).sort();
+    const priorDispatch = last ? JSON.parse(last.event_detail).dispatch ?? [] : [];
+    const dispatchChanged = JSON.stringify(priorDispatch) !== JSON.stringify(dispatch);
     db.exec('COMMIT');
-    if (JSON.stringify(before) === JSON.stringify(after) && !(last && JSON.parse(last.event_detail).pendingCpu?.length)) return null;
-    return { observedRevision, findings: report.stuck };
+    if (!dispatchChanged && JSON.stringify(before) === JSON.stringify(after) && !(last && JSON.parse(last.event_detail).pendingCpu?.length)) return null;
+    return { observedRevision, findings: report.stuck, ...(dispatchChanged || priorDispatch.length ? { dispatch } : {}) };
   } finally { db.close(); }
 }
 
