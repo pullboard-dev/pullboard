@@ -998,8 +998,12 @@ export function recordAttempt(board, id, { agentId, n, seconds, result }) {
  * @param {{ agentId: string, lane: string, leaseMs: number, freeze: (item: any) => { text: string, digest: string }, head?: string | null, reviewSkipped?: object | null }} who
  * @returns {{ leaseUntil: string, digest: string, renewed: boolean }}
  */
-export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off' }) {
+export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off', adoptCorrection = false }) {
   return atomic(board, () => {
+    if (adoptCorrection && (board.executionEngineVersion ?? ENGINE_VERSION) < AUTOMATIC_DISPATCH_ENGINE) {
+      throw new Refused('ENGINE_VERSION', `automatic correction adoption requires engine ${AUTOMATIC_DISPATCH_ENGINE}; upgrade Pullboard`);
+    }
+    const adopts = adoptCorrection && pendingRefreeze(board, id).length > 0;
     const leaseUntil = new Date(board.clock.now().getTime() + leaseMs).toISOString();
     const isRenewal = (item) => item.item_owner === agentId && isHeld(board, item);
     // Reworking your own rejected item is a claim of its own, beside the one live claim (B5): the
@@ -1040,7 +1044,7 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null, 
         },
         notHeldByAnother: (found) => (isHeld(board, found) && found.item_owner !== agentId ? new Refused('HELD', `item #${id} is held by ${found.item_owner} until ${found.item_lease_until}`) : null),
         builderFirstRefusal: () => (board.executionEngineVersion ?? ENGINE_VERSION) >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalProblem(board, id, agentId) : null,
-        correctionRefrozen: () => pendingRefreezeProblem(board, id),
+        correctionRefrozen: () => adopts ? null : pendingRefreezeProblem(board, id),
         laneOpen: (found) => {
           // Declared: not checked when the caller renews its own live claim.
           const paused = laneHold(board, found.item_lane);
@@ -1068,7 +1072,7 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null, 
         },
         rowsInForce: (found) => {
           // Declared: checked only where the criterion freezes, so a renewal or a reclaim keeps its bar.
-          if (found.item_frozen_digest !== null) return null;
+          if (found.item_frozen_digest !== null && !adopts) return null;
           try {
             frozen = freeze(found);
             return null;
@@ -1092,7 +1096,7 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null, 
       board.db.prepare('DELETE FROM board_meta WHERE meta_key = ?').run(`item_lineage:${id}`);
       if (board.verifierStanding.lineage) board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`item_lineage:${id}`, board.verifierStanding.lineage);
     }
-    logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(!renewed && reviewSkipped ? { reviewSkipped } : {}) });
+    logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(adopts ? { adoptedCorrection: digest } : {}), ...(!renewed && reviewSkipped ? { reviewSkipped } : {}) });
     return { leaseUntil, digest, renewed };
   });
 }

@@ -1,3 +1,4 @@
+import { AUTOMATIC_DISPATCH_ENGINE } from '../automatic-dispatch-engine.js';
 import { LINE_CAPACITY_ENGINE } from '../line-capacity-engine.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 /** Routing metadata owned by claim, discovered without a shared registry edit [C7,V4,H16]. */
@@ -23,7 +24,7 @@ function existingEngine(args, board, at) {
 function minimumEngine(args, board, at) {
   const outside = board && Boolean(outsideSource(board, args[0]));
   const capacity = args[1]?.lineCapacity === true;
-  return Math.max(outside ? OUTSIDE_INTAKE_ENGINE : 1, capacity ? LINE_CAPACITY_ENGINE : 1, existingEngine(args, board, at));
+  return Math.max(args[1]?.adoptCorrection === true ? AUTOMATIC_DISPATCH_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, capacity ? LINE_CAPACITY_ENGINE : 1, existingEngine(args, board, at));
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */

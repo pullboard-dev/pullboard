@@ -335,3 +335,23 @@ test('a capped dispatch warning is delivered once by the next ordinary sentinel 
   assert.deepEqual(deliverHealthNotices({ ...delivery, resolved: [], added: [], pending }), []);
   assert.equal(sent.filter(message => message.text.includes('[UNPAIRED_WORK]')).length, 1);
 });
+
+
+test('a legacy pending correction is adopted atomically when its holder renews [V2,H16]', async t => {
+  const box = await fixture(t);
+  const id = box.add('A legacy correction must not strand current claims');
+  box.claim(id, box.seats.actor);
+  // This deliberately replays the older untyped edit protocol; new coordinator CLI edits carry their bar.
+  const move = prepareEngineMove(box.board, 'editItem', [id, { agentId: 'coordinator',
+    criterion: 'The already approved legacy correction', reason: 'Correct the legacy fixture' }], { actor: 'coordinator' });
+  const result = applyRelayMove(box.board, move, { sequence: 1, at: box.clock.now().toISOString(), kind: 'move',
+    sender: { kind: 'agent', agent: 'coordinator', userId: 'fixture-user' } });
+  assert.equal(result.error, undefined, JSON.stringify(result));
+  assert.deepEqual(store.pendingRefreeze(box.board, id), ['criterion'], 'the old receipt retains its historical meaning');
+  const renewed = await cli(box, box.seats.actor.path, ['claim', String(id)]);
+  assert.equal(renewed.code, 0, renewed.out + renewed.err);
+  const current = store.getItem(box.board, id);
+  assert.equal(current.item_owner, box.seats.actor.id);
+  assert.equal(JSON.parse(current.item_frozen).criterion, 'The already approved legacy correction');
+  assert.deepEqual(store.pendingRefreeze(box.board, id), []);
+});

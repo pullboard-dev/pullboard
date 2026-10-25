@@ -108,7 +108,7 @@ export function unverifiedSubmissions(board) {
 
 /** Return a pending coordinator correction until a later refreeze event adopts it [V2]. */
 export function pendingRefreeze(board, id) {
-  const lastRefreeze = board.db.prepare("SELECT COALESCE(MAX(event_id), 0) AS event_id FROM event WHERE item_id = ? AND event_kind = 'refreeze'").get(id).event_id;
+  const lastRefreeze = board.db.prepare("SELECT COALESCE(MAX(event_id), 0) AS event_id FROM event WHERE item_id = ? AND (event_kind = 'refreeze' OR event_kind IN ('claim','renew') AND json_extract(event_detail, '$.adoptedCorrection') IS NOT NULL)").get(id).event_id;
   const edits = board.db.prepare("SELECT event_detail FROM event WHERE item_id = ? AND event_kind = 'edit' AND event_id > ? ORDER BY event_id DESC").all(id, lastRefreeze);
   const fields = new Set();
   for (const edit of edits) {
