@@ -184,7 +184,13 @@ test("edit adds and clears an item's dependencies [B3,V2]", (t) => {
   assert.deepEqual(JSON.parse(correctionEvent.event_detail).after, [first]);
   assert.ok(store.inbox(board, beforeCorrection.item_owner).some(entry =>
     entry.shout_text.includes(`corrected #${claimed}`) && !/pending|refreeze/u.test(entry.shout_text)));
-  assert.equal(box.run(box.web, 'claim', String(claimed), '--json').code, 0, 'the existing claim remains renewable');
+  const blocked = box.run(box.web, 'claim', String(claimed), '--json');
+  refusal(blocked, 'BLOCKED'); // A real prerequisite still applies; a pending-bar refusal never does.
+  const clearClaimed = box.run(box.repo, 'edit', String(claimed), '--after', 'none', '--json');
+  assert.equal(clearClaimed.code, 0, clearClaimed.err || clearClaimed.out);
+  assert.deepEqual(store.pendingRefreeze(board, claimed), []);
+  const renewed = box.run(box.web, 'claim', String(claimed), '--json');
+  assert.equal(renewed.code, 0, renewed.err || renewed.out);
   assert.equal(store.getItem(board, claimed).item_status, 'claimed');
   assert.equal(store.getItem(board, claimed).item_owner, beforeCorrection.item_owner);
 });

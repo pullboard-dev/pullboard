@@ -1,7 +1,10 @@
 /** Current-seat dispatch shares board eligibility with the heartbeat warning [N2,V1,B3]. */
 import * as store from './board.js';
 import { dispatchWork } from './dispatch-eligibility.js';
-import { nextReview, ownSessionReviews } from './next-review.js';
+import {
+  nextReview,
+  ownSessionReviews,
+} from './next-review.js';
 import { headCommit } from './git.js';
 import { trunkMerge } from './trusted-policy.js';
 import { Refused } from './refused.js';
