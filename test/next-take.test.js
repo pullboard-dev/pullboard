@@ -355,3 +355,29 @@ test('a legacy pending correction is adopted atomically when its holder renews [
   assert.equal(JSON.parse(current.item_frozen).criterion, 'The already approved legacy correction');
   assert.deepEqual(store.pendingRefreeze(box.board, id), []);
 });
+
+
+test('a held review still returns a newly conflicting submission before offering more work [V1,R3]', async t => {
+  const box = await fixture(t);
+  const id = box.add('A review that will conflict with trunk');
+  box.claim(id);
+  mkdirSync(join(box.seats.builder.path, 'web'), { recursive: true });
+  writeFileSync(join(box.seats.builder.path, 'web/dispatch.js'), 'export const side = "builder";\n');
+  box.git(box.seats.builder.path, 'add', 'web/dispatch.js');
+  box.git(box.seats.builder.path, 'commit', '-q', '-m', 'feat(web): build dispatch fixture [G1]');
+  const head = box.git(box.seats.builder.path, 'rev-parse', 'HEAD');
+  submitFixture(box.board, id, { agentId: box.seats.builder.id, commit: head,
+    tree: box.git(box.root, 'rev-parse', `${head}^{tree}`) });
+  const first = await cli(box, box.seats.actor.path, ['next', '--take']);
+  assert.equal(first.code, 0, first.out + first.err);
+  assert.equal(store.getItem(box.board, id).item_review_by, box.seats.actor.id);
+  mkdirSync(join(box.root, 'web'), { recursive: true });
+  writeFileSync(join(box.root, 'web/dispatch.js'), 'export const side = "main";\n');
+  box.git(box.root, 'add', 'web/dispatch.js');
+  box.git(box.root, 'commit', '-q', '-m', 'feat(web): move trunk independently [G1]');
+  await cli(box, box.seats.actor.path, ['next', '--take']);
+  const returned = store.getItem(box.board, id);
+  assert.equal(returned.item_status, 'open', 'Git conflict preflight also applies to an already reserved review');
+  assert.equal(returned.item_review_by, null);
+  assert.deepEqual(store.verdictsFor(box.board, id), [], 'a conflict return is not a fabricated verification verdict');
+});
