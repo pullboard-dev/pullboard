@@ -28,7 +28,7 @@ export function scanHealthSentinel(file, { root, config, now, cpu = agentCpuFind
     const priorDispatch = last ? JSON.parse(last.event_detail).dispatch ?? [] : [];
     const dispatchChanged = JSON.stringify(priorDispatch) !== JSON.stringify(dispatch);
     db.exec('COMMIT');
-    if (!dispatchChanged && JSON.stringify(before) === JSON.stringify(after) && !(last && JSON.parse(last.event_detail).pendingCpu?.length)) return null;
+    if (!dispatchChanged && JSON.stringify(before) === JSON.stringify(after) && !(last && (JSON.parse(last.event_detail).pendingCpu?.length || JSON.parse(last.event_detail).pendingDispatch?.length))) return null;
     return { observedRevision, findings: report.stuck, ...(dispatchChanged || priorDispatch.length ? { dispatch } : {}) };
   } finally { db.close(); }
 }

@@ -1,4 +1,6 @@
 import { normalizedDispatch } from './dispatch-health.js';
+import { hasPendingDispatchNotices } from './health-receipts.js';
+import { AUTOMATIC_DISPATCH_ENGINE } from './automatic-dispatch-engine.js';
 import { correctedBar } from './corrected-bar.js';
 import { heartbeatSeat } from './seat-presence.js';
 import * as itemDecisions from './item-decision-queue.js';
@@ -1728,7 +1730,8 @@ export function shout(board, message) {
 /** Record one current health snapshot atomically, notifying each new or resolved episode once [A6]. */
 export function recordHealthFindings(board, { agentId, observedRevision, findings, dispatch }) {
   return atomic(board, () => {
-    const minimum = hasPendingCpuNotices(board) || (Array.isArray(findings) && findings.some(finding => finding?.cause === 'AGENT_CPU')) ? CPU_SENTINEL_ENGINE : HEALTH_SENTINEL_ENGINE;
+    const minimum = dispatch !== undefined || hasPendingDispatchNotices(board) ? AUTOMATIC_DISPATCH_ENGINE
+      : hasPendingCpuNotices(board) || (Array.isArray(findings) && findings.some(finding => finding?.cause === 'AGENT_CPU')) ? CPU_SENTINEL_ENGINE : HEALTH_SENTINEL_ENGINE;
     if ((board.executionEngineVersion ?? ENGINE_VERSION) < minimum) {
       throw new Refused('ENGINE_VERSION', `sentinel receipts require engine ${minimum}; upgrade Pullboard before scanning`);
     }
@@ -1748,7 +1751,8 @@ export function recordHealthFindings(board, { agentId, observedRevision, finding
     const after = new Map(active.map(finding => [healthFindingIdentity(finding), finding]));
     const added = active.filter(finding => !before.has(healthFindingIdentity(finding)));
     const resolved = previous.filter(finding => !after.has(healthFindingIdentity(finding)));
-    const pending = last ? JSON.parse(last.event_detail).pendingCpu ?? [] : [];
+    const pending = last ? [...JSON.parse(last.event_detail).pendingCpu ?? [],
+      ...(JSON.parse(last.event_detail).pendingDispatch ?? []).filter(finding => after.has(healthFindingIdentity(finding)))] : [];
     if (!added.length && !resolved.length && !pending.length && !dispatchChanged) return { added: [], resolved: [] };
     const agents = listAgents(board);
     const lanes = [...new Set(agents.map(agent => agent.agent_lane))];
@@ -1763,7 +1767,8 @@ export function recordHealthFindings(board, { agentId, observedRevision, finding
     };
     const deferred = deliverHealthNotices({ resolved, added, pending, engine, log, coordinator: COORDINATOR, shout: (to, text) => insertShout(board, { from: 'sentinel', to, text, lanes }),
       targets: finding => healthTargets(finding, { engine, coordinator: COORDINATOR, person: PERSON, lanes, agents }) });
-    logEvent(board, agentId, 'health-scan', null, { active, ...(prospective === undefined ? {} : { dispatch: prospective }), ...(deferred === undefined ? {} : { pendingCpu: deferred }), engine: HEALTH_SENTINEL_ENGINE });
+    logEvent(board, agentId, 'health-scan', null, { active, ...(prospective === undefined ? {} : { dispatch: prospective }), ...(deferred === undefined ? {} : { pendingCpu: deferred.filter(finding => finding.cause === 'AGENT_CPU') }),
+      ...(deferred?.some(finding => finding.cause === 'UNPAIRED_WORK') || last && JSON.parse(last.event_detail).pendingDispatch ? { pendingDispatch: deferred?.filter(finding => finding.cause === 'UNPAIRED_WORK') ?? [] } : {}), engine: HEALTH_SENTINEL_ENGINE });
     return { added: added.map(finding => finding.key), resolved: resolved.map(finding => finding.key) };
   });
 }
@@ -1937,16 +1942,16 @@ export function buildOrder(board, { warm = [], agentId, readiness = barReadyForO
  * and `shared` names them (N20). A held lane offers nothing new (N22). A verifier is never offered `skipIds` (#973; engine 69, so older replays carry none).
  *
  * @param {any} board
- * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[] }} who
+ * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], omitIds?: number[] }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
-export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [] }) {
+export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [] }) {
   const focusCompare = focusOrder(board, () => 0);
   const route = routeOf(board, agentId);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
   const allItems = listItems(board).reverse();
   const items = allItems
-    .filter((entry) => canTake(route, entry.item_route) && routes.includes(entry.item_route) && (!runnable || entry.item_check))
+    .filter((entry) => !omitIds.includes(entry.item_id) && canTake(route, entry.item_route) && routes.includes(entry.item_route) && (!runnable || entry.item_check))
     .sort((first, second) => tier(second) - tier(first));
   const tiers = route === 'strong' ? '' : `${ROUTES.slice(0, ROUTES.indexOf(route) + 1).reverse().join(' or ')} `;
   const routed = `${tiers}${runnable ? 'runnable ' : ''}`;

@@ -18,6 +18,11 @@ import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { AUTOMATIC_DISPATCH_ENGINE } from '../src/automatic-dispatch-engine.js';
 import { Refused } from '../src/refused.js';
+import { repoInfo } from '../src/git.js';
+import { bindLocalSession } from '../src/agent-session.js';
+import { recordItemSession } from '../src/item-sessions.js';
+import { dispatchHealth } from '../src/dispatch-health.js';
+import { deliverHealthNotices } from '../src/health-receipts.js';
 import { runFixtureGit } from './fixture-child.js';
 
 /** Run the actual command parser and operation pipeline against this fixture's clock. */
@@ -161,7 +166,9 @@ test('ready work beside an idle seat for five minutes warns the coordinator [A6,
   box.scan(); // Start the prospective observation before advancing the private clock.
   const warnings = () => store.allShouts(box.board).filter(shout => shout.shout_to === 'coordinator'
     && shout.shout_text.startsWith('Stuck:') && shout.shout_text.includes(`#${id}`) && shout.shout_text.includes(box.seats.actor.id));
-  box.advance(299_999);
+  box.advance(200000);
+  store.appendFact(box.board, id, { agentId: 'coordinator', kind: 'note', text: 'A note does not change dispatch eligibility.' });
+  box.advance(99999);
   box.scan();
   assert.equal(warnings().length, 0, 'the five-minute threshold is exact');
   box.advance(1);
@@ -268,4 +275,63 @@ test('an atomic correction replays identically and a bad frozen payload changes 
   const unchanged = exportBoard(replica);
   assert.throws(() => applyRelayMove(replica, old, { ...options, sequence: 3 }), error => error.code === 'RELAY_MOVE');
   assert.deepEqual(exportBoard(replica), unchanged, 'an old envelope cannot disguise the new semantics');
+});
+
+
+test('health reads each seat session instead of offering its own material for review [V1,B3,A6]', async t => {
+  const box = await fixture(t);
+  const id = box.add('Material from an earlier seat in the same session');
+  box.submit(id);
+  const info = repoInfo(box.seats.actor.path);
+  const digest = 'a'.repeat(64);
+  await bindLocalSession(info, { agent: box.seats.actor.id, digest });
+  recordItemSession(info, id, 'submit', digest);
+  const observed = dispatchHealth(box.board, box.config);
+  assert.ok(observed.dispatch.some(pair => pair.item === id), 'an outside seat remains eligible');
+  assert.ok(observed.dispatch.every(pair => pair.seat !== box.seats.actor.id), 'the old material ledger excludes the same session');
+  box.scan();
+  box.advance(300000);
+  heartbeatSeat(box.board, box.seats.actor.id);
+  const later = dispatchHealth(box.board, box.config);
+  assert.ok(later.findings.every(finding => !finding.subject.includes(box.seats.actor.id)), 'no five-minute warning names an ineligible session');
+});
+
+
+test('health matches two free seats to distinct eligible work instead of hiding the second item [N2,A6]', async t => {
+  const box = await fixture(t);
+  const first = box.add('First ready item');
+  const second = box.add('Second ready item');
+  const observed = dispatchHealth(box.board, box.config);
+  assert.deepEqual(new Set(observed.dispatch.map(pair => pair.item)), new Set([first, second]));
+  assert.equal(new Set(observed.dispatch.map(pair => pair.seat)).size, 2);
+  box.scan(); box.advance(300000); box.scan();
+  const messages = store.allShouts(box.board).filter(shout => shout.shout_to === 'coordinator' && shout.shout_text.startsWith('Stuck:') && shout.shout_text.includes('UNPAIRED_WORK'));
+  assert.equal(messages.length, 2, 'each distinct free pairing has one loud warning');
+});
+
+test('an expired claim is reclaimed through board eligibility on the next heartbeat [N2,B3]', async t => {
+  const box = await fixture(t);
+  const id = box.add('Expired work remains dispatchable');
+  box.claim(id, box.seats.actor);
+  box.advance(3600001);
+  const taken = await cli(box, box.seats.actor.path, ['heartbeat']);
+  assert.equal(taken.code, 0, taken.out + taken.err);
+  const current = store.getItem(box.board, id);
+  assert.equal(current.item_owner, box.seats.actor.id);
+  assert.ok(current.item_lease_until > box.clock.now().toISOString(), 'a raw stale claim cannot strand a free seat');
+});
+
+
+test('a capped dispatch warning is delivered once by the next ordinary sentinel pass [A6,N2]', () => {
+  const warning = { key: 'UNPAIRED_WORK:web-1:1', cause: 'UNPAIRED_WORK', item: 1, subject: 'web-1 beside #1',
+    title: 'unpaired work', since: '2026-10-25T10:00:00Z', why: 'the seat is free', next: 'run pullboard next --take', owner: 'coordinator' };
+  const other = Array.from({ length: 10 }, (_, index) => ({ ...warning, key: `OTHER:${index}`, cause: 'OTHER' }));
+  const sent = [];
+  const delivery = { engine: AUTOMATIC_DISPATCH_ENGINE, coordinator: 'coordinator', targets: () => ['coordinator'],
+    shout: (to, text) => sent.push({ to, text }), log: () => {} };
+  const pending = deliverHealthNotices({ ...delivery, resolved: [], added: [...other, warning] });
+  assert.deepEqual(pending, [warning], 'the cap cannot silently drop the five-minute warning');
+  assert.equal(sent.filter(message => message.text.includes('[UNPAIRED_WORK]')).length, 0);
+  assert.deepEqual(deliverHealthNotices({ ...delivery, resolved: [], added: [], pending }), []);
+  assert.equal(sent.filter(message => message.text.includes('[UNPAIRED_WORK]')).length, 1);
 });

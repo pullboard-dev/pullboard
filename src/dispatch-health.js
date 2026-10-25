@@ -39,12 +39,12 @@ export function dispatchHealth(board, config = {}) {
       if (error instanceof Refused) continue; // An unresolvable local seat cannot take work yet.
       throw error;
     }
-    const selected = dispatchWork(board, seat, { policy: config.verify?.policy, familyPolicy: config.verify?.family, skipIds });
+    const selected = dispatchWork(board, seat, { policy: config.verify?.policy, familyPolicy: config.verify?.family, skipIds, assignedIds: [...items] });
     if (!selected.item || selected.held || items.has(selected.item.item_id)) continue;
     const item = selected.item.item_id;
     items.add(item);
     const before = previous.find(entry => entry.seat === seat.agent_id && entry.item === item && entry.review === selected.review);
-    const lastChange = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE item_id=? OR event_by=? AND event_kind IN ('claim','reserve','release','submit')").get(item, seat.agent_id)?.at;
+    const lastChange = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE (item_id=? AND event_kind IN ('add','claim','release','submit','accept','reject','reopen','refreeze','escalate','withdraw','edit','hold_item','unhold_item','reserve')) OR (event_by=? AND event_kind IN ('claim','reserve','release','submit'))").get(item, seat.agent_id)?.at;
     const since = before && (!lastChange || lastChange <= before.since) ? before.since : at.toISOString();
     dispatch.push({ seat: seat.agent_id, item, review: selected.review, since });
     if (at.getTime() - Date.parse(since) < 300000) continue;
