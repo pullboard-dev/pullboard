@@ -1268,7 +1268,9 @@ export function reportSubmission(ctx, id, commit, gate, doctrine = []) {
   const { root } = ctx.info;
   const pin = `refs/pullboard/items/${id}/${commit.slice(0, 12)}`;
   git(root, ['update-ref', pin, commit]);
-  ctx.io.result?.({ id, commit, pin, gate, ...(doctrine.length ? { doctrine } : {}) });
+  const submission = { id, commit, pin, gate, ...(doctrine.length ? { doctrine } : {}) };
+  if (ctx.submissionResult) ctx.submissionResult.value = submission;
+  ctx.io.result?.(submission);
   ctx.io.say(`submitted #${id} at ${commit.slice(0, 12)}; ${gate.report}`);
   ctx.io.say(`pinned as ${pin}, so this work can't be lost; keep your worktree until it is merged`);
   ctx.io.say(`next: ${reviewerStartup(primaryCheckoutRoot(ctx.info), ctx.config, id)}`);

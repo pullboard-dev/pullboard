@@ -239,10 +239,10 @@ export async function submitHere(ctx, id, infra) {
 
 /** Run `pullboard submit` and return its exit code. */
 export async function run(io, { first, values }) {
-  const ctx = context(io);
+  const submissionResult = {};
+  const ctx = { ...context(io), submissionResult };
   const id = idArg(first);
   const code = await submitHere(ctx, id, values.infra);
   if (code !== 0 || !values.wait) return code;
-  const commit = withBoard(ctx, board => store.getItem(board, id).item_commit);
-  return waitForSubmissionVerdict(ctx, id, commit);
+  return waitForSubmissionVerdict(ctx, id, submissionResult.value);
 }

@@ -6,15 +6,22 @@ import { retrySync } from './cli-sync.js';
 import { Refused } from './refused.js';
 
 /** Read under a short-lived connection, releasing it before any sleep or network work. */
-function submissionOutcome(ctx, id, commit) {
+function submissionOutcome(ctx, id, commit, submittedEvent) {
   return withBoardRead(ctx, board => {
-    const verdict = store.verdictsFor(board, id).findLast(row => row.verdict_commit === commit);
+    const earlierVerdicts = store.events(board, { itemId: id }).filter(event =>
+      ['accept', 'reject'].includes(event.event_kind) && event.event_id <= submittedEvent).length;
+    const verdict = store.verdictsFor(board, id).slice(earlierVerdicts)
+      .findLast(row => row.verdict_commit === commit && !row.withdrawn);
     return { verdict, item: store.getItem(board, id) };
   });
 }
 
 /** Keep synchronizing while attached, reporting the recorded verdict and its complete note. */
-export async function waitForSubmissionVerdict(ctx, id, commit) {
+export async function waitForSubmissionVerdict(ctx, id, submission) {
+  const { commit } = submission;
+  const submittedEvent = withBoardRead(ctx, board => store.events(board, { itemId: id }).findLast(event =>
+    event.event_kind === 'submit' && JSON.parse(event.event_detail).commit === commit)?.event_id);
+  if (!submittedEvent) throw new Refused('SUBMISSION_CHANGED', `the acknowledged submission for #${id} is not recorded here; run pullboard inbox to synchronize it`);
   ctx.io.say(`waiting for the verdict on #${id} at ${commit.slice(0, 12)}`);
   let nextSync = 0;
   for (;;) {
@@ -22,9 +29,9 @@ export async function waitForSubmissionVerdict(ctx, id, commit) {
       await retrySync(ctx.io);
       nextSync = Date.now() + 2000;
     }
-    const { verdict, item } = submissionOutcome(ctx, id, commit);
+    const { verdict, item } = submissionOutcome(ctx, id, commit, submittedEvent);
     if (verdict) {
-      ctx.io.result?.({ id, commit, verdict });
+      ctx.io.result?.({ ...submission, verdict });
       ctx.io.say(`${verdict.verdict_decision} #${id}: ${verdict.verdict_note || verdict.verdict_reason}`);
       return verdict.verdict_decision === 'ACCEPT' ? 0 : 1;
     }

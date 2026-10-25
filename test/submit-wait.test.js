@@ -34,6 +34,7 @@ async function waitingVerdict(t, decision) {
   assert.equal(child.exitCode, null, '--wait stays attached until the verdict, not only until submission');
   const note = decision === 'ACCEPT' ? 'The submitted fixture meets its bar.' : 'The fixture deliberately rejects this concrete clause.';
   onBoard(box, board => store.verify(board, 1, { agentId: 'coordinator', decision,
+    digest: store.getItem(board, 1).item_frozen_digest, head: store.getItem(board, 1).item_commit,
     reason: decision === 'ACCEPT' ? 'CRITERION_MET' : 'BEHAVIOR_MISMATCH', note, policy: 'any', check: 'green', reopenFirstRefusalMinutes: 30 }));
   await helpers.waitFor(() => child.exitCode !== null, 'the verdict to end the attached submit');
   await child.closed;
@@ -69,7 +70,7 @@ test('submit --wait prints the verdict, and an unclaimed reject returns to the q
     store.recordHealthFindings(board, { agentId: 'coordinator', observedRevision, findings: due.stuck });
     store.claim(board, 1, { agentId: nextActor, lane: 'web', leaseMs: 60_000 });
     assert.equal(store.getItem(board, 1).item_owner, nextActor, 'the next builder really receives the rejected item');
-    assert.ok(store.itemThread(board, 1).some(entry => entry.type === 'move' && entry.kind === 'reject'
-      && entry.detail.note === 'The fixture deliberately rejects this concrete clause.'), 'return preserves the original rejection');
+    assert.ok(store.verdictsFor(board, 1).some(entry => entry.verdict_decision === 'REJECT'
+      && entry.verdict_note === 'The fixture deliberately rejects this concrete clause.'), 'return preserves the original rejection');
   }, clock);
 });
