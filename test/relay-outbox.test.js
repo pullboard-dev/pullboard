@@ -108,6 +108,37 @@ test('a move on an accepted relay link waits in the ordered outbox while the rel
   assert.equal(item(there.document).item_status, 'withdrawn');
 });
 
+test('an opted-in outbox retains a move through a GitHub permission outage and replays it once [H8,H16,H21]', async (t) => {
+  const box = await relayClientFixture(t);
+  enableOutbox(box);
+  await box.link();
+  await box.cli('status');
+  assert.equal(JSON.parse(readFileSync(box.linkFile, 'utf8')).baselineAccepted, true);
+  const text = 'queued during the provider outage';
+  box.providerState.providerFailure = {
+    path: '/repos/fixture/repository/collaborators/fixture-user/permission',
+    status: 403, headers: { 'x-ratelimit-remaining': '0' },
+  };
+  const queued = await box.cli('shout', 'all', text);
+  assert.equal(queued.code, 0, queued.failure);
+  const waiting = await box.cli('status');
+  assert.equal(waiting.document.relay.outbox.length, 1);
+  assert.equal(waiting.document.relay.outbox[0].operation, 'shout');
+  const id = waiting.document.relay.outbox[0].id;
+  assert.ok(id);
+  const again = await box.cli('status');
+  assert.equal(again.document.relay.outbox[0].id, id, 'another failed sync retains the original move identity');
+  delete box.providerState.providerFailure;
+  const replayed = await box.cli('status');
+  assert.equal(replayed.code, 0, replayed.failure);
+  assert.equal(replayed.document.relay.outbox, undefined);
+  assert.equal(replayed.document.relay.outboxRefusals, undefined);
+  assert.equal((await box.cli('status')).document.relay.outbox, undefined);
+  const exported = await box.cli('export');
+  assert.equal(shoutTexts(exported.document).filter(value => value === text).length, 1,
+    'repeated syncs after recovery do not apply the queued move twice');
+});
+
 test('an item added while the relay is down keeps its queued moves when another machine adds one first [B26,H16,H17]', async (t) => {
   const { box, other } = await twoMachines(t, 'Added before the outage');
   await box.stopRelay();

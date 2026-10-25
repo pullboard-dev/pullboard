@@ -51,6 +51,10 @@ export async function githubFixture(t) {
     for await (const chunk of req) raw += chunk;
     const form = new URLSearchParams(raw);
     calls.push({ method: req.method, path: url.pathname, user: isUser, app: isApp, installation: isInstallation, apiVersion: req.headers['x-github-api-version'], formKeys: [...form.keys()] });
+    if (state.providerFailure?.path === url.pathname) {
+      res.writeHead(state.providerFailure.status, { 'Content-Type': 'application/json', ...state.providerFailure.headers });
+      return res.end(JSON.stringify({ message: 'fixture provider refusal' }));
+    }
     if (url.pathname === '/login/oauth/authorize') {
       assert.equal(url.searchParams.get('scope'), null);
       assert.equal(url.searchParams.get('client_id'), 'fixture-app');

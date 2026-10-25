@@ -72,6 +72,28 @@ test('GitHub credentials never follow a redirect to a different origin [H8, H1]'
   assert.equal(foreignRequests, 0);
 });
 
+test('GitHub rate limits are unavailable, not access denials [H8]', async (t) => {
+  const provider = await githubFixture(t);
+  const client = createGitHubClient(provider.config);
+  const repository = '/repos/fixture/repository';
+  const permission = repository + '/collaborators/fixture-user/permission';
+  const user = { id: '7', login: 'fixture-user' };
+  for (const [headers, code] of [
+    [{ 'x-ratelimit-remaining': '0' }, 'GITHUB_UNAVAILABLE'],
+    [{ 'retry-after': '60', 'x-ratelimit-remaining': '17' }, 'GITHUB_UNAVAILABLE'],
+    [{ 'x-ratelimit-remaining': '17' }, 'NO_REPO_ACCESS'],
+    [{ 'retry-after': 'invalid' }, 'NO_REPO_ACCESS'],
+  ]) {
+    provider.state.providerFailure = { path: permission, status: 403, headers };
+    await assert.rejects(client.access(user, 'fixture/repository'), { code }, JSON.stringify(headers));
+  }
+  // Neither public-repository fallback may turn an outage into permission 'none'.
+  provider.state.public = true;
+  for (const path of [repository + '/installation', permission]) {
+    provider.state.providerFailure = { path, status: 403, headers: { 'retry-after': '60' } };
+    await assert.rejects(client.access(user, 'fixture/repository'), { code: 'GITHUB_UNAVAILABLE' }, path);
+  }
+});
 
 test('GitHub roles use role_name, custom-role flags and legacy fallback [H13,H14,H8]', async (t) => {
   const fixture = await githubFixture(t);

@@ -373,7 +373,7 @@ export function applyStateDelta(state, delta) {
 /** Choose the same HTTP refusal class for local and sealed relay adapters. */
 export function apiStatus(error) {
   if (error instanceof Refused && error.code === 'ACCOUNT_STORAGE_LIMIT') return 507;
-  return { RELAY_BOARD_DELETED: 410, AUTH_REQUIRED: 401, DEVICE_REVOKED: 403, TOKEN_BOARD: 403, API_ORIGIN: 403, BAD_ORIGIN: 403, WRITE_REQUIRED: 403, HUMAN_REQUIRED: 403, NO_REPO_ACCESS: 403, NO_BOARD: 404, NO_SHOUT: 404, BOARD_NOT_LINKED: 404, NO_SNAPSHOT: 404, BASELINE_EXISTS: 412, SNAPSHOT_REQUIRED: 409, SEQUENCE_REPEAT: 409, SEQUENCE_GAP: 409 }[error.code] ?? (error instanceof Refused ? 400 : 500);
+  return { GITHUB_UNAVAILABLE: 503, RELAY_BOARD_DELETED: 410, AUTH_REQUIRED: 401, DEVICE_REVOKED: 403, TOKEN_BOARD: 403, API_ORIGIN: 403, BAD_ORIGIN: 403, WRITE_REQUIRED: 403, HUMAN_REQUIRED: 403, NO_REPO_ACCESS: 403, NO_BOARD: 404, NO_SHOUT: 404, BOARD_NOT_LINKED: 404, NO_SNAPSHOT: 404, BASELINE_EXISTS: 412, SNAPSHOT_REQUIRED: 409, SEQUENCE_REPEAT: 409, SEQUENCE_GAP: 409 }[error.code] ?? (error instanceof Refused ? 400 : 500);
 }
 
 // Relay-only snapshot/delete routes reuse the exact shared bounded-body and refusal boundary.

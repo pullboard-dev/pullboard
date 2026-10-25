@@ -731,6 +731,35 @@ test('lost GitHub read access takes effect at ten minutes and before every board
   assert.deepEqual(await box.auth.boardsFor(signed.token), [], 'a denied write invalidates an earlier allowed read');
 });
 
+test('a provider outage returns 503 without caching a denial or storing the move [H8,H16]', async (t) => {
+  const box = await fixture(t);
+  const person = await login(box);
+  const board = 'b'.repeat(32);
+  await box.auth.linkBoard(person.token, board, 'fixture/repository');
+  const service = await serveRelay({ directory: join(dirname(box.database), 'journal'), auth: box.auth, port: 0, maintenanceMs: 0 });
+  t.after(() => service.close());
+  const origin = `http://127.0.0.1:${service.port}/api/v1/boards/${board}`;
+  const headers = { authorization: `Bearer ${person.token}`, 'x-pullboard-engine': String(ENGINE_VERSION), 'content-type': 'application/json' };
+  const baseline = await fetch(origin + '/state', { method: 'PUT', headers, body: JSON.stringify({ sequence: 0, sealed: 'AQ' }) });
+  assert.equal(baseline.status, 200);
+  await baseline.arrayBuffer();
+  box.state.providerFailure = { path: '/repos/fixture/repository/collaborators/fixture-user/permission',
+    status: 403, headers: { 'x-ratelimit-remaining': '0' } };
+  const move = { method: 'POST', headers, body: JSON.stringify({ sequence: 1, sealed: 'Ag' }) };
+  const refused = await fetch(origin + '/moves', move);
+  assert.equal(refused.status, 503);
+  assert.equal((await refused.json()).error.code, 'GITHUB_UNAVAILABLE');
+  assert.equal((await box.auth.authenticate(person.token, { board })).permission, 'write', 'the valid read cache survives');
+  delete box.state.providerFailure;
+  box.advance(ACCESS_WINDOW_MS);
+  const events = await fetch(origin + '/events?after=0', { headers });
+  assert.equal(events.status, 200, 'recovery is not delayed by a cached denial');
+  assert.deepEqual((await events.json()).events, [], 'the refused move was not stored');
+  const sent = await fetch(origin + '/moves', move);
+  assert.equal(sent.status, 200);
+  await sent.arrayBuffer();
+});
+
 test('person token management lists only owned scoped metadata and preserves independent revocation [H2,H9]', async (t) => {
   const box = await fixture(t);
   const person = await login(box);
