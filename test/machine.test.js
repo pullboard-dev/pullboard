@@ -1339,7 +1339,7 @@ test('the lifecycle page and the help show the reservation: reserve, and reviewF
   assert.match(page, /^\| reserve \| submitted \| submitted \| agent, coordinator \| .*reviewFree \(REVIEW_HELD\) \|$/m);
   for (const verb of ['accept', 'reject']) assert.match(page, new RegExp(`^\\| ${verb} \\| submitted, verified \\| .*policyAllows \\(COORDINATOR_VERIFIES\\), requiredReviewFamily \\(REQUIRED_REVIEW_FAMILY\\), familyAllows \\(O2_FAMILY_MATCH\\), reviewFree \\(REVIEW_HELD\\), criterionUnchanged`, 'm'));
   assert.match(page, /^\| REVIEW_HELD \| no other agent holds its review under a live lease \| pullboard next --verify/m);
-  assert.match(HELP.all, /^ {2}agent +intake, claim, release, submit, reserve, accept, reject, reopen, escalate, refreeze \(when a live claim has a pending coordinator correction\)$/m);
+  assert.match(HELP.all, /^ {2}agent +intake, claim, release, submit, reserve, accept, reject, reopen, escalate, refreeze \(when a live claim has a pending coordinator correction or a validated cited-spec correction\)$/m);
   assert.match(HELP.all, /pullboard next --verify +reserve the next submitted item you can check/);
 });
 
