@@ -12,6 +12,7 @@ import { exportBoard, importBoard } from '../src/exchange.js';
 import { prepareEngineMove, applyRelayMove } from '../src/engine.js';
 import { REJECTED_WORK_RETURN_ENGINE } from '../src/rejected-work-return-engine.js';
 import { scanHealthSentinel } from '../src/health-sentinel.js';
+import { firstRefusal } from '../src/first-refusal-window.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const helpers = createE2eHelpers();
@@ -208,7 +209,7 @@ test('an unattended reject return replays across different local heartbeats [B13
   assert.deepEqual(results[0], results[1]);
   assert.deepEqual(exportBoard(copies[0]), exportBoard(copies[1]));
   for (const board of copies) {
-    assert.equal(store.firstRefusal(board, 1), null);
+    assert.equal(firstRefusal(board, 1), null);
     const after = exportBoard(board);
     assert.deepEqual(applyRelayMove(board, move, order), results[0]);
     assert.deepEqual(exportBoard(board), after, 'a replayed receipt appends nothing twice');
@@ -236,4 +237,19 @@ test('a reclaimed reject refuses both stale and retargeted health observations [
     assert.deepEqual(exportBoard(board), before, 'updating only the revision cannot retarget the old rejection');
     assert.equal(store.getItem(board, 1).item_owner, builder);
   }, clock);
+});
+
+/** The existing public coordinator scan, rather than a direct test-only move, performs the handback. */
+test('the public coordinator health scan returns an inactive reject to the queue [B13,A6]', async t => {
+  const box = await waitingVerdict(t, 'REJECT', { builderHeartbeatOffsetMs: -31 * 60_000 });
+  assert.ok(onBoard(box, board => firstRefusal(board, 1)), 'the original reservation is still live');
+  const ran = box.run(box.repo, 'sentinel', 'run', '--health-only', '--json');
+  assert.equal(ran.code, 0, ran.out + ran.err);
+  assert.ok(JSON.parse(ran.out).health.findings.some(finding => finding.cause === 'REWORK_UNCLAIMED' && finding.item === 1));
+  onBoard(box, board => {
+    assert.equal(firstRefusal(board, 1), null);
+    assert.ok(store.events(board, { itemId: 1 }).some(event => event.event_kind === 'reject_returned'));
+    assert.ok(store.allShouts(board).some(shout => shout.shout_to === 'coordinator'
+      && shout.shout_text.includes('The fixture deliberately rejects this concrete clause.')));
+  });
 });

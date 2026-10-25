@@ -15,7 +15,7 @@ function existingMinimumEngine(args, board, at) {
 
 /** A queue-return observation cannot run under an engine that ignores its authority or effects. */
 function minimumEngine(args, board, at) {
-  return Math.max(existingMinimumEngine(args, board, at), args[0]?.returnRejected === true ? REJECTED_WORK_RETURN_ENGINE : 1);
+  return Math.max(existingMinimumEngine(args, board, at), args[0]?.returnRejected !== undefined && args[0].returnRejected !== false ? REJECTED_WORK_RETURN_ENGINE : 1);
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */

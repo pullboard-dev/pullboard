@@ -1718,6 +1718,7 @@ export function recordHealthFindings(board, { agentId, observedRevision, finding
     if (!Number.isSafeInteger(observedRevision) || observedRevision !== revision) {
       throw new Refused('HEALTH_SCAN_STALE', 'the board changed while health was scanning; run pullboard resume again');
     }
+    if (typeof returnRejected !== 'boolean') throw new Refused('HEALTH_FINDINGS', 'returnRejected must be a boolean coordinator scan option');
     if (returnRejected && ((board.executionEngineVersion ?? ENGINE_VERSION) < REJECTED_WORK_RETURN_ENGINE || agentId !== COORDINATOR)) {
       throw new Refused('COORDINATOR_ONLY', 'the coordinator returns unattended rejects; ask it to run pullboard sentinel run');
     }

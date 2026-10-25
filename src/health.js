@@ -173,7 +173,7 @@ export function healthReport({ db, root, config, now }) {
         found(report.stuck, finding('REWORK_UNCLAIMED', item, {
           since: move.event_at, now: at, title: 'rejected work needs another builder',
           why: `rejected by ${move.event_by}${rejectReason(move)}: ${note}; ${inactive ? 'its builder is not live' : 'no builder reclaimed it within ten minutes'}`,
-          next: `return it to the queue for the next builder: pullboard claim ${id}`, command: `pullboard claim ${id}`,
+          next: 'return it to the builder queue with pullboard sentinel run --health-only', command: 'pullboard sentinel run --health-only',
           owner: { role: 'coordinator', who: COORDINATOR },
           detail: { move: 'reject', by: move.event_by, rejection: move.event_id, builder: item.item_built_by, commit: item.item_commit, reason: inactive ? 'inactive' : 'timeout',
             presence: seats().get(item.item_built_by)?.presence ?? 'gone', heartbeatAt: seats().get(item.item_built_by)?.heartbeatAt ?? null, observedAt: asOf },
