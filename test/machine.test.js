@@ -658,10 +658,11 @@ function boardOnDisk(clock) {
  * An item web-1 claimed and submitted.
  *
  * @param {any} board
+ * @param {{ reviewFamily?: string }} [options] optional real item metadata for guard witnesses
  * @returns {number}
  */
-function submittedItem(board) {
-  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+function submittedItem(board, options = {}) {
+  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page', ...options });
   store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
   submitFixture(board, id, { agentId: 'web-1', commit: SHA_A, tree: 'tree' });
   return id;
@@ -1058,7 +1059,9 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
     const other = store.register(board, { lane: 'web', path: '/repo-web-other' });
     for (const verb of ['accept', 'reject']) {
       const decision = verb === 'accept' ? 'ACCEPT' : 'REJECT';
-      const built = submittedItem(board);
+      store.register(board, { lane: 'web', path: '/repo-web-2', family: 'REQUIRED REVIEW' });
+      store.register(board, { lane: 'web', path: '/repo-web-other', family: null });
+      const built = submittedItem(board, { reviewFamily: 'Required Review' });
       const landed = submittedItem(board);
       verdictOn(board, landed, 'web-2', 'ACCEPT');
       store.merged(board, landed, { agentId: 'coordinator', commit: SHA_A });
@@ -1076,7 +1079,12 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
         judge(built, 'web-1', { reason: bad }),
         judge(built, light, { reason: bad }),
         judge(built, 'web-2', { reason: bad }),
-        judge(built, other, { reason: bad, policy: 'any', familyPolicy: 'require' }),
+        judge(built, other, { reason: bad, policy: 'any' }),
+        /** Declare the matching family only after its refusal has been observed. */
+        (() => {
+          store.register(board, { lane: 'web', path: '/repo-web-other', family: 'required review' });
+          return judge(built, other, { reason: bad, policy: 'any', familyPolicy: 'require' });
+        })(),
         judge(built, other, { reason: bad, policy: 'any' }),
         judge(built, 'web-2', { reason: bad, policy: 'any' }),
         judge(built, 'web-2', { reason: bad, policy: 'any', digest: 'digest:Page' }),
@@ -1098,17 +1106,19 @@ test('reserve refuses in the declared order, one failure peeled at a time [V15, 
     const { board } = lab;
     const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
     const other = store.register(board, { lane: 'web', path: '/repo-web-other' });
-    const built = submittedItem(board);
+    store.register(board, { lane: 'web', path: '/repo-web-2', family: 'REQUIRED REVIEW' });
+    const built = submittedItem(board, { reviewFamily: 'Required Review' });
     const open = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
     const reserveAs = (id, agentId, policy = 'coordinator', familyPolicy = 'off') => outcome(() => store.reserveReview(board, id, { agentId, leaseMs: 3_600_000, policy, familyPolicy }));
     const cooling = submittedItem(board);
     store.reserveReview(board, cooling, { agentId: 'web-2', leaseMs: 3_600_000, policy: 'any' });
     store.release(board, cooling, 'web-2', 'another reviewer should take it');
-    const fired = [reserveAs(999, 'web-2'), reserveAs(open, 'web-2'), reserveAs(cooling, 'web-2'), reserveAs(built, 'web-1'), reserveAs(built, light), reserveAs(built, 'web-2')];
+    const fired = [reserveAs(999, 'web-2'), reserveAs(open, 'web-2'), reserveAs(cooling, 'web-2'), reserveAs(built, 'web-1'), reserveAs(built, light), reserveAs(built, 'web-2'), reserveAs(built, other, 'any')];
+    store.register(board, { lane: 'web', path: '/repo-web-other', family: 'required review' });
     store.reserveReview(board, built, { agentId: other, leaseMs: 3_600_000, policy: 'any' });
     fired.push(reserveAs(built, other, 'any', 'require'), reserveAs(built, 'web-2', 'any'), reserveAs(built, other, 'any'));
     assert.deepEqual(fired, [...declaredBoardOrder('reserve'), 'ok']);
-    assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'REVIEW_COOLDOWN', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'O2_FAMILY_MATCH', 'REVIEW_HELD', 'ok']);
+    assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'REVIEW_COOLDOWN', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'REQUIRED_REVIEW_FAMILY', 'O2_FAMILY_MATCH', 'REVIEW_HELD', 'ok']);
   } finally {
     lab.done();
   }
@@ -1327,7 +1337,7 @@ test('the review lease is reviewLease in pullboard.json, 30 minutes unless the r
 test('the lifecycle page and the help show the reservation: reserve, and reviewFree on every verdict [V15, M1]', () => {
   const page = lifecycleMarkdown();
   assert.match(page, /^\| reserve \| submitted \| submitted \| agent, coordinator \| .*reviewFree \(REVIEW_HELD\) \|$/m);
-  for (const verb of ['accept', 'reject']) assert.match(page, new RegExp(`^\\| ${verb} \\| submitted, verified \\| .*policyAllows \\(COORDINATOR_VERIFIES\\), familyAllows \\(O2_FAMILY_MATCH\\), reviewFree \\(REVIEW_HELD\\), criterionUnchanged`, 'm'));
+  for (const verb of ['accept', 'reject']) assert.match(page, new RegExp(`^\\| ${verb} \\| submitted, verified \\| .*policyAllows \\(COORDINATOR_VERIFIES\\), requiredReviewFamily \\(REQUIRED_REVIEW_FAMILY\\), familyAllows \\(O2_FAMILY_MATCH\\), reviewFree \\(REVIEW_HELD\\), criterionUnchanged`, 'm'));
   assert.match(page, /^\| REVIEW_HELD \| no other agent holds its review under a live lease \| pullboard next --verify/m);
   assert.match(HELP.all, /^ {2}agent +intake, claim, release, submit, reserve, accept, reject, reopen, escalate, refreeze \(when a live claim has a pending coordinator correction\)$/m);
   assert.match(HELP.all, /pullboard next --verify +reserve the next submitted item you can check/);

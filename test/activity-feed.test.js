@@ -180,11 +180,13 @@ test('an agent feed shows only activity that touches its items files rows and la
     replacement: `- ${id} [approved] Private row ${id}.`, text: `Private row ${id}.`,
   }] }));
   // Seal complete corrected bars through the current apply protocol; this fixture proves feed projection only.
-  const refreezes = prepareSpecRefreezes(rowRecords, store.listItems(board, { all: true }), item => {
+  /** Freeze the private fixture's corrected row bytes without claiming a gate execution. */
+  const correctedFreeze = item => {
     const text = JSON.stringify({ title: item.item_title, criterion: item.item_criterion,
       check: item.item_check ?? '', rows: item.item_spec_ids.split(',').map(id => ({ id, text: `Private row ${id}.`, gate: '' })) });
     return { text, digest: createHash('sha256').update(text).digest('hex') };
-  });
+  };
+  const refreezes = prepareSpecRefreezes(rowRecords, store.listItems(board, { all: true }), correctedFreeze);
   store.applyRowDecisions(board, { agentId: 'coordinator', events: rowRecords.map(record => record.event), refreezes });
   store.draftSpecRow(board, { agentId: 'web-1', row: { id: 'G1', text: 'Private cited-row draft',
     gate: 'private fixture gate', tier: 'should', section: 'Goals' } });
