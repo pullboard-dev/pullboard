@@ -31,6 +31,13 @@ export async function proveRequiredReviewFamily(t, { fixture, cli }) {
     assert.throws(() => store.reserveReview(box.board, id, { agentId: seat.id, leaseMs: 60_000,
       policy: 'any', familyPolicy: 'off' }), error => /family beta/iu.test(error.message),
     'direct reservation uses the same family requirement, even with the global family policy off');
+    const submitted = store.getItem(box.board, id);
+    assert.throws(() => store.verify(box.board, id, { agentId: seat.id, decision: 'ACCEPT',
+      reason: store.ACCEPT_REASON, note: 'An ineligible family cannot bypass reservation with a direct verdict.',
+      head: submitted.item_commit, digest: submitted.item_frozen_digest, policy: 'any', familyPolicy: 'off' }),
+    error => error.code === 'REQUIRED_REVIEW_FAMILY' && /family beta/iu.test(error.message),
+    'direct verdicts enforce the family requirement without relying on a prior reservation');
+    assert.deepEqual(store.verdictsFor(box.board, id), [], 'a refused verdict leaves no acceptance behind');
     for (const args of [['next', '--take'], ['next', '--verify', String(id)]]) {
       const refused = await cli(box, seat.path, args);
       assert.notEqual(refused.code, 0, refused.out + refused.err);
