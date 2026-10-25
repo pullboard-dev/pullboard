@@ -232,7 +232,8 @@ test('health names each stuck cause with its next step and owner [A6]', async (t
   const lapsedLine = lines.find((line) => line.startsWith(`  #${lapsed} `));
   assert.equal(lapsedLine, `  #${lapsed} claim lapsed, since 2026-10-17 10:00 (2h): ${builders[0]}'s lease ran out and nobody is building it. Next, ${builders[0]} (builder): renew it with pullboard claim ${lapsed}.`);
   assert.ok(lines.some((line) => line.startsWith(`  #${conflict} `) && line.includes('a.txt') && line.includes(`${builders[3]} (builder)`)), 'the text names the conflicting files and the builder');
-  assert.ok(lines.includes('waiting for a later release:'));
+  assert.ok(lines.some(line => line.startsWith(`  #${later} `) && line.includes('the coordinator')
+    && line.includes('pullboard sentinel run --health-only')), 'a later-release reject still prints its coordinator handback action');
   assert.deepEqual(boardDigest(box.file), beforeBoard, 'text mode changes nothing either');
   assert.deepEqual(checkout(box), beforeCheckout);
 });
