@@ -330,10 +330,8 @@ test('[H5,H18] the Railway smoke links, reads one unsealed move and unlinks loca
   assert.equal((await legacy.json()).error.code, 'ENGINE_VERSION');
   assert.equal((await box.cli('relay', 'off')).code, 0);
   const phone = await box.phoneSession();
-  const removed = await fetch(`${previous.url}/api/v1/boards/${previous.board}`, {
-    method: 'DELETE', headers: { authorization: `Bearer ${phone.token}`, 'x-pullboard-engine': String(ENGINE_VERSION) },
-  });
-  assert.equal(removed.status, 200, 'the signed-in phone explicitly deletes the earlier disposable board before relinking');
+  assert.equal(box.auth.boardOff(previous.board), null,
+    'local relay off retains the active predecessor until the authenticated relink replaces it');
   const beforeSmoke = box.calls.length;
 
   const smoke = await runSmoke(box, previous.url);
@@ -342,6 +340,9 @@ test('[H5,H18] the Railway smoke links, reads one unsealed move and unlinks loca
   assert.equal(result.ok, true);
   assert.match(result.board, /^[0-9a-f]{32}$/u, 'the smoke identifies its actual remote board');
   assert.notEqual(result.board, previous.board, 'relinking after relay off creates a fresh remote board');
+  assert.equal(box.auth.boardOff(previous.board)?.replacedBy, result.board,
+    'the smoke relink turns its actual predecessor off with a receipt naming the new board');
+  assert.equal(box.auth.boardOff(result.board), null, 'the smoke keeps exactly the replacement link active');
   assert.equal(typeof result.item, 'number');
   assert.equal(result.sequence, 1);
   assert.equal(existsSync(box.linkFile), false, 'relay off forgets the private link metadata');

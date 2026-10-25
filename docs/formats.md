@@ -115,7 +115,7 @@ The version table is generated from the source-owned declarations in `src/format
 | `row grammar` | `1` | `SPEC_GRAMMAR_VERSION` in `src/spec.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar) | Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs. |
 | `board schema` | `3` | `SCHEMA_VERSION` in `src/board.js`, persisted as `PRAGMA user_version` | On a write open of a board whose version is behind: create missing tables and indexes (version 3 adds the hot-path indexes), add missing columns in place with declared defaults, restore missing or changed triggers, and remove stale machine triggers without replacing rows. Read opens never migrate; a board at the current version whose shape differs is reported once on stderr and left as it is. |
 | `event log` | `1` | `EVENT_LOG_VERSION` in `src/board.js`, persisted in `board_meta` as `event_log_version` | Older event-log versions upgrade in place; newer versions are refused with `EVENT_LOG_VERSION`. Preserve event rows when the board schema changes. |
-| `move engine` | `120` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
+| `move engine` | `121` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
 A builder never picks an engine number (#1101). An item that adds a board move adds its own `src/<name>-engine.js` leaf as `export const NAME_ENGINE = unassignedEngine();` (importing `unassignedEngine` from `./engine-next.js`); on its branch the leaf reads as one above the highest landed engine. The landing merge writes the next number into the leaf, in landing order, inside that item's merge commit, and sets the `move engine` row above to the highest landed number. A landed number never changes, so recorded moves replay as they were written. Moves are recorded under landed numbers only: code with an unnumbered engine is for its branch's own tests, and a move it records on a real board before landing may later read under another item's number, so the item lands before its moves are used.
@@ -427,6 +427,7 @@ The `event` table is a SQLite schema object governed by `SCHEMA_VERSION`; its ap
 | `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen`, optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection` |
 | `escalate` | builder | `from`, `to`, `note`, `attempt` |
 | `attempt` | reporting agent | `n`, `seconds`, `result` |
+| `board_members` | coordinator | `document` (exact version-1 body with board, repository, revision and complete members, approving login and SSH signature; native moves and checkpoints carry it sealed) |
 | `fact` | author | `id`, `kind`, `text`, `ref`, `supersedes`, engine-20 `implies`, `decision`, `supersededBy`, engine-30 `cause`, `neverAgain`, `channel` |
 | `claim` | builder | `leaseUntil`, `digest` |
 | `renew` | builder | `leaseUntil`, `digest` |
@@ -704,6 +705,9 @@ replays activity. Reads freeze an event high-water mark before observing Git; su
 and messages remain pending. News has a separate cursor so an ordinary poll cannot consume a
 future session-start digest.
 
+### Signed board membership
+
+`setBoardMembers` records an exact next revision in `board_meta.board_members` and a `board_members` event. Its signed document is `{body:{v:1,board,repository,revision,members},by,signature}`; the SSH namespace is `pullboard-board-members` and the bytes are the JSON array `["pullboard-board-members",body,by]`. Repeating the identical document is idempotent. A new empty list removes all additional members. Native ordered transport and checkpoints seal this document with the board key. A key handover independently checks the approving login against committed `pullboard.json` approvers and its SSH signature against GitHub; stored or relay-provided identity flags alone never authorize a handover. Every requester also proves ownership of its own device key. The current native revision is authoritative; an old signature cannot roll back that state.
 ## Seat addresses
 
 A seat address is `pullboard:<board-id>:<percent-encoded-seat-id>`, where `board-id` is the board’s existing 32-character hexadecimal `board_id` and the seat component is the canonical JavaScript `encodeURIComponent` encoding of its registered agent id. It is independent of machine and checkout path. `whoami` and `agents` expose it; `shout` resolves it only within the current board and records the existing shout event with the exact recipient agent id. It is a destination, never a grant. Existing relay board credentials and authenticated sender attribution remain required on linked boards. No new stored event or file format is introduced.

@@ -36,7 +36,7 @@ const expectedLinked = mode === 'excluded' ? 1 : 2;
 const other = join(dirname(root), 'second-view-board');
 mkdirSync(other);
 for (const args of [['init','-q','-b','main'], ['-c','commit.gpgsign=false','commit','--allow-empty','-q','-m','chore: private view board'],
-  ['remote','add','origin','git@github.com:fixture/repository.git']]) runFixtureGit(args, {cwd:other,env:process.env});
+  ['remote','add','origin','git@github.com:fixture/repository-2.git']]) runFixtureGit(args, {cwd:other,env:process.env});
 const quiet = {cwd:other,stdin:process.stdin,stdout:{isTTY:false,write(){}},stderr:{write(){}}};
 assert.equal(await main(['init','--json'], quiet), 0, 'the second board is registered through the production CLI');
 const links = [root,other].map(repo => join(repo,'.git','pullboard','relay.json'));
@@ -453,7 +453,7 @@ globalThis.fetch = async (input, options) => {
 const other = join(dirname(root), 'waiting-board');
 mkdirSync(other);
 for (const args of [['init','-q','-b','main'], ['-c','commit.gpgsign=false','commit','--allow-empty','-q','-m','chore: waiting board'],
-  ['remote','add','origin','git@github.com:fixture/repository.git']]) runFixtureGit(args, { cwd: other, env: process.env });
+  ['remote','add','origin','git@github.com:fixture/repository-2.git']]) runFixtureGit(args, { cwd: other, env: process.env });
 let errors = '';
 const streams = { cwd: other, stdin: process.stdin, stdout: { isTTY: false, write() {} }, stderr: { write: part => { errors += part; } } };
 const codes = [];
@@ -491,7 +491,7 @@ test('relay on --all says who signed in, what it linked and what it waits for [H
   const second = join(dirname(box.root), 'second-board');
   mkdirSync(second);
   for (const args of [['init', '-q', '-b', 'main'], ['-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-q', '-m', 'fixture base'],
-    ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git']]) {
+    ['remote', 'add', 'origin', 'git@github.com:fixture/repository-2.git']]) {
     assert.equal(runFixtureChild('git', args, { cwd: second, env: box.env }).status, 0);
   }
   assert.equal(runFixtureChild(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), 'init', '--json'], { cwd: second, env: box.env }).status, 0,

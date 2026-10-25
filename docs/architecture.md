@@ -71,6 +71,7 @@ Everything durable lives on one volume at `/data`: `auth.sqlite`, then `devices.
 | --- | --- | --- | --- |
 | `relay_users` | `auth.sqlite` | Each signed-in GitHub account: its numeric id and login. | No deletion path. |
 | `relay_boards` | `auth.sqlite` | Each linked board: board id, repository `owner/name`, repository id, link time. | The board is deleted, or 90 days pass without activity. |
+| `relay_board_off` | `auth.sqlite` | Per board turned off by a relink: the board id, its repository id, the board that replaced it, the account that relinked and the time. It is the off receipt that keeps one active link per repository. | No deletion path. |
 | `relay_cleanup` | `auth.sqlite` | Board ids whose deletion is in progress. | The deletion finishes. |
 | `relay_deleted_credentials` | `auth.sqlite` | Per credential of a deleted board: its SHA-256 hash, the board id, its expiry. | The credential's own expiry. |
 | `relay_credentials` | `auth.sqlite` | Per credential: id, SHA-256 hash, kind, account, board, agent or machine name, created, expiry, revoked flag. | The board is deleted or expires. Session rows stay, expired or revoked. |

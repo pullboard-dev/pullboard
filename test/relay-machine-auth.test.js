@@ -29,7 +29,7 @@ test('machine credentials mint and list same-board agents but cannot link, revok
   const alpha = 'a'.repeat(32);
   const beta = 'b'.repeat(32);
   await auth.linkBoard(person.token, alpha, 'fixture/repository');
-  await auth.linkBoard(person.token, beta, 'fixture/repository');
+  await auth.linkBoard(person.token, beta, 'fixture/repository-2'); // one team board per repository [E12]
 
   const machine = await auth.issueMachine(person.token, { board: alpha, machine: 'mac-alpha' });
   assert.match(machine.token, /^pm_[A-Za-z0-9_-]{43}$/u);
@@ -80,7 +80,7 @@ test('deleted-copy receipts grant no access and keep revocation and expiry disti
   const person = await signedPerson({ ...provider, advance(ms) { now += ms; } }, auth);
   const alpha = 'a'.repeat(32), beta = 'b'.repeat(32);
   await auth.linkBoard(person.token, alpha, 'fixture/repository');
-  await auth.linkBoard(person.token, beta, 'fixture/repository');
+  await auth.linkBoard(person.token, beta, 'fixture/repository-2'); // one team board per repository [E12]
   const live = await auth.issueMachine(person.token, { board: alpha, machine: 'joined-alpha' });
   const revoked = await auth.issueMachine(person.token, { board: alpha, machine: 'revoked-alpha' });
   const expired = await auth.issueMachine(person.token, { board: alpha, machine: 'expired-alpha', expiresIn: 1 });

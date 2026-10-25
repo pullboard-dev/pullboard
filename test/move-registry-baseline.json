@@ -66,7 +66,8 @@
     "actOnActivity",
     "recordActivityDelivery",
     "decideSpecRevisions",
-    "recordRowVerification"
+    "recordRowVerification",
+    "setBoardMembers"
   ],
   "itemIdFirstArgument": [
     "signBar",
@@ -661,6 +662,14 @@
       null
     ],
     "recordRowVerification": [
+      null,
+      "first",
+      null,
+      null,
+      null,
+      null
+    ],
+    "setBoardMembers": [
       null,
       "first",
       null,
@@ -7032,7 +7041,21 @@
     "ROW_VERIFY": "pullboard spec show <id>, then pullboard spec verify <id> accepted --reason \"why\"",
     "ROW_VERIFY_PROVENANCE": "draft the row through pullboard spec draft and join normally before verifying it",
     "ROW_VERIFY_PENDING": "ask the coordinator to run pullboard spec apply before recording a verifier verdict",
-    "ROW_VERIFY_SELF": "ask an outside-parent verifier to run pullboard spec verify"
+    "ROW_VERIFY_SELF": "ask an outside-parent verifier to run pullboard spec verify",
+    "BOARD_MEMBERS_INVALID": "ask a committed approver to publish a complete signed board member list",
+    "BOARD_MEMBERS_REVISION": "read the current member revision, then sign a new list",
+    "RELAY_NOT_MEMBER": "ask a committed approver to publish the board member list with pullboard relay members set <login>, then retry relay on",
+    "BOARD_REPLACE": "run pullboard relay on again; a relink replaces only the repository's active board",
+    "BOARD_REPO_LINKED": "pull pullboard.json from main, which names the repository's board, then run pullboard relay on again to join it",
+    "GITHUB_UNAVAILABLE": "run any pullboard command again once GitHub answers; the new device keeps waiting",
+    "RELAY_JOIN_NOT_EMPTY": "keep this board, then run pullboard init and pullboard relay on in a fresh clone to join the team board",
+    "RELAY_KEY_VOUCH": "add the SSH key that signed this device to your GitHub account with gh ssh-key add, then run pullboard relay on again",
+    "RELAY_KEY_WAIT_EXPIRED": "run pullboard relay on again while a linked computer of this repository is online",
+    "RELAY_SSH_KEY": "make an SSH key with ssh-keygen -t ed25519, add it to GitHub with gh ssh-key add, then run pullboard relay on again",
+    "RELAY_SSH_KEYGEN": "install OpenSSH, then run pullboard relay on again",
+    "RELAY_SSH_SIGN": "load the key with ssh-add, or set PULLBOARD_SSH_KEY to a key on your GitHub account, then run pullboard relay on again",
+    "BAD_DECISION_OPTIONS": "ask an item decision with --decision --item <id> --options '[\"first\",\"second\"]'",
+    "NOT_YOUR_ITEM_DECISION": "ask on an item you build or review, or ask the coordinator for a cross-item decision"
   },
   "replay": {
     "initial": {

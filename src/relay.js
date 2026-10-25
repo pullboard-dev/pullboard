@@ -1,9 +1,13 @@
 import {
+  cancellationOutcome,
+  waitForDevicePoll,
+} from './relay-device-poll.js';
+import {
   formatSnapshotLimit,
   reportedSnapshotSize,
   snapshotSize,
 } from './relay-snapshot-size.js';
-export { formatSnapshotLimit };
+export { formatSnapshotLimit, originRepository };
 import { beginCommandPhase } from './command-phase.js';
 import { deliverPersonEnrollments } from './relay-person-enrollment.js';
 import { recordedMoveRefusal } from './recorded-move.js';
@@ -16,7 +20,6 @@ import {
   unlinkedRelayStatus,
 } from './relay-status-fields.js';
 import { originRepository } from './github-origin.js';
-export { originRepository };
 import {
   clearUploadPauseNotices,
   firstUploadPauseNotice,
@@ -144,7 +147,6 @@ import {
 import { Refused } from './refused.js';
 import { landingRelayCallbacks } from './landing-relay.js';
 import { relayOrigin } from './relay-origin.js';
-export { relayOrigin };
 import { refusalFromReceipt } from './recorded-refusal.js';
 import { relayNotices } from './relay-notices.js';
 import {
@@ -174,7 +176,7 @@ import {
   relayStorage,
   relayStorageLine,
 } from './relay-page-client.js';
-export { relayStorageLine };
+export { relayOrigin, relayStorageLine };
 
 export const DEFAULT_RELAY = 'https://app.pullboard.dev';
 const LINK_FILES = new WeakMap();
@@ -487,7 +489,6 @@ async function publishSnapshotSize(state, io) {
 export function pendingSnapshotSize(root) {
   return snapshotSize(loadLink(linkFile(root)));
 }
-
 
 /** Whether the CLI command will make an ordered move whose refusal should be reported at dispatch. */
 function orderedMoveCommand(io) {
@@ -974,6 +975,7 @@ async function catchUp(root, file, state, io) {
     if (localRecords(root, appliedSequence) <= after) throw new Refused('RELAY_RESPONSE', 'the relay checkpoint did not advance the missing prefix; fetch a consistent newer snapshot');
     return catchUp(root, file, state, io);
   }
+  if ([remote.warning, ...(remote.warnings ?? [])].some((warning) => warning?.code === 'KEY_REQUESTS')) io.keyRequestsWaiting = true;
   if (!Array.isArray(remote.events) || remote.events.some((record, index) => !record || record.event_id !== after + index + 1 || !['move', 'request'].includes(record.kind) || typeof record.sealed !== 'string')) {
     throw new Refused('RELAY_RESPONSE', 'the relay returned an invalid ordered prefix; fetch a consistent relay snapshot');
   }
@@ -1264,6 +1266,7 @@ export async function syncRelay(root, io) {
       if (checkpointInBackground()) { if (state.checkpoint) scheduleCheckpoint(root, file); else requestCheckpointCheck(root, file); }
       else if (state.checkpoint || state.presentationDigest !== presentationDigest(relayPresentation(root))) await publishCheckpoint(root, file, state, io);
       await deliverDeviceWraps(root, io);
+      if (io.keyRequestsWaiting && !state.environment) await (await import('./relay-handover.js')).handOverKeys(root, state, readBoardKey(state.board), request, io); // an agent token never hands over a key
       return summary(root, state);
     }
     catch (error) {
@@ -1489,27 +1492,6 @@ export async function relayRecover(root, skip, io) {
 /** Read the local link and lag without opening a network connection or revealing its relay token. */
 export function relayStatus(root) { return summary(root, loadLink(linkFile(root))); }
 
-/** Throw a named refusal when the caller has cancelled the in-progress device sign-in. */
-function cancellationOutcome(signal) {
-  if (signal?.aborted) throw new Refused('OAUTH_CANCELLED', 'GitHub device sign-in was cancelled; no board was linked');
-}
-
-/** Wait for one bounded device-flow poll interval and wake promptly on caller cancellation. */
-function waitForDevicePoll(seconds, signal) {
-  cancellationOutcome(signal);
-  return new Promise((resolve, reject) => {
-    const finish = (error) => {
-      clearTimeout(timer);
-      signal?.removeEventListener('abort', cancel);
-      if (error) reject(error); else resolve();
-    };
-    const cancel = () => finish(new Refused('OAUTH_CANCELLED', 'GitHub device sign-in was cancelled; no board was linked'));
-    const timer = setTimeout(() => finish(), Math.max(1, seconds) * 1000);
-    signal?.addEventListener('abort', cancel, { once: true });
-    if (signal?.aborted) cancel();
-  });
-}
-
 /** Cancel one device ticket without the already-aborted caller signal. */
 async function cancelDeviceFlow(url, ticket, io) {
   let result;
@@ -1583,6 +1565,10 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
   for (const project of listApiProjects()) { try { loadLink(linkFile(project.root)); } catch { /* Report this command's own link below. */ } }
   const repository = originRepository(root);
   const file = linkFile(root);
+  // A clone whose pullboard.json names another board joins that board instead of linking a second one [E12].
+  const joining = await (await import('./relay-join.js')).joinNamedBoardIfAny(root, file, { linked: Boolean(loadLink(file)), url: relayOrigin(address || DEFAULT_RELAY), repository, signIn: (url) => deviceSignIn(url, io) }, io);
+  if (joining) return joining;
+  const { nameBoardInConfig } = await import('./relay-board-config.js');
   return locked(file, async () => {
     let state = loadLink(file);
     if (state) requireUnconflictedBaseline(state);
@@ -1591,11 +1577,13 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
     if (state && (state.url !== url || state.repository !== repository)) throw new Refused('RELAY_LINKED', 'this board is linked to another relay or repository; run relay off before changing its link');
     const key = state ? readBoardKey(state.board) : await generateBoardKey();
     const nextBoard = state?.board ?? plannedRelayBoard(root, localRecords(root, store.boardId));
-    const relink = state ? null : relayRelink(root);
+    const relink = state ? null : relayRelink(root), replacement = state?.replaces ?? relink?.previous;
     const intent = remoteShell ? { board: nextBoard, repository,
-      host: hostname(), boardName: basename(root) } : undefined;
+      host: hostname(), boardName: basename(root), ...(replacement ? { replaces: replacement } : {}) } : undefined;
     const signed = remoteShell ? await deviceSignIn(url, io, { intent }) : reusableCredential ?? reusableSession ?? await deviceSignIn(url, io);
     if (reusableSession && reusableSession.url !== url) throw new Refused('RELAY_SESSION', 'Sign in again to this relay with pullboard relay on --all.');
+    // Every clone finds its board in pullboard.json [E12], written before the snapshot so its presentation carries it.
+    const restoreConfig = nameBoardInConfig(repoInfo(root).root, nextBoard, io);
     if (!state) {
       const snapshot = localRecords(root, (board) => {
         startRelayEpoch(board, nextBoard);
@@ -1609,7 +1597,7 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
         cursor: snapshot.document.tables.event.at(-1)?.event_id ?? 0, baselineCursor: snapshot.document.tables.event.at(-1)?.event_id ?? 0,
         baselineAccepted: false, linkPending: true };
       state.snapshot = { sequence: 0, sealed: await sealedRecord(key, snapshot.document, state, 'snapshot', 0) };
-      if (relink) state.previousBoardNotice = relink.previous;
+      if (relink) { state.previousBoardNotice = relink.previous; state.replaces = relink.previous; }
     }
     const account = signed.account ?? signed.user?.id;
     // Persist the exact sealed snapshot and a recoverable link intent before making the remote link.
@@ -1617,8 +1605,10 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
     if (relink) finishRelink(root);
     if (state.linkPending) {
       if (signed.linkConfirmed && signed.linkedBoard !== state.board) throw new Refused('RELAY_RESPONSE', 'the relay confirmed a different board; sign in again');
-      if (!reusableCredential && !signed.linkConfirmed) await request({ ...state, token: signed.token }, '/auth/boards/link', { method: 'POST', body: { board: state.board, repository } }, io);
-      delete state.linkPending;
+      // Another board is the repository's: forget this never-linked intent so relay on can join it [E12].
+      if (!reusableCredential && !signed.linkConfirmed) await request({ ...state, token: signed.token }, '/auth/boards/link', { method: 'POST', body: { board: state.board, repository, ...(state.replaces ? { replaces: state.replaces } : {}) } }, io)
+        .catch((error) => { if (error.code === 'BOARD_REPO_LINKED') restoreConfig(() => { rmSync(file, { force: true }); forgetBoardKey(state.board, state.keyStorage); }); throw error; });
+      delete state.linkPending; delete state.replaces;
       saveLink(file, state);
     }
     const machine = updateRelayMachine(settings => settings.machine);
@@ -1714,7 +1704,6 @@ export async function relayOff(root, io) {
       notice: 'Local link removed. The relay copy stays until you approve deleting it on your phone.' + warning + (requested ? '' : ' Open the phone to manage the relay copy.') };
   });
 }
-
 
 /** Keep the elected native executor stable across processes while other worktrees share its link. */
 export async function relayRequestDevice(root) {

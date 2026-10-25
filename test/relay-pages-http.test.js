@@ -29,7 +29,7 @@ async function fixture(t, accountStorageBytes) {
   const callback = new URL(redirect.headers.get('location'));
   const signed = await auth.finishWeb(callback.searchParams.get('state'), callback.searchParams.get('code'), flow.binding);
   await auth.linkBoard(signed.token, BOARD, 'fixture/repository');
-  await auth.linkBoard(signed.token, OTHER, 'fixture/repository');
+  await auth.linkBoard(signed.token, OTHER, 'fixture/repository-2'); // one team board per repository [E12]
   let handler;
   let clock = Date.now();
   const server = createServer((req, res) => handler(req, res));

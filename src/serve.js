@@ -364,6 +364,8 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
       events: log,
       agents: store.listAgents(board).map((agent) => ({ ...agent, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names), lastMoveAt: lastMove.get(agent.agent_id) ?? null })),
       holds: store.laneHolds(board),
+      // Each item held on its own, with its reason, so every list can say why it is not moving (#1256).
+      itemHolds: all.filter((item) => item.item_hold_reason).map((item) => ({ item: item.item_id, reason: item.item_hold_reason, by: item.item_hold_by, at: item.item_hold_at })),
       spec: rows(config.spec),
       practice: doctrine.rows.map(({ id, status: state, tier, text, gate, serves, section, origin, version, reason }) => ({
         id, status: state, tier, text, gate, serves, section, origin, version, reason,

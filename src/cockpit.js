@@ -817,9 +817,9 @@ function milestoneItem(entry, p) {
     root,
     titles: new Map((root === view.root ? p.items : root ? named[0].items : []).map((i) => [String(i.id), i.title])),
     state: read ? stateOf(read) : null,
-    stale: item ? staleChip(item) : '',
+    stale: item ? staleChip(item) : '', held: item ? heldNote(item, source, entry) : null,
     block: item ? roadmapBlock(detail?.item || item, {
-      holds: root === view.root ? source.holds : source.laneHolds, items: source.items, agents: source.agents, state: stateOf,
+      holds: root === view.root ? source.holds : source.laneHolds, itemHolds: source.itemHolds, items: source.items, agents: source.agents, state: stateOf,
       address: (id) => itemAddress(id, root), board: root === view.root ? null : root,
       releases: (p.milestones || []).filter((milestone) => milestone.items.some((ref) => ref.id === entry.id)).map((milestone) => milestone.name),
       error: expanded ? detail?.error : undefined,
@@ -882,18 +882,18 @@ function jumpToRoadmap(key) {
  * id and title on one line that ends in an ellipsis when cut, and the Items tab's chip. The whole
  * title is the row's tooltip. Every row expands in place; its compact detail alone links over to Items.
  */
-function milestoneRow(row, titles) {
+function milestoneRow(row, titles, hidden = false) {
   const title = row.title ? inline(String(row.title).replace(/\\s+/g, ' '), row.titles || titles, 'in-place', row.root) : '<span class="muted">' + esc(row.why) + '</span>';
   const label = '<span class="id">' + esc(row.label) + '</span>' + title;
   const text = row.block?.dot ? '<span class="milestone-title">' + label + '</span>' + row.block.dot : label;
   const key = 'i:' + row.label, open = view.roadmapOpen.get(JSON.stringify([view.root, key])) === true;
-  const status = (open && row.block?.dot ? '<span class="chip warn roadmap-blocked"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>blocked</span>' : '') + (row.stage === 'merged' ? '<span class="chip ok roadmap-landed">verified</span>' : row.stage === 'accepted' ? '<span class="chip ok">accepted</span>' : row.state ? chip(row.state) : '<span class="chip">' + esc(row.word) + '</span>');
+  const status = (open && row.block?.dot ? '<span class="chip warn roadmap-blocked"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>blocked</span>' : '') + (row.stage === 'merged' ? '<span class="chip ok roadmap-landed">verified</span>' : row.stage === 'accepted' ? '<span class="chip ok">accepted</span>' : row.held ? heldChip(row.held) : row.state ? chip(row.state) : '<span class="chip">' + esc(row.word) + '</span>');
   const inner = '<span class="dot' + (row.state ? ' ' + row.state : '') + '"></span><span class="t">' + text + '</span>' + (row.stale || '') + '<span class="roadmap-status">' + status + '</span>';
   const board = row.open && row.open.root !== view.root ? ' data-board="' + esc(row.open.root) + '"' : '';
   const toggle = 'class="milestone-item' + (row.block?.dot ? ' blocked' : '') + '" data-roadmap-key="' + esc(key) + '" aria-expanded="' + open + '"' + board + ' title="' + esc(row.title ? row.title + (!row.open && row.why ? ' (' + row.why + ')' : '') : row.why) + '"';
   const detail = row.block ? row.block.detail : '<p>' + esc(row.why || row.word) + '</p>';
   // Every row stays on the Roadmap; only its explicit Open in Items link navigates (#605).
-  return '<li><div ' + toggle + ' role="button" tabindex="0">' + inner + '</div>'
+  return '<li' + (hidden ? ' hidden' : '') + '><div ' + toggle + ' role="button" tabindex="0">' + inner + '</div>'
     + '<div class="milestone-why"' + (open ? '' : ' hidden') + (row.pending ? ' aria-busy="true"' : '') + '>' + detail + '</div></li>';
 }
 
@@ -940,7 +940,7 @@ function roadmapCards(p, titles) {
   const isOpen = (key, first) => view.roadmapOpen.has(JSON.stringify([view.root, key])) ? view.roadmapOpen.get(JSON.stringify([view.root, key])) : first;
   const caret = '<svg class="caret" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>'; // The view's stroke chevron, set inside the title to centre on its first line (#870).
   const next = coming.find((m) => m.rows.length) || null;
-  const headerFor = roadmapHeaders(roadmapSummary, { time: when, address: itemAddress, root: view.root });
+  const headerFor = roadmapHeaders(roadmapSummary, { time: when, address: itemAddress, root: view.root, held: view.roadmapHeld });
   const stages = [['open', 'Open'], ['claimed', 'Building'], ['submitted', 'In review'], ['accepted', 'Accepted'], ['merged', 'Landed']];
   const counts = headerFor(next) ? null : Object.fromEntries(stages.map(([stage]) => [stage, next ? next.rows.filter((row) => row.stage === stage).length : 0]));
   const shippingCounts = headerFor(next)
@@ -959,7 +959,7 @@ function roadmapCards(p, titles) {
   const body = (read) => {
     const { milestone, rows, done, total } = read;
     const progress = headerFor(read) ? '' : '<svg class="milestone-progress" viewBox="0 0 100 1" preserveAspectRatio="none" role="progressbar" aria-label="' + esc(milestone.name) + ': ' + done + ' of ' + total + ' landed" aria-valuemin="0" aria-valuemax="' + total + '" aria-valuenow="' + done + '"><rect width="' + (total ? (100 * done) / total : 0) + '" height="1"/></svg>';
-    return (rows.length ? progress + '<ul>' + rows.map((row) => milestoneRow(row, titles)).join('') + '</ul>' : '<p class="milestone-empty">No items yet.</p>')
+    return (rows.length ? progress + '<ul>' + rows.map((row) => milestoneRow(row, titles, view.roadmapHeld === milestone.name && !row.held)).join('') + '</ul>' : '<p class="milestone-empty">No items yet.</p>')
       + (milestone.note ? '<p class="milestone-note">' + rich(milestone.note, titles) + '</p>' : '');
   };
   /** Keep folding consistent with the View's other keyboard-accessible disclosure controls. */
@@ -1227,7 +1227,7 @@ function render() {
   // While another project loads, the item picked there waits for its own board.
   if (data.root === view.root && !view.adding && !(view.tab === 'items' && view.addressDetail !== null && view.addressDetail !== 'pipeline') && !p.items.some((i) => i.id === view.item)) view.item = shown.length ? shown[0].id : null;
   // An open item's chip, the same in its row and its detail: gated, its lane held, or unclaimed.
-  const openChip = (i) => i.blockedBy.length || heldLanes.has(i.lane) ? '<span class="chip gate">' + (i.blockedBy.length ? 'gated' : 'lane held') + '</span>' : chip('open');
+  const openChip = (i) => (p.itemHolds || []).some((h) => h.item === i.id) ? heldChip(heldNote(i, p)) : i.blockedBy.length || heldLanes.has(i.lane) ? '<span class="chip gate">' + (i.blockedBy.length ? 'gated' : 'lane held') + '</span>' : chip('open');
   $('chain').innerHTML = shown.length ? shown.map((i) => {
     const s = stateOf(i);
     // What an open item waits on, if anything: items not yet verified, or a hold on its lane.

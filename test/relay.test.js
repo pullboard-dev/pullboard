@@ -217,7 +217,7 @@ async function registerSecondProject(box) {
   const root = join(dirname(box.root), 'cancel-second-project');
   mkdirSync(root);
   for (const args of [['init', '-q', '-b', 'main'], ['-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-q', '-m', 'fixture base'],
-    ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git']]) {
+    ['remote', 'add', 'origin', 'git@github.com:fixture/repository-2.git']]) { // one team board per repository [E12]
     assert.equal(spawnSync('git', args, { cwd: root, env: box.env, encoding: 'utf8', timeout: 15_000 }).status, 0);
   }
   assert.equal((await box.cliAt(root, 'init')).code, 0, 'the second fixture project is registered on this machine');
@@ -704,7 +704,7 @@ test('unreadable links are refused; agent tokens belong to exactly one board [H8
   assert.deepEqual(await box.auth.boardsFor(signed.token), []);
   box.state.access = true;
   await box.auth.linkBoard(signed.token, 'alpha', 'fixture/repository');
-  await box.auth.linkBoard(signed.token, 'beta', 'fixture/repository');
+  await box.auth.linkBoard(signed.token, 'beta', 'fixture/repository-2'); // one team board per repository [E12]
   const agent = await box.auth.issueToken(signed.token, { board: 'alpha', agent: 'worker-1' });
   assert.equal((await box.auth.authenticate(agent.token, { board: 'alpha', write: true })).agent, 'worker-1');
   const before = box.calls.length;
@@ -735,7 +735,7 @@ test('person token management lists only owned scoped metadata and preserves ind
   const box = await fixture(t);
   const person = await login(box);
   await box.auth.linkBoard(person.token, 'alpha', 'fixture/repository');
-  await box.auth.linkBoard(person.token, 'beta', 'fixture/repository');
+  await box.auth.linkBoard(person.token, 'beta', 'fixture/repository-2'); // one team board per repository [E12]
   const first = await box.auth.issueToken(person.token, { board: 'alpha', agent: 'worker-one' });
   const second = await box.auth.issueToken(person.token, { board: 'alpha', agent: 'worker-two' });
   const other = await box.auth.issueToken(person.token, { board: 'beta', agent: 'worker-one' });

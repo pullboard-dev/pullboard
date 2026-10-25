@@ -1697,7 +1697,7 @@ test('the hosted page lists linked and local boards together [N26,H5]', {
   local.run(localProject.repo, 'add', 'web', localTitle);
   const duplicateProject = project(local, 'local-machine-c');
   const duplicateTitle = 'local machine C keeps its own view board';
-  local.git(duplicateProject.repo, 'remote', 'add', 'origin', 'git@github.com:fixture/repository.git');
+  local.git(duplicateProject.repo, 'remote', 'add', 'origin', 'git@github.com:fixture/repository-2.git'); // one team board per repository [E12]
   local.run(duplicateProject.repo, 'add', 'web', duplicateTitle);
   journeyPhase = 'setup-local-relay-board';
   journeyDeadline.setPhase(journeyPhase);
@@ -2124,7 +2124,7 @@ const other = join(dirname(${JSON.stringify(box.root)}), 'second-view-board');
 mkdirSync(other);
 for (const args of [['init','-q','-b','main'], ['-c','commit.gpgsign=false','commit','--allow-empty','-q','-m','chore: private view board']])
   runFixtureGit(args, {cwd:other,env:process.env});
-if (${JSON.stringify(mode)} !== 'partial') runFixtureGit(['remote','add','origin','git@github.com:fixture/repository.git'], {cwd:other,env:process.env});
+if (${JSON.stringify(mode)} !== 'partial') runFixtureGit(['remote','add','origin','git@github.com:fixture/repository-2.git'], {cwd:other,env:process.env});
 assert.equal(await main(['init','--json'], {cwd:other,stdin:process.stdin,stdout:{isTTY:false,write(){}},stderr:{write(){}}}),0);
 updateRelayMachine(state => { state.owner = {account:'7',url:${JSON.stringify(box.origin)}}; });
 process.stdout.write(JSON.stringify({other}));

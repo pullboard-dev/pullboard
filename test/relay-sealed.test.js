@@ -1321,7 +1321,7 @@ test('[A4,H7] snapshots compact covered moves, preserve the tail and deletion re
   const next = await box.call(box.path + '/moves', { method: 'POST', body: { sequence: 4, sealed: box.clientSeal({ move: 4 }, 'move', 4) } });
   assert.equal(next.body.event.event_id, 4);
   const other = 'f'.repeat(32) === box.id ? 'e'.repeat(32) : 'f'.repeat(32);
-  await box.auth.linkBoard(box.person.token, other, 'fixture/repository');
+  await box.auth.linkBoard(box.person.token, other, 'fixture/repository-2'); // one team board per repository [E12]
   const otherPath = '/api/v1/boards/' + other;
   assert.equal((await box.call(otherPath + '/state', { method: 'PUT', token: box.person.token, body: { sequence: 0, sealed: box.clientSeal({ other: true }, 'snapshot', 0, other) } })).status, 200);
   assert.equal((await box.call(box.path, { method: 'DELETE', token: box.person.token })).status, 200);

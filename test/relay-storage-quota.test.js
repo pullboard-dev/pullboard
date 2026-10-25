@@ -40,7 +40,7 @@ async function fixture(t, limitBytes = 300) {
   const auth = createRelayAuth({ database, github: createGitHubClient(provider.config) });
   const signed = await signIn(auth);
   await auth.linkBoard(signed.token, A, 'fixture/repository');
-  await auth.linkBoard(signed.token, B, 'fixture/repository');
+  await auth.linkBoard(signed.token, B, 'fixture/repository-2'); // one team board per repository [E12]
   const principal = { kind: 'machine', userId: signed.user.id, machine: 'fixture-native' };
   const quota = createStorageQuota({ directory, auth, limitBytes });
   const opened = [];
@@ -140,7 +140,7 @@ test('an existing storage account is stable across a second authorized link and 
   box.provider.state.accountID = 8; box.provider.state.permissionAccountID = 8;
   const other = await signIn(box.auth);
   await box.auth.linkBoard(other.token, A, 'fixture/repository');
-  await box.auth.linkBoard(other.token, C, 'fixture/repository');
+  await box.auth.linkBoard(other.token, C, 'fixture/repository-3');
   assert.equal(box.auth.storageAccount(A, other.user.id).id, box.signed.user.id);
   assert.equal(box.auth.storageAccount(C).id, other.user.id);
   assert.deepEqual(box.auth.storageBoards(box.signed.user.id), [A, B]);

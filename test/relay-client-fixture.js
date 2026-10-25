@@ -775,7 +775,10 @@ globalThis.fetch = function tracedFetch(input, init) {
     const run = (...args) => childResult(nextRoot, nextEnv, [CLI, ...args, '--json']);
     assert.equal(runFixtureChild('git', ['init', '-q', '-b', 'main'], { cwd: nextRoot, env: nextEnv, encoding: 'utf8' }).status, 0);
     assert.equal((await run('init')).code, 0);
-    assert.equal(runFixtureChild('git', ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git'], { cwd: nextRoot, env: nextEnv, encoding: 'utf8' }).status, 0);
+    // Its own repository: the relay links one team board per repository [E12].
+    const repository = 'repository-' + (provider.state.repositories.length + 1);
+    provider.state.repositories.push(repository);
+    assert.equal(runFixtureChild('git', ['remote', 'add', 'origin', `git@github.com:fixture/${repository}.git`], { cwd: nextRoot, env: nextEnv, encoding: 'utf8' }).status, 0);
     assert.equal((await run('add', lane, title)).code, 0);
     assert.equal((await run('relay', 'on', '--url', origin)).code, 0);
     const state = JSON.parse(readFileSync(join(nextRoot, '.git', 'pullboard', 'relay.json'), 'utf8'));
@@ -790,7 +793,7 @@ globalThis.fetch = function tracedFetch(input, init) {
     return childResult(root, env, ['--input-type=module', '-e', source]);
   }
   return {
-    transit, providerState: provider.state, providerCalls: provider.calls, relayDirectory: join(scratch, 'relay'), authDatabase, auth, otherDeviceJoin,
+    transit, providerState: provider.state, providerCalls: provider.calls, providerOrigin: provider.origin, relayDirectory: join(scratch, 'relay'), authDatabase, auth, otherDeviceJoin,
     root, env, origin, lane, before, linkFile, keyFile, calls, moveAcks, cli, cliAt, cliWithSnapshotUploads, cliWithSnapshotTrace, startCli, waitForResponse, holdNextConfirmationStatus, link, phoneSession, requireEngineThree, otherDeviceOff, additionalBoard, script, stopRelay, restartRelay,
     /** Assert the test consumed every declared child budget, with no hidden CLI calls. */
     assertCliChildrenComplete() {

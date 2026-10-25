@@ -44,6 +44,8 @@ import {
   recordLandingFlake,
   recordHealthFindings,
   openBoard,
+  boardId,
+  setBoardMembers,
   passDecision,
   PERSON,
   recordAttempt,
@@ -298,6 +300,8 @@ function engineLeafFixture(t, landedVersion, pendingLeaves) {
 function recordEventContract() {
   const board = openBoard(':memory:');
   const coordinator = ensureCoordinator(board, '/coordinator');
+  // Synthetic format fixture; cryptographic authority is exercised by relay-membership.test.js.
+  setBoardMembers(board, { agentId: coordinator, document: { body: { v: 1, board: boardId(board), repository: 'fixture/repository', revision: 1, members: ['bob'] }, by: 'alice', signature: '-----BEGIN SSH SIGNATURE-----\nsynthetic format fixture\n' } });
   const builder = register(board, { lane: 'docs', path: '/builder' });
   register(board, { lane: 'docs', path: '/builder', family: 'codex' });
   register(board, { lane: 'docs', path: '/builder', model: 'Fixture Model' });

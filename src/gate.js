@@ -81,6 +81,7 @@ import {
   memoryFloorMB,
 } from './settings.js';
 import { selectAffectedTests } from './affected-tests.js';
+import { selectRegistryGuards } from './registry-guards.js';
 import {
   checkNeedsBrowser,
   testsNeedBrowser,
@@ -615,22 +616,26 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   // A selection over submitDeferAbove files moves to the landing gate, which runs every recorded file before the item lands.
   const deferSelection = deferred && !selection.full && Number.isSafeInteger(config.submitDeferAbove) && selection.files.length > config.submitDeferAbove;
   const invariants = deferred ? [...new Set(config.submitInvariants ?? [])].sort() : [];
+  const registryGuards = selectRegistryGuards(root, config.registryGuards, { base, trunk, changed });
   if (invariants.length && !config.affectedTests?.trim()) {
     throw new Refused('BAD_CONFIG', 'submitInvariants requires the project affectedTests runner');
   }
-  for (const path of invariants) {
+  for (const path of [...invariants, ...registryGuards]) {
     let file = false;
     try { file = statSync(join(root, path)).isFile(); } catch { /* Missing or unreadable invariants refuse rather than silently disappearing. */ }
-    if (!file) throw new Refused('BAD_CONFIG', `submitInvariants file ${path} is missing or unreadable; restore it or update the list on accepted main`);
+    if (!file) throw new Refused('BAD_CONFIG', `${invariants.includes(path) ? 'submitInvariants' : 'registryGuards'} file ${path} is missing or unreadable; restore it or update the list on accepted main`);
   }
-  const proofFiles = [...new Set([...(deferFullFallback || deferSelection ? [] : selection.files), ...invariants])].sort();
+  const proofFiles = [...new Set([...(deferFullFallback || deferSelection ? [] : selection.files), ...invariants, ...registryGuards])].sort();
+  const guardCommand = registryGuards.length ? `${config.affectedTests.trimEnd()} ${registryGuards.map(path => commandWord('./' + path)).join(' ')}` : '';
+  const fullConfig = guardCommand ? { ...config, gate: `(${config.gate}) && ${guardCommand}` } : config;
   const allowBrowserFreeChecks = browserFreeChecksEnabled();
   const checkUsesBrowser = check ? (!allowBrowserFreeChecks || await checkNeedsBrowser(root, check, { onFallback: onBrowserFallback })) : false;
   const proofUsesBrowser = deferFullFallback || deferSelection
     ? (proofFiles.length > 0 && (!allowBrowserFreeChecks || await testsNeedBrowser(root, proofFiles, { onFallback: onBrowserFallback })))
     : (selection.full || !allowBrowserFreeChecks || await testsNeedBrowser(root, proofFiles, { onFallback: onBrowserFallback }));
   const browser = checkUsesBrowser || proofUsesBrowser;
-  const gui = (check ? await checkNeedsGui(root, check) : false) || ((selection.full && !deferFullFallback && !deferSelection) ? projectNeedsGui(root) : testsNeedGui(root, proofFiles));
+  const gui = (check ? await checkNeedsGui(root, check) : false)
+    || ((selection.full && !deferFullFallback && !deferSelection) && projectNeedsGui(root)) || testsNeedGui(root, proofFiles);
   return await withGateSlot(root, async (lease) => {
     pinRunMain(lease, onFailure);
     const startedAt = Date.now();
@@ -657,7 +662,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
           executionSource: profiles.find(value => value.executionSource)?.executionSource } : {}),
       });
       refuseSandboxBlocked(proof);
-      return { ...proof, log, seconds: criterion.seconds + proof.seconds, ...selection, ...(deferred ? { files: proofFiles, submitInvariants: invariants } : {}),
+      return { ...proof, log, seconds: criterion.seconds + proof.seconds, ...selection, files: proofFiles, registryGuards, ...(deferred ? { submitInvariants: invariants } : {}),
         ...(deferSelection ? { deferredFiles: selection.files, deferAbove: config.submitDeferAbove } : {}), deferred, deferFullFallback, check: receipt,
         profile, profilePath, proofProfilePath: proof.profilePath, proofLog: proof.log };
     };
@@ -670,7 +675,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     const proofWait = check ? 0 : lease.waitMs;
     let proof;
     // The proof keeps each stage's status, so a person's waiver can only ever explain named test failures.
-    if (!deferFullFallback && selection.full) proof = fullGateRun(root, config, false, { waitMs: proofWait, log: proofLog, gateLease: lease, stages: true, kind: 'submit' });
+    if (!deferFullFallback && selection.full) proof = fullGateRun(root, fullConfig, false, { waitMs: proofWait, log: proofLog, gateLease: lease, stages: true, kind: 'submit' });
     else if (!proofFiles.length) proof = { isGreen: true, output: '', seconds: 0, isCached: false, log: '' };
     else {
       const command = `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}`;
@@ -682,7 +687,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       : selection.full ? 'full gate' : 'affected tests';
     writeFileSync(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}`);
     if (!proof.isGreen && onFailure) await onFailure(proof, { root,
-      command: !deferFullFallback && selection.full ? config.gate : `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}`, lease });
+      command: !deferFullFallback && selection.full ? fullConfig.gate : `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}`, lease });
     await recordRun(onFailure, proof);
     return finish(proof);
   }, { browser, gui, agent, item, kind, itemCheck: true, onWait });
@@ -695,7 +700,8 @@ export function deferredSelectionNote(files) {
 
 /** Describe precisely which submission proof ran, including absent checks and full fallbacks. */
 export function submitGateReport(gate) {
-  const check = gate.check.checked ? `item check ${gate.check.green ? 'green' : 'red'} in ${gate.check.seconds}s` : 'no item check';
+  const registry = gate.registryGuards?.length ? `; registry guards: ${gate.registryGuards.join(', ')}` : '';
+  const check = (gate.check.checked ? `item check ${gate.check.green ? 'green' : 'red'} in ${gate.check.seconds}s` : 'no item check') + registry;
   if (gate.deferred) {
     const reason = gate.reason ? `: ${gate.reason}` : '';
     const timings = timingDigest(gate.profile);
@@ -707,7 +713,8 @@ export function submitGateReport(gate) {
       : gate.deferredFiles
         ? `${invariants}${deferredSelectionNote(gate.deferredFiles)} (over submitDeferAbove ${gate.deferAbove}): ${gate.deferredFiles.join(', ')}`
         : `affected tests: ${gate.files.length ? gate.files.join(', ') : 'none'}; full suite deferred to the landing gate${gate.submitInvariants?.length ? '; submit invariants: ' + gate.submitInvariants.join(', ') : ''}`;
-    const result = invariantsOnly && !gate.submitInvariants?.length ? '' : `; ${gate.isGreen ? `${invariantsOnly ? 'submit invariants' : 'affected tests'} green in ${gate.seconds}s` : gateReport(gate)}`;
+    const label = invariantsOnly ? (gate.registryGuards?.length ? 'submit invariants and registry guards' : 'submit invariants') : 'affected tests';
+    const result = invariantsOnly && !gate.submitInvariants?.length && !gate.registryGuards?.length ? '' : `; ${gate.isGreen ? `${label} green in ${gate.seconds}s` : gateReport(gate)}`;
     return `${check}; ${proof}${result}${detail}`;
   }
   const selection = gate.full ? `full gate: ${gate.reason}` : `affected tests: ${gate.files.length ? gate.files.join(', ') : 'none'}`;

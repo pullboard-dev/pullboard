@@ -13,6 +13,49 @@
     "test/refusal-next-steps.test.js",
     "test/machine.test.js"
   ],
+  "registryGuards": [
+    {
+      "inputs": [
+        "src/moves/**",
+        "src/recorded-move.js",
+        "src/api-moves.js",
+        "src/move-registry.js",
+        "src/discovery.js"
+      ],
+      "tests": [
+        "test/relay-credential.test.js",
+        "test/move-registry.test.js"
+      ]
+    },
+    {
+      "inputs": [
+        "src/**",
+        "docs/formats.md"
+      ],
+      "tests": [
+        "docs/formats.test.js"
+      ]
+    },
+    {
+      "inputs": [
+        "src/help.js",
+        "src/commands/**",
+        "src/cli-main.js"
+      ],
+      "tests": [
+        "test/readme.test.js"
+      ]
+    },
+    {
+      "inputs": [
+        "relay/**",
+        "docs/architecture.md"
+      ],
+      "tests": [
+        "docs/architecture.test.js"
+      ]
+    }
+  ],
   "spec": "SPEC.md",
   "verify": { "policy": "any", "unrelatedTrunkMoves": true, "composeAtAdmission": true },
   "lease": "2h",

@@ -97,9 +97,9 @@ test('HTTP person controls expose only scoped token metadata, and agent identity
   const box = await relay(t);
   const signed = await browserLogin(box);
   const headers = { cookie: signed.cookie, origin: box.origin, 'content-type': 'application/json' };
-  for (const board of ['alpha', 'beta']) {
+  for (const [board, repository] of [['alpha', 'fixture/repository'], ['beta', 'fixture/repository-2']]) { // one team board per repository [E12]
     const linked = await fetch(box.origin + '/auth/boards/link', { method: 'POST', headers,
-      body: JSON.stringify({ board, repository: 'fixture/repository' }) });
+      body: JSON.stringify({ board, repository }) });
     assert.equal(linked.status, 200);
   }
   const issued = await fetch(box.origin + '/auth/tokens', { method: 'POST', headers,

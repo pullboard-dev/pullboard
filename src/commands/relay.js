@@ -11,6 +11,8 @@ import {
   Refused,
 } from '../refused.js';
 import * as relayOutput from '../relay-output.js';
+import { prepareBoardMembers } from '../relay-membership.js';
+import { githubKeys } from '../relay-handover.js';
 import {
   relayJoin,
   relayPair,
@@ -29,6 +31,7 @@ import {
 import {
   relayOff,
   relayOn,
+  relayMachineContext,
   relayRecover,
   relayRevoke,
   relayStatus,
@@ -42,13 +45,30 @@ import {
   agentDisplayName,
   context,
   main,
+  ordered,
   withBoard,
+  whoAmI,
 } from '../cli.js';
 
 /** Run `pullboard relay` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
   if (['on', 'join'].includes(first) && gitSyncLinked(io.cwd)) throw new Refused('GIT_SYNC_LINKED', 'this board already shares moves through Git; it cannot start a second move order', 'keep using pullboard sync for this board');
   if (values['new-browser'] && first !== 'pair') throw new Refused('USAGE', 'pullboard relay pair --new-browser');
+  if (first === 'members') {
+    if (!['set', 'clear'].includes(second) || (second === 'set' ? !rest.length : rest.length) || values.url || values.all || values.skip) throw new Refused('USAGE', 'pullboard relay members set <login> [<login> ...], or pullboard relay members clear');
+    requirePersonChannel(io.personChannel);
+    const ctx = context(io);
+    const state = relayMachineContext(ctx.info.root);
+    if (!state || state.environment) throw new Refused('RELAY_NOT_LINKED', 'link this person’s computer before publishing board members');
+    await withBoard(ctx, async board => {
+      const revision = (store.readBoardMembers(board)?.body.revision ?? 0) + 1;
+      const document = await prepareBoardMembers(ctx.info.root, state, second === 'clear' ? [] : rest, { githubKeys, revision });
+      await ordered(ctx, board, 'setBoardMembers', [{ agentId: whoAmI(ctx, board).id, document }]);
+      io.result?.({ board: state.board, revision, members: document.body.members });
+      io.say(`Board member list revision ${revision}: ${document.body.members.length ? document.body.members.join(', ') : 'no additional members'}.`);
+    });
+    return 0;
+  }
   if (first === 'recover') {
     if (second || rest.length || !values.skip || values.url || values.all) throw new Refused('USAGE', 'pullboard relay recover --skip <exact blocked next sequence>');
     requirePersonChannel('terminal');

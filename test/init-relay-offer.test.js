@@ -90,8 +90,9 @@ function initWithoutTerminal(cwd, env) {
 function freshRepository(box, name) {
   const root = join(dirname(box.root), name);
   mkdirSync(root);
+  box.providerState.repositories.push('repository-' + name); // its own repository: one team board per repository [E12]
   for (const args of [['init', '-q', '-b', 'main'], ['config', 'user.name', 'Relay Fixture'], ['config', 'user.email', 'relay-fixture@example.com'], ['-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-q', '-m', 'fixture base'],
-    ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git']]) {
+    ['remote', 'add', 'origin', `git@github.com:fixture/repository-${name}.git`]]) {
     assert.equal(runFixtureChild('git', args, { cwd: root, env: box.env, encoding: 'utf8' }).status, 0);
   }
   return root;

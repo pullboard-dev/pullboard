@@ -1,3 +1,7 @@
+import {
+  heldChip,
+  heldNote,
+} from './held-items.js';
 /**
  * Part 2 of the hosted page's script, verbatim from src/cockpit.js lines 332-1298 (#745): its
  * text is what the page served before the split, with the values its ${} expressions read passed in as scope.
@@ -319,6 +323,8 @@ const chip = (s) => '<span class="chip ' + STATES[s][1] + '">' + STATES[s][0] + 
 const staleChip = (${staleChip.toString()});
 // A roadmap item's blocker dot and unfolded reason from src/view/roadmap-block.js (#605), read from the summaries held.
 const roadmapBlock = (${roadmapBlock.toString()});
+// Whether a list row reads held, and its chip, by the Roadmap header's rule, from src/view/held-items.js (#1256).
+const heldNote = (${heldNote.toString()}), heldChip = (${heldChip.toString()});
 const openPageDialog = (${openPageDialog.toString()}), closePageDialog = (${closePageDialog.toString()});
 /** Parse the bounded reference syntax before requesting additional committed line windows. */
 function codeReferenceParts(ref) {

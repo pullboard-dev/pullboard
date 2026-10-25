@@ -11,6 +11,8 @@ import { createDeviceStore } from './device-store.js';
 import { createDeviceHandler } from './device-http.js';
 import { createPairingStore } from './pairing-store.js';
 import { createPairingHandler } from './pairing-http.js';
+import { createKeyRequestStore } from './key-request-store.js';
+import { createKeyRequestHandler } from './key-request-http.js';
 import { createRelayBrowserHandler } from './browser-page.js';
 import { VERIFIER_STANDING_ENGINE } from '../src/machine.js';
 import { SEALED_SNAPSHOT_BYTES, SNAPSHOT_BODY_BYTES } from '../src/relay-limits.js';
@@ -182,6 +184,8 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
     authenticate: (req, { board, write }) => authorizedRequest(req, board, write),
     pairings: pairingStore,
   });
+  const keyRequestStore = createKeyRequestStore({ now });
+  const keyRequests = createKeyRequestHandler({ authenticate: (req, id, write) => authorizedRequest(req, id, write), requests: keyRequestStore });
   /** Refuse an old or ambiguous client before the opaque journal can return or accept board records. */
   async function authorizedRequest(req, id, write = false) {
     const who = await authorized(credential(req, origin, write), id, write);
@@ -337,7 +341,8 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
       return journal.after(after).map(event);
     }, false, board.engineVersion),
     warning: (board) => retention.notice(board.id),
-    warnings: (board) => [quota?.notice(board.id)].filter(Boolean),
+    // A waiting key request rides on the member's ordinary event read, so handing a key over costs no extra call [E17].
+    warnings: (board) => [quota?.notice(board.id), keyRequestStore.count(board.id) ? { code: 'KEY_REQUESTS', count: keyRequestStore.count(board.id) } : null].filter(Boolean),
     move: append,
     request: async (board, body, who) => (await append(board, body, who, 'request')).body,
   }, { pollMs });
@@ -357,6 +362,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
     if (await pagesHandler(req, res)) return;
     if (await deviceHandler(req, res)) return;
     if (await pairing(req, res)) return;
+    if (await keyRequests(req, res)) return;
     try {
       if (browser && await browser(req, res)) return;
       let url;

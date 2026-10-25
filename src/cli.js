@@ -104,6 +104,7 @@ import {
   configFromSource,
   loadConfig,
 } from './config.js';
+import { onlyNamedBoardChanged } from './relay-board-config.js';
 import { displayAgentName } from './agent-names.js';
 import {
   doctrineHistory,
@@ -1251,7 +1252,8 @@ export function uncommittedPolicySetup(info) {
  */
 export function refuseUncommittedSetup(mainRoot, config) {
   const hasCommit = headCommit(mainRoot) !== null;
-  const differ = differFromHead(mainRoot, setupFiles(mainRoot, config));
+  const differ = differFromHead(mainRoot, setupFiles(mainRoot, config))
+    .filter(({ path, how }) => !(path === CONFIG_FILE && how === 'changed' && onlyNamedBoardChanged(mainRoot)));
   if (hasCommit && !differ.length) return;
   const why = hasCommit
     ? `a new worktree starts from the last commit, and these differ from it here: ${differ.map(({ path, how }) => `${path} (${how})`).join(', ')}`

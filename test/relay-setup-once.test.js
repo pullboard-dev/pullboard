@@ -69,8 +69,9 @@ function assertSetupSucceeded(result, calls, origin) {
 async function project(box, name) {
   const root = join(dirname(box.root), name);
   mkdirSync(root);
+  box.providerState.repositories.push('repository-' + name); // its own repository: one team board per repository [E12]
   for (const args of [['init', '-q', '-b', 'main'], ['-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-q', '-m', 'fixture base'],
-    ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git']]) {
+    ['remote', 'add', 'origin', `git@github.com:fixture/repository-${name}.git`]]) {
     assert.equal(spawnSync('git', args, { cwd: root, env: box.env }).status, 0);
   }
   const initialized = await command(root, box.env, ['init']).done;
@@ -294,7 +295,7 @@ test('set up once links three registered boards, later registration and a persis
   const fourthBoard = linkProposal.context.board;
   assert.equal(existsSync(join(fourth, '.git/pullboard/relay.json')), false, 'registration does not grant itself a board credential');
   assert.equal(linkProposal.context.action, 'link');
-  assert.equal(linkProposal.context.target, 'fixture/repository');
+  assert.equal(linkProposal.context.target, 'fixture/repository-fourth-project');
   assert.ok(linkProposal.context.expires > Date.now(), 'the proposal carries a visible future expiry');
   assert.equal(typeof linkProposal.sealed, 'string', 'the queued link intent is sealed for the paired phone');
   assert.equal(linkProposal.published, true);
@@ -462,7 +463,7 @@ test('set up once keeps completed links on interruption and names partial failur
   assert.equal(JSON.parse(readFileSync(file, 'utf8')).pending, null, 'interruption leaves no half device enrollment');
   assert.equal(JSON.parse(readFileSync(file, 'utf8')).devices.length, 0);
   const retained = link(box.root).board;
-  assert.equal(spawnSync('git', ['remote', 'set-url', 'origin', 'git@github.com:fixture/repository.git'], { cwd: bad, env: box.env }).status, 0);
+  assert.equal(spawnSync('git', ['remote', 'set-url', 'origin', 'git@github.com:fixture/repository-invalid-origin-project.git'], { cwd: bad, env: box.env }).status, 0);
   const before = box.calls.length;
   const retry = command(box.root, box.env, ['relay', 'on', '--all']);
   t.after(async () => { if (retry.child.exitCode === null) retry.child.kill('SIGTERM'); await retry.done.catch(() => {}); });

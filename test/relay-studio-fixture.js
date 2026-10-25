@@ -41,8 +41,9 @@ export function studioCommand(box, cwd, args) {
 export async function studioProject(box, name) {
   const root = join(dirname(box.root), name);
   mkdirSync(root);
+  box.providerState.repositories.push('repository-' + name); // its own repository: one team board per repository [E12]
   for (const args of [['init', '-q', '-b', 'main'], ['-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-q', '-m', 'fixture base'],
-    ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git']]) {
+    ['remote', 'add', 'origin', `git@github.com:fixture/repository-${name}.git`]]) {
     assert.equal(runFixtureChild('git', args, { cwd: root, env: box.env }).status, 0);
   }
   assert.equal((await studioCommand(box, root, ['init']).done).code, 0, 'pullboard init registers ' + name + ' on studio');

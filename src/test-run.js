@@ -14,6 +14,9 @@ import {
   sep,
 } from 'node:path';
 import { testsNeedBrowser } from './browser-admission.js';
+import { selectAffectedTests } from './affected-tests.js';
+import { selectRegistryGuards } from './registry-guards.js';
+import { mainPolicy } from './trusted-policy-read.js';
 import {
   runProfiledShellAsync,
   withGateSlot,
@@ -22,7 +25,10 @@ import {
   cleanGitEnvironment,
   headCommit,
 } from './git.js';
-import { testsNeedGui } from './gui-admission.js';
+import {
+  projectNeedsGui,
+  testsNeedGui,
+} from './gui-admission.js';
 import {
   compareMainFailures,
   withMainCheckout,
@@ -100,17 +106,31 @@ function localReason() {
  *
  * @returns {Promise<{ green: boolean, output: string, runner: string, seconds: number, files: string[], known: Array<{file: string, result: string}>, main: string|null }>}
  */
-export async function runTestFiles(root, config, files, { agent, onWait } = {}) {
+export async function runTestFiles(root, config, files, { agent, onWait, affected = false } = {}) {
+  if (affected && files.length) throw new Refused('USAGE', 'use pullboard test --affected without file arguments, or name the files without --affected');
+  const policy = affected ? mainPolicy(root) : null;
+  if (policy) config = policy.config;
   if (typeof config.affectedTests !== 'string' || !config.affectedTests.trim()) {
     throw new Refused('NO_TEST_RUNNER', 'set "affectedTests" in pullboard.json to the command that runs named test files, like "node bin/run-tests.js"');
   }
-  const paths = testFiles(root, files);
-  const command = `${config.affectedTests.trimEnd()} ${paths.map((path) => shellWord('./' + path)).join(' ')}`;
+  let paths = affected ? [] : testFiles(root, files);
   const started = Date.now();
   const run = await inCleanCheckout(root, async (checkout) => {
-    const browser = !browserFreeChecksEnabled() || await testsNeedBrowser(checkout, paths);
+    let full = false;
+    if (policy) {
+      const options = { base: policy.commit, trunk: policy.commit };
+      const selection = selectAffectedTests(checkout, options);
+      const guards = selectRegistryGuards(checkout, config.registryGuards, options);
+      full = selection.full;
+      paths = [...new Set([...(full ? [] : selection.files), ...guards])].sort();
+      if (paths.length) paths = testFiles(checkout, paths);
+    }
+    const focused = paths.length ? `${config.affectedTests.trimEnd()} ${paths.map(path => shellWord('./' + path)).join(' ')}` : '';
+    if (full && !config.gate?.trim()) throw new Refused('NO_TEST_RUNNER', 'affected selection needs the full project gate; set gate in accepted pullboard.json');
+    const command = full ? `(${config.gate})${focused ? ' && ' + focused : ''}` : (focused || 'true');
+    const browser = full || !browserFreeChecksEnabled() || await testsNeedBrowser(checkout, paths);
     return withGateSlot(checkout, (lease) => runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs }),
-      { browser, gui: testsNeedGui(checkout, paths), shortEligible: true, agent, kind: 'test', onWait });
+      { browser, gui: (full && projectNeedsGui(checkout)) || testsNeedGui(checkout, paths), shortEligible: !full, agent, kind: 'test', onWait });
   });
   const result = { green: run.isGreen, output: run.output, runner: run.executionRunner || 'this machine', seconds: Math.round((Date.now() - started) / 1000), files: paths, known: [], main: null,
     ...(run.executionRunner ? {} : { local: localReason() }) };

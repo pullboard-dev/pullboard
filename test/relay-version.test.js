@@ -24,7 +24,7 @@ test('relay enforces the minimum engine ever required by each board [H16,H3]', a
   const callback = new URL(grant.headers.get('location'));
   const person = await auth.finishWeb(callback.searchParams.get('state'), callback.searchParams.get('code'), flow.binding);
   await auth.linkBoard(person.token, A, 'fixture/repository');
-  await auth.linkBoard(person.token, B, 'fixture/repository');
+  await auth.linkBoard(person.token, B, 'fixture/repository-2'); // one team board per repository [E12]
   const historical = await auth.issueToken(person.token, { board: B, agent: 'once-issued', expiresIn: 1 });
   await auth.revoke(person.token, historical.id);
   time += 10;

@@ -48,7 +48,7 @@ function deviceConfirmationPage() {
     'if(value.confirmed){stopPolling();status.textContent="The board is linked. You can return to the terminal.";return;}' +
     'if(!value.ready){status.textContent="Finish GitHub sign-in in the other tab, then this page will ask you to confirm.";return;}' +
     'status.textContent="Signed in as @"+value.account+". Confirm only if this is the board and machine you intended.";' +
-    'intent.textContent="Link "+value.intent.boardName+" from "+value.intent.host+"?";confirmButton.hidden=false;declineButton.hidden=false;' +
+    'intent.textContent="Link "+value.intent.boardName+" from "+value.intent.host+(value.intent.replaces?", replacing board "+value.intent.replaces:"")+"?";confirmButton.hidden=false;declineButton.hidden=false;' +
     '}catch(error){if(terminal)return;status.textContent=error.message;confirmButton.hidden=true;declineButton.hidden=true;}}' +
     '/** Send an exact-origin, cookie-bound confirmation decision. */ async function decide(decision){confirmButton.disabled=true;declineButton.disabled=true;try{' +
     'const response=await fetch("/auth/device/confirmation",{method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},' +
@@ -139,7 +139,7 @@ export function createAuthHandler({ auth, publicOrigin }) {
       } else if (route === 'POST /auth/boards/link') {
         const bearer = token(req, true);
         const input = await body(req);
-        json(res, 200, { board: await auth.linkBoard(bearer, input.board, input.repository) });
+        json(res, 200, { board: await auth.linkBoard(bearer, input.board, input.repository, Infinity, input.replaces ?? null) });
       } else if (route === 'GET /auth/machines') {
         json(res, 200, { machines: await auth.listMachines(token(req), url.searchParams.get('board')) });
       } else if (route === 'POST /auth/machines') {

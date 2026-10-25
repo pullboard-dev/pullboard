@@ -2,6 +2,7 @@ import { normalizedDispatch } from './dispatch-health.js';
 import { hasPendingDispatchNotices } from './health-receipts.js';
 import { AUTOMATIC_DISPATCH_ENGINE } from './automatic-dispatch-engine.js';
 import { correctedBar } from './corrected-bar.js';
+export { readBoardMembers, setBoardMembers } from './board-members.js';
 import { heartbeatSeat } from './seat-presence.js';
 import * as itemDecisions from './item-decision-queue.js';
 import * as activityDeliveryStore from './activity-delivery-store.js';

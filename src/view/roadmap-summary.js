@@ -16,7 +16,9 @@ export function roadmapSummary(milestone, context = {}) {
   const segments = states.map(([key]) => { const x = offset; offset += summary[key]; return '<rect class="roadmap-summary-segment ' + key + '" data-summary-segment="' + key + '" data-count="' + summary[key] + '" x="' + x + '" width="' + summary[key] + '" height="1"/>'; }).join('');
   // Geometry uses the supplied counts as SVG units; inline CSS is disallowed by the view's policy.
   const bar = '<svg class="milestone-progress roadmap-summary-bar" viewBox="0 0 ' + (summary.total || 1) + ' 1" preserveAspectRatio="none" role="img" aria-label="' + escape(milestone.name+': '+description) + '" data-total="' + summary.total + '">' + segments + '</svg>';
-  const legend = '<div class="roadmap-summary-legend">'+states.map(([key,label]) => '<span data-summary-state="'+key+'"><i class="roadmap-summary-swatch '+key+'" aria-hidden="true"></i><b>'+escape(summary[key])+'</b> '+label+'</span>').join('')+'</div>';
+  // The held count opens the held items alone, and a second press shows every item again (#1256).
+  const heldLink = key => key === 'held' && summary.held > 0;
+  const legend = '<div class="roadmap-summary-legend">'+states.map(([key,label]) => (heldLink(key) ? '<button type="button" class="link roadmap-held-link" data-roadmap-held="'+escape(milestone.name)+'" aria-pressed="'+(context.held === milestone.name)+'" data-summary-state="'+key+'">' : '<span data-summary-state="'+key+'">')+'<i class="roadmap-summary-swatch '+key+'" aria-hidden="true"></i><b>'+escape(summary[key])+'</b> '+label+(heldLink(key) ? '</button>' : '</span>')).join('')+'</div>';
   const target = milestone.target ? '<span class="roadmap-target">Target <time datetime="'+escape(milestone.target)+'">'+escape(context.time ? context.time(milestone.target) : milestone.target)+'</time>'+(milestone.pastTarget?' <span class="chip warn">past target</span>':'')+'</span>' : '';
   const estimate = summary.estimate, pace = summary.pace;
   // The time line reads the summary's estimate, window and reason as given (#853): today's pace for the 6 h
@@ -41,14 +43,14 @@ export function roadmapSummary(milestone, context = {}) {
  * the page embeds this source, so it keeps src/cockpit.js inside its line cap; the page hands in what it reads by.
  *
  * @param {(milestone: object, context: object) => object|null} summarize - roadmapSummary.
- * @param {{time: (iso: string) => string, address: (id: number, root: string) => string, root: string}} page
+ * @param {{time: (iso: string) => string, address: (id: number, root: string) => string, root: string, held?: string|null}} page
  * @returns {(read: {milestone: object, rows: object[]}|null) => object|null}
  */
 export function roadmapHeaders(summarize, page) {
   const made = new Map();
   return (read) => {
     if (!read) return null;
-    if (!made.has(read)) made.set(read, summarize(read.milestone, { time: page.time, lookup: (id) => {
+    if (!made.has(read)) made.set(read, summarize(read.milestone, { time: page.time, held: page.held, lookup: (id) => {
       const label = typeof id === 'number' ? '#' + id : String(id), row = read.rows.find((row) => row.label === label);
       return row ? { label, title: row.title, id: row.open?.id, address: row.open ? page.address(row.open.id, row.open.root) : null, board: row.open?.root !== page.root ? row.open?.root : null } : null;
     } }));

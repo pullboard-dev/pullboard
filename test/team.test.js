@@ -12,7 +12,7 @@ import * as store from '../src/board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { relayClientFixture as sessionRelay, relayFixtureChild as sessionChild, relayClientFixture, relayFixtureChild } from './relay-client-fixture.js';
-import { runFixtureGit as sessionGit, runFixtureGit } from './fixture-child.js';
+import { runFixtureGit as sessionGit, runFixtureGit, runFixtureChild } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { serveApi } from '../src/api.js';
 import { main } from '../src/cli.js';
@@ -24,6 +24,9 @@ import { decodeBoardKey, seal } from '../src/seal.js';
 import { ENGINE_VERSION as PEOPLE_VERSION } from '../src/machine.js';
 import { relayWorkBudgetMs } from './relay-budget.js';
 import { hostname, tmpdir } from 'node:os';
+import { createDeviceKeys, unwrapDeviceBoardKey } from '../src/relay-device-keys.js';
+import { handOverBoardKeys, statementBytes } from '../src/relay-handover.js';
+import { signSshVouch } from '../src/relay-ssh-proof.js';
 import { assertMatchingLandingHost, assertNoCulpritTrunkHold } from './landing-environment-fixture.js';
 import { landingQueueCase } from './landing-queue-fixture.js';
 
@@ -663,6 +666,150 @@ test('a board that names no approvers takes person moves as before [E4]', { time
   assert.notEqual((await receivedRequests(box))[fromBob].status, 'refused', 'any writer’s session answers as the person, as today');
 });
 
+/** Another computer of a person: its own HOME, ~/.ssh and a fresh clone of the fixture repository. */
+function memberDevice(t, box, name) {
+  const home = join(box.root, '..', name + '-home');
+  const root = join(box.root, '..', name + '-clone');
+  mkdirSync(join(home, '.ssh'), { recursive: true, mode: 0o700 });
+  runFixtureGit(['clone', '-q', box.root, root], { cwd: box.root, env: box.env });
+  runFixtureGit(['remote', 'set-url', 'origin', 'git@github.com:fixture/repository.git'], { cwd: root, env: box.env });
+  const env = { ...box.env, HOME: home, PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(home, 'machine') };
+  delete env.PULLBOARD_MODEL;
+  delete env.PULLBOARD_SSH_KEY; // A separate computer cannot inherit Alice’s private signing-key path.
+  const device = { root, env, home, cli: (...args) => relayFixtureChild(root, env, [CLI, ...args, '--json']) };
+  /** Generate this device's SSH key, as ssh-keygen -t ed25519 does, and return its public line. */
+  device.sshKey = () => {
+    const made = childProcess.spawnSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', name, '-f', join(home, '.ssh', 'id_ed25519')], { env, encoding: 'utf8' });
+    assert.equal(made.status, 0, `ssh-keygen makes the device's key: ${made.stderr}`);
+    return readFileSync(join(home, '.ssh', 'id_ed25519.pub'), 'utf8').trim().split(' ').slice(0, 2).join(' ');
+  };
+  /** Start a command that waits, and resolve said(text) once its stderr carries text. */
+  device.start = (...args) => {
+    const child = childProcess.spawn(process.execPath, [CLI, ...args, '--json'], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    const waiting = [];
+    child.stdout.setEncoding('utf8').on('data', (part) => { stdout += part; });
+    child.stderr.setEncoding('utf8').on('data', (part) => { stderr += part; for (const waiter of [...waiting]) waiter(); });
+    const closed = new Promise((resolve) => child.once('close', (code) => {
+      let document;
+      try { document = JSON.parse(stdout); } catch { document = null; }
+      for (const waiter of [...waiting]) waiter();
+      resolve({ code, stderr, document });
+    }));
+    t.after(() => child.kill('SIGKILL'));
+    /** Resolve once stderr carries the text, or the command has closed. */
+    const said = (text) => new Promise((resolve) => {
+      const check = () => { if (stderr.includes(text) || child.exitCode !== null) { waiting.splice(waiting.indexOf(check), 1); resolve(stderr.includes(text)); } };
+      waiting.push(check);
+      check();
+    });
+    return { closed, said };
+  };
+  return device;
+}
+
+test('a clone of a linked repo joins its board; a member device hands over the key [E1,E12,E17]', { timeout: relayWorkBudgetMs(20) }, async (t) => { // budget: hang ceiling for four devices' real CLI runs, ssh-keygen and relay calls; not a speed target.
+  const box = await teamBoard(t, ['alice']);
+  // Each computer has OpenSSH's ssh-keygen, and reads SSH keys from the stand-in GitHub.
+  const tools = join(box.root, '..', 'tools-bin');
+  mkdirSync(tools, { mode: 0o700 });
+  for (const name of readdirSync(box.env.PATH)) symlinkSync(join(box.env.PATH, name), join(tools, name));
+  const sshKeygen = childProcess.spawnSync('sh', ['-c', 'command -v ssh-keygen'], { encoding: 'utf8' }).stdout.trim();
+  assert.ok(sshKeygen, 'the test machine has OpenSSH');
+  symlinkSync(sshKeygen, join(tools, 'ssh-keygen'));
+  Object.assign(box.env, { PATH: tools, PULLBOARD_GITHUB_API: box.providerOrigin });
+  const aliceKey = join(box.root, '..', 'alice-handover-key');
+  assert.equal(runFixtureChild('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', aliceKey], { encoding: 'utf8' }).status, 0);
+  box.env.PULLBOARD_SSH_KEY = aliceKey;
+  const alicePublic = readFileSync(aliceKey + '.pub', 'utf8').trim().split(' ').slice(0, 2).join(' ');
+  box.providerState.sshKeys = { alice: [alicePublic] };
+  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const config = join(box.root, 'pullboard.json');
+  assert.equal(JSON.parse(readFileSync(config, 'utf8')).relay?.board, link.board, 'relay on writes the board’s id into pullboard.json');
+  assert.equal((await box.cli('add', box.lane, 'Health endpoint')).code, 0);
+
+  // S5: a clone made before pullboard.json named the board links no second board for the repository.
+  const early = memberDevice(t, box, 'bob-early');
+  assert.equal((await early.cli('init')).code, 0);
+  assert.equal((await early.cli('add', box.lane, 'Health endpoint')).code, 0);
+  box.providerState.signer = 'bob';
+  const split = await early.cli('relay', 'on', '--url', box.origin);
+  assert.equal(split.document?.error?.code, 'BOARD_REPO_LINKED', `the relay refuses a second board for the repository: ${JSON.stringify(split.document?.error ?? null)}`);
+  assert.match(split.document.error.message + ' ' + split.document.error.next, new RegExp(link.board + '[\\s\\S]*pullboard.json'), 'the refusal names the board and where a clone finds it');
+  assert.equal(box.auth.linkedBoards().length, 1, 'the relay holds one board for the repository');
+  assert.equal(existsSync(join(early.root, '.git', 'pullboard', 'relay.json')), false, 'the refused clone keeps no half-made link');
+
+  // Once pullboard.json names the board, that clone keeps its own work rather than hide it under the team board.
+  runFixtureGit(['add', 'pullboard.json'], { cwd: box.root, env: box.env });
+  runFixtureGit(['-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'chore: name the relay board'], { cwd: box.root, env: box.env });
+  rmSync(join(early.root, 'pullboard.json')); // the clone's own init wrote it before the repository carried one
+  runFixtureGit(['pull', '-q', '--no-rebase', box.root, 'HEAD'], { cwd: early.root, env: early.env });
+  const kept = await early.cli('relay', 'on', '--url', box.origin);
+  assert.equal(kept.document?.error?.code, 'RELAY_JOIN_NOT_EMPTY', `a clone with work of its own is not joined over it: ${JSON.stringify(kept.document?.error ?? null)}`);
+  assert.equal(box.auth.linkedBoards().length, 1);
+
+  const members = await box.cli('relay', 'members', 'set', 'bob');
+  assert.equal(members.code, 0, `alice publishes a real signed member list: ${members.stderr}`);
+  assert.deepEqual(members.document.members, ['bob']);
+
+  // E17: a device key signed by an SSH key that is not on bob's GitHub account gets no board key.
+  box.providerState.sshKeys = { alice: [alicePublic], bob: [] };
+  const stray = memberDevice(t, box, 'bob-stray');
+  assert.equal((await stray.cli('init')).code, 0);
+  stray.sshKey();
+  const strayOn = stray.start('relay', 'on', '--url', box.origin);
+  assert.equal(await strayOn.said('no member device is online'), true, 'with no member online the new device says so and waits');
+  assert.equal((await box.cli('status')).code, 0, 'alice’s computer comes online');
+  const refused = await strayOn.closed;
+  assert.equal(refused.document?.error?.code, 'RELAY_KEY_VOUCH', `the member device refuses a key no GitHub SSH key vouches for: ${refused.stderr}`);
+  assert.equal(existsSync(join(stray.env.PULLBOARD_HOME, 'relay-keys', link.board + '.key')), false, 'the stray device holds no board key');
+
+  // E17: bob's new device, its key on his GitHub account, joins once a member device is online.
+  const fresh = memberDevice(t, box, 'bob-new');
+  assert.equal((await fresh.cli('init')).code, 0);
+  box.providerState.sshKeys = { alice: [alicePublic], bob: [fresh.sshKey()] };
+  const freshOn = fresh.start('relay', 'on', '--url', box.origin);
+  assert.equal(await freshOn.said('no member device is online'), true, 'the new device says no member is online and waits');
+  assert.equal((await box.cli('status')).code, 0, 'alice’s computer comes online and hands the key over');
+  const joined = await freshOn.closed;
+  box.providerState.signer = 'alice';
+  assert.equal(joined.code, 0, `relay on in the clone joins the board: ${joined.stderr}; ${JSON.stringify(joined.document?.error ?? null)}`);
+  assert.equal(JSON.parse(readFileSync(join(fresh.root, '.git', 'pullboard', 'relay.json'), 'utf8')).board, link.board, 'the clone works on the board pullboard.json names');
+  assert.equal(box.auth.linkedBoards().length, 1, 'joining never links another board');
+  const listed = await fresh.cli('list', '--all');
+  assert.ok(listed.document.items.some((item) => (item.title ?? item.item_title) === 'Health endpoint'), 'the joined clone reads the team board');
+  const bobLink = JSON.parse(readFileSync(join(fresh.root, '.git', 'pullboard', 'relay.json'), 'utf8'));
+  assert.equal(bobLink.agentTokens?.coordinator, undefined, 'list membership does not create person coordinator authority');
+  const coordinatorPath = withBoard(box.root, board => store.listAgents(board).find(agent => agent.agent_id === 'coordinator').agent_path);
+  const bobWork = fresh.root + '-lane';
+  runFixtureGit(['worktree', 'add', '--detach', bobWork, 'HEAD'], { cwd: fresh.root, env: fresh.env });
+  const bobCli = (...args) => relayFixtureChild(bobWork, fresh.env, [CLI, ...args, '--json']);
+  const bobJoined = await bobCli('join', box.lane, '--model', 'Fixture Model');
+  assert.equal(bobJoined.code, 0, `the member registers an ordinary lane seat: ${JSON.stringify(bobJoined.document?.error ?? null)}`);
+  const freshAdd = await bobCli('add', box.lane, 'From bob’s new computer');
+  assert.equal(freshAdd.code, 0, `the joined clone moves on the team board: ${JSON.stringify(freshAdd.document?.error ?? null)}`);
+  assert.ok((await box.cli('export')).document.tables.item.some((item) => item.item_title === 'From bob’s new computer'), 'one board, one order: alice reads bob’s move');
+  assert.equal(withBoard(box.root, board => store.listAgents(board).find(agent => agent.agent_id === 'coordinator').agent_path), coordinatorPath, 'the ordinary member leaves Alice’s coordinator holder unchanged');
+});
+
+test('a relink turns the old link off with its receipt, so a repository keeps one active board [E12]', { timeout: 120_000 }, async (t) => { // budget: hang ceiling for real relay calls; not a speed target.
+  const box = await teamBoard(t, null);
+  const old = JSON.parse(readFileSync(box.linkFile, 'utf8')).board;
+  const alice = await personSession(box, 'alice');
+  const next = randomBytes(16).toString('hex');
+  await assert.rejects(box.auth.linkBoard(alice, next, 'fixture/repository'), { code: 'BOARD_REPO_LINKED' }, 'a second board without replaces is refused');
+  await assert.rejects(box.auth.linkBoard(alice, next, 'fixture/repository', Infinity, 'e'.repeat(32)), { code: 'BOARD_REPLACE' }, 'replaces must name the active board');
+  const linked = await box.auth.linkBoard(alice, next, 'fixture/repository', Infinity, old);
+  assert.equal(linked.replaced, old, 'the link reports the board it turned off');
+  const receipt = box.auth.boardOff(old);
+  assert.equal(receipt?.replacedBy, next, 'the old link is off, with a receipt naming its replacement');
+  assert.equal(box.auth.boardOff(next), null, 'the new link is the active one');
+  await assert.rejects(box.auth.linkBoard(alice, randomBytes(16).toString('hex'), 'fixture/repository', Infinity, old), { code: 'BOARD_REPLACE' },
+    'an off board cannot be replaced again, so no caller can stack links');
+  await assert.rejects(box.auth.linkBoard(alice, randomBytes(16).toString('hex'), 'fixture/repository'), { code: 'BOARD_REPO_LINKED' },
+    'the replacement is the one active board');
+});
 
 /** Every file under a directory, so a test can prove no secret was written anywhere in it. */
 function filesUnder(directory) {
@@ -871,4 +1018,59 @@ test('a landing lease renewal or waiter poll writes no board event [Q1,Q2,Q3]', 
   const state = store.landingLeaseState(board);
   assert.equal(state.holder, null);
   assert.equal(state.line.length, 1, 'suppressing polling events does not discard the waiting command');
+});
+
+
+test('a non-approver device without a signed member list receives no board key [H15,E17]', async t => {
+  const folder = mkdtempSync(join(tmpdir(), 'pullboard-handover-membership-'));
+  t.after(() => rmSync(folder, { recursive: true, force: true }));
+  const box = helpers.project();
+  const state = { board: withBoard(box.repo, store.boardId), repository: 'fixture/repository', login: 'alice' };
+  const boardKey = randomBytes(32);
+  /** Make an actual SSH signature and device key, independent of what the malicious relay asserts. */
+  async function request(login) {
+    const file = join(folder, login);
+    const made = runFixtureChild('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', file], { encoding: 'utf8' });
+    assert.equal(made.status, 0, 'OpenSSH creates the private fixture signing key');
+    const device = await createDeviceKeys();
+    const statement = { v: 1, board: state.board, repository: state.repository, login, device: device.deviceId,
+      publicKey: device.publicKey, engine: PEOPLE_VERSION, expires: Date.now() + 60_000 };
+    const input = file + '.statement';
+    writeFileSync(input, statementBytes(statement), { mode: 0o600 });
+    const signed = runFixtureChild('ssh-keygen', ['-Y', 'sign', '-q', '-n', 'pullboard-device-key', '-f', file, input], { encoding: 'utf8' });
+    assert.equal(signed.status, 0, "the request is genuinely signed by that login's SSH key");
+    return { device, signingKey: file, publicKey: readFileSync(file + '.pub', 'utf8').trim().split(' ').slice(0, 2).join(' '),
+      entry: { id: login, login, statement, signature: readFileSync(input + '.sig', 'utf8') } };
+  }
+  const outsider = await request('bob');
+  const member = await request('alice');
+  const body = { v: 1, board: state.board, repository: state.repository, login: 'alice' };
+  const identity = { body, signature: signSshVouch(JSON.stringify(['pullboard-person-identity', body]), 'pullboard-person-identity', member.signingKey) };
+  /** Present attacker-controlled relay entries while resolving SSH ownership directly for each account. */
+  async function answer(person) {
+    const deliveries = [];
+    await handOverBoardKeys(state, boardKey, {
+      root: box.repo, identity,
+      async send(_state, _path, options) {
+        if (options.method === 'PUT') { deliveries.push(options.body); return {}; }
+        return { requests: [person.entry] };
+      },
+      async githubKeys(login) { return login === person.entry.login ? [person.publicKey] : []; },
+    }, { err() {} });
+    assert.equal(deliveries.length, 1, 'each request gets one explicit refusal or delivery');
+    return deliveries[0];
+  }
+  const refused = await answer(outsider);
+  const leaked = refused.wrapped ? await unwrapDeviceBoardKey(outsider.device.privateKey,
+    JSON.parse(Buffer.from(refused.wrapped, 'base64url').toString('utf8')),
+    { board: state.board, device: outsider.device.deviceId, engine: PEOPLE_VERSION }) : null;
+  assert.equal(leaked !== null && Buffer.from(leaked).equals(boardKey), false, 'the outsider cannot decrypt the actual board key');
+  assert.equal(refused.refused?.code, 'RELAY_NOT_MEMBER', 'a valid outsider signature cannot establish trusted board membership');
+  assert.equal(Object.hasOwn(refused, 'wrapped'), false, 'the relay receives no key ciphertext it could unwrap as the outsider');
+  const allowed = await answer(member);
+  assert.ok(allowed.wrapped, 'the linked person can still bootstrap their own independently vouched device');
+  const unwrapped = await unwrapDeviceBoardKey(member.device.privateKey,
+    JSON.parse(Buffer.from(allowed.wrapped, 'base64url').toString('utf8')),
+    { board: state.board, device: member.device.deviceId, engine: PEOPLE_VERSION });
+  assert.deepEqual(Buffer.from(unwrapped), boardKey, 'the legitimate new device receives the actual board key');
 });

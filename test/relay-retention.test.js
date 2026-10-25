@@ -34,7 +34,7 @@ async function fixture(t) {
   const signed = await auth.finishWeb(url.searchParams.get('state'), url.searchParams.get('code'), flow.binding);
   // Real auth link time uses its own wall clock; journal activity below is the controlled inactivity origin.
   await auth.linkBoard(signed.token, A, 'fixture/repository');
-  await auth.linkBoard(signed.token, B, 'fixture/repository');
+  await auth.linkBoard(signed.token, B, 'fixture/repository-2'); // one team board per repository [E12]
   const agent = await auth.issueToken(signed.token, { board: A, agent: 'worker' });
   const other = await auth.issueToken(signed.token, { board: B, agent: 'other' });
   const config = { directory: data, backupsDirectory: backups, auth, now: () => clock };
@@ -155,7 +155,7 @@ test('[H18] explicit unlink removes managed backups immediately and a durable cr
   assert.ok(existsSync(join(box.data, B + '.journal.sqlite')));
   assert.deepEqual(box.auth.pendingCleanup(), [B]);
   await assert.rejects(box.auth.authenticate(box.other.token, { board: B }), { code: 'RELAY_BOARD_DELETED' });
-  await assert.rejects(box.auth.linkBoard(box.signed.token, B, 'fixture/repository'), { code: 'RELAY_CLEANUP' });
+  await assert.rejects(box.auth.linkBoard(box.signed.token, B, 'fixture/repository-2'), { code: 'RELAY_CLEANUP' });
   const freshAuth = createRelayAuth({ database: join(box.root, 'auth.sqlite'), github: {} });
   try {
     assert.deepEqual(freshAuth.pendingCleanup(), [B], 'the intent comes from persisted auth state');
@@ -165,7 +165,7 @@ test('[H18] explicit unlink removes managed backups immediately and a durable cr
     assert.deepEqual(readdirSync(box.backups), []);
     assert.deepEqual(freshAuth.pendingCleanup(), []);
   } finally { freshAuth.close(); }
-  await box.auth.linkBoard(box.signed.token, B, 'fixture/repository');
+  await box.auth.linkBoard(box.signed.token, B, 'fixture/repository-2');
 });
 
 test('[H18] SQLite backups contain current compacted state, stay private, and prune only after fourteen days', async (t) => {
@@ -231,7 +231,7 @@ test('[H18] maintenance is daily, retries storage failures, and refuses symlink 
 test('[H18] a never-uploaded link expires from its original link time without manufacturing a journal', async (t) => {
   const box = await fixture(t);
   const C = 'c'.repeat(32);
-  await box.auth.linkBoard(box.signed.token, C, 'fixture/repository');
+  await box.auth.linkBoard(box.signed.token, C, 'fixture/repository-3');
   const linked = box.auth.linkedBoards().find((row) => row.id === C).linkedAt;
   box.set(linked + 60 * DAY);
   assert.equal(box.retention.notice(C).inactiveDays, 60);

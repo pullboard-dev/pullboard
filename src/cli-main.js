@@ -94,6 +94,7 @@ const OPTIONS = {
   diagnostics: { type: 'boolean' },
   landing: { type: 'boolean' },
   adopt: { type: 'boolean' },
+  affected: { type: 'boolean' },
   waive: { type: 'string' },
   until: { type: 'string' },
   take: { type: 'string' },
@@ -318,7 +319,7 @@ async function runMain(argv, streams) {
       const [command, verb] = parsed.positionals;
       const remoteRelayOn = command === 'relay' && verb === 'on' && !parsed.values.all;
       if (!parsed.values.help && !parsed.values.version &&
-          (parsed.values.as === 'person' && command !== 'decisions' || command === 'relay' && ['on', 'join', 'revoke'].includes(verb) && !remoteRelayOn)) {
+          (parsed.values.as === 'person' && command !== 'decisions' || command === 'relay' && ['on', 'join', 'revoke', 'members'].includes(verb) && !remoteRelayOn)) {
         (await import('./person.js')).requirePersonChannel(io.personChannel);
         io.caller('person');
       }
