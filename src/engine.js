@@ -1,3 +1,4 @@
+import { boundProofReceipt } from './proof-receipts.js';
 import {
   handoffMoveProblem,
   requireHandoffActive,
@@ -93,6 +94,11 @@ export function prepareEngineMove(board, operation, args, { id = randomUUID(), a
   validateSpecRefreezeMarker(operation, values);
   if (operation === 'reopen' && values[1] && typeof values[1] === 'object'
     && manualLandingFailureQuoted(values[1].note)) values[1].quotedLandingFailure = true;
+  // Seal native stored facts at origin; replicas replay these bytes without the origin file.
+  if (operation === 'recordProofRun') {
+    const receipt = boundProofReceipt(board, args[0]);
+    values[0] = { agentId: args[0].agentId, itemId: args[0].itemId, receipt };
+  }
   if (operation === 'submit' && ENGINE_VERSION >= SUBMISSION_PROOF_ENGINE) submissionProof(values[1]?.submissionProof);
   if (operation === 'submit') submissionSize(values[1]?.submissionSize, values[1]?.commit);
   if (operation === 'claim' && ['wipPerReviewer', 'takeoverMinutes'].some(key => typeof lineSettings(board)[key] === 'number')) {

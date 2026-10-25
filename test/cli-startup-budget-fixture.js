@@ -74,7 +74,7 @@ export async function assertStartupBudgets(t) {
     const expectedItems=JSON.parse(JSON.stringify(store.listItems({db,clock:store.systemClock})));
     const board={db,clock:store.systemClock};
     const expectedShow=JSON.parse(JSON.stringify({version:1,...store.getItem(board,4),verdicts:store.verdictsFor(board,4),
-      thread:store.itemThread(board,4),agentApproved:[],approvalQualification:''}));
+      thread:store.itemThread(board,4),checkText:'',agentApproved:[],approvalQualification:''}));
     const samples={version:[],show:[],status:[],list:[]};
     const childEnvironment={...process.env,PULLBOARD_HOME:join(root,'private-home'),PULLBOARD_MACHINE_HOME:join(root,'private-machine'),GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1'};
     for(const name of ['PULLBOARD_RELAY_TOKEN','PULLBOARD_RELAY_KEY']) delete childEnvironment[name];

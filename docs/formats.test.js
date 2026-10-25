@@ -28,6 +28,7 @@ import {
   recordActivityDelivery,
   answerDecision,
   addItem,
+  requestCompanion,
   appendFact,
   claim,
   closeBoard,
@@ -336,6 +337,7 @@ function recordEventContract() {
   appendFact(board, first, { agentId: coordinator, kind: 'measurement', text: 'Corrected evidence', supersedes: fact.id });
   editItem(board, first, { agentId: coordinator, brief: 'Files: docs/formats.md\nTest: docs/formats.test.js', route: 'mid', criterion: 'Changed', check: 'node test', reviewFamily: 'Fixture Review' });
   const dependency = addItem(board, { by: coordinator, lane: 'docs', title: 'Dependency example' });
+  requestCompanion(board, { agentId: builder, parentId: dependency, lane: 'core', key: 'format-event', title: 'Companion event example' });
   editItem(board, first, { agentId: coordinator, after: [dependency] });
   const implying = appendFact(board, first, { agentId: coordinator, kind: 'decision', text: 'Dependency changes', implies: [dependency] });
   appendFact(board, first, { agentId: coordinator, kind: 'supersession', text: 'Dependency changes again', supersedes: implying.id });
@@ -734,6 +736,7 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
     model: 'agent',
     moved: 'coordinator',
     add: 'item creator',
+    companion: 'requesting agent',
     edit: 'editor',
     attempt: 'reporting agent',
     fact: 'author',

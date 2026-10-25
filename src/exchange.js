@@ -2,6 +2,7 @@ import { beginCommandPhase } from './command-phase.js';
 import { LANDING_LOCAL_PREFIX } from './landing-local-lease.js';
 import { PROOF_COUNTER_PREFIX } from './proof-counters.js';
 import { rebuildProofCounters } from './proof-counters.js';
+import { importSeatObservations } from './seat-presence.js';
 import {
   beginBoardWrite,
   finishBoardWrite,
@@ -204,7 +205,9 @@ export function isInitialBoard(board) {
  * @returns {{ tables: string[] }}
  */
 export function importBoard(board, document) {
-  return restoreDocument(board, document);
+  const result = restoreDocument(board, document);
+  importSeatObservations(board, document?.presentation?.state?.agents);
+  return result;
 }
 
 /**
@@ -222,7 +225,9 @@ export function restoreRelaySnapshot(board, document, sequence, expectedNativeDi
   const engine = Number(meta.get('relay_engine_version'));
   if (!Number.isSafeInteger(engine) || engine < 1) throw new Refused('RELAY_SNAPSHOT', 'this checkpoint has no supported engine version; upgrade pullboard or join by pairing');
   if (engine > ENGINE_VERSION) throw new Refused('ENGINE_VERSION', `snapshot engine version ${engine} is newer than this pullboard engine version ${ENGINE_VERSION}; upgrade pullboard before applying the relay order`);
-  return restoreDocument(board, document, true, expectedNativeDigest);
+  const result = restoreDocument(board, document, true, expectedNativeDigest);
+  importSeatObservations(board, document?.presentation?.state?.agents);
+  return result;
 }
 
 /** Restore validated native rows with lifecycle guards suspended only inside the transaction. */

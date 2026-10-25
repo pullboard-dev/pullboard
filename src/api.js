@@ -759,6 +759,32 @@ export function apiBoardListing(projects = listApiProjects, isMain) {
   return { boards, warnings };
 }
 
+/**
+ * Every open person decision of the project the named board belongs to, each with its board id
+ * and repo; a board outside any project lists alone. An unreadable member is named, not fatal [N34].
+ *
+ * @param {string | null} selected a registered board id
+ * @param {() => { root: string, name: string, project: string }[]} projects
+ * @param {boolean | undefined} isMain
+ * @returns {{ version: 1, project: string, decisions: object[], unreadable: string[] }}
+ */
+function projectDecisionListing(selected, projects, isMain) {
+  if (!selected) throw new Refused('BAD_REQUEST', 'name a registered board with ?board=<id> from GET /api/v1/boards');
+  const home = findBoard(selected, projects, isMain);
+  const members = home.project ? projects().filter((entry) => entry.project === home.project) : [home];
+  const decisions = [];
+  const unreadable = [];
+  for (const member of members) {
+    try {
+      withReadBoard(member.root, (board) => {
+        const id = store.boardId(board);
+        for (const ask of store.openDecisions(board, store.PERSON)) decisions.push({ ...ask, board: id, repo: member.name });
+      }, isMain);
+    } catch { unreadable.push(member.name); }
+  }
+  return { version: 1, project: home.project ?? '', decisions, unreadable };
+}
+
 /** Resolve only registered boards, so a request cannot open an arbitrary path on the machine. */
 function findBoard(id, projects, isMain) {
   // Each request resolves its board, so this opens boards read-only and stops at the match (#1040).
@@ -1153,6 +1179,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     },
     settings: (selected) => settingsInventory(settingsScope.projects(), selected),
     boards: () => withGitReadFacts(() => apiBoardListing(apiProjects, codeIsMain)),
+    decisions: (selected) => withGitReadFacts(() => projectDecisionListing(selected, apiProjects, codeIsMain)),
     board: (id) => withGitReadFacts(() => findBoard(id, apiProjects, codeIsMain)),
     state: (board, who, seen, options) => withGitReadFacts(() => localState(board, seen, options).state),
     stateJson: (board, who, seen, options) => withGitReadFacts(() => {

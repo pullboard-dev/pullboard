@@ -48,5 +48,6 @@ export default Object.freeze({ operation: "shout", order: 23, engine: 1,
   "NO_SHOUT": "name a shout id from pullboard inbox",
   "REQUEST_CLOSED": "read pullboard inbox before answering another request",
   "REQUEST_OUTCOME": "pullboard answer <id> done \"<reason>\", or pullboard answer <id> declined \"<reason>\"",
+  "SHOUT_TOO_LONG": 'shorten the message to 400 characters or fewer; cite native proof receipt ids and read pullboard show <id> for the evidence chain',
   "SELF_SHOUT": "name another agent, a lane or all: pullboard shout all \"<text>\""
 }) });

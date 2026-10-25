@@ -1,5 +1,10 @@
 /** The pullboard answer command, in its own module so an item adding another command never edits these lines. */
+import { basename } from 'node:path';
 import * as store from '../board.js';
+import {
+  projectSiblings,
+  resolveRepo,
+} from '../project-decisions.js';
 import {
   parseImplies,
 } from '../implies.js';
@@ -11,6 +16,7 @@ import {
 } from '../person.js';
 import {
   actOn,
+  context,
   agentDisplayName,
   idArg,
   ordered,
@@ -19,6 +25,18 @@ import {
 
 /** Run `pullboard answer` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
+  const reference = /^(.+)#([1-9]\d*)$/u.exec(first ?? '');
+  if (reference) {
+    // repo#id names a decision on another repo of this project; the answer runs on that repo's own board [N34].
+    const ctx = context(io);
+    const self = { root: ctx.info.root, name: ctx.config.name ?? basename(ctx.info.root) };
+    const target = resolveRepo(reference[1], self, projectSiblings(ctx.info.root, ctx.config));
+    if (target.root !== self.root) {
+      const there = Object.create(io, { cwd: { value: target.root } });
+      return run(there, { first: reference[2], second, rest, values });
+    }
+    return run(io, { first: reference[2], second, rest, values });
+  }
   const act = (work) => actOn(io, work);
   return act(async (ctx, board, me) => {
   const asPerson = personMode(ctx, me, values);

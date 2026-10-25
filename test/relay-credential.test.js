@@ -24,6 +24,8 @@ test('every current operation selects its native actor credential without a seco
     if (operation === 'takeHandoff') args = [{ agentId: actor, item: 999999 }];
     if (operation === 'approveOutside') { args = [999999, { agentId: 'person' }]; kind = 'person'; }
     if (operation === 'addItem') args = [{ by: actor, lane: box.lane, title: 'credential actor fixture' }];
+    if (operation === 'requestCompanion') args = [{ agentId: actor, parentId: 999999, lane: box.lane,
+      key: 'credential-companion', title: 'credential actor fixture' }];
     if (operation === 'shout') args = [{ from: actor, to: 'all', text: 'credential actor fixture', lanes: [box.lane] }];
     if (operation === 'release') args = [999999, actor];
     if (['claim', 'refreeze'].includes(operation)) args = [box.before.tables.item[0].item_id, options];
@@ -39,6 +41,7 @@ test('every current operation selects its native actor credential without a seco
     if (operation === 'recordFlakeObservation') args = [{ agentId: actor, lane: box.lane, observation: syntheticFlakeObservation('credential-fixture') }];
     if (operation === 'recordGateRun') args = [{ agentId: actor, lane: box.lane, receipt: { version: 1, id: '00000000-0000-4000-8000-00000000c0de', kind: 'gate', tree: 'b'.repeat(40), head: 'a'.repeat(40),
       main: 'a'.repeat(40), command: 'c'.repeat(64), green: true, failures: [], load: { average: [0, 0, 0], cpus: 1, freeMB: 100 }, at: '2026-10-20T00:00:00.000Z' } }];
+    if (operation === 'recordProofRun') args = [{ agentId: actor, itemId: 999999, receiptId: '00000000-0000-4000-8000-00000000c0de' }];
     if (operation === 'declareJob') args = [{ agentId: actor, name: 'credential-job', every: '10m', owner: actor }];
     if (operation === 'recordJobRun') args = [{ agentId: actor, name: 'credential-job' }];
     if (operation === 'takeCoordinator') args = [{ agentId: actor, machine: 'credential-machine' }];
@@ -70,10 +73,12 @@ test('every current operation selects its native actor credential without a seco
     if (operation === 'recordRowDecisions') { args = [{ agentId: 'person', channel: 'terminal', decisions: [] }]; kind = 'person'; }
     if (operation === 'decideSpecRevisions') { args = [{ agentId: 'person', channel: 'terminal', decisions: [] }]; kind = 'person'; }
     // A gate run with no receipt from this machine's own gate is refused before it reaches transport.
+    if (operation === 'recordProofRun') return { operation, args, kind, sent: false, expected: 'PROOF_RUN_UNBOUND' };
     if (operation === 'recordGateRun') return { operation, args, kind, sent: false, expected: 'GATE_RUN_UNBOUND' };
     return { operation, args, kind, ...(kind === 'person' ? { sent: false } : {}) };
   });
   cases.push(
+    { operation: 'requestCompanion', args: [{ parentId: 999999, lane: box.lane, key: 'missing-actor', title: 'Missing actor' }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'openHandoff', args: [{}], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'takeHandoff', args: [{ item: 999999 }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordPublishFinding', args: [{ item: 999999 }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },

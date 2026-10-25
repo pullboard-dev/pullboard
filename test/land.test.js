@@ -9,6 +9,7 @@ import { exportBoard, importBoard } from '../src/exchange.js';
 import { landingFailures, landingSubject } from '../src/land.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { startFixtureChild, runFixtureChild } from './fixture-child.js';
+import { waitForFixtureProgress } from './fixture-progress.js';
 import { assertNoRemoteLanding } from './land-no-remote-fixture.js';
 import { MARKER_NOT_YET, readMarker } from './land-marker-fixture.js';
 import { assertLandingStopIdentity } from './land-stop-fixture.js';
@@ -26,6 +27,7 @@ import { assertParallelLanding, assertParallelCliLease, assertParallelNestedGate
 import { landEnginesInOrder } from './land-engine-fixture.js';
 import {
   assertCollisionFreeLanding,
+  assertSiblingConflictLanding,
   assertDeferredLandingPriority,
 } from './land-collision-fixture.js';
 const e2e = createE2eHelpers();
@@ -555,18 +557,7 @@ test('land bisects a real red, blocks stale proof and refuses an unverified stac
 });
 
 test('land names sibling conflicts whose reviews share the unchanged main [B3,R3,E8]', () => {
-  const box = landProject();
-  const entries = [1, 2].map(number => itemWorktree(box, number, FILES[0]));
-  submitItem(box, entries[0], 'PASS\nfirst sibling\n');
-  submitItem(box, entries[1], 'PASS\nsecond sibling\n');
-  for (const entry of entries) acceptItem(box, entry);
-  const dry = json(box, box.repo, 'land', '--dry-run');
-  assert.deepEqual(dry.blocked, [], 'neither acceptance is stale against unchanged main');
-  assert.deepEqual(dry.conflicts, [], 'each sibling merges with the current main considered individually');
-  assert.deepEqual(dry.items, entries.map(entry => entry.item));
-  const result = json(box, box.repo, 'land');
-  assert.deepEqual(result.landed, [entries[0].item]);
-  assert.deepEqual(result.conflicts, [{ id: entries[1].item, files: [FILES[0]] }], 'the actual batch names the collision between the two fresh siblings');
+  assertSiblingConflictLanding({ landProject, itemWorktree, submitItem, acceptItem, json, file: FILES[0] });
 });
 
 /** Keep the complete private diagnostic refusal in a failing assertion before fixture cleanup deletes its logs. */
@@ -1272,13 +1263,21 @@ test('land bisect adoption retains completed gates, isolated diagnostics and ori
   writeFileSync(box.trace, '');
   writeFileSync(box.hold, '3');
   const child = startFixtureChild(process.execPath, [BIN, 'land', '--json'], { cwd: box.repo, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
-  child.stdout.resume(); child.stderr.resume();
+  let outputBytes = 0;
+  child.stdout.on('data', part => { outputBytes += Buffer.byteLength(part); });
+  child.stderr.on('data', part => { outputBytes += Buffer.byteLength(part); });
   const closed = new Promise((resolveClose) => child.once('close', (status, signal) => resolveClose({ status, signal })));
   t.after(() => {
     writeFileSync(box.release, 'release');
     if (child.exitCode === null && child.signalCode === null) { try { process.kill(-child.pid, 'SIGKILL'); } catch {} }
   });
-  await waitFor(() => existsSync(box.entered), 'third full gate inside bisection', 20000); // budget: hang ceiling for the third private bisection gate entry handshake; no throughput claim.
+  await waitForFixtureProgress({
+    child,
+    ready: () => existsSync(box.entered),
+    progress: () => outputBytes + [box.calls, box.trace].reduce((bytes, file) =>
+      bytes + (existsSync(file) ? readFileSync(file).length : 0), 0),
+    description: 'third full gate inside bisection',
+  });
   const interrupted = json(box, box.repo, 'resume').landingBatches.at(-1);
   assert.equal(interrupted.items.length, 2, 'the current half differs from the original four candidates');
   assert.equal(interrupted.gateResults.length, 2);

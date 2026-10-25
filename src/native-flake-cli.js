@@ -3,7 +3,6 @@ import { readFileSync } from 'node:fs';
 import { COORDINATOR } from './config.js';
 import { laneOf } from './lanes.js';
 import {
-  checkAtCommit,
   mainPolicy,
   policyAt,
 } from './trusted-policy.js';
@@ -13,6 +12,8 @@ import {
   receiptStore,
 } from './gate-run-receipt.js';
 import { runProfiledShell } from './gate.js';
+import { runFrozenProof } from './gate.js';
+import { recordNativeProof } from './proof-cli.js';
 import {
   diagnosticUnavailable,
   flakeSource,
@@ -62,7 +63,9 @@ export function check(ctx, item, command, services) {
   const observe = observer(ctx, { kind: 'check' }, services);
   return async lease => {
     pinRunMain(lease, observe);
+    lease.proof = { item: item.item_id, frozenDigest: item.item_frozen_digest ?? null, seat: services.resourceAgent(ctx), kind: 'check' };
     const run = runProfiledShell(ctx.info.root, command, { waitMs: lease.waitMs, artifactPrefix: `pullboard-check-${item.item_id}`, persistLog: true, gateLease: lease });
+    await recordNativeProof(ctx, item, run, services);
     if (!run.isGreen) await observe(run, { command, lease });
     return run;
   };
@@ -73,7 +76,9 @@ export function verify(ctx, item, command, options, services) {
   const observe = observer(ctx, { ...options, kind: 'verify', privateCheck: true }, services);
   return async lease => {
     pinRunMain(lease, observe);
-    const result = checkAtCommit(ctx.info.root, item, { waitMs: lease.waitMs, gateLease: lease });
+    lease.proof = { seat: services.resourceAgent(ctx) };
+    const result = runFrozenProof(ctx.info.root, item, { waitMs: lease.waitMs, gateLease: lease });
+    await recordNativeProof(ctx, item, result, services, options.board);
     if (result.state === 'red') await observe({ isGreen: false, output: result.outputPath ? readFileSync(result.outputPath, 'utf8') : result.output,
       log: result.outputPath, profilePath: result.profilePath, executionRoot: result.executionRoot, executionSourceUnchanged: result.executionSourceUnchanged, executionRunner: result.executionRunner,
       executionLoad: result.executionLoad, executionMain: result.executionMain, executionSource: result.executionSource,

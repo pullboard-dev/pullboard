@@ -20,7 +20,10 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { availableParallelism } from 'node:os';
-import { executionEnvironment } from './execution-environment.js';
+import {
+  captureTestRuntimes,
+  executionEnvironment,
+} from './execution-environment.js';
 import { sampleRunnerLoad } from './runner-load.js';
 import { freemem } from 'node:os';
 import { loadavg } from 'node:os';
@@ -858,7 +861,7 @@ async function runPrivateCheck(spec, root, env, sink, tracker) {
 async function receipt(spec, fields, sink) {
   await flushStdout();
   const body = { id: spec.id, commit: spec.commit, tree: spec.tree, code: fields.code, signal: fields.signal,
-    environment: executionEnvironment(), gui: fields.gui ?? null, timing: spec.timing === true, executionAdmission: fields.executionAdmission ?? null,
+    environment: executionEnvironment(), testRuntimes: fields.testRuntimes ?? null, gui: fields.gui ?? null, timing: spec.timing === true, executionAdmission: fields.executionAdmission ?? null,
     runtimeSha256: spec.runtime.sha256, toolingSha256: spec.tooling.sha256, root: fields.root ?? '', outputSha256: sink.hash.digest('hex'), wallMs: Math.max(0, Date.now() - sink.wallStart),
     // The execution host's load and the pinned main this run used, so a paired rerun here can be judged (#925).
     main: typeof spec.main === 'string' ? spec.main : null, load: { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) },
@@ -909,6 +912,7 @@ async function main() {
   let api;
   let lease = null;
   let tracker = null;
+  let runtimeCapture = null;
   let runDirectory;
   let setupStep = 'runner directories';
   let gui = null;
@@ -962,7 +966,8 @@ async function main() {
     });
     cleanupDetails = tracker.cleanupState;
     activeDescendantTracker = tracker;
-    const env = scopedEnvironment(privateHome, temporary, canonicalMachineHome, lease, api, tracker.nodeOptions);
+    runtimeCapture = captureTestRuntimes(scopedEnvironment(privateHome, temporary, canonicalMachineHome, lease, api, tracker.nodeOptions));
+    const env = runtimeCapture.env;
     setupStep = 'source history checkout';
     await checkoutHistory(api, runnerRoot, root, packFile, spec, env);
     if (!spec.trustedMode) {
@@ -1003,6 +1008,7 @@ async function main() {
         }
       } finally { await releaseDrainedLease(lease); }
     }
+    final.testRuntimes = runtimeCapture?.finish() ?? null;
     cleanupStage = 'job files';
     if (runDirectory && !cleanupTimedOut) { try { rmSync(runDirectory, { recursive: true, force: true }); } catch {} }
   }

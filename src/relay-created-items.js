@@ -1,5 +1,5 @@
 /** Explicit result bindings for item-creating moves; input item fields never become created-item identities [B26,H16]. */
-const SINGLE = Object.freeze({ addItem: [], intakeOutside: [], openHandoff: ['item'],
+const SINGLE = Object.freeze({ addItem: [], requestCompanion: ['item'], intakeOutside: [], openHandoff: ['item'],
   recordLandingFlake: ['item'], recordLandingTestDefect: ['item'], recordFlakeObservation: ['item'],
   recordPublishFinding: ['repair'] });
 

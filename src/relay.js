@@ -1353,7 +1353,7 @@ export async function relayCommandReceipt(root, command) {
     if (!state) {
       const recovered = deletedRecovery(root);
       if (!recovered || recovered.marker.recovered.commandIntent !== intentDigest(operationIntent('cli:' + command.cliOperation, command))) return null;
-      const expected = { add: 'addItem', edit: 'editItem', merged: 'merged' }[command.cliOperation];
+      const expected = { add: 'addItem', companion: 'requestCompanion', edit: 'editItem', merged: 'merged' }[command.cliOperation];
       if (recovered.move.operation !== expected) throw new Refused('RELAY_STORAGE', 'restore the interrupted command receipt before retrying');
       if (recovered.receipt.outcome.error) {
         clearDeletedRecovery(root, recovered.marker);
@@ -1367,7 +1367,7 @@ export async function relayCommandReceipt(root, command) {
     if (recovered.commandIntent !== operationIntent('cli:' + recovered.command?.cliOperation, recovered.command)) {
       throw new Refused('RELAY_STORAGE', 'restore the interrupted command metadata before retrying');
     }
-    const expected = { add: 'addItem', edit: 'editItem', merged: 'merged' }[command.cliOperation];
+    const expected = { add: 'addItem', companion: 'requestCompanion', edit: 'editItem', merged: 'merged' }[command.cliOperation];
     if (!recovered.move || recovered.move.operation !== expected) throw new Refused('RELAY_STORAGE', 'restore the interrupted command metadata before retrying');
     const move = recoveredMove(root, state, recovered.move.operation, recovered.move.args, command);
     const receipt = localRecords(root, board => engineReceipt(board, move.id));

@@ -91,3 +91,30 @@ export function assertDeferredLandingPriority({ landProject, itemWorktree, submi
     assert.ok(item.item_merged_commit);
   }
 }
+
+/** Bind a fresh sibling collision to its exact pre-badge Git composition and reviewed commit. */
+export function assertSiblingConflictLanding({ landProject, itemWorktree, submitItem, acceptItem, json, file }) {
+  const box = landProject();
+  const entries = [1, 2].map(number => itemWorktree(box, number, file));
+  submitItem(box, entries[0], 'PASS\nfirst sibling\n');
+  submitItem(box, entries[1], 'PASS\nsecond sibling\n');
+  for (const entry of entries) acceptItem(box, entry);
+  const dry = json(box, box.repo, 'land', '--dry-run');
+  assert.deepEqual(dry.blocked, [], 'neither acceptance is stale against unchanged main');
+  assert.deepEqual(dry.conflicts, [], 'each sibling merges with the current main considered individually');
+  assert.deepEqual(dry.items, entries.map(entry => entry.item));
+  const base = box.git(box.repo, 'rev-parse', 'main');
+  const firstCommit = box.git(entries[0].path, 'rev-parse', 'HEAD');
+  const reviewedCommit = box.git(entries[1].path, 'rev-parse', 'HEAD');
+  const result = json(box, box.repo, 'land');
+  assert.deepEqual(result.landed, [entries[0].item]);
+  const trunk = result.conflicts[0]?.trunk;
+  assert.match(trunk, /^[a-f0-9]{40}$/u, 'the collision records an exact Git composition');
+  assert.deepEqual(box.git(box.repo, 'show', '-s', '--format=%P', trunk).split(' '), [base, firstCommit],
+    'the conflicting trunk contains the base and only the first reviewed sibling');
+  const expectedTree = box.git(box.repo, 'merge-tree', '--write-tree', base, firstCommit).split('\n')[0];
+  assert.equal(box.git(box.repo, 'rev-parse', `${trunk}^{tree}`), expectedTree,
+    'the recorded conflict-time tree is the independent Git composition before landing badges change');
+  assert.deepEqual(result.conflicts, [{ id: entries[1].item, files: [file], trunk,
+    commit: reviewedCommit, reviewedCommit }], 'the actual batch binds the sibling collision to its exact composition and reviewed commit');
+}

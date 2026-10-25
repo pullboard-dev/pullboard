@@ -52,7 +52,7 @@ test('a pullboard command in prose chips only the command [N26]', async () => {
   const box = machine();
   const demo = project(box, 'commands');
   box.run(demo.repo, 'shout', 'all', [
-    'pullboard spec check prints a line for docs/api.md with 0 errors.',
+    'pullboard spec check prints docs/api.md.',
     'pullboard view serves every board.',
     'Run pullboard next --verify 235 then review it.',
     'pullboard verify 235 reject goes on in words.',

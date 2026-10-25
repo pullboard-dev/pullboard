@@ -18,6 +18,7 @@ import {
   ruleLine,
 } from '../doctrine-checks.js';
 import * as gateReceipt from '../gate-receipt.js';
+import { recordNativeProof } from '../proof-cli.js';
 import {
   gateWaitReporter,
 } from '../gate-wait.js';
@@ -202,7 +203,11 @@ export async function submitHere(ctx, id, infra) {
     // The accepted project runner interprets its current invariant files; candidate config cannot replace it.
     ...(acceptedMain.config.submitInvariants.length || acceptedMain.config.registryGuards.length ? { affectedTests: acceptedMain.config.affectedTests } : {}) };
   const gate = await runSubmitGate(root, submitConfig, { base: claimHead, trunk: acceptedMain.commit, check: frozenCheck(held), agent: me.id, item: String(id), onWait: queuedItemLease(ctx, held, me.id, 'build'), onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
+    proofContext: { item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id },
     onFailure: nativeFlakes.observer(ctx, { kind: 'submit', main: acceptedMain.commit, config: submitConfig }, { ordered, withBoard, resourceAgent }) });
+  for (const proofReceiptId of gate.proofReceiptIds ?? []) {
+    await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent });
+  }
   // Only the person's live waivers can pass a red proof, failure by failure; the item's own check is never waived [B3].
   const waived = !gate.isGreen && gate.check?.green ? withBoard(ctx, (board) => waivedFailures(board, accountedFailures(gate, root))) : null;
   if (!gate.isGreen && !waived) {

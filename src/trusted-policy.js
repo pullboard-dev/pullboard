@@ -19,6 +19,7 @@ import { sandboxBlockedScanner } from './sandbox-denial.js';
 import {
   timingFromOutput,
   timingFromLog,
+  logLines,
   timingRunner,
 } from './timing.js';
 import {
@@ -49,6 +50,7 @@ import {
 import { secretsIn } from './hooks.js';
 import { outOfLane } from './lanes.js';
 import { Refused } from './refused.js';
+import { proofCounts } from './proof-provenance.js';
 
 /** Resolve the trunk snapshot and refuse a conflict without touching an index or worktree [B34,V6].
  *
@@ -193,18 +195,21 @@ export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, ga
   let installOutput = '';
   let checkOutput = '';
   let environment = null;
+  let testRuntimes = null;
   const checkStartedAt = Date.now();
   let installLogPath = '';
   let checkLogPath = '';
   let timingProfile = { files: [], tests: [] };
   let checkedSourceReady = false;
+  let executed = false;
+  let exitCode = null;
   /** Format one completed check phase with the private captures and durable artifact locations. */
   const finish = (state, stage) => {
     const runner = timingRunner(command);
     const events = checkLogPath && existsSync(checkLogPath) ? timingFromLog(checkLogPath, runner) : timingFromOutput(checkOutput, runner);
     timingProfile = { ...events, wallMs: Math.max(0, Date.now() - checkStartedAt), environment };
     return checkResult(state, stage, installOutput, checkOutput, { root, item, commandRoot: copy, installLogPath, checkLogPath, timingProfile, waitMs,
-      environment, executionSourceUnchanged: checkedSourceReady && privateSourceUnchanged(copy, item.item_commit, env) });
+      environment, testRuntimes, executed, exitCode, proofCounts: privateCheckCounts(checkLogPath, checkOutput), executionSourceUnchanged: checkedSourceReady && privateSourceUnchanged(copy, item.item_commit, env) });
   };
   try {
     const common = policyGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
@@ -249,7 +254,10 @@ export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, ga
     if (remaining <= 0) return finish('unverified', 'check timed out');
     checkLogPath = join(scratch, 'check.log');
     const run = runPrivateCommand(copy, env, command, remaining, checkLogPath);
+    executed = run.executed === true;
+    exitCode = run.status ?? null;
     environment = environmentProblem(run.environment) ? null : run.environment;
+    testRuntimes = run.testRuntimes ?? null;
     checkOutput = run.output;
     if (run.error?.code === 'ETIMEDOUT') return finish('unverified', 'check timed out');
     if (run.error) return finish('unverified', `check could not start (${run.error.code})`);
@@ -260,6 +268,12 @@ export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, ga
   finally {
     rmSync(scratch, { recursive: true, force: true });
   }
+}
+
+/** Count only the check phase; install output is setup and cannot supply verdict test totals. */
+function privateCheckCounts(path, capture) {
+  try { return proofCounts(path && existsSync(path) ? logLines(path) : capture); }
+  catch { return { passed: null, failed: null, skipped: null }; }
 }
 
 /** Run one shell command in a bounded private process group and capture its combined output. */
@@ -407,7 +421,7 @@ function privateSourceUnchanged(root, commit, env) {
 }
 
 /** Persist a sanitized full diagnostic outside the temporary checkout so a refusal can name it. */
-function checkResult(state, stage, installCapture, checkCapture, { root = '', item = {}, commandRoot = root, installLogPath = '', checkLogPath = '', timingProfile = null, waitMs = 0, environment = null, executionSourceUnchanged } = {}) {
+function checkResult(state, stage, installCapture, checkCapture, { root = '', item = {}, commandRoot = root, installLogPath = '', checkLogPath = '', timingProfile = null, waitMs = 0, environment = null, testRuntimes = null, executed = false, exitCode = null, proofCounts = null, executionSourceUnchanged } = {}) {
   const boundedInstall = secretScanned(installCapture, 'check install capture');
   const boundedCheck = secretScanned(checkCapture, 'frozen check capture');
   const install = digestOf(boundedInstall) || '(no output)';
@@ -483,6 +497,6 @@ function checkResult(state, stage, installCapture, checkCapture, { root = '', it
     : /could not start/u.test(stage) ? "couldn't start" : state === 'unverified' ? 'could not be verified' : 'passed';
   const output = `install output:\n${boundedInstall || '(no output)'}\ncheck output:\n${boundedCheck || '(not run or no output)'}`;
   return { sandboxBlocked, state, green: state === 'pass', checked: true, stage, failure, report, output, outputTail, outputPath, outputError, profilePath,
-    executionRoot: commandRoot, environment, ...(executionSourceUnchanged === undefined ? {} : { executionSourceUnchanged }),
+    executionRoot: commandRoot, environment, testRuntimes, executed, exitCode, proofCounts, ...(executionSourceUnchanged === undefined ? {} : { executionSourceUnchanged }),
     profile: timingProfile ? { ...timingProfile, profilePath } : null };
 }

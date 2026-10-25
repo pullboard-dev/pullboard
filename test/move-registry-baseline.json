@@ -58,6 +58,7 @@
     "setLineSetting",
     "recordFlakeObservation",
     "recordGateRun",
+    "recordProofRun",
     "declareJob",
     "recordJobRun",
     "takeCoordinator",
@@ -67,6 +68,7 @@
     "recordActivityDelivery",
     "decideSpecRevisions",
     "recordRowVerification",
+    "requestCompanion",
     "setBoardMembers"
   ],
   "itemIdFirstArgument": [
@@ -661,6 +663,7 @@
       null,
       null
     ],
+    "recordProofRun": [null, "first", null, null, null, null],
     "recordRowVerification": [
       null,
       "first",
@@ -670,6 +673,14 @@
       null
     ],
     "setBoardMembers": [
+      null,
+      "first",
+      null,
+      null,
+      null,
+      null
+    ],
+    "requestCompanion": [
       null,
       "first",
       null,
@@ -6514,6 +6525,7 @@
     "BAD_CURSOR": "pass a nonnegative integer from the last response you received",
     "BAD_ACTIVITY_CURSOR": "use a nonnegative whole-number cursor from the last response, then read inbox again: pullboard inbox",
     "BAD_DECISION": "choose accept or reject with a supported reason: pullboard verify <id> reject --reason TEST_FAILURE --note \"<what failed>\"",
+    "BAD_DECISION_OPTIONS": "ask an item decision with --decision --item <id> --options '[\"first\",\"second\"]'",
     "BAD_DEPENDENCIES": "use --after with item ids, such as --after 1,2, or --after none",
     "BAD_EVIDENCE": "pass the evidence fields the message names, then retry",
     "BAD_FACT_ID": "upgrade to the current Pullboard engine, then retry the original fact operation",
@@ -6770,6 +6782,7 @@
     "BAD_ORIGIN": "name where the decision came from with --origin person-relayed, agent or inherited, or leave --origin out",
     "WHY_GIT": "run pullboard why from inside the repository, with a path that git can read",
     "NOT_YOUR_DECISION": "answer only decisions addressed to you; see pullboard inbox",
+    "NOT_YOUR_ITEM_DECISION": "ask on an item you build or review, or ask the coordinator for a cross-item decision",
     "NO_AGENT": "create and join a lane worktree: pullboard worktree <lane> --model \"<model name>\"",
     "NO_BOARD": "initialize the board in this repository: pullboard init",
     "NO_BLUEPRINT": "choose a bundled blueprint named in the message, or pass an existing local JSON file to pullboard blueprint add",
@@ -6779,6 +6792,9 @@
     "NO_CONFIG": "run pullboard init in the main checkout and commit pullboard.json",
     "READ_ONLY": "read settings with GET /api/v1/settings; use pullboard settings for supported machine-setting changes",
     "SETTINGS_NOT_AVAILABLE": "use the authenticated local API address printed by pullboard serve to read machine and repository settings",
+    "DECISIONS_NOT_AVAILABLE": "read each board's state from the local API, which carries its own person decisions",
+    "PROJECT_REPO_AMBIGUOUS": "run pullboard decisions --as person and answer with the repo name it prints before the #",
+    "PROJECT_REPO_UNKNOWN": "run pullboard decisions --as person to see the repos of this project, then answer repo#id",
     "NO_ENDPOINT": "use a path under /api/v1/boards",
     "NO_EVIDENCE": "cite the row id in a test name, or build it first",
     "NO_FACT": "name a fact id from pullboard show <id> --json",
@@ -7040,6 +7056,12 @@
     "MILESTONE_LIMIT": "remove or swap an unstarted item, or edit the milestone with --limit <n>|none",
     "BAD_COMPUTER_NAME": "retry relay on or relay join with --name containing 1 to 80 characters and no control characters or path separators",
     "BLUEPRINT_RULE_UNCHECKED": "add a checked starter item that cites the must rule named in the message, then run pullboard blueprint add <file> again",
+    "SHOUT_TOO_LONG": "shorten the message to 400 characters or fewer; cite native proof receipt ids and read pullboard show <id> for the evidence chain",
+    "PROOF_RUN_UNAVAILABLE": "restore writable native receipt storage, run the item check with current Pullboard, then read pullboard show <id>",
+    "PROOF_RUN_UNBOUND": "run the item check with current Pullboard and use its stored native receipt; read pullboard show <id> for the proof chain",
+    "PROOF_RUN_ACTOR": "run the check from your own joined seat and use the native receipt that belongs to that seat",
+    "PROOF_RUN_STALE": "read pullboard show <id> for the current frozen criterion, then run a fresh item check",
+    "PROOF_RUN_CHANGED": "preserve the original receipt and run a new item check to obtain a new native receipt id",
     "ROW_VERIFY": "pullboard spec show <id>, then pullboard spec verify <id> accepted --reason \"why\"",
     "ROW_VERIFY_PROVENANCE": "draft the row through pullboard spec draft and join normally before verifying it",
     "ROW_VERIFY_PENDING": "ask the coordinator to run pullboard spec apply before recording a verifier verdict",
@@ -7056,8 +7078,11 @@
     "RELAY_SSH_KEY": "make an SSH key with ssh-keygen -t ed25519, add it to GitHub with gh ssh-key add, then run pullboard relay on again",
     "RELAY_SSH_KEYGEN": "install OpenSSH, then run pullboard relay on again",
     "RELAY_SSH_SIGN": "load the key with ssh-add, or set PULLBOARD_SSH_KEY to a key on your GitHub account, then run pullboard relay on again",
-    "BAD_DECISION_OPTIONS": "ask an item decision with --decision --item <id> --options '[\"first\",\"second\"]'",
-    "NOT_YOUR_ITEM_DECISION": "ask on an item you build or review, or ask the coordinator for a cross-item decision"
+    "COMPANION_PARENT": "name the parent item: pullboard companion <parent> <lane> \"<title>\" --key <key>",
+    "COMPANION_KEY": "supply a stable --key and reuse it for this same parent and target lane",
+    "COMPANION_LANE": "choose a different target lane; ordinary same-lane children use pullboard add --parent",
+    "COMPANION_CONTENT": "supply title, criterion and brief text and existing spec ids for the companion",
+    "COMPANION_RECORD": "restore a consistent board export so the companion request index matches its child"
   },
   "replay": {
     "initial": {
@@ -7807,6 +7832,7 @@
     "BAD_CONFIG": "fix pullboard.json as the message says, then commit it: git commit -m \"chore: fix pullboard config\" pullboard.json",
     "BAD_CURSOR": "pass a nonnegative integer from the last response you received",
     "BAD_DECISION": "choose accept or reject with a supported reason: pullboard verify <id> reject --reason TEST_FAILURE --note \"<what failed>\"",
+    "BAD_DECISION_OPTIONS": "ask an item decision with --decision --item <id> --options '[\"first\",\"second\"]'",
     "BAD_DEPENDENCIES": "use --after with item ids, such as --after 1,2, or --after none",
     "BAD_EVIDENCE": "pass the evidence fields the message names, then retry",
     "BAD_FACT_ID": "upgrade to the current Pullboard engine, then retry the original fact operation",
@@ -8054,6 +8080,7 @@
     "RIGOR_PERSON_ONLY": "ask the person to mark it from the main checkout: pullboard fact <id> root-cause \"<why>\" --cause <key> --never-again --as person",
     "SANDBOX_BLOCKED": "ask the coordinator to bring it to the person: pullboard shout coordinator \"<what is needed>\" --decision; or run the gate outside the sandbox; keep the tests unchanged",
     "NOT_YOUR_DECISION": "answer only decisions addressed to you; see pullboard inbox",
+    "NOT_YOUR_ITEM_DECISION": "ask on an item you build or review, or ask the coordinator for a cross-item decision",
     "NO_AGENT": "create and join a lane worktree: pullboard worktree <lane> --model \"<model name>\"",
     "NO_BOARD": "initialize the board in this repository: pullboard init",
     "NO_BLUEPRINT": "choose a bundled blueprint named in the message, or pass an existing local JSON file to pullboard blueprint add",
@@ -8063,6 +8090,9 @@
     "NO_CONFIG": "run pullboard init in the main checkout and commit pullboard.json",
     "READ_ONLY": "read settings with GET /api/v1/settings; use pullboard settings for supported machine-setting changes",
     "SETTINGS_NOT_AVAILABLE": "use the authenticated local API address printed by pullboard serve to read machine and repository settings",
+    "DECISIONS_NOT_AVAILABLE": "read each board's state from the local API, which carries its own person decisions",
+    "PROJECT_REPO_AMBIGUOUS": "run pullboard decisions --as person and answer with the repo name it prints before the #",
+    "PROJECT_REPO_UNKNOWN": "run pullboard decisions --as person to see the repos of this project, then answer repo#id",
     "NO_ENDPOINT": "use a path under /api/v1/boards",
     "NO_EVIDENCE": "cite the row id in a test name, or build it first",
     "NO_FACT": "name a fact id from pullboard show <id> --json",

@@ -1,7 +1,8 @@
 /**
  * Gate receipts (#836): where a gated run's time went. Every run that takes a gate slot (submit, a named check, a
  * doctrine hold) reports separate phases and the kind of slot it got, and appends one line to the board's receipt log
- * so `pullboard stats` can show a day of waits beside run times. Measuring only; no slot behaviour lives here.
+ * so `pullboard stats` can show a day of waits beside run times. Native proof runs add proofReceiptIds linking that
+ * same timing receipt to their immutable gate receipts and board-stamped show chain. Measuring only; no slot behaviour lives here.
  */
 import { appendFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';

@@ -115,7 +115,7 @@ The version table is generated from the source-owned declarations in `src/format
 | `row grammar` | `1` | `SPEC_GRAMMAR_VERSION` in `src/spec.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar) | Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs. |
 | `board schema` | `3` | `SCHEMA_VERSION` in `src/board.js`, persisted as `PRAGMA user_version` | On a write open of a board whose version is behind: create missing tables and indexes (version 3 adds the hot-path indexes), add missing columns in place with declared defaults, restore missing or changed triggers, and remove stale machine triggers without replacing rows. Read opens never migrate; a board at the current version whose shape differs is reported once on stderr and left as it is. |
 | `event log` | `1` | `EVENT_LOG_VERSION` in `src/board.js`, persisted in `board_meta` as `event_log_version` | Older event-log versions upgrade in place; newer versions are refused with `EVENT_LOG_VERSION`. Preserve event rows when the board schema changes. |
-| `move engine` | `121` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
+| `move engine` | `123` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
 A builder never picks an engine number (#1101). An item that adds a board move adds its own `src/<name>-engine.js` leaf as `export const NAME_ENGINE = unassignedEngine();` (importing `unassignedEngine` from `./engine-next.js`); on its branch the leaf reads as one above the highest landed engine. The landing merge writes the next number into the leaf, in landing order, inside that item's merge commit, and sets the `move engine` row above to the highest landed number. A landed number never changes, so recorded moves replay as they were written. Moves are recorded under landed numbers only: code with an unnumbered engine is for its branch's own tests, and a move it records on a real board before landing may later read under another item's number, so the item lands before its moves are used.
@@ -424,6 +424,7 @@ The `event` table is a SQLite schema object governed by `SCHEMA_VERSION`; its ap
 | `model` | agent | — |
 | `moved` | coordinator | `path` |
 | `add` | item creator | `lane`, `specIds`, `after`, `route`, optional `reviewFamily` |
+| `companion` | requesting agent | `item`, `lane`, `key` (event item id names the parent) |
 | `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen`, optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection`, optional `reviewFamily` |
 | `escalate` | builder | `from`, `to`, `note`, `attempt` |
 | `attempt` | reporting agent | `n`, `seconds`, `result` |
@@ -564,6 +565,12 @@ The triggering transaction reserves ordinary board row-draft entries with `writt
 Pending proposals are deduplicated per cause and target. A decline covers all items seen through the actual decision, and only a new item can re-propose that declined cause. The read-only digest restates each unanswered automatic draft once per briefing after `landing.cadence`, defaulting to one day when no cadence is configured. Creation is automatic on relevant new failure moves; this is not a historical backfill, a proof of causation, or an automatic remedy.
 
 Engine 54 replaces the automatic strong-to-strong ceiling escalation with one coordinator notice per rejection pair, naming the builder and both rejection receipts. Ordinary rejection still reopens and clears the owner and lease. Light and mid routes keep engine-50 automatic escalation. Engines 50 through 53 retain their original ceiling escalation when replayed.
+
+## Native proof provenance
+
+`PROOF_RUN_ENGINE` adds `recordProofRun` and the append-only `proof-run` item event; its unassigned leaf receives its permanent number at landing. The gate writes a version-two receipt in the existing gate receipt store after execution. The ordered move reads that file itself and binds its recorded seat to the authenticated actor; caller-written provenance is refused. Replay carries the canonical receipt rather than reading the originating machine's filesystem. Like the existing gate-run protocol, this trusts authenticated ordered replay and trusted recovery inputs; it is not independent cryptographic attestation of a machine owner or an imported history. The existing `gate-receipts.jsonl` timing receipt links its executed phases through `proofReceiptIds`; there is no agent-written provenance log. Version-one gate receipts retain their separate flake and quarantine meaning.
+
+`pullboard show <id> --json` adds `proofReceipts`, in event order. Each entry identifies its native receipt, command kind, item, commit, tree, frozen digest, actual executor environment (`node`, `platform`, `arch`), runner, seat, recorded parent session, exit code, explicit pass/fail/skip counts, duration in milliseconds and source cleanliness. The runner identifies the executor from its native receipt, including the local runner's identity. Unavailable identities or counters stay `null`; a legacy seat's identity is not recorded-parent assurance. New receipts also carry `testRuntimes`: each child reports its own PID and environment before executing, and the ordinary test-file dispatcher binds its selected file to that closed child, yielding `{pid, environment, file}`. `file` is a relative test path or `null` for an arbitrary Node command. Missing capture is `null`; historical receipts without this field retain their canonical bytes. The singular proof `environment` is the common actual child identity, or `null` when the children differ or are unknown. Plain `show` lists each child separately, including mixed versions. Launcher and worker metadata never substitute for a missing child report; this adds no runtime configuration or requirement to execute on multiple versions. Plain `show` prints the same receipt chain. A missing receipt prevents publication of an executed command's outcome. At `PROOF_RUN_ENGINE` and above, shouts longer than 400 Unicode code points are refused with `SHOUT_TOO_LONG`, pointing callers to receipts and `show`; older moves replay under their original limit.
 
 ## Approval provenance
 
@@ -706,6 +713,8 @@ not a native move, parent identity, configuration or authority record. Missing/d
 replays activity. Reads freeze an event high-water mark before observing Git; subsequent events
 and messages remain pending. News has a separate cursor so an ordinary poll cannot consume a
 future session-start digest.
+
+Companion requests use the `requestCompanion` move and the unassigned `COMPANION_ENGINE` boundary allocated at landing. The authenticated first argument names `agentId`, `parentId`, target `lane` and stable `key`. A `board_meta` key `companion:` plus SHA-256 of JSON `[parentId,lane,key]` binds that identity to its child. The immediate transaction creates the ordinary item, records its check baseline and bar, appends the companion event, and stores the binding. A retry returns the existing child without changing its contents or claim. Ordinary `addItem` parent-lane validation remains unchanged.
 
 ### Signed board membership
 

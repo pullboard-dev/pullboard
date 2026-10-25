@@ -11,6 +11,7 @@ import {
   join,
 } from 'node:path';
 import { tryGit } from './git.js';
+import { proofFields } from './proof-provenance.js';
 import { environmentProblem } from './execution-environment.js';
 
 /** The folder beside the board that holds gate run receipts. */
@@ -55,7 +56,7 @@ function line(value, limit) {
  * must not fail a run over its receipt, and the board names its own refusal.
  *
  * @param {any} value
- * @returns {{ version: 1, id: string, kind: string, tree: string, head: string, main: string | null, command: string, green: boolean, failures: Array<{ file: string, name: string }>, load: { average: number[], cpus: number, freeMB: number }, at: string } | null}
+ * @returns {object | null} A canonical legacy gate or native proof receipt.
  */
 export function receiptFields(value) {
   try { return checkedFields(value); } catch { return null; }
@@ -65,8 +66,13 @@ export function receiptFields(value) {
 function checkedFields(value) {
   const bad = () => new TypeError('malformed gate receipt');
   if (Object.hasOwn(value ?? {}, 'environment') && value.environment !== null && environmentProblem(value.environment)) throw bad();
-  if (!value || value.version !== 1 || !ID.test(value.id ?? '') || !['gate', 'land', 'submit'].includes(value.kind) || !SHA.test(value.tree ?? '')
-    || !SHA.test(value.head ?? '') || value.main !== null && !SHA.test(value.main ?? '') || !DIGEST.test(value.command ?? '')
+  const proof = value?.version === 2 ? proofFields(value.proof) : null;
+  const version = value?.version;
+  const kinds = version === 2 ? ['check', 'submit', 'verdict'] : ['gate', 'land', 'submit'];
+  if (!value || ![1, 2].includes(version) || version === 2 && !proof || !ID.test(value.id ?? '') || !kinds.includes(value.kind)
+    || !(version === 2 && value.tree === null) && !SHA.test(value.tree ?? '')
+    || !(version === 2 && value.head === null) && !SHA.test(value.head ?? '')
+    || value.main !== null && !SHA.test(value.main ?? '') || !DIGEST.test(value.command ?? '')
     || typeof value.green !== 'boolean' || !Array.isArray(value.failures) || value.failures.length > MOST_FAILURES
     || value.green && value.failures.length > 0 || !line(value.at, 40) || !Number.isFinite(Date.parse(value.at))) throw bad();
   const failures = value.failures.map((entry) => {
@@ -75,11 +81,11 @@ function checkedFields(value) {
     return { file, name };
   });
   const load = value.load;
-  if (!load || !Array.isArray(load.average) || load.average.length !== 3 || load.average.some((number) => !Number.isFinite(number) || number < 0)
-    || !Number.isSafeInteger(load.cpus) || load.cpus < 1 || !Number.isSafeInteger(load.freeMB) || load.freeMB < 0) throw bad();
-  return { version: 1, id: value.id, kind: value.kind, tree: value.tree, head: value.head, main: value.main, command: value.command,
-    green: value.green, failures, load: { average: [...load.average], cpus: load.cpus, freeMB: load.freeMB }, at: value.at,
-    ...(Object.hasOwn(value, 'environment') ? { environment: value.environment } : {}) };
+  if (!(version === 2 && load === null) && (!load || !Array.isArray(load.average) || load.average.length !== 3 || load.average.some((number) => !Number.isFinite(number) || number < 0)
+    || !Number.isSafeInteger(load.cpus) || load.cpus < 1 || !Number.isSafeInteger(load.freeMB) || load.freeMB < 0)) throw bad();
+  return { version, id: value.id, kind: value.kind, tree: value.tree, head: value.head, main: value.main, command: value.command,
+    green: value.green, failures, load: load === null ? null : { average: [...load.average], cpus: load.cpus, freeMB: load.freeMB }, at: value.at,
+    ...(proof ? { proof } : {}), ...(Object.hasOwn(value, 'environment') ? { environment: value.environment } : {}) };
 }
 
 /**

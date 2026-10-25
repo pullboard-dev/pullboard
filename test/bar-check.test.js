@@ -8,6 +8,7 @@ import { parentSessionDigest } from '../src/parent-session.js';
 import { saveAgentSession } from '../src/seats.js';
 import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { BAR_CHECK_ENGINE } from '../src/bar-check-engine.js';
+import { ENGINE_VERSION } from '../src/engine-metadata.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const HOUR = 3_600_000;
@@ -69,13 +70,14 @@ test('[R2,H16] the bar.check setting refuses old engine moves and applies at its
   const options = { agentId: 'coordinator', key: 'bar.check', value: true, reason: 'the check is being introduced',
     window: { windowMinutes: 60, activeReviewers: 2 } };
   const move = prepareEngineMove(board, 'setLineSetting', [options], { id: 'bar-check-setting-engine', actor: 'coordinator' });
-  assert.equal(move.engine, BAR_CHECK_ENGINE);
+  assert.equal(move.engine, ENGINE_VERSION, 'new moves carry the current engine even after later features land');
   const envelope = { sequence: 1, at: '2026-10-24T00:00:00Z', kind: 'move',
     sender: { kind: 'agent', agent: 'coordinator', userId: 'fixture' } };
   assert.throws(() => applyRelayMove(board, { ...move, engine: BAR_CHECK_ENGINE - 1 }, envelope),
     /RELAY_MOVE.*introduced in engine/u, 'an old engine cannot reinterpret the new setting');
   assert.equal(store.lineSettings(board)['bar.check'], false);
-  assert.equal(applyRelayMove(board, move, envelope).error, undefined);
+  assert.equal(applyRelayMove(board, { ...move, engine: BAR_CHECK_ENGINE }, envelope).error, undefined,
+    'the historical bar-check floor still replays after later features land');
   assert.equal(store.lineSettings(board)['bar.check'], true);
 });
 

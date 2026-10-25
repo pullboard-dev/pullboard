@@ -46,6 +46,7 @@ export const JSON_SHAPES = {
     'milestone edit': shape({ milestone: 'object' }),
     'milestone remove': shape({ milestone: 'object' }),
     'milestone ship': shape({ milestone: 'object', into: 'string|null', moved: 'array', notMoved: 'array' }),
+    companion: shape({ item: 'object', created: 'boolean' }),
     show: shape({ item_id: 'number', item_title: 'string', item_lane: 'string', item_status: 'string', verdicts: 'array', thread: 'array' }),
     stats: shape({ stats: 'object', gateWaits: 'array' }),
     badge: shape({ items: 'number', checked: 'number', percent: 'number|null', changed: 'array' }),

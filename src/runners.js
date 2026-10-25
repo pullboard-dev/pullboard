@@ -33,7 +33,10 @@ import {
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pipeline } from 'node:stream/promises';
-import { environmentProblem } from './execution-environment.js';
+import {
+  environmentProblem,
+  testRuntimeRows,
+} from './execution-environment.js';
 import {
   gunzipSync,
   gzipSync,
@@ -592,6 +595,7 @@ function resultFrom(request, result) {
   } else if (receipt.trustedMode !== undefined) throw new RunnerDropped(request.runner.host);
   const text = staged?.output ?? output.toString('utf8');
   if (receipt.environment !== undefined && environmentProblem(receipt.environment)) throw new RunnerDropped(request.runner.host);
+  if (receipt.testRuntimes != null && !testRuntimeRows(receipt.testRuntimes)) throw new RunnerDropped(request.runner.host);
   if (receipt.browserRefused !== undefined && (receipt.browserRefused !== true || receipt.code === 0 || request.spec.browserRequired)) throw new RunnerDropped(request.runner.host);
   const admission = remoteAdmission(receipt.executionAdmission);
   if (request.spec.timing === true && (receipt.timing !== true || !admission)) throw new RunnerDropped(request.runner.host);
@@ -602,7 +606,7 @@ function resultFrom(request, result) {
     throw refused;
   }
   return { isGreen: receipt.code === 0 && !receipt.signal, output: text, sandboxBlocked, ...(receipt.timedOut ? { timedOut: true } : {}),
-    environment: receipt.environment ?? null, executionCapabilities: { gui: receipt.gui ?? null },
+    environment: receipt.environment ?? null, testRuntimes: receipt.testRuntimes ?? null, executionCapabilities: { gui: receipt.gui ?? null },
     ...(request.spec.stageMarker ? { stages: staged?.stages ?? null } : {}),
     seconds: Math.round(receipt.wallMs / 1000), exitCode: receipt.code,
     executionRunner: request.runner.host, executionRoot: receipt.root, remoteWallMs: receipt.wallMs,

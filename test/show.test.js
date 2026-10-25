@@ -6,17 +6,96 @@ import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { runFixtureExecFile as execFileSync, runFixtureChild } from './fixture-child.js';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { hostname, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import { loadConfig } from '../src/config.js';
 import { frozenCriterion, loadSpec } from '../src/spec.js';
+import { createE2eHelpers } from './e2e-helpers.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const dirs = [];
 after(() => {
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+});
+
+/** A real CLI response must succeed before its proof fields can be evidence. */
+function proofDocument(result) {
+  assert.equal(result.code, 0, result.err || result.out);
+  return JSON.parse(result.out);
+}
+
+test('the board stamps every proof receipt and show prints the chain [C7,H16]', (t) => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const command = `env -u NODE_TEST_CONTEXT ${JSON.stringify(process.execPath)} --test --test-reporter=tap web/proof.test.js`;
+  const box = helpers.project(command);
+  mkdirSync(join(box.repo, 'web'), { recursive: true });
+  writeFileSync(join(box.repo, 'web/proof.test.js'),
+    "require('node:test')('the fixture proves one real case [G1]', () => require('node:assert/strict').equal(2 + 2, 4));\n");
+  box.git(box.repo, 'add', 'web/proof.test.js');
+  box.git(box.repo, 'commit', '-q', '-m', 'test(web): seed a real proof [G1]');
+  box.git(box.web, 'merge', '--ff-only', 'main');
+  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  t.after(() => store.closeBoard(board));
+  const builder = proofDocument(box.run(box.web, 'whoami', '--json')).id;
+  const builderParent = 'b'.repeat(64);
+  store.register(board, { lane: 'web', path: box.web, parentDigest: builderParent, sessionDigest: builderParent });
+  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'A stamped proof',
+    criterion: 'The page is ready.', specIds: ['G1'], check: command });
+  proofDocument(box.run(box.web, 'claim', String(id), '--json'));
+  proofDocument(box.run(box.web, 'check', String(id), '--yes', '--json'));
+  const checked = proofDocument(box.run(box.repo, 'show', String(id), '--json'));
+  assert.ok(Array.isArray(checked.proofReceipts), 'show exposes the board-stamped receipt chain after a real check');
+  assert.ok(checked.proofReceipts.some(receipt => receipt.kind === 'check'), 'the check is recorded without agent text');
+  const committed = helpers.commitFile(box, box.web, 'web/ready.txt', 'ready\n', 'feat(web): finish the fixture [G1]');
+  assert.equal(committed.status, 0, committed.stderr);
+  proofDocument(box.run(box.web, 'submit', String(id), '--json'));
+  const head = box.git(box.web, 'rev-parse', 'HEAD');
+  const review = join(box.dir, 'reviewer');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, head);
+  const reviewer = proofDocument(box.run(review, 'join', 'web', '--json')).agent;
+  const reviewerParent = 'c'.repeat(64);
+  store.register(board, { lane: 'web', path: review, parentDigest: reviewerParent, sessionDigest: reviewerParent });
+  proofDocument(box.run(review, 'next', '--verify', String(id), '--json'));
+  proofDocument(box.run(review, 'verify', String(id), 'accept', '--json'));
+  const shown = proofDocument(box.run(box.repo, 'show', String(id), '--json'));
+  assert.deepEqual(new Set(shown.proofReceipts.map(receipt => receipt.kind)), new Set(['check', 'submit', 'verdict']));
+  for (const receipt of shown.proofReceipts) {
+    assert.match(receipt.id, /^[a-f0-9-]{36}$/u);
+    assert.equal(receipt.item, id);
+    assert.match(receipt.commit, /^[a-f0-9]{40}$/u);
+    assert.equal(receipt.tree, box.git(box.repo, 'rev-parse', `${receipt.commit}^{tree}`));
+    assert.equal(receipt.frozenDigest, shown.item_frozen_digest);
+    assert.deepEqual(receipt.environment, { node: process.versions.node, platform: process.platform, arch: process.arch });
+    assert.equal(typeof receipt.runner, 'string');
+    assert.ok(receipt.runner);
+    assert.equal(receipt.runner, `local:${hostname()}`, 'the receipt identifies the actual local executor');
+    assert.equal(receipt.seat, receipt.kind === 'verdict' ? reviewer : builder);
+    assert.equal(receipt.parentSession, receipt.kind === 'verdict' ? reviewerParent : builderParent);
+    assert.equal(receipt.exitCode, 0);
+    assert.deepEqual(receipt.counts, { passed: 1, failed: 0, skipped: 0 });
+    assert.ok(Number.isSafeInteger(receipt.durationMs) && receipt.durationMs >= 0);
+  }
+  assert.throws(() => store.recordProofRun(board, { agentId: builder, itemId: id,
+    receiptId: '00000000-0000-4000-8000-000000000000', receipt: shown.proofReceipts[0] }),
+  error => error.code === 'PROOF_RUN_UNBOUND', 'an agent cannot submit its own provenance fields');
+  const plain = box.run(box.repo, 'show', String(id));
+  assert.equal(plain.code, 0, plain.err);
+  for (const receipt of shown.proofReceipts) assert.ok(plain.out.includes(receipt.id), 'plain show cites receipt ids');
+  const before = board.db.prepare('SELECT count(*) AS n FROM shout').get().n;
+  const longText = Array(67).fill('proof').join(' ');
+  assert.equal(longText.length, 401, 'the readable message crosses the exact length boundary');
+  const long = box.run(box.web, 'shout', 'coordinator', longText, '--json');
+  assert.equal(long.code, 1, long.out);
+  const refusal = JSON.parse(long.out).error;
+  assert.equal(refusal.code, 'SHOUT_TOO_LONG');
+  assert.match(`${refusal.message} ${refusal.next}`, /receipt|pullboard show/u);
+  assert.equal(board.db.prepare('SELECT count(*) AS n FROM shout').get().n, before);
+  const unspaced = box.run(box.web, 'shout', 'coordinator', 'x'.repeat(401), '--json');
+  assert.equal(JSON.parse(unspaced.out).error.code, 'SHOUT_SPACES', 'the accepted readability rule remains enforced');
+  proofDocument(box.run(box.web, 'shout', 'coordinator', longText.slice(0, 400), '--json'));
 });
 
 /** A family emoji: five code points, eight UTF-16 units, one character to a reader. */

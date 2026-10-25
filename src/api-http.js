@@ -253,6 +253,11 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
         if (typeof adapter.settings !== 'function') throw new Refused('SETTINGS_NOT_AVAILABLE', 'read machine and repository settings from the local API');
         return json(res, 200, await adapter.settings(url.searchParams.get('board'), who));
       }
+      if (url.pathname === '/api/v1/decisions') {
+        if (req.method !== 'GET') throw new Refused('READ_ONLY', "list decisions with GET; answer one through its own board's moves path");
+        if (typeof adapter.decisions !== 'function') throw new Refused('DECISIONS_NOT_AVAILABLE', "this API adapter does not list a project's decisions; read each board's state, which carries its own");
+        return json(res, 200, await adapter.decisions(url.searchParams.get('board'), who));
+      }
       if (req.method === 'GET' && url.pathname === '/api/v1/boards') {
         const listing = await adapter.boards(who);
         return json(res, 200, Array.isArray(listing) ? { boards: listing } : listing);

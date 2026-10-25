@@ -1,6 +1,9 @@
 /** Collect private command output through pipes; dependency files are never size-limited [V18,V2]. */
 import { spawn } from 'node:child_process';
-import { executionEnvironment } from './execution-environment.js';
+import {
+  captureTestRuntimes,
+  executionEnvironment,
+} from './execution-environment.js';
 import {
   createWriteStream,
   readFileSync,
@@ -38,7 +41,8 @@ function capture(chunk) {
   }
 }
 
-const child = spawn('sh', ['-c', `(\n${command}\n) 2>&1`], { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+const runtimes = captureTestRuntimes(process.env);
+const child = spawn('sh', ['-c', `(\n${command}\n) 2>&1`], { detached: true, env: runtimes.env, stdio: ['ignore', 'pipe', 'pipe'] });
 if (child.pid) writeFileSync(pidFile, String(child.pid), { mode: 0o600 });
 
 /** Stop the command's entire process group, including background descendants that retain pipes. */
@@ -63,8 +67,8 @@ child.once('close', (status, signal) => {
     sent = true;
     const marker = bytes > LIMIT ? '\n[output capped at 8 MiB; middle omitted]\n' : '';
     const output = head.toString('utf8') + marker + tail.toString('utf8');
-    process.stdout.write(JSON.stringify({ status, signal, error: timedOut ? { code: 'ETIMEDOUT' } : error, logError, output,
-      environment: executionEnvironment() }));
+    const testRuntimes = runtimes.finish();
+    process.stdout.write(JSON.stringify({ status, signal, executed: Boolean(child.pid), error: timedOut ? { code: 'ETIMEDOUT' } : error, logError, output, environment: executionEnvironment(), testRuntimes }));
   };
   log.once('close', finish);
   if (log.closed) finish();

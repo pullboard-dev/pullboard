@@ -13,6 +13,7 @@ import {
   join,
 } from 'node:path';
 import { createDescendantTracker } from './runner-custody.js';
+import { testRuntimeOption } from './execution-environment.js';
 
 const request = JSON.parse(readFileSync(0, 'utf8'));
 if (!Number.isSafeInteger(request.timeoutMs) || request.timeoutMs < 1 || request.timeoutMs > 2_147_483_647) throw new Error('invalid shell timeout');
@@ -31,7 +32,8 @@ function reportState(force = false) {
   catch { process.stderr.write('timed gate: cleanup state could not be written; retain the worker and inspect its private output directory\n'); }
 }
 tracker = createDescendantTracker(directory, { tick: () => reportState(), warn: () => reportState(true) });
-const env = { ...process.env, NODE_OPTIONS: [process.env.NODE_OPTIONS, tracker.nodeOptions].filter(Boolean).join(' '), PULLBOARD_RUNNER_PRELOAD: tracker.nodeOptions };
+const recorder = testRuntimeOption();
+const env = { ...process.env, NODE_OPTIONS: [process.env.NODE_OPTIONS, tracker.nodeOptions, recorder].filter(Boolean).join(' '), PULLBOARD_RUNNER_PRELOAD: tracker.nodeOptions };
 const child = spawn('/bin/sh', ['-c', request.command], { env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
 tracker.registerRoot(child.pid);
 tracker.observe();

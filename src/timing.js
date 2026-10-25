@@ -118,7 +118,7 @@ export function timingFromOutput(output, runner = 'shell') {
 }
 
 /** Iterate a complete log in bounded chunks, discarding only oversized diagnostic lines. */
-function* logLines(path) {
+export function* logLines(path) {
   const fd = openSync(path, 'r');
   const decoder = new StringDecoder('utf8');
   const chunk = Buffer.alloc(32 * 1024);

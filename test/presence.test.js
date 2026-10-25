@@ -47,6 +47,37 @@ test('local heartbeats revive a seat without changing exported history or a remo
   assert.equal(heartbeatSeat(board, 'missing-seat'), false);
 });
 
+test('a relay reader sees the same presence as the native view [B3,I6,H5,H17]', async (t) => {
+  const { createE2eHelpers } = await import('./e2e-helpers.js');
+  const { relaySnapshot } = await import('../src/relay-presentation.js');
+  const { exportBoard, importBoard } = await import('../src/exchange.js');
+  const { heartbeatSeat } = await import('../src/seat-presence.js');
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  let at = Date.now();
+  const clock = { now: () => new Date(at) };
+  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), clock);
+  const remote = store.openBoard(join(box.dir, 'relay-reader.sqlite'), clock);
+  t.after(() => { store.closeBoard(board); store.closeBoard(remote); });
+  const id = store.register(board, { lane: 'core', path: join(box.dir, 'presence-seat') });
+  const history = exportBoard(board);
+  const snapshot = relaySnapshot(box.repo, { board });
+  const nativeAgents = snapshot.presentation.state.agents;
+  assert.equal(nativeAgents.find(seat => seat.agent_id === id).presence, 'live', 'the native snapshot includes an observed live seat');
+  importBoard(remote, snapshot);
+  const restored = relaySnapshot(box.repo, { board: remote });
+  assert.deepEqual(restored.presentation.state.agents, nativeAgents, 'restoring and republishing a relay snapshot preserves every projected agent');
+  assert.deepEqual(exportBoard(board), history, 'snapshot capture leaves native history unchanged');
+  assert.deepEqual(exportBoard(remote), history, 'relay observations remain outside native exports');
+  at += 10 * 60_000;
+  assert.equal(relaySnapshot(box.repo, { board: remote }).presentation.state.agents.find(seat => seat.agent_id === id).presence, 'idle');
+  at += 20 * 60_000;
+  assert.equal(relaySnapshot(box.repo, { board: remote }).presentation.state.agents.find(seat => seat.agent_id === id).presence, 'gone');
+  assert.equal(heartbeatSeat(remote, id), true, 'a real local heartbeat can independently refresh the reader');
+  assert.equal(store.agentById(remote, id).presence, 'live');
+});
+
 test('status reads and explicit hooks heartbeat without a shared board write [B3,I6]', async (t) => {
   const { createE2eHelpers } = await import('./e2e-helpers.js');
   const { readFileSync } = await import('node:fs');

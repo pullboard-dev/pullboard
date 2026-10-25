@@ -128,6 +128,9 @@ Work
                                         reads the board and changes nothing; exits 1 when something is stuck
                                         pullboard.json health.stuck (default 1h), health.holds (1d), health.release (1d)
   pullboard skills --update            refresh unchanged Claude Code skills from shipped versions
+  pullboard companion <parent> <lane> "<title>" --key <key> [--criterion "<criterion>"] [--specs <ids>]
+                                        create one child in another lane; repeat the same parent, lane and key to find it
+                                        --brief "<brief>"; --route strong|mid|light; only the coordinator sets --check "<command>"
   pullboard show <id> [--history]       an item, the criterion frozen at claim, its verdicts: the latest in full,
                                         earlier ones as one line; --history prints every note in full
   pullboard fact <id> <kind> <text> [--answers <bar-check-fact-id>] [--supersedes <fact-id>] [--ref path:lines@full-sha] [--implies <ids>]
@@ -175,14 +178,16 @@ Work
   pullboard shout coordinator <question> --item <id> --decision --options <json>
                                         ask an item decision with choices, as --options '["first","second"]'
   pullboard shout <to> <text> --evidence attempt|receipt --outcome <word> --item <id> --commit <rev>
-  pullboard answer <shout-id> <text> [--as person]
+  pullboard answer <shout-id|repo#id> <text> [--as person]
                                         answer your decision; person mode is main-checkout only
+                                        repo#id answers a sibling repo's decision on its own board
                                         Other options: [--implies <ids>] [--supersedes <answer-id>]
                                                       [--origin person-relayed|agent|inherited] [--rationale <why>]
                                         --supersedes tells the items an earlier answer implied; only the person
                                         supersedes the person's answer
   pullboard pass <shout-id> <note>                coordinator passes a decision to the person
   pullboard decisions [--as person]               shouts waiting for you; main checkout defaults to coordinator
+                                        as the person, a project's repos list together as repo#id
   pullboard watch [--to <agent|lane|all>] [--kinds <kinds>] [--item <id>] [--since <sequence>] [--json]
                 [--work <lane>] [--review-wait <minutes>]
                                         follow the board's live events, one line each as it happens, with or without the view
@@ -335,6 +340,7 @@ const HELP_EXAMPLES = {
   tour: 'pullboard tour', init: 'pullboard init --blueprint web-app', worktree: 'pullboard worktree web --model "my-model"',
   join: 'pullboard join web --model "my-model"', resume: 'pullboard resume',
   intake: 'pullboard intake https://github.com/owner/repo/pull/7 --criterion "behavior" --check "npm test"',
+  companion: 'pullboard companion 12 api "Provide the API" --key api-part',
   add: ADD_EXAMPLE, list: 'pullboard list web', show: 'pullboard show 12',
   claim: 'pullboard claim 12', submit: 'pullboard submit 12', 'next --verify': 'pullboard next --verify',
   fact: 'pullboard fact 12 measurement "The check passes in 8 seconds"',

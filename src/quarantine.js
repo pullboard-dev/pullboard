@@ -87,7 +87,7 @@ function existingRepair(board, file, name) {
  */
 export function runReceipt(receipt) {
   const fields = receiptFields(receipt);
-  if (!fields) throw new Refused('GATE_RUN_EVIDENCE', 'a gate run needs its receipt: id, tree, command digest, result, failing tests and host load; run the gate again from a clean checkout');
+  if (!fields || fields.version !== 1) throw new Refused('GATE_RUN_EVIDENCE', 'a gate run needs its receipt: id, tree, command digest, result, failing tests and host load; run the gate again from a clean checkout');
   return fields;
 }
 
