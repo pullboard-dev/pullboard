@@ -8,6 +8,10 @@ import { healthReport } from '../src/health.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
 import { context } from '../src/cli-read-context.js';
 import { waitForSubmissionVerdict } from '../src/submit-wait.js';
+import { exportBoard, importBoard } from '../src/exchange.js';
+import { prepareEngineMove, applyRelayMove } from '../src/engine.js';
+import { REJECTED_WORK_RETURN_ENGINE } from '../src/rejected-work-return-engine.js';
+import { scanHealthSentinel } from '../src/health-sentinel.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const helpers = createE2eHelpers();
@@ -86,6 +90,11 @@ test('submit --wait prints the verdict, and an unclaimed reject returns to the q
   onBoard(box, board => {
     const observedRevision = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS n FROM event').get().n;
     store.recordHealthFindings(board, { agentId: 'coordinator', observedRevision, findings: due.stuck, returnRejected: true });
+    const afterReturn = store.events(board).length;
+    const currentRevision = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS n FROM event').get().n;
+    store.recordHealthFindings(board, { agentId: 'coordinator', observedRevision: currentRevision,
+      findings: due.stuck, returnRejected: true });
+    assert.equal(store.events(board).length, afterReturn, 'an unchanged scan never returns or notifies twice');
     store.claim(board, 1, { agentId: nextActor, lane: 'web', leaseMs: 60_000 });
     assert.equal(store.getItem(board, 1).item_owner, nextActor, 'the next builder really receives the rejected item');
     assert.ok(store.verdictsFor(board, 1).some(entry => entry.verdict_decision === 'REJECT'
@@ -163,5 +172,68 @@ test('an inactive builder returns its rejected item before ten minutes [B13,A6,H
     assert.ok(detail.note.includes('deliberately rejects'));
     store.claim(board, 1, { agentId: nextActor, lane: 'web', leaseMs: 60_000 });
     assert.equal(store.getItem(board, 1).item_owner, nextActor);
+  }, clock);
+});
+
+/** Replica-local liveness cannot rewrite an already authenticated inactive-seat observation. */
+test('an unattended reject return replays across different local heartbeats [B13,H2,H16]', async t => {
+  const box = await waitingVerdict(t, 'REJECT', { builderHeartbeatOffsetMs: -31 * 60_000 });
+  const rejected = onBoard(box, board => store.events(board, { itemId: 1 }).findLast(event => event.event_kind === 'reject'));
+  const now = new Date(Date.parse(rejected.event_at) + 1000);
+  const clock = { now: () => now };
+  const config = loadConfig(box.repo);
+  const observation = scanHealthSentinel(join(box.repo, '.git/pullboard/board.sqlite'),
+    { root: box.repo, config, now, returnRejected: true });
+  assert.ok(observation);
+  const document = onBoard(box, board => exportBoard(board));
+  const move = onBoard(box, board => prepareEngineMove(board, 'recordHealthFindings',
+    [{ agentId: 'coordinator', ...observation }], { id: 'unattended-reject-fixture', actor: 'coordinator' }), clock);
+  const copies = ['live', 'gone'].map(name => {
+    const board = store.openBoard(join(box.dir, `return-${name}.sqlite`), clock);
+    importBoard(board, document);
+    t.after(() => store.closeBoard(board));
+    return board;
+  });
+  heartbeatSeat(copies[0], store.getItem(copies[0], 1).item_built_by);
+  assert.equal(store.listAgents(copies[0]).find(seat => seat.agent_id === store.getItem(copies[0], 1).item_built_by).presence, 'live');
+  assert.equal(store.listAgents(copies[1]).find(seat => seat.agent_id === store.getItem(copies[1], 1).item_built_by).presence, 'gone');
+  const order = { sequence: 1, at: now.toISOString(), kind: 'move',
+    sender: { kind: 'agent', agent: 'coordinator', userId: 'fixture-user' } };
+  const before = exportBoard(copies[0]);
+  assert.throws(() => applyRelayMove(copies[0], { ...move, engine: REJECTED_WORK_RETURN_ENGINE - 1 }, order),
+    error => error.code === 'RELAY_MOVE');
+  assert.deepEqual(exportBoard(copies[0]), before, 'downgrade refuses before any board mutation');
+  const results = copies.map(board => applyRelayMove(board, move, order));
+  assert.equal(results[0].error, undefined, JSON.stringify(results[0]));
+  assert.deepEqual(results[0], results[1]);
+  assert.deepEqual(exportBoard(copies[0]), exportBoard(copies[1]));
+  for (const board of copies) {
+    assert.equal(store.firstRefusal(board, 1), null);
+    const after = exportBoard(board);
+    assert.deepEqual(applyRelayMove(board, move, order), results[0]);
+    assert.deepEqual(exportBoard(board), after, 'a replayed receipt appends nothing twice');
+  }
+});
+
+/** Revision and episode guards both protect a builder who already reclaimed the rejected work. */
+test('a reclaimed reject refuses both stale and retargeted health observations [B13,H16]', async t => {
+  const box = await waitingVerdict(t, 'REJECT', { builderHeartbeatOffsetMs: -31 * 60_000 });
+  const rejected = onBoard(box, board => store.events(board, { itemId: 1 }).findLast(event => event.event_kind === 'reject'));
+  const now = new Date(Date.parse(rejected.event_at) + 1000);
+  const clock = { now: () => now };
+  const observation = scanHealthSentinel(join(box.repo, '.git/pullboard/board.sqlite'),
+    { root: box.repo, config: loadConfig(box.repo), now, returnRejected: true });
+  onBoard(box, board => {
+    const builder = store.getItem(board, 1).item_built_by;
+    store.claim(board, 1, { agentId: builder, lane: 'web', leaseMs: 60_000 });
+    const before = exportBoard(board);
+    assert.throws(() => store.recordHealthFindings(board, { agentId: 'coordinator', ...observation }),
+      error => error.code === 'HEALTH_SCAN_STALE');
+    assert.deepEqual(exportBoard(board), before);
+    const observedRevision = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS n FROM event').get().n;
+    assert.throws(() => store.recordHealthFindings(board, { agentId: 'coordinator', ...observation, observedRevision }),
+      error => error.code === 'HEALTH_SCAN_STALE');
+    assert.deepEqual(exportBoard(board), before, 'updating only the revision cannot retarget the old rejection');
+    assert.equal(store.getItem(board, 1).item_owner, builder);
   }, clock);
 });
