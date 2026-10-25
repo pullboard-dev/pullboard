@@ -61,7 +61,7 @@ export function assertSpecCorrectionRefreezesCitations(t) {
   assert.equal(store.getItem(board, submittedId).item_status, 'submitted');
   assert.equal(store.getItem(board, verifiedId).item_status, 'verified');
 
-  store.withdraw(board, withdrawnId, { agentId: store.COORDINATOR, reason: 'fixture excludes withdrawn citations' });
+  store.withdraw(board, withdrawnId, { by: COORDINATOR, reason: 'fixture excludes withdrawn citations' });
   const config = loadConfig(box.repo);
   const decision = prepareRowDecisions(box.repo, config, {
     ids: ['G1'], decision: 'approve', text: 'The revised page renders.', by: 'person',
@@ -71,8 +71,9 @@ export function assertSpecCorrectionRefreezesCitations(t) {
 
   const applied = box.run(box.repo, 'spec', 'apply', '--json');
   assert.equal(applied.code, 0, applied.err || applied.out);
-  assert.match(box.run(box.repo, 'spec', 'apply', '--json').out, /no pending row decisions/u,
-    'replaying an already applied decision remains a no-op');
+  const repeated = box.run(box.repo, 'spec', 'apply', '--json');
+  assert.equal(repeated.code, 0, repeated.err || repeated.out);
+  assert.deepEqual(JSON.parse(repeated.out).applied, [], 'an already applied decision remains a no-op');
 
   const correctedText = 'The revised page renders.';
   for (const id of [openId, claimedId, submittedId, verifiedId]) {
