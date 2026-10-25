@@ -163,7 +163,6 @@ test('a review goes only to an independent seat [V1,B3]', async t => {
 test('ready work beside an idle seat for five minutes warns the coordinator [A6,N2]', async t => {
   const box = await fixture(t);
   const id = box.add('Unpaired ready work');
-  box.scan(); // Start the prospective observation before advancing the private clock.
   const warnings = () => store.allShouts(box.board).filter(shout => shout.shout_to === 'coordinator'
     && shout.shout_text.startsWith('Stuck:') && shout.shout_text.includes(`#${id}`) && shout.shout_text.includes(box.seats.actor.id));
   box.advance(200000);

@@ -45,7 +45,8 @@ export function dispatchHealth(board, config = {}) {
     items.add(item);
     const before = previous.find(entry => entry.seat === seat.agent_id && entry.item === item && entry.review === selected.review);
     const lastChange = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE (item_id=? AND event_kind IN ('add','claim','release','submit','accept','reject','reopen','refreeze','escalate','withdraw','edit','hold_item','unhold_item','reserve')) OR (event_by=? AND event_kind IN ('claim','reserve','release','submit'))").get(item, seat.agent_id)?.at;
-    const since = before && (!lastChange || lastChange <= before.since) ? before.since : at.toISOString();
+    const observedSince = new Date(Math.min(at.getTime(), Math.max(...[lastChange, seat.agent_created_at, seat.heartbeatAt].filter(Boolean).map(Date.parse)))).toISOString();
+    const since = before && (!lastChange || lastChange <= before.since) ? before.since : observedSince;
     dispatch.push({ seat: seat.agent_id, item, review: selected.review, since });
     if (at.getTime() - Date.parse(since) < 300000) continue;
     findings.push({ key: `UNPAIRED_WORK:${seat.agent_id}:${item}`, cause: 'UNPAIRED_WORK', item,
