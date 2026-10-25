@@ -61,7 +61,7 @@ export function assertSpecCorrectionRefreezesCitations(t) {
   assert.equal(store.getItem(board, submittedId).item_status, 'submitted');
   assert.equal(store.getItem(board, verifiedId).item_status, 'verified');
 
-  store.withdraw(board, withdrawnId, { by: COORDINATOR, reason: 'fixture excludes withdrawn citations' });
+  store.withdraw(board, withdrawnId, { agentId: COORDINATOR, reason: 'fixture excludes withdrawn citations' });
   const config = loadConfig(box.repo);
   const decision = prepareRowDecisions(box.repo, config, {
     ids: ['G1'], decision: 'approve', text: 'The revised page renders.', by: 'person',
