@@ -125,7 +125,10 @@ import {
   whoAmI,
   withBoard,
 } from '../cli.js';
-import { assertNoCitedSpecDecline, prepareSpecRefreezes } from '../spec-refreeze.js';
+import {
+  assertNoCitedSpecDecline,
+  prepareSpecRefreezes,
+} from '../spec-refreeze.js';
 
 /** Validate optional verdicts using only existing board state; a check never initializes a board. */
 function verifierFindings(ctx, parsed) {

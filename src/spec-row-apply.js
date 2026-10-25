@@ -8,7 +8,10 @@ import { logEvent } from './board-event-log.js';
 import { now } from './board-query.js';
 import { rowDecisions } from './row-decisions-query.js';
 import { markAppliedRevisions } from './spec-revisions.js';
-import { needsSpecRefreezes, validateSpecRefreezes } from './spec-refreeze.js';
+import {
+  needsSpecRefreezes,
+  validateSpecRefreezes,
+} from './spec-refreeze.js';
 
 /** Private in-process permission: JSON/sealed refreeze moves cannot supply this symbol. */
 export const SPEC_REFREEZE = Symbol('validated cited spec correction');
