@@ -423,8 +423,8 @@ The `event` table is a SQLite schema object governed by `SCHEMA_VERSION`; its ap
 | `family` | agent | `family` |
 | `model` | agent | — |
 | `moved` | coordinator | `path` |
-| `add` | item creator | `lane`, `specIds`, `after`, `route` |
-| `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen`, optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection` |
+| `add` | item creator | `lane`, `specIds`, `after`, `route`, optional `reviewFamily` |
+| `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen`, optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection`, optional `reviewFamily` |
 | `escalate` | builder | `from`, `to`, `note`, `attempt` |
 | `attempt` | reporting agent | `n`, `seconds`, `result` |
 | `board_members` | coordinator | `document` (exact version-1 body with board, repository, revision and complete members, approving login and SSH signature; native moves and checkpoints carry it sealed) |
@@ -472,7 +472,7 @@ The `event` table is a SQLite schema object governed by `SCHEMA_VERSION`; its ap
 | `row_draft` | builder, or rigor | engine-55 `row`, `written` |
 | `flake-observation` | reporting agent | engine-59 `engine`, `observation` |
 | `flake-repair` | reporting agent | engine-59 `engine`, `key`, `item` |
-| `row_apply` | coordinator | `events` |
+| `row_apply` | coordinator | `events`, atomic cited-spec corrections `refreezes` |
 <!-- events:end -->
 
 A CLI `accept` event includes `check: "none"` when no frozen item check ran or `check: "green"` when it passed. Older accept events and records without this field read as `unknown`; the result stays in event detail and does not change the board schema or event-log version.
@@ -495,7 +495,9 @@ New CLI claims include a `policy` object (`version: 1`, `commit`, `verify: { pol
 
 Person answer events additionally record their `channel`, either `terminal` or `view`, including the forwarded answer to the original asker. Agent answers omit that field.
 
-Person row decisions use one `row_decision` event per row. Its `record` holds `kind` (`spec` or `doctrine`), file, id, exact source and replacement lines, target text, decision, reason and identity. SSH approvals additionally hold the canonical signature and trust anchors. The current index is additive `board_meta` key `row_decisions`; each entry includes its event id, timestamp and applied state. Coordinator `row_apply` events name the exact decision event ids applied locally. Replica replay changes board metadata only and never writes checkout files.
+Person row decisions use one `row_decision` event per row. Its `record` holds `kind` (`spec` or `doctrine`), file, id, exact source and replacement lines, target text, decision, reason and identity. SSH approvals additionally hold the canonical signature and trust anchors. The current index is additive `board_meta` key `row_decisions`; each entry includes its event id, timestamp and applied state. Coordinator `row_apply` events name the exact decision event ids applied locally. Atomic approved-spec corrections also record `refreezes`, containing each affected item id and its before/after frozen digests. The sealed move carries complete frozen bytes and before-state snapshots; an explicit empty array marks a changed row with no unlanded citations. Current corrections refuse an omitted payload; older recorded moves retain their original metadata-only meaning. Replay never writes checkout files.
+
+An optional per-item required reviewer family is stored at additive `board_meta` key `item_review_family:<id>` and projected as `item_review_family` only when set. Add and edit events retain the requested `reviewFamily` spelling. Review selection, reservation and verdicts match the declared agent family case-insensitively; an undeclared or different family cannot satisfy it, and model names supply no inferred family. This requirement does not waive independent-parent or repository-wide reviewer policy.
 
 An approval of proposed new wording uses that same record: `source` is the existing exact line and `replacement` carries the approved target text. Pre-commit compares the staged target against the person decision or a verified staged signed receipt. No second approval format or event kind is needed.
 
