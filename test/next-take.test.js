@@ -217,6 +217,13 @@ test('a coordinator edit never leaves an item unclaimable [V2,N2]', async t => {
   assert.ok(notices.some(shout => /correct/i.test(shout.shout_text) && !/pending|refreeze/i.test(shout.shout_text)));
   const renewed = await cli(box, box.seats.actor.path, ['claim', String(id)]);
   assert.equal(renewed.code, 0, renewed.out + renewed.err);
+  const noCheck = box.add('A corrected bar without an item-specific shell', { check: '' });
+  const noCheckEdit = await cli(box, box.root, ['edit', String(noCheck), '--criterion', 'The corrected checkless criterion', '--reason', 'Correct the checkless fixture']);
+  assert.equal(noCheckEdit.code, 0, noCheckEdit.out + noCheckEdit.err);
+  const checkless = store.getItem(box.board, noCheck);
+  assert.ok(checkless.item_frozen_digest);
+  assert.equal(JSON.parse(checkless.item_frozen).criterion, 'The corrected checkless criterion');
+  assert.equal(Object.hasOwn(JSON.parse(checkless.item_frozen), 'check'), false, 'the established frozen format omits an empty check');
 });
 
 
