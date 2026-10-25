@@ -14,18 +14,26 @@ import {
   ordered,
   whoAmI,
   withBoard,
+  withBoardRead,
 } from './cli.js';
+
+/** Resolve current-seat eligibility on either a read snapshot or the final ordered writer. */
+function selected(ctx, board, values) {
+  checkMainVerifier(ctx, board, values);
+  const me = whoAmI(ctx, board);
+  return dispatchWork(board, store.agentById(board, me.id), {
+    policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
+    skipIds: ownSessionReviews(ctx.info, board),
+  });
+}
 
 /** Take one eligible review or build through existing ordered guards, without routing to another seat. */
 export async function nextTake(ctx, values = {}) {
+  const looked = withBoardRead(ctx, board => selected(ctx, board, values));
+  if (!looked.item || looked.held && !looked.review) return looked;
   return await withBoard(ctx, async board => {
-    checkMainVerifier(ctx, board, values);
+    const picked = selected(ctx, board, values);
     const me = whoAmI(ctx, board);
-    const picked = dispatchWork(board, store.agentById(board, me.id), {
-      policy: ctx.config.verify.policy,
-      familyPolicy: ctx.config.verify.family,
-      skipIds: ownSessionReviews(ctx.info, board),
-    });
     if (picked.held && !picked.review || !picked.item) return picked;
     if (picked.review) {
       const reviewed = await nextReview(ctx, board, me, values, {
