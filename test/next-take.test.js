@@ -25,7 +25,7 @@ import { dispatchHealth } from '../src/dispatch-health.js';
 import { deliverHealthNotices } from '../src/health-receipts.js';
 import { runFixtureGit } from './fixture-child.js';
 import { proveRequiredReviewFamily } from './required-review-family-fixture.js';
-import { assertSpecCorrectionRefreezesCitations } from './spec-refreeze-fixture.js';
+import { assertSpecCorrectionRefreezesCitations, assertSpecRefreezeReplay } from './spec-refreeze-fixture.js';
 
 /** Run the actual command parser and operation pipeline against this fixture's clock. */
 async function cli(box, cwd, args) {
@@ -396,3 +396,6 @@ test('an item required reviewer family is enforced by every dispatch path [V1,V2
 
 test('a spec correction refreezes every unlanded citing item atomically [V2,H16]',
   t => assertSpecCorrectionRefreezesCitations(t));
+
+test('spec correction refreezes replay atomically across imported prefixes [V2,H16]',
+  t => assertSpecRefreezeReplay(t, { fixture, cli }));

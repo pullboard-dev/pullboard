@@ -77,16 +77,17 @@ Set up
   pullboard hook SessionStart|Stop|SessionEnd     native agent nudges; errors/timeouts warn and never block
 
 Work
-  add/edit --review-family <family>        require that declared reviewer family; case-insensitive, never guessed from model
   pullboard map [<module or function>] [--for <item>] [--budget <tokens>]  source map for main, a card, or an item's one-hop slice
                                         slices default to 4k tokens and cap at 8k; effects the scan cannot see say "not detected"
   pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--parent <id>]
-                [--brief "..." | --brief-file <file>] [--route light|mid]
+                [--brief "..." | --brief-file <file>] [--route light|mid] [--review-family <family>]
+                                        --review-family: require that declared family; case-insensitive, never guessed from model
                                         --after: claiming waits until those items are verified
                                         --brief: what a cold agent needs; --route light: any model can build it
                 [--check "<command>"] [--wait]   the command that proves it; --wait waits for its main baseline
                                         with --criterion and a brief, --check is needed below strong
   pullboard edit <id> [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."]
+                [--review-family <family>]   require the declared reviewer family
                 [--wait]                wait for a new check's baseline; otherwise it runs in the background
                 [--reason "what the old bar got wrong"]   needed to change the criterion or check of an item
                                         that was ever claimed; show and stats list each correction
