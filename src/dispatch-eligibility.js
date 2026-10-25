@@ -28,5 +28,5 @@ export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy =
   }
 
   const build = store.nextFor(board, { agentId, lane, omitIds: assignedIds });
-  return { item: build.item, review: false, held: false, reasons: build.reasons };
+  return { item: build.item, review: false, held: false, reasons: build.item ? build.reasons : [...new Set([...review.reasons, ...build.reasons])] };
 }
