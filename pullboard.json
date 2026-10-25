@@ -73,7 +73,7 @@
         "docs/api.test.js",
         "docs/lifecycle.md",
         "docs/formats.md",
-        "docs/formats.test.js", "docs/architecture.md", "docs/architecture.test.js"
+        "docs/formats.test.js", "docs/architecture.md", "docs/architecture.test.js", "docs/img/lifecycle.svg", "docs/img/lifecycle-dark.svg"
       ],
       "specs": [
         "B",
