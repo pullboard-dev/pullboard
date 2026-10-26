@@ -109,6 +109,9 @@ export async function proveSettingsApi() {
     assert.equal(find('machine', 'gate.queue.reviewsFirst').value, true);
     assert.equal(find('machine', 'gate.runnersFirst').value, true);
     assert.equal(find('machine', 'gate.runnersFirst').default, false);
+    assert.equal(find('machine', 'gate.runnerWaitMs').value, 300_000, 'the runner admission deadline is discoverable through the read-only settings API');
+    assert.equal(find('machine', 'gate.runnerWaitMs').default, 300_000);
+    assert.equal(find('machine', 'gate.runnerWaitMs').origin, 'default');
     assert.equal(find('machine', 'gate.queue.agingMinutes').value, 30);
     assert.equal(find('machine', 'resources.custom.capacity').value, 4);
     assert.equal(find('repo', 'claim.reopenFirstRefusalMinutes').value, 30);

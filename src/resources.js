@@ -29,6 +29,11 @@ import {
 import { Refused } from './refused.js';
 import { gateQueueSettings } from './queue-settings.js';
 import {
+  localWaitBranch,
+  runnerDeadlineLine,
+  runnerWaitReasons,
+} from './runner-wait.js';
+import {
   ARRIVAL_ORDER,
   classedMarker,
   classOrderInEffect,
@@ -149,6 +154,9 @@ function openQueue(file) {
       if (table === 'waiter' && !columns.includes('remote')) db.exec('ALTER TABLE waiter ADD COLUMN remote INTEGER NOT NULL DEFAULT 0');
       if (table === 'waiter' && !columns.includes('short_eligible')) db.exec('ALTER TABLE waiter ADD COLUMN short_eligible INTEGER NOT NULL DEFAULT 0');
       if (table === 'waiter' && !columns.includes('memory_held')) db.exec('ALTER TABLE waiter ADD COLUMN memory_held INTEGER NOT NULL DEFAULT 0');
+      if (table === 'waiter' && !columns.includes('runner_deadline')) db.exec('ALTER TABLE waiter ADD COLUMN runner_deadline INTEGER NOT NULL DEFAULT 0');
+      if (table === 'waiter' && !columns.includes('runner_wait_branch')) db.exec("ALTER TABLE waiter ADD COLUMN runner_wait_branch TEXT NOT NULL DEFAULT ''");
+      if (table === 'waiter' && !columns.includes('runner_wait_reasons')) db.exec("ALTER TABLE waiter ADD COLUMN runner_wait_reasons TEXT NOT NULL DEFAULT '[]'");
     }
     // Older clients insert the default zero. A database trigger witnesses even short legacy
     // arrivals between the timing owner's polls; no old client has to understand the new flag.
@@ -348,17 +356,18 @@ function queueOrder(scope) {
 
 /** Read the complete resource line with the metadata every admission view orders identically. */
 function queuedWaiters(db, name) {
-  return db.prepare('SELECT ticket, pid, agent, repo, since, landing, item_check AS itemCheck, diagnostic, browser, gui, remote, runner_only AS runnerOnly, item, kind, lease_until AS leaseUntil, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible AS shortEligible, timing, memory_held AS memoryHeld FROM waiter WHERE name = ?').all(name);
+  return db.prepare('SELECT ticket, pid, agent, repo, since, landing, item_check AS itemCheck, diagnostic, browser, gui, remote, runner_only AS runnerOnly, item, kind, lease_until AS leaseUntil, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible AS shortEligible, timing, memory_held AS memoryHeld, runner_deadline AS runnerDeadlineAt, runner_wait_branch AS runnerWaitBranch, runner_wait_reasons AS runnerWaitReasons FROM waiter WHERE name = ?').all(name);
 }
 
 /** Current holders and the waiting line in admission order, each waiter naming its class (aged only while class order is on). */
 function snapshot(db, name, order = ARRIVAL_ORDER, now = Date.now()) {
   /** Preserve older public entries while naming diagnostics as a distinct queue class. */
-  const project = ({ diagnostic, browser, gui, remote, runnerOnly, runner, item, kind, leaseUntil, shortSlot, shortEligible, timing, memoryHeld, ...entry }) => ({ ...entry, landing: entry.landing === 1,
+  const project = ({ diagnostic, browser, gui, remote, runnerOnly, runner, item, kind, leaseUntil, shortSlot, shortEligible, timing, memoryHeld, runnerDeadlineAt, runnerWaitBranch, runnerWaitReasons, ...entry }) => ({ ...entry, landing: entry.landing === 1,
     itemCheck: entry.itemCheck === 1 && diagnostic !== 1, ...(diagnostic === 1 ? { diagnostic: true } : {}),
     ...(['gate', 'browser'].includes(name) && shortSlot === 1 ? { slot: 'short' } : {}),
     ...(['gate', 'browser'].includes(name) && shortSlot === 0 ? { slot: 'gate' } : {}),
     ...(['gate', 'browser'].includes(name) && shortEligible === 1 ? { requestedSlot: 'short-eligible' } : {}),
+    ...(runnerDeadlineAt > 0 && now >= runnerDeadlineAt ? { runnerDeadline: { at: runnerDeadlineAt, branch: runnerWaitBranch, runners: JSON.parse(runnerWaitReasons) } } : {}),
     ...(memoryHeld === 1 ? { memoryHeld: true } : {}), ...(timing === 1 ? { timing: true } : {}), ...(browser === 1 ? { browser: true } : {}), ...(gui === 1 ? { gui: true } : {}), ...(remote === 1 ? { remote: true } : {}),
     ...(runnerOnly === 1 ? { runnerOnly: true } : {}), ...(runner ? { runner } : {}), ...(item ? { item } : {}), ...(kind ? { kind } : {}), ...(leaseUntil ? { leaseUntil } : {}) });
   // Browser is an additional capability on a gate lease, not a second partially held row.
@@ -848,6 +857,8 @@ export async function takeResource(options) {
   const resume = options._resume;
   const token = resume?.token ?? randomUUID();
   const requestedAt = resume?.requestedAt ?? Date.now();
+  // Capture once: requeueing or editing the machine setting cannot restart this run's clock.
+  let runnerDeadlineAt = resume?.runnerDeadlineAt ?? 0;
   let priorWaitMs = resume?.priorWaitMs ?? 0;
   let waitStartedAt = resume?.waitStartedAt ?? Date.now();
   const pid = process.pid;
@@ -927,7 +938,9 @@ export async function takeResource(options) {
         // older pre-lock snapshot cannot overwrite a newer configured capacity.
         const runners = runnerProvider ? validatedRunners(runnerProvider()) : [];
         const runnersFirst = runnersFirstProvider?.() === true;
-        const waiter = db.prepare('SELECT ticket, remote, browser, gui FROM waiter WHERE token = ?').get(token);
+        if (!runnerDeadlineAt && remote && runners.length && options.runnerWaitMs) runnerDeadlineAt = requestedAt + options.runnerWaitMs;
+        const runnerDeadlinePassed = runnerDeadlineAt > 0 && now >= runnerDeadlineAt;
+        const waiter = db.prepare('SELECT ticket, remote, browser, gui, runner_wait_branch AS runnerWaitBranch FROM waiter WHERE token = ?').get(token);
         if (!waiter) {
           if (resume && initialTicket) {
             db.prepare('INSERT OR IGNORE INTO waiter(ticket, token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, remote, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible, gui, timing, timing_aware) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(initialTicket, token, name, pid, started, agent, repo, queuedAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, Number(remote), classedMarker(order), 1, boardKey, releaseRank, resume?.queueTicket ?? null, Number(shortEligible), Number(gui), Number(timing), 1);
@@ -939,14 +952,32 @@ export async function takeResource(options) {
           return { acquired: false, state: { ...snapshot(db, name, order), position: waiterPosition(db, name, initialTicket, { order, shortCapacity: options.shortCapacityProvider?.() ?? 0 }), rejoined: true } };
         }
         // The marker follows this poll's setting, so a change mid-wait reaches every process's ranking.
-        db.prepare('UPDATE waiter SET heartbeat = ?, classed = ?, runner_only = ? WHERE token = ?').run(Date.now(), classedMarker(order), Number(runnerOnly), token);
+        db.prepare('UPDATE waiter SET heartbeat = ?, classed = ?, runner_only = ?, remote = ?, runner_deadline = ? WHERE token = ?')
+          .run(Date.now(), classedMarker(order), Number(runnerOnly), Number(remote && !runnerDeadlinePassed), runnerDeadlineAt, token);
+        waiter.remote = Number(remote && !runnerDeadlinePassed);
         const unavailable = unavailableRunnerHosts(db, now);
         const memoryHeld = Boolean(memory?.held && (name !== 'gate' || waiter.remote !== 1
           || !runners.some(runner => runnerCompatible(db, runner, waiter, unavailable))));
         db.prepare('UPDATE waiter SET memory_held = ? WHERE token = ?').run(Number(memoryHeld), token);
+        const limit = db.prepare('SELECT capacity FROM resource WHERE name = ?').get(name).capacity;
+        let runnerDeadline;
+        if (runnerDeadlineAt && (runnerDeadlinePassed || !waiter.runnerWaitBranch)) {
+          const state = snapshot(db, name, order, now);
+          runnerDeadline = { at: runnerDeadlineAt, runners: runnerWaitReasons(db, runners, { ...waiter, timing: Number(timing) }, unavailable),
+            branch: localWaitBranch({ capacity: limit, browserCapacity: options.browserCapacityProvider?.() ?? 1,
+              runnerOnly, browser, timing, memoryHeld: memory?.held === true, holders: state.holders }) };
+          db.prepare('UPDATE waiter SET runner_wait_branch = ?, runner_wait_reasons = ? WHERE token = ?')
+            .run(runnerDeadline.branch, JSON.stringify(runnerDeadline.runners), token);
+          // Without local capacity the run cannot fall back, so it refuses by name rather than wait forever.
+          if (runnerDeadlinePassed && (runnerOnly || runnerDeadline.branch === 'no local capacity')) {
+            throw new Refused('RUNNER_WAIT_DEADLINE', `${runnerDeadlineLine(runnerDeadline)}; restore safe local capacity or check the named runners, then retry`);
+          }
+          // A read-only status may cross the clock boundary between polls. Seed its facts
+          // immediately, while progress and fallback still wait for the actual deadline.
+          if (!runnerDeadlinePassed) runnerDeadline = undefined;
+        }
         const spot = snapshot(db, name, order, now);
         const reportPosition = waiterPosition(db, name, waiter.ticket, { order, now, shortCapacity: options.shortCapacityProvider?.() ?? 0 });
-        const limit = db.prepare('SELECT capacity FROM resource WHERE name = ?').get(name).capacity;
         // Local pressure blocks local executors, including short slots, but never a remote executor.
         if (name !== 'gate' && memoryHeld) return { acquired: false, state: { ...spot, position: reportPosition, memory } };
         const executor = name === 'gate'
@@ -959,11 +990,12 @@ export async function takeResource(options) {
           const holderName = executor.host ? runnerResourceName(executor.host) : name;
           db.prepare('INSERT INTO holder(token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, runner, short_slot, timing, timing_aware) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(token, holderName, pid, started, agent, repo, acquiredAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, executor.host, Number(executor.shortSlot === true), Number(timing), 1);
           db.prepare('UPDATE holder SET runner_execution = ? WHERE token = ?').run(Number(options.runnerExecution === true), token);
-          return { acquired: true, state: { ...spot, position: 0 }, ticket: waiter.ticket, queueTicket, runner: executor.host ? executor : undefined, shortSlot: executor.shortSlot === true, capacity: limit, admittedAt: acquiredAt };
+          return { acquired: true, state: { ...spot, position: 0, ...(runnerDeadline ? { runnerDeadline } : {}) }, ticket: waiter.ticket, queueTicket, runner: executor.host ? executor : undefined, shortSlot: executor.shortSlot === true, capacity: limit, admittedAt: acquiredAt };
         }
-        return { acquired: false, state: { ...spot, position: reportPosition, ...(memoryHeld ? { memory } : {}) } };
+        return { acquired: false, state: { ...spot, position: reportPosition, ...(memoryHeld ? { memory } : {}), ...(runnerDeadline ? { runnerDeadline } : {}) } };
       }));
       if (acquired.acquired) {
+        if (acquired.state.runnerDeadline) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '; running locally\n');
         // Only item-lease callbacks opt into admission. Await them so no renewal remains in
         // flight during the run, and restart the ordinary item expiry from this boundary.
         if (leaseUntil) {
@@ -1052,12 +1084,13 @@ export async function takeResource(options) {
           }
           db.close();
           return takeResource({ ...options, ...(local && !runnerOnly ? { remote: false } : {}), _resume: { token, ticket: requeueTicket ?? acquired.ticket, queueTicket: requeueOpportunity,
-            queuedAt, requestedAt, priorWaitMs: acquiredWaitMs, waitStartedAt: Date.now() } });
+            queuedAt, requestedAt, runnerDeadlineAt, priorWaitMs: acquiredWaitMs, waitStartedAt: Date.now() } });
         };
         return { name, scope, token, pool, browser, timing, runnerExecution: options.runnerExecution === true, admittedAt: acquired.admittedAt, capacity: acquired.capacity, slotClass: acquired.shortSlot ? 'short' : 'gate', ...(acquired.runner ? { runner: acquired.runner } : {}),
-          waitMs: acquiredWaitMs, release, renew, timingEvidence,
+          waitMs: acquiredWaitMs, ...(runnerDeadlineAt ? { runnerWaitDeadline: runnerDeadlineAt } : {}), release, renew, timingEvidence,
           ...(acquired.runner ? { requeueRunner } : {}) };
       }
+      if (acquired.state.runnerDeadline) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '\n');
       await keepItemLease(acquired.state, 'waiter');
       await pause(POLL_MS);
     }

@@ -9,6 +9,7 @@ import {
 import {
   gateQueueSettings,
   gateShortSlots,
+  gateRunnerWaitMs,
   loadMachineSettings,
   memoryFloorMB,
   relayOfferEnabled,
@@ -16,6 +17,7 @@ import {
   setGateShortSlots,
   setGateSlots,
   setGateRunnersFirst,
+  setGateRunnerWaitMs,
   setLandingPool,
 } from '../settings.js';
 import {
@@ -43,7 +45,7 @@ export function settingsCommand(io, { first, second, rest, values }) {
     const offerAtInit = relayOfferEnabled();
     const shortSlots = gateShortSlots();
     const runnersFirst = settings.gate?.runnersFirst === true;
-    io.result?.({ settings: { ...settings, gate: { ...settings.gate, queue: { ...settings.gate?.queue, ...queue }, shortSlots, runnersFirst }, relay: { ...settings.relay, offerAtInit } }, memoryFloorMB: memoryFloorMB() });
+    io.result?.({ settings: { ...settings, gate: { ...settings.gate, queue: { ...settings.gate?.queue, ...queue }, shortSlots, runnersFirst, runnerWaitMs: gateRunnerWaitMs() }, relay: { ...settings.relay, offerAtInit } }, memoryFloorMB: memoryFloorMB() });
     io.say(`gateSlots: ${settings.gateSlots}`);
     io.say(`browserSlots: ${settings.browserSlots}`);
     io.say(`gate.queue.reviewsFirst: ${queue.reviewsFirst}${queue.reviewsFirst ? '' : ' (landings first, then arrival order)'}`);
@@ -54,6 +56,7 @@ export function settingsCommand(io, { first, second, rest, values }) {
     io.say(`relay.offerAtInit: ${offerAtInit}${offerAtInit ? ' (init asks once to share your boards with your phone)' : ' (init stays quiet about sharing)'}`);
     io.say(`gate.shortSlots: ${shortSlots}${shortSlots ? '' : ' (off; runs that name their test files wait for a gate slot)'}`);
     io.say(`gate.runnersFirst: ${runnersFirst} (registered runners are preferred before local slots when on)`);
+    io.say(`gate.runnerWaitMs: ${gateRunnerWaitMs()} (then ordinary local admission; no disabled capacity is created)`);
     return 0;
   }
   if (!SETTING_FORMS.includes(first) || !second || rest.length) {
@@ -64,6 +67,13 @@ export function settingsCommand(io, { first, second, rest, values }) {
     const settings = setGateRunnersFirst(second === 'on');
     io.result?.({ settings });
     io.say(`gate.runnersFirst set to ${second}`);
+    return 0;
+  }
+  if (first === 'gate.runnerWaitMs') {
+    if (!/^[1-9]\d*$/u.test(second)) throw new Refused('BAD_MACHINE_SETTINGS', 'gate.runnerWaitMs must be positive whole milliseconds; run pullboard settings gate.runnerWaitMs <n>');
+    const settings = setGateRunnerWaitMs(Number(second));
+    io.result?.({ settings });
+    io.say(`gate.runnerWaitMs set to ${settings.gate.runnerWaitMs}`);
     return 0;
   }
   if (first === 'gate.shortSlots') {

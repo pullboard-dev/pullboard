@@ -14,6 +14,10 @@ import {
 import { validateRunner } from './runners.js';
 import { Refused } from './refused.js';
 import {
+  DEFAULT_RUNNER_WAIT_MS,
+  validateRunnerWaitMs,
+} from './runner-wait.js';
+import {
   carriedBrowserByLaunch,
   gateQueueSettings,
   machineSettingsFile,
@@ -33,6 +37,7 @@ export function loadMachineSettings() {
   const file = machineSettingsFile();
   const value = readMachineSettingsFile(file);
   if (!value) return { gateSlots: DEFAULT_GATE_SLOTS, browserSlots: DEFAULT_BROWSER_SLOTS };
+  if (value.gate?.runnerWaitMs !== undefined) validateRunnerWaitMs(value.gate.runnerWaitMs);
   if (value.landing !== undefined && (!value.landing || typeof value.landing !== 'object' || Array.isArray(value.landing)
     || Object.keys(value.landing).some(key => key !== 'pools') || !Array.isArray(value.landing.pools)
     || value.landing.pools.some(id => typeof id !== 'string' || !/^[a-f0-9]{32}$/u.test(id)))) {
@@ -92,6 +97,20 @@ export function browserFreeChecksEnabled() {
 /** Runner-first admission is machine-wide and remains off unless explicitly enabled. */
 export function gateRunnersFirstEnabled() {
   return loadMachineSettings().gate?.runnersFirst === true;
+}
+
+/** Capture the runner wait deadline for a new run; later requeues retain that deadline. */
+export function gateRunnerWaitMs() {
+  return loadMachineSettings().gate?.runnerWaitMs ?? DEFAULT_RUNNER_WAIT_MS;
+}
+
+/** Set the runner deadline for new work without changing any admitted or queued run. */
+export function setGateRunnerWaitMs(milliseconds) {
+  validateRunnerWaitMs(milliseconds);
+  const current = loadMachineSettings();
+  const next = { ...current, gate: { ...current.gate, runnerWaitMs: milliseconds } };
+  writeMachineSettings(next);
+  return next;
 }
 
 /**

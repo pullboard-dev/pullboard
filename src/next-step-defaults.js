@@ -370,6 +370,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "RUNNER_CAPACITY_MISMATCH": "wait for active runner leases to fit the configured capacity, then retry the run",
   "RUNNER_CLEANUP_TIMEOUT": "inspect the named job under that runner's namespace and confirm its cleanup before starting another run",
   "RUNNER_NOT_REGISTERED": "choose a host already registered in this machine's runner settings, then run pullboard runner remove <ssh-host> again",
+  "RUNNER_WAIT_DEADLINE": "check the runners the message names, or restore local gate capacity with pullboard settings, then retry",
   "RUNNER_REQUIRED_FOR_ZERO_CAPACITY": "restore positive gateSlots and browserSlots with pullboard settings before removing the last registered runner",
   "RUNNER_OUTPUT_LIMIT": "reduce the command output, or keep the run local",
   "RUNNER_REQUEST_LIMIT": "keep the run local, or reduce the runner request before retrying",

@@ -663,7 +663,14 @@
       null,
       null
     ],
-    "recordProofRun": [null, "first", null, null, null, null],
+    "recordProofRun": [
+      null,
+      "first",
+      null,
+      null,
+      null,
+      null
+    ],
     "recordRowVerification": [
       null,
       "first",
@@ -6525,7 +6532,6 @@
     "BAD_CURSOR": "pass a nonnegative integer from the last response you received",
     "BAD_ACTIVITY_CURSOR": "use a nonnegative whole-number cursor from the last response, then read inbox again: pullboard inbox",
     "BAD_DECISION": "choose accept or reject with a supported reason: pullboard verify <id> reject --reason TEST_FAILURE --note \"<what failed>\"",
-    "BAD_DECISION_OPTIONS": "ask an item decision with --decision --item <id> --options '[\"first\",\"second\"]'",
     "BAD_DEPENDENCIES": "use --after with item ids, such as --after 1,2, or --after none",
     "BAD_EVIDENCE": "pass the evidence fields the message names, then retry",
     "BAD_FACT_ID": "upgrade to the current Pullboard engine, then retry the original fact operation",
@@ -6782,7 +6788,6 @@
     "BAD_ORIGIN": "name where the decision came from with --origin person-relayed, agent or inherited, or leave --origin out",
     "WHY_GIT": "run pullboard why from inside the repository, with a path that git can read",
     "NOT_YOUR_DECISION": "answer only decisions addressed to you; see pullboard inbox",
-    "NOT_YOUR_ITEM_DECISION": "ask on an item you build or review, or ask the coordinator for a cross-item decision",
     "NO_AGENT": "create and join a lane worktree: pullboard worktree <lane> --model \"<model name>\"",
     "NO_BOARD": "initialize the board in this repository: pullboard init",
     "NO_BLUEPRINT": "choose a bundled blueprint named in the message, or pass an existing local JSON file to pullboard blueprint add",
@@ -7082,7 +7087,8 @@
     "COMPANION_KEY": "supply a stable --key and reuse it for this same parent and target lane",
     "COMPANION_LANE": "choose a different target lane; ordinary same-lane children use pullboard add --parent",
     "COMPANION_CONTENT": "supply title, criterion and brief text and existing spec ids for the companion",
-    "COMPANION_RECORD": "restore a consistent board export so the companion request index matches its child"
+    "COMPANION_RECORD": "restore a consistent board export so the companion request index matches its child",
+    "RUNNER_WAIT_DEADLINE": "check the runners the message names, or restore local gate capacity with pullboard settings, then retry"
   },
   "replay": {
     "initial": {
