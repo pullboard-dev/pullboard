@@ -60,22 +60,22 @@ export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false,
       changesForMain: (commit, detail) => activityMainFiles(ctx.info.root, commit, detail,
         { rowFiles: [ctx.config.spec, ctx.config.practice] }) });
     const { observation, newsShouts, shoutCursor, ...activity } = projected;
-    const shouts = directShouts ? store.inbox(board, me.id, { through: shoutCursor })
-      .filter(shout => !newsShouts.includes(shout.shout_id)) : [];
     // Pending obligations survive an output failure: delivery is not acknowledgement.
     const retired = handoffMoveProblem(board, me.id, 'recordActivityDelivery', [{ agentId: me.id }]);
     if (retired) activity.receipt = { recorded: false, code: retired.code, message: retired.message };
     else {
       try { await recordIncluded(ctx, board, me.id, observation); }
       catch (error) {
-        if (!(error instanceof Refused) || error.code !== 'RELAY_RECOVERY_PENDING') throw error;
-        // Recovery keeps canonical writes fenced; unread obligations replay until their delivery is recorded.
+        if (!(error instanceof Refused) || !['RELAY_RECOVERY_PENDING', 'RELAY_KEY_MISSING'].includes(error.code)) throw error;
+        // A read remains available while canonical writes are fenced; its obligations remain unrecorded.
         activity.receipt = { recorded: false, code: error.code, message: error.message };
       }
     }
+    const shouts = directShouts ? store.inbox(board, me.id, { through: shoutCursor, markRead: activity.receipt?.code !== 'RELAY_KEY_MISSING' })
+      .filter(shout => !newsShouts.includes(shout.shout_id)) : [];
     return { shouts, agents: store.listAgents(board), activity, local };
   });
-  if (!saveActivityCursor(delivered.local, delivered.activity.cursor)) {
+  if (delivered.activity.receipt?.code !== 'RELAY_KEY_MISSING' && !saveActivityCursor(delivered.local, delivered.activity.cursor)) {
     ctx.io.err('activity cursor could not be saved; activity may repeat when you read inbox again');
   }
   const { local, ...result } = delivered;

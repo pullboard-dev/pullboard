@@ -133,6 +133,7 @@ const OPTIONS = {
   window: { type: 'string' },
   policy: { type: 'string' },
   decision: { type: 'boolean' },
+  kind: { type: 'string' },
   options: { type: 'string' },
   news: { type: 'boolean' },
   evidence: { type: 'string' },

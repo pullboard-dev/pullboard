@@ -39,7 +39,7 @@ export async function run(io, { first, second, rest, values }) {
   const to = values.item !== undefined ? `item:${values.item}` : hasRecipient ? recipient : values.decision ? (me.id === COORDINATOR ? 'person' : COORDINATOR) : first ?? '';
   const text = [hasRecipient ? second : first, ...(hasRecipient ? rest : [second, ...rest])].filter(Boolean).join(' ');
   requireReadableShout(text);
-  const id = await ordered(ctx, board, 'shout', [{ from: personShout(io, me) ? store.PERSON : me.id, to, text, ...(values.item !== undefined ? { item: Number(values.item) } : {}), lanes: laneNames(ctx.config), decision: Boolean(values.decision), ...(options !== undefined ? { options } : {}), ...(values.news ? { news: true } : {}), evidence }]);
+  const id = await ordered(ctx, board, 'shout', [{ from: personShout(io, me) ? store.PERSON : me.id, to, text, ...(values.item !== undefined ? { item: Number(values.item) } : {}), lanes: laneNames(ctx.config), decision: Boolean(values.decision), ...(options !== undefined ? { options } : {}), ...(values.kind === undefined ? {} : { kind: values.kind }), ...(values.news ? { news: true } : {}), evidence }]);
   io.result?.({ id, decision: Boolean(values.decision) });
   const agents = store.listAgents(board);
   const recipientName = agents.some((agent) => agent.agent_id === to) ? agentDisplayName(agents, ctx.config, to) : to;

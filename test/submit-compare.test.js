@@ -207,9 +207,17 @@ test('a red submit reruns its failed files one slot at a time within the pool [V
   }
   assert.equal(maximum, 1, 'one submit leaves the other machine slot available');
   assert.equal(active, 0);
-  assert.deepEqual(JSON.parse(readFileSync(box.cache, 'utf8')).entries[box.main], {
+  const cached = JSON.parse(readFileSync(box.cache, 'utf8')).entries[box.main];
+  assert.deepEqual(Object.fromEntries(Object.entries(cached).map(([file, row]) => [file, { result: row.result }])), {
     'test/a.test.js': { result: 'green' }, 'test/b.test.js': { result: 'red' }, 'test/c.test.js': { result: 'green' },
   });
+  assert.deepEqual(cached['test/a.test.js'].failures, []);
+  assert.deepEqual(cached['test/c.test.js'].failures, []);
+  assert.equal(cached['test/b.test.js'].failures.length, 1);
+  const [known] = cached['test/b.test.js'].failures;
+  assert.equal(known.file, 'test/b.test.js');
+  assert.equal(known.name, 'b native comparison [G1]');
+  assert.match(known.signature, /^[a-f0-9]{64}$/u);
   assert.equal(rows(box.machineQueue, 'SELECT token FROM holder').length, 0, 'all machine leases are released');
   const before = events(box).length;
   await assertRed(box, launch(box, 'submit', String(box.item)));

@@ -32,7 +32,7 @@ export function requestedCommandMove(command, operation) {
     inbox: ['recordActivityDelivery', 'actOnActivity'],
     shout: ['shout'], answer: ['answerDecision'], pass: ['passDecision'], fact: ['appendFact'],
     hold: ['holdLane', 'releaseLane', 'holdItem', 'releaseItemHold'],
-    bar: ['setBarReady', 'signBar'], settings: ['setLineSetting', 'setPersonSigning'], check: ['acceptCheck'],
+    lanes: ['setLaneLead'], bar: ['setBarReady', 'signBar'], settings: ['setLineSetting', 'setPersonSigning'], check: ['acceptCheck'],
     spec: ['recordRowDecisions', 'decideSpecRevisions', 'applyRowDecisions', 'draftSpecRow', 'appendFact', 'editItem', 'withdraw'],
     blueprint: ['draftSpecRow', 'addItem', 'appendFact'], rigor: ['draftSpecRow', 'proposeSentinel'], sweep: ['addItem'],
     milestone: ['addMilestone', 'editMilestoneItems', 'orderMilestoneItems', 'moveMilestone', 'editMilestone', 'removeMilestone', 'shipMilestone'],

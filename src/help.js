@@ -173,6 +173,8 @@ Work
   pullboard inbox --acted-on <interrupt-ids>     acknowledge comma-separated ids only after acting; reading is not acting
   pullboard shout --item <id> <text>             message the item builder, reviewer and coordinator
   A seat shout to all reaches only coordinator and person; their broadcasts reach everyone.
+  pullboard shout coordinator <text> --kind question|blocker --decision  route through a named lane lead
+  pullboard lanes lead <lane> <seat|off>          coordinator names or removes the existing lane seat
   pullboard shout all <text> --news              coordinator/person release or focus news, digested at session start
   Inbox combines direct coordination with item/dependency, file and cited-row activity; other lane activity is summarized.
   pullboard shout [<to>] <text> --decision       ask for a decision; defaults to your coordinator or the person
@@ -186,7 +188,7 @@ Work
                                                       [--origin person-relayed|agent|inherited] [--rationale <why>]
                                         --supersedes tells the items an earlier answer implied; only the person
                                         supersedes the person's answer
-  pullboard pass <shout-id> <note>                coordinator passes a decision to the person
+  pullboard pass <shout-id> <note>                lead escalates to coordinator; coordinator passes to person
   pullboard decisions [--as person]               shouts waiting for you; main checkout defaults to coordinator
                                         as the person, a project's repos list together as repo#id
   pullboard watch [--to <agent|lane|all>] [--kinds <kinds>] [--item <id>] [--since <sequence>] [--json]

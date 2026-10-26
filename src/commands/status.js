@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { relayMachineDirectory } from '../local-state.js';
 import { withBoardRead } from '../cli-board-read.js';
 /** The pullboard status command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board-query.js';
@@ -49,13 +51,17 @@ export async function run(io, { values }) {
     return { me, mine, agents, presenceCounts, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root) : unlinkedRelayStatus(),
       submitInvariantProposals: submitInvariantProposals(store.submitInvariantEvents(board, ctx.config), ctx.config) };
   });
+  if (!summary.relay.linked && existsSync(relayMachineDirectory())) {
+    const exclusion = (await import('../relay-exclusion-state.js')).relayExclusion(ctx.info.root);
+    if (exclusion) Object.assign(summary.relay, { excluded: true, exclusion });
+  }
   summary.memoryHeld = memoryHeldRuns();
   summary.runnerDeadlines = runnerDeadlineRuns();
   if (values.json) {
     io.result(summary);
     return 0;
   }
-  if (hasRelayState) for (const line of (await import('../relay-output.js')).briefLines(summary.relay)) io.say(line);
+  if (hasRelayState || summary.relay.excluded) for (const line of (await import('../relay-output.js')).briefLines(summary.relay)) io.say(line);
   const { items, accepted, rejected } = summary.stats;
   io.say(`${summary.me.displayName}: ${summary.unread} unread shouts; holding ${summary.mine.map((item) => `#${item.item_id}`).join(', ') || 'nothing'}`);
   io.say(`board: ${items.open} open, ${items.claimed} claimed, ${items.submitted} awaiting verification, ${items.verified} verified, ${items.withdrawn} withdrawn`);

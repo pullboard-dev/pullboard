@@ -14,7 +14,7 @@ export async function run(io, { first, second, rest }) {
   return act(async (ctx, board, me) => {
   const id = await ordered(ctx, board, 'passDecision', [idArg(first), { agentId: me.id, note: [second, ...rest].filter(Boolean).join(' '), lanes: laneNames(ctx.config) }]);
   io.result?.({ id, answers: idArg(first) });
-  io.say(`passed #${first} to the person as #${id}`);
+  io.say(`passed #${first} upward as #${id}`);
   return 0;
 });
 }

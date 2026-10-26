@@ -66,6 +66,7 @@
     "recordPublishFinding",
     "actOnActivity",
     "recordActivityDelivery",
+    "setLaneLead",
     "decideSpecRevisions",
     "recordRowVerification",
     "requestCompanion",
@@ -688,6 +689,14 @@
       null
     ],
     "requestCompanion": [
+      null,
+      "first",
+      null,
+      null,
+      null,
+      null
+    ],
+    "setLaneLead": [
       null,
       "first",
       null,
@@ -7088,6 +7097,11 @@
     "COMPANION_LANE": "choose a different target lane; ordinary same-lane children use pullboard add --parent",
     "COMPANION_CONTENT": "supply title, criterion and brief text and existing spec ids for the companion",
     "COMPANION_RECORD": "restore a consistent board export so the companion request index matches its child",
+    "BAD_LANE_LEAD": "name a configured lane and an existing seat in that lane, or off",
+    "BAD_MESSAGE_KIND": "use --kind question, blocker or decision",
+    "STATUS_IS_ACTIVITY": "keep working on the item; status is board activity, not a shout",
+    "LANE_MESSAGE_ITEM": "omit --kind for an item-specific message",
+    "NOT_LANE_LEAD": "ask your named lane lead to send the decision upward",
     "RUNNER_WAIT_DEADLINE": "check the runners the message names, or restore local gate capacity with pullboard settings, then retry"
   },
   "replay": {

@@ -168,7 +168,7 @@ const FIRST_ITEM = ['approveOutside', 'signBar', 'editItem', 'completeCheckBasel
  * (test/relay-outbox.test.js walks them all) (#922).
  */
 export const ITEM_SLOTS = Object.freeze({
-  setBarReady: [], setLineSetting: [],
+  setBarReady: [], setLineSetting: [], setLaneLead: [],
   requestCompanion: [[0, 'parentId']],
   recordPublishFinding: [[0, 'item']],
   register: [], ensureCoordinator: [], shout: [], passDecision: [], holdLane: [], releaseLane: [],

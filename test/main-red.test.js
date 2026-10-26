@@ -1,4 +1,4 @@
-/** A red submit compares only its failed files with exact main and guides an inherited rework [V1]. */
+/** A red item check remains mandatory and compares its failed files with main for recovery guidance [V1,V4]. */
 import assert from 'node:assert/strict';
 import '../src/main-red.js'; // The private driver below invokes this production entry point.
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -34,6 +34,11 @@ function commit(root, env, subject = 'chore: fixture state') {
   runFixtureGit(['add', '-A'], { cwd: root, env });
   runFixtureGit(['commit', '-q', '-m', subject], { cwd: root, env });
   return runFixtureGit(['rev-parse', 'HEAD'], { cwd: root, env }).trim();
+}
+
+/** Count real runner calls separately from the bar-baseline calls made while defining items. */
+function runCount(box) {
+  return existsSync(box.env.MAIN_RED_RUNS) ? readFileSync(box.env.MAIN_RED_RUNS, 'utf8').trim().split('\n').length : 0;
 }
 
 /** Quote one executable path for the fixture's real CLI shim. */
@@ -91,7 +96,8 @@ function addItems(box, rows) {
   return rows.map(({ title, specId, route = 'mid' }) => {
     const file = { G1: 'test/inherited.test.js', G2: 'test/unrelated.test.js', G3: 'test/earlier.test.js', G4: 'test/middle.test.js' }[specId];
     const result = cli(box.root, box.env, 'add', 'core', title, '--specs', specId, '--route', route,
-      '--criterion', title, '--check', 'true', '--brief', `Files: ${file}\nTest: ${title}`);
+      // These recovery cases exercise an unsatisfied item check; inherited proof failures have separate acceptance coverage.
+      '--criterion', title, '--check', 'node test/runner.js', '--brief', `Files: ${file}\nTest: ${title}`);
     assert.equal(result.code, 0, result.err || result.out);
     return Number(/^#(\d+)$/mu.exec(result.out)?.[1]);
   });
@@ -132,6 +138,95 @@ const FAILING_TEST = [
   "import { test } from 'node:test';",
   "test('the inherited behavior remains broken [V1]', () => assert.equal(1, 2));",
 ].join('\n') + '\n';
+
+test('main comparisons use the free CPU slot while browser work keeps its browser slot [V1,C7]', async t => {
+  const box = fixture(t, { spec: RED_SPEC, source: FAILING_TEST });
+  for (const [key, value] of [['gateSlots', '2'], ['browserSlots', '1']]) {
+    const set = cli(box.root, box.env, 'settings', key, value);
+    assert.equal(set.code, 0, `${key}: ${set.err}`);
+  }
+  const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const settings = JSON.parse(readFileSync(settingsFile, 'utf8'));
+  settings.gate = { ...settings.gate, browserFreeChecks: true };
+  writeFileSync(settingsFile, JSON.stringify(settings) + '\n', { mode: 0o600 });
+  put(box.root, 'test/browser.test.js', [
+    "import assert from 'node:assert/strict';",
+    "import { spawnSync } from 'node:child_process';",
+    "import { test } from 'node:test';",
+    '/** A potentially reachable Chrome launch makes this an admission fixture, without launching it here. */',
+    "export function browserLaunch() { return spawnSync('google-chrome', []); }",
+    "test('browser-capable comparison stays red [V1]', () => assert.equal(1, 2));",
+  ].join('\n') + '\n');
+  const main = commit(box.root, box.env);
+  const control = join(box.directory, 'cpu-browser-control');
+  mkdirSync(control);
+  const queue = join(box.env.PULLBOARD_MACHINE_HOME, 'resources.sqlite');
+  const driver = join(box.directory, 'cpu-browser-driver.mjs');
+  writeFileSync(driver, [
+    `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href)};`,
+    `import { compareMainFailures } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/main-red.js')).href)};`,
+    "import { existsSync, writeFileSync } from 'node:fs';",
+    "import { join } from 'node:path';",
+    'const [mode, root, control] = process.argv.slice(2);',
+    "if (mode === 'holder') {",
+    '  await withGateSlot(root, async lease => {',
+    "    if (!lease.browser) throw new Error('the fixture requires a real browser lease');",
+    "    writeFileSync(join(control,'browser.ready'),'ready');",
+    "    while (!existsSync(join(control,'browser.release'))) await new Promise(done => setTimeout(done,10));",
+    "  }, {browser:true,remote:false,agent:'fixture-browser-holder'});",
+    '} else {',
+    "  const file = mode === 'cpu' ? 'test/inherited.test.js' : 'test/browser.test.js';",
+    '  const result = await compareMainFailures(root,{tests:[{file,passed:false}]});',
+    "  writeFileSync(join(control,mode + '.result'),JSON.stringify(result));",
+    '}',
+  ].join('\n'));
+  const children = [];
+  /** Observe only the private fixture's real lease rows, without changing any admission state. */
+  const entries = table => {
+    if (!existsSync(queue)) return [];
+    const db = new DatabaseSync(queue, { readOnly: true });
+    try { db.exec('PRAGMA query_only=ON; PRAGMA busy_timeout=10000'); return db.prepare(`SELECT * FROM ${table} WHERE name='gate'`).all(); }
+    finally { db.close(); }
+  };
+  /** Launch a product comparison or a genuine private browser lease and retain its terminal result. */
+  const launch = mode => {
+    const child = startFixtureChild(process.execPath, [driver, mode, box.root, control], { cwd: box.root, env: box.env, stdio: ['ignore','pipe','pipe'] });
+    let error = '';
+    child.stdout.resume(); child.stderr.setEncoding('utf8').on('data', part => { error += part; });
+    child.done = new Promise(resolve => child.once('close', code => resolve({code,error})));
+    children.push(child);
+    return child;
+  };
+  /** Await actual admission or completion, using a hang ceiling rather than a speed assertion. */
+  const observed = async (predicate, label) => {
+    const deadline = Date.now() + 20_000; // budget: private resource/file handshake hang ceiling, not a speed target.
+    while (!predicate() && Date.now() < deadline) await new Promise(done => setTimeout(done,10));
+    assert.ok(predicate(), label);
+  };
+  try {
+    const holder = launch('holder');
+    await observed(() => existsSync(join(control,'browser.ready')), 'one real browser slot is occupied');
+    const cpu = launch('cpu');
+    await observed(() => existsSync(join(control,'cpu.result')) || [...entries('waiter'),...entries('holder')].some(row => row.pid === cpu.pid), 'the CPU comparison requests real admission');
+    const requested = [...entries('waiter'),...entries('holder')].find(row => row.pid === cpu.pid);
+    if (requested) assert.equal(requested.browser, 0, 'a CPU-only main comparison does not request the occupied browser slot');
+    await observed(() => existsSync(join(control,'cpu.result')), 'the CPU comparison completes while browser work stays admitted');
+    assert.equal(entries('holder').find(row => row.pid === holder.pid)?.browser, 1, 'the original browser job still owns its lease');
+    assert.deepEqual(JSON.parse(readFileSync(join(control,'cpu.result'),'utf8')), {main,files:[{file:'test/inherited.test.js',result:'red'}]});
+    const browser = launch('browser');
+    await observed(() => entries('waiter').some(row => row.pid === browser.pid && row.browser === 1), 'a browser-capable file still queues for the browser lease');
+    assert.equal(existsSync(join(control,'browser.result')), false, 'browser work never uses the spare CPU slot as a browser bypass');
+    writeFileSync(join(control,'browser.release'),'release');
+    await observed(() => existsSync(join(control,'browser.result')), 'browser comparison completes after its real lease becomes available');
+    assert.deepEqual(JSON.parse(readFileSync(join(control,'browser.result'),'utf8')), {main,files:[{file:'test/browser.test.js',result:'red'}]});
+  } finally {
+    writeFileSync(join(control,'browser.release'),'release');
+    for (const child of children) {
+      const result = await child.done;
+      assert.equal(result.code, 0, result.error);
+    }
+  }
+});
 
 test("a red submit's comparisons keep FIFO and release between files [V4,C7]", async t => {
   const box = fixture(t, { spec: RED_SPEC, source: FAILING_TEST });
@@ -277,13 +372,14 @@ test('an inherited red reads native spec reporter failure locations [V1]', t => 
   assert.equal(submitter.run('claim', String(submitItem)).code, 0);
   put(submitter.root, 'test/inherited.test.js', `${FAILING_TEST}// candidate-only comment\n`);
   commit(submitter.root, box.env, 'test(core): select spec-reported red [G2]');
+  const before = runCount(box);
   const unexplained = submitter.run('submit', String(submitItem));
   assert.match(unexplained.err, /\[INFRA_NOTE_REQUIRED\]/u, 'test edits need an explanation before any inherited-red comparison');
   const red = submitter.run('submit', String(submitItem), '--infra', 'append a candidate-only test marker to exercise native spec failure reporting');
   inheritedMessage(red, { row: 'G1', item: rework });
   const refusedItem = JSON.parse(submitter.run('show', String(submitItem), '--json').out);
   assert.equal(refusedItem.thread.some(entry => entry.kind === 'submit'), false, 'a red gate records no successful submit or infra note');
-  assert.equal(readFileSync(box.env.MAIN_RED_RUNS, 'utf8').trim().split('\n').length, 2,
+  assert.equal(runCount(box), before + 2,
     'the unchanged spec reporter command runs once on the candidate and once on exact main');
 });
 
@@ -305,12 +401,13 @@ test('a red with unreadable failure files says why main was not checked [V1]', t
   assert.equal(submitter.run('claim', String(submitItem)).code, 0);
   put(submitter.root, 'test/inherited.test.js', `${FAILING_TEST}// candidate-only comment\n`);
   commit(submitter.root, box.env, 'test(core): select unreadable runner red [G2]');
+  const before = runCount(box);
   const red = submitter.run('submit', String(submitItem), '--infra', 'append a candidate-only test marker to exercise unreadable runner failure reporting');
   assert.equal(red.code, 1, red.out || red.err);
   assert.match(red.err, /\[GATE_RED\]/u);
   assert.match(red.err, /main not checked: could not read which tests failed/u);
   assert.doesNotMatch(red.err, /also red on main|inherited main red/u);
-  assert.equal(readFileSync(box.env.MAIN_RED_RUNS, 'utf8').trim().split('\n').length, 1,
+  assert.equal(runCount(box), before + 1,
     'a location outside the spec reporter failure footer is not guessed to be a failed file');
 });
 
@@ -358,6 +455,7 @@ test('an inherited red names the rework that owns it [V1]', async (t) => {
     assert.equal(submitter.run('claim', String(submitItem)).code, 0);
     put(submitter.root, 'test/inherited.test.js', `${FAILING_TEST}// candidate-only comment\n`);
     commit(submitter.root, box.env, 'test(core): select inherited red [G1]');
+    const before = runCount(box);
     let red = submitter.run('submit', String(submitItem), '--infra', 'append a candidate-only test marker to exercise exact-main comparison caching');
     inheritedMessage(red, { row: 'G1', item: rework });
     const main = runFixtureGit(['rev-parse', 'main'], { cwd: box.root, env: box.env }).trim();
@@ -368,7 +466,7 @@ test('an inherited red names the rework that owns it [V1]', async (t) => {
     assert.equal((readFileSync(cachePath).length > 0), true);
     assert.equal(statSync(cachePath).mode & 0o077, 0, 'the result cache is private to this machine account');
     const firstCount = readFileSync(box.env.MAIN_RED_RUNS, 'utf8').trim().split('\n').length;
-    assert.equal(firstCount, 2, 'one selected candidate run and one exact-main run occurred');
+    assert.equal(firstCount, before + 2, 'one selected candidate run and one exact-main run occurred');
 
     put(submitter.root, 'test/inherited.test.js', `${FAILING_TEST}// second candidate-only comment\n`);
     commit(submitter.root, box.env, 'test(core): retry inherited red [G1]');
@@ -481,10 +579,11 @@ test('an inherited red names the rework that owns it [V1]', async (t) => {
     assert.equal(submitter.run('claim', String(submitItem)).code, 0);
     put(submitter.root, 'test/inherited.test.js', `${FAILING_TEST}// candidate-only comment\n`);
     commit(submitter.root, box.env, 'test(core): select red without focused runner [G2]');
+    const before = runCount(box);
     const red = submitter.run('submit', String(submitItem), '--infra', 'append a candidate-only test marker to exercise missing focused-runner guidance');
     assert.equal(red.code, 1, red.out || red.err);
     assert.match(red.err, /\[GATE_RED\]/u);
     assert.match(red.err, /main not checked: no focused test runner configured \(affectedTests\)/u);
-    assert.equal(readFileSync(box.env.MAIN_RED_RUNS, 'utf8').trim().split('\n').length, 1, 'the main comparison does not run a second full gate');
+    assert.equal(runCount(box), before + 1, 'the main comparison does not run a second full gate');
   });
 });

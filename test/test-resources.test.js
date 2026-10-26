@@ -445,7 +445,9 @@ test('only a file that reaches a browser launch takes a browser slot [C7,O5]', a
   const reached = bound.filter(file => !file.startsWith('test/cockpit/') && file !== 'test/journeys.test.js');
   // 21 Oct: 21, since #977's relay-local-origin.test.js really launches WebKit and Chrome to prove the Safari local route.
   // 22 Oct: 22, since #978's relay-pairing.test.js really launches two Chromes to pair a second browser.
-  assert.ok(reached.length <= 22,
+  // #1109's runtime-choice array is deliberately unresolved, so its provenance test stays conservatively bound.
+  assert.ok(bound.includes('test/proof-provenance.test.js'), 'the runtime-choice array never loses browser admission');
+  assert.ok(reached.length <= 23,
     `about 42 of ${tracked.length} test files are browser-bound by launch (the census's 15 non-cockpit launchers, plus cockpit and journey files until #741); got ${bound.length}, ${reached.length} outside cockpit: ${reached.join(', ')}`);
 
   const runner = runnerFixture(t, {
@@ -466,6 +468,200 @@ test('launcher starts the stand-in browser inside its slot', async () => {
   const off = runner.run(false, ['test/plain.test.js', 'test/launcher.test.js']);
   assert.equal(off.status, 0, off.output);
   assert.deepEqual(off.markers, ['launcher=unset', 'plain=unset'], 'with the setting off the runner sets no marker, as today');
+});
+
+/** Browser admission follows executable calls, not programs written as fixture data. */
+test('generated Chrome programs stay launch-free while executable launcher arguments stay bound [C7,O5]', async t => {
+  const generated = "export function browserLaunch() { return spawnSync('google-chrome', []); }";
+  const root = sourceFixture(t, {
+    'test/quoted-program.test.js': "import { spawnSync } from 'node:child_process';\n"
+      + 'export const fixture = ' + JSON.stringify(generated) + ";\nspawnSync(process.execPath, ['--version']);",
+    'test/template-program.test.js': "import { spawnSync } from 'node:child_process';\n"
+      + 'export const fixture = `' + generated + "`;\nspawnSync(process.execPath, ['--version']);",
+    'test/comment-program.test.js': "import { spawnSync } from 'node:child_process';\n"
+      + '// ' + generated + "\nspawnSync('git', ['status']);",
+    'test/direct-call.test.js': "import { spawnSync } from 'node:child_process';\nspawnSync('google-chrome', ['--version']);",
+    'test/bare-call.test.js': "import { spawnSync } from 'node:child_process';\nspawnSync('chrome', ['--version']);",
+    'test/alias-call.test.js': "import { spawnSync as start } from 'node:child_process';\nstart('google-chrome', ['--version']);",
+    'test/shell-call.test.js': "import { execSync } from 'node:child_process';\nexecSync('google-chrome --version');",
+    'test/variable-call.test.js': "import { spawnSync } from 'node:child_process';\nconst executable = '/opt/browser/google-chrome';\nspawnSync(executable, []);",
+    'test/environment-call.test.js': "import { spawnSync } from 'node:child_process';\nspawnSync(process.env.PULLBOARD_CHROME, []);",
+    'test/interpolation-call.test.js': "import { spawnSync } from 'node:child_process';\nexport const output = `${spawnSync('google-chrome', [])}`;",
+    'test/worker-call.test.js': "import { Worker as Thread } from 'node:worker_threads';\nnew Thread(\"require('child_process').execSync('google-chrome')\", { eval: true });",
+    'test/computed-loader.test.js': "const source = process['getBuiltinModule']('child_process');\nsource.spawnSync(process.env.PULLBOARD_CHROME, []);",
+  });
+  for (const name of ['quoted-program', 'template-program', 'comment-program']) {
+    const file = `test/${name}.test.js`;
+    assert.equal(await testsNeedBrowser(root, [file], { byLaunch: true }), false, `${name}: generated source is not a browser launch in this module`);
+    assert.equal(await testsNeedBrowser(root, [file], { byLaunch: false }), true, `${name}: the default classification remains conservative`);
+  }
+  for (const name of ['direct-call', 'bare-call', 'alias-call', 'shell-call', 'variable-call', 'environment-call', 'interpolation-call', 'worker-call', 'computed-loader']) {
+    assert.equal(await testsNeedBrowser(root, [`test/${name}.test.js`], { byLaunch: true }), true, `${name}: executable or uncertain Chrome launch remains browser-bound`);
+  }
+});
+
+/** Executable writes retain possible browser values even when no declaration initialized the target. */
+test('later executable assignments retain every possible browser launch value [C7,O5]', async t => {
+  const imports = "import { spawnSync } from 'node:child_process';\n";
+  const root = sourceFixture(t, {
+    'test/later-write.test.js': imports + "let executable; executable = '/opt/bin/chromium'; spawnSync(executable, []);",
+    'test/alias-write.test.js': imports + "let executable; executable = 'google-chrome'; let selected; selected = executable; spawnSync(selected, []);",
+    'test/replaced-write.test.js': imports + "let executable; executable = 'google-chrome'; executable = 'git'; spawnSync(executable, []);",
+    'test/conditional-write.test.js': imports + "let executable; if (process.env.BROWSER_CHOICE) executable = 'google-chrome'; else executable = 'git'; spawnSync(executable, []);",
+    'test/parameter-write.test.js': imports + "export function run(executable) { executable = 'google-chrome'; return spawnSync(executable, []); }",
+    'test/quoted-write.test.js': imports + 'const generated = ' + JSON.stringify("let executable; executable = 'google-chrome'; spawnSync(executable, []);")
+      + "; spawnSync('git', ['status']);",
+    'test/comment-write.test.js': imports + "// executable = 'google-chrome';\nspawnSync('git', ['status']);",
+    'test/default-body.test.js': imports + "let executable = 'git'; function configure(executable = 'git') { const warning = 'Chrome'; } spawnSync(executable, ['status']);",
+    'test/default-browser.test.js': imports + "function run(executable = 'google-chrome') { return spawnSync(executable, []); }",
+    'test/property-write.test.js': imports + "let executable = 'git'; const options = {}; options . executable = 'google-chrome'; spawnSync(executable, ['status']);",
+  });
+  for (const name of ['later-write', 'alias-write', 'replaced-write', 'conditional-write', 'parameter-write', 'default-browser']) {
+    assert.equal(await testsNeedBrowser(root, [`test/${name}.test.js`], { byLaunch: true }), true,
+      `${name}: a later assignment keeps a possible browser value conservatively`);
+  }
+  for (const name of ['quoted-write', 'comment-write', 'default-body', 'property-write']) {
+    const file = `test/${name}.test.js`;
+    assert.equal(await testsNeedBrowser(root, [file], { byLaunch: true }), false, `${name}: assignment text is not executed`);
+    assert.equal(await testsNeedBrowser(root, [file], { byLaunch: false }), true, `${name}: default admission remains conservative`);
+  }
+});
+
+/** Member commands retain their own values without tainting an unrelated local identifier. */
+test('reviewed executor imports stay browser-free only at their exact call sites [C7,O5]', async t => {
+  const repository = resolve(import.meta.dirname, '..');
+  const entries = [
+    ['src/cli.js', 'sweepHere', 'spawnSync(item.check,'],
+    ['src/sentinel-runner.js', 'executeSentinel', 'spawn(row.check,'],
+    ['src/rigor-proof.js', 'runOwnedCheck', "spawn(runner?.executable ?? '/bin/sh',"],
+    ['test/cli-startup.test.js', 'fixture', 'runFixtureChild(env.PULLBOARD_REAL_GIT,'],
+    ['test/git-calls.test.js', 'advanceHead', 'execFileSync(box.env.PULLBOARD_REAL_GIT,'],
+  ];
+  const root = sourceFixture(t, {});
+  cpSync(join(repository, 'src'), join(root, 'src'), { recursive: true });
+  cpSync(join(repository, 'test'), join(root, 'test'), { recursive: true });
+  copyFileSync(join(repository, 'package.json'), join(root, 'package.json'));
+  for (const [index, [file, name, call]] of entries.entries()) {
+    const importer = `test/reviewed-executor-${index}.test.js`;
+    const request = file.startsWith('src/') ? `../${file}` : `./${file.slice(5)}`;
+    writeFileSync(join(root, importer), `import '${request}';\n`);
+    const source = readFileSync(join(root, file), 'utf8');
+    assert.ok(source.includes(`function ${name}(`) && source.includes(call), `${file}: the reviewed function and call still exist`);
+    assert.equal(await testsNeedBrowser(root, [importer], { byLaunch: true }), false,
+      `${file}: importing the reviewed executor does not execute its command`);
+    writeFileSync(join(root, file), source.replace(call, call.replace(/\([^,]+,/u, "('google-chrome',")));
+    assert.equal(await testsNeedBrowser(root, [importer], { byLaunch: true }), true,
+      `${file}: a known Chrome call remains bound inside the reviewed function`);
+    writeFileSync(join(root, file), source.replace(call, call.replace(/\([^,]+,/u, '(options.command,')));
+    assert.equal(await testsNeedBrowser(root, [importer], { byLaunch: true }), true,
+      `${file}: another unknown object command in the same function remains bound`);
+    writeFileSync(join(root, file), source + '\nexport function unreviewedCommand(options) { spawnSync(options.command, []); }\n');
+    assert.equal(await testsNeedBrowser(root, [importer], { byLaunch: true }), true,
+      `${file}: an unknown object command outside the reviewed call remains bound`);
+    writeFileSync(join(root, file), source);
+  }
+});
+
+test('process member commands retain property assignments and unresolved targets [C7,O5]', async t => {
+  const imports = "import { spawnSync } from 'node:child_process';\n";
+  const root = sourceFixture(t, {
+    'test/dot-command.test.js': imports + "const options = {}; options.command = 'google-chrome'; spawnSync(options.command, []);",
+    'test/spaced-command.test.js': imports + "const options = {}; options . command = 'chromium'; spawnSync(options . command, []);",
+    'test/literal-key-command.test.js': imports + "const options = {}; options['command'] = 'google-chrome'; spawnSync(options['command'], []);",
+    'test/computed-command.test.js': imports + "const options = {}; const key = process.env.COMMAND_KEY; options[key] = 'google-chrome'; spawnSync(options[key], []);",
+    'test/unresolved-command.test.js': imports + "export function run(options) { return spawnSync(options.command, []); }",
+    'test/member-alias-command.test.js': imports + "const options = {}; options.command = 'google-chrome'; const executable = options.command; spawnSync(executable, []);",
+    'test/optional-command.test.js': imports + "export function run(options) { return spawnSync(options?.command, []); }",
+    'test/multiline-command.test.js': imports + "export function run(options) { return spawnSync(\n options.command, []); }",
+    'test/fallback-command.test.js': imports + "const options = {}; options.command = 'google-chrome'; spawnSync(options.command || 'git', []);",
+    'test/namespace-command.test.js': "import * as child from 'node:child_process'; export function run(options) { return child.spawnSync(options.command, []); }",
+    'test/namespace-key-command.test.js': "import * as child from 'node:child_process'; export function run(options) { return child['spawnSync'](options.command, []); }",
+    'test/conditional-command.test.js': imports + "export function run(options) { return spawnSync(options.enabled ? options.command : 'git', []); }",
+    'test/conditional-data.test.js': imports + "const executable = process.platform === 'darwin' ? '/usr/sbin/lsof' : process.platform === 'linux' ? '/usr/bin/lsof' : null; spawnSync(executable, []);",
+    'test/conditional-lines-data.test.js': imports + "const executable = process.platform === 'darwin' ? '/usr/sbin/lsof'\n : process.platform === 'linux' ? '/usr/bin/lsof' : null; spawnSync(executable, []);",
+    'test/property-data.test.js': imports + "const options = {}; options.command = 'google-chrome'; spawnSync('git', ['status']);",
+  });
+  for (const name of ['dot-command', 'spaced-command', 'literal-key-command', 'computed-command', 'unresolved-command',
+    'member-alias-command', 'optional-command', 'multiline-command', 'fallback-command', 'namespace-command', 'namespace-key-command', 'conditional-command']) {
+    assert.equal(await testsNeedBrowser(root, [`test/${name}.test.js`], { byLaunch: true }), true,
+      `${name}: a real member command remains browser-bound`);
+  }
+  assert.equal(await testsNeedBrowser(root, ['test/property-data.test.js'], { byLaunch: true }), false,
+    'an unused property value does not taint a literal Git command');
+  assert.equal(await testsNeedBrowser(root, ['test/conditional-data.test.js'], { byLaunch: true }), false,
+    'a platform predicate does not become one of the fixed executable values');
+  assert.equal(await testsNeedBrowser(root, ['test/conditional-lines-data.test.js'], { byLaunch: true }), false,
+    'a multiline platform predicate retains both fixed executable branches');
+  assert.equal(await testsNeedBrowser(root, ['test/property-data.test.js'], { byLaunch: false }), true,
+    'default admission remains conservative');
+});
+
+test('function-returned browser commands retain browser admission [C7,O5]', async t => {
+  const imports = "import { spawnSync } from 'node:child_process';\n";
+  const factory = "function pick() { return 'google-chrome'; }\n";
+  const generated = factory + 'spawnSync(pick(), []);';
+  const root = sourceFixture(t, {
+    'test/function-command.test.js': imports + factory + 'spawnSync(pick(), []);',
+    'test/function-alias.test.js': imports + factory + 'const executable = pick(); spawnSync(executable, []);',
+    'test/function-namespace.test.js': "import * as child from 'node:child_process';\n" + factory + 'child.spawnSync(pick(), []);',
+    'test/unused-function.test.js': imports + factory + "spawnSync('git', ['status']);",
+    'test/quoted-function.test.js': imports + 'const fixture = ' + JSON.stringify(generated) + "; spawnSync(process.execPath, ['--version']);",
+    'test/comment-function.test.js': imports + '// ' + generated.replaceAll('\n', '\n// ') + "\nspawnSync('git', ['status']);",
+  });
+  commitSourceFixture(root);
+  for (const name of ['function-command', 'function-alias', 'function-namespace']) {
+    assert.equal(await testsNeedBrowser(root, [`test/${name}.test.js`], { byLaunch: true }), true,
+      `${name}: a browser command returned by a function remains browser-bound`);
+  }
+  for (const name of ['unused-function', 'quoted-function', 'comment-function']) {
+    assert.equal(await testsNeedBrowser(root, [`test/${name}.test.js`], { byLaunch: true }), false,
+      `${name}: browser text that does not supply the process command remains launch-free`);
+  }
+});
+
+test('function-returned member commands retain browser admission [C7,O5]', async t => {
+  const imports = "import { spawnSync } from 'node:child_process';\n";
+  const member = "const options = {}; options.command = 'google-chrome';\n";
+  const root = sourceFixture(t, {
+    'test/arrow-member.test.js': imports + member + 'const pick = () => options.command; spawnSync(pick(), []);',
+    'test/arrow-alias.test.js': imports + member + 'const pick = () => options.command; const executable = pick(); spawnSync(executable, []);',
+    'test/arrow-block.test.js': imports + member + 'const pick = () => { return options.command; }; spawnSync(pick(), []);',
+    'test/function-member.test.js': imports + member + 'function pick() { return options.command; } spawnSync(pick(), []);',
+    'test/function-member-alias.test.js': imports + member + 'function pick() { return options.command; } const executable = pick(); spawnSync(executable, []);',
+    'test/unused-member-factory.test.js': imports + member + "const pick = () => options.command; spawnSync('git', ['status']);",
+    'test/member-factory-data.test.js': imports + member + "const pick = () => options.command; spawnSync(process.execPath, ['--version']);",
+  });
+  commitSourceFixture(root);
+  for (const name of ['arrow-member', 'arrow-alias', 'arrow-block', 'function-member', 'function-member-alias']) {
+    assert.equal(await testsNeedBrowser(root, [`test/${name}.test.js`], { byLaunch: true }), true,
+      `${name}: the returned member supplies the executable command`);
+  }
+  for (const name of ['unused-member-factory', 'member-factory-data']) {
+    assert.equal(await testsNeedBrowser(root, [`test/${name}.test.js`], { byLaunch: true }), false,
+      `${name}: an unused factory does not supply the executable command`);
+  }
+});
+
+test('callable inputs returned as executable commands retain admission [C7,O5]', async t => {
+  const imports = "import { spawnSync } from 'node:child_process';\n";
+  const member = "const options = {}; options.command = 'google-chrome';\n";
+  const root = sourceFixture(t, {
+    'test/identity-command.test.js': imports + member + 'const identity = value => value; const command = identity(options.command); spawnSync(command, []);',
+    'test/identity-direct.test.js': imports + member + 'const identity = value => value; spawnSync(identity(options.command), []);',
+    'test/destructured-command.test.js': imports + member + 'function pick({ command }) { return command; } spawnSync(pick(options), []);',
+    'test/forwarded-command.test.js': imports + member + 'const identity = value => value; const pick = value => identity(value); spawnSync(pick(options.command), []);',
+    'test/unused-identity.test.js': imports + member + "const identity = value => value; spawnSync('git', ['status']);",
+    'test/parameter-predicate.test.js': imports + member + "const pick = enabled => enabled ? 'git' : 'node'; const command = pick(options.enabled); spawnSync(command, ['--version']);",
+  });
+  commitSourceFixture(root);
+  for (const name of ['identity-command', 'identity-direct', 'destructured-command', 'forwarded-command']) {
+    assert.equal(await testsNeedBrowser(root, [`test/${name}.test.js`], { byLaunch: true }), true,
+      `${name}: a returned input may supply the browser executable`);
+  }
+  for (const name of ['unused-identity', 'parameter-predicate']) {
+    assert.equal(await testsNeedBrowser(root, [`test/${name}.test.js`], { byLaunch: true }), false,
+      `${name}: unused inputs and predicates do not supply an executable value`);
+  }
 });
 
 test('a file that launches Chrome unclassified fails by name [C7,O5]', async t => {

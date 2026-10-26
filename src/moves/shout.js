@@ -1,3 +1,4 @@
+import { laneMessageFloor } from '../lane-lead.js';
 import { DECISION_QUEUE_ENGINE } from '../decision-queue-engine.js';
 import { ACTIVITY_NEWS_ENGINE } from '../activity-news-engine.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
@@ -17,10 +18,10 @@ function historicalMinimumEngine(args, board, at) {
 
 /** News combines every applicable floor; old arguments retain their historical replay condition order. */
 function minimumEngine(args, board, at) {
-  if (args[0]?.news !== true) return args[0]?.options !== undefined
-    ? Math.max(DECISION_QUEUE_ENGINE, historicalMinimumEngine(args, board, at))
-    : historicalMinimumEngine(args, board, at);
-  return Math.max(ACTIVITY_NEWS_ENGINE, args[0]?.options !== undefined ? DECISION_QUEUE_ENGINE : 1,
+  const laneFloor = laneMessageFloor(board, args[0]);
+  const optionsFloor = args[0]?.options !== undefined ? DECISION_QUEUE_ENGINE : 1;
+  if (args[0]?.news !== true) return Math.max(laneFloor, optionsFloor, historicalMinimumEngine(args, board, at));
+  return Math.max(laneFloor, optionsFloor, ACTIVITY_NEWS_ENGINE,
     typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:') ? RIGOR_AUTO_ENGINE : 1,
     args[0]?.item !== undefined ? ITEM_SHOUT_ENGINE : 1,
     args[0]?.landingFence !== undefined ? LANDING_LEASE_ENGINE : 1,
@@ -33,6 +34,10 @@ function actor(move) { return move.args[0]?.from ?? null; }
 export default Object.freeze({ operation: "shout", order: 23, engine: 1,
   itemIdFirstArgument: false, minimumEngine, actor,
   nextSteps: Object.freeze({
+  BAD_MESSAGE_KIND: 'use --kind question, blocker or decision',
+  STATUS_IS_ACTIVITY: 'keep working on the item; status is board activity, not a shout',
+  LANE_MESSAGE_ITEM: 'omit --kind for an item-specific message',
+  NOT_LANE_LEAD: 'ask your named lane lead to send the decision upward',
   "B26_PERSON_CHANNEL": "record it as the person through pullboard view or the person's own terminal",
   "B26_PERSON_DECISION": "ask your coordinator: pullboard shout coordinator \"<question>\" --decision",
   "BAD_DECISION_OPTIONS": "ask an item decision with --decision --item <id> --options '[\"first\",\"second\"]'",

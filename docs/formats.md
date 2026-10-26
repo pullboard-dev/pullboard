@@ -115,7 +115,7 @@ The version table is generated from the source-owned declarations in `src/format
 | `row grammar` | `1` | `SPEC_GRAMMAR_VERSION` in `src/spec.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar) | Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs. |
 | `board schema` | `3` | `SCHEMA_VERSION` in `src/board.js`, persisted as `PRAGMA user_version` | On a write open of a board whose version is behind: create missing tables and indexes (version 3 adds the hot-path indexes), add missing columns in place with declared defaults, restore missing or changed triggers, and remove stale machine triggers without replacing rows. Read opens never migrate; a board at the current version whose shape differs is reported once on stderr and left as it is. |
 | `event log` | `1` | `EVENT_LOG_VERSION` in `src/board.js`, persisted in `board_meta` as `event_log_version` | Older event-log versions upgrade in place; newer versions are refused with `EVENT_LOG_VERSION`. Preserve event rows when the board schema changes. |
-| `move engine` | `123` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
+| `move engine` | `125` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
 A builder never picks an engine number (#1101). An item that adds a board move adds its own `src/<name>-engine.js` leaf as `export const NAME_ENGINE = unassignedEngine();` (importing `unassignedEngine` from `./engine-next.js`); on its branch the leaf reads as one above the highest landed engine. The landing merge writes the next number into the leaf, in landing order, inside that item's merge commit, and sets the `move engine` row above to the highest landed number. A landed number never changes, so recorded moves replay as they were written. Moves are recorded under landed numbers only: code with an unnumbered engine is for its branch's own tests, and a move it records on a real board before landing may later read under another item's number, so the item lands before its moves are used.
@@ -428,6 +428,7 @@ The `event` table is a SQLite schema object governed by `SCHEMA_VERSION`; its ap
 | `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen`, optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection`, optional `reviewFamily` |
 | `escalate` | builder | `from`, `to`, `note`, `attempt` |
 | `attempt` | reporting agent | `n`, `seconds`, `result` |
+| `relay_exclusion` | person | `action` (exclude, the durable opt-out intent), `path` (relayOff), `reason`, `channel`; event time and actor identify the request before machine settings persist it |
 | `board_members` | coordinator | `document` (exact version-1 body with board, repository, revision and complete members, approving login and SSH signature; native moves and checkpoints carry it sealed) |
 | `fact` | author | `id`, `kind`, `text`, `ref`, `supersedes`, engine-20 `implies`, `decision`, `supersededBy`, engine-30 `cause`, `neverAgain`, `channel` |
 | `claim` | builder | `leaseUntil`, `digest` |
@@ -446,6 +447,7 @@ The `event` table is a SQLite schema object governed by `SCHEMA_VERSION`; its ap
 | `main-moved` | coordinator | `batch`, `items`, `sha` |
 | `withdraw` | coordinator | `reason` |
 | `refreeze` | coordinator, or live holder adopting a pending correction | `before`, `after`, optional `retainedClaim` |
+| `lane-lead` | coordinator | `lane`, `seat` |
 | `hold` | coordinator | `lane`, `reason` |
 | `unhold` | coordinator | `lane` |
 | `hold_item` | coordinator | `reason` |
@@ -455,7 +457,7 @@ The `event` table is a SQLite schema object governed by `SCHEMA_VERSION`; its ap
 | `rigor-draft` | rigor | `id`, `target`, `cause`, exact typed `source`, `unproved` (always true), `items`, `occurrences`, `engine` |
 | `activity-delivered` | recipient | `interrupts`, `through`, `observedThrough`, `digestThrough` |
 | `activity-acted` | recipient | `interrupts` |
-| `shout` | sender | `shout`, `to`, `decision`, `request`, `answers` |
+| `shout` | sender | `shout`, `to`, `decision`, `request`, `answers`, `messageKind` |
 | `shout_news` | sender | `shout`, `to`, `decision`, `request`, `answers` |
 | `flake-observation` | reporting agent | `engine`, `observation` |
 | `flake-repair` | reporting agent | `engine`, `key`, `item` |
@@ -467,7 +469,7 @@ The `event` table is a SQLite schema object governed by `SCHEMA_VERSION`; its ap
 | `sentinel-start` | running agent | `name`, `digest`, `run`, `until`, `engine` |
 | `sentinel-run` | running agent | `name`, `digest`, `run`, `result`, `engine` |
 | `sentinel-failure` | sentinel | `name`, `digest`, `run`, `cause`, `engine` |
-| `pass` | coordinator | `shout`, `to`, `decision`, `request`, `answers` |
+| `pass` | coordinator, or lane lead | `shout`, `to`, `decision`, `request`, `answers` |
 | `answer` | answerer | `shout`, `to`, `decision`, `request`, `answers`, `outcome`, `channel`, engine-20 `implies`, `supersedes`, decision-origin `provenance` |
 | `row_decision` | person | `record`, `channel` |
 | `row_draft` | builder, or rigor | engine-55 `row`, `written` |
@@ -525,7 +527,7 @@ A project with `"submitGate": "landing"` can also set `"submitInvariants": ["tes
 With `"submitGate": "landing"`, `"submitDeferAbove": N` (a whole number, 1 or more; absent by default) moves an affected selection of more than N test files from submit to landing. Such a submit runs its frozen check, the static checks and `submitInvariants` only, records the selection as `submissionProof.deferredFiles`, and notes `<count> affected test files deferred to the landing gate` on the submission, where `show` prints it. A full-gate landing already runs every file. A landing with `"landing": { "publish": "separate" }` runs the recorded files on the merged tree before anything lands; a red sends back each item whose own deferred files failed, and nothing in that batch lands.
 
 <!-- pass-rule:start -->
-The `pass` event is emitted by `passDecision` only for the coordinator; another agent receives `COORDINATOR_ONLY`. Its event actor is the coordinator. The person receives the passed decision, while the event table records who performed the pass.
+The `pass` event is emitted by `passDecision` only for the coordinator in the historical protocol; another agent receives `COORDINATOR_ONLY`. The lane-lead engine also permits the addressed lead to escalate its own lane question to the coordinator. Its event actor is the coordinator or that lane lead. The coordinator passes to the person; the lead passes to the coordinator, while the event table records who performed the pass.
 <!-- pass-rule:end -->
 
 ## Static view export
@@ -713,6 +715,8 @@ not a native move, parent identity, configuration or authority record. Missing/d
 replays activity. Reads freeze an event high-water mark before observing Git; subsequent events
 and messages remain pending. News has a separate cursor so an ordinary poll cannot consume a
 future session-start digest.
+
+The lane-lead engine, numbered at landing, adds coordinator-only `setLaneLead` with `{agentId, lane, seat, lanes}`. The seat is an existing agent in that lane, or `null` to remove the lead. Its `lane-lead` event records `lane` and `seat`. Typed shout routing records `messageKind` (`question`, `blocker` or `decision`); a status shout is refused. Older recorded engines retain their original routing and event details. Questions and blockers go to the named lead; lead decisions and explicit escalations go to the coordinator. Naming a lead grants no claim, lease or person authority.
 
 Companion requests use the `requestCompanion` move and the unassigned `COMPANION_ENGINE` boundary allocated at landing. The authenticated first argument names `agentId`, `parentId`, target `lane` and stable `key`. A `board_meta` key `companion:` plus SHA-256 of JSON `[parentId,lane,key]` binds that identity to its child. The immediate transaction creates the ordinary item, records its check baseline and bar, appends the companion event, and stores the binding. A retry returns the existing child without changing its contents or claim. Ordinary `addItem` parent-lane validation remains unchanged.
 

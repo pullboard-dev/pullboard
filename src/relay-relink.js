@@ -81,3 +81,13 @@ export function archiveRelinkOutbox(root, state) {
 export function finishRelink(root) {
   rmSync(markerFile(root), { force: true });
 }
+
+/** A confirmed deleted copy has no active link to retire; retained OFF intents still name theirs. */
+export function relinkReplacement(state, relink, deletedBoard) {
+  const previous = state?.replaces ?? relink?.previous;
+  if (previous && previous === deletedBoard) {
+    if (state) { delete state.replaces; delete state.previousBoardNotice; }
+    return null;
+  }
+  return previous;
+}

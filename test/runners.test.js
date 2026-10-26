@@ -20,6 +20,8 @@ import { runnerOrphanFixture, unprovenProcessFixture } from './runner-orphan-fix
 import { createDescendantTracker } from '../src/runner-custody.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { refuseSandboxBlocked } from '../src/gate.js';
+import { fixtureContextCpuCase } from './runner-cpu-classification-fixture.js';
+import { guiCpuPolicyCase } from './runner-cpu-classification-fixture.js';
 import { SECRET, HOST, shellQuote, installSshStandIn } from './runner-ssh-fixture.js';
 import { sourceSetupFailureFixture } from './runner-source-setup-fixture.js';
 import { runnerSourceRefusalCases } from './runner-source-refusal-fixture.js';
@@ -1473,3 +1475,8 @@ test('the runner round trip deadline holds under a loaded test machine and still
       await busy.stop();
     }
   });
+
+
+test('fixture context forwarding is not a CPU-load declaration [C7]', fixtureContextCpuCase);
+
+test('a GUI test with no GUI runner stays local [C7]', guiCpuPolicyCase);

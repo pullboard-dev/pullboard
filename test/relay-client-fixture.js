@@ -467,7 +467,8 @@ globalThis.fetch = function tracedFetch(input, init) {
       res.end(JSON.stringify({ version: 1, error: { code: 'FIXTURE_LINK_REFUSED', message: 'fixture link sentinel' } }));
       return;
     }
-    if (refuseSnapshotWrites && req.method === 'PUT' && /\/api\/v1\/boards\/[0-9a-f]{32}\/state$/.test(req.url ?? '')) {
+    if (refuseSnapshotWrites && ((req.method === 'PUT' && /\/api\/v1\/boards\/[0-9a-f]{32}\/state$/.test(req.url ?? ''))
+      || (req.method === 'POST' && /^\/api\/v2\/boards\/[0-9a-f]{32}\/uploads\/[A-Za-z0-9-]+\/publish$/u.test(req.url ?? '')))) {
       res.writeHead(503, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ version: 1, error: { code: 'RELAY_UNAVAILABLE', message: 'fixture snapshot outage' } }));
       return;
@@ -805,6 +806,7 @@ globalThis.fetch = function tracedFetch(input, init) {
     advance(days) { timeOffsetMs = days * 86400000; },
     overrideDelete(value) { override = value; },
     failTokenMints(count) { mintFailures = count; },
+    /** Refuse the real API1 snapshot write or current API2 publish, preserving its pending client state. */
     refuseSnapshotWrites(value) { refuseSnapshotWrites = value; },
     /** Leave every board API request unanswered until its client times out, like an overloaded relay. */
     stallApi(value = true) { stallApi = value; },

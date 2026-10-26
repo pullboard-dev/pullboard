@@ -290,8 +290,8 @@ test('an ordinary failure stays gate red [C7,B26]', (t) => {
   const source = [
     "import { test } from 'node:test';",
     "import assert from 'node:assert/strict';",
-    "import '../src/listener-probe.js';",
-    "test('ordinary failure', () => assert.fail('ordinary assertion failure'));",
+    "import { listenerProbe } from '../src/listener-probe.js';",
+    "test('ordinary failure', () => assert.equal(listenerProbe, 1));",
   ].join('\n');
   const box = childFailureSubmitBox(t, source);
   const outside = join(box.dir, 'outside-python-denial.txt');
