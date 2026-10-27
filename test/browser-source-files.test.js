@@ -1,3 +1,6 @@
+/**
+ * @pullboard-test-boundary contract
+ */
 /** Real and memory source boundaries preserve containment and conservative graph failures [C7,O5]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';

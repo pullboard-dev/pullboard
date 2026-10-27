@@ -53,6 +53,7 @@ export const JSON_SHAPES = {
     'patch list': shape({ item: 'number', patches: 'array', digest: 'string|null' }),
     'patch remove': shape({ item: 'number', key: 'string', digest: 'string', changed: 'boolean' }),
     show: shape({ item_id: 'number', item_title: 'string', item_lane: 'string', item_status: 'string', verdicts: 'array', thread: 'array' }),
+    capacity: shape({ report: 'object' }),
     stats: shape({ stats: 'object', gateWaits: 'array' }),
     badge: shape({ items: 'number', checked: 'number', percent: 'number|null', changed: 'array' }),
     status: shape({ me: 'object', mine: 'array', ruleCounts: 'object', stats: 'object', reviewQueue: 'object', unread: 'number', relay: 'object' }),

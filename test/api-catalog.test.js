@@ -294,6 +294,10 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   assert.equal(heartbeat.presence, 'live');
   assert.ok(Number.isFinite(Date.parse(heartbeat.heartbeatAt)), 'an explicit hook returns its real local observation');
   await json(box, repo, 'stats');
+  const capacity = await json(box, repo, 'capacity');
+  assert.equal(capacity.report.suite.minutes, null);
+  assert.equal(capacity.report.files.lowerBound, true);
+  assert.ok(Array.isArray(capacity.report.conversion.order));
   await json(box, repo, 'badge');
   await json(box, repo, 'doctor');
   assert.deepEqual((await json(box, repo, 'health')).stuck, [], 'a new board has nothing stuck [A6]');

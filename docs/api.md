@@ -121,6 +121,7 @@ For example: `flow: review wait average 61 min (1 measured; > 60 min); bottlenec
 | `milestone ship` | `version:number`, `milestone:object`, `into:string|null`, `moved:array`, `notMoved:array` |
 | `companion` | `version:number`, `item:object`, `created:boolean` |
 | `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array`, `thread:array` |
+| `capacity` | `version:number`, `report:object` |
 | `stats` | `version:number`, `stats:object`, `gateWaits:array` |
 | `status` | `version:number`, `me:object`, `mine:array`, `ruleCounts:object`, `stats:object`, `reviewQueue:object`, `unread:number`, `relay:object` |
 | `heartbeat` | `version:number`, `seat:string|null`, `presence:string`, `heartbeatAt:string|null` |
