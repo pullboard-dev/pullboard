@@ -1,4 +1,6 @@
 /** Read the economics of recorded test executions without changing test admission [C7]. */
+import { readFileTimes } from './landing-shards.js';
+import { bindTestValueSources } from './test-value-source.js';
 import { readdirSync } from 'node:fs';
 import { events } from './board.js';
 import { proofEventDetail } from './proof-event-detail.js';
@@ -42,7 +44,7 @@ function executions(board, history) {
       runs.set(receipt.id, { id: receipt.id, kind: receipt.kind, at: receipt.at, commit: receipt.head, tree: receipt.tree,
         item: proof?.item ?? null, clean: proof ? proof.sourceClean : true,
         green: receipt.green, exit: proof?.exitCode ?? (receipt.green ? 0 : 1),
-        workers: proof?.testRuntimes ?? [], failures: receipt.failures });
+        durationMs: proof?.durationMs ?? null, workers: proof?.testRuntimes ?? [], failures: receipt.failures });
     }
   }
   for (const event of history) {
@@ -53,7 +55,7 @@ function executions(board, history) {
     runs.set(receipt.id, { id: receipt.id, kind: receipt.kind, at: receipt.at, commit: receipt.commit, tree: receipt.tree,
       item: receipt.item, clean: receipt.sourceClean === true,
       green: receipt.exitCode === 0, exit: receipt.exitCode,
-      workers: receipt.testRuntimes ?? [], failures: existing?.failures ?? [] });
+      durationMs: receipt.durationMs ?? null, workers: receipt.testRuntimes ?? [], failures: existing?.failures ?? [] });
   }
   for (const run of runs.values()) {
     const sample = store ? readTestValueTimings(store, run.id) : null;
@@ -68,6 +70,7 @@ function executions(board, history) {
       pids.add(key);
       run.files.set(worker.file, (run.files.get(worker.file) ?? 0) + 1);
     }
+    run.observedFileExecutions = [...run.files.values()].reduce((sum, count) => sum + count, 0);
     // Old full-gate receipts have no worker inventory; retained per-file measurements still prove those runs.
     for (const row of run.timings) if (!run.files.has(row.file)) {
       run.files.set(row.file, run.timings.filter(value => value.file === row.file).length);
@@ -167,6 +170,8 @@ export function testValueReport(board, { root, costs, now = Date.now() }) {
   const history = events(board);
   const runs = executions(board, history).filter(run => Number.isFinite(Date.parse(run.at)) && Date.parse(run.at) <= until);
   const windowRuns = runs.filter(run => Date.parse(run.at) >= from);
+  const sourceCoverage = bindTestValueSources(root, windowRuns);
+  const lastFileTimes = readFileTimes(root);
   const source = sourceHistory(root, since, asOf);
   const observations = flakeLedger(board).flatMap(row => row.observations)
     .filter(row => row.classification === 'flake' && Date.parse(row.at) >= from && Date.parse(row.at) <= until);
@@ -175,7 +180,7 @@ export function testValueReport(board, { root, costs, now = Date.now() }) {
   /** Initialize every tracked or observed file, including files with no measured run. */
   const entry = file => {
     if (!rows.has(file)) rows.set(file, { file, runs: 0, realCatches: 0, flakes: 0, runtimeMs: null,
-      timedRuns: 0, meanRuntimeMs: null, edits: source.available ? source.edits.get(file) ?? 0 : null,
+      timedRuns: 0, namedOutcomeRuns: 0, meanRuntimeMs: null, edits: source.available ? source.edits.get(file) ?? 0 : null,
       catchRate: null, flakeRate: null, valuePerRun: null, catchRuns: 0, flakeRuns: 0,
       unmatchedFlakes: 0, unattributedFailures: 0, catches: [], receiptIds: [] });
     return rows.get(file);
@@ -188,6 +193,7 @@ export function testValueReport(board, { root, costs, now = Date.now() }) {
       const row = entry(file);
       row.runs += count;
       row.receiptIds.push(run.id);
+      if (run.tests.some(test => test.file === file)) row.namedOutcomeRuns += count;
       const timings = run.timings.filter(value => value.file === file);
       // A partial set of file measurements never becomes a complete mean for this receipt.
       if (timings.length === count) {
@@ -202,6 +208,7 @@ export function testValueReport(board, { root, costs, now = Date.now() }) {
     const key = JSON.stringify([observation.file, observation.head, observation.original.sha256]);
     if (flakeRuns.has(key) || !portable(observation.file)) continue;
     flakeRuns.add(key);
+    if (!rows.has(observation.file)) continue;
     const row = entry(observation.file);
     row.flakes += 1;
     const candidates = windowRuns.filter(run => run.clean && !run.green && run.commit === observation.head
@@ -213,21 +220,38 @@ export function testValueReport(board, { root, costs, now = Date.now() }) {
     else row.unmatchedFlakes += 1;
   }
   for (const repair of repairs.found) { const row = entry(repair.file); row.realCatches += 1; row.catches.push(repair); }
-  for (const failure of repairs.unresolved) entry(failure.file).unattributedFailures += 1;
+  for (const failure of repairs.unresolved) {
+    if (rows.has(failure.file)) entry(failure.file).unattributedFailures += 1;
+  }
   for (const row of rows.values()) {
     row.catchRuns = new Set(row.catches.map(value => value.red)).size;
     row.flakeRuns = [...matchedFlakes].filter(value => JSON.parse(value)[0] === row.file).length;
     if (row.runs > 0) {
-      row.catchRate = row.unattributedFailures ? null : row.catchRuns / row.runs;
+      row.catchRate = row.unattributedFailures || row.namedOutcomeRuns !== row.runs ? null : row.catchRuns / row.runs;
       row.flakeRate = row.unmatchedFlakes ? null : row.flakeRuns / row.runs;
       if (row.timedRuns === row.runs) row.meanRuntimeMs = row.runtimeMs / row.runs;
       if (row.meanRuntimeMs !== null && row.catchRate !== null && row.flakeRate !== null) row.valuePerRun = row.catchRate * costs.costOfEscape
         - row.meanRuntimeMs / 1000 * costs.costOfWaiting - row.flakeRate * costs.costOfFalseRed;
     }
   }
+  const lastReceipts = new Map();
+  for (const run of windowRuns) {
+    if (run.observedFileExecutions !== 1 || run.files.size !== 1 || !Number.isFinite(run.durationMs) || run.durationMs < 0) continue;
+    const file = run.files.keys().next().value;
+    const existing = lastReceipts.get(file);
+    if (!existing || Date.parse(run.at) > Date.parse(existing.at)) lastReceipts.set(file, run);
+  }
+  for (const row of rows.values()) {
+    const last = lastFileTimes[row.file];
+    const native = lastReceipts.get(row.file);
+    row.lastObservedRuntime = native ? { durationMs: native.durationMs, source: 'native-single-file-receipt', receiptId: native.id, ageMs: until - Date.parse(native.at) } : Number.isFinite(last) && last >= 0
+      ? { durationMs: last, source: 'landing-file-times', ageMs: null } : null;
+    row.estimatedValuePerRun = row.meanRuntimeMs === null && row.lastObservedRuntime && row.catchRate !== null && row.flakeRate !== null
+      ? row.catchRate * costs.costOfEscape - row.lastObservedRuntime.durationMs / 1000 * costs.costOfWaiting - row.flakeRate * costs.costOfFalseRed : null;
+  }
   const files = [...rows.values()].sort((left, right) => (left.valuePerRun === null) - (right.valuePerRun === null)
     || (right.valuePerRun ?? 0) - (left.valuePerRun ?? 0) || left.file.localeCompare(right.file));
   return { since, asOf, days: 14, costs, files,
-    coverage: { receipts: windowRuns.length, unknownFileReceipts, gitHistoryAvailable: source.available },
-    method: 'Descriptive observed catch/flake rates per recorded file execution. Real catches require a typed failure, exact named red and green outcomes, later acceptance, unchanged tests/fixtures and a product-code delta. A flake is associated only with a unique matching same-head named red; ambiguous sightings keep its rate unknown. Runtime is measured file wall time rather than gate queue time, and is unknown when incomplete. Costs use seconds of equivalent waiting. Missing history is not proof of no defects; identical worker identities cannot prove additional executions. Report only: no test selection or gate policy changes.' };
+    coverage: { receipts: windowRuns.length, unknownFileReceipts, gitHistoryAvailable: source.available, ...sourceCoverage },
+    method: 'Descriptive observed catch/flake rates per recorded file execution. Real catches require a typed failure, exact named red and green outcomes, later acceptance, unchanged tests/fixtures and a product-code delta. A flake is associated only with a unique matching same-head named red; ambiguous sightings keep its rate unknown. Runtime mean is measured file wall time rather than gate queue time, and is unknown when incomplete. Last-observed single-file native receipt wall time or landing-file-times and its value estimate are separate, with unknown age when the store has no timestamp; one sample is never expanded into historical totals. Worker names are bound to tracked test blobs at each receipt commit; historical inventories lack child cwd, so same-path nested-fixture collisions cannot be resolved. Costs use seconds of equivalent waiting. Missing history is not proof of no defects; identical worker identities cannot prove additional executions. Report only: no test selection or gate policy changes.' };
 }

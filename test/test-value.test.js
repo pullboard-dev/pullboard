@@ -108,8 +108,8 @@ test('[C7] fourteen-day fixture pins every test-value number, code catches, flak
   assert.deepEqual(report.files.map(row => row.file), [alpha, beta, 'test/idle.test.js', 'test/unknown.test.js']);
   const first = report.files[0];
   assert.deepEqual({ ...first, catches: [], receiptIds: [] }, { file: alpha, runs: 3, realCatches: 2, flakes: 0,
-    runtimeMs: 6000, timedRuns: 3, meanRuntimeMs: 2000, edits: 1, catchRate: 1 / 3, flakeRate: 0,
-    valuePerRun: 1198, catchRuns: 1, flakeRuns: 0, unmatchedFlakes: 0, unattributedFailures: 0, catches: [], receiptIds: [] });
+    runtimeMs: 6000, timedRuns: 3, namedOutcomeRuns: 3, meanRuntimeMs: 2000, edits: 1, catchRate: 1 / 3, flakeRate: 0,
+    valuePerRun: 1198, catchRuns: 1, flakeRuns: 0, unmatchedFlakes: 0, unattributedFailures: 0, catches: [], receiptIds: [], lastObservedRuntime: null, estimatedValuePerRun: null });
   assert.equal(first.catches.length, 2);
   assert.ok(first.catches.every(row => row.red === red.id && row.green === green.id));
   const second = report.files[1];
@@ -118,7 +118,7 @@ test('[C7] fourteen-day fixture pins every test-value number, code catches, flak
   const idle = report.files[2], unknown = report.files[3];
   assert.deepEqual([idle.runs, idle.runtimeMs, idle.catchRate, idle.flakeRate, idle.valuePerRun], [0, null, null, null, null]);
   assert.deepEqual([unknown.runs, unknown.timedRuns, unknown.meanRuntimeMs, unknown.valuePerRun], [1, 0, null, null]);
-  assert.deepEqual(report.coverage, { receipts: 6, unknownFileReceipts: 0, gitHistoryAvailable: true });
+  assert.deepEqual(report.coverage, { receipts: 6, unknownFileReceipts: 0, gitHistoryAvailable: true, unknownCommitReceipts: 0, untrackedFileExecutions: 0, nonTestFileExecutions: 0 });
   const text = await f.cli('test-value');
   assert.equal(text.code, 0, text.stderr);
   assert.match(text.stdout, /2 code-fixed catches; 0 flakes; runtime 2000ms\/run; 1 edits; value 1198 per run/u);
@@ -201,4 +201,70 @@ test('[C7] immutable receipt timings preserve duplicate executions, prefer landi
   const bad = randomUUID();
   writeFileSync(join(directory, 'test-value', `${bad}.json`), JSON.stringify({ version: 1, receiptId: bad, files: [{ file: '/foreign.js', durationMs: 1 }] }));
   assert.equal(readTestValueTimings(directory, bad), null);
+});
+
+
+test('[C7] nested fixture names and unavailable commits cannot become project test executions', t => {
+  const f = fixture(t);
+  f.run('.timed/fast.test.js', '2026-10-14T00:00:00Z');
+  f.run('test/helper.js', '2026-10-14T00:00:01Z');
+  // A root blob is necessary, but a helper is not thereby a test file.
+  writeFileSync(join(f.root, 'test/helper.js'), '// A tracked helper, never a project test.\n');
+  const head = f.commit('2026-10-16T00:00:00Z', 'test: tracked helper');
+  f.run('test/helper.js', '2026-10-17T00:00:00Z', { commit: head });
+  f.event('proof-run', 1, '2026-10-18T00:00:00Z', { receipt: { id: randomUUID(), at: '2026-10-18T00:00:00Z',
+    commit: 'f'.repeat(40), sourceClean: true, exitCode: 0,
+    testRuntimes: [{ pid: 100, file: 'test/alpha.test.js', environment: ENVIRONMENT }] } });
+  f.run('test/alpha.test.js', '2026-10-19T00:00:00Z');
+  const before = store.events(f.board);
+  const report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) });
+  assert.deepEqual(report.files.map(row => row.file).sort(), ['test/alpha.test.js', 'test/beta.test.js', 'test/idle.test.js', 'test/unknown.test.js']);
+  assert.equal(report.files.find(row => row.file === 'test/alpha.test.js').runs, 1);
+  assert.equal(report.coverage.unknownCommitReceipts, 1);
+  assert.equal(report.coverage.untrackedFileExecutions, 1);
+  assert.equal(report.coverage.nonTestFileExecutions, 2);
+  assert.deepEqual(store.events(f.board), before);
+});
+
+test('[C7] existing landing file times give a labelled last-observed estimate, never invented historical totals', async t => {
+  const f = fixture(t), file = 'test/alpha.test.js';
+  f.run(file, '2026-10-14T00:00:00Z', { duration: null });
+  const path = join(f.root, '.git', 'pullboard', 'landing-file-times.json');
+  writeFileSync(path, JSON.stringify({ version: 1, files: { [file]: 4321, '.timed/fixture.test.js': 99 } }));
+  const before = readFileSync(path, 'utf8');
+  const report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) });
+  const row = report.files.find(row => row.file === file);
+  assert.equal(row.runs, 1);
+  assert.equal(row.runtimeMs, null);
+  assert.equal(row.timedRuns, 0);
+  assert.equal(row.meanRuntimeMs, null);
+  assert.deepEqual(row.lastObservedRuntime, { durationMs: 4321, source: 'landing-file-times', ageMs: null });
+  assert.equal(row.catchRate, null, 'missing named historical outcomes are unknown, not a measured zero catch rate');
+  assert.equal(row.valuePerRun, null);
+  assert.equal(row.estimatedValuePerRun, null, 'a runtime sample cannot invent a catch probability');
+  assert.equal(report.files.some(row => row.file === '.timed/fixture.test.js'), false);
+  const text = await f.cli('test-value');
+  assert.match(text.stdout, /last observed 4321ms \(landing-file-times; age unknown\)/u);
+  assert.equal(readFileSync(path, 'utf8'), before, 'a report never rewrites its source observations');
+});
+
+
+test('[C7] a single-file native receipt supplies observed wall time, never aggregate multi-file time', t => {
+  const f = fixture(t), file = 'test/alpha.test.js';
+  const id = randomUUID();
+  f.event('proof-run', 1, '2026-10-26T00:00:00Z', { receipt: { id, at: '2026-10-26T00:00:00Z',
+    commit: f.red, sourceClean: true, exitCode: 0, durationMs: 2500,
+    testRuntimes: [{ pid: 100, file, environment: ENVIRONMENT }] } });
+  assert.equal(retainTestValueTimings(boardReceiptStore(f.board), id, { files: [], tests: [{ file, name: 'target', passed: true }] }), true);
+  f.event('proof-run', 1, '2026-10-26T01:00:00Z', { receipt: { id: randomUUID(), at: '2026-10-26T01:00:00Z',
+    commit: f.red, sourceClean: true, exitCode: 0, durationMs: 99999,
+    testRuntimes: [{ pid: 101, file: 'test/beta.test.js', environment: ENVIRONMENT }, { pid: 102, file: 'test/idle.test.js', environment: ENVIRONMENT }] } });
+  const report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) });
+  const row = report.files.find(row => row.file === file);
+  assert.deepEqual(row.lastObservedRuntime, { durationMs: 2500, source: 'native-single-file-receipt', receiptId: id, ageMs: 86400000 });
+  assert.equal(row.runtimeMs, null);
+  assert.equal(row.meanRuntimeMs, null);
+  assert.equal(row.valuePerRun, null);
+  assert.equal(row.estimatedValuePerRun, -2.5, 'a separately labelled estimate applies the rule without inventing a complete mean');
+  assert.equal(report.files.find(row => row.file === 'test/beta.test.js').lastObservedRuntime, null);
 });
