@@ -572,7 +572,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
   return null;
 }
 
-/** A transport drop expires after the retry window; cleanup failures and unreadable timestamps stay blocked. */
+/** Evidenced transport losses need a successful probe; only legacy rows retain their old expiry behavior. */
 function runnerUnavailable(entry, now) {
   return Boolean(entry && (entry.detail !== 'TRANSPORT_LOST' || entry.failure
     || !(now - Date.parse(entry.since) >= RUNNER_RETRY_MS)));
@@ -610,9 +610,13 @@ export function runnerResourceStatus(runners) {
         if (runner.draining && !holders.length) return [];
         const recorded = db.prepare('SELECT * FROM runner_unavailable WHERE host = ?').get(runner.host);
         const unavailable = runnerUnavailable(recorded, Date.now()) ? recorded : null;
+        const transport = db.prepare('SELECT at,diagnostic FROM runner_transport_error WHERE host=?').get(runner.host);
+        let transportFailure;
+        try { if (transport) transportFailure = { at: transport.at, ...JSON.parse(transport.diagnostic) }; } catch { /* Malformed legacy diagnostics remain unreported, never guessed. */ }
         const observed = db.prepare('SELECT gui, observed_at FROM runner_gui WHERE host = ?').get(runner.host);
         return [{ ...runner, gui: runner.gui ?? null, ...(observed ? { gui: observed.gui === null ? null : observed.gui === 1, guiObservedAt: observed.observed_at } : {}), inUse: holders.length, browserInUse: holders.filter(holder => holder.browser === 1).length,
-          unavailable: Boolean(unavailable), ...(unavailable ? { unavailableSince: unavailable.since, unavailableReason: unavailable.detail } : {}), holders }];
+          unavailable: Boolean(unavailable), ...(unavailable ? { unavailableSince: unavailable.since, unavailableReason: unavailable.detail } : {}),
+          ...(transportFailure ? { transportFailure } : {}), holders }];
       });
     });
   } finally { db.close(); }

@@ -74,10 +74,11 @@ test('a failed SSH call preserves its command exit and stderr through the synchr
 test('one transient SSH failure is confirmed before a healthy runner is readmitted without quarantine [C7]', t => {
   const box = fixture(t);
   const url = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
+  const command = `node -e 'console.log("RECOVERED_EXECUTION")'`;
   const result = child(box, `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(url)};
     import {DatabaseSync} from 'node:sqlite';
     const run=await withGateSlot(process.cwd(),lease=>runProfiledShellAsync(process.cwd(),
-      'node -e "console.log(\'RECOVERED_EXECUTION\')"',{gateLease:lease}),{remote:true,onWait(){}});
+      ${JSON.stringify(command)},{gateLease:lease}),{remote:true,onWait(){}});
     const db=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+'/resources.sqlite',{readOnly:true});
     const unavailable=db.prepare('SELECT * FROM runner_unavailable').all();
     const failures=db.prepare('SELECT * FROM runner_transport_error').all();db.close();
@@ -128,7 +129,7 @@ test('real configured Node recovery clears the transport row within seconds [C7]
   assert.equal(result.bad.code, 127);
   assert.equal(result.recovered, true);
   assert.equal(result.remaining, 0);
-  assert.ok(result.elapsed < RECOVERY_BOUND_MS, `observed recovery took ${result.elapsed}ms`);
+  assert.ok(result.elapsed < RECOVERY_BOUND_MS, `observed recovery took ${result.elapsed}ms`); // budget: derived from the 3s probe ceiling, 0.5s drain and local process startup.
 });
 
 test('concurrent recovery probes cannot clear a newer transport failure or cleanup hold [C7]', async t => {
