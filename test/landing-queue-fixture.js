@@ -148,9 +148,11 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
   const gatePid = join(sandbox.dir, 'landing-gate-pid');
   const gateFile = join(sandbox.dir, 'landing-queue-gate.cjs');
   const policyCalls = join(sandbox.dir, 'landing-policy-calls.jsonl');
+  const policyOrigins = join(sandbox.dir, 'landing-policy-origins.jsonl');
   writeFileSync(gateFile, [
     "const fs = require('node:fs'); const assert = require('node:assert/strict');",
     `const [arm,entered,release,gatePid] = ${JSON.stringify([arm, entered, release, gatePid])};`,
+    `fs.appendFileSync(${JSON.stringify(policyOrigins)}, JSON.stringify({ pid: process.pid, ppid: process.ppid, cwd: process.cwd(), args: process.argv.slice(2), node: process.version }) + '\\n');`,
     `fs.appendFileSync(${JSON.stringify(policyCalls)}, JSON.stringify(process.argv.slice(2)) + '\\n');`,
     ...(suspendParent ? ["if (fs.existsSync(gatePid)) { const old = Number(fs.readFileSync(gatePid,'utf8')); try { process.kill(old,0); throw new Error('the previous landing gate is still running when the successor gate starts'); } catch(error) { if (error.code !== 'ESRCH') throw error; } }"] : []),
     // Budget: the suspended-parent control holds beyond the real 30s lease; 65s is a runaway ceiling, not a speed target.
@@ -275,6 +277,7 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), batches[1].tip);
   if (policyAfterFirst) {
     const calls = readFileSync(policyCalls, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+    if (calls.length !== 2) t.diagnostic('policy-call-origins ' + readFileSync(policyOrigins, 'utf8'));
     assert.deepEqual(calls, [[], ['--new-policy']], 'the waiter uses the policy accepted while it queued');
   }
   for (const entry of entries) {
