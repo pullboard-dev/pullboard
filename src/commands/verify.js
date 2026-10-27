@@ -243,12 +243,17 @@ export async function verifyHere(ctx, id, { second, values }) {
     ? `verified #${id}: ${result.reason}${result.check === 'none' ? '; no frozen check ran' : ''}${approvalRows.length ? `; ${agentApprovalLine(approvalRows)}` : ''}${verifiedTiming}`
     : `rejected #${id}: ${result.reason}; it is open again for rework`);
   if (accepted) ctx.io.say(landNext(ctx.info, accepted, acceptedLandingCommit, { spec: loadSpec(ctx.info.root, ctx.config) }));
-  await completeMoveHandoff(ctx, id, values, primary);
+  if (ctx.verdictResult) ctx.verdictResult.value = primary;
   return 0;
 }
 
 /** Run `pullboard verify` and return its exit code. */
-export function run(io, args) {
-  const { first } = args;
-  return verifyHere(context(io), idArg(first), args);
+export async function run(io, args) {
+  const { first, values } = args;
+  const id = idArg(first);
+  const verdictResult = {};
+  const ctx = { ...context(io), verdictResult };
+  const code = await verifyHere(ctx, id, args);
+  if (code === 0 && verdictResult.value) await completeMoveHandoff(ctx, id, values, verdictResult.value);
+  return code;
 }
