@@ -658,7 +658,9 @@ export async function ordered(ctx, board, operation, args) {
 /** Order a claim on every route (claim, next, run) only after a check green on main is not held [V4]. */
 export async function claimOrdered(ctx, board, args) {
   refuseClaimProvesNothing(ctx.info.root, board, args[0]);
+  const adoptCorrection = store.pendingRefreeze(board, args[0]).length > 0;
   return await ordered(ctx, board, 'claim', [args[0], { ...args[1],
+    ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
 }
 

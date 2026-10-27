@@ -1,4 +1,5 @@
 import { ITEM_PATCH_ENGINE } from '../item-patch-engine.js';
+import { requiredReviewFamilyEngine } from '../required-review-family.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 /** Routing metadata owned by verify, discovered without a shared registry edit [C7,V4,H16]. */
 import {
@@ -30,7 +31,7 @@ function existingEngine(args, board, at) {
 function minimumEngine(args, board, at) {
   const outside = args[1]?.sandbox !== undefined || board && Boolean(outsideSource(board, args[0]));
   const patches = args[1]?.companionDigest !== undefined || board && board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`item_patches:${args[0]}`);
-  return Math.max(patches ? ITEM_PATCH_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at));
+  return Math.max(requiredReviewFamilyEngine(board, args[0]), patches ? ITEM_PATCH_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at));
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */
@@ -39,6 +40,7 @@ function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: "verify", order: 18, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
+  "REQUIRED_REVIEW_FAMILY": "ask a reviewer whose declared family matches the item review-family requirement",
   "RUNNER_WORK_SPEC": "upgrade or repair the controller and runner together, then retry the named invalid work specification",
   "RUNNER_BROWSER_SLOT_REQUIRED": "nothing to do: the run reruns on a local gate slot; if it repeats, set gate.browserByLaunch the same on this machine and that runner",
   "A5_GRAMMAR_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",

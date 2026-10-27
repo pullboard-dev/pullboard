@@ -83,8 +83,9 @@ Work
   pullboard map [<module or function>] [--for <item>] [--budget <tokens>]  source map for main, a card, or an item's one-hop slice
                                         slices default to 4k tokens and cap at 8k; effects the scan cannot see say "not detected"
   pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--parent <id>] [--private]
-                [--brief "..." | --brief-file <file>] [--route light|mid]
+                [--brief "..." | --brief-file <file>] [--route light|mid] [--review-family <family>]
                                         --after: ids or repo#id; claiming waits for verified items on their own boards
+                                        --review-family: require that declared family; case-insensitive, never guessed from model
                                         --brief: what a cold agent needs; --route light: any model can build it
                                         --private: keep this item in your device-local board for this repo
   pullboard move <handle#id|owner/handle#id|~handle#id|id> --to <handle|owner/handle|~handle> [--private]
@@ -94,6 +95,7 @@ Work
                 [--check "<command>"] [--wait]   the command that proves it; --wait waits for its main baseline
                                         with --criterion and a brief, --check is needed below strong
   pullboard edit <id> [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."]
+                [--review-family <family>]   require the declared reviewer family
                 [--wait]                wait for a new check's baseline; otherwise it runs in the background
                 [--reason "what the old bar got wrong"]   needed to change the criterion or check of an item
                                         that was ever claimed; show and stats list each correction
@@ -152,6 +154,7 @@ Work
   pullboard why <id>                    the decisions that imply an item, newest first, and what superseded them
   pullboard why <file>[:<line>]         the decisions, rows and items behind a file or line, each with its origin
   pullboard next [--wait <minutes>]     offer an eligible review when reviews pile up, otherwise claim work
+  pullboard next --take                 reserve an independent review first, otherwise claim eligible work in this seat
   pullboard next --build                claim a build explicitly, recording a skipped review offer
   pullboard next --verify               reserve the next submitted item you can check;
   pullboard next --verify <id>          reserve that submitted item instead
@@ -441,7 +444,7 @@ const HELP_ALIASES = {
 };
 
 const HELP_FLAG_EXPLANATIONS = {
-  '--take': 'take the existing hand-off from a newly joined agent worktree',
+  '--take': 'next: take one eligible item in this seat; handoff: take the named existing hand-off',
   '--after': 'ids or repo#id; claiming waits for verified items on their own boards',
   '--blueprint': 'start from a bundled blueprint or a JSON file; repeat it for one product, one architecture and any practice blueprints',
   '--brief': 'what a cold agent needs',
