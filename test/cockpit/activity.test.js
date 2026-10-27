@@ -272,7 +272,7 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
     if (!verifiedIsFinal) {
       const verifiedReturn = routes.find((route) => route.pair === 'verified>open');
       assert.ok(verifiedReturn, 'the non-final verified state has a route back to open');
-      assert.equal(verifiedReturn.label, 'reject · reopen (none yet)', 'the verified return route carries its label');
+      assert.equal(verifiedReturn.label, 'reject · reopen · refreeze (none yet)', 'the verified return route carries its label');
       assert.equal(verifiedReturn.back, false, 'the lower-lane return is not an above-row back route');
       assert.equal(verifiedReturn.points[1][1], verifiedReturn.points[2][1], 'the verified return runs through a horizontal lower lane');
       assert.ok(verifiedReturn.points[1][1] > Math.max(...rects.map((rect) => rect.bottom)), 'the lower lane clears every state box');
