@@ -61,6 +61,7 @@ let markTransportGone;
 const transportGone = new Promise(resolveGone => { markTransportGone = resolveGone; });
 let heartbeatTimer = null;
 let workerId = 'starting';
+let workSpecAccepted = false;
 let rejectPendingFrame = null;
 let activeDescendantTracker = null;
 // Budget: report a named failure within 30 seconds after command exit or transport cancellation.
@@ -906,6 +907,7 @@ function safeSetupMessage(error, step) {
 async function main() {
   installSignalCustody();
   const spec = await readSpec();
+  workSpecAccepted = true;
   workerId = spec.id;
   if (spec.browserRequired && spec.browser < 1) throw new Error('browser capacity is not configured');
   const sink = outputSink();
@@ -1022,4 +1024,17 @@ async function main() {
   stopReading();
 }
 
-main().catch(() => { process.exitCode = 1; });
+/** Terminate a pre-receipt refusal without waiting for the controller's still-open input stream. */
+function failedWorker() {
+  if (workSpecAccepted) { process.exitCode = 1; return; }
+  clearInterval(heartbeatTimer);
+  clearTimeout(cleanupTimer);
+  clearTimeout(phaseCleanupTimer);
+  rejectPendingFrame = null;
+  // Never echo rejected JSON, paths or credentials; this marker is a failure, not an execution receipt.
+  process.stderr.write('PULLBOARD_RUNNER_SPEC_REFUSED invalid work specification\n');
+  process.exitCode = 1;
+  stopReading();
+}
+
+main().catch(failedWorker);
