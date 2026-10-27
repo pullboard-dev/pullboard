@@ -3,6 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import * as store from '../src/board.js';
+import { fixtureBoard } from './board-fixture.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { SPEC_VERDICT_ENGINE } from '../src/spec-verdict-engine.js';
@@ -1238,12 +1239,11 @@ test('row verifier reads need an exact receipt and never create a missing board 
 });
 
 test('an exact row verifier receipt replays once with its engine floor and native snapshot [S1,V4,H16]', t => {
-  const box = specBox(t, { specSource: '# Demo\n\n## G · Goals\n' });
-  const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
-  const replica = store.openBoard(join(box.root, 'replica.sqlite'));
-  t.after(() => { store.closeBoard(board); store.closeBoard(replica); });
-  const author = store.register(board, { lane: 'core', path: join(box.root, 'author'), parentDigest: 'a'.repeat(64) });
-  const verifier = store.register(board, { lane: 'review', path: join(box.root, 'verifier'), parentDigest: 'b'.repeat(64) });
+  const root = '/fixture/spec-verdict';
+  const board = fixtureBoard(t);
+  const replica = fixtureBoard(t);
+  const author = store.register(board, { lane: 'core', path: join(root, 'author'), parentDigest: 'a'.repeat(64) });
+  const verifier = store.register(board, { lane: 'review', path: join(root, 'verifier'), parentDigest: 'b'.repeat(64) });
   store.draftSpecRow(board, { agentId: author, row: { id: 'G1', text: 'An exact requirement.',
     gate: 'review', tier: 'must', section: 'G · Goals' } });
   const move = prepareEngineMove(board, 'recordRowVerification', [{ agentId: verifier,
