@@ -276,15 +276,15 @@ function documentationInputs(path, source, imports, changedDocs = []) {
 }
 
 /**
- * Admit only the named builtin-export synchronizer, which cannot create module-loader edges.
+ * Admit only exact named builtin-export synchronization or TypeScript stripping, neither of which loads modules.
  * Rewrite that exact import and ask V8 whether another node:module edge remains. Text in comments
  * or strings cannot hide a real unknown import. Keep dynamic builtin loaders and CommonJS unknown.
  */
-function knownBuiltinSynchronizers(sources, imports) {
+function knownBuiltinUtilities(sources, imports) {
   const indices = sources.flatMap((_source, index) => imports[index].includes('node:module') ? [index] : []);
   if (!indices.length) return new Set();
-  const synchronizer = /\bimport\s*\{\s*syncBuiltinESMExports\s*,?\s*\}\s*from\s*(['"])node:module\1/gu;
-  const rewritten = indices.map(index => sources[index].replace(synchronizer,
+  const utility = /\bimport\s*\{\s*(?:syncBuiltinESMExports|stripTypeScriptTypes)\s*,?\s*\}\s*from\s*(['"])node:module\1/gu;
+  const rewritten = indices.map(index => sources[index].replace(utility,
     (_match, quote) => `import { syncBuiltinESMExports } from ${quote}node:fs${quote}`));
   const remaining = importsIn(rewritten);
   // Reuse V8's code-versus-text probe for the dynamic builtin loader as well as CommonJS words.
@@ -299,7 +299,7 @@ function graphAt(root, commit, changedDocs = []) {
   const sources = [...modules.values()];
   const imports = importsIn(sources);
   const commonJs = commonJsIn(sources);
-  const synchronizers = knownBuiltinSynchronizers(sources, imports);
+  const utilities = knownBuiltinUtilities(sources, imports);
   const reverse = new Map();
   const unknown = new Map();
   const undeclared = new Map();
@@ -325,16 +325,15 @@ function graphAt(root, commit, changedDocs = []) {
     }
     if (changedDocs.length) docInputs.set(path, documentationInputs(path, modules.get(path), imports[index], changedDocs));
     if (TEST.test(path)) {
-      for (const line of modules.get(path).split(/\r?\n/u)) {
+      for (const line of headerLines(modules.get(path))) {
         if (line === TEST_TREE_INPUT) testTreeReaders.add(path);
         else if (line === SOURCE_TREE_INPUT) sourceTreeReaders.add(path);
         else if (line === DOCS_TREE_INPUT) continue;
-        else break;
       }
     }
     for (const target of imports[index]) {
       if (target === 'node:module') {
-        if (!synchronizers.has(index) && !declaredLoader) unknown.set(path, 'a reached module may create CommonJS imports');
+        if (!utilities.has(index) && !declaredLoader) unknown.set(path, 'a reached module may create CommonJS imports');
         continue;
       }
       if (target.startsWith('node:')) continue;

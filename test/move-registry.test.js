@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+/** @pullboard-test-input test/move-registry-baseline.json */
 /** @pullboard-test-input test-tree */
 /** @pullboard-test-loads src/move-registry.js src/moves/*.js */
 /** Move-only registry discovery preserves a pinned historical resolution and real replay [C7,V4,H3,H16]. */

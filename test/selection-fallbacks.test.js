@@ -147,3 +147,49 @@ test('a declared data symlink cannot supply complete in-repository reader custod
   assert.equal(result.full, true);
   assert.match(result.reason, /unsupported file mode/u);
 });
+
+
+test("an explicit data header preserves the same reader's leading source-tree declaration [V4,C7]", t => {
+  const box = graph(t);
+  box.put('input.json', '{}\n');
+  box.put('test/tree.test.js', '/** @pullboard-test-input input.json */\n/** @pullboard-test-input source-tree */\n');
+  const base = box.commit();
+  box.put('src/value.js', 'export const value = 2;\n');
+  const after = box.commit();
+  selected(box, base, after, ['test/tree.test.js', 'test/value.test.js']);
+});
+
+
+test('exact named TypeScript stripping supplies a non-loader import edge without executing it [V4,C7]', t => {
+  const box = graph(t);
+  box.put('src/utility.js', 'import { stripTypeScriptTypes } from "node:module"; export const parse = text => stripTypeScriptTypes(text);\n');
+  box.put('test/utility.test.js', "import '../src/utility.js';\n");
+  const base = box.commit();
+  box.put('src/utility.js', 'import { stripTypeScriptTypes } from "node:module"; export const parse = text => stripTypeScriptTypes(text, { mode: "strip" });\n');
+  const after = box.commit();
+  selected(box, base, after, ['test/utility.test.js']);
+  assert.equal(testClosures(box.root, after).closures.get('test/utility.test.js').reason, '');
+});
+
+test('non-loader utility recognition cannot hide mixed, namespace, default or executable loading [V4,C7]', t => {
+  const box = graph(t);
+  box.put('test/utility.test.js', "import '../src/utility.js';\n");
+  const sources = [
+    'import { stripTypeScriptTypes, createRequire } from "node:module"; export const parse = createRequire(import.meta.url);',
+    'import * as module from "node:module"; export const parse = module.stripTypeScriptTypes;',
+    'import module from "node:module"; export const parse = module.stripTypeScriptTypes;',
+    'import { register } from "node:module"; export const parse = register;',
+    'import { stripTypeScriptTypes } from "node:module"; export const parse = process.getBuiltinModule("module").createRequire(import.meta.url);',
+    'const banner = `import { stripTypeScriptTypes } from "node:module"`; import { createRequire } from "node:module"; export const parse = createRequire(import.meta.url);',
+    'import { stripTypeScriptTypes } from "node:module"; export const parse = () => import(process.env.TARGET);',
+  ];
+  for (const source of sources) {
+    box.put('src/utility.js', 'export const parse = text => text;\n');
+    const base = box.commit();
+    box.put('src/utility.js', source + '\n');
+    const after = box.commit();
+    const result = selectAffectedTests(box.root, { base, commit: after });
+    assert.equal(result.full, true, source);
+    assert.match(result.reason, /CommonJS|dynamic import/u);
+  }
+});

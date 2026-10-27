@@ -1,3 +1,4 @@
+/** @pullboard-test-input .github/workflows/gate.yml .github/workflows/release.yml */
 /**
  * CI runs the gate (C7): on every push to main and every pull request, with Node 22.13 and 24, on
  * Linux always and on macOS once the repository is public, since GitHub bills macOS minutes tenfold
