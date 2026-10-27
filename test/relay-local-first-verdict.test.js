@@ -43,7 +43,7 @@ function submittedBoard(t) {
 
 /** Bind a verdict to the submitted and checked head, using the current native review wire shape. */
 function verdict(item, actor, decision, trunk) {
-  return { agentId: actor, decision, ...(decision === 'REJECT' ? { reason: 'OTHER' } : {}),
+  return { agentId: actor, decision, ...(decision === 'REJECT' ? { reason: 'OTHER', clause: 'The page renders.' } : {}),
     note: 'Replay semantics fixture; this verdict is not proof of a product gate.',
     head: item.item_commit, digest: item.item_frozen_digest, policy: 'any',
     review: { commit: item.item_commit, head: item.item_commit, trunk, paths: ['web/page.html'] } };
