@@ -129,3 +129,13 @@ Statuses: approved = in force · draft = proposed · wont = considered and decli
 - CD63 [approved, must] A file-name prefix repeated across files means a folder is missing. (RFC 0006.) | gate: review
 - CD64 [approved, must] Pullboard restructures first, package by package, leaves first, behind shims, with file, shim and cycle counts that only fall. (RFC 0006.) | gate: review
 - CD65 [approved, must] A strong model builds the move; a different model family verifies. (RFC 0006.) | gate: review
+
+## CS · Cells (RFC 0006)
+- CS1 [approved, must] A new dependency between cells is computed and flagged at submit, and the owner approves it on the board. (RFC 0006.) | gate: review
+- CS2 [approved, must] Kernel churn is measured and reported weekly. (RFC 0006.) | gate: review
+- CS3 [approved, must] An audit failure no contract predicted becomes a draft contract test through Rigor. (RFC 0006.) | gate: review
+- CS4 [approved, must] Each cell holds a verdict keyed by its files and the contracts it reaches. (RFC 0006.) | gate: review
+- CS5 [approved, must] The audit's cadence is computed: every √(2 × run cost ÷ (escapes per hour × delay cost)) hours. (RFC 0006.) | gate: review
+- CS6 [approved, must] The queue sequences writers by cell at claim, so two agents never edit one place at once. (RFC 0006.) | gate: review
+- CS7 [approved, aim] Items complete within minutes: a typical item goes from claim to landed in about 15 minutes. (RFC 0006.) | gate: review
+- CS8 [approved, must] Collision mass (each file's conflict rate × the square of its share of changes, summed) and cells per item are measured weekly and only fall. (RFC 0006.) | gate: review
