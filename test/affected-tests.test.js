@@ -7,7 +7,10 @@ import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { selectAffectedTests } from '../src/affected-tests.js';
+import { selectAffectedTests, selectTestTreeGuards } from '../src/affected-tests.js';
+import { installSubmitTestTreeCases } from './submit-test-tree-cases.js';
+
+installSubmitTestTreeCases();
 
 /** Make a real committed ES-module graph without executing any candidate source. */
 function graph(t) {
@@ -385,4 +388,20 @@ test('a src change selects only its importers despite run-tests.js [V4,C7]', (t)
   const fallback = selectAffectedTests(box.root, { base: unresolved, commit: unresolved, changed: ['src/person.js'] });
   assert.equal(fallback.full, true, 'a genuinely unresolved reached helper still requires the full suite');
   assert.match(fallback.reason, /non-literal dynamic import in reached file src\/unresolved-reader\.js/u);
+});
+
+
+test('repo-wide test guards survive declaration removal and use committed leading headers [C7]', t => {
+  const box = graph(t);
+  const header = '/** @pullboard-test-input test-tree */\n';
+  box.put('test/scanner.test.js', header + 'export const scan = true;\n');
+  box.put('test/text.test.js', 'const text = ' + JSON.stringify(header) + ';\n');
+  const base = box.commit();
+  box.put('test/scanner.test.js', 'export const scan = false;\n');
+  box.put('test/new.test.js', 'export const added = true;\n');
+  const commit = box.commit();
+  assert.deepEqual(selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js']);
+  assert.deepEqual(selectTestTreeGuards(box.root, { base, commit, changed: ['src/api.js'] }), []);
+  box.put('test/text.test.js', header + 'export const dirty = true;\n');
+  assert.deepEqual(selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js'], 'dirty declarations have no authority');
 });
