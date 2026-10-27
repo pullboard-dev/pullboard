@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { cockpitPage } from '../../src/cockpit.js';
 import {
-  boardOf, chromeExecutable, closeSnapshotChrome, machine, openSnapshotChrome,
+  boardOf, chooseFilter, chromeExecutable, closeSnapshotChrome, machine, openSnapshotChrome,
   pickProject, press, project, startView,
 } from './fixture.js';
 
@@ -97,6 +97,8 @@ test('a board opens on Dashboard with API-backed work, shared pace and existing 
     await chrome.waitFor(`document.querySelector('#dashboard [aria-label="Needs you"]').textContent.includes('Which release wording')`);
     await press(chrome, 'document.querySelector("[data-tab=items]")');
     await chrome.waitFor('view.tab === "items"');
+    assert.equal(await chrome.stable('view.state'), 'ready', 'Items preserves the filter chosen by the Dashboard link');
+    await chooseFilter(chrome, 'state:active');
     assert.match(await chrome.stable('document.querySelector("#chain").textContent'), /A task in flight/u);
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
