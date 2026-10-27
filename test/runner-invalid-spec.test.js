@@ -76,7 +76,7 @@ async function controllerCase(t, { invalidSpec, browser }) {
   writeFileSync(join(f.repo, 'tracked.txt'), 'private source\n');
   runFixtureGit(['add', '-A'], { cwd: f.repo, env: f.env });
   runFixtureGit(['commit', '-qm', 'test: private runner source'], { cwd: f.repo, env: f.env });
-  writeFileSync(join(f.machine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 0 }));
+  writeFileSync(join(f.machine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1 }));
   const requests = join(f.directory, 'requests.jsonl');
   installSshStandIn({ bin: f.bin, worker: f.worker, home: f.remoteHome, machineHome: f.remoteMachine,
     requests, invalidSpec });
