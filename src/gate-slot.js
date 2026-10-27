@@ -48,6 +48,7 @@ export function settleReceipt(lease) {
     runner: descriptor, admittedAt, finishedAt, timing: lease.timing === true, inherited: lease.inherited === true,
     occupiedSlots: lease.timing ? descriptor.slots.current : 1, load,
     executionPhases: lease.executionPhases ?? null,
+    ...(lease.lateRunnerDispatch ? { lateRunnerDispatch: { ...lease.lateRunnerDispatch } } : {}),
     ...(local ? lease.timingEvidence?.() ?? { exclusive: false, unfencedClients: [] }
       : { exclusive: executor?.exclusive === true, unfencedClients: executor?.unfencedClients ?? [] }) };
   return lease.receipt;

@@ -4,6 +4,12 @@ Notable changes to Pullboard, for people using it. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+
+- On Linux, landing cleanup sees each process's working directory, so it removes only clean landed worktrees and never one in use (#1462).
+- `pullboard status` stays light when offline and reads runner use without writing (#1462).
+- Opening the decision queue no longer loads choices meant for other readers (#1462).
+
 ## [0.9.3] - 2026-10-26
 
 Teams and many boards: a board now knows its people and their roles, each repo can keep a private board beside the team board, and every move completes locally at once.
