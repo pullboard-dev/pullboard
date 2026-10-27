@@ -69,7 +69,7 @@ import { testsNeedBrowser } from './browser-admission.js';
 import { testsNeedGui } from './gui-admission.js';
 import { selectAffectedTests } from './affected-tests.js';
 import { selectRegistryGuards } from './registry-guards.js';
-import { placementLandingGate, paidTests } from './test-placement.js';
+import { placementLandingPlan } from './test-placement.js';
 import { laneOf } from './lanes.js';
 import { takeLandingResource } from './landing-resource.js';
 import {
@@ -442,12 +442,8 @@ function batchGatePlan(state, { localTrunk = false } = {}) {
   const selection = batchAffectedTests(state);
   const changed = git(state.batch.root, ['diff', '--no-renames', '--name-only', '-z', state.batch.base, 'HEAD']).split('\0').filter(Boolean);
   const deferred = localTrunk ? deferredSelections(state).flatMap(row => row.files) : [];
-  const mandatory = [...new Set([...selection.mandatory, ...deferred])].sort();
-  const valued = placementLandingGate(state.batch.root, state.config, selection, mandatory, changed);
-  if (valued) {
-    const files = [...new Set([...paidTests(state.batch.root, selection.full ? [] : selection.files, 'landing', changed), ...mandatory])].sort();
-    return { config: valued, files, subset: true, affectedGate: createHash('sha256').update(valued.gate).digest('hex') };
-  }
+  const valued = placementLandingPlan(state.batch.root, state.config, selection, [...selection.mandatory, ...deferred], changed);
+  if (valued) return valued;
   if (localTrunk) {
     const files = [...new Set([...selection.files, ...deferred])].sort();
     const affected = files.length ? `${state.config.affectedTests} ${files.map(quote).join(' ')}` : '';

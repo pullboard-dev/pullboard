@@ -122,7 +122,7 @@ test('[C7] fourteen-day fixture pins every test-value number, code catches, flak
   assert.deepEqual(report.coverage, { receipts: 6, unknownFileReceipts: 0, gitHistoryAvailable: true, unknownCommitReceipts: 0, untrackedFileExecutions: 0, nonTestFileExecutions: 0 });
   const text = await f.cli('test-value');
   assert.equal(text.code, 0, text.stderr);
-  assert.match(text.stdout, /2 code-fixed catches; 0 flakes; runtime 2000ms\/run; 1 edits; value 1198 per run/u);
+  assert.match(text.stdout, /2 catches \(code-fixed or native audit\); 0 flakes; runtime 2000ms\/run; 1 edits; value 1198 per run/u);
   assert.match(text.stdout, /runtime unknown/u);
   assert.deepEqual(store.events(f.board), before, 'both public report forms append no event');
 });

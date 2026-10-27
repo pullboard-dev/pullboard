@@ -6,11 +6,14 @@ import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { repoInfo } from '../src/git.js';
+import { loadConfig } from '../src/config.js';
+import { refreshTestPlacement } from '../src/test-placement-report.js';
+import { testValueReport } from '../src/test-value.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { indexedStageSelection, readPlacementIndex, readPlacementReport, writePlacementIndex } from '../src/test-economics-index.js';
 import { mainAuditFixture } from './main-audit-project.js';
 import { runFixtureGit } from './fixture-child.js';
-import { paidTests, placementLandingGate, placementSubmitSelection, VALUE_GATE, valueGateCommand } from '../src/test-placement.js';
+import { paidTests, placementLandingGate, placementLandingPlan, placementSubmitSelection, VALUE_GATE, valueGateCommand } from '../src/test-placement.js';
 import { packageBranchCoverage } from '../src/audit-coverage.js';
 import {
   auditFailureItem,
@@ -49,6 +52,16 @@ test('every file has recorded value placement; journeys are audit-only despite h
   assert.ok(!report.proposals.some(row => /journey|unknown/u.test(row.file)), 'an audit tier alone is not evidence a file has low value');
   assert.equal(journeyReason({ files: ['src/one/a.js', 'src/two/b.js', 'relay/service.js'] }, new Map()), 'reaches three or more product areas');
   assert.deepEqual(testsAtStage(['test/new.test.js'], report, 'landing'), [], 'an unknown file never silently enters the paid landing set');
+});
+
+test('in-process CLI dispatch and source references are contracts while actual CLI child launches stay journeys [C7]', () => {
+  const closure = { files: ['test/contract.test.js', 'src/cli.js'], helpers: ['test/contract.test.js'] };
+  const source = "const bin = '../bin/pullboard.js'; await runCliInProcess(['show', '1']);";
+  assert.equal(journeyReason(closure, new Map([['test/contract.test.js', source]])), '');
+  assert.equal(journeyReason(closure, new Map([['test/contract.test.js', "readFileSync('../bin/pullboard.js');"]])), '');
+  assert.match(journeyReason(closure, new Map([['test/contract.test.js', "spawnSync(process.execPath, ['bin/pullboard.js']);"]])), /CLI-spawning/u);
+  assert.match(journeyReason(closure, new Map([['test/contract.test.js', "const BIN = join(root, 'bin', 'pullboard.js'); runFixtureChild(process.execPath, [BIN]);"]])), /CLI-spawning/u);
+  assert.equal(journeyReason({ files: null, reason: 'undeclared reach' }, new Map()), 'undeclared reach');
 });
 
 test('an unchanged test is reused only from a complete green audit with the exact action key [C7]', () => {
@@ -157,6 +170,12 @@ test('production landing projection leaves CLI journeys for audit and preserves 
   assert.doesNotMatch(selected.gate, /test\/journey\.test\.js|test\/unknown\.test\.js/u);
   assert.deepEqual(paidTests(box.repo, report.files.map(row => row.file), 'submit'), ['test/unit.test.js']);
   assert.equal(selected[VALUE_GATE], true, 'a selected gate cannot stamp full-suite green');
+  const plan = placementLandingPlan(box.repo, { gate: 'node bin/run-tests.js' },
+    { full: false, files: report.files.map(row => row.file) }, ['test/mandatory.test.js', 'test/deferred.test.js']);
+  assert.deepEqual(plan.files, ['test/contract.test.js', 'test/deferred.test.js', 'test/mandatory.test.js']);
+  assert.equal(plan.subset, true, 'local-trunk composition retains selected-proof semantics and explicit deferred obligations');
+  assert.match(plan.config.gate, /test\/deferred\.test\.js/u);
+
   assert.equal(valueGateCommand(box.repo, 'node bin/run-tests.js --test-name-pattern=required', []), null, 'explicit check filters remain separate required obligations');
   assert.equal(valueGateCommand(box.repo, 'node bin/run-tests.js | cat', []), null, 'opaque gate keeps legacy behavior');
 });
@@ -203,4 +222,14 @@ test('production audit runs a CLI journey, reuses an unchanged unit and files a 
   const cadence = JSON.parse(readFileSync(join(box.directory, 'schedule.json')));
   assert.equal(cadence.inputs.escapes, 1, 'lambda counts an actual audit-filed repair item');
   assert.ok(cadence.hours > 0);
+  const report = box.board(db => testValueReport(db, { root: box.repo, costs: loadConfig(box.repo).testEconomics }));
+  const caught = report.files.find(row => row.file === 'test/a.test.js');
+  assert.equal(caught.realCatches, 1, 'the routed native audit red earns a catch before a green repair exists');
+  assert.equal(caught.catches[0].red, failed.receiptId);
+  assert.equal(caught.catches[0].source, 'audit');
+  assert.equal(caught.catches[0].green, null, 'a found regression never claims an unobserved green repair');
+  assert.ok(caught.catchRate > 0);
+  const promoted = box.board(db => refreshTestPlacement(db, { root: box.repo, head: failedBatch.tip, config: loadConfig(box.repo) }));
+  assert.ok(['submit', 'landing'].includes(promoted.files.find(row => row.file === 'test/a.test.js').tier),
+    'a valuable caught contract can move back out of audit after the next inventory refresh');
 });

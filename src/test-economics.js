@@ -15,12 +15,14 @@ export function testValueCosts(value = {}) {
   return costs;
 }
 
-/** A missing reach declaration or a CLI-launching test-side helper is a journey, irrespective of apparent value. */
+/** A missing reach declaration or actual CLI child launch is a journey; in-process dispatch remains a contract. */
 export function journeyReason(closure, modules) {
   if (!closure?.files) return closure?.reason || 'undeclared reach';
   for (const path of closure.helpers ?? []) {
     const source = modules.get(path) ?? '';
-    if (source.includes('bin/pullboard.js') || source.includes('bin/pullboard.mjs')) return `CLI-spawning boundary in ${path}`;
+    const cliPath = /(?:bin\/pullboard\.[cm]?js|['"]bin['"]\s*,\s*['"]pullboard\.[cm]?js['"])/u.test(source);
+    const child = /\b(?:spawn(?:Sync)?|execFile(?:Sync)?|fork|runFixtureChild|runFixtureExecFile|startFixtureChild)\s*\(/u.test(source);
+    if (cliPath && child) return `CLI-spawning boundary in ${path}`;
   }
   const areas = new Set(closure.packages ?? closure.files.filter(path => /^(?:src|relay)\//u.test(path)).map(path => {
     const parts = path.split('/');

@@ -1,4 +1,5 @@
 /** Audit-time placement construction and bounded change-time gate projection [C7]. */
+import { createHash } from 'node:crypto';
 import {
   readFileSync,
 } from 'node:fs';
@@ -80,4 +81,12 @@ export function placementLandingGate(root, config, selection, mandatory = [], ch
   const files = [...new Set([...paid, ...mandatory])].sort();
   const gate = valueGateCommand(root, config.gate, files);
   return gate === null ? null : { ...config, gate, [VALUE_GATE]: true };
+}
+
+/** Retain the exact selected file floor and plan digest without turning a selected gate into full-suite proof. */
+export function placementLandingPlan(root, config, selection, mandatory = [], changed = []) {
+  const projected = placementLandingGate(root, config, selection, mandatory, changed);
+  if (!projected) return null;
+  const files = [...new Set([...paidTests(root, selection.full ? [] : selection.files, 'landing', changed), ...mandatory])].sort();
+  return { config: projected, files, subset: true, affectedGate: createHash('sha256').update(projected.gate).digest('hex') };
 }

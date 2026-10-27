@@ -21,7 +21,7 @@ export function run(io, { first, second, rest, values }) {
   report.placement = readPlacementReport(ctx.info.root);
   io.result?.({ report });
   io.say(`test value, ${report.since} to ${report.asOf} (14 days; highest value first)`);
-  for (const row of report.files) io.say(`${row.file}: ${row.runs} runs; ${row.realCatches} code-fixed catches; ${row.flakes} flakes; runtime ${row.meanRuntimeMs === null ? (row.lastObservedRuntime ? `last observed ${row.lastObservedRuntime.durationMs}ms (${row.lastObservedRuntime.source}; age ${row.lastObservedRuntime.ageMs === null ? 'unknown' : `${row.lastObservedRuntime.ageMs}ms`})` : 'unknown') : `${row.meanRuntimeMs}ms/run`}; ${row.edits ?? 'unknown'} edits; value ${row.valuePerRun ?? 'unknown'} per run${row.estimatedValuePerRun === null ? '' : `; estimated value ${row.estimatedValuePerRun} from last observed runtime`}; ${row.timedRuns}/${row.runs} timed runs`);
+  for (const row of report.files) io.say(`${row.file}: ${row.runs} runs; ${row.realCatches} catches (code-fixed or native audit); ${row.flakes} flakes; runtime ${row.meanRuntimeMs === null ? (row.lastObservedRuntime ? `last observed ${row.lastObservedRuntime.durationMs}ms (${row.lastObservedRuntime.source}; age ${row.lastObservedRuntime.ageMs === null ? 'unknown' : `${row.lastObservedRuntime.ageMs}ms`})` : 'unknown') : `${row.meanRuntimeMs}ms/run`}; ${row.edits ?? 'unknown'} edits; value ${row.valuePerRun ?? 'unknown'} per run${row.estimatedValuePerRun === null ? '' : `; estimated value ${row.estimatedValuePerRun} from last observed runtime`}; ${row.timedRuns}/${row.runs} timed runs`);
   io.say(report.method);
   if (report.placement) {
     io.say(`recorded placement at ${report.placement.head}, ${report.placement.at}`);
