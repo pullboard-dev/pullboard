@@ -16,6 +16,7 @@ import { SPEC_REFREEZE } from './spec-row-apply.js';
 import * as reviewFamilies from './required-review-family.js';
 import { AUTOMATIC_DISPATCH_ENGINE } from './automatic-dispatch-engine.js';
 import { correctedBar } from './corrected-bar.js';
+import { UNCHANGED_REFREEZE_ENGINE } from './unchanged-refreeze-engine.js';
 import { applyLaneLead } from './lane-lead-policy.js';
 import { applyHealthFindings } from './board-health.js';
 import {
@@ -885,7 +886,7 @@ function declaredCodes(move, id) {
  * @param {{ checks: Record<string, ((item: any) => Refused | null) | null>, set?: (item: any) => object, before?: (item: any) => void, transition?: object }} how
  * @returns {any} The item as it was before the move.
  */
-function moveItem(board, id, verb, { checks, set = () => ({}), before = () => {}, transition = null }) {
+function moveItem(board, id, verb, { checks, set = () => ({}), before = () => {}, transition = null, unchanged = null }) {
   const move = transition ?? MOVES.find((entry) => entry.verb === verb);
   if (!move) throw new Refused(UNKNOWN_MOVE.refuse, `${UNKNOWN_MOVE.rule}: ${UNKNOWN_MOVE.next}`);
   let item = null;
@@ -906,6 +907,8 @@ function moveItem(board, id, verb, { checks, set = () => ({}), before = () => {}
     }
     throw refusal;
   }
+  // A validated no-op retains the exact row, including its lease and update time.
+  if (unchanged?.(item)) return item;
   before(item);
   const fields = { ...set(item), item_status: move.to };
   const requires = STATES.find((state) => state.id === move.to).requires;
@@ -1586,7 +1589,8 @@ export function withdraw(board, id, { agentId, reason }) {
 /**
  * Freeze the current criterion and rows again (V2,V3). A pending coordinator correction is
  * adopted within its live claim, keeping the holder, lease and base; other refreezes reopen the
- * item so its next claim builds against the bar a verdict will check.
+ * item so its next claim builds against the bar a verdict will check. Identical bars preserve
+ * the validated item unchanged; historical engines retain release-on-refreeze behavior.
  *
  * @param {any} board
  * @param {number} id
@@ -1597,6 +1601,7 @@ export function refreeze(board, id, { agentId, freeze, [SPEC_REFREEZE]: specCorr
   specCorrection &&= (board.executionEngineVersion ?? ENGINE_VERSION) >= AUTOMATIC_DISPATCH_ENGINE;
   return atomic(board, () => {
     let frozen = null;
+    let unchanged = false;
     const currentItem = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(id);
     const pending = currentItem ? pendingRefreeze(board, id) : [];
     const retainsClaim = (board.executionEngineVersion ?? ENGINE_VERSION) >= 8
@@ -1619,6 +1624,9 @@ export function refreeze(board, id, { agentId, freeze, [SPEC_REFREEZE]: specCorr
         rowsInForce: (found) => {
           try {
             frozen = freeze(found);
+            unchanged = (board.executionEngineVersion ?? ENGINE_VERSION) >= UNCHANGED_REFREEZE_ENGINE
+              && (found.item_status !== 'claimed' || isHeld(board, found))
+              && frozen.text === found.item_frozen && frozen.digest === found.item_frozen_digest;
             return null;
           } catch (error) {
             if (error instanceof Refused) return error;
@@ -1633,9 +1641,11 @@ export function refreeze(board, id, { agentId, freeze, [SPEC_REFREEZE]: specCorr
         ...(!retainsClaim ? { item_owner: null, item_lease_until: null } : {}),
       }),
       transition,
+      unchanged: () => unchanged,
     });
-    logEvent(board, agentId, 'refreeze', id, { before: item.item_frozen_digest, after: frozen.digest, ...(retainsClaim ? { retainedClaim: true } : {}) });
-    return { before: item.item_frozen_digest, after: frozen.digest, ...(retainsClaim ? { retainedClaim: true } : {}) };
+    const keptClaim = retainsClaim || unchanged && currentItem?.item_status === 'claimed' && isHeld(board, currentItem);
+    logEvent(board, agentId, 'refreeze', id, { before: item.item_frozen_digest, after: frozen.digest, ...(keptClaim ? { retainedClaim: true } : {}), ...(unchanged ? { unchanged: true } : {}) });
+    return { before: item.item_frozen_digest, after: frozen.digest, ...(keptClaim ? { retainedClaim: true } : {}), ...(unchanged ? { unchanged: true } : {}) };
   });
 }
 
