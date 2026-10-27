@@ -9,6 +9,7 @@ import {
   mainCheckout,
 } from './git.js';
 import { Refused } from './refused.js';
+import { carriedRunnerTrunk } from './runner-policy.js';
 
 /** Read raw Git output, retaining NUL-delimited names without exposing Git diagnostics. */
 export function policyGit(root, args) {
@@ -20,7 +21,11 @@ export function policyGit(root, args) {
 /** Resolve the primary checkout's committed HEAD, independently of a linked or detached checkout. */
 export function mainPolicy(root) {
   const checkout = mainCheckout(root);
-  if (!checkout) throw new Refused('NO_POLICY', 'the coordinator checkout is detached for review; ask it to return to its main branch before claiming or running the project gate');
+  if (!checkout) {
+    const carried = carriedRunnerTrunk(root);
+    if (carried) return policyAt(root, carried.commit);
+    throw new Refused('NO_POLICY', 'the coordinator checkout is detached and no runner policy was carried; return the coordinator to its main branch or rerun through its controller');
+  }
   if (!checkout.commit) throw new Refused('NO_POLICY', 'the coordinator checkout has no commit on ' + checkout.branch + '; create its first commit before claiming or running the project gate');
   return policyAt(root, checkout.commit);
 }
