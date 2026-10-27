@@ -75,6 +75,7 @@ function rejectOnce(box, id, note) {
   box.git(box.web, 'add', 'web/shared.txt');
   box.git(box.web, 'commit', '-q', '-m', 'fix: implement bar fixture [G1]');
   box.json(box.web, 'submit', String(id));
+  box.git(box.review, 'switch', '--detach', box.json(box.repo, 'show', String(id)).item_commit);
   box.json(box.review, 'next', '--verify', String(id));
   box.json(box.review, 'verify', String(id), 'reject', '--reason', 'TEST_FAILURE', '--note', note);
 }
