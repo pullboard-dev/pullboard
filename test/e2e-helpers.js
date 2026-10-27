@@ -28,7 +28,7 @@ const cockpitSource = () => readFileSync(resolve(import.meta.dirname, '../src/co
  * A scratch directory with a `pullboard` shim on the PATH, so the hooks git runs find the CLI, and
  * git isolated from the machine's own config.
  */
-function sandbox() {
+function sandbox({ declareFamilies = false } = {}) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-e2e-')));
   sandboxes.push(dir);
   const shims = join(dir, 'bin');
@@ -51,11 +51,23 @@ function sandbox() {
   delete env.PULLBOARD_RELAY_TOKEN;
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   const tryGit = (cwd, ...args) => runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
+  const declaredFamilies = new Map();
+  /** Explicit private vendor labels are fixture data, independent of model and parent identity. */
+  const declareFamily = (cwd, family) => {
+    const value = family ?? `Fixture Vendor ${declaredFamilies.size + 1}`;
+    declaredFamilies.set(cwd, value);
+    return value;
+  };
   const run = (cwd, ...args) => {
+    if (declareFamilies && args[0] === 'join') {
+      const familyFlag = args.findIndex(arg => arg === '--family' || arg.startsWith('--family='));
+      if (familyFlag >= 0) declareFamily(cwd, args[familyFlag].startsWith('--family=') ? args[familyFlag].slice(9) : args[familyFlag + 1]);
+      else if (!declaredFamilies.has(cwd)) args.push('--family', declareFamily(cwd));
+    }
     const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
     return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
   };
-  return { dir, env, git, tryGit, run };
+  return { dir, env, git, tryGit, run, declareFamilies, declareFamily };
 }
 
 const CONFIG = {
@@ -76,8 +88,9 @@ const SPEC = `# Demo spec
 
 /**
  * A repo set up with pullboard, two lanes and a spec, committed through its own hooks, plus a
- * worktree joined to the web lane. The coordinator stays deliberately undeclared; later agents
- * retain the runner's model, while initialization model coverage invokes init directly.
+ * worktree joined to the web lane. Vendors stay undeclared by default; setting-on cases use
+ * sandbox({ declareFamilies: true }) for explicit synthetic labels. The coordinator's model
+ * stays deliberately undeclared; later agents retain the runner's model.
  * Coordinator-only fixtures may omit the unused worktree and its join.
  */
 function project(gate = CONFIG.gate, box = sandbox(), { separateGitDir = false, withWorktree = true } = {}) {
@@ -87,6 +100,11 @@ function project(gate = CONFIG.gate, box = sandbox(), { separateGitDir = false, 
   const inheritedModel = box.env.PULLBOARD_MODEL;
   delete box.env.PULLBOARD_MODEL;
   assert.equal(box.run(repo, 'init').code, 0);
+  if (box.declareFamilies) withFixtureBoard({ ...box, repo }, board => {
+    store.register(board, { lane: 'coordinator', path: repo, family: box.declareFamily(repo, 'Fixture Coordinator Vendor') });
+  });
+  box.git(repo, 'config', 'user.name', 'Test Agent');
+  box.git(repo, 'config', 'user.email', 'agent@example.com');
   if (inheritedModel !== undefined) box.env.PULLBOARD_MODEL = inheritedModel;
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate }, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
@@ -242,12 +260,18 @@ function attackCommit(box, cwd) {
   return commit;
 }
 
+/** Reopen the CLI's actual SQLite file to seed private integration data that later CLI processes read. */
+function withFixtureBoard(box, work) {
+  // File-backed boundary: subsequent real CLI processes must read these exact persisted fixture rows.
+  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  try { return work(board); }
+  finally { store.closeBoard(board); }
+}
+
 /** Seed a legacy receipt from the old full-gate-only submit rule, for independent verifier audits. */
 function historicalCheckSubmission(box, commit) {
   box.git(box.web, 'update-ref', `refs/pullboard/items/1/${commit.slice(0, 12)}`, commit);
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
-  try { submitFixture(board, 1, { agentId: 'web-1', commit, tree: box.git(box.web, 'rev-parse', `${commit}^{tree}`) }); }
-  finally { store.closeBoard(board); }
+  withFixtureBoard(box, board => submitFixture(board, 1, { agentId: 'web-1', commit, tree: box.git(box.web, 'rev-parse', `${commit}^{tree}`) }));
 }
 
 /** Retain historical submissions whose private check needs an install, fails, or times out. */

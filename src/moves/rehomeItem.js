@@ -1,13 +1,16 @@
+import { itemReviewPolicy } from '../review-policy.js';
+import { REVIEW_INDEPENDENCE_ENGINE } from '../review-independence-engine.js';
 import { PRIVATE_REHOME_ENGINE } from '../private-rehome-engine.js';
 
 /** Preserve the ordered source move ID in its arguments for idempotent destination application. */
-function minimumEngine(args) { return PRIVATE_REHOME_ENGINE; }
+function minimumEngine(args, board) { return board && itemReviewPolicy(board, args[0]).tier === 'strict' ? Math.max(PRIVATE_REHOME_ENGINE, REVIEW_INDEPENDENCE_ENGINE) : PRIVATE_REHOME_ENGINE; }
 /** Read the actor from the re-home options [H2,H16]. */
 function actor(move) { return move.args[1]?.agentId ?? null; }
 
 export default Object.freeze({ operation: 'rehomeItem', order: 10001, engine: PRIVATE_REHOME_ENGINE,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
+    BAD_REVIEW_POLICY: 'restore the native review policy before reviewing this item',
     ITEM_MOVED: 'use the recorded destination reference shown in the refusal; do not move the old ID again',
     REHOME_PENDING: 'retry the same move ID and destination to finish delivery; do not allocate another destination ID',
     REHOME_FORMAT: 'restore the exact source move record and retry it with an authorized destination handle',
