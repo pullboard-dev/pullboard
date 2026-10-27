@@ -125,6 +125,22 @@ for (const implementation of ['real', 'memory']) {
       assert.equal(run('config', '--local', '--replace-all', 'pullboard.contract', 'first').status, 0);
       assert.equal(run('config', '--replace-all', 'pullboard.contract', 'second').status, 0);
       assert.equal(run('config', '--get', 'pullboard.contract').stdout, 'second\n');
+      assert.equal(run('config', '--local', '--replace-all', 'Remote.Upstream.URL', 'case-preserved').status, 0);
+      assert.equal(run('config', '--get', 'remote.Upstream.url').stdout, 'case-preserved\n');
+      assert.equal(run('config', '--get', 'remote.upstream.url').status, 1);
+    });
+
+    await t.test('runner command config overrides effective reads, leaves local state intact [C7]', () => {
+      const env = { ...box.env, GIT_CONFIG_COUNT: '3',
+        GIT_CONFIG_KEY_0: 'user.useConfigOnly', GIT_CONFIG_VALUE_0: 'true',
+        GIT_CONFIG_KEY_1: 'pullboard.trunk', GIT_CONFIG_VALUE_1: 'command-value',
+        GIT_CONFIG_KEY_2: 'maintenance.auto', GIT_CONFIG_VALUE_2: 'false' };
+      const command = box.adapter.spawnSync(['config', '--get', 'pullboard.trunk'], { ...options, env });
+      assert.equal(command.status, 0);
+      assert.equal(command.stdout, 'command-value\n');
+      assert.equal(box.adapter.spawnSync(['config', '--local', '--get', 'pullboard.trunk'], { ...options, env }).stdout, 'main\n');
+      assert.equal(run('config', '--get', 'pullboard.trunk').stdout, 'main\n');
+      assert.equal(box.adapter.spawnSync(['rev-parse', '--verify', 'HEAD'], { ...options, env }).stdout, `${box.tip}\n`);
     });
 
     await t.test('committed text, binary blobs and object metadata [C7]', () => {
@@ -278,7 +294,7 @@ test('real Git streaming implementation preserves child output and completion [C
 });
 
 test('literal Git launch ratchet counts code and aliases, rejects growth, and reports the remaining migration [C7]', () => {
-  const baseline = JSON.parse(readFileSync(join(ROOT, 'test/git-launch-baseline.json'), 'utf8'));
+  const baseline = JSON.parse(readFileSync(join(ROOT, 'src/git-launch-baseline.json'), 'utf8'));
   const report = gitLaunchReport(ROOT);
   assert.ok(report.total <= 81, 'this slice migrates all eight direct src/git.js launches from the original 89');
   assert.equal(report.total, Object.values(baseline.files).reduce((sum, count) => sum + count, 0), 'lower the committed allowance when a caller migrates');

@@ -14,6 +14,31 @@ function blobId(bytes) {
   return createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
 }
 
+/** Git folds section and variable case but preserves subsection case, such as remote.Upstream.url. */
+function configKey(key) {
+  const parts = key.split('.');
+  parts[0] = parts[0].toLowerCase();
+  parts[parts.length - 1] = parts.at(-1).toLowerCase();
+  return parts.join('.');
+}
+
+/** Read command-scope config without mutating local settings; this includes the ordinary test runner. */
+function environmentConfig(env = {}) {
+  const values = new Map();
+  if (env.GIT_CONFIG_COUNT === undefined) return values;
+  if (!/^(?:0|[1-9]\d*)$/u.test(env.GIT_CONFIG_COUNT)) unsupported('invalid GIT_CONFIG_COUNT');
+  const count = Number(env.GIT_CONFIG_COUNT);
+  if (!Number.isSafeInteger(count) || count > Object.keys(env).length) unsupported('incomplete command config');
+  for (let index = 0; index < count; index += 1) {
+    const key = env[`GIT_CONFIG_KEY_${index}`];
+    const value = env[`GIT_CONFIG_VALUE_${index}`];
+    if (typeof key !== 'string' || typeof value !== 'string') unsupported('incomplete command config');
+    if (!/^(?:user|gc|maintenance|pullboard|remote)\./iu.test(key)) unsupported(`command config ${key}`);
+    values.set(configKey(key), value);
+  }
+  return values;
+}
+
 /** Copy a seeded commit and its files so callers cannot mutate repository state behind the adapter. */
 function copyCommit(commit) {
   if (!/^[a-f\d]{40}$/u.test(commit.oid) || !/^[a-f\d]{40}$/u.test(commit.tree)) {
@@ -90,7 +115,7 @@ function outcome(status = 0, stdout = '', stderr = '') {
 }
 
 /** Apply the supported read and config/ref mutation commands to the in-memory repository. */
-function execute(repo, args) {
+function execute(repo, args, commandConfig) {
   const [command, ...rest] = args;
   if (command === 'rev-parse') {
     if (rest.length === 1 && rest[0] === '--show-toplevel') return outcome(0, `${repo.root}\n`);
@@ -109,10 +134,10 @@ function execute(repo, args) {
     const words = rest[0] === '--local' ? rest.slice(1) : rest;
     const [verb, key, value] = words;
     if (verb === '--get' && words.length === 2) {
-      const saved = repo.config.get(key.toLowerCase());
+      const saved = (rest[0] === '--local' ? undefined : commandConfig.get(configKey(key))) ?? repo.config.get(configKey(key));
       return saved === undefined ? outcome(1) : outcome(0, `${saved}\n`);
     }
-    if (verb === '--replace-all' && words.length === 3) { repo.config.set(key.toLowerCase(), value); return outcome(); }
+    if (verb === '--replace-all' && words.length === 3) { repo.config.set(configKey(key), value); return outcome(); }
     unsupported(`config ${rest.join(' ')}`);
   }
   if (command === 'show') {
@@ -195,18 +220,18 @@ export function createMemoryGitAdapter(seeds) {
     const refs = new Map(Object.entries(seed.refs ?? {}));
     if (branch && seed.head) refs.set(branch, seed.head);
     return [root, { root, branch, head: seed.head, commits, refs,
-      config: new Map(Object.entries(seed.config ?? {}).map(([key, value]) => [key.toLowerCase(), value])) }];
+      config: new Map(Object.entries(seed.config ?? {}).map(([key, value]) => [configKey(key), value])) }];
   }));
   const adapter = {
     /** Run against seeded state only; absent repositories produce an ordinary Git failure. */
     spawnSync(args, options = {}) {
       capture(outcome(), options);
-      for (const key of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_CONFIG_COUNT', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES']) {
+      for (const key of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_SHALLOW_FILE']) {
         if (options.env?.[key]) unsupported(`environment selector ${key}`);
       }
       const { words, cwd } = commandArgs(args, options);
       const repo = repositories.get(cwd);
-      return capture(repo ? execute(repo, words) : outcome(128, '', 'fatal: not a git repository\n'), options);
+      return capture(repo ? execute(repo, words, environmentConfig(options.env)) : outcome(128, '', 'fatal: not a git repository\n'), options);
     },
     /** Preserve success bytes and failure status/output used by the shared synchronous helpers. */
     execFileSync(args, options = {}) {
