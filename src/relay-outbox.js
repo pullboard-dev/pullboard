@@ -189,6 +189,9 @@ const FIRST_ITEM = ['approveOutside', 'signBar', 'editItem', 'completeCheckBasel
 export const ITEM_SLOTS = Object.freeze({
   setBarReady: [], setLineSetting: [], setLaneLead: [],
   requestCompanion: [[0, 'parentId']],
+  fileTypedRequest: [[0, 'itemId']],
+  // Request and acted-on event IDs are native event identities, never item references.
+  answerTypedRequests: [],
   recordPublishFinding: [[0, 'item']],
   register: [], ensureCoordinator: [], shout: [], passDecision: [], holdLane: [], releaseLane: [],
   moveMilestone: [], editMilestone: [], removeMilestone: [], shipMilestone: [],

@@ -1,3 +1,4 @@
+import { releaseClaim } from './release-claim.js';
 import { REFERENCE_ENGINE } from './reference-engine.js';
 import { validateReferences } from './reference-authors.js';
 import {
@@ -245,7 +246,6 @@ import { COORDINATOR } from './config.js';
 import {
   manualLandingFailure,
   manualLandingFailureQuoted,
-  firstRefusal,
   firstRefusalProblem,
   firstRefusalReason,
   firstRefusalDetail,
@@ -1102,38 +1102,12 @@ export function claim(board, id, { agentId, lane, leaseMs, freeze, head = null, 
  * @param {number} id
  * @param {string} agentId
  * @param {string} [note] One-line reason required when releasing a submitted review.
+ * @param {{seat: string, lastSeen: string}} [goneSeat] Frozen coordinator observation, never a caller identity.
  * @returns {boolean} Whether a review reservation was released rather than a claim.
  */
-export function release(board, id, agentId, note = '') {
-  return atomic(board, () => {
-    const item = itemById(board, id);
-    if (item.item_status === 'submitted') {
-      if (reviewHolder(board, item) !== agentId) {
-        throw new Refused('NOT_YOURS', `item #${id} review is not reserved by you; ask its current reviewer to release it, or take a free review with pullboard next --verify`);
-      }
-      const currentEngine = board.executionEngineVersion ?? ENGINE_VERSION;
-      const problem = currentEngine >= 5 ? reviewReleaseNoteProblem(board, id, agentId, note) : null;
-      if (problem) throw problem;
-      const reason = typeof note === 'string' ? note.trim() : '';
-      setItem(board, id, { item_review_by: null, item_review_until: null });
-      if (currentEngine >= 5) logEvent(board, agentId, 'release', id, { review: true, reason });
-      else logEvent(board, agentId, 'release', id);
-      return true;
-    }
-    const window = (board.executionEngineVersion ?? ENGINE_VERSION) >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusal(board, id) : null;
-    moveItem(board, id, 'release', {
-      transition: (board.executionEngineVersion ?? ENGINE_VERSION) < REOPEN_FIRST_REFUSAL_ENGINE ? { ...MOVES.find(move => move.verb === 'release'), from: ['claimed'] } : null,
-      checks: {
-        joined: null,
-        [IN_STATE]: () => new Refused('NOT_YOURS', `item #${id} is not claimed by you`),
-        releaseOwnsWork: (found) => (found.item_owner === agentId || found.item_status === 'open' && window?.builder === agentId ? null : new Refused('NOT_YOURS', `item #${id} is not claimed by you`)),
-        reviewReleaseExplained: null, // Claimed releases do not free a submitted review.
-      },
-      set: () => ({ item_owner: null, item_lease_until: null }),
-    });
-    logEvent(board, agentId, 'release', id);
-    return false;
-  });
+export function release(board, id, agentId, note = '', goneSeat) {
+  return releaseClaim(board, id, agentId, note, goneSeat, { atomic, itemById, reviewHolder,
+    reviewReleaseNoteProblem, setItem, moveItem, logEvent });
 }
 
 export { prepareMergeOnlySubmit };
@@ -2352,3 +2326,5 @@ export function actOnActivity(board, options) {
 }
 import { FLOW_SIZE_ENGINE } from './flow-size-engine.js';
 import { submissionSize } from './submission-size.js';
+
+export { fileTypedRequest, typedRequests, answerTypedRequests } from './typed-requests.js';

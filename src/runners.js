@@ -545,6 +545,15 @@ function resultFrom(request, result) {
   const lines = String(result.stderr ?? '').split(/\r?\n/u);
   const prefix = `PULLBOARD_RUNNER_RESULT ${request.spec.id} `;
   const receipts = lines.filter(line => line.startsWith(prefix));
+  // A spec rejected before admission has no trustworthy job receipt. Preserve its named failure,
+  // never manufacture source/proof metadata or treat the refusal as a transport retry.
+  if (!result.error && Number.isInteger(result.status) && result.status > 0 && result.status <= 255 && output.length === 0 && receipts.length === 0
+      && lines.filter(line => line === 'PULLBOARD_RUNNER_SPEC_REFUSED invalid work specification').length === 1) {
+    const refused = new Refused('RUNNER_WORK_SPEC', `runner ${request.runner.host} refused an invalid work specification before execution`);
+    refused.runnerAttempt = { host: request.runner.host, exitCode: result.status, output: output.toString('utf8'), reason: 'invalid work specification' };
+    throw refused;
+  }
+
   let receipt;
   try {
     if (receipts.length !== 1) throw new Error('missing receipt');

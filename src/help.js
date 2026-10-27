@@ -196,6 +196,14 @@ Work
                                         --supersedes tells the items an earlier answer implied; only the person
                                         supersedes the person's answer
   pullboard pass <shout-id> <note>                lead escalates to coordinator; coordinator passes to person
+  pullboard request reopen|hold|withdraw|reroute <id> --cause <key> [--route light|mid|strong] [--note "why"]
+                                        queue a typed coordinator move; reroute needs --route
+                                        Causes: routing-assignment, bar-ambiguity, proof-red-tests, design-choice,
+                                                conflicting-rulings, person-authority, tool-defect
+  pullboard request list [--all]        list pending requests; --all includes answered requests
+  pullboard request answer <ids> done|declined [--note "why"] [--acted-on <event-ids>]
+                                        coordinator answers a comma-separated batch atomically; declined needs a note
+                                        done needs matching native move event IDs in request order; it never executes a move
   pullboard decisions [--as person]               shouts waiting for you; main checkout defaults to coordinator
                                         as the person, a project's repos list together as repo#id
   pullboard watch [--to <agent|lane|all>] [--kinds <kinds>] [--item <id>] [--since <sequence>] [--json]
@@ -268,6 +276,9 @@ Receipts
                                         merge wait: land the accepted items: #A, #B
                                         when that queue is empty, the action says none waiting or waits for open work
   pullboard ledger                      markdown: what was built, by whom, verified by whom
+  pullboard test-value                   fourteen-day per-file runs, code-fixed catches, flakes, runtime, edits and value; --json
+                                        report-only costs in pullboard.json testEconomics: costOfEscape 3600, costOfWaiting 1, costOfFalseRed 300
+                                        runtime gaps remain unknown; no test admission policy changes
   pullboard log [id]                    every move, in order
   pullboard flakes                      recorded failures, their first and last sightings, counts and repair status
   pullboard flakes rerun on|off          coordinator: opt into one diagnostic pair per failed test; off by default
@@ -323,6 +334,7 @@ Role guides
   pullboard prompt decompose|plan|signoff|review|verify|run|triage   how to do each role; Claude Code gets them as skills
 
 Gate and hooks
+  pullboard push-receipts               additive check of Git pre-push stdin, native receipts and accepted-policy smoke; does not replace the active hook
   pullboard gate [--landing]            run the configured gate; prioritize a trunk landing in the machine queue
   pullboard gate set "<command>"         record the project gate in the main checkout; commit it before running the gate
   pullboard hook pre-commit|pre-merge-commit|commit-msg|pre-push   git runs these
@@ -358,6 +370,7 @@ const HELP_EXAMPLES = {
   why: 'pullboard why 12',
   flakes: 'pullboard flakes', 'flakes rerun': 'pullboard flakes rerun on', 'flakes quarantine': 'pullboard flakes quarantine on',
   verify: 'pullboard verify 12 accept --note "removed the fix; the test failed"',
+  request: 'pullboard request hold 12 --cause routing-assignment --note "Wait for the prerequisite"',
   watch: 'pullboard watch --to web', answer: 'pullboard answer 12 "done"', pass: 'pullboard pass 12 "please decide"',
   status: 'pullboard status', view: 'pullboard view', digest: 'pullboard digest --out briefing.md', mcp: 'pullboard mcp', flow: 'pullboard flow replay --json', stats: 'pullboard stats --since 2026-10-08', log: 'pullboard log 12', ledger: 'pullboard ledger',
   relay: 'pullboard relay on --all', 'relay recover': 'pullboard relay recover --skip 12', sync: 'pullboard sync',
