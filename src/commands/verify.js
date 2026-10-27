@@ -85,6 +85,7 @@ import {
   withBoard,
 } from '../cli.js';
 import { recordedRecovery } from '../recorded-recovery.js';
+import { retryReviewCommit } from '../verdict-retry.js';
 
 /**
  * Verify from this checkout (V3, V7): the submitted commit must be here, at or under HEAD, and the
@@ -150,44 +151,56 @@ export async function verifyHere(ctx, id, { second, values }) {
     }
     if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
-      const checkedCommit = reReview ? head : commit;
-      const checkedLabel = reReview ? 'reviewed composition' : 'submitted commit';
+      let checkedCommit = reReview ? head : commit;
+      let checkedLabel = reReview ? 'reviewed composition' : 'submitted commit';
       const composeNow = () => composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack });
       const admitted = composesAtAdmission(ctx.config) && Boolean(frozenCheck(item));
       let trunk = null;
       if (!admitted) ({ trunk, review } = composeNow());
-      const checkedItem = reReview ? { ...item, item_commit: checkedCommit } : item;
-      if (frozenCheck(item)) {
-        const browser = !browserFreeChecksEnabled() || await checkNeedsBrowser(root, frozenCheck(item), { commit: checkedCommit, onFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson) });
-        const gui = await checkNeedsGui(root, frozenCheck(item));
-        // Exact command classifiers still govern local and remote private-check admission [C7,V4].
-        const shortEligible = Boolean(await explicitCheckFiles(root, frozenCheck(item), { commit: checkedCommit }));
-        check = await withGateSlot(root, async (lease) => { if (admitted) ({ trunk, review } = composeNow()); const ran = await nativeFlakes.verify(ctx, checkedItem, frozenCheck(item), { board, main: trunk.commit, commit: checkedCommit }, { ordered, withBoard, resourceAgent })(lease); return ran.state === 'pass' ? { ...ran, guardNote: guardRevertNote(root, checkedItem, lease) } : ran; }, { browser, gui, remote: gateRunnersFirstEnabled(), agent: me.id, item: String(id), kind: 'review', itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, me.id, 'review') });
-      } else {
-        check = checkAtCommit(root, checkedItem);
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const checkedItem = { ...item, item_commit: checkedCommit };
+        if (frozenCheck(item)) {
+          const browser = !browserFreeChecksEnabled() || await checkNeedsBrowser(root, frozenCheck(item), { commit: checkedCommit, onFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson) });
+          const gui = await checkNeedsGui(root, frozenCheck(item));
+          // Exact command classifiers still govern local and remote private-check admission [C7,V4].
+          const shortEligible = Boolean(await explicitCheckFiles(root, frozenCheck(item), { commit: checkedCommit }));
+          check = await withGateSlot(root, async (lease) => { if (admitted && attempt === 0) ({ trunk, review } = composeNow()); const ran = await nativeFlakes.verify(ctx, checkedItem, frozenCheck(item), { board, main: trunk.commit, commit: checkedCommit }, { ordered, withBoard, resourceAgent })(lease); return ran.state === 'pass' ? { ...ran, guardNote: guardRevertNote(root, checkedItem, lease) } : ran; }, { browser, gui, remote: gateRunnersFirstEnabled(), agent: me.id, item: String(id), kind: 'review', itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, me.id, 'review') });
+        } else {
+          check = checkAtCommit(root, checkedItem);
+        }
+        invalidateGitFacts(); // A private check can outlive changes in the reviewer's live checkout.
+        refuseSandboxBlocked(check);
+        verificationProfile = check.profile ?? null;
+        const evidence = check.checked
+          ? `\nlast output lines (up to 40):\n${(check.outputTail ?? '(no output)').split('\n').map((line) => `  ${line}`).join('\n')}\nfull output file: ${check.outputPath ?? `(unavailable${check.outputError ? `: ${check.outputError}` : ''})`}`
+          : '';
+        const checkTimings = timingDigest(check.profile);
+        const timingEvidence = check.profilePath ? `\n${checkTimings}\ntiming profile: ${check.profilePath}` : '';
+        if (check.state === 'unverified') throw new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the ${checkedLabel}; restore the install or check environment, then retry verification; output digest:\n${check.report.replace(/^/gm, '  ')}${evidence}${timingEvidence}`);
+        if (check.state === 'red') throw new Refused('CHECK_RED', `the frozen item check is red at the ${checkedLabel} (${check.stage}); check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit; output digest:\n${check.report.replace(/^/gm, '  ')}${evidence}${timingEvidence}`);
+        const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
+        submissionPaths(root, item, commit, { mainCommit: receipt?.policyCommit, dependencies: dependencySnapshots(board.db, item) });
+        const currentTrunk = requireTrunkMerge(root, checkedCommit); // Re-read after the frozen check, before accepting.
+        // With verify.unrelatedTrunkMoves on, a move through commits that touch nothing this review read keeps its verdict (#928).
+        const judged = currentTrunk.commit === trunk.commit || ctx.config.verify.unrelatedTrunkMoves !== true ? null
+          : await judgeTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, item, checkedCommit, check: frozenCheck(item) });
+        if (headCommit(root) !== head || (reReview && (!isClean(root) || untracked(root).length))) {
+          throw new Refused('NOT_AT_COMMIT', 'the reviewed checkout moved during its check; restore the clean reviewed HEAD and retry verification');
+        }
+        if (currentTrunk.commit !== trunk.commit && (!judged || judged.overlap)) {
+          if (attempt === 1) throw new Refused('VERDICT_TRUNK_MOVED', `main moved again from ${trunk.commit} to ${currentTrunk.commit} during the one review retry; merge the latest main and re-review the clean composition`);
+          checkedCommit = retryReviewCommit(root, checkedCommit, currentTrunk);
+          checkedLabel = `retry composition ${checkedCommit}`;
+          trunk = currentTrunk;
+          review = captureVerdictReview(root, board, item, trunk.commit, checkedCommit);
+          refuseUnverifiedStack(root, board, item, checkedCommit, trunk);
+          unaffectedMove += `\nmain moved during review; reran the frozen check once at clean composition ${checkedCommit} against main ${trunk.commit}`;
+          continue;
+        }
+        if (judged) unaffectedMove += `\nmain moved during this review through ${judged.moved.map((sha) => sha.slice(0, 12)).join(', ')}, judged unaffected: none of them changes this item's files or a file its check and affected tests read`;
+        refuseUnverifiedStack(root, board, item, checkedCommit, currentTrunk);
+        break;
       }
-      invalidateGitFacts(); // A private check can outlive changes in the reviewer's live checkout.
-      refuseSandboxBlocked(check);
-      verificationProfile = check.profile ?? null;
-      const evidence = check.checked
-        ? `\nlast output lines (up to 40):\n${(check.outputTail ?? '(no output)').split('\n').map((line) => `  ${line}`).join('\n')}\nfull output file: ${check.outputPath ?? `(unavailable${check.outputError ? `: ${check.outputError}` : ''})`}`
-        : '';
-      const checkTimings = timingDigest(check.profile);
-      const timingEvidence = check.profilePath ? `\n${checkTimings}\ntiming profile: ${check.profilePath}` : '';
-      if (check.state === 'unverified') throw new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the ${checkedLabel}; restore the install or check environment, then retry verification; output digest:\n${check.report.replace(/^/gm, '  ')}${evidence}${timingEvidence}`);
-      if (check.state === 'red') throw new Refused('CHECK_RED', `the frozen item check is red at the ${checkedLabel} (${check.stage}); check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit; output digest:\n${check.report.replace(/^/gm, '  ')}${evidence}${timingEvidence}`);
-      const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
-      submissionPaths(root, item, commit, { mainCommit: receipt?.policyCommit, dependencies: dependencySnapshots(board.db, item) });
-      const currentTrunk = requireTrunkMerge(root, checkedCommit); // Re-read after the frozen check, before accepting.
-      // With verify.unrelatedTrunkMoves on, a move through commits that touch nothing this review read keeps its verdict (#928).
-      const judged = currentTrunk.commit === trunk.commit || ctx.config.verify.unrelatedTrunkMoves !== true ? null
-        : await judgeTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, item, checkedCommit, check: frozenCheck(item) });
-      if (currentTrunk.commit !== trunk.commit && (!judged || judged.overlap)) throw new Refused('VERDICT_TRUNK_MOVED', `main moved from ${trunk.commit} to ${currentTrunk.commit} during review${judged ? `, and the move reaches this review through ${judged.overlap}` : ''}; merge the latest main and re-review the clean composition`);
-      if (judged) unaffectedMove = `\nmain moved during this review through ${judged.moved.map((sha) => sha.slice(0, 12)).join(', ')}, judged unaffected: none of them changes this item's files or a file its check and affected tests read`;
-      if (headCommit(root) !== head || (reReview && (!isClean(root) || untracked(root).length))) {
-        throw new Refused('NOT_AT_COMMIT', 'the reviewed checkout moved during its check; restore the clean reviewed HEAD and retry verification');
-      }
-      refuseUnverifiedStack(root, board, item, checkedCommit, currentTrunk);
     }
     review ??= captureVerdictReview(root, board, item, verdictTrunk(root));
     if (decision === 'ACCEPT') approvalRows = itemAgentApprovals(item, specApprovalState(root, { board, config: ctx.config }));

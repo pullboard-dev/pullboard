@@ -18,7 +18,9 @@ function loader(file) {
 }
 
 export const COMMANDS = Object.fromEntries(discovered(readdirSync(FOLDER), COMMAND_CANDIDATE, COMMAND_FILE, 'command')
-  .map((file) => [file.slice(0, -'.js'.length), loader(file)]));
+  // Sort command names rather than filenames: test.js precedes test-value.js as a command.
+  .map((file) => [file.slice(0, -'.js'.length), loader(file)])
+  .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0));
 
 /** Commands that run but stay out of help and the result-command list. */
 export const UNLISTED_COMMANDS = ['mcp'];

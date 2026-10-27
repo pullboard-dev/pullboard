@@ -83,17 +83,17 @@ test('an unrelated landing during a review keeps the verdict and names the commi
   assert.match(item.verdicts.at(-1).verdict_note, new RegExp(`main moved during this review through ${moved}, judged unaffected`, 'u'));
 });
 
-test('a landing that touches a file the affected tests read still refuses and names it [V4,C7]', (t) => {
+test('a landing that breaks an affected import refuses the retried composition [V4,C7]', (t) => {
   const { box, verdict, json } = reviewWithLanding(t, { setting: true, landing: 'web/shared.js' });
   assert.notEqual(verdict.code, 0);
   const error = JSON.parse(verdict.out).error;
-  assert.equal(error.code, 'VERDICT_TRUNK_MOVED');
-  assert.match(error.message, /the move reaches this review through web\/shared\.js, which test\/page\.test\.js reads/u);
+  assert.equal(error.code, 'CHECK_RED');
+  assert.match(error.message, /retry composition/u);
   assert.equal(json(box.run(box.repo, 'show', '1', '--json')).item_status, 'submitted');
 });
 
-test('with the setting off an unrelated landing still refuses as before [V4,C7]', (t) => {
+test('with the unrelated shortcut off a clean landing reruns once [V4,C7]', (t) => {
   const { verdict } = reviewWithLanding(t, { setting: undefined, landing: 'api/other.js' });
-  assert.notEqual(verdict.code, 0);
-  assert.equal(JSON.parse(verdict.out).error.code, 'VERDICT_TRUNK_MOVED');
+  assert.equal(verdict.code, 0, verdict.out + verdict.err);
+  assert.equal(JSON.parse(verdict.out).decision, 'ACCEPT');
 });
