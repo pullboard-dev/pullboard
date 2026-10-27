@@ -12,6 +12,7 @@ import {
 } from 'node:test';
 import * as store from '../src/board.js';
 import { eventCauses } from '../src/rigor.js';
+import { REOPEN_CAUSE_ENGINE } from '../src/reopen-cause-engine.js';
 import {
   exportBoard,
   importBoard,
@@ -142,6 +143,26 @@ test('a legacy-shaped conflict note cannot reopen clean Git work [C7,B3]', () =>
   } finally { store.closeBoard(board); }
 });
 
+test('legacy notes preserve ordinary state refusals before a submitted commit exists [C7,B3]', () => {
+  const box = project();
+  const added = json(box, box.repo, 'add', 'web', 'Still being built', '--specs', 'G1',
+    '--criterion', 'Both modules remain valid.', '--check', 'node --check ' + FILE);
+  const id = added.item.item_id;
+  const trunk = box.git(box.repo, 'rev-parse', 'main');
+  const note = `${FILE}: does not merge onto the trunk (conflicts: ${FILE}), reopened for the builder merge; merge commit ${trunk}`;
+  for (const claimed of [false, true]) {
+    if (claimed) json(box, box.web, 'claim', String(id));
+    const refused = box.run(box.repo, 'reopen', String(id), '--note', note, '--json');
+    assert.equal(refused.code, 1);
+    assert.equal(JSON.parse(refused.out).error.code, 'NOT_SUBMITTED');
+    const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+    try {
+      assert.equal(store.getItem(board, id).item_status, claimed ? 'claimed' : 'open');
+      assert.equal(store.events(board, { itemId: id }).filter(row => row.event_kind === 'reopen').length, 0);
+    } finally { store.closeBoard(board); }
+  }
+});
+
 test('a confirmed conflict overrides an unrelated explicit test cause [C7,B3,D1]', () => {
   const box = project();
   const entry = submit(box);
@@ -151,11 +172,11 @@ test('a confirmed conflict overrides an unrelated explicit test cause [C7,B3,D1]
   const older = store.openBoard(join(box.dir, 'older-engine.sqlite'));
   try {
     importBoard(older, exportBoard(source));
-    older.executionEngineVersion = 137;
+    older.executionEngineVersion = REOPEN_CAUSE_ENGINE - 1;
     store.reopen(older, entry.id, { agentId: 'coordinator', conflict: { files: merge.files, trunk: merge.commit },
       cause: 'test:web/unrelated.test.js::unrelated test' });
     const oldDetail = JSON.parse(store.events(older, { itemId: entry.id }).findLast(row => row.event_kind === 'reopen').event_detail);
-    assert.equal(oldDetail.cause, 'test:web/unrelated.test.js::unrelated test', 'engine137 replay retains its original recorded meaning');
+    assert.equal(oldDetail.cause, 'test:web/unrelated.test.js::unrelated test', 'prior-engine replay retains its original recorded meaning');
     assert.equal(oldDetail.causeDerivation, undefined);
     assert.equal(store.getItem(source, entry.id).item_status, 'verified', 'the replay control never changes the native board');
   } finally { store.closeBoard(older); store.closeBoard(source); }

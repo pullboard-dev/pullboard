@@ -25,8 +25,13 @@ export async function run(io, { first, values }) {
   return act(async (ctx, board, me) => {
   const note = textArg(io, values, 'note') ?? '';
   const historical = values.conflict === undefined && !values['withdraw-verdict'] ? legacyConflictNote(note) : null;
-  const inferred = historical && me.id === COORDINATOR
-    ? requireTrunkConflict(commit => trunkMerge(ctx.info.root, commit), store.getItem(board, idArg(first)).item_commit, historical.files) : null;
+  let inferred = null;
+  if (historical && me.id === COORDINATOR) {
+    const item = store.getItem(board, idArg(first));
+    if (['verified', 'submitted'].includes(item.item_status) && item.item_commit && !item.item_merged_commit) {
+      inferred = requireTrunkConflict(commit => trunkMerge(ctx.info.root, commit), item.item_commit, historical.files);
+    }
+  }
   const result = await ordered(ctx, board, 'reopen', [idArg(first), { agentId: me.id, note,
     ...(inferred ? { conflict: inferred } : {}),
     ...(values['withdraw-verdict'] === undefined ? {} : { withdrawVerdict: values['withdraw-verdict'] }),
