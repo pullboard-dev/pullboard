@@ -19,6 +19,11 @@ import { HELP } from '../src/cli.js';
 import { loadConfig } from '../src/config.js';
 import { Refused } from '../src/refused.js';
 import { assertRehomeTriggerDeclaration } from './rehome-machine-fixture.js';
+import { runnerControllerCallees, assertRunnerControllerReachability } from './runner-controller-machine-fixture.js';
+import {
+  assertConfiguredReviewLease,
+  assertLifecycleReservation,
+} from './machine-reservation-fixture.js';
 
 import {
   runFixtureExecFile as execFileSync,
@@ -227,7 +232,7 @@ function codeWalk(read, { caught = false } = {}) {
         }
       }
       const spaces = new Map([...source.matchAll(/import \* as (\w+) from '(\.\.?)\/([\w-]+\.js)'/g)].map(([, space, dots, name]) => [space, under(dots, name)]).filter(([, from]) => from));
-      files.set(file, { bodies: functionsIn(source), named, spaces });
+      files.set(file, { bodies: functionsIn(source), named, spaces, source });
     }
     return files.get(file);
   };
@@ -235,7 +240,7 @@ function codeWalk(read, { caught = false } = {}) {
     if (seen.has(key) || skip.has(key) || TRANSPORT_BOUNDARIES.has(key)) return new Set();
     seen.add(key);
     const [file, name] = key.split('#');
-    const { bodies, named, spaces } = load(file);
+    const { bodies, named, spaces, source } = load(file);
     // A facade may import and re-export the helper; follow its real definition after extraction.
     if (!bodies.has(name) && named.has(name)) return refusalsOf(named.get(name), skip, seen);
     const body = bodies.get(name) ?? '';
@@ -244,6 +249,7 @@ function codeWalk(read, { caught = false } = {}) {
       ...[...body.matchAll(/(?<!\w)(?<!(?<!\.\.)\.)(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? CALLBACKS[file]?.[callee])),
       ...[...body.matchAll(/\b(\w+)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : undefined)),
     ];
+    callees.push(...runnerControllerCallees(file, body, source));
     for (const callee of callees.filter(Boolean)) {
       if (caught && (CAUGHT[key] ?? []).includes(callee)) continue;
       for (const code of refusalsOf(callee, skip, seen)) codes.add(code);
@@ -479,7 +485,7 @@ test('the declared lifecycle is sound: reachable, no traps, no second door, ever
   assert.deepEqual(machineRules.machineProblems(), []);
   assert.deepEqual(machineRules.MACHINE.states.map((state) => state.id), ['open', 'claimed', 'submitted', 'verified', 'withdrawn']);
   assert.deepEqual(machineRules.MACHINE.states.filter((state) => state.final).map((state) => state.id), ['withdrawn']);
-  assert.deepEqual(machineRules.MACHINE.moves.map((move) => move.verb), ['rehomeImport', 'intake', 'claim', 'release', 'lapse', 'submit', 'submit-merge', 'reserve', 'accept', 'reject', 'reopen', 'escalate', 'refreeze', 'refreeze', 'withdraw']);
+  assert.deepEqual(machineRules.MACHINE.moves.map((move) => move.verb), ['patch', 'rehomeImport', 'intake', 'claim', 'release', 'lapse', 'submit', 'submit-merge', 'reserve', 'accept', 'reject', 'reopen', 'escalate', 'refreeze', 'refreeze', 'withdraw']);
   assert.deepEqual(machineRules.MACHINE.moves.find((move) => move.verb === 'rehomeImport').sets, ['item_verified_by', 'item_commit']);
 });
 
@@ -687,10 +693,11 @@ function boardOnDisk(clock) {
  * An item web-1 claimed and submitted.
  *
  * @param {any} board
+ * @param {{ reviewFamily?: string }} [options] optional real item metadata for guard witnesses
  * @returns {number}
  */
-function submittedItem(board) {
-  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+function submittedItem(board, options = {}) {
+  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page', ...options });
   store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
   submitFixture(board, id, { agentId: 'web-1', commit: SHA_A, tree: 'tree' });
   return id;
@@ -1079,7 +1086,9 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
     const other = store.register(board, { lane: 'web', path: '/repo-web-other' });
     for (const verb of ['accept', 'reject']) {
       const decision = verb === 'accept' ? 'ACCEPT' : 'REJECT';
-      const built = submittedItem(board);
+      store.register(board, { lane: 'web', path: '/repo-web-2', family: 'REQUIRED REVIEW' });
+      store.register(board, { lane: 'web', path: '/repo-web-other', family: null });
+      const built = submittedItem(board, { reviewFamily: 'Required Review' });
       const landed = submittedItem(board);
       verdictOn(board, landed, 'web-2', 'ACCEPT');
       store.merged(board, landed, { agentId: 'coordinator', commit: SHA_A });
@@ -1097,7 +1106,12 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
         judge(built, 'web-1', { reason: bad }),
         judge(built, light, { reason: bad }),
         judge(built, 'web-2', { reason: bad }),
-        judge(built, other, { reason: bad, policy: 'any', familyPolicy: 'require' }),
+        judge(built, other, { reason: bad, policy: 'any' }),
+        /** Declare the matching family only after its refusal has been observed. */
+        (() => {
+          store.register(board, { lane: 'web', path: '/repo-web-other', family: 'required review' });
+          return judge(built, other, { reason: bad, policy: 'any', familyPolicy: 'require' });
+        })(),
         judge(built, other, { reason: bad, policy: 'any' }),
         judge(built, 'web-2', { reason: bad, policy: 'any' }),
         judge(built, 'web-2', { reason: bad, policy: 'any', digest: 'digest:Page' }),
@@ -1119,17 +1133,19 @@ test('reserve refuses in the declared order, one failure peeled at a time [V15, 
     const { board } = lab;
     const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
     const other = store.register(board, { lane: 'web', path: '/repo-web-other' });
-    const built = submittedItem(board);
+    store.register(board, { lane: 'web', path: '/repo-web-2', family: 'REQUIRED REVIEW' });
+    const built = submittedItem(board, { reviewFamily: 'Required Review' });
     const open = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
     const reserveAs = (id, agentId, policy = 'coordinator', familyPolicy = 'off') => outcome(() => store.reserveReview(board, id, { agentId, leaseMs: 3_600_000, policy, familyPolicy }));
     const cooling = submittedItem(board);
     store.reserveReview(board, cooling, { agentId: 'web-2', leaseMs: 3_600_000, policy: 'any' });
     store.release(board, cooling, 'web-2', 'another reviewer should take it');
-    const fired = [reserveAs(999, 'web-2'), reserveAs(open, 'web-2'), reserveAs(cooling, 'web-2'), reserveAs(built, 'web-1'), reserveAs(built, light), reserveAs(built, 'web-2')];
+    const fired = [reserveAs(999, 'web-2'), reserveAs(open, 'web-2'), reserveAs(cooling, 'web-2'), reserveAs(built, 'web-1'), reserveAs(built, light), reserveAs(built, 'web-2'), reserveAs(built, other, 'any')];
+    store.register(board, { lane: 'web', path: '/repo-web-other', family: 'required review' });
     store.reserveReview(board, built, { agentId: other, leaseMs: 3_600_000, policy: 'any' });
     fired.push(reserveAs(built, other, 'any', 'require'), reserveAs(built, 'web-2', 'any'), reserveAs(built, other, 'any'));
     assert.deepEqual(fired, [...declaredBoardOrder('reserve'), 'ok']);
-    assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'REVIEW_COOLDOWN', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'O2_FAMILY_MATCH', 'REVIEW_HELD', 'ok']);
+    assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'REVIEW_COOLDOWN', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'REQUIRED_REVIEW_FAMILY', 'O2_FAMILY_MATCH', 'REVIEW_HELD', 'ok']);
   } finally {
     lab.done();
   }
@@ -1331,27 +1347,11 @@ test('next --verify looks and reserves in one transaction, so no other verifier 
 });
 
 test('the review lease is reviewLease in pullboard.json, 30 minutes unless the repo says otherwise [V15]', () => {
-  const dir = fs.mkdtempSync(join(tmpdir(), 'pullboard-review-lease-'));
-  try {
-    const leaseOf = (config) => {
-      fs.writeFileSync(join(dir, 'pullboard.json'), JSON.stringify({ gate: 'true', ...config }));
-      return loadConfig(dir).reviewLeaseMs;
-    };
-    assert.equal(leaseOf({}), 30 * 60_000);
-    assert.equal(leaseOf({ reviewLease: '2h' }), 2 * 3_600_000);
-    assert.throws(() => leaseOf({ reviewLease: 'soon' }), { code: 'BAD_CONFIG', message: /reviewLease "soon" is not a duration/ });
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+  assertConfiguredReviewLease(loadConfig);
 });
 
 test('the lifecycle page and the help show the reservation: reserve, and reviewFree on every verdict [V15, M1]', () => {
-  const page = machineRules.lifecycleMarkdown();
-  assert.match(page, /^\| reserve \| submitted \| submitted \| agent, coordinator \| .*reviewFree \(REVIEW_HELD\), result \(BAD_DEPENDENCIES\) \|$/m);
-  for (const verb of ['accept', 'reject']) assert.match(page, new RegExp(`^\\| ${verb} \\| submitted, verified \\| .*policyAllows \\(COORDINATOR_VERIFIES\\), familyAllows \\(O2_FAMILY_MATCH\\), reviewFree \\(REVIEW_HELD\\), criterionUnchanged`, 'm'));
-  assert.match(page, /^\| REVIEW_HELD \| no other agent holds its review under a live lease \| pullboard next --verify/m);
-  assert.match(HELP.all, /^ {2}agent +rehomeImport, intake, claim, release, submit, reserve, accept, reject, reopen, escalate, submit-merge \(when only an unchanged accepted bar and a proved trunk-only merge; no new reviewer verdict is created\), refreeze \(when a live claim has a pending coordinator correction\)$/m);
-  assert.match(HELP.all, /pullboard next --verify +reserve the next submitted item you can check/);
+  assertLifecycleReservation(machineRules, HELP);
 });
 
 test('the two conditional guards behave as declared: a renewal passes a held lane, and only a freeze checks the rows [M1, M2]', () => {
@@ -1485,6 +1485,10 @@ test('transport boundaries keep a new item refusal in ordered dispatch visible [
     'MOON_PHASE is raised by accept and reject but not declared there',
     'MOON_PHASE is raised by submit but not declared there',
   ], 'transport authentication is separate but a dispatcher item guard still belongs to the lifecycle');
+});
+
+test('same-file runner controller bridges retain child refusals in the lifecycle audit [M1,M4,C7]', () => {
+  assertRunnerControllerReachability({ codeProblems, codeWalk, editedSource, machine: machineRules.MACHINE });
 });
 
 

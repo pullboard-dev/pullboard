@@ -1,3 +1,4 @@
+import { AUTOMATIC_DISPATCH_ENGINE } from './automatic-dispatch-engine.js';
 /** Durable work-health observations, separate from the person's decisions [A6,H16]. */
 import { Refused } from './refused.js';
 import { CPU_SENTINEL_ENGINE } from './cpu-sentinel-engine.js';
@@ -16,6 +17,13 @@ export function hasPendingCpuNotices(board) {
   if (!board) return false;
   const last = board.db.prepare("SELECT event_detail FROM event WHERE event_kind = 'health-scan' ORDER BY event_id DESC LIMIT 1").get();
   return Boolean(last && JSON.parse(last.event_detail).pendingCpu?.length);
+}
+
+/** A capped coordinator warning stays durable until a later ordinary sentinel scan can deliver it. */
+export function hasPendingDispatchNotices(board) {
+  if (!board) return false;
+  const last = board.db.prepare("SELECT event_detail FROM event WHERE event_kind='health-scan' ORDER BY event_id DESC LIMIT 1").get();
+  return Boolean(last && JSON.parse(last.event_detail).pendingDispatch?.length);
 }
 
 /** Validate and retain only the fields needed to identify and explain a health finding. */
@@ -89,7 +97,8 @@ export function deliverHealthNotices({ resolved, added, pending = [], engine, co
       sent += 1;
       if (to === coordinator) coordinatorSent = true;
     }
-    if (durableCpu && !cleared && finding.cause === 'AGENT_CPU' && !coordinatorSent) deferred.push(finding);
+    if (!cleared && !coordinatorSent && (durableCpu && finding.cause === 'AGENT_CPU'
+      || engine >= AUTOMATIC_DISPATCH_ENGINE && finding.cause === 'UNPAIRED_WORK')) deferred.push(finding);
     if (!retry) log(finding, cleared);
   }
   if (held) shout(coordinator, `Health: ${held} more notices from this run were held back, so one run never floods a feed; pullboard health lists every finding.`);

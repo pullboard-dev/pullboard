@@ -1,4 +1,8 @@
-import { policyAt } from './trusted-policy-read.js';
+import {
+  policyAt,
+} from './trusted-policy-read.js';
+import { carriedRunnerTrunk } from './runner-policy.js';
+import { mainCheckout } from './git.js';
 import {
   COLLECTION_ID_ENV,
   parseCollectionReports,
@@ -9,7 +13,14 @@ import {
  * tree's id in the git dir, so the same tree is never checked twice. An agent sees a digest of the
  * run, not the run (V10): a passing suite's output costs tokens and says nothing.
  */
-import { retainTestValueTimings } from './test-value-timing.js';
+import {
+  retainTestValueTimings,
+} from './test-value-timing.js';
+import {
+  placementSubmitSelection,
+  VALUE_GATE,
+  valueGateCommand,
+} from './test-placement.js';
 import {
   checkNeedsGui,
   projectNeedsGui,
@@ -44,13 +55,17 @@ import {
   freemem,
   loadavg,
 } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import {
+  fileURLToPath,
+} from 'node:url';
 import {
   captureTestRuntimes,
   executionEnvironment,
   testRuntimeEnvironment,
 } from './execution-environment.js';
-import { constrainedLandingHost } from './landing-host.js';
+import {
+  constrainedLandingHost,
+} from './landing-host.js';
 import {
   gitChildEnv,
   gitPath,
@@ -61,7 +76,9 @@ import {
   tryGit,
   untracked,
 } from './git.js';
-import { recordGateRun } from './gate-control.js';
+import {
+  recordGateRun,
+} from './gate-control.js';
 import {
   receiptBody,
   receiptFields,
@@ -76,11 +93,24 @@ import {
   frozenCheck,
   mainPolicy,
 } from './trusted-policy.js';
-import { proofCounts } from './proof-provenance.js';
-import { logLines } from './timing.js';
-import { secretsIn } from './hooks.js';
-import { Refused } from './refused.js';
-import { missingGate } from './gate-config.js';
+import {
+  proofCounts,
+} from './proof-provenance.js';
+import {
+  logLines,
+} from './timing.js';
+import {
+  secretsIn,
+} from './hooks.js';
+import {
+  Refused,
+} from './refused.js';
+import {
+  probeRunnerTransport,
+} from './runner-transport.js';
+import {
+  missingGate,
+} from './gate-config.js';
 import {
   GATE_SLOT_HELD_ENV,
   gateSlotEnvironment,
@@ -98,8 +128,12 @@ import {
   loadMachineSettings,
   memoryFloorMB,
 } from './settings.js';
-import { selectAffectedTests } from './affected-tests.js';
-import { selectRegistryGuards } from './registry-guards.js';
+import {
+  selectAffectedTests,
+} from './affected-tests.js';
+import {
+  selectRegistryGuards,
+} from './registry-guards.js';
 import {
   checkNeedsBrowser,
   testsNeedBrowser,
@@ -108,17 +142,35 @@ import {
   timingFromOutput,
   timingRunner,
 } from './timing.js';
-import { landingShardProfile } from './landing-shards.js';
-import { localRunnerDescriptor } from './runner-load.js';
-import { sampleRunnerLoad } from './runner-load.js';
-import { receiptLine } from './gate-receipt.js';
-import { receiptOf } from './gate-receipt.js';
-import { recordReceipt } from './gate-receipt.js';
-import { slotOf } from './gate-receipt.js';
-import { startReceipt } from './gate-receipt.js';
+import {
+  landingShardProfile,
+} from './landing-shards.js';
+import {
+  localRunnerDescriptor,
+} from './runner-load.js';
+import {
+  sampleRunnerLoad,
+} from './runner-load.js';
+import {
+  receiptLine,
+} from './gate-receipt.js';
+import {
+  receiptOf,
+} from './gate-receipt.js';
+import {
+  recordReceipt,
+} from './gate-receipt.js';
+import {
+  slotOf,
+} from './gate-receipt.js';
+import {
+  startReceipt,
+} from './gate-receipt.js';
 export { gateStages } from './gate-stages.js';
 // A read that checks a baseline runs one command without loading the gate's queue and runners.
-import { runShell } from './shell-run.js';
+import {
+  runShell,
+} from './shell-run.js';
 import {
   digestOf,
   writeTimingProfile,
@@ -240,7 +292,7 @@ function safeLog(output) {
  * @param {string} command
  * @param {{ waitMs?: number, artifactDirectory?: string, artifactPrefix?: string, persistLog?: boolean, profileFile?: string, pipefail?: boolean, gateSlotHeld?: boolean, gateLease?: object, landing?: boolean, collectAll?: boolean, stages?: boolean, timeoutMs?: number, waivers?: Array<{ kind: string, test: string }> }} [options]
  */
-export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false, gateSlotHeld = false, gateLease, landing = false, collectAll = false, stages = false, waivers = [], timeoutMs } = {}) {
+export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false, gateSlotHeld = false, gateLease, landing = false, collectAll = false, stages = false, waivers = [], timeoutMs, auditCoverage = false } = {}) {
   const proofSource = gateLease?.proof ? proofSourceAt(root) : null;
   const directory = artifactDirectory ?? dirname(gitPath(root, LOG));
   mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -250,6 +302,7 @@ export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory,
   const started = Date.now();
   const collectionId = landing && collectAll ? randomUUID() : null;
   const inherited = {
+    ...(auditCoverage ? { PULLBOARD_AUDIT_COVERAGE_REPORTER: fileURLToPath(new URL('./audit-coverage-reporter.js', import.meta.url)), PULLBOARD_TEST_REUSE: '0' } : {}),
     ...(gateLease && !gateLease.runner ? gateSlotEnvironment(gateLease) : gateSlotHeld ? { [GATE_SLOT_HELD_ENV]: '1' } : {}),
     [LANDING_RUN_ENV]: landing ? '1' : '0',
     [LANDING_COLLECT_ALL_ENV]: landing && collectAll ? '1' : '0',
@@ -262,7 +315,8 @@ export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory,
   gateLease?.tracker?.mark('runAt');
   const remoteCommand = landing && collectAll ? `(export ${LANDING_COLLECT_ALL_ENV}=1 ${COLLECTION_ID_ENV}=${collectionId}\n${command}\n)` : command;
   const run = gateLease?.runner ? { ...runOnRunner(root, remoteCommand, { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline,
-    browser: gateLease.browser, pipefail, stages, waivers: landing ? waivers : [], metadata: { ...(gateLease.runMetadata ?? {}), landing, ...(timeoutMs ? { timeoutMs } : {}) } }) }
+    browser: gateLease.browser, pipefail, stages, waivers: landing ? waivers : [], metadata: { ...(gateLease.runMetadata ?? {}), landing, auditCoverage,
+      testStage: inherited.PULLBOARD_TEST_STAGE, ...(timeoutMs ? { timeoutMs } : {}) } }) }
     : runShell(root, command, { pipefail, env: inherited, stages, timeoutMs, captureRuntimes: Boolean(gateLease) });
   gateLease?.tracker?.mark('ranAt');
   if (gateLease) {
@@ -367,7 +421,8 @@ export async function runProfiledShellAsync(root, command, { waitMs = 0, gateSlo
   gateLease?.tracker?.mark('runAt');
   if (gateLease?.runner) {
     const run = await runOnRunnerAsync(root, command, { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline,
-      browser: gateLease.browser, metadata: { ...(gateLease.runMetadata ?? {}), landing } });
+      browser: gateLease.browser, metadata: { ...(gateLease.runMetadata ?? {}), landing,
+        testStage: gateLease.receiptKind ?? (landing ? 'land' : 'gate') } });
     gateLease.environment = run.environment ?? null;
     gateLease.gui = run.executionCapabilities?.gui ?? null;
     gateLease.executionAdmission = run.executionAdmission ?? null;
@@ -431,6 +486,7 @@ function settleReceipt(lease) {
     runner: descriptor, admittedAt, finishedAt, timing: lease.timing === true, inherited: lease.inherited === true,
     occupiedSlots: lease.timing ? descriptor.slots.current : 1, load,
     executionPhases: lease.executionPhases ?? null,
+    ...(lease.lateRunnerDispatch ? { lateRunnerDispatch: { ...lease.lateRunnerDispatch } } : {}),
     ...(local ? lease.timingEvidence?.() ?? { exclusive: false, unfencedClients: [] }
       : { exclusive: executor?.exclusive === true, unfencedClients: executor?.unfencedClients ?? [] }) };
   return lease.receipt;
@@ -531,6 +587,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
   const floorMB = memoryFloorMB();
   const capacityProvider = () => settingsProvider().gateSlots;
   const source = runnerSource(root);
+  const policyTrunk = source ? mainCheckout(root) ?? carriedRunnerTrunk(root) : null;
   if (runnerOnly && (!remote || !source)) throw new Refused('RUNNER_SOURCE', 'CPU-load tests need a clean committed checkout for runner execution; commit the source and retry, with no local fallback');
   // Read the board once before queueing, never inside the machine admission transaction.
   const releaseContext = gateQueueSettings().currentReleaseFirst
@@ -566,20 +623,40 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     onWait,
   });
   tracker.mark('admittedAt');
+  let healthyTransportRetry = false;
   try {
     while (true) {
       lease.source = source;
-      lease.runMetadata = { landing, itemCheck, diagnostic, gui, timing, item: String(item), kind };
+      lease.runMetadata = { landing, itemCheck, diagnostic, gui, timing, item: String(item), kind,
+        ...(policyTrunk?.commit ? { trunk: { ref: policyTrunk.branch ?? policyTrunk.ref, commit: policyTrunk.commit } } : {}) };
       timed(lease).tracker.mark('actionAt');
       try { return await action(lease); }
       catch (error) {
         // A cleanup the runner could not verify is the runner's failure, not the run's: rerun it locally (#1063).
         const cleanup = error instanceof Refused && error.code === 'RUNNER_CLEANUP_TIMEOUT';
         if (!(error instanceof RunnerDropped || cleanup) || !lease.runner || !lease.requeueRunner) throw error;
-        const runnerUnavailable = { host: lease.runner.host, reason: cleanup ? error.message : 'transport lost before a complete result', until: 'the host is checked and re-registered' };
+        // A separate Node process cannot prove that a worker which missed READY can accept a job.
+        const admissionDeadline = !cleanup && (error.diagnostic?.reason === 'admission-deadline'
+          || error.diagnostic?.phase !== 'ready' && Number.isSafeInteger(lease.runnerWaitDeadline) && Date.now() >= lease.runnerWaitDeadline);
+        const health = cleanup || admissionDeadline ? null : await probeRunnerTransport(lease.runner);
+        const diagnostic = { ...(error.diagnostic ?? { reason: error.name }), confirmingProbe: health };
+        // A persistent receipt/capsule failure must surface; rotating through healthy hosts cannot repair it.
+        if (health?.healthy && healthyTransportRetry) {
+          const refused = new Refused('RUNNER_RESULT_INVALID', `runner ${lease.runner.host} answers SSH and Node but a second attempt lacks a valid completion (${diagnostic.reason}); inspect the retained transport diagnostic before retrying`);
+          refused.runnerDiagnostic = diagnostic;
+          throw refused;
+        }
+        if (health?.healthy) healthyTransportRetry = true;
+        const runnerUnavailable = { host: lease.runner.host,
+          reason: cleanup ? error.message : admissionDeadline ? 'worker did not become ready before its admission deadline'
+            : health.healthy ? 'transient failure; confirming SSH and Node observation succeeded' : 'failed call and confirming transport observation failed',
+          diagnostic, until: cleanup ? 'cleanup is verified and the host is re-registered'
+            : admissionDeadline ? 'worker readiness is checked and the host is re-registered'
+              : health.healthy ? 'the original ticket is readmitted' : 'the next successful automatic health observation' };
         if (onWait) await onWait({ holders: [], line: [], position: 0, runnerUnavailable });
         else process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; ${cleanup && !runnerOnly ? 'rerunning it locally' : 'requeueing the run'}\n`);
-        lease = await lease.requeueRunner(cleanup ? 'cleanup-unverified' : 'transport-lost', { local: cleanup && !runnerOnly });
+        lease = await lease.requeueRunner(cleanup ? 'cleanup-unverified' : admissionDeadline ? 'worker-unresponsive' : 'transport-lost', {
+          local: cleanup && !runnerOnly, quarantine: !health?.healthy, diagnostic });
       }
     }
   } finally {
@@ -606,17 +683,25 @@ export function pinRunMain(lease, observer) {
  * @param {{ trustStamp?: boolean, onWait?: (state: object) => void, landing?: boolean, collectAll?: boolean, auditBatchId?: string, agent?: string, item?: string|number }} [options]
  * @returns {Promise<{ isGreen: boolean, isCached: boolean, output: string, seconds: number, log: string, profile?: object, profilePath?: string }>}
  */
-export async function runGate(root, config, { trustStamp = true, onWait, landing = false, collectAll = false, auditBatchId, agent, item = '', stages = false, waivers = [], onFailure } = {}) {
+export async function runGate(root, config, { trustStamp = true, onWait, landing = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, agent, item = '', stages = false, waivers = [], onFailure } = {}) {
   if (auditBatchId !== undefined && (!landing || !collectAll || !/^[a-zA-Z0-9_-]{1,80}$/u.test(auditBatchId))) {
     throw new Refused('GATE_RUN_EVIDENCE', 'a main audit needs its exact landing batch and full collection mode');
   }
+  if (auditFiles !== undefined) {
+    if (!auditBatchId || !Array.isArray(auditFiles) || !auditFiles.length
+      || auditFiles.some(file => !committedTest(root, headCommit(root), file))) throw new Refused('GATE_RUN_EVIDENCE', 'an incremental audit needs committed test files');
+    const gate = valueGateCommand(root, config.gate, [...new Set(auditFiles)].sort());
+    if (!gate) throw new Refused('GATE_RUN_EVIDENCE', 'this gate cannot safely select incremental audit files');
+    config = { ...config, gate, [VALUE_GATE]: true };
+  }
+  if (auditCoverage && !auditBatchId) throw new Refused('GATE_RUN_EVIDENCE', 'coverage collection belongs to a native main audit');
   if (!config.gate.trim()) {
     throw missingGate(root);
   }
-  if (trustStamp && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
+  if (trustStamp && !config[VALUE_GATE] && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
   return await (landing ? withLandingGateSlot : withGateSlot)(root, async (lease) => {
     pinRunMain(lease, onFailure);
-    const run = fullGateRun(root, config, trustStamp, { waitMs: lease.waitMs, gateLease: lease, landing, collectAll, auditBatchId, stages, waivers, kind: landing ? 'land' : 'gate' });
+    const run = fullGateRun(root, config, trustStamp, { waitMs: lease.waitMs, gateLease: lease, landing, collectAll, auditBatchId, auditFiles, auditCoverage, stages, waivers, kind: landing ? 'land' : 'gate' });
     if (!run.isGreen && !run.timedOut && onFailure) await onFailure(run, { root, command: config.gate, lease });
     await recordRun(onFailure, run);
     return run;
@@ -639,13 +724,14 @@ async function recordRun(observer, run) {
  *
  * @returns {string | null} the receipt id
  */
-function leaveRunReceipt(root, config, run, { before, kind, auditBatchId }) {
+function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditFiles }) {
   try {
     if (before === null || committedTree(root) !== before || run.executionSourceUnchanged === false) return null;
     const head = headCommit(root);
     const policy = auditBatchId === undefined ? mainPolicy(root) : policyAt(root, head);
     const store = receiptStore(root);
-    if (policy.config.gate !== config.gate || !head || !store) return null;
+    const expected = auditFiles === undefined ? policy.config.gate : valueGateCommand(root, policy.config.gate, [...new Set(auditFiles)].sort());
+    if (expected !== config.gate || !head || !store) return null;
     const failures = new Map();
     for (const row of run.isGreen ? [] : tapTests(run.output ?? '', run.executionRoot ?? root)) {
       if (row.passed || row.skip || row.type === 'suite' || ['subtestsFailed', 'cancelledByParent', 'testAborted'].includes(row.failureType)) continue;
@@ -670,17 +756,17 @@ function leaveRunReceipt(root, config, run, { before, kind, auditBatchId }) {
 }
 
 /** Run a full gate while its caller owns the queue lease; only a full run may stamp its tree. */
-function fullGateRun(root, config, trustStamp = false, { waitMs = 0, log = gitPath(root, LOG), gateLease, landing = false, collectAll = false, auditBatchId, stages = false, waivers = [], kind = 'gate' } = {}) {
-  if (trustStamp && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
+function fullGateRun(root, config, trustStamp = false, { waitMs = 0, log = gitPath(root, LOG), gateLease, landing = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, stages = false, waivers = [], kind = 'gate' } = {}) {
+  if (trustStamp && !config[VALUE_GATE] && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
   const before = committedTree(root);
-  const run = runProfiledShell(root, config.gate, { waitMs, pipefail: true, profileFile: `${log}.profile.json`, gateLease, landing, collectAll, stages, waivers, timeoutMs: landing ? config.landing?.timeoutMs : undefined });
+  const run = runProfiledShell(root, config.gate, { waitMs, pipefail: true, profileFile: `${log}.profile.json`, gateLease, landing, collectAll, stages, waivers, auditCoverage, timeoutMs: landing ? config.landing?.timeoutMs : undefined });
   const { isGreen, output, seconds, profile, profilePath } = run;
   writeFileSync(log, output);
   // The environment refusing a run says nothing about the gate, so only a real result is recorded (U41).
   if (!run.sandboxBlocked) recordGateRun(root, gateRunRecord(root, config, isGreen, gateLease));
-  const receiptId = run.sandboxBlocked ? null : leaveRunReceipt(root, config, run, { before, kind, auditBatchId });
+  const receiptId = run.sandboxBlocked ? null : leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditFiles });
   refuseSandboxBlocked(run);
-  if (isGreen && before !== null && committedTree(root) === before) writeFileSync(gitPath(root, STAMP), `${before}\n`);
+  if (isGreen && !config[VALUE_GATE] && before !== null && committedTree(root) === before) writeFileSync(gitPath(root, STAMP), `${before}\n`);
   return { isGreen, isCached: false, output, seconds, log, profile, profilePath, receiptId, environment: run.environment ?? null,
     ...(collectAll ? { collectAllComplete: run.collectAllComplete === true, collectionReport: run.collectionReport ?? null,
       ...(run.cleanupVerified === undefined ? {} : { cleanupVerified: run.cleanupVerified }) } : {}),
@@ -744,7 +830,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   if (!config.gate.trim()) throw missingGate(root);
   await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback });
   const selection = config.affectedTests
-    ? selectAffectedTests(root, { base, trunk, changed })
+    ? placementSubmitSelection(root, selectAffectedTests(root, { base, trunk, changed }), changed ?? [])
     : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] };
   const deferred = config.submitGate === 'landing';
   const deferFullFallback = deferred && selection.full;

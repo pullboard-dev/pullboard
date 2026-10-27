@@ -1,3 +1,4 @@
+/** @pullboard-test-input docs/** DOCTRINE.md README.md CONTRIBUTING.md CHANGELOG.md */
 /** Tracked docs never quote the project owner or name private machines, and the rule stays a draft row [W5]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';

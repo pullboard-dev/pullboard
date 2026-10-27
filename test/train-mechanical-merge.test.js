@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+/** @pullboard-test-input src/formats/*.json */
 /** Real train merges retain additive registry changes and refuse edits [B3,R3,C7]. */
 import assert from 'node:assert/strict';
 import {

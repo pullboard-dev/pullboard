@@ -69,6 +69,7 @@ import { testsNeedBrowser } from './browser-admission.js';
 import { testsNeedGui } from './gui-admission.js';
 import { selectAffectedTests } from './affected-tests.js';
 import { selectRegistryGuards } from './registry-guards.js';
+import { placementLandingPlan } from './test-placement.js';
 import { laneOf } from './lanes.js';
 import { takeLandingResource } from './landing-resource.js';
 import {
@@ -432,14 +433,19 @@ function batchAffectedTests(state) {
     ? selectAffectedTests(root, { base: state.batch.base, commit })
     : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] };
   const registry = selectRegistryGuards(root, state.config.registryGuards, { base: state.batch.base });
-  return { ...selection, files: [...new Set([...(state.config.submitInvariants ?? []), ...registry, ...(!selection.full ? selection.files : [])])].sort() };
+  const mandatory = [...new Set([...(state.config.submitInvariants ?? []), ...registry])].sort();
+  return { ...selection, mandatory, files: [...new Set([...mandatory, ...(!selection.full ? selection.files : [])])].sort() };
 }
 
 /** Bind each cached result to its exact full-gate or local-trunk guard plan. */
 function batchGatePlan(state, { localTrunk = false } = {}) {
   const selection = batchAffectedTests(state);
+  const changed = git(state.batch.root, ['diff', '--no-renames', '--name-only', '-z', state.batch.base, 'HEAD']).split('\0').filter(Boolean);
+  const deferred = localTrunk ? deferredSelections(state).flatMap(row => row.files) : [];
+  const valued = placementLandingPlan(state.batch.root, state.config, selection, [...selection.mandatory, ...deferred], changed);
+  if (valued) return valued;
   if (localTrunk) {
-    const files = [...new Set([...selection.files, ...deferredSelections(state).flatMap(row => row.files)])].sort();
+    const files = [...new Set([...selection.files, ...deferred])].sort();
     const affected = files.length ? `${state.config.affectedTests} ${files.map(quote).join(' ')}` : '';
     const command = selection.full ? affected ? `(\n${state.config.gate}\n) && ${affected}` : state.config.gate : affected || 'true';
     const config = { ...state.config, gate: command };

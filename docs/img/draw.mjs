@@ -195,6 +195,7 @@ const ROUTES = {
   'claimed>submitted': { points: [[395, 179], [441, 179]], label: [418, 171, 'middle'] },
   'claimed>verified': { points: [[375, 150], [375, 134], [695, 134], [695, 146]], label: [490, 126, 'middle'] },
   'submitted>verified': { points: [[605, 179], [651, 179]], label: [628, 171, 'middle'] },
+  'verified>submitted': { points: [[695, 208], [695, 230], [575, 230], [575, 208]], label: [635, 223, 'middle'] },
   'open>submitted': { points: [[165, 208], [165, 248], [495, 248], [495, 208]], label: [405, 241, 'middle'] },
   'open>verified': { points: [[185, 198], [205, 198], [205, 268], [735, 268], [735, 212]], label: [650, 261, 'middle'] },
   'claimed>open': { points: [[335, 150], [335, 120], [145, 120], [145, 146]], back: true, label: [240, 94, 'middle'], wrap: 2 },

@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+/** @pullboard-test-input CONTRIBUTING.md docs/contributing-runbook.md .github/pull_request_template.md .github/ISSUE_TEMPLATE/feature_request.md CLA.md SECURITY.md CODE_OF_CONDUCT.md */
 /** The approved contribution wording and the maintainers' complete safe intake path [I11]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -63,4 +64,15 @@ test('CONTRIBUTING teaches the sign-off and the runbook names every step [I11]',
     'You reserve all right', 'WITHOUT WARRANTIES']) assert.ok(cla.includes(phrase), phrase);
   assert.ok(!cla.includes('secretary@apache.org'), 'the Apache recipient is not presented as Pullboard contact');
   for (const path of ['SECURITY.md', 'CODE_OF_CONDUCT.md']) assert.ok(read(path).trim(), path);
+});
+
+
+test('the approved feature-request template routes new issues to feature [I1,C7]', () => {
+  const template = read('.github/ISSUE_TEMPLATE/feature_request.md');
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u.exec(template);
+  assert.ok(frontmatter, 'the actual shipped template has bounded YAML frontmatter');
+  const labels = [...frontmatter[1].matchAll(/^labels:\s*(.*?)\s*$/gmu)];
+  assert.equal(labels.length, 1, 'the routing label is declared exactly once');
+  const label = labels[0][1].replace(/^(["'])(.*)\1$/u, '$2');
+  assert.equal(label, 'feature', '#1312 requires feature rather than the legacy enhancement label');
 });

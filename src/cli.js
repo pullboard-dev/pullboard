@@ -591,7 +591,7 @@ export async function ordered(ctx, board, operation, args) {
     const joined = store.agentAt(board, ctx.info.root)?.agent_id;
     args = [{ ...args[0], createdBy: ctx.info.isMain ? COORDINATOR : joined ?? 'machine' }, ...args.slice(1)];
   }
-  const command = ['add', 'companion', 'edit', 'merged', 'move'].includes(ctx.io.relayCommand?.cliOperation) ? ctx.io.relayCommand : undefined;
+  const command = ['add', 'companion', 'patch', 'edit', 'merged', 'move'].includes(ctx.io.relayCommand?.cliOperation) ? ctx.io.relayCommand : undefined;
   /** Dispatch while this session holds the checkout, including long-running next/run loops. */
   const execute = async () => {
     /** Keep bootstrap in the same authenticated seat, without borrowing a person's action receipt. */
@@ -658,7 +658,9 @@ export async function ordered(ctx, board, operation, args) {
 /** Order a claim on every route (claim, next, run) only after a check green on main is not held [V4]. */
 export async function claimOrdered(ctx, board, args) {
   refuseClaimProvesNothing(ctx.info.root, board, args[0]);
+  const adoptCorrection = store.pendingRefreeze(board, args[0]).length > 0;
   return await ordered(ctx, board, 'claim', [args[0], { ...args[1],
+    ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
 }
 

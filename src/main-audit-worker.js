@@ -1,29 +1,87 @@
+import {
+  planMainAudit,
+  measuredAuditCoverage,
+  retainGreenAudit,
+  retainAuditCadence,
+  lastGreenAudit,
+} from './main-audit-economics.js';
+import {
+  scheduleMainAudit,
+} from './main-audit-scheduler.js';
 /** Finite exact-source main audits, one native admitted run at a time [C7,H16]. */
-import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import {
+  execFileSync,
+} from 'node:child_process';
+import {
+  createHash,
+} from 'node:crypto';
+import {
+  mkdirSync,
+} from 'node:fs';
+import {
+  existsSync,
+} from 'node:fs';
+import {
+  readFileSync,
+} from 'node:fs';
+import {
+  rmSync,
+} from 'node:fs';
+import {
+  writeFileSync,
+} from 'node:fs';
+import {
+  join,
+} from 'node:path';
 import * as store from './board.js';
-import { context } from './cli.js';
-import { ordered } from './cli.js';
-import { withBoard } from './cli.js';
-import { codeIsFromMain } from './git.js';
-import { gitChildEnv } from './git.js';
-import { repoInfo } from './git.js';
-import { policyAt } from './trusted-policy-read.js';
-import { runGate } from './gate.js';
-import { readGateReceipt } from './gate-run-receipt.js';
-import { receiptStore } from './gate-run-receipt.js';
-import { laneOf } from './lanes.js';
-import { withFileLock } from './relay-outbox-guard.js';
-import { mainAuditDirectory } from './main-audit-state.js';
-import { mainAuditKey } from './main-audit-state.js';
-import { readMainAudit } from './main-audit-state.js';
-import { saveMainAudit } from './main-audit-state.js';
+import {
+  context,
+} from './cli.js';
+import {
+  ordered,
+} from './cli.js';
+import {
+  withBoard,
+} from './cli.js';
+import {
+  codeIsFromMain,
+} from './git.js';
+import {
+  gitChildEnv,
+} from './git.js';
+import {
+  repoInfo,
+} from './git.js';
+import {
+  policyAt,
+} from './trusted-policy-read.js';
+import {
+  runGate,
+} from './gate.js';
+import {
+  readGateReceipt,
+} from './gate-run-receipt.js';
+import {
+  receiptStore,
+} from './gate-run-receipt.js';
+import {
+  laneOf,
+} from './lanes.js';
+import {
+  withFileLock,
+} from './relay-outbox-guard.js';
+import {
+  mainAuditDirectory,
+} from './main-audit-state.js';
+import {
+  mainAuditKey,
+} from './main-audit-state.js';
+import {
+  readMainAudit,
+} from './main-audit-state.js';
+import {
+  saveMainAudit,
+} from './main-audit-state.js';
 
 /** Run Git with the same sanitized repository environment as ordinary native code. */
 function git(root, args, encoding = 'utf8') {
@@ -96,7 +154,7 @@ async function notifyIncomplete(file, job, reason, write) {
   saveMainAudit(file, { ...saved, noticeRecorded: true });
 }
 /** Route every file and named assertion using the normal existing defect operation. */
-async function routeFailures(source, job, receipt, config, write) {
+async function routeFailures(source, job, receipt, config, write, sinceEventId) {
   const files = [...new Set(receipt.failures.map(failure => failure.file))];
   for (const file of files) {
     const bytes = git(source, ['show', `${job.tip}:${file}`], null);
@@ -110,7 +168,7 @@ async function routeFailures(source, job, receipt, config, write) {
     // Existing native operation's bounded names limit is authoritative; oversized routing remains incomplete.
     const defect = await write('recordLandingTestDefect', [{ agentId: 'coordinator', test: file,
       hash: createHash('sha256').update(bytes).digest('hex'), blob, trunkBlob, names,
-      lane, batchId: job.batchId, branch: job.branch, requireOpen: true }]);
+      lane, batchId: job.batchId, branch: job.branch, requireOpen: true, auditSinceEventId: sinceEventId }]);
     // Native routing must return an actual outstanding repair, not a previously closed same-blob item.
     if (!Number.isSafeInteger(defect?.item) || !names.every(name => defect.names?.includes(name))
       || !readBoard(repoInfo(source), board => ['open', 'claimed', 'submitted'].includes(store.getItem(board, defect.item).item_status))) {
@@ -120,8 +178,8 @@ async function routeFailures(source, job, receipt, config, write) {
   if (!receipt.green && !files.length) throw new Error('red main audit has no named failing file; not complete');
 }
 /** Run or finish routing one job; a durable complete receipt avoids rerunning an already observed suite. */
-async function audit(root, directory, job, write) {
-  const key = mainAuditKey(job), file = join(directory, `${key}.json`);
+async function audit(root, directory, job, write, options) {
+  const key = mainAuditKey(job) + (options.forceFull ? `-release-${options.runId}` : ''), file = join(directory, `${key}.json`);
   const source = join(directory, `source-${key}`);
   let saved = readMainAudit(file);
   if (saved?.cleanupNeeded && saved.cleanupNeeded !== source) throw new Error('main audit cleanup path is not the owned source');
@@ -157,9 +215,18 @@ async function audit(root, directory, job, write) {
       git(root, ['worktree', 'add', '--detach', source, job.tip]); created = true;
       if (git(source, ['rev-parse', 'HEAD']).trim() !== job.tip || git(source, ['rev-parse', 'HEAD^{tree}']).trim() !== job.tree
         || git(source, ['status', '--porcelain', '--untracked-files=all']) !== '') throw new Error('audit source is not the exact clean landed tree');
-      saveMainAudit(file, { ...job, state: 'running', source, controller: process.pid, started: processStart(process.pid) });
+      const plan = await readBoard(repoInfo(root), board => planMainAudit(source, board, directory, job, config, options));
+      if (!plan.run.length) {
+        const previous = lastGreenAudit(root, directory);
+        if (!previous) throw new Error('all-reused plan lost its complete green origin');
+        const completed = { ...job, state: 'complete', green: true, plan, reusedOnly: true, originReceiptId: previous.receiptId };
+        saveMainAudit(file, completed);
+        saveMainAudit(join(directory, 'last-green.json'), { ...previous, tip: job.tip, tree: job.tree, landedEventId: job.landedEventId, keys: plan.keys, reused: plan.reused });
+        return; // No native run or new receipt is claimed for a completely reused audit.
+      }
+      saveMainAudit(file, { ...job, plan, state: 'running', source, controller: process.pid, started: processStart(process.pid) });
       cleanupAllowed = false;
-      const run = await runGate(source, config, { landing: true, collectAll: true, auditBatchId: job.batchId, trustStamp: false, agent: 'coordinator' });
+      const run = await runGate(source, config, { landing: true, collectAll: true, auditBatchId: job.batchId, auditCoverage: true, ...(plan.reused.length ? { auditFiles: plan.run } : {}), trustStamp: false, agent: 'coordinator' });
       cleanupAllowed = run.cleanupVerified === true && !run.cleanupUnverified
         && !(run.profile?.landingShards?.unverified?.length > 0);
       receipt = run.receiptId && readGateReceipt(receiptStore(root), run.receiptId);
@@ -167,7 +234,8 @@ async function audit(root, directory, job, write) {
       writeFileSync(join(artifact, 'gate.log'), run.output ?? '', { mode: 0o600 });
       writeFileSync(join(artifact, 'profile.json'), JSON.stringify(run.profile ?? null), { mode: 0o600 });
       if (!receipt || receipt.head !== job.tip || receipt.tree !== job.tree || receipt.kind !== 'land') throw new Error('native audit receipt is missing or source-unbound');
-      saved = { ...job, state: 'measured', receiptId: receipt.id, cleanupVerified: cleanupAllowed };
+      saved = { ...job, plan, coverage: measuredAuditCoverage(source, run.output ?? ''), runSeconds: run.seconds, state: 'measured', receiptId: receipt.id, cleanupVerified: cleanupAllowed };
+      writeFileSync(join(artifact, 'coverage.json'), JSON.stringify(saved.coverage) + '\n', { mode: 0o600 });
       saveMainAudit(file, saved);
     }
     if (receipt.head !== job.tip || receipt.tree !== job.tree || receipt.collection?.batchId !== job.batchId) throw new Error('retained audit receipt changed source identity');
@@ -175,10 +243,13 @@ async function audit(root, directory, job, write) {
       lane: job.items[0]?.lane ?? Object.keys(config.lanes)[0] }]);
     // Routing can be resumed with the same genuine receipt without another execution.
     // Source is needed only for immutable Git objects; original repo retains the same objects after cleanup.
-    await routeFailures(root, job, receipt, config, write);
-    if (receipt.collection?.complete !== true || receipt.collection.full !== true) throw new Error('not all planned files completed; audit obligation remains incomplete');
+    await routeFailures(root, job, receipt, config, write, saved.plan?.previousEventId ?? 0);
+    if (receipt.collection?.complete !== true || (saved.plan?.reused.length
+      ? JSON.stringify(receipt.collection.files) !== JSON.stringify(saved.plan.run) : receipt.collection.full !== true)) throw new Error('not all planned files completed; audit obligation remains incomplete');
     const { incomplete, error, noticeRecorded, ...completed } = saved;
-    saveMainAudit(file, { ...completed, state: 'complete' });
+    saveMainAudit(file, { ...completed, state: 'complete', green: receipt.green });
+    retainGreenAudit(directory, job, saved, receipt);
+    readBoard(repoInfo(root), board => retainAuditCadence(board, directory, config, { runSeconds: saved.runSeconds ?? 0 }));
   } catch (error) {
     const current = readMainAudit(file) ?? job;
     saveMainAudit(file, { ...current, error: String(error.message), incomplete: true });
@@ -197,13 +268,18 @@ async function audit(root, directory, job, write) {
   }
 }
 /** Drain finite snapshots until all wakes observed by this owner have been serviced. */
-export async function runMainAudits(root, token) {
+export async function runMainAudits(root, token, { scheduled = false, forceFull = false } = {}) {
   const info = repoInfo(root);
   if (!info.isMain || !codeIsFromMain() || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(token ?? '')) return;
   const directory = mainAuditDirectory(info); mkdirSync(directory, { recursive: true, mode: 0o700 });
   const activation = readMainAudit(join(directory, 'activation.json'));
   if (!activation) return; // No implicit historical barrier or retroactive full-suite queue.
   if (activation.version !== 1 || !Number.isSafeInteger(activation.afterEventId) || activation.afterEventId < 0) throw new Error('invalid main audit activation');
+  const schedule = readMainAudit(join(directory, 'schedule.json'));
+  if (scheduled && (!schedule || schedule.dueAt === null || Date.parse(schedule.dueAt) > Date.now())) {
+    if (schedule?.dueAt) await scheduleMainAudit(root, directory, schedule.dueAt);
+    return; // Unknown cadence needs an explicit manual/release audit, never an invented immediate schedule.
+  }
   const ownerFile = join(directory, 'owner.json'), lock = join(directory, 'owner.guard.sqlite');
   const wakeFile = join(directory, 'wake.json');
   const acquired = await withFileLock(lock, () => {
@@ -225,11 +301,12 @@ export async function runMainAudits(root, token) {
   try {
     const write = writer(root);
     for (;;) {
-      for (const job of snapshot(root, info, activation)) {
+      const jobs = snapshot(root, info, activation);
+      for (const job of scheduled || forceFull ? jobs.slice(-1) : jobs) {
         const key = mainAuditKey(job);
         if (visited.has(key)) continue;
         visited.add(key);
-        try { await audit(root, directory, job, write); }
+        try { await audit(root, directory, job, write, { forceFull, runId: token }); }
         catch (error) {
           const file = join(directory, `${key}.json`);
           const saved = readMainAudit(file) ?? job;
@@ -248,7 +325,11 @@ export async function runMainAudits(root, token) {
         rmSync(ownerFile);
         return null;
       });
-      if (next === null) return;
+      if (next === null) {
+        const cadence = readMainAudit(join(directory, 'schedule.json'));
+        if (scheduled && cadence?.dueAt && Date.parse(cadence.dueAt) > Date.now()) await scheduleMainAudit(root, directory, cadence.dueAt);
+        return;
+      }
       generation = next;
     }
   } finally {

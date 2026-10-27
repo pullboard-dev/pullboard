@@ -51,7 +51,7 @@ export async function run(io, { values }) {
     const agents = store.listAgents(board);
     const presenceCounts = { live: 0, idle: 0, gone: 0 };
     for (const seat of agents) presenceCounts[seat.presence] += 1;
-    const approvalState = personNeedsSummary(ctx.info.root, { board, config: ctx.config, agents });
+    const approvalState = personNeedsSummary(ctx.info.root, { board, config: ctx.config, agents, doctrine: ctx.doctrine });
     const person = board.db.prepare("SELECT 1 FROM event WHERE event_kind='person_signing' LIMIT 1").get()
       ? { signed: (await import('../person-signing.js')).personSigning(board).signed } : { signed: false };
     return { me, mine, person, agents, presenceCounts, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root) : unlinkedRelayStatus(),

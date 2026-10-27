@@ -4,6 +4,7 @@ import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
 import { cleanGitEnvironment } from './git.js';
+import { repositoryImport } from './import-map.js';
 import {
   COMMAND_CANDIDATE,
   ENGINE_CANDIDATE,
@@ -24,7 +25,7 @@ const DOCS_TREE_INPUT = '/** @pullboard-test-input docs-tree */';
 const LOADS = /^\/\*\* @pullboard-test-loads (.+?) \*\/$/u;
 const SOURCE_LOADS = /^\/\*\* @pullboard-module-loads (.+?) \*\/$/u;
 const COMMAND_REGISTRY = 'src/commands/index.js';
-const GLOBAL = new Set(['bin/run-tests.js', 'package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'src/gate.js', 'src/cli.js', 'src/hooks.js', 'src/trusted-policy.js', 'src/affected-tests.js', 'src/module-imports.js']);
+const GLOBAL = new Set(['bin/run-tests.js', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml']);
 
 /**
  * The file's leading comment header: its lines before the first line of code. A declaration counts only here, so
@@ -82,6 +83,39 @@ function declaredLoads(source, modulePaths, declaration = LOADS, strict = false)
   return loads;
 }
 
+/** Resolve explicit committed data inputs; reserved tree declarations keep their existing meaning. */
+function declaredInputs(source, paths) {
+  const declarations = headerLines(source).filter(line => line.includes('@pullboard-test-input'));
+  const inputs = new Set();
+  for (const line of declarations) {
+    const match = /^\/\*\* @pullboard-test-input (.+?) \*\/$/u.exec(line.trim());
+    if (!match) return null;
+    for (const value of match[1].trim().split(/\s+/u)) {
+      if (['source-tree', 'test-tree', 'docs-tree'].includes(value)) continue;
+      if (value.startsWith('/') || value.split('/').some(part => !part || part === '..' || part === '.')) return null;
+      const pattern = globPattern(value);
+      if (!pattern) return null;
+      const matches = paths.filter(path => pattern.test(path));
+      if (!matches.length) return null;
+      for (const path of matches) inputs.add(path);
+    }
+  }
+  return [...inputs];
+}
+
+/** Only a real description-only package edit lacks implicit loader, dependency and runtime effects. */
+function descriptionOnlyPackage(root, base, commit) {
+  try {
+    const before = JSON.parse(selectionGit(root, ['show', `${base}:package.json`]));
+    const after = JSON.parse(selectionGit(root, ['show', `${commit}:package.json`]));
+    if (before.description === after.description) return false;
+    delete before.description;
+    delete after.description;
+    const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])].sort();
+    return keys.every(key => JSON.stringify(before[key]) === JSON.stringify(after[key]));
+  } catch { return false; }
+}
+
 /** The one computed form the selector resolves (#803): new URL('<literal relative path>', import.meta.url), with or without .href. */
 const URL_LITERAL = /^\s*new\s+URL\(\s*(['"])([^'"\\\r\n]+)\1\s*,\s*import\.meta\.url\s*\)(?:\s*\.\s*href)?\s*$/u;
 
@@ -134,17 +168,20 @@ function modulesAt(root, commit) {
   });
   const entries = tracked.filter(entry => MODULE.test(entry.path));
   // V8 compiles a require() expression as ESM too, but cannot supply its CommonJS edges.
+  const manifest = tracked.find(entry => entry.path === 'package.json');
+  if (manifest && (manifest.type !== 'blob' || manifest.mode === '120000')) throw new Error('the root package policy is not a regular tracked file');
+  const policy = manifest ? JSON.parse(selectionGit(root, ['show', `${commit}:package.json`])) : {};
   if (entries.some(entry => entry.path.endsWith('.js'))) {
-    const policy = JSON.parse(selectionGit(root, ['show', `${commit}:package.json`]));
     if (policy.type !== 'module' || tracked.some(entry => entry.path.endsWith('/package.json'))) {
       throw new Error('CommonJS or nested package scopes cannot supply a complete ES-module import graph');
     }
   }
-  if (entries.some(entry => entry.type !== 'blob' || entry.mode === '120000' || entry.path.endsWith('.cjs'))) {
-    throw new Error('a tracked module uses an unsupported file mode or CommonJS');
+  if (entries.some(entry => entry.type !== 'blob' || entry.mode === '120000')) {
+    throw new Error('a tracked module uses an unsupported file mode');
   }
   const blobs = new Map(tracked.map(entry => [entry.path, entry.hash]));
-  if (!entries.length) return { modules: new Map(), blobs };
+  const unsafeInputs = new Set(tracked.filter(entry => entry.mode === '120000' || entry.type !== 'blob').map(entry => entry.path));
+  if (!entries.length) return { modules: new Map(), blobs, unsafeInputs, importMap: policy.imports ?? {} };
   const hashes = [...new Set(entries.map(entry => entry.hash))];
   const result = spawnSync('git', ['--no-replace-objects', 'cat-file', '--batch'], {
     cwd: root, env: cleanGitEnvironment(), input: hashes.join('\n') + '\n', maxBuffer: 128 * 1024 * 1024,
@@ -161,7 +198,7 @@ function modulesAt(root, commit) {
     sources.set(hash, result.stdout.subarray(at, at + size).toString('utf8'));
     at += size + 1;
   }
-  return { modules: new Map(entries.map(entry => [entry.path, sources.get(entry.hash)])), blobs };
+  return { modules: new Map(entries.map(entry => [entry.path, sources.get(entry.hash)])), blobs, unsafeInputs, importMap: policy.imports ?? {} };
 }
 
 /**
@@ -242,15 +279,15 @@ function documentationInputs(path, source, imports, changedDocs = []) {
 }
 
 /**
- * Admit only the named builtin-export synchronizer, which cannot create module-loader edges.
+ * Admit only exact named builtin-export synchronization or TypeScript stripping, neither of which loads modules.
  * Rewrite that exact import and ask V8 whether another node:module edge remains. Text in comments
  * or strings cannot hide a real unknown import. Keep dynamic builtin loaders and CommonJS unknown.
  */
-function knownBuiltinSynchronizers(sources, imports) {
+function knownBuiltinUtilities(sources, imports) {
   const indices = sources.flatMap((_source, index) => imports[index].includes('node:module') ? [index] : []);
   if (!indices.length) return new Set();
-  const synchronizer = /\bimport\s*\{\s*syncBuiltinESMExports\s*,?\s*\}\s*from\s*(['"])node:module\1/gu;
-  const rewritten = indices.map(index => sources[index].replace(synchronizer,
+  const utility = /\bimport\s*\{\s*(?:syncBuiltinESMExports|stripTypeScriptTypes)\s*,?\s*\}\s*from\s*(['"])node:module\1/gu;
+  const rewritten = indices.map(index => sources[index].replace(utility,
     (_match, quote) => `import { syncBuiltinESMExports } from ${quote}node:fs${quote}`));
   const remaining = importsIn(rewritten);
   // Reuse V8's code-versus-text probe for the dynamic builtin loader as well as CommonJS words.
@@ -260,11 +297,12 @@ function knownBuiltinSynchronizers(sources, imports) {
 
 /** Compile this tree's import edges, plus the literal child-CLI dependency used by fixture modules. */
 function graphAt(root, commit, changedDocs = []) {
-  const { modules, blobs } = modulesAt(root, commit);
+  const { modules, blobs, unsafeInputs, importMap } = modulesAt(root, commit);
   const paths = [...modules.keys()];
   const sources = [...modules.values()];
   const imports = importsIn(sources);
-  const synchronizers = knownBuiltinSynchronizers(sources, imports);
+  const commonJs = commonJsIn(sources);
+  const utilities = knownBuiltinUtilities(sources, imports);
   const reverse = new Map();
   const unknown = new Map();
   const undeclared = new Map();
@@ -272,18 +310,33 @@ function graphAt(root, commit, changedDocs = []) {
   const sourceTreeReaders = new Set();
   const docInputs = new Map();
   paths.forEach((path, index) => {
+    const sourceLoads = declaredLoads(modules.get(path), paths, SOURCE_LOADS, true);
+    const inputs = declaredInputs(modules.get(path), [...blobs.keys()]);
+    if (inputs === null) unknown.set(path, 'invalid or unmatched declared test input');
+    for (const input of inputs ?? []) {
+      if (unsafeInputs.has(input)) unknown.set(path, 'declared input escapes through an unsupported file mode');
+      if (!reverse.has(input)) reverse.set(input, new Set());
+      reverse.get(input).add(path);
+    }
+    const declaredLoader = sourceLoads?.length > 0;
+    if (path.endsWith('.cjs') || commonJs[index]) {
+      if (!declaredLoader) unknown.set(path, 'CommonJS loader declares no complete @pullboard-module-loads reach');
+      for (const load of sourceLoads ?? []) {
+        if (!reverse.has(load)) reverse.set(load, new Set());
+        reverse.get(load).add(path);
+      }
+    }
     if (changedDocs.length) docInputs.set(path, documentationInputs(path, modules.get(path), imports[index], changedDocs));
     if (TEST.test(path)) {
-      for (const line of modules.get(path).split(/\r?\n/u)) {
+      for (const line of headerLines(modules.get(path))) {
         if (line === TEST_TREE_INPUT) testTreeReaders.add(path);
         else if (line === SOURCE_TREE_INPUT) sourceTreeReaders.add(path);
         else if (line === DOCS_TREE_INPUT) continue;
-        else break;
       }
     }
     for (const target of imports[index]) {
       if (target === 'node:module') {
-        if (!synchronizers.has(index)) unknown.set(path, 'a reached module may create CommonJS imports');
+        if (!utilities.has(index) && !declaredLoader) unknown.set(path, 'a reached module may create CommonJS imports');
         continue;
       }
       if (target.startsWith('node:')) continue;
@@ -310,12 +363,18 @@ function graphAt(root, commit, changedDocs = []) {
       }
       // The command registry loads its sibling modules by discovery; synthetic edges below stand for those imports (#804).
       if (target === '(computed)' && path === COMMAND_REGISTRY) continue;
-      if (!target.startsWith('.')) {
+      if (!target.startsWith('.') && !target.startsWith('#')) {
         unknown.set(path, target === '(computed)' ? 'non-literal dynamic import' : 'unresolved package import');
         continue;
       }
-      const dependency = posix.normalize(posix.join(posix.dirname(path), target.split(/[?#]/u)[0]));
-      if (dependency.startsWith('../')) { unknown.set(path, 'import outside the repository'); continue; }
+      const dependency = repositoryImport(path, target, importMap);
+      if (!dependency || (target.startsWith('#') && !modules.has(dependency))) {
+        unknown.set(path, 'unresolved repository import'); continue;
+      }
+      if (target.startsWith('#')) {
+        if (!reverse.has('package.json')) reverse.set('package.json', new Set());
+        reverse.get('package.json').add(path);
+      }
       if (!reverse.has(dependency)) reverse.set(dependency, new Set());
       reverse.get(dependency).add(path);
     }
@@ -349,7 +408,11 @@ function graphAt(root, commit, changedDocs = []) {
  * @returns {{ closures: Map<string, { files: string[] | null, helpers?: string[], reason: string }>, modules: Map<string, string>, blobs: Map<string, string> }}
  */
 export function testClosures(root, commit = 'HEAD') {
-  const graph = graphAt(root, commit);
+  return closuresInGraph(graphAt(root, commit));
+}
+
+/** Compute the same complete-or-unknown root closures from an already-pinned selection graph. */
+function closuresInGraph(graph) {
   const forward = new Map();
   for (const [dependency, importers] of graph.reverse) {
     for (const importer of importers) {
@@ -372,11 +435,17 @@ export function testClosures(root, commit = 'HEAD') {
     // The test and the test/ helpers it reaches without passing through product code: its own test-side reads.
     const helpers = new Set([test]);
     for (const path of helpers) {
-      for (const dependency of forward.get(path) ?? []) if (dependency.startsWith('test/')) helpers.add(dependency);
+      for (const dependency of forward.get(path) ?? []) if (dependency.startsWith('test/') || /^(?:packages|apps)\/[^/]+\/tests\//u.test(dependency)) helpers.add(dependency);
     }
     closures.set(test, reason ? { files: null, reason } : { files: [...reached].sort(), helpers: [...helpers].sort(), reason: '' });
   }
-  return { closures, modules: graph.modules, blobs: graph.blobs };
+  /** Every file reachable from these entries. Unresolved loaders are skipped: a harness's are caller-supplied reporters and guards. */
+  const reach = entries => {
+    const reached = new Set(entries.filter(path => graph.blobs.has(path)));
+    for (const path of reached) for (const dependency of forward.get(path) ?? []) reached.add(dependency);
+    return [...reached].sort();
+  };
+  return { closures, modules: graph.modules, blobs: graph.blobs, reach };
 }
 
 /**
@@ -408,9 +477,13 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
     const fallback = changed.find(path => GLOBAL.has(path) || path.startsWith('.githooks/'));
     if (fallback) return { full: true, reason: `${fallback} controls the gate or dependency selection`, files };
     if (!files.length) return { full: true, reason: 'no committed Node test files can be selected', files };
-    const unsupported = changed.find(path => !MODULE.test(path) && !DOC.test(path));
-    if (unsupported) return { full: true, reason: `import selection cannot compute the effect of ${unsupported}`, files };
     const before = graphAt(root, base, changedDocs);
+    if (changed.includes('package.json') && !descriptionOnlyPackage(root, base, commit)) {
+      return { full: true, reason: 'package.json changes implicit runtime or package effects', files };
+    }
+    const unsupported = changed.find(path => !MODULE.test(path) && !DOC.test(path)
+      && !before.reverse.has(path) && !after.reverse.has(path));
+    if (unsupported) return { full: true, reason: `import selection cannot compute the effect of ${unsupported}`, files };
     const [unreadable] = [...before.undeclared, ...after.undeclared];
     if (unreadable) return { full: true, reason: `${unreadable[0]}: ${unreadable[1]}`, files };
     const reached = new Set(changed);
@@ -433,13 +506,22 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
         }
       }
     }
-    const changedTestInput = changed.some(path => path.startsWith('test/') || TEST.test(path) || /^test\.[cm]?js$/u.test(path));
-    const changedSourceInput = changed.some(path => path.startsWith('src/') || path.startsWith('bin/'));
-    const selected = files.filter(path => reached.has(path)
+    const changedTestInput = changed.some(path => path.startsWith('test/') || /^(?:packages|apps)\/[^/]+\/tests\//u.test(path) || TEST.test(path) || /^test\.[cm]?js$/u.test(path));
+    const changedSourceInput = changed.some(path => /^(?:src|bin|packages|apps)\//u.test(path));
+    // An opaque loader may read any changed dependency: retain its roots without inventing missing edges.
+    const unknownRoots = new Map();
+    for (const graph of [before, after]) {
+      for (const [test, closure] of closuresInGraph(graph).closures) {
+        if (closure.files === null) unknownRoots.set(test, closure.reason);
+      }
+    }
+    const selected = files.filter(path => reached.has(path) || unknownRoots.has(path)
       || (changedTestInput && (before.testTreeReaders.has(path) || after.testTreeReaders.has(path)))
       || (changedSourceInput && (before.sourceTreeReaders.has(path) || after.sourceTreeReaders.has(path))));
     if (selected.length === files.length) return { full: true, reason: 'the change reaches every test file', files };
-    return { full: false, reason: '', files: selected };
+    const unresolved = selected.filter(path => unknownRoots.has(path))
+      .map(path => `${path}: ${unknownRoots.get(path)}`);
+    return { full: false, reason: unresolved.length ? `unresolved root closures retained: ${unresolved.join('; ')}` : '', files: selected };
   } catch (error) {
     return { full: true, reason: `import selection could not be computed: ${error.message}`, files };
   }

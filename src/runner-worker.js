@@ -44,6 +44,15 @@ import { createDescendantTracker } from './runner-custody.js';
 import { Refused } from './refused.js';
 import { guiSession } from './gui-session.js';
 import { privateCheckEnvelope } from './runner-private-mode.js';
+import { RUNNER_POLICY_FILE } from './runner-policy.js';
+import { runnerPolicyRecord } from './runner-policy.js';
+import {
+  TEST_RESULT_ORIGIN_ENV,
+  TEST_RESULT_STORE_ENV,
+  importTestResults,
+  packTestResults,
+  selectedTestResults,
+} from './test-result-store.js';
 import {
   gateStages,
   stagedScript,
@@ -214,6 +223,10 @@ async function readSpec() {
     if (mode.policyCommit.length !== value.commit.length || value.command !== mode.check || value.landing === true || value.stageMarker !== undefined) throw new Error('invalid trusted private-check source');
     value.trustedMode = mode;
   }
+  if (value.trunk !== undefined) {
+    if (value.trustedMode) throw new Error('ambiguous runner policy context');
+    runnerPolicyRecord(value);
+  }
   if (value.timeoutMs !== undefined && (value.landing !== true || !Number.isSafeInteger(value.timeoutMs) || value.timeoutMs < 1 || value.timeoutMs > 2_147_483_647)) throw new Error('invalid landing timeout');
   if (value.stageMarker !== undefined && !/^PULLBOARD_STAGE_[a-f0-9]{32}$/u.test(value.stageMarker)) throw new Error('invalid stage marker');
   if (value.waivers !== undefined && (!Array.isArray(value.waivers) || value.waivers.some(entry => !entry || !['file', 'name'].includes(entry.kind) || typeof entry.test !== 'string' || !entry.test || Object.keys(entry).some(key => !['kind', 'test'].includes(key))))) throw new Error('invalid continuation projection');
@@ -242,7 +255,7 @@ async function readSpec() {
     tagNames.add(tag.name);
     if (tag.chain.length ? tag.chain[0] !== tag.object : tag.object !== tag.peeledCommit) throw new Error('invalid tag manifest');
   }
-  const runtimeNames = ['runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'git-adapter.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js', 'runner-overhead.js'];
+  const runtimeNames = ['audit-coverage-reporter.js', 'runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'git-adapter.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js', 'runner-overhead.js', 'runner-policy.js', 'runner-recovery.js', 'runner-transport.js', 'test-result-store.js'];
   if (Object.keys(value.runtime.files).length !== runtimeNames.length
     || runtimeNames.some(name => typeof value.runtime.files[name] !== 'string')) throw new Error('invalid work specification');
   if (createHash('sha256').update(JSON.stringify(value.runtime.files)).digest('hex') !== value.runtime.sha256) throw new Error('invalid trusted runtime');
@@ -253,12 +266,17 @@ async function readSpec() {
     || createHash('sha256').update(JSON.stringify(toolingFiles)).digest('hex') !== value.tooling.sha256) {
     throw new Error('invalid trusted tooling identity');
   }
-  for (const field of ['landing', 'itemCheck', 'diagnostic']) {
+  for (const field of ['landing', 'itemCheck', 'diagnostic', 'auditCoverage']) {
     if (value[field] !== undefined && typeof value[field] !== 'boolean') throw new Error('invalid work specification');
   }
   for (const field of ['item', 'kind']) {
     if (value[field] !== undefined && typeof value[field] !== 'string') throw new Error('invalid work specification');
   }
+  if (value.testResults !== undefined && (!Array.isArray(value.testResults.inputKeys)
+    || value.testResults.inputKeys.some(key => typeof key !== 'string' || !/^[0-9a-f]{64}$/u.test(key))
+    || !(value.testResults.packet === null || typeof value.testResults.packet === 'string')
+    || !/^[a-z][a-z0-9-]{0,63}$/u.test(value.testResults.stage)
+    || typeof value.testResults.origin !== 'string' || /[\r\n\0]/u.test(value.testResults.origin))) throw new Error('invalid test-result exchange');
   if (value.root !== undefined && (typeof value.root !== 'string' || !isAbsolute(value.root))) throw new Error('invalid work specification');
   return value;
 }
@@ -569,7 +587,7 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     const historyCount = Number(await git(cache, ['rev-list', '--count', spec.commit], env));
     if (!Number.isSafeInteger(historyCount) || historyCount < 1) throw new Error('source history is incomplete');
     if (spec.originBase) await git(cache, ['merge-base', '--is-ancestor', spec.originBase, spec.commit], env);
-    const roots = [...new Set([spec.commit, ...(spec.trustedMode ? [spec.trustedMode.policyCommit, spec.trustedMode.trunk.commit] : [])])];
+    const roots = [...new Set([spec.commit, ...(spec.trunk ? [spec.trunk.commit] : []), ...(spec.trustedMode ? [spec.trustedMode.policyCommit, spec.trustedMode.trunk.commit] : [])])];
     for (const commit of roots) {
       if (await git(cache, ['cat-file', '-t', commit], env) !== 'commit') throw new Error('trusted policy history is incomplete');
     }
@@ -620,6 +638,13 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     await git(root, ['init', '-q', `--object-format=${spec.commit.length === 64 ? 'sha256' : 'sha1'}`], env);
     await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache, `refs/pullboard/candidates/${spec.commit}`], env);
     await git(root, ['checkout', '--detach', 'FETCH_HEAD'], env);
+    if (spec.trunk) {
+      await git(root, ['check-ref-format', spec.trunk.ref], env);
+      await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache,
+        `refs/pullboard/candidates/${spec.trunk.commit}:${spec.trunk.ref}`], env);
+      await git(root, ['config', '--local', '--replace-all', 'pullboard.trunk', spec.trunk.ref], env);
+      writeFileSync(join(root, '.git', RUNNER_POLICY_FILE), JSON.stringify(runnerPolicyRecord(spec)), { mode: 0o600 });
+    }
     if (spec.trustedMode) {
       const mode = spec.trustedMode;
       await git(root, ['check-ref-format', mode.trunk.ref], env);
@@ -627,6 +652,7 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
         `refs/pullboard/candidates/${mode.policyCommit}:refs/pullboard/trusted-policy`,
         `refs/pullboard/candidates/${mode.trunk.commit}:${mode.trunk.ref}`], env);
       await git(root, ['config', '--local', '--replace-all', 'pullboard.trunk', mode.trunk.ref], env);
+      writeFileSync(join(root, '.git', RUNNER_POLICY_FILE), JSON.stringify(runnerPolicyRecord({ ...spec, trunk: mode.trunk })), { mode: 0o600 });
     }
     for (let index = 0; index < spec.tags.length; index++) {
       const tag = spec.tags[index];
@@ -872,6 +898,7 @@ async function receipt(spec, fields, sink) {
     // The execution host's load and the pinned main this run used, so a paired rerun here can be judged (#925).
     main: typeof spec.main === 'string' ? spec.main : null, load: { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) },
     ...(fields.trustedMode ? { trustedMode: fields.trustedMode } : {}),
+    ...(fields.testResults ? { testResults: fields.testResults } : {}),
     ...(spec.stageMarker ? { pipeStatuses: fields.pipeStatuses ?? null } : {}), ...(fields.timedOut ? { timedOut: true } : {}), ...(fields.refused ? { refused: fields.refused } : {}), ...(fields.browserRefused ? { browserRefused: true } : {}), ...(fields.denial ? { denial: fields.denial } : {}) };
   const encoded = Buffer.from(JSON.stringify(body)).toString('base64');
   await new Promise((resolveWrite, rejectWrite) => process.stderr.write(`${RECEIPT} ${spec.id} ${encoded}\n`, error => error ? rejectWrite(error) : resolveWrite()));
@@ -987,10 +1014,19 @@ async function main() {
     }
     setupStep = 'command start';
     const browserRefusal = join(runDirectory, 'browser-refusal.json');
-    const commandEnv = { ...env, PULLBOARD_LANDING_RUN: spec.landing === true ? '1' : '0', [api.BROWSER_REFUSAL_FILE_ENV]: browserRefusal, ...(typeof spec.browserByLaunch === 'boolean' ? { PULLBOARD_TEST_BROWSER_BY_LAUNCH: spec.browserByLaunch ? '1' : '0' } : {}), PULLBOARD_LANDING_WAIVERS: JSON.stringify(spec.landing === true ? spec.waivers ?? [] : []) };
+    const resultStore = join(runnerRoot, 'test-results', spec.repoId);
+    if (spec.testResults) importTestResults(resultStore, spec.testResults.packet, spec.testResults.inputKeys);
+    // A request without an exchange comes from a caller that opted out of reuse: run every file, read no store.
+    const commandEnv = { ...env, ...(spec.testResults ? { [TEST_RESULT_STORE_ENV]: resultStore,
+      [TEST_RESULT_ORIGIN_ENV]: spec.testResults.origin, PULLBOARD_TEST_STAGE: spec.testResults.stage } : { PULLBOARD_TEST_REUSE: '0' }),
+      // An audit-coverage run always executes every file, whatever the exchange holds.
+      ...(spec.auditCoverage ? { PULLBOARD_AUDIT_COVERAGE_REPORTER: fileURLToPath(new URL('./audit-coverage-reporter.js', import.meta.url)), PULLBOARD_TEST_REUSE: '0' } : {}),
+      PULLBOARD_TEST_CACHE_TOOLING: spec.tooling.sha256,
+      PULLBOARD_LANDING_RUN: spec.landing === true ? '1' : '0', [api.BROWSER_REFUSAL_FILE_ENV]: browserRefusal, ...(typeof spec.browserByLaunch === 'boolean' ? { PULLBOARD_TEST_BROWSER_BY_LAUNCH: spec.browserByLaunch ? '1' : '0' } : {}), PULLBOARD_LANDING_WAIVERS: JSON.stringify(spec.landing === true ? spec.waivers ?? [] : []) };
     process.stderr.write(`PULLBOARD_RUNNER_READY ${spec.id}\n`);
     phases.mark('commandMs');
     final = { ...(spec.trustedMode ? await runPrivateCheck(spec, root, commandEnv, sink, tracker) : await runCommand(spec, root, commandEnv, sink, tracker)), root };
+    if (spec.testResults) final.testResults = packTestResults(selectedTestResults(resultStore, spec.testResults.inputKeys));
     if (final.code !== 0 && existsSync(browserRefusal)) final.browserRefused = true;
   } catch (error) {
     const refused = setupRefusalCode(error);

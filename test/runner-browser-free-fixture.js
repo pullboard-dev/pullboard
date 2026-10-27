@@ -109,7 +109,8 @@ export async function browserFreeRunnerCheck(t, helpers) {
 
     // A runner whose own run classifies more broadly than this controller (here the command forces the
     // broad classifier) has its lease guard refuse; the guard's receipt, not any text, reruns it locally.
-    const command = `PULLBOARD_TEST_BROWSER_BY_LAUNCH=0 node bin/run-tests.js ${shellQuote('test/free.test.js')}`;
+    // The same file just passed here, so opt out of result reuse: the refusal needs a real execution.
+    const command = `PULLBOARD_TEST_REUSE=0 PULLBOARD_TEST_BROWSER_BY_LAUNCH=0 node bin/run-tests.js ${shellQuote('test/free.test.js')}`;
     const pending = gateRun(fixture, command);
     await until(() => fixture.phases().returned === 2, 'the runner answers the refused run');
     free();
