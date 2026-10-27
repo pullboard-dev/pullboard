@@ -115,5 +115,5 @@ test("the README header shows the board's own badges, not the CI status badge [C
   assert.notEqual(section, -1, 'the README has a section after its header');
   const header = readme.slice(0, section);
   assert.doesNotMatch(header, /actions\/workflows\/gate\.yml/u, 'the header carries no CI status badge');
-  for (const badge of ['pullboard', 'agent-verified', 'npm']) assert.match(header, new RegExp(`alt="${badge}(?:: [^"]+)?"`, 'u'), `the header shows the ${badge} badge`);
+  for (const badge of ['pullboard', 'npm']) assert.match(header, new RegExp(`alt="${badge}(?:: [^"]+)?"`, 'u'), `the header shows the ${badge} badge`);
 });

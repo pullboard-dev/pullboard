@@ -51,12 +51,12 @@ function put(board, key, value) {
     .run(PREFIX + key, encode(value));
 }
 
-/** Version and cursor belong together: an old writer cannot make a stale summary current. */
-function emptySummary(person) { return { version: 1, person, last: 0, active: [], invalid: false }; }
+/** Version two excludes legacy conflict pseudo-tests; an old writer cannot make that stale summary current. */
+function emptySummary(person) { return { version: 2, person, last: 0, active: [], invalid: false }; }
 
 /** Writer and reader agree on the projection version and its structurally valid recorded cursor. */
 function validSummary(summary, person) {
-  return summary?.version === 1 && summary.person === person && Number.isSafeInteger(summary.last) && summary.last >= 0
+  return summary?.version === 2 && summary.person === person && Number.isSafeInteger(summary.last) && summary.last >= 0
     && Array.isArray(summary.active) && summary.active.every(key => typeof key === 'string');
 }
 
