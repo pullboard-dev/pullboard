@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** Real private native execution through fake SSH capsules; never evidence of eight physical machines [C7,V4]. */
 import assert from 'node:assert/strict';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
