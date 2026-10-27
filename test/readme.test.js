@@ -1,3 +1,5 @@
+/** @pullboard-test-input docs-tree */
+/** @pullboard-test-input README.md CONTRIBUTING.md docs/img/*.svg docs/shots/tour.svg docs/shots/desktop-light.png skills/pullboard-decompose/SKILL.md skills/pullboard-plan/SKILL.md skills/pullboard-run/SKILL.md skills/pullboard-signoff/SKILL.md skills/pullboard-spec-review/SKILL.md skills/pullboard-triage/SKILL.md skills/pullboard-verify/SKILL.md */
 /**
  * The README's figures (I10): the README links each one, each is committed exactly as
  * docs/img/draw.mjs draws it, each carries its own light and dark colors on a card that holds its
