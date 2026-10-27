@@ -85,6 +85,7 @@ export function atomic(board, work) {
  * @param {number | null} itemId
  * @param {object} [detail]
  * @param {Date} [at] An enabled move may share one instant with its deadline.
+ * @returns {object} This append's exact row, even when a conditional lift appends another row.
  */
 export function logEvent(board, by, kind, itemId, detail = {}, at) {
   // Standalone native writers take the same actual lock; nested moves retain their existing savepoints.
@@ -107,6 +108,7 @@ export function logEvent(board, by, kind, itemId, detail = {}, at) {
     (board.emittedEvents ??= []).push(event);
     liftConditionalHold(board, event, logEvent, setItem);
     board.db.exec('RELEASE proof_event_append');
+    return event;
   } catch (error) {
     board.db.exec('ROLLBACK TO proof_event_append; RELEASE proof_event_append');
     throw error;
