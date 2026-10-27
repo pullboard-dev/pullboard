@@ -104,11 +104,13 @@ test('[B10,B31] a corrected bar records why the old one was wrong', () => {
   assert.equal(afterRefusal.item_owner, beforeRefreeze.item_owner, 'the refused builder refreeze preserves the owner');
   const refrozen = box.json(box.repo, 'refreeze', '1');
   assert.equal(refrozen.retainedClaim, true, 'coordinator refreeze keeps the active claim');
+  assert.equal(refrozen.unchanged, true, 'the coordinator edit already made the corrected frozen bar effective');
   const afterRefreeze = box.json(box.repo, 'show', '1');
   assert.equal(afterRefreeze.item_status, 'claimed');
   assert.equal(afterRefreeze.item_owner, beforeRefreeze.item_owner);
   assert.equal(afterRefreeze.item_lease_until, beforeRefreeze.item_lease_until, 'refreeze keeps the existing lease');
-  assert.notEqual(afterRefreeze.item_frozen_digest, beforeRefreeze.item_frozen_digest, 'the corrected criterion is frozen');
+  assert.equal(afterRefreeze.item_frozen_digest, beforeRefreeze.item_frozen_digest, 'an unchanged refreeze preserves the corrected bar digest');
+  assert.equal(JSON.parse(afterRefreeze.item_frozen).criterion, 'Corrected item works under WAL');
   rejectOnce(box, 1, 'the WAL lock never appears');
   const unexplained = box.run(box.repo, 'edit', '1', '--check', 'true # wal', '--json');
   assert.equal(JSON.parse(unexplained.out).error?.code, 'BAR_REASON', 'a check correction on an item that was claimed needs a reason too');
