@@ -1,6 +1,6 @@
 /** Selection declarations bound runtime and non-module dependencies without evaluating candidate source [V4,C7]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
@@ -107,4 +107,43 @@ test('declaration text inside executable strings cannot hide an unknown non-JS i
   const result = selectAffectedTests(box.root, { base, commit: after });
   assert.equal(result.full, true);
   assert.match(result.reason, /hidden\.json/u);
+});
+
+for (const [field, value] of Object.entries({ type: 'commonjs', imports: { '#alias': './src/value.js' },
+  exports: './src/value.js', dependencies: { opaque: '1.0.0' }, scripts: { test: 'node different.js' }, engines: { node: '>=24' } })) {
+  test(`package ${field} effects cannot be narrowed by an explicit package reader [V4,C7]`, t => {
+    const box = graph(t);
+    box.put('test/package.test.js', '/** @pullboard-test-input package.json */\n');
+    const base = box.commit();
+    box.put('package.json', JSON.stringify({ type: 'module', private: true, [field]: value }) + '\n');
+    const commit = box.commit();
+    const result = selectAffectedTests(box.root, { base, commit });
+    assert.equal(result.full, true, 'declared data reads cannot erase implicit runtime effects');
+    assert.match(result.reason, /package|CommonJS/u);
+  });
+}
+
+for (const path of ['pullboard.json', 'package-lock.json', '.githooks/pre-commit']) {
+  test(`implicit ${path} effects retain their named full fallback [V4,C7]`, t => {
+    const box = graph(t);
+    const base = box.commit();
+    box.put(path, '{}\n');
+    const after = box.commit();
+    const result = selectAffectedTests(box.root, { base, commit: after });
+    assert.equal(result.full, true);
+    assert.ok(result.reason.includes(path), result.reason);
+  });
+}
+
+test('a declared data symlink cannot supply complete in-repository reader custody [V4,C7]', t => {
+  const box = graph(t);
+  box.put('test/data.test.js', '/** @pullboard-test-input input.json */\n');
+  box.put('input.json', '{}\n');
+  const base = box.commit();
+  box.git('rm', 'input.json');
+  symlinkSync('../outside.json', join(box.root, 'input.json'));
+  const after = box.commit();
+  const result = selectAffectedTests(box.root, { base, commit: after });
+  assert.equal(result.full, true);
+  assert.match(result.reason, /unsupported file mode/u);
 });

@@ -24,7 +24,7 @@ const DOCS_TREE_INPUT = '/** @pullboard-test-input docs-tree */';
 const LOADS = /^\/\*\* @pullboard-test-loads (.+?) \*\/$/u;
 const SOURCE_LOADS = /^\/\*\* @pullboard-module-loads (.+?) \*\/$/u;
 const COMMAND_REGISTRY = 'src/commands/index.js';
-const GLOBAL = new Set(['bin/run-tests.js', 'package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'src/gate.js', 'src/cli.js', 'src/hooks.js', 'src/trusted-policy.js', 'src/affected-tests.js', 'src/module-imports.js']);
+const GLOBAL = new Set(['bin/run-tests.js', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml']);
 
 /**
  * The file's leading comment header: its lines before the first line of code. A declaration counts only here, so
@@ -80,6 +80,39 @@ function declaredLoads(source, modulePaths, declaration = LOADS, strict = false)
     loads.push(...matches);
   }
   return loads;
+}
+
+/** Resolve explicit committed data inputs; reserved tree declarations keep their existing meaning. */
+function declaredInputs(source, paths) {
+  const declarations = headerLines(source).filter(line => line.includes('@pullboard-test-input'));
+  const inputs = new Set();
+  for (const line of declarations) {
+    const match = /^\/\*\* @pullboard-test-input (.+?) \*\/$/u.exec(line.trim());
+    if (!match) return null;
+    for (const value of match[1].trim().split(/\s+/u)) {
+      if (['source-tree', 'test-tree', 'docs-tree'].includes(value)) continue;
+      if (value.startsWith('/') || value.split('/').some(part => !part || part === '..' || part === '.')) return null;
+      const pattern = globPattern(value);
+      if (!pattern) return null;
+      const matches = paths.filter(path => pattern.test(path));
+      if (!matches.length) return null;
+      for (const path of matches) inputs.add(path);
+    }
+  }
+  return [...inputs];
+}
+
+/** Only a real description-only package edit lacks implicit loader, dependency and runtime effects. */
+function descriptionOnlyPackage(root, base, commit) {
+  try {
+    const before = JSON.parse(selectionGit(root, ['show', `${base}:package.json`]));
+    const after = JSON.parse(selectionGit(root, ['show', `${commit}:package.json`]));
+    if (before.description === after.description) return false;
+    delete before.description;
+    delete after.description;
+    const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])].sort();
+    return keys.every(key => JSON.stringify(before[key]) === JSON.stringify(after[key]));
+  } catch { return false; }
 }
 
 /** The one computed form the selector resolves (#803): new URL('<literal relative path>', import.meta.url), with or without .href. */
@@ -140,11 +173,12 @@ function modulesAt(root, commit) {
       throw new Error('CommonJS or nested package scopes cannot supply a complete ES-module import graph');
     }
   }
-  if (entries.some(entry => entry.type !== 'blob' || entry.mode === '120000' || entry.path.endsWith('.cjs'))) {
-    throw new Error('a tracked module uses an unsupported file mode or CommonJS');
+  if (entries.some(entry => entry.type !== 'blob' || entry.mode === '120000')) {
+    throw new Error('a tracked module uses an unsupported file mode');
   }
   const blobs = new Map(tracked.map(entry => [entry.path, entry.hash]));
-  if (!entries.length) return { modules: new Map(), blobs };
+  const unsafeInputs = new Set(tracked.filter(entry => entry.mode === '120000' || entry.type !== 'blob').map(entry => entry.path));
+  if (!entries.length) return { modules: new Map(), blobs, unsafeInputs };
   const hashes = [...new Set(entries.map(entry => entry.hash))];
   const result = spawnSync('git', ['--no-replace-objects', 'cat-file', '--batch'], {
     cwd: root, env: cleanGitEnvironment(), input: hashes.join('\n') + '\n', maxBuffer: 128 * 1024 * 1024,
@@ -161,7 +195,7 @@ function modulesAt(root, commit) {
     sources.set(hash, result.stdout.subarray(at, at + size).toString('utf8'));
     at += size + 1;
   }
-  return { modules: new Map(entries.map(entry => [entry.path, sources.get(entry.hash)])), blobs };
+  return { modules: new Map(entries.map(entry => [entry.path, sources.get(entry.hash)])), blobs, unsafeInputs };
 }
 
 /**
@@ -260,10 +294,11 @@ function knownBuiltinSynchronizers(sources, imports) {
 
 /** Compile this tree's import edges, plus the literal child-CLI dependency used by fixture modules. */
 function graphAt(root, commit, changedDocs = []) {
-  const { modules, blobs } = modulesAt(root, commit);
+  const { modules, blobs, unsafeInputs } = modulesAt(root, commit);
   const paths = [...modules.keys()];
   const sources = [...modules.values()];
   const imports = importsIn(sources);
+  const commonJs = commonJsIn(sources);
   const synchronizers = knownBuiltinSynchronizers(sources, imports);
   const reverse = new Map();
   const unknown = new Map();
@@ -272,6 +307,22 @@ function graphAt(root, commit, changedDocs = []) {
   const sourceTreeReaders = new Set();
   const docInputs = new Map();
   paths.forEach((path, index) => {
+    const sourceLoads = declaredLoads(modules.get(path), paths, SOURCE_LOADS, true);
+    const inputs = declaredInputs(modules.get(path), [...blobs.keys()]);
+    if (inputs === null) unknown.set(path, 'invalid or unmatched declared test input');
+    for (const input of inputs ?? []) {
+      if (unsafeInputs.has(input)) unknown.set(path, 'declared input escapes through an unsupported file mode');
+      if (!reverse.has(input)) reverse.set(input, new Set());
+      reverse.get(input).add(path);
+    }
+    const declaredLoader = sourceLoads?.length > 0;
+    if (path.endsWith('.cjs') || commonJs[index]) {
+      if (!declaredLoader) unknown.set(path, 'CommonJS loader declares no complete @pullboard-module-loads reach');
+      for (const load of sourceLoads ?? []) {
+        if (!reverse.has(load)) reverse.set(load, new Set());
+        reverse.get(load).add(path);
+      }
+    }
     if (changedDocs.length) docInputs.set(path, documentationInputs(path, modules.get(path), imports[index], changedDocs));
     if (TEST.test(path)) {
       for (const line of modules.get(path).split(/\r?\n/u)) {
@@ -283,7 +334,7 @@ function graphAt(root, commit, changedDocs = []) {
     }
     for (const target of imports[index]) {
       if (target === 'node:module') {
-        if (!synchronizers.has(index)) unknown.set(path, 'a reached module may create CommonJS imports');
+        if (!synchronizers.has(index) && !declaredLoader) unknown.set(path, 'a reached module may create CommonJS imports');
         continue;
       }
       if (target.startsWith('node:')) continue;
@@ -408,9 +459,13 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
     const fallback = changed.find(path => GLOBAL.has(path) || path.startsWith('.githooks/'));
     if (fallback) return { full: true, reason: `${fallback} controls the gate or dependency selection`, files };
     if (!files.length) return { full: true, reason: 'no committed Node test files can be selected', files };
-    const unsupported = changed.find(path => !MODULE.test(path) && !DOC.test(path));
-    if (unsupported) return { full: true, reason: `import selection cannot compute the effect of ${unsupported}`, files };
     const before = graphAt(root, base, changedDocs);
+    if (changed.includes('package.json') && !descriptionOnlyPackage(root, base, commit)) {
+      return { full: true, reason: 'package.json changes implicit runtime or package effects', files };
+    }
+    const unsupported = changed.find(path => !MODULE.test(path) && !DOC.test(path)
+      && !before.reverse.has(path) && !after.reverse.has(path));
+    if (unsupported) return { full: true, reason: `import selection cannot compute the effect of ${unsupported}`, files };
     const [unreadable] = [...before.undeclared, ...after.undeclared];
     if (unreadable) return { full: true, reason: `${unreadable[0]}: ${unreadable[1]}`, files };
     const reached = new Set(changed);
