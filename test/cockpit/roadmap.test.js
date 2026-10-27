@@ -16,7 +16,8 @@ const ROADMAP_FACTS = `JSON.stringify({ tab: typeof view === 'undefined' ? null 
   ids: [...document.querySelectorAll('#roadmap .milestone-item .id')].slice(0, 12).map((node) => node.textContent),
   expanded: [...document.querySelectorAll('#roadmap .milestone-item')].slice(0, 12).map((row) => row.getAttribute('aria-expanded')),
   dots: document.querySelectorAll('#roadmap .dot').length,
-  detail: (document.querySelector('#detail h2')?.textContent || '').trim().slice(0, 80) })`;
+  detail: (document.querySelector('#detail h2')?.textContent || '').trim().slice(0, 80),
+  pressed: window.__pressed ?? null, jump: window.__roadmapJump ?? null })`;
 
 /**
  * Name the step a roadmap wait was waiting on and the roadmap state it last saw, so a timeout reads as a diagnosis
@@ -1227,6 +1228,16 @@ test('a release jump on a phone leaves its heading below the top bar [N26]', { t
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: false });
     await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
     await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+    await chrome.stable(`(() => {
+      window.__roadmapJump = [];
+      const observer = new MutationObserver(records => {
+        const target = document.querySelector('#roadmap-list [data-key="m:0.9.1"]');
+        window.__roadmapJump.push({ arrival: target?.classList.contains('roadmap-arrival') ?? null,
+          replaced: records.some(record => record.type === 'childList'), scrollY, pressed: window.__pressed });
+        window.__roadmapJump = window.__roadmapJump.slice(-12);
+      });
+      observer.observe(document.querySelector('#roadmap'), { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+    })()`);
     await press(chrome, `document.querySelector('#roadmap-panel [data-roadmap-jump="m:0.9.1"]')`);
     await chrome.waitFor(`document.querySelector('#roadmap-list [data-key="m:0.9.1"]')?.classList.contains('roadmap-arrival')`);
     const position = JSON.parse(await chrome.stable(`JSON.stringify((() => {

@@ -870,7 +870,7 @@ async function everyBoardJourney(t, slow = null, { restart = false } = {}) {
     assert.equal(linkedSetup.code, 0, 'A completes the real relay on --all after phone pairing');
     assert.equal(linkedSetup.document.linked.length, 1, 'the one registered A board links through the CLI');
     assert.equal(linkedSetup.document.paired, true, 'the fixture phone completes the actual device enrollment');
-    await chromeB.waitFor("location.hash === '' && document.querySelector('#chain')?.textContent.includes('linked machine A board')", 45_000); // budget: bounded setup wait within this journey test’s declared outer timeout (5x relay-work budget plus 180 seconds).
+    await chromeB.waitFor("!/(?:^|[&#])(?:device|key|pullboard-local)=/u.test(location.hash) && data?.project?.items?.some(item => item.title === 'linked machine A board')", 45_000); // budget: bounded setup wait within this journey test’s declared outer timeout (5x relay-work budget plus 180 seconds).
     await stopRoutes.navigate('about:blank');
     journeyTrace.begin();
     networkAtStart = networkServicePids(profileB);
