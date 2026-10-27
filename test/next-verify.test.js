@@ -59,8 +59,8 @@ async function project(t) {
   git(root, 'worktree', 'add', '-q', box.reviewer, '-b', 'review/one');
   box.board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(box.board));
-  box.builderId = store.register(box.board, { lane: 'web', path: box.builder });
-  box.reviewerId = store.register(box.board, { lane: 'review', path: box.reviewer });
+  box.builderId = store.register(box.board, { lane: 'web', path: box.builder, family: 'Fixture Builder Vendor' });
+  box.reviewerId = store.register(box.board, { lane: 'review', path: box.reviewer, family: 'Fixture Reviewer Vendor' });
   return box;
 }
 
@@ -131,7 +131,8 @@ test('a lone newcomer starts a reviewer with one command [V1,B26]', t => {
   assert.match(mainRefusal.next, /git worktree add --detach.*&&.*pullboard join review.*&&.*pullboard next --verify 1/u);
   const self = JSON.parse(box.run(box.web, 'next', '--verify', '1', '--json').out).error;
   assert.equal(self.code, 'SELF_VERIFY', 'the startup guidance does not give the builder a verdict');
-  const command = startup.slice(startup.indexOf('cd ')).replaceAll('"<model name>"', "'Independent Reviewer Model'");
+  assert.match(startup, /--family "<vendor family>"/u);
+  const command = startup.slice(startup.indexOf('cd ')).replaceAll('"<model name>"', "'Independent Reviewer Model'").replaceAll('"<vendor family>"', "'Independent Fixture Reviewer Vendor'");
   const independent = runFixtureChild('/bin/sh', ['-c', command], { cwd: box.repo,
     env: { ...box.env, CODEX_THREAD_ID: 'independent-review-fixture' }, encoding: 'utf8' });
   assert.equal(independent.status, 0, independent.context);
@@ -150,8 +151,8 @@ test('[V1,B3] next never offers a review to a seat sharing a parent with an auth
   const box = await project(t);
   store.register(box.board, { lane: 'web', path: box.builder, parent: 'fixture-parent-P' });
   store.register(box.board, { lane: 'review', path: box.reviewer, parent: 'fixture-parent-P' });
-  const second = store.register(box.board, { lane: 'web', path: join(box.root, 'second-builder'), parent: 'fixture-parent-P' });
-  const outsider = store.register(box.board, { lane: 'review', path: join(box.root, 'outside-reviewer'), parent: 'fixture-parent-Q' });
+  const second = store.register(box.board, { lane: 'web', path: join(box.root, 'second-builder'), family: 'Fixture Builder Vendor', parent: 'fixture-parent-P' });
+  const outsider = store.register(box.board, { lane: 'review', path: join(box.root, 'outside-reviewer'), family: 'Fixture Reviewer Vendor', parent: 'fixture-parent-Q' });
   const id = claimed(box);
   store.release(box.board, id, box.builderId);
   store.claim(box.board, id, { agentId: second, lane: 'web', leaseMs: HOUR,

@@ -47,7 +47,7 @@ export function recordItemSession(info, item, move, digest = agentSessionDigest(
 }
 
 /** The digests recorded for one item's claims and submits. */
-function ledgerDigests(info, item) {
+function ledgerDigests(info, item, commitOnly = false) {
   const file = ledgerFile(info);
   if (!existsSync(file)) return new Set();
   let text;
@@ -59,7 +59,7 @@ function ledgerDigests(info, item) {
   return new Set(text.split('\n').flatMap((line) => {
     try {
       const row = JSON.parse(line);
-      return row.item === item && typeof row.digest === 'string' ? [row.digest] : [];
+      return row.item === item && (!commitOnly || row.move === 'submit') && typeof row.digest === 'string' ? [row.digest] : [];
     } catch { return []; }
   }));
 }
@@ -92,11 +92,11 @@ function boundSeats(info, digest) {
  * @param {string|null} [digest] - Current local session digest.
  * @param {string[]} [authors] - Historical author seats from the board's claim and submit events.
  */
-export function refuseSelfSession(info, item, digest = agentSessionDigest(), authors = []) {
+export function refuseSelfSession(info, item, digest = agentSessionDigest(), authors = [], { commitOnly = false } = {}) {
   if (!digest) return;
-  const builders = [item.item_built_by, item.item_owner, ...authors].filter(Boolean);
+  const builders = [item.item_built_by, ...(commitOnly ? [] : [item.item_owner]), ...authors].filter(Boolean);
   const seats = boundSeats(info, digest);
-  if (!ledgerDigests(info, item.item_id).has(digest) && !builders.some((builder) => seats.has(builder))) return;
+  if (!ledgerDigests(info, item.item_id, commitOnly).has(digest) && !builders.some((builder) => seats.has(builder))) return;
   throw new Refused('SELF_SESSION_VERIFY', `this agent session built or submitted #${item.item_id}, so its verdict would be its own work under another seat's name`,
     'ask another agent session to verify it: pullboard next --verify from that session\'s own worktree');
 }
