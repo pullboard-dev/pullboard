@@ -1,3 +1,5 @@
+import { dirname, join } from 'node:path';
+import { headCommit, headTree, isClean } from './git.js';
 /** Keep deferred landing execution, native refusals and durable diagnostics under one admitted lease [C7]. */
 import {
   runProfiledShell,
@@ -54,4 +56,34 @@ export async function runDeferredAffectedTests(root, config, files, { directory,
     if (refused) throw refused;
   }
   return run;
+}
+
+/** Orchestrate exact source-bound deferred evidence; private landing ports retain native recording authority. */
+export async function runDeferredGuards(state, { deferredSelections, landingFailures, save, returnCulprits }) {
+  const root = state.batch.root;
+  const deferred = deferredSelections(state);
+  if (!deferred.length) return;
+  const files = [...new Set(deferred.flatMap((row) => row.files))].sort();
+  const tree = headTree(root);
+  const commit = headCommit(root);
+  const run = await runDeferredAffectedTests(root, state.config, files,
+    { directory: join(dirname(root), 'logs'), onWait: state.onWait });
+  // The same pin as the full landing gate: a result only counts for the exact merged tree it ran on.
+  if (headCommit(root) !== commit || headTree(root) !== tree || !isClean(root)) {
+    throw new Refused('LAND_SOURCE_CHANGED', 'the landing source changed while the deferred affected tests ran; restore the recorded batch before adopting');
+  }
+  await save(state, { logPath: run.logPath });
+  if (run.isGreen) { state.say(`deferred affected tests: ${files.length} file(s) green on the merged tree`); return; }
+  const failures = landingFailures(run.output, root);
+  const failed = new Set(failures.map((failure) => failure.file).filter(Boolean));
+  if (!failed.size) throw new Refused('LAND_DIAGNOSTIC', `the deferred command failed without identifying a failing test file; inspect ${run.logPath}`);
+  state.say(`deferred affected tests: ${failed.size} file(s) red on the merged tree: ${[...failed].join(', ')}; log ${run.logPath}`);
+  for (const { entry, files: own } of deferred) {
+    if (!own.some((file) => failed.has(file)) || state.culprits.some((culprit) => culprit.id === entry.id)) continue;
+    state.culprits.push({ id: entry.id, commit: entry.commit, ...(entry.reviewedCommit ? { reviewedCommit: entry.reviewedCommit } : {}),
+      mergeCommit: state.batch.tip, tests: failures.filter((failure) => own.includes(failure.file)) });
+  }
+  await save(state, { culprits: state.culprits });
+  await returnCulprits(state);
+  throw new Refused('GATE_RED', `the deferred affected tests are red on the merged tree: ${[...failed].join(', ') || 'no failing file was named; inspect the merged tree'}`);
 }
