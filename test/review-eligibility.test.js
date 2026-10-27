@@ -226,8 +226,12 @@ test('modern Strict policy fences old-engine reserve, selection and verdict repl
         { sequence: 1, at: '2026-10-27T00:01:00.000Z' }), { code: 'RELAY_MOVE' }, operation);
       assert.deepEqual(exportBoard(f.board), before, 'old engine cannot mutate item, verdict, reservation, receipt or cursor');
       const current = applyEngineMove(f.board, move, { sequence: 1, at: '2026-10-27T00:01:00.000Z' });
-      assert.equal(operation === 'reserveNextReview' ? current.value?.item ?? null : current.error?.code,
+      assert.equal(operation === 'reserveNextReview' ? current.result?.item ?? null : current.error?.code,
         operation === 'reserveNextReview' ? null : 'STRICT_REVIEW_TOUCHED', 'modern replay enforces the session-write rule');
+      if (operation === 'reserveNextReview') {
+        assert.equal(current.error, undefined);
+        assert.ok(current.result.reasons.some(reason => /Strict review refuses this session/.test(reason)));
+      }
       assert.equal(store.getItem(f.board, id).item_status, 'submitted');
       assert.equal(store.getItem(f.board, id).item_review_by, null);
     }

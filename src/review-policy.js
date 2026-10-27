@@ -1,3 +1,4 @@
+import { REVIEW_INDEPENDENCE_ENGINE } from './review-independence-engine.js';
 import { Refused } from './refused.js';
 
 /** A declared vendor label is compared as text, never inferred from a model or diagnostic. */
@@ -18,3 +19,17 @@ export function itemReviewPolicy(board, id) {
   return { ...policy, tier: policy.sensitive || policy.reviewFamily ? 'strict' : 'standard' };
 }
 
+
+
+/** Modern recorded policy is an authority witness; old reviews cannot reinterpret its rules. */
+export function itemReviewPolicyEngine(board, id) {
+  if (!board) return 1;
+  return board.db.prepare("SELECT 1 FROM board_meta WHERE meta_key=? OR meta_key='line_setting:requireReviewFamilies' LIMIT 1")
+    .get(`review_independence:${id}`) ? REVIEW_INDEPENDENCE_ENGINE : 1;
+}
+
+/** A queue selector must understand every modern policy before excluding or choosing its target. */
+export function anyItemReviewPolicyEngine(board) {
+  return board?.db.prepare("SELECT 1 FROM board_meta WHERE meta_key LIKE 'review_independence:%' OR meta_key='line_setting:requireReviewFamilies' LIMIT 1").get()
+    ? REVIEW_INDEPENDENCE_ENGINE : 1;
+}

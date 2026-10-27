@@ -2,6 +2,7 @@
 import { ENGINE_VERSION } from './machine.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from './review-independence-engine.js';
 import { effectiveAgentParent } from './seats.js';
+import { saveReviewFamily } from './required-review-family.js';
 import { validateReviewFamily } from './required-review-family.js';
 import { Refused } from './refused.js';
 import { familyName } from './review-policy.js';
@@ -36,6 +37,7 @@ export function reviewPolicyChange(board, id, { sensitive, reviewFamily } = {}) 
 /** Store policy in the same native transaction and snapshot as its add or edit event. */
 export function saveItemReviewPolicy(board, id, policy) {
   if (!policy) return;
+  saveReviewFamily(board, id, policy.reviewFamily);
   board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
     .run(`review_independence:${id}`, JSON.stringify(policy));
 }
