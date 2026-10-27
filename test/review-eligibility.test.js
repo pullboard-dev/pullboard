@@ -215,7 +215,11 @@ test('modern Strict policy fences old-engine reserve, selection and verdict repl
     for (const operation of ['reserveReview', 'reserveNextReview', 'verify']) {
       const f = fixture(t), id = f.add(policy);
       store.appendFact(f.board, id, { agentId: 'core-2', kind: 'note', text: 'A real native write forbids this session under Strict.' });
-      const item = f.submit(id);
+      // Explicit synthetic frozen policy is required by real ordered verify replay, not runtime proof.
+      store.claim(f.board, id, { agentId: 'core-1', lane: 'core', leaseMs: LEASE,
+        freeze: () => ({ text: JSON.stringify({ policy: { version: 1, commit: 'a'.repeat(40), verify: { policy: 'any', family: 'off' } } }), digest: 'synthetic-review-bar' }) });
+      submitFixture(f.board, id, { agentId: 'core-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
+      const item = store.getItem(f.board, id);
       const options = { agentId: 'core-3', lane: 'core', leaseMs: LEASE, policy: 'any', familyPolicy: 'off' };
       const args = operation === 'reserveNextReview' ? [options] : [id, operation === 'verify'
         ? { agentId: 'core-3', decision: 'ACCEPT', note: 'Synthetic replay authority control.', head: item.item_commit,
