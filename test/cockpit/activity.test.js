@@ -253,7 +253,7 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
       'open>withdrawn': verifiedIsFinal ? 'withdraw 4' : 'withdraw 1',
       'claimed>withdrawn': verifiedIsFinal ? null : 'withdraw 2',
       'submitted>withdrawn': verifiedIsFinal ? null : 'withdraw 1',
-      ...(!verifiedIsFinal ? { 'verified>open': 'reject · reopen (none yet)' } : {}),
+      ...(!verifiedIsFinal ? { 'verified>open': 'reject · reopen · refreeze (none yet)' } : {}),
     });
 
     // Every route is square, and the ones back to an earlier state are dashed, each at its own height.
