@@ -1,3 +1,4 @@
+import { cellSourceInputs } from './cell-lint-inputs.js';
 import { gitChildEnv } from './git.js';
 import { gitSpawnSync } from './git-adapter.js';
 /** Compute the accepted cells layout and literal graph without evaluating repository modules [CD19,CD23,CD61,CD62]. */
@@ -43,6 +44,12 @@ export function cellInventory(root) {
       }
       edges.get(file).push({ target, specifier });
     }
+  }
+  const inputs = cellSourceInputs(modules.map((file, index) => ({ file, source: sources[index] })), files);
+  for (const [file, rows] of inputs) for (const row of rows) {
+    if (row.unresolved) unknown.push({ file, specifier: row.specifier, reason: row.unresolved });
+    else if (!files.has(row.target)) unknown.push({ file, specifier: row.specifier, reason: `missing ${row.kind} input ${row.target}` });
+    else edges.get(file).push(row);
   }
   return { files, edges, unknown };
 }
