@@ -96,6 +96,7 @@ test('source-advance replay binds native episode, exact receipts and old-engine 
   const originalMove={version:1,engine:SOURCE_ADVANCE_ENGINE,id:randomUUID(),operation:'advanceItemSource',args:[box.id,{agentId:'coordinator',proof}]};
   /** Restore genuine pre-advance native history; no runtime result or receipt is synthesized. */
   function replica(name,work) {
+    /** @pullboard-board-file journey: replay the actual native source-advance event into an independent receiver. */
     const board=box.store.openBoard(join(box.scratch,`${name}.sqlite`));
     try{importBoard(board,box.original.snapshot);return work(board);}finally{box.store.closeBoard(board);}
   }

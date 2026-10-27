@@ -58,7 +58,7 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
   git(repo,'worktree','remove',candidate);
   const store = await import(pathToFileURL(join(installed,'src/board.js')));
   const boardFile = join(repo,'.git','pullboard','board.sqlite');
-  /** Keep every real SQLite connection closed before admission or child execution. */
+  /** @pullboard-board-file journey: real native worker writes and private-file lifetime; close before every admitted child. */
   function board(action) { const db=store.openBoard(boardFile,undefined,{isMain:true});try{return action(db);}finally{store.closeBoard(db);} }
   const actors = board(db => { db.executionEngineVersion=1;try{return [store.register(db,{lane:'coordinator',path:repo}),store.register(db,{lane:'web',path:join(scratch,'builder')}),store.register(db,{lane:'review',path:join(scratch,'reviewer')})];}finally{delete db.executionEngineVersion;} });
   const frozen = JSON.stringify({check,policy:{version:1,commit:base,verify:{policy:'any',family:'off'}}});
