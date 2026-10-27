@@ -18,6 +18,7 @@ import {
   digestOf,
 } from './gate-output.js';
 import {
+  refuseSandboxBlocked,
   runProfiledShell,
 } from './gate-execution.js';
 /** Quote a fixed executable or selected path without permitting shell expansion. */
