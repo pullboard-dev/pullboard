@@ -601,7 +601,6 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
               else return browserFallback(onFallback, paths[index], 'fixture-child import exposes a generic caller-selected process target');
             }
           }
-          if (target === CHROME_FIXTURE) return true; // Historical pre-byLaunch behavior, reverted only for this diagnostic.
           if (target === CHROME_FIXTURE) {
             if (!byLaunch) return true;
             const key = `${request}\0${sources[index]}`;
