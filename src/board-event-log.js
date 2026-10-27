@@ -1,3 +1,5 @@
+import { setItem } from './item-fields.js';
+import { liftConditionalHold } from './conditional-holds.js';
 import { requireHandoffActive } from './handoff-state.js';
 /** Append native events and their rebuildable proof projection in the same transaction [R2]. */
 import { ENGINE_VERSION } from './machine.js';
@@ -83,6 +85,7 @@ export function atomic(board, work) {
  * @param {number | null} itemId
  * @param {object} [detail]
  * @param {Date} [at] An enabled move may share one instant with its deadline.
+ * @returns {object} This append's exact row, even when a conditional lift appends another row.
  */
 export function logEvent(board, by, kind, itemId, detail = {}, at) {
   // Standalone native writers take the same actual lock; nested moves retain their existing savepoints.
@@ -101,9 +104,11 @@ export function logEvent(board, by, kind, itemId, detail = {}, at) {
       .run(at ? at.toISOString() : board.clock.now().toISOString(), by, kind, itemId, JSON.stringify(recorded));
     const event = board.db.prepare('SELECT * FROM event WHERE event_id = ?').get(inserted.lastInsertRowid);
     appendProofCounter(board, event);
-    board.db.exec('RELEASE proof_event_append');
     board.lastEvent = event;
     (board.emittedEvents ??= []).push(event);
+    liftConditionalHold(board, event, logEvent, setItem);
+    board.db.exec('RELEASE proof_event_append');
+    return event;
   } catch (error) {
     board.db.exec('ROLLBACK TO proof_event_append; RELEASE proof_event_append');
     throw error;
