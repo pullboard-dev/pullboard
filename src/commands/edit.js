@@ -26,6 +26,7 @@ import {
   briefArg,
   briefInLane,
   editAfter,
+  freezer,
   idArg,
   launchBaseline,
   ordered,
@@ -53,6 +54,7 @@ export async function run(io, args) {
   let change = {
     agentId: me.id,
     brief: brief === undefined ? undefined : briefInLane(ctx, store.getItem(board, id).item_lane, brief),
+    reviewFamily: values['review-family'],
     route: values.route,
     criterion: values.criterion,
     check: values.check,
@@ -70,7 +72,11 @@ export async function run(io, args) {
     const authors = referenceAuthors(ctx.info.root, change.brief);
     if (authors.length) change.referenceAuthors = authors;
   }
-  const { item, command } = store.validateItemEdit(board, id, change);
+  const { item, next, command } = store.validateItemEdit(board, id, change);
+  if (me.id === 'coordinator' && ['item_criterion', 'item_check', 'item_after'].some(key => next[key] !== item[key])) {
+    change.correction = true;
+    change.freeze = freezer(ctx, { captureVerifyPolicy: true, board });
+  }
   if (command && command !== item.item_check) refuseCheckSyntax(command);
   if (command && (command !== item.item_check || barReadySetting(board).enabled)) change.checkBaseline = values.wait ? checkBaseline(ctx.info.root, command) : prepareCheckBaseline(ctx.info.root, command);
   change.barActor = barActorForCommand(ctx, board, { asPerson });

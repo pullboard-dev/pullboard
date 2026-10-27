@@ -1,5 +1,6 @@
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
+import { nextTake } from '../next-take.js';
 import {
   sayCheckBaseline,
 } from '../check-baseline.js';
@@ -39,6 +40,9 @@ import {
  */
 export async function nextHere(io, values) {
   let ctx = context(io);
+  if (values.take && (values.build || values.verify || values.verifyId !== undefined || values.as !== undefined)) {
+    throw new Refused('USAGE', 'run pullboard next --take without an item id, --build, --verify or --as');
+  }
   if (values.build && values.verify) throw new Refused('USAGE', 'choose a build or a review: pullboard next --build or pullboard next --verify');
   if (values.verifyId !== undefined && !values.verify) {
     throw new Refused('USAGE', 'give an item id only with --verify: pullboard next --verify <id>');
@@ -51,7 +55,7 @@ export async function nextHere(io, values) {
   const deadline = Date.now() + minutes * 60_000;
   const origin = ctx.info.root;
   for (;;) {
-    const found = await nextOnce(ctx, values);
+    const found = values.take ? await nextTake(ctx, values) : await nextOnce(ctx, values);
     if (found.context) ctx = found.context;
     if (found.specMerged) {
       io.say(`merged main before claiming #${found.specMerged.item}: added spec rows ${found.specMerged.rows.join(', ')}`);
@@ -64,12 +68,13 @@ export async function nextHere(io, values) {
         sayReviewOffer(ctx, found); return 0;
       }
       const item = found.item;
+      const review = found.review ?? Boolean(values.verify);
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
-      io.result?.({ item, review: Boolean(values.verify), held: Boolean(found.held), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}) });
+      io.result?.({ item, review, held: Boolean(found.held), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}) });
       for (const reason of found.reasons ?? []) io.say(displayedWait(reason, agents, ctx.config));
       const here = cdTo(ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
-      if (values.verify) {
+      if (review) {
         sayCheckBaseline(io, item);
         io.say(`next to verify: #${item.item_id} ${item.item_title}, built by ${agentDisplayName(agents, ctx.config, item.item_built_by)} at ${item.item_commit.slice(0, 12)}`);
         io.say(`reserved for you until ${item.item_review_until}: another agent's verdict on it is refused until then; pullboard next --verify again renews it`);

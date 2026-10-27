@@ -6481,6 +6481,8 @@
     }
   ],
   "nextSteps": {
+    "BAD_REVIEW_FAMILY": "use --review-family with a nonempty declared reviewer family of at most 100 characters",
+    "REQUIRED_REVIEW_FAMILY": "ask a reviewer whose declared family matches the item review-family requirement",
     "NO_PUSH_SMOKE": "record an explicit short pushReceiptCheck.smoke command in accepted pullboard.json, then retry the additive receipt check",
     "PUSH_SOURCE_CHANGED": "commit or restore the intended push source and accepted policy, then check the push again",
     "PUSH_RECEIPT_RANGE": "restore complete local and remote commit history, then retry the push receipt check",

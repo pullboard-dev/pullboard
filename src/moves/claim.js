@@ -1,6 +1,7 @@
 import { CROSS_REPO_DEPENDENCY_ENGINE } from '../cross-repo-dependency-engine.js';
 import { SUBMIT_ADMISSION_ENGINE } from '../submit-admission-engine.js';
 import { hasForeignDependencies } from '../item-dependencies.js';
+import { AUTOMATIC_DISPATCH_ENGINE } from '../automatic-dispatch-engine.js';
 import { LINE_CAPACITY_ENGINE } from '../line-capacity-engine.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 /** Routing metadata owned by claim, discovered without a shared registry edit [C7,V4,H16]. */
@@ -30,7 +31,7 @@ function minimumEngine(args, board, at) {
   const validId = ['number', 'string'].includes(typeof id) && Number.isSafeInteger(Number(id)) && Number(id) > 0;
   const item = board && validId ? board.db.prepare('SELECT item_after FROM item WHERE item_id=?').get(id) : null;
   const foreign = item && hasForeignDependencies(item);
-  return Math.max(args[1]?.submitAdmission != null ? SUBMIT_ADMISSION_ENGINE : 1,
+  return Math.max(args[1]?.adoptCorrection === true ? AUTOMATIC_DISPATCH_ENGINE : 1, args[1]?.submitAdmission != null ? SUBMIT_ADMISSION_ENGINE : 1,
     foreign ? CROSS_REPO_DEPENDENCY_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, capacity ? LINE_CAPACITY_ENGINE : 1, existingEngine(args, board, at));
 }
 
@@ -47,6 +48,7 @@ export default Object.freeze({ operation: "claim", order: 13, engine: 1,
   "BAR_NOT_READY": "read pullboard bar <id>; ask its author to complete the named red baseline and measurement/edge notes, then have an outside parent session sign the current bar",
   "BLOCKED": "take another item with pullboard next, or shout the lane it waits on: pullboard shout <lane> \"<text>\"",
   "CRITERION_PROVES_NOTHING": "set a check that fails before the work: pullboard edit <id> --check \"<command>\", or ask the person to accept this one: pullboard check accept <id>",
+  "ENGINE_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
   "HELD": "take another item: pullboard next",
   "ITEM_LEASE_LOST": "read pullboard show <id>; if the item is free, claim it again for a build or reserve it with pullboard next --verify <id> for a review, then retry",
   "ITEM_HELD": "take another item with pullboard next while the coordinator holds this one",
