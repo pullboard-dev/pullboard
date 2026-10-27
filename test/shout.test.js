@@ -50,7 +50,7 @@ test('a common parent does not share a helper inbox and unknown sessions stay se
   assert.deepEqual(store.inbox(f.board, f.primary, { markRead: false }).map(row => row.shout_id), [own]);
 });
 
-test('one worker acknowledges both seats, preserves later mail, and suppresses its own aliases [B7,R2,N26]', t => {
+test('one worker acknowledges both seats, preserves later mail, and suppresses its own aliases [B7,R2]', t => {
   const f = participants(t);
   const first = f.send(f.primary, 'Acknowledge this snapshot');
   const second = f.send(f.sibling, 'Keep later mail pending');
@@ -84,7 +84,7 @@ test('a legacy cursor on another alias cannot hide its older directed message [B
   assert.equal(store.agentById(board, sibling).agent_last_shout_id, pending);
 });
 
-test('activity freezes the worker inbox before a later sibling message arrives [B7,N26]', t => {
+test('activity freezes the worker inbox before a later sibling message arrives [B7,R2]', t => {
   const f = participants(t);
   const first = f.send(f.primary, 'Present at snapshot');
   let later;
@@ -95,6 +95,19 @@ test('activity freezes the worker inbox before a later sibling message arrives [
   assert.deepEqual(activity.entries.filter(row => row.shout).map(row => row.shout), [first]);
   assert.deepEqual(store.inbox(f.board, f.sibling, { through: activity.shoutCursor }).map(row => row.shout_id), [first]);
   assert.deepEqual(store.inbox(f.board, f.primary, { markRead: false }).map(row => row.shout_id), [later]);
+});
+
+test('lane and item messages follow worker aliases without granting a helper the same audience [B7]', t => {
+  const f = participants(t);
+  const id = store.addItem(f.board, { by: 'coordinator', lane: 'api', title: 'Sibling item' });
+  store.claim(f.board, id, { agentId: f.sibling, lane: 'api', leaseMs: 3_600_000,
+    freeze: () => ({ text: 'Sibling item', digest: 'sibling-item' }) });
+  const lane = f.send('api', 'Lane instruction');
+  const item = store.shout(f.board, { from: 'coordinator', to: 'api', item: id,
+    text: 'Item instruction', lanes: ['coordinator', 'web', 'api'] });
+  assert.deepEqual(store.inbox(f.board, f.primary, { markRead: false }).map(row => row.shout_id), [lane, item]);
+  assert.deepEqual(store.inbox(f.board, f.child, { markRead: false }), []);
+  assert.deepEqual(store.inbox(f.board, f.outsider, { markRead: false }).map(row => row.shout_id), [lane]);
 });
 
 /** Run one actual CLI command in a private fixture session, never the operational session. */
