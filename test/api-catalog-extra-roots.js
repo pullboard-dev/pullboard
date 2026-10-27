@@ -36,6 +36,9 @@ export async function exerciseAdditiveRoots({ project, uncataloguedRootJSON, wit
 /** Exercise immutable patches through actual submitted source and ordinary coordinator CLI authority. */
 export async function exercisePatchCommands({ box, json, submitted }) {
   const author = (await json(box, box.repo, 'whoami')).id;
+  const initial = await json(box, box.repo, 'patch', ['list', '1']);
+  assert.deepEqual(initial.patches, []);
+  assert.equal(initial.digest, null);
   const patch = ['diff --git a/app/catalog-patch.js b/app/catalog-patch.js',
     'new file mode 100644', 'index 0000000..e69de29', '--- /dev/null',
     '+++ b/app/catalog-patch.js', '@@ -0,0 +1 @@', '+export const catalogPatch = true;', ''].join('\n');
