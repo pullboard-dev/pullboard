@@ -80,7 +80,7 @@ const MAX_BLOB_BYTES = 8 * 1024 ** 2;
 const MAX_HISTORY_TAGS = 1_024;
 const MAX_TAG_CHAIN = 8;
 const TOOL_ROOT = fileURLToPath(new URL('../', import.meta.url));
-const RUNTIME_NAMES = ['runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js', 'runner-overhead.js', 'runner-recovery.js', 'runner-transport.js'];
+const RUNTIME_NAMES = ['runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'git-adapter.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js', 'runner-overhead.js', 'runner-recovery.js', 'runner-transport.js'];
 const LOADED_TOOLING = loadedTooling();
 
 /** Pin the module generation this controller loaded; later disk upgrades require a fresh controller process. */
