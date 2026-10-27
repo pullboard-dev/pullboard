@@ -1480,7 +1480,6 @@ test('a helper added to the board that changes a status outside moveItem is refu
   }
 });
 
-
 test('transport boundaries keep a new item refusal in ordered dispatch visible [M1,M4,H16]', () => {
   const inDispatch = editedSource('cli.js', /^(?:export )?async function ordered\(ctx, board, operation, args\) \{$/m,
     "$&\n  if (args[0] === 999) throw new Refused('MOON_PHASE', 'wait for the full moon');");
@@ -1493,7 +1492,6 @@ test('transport boundaries keep a new item refusal in ordered dispatch visible [
 test('same-file runner controller bridges retain child refusals in the lifecycle audit [M1,M4,C7]', () => {
   assertRunnerControllerReachability({ codeProblems, codeWalk, editedSource, machine: machineRules.MACHINE });
 });
-
 
 test('Rigor historical data boundaries do not hide a new projection refusal [M1,M4]', () => {
   const broken = editedSource('rigor-counter-state.js', /export function rigorCounterKeys\(event, person\) \{/, "export function rigorCounterKeys(event, person) { if (event.event_kind === 'probe') throw new Refused('RIGOR_PROBE', 'new item eligibility rule');");
