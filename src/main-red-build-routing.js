@@ -4,15 +4,19 @@ import * as store from './board.js';
 /** Prefer an eligible free seat, otherwise ask the newest build holder to release through ordinary commands. */
 export function mainRedBuildRouting(board, { priority = [], caller, runnable = false, routes } = {}) {
   const items = store.listItems(board);
+  const reviewing = new Set(items.filter(item => item.item_status === 'submitted').map(item => store.reviewHolder(board, item)).filter(Boolean));
+  // A caller already reviewing resumes that reservation; main red must not interrupt review work.
+  if (reviewing.has(caller)) return null;
   const repairs = new Set(priority.filter(id => items.some(item => item.item_id === id && item.item_status === 'open')));
   if (!repairs.size) return null;
+  const lanes = new Set(items.filter(item => repairs.has(item.item_id)).map(item => item.item_lane));
   const agents = store.listAgents(board).filter(seat => seat.agent_id !== 'coordinator'
-    && ['live', 'idle'].includes(seat.presence));
+    && lanes.has(seat.agent_lane) && ['live', 'idle'].includes(seat.presence));
   const candidates = [];
   for (const seat of agents) {
     const claims = items.filter(item => item.item_status === 'claimed' && item.item_owner === seat.agent_id);
     // A review reservation is work too; do not offer it as a free build seat or interrupt it.
-    if (items.some(item => item.item_status === 'submitted' && store.reviewHolder(board, item) === seat.agent_id)) continue;
+    if (reviewing.has(seat.agent_id)) continue;
     if (claims.length > 1) continue;
     const claim = claims[0] ?? null;
     const omitIds = items.filter(item => !repairs.has(item.item_id) && item.item_id !== claim?.item_id).map(item => item.item_id);

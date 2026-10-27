@@ -77,6 +77,9 @@ export async function assertMainRedCLI(t, { fixture, cli }) {
   const old = box.add('Older half-built item', { specIds: ['G2'], brief: 'Files: web/older.js' });
   box.claim(old, box.seats.actor);
   const repair = box.add('Repair actual main failure', { brief: 'Files: web/repair.js' });
+  const review = box.add('Unrelated held review', { specIds: ['G2'], brief: 'Files: docs/held-review.js' });
+  box.submit(review);
+  store.reserveReview(box.board, review, { agentId: box.seats.outside.id, leaseMs: 3_600_000, policy: 'any' });
   const context = process.env.NODE_TEST_CONTEXT;
   let comparison;
   try {
@@ -89,6 +92,17 @@ export async function assertMainRedCLI(t, { fixture, cli }) {
   assert.equal(comparison.unavailable, undefined, JSON.stringify(comparison));
   assert.deepEqual(comparison.files, [{ file: 'test/main-red.test.js', result: 'red' }]);
   assert.deepEqual(mainRedReworkItems(box.root, box.board), [repair]);
+  const reviewing = exportBoard(box.board);
+  assert.equal(mainRedBuildRouting(box.board, { priority: [repair], caller: box.seats.outside.id }), null);
+  assert.deepEqual(exportBoard(box.board), reviewing, 'the router does not disturb a caller-held review');
+  assert.equal(mainRedBuildRouting(box.board, { priority: [repair], caller: box.seats.builder.id }).buildOffer.seat,
+    box.seats.builder.id, 'a different free caller still receives the main-red build');
+  const resumed = await cli(box, box.seats.outside.path, ['next', '--take']);
+  assert.equal(resumed.code, 0, resumed.out + resumed.err);
+  assert.equal(resumed.document.item.item_id, review);
+  assert.equal(resumed.document.review, true);
+  assert.equal(store.getItem(box.board, review).item_review_by, box.seats.outside.id);
+  assert.equal(store.getItem(box.board, old).item_owner, box.seats.actor.id);
   const before = exportBoard(box.board);
   const offered = await cli(box, box.seats.actor.path, ['next']);
   assert.equal(offered.code, 0, offered.out + offered.err);
