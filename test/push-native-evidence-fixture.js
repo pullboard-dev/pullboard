@@ -1,7 +1,10 @@
 /** Real receipt-writer/component integration, not a CLI landing or lease assurance claim [C7]. */
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import {
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
 import { git } from '../src/git.js';
@@ -61,6 +64,11 @@ export async function assertNativePushEvidence(root) {
     hash: createHash('sha256').update(bytes).digest('hex'), blob: git(root, ['rev-parse', `${tip}:${failure.file}`]),
     trunkBlob: null, names: [failure.name], lane: 'web', batchId, branch: 'refs/heads/main', requireOpen: true }));
   assert.deepEqual(board(root, db => nativePushReceiptProblems(root, db, [tip])), []);
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ ...config, gate: 'node bin/run-tests.js --test-concurrency=1' }));
+  git(root, ['add', 'pullboard.json']);
+  git(root, ['commit', '-q', '-m', 'chore: change future gate policy']);
+  assert.deepEqual(board(root, db => nativePushReceiptProblems(root, db, [tip])), [],
+    'historical receipts retain their own exact pinned policy when the current command changes');
   board(root, db => store.withdraw(db, defect.item, { agentId: 'coordinator', reason: 'component closed-repair control' }));
   assert.match(board(root, db => nativePushReceiptProblems(root, db, [tip])).join('\n'), /lacks a native open repair link/u);
 }

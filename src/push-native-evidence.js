@@ -1,6 +1,6 @@
 /** Native, append-ordered push evidence; caller filing assertions are never authority [C7]. */
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { gitSpawnSync } from './git-adapter.js';
 import { getItem } from './board-query.js';
 import { COORDINATOR } from './config.js';
 import {
@@ -17,7 +17,10 @@ import { gateRuns } from './quarantine.js';
 import { pushCommandDigest } from './pre-push-receipts.js';
 import { policyAt } from './trusted-policy-read.js';
 
-/** Bind an ordered native event to canonical private bytes and its exact committed tree. */
+/**
+ * Bind an ordered event to private bytes, source tree and its own pinned policy: ordinary landings name the
+ * accepted main at execution; collection audits name the audited head. Today's command is not retroactive authority.
+ */
 function boundRun(root, board, run) {
   const store = boardReceiptStore(board);
   const receipt = readGateReceipt(store, run.id);
@@ -35,8 +38,10 @@ function filedFailure(root, board, audit, failure, defects) {
   let bytes;
   let blob;
   try {
-    bytes = execFileSync('git', ['--no-replace-objects', 'show', `${audit.head}:${failure.file}`],
-      { cwd: root, env: gitChildEnv(root), stdio: ['ignore', 'pipe', 'pipe'] });
+    const read = gitSpawnSync(['--no-replace-objects', 'show', `${audit.head}:${failure.file}`],
+      { cwd: root, env: gitChildEnv(root), encoding: null, stdio: ['ignore', 'pipe', 'pipe'] });
+    if (read.status !== 0 || read.signal || read.error || !Buffer.isBuffer(read.stdout)) return false;
+    bytes = read.stdout;
     blob = git(root, ['rev-parse', '--verify', `${audit.head}:${failure.file}`]).trim();
   } catch { return false; }
   const hash = createHash('sha256').update(bytes).digest('hex');
