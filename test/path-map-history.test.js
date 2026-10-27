@@ -169,6 +169,7 @@ test('why on an old name includes work landed at the new name [C7]', () => {
 
 test('flake and Rigor read projections join moved names while original SQLite events stay unchanged [C7]', () => {
   const box = movedFixture();
+  /** @pullboard-board-file persistence: the case proves the original SQLite events on disk stay unchanged after a move. */
   const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try {
     const actor = store.register(board, { lane: 'web', path: join(box.dir, 'observation-seat') });

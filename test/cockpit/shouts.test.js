@@ -1019,7 +1019,9 @@ test('shout cards fit beside a classic scrollbar [N26]', { timeout: 120_000 }, a
         const width=document.documentElement.clientWidth;
         const edge=e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width};};
         const cards=[...document.querySelectorAll('#feed .shout,#decisions .shout')];
-        return {width,scroll:document.documentElement.scrollWidth,body:document.body.scrollWidth,
+        const contentOver=[...document.body.querySelectorAll('*')].filter(e=>e.getClientRects().length && (edge(e).right>width+0.1 || e.scrollWidth>e.clientWidth+1)).slice(0,30).map(e=>{
+          const s=getComputedStyle(e);return {kind:e.id||e.className||e.tagName,...edge(e),client:e.clientWidth,scroll:e.scrollWidth,display:s.display,minWidth:s.minWidth,font:s.font,overflow:s.overflow};});
+        return {width,scroll:document.documentElement.scrollWidth,body:document.body.scrollWidth,contentOver,
           headers:cards.map(card=>({box:edge(card.querySelector('header')),text:edge(card.querySelector('.text')),age:{...edge(card.querySelector('time')),whole:card.querySelector('time').scrollWidth<=card.querySelector('time').clientWidth},children:[...card.querySelector('header').children].map(e=>({kind:e.className||e.tagName,...edge(e)}))})),
           models:[...document.querySelectorAll('#feed .agent-model')].map(e=>e.textContent),
           ids:cards.flatMap(card=>[...card.querySelectorAll('.agent-id')].map(id=>({id:edge(id),card:edge(card)}))),
@@ -1027,7 +1029,7 @@ test('shout cards fit beside a classic scrollbar [N26]', { timeout: 120_000 }, a
       })()`);
       assert.equal(metrics.width,360, scheme+': actual page content is 360px, including on classic-scrollbar Chrome');
       assert.ok(metrics.models.some(text=>text.includes('Test Model')), 'the regression fixture includes real API model names');
-      assert.ok(metrics.scroll<=metrics.width&&metrics.body<=metrics.width, scheme+': no sideways scroll: '+JSON.stringify({width:metrics.width,scroll:metrics.scroll,body:metrics.body,over:metrics.over}));
+      assert.ok(metrics.scroll<=metrics.width&&metrics.body<=metrics.width, scheme+': no sideways scroll: '+JSON.stringify({width:metrics.width,scroll:metrics.scroll,body:metrics.body,over:metrics.over,contentOver:metrics.contentOver}));
       assert.ok(metrics.headers.every(h=>h.children.every(e=>e.left>=h.box.left-1&&e.right<=h.box.right+1)&&h.age.whole&&Math.abs(h.age.right-h.box.right)<=1&&h.age.bottom<=h.text.top+1),
         scheme+': each header fits one line with its complete age at the right: '+JSON.stringify(metrics.headers));
       assert.ok(metrics.ids.length>0&&metrics.ids.every(({id,card})=>id.width>0&&id.left>=card.left&&id.right<=card.right),

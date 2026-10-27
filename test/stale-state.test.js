@@ -20,6 +20,7 @@ import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { run as statusRun } from '../src/commands/status.js';
+import { fixtureBoard } from './board-fixture.js';
 
 const MINUTE = 60_000;
 
@@ -40,6 +41,7 @@ function fixture(t) {
     const reflog = resolve(path, box.git(path, 'rev-parse', '--git-path', 'logs/HEAD').trim());
     utimesSync(reflog, clock.now(), clock.now());
   };
+  // @pullboard-board-file journey: this is the same durable board.sqlite opened by the fixture's real CLI.
   const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(board));
   const builder = store.register(board, { lane: 'web', path: join(box.dir, 'builder') });
@@ -228,8 +230,7 @@ test('ordered stale review expiry replays captured evidence despite a replica-lo
   const outcome = applyRelayMove(f.board, move, options);
   assert.equal(outcome.error, undefined, JSON.stringify(outcome.error));
   assert.deepEqual(outcome.result.reviews, [id]);
-  const replica = store.openBoard(join(f.box.dir, 'replay.sqlite'), f.clock);
-  t.after(() => store.closeBoard(replica));
+  const replica = fixtureBoard(t, { clock: f.clock });
   importBoard(replica, prefix);
   heartbeatSeat(replica, f.reviewer);
   const replayed = applyRelayMove(replica, move, options);
@@ -416,9 +417,8 @@ test('conditional hold replay retains the trigger and refuses a writer below its
   const outcome = applyRelayMove(f.board, move, options);
   assert.equal(outcome.error, undefined, JSON.stringify(outcome.error));
   assert.equal(store.itemHold(f.board, id), null);
-  const replica = store.openBoard(join(f.box.dir, 'condition-replay.sqlite'), f.clock);
-  const older = store.openBoard(join(f.box.dir, 'condition-old-writer.sqlite'), f.clock);
-  t.after(() => { store.closeBoard(replica); store.closeBoard(older); });
+  const replica = fixtureBoard(t, { clock: f.clock });
+  const older = fixtureBoard(t, { clock: f.clock });
   importBoard(replica, prefix);
   importBoard(older, prefix);
   assert.deepEqual(applyRelayMove(replica, move, options), outcome);
