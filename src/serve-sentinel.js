@@ -12,7 +12,8 @@ const CLI = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
 
 /** Read the board and machine off switches before starting any background child. */
 function sentinelRunsFor(root) {
-  return healthSentinelEnabled(loadConfig(root));
+  const config = loadConfig(root);
+  return config.claims.releaseGone || healthSentinelEnabled(config);
 }
 
 /** Run only the ordered health scan in one owned child and drain it on view shutdown. */
