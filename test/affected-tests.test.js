@@ -7,7 +7,8 @@ import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { selectAffectedTests, selectTestTreeGuards } from '../src/affected-tests.js';
+import { selectAffectedTests } from '../src/affected-tests.js';
+import * as affectedTests from '../src/affected-tests.js';
 import { installSubmitTestTreeCases } from './submit-test-tree-cases.js';
 
 installSubmitTestTreeCases();
@@ -400,8 +401,8 @@ test('repo-wide test guards survive declaration removal and use committed leadin
   box.put('test/scanner.test.js', 'export const scan = false;\n');
   box.put('test/new.test.js', 'export const added = true;\n');
   const commit = box.commit();
-  assert.deepEqual(selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js']);
-  assert.deepEqual(selectTestTreeGuards(box.root, { base, commit, changed: ['src/api.js'] }), []);
+  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js']);
+  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit, changed: ['src/api.js'] }), []);
   box.put('test/text.test.js', header + 'export const dirty = true;\n');
-  assert.deepEqual(selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js'], 'dirty declarations have no authority');
+  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js'], 'dirty declarations have no authority');
 });
