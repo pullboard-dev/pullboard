@@ -145,7 +145,7 @@ test('native private-board identity refuses a misplaced private snapshot [N26]',
   assert.equal(existsSync(output), false);
 });
 
-test('a clean public export renders offline with public work and no write path [N26]', { timeout: 120_000 }, async t => { // budget: one native fixture lifecycle and owned browser launch; a hang ceiling only.
+test('a clean public export renders offline with public work and no write path [N26]', { timeout: 120_000 }, async () => { // budget: one native fixture lifecycle and owned browser launch; a hang ceiling only.
   const executable = chromeExecutable();
   assert.ok(executable, 'the native public-export proof needs the configured browser');
   const box = machine();
@@ -168,13 +168,17 @@ test('a clean public export renders offline with public work and no write path [
   assert.ok(state.state.items.find(item => item.id === 2).merged);
   assert.ok(JSON.stringify(state.state.milestones).includes('Public milestone'));
   const staticView = await serveFolder(output, '/public/');
-  t.after(() => staticView.close());
-  const chrome = await openSnapshotChrome(executable, staticView.base + '/public/', join(box.dir, 'public-browser'));
-  t.after(() => closeSnapshotChrome(chrome));
-  await chrome.waitFor("snapshot && data?.project?.items.some(item => item.title === 'Public task')");
-  assert.equal(await chrome.stable('snapshot'), true);
-  assert.equal(await chrome.stable("data.project.shouts.some(shout => shout.shout_text === 'Public progress')"), true);
-  assert.equal(await chrome.stable("act('shout', {to:'web',text:'must not write'})"), false);
-  const reads = staticView.requests.filter(request => request.path.includes('/api/'));
-  assert.ok(reads.length > 0 && reads.every(request => request.status === 200), 'all board reads use static files');
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, staticView.base + '/public/', join(box.dir, 'public-browser'));
+    await chrome.waitFor("snapshot && data?.project?.items.some(item => item.title === 'Public task')");
+    assert.equal(await chrome.stable('snapshot'), true);
+    assert.equal(await chrome.stable("data.project.shouts.some(shout => shout.shout_text === 'Public progress')"), true);
+    assert.equal(await chrome.stable("act('shout', {to:'web',text:'must not write'})"), false);
+    const reads = staticView.requests.filter(request => request.path.includes('/api/'));
+    assert.ok(reads.length > 0 && reads.every(request => request.status === 200), 'all board reads use static files');
+  } finally {
+    try { if (chrome) await closeSnapshotChrome(chrome); }
+    finally { await staticView.close(); }
+  }
 });
