@@ -9,4 +9,3 @@ export const verifyFrozenFixture = (board, id, fields) =>
   store.verify(board, id, { head: 'a'.repeat(40), digest: 'digest:Page', policy: 'any', note: 'broke the fix; its test failed; restored it',
     ...(fields.decision === 'REJECT' && (board.executionEngineVersion ?? REJECT_CLAUSE_ENGINE) >= REJECT_CLAUSE_ENGINE
       ? { clause: store.getItem(board, id).item_title } : {}), ...fields });
-
