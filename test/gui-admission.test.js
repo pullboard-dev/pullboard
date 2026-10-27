@@ -1,11 +1,13 @@
 /** GUI requirements are explicit file metadata and fresh execution-user domain observations [C7,V4]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { testsNeedGui } from '../src/gui-admission.js';
+import { checkNeedsGui, testsNeedGui } from '../src/gui-admission.js';
 import { guiSession } from '../src/gui-session.js';
+import { cleanGitEnvironment } from '../src/git.js';
+import { runFixtureGit } from './fixture-child.js';
 
 test('GUI admission reads an explicit file marker rather than Chrome headless arguments [C7,V4]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-gui-marker-'));
@@ -38,4 +40,56 @@ test('GUI marker text in code does not turn an ordinary file into desktop work [
   assert.equal(testsNeedGui(root, ['literal.test.js']), false, 'code strings are not header annotations');
   writeFileSync(join(root, 'licensed.test.js'), '/** License. */\n/** @pullboard-test-gui */\nconst flags = ["--headless=new"];');
   assert.equal(testsNeedGui(root, ['licensed.test.js']), true, 'the explicit marker may follow a leading license comment');
+});
+
+
+/** Create committed GUI revisions with real Git while keeping classification independent of live source. */
+function committedGuiFixture(t) {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-gui-commit-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const env = { ...cleanGitEnvironment(), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+  const command = (...args) => runFixtureGit(['-c', 'core.hooksPath=/dev/null', ...args], { cwd: root, env });
+  command('init', '-q');
+  command('config', 'user.name', 'GUI fixture');
+  command('config', 'user.email', 'gui@example.invalid');
+  mkdirSync(join(root, 'bin'));
+  mkdirSync(join(root, 'test'));
+  writeFileSync(join(root, 'bin/run-tests.js'), '// Private classifier fixture; never executed.\n');
+  writeFileSync(join(root, 'test/native.test.js'), '/** Ordinary test. */\n');
+  command('add', '.');
+  command('commit', '-qm', 'Ordinary source');
+  const base = command('rev-parse', 'HEAD');
+  writeFileSync(join(root, 'test/native.test.js'), '/** @pullboard-test-gui */\n');
+  writeFileSync(join(root, 'test/added.test.js'), '/** @pullboard-test-gui */\n');
+  command('add', '.');
+  command('commit', '-qm', 'Committed desktop source');
+  const desktop = command('rev-parse', 'HEAD');
+  return { root, command, base, desktop };
+}
+
+test('GUI admission classifies the exact committed selection and opaque tree, never live markers [C7,V4]', async t => {
+  const box = committedGuiFixture(t);
+  const check = 'node bin/run-tests.js test/native.test.js';
+  box.command('checkout', '-q', '--detach', box.base);
+  assert.equal(await checkNeedsGui(box.root, check), false);
+  assert.equal(await checkNeedsGui(box.root, check, { commit: box.desktop }), true, 'a patch-only marker requests actual desktop admission');
+  assert.equal(await checkNeedsGui(box.root, 'opaque-check', { commit: box.desktop }), true, 'opaque checks inspect committed added test files');
+  assert.equal(await checkNeedsGui(box.root, 'node bin/run-tests.js test/added.test.js', { commit: box.desktop }), true, 'selected newly committed files need not exist live');
+  box.command('checkout', '-q', '--detach', box.desktop);
+  assert.equal(await checkNeedsGui(box.root, check), true);
+  assert.equal(await checkNeedsGui(box.root, check, { commit: box.base }), false, 'live annotations cannot replace the selected committed source');
+  assert.equal(await checkNeedsGui(box.root, 'opaque-check', { commit: box.base }), false);
+});
+
+test('unreadable or nonregular committed GUI metadata retains desktop admission [C7,V4]', async t => {
+  const box = committedGuiFixture(t);
+  const check = 'node bin/run-tests.js test/native.test.js';
+  assert.equal(await checkNeedsGui(box.root, check, { commit: '0'.repeat(40) }), true);
+  assert.equal(await checkNeedsGui(box.root, check, { commit: 'not-a-commit' }), true);
+  box.command('checkout', '-q', '--detach', box.base);
+  symlinkSync('../missing-target', join(box.root, 'test/link.test.js'));
+  box.command('add', 'test/link.test.js');
+  box.command('commit', '-qm', 'Nonregular test input');
+  const link = box.command('rev-parse', 'HEAD');
+  assert.equal(await checkNeedsGui(box.root, 'node bin/run-tests.js test/link.test.js', { commit: link }), true);
 });

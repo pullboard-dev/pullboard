@@ -1,5 +1,6 @@
 /** Review independence follows every claim and submit author, never just the latest owner [V1,B3]. */
 import { ENGINE_VERSION } from './machine.js';
+import { itemPatchAuthors } from './item-patch-state.js';
 import { HISTORICAL_AUTHORS_ENGINE } from './historical-authors-engine.js';
 import { Refused } from './refused.js';
 import { PARENT_SESSION_ENGINE } from './parent-session-engine.js';
@@ -13,6 +14,7 @@ export function itemAuthors(board, item) {
   for (const event of board.db.prepare("SELECT DISTINCT event_by FROM event WHERE item_id = ? AND event_kind IN ('claim', 'submit')").all(item.item_id)) {
     if (typeof event.event_by === 'string' && event.event_by) authors.add(event.event_by);
   }
+  for (const author of itemPatchAuthors(board, item.item_id)) authors.add(author.agentId);
   return [...authors];
 }
 
@@ -21,7 +23,10 @@ function authorIdentityProblem(board, item, reviewer, authors) {
   if (authors.includes(reviewer)) return new Refused('SELF_VERIFY', 'the builder never verifies its own work; another agent must');
   if ((board.executionEngineVersion ?? ENGINE_VERSION) >= PARENT_SESSION_ENGINE) {
     const parent = effectiveAgentParent(board, reviewer);
-    if (authors.some(author => effectiveAgentParent(board, author) === parent)) {
+    const snapshots = itemPatchAuthors(board, item.item_id);
+    const session = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`agent_session:${reviewer}`)?.meta_value;
+    if (authors.some(author => effectiveAgentParent(board, author) === parent)
+        || snapshots.some(author => author.parentSession && author.parentSession === parent || session && author.session === session)) {
       return new Refused('SELF_SESSION_VERIFY', `this seat shares a parent session with an author of #${item.item_id}; ask a seat under another parent session to verify it`);
     }
   }
