@@ -1,6 +1,7 @@
 /**
  * True only after a no-verdict reopen followed by an explicit refreeze, or an edit that clears the
- * old frozen bar followed by a new claim. Reopening a verified landing failure is excluded.
+ * old frozen bar or atomically freezes its correction, followed by a matching new claim.
+ * Reopening a verified landing failure is excluded.
  *
  * @param {any} board
  * @param {number} id
@@ -23,10 +24,17 @@ export function correctedNoVerdictReopen(board, id, commit) {
   });
   if (!previousSubmission) return false;
   const afterReopen = history.slice(0, boundary);
-  const latestBarChange = afterReopen.find((entry) => entry.event_kind === 'refreeze'
-    || (entry.event_kind === 'edit' && Object.hasOwn(JSON.parse(entry.event_detail), 'unfrozen')));
+  const latestBarChange = afterReopen.find((entry) => {
+    if (entry.event_kind === 'refreeze') return true;
+    if (entry.event_kind !== 'edit') return false;
+    const detail = JSON.parse(entry.event_detail);
+    return Object.hasOwn(detail, 'unfrozen')
+      || typeof detail.correctedFrozen === 'string' && /^[a-f0-9]{64}$/u.test(detail.correctedFrozen);
+  });
   if (!latestBarChange) return false;
   if (latestBarChange.event_kind === 'refreeze') return true;
+  const correction = JSON.parse(latestBarChange.event_detail).correctedFrozen;
   return afterReopen.some((entry) => entry.event_kind === 'claim' && entry.event_id > latestBarChange.event_id
-    && Boolean(JSON.parse(entry.event_detail).digest));
+    && (correction === undefined ? Boolean(JSON.parse(entry.event_detail).digest)
+      : JSON.parse(entry.event_detail).digest === correction));
 }
