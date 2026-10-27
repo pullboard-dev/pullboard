@@ -40,7 +40,7 @@ test('release partitions tracked work across every required executor without mov
 test('release placement refuses missing changed or incompatible executors and ambiguous observations [C7,Q1,I15]', async () => {
   const executors = targets();
   const files = Array.from({ length: 8 }, (_, i) => `test/ordinary-${i}.test.js`);
-  await assert.rejects(planReleaseShards(files, executors.slice(1)), /eight|nonempty/);
+  await assert.rejects(planReleaseShards(files, []), /nonempty/);
   await assert.rejects(planReleaseShards(files.slice(1), executors), /nonempty/);
   await assert.rejects(planReleaseShards(files, executors, {}, async () => true, async () => true), /compatible/);
   const value = { version: 1, id: '6af8c70a-65f0-4a61-8040-3f1f278d9a10', executors };
@@ -52,15 +52,28 @@ test('release placement refuses missing changed or incompatible executors and am
   assert.equal(releaseParticipation(RELEASE_PARTICIPATION_PREFIX + 'broken\n', value.id), null);
 });
 
-test('a native release with fewer than eight registered machines refuses before running or leaving a green stamp [C7,I15]', async t => {
+test('a release request with no executors refuses before running or leaving a green stamp [C7,I15]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  const box = helpers.project('node -e "require(\'node:fs\').writeFileSync(\'unexpected-run\',\'bad\')"', undefined, { withWorktree: false });
+  const box = helpers.project('node -e "process.exit(99)"', undefined, { withWorktree: false });
   const source = `import assert from 'node:assert/strict';
-import {runReleaseGate} from ${JSON.stringify(new URL('../src/release-gate.js', import.meta.url).href)};
-await assert.rejects(runReleaseGate(process.cwd()), /eight distinct registered executors/);`;
+import {runGate} from ${JSON.stringify(new URL('../src/gate.js', import.meta.url).href)};
+await assert.rejects(runGate(process.cwd(),{gate:'node -e "process.exit(99)"'},
+ {trustStamp:false,landing:true,collectAll:true,releaseRequest:{version:1,id:'6af8c70a-65f0-4a61-8040-3f1f278d9a10',executors:[]}}),
+ error=>error.code==='GATE_RUN_EVIDENCE');`;
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env: box.env });
   assert.equal(result.status, 0, result.failure);
-  assert.equal(existsSync(join(box.repo, 'unexpected-run')), false);
   assert.equal(existsSync(join(box.repo, '.git', 'pullboard-gate-green')), false);
 });
+
+for (const count of [1, 7]) {
+  test(`release partitions work across the actual ${count}-executor registry [C7,I15]`, async () => {
+    const executors = targets().slice(0, count);
+    const files = Array.from({ length: 8 }, (_, i) => `test/ordinary-${i}.test.js`);
+    const plan = await planReleaseShards(files, executors, {}, async () => false, async () => false);
+    assert.equal(plan.length, count);
+    assert.deepEqual(plan.map(shard => shard.executor.id).sort(), executors.map(executor => executor.id).sort());
+    assert.ok(plan.every(shard => shard.files.length > 0));
+    assert.deepEqual(plan.flatMap(shard => shard.files).sort(), files.sort());
+  });
+}

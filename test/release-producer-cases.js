@@ -189,13 +189,30 @@ assert.deepEqual(receipts,[]);
     assert.deepEqual(readdirSync(box.marks).sort(), NAMES.map(name => `${name}.json`), 'full collection still observes all eight tiny files when one is red');
   });
 
-  test('a missing eighth registered executor refuses before work and cannot stamp a release [C7,V4]', async t => {
-    const box = fixture(t, { hosts: 6 });
-    const result = await producer(box, `
-await assert.rejects(()=>runReleaseGate(root),/at least eight distinct registered executors/u);
-assert.equal(isStampedGreen(root),false);
+  for (const count of [1, 7]) {
+    test(`native private release records all ${count} simulated registered executors [C7,V4]`,
+      { timeout: 180_000, cpuLoad: true }, async t => { // budget: actual private worker capsules, full collection and owned cleanup.
+      const box = fixture(t, { hosts: count - 1 });
+      const result = await producer(box, `
+const run=await runReleaseGate(root), receipt=run.receipt;
+assert.equal(receipt.participation.required.length,${count});
+assert.equal(new Set(receipt.participation.shards.map(shard=>shard.executor)).size,${count});
+assert.equal(receipt.participation.shards.length,${count});
+assert.equal(receipt.gateReceipt.collection.full,true);
+assert.equal(receipt.gateReceipt.collection.complete,true);
+assert.equal(receipt.gateReceipt.collection.plannedFiles,8);
+assert.equal(receipt.gateReceipt.collection.completedFiles,8);
+assert.deepEqual(receipt.participation.shards.flatMap(shard=>shard.files).sort(),receipt.gateReceipt.collection.files);
+assert.ok(receipt.participation.shards.every(shard=>shard.green&&shard.complete&&shard.cleanupVerified));
+assert.deepEqual(verifyNativeReleaseReceipt(root,receipt.participation.id),receipt);
+assert.equal(isStampedGreen(root),true);
 `);
-    assert.equal(result.status, 0, result.context);
-    assert.deepEqual(readdirSync(box.marks), [], 'insufficient registry cannot execute a token subset as a release');
-  });
+      assert.equal(result.status, 0, result.context);
+      assert.deepEqual(readdirSync(box.marks).sort(), NAMES.map(name => `${name}.json`));
+      if (count > 1) {
+        const calls = readFileSync(box.requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+        assert.deepEqual([...new Set(calls.map(call => call.host))].sort(), Object.keys(box.workers).sort());
+      }
+    });
+  }
 }

@@ -18,9 +18,9 @@ import { receiptBody, receiptFields } from '../src/gate-run-receipt.js';
 /** Hash synthetic command and collection data using the native digest format, without claiming they ran. */
 function digest(text) { return createHash('sha256').update(text).digest('hex'); }
 
-/** Build a clearly synthetic eight-executor complete partition for pure structural checks only. */
-function fixture() {
-  const required = Array.from({ length: 8 }, (_, i) => `synthetic-executor-${i + 1}`);
+/** Build a clearly synthetic registry-sized complete partition for pure structural checks only. */
+function fixture(count = 8) {
+  const required = Array.from({ length: count }, (_, i) => `synthetic-executor-${i + 1}`);
   const files = required.map((_, i) => `test/synthetic-${i + 1}.test.js`).sort();
   const expected = { head: 'a'.repeat(40), tree: 'b'.repeat(40), command: digest('synthetic accepted full gate'), required };
   const id = '6af8c70a-65f0-4a61-8040-3f1f278d9a10';
@@ -39,6 +39,23 @@ function fixture() {
 
 /** Register bounded structural controls; the importing frozen wrapper owns whether these tests execute. */
 export function installReleaseReceiptCases() {
+  for (const count of [1, 7]) {
+    test(`synthetic release receipt records exactly ${count} required executors [C7,V4]`, () => {
+      const { envelope, expected } = fixture(count);
+      assert.equal(releaseReceiptProblem(envelope, expected), null);
+      const receipt = releaseReceiptFields(envelope, expected);
+      assert.equal(receipt.participation.required.length, count);
+      assert.equal(new Set(receipt.participation.shards.map(shard => shard.executor)).size, count);
+      assert.equal(receipt.gateReceipt.collection.completedFiles, count);
+    });
+  }
+  test('synthetic release receipt refuses an empty required registry [C7,V4]', () => {
+    const { envelope, expected } = fixture();
+    expected.required = [];
+    envelope.participation.required = [];
+    assert.notEqual(releaseReceiptProblem(envelope, expected), null);
+  });
+
   test('synthetic release structure binds complete collection and all eight expected executors [C7,V4]', () => {
     const { envelope, expected } = fixture();
     assert.equal(releaseReceiptProblem(envelope, expected), null);
