@@ -16,7 +16,7 @@ const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const RUNNER = join(ROOT, 'bin/run-tests.js');
 const HEAVY = ['src/gate.js', 'src/board.js', 'src/machine.js'];
 
-/** Observe the independent controller's ESM loads, not its child workers; their actual execution has a separate marker. */
+/** Observe each process where Node preloads this observer; PID records distinguish the controller from file workers. */
 function moduleObserver(box) {
   const trace = join(box.dir, 'loaded.jsonl');
   const hook = join(box.dir, 'observe-loader.mjs');
@@ -25,7 +25,7 @@ function moduleObserver(box) {
     "import { appendFileSync } from 'node:fs';",
     'let trace;',
     'export function initialize(data) { trace = data.trace; }',
-    "export async function load(url, context, nextLoad) { const result = await nextLoad(url, context); appendFileSync(trace, JSON.stringify(url) + '\\n'); return result; }",
+    "export async function load(url, context, nextLoad) { const result = await nextLoad(url, context); appendFileSync(trace, JSON.stringify({pid:process.pid,url}) + '\\n'); return result; }",
   ].join('\n'));
   writeFileSync(probe, `import { register } from 'node:module';\nregister(${JSON.stringify(pathToFileURL(hook).href)}, { data: { trace: ${JSON.stringify(trace)} } });\n`);
   return { probe, trace };
@@ -37,9 +37,10 @@ function fixture() {
   delete box.env.NODE_TEST_CONTEXT;
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   box.ran = join(box.dir, 'plain-ran');
+  box.ranPid = join(box.dir, 'plain-worker-pid');
   writeFileSync(join(box.repo, 'web/plain.test.js'), [
     "import { test } from 'node:test'; import { writeFileSync } from 'node:fs';",
-    `test('plain worker really executes', () => writeFileSync(${JSON.stringify(box.ran)}, 'executed'));`,
+    `test('plain worker really executes', () => { writeFileSync(${JSON.stringify(box.ran)}, 'executed'); writeFileSync(${JSON.stringify(box.ranPid)}, String(process.pid)); });`,
   ].join('\n'));
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: prepare lazy runner fixture [G1]');
@@ -52,8 +53,8 @@ function observed(box, args) {
     cwd: box.repo, env: box.env, encoding: 'utf8',
   });
   assert.equal(child.status, 0, child.context ?? child.stderr + child.stdout);
-  const urls = readFileSync(box.trace, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
-  return { child, urls };
+  const records = readFileSync(box.trace, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
+  return { child, records, urls: records.map(record => record.url) };
 }
 
 /** Read declarations throughout the leading comment header, never from executable code or quoted examples. */
@@ -92,6 +93,20 @@ test('a plain test run loads no gate board or machine modules through its runner
   assert.ok(urls.includes(pathToFileURL(RUNNER).href), 'the actual candidate runner was observed');
   assert.ok(urls.includes(pathToFileURL(join(ROOT, 'src/gate-slot.js')).href), 'ordinary admission actually ran');
   for (const file of HEAVY) assert.ok(!urls.includes(pathToFileURL(join(ROOT, file)).href), `${file} must remain lazy in an ordinary run`);
+});
+
+test('the actual test-file preload loads no gate board or machine modules [C7,V4]', { timeout: 90_000 }, // budget: one private Node test-file process with ordinary preload and watchdog; hang ceiling only.
+() => {
+  const box = fixture();
+  // observed() installs the observer first; Node propagates both ordered public --import flags to its test worker.
+  const { child, records } = observed(box, ['--test', '--test-reporter=tap', '--import', RUNNER, 'web/plain.test.js']);
+  assert.match(child.stdout, /# pass 1\b/u);
+  assert.equal(readFileSync(box.ran, 'utf8'), 'executed');
+  const pid = Number(readFileSync(box.ranPid, 'utf8'));
+  assert.ok(Number.isSafeInteger(pid) && pid > 0, 'the actual test body recorded its worker PID');
+  const urls = records.filter(record => record.pid === pid).map(record => record.url);
+  assert.ok(urls.includes(pathToFileURL(RUNNER).href), 'the same executed worker was observed loading the candidate preload');
+  for (const file of HEAVY) assert.ok(!urls.includes(pathToFileURL(join(ROOT, file)).href), `${file} was not loaded by that actual test-file worker`);
 });
 
 test('the full gate still loads its proof modules and executes its configured check [C7,V4]', { timeout: 90_000 }, // budget: one real private full gate; no performance assertion.
