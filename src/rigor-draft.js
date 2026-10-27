@@ -6,7 +6,10 @@
  * approves or applies a row.
  */
 import { PERSON } from './board.js';
-import { historyPathMap, mappedCause } from './path-map.js';
+import {
+  historyPathMap,
+  mappedCause,
+} from './path-map.js';
 import { Refused } from './refused.js';
 import {
   causeProblem,

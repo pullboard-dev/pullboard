@@ -8,7 +8,11 @@ import { tryGit } from './git.js';
 import { mainCheckout } from './git.js';
 import { Refused } from './refused.js';
 import { originOf } from './decision-origin.js';
-import { historicalPaths, mappedPath, readPathMap } from './path-map.js';
+import {
+  historicalPaths,
+  mappedPath,
+  readPathMap,
+} from './path-map.js';
 
 /**
  * Split `path` or `path:line` into the file and an optional line.

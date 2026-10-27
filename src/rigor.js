@@ -8,7 +8,10 @@ import { Refused } from './refused.js';
 import { HEALTH_SENTINEL_ENGINE } from './health-receipts.js';
 import { BOARD_SENTINEL_ENGINE } from './sentinel-engine.js';
 import { NATIVE_FLAKE_ENGINE } from './flake-engine.js';
-import { historyPathMap, mappedCause } from './path-map.js';
+import {
+  historyPathMap,
+  mappedCause,
+} from './path-map.js';
 import {
   conflictCause,
   reopenConflictEvidence,

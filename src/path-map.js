@@ -1,5 +1,8 @@
 /** Committed file moves translate read identities; original checks and event evidence stay immutable [C7]. */
-import { mainCheckout, tryGit } from './git.js';
+import {
+  mainCheckout,
+  tryGit,
+} from './git.js';
 import { literalShellWords } from './literal-shell-words.js';
 import { Refused } from './refused.js';
 

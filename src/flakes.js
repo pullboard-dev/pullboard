@@ -1,6 +1,9 @@
 /** Typed failure observations preserve evidence separately from person-authorized waivers [C7,D1,H16]. */
 import { createHash } from 'node:crypto';
-import { historyPathMap, mappedPath } from './path-map.js';
+import {
+  historyPathMap,
+  mappedPath,
+} from './path-map.js';
 import {
   addItem,
   atomic,

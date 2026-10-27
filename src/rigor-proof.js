@@ -27,7 +27,12 @@ import { parseProcessCensus } from './process-census.js';
 import { withGateSlot } from './gate.js';
 import { gateSlotEnvironment } from './resources.js';
 import { Refused } from './refused.js';
-import { historyPathMap, mappedCheck, mappedPath, pathAtCommit } from './path-map.js';
+import {
+  historyPathMap,
+  mappedCheck,
+  mappedPath,
+  pathAtCommit,
+} from './path-map.js';
 
 const CHECK_TIMEOUT_MS = 10 * 60_000;
 const OUTPUT_LIMIT = 64 * 1024 * 1024;
