@@ -24,7 +24,7 @@ export function mainPolicy(root) {
   if (!checkout) {
     const carried = carriedRunnerTrunk(root);
     if (carried) return policyAt(root, carried.commit);
-    throw new Refused('NO_POLICY', 'the coordinator checkout is detached and no runner policy was carried; return the coordinator to its main branch or rerun through its controller');
+    throw new Refused('NO_POLICY', 'the coordinator checkout is detached for review; ask it to return to its main branch before claiming or running the project gate');
   }
   if (!checkout.commit) throw new Refused('NO_POLICY', 'the coordinator checkout has no commit on ' + checkout.branch + '; create its first commit before claiming or running the project gate');
   return policyAt(root, checkout.commit);
