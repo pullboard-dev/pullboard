@@ -104,6 +104,7 @@ export function prepareEngineMove(board, operation, args, { id = randomUUID(), a
     if (values[1].sourceMoveId !== undefined && values[1].sourceMoveId !== id) throw new Refused('RELAY_MOVE', 'a re-home must retain its exact source MOVEID');
     values[1] = { ...values[1], sourceMoveId: id };
   }
+  validateSpecRefreezeMarker(operation, values);
   if (operation === 'reopen' && values[1] && typeof values[1] === 'object'
     && manualLandingFailureQuoted(values[1].note)) values[1].quotedLandingFailure = true;
   // Seal native stored facts at origin; replicas replay these bytes without the origin file.
@@ -135,13 +136,13 @@ export function prepareEngineMove(board, operation, args, { id = randomUUID(), a
     const problem = store.reviewReleaseNoteProblem(board, values[0], values[1], values[2]);
     if (problem) throw problem;
   }
-  if (['claim', 'refreeze'].includes(operation)) {
+  if (['claim', 'refreeze'].includes(operation) || operation === 'editItem' && values[1]?.correction === true) {
     const options = values[1];
     const item = store.getItem(board, values[0]);
     if (typeof options?.freeze === 'function') {
       let frozen;
       let error;
-      try { frozen = options.freeze(item); }
+      try { frozen = options.freeze(operation === 'editItem' ? { ...item, ...store.validateItemEdit(board, values[0], options).next } : item); }
       catch (cause) {
         if (!(cause instanceof Refused)) throw cause;
         error = recordedRefusal(cause);
@@ -163,11 +164,19 @@ export function requireSupportedEngine(move) {
   if (Number.isSafeInteger(move?.engine) && move.engine > ENGINE_VERSION) throw new Refused('ENGINE_VERSION', `move engine version ${move.engine} is newer than this pullboard engine version ${ENGINE_VERSION}; upgrade pullboard before applying the relay order`);
 }
 
+/** Treat a present correction array, including an empty one, as the new apply protocol marker. */
+function validateSpecRefreezeMarker(operation, args) {
+  if (operation === 'applyRowDecisions' && Object.hasOwn(args[0] ?? {}, 'refreezes') && !Array.isArray(args[0].refreezes)) {
+    throw new Refused('ROW_DECISION', 'the spec correction payload is invalid; run pullboard spec apply again');
+  }
+}
+
 /** Validate protocol identity before a future engine or malformed input can alter any replica. */
 function validateMove(move) {
   if (!move || move.version !== 1 || !Number.isSafeInteger(move.engine) || move.engine < 1) throw new Refused('RELAY_MOVE', 'this executable move format is invalid; upgrade pullboard or restore a consistent relay snapshot');
   requireSupportedEngine(move);
   if (typeof move.id !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(move.id) || !ENGINE_OPERATIONS.includes(move.operation) || !Array.isArray(move.args)) throw new Refused('RELAY_MOVE', 'this sealed operation is invalid; use a supported board-engine operation');
+  validateSpecRefreezeMarker(move.operation, move.args);
   const minimumEngine = minimumOperationEngine(move.operation, move.args);
   if (move.engine < minimumEngine) throw new Refused('RELAY_MOVE', `${move.operation} cannot be replayed from engine version ${move.engine}; it was introduced in engine ${minimumEngine}; restore a consistent relay prefix`);
 }
@@ -182,7 +191,7 @@ export function executableArgs(move, board) {
   }
   // Implied facts take their ids from the sealed move, so every replica writes the same ones.
   if (['answerDecision', 'verify'].includes(move.operation) && args[1] && typeof args[1] === 'object' && !Array.isArray(args[1])) args[1].impliesId = move.id;
-  if (['claim', 'refreeze'].includes(move.operation)) {
+  if (['claim', 'refreeze'].includes(move.operation) || move.operation === 'editItem' && args[1]?.correction === true) {
     const options = args[1];
     if (!options || !Object.hasOwn(options, 'frozen')) throw new Refused('RELAY_MOVE', 'the claim has no frozen criterion; send it with the current pullboard engine');
     options.freeze = () => {

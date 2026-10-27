@@ -7,6 +7,13 @@ name: release
 on:
   push:
     tags: ['v*']
+  # The person, 27 Oct: GitHub CI is a second opinion. When it finds something, that becomes an item; it does not
+  # hold a release the board already proved. A tag whose Linux jobs failed publishes by hand through publish-proven.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'An existing tag vX.Y.Z on main, already proven by the board'
+        required: true
 
 permissions:
   contents: read
@@ -19,6 +26,7 @@ jobs:
       contents: write
       actions: read
       id-token: write
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -93,3 +101,42 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/release-notes.md"
+
+  # Run by hand for a proven tag: the same version and notes checks as above, without the GitHub CI gate.
+  publish-proven:
+    permissions:
+      contents: write
+      id-token: write
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+      - name: The tag names package.json's version and its commit is on main
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::$TAG is not a vX.Y.Z tag; refusing npm publish."; exit 1; }
+          test "v$(node -p "require('./package.json').version")" = "$TAG"
+          git fetch -q origin main
+          git merge-base --is-ancestor "$(git rev-parse "refs/tags/$TAG^{commit}")" origin/main \
+            || { echo "::error::$TAG is not on main; refusing npm publish."; exit 1; }
+      - name: Release notes from the tagged changelog section, with the tag's own extraction step
+        run: |
+          set -euo pipefail
+          awk "/<<'NOTES'\$/{f=1;next} f&&/^ *NOTES\$/{exit} f" .github/workflows/release.yml | sed 's/^ \{10\}//' > "$RUNNER_TEMP/notes.mjs"
+          GITHUB_REF_NAME="$TAG" node "$RUNNER_TEMP/notes.mjs"
+      - name: npm new enough for trusted publishing
+        run: npm install -g npm@latest
+      - run: npm publish --provenance --access public
+      - name: Publish the GitHub release with its changelog notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$TAG" --verify-tag --title "$TAG" --notes-file "$RUNNER_TEMP/release-notes.md"

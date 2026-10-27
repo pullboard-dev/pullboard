@@ -7,6 +7,7 @@ import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../src/person.js';
+import { assertSpecCorrectionRefreezesCitations } from './spec-refreeze-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -195,7 +196,11 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
 
   const decision = box.pullboard(box.root, 'spec', 'approve', 'G1', '--text', NEW_TEXT, '--json');
   assert.equal(decision.status, 0, `${decision.stdout}${decision.context}`);
-  succeeds(box, box.root, 'spec', 'apply', '--json');
+  // A person-approved edit can arrive through Git without native spec apply. That is the stale
+  // state diagnostics must still explain: native apply now refreezes unlanded citations atomically.
+  const priorSpec = readFileSync(join(box.root, 'SPEC.md'), 'utf8');
+  assert.ok(priorSpec.includes('The current promise.'), 'the direct Git edit starts at the frozen row');
+  writeFileSync(join(box.root, 'SPEC.md'), priorSpec.replace('The current promise.', NEW_TEXT));
   box.git(box.root, 'add', 'SPEC.md');
   const appliedCommit = runFixtureChild('git', ['commit', '-m', 'docs: update approved G1 wording [G1]'], { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.equal(appliedCommit.status, 0, `${appliedCommit.stdout}${appliedCommit.context}`);
@@ -253,6 +258,10 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
   assert.deepEqual(afterRefreeze.stale.map((item) => item.id).sort((a, b) => a - b), expected.filter((id) => id !== ids.open), 'explicit refreeze clears only the active item repaired against new text');
   const historical = (snapshot) => snapshot.items.filter((item) => item.item_status === 'verified');
   assert.deepEqual(historical(receiptSnapshot(box)), historical(before), 'refreezing active work preserves every accepted historical receipt');
+});
+
+test('[V2,V3,S19] native row approval refreezes every unlanded citation', { timeout: 120_000 }, (t) => { // budget: hang ceiling for the real-Git citation fixture across open, claimed, submitted and verified states.
+  assertSpecCorrectionRefreezesCitations(t);
 });
 
 
