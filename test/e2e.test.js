@@ -1,5 +1,5 @@
 /**
- * End to end on real repos: the CLI runs as its own process, git runs the installed hooks, and
+ * End to end on real repos: boundary journeys spawn the CLI, selected commands run in-process, git runs the installed hooks, and
  * worktrees are real worktrees (B1–B3, B6, V3, V4, V7, L3, L4, C3, I1, I2, P2).
  */
 import assert from 'node:assert/strict';
@@ -26,6 +26,7 @@ import { parseSpec } from '../src/spec.js';
 import { checkAtCommit } from '../src/trusted-policy.js';
 import * as store from '../src/board.js';
 
+import { runCliInProcess } from './cli-in-process-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -35,19 +36,24 @@ const {
   startView, LIGHT_BRIEF,
 } = e2e;
 
-test('init writes config, spec, agent docs and hooks once, and never clobbers [I1, I2]', () => {
+/** Use the fixture's exact environment and production command function without spawning Node. */
+async function command(box, cwd, ...argv) {
+  return runCliInProcess(argv, { cwd, env: box.env });
+}
+
+test('init writes config, spec, agent docs and hooks once, and never clobbers [I1, I2]', async () => {
   const box = sandbox();
   const repo = join(box.dir, 'repo');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
   writeFileSync(join(repo, 'AGENTS.md'), '# Mine\n\nkeep me\n');
   writeFileSync(join(repo, 'package.json'), JSON.stringify({ scripts: { test: 'node --test' } }));
-  const first = box.run(repo, 'init', '--verbose');
+  const first = (await command(box, repo, 'init', '--verbose'));
   assert.equal(first.code, 0);
   assert.match(first.out, /added the pullboard section to AGENTS.md/);
   assert.equal(JSON.parse(readFileSync(join(repo, 'pullboard.json'), 'utf8')).gate, 'npm test');
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: 'mine' }));
-  const second = box.run(repo, 'init', '--verbose');
+  const second = (await command(box, repo, 'init', '--verbose'));
   assert.match(second.out, /kept pullboard.json/);
   assert.doesNotMatch(second.out, /no gate yet/, 'the config already names a gate');
   assert.equal(JSON.parse(readFileSync(join(repo, 'pullboard.json'), 'utf8')).gate, 'mine');
@@ -62,7 +68,7 @@ test('init writes config, spec, agent docs and hooks once, and never clobbers [I
   assert.deepEqual(parseSpec(doctrine).rows, [], 'fresh init copies no standard rules [D4]');
   assert.equal(parseSpec(doctrine).sections.length, 6);
   assert.equal(doctrine.split('Inherits Pullboard standard doctrine version 1.').length, 2);
-  assert.equal(box.run(repo, 'spec', 'check').code, 0, 'fresh init has no repeated ids [A5]');
+  assert.equal((await command(box, repo, 'spec', 'check')).code, 0, 'fresh init has no repeated ids [A5]');
   const specRows = parseSpec(readFileSync(join(repo, 'SPEC.md'), 'utf8'));
   const doctrineRows = parseSpec(doctrine);
   const specPrefixes = specRows.sections.map(({ name }) => /^([A-Z])\s/u.exec(name)?.[1]).filter(Boolean);
@@ -76,7 +82,7 @@ test('init writes config, spec, agent docs and hooks once, and never clobbers [I
     }).join('');
     writeFileSync(join(repo, file), `${source}${additions}`);
   }
-  const representativeRows = box.run(repo, 'spec', 'check');
+  const representativeRows = (await command(box, repo, 'spec', 'check'));
   assert.equal(representativeRows.code, 0, representativeRows.err || representativeRows.out);
   assert.match(agents, /PB1 \(standard 1\)/, 'fresh guidance shows inherited rules [D3]');
   assert.ok(existsSync(join(repo, '.claude', 'skills', 'pullboard-decompose', 'SKILL.md')));
@@ -84,12 +90,12 @@ test('init writes config, spec, agent docs and hooks once, and never clobbers [I
   assert.match(second.out, /kept the Claude Code skills/);
 });
 
-test("init's spec has its sections and no rows, and the README's example fits under them as written [I1, S8]", () => {
+test("init's spec has its sections and no rows, and the README's example fits under them as written [I1, S8]", async () => {
   const box = sandbox();
   const repo = join(box.dir, 'fresh');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
-  assert.equal(box.run(repo, 'init').code, 0);
+  assert.equal((await command(box, repo, 'init')).code, 0);
   const spec = readFileSync(join(repo, 'SPEC.md'), 'utf8');
   assert.deepEqual(parseSpec(spec).rows, [], 'no placeholder row, so no placeholder id is ever committed and made permanent');
   assert.deepEqual(parseSpec(spec).sections.map((section) => section.name), ['G · Goals: what the client asked for', 'K · Constraints']);
@@ -108,7 +114,7 @@ test("init's spec has its sections and no rows, and the README's example fits un
   const [heading, ...rows] = example.trim().split('\n');
   assert.ok(rows.length > 0 && spec.includes(`${heading}\n`), `the README's example heading is one init writes: ${heading}`);
   writeFileSync(join(repo, 'SPEC.md'), spec.replace(`${heading}\n`, `${heading}\n${rows.join('\n')}\n`));
-  const check = box.run(repo, 'spec', 'check');
+  const check = (await command(box, repo, 'spec', 'check'));
   assert.equal(check.code, 0, check.out);
   assert.match(check.out, new RegExp(`SPEC.md: ${rows.length} rows, 0 errors`));
 });
@@ -159,14 +165,14 @@ test("the coordinator's resume names its next step from the spec and the board, 
   assert.match(next(box, box.repo), /^plan the approved rows no item cites \(G2\)/);
 });
 
-test('spec check lints both files; spec view writes one page into the git dir [S6, S7]', () => {
+test('spec check lints both files; spec view writes one page into the git dir [S6, S7]', async () => {
   const box = project();
   writeFileSync(join(box.repo, 'DOCTRINE.md'), '# Doctrine\n\n## C · Code\n- C1 [approved, must] Functions under 60 lines.\n');
-  const check = box.run(box.repo, 'spec', 'check');
+  const check = (await command(box, box.repo, 'spec', 'check'));
   assert.equal(check.code, 1);
   assert.match(check.out, /DOCTRINE.md:4 C1 error: an approved must-row names its gate/);
   assert.match(check.out, /SPEC.md: 2 rows, 0 errors/);
-  const view = box.run(box.repo, 'spec', 'view');
+  const view = (await command(box, box.repo, 'spec', 'view'));
   assert.equal(view.code, 0, view.err);
   const file = join(box.repo, '.git', 'pullboard', 'spec.html');
   assert.ok(readFileSync(file, 'utf8').includes('The page renders.'));
