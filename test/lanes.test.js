@@ -9,7 +9,7 @@ import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { configProblems, defaults, durationMs, loadConfig } from '../src/config.js';
 import { isLane, laneNames, laneOf, outOfLane } from '../src/lanes.js';
-import { crossLaneFixture } from './cross-lane-fixture.js';
+import { crossLaneFixture } from './e2e-helpers.js';
 
 const CONFIG = {
   ...defaults(),

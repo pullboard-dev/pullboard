@@ -27,7 +27,7 @@ import { deliverHealthNotices } from '../src/health-receipts.js';
 import { runFixtureGit } from './fixture-child.js';
 import { proveRequiredReviewFamily } from './required-review-family-fixture.js';
 import { assertSpecCorrectionRefreezesCitations, assertSpecRefreezeReplay } from './spec-refreeze-fixture.js';
-import { crossLaneFixture } from './cross-lane-fixture.js';
+import { crossLaneFixture } from './e2e-helpers.js';
 
 /** Run the actual command parser and operation pipeline against this fixture's clock. */
 async function cli(box, cwd, args) {

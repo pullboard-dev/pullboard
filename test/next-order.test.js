@@ -1,4 +1,4 @@
-import { crossLaneFixture } from './cross-lane-fixture.js';
+import { crossLaneFixture } from './e2e-helpers.js';
 /** Roadmap position leads next's existing route order only across unfinished milestones [B16]. */
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
