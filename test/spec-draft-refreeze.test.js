@@ -107,9 +107,10 @@ test('draft omission replay refuses forged stale and old-engine omissions withou
     && error.message.includes(`introduced in engine ${SPEC_DRAFT_REFREEZE_ENGINE}`));
   assert.deepEqual(exportBoard(old), beforeOld, 'old-engine frames refuse before recording or interpreting the move');
   const changed = receiver(t, box.prefix);
-  store.claim(changed, box.left, { agentId: box.builder, lane: 'web', leaseMs: 3_600_000, freeze: frozen });
+  const other = store.register(changed, { lane: 'web', path: '/draft-refreeze/other' });
+  store.claim(changed, box.left, { agentId: other, lane: 'web', leaseMs: 3_600_000, freeze: frozen });
   assert.equal(applyRelayMove(changed, box.move, order).error?.code, 'STALE_ROW_DECISION');
-  store.release(changed, box.left, box.builder, 'Release the modeled claim.');
+  store.release(changed, box.left, other, 'Release the modeled claim.');
   store.editItem(changed, box.left, { agentId: 'coordinator', criterion: 'A revised fixture promise.', reason: 'Revise the open fixture.' });
   assert.equal(store.getItem(changed, box.left).item_frozen, null, 'an edited open item can lose its current frozen payload');
   assert.deepEqual(specRefreezeSkips(changed, box.records, store.listItems(changed, { all: true })), [box.right],
