@@ -1,5 +1,9 @@
 /** One inbox follows a canonical worker session, never the parent shared with its helpers [B7,N19]. */
-import { COORDINATION_SHOUT, UNREAD_SHOUT_SQL, unreadShoutBindings } from './shout-audience.js';
+import {
+  COORDINATION_SHOUT,
+  UNREAD_SHOUT_SQL,
+  unreadShoutBindings,
+} from './shout-audience.js';
 
 /** Resolve registered aliases once; missing or damaged session metadata never groups seats. */
 export function workerInboxSeats(board, agent) {
