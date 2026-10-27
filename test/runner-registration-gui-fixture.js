@@ -84,7 +84,7 @@ test('first GUI-marked body actually executes [C7]',()=>writeFileSync(${JSON.str
   };
   /** Run the ordinary gate with real GUI-marker classification and no previous worker receipt. */
   const runGui = async () => {
-    for (const [name, value] of [['gateSlots', '0'], ['browserSlots', '0']]) {
+    for (const [name, value] of [['browserSlots', '0'], ['gateSlots', '0']]) {
       const result = cli(paths.repo, env, 'settings', name, value);
       assert.equal(result.status, 0, result.context);
     }
