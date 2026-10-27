@@ -17,7 +17,7 @@ function submissionOutcome(ctx, id, commit, submittedEvent) {
       const verdict = store.verdictsFor(board, id).filter((row, index) =>
         receipts[index]?.event_id > submittedEvent && receipts[index].event_id < nextSubmission)
         .findLast(row => row.verdict_commit === commit && !row.withdrawn);
-      const result = { verdict, item: store.getItem(board, id) };
+      const result = { verdict, item: store.getItem(board, id), attemptChanged: nextSubmission !== Infinity };
       board.db.exec('COMMIT');
       return result;
     } catch (error) {
@@ -42,13 +42,13 @@ export async function waitForSubmissionVerdict(ctx, id, submission, receipt) {
       await retrySync(ctx.io);
       nextSync = Date.now() + 2000;
     }
-    const { verdict, item } = submissionOutcome(ctx, id, commit, submittedEvent);
+    const { verdict, item, attemptChanged } = submissionOutcome(ctx, id, commit, submittedEvent);
     if (verdict) {
       ctx.io.result?.({ ...submission, verdict });
       ctx.io.say(`${verdict.verdict_decision} #${id}: ${verdict.verdict_note || verdict.verdict_reason}`);
       return verdict.verdict_decision === 'ACCEPT' ? 0 : 1;
     }
-    if (item.item_commit !== commit || item.item_status !== 'submitted') {
+    if (attemptChanged || item.item_commit !== commit || item.item_status !== 'submitted') {
       throw new Refused('SUBMISSION_CHANGED', `#${id} left this submission without a verdict; run pullboard show ${id} to read its current state`);
     }
     await pause(250);
