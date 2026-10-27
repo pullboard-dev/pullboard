@@ -2,6 +2,8 @@ import {
   policyAt,
 } from './trusted-policy-read.js';
 import { mappedCheck } from './path-map.js';
+import { carriedRunnerTrunk } from './runner-policy.js';
+import { mainCheckout } from './git.js';
 import {
   COLLECTION_ID_ENV,
   parseCollectionReports,
@@ -585,6 +587,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
   const floorMB = memoryFloorMB();
   const capacityProvider = () => settingsProvider().gateSlots;
   const source = runnerSource(root);
+  const policyTrunk = source ? mainCheckout(root) ?? carriedRunnerTrunk(root) : null;
   if (runnerOnly && (!remote || !source)) throw new Refused('RUNNER_SOURCE', 'CPU-load tests need a clean committed checkout for runner execution; commit the source and retry, with no local fallback');
   // Read the board once before queueing, never inside the machine admission transaction.
   const releaseContext = gateQueueSettings().currentReleaseFirst
@@ -624,7 +627,8 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
   try {
     while (true) {
       lease.source = source;
-      lease.runMetadata = { landing, itemCheck, diagnostic, gui, timing, item: String(item), kind };
+      lease.runMetadata = { landing, itemCheck, diagnostic, gui, timing, item: String(item), kind,
+        ...(policyTrunk?.commit ? { trunk: { ref: policyTrunk.branch ?? policyTrunk.ref, commit: policyTrunk.commit } } : {}) };
       timed(lease).tracker.mark('actionAt');
       try { return await action(lease); }
       catch (error) {

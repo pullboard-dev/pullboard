@@ -44,6 +44,8 @@ import { createDescendantTracker } from './runner-custody.js';
 import { Refused } from './refused.js';
 import { guiSession } from './gui-session.js';
 import { privateCheckEnvelope } from './runner-private-mode.js';
+import { RUNNER_POLICY_FILE } from './runner-policy.js';
+import { runnerPolicyRecord } from './runner-policy.js';
 import {
   TEST_RESULT_ORIGIN_ENV,
   TEST_RESULT_STORE_ENV,
@@ -221,6 +223,10 @@ async function readSpec() {
     if (mode.policyCommit.length !== value.commit.length || value.command !== mode.check || value.landing === true || value.stageMarker !== undefined) throw new Error('invalid trusted private-check source');
     value.trustedMode = mode;
   }
+  if (value.trunk !== undefined) {
+    if (value.trustedMode) throw new Error('ambiguous runner policy context');
+    runnerPolicyRecord(value);
+  }
   if (value.timeoutMs !== undefined && (value.landing !== true || !Number.isSafeInteger(value.timeoutMs) || value.timeoutMs < 1 || value.timeoutMs > 2_147_483_647)) throw new Error('invalid landing timeout');
   if (value.stageMarker !== undefined && !/^PULLBOARD_STAGE_[a-f0-9]{32}$/u.test(value.stageMarker)) throw new Error('invalid stage marker');
   if (value.waivers !== undefined && (!Array.isArray(value.waivers) || value.waivers.some(entry => !entry || !['file', 'name'].includes(entry.kind) || typeof entry.test !== 'string' || !entry.test || Object.keys(entry).some(key => !['kind', 'test'].includes(key))))) throw new Error('invalid continuation projection');
@@ -249,7 +255,7 @@ async function readSpec() {
     tagNames.add(tag.name);
     if (tag.chain.length ? tag.chain[0] !== tag.object : tag.object !== tag.peeledCommit) throw new Error('invalid tag manifest');
   }
-  const runtimeNames = ['audit-coverage-reporter.js', 'runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'git-adapter.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js', 'runner-overhead.js', 'runner-recovery.js', 'runner-transport.js', 'test-result-store.js'];
+  const runtimeNames = ['audit-coverage-reporter.js', 'runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'git-adapter.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js', 'runner-overhead.js', 'runner-policy.js', 'runner-recovery.js', 'runner-transport.js', 'test-result-store.js'];
   if (Object.keys(value.runtime.files).length !== runtimeNames.length
     || runtimeNames.some(name => typeof value.runtime.files[name] !== 'string')) throw new Error('invalid work specification');
   if (createHash('sha256').update(JSON.stringify(value.runtime.files)).digest('hex') !== value.runtime.sha256) throw new Error('invalid trusted runtime');
@@ -581,7 +587,7 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     const historyCount = Number(await git(cache, ['rev-list', '--count', spec.commit], env));
     if (!Number.isSafeInteger(historyCount) || historyCount < 1) throw new Error('source history is incomplete');
     if (spec.originBase) await git(cache, ['merge-base', '--is-ancestor', spec.originBase, spec.commit], env);
-    const roots = [...new Set([spec.commit, ...(spec.trustedMode ? [spec.trustedMode.policyCommit, spec.trustedMode.trunk.commit] : [])])];
+    const roots = [...new Set([spec.commit, ...(spec.trunk ? [spec.trunk.commit] : []), ...(spec.trustedMode ? [spec.trustedMode.policyCommit, spec.trustedMode.trunk.commit] : [])])];
     for (const commit of roots) {
       if (await git(cache, ['cat-file', '-t', commit], env) !== 'commit') throw new Error('trusted policy history is incomplete');
     }
@@ -632,6 +638,13 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
     await git(root, ['init', '-q', `--object-format=${spec.commit.length === 64 ? 'sha256' : 'sha1'}`], env);
     await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache, `refs/pullboard/candidates/${spec.commit}`], env);
     await git(root, ['checkout', '--detach', 'FETCH_HEAD'], env);
+    if (spec.trunk) {
+      await git(root, ['check-ref-format', spec.trunk.ref], env);
+      await git(root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache,
+        `refs/pullboard/candidates/${spec.trunk.commit}:${spec.trunk.ref}`], env);
+      await git(root, ['config', '--local', '--replace-all', 'pullboard.trunk', spec.trunk.ref], env);
+      writeFileSync(join(root, '.git', RUNNER_POLICY_FILE), JSON.stringify(runnerPolicyRecord(spec)), { mode: 0o600 });
+    }
     if (spec.trustedMode) {
       const mode = spec.trustedMode;
       await git(root, ['check-ref-format', mode.trunk.ref], env);
@@ -639,6 +652,7 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
         `refs/pullboard/candidates/${mode.policyCommit}:refs/pullboard/trusted-policy`,
         `refs/pullboard/candidates/${mode.trunk.commit}:${mode.trunk.ref}`], env);
       await git(root, ['config', '--local', '--replace-all', 'pullboard.trunk', mode.trunk.ref], env);
+      writeFileSync(join(root, '.git', RUNNER_POLICY_FILE), JSON.stringify(runnerPolicyRecord({ ...spec, trunk: mode.trunk })), { mode: 0o600 });
     }
     for (let index = 0; index < spec.tags.length; index++) {
       const tag = spec.tags[index];
