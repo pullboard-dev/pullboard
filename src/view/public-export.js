@@ -4,6 +4,7 @@ import { Refused } from '../refused.js';
 /** The complete public export block list; internal messages are omitted before prose is checked. */
 export const PUBLIC_EXPORT_BLOCKS = Object.freeze({
   private: 'private item',
+  unreadable: 'unreadable event detail',
   internal: ['coordinator', 'sentinel', 'person', 'coordinator+person'],
   text: [
     ['machine or host name', /\b192\.168\.\d{1,3}\.\d{1,3}\b|\b[\w-]+\.local\b|\ba5x\b|\bstu\x64io\b|\bmac\x62ook[\w-]*\b|\b[\w.+-]+@[\w.-]+\b/iu],
@@ -17,7 +18,7 @@ export const PUBLIC_EXPORT_BLOCKS = Object.freeze({
 function detailOf(value) {
   if (typeof value.event_detail !== 'string') return value.detail ?? {};
   try { return JSON.parse(value.event_detail); }
-  catch { throw new Refused('PUBLIC_EXPORT_BLOCKED', 'public export blocked: unreadable event detail', 'repair the event detail before exporting publicly'); }
+  catch { throw new Refused('PUBLIC_EXPORT_BLOCKED', `public export blocked: ${PUBLIC_EXPORT_BLOCKS.unreadable}`, 'repair the event detail before exporting publicly'); }
 }
 
 /** Identify the existing internal categories consistently in state, event history and item threads. */
@@ -34,10 +35,33 @@ function internalShout(value) {
     || typeof from !== 'string' || typeof to !== 'string';
 }
 
-/** Exempt only native hexadecimal identifiers in explicitly structured identity fields, never prose. */
-function structuredIdentity(field, parent, value) {
-  return /^[a-f0-9]{32,128}$/iu.test(value)
-    && (parent === 'rowAgesAt' || /(?:id|commit|tree|digest|receipt|sha|hash)$|^(?:board|head|base|trunk|main|acceptedSnapshot)$/iu.test(field));
+/** Native event locations in the three exported API documents, not arbitrary JSON objects. */
+const EVENT_PATH = /^(?:events\/events\/\*|state\/state\/(?:events\/\*|items\/\*\/thread\/\*))$/u;
+/** Exact native event fields and their hexadecimal widths; other detail fields remain prose. */
+const EVENT_IDENTITIES = Object.freeze({
+  claim: { digest: 64 }, renew: { digest: 64 },
+  submit: { commit: 40, tree: 40, policyCommit: 40, criterionDigest: 64 },
+  accept: { commit: 40, companionDigest: 64 }, reject: { commit: 40, companionDigest: 64 },
+  merged: { commit: 40 }, reopen: { commit: 40 }, refreeze: { before: 64, after: 64 },
+  edit: { correctedFrozen: 64, unfrozen: 64 },
+});
+
+/** Exempt exact native paths and formats; free text and arbitrary *_id detail keys never qualify. */
+function structuredIdentity(path, value, eventKind) {
+  const location = path.join('/');
+  let width = 0;
+  if (/^(?:listing\/boards\/\*\/id|state\/state\/board|state\/board|events\/board)$/u.test(location)) width = 32;
+  if (path.length === 4 && path.slice(0, 3).join('/') === 'state/state/rowAgesAt') width = 40;
+  if (/^state\/state\/items\/\*\/(?:commit|merged|verdict\/commit|verdicts\/\*\/commit|checkBaseline\/main)$/u.test(location)) width = 40;
+  if (/^state\/state\/(?:shouts|asked)\/\*\/shout_evidence_commit$/u.test(location)) width = 40;
+  if (EVENT_PATH.test(path.slice(0, -2).join('/')) && ['detail', 'event_detail'].includes(path.at(-2))) {
+    width = EVENT_IDENTITIES[eventKind]?.[path.at(-1)] ?? 0;
+  }
+  if (EVENT_PATH.test(path.slice(0, -3).join('/')) && ['detail', 'event_detail'].includes(path.at(-3))) {
+    if (['add', 'edit', 'check-baseline'].includes(eventKind) && path.slice(-2).join('/') === 'checkBaseline/main') width = 40;
+    if (['accept', 'reject'].includes(eventKind) && /^review\/(?:commit|head|trunk)$/u.test(path.slice(-2).join('/'))) width = 40;
+  }
+  return width > 0 && new RegExp(`^[a-f0-9]{${width}}$`, 'u').test(value);
 }
 
 /** Return an independent public document or refuse with categories only, without echoing sensitive values.
@@ -49,18 +73,20 @@ function structuredIdentity(field, parent, value) {
 export function publicSnapshot(document, { privateBoard = false } = {}) {
   const blocked = new Set(privateBoard ? [PUBLIC_EXPORT_BLOCKS.private] : []);
   /** Traverse every retained API value, including decoded event details and historical thread prose. */
-  function visit(value, field = '', parent = '') {
+  function visit(value, path = [], eventKind = null) {
+    const field = path.at(-1);
     if (field === 'personRequests') return []; // Phone intent is person-addressed, including its status projection.
-    if (Array.isArray(value)) return value.map(entry => visit(entry, field, parent)).filter(entry => entry !== undefined);
+    if (Array.isArray(value)) return value.map(entry => visit(entry, [...path, '*'], eventKind)).filter(entry => entry !== undefined);
     if (value && typeof value === 'object') {
       if (internalShout(value)) return undefined;
+      const kind = EVENT_PATH.test(path.join('/')) ? value.event_kind ?? value.kind : eventKind;
       return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key,
-        key === 'event_detail' ? JSON.stringify(visit(detailOf(value), key, field)) : visit(entry, key, field),
+        key === 'event_detail' ? JSON.stringify(visit(detailOf(value), [...path, key], kind)) : visit(entry, [...path, key], kind),
       ]).filter(([, entry]) => entry !== undefined));
     }
     if (typeof value === 'string') {
       for (const [kind, pattern] of PUBLIC_EXPORT_BLOCKS.text) {
-        if (kind === 'secret-shaped string' && structuredIdentity(field, parent, value)) continue;
+        if (kind === 'secret-shaped string' && structuredIdentity(path, value, eventKind)) continue;
         if (pattern.test(value)) blocked.add(kind);
       }
     }

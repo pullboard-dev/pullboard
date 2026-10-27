@@ -47,8 +47,15 @@ test('the declared public filter blocks every ruled kind without echoing its val
       && error.message.includes(kind) && error.message.split(': ').at(-1).split(', ').every(label => labels.has(label)), kind);
   }
   assert.throws(() => publicSnapshot({ items: [{ title: 'Private fixture work' }] }, { privateBoard: true }), /private item/u);
-  assert.deepEqual(publicSnapshot({ commit: 'a'.repeat(40), tree: 'b'.repeat(40), digest: 'c'.repeat(64), board: 'd'.repeat(32), receipt_id: 'e'.repeat(64) }),
-    { commit: 'a'.repeat(40), tree: 'b'.repeat(40), digest: 'c'.repeat(64), board: 'd'.repeat(32), receipt_id: 'e'.repeat(64) });
+  const native = { listing: { boards: [{ id: 'd'.repeat(32) }] }, state: { state: { board: 'd'.repeat(32), rowAgesAt: { 'SPEC.md': 'a'.repeat(40) },
+    items: [{ id: 1, commit: 'a'.repeat(40), merged: 'b'.repeat(40) }] } },
+    events: { events: [{ event_kind: 'submit', event_detail: JSON.stringify({ commit: 'a'.repeat(40), tree: 'b'.repeat(40), criterionDigest: 'c'.repeat(64) }) }] } };
+  assert.deepEqual(publicSnapshot(native), native, 'only native paths with exact identifier widths are exempt');
+  for (const forged of [{ customer_id: 'a'.repeat(64) }, { note_id: 'a'.repeat(64) }, { commit: 'a'.repeat(40) },
+    { events: { events: [{ event_kind: 'fact', event_detail: JSON.stringify({ note_id: 'a'.repeat(64), commit: 'b'.repeat(40) }) }] } },
+    { state: { state: { rowAgesAt: { 'SPEC.md': 'a'.repeat(64) } } } }]) {
+    assert.throws(() => publicSnapshot(forged), /secret-shaped string/u, 'arbitrary keys and wrong native shapes stay checked');
+  }
   assert.throws(() => publicSnapshot({ commit: 'sk-fixtureonly12345678' }), /secret-shaped string/u, 'an identity key does not exempt an arbitrary credential');
   assert.deepEqual(publicSnapshot({ title: 'A private implementation detail', reviewPolicy: { sensitive: true }, brief: 'A sale client connects.' }),
     { title: 'A private implementation detail', reviewPolicy: { sensitive: true }, brief: 'A sale client connects.' }, 'review sensitivity and ordinary technical words are not privacy flags');
