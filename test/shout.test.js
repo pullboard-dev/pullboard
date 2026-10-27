@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { shoutMatchesAudience } from '../src/shout-audience.js';
 
 /** Independent SQLite participants, including a helper whose parent is not its own session. */
 function participants(t) {
@@ -47,6 +48,53 @@ test('a common parent does not share a helper inbox and unknown sessions stay se
   assert.deepEqual(store.inbox(f.board, f.otherLegacy, { markRead: false }), []);
   assert.deepEqual(store.inbox(f.board, f.legacy, { markRead: false }).map(row => row.shout_id), [unknown]);
   assert.deepEqual(store.inbox(f.board, f.primary, { markRead: false }).map(row => row.shout_id), [own]);
+});
+
+test('one worker acknowledges both seats, preserves later mail, and suppresses its own aliases [B7,R2,N26]', t => {
+  const f = participants(t);
+  const first = f.send(f.primary, 'Acknowledge this snapshot');
+  const second = f.send(f.sibling, 'Keep later mail pending');
+  store.shout(f.board, { from: f.primary, to: f.sibling, text: 'Self mail', lanes: ['coordinator', 'web', 'api'] });
+  store.shout(f.board, { from: f.sibling, to: 'all', text: 'Another self alias', lanes: ['coordinator', 'web', 'api'] });
+  assert.deepEqual(store.inbox(f.board, f.sibling, { through: first }).map(row => row.shout_id), [first]);
+  for (const id of [f.primary, f.sibling]) {
+    assert.equal(store.agentById(f.board, id).agent_last_shout_id, first);
+    assert.equal(store.unreadCount(f.board, id), 1);
+    assert.deepEqual(store.inbox(f.board, id, { markRead: false }).map(row => row.shout_id), [second]);
+  }
+  assert.deepEqual(store.inbox(f.board, f.primary).map(row => row.shout_id), [second]);
+  assert.deepEqual(store.inbox(f.board, f.sibling), []);
+  store.inbox(f.board, f.primary, { through: first });
+  assert.equal(store.agentById(f.board, f.primary).agent_last_shout_id, second, 'an older snapshot never rolls acknowledgement back');
+  assert.equal(shoutMatchesAudience(f.board.db, f.primary, new Set([f.sibling])), false, 'watch --to remains an explicit seat filter');
+});
+
+test('a legacy cursor on another alias cannot hide its older directed message [B7,N19]', t => {
+  const board = fixtureBoard(t);
+  store.register(board, { lane: 'coordinator', path: '/uneven/root' });
+  const primary = store.register(board, { lane: 'web', path: '/uneven/one', session: 'uneven-worker' });
+  const sibling = store.register(board, { lane: 'api', path: '/uneven/two' });
+  const pending = store.shout(board, { from: 'coordinator', to: sibling, text: 'Not yet read', lanes: ['coordinator', 'web', 'api'] });
+  const first = store.shout(board, { from: 'coordinator', to: primary, text: 'Already read', lanes: ['coordinator', 'web', 'api'] });
+  store.inbox(board, primary);
+  store.register(board, { lane: 'api', path: '/uneven/two', session: 'uneven-worker' });
+  assert.deepEqual(store.inbox(board, primary).map(row => row.shout_id), [pending]);
+  assert.deepEqual(store.inbox(board, sibling), []);
+  assert.equal(store.agentById(board, primary).agent_last_shout_id, first);
+  assert.equal(store.agentById(board, sibling).agent_last_shout_id, pending);
+});
+
+test('activity freezes the worker inbox before a later sibling message arrives [B7,N26]', t => {
+  const f = participants(t);
+  const first = f.send(f.primary, 'Present at snapshot');
+  let later;
+  const activity = store.agentActivity(f.board, f.sibling, { workingFiles: () => {
+    later = f.send(f.sibling, 'Arrived during observation');
+    return [];
+  } });
+  assert.deepEqual(activity.entries.filter(row => row.shout).map(row => row.shout), [first]);
+  assert.deepEqual(store.inbox(f.board, f.sibling, { through: activity.shoutCursor }).map(row => row.shout_id), [first]);
+  assert.deepEqual(store.inbox(f.board, f.primary, { markRead: false }).map(row => row.shout_id), [later]);
 });
 
 /** Run one actual CLI command in a private fixture session, never the operational session. */
