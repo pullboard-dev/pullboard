@@ -38,16 +38,22 @@ function json(box, path, ...args) {
 }
 
 /** Create a local-only real board and a shared Git base without changing the person's storage. */
-function project() {
+function project(separate = true) {
   const box = helpers.project('true');
   const file = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));
-  writeFileSync(file, JSON.stringify({ ...config, landing: { publish: 'separate' } }));
+  writeFileSync(file, JSON.stringify({ ...config, ...(separate ? { landing: { publish: 'separate' } } : {}) }));
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   for (const path of [FILE, SECOND]) writeFileSync(join(box.repo, path), 'export const value = "base";\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: establish conflict fixture base');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  if (!separate) {
+    const remote = join(box.dir, 'private-origin.git');
+    box.git(box.dir, 'init', '-q', '--bare', remote);
+    box.git(box.repo, 'remote', 'add', 'origin', remote);
+    box.git(box.repo, 'push', '-q', '-u', 'origin', 'main');
+  }
   return box;
 }
 
@@ -100,6 +106,8 @@ function latest(box, id) {
 /** Every newly recorded conflict names all Git files and excludes even an explicitly supplied test cause. */
 function assertConflict(record, files) {
   assert.equal(record.item.item_status, 'open');
+  assert.ok(record.detail.conflict, 'the reopen carries structured conflict evidence');
+  assert.ok(record.detail.causeDerivation, 'the reopen carries structured cause provenance');
   assert.deepEqual([...record.detail.conflict.files].sort(), [...files].sort());
   assert.deepEqual([...record.detail.causeDerivation.files].sort(), [...files].sort());
   assert.ok(record.detail.cause.startsWith('conflict:'));
@@ -151,7 +159,7 @@ test('a confirmed conflict overrides an unrelated explicit test cause [C7,B3,D1]
     assert.equal(oldDetail.causeDerivation, undefined);
     assert.equal(store.getItem(source, entry.id).item_status, 'verified', 'the replay control never changes the native board');
   } finally { store.closeBoard(older); store.closeBoard(source); }
-  json(box, box.repo, 'reopen', String(entry.id), ...merge.files.flatMap(file => ['--conflict', file]),
+  json(box, box.repo, 'reopen', String(entry.id), '--conflict', merge.files[0],
     '--cause', 'test:web/unrelated.test.js::unrelated test');
   assertConflict(latest(box, entry.id), merge.files);
 });
@@ -167,17 +175,19 @@ test('review selection records the actual submitted-head conflict files [C7,B3]'
   assertConflict(latest(box, entry.id), merge.files);
 });
 
-test('landing a train records a sibling collision as a conflict with Git files [C7,B3]', () => {
-  const box = project();
-  const first = submit(box, 1);
-  const second = submit(box, 2);
-  accept(box, first);
-  accept(box, second);
-  const landed = json(box, box.repo, 'land');
-  assert.deepEqual(landed.landed, [first.id]);
-  assert.equal(landed.conflicts.length, 1);
-  assert.deepEqual([...landed.conflicts[0].files].sort(), [FILE, SECOND].sort());
-  assertConflict(latest(box, second.id), landed.conflicts[0].files);
+test('local and inline landing trains record sibling conflict files [C7,B3]', () => {
+  for (const separate of [true, false]) {
+    const box = project(separate);
+    const first = submit(box, 1);
+    const second = submit(box, 2);
+    accept(box, first);
+    accept(box, second);
+    const landed = json(box, box.repo, 'land');
+    assert.deepEqual(landed.landed, [first.id]);
+    assert.equal(landed.conflicts.length, 1);
+    assert.deepEqual([...landed.conflicts[0].files].sort(), [FILE, SECOND].sort());
+    assertConflict(latest(box, second.id), landed.conflicts[0].files);
+  }
 });
 
 test('historical conflict-note correction is explicit and leaves original event bytes untouched [C7,D1]', () => {
