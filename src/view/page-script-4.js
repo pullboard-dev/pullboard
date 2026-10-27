@@ -738,6 +738,27 @@ function fold(open) {
   $('proj-switch').setAttribute('aria-expanded', String(open));
 }
 
+/** Retain the brief release-jump mark when a native refresh redraws its node. */
+function restoreRoadmapArrival() {
+  const arrival = view.roadmapArrival;
+  if (!arrival || arrival.root !== view.root || arrival.until <= Date.now()) return;
+  $('roadmap-list')?.querySelector('[data-key="' + CSS.escape(arrival.key) + '"]')?.classList.add('roadmap-arrival');
+}
+
+/** A redraw retains the original expiry; it never restarts the highlight's lifetime. */
+function markRoadmapArrival(key, target) {
+  const arrival = { root: view.root, key, until: Date.now() + 1300 };
+  view.roadmapArrival = arrival;
+  for (const marked of $('roadmap-list')?.querySelectorAll('.roadmap-arrival') ?? []) marked.classList.remove('roadmap-arrival');
+  void target.offsetWidth;
+  restoreRoadmapArrival();
+  setTimeout(() => {
+    if (view.roadmapArrival !== arrival) return;
+    view.roadmapArrival = null;
+    $('roadmap-list')?.querySelector('[data-key="' + CSS.escape(key) + '"]')?.classList.remove('roadmap-arrival');
+  }, 1300);
+}
+
 /** Show another project and its item; history restores keep the tab their entry named. */
 function switchTo(root, target = null, record = true) {
   // Switching board or project closes Approve all's confirmation and the decline dialog; neither records on either board.

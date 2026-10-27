@@ -1240,6 +1240,8 @@ test('a release jump on a phone leaves its heading below the top bar [N26]', { t
     })()`);
     await press(chrome, `document.querySelector('#roadmap-panel [data-roadmap-jump="m:0.9.1"]')`);
     await chrome.waitFor(`document.querySelector('#roadmap-list [data-key="m:0.9.1"]')?.classList.contains('roadmap-arrival')`);
+    await chrome.stable('render()');
+    assert.equal(await chrome.stable(`document.querySelector('#roadmap-list [data-key="m:0.9.1"]')?.classList.contains('roadmap-arrival')`), true, 'a redraw keeps the actual release-jump mark');
     const position = JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const bar = document.querySelector('.top').getBoundingClientRect();
       const target = document.querySelector('#roadmap-list [data-key="m:0.9.1"]').getBoundingClientRect();

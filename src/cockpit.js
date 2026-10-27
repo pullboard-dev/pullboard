@@ -879,10 +879,7 @@ function jumpToRoadmap(key) {
     target.style.scrollMarginTop = Math.ceil(topbar.getBoundingClientRect().bottom + 16) + 'px';
   } else target.style.removeProperty('scroll-margin-top');
   target.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
-  target.classList.remove('roadmap-arrival');
-  void target.offsetWidth;
-  target.classList.add('roadmap-arrival');
-  setTimeout(() => target.classList.remove('roadmap-arrival'), 1300);
+  markRoadmapArrival(key, target);
   updateRoadmapPanel();
 }
 
@@ -1108,6 +1105,7 @@ function render() {
   const chipsAt = $('roadmap-releases')?.scrollLeft ?? 0, panelAt = $('roadmap-panel')?.scrollTop ?? 0;
   roadmapAhead.clear();
   $('roadmap').innerHTML = roadmapCards(p, titles);
+  restoreRoadmapArrival();
   // The mark sets its chip in bold, which widens it, and the fresh row has no mark yet. Restored first, the scroll
   // would clamp to a row narrower by that bold and leave the chips short of where they were (#452).
   updateRoadmapPanel();
