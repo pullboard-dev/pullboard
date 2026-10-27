@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { gitSpawnSync } from './git-adapter.js';
 import { staleRunQuiet } from './stale-run-observation.js';
 /** Capture actual local work without changing any checkout; replicas consume only the captured observation [B4,C7]. */
 import { lstatSync } from 'node:fs';
@@ -22,7 +22,7 @@ export function observeStaleWork(board, actor) {
     const env = cleanGitEnvironment();
     const commit = tryGit(root, ['log', '-1', '--format=%cI', 'HEAD'], { env });
     const reflog = tryGit(root, ['rev-parse', '--git-path', 'logs/HEAD'], { env });
-    const changed = spawnSync('git', ['ls-files', '--modified', '--others', '--exclude-standard', '-z'],
+    const changed = gitSpawnSync(['ls-files', '--modified', '--others', '--exclude-standard', '-z'],
       { cwd: root, env, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
     if (commit.status !== 0 || reflog.status !== 0 || changed.status !== 0) return { available: false, at: null };
     let latest = Math.max(Date.parse(commit.stdout.trim()), lstatSync(resolve(root, reflog.stdout)).mtimeMs);
