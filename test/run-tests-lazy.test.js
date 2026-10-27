@@ -32,9 +32,13 @@ function moduleObserver(box) {
 }
 
 /** Use ordinary native admission against a private Git/SQLite board and private machine; the test supplies no live marker. */
-function fixture() {
+function fixture({ currentReleaseFirst = false } = {}) {
   const box = helpers.project('node --test --test-reporter=tap web/plain.test.js');
   delete box.env.NODE_TEST_CONTEXT;
+  if (currentReleaseFirst) {
+    mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gate: { queue: { currentReleaseFirst: true } } }));
+  }
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   box.ran = join(box.dir, 'plain-ran');
   box.ranPid = join(box.dir, 'plain-worker-pid');
@@ -93,6 +97,18 @@ test('a plain test run loads no gate board or machine modules through its runner
   assert.ok(urls.includes(pathToFileURL(RUNNER).href), 'the actual candidate runner was observed');
   assert.ok(urls.includes(pathToFileURL(join(ROOT, 'src/gate-slot.js')).href), 'ordinary admission actually ran');
   for (const file of HEAVY) assert.ok(!urls.includes(pathToFileURL(join(ROOT, file)).href), `${file} must remain lazy in an ordinary run`);
+});
+
+test('a plain run retains lazy modules with current-release-first queue policy enabled [C7,V4]', { timeout: 90_000 }, // budget: one actual private policy-enabled admission and child; hang ceiling only.
+() => {
+  const box = fixture({ currentReleaseFirst: true });
+  const { child, urls } = observed(box, [RUNNER, '--test-reporter=tap', 'web/plain.test.js']);
+  assert.equal(JSON.parse(readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8')).gate.queue.currentReleaseFirst, true);
+  assert.equal(readFileSync(box.ran, 'utf8'), 'executed');
+  assert.match(child.stdout, /# pass 1\b/u);
+  assert.ok(urls.includes(pathToFileURL(RUNNER).href), 'the actual candidate runner was observed');
+  assert.ok(urls.includes(pathToFileURL(join(ROOT, 'src/gate-slot.js')).href), 'ordinary policy-enabled admission actually ran');
+  for (const file of HEAVY) assert.ok(!urls.includes(pathToFileURL(join(ROOT, file)).href), `${file} must remain lazy with currentReleaseFirst on`);
 });
 
 test('the actual test-file preload loads no gate board or machine modules [C7,V4]', { timeout: 90_000 }, // budget: one private Node test-file process with ordinary preload and watchdog; hang ceiling only.
