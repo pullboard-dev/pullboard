@@ -6,6 +6,10 @@
  * approves or applies a row.
  */
 import { PERSON } from './board.js';
+import {
+  historyPathMap,
+  mappedCause,
+} from './path-map.js';
 import { Refused } from './refused.js';
 import {
   causeProblem,
@@ -31,7 +35,8 @@ import { rigorSentinelName } from './sentinels.js';
 export async function rigorDraft({ root, config, events, person, agent, reserve = async (row) => row, propose = null }, { key, text, check, red, green, section, sentinel = null }) {
   const malformed = causeProblem(key ?? '');
   if (malformed) throw malformed;
-  const cause = rigorReport(events, { person }).causes.find((entry) => entry.key === key);
+  key = mappedCause(historyPathMap(root), key);
+  const cause = rigorReport(events, { person, root }).causes.find((entry) => entry.key === key);
   if (!cause) throw new Refused('RIGOR_UNNOTICED', `${key} has not repeated, so there is nothing to draft yet; pullboard rigor lists the causes that can become rules`);
   if (sentinel && (text !== undefined && (!text.trim() || /[\r\n]/u.test(text)))) throw new Refused('USAGE', 'give the watch\'s next step as one line, or leave it out: pullboard rigor draft <key> --sentinel --check "<command>" --red <commit> --green <commit>');
   if (!sentinel && (!text?.trim() || /[\r\n|]/u.test(text))) throw new Refused('USAGE', 'give the rule as one nonempty line without a field separator: pullboard rigor draft <key> "<rule>" --check "<command>" --red <commit> --green <commit>');

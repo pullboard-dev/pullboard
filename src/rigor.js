@@ -9,6 +9,10 @@ import { HEALTH_SENTINEL_ENGINE } from './health-receipts.js';
 import { BOARD_SENTINEL_ENGINE } from './sentinel-engine.js';
 import { NATIVE_FLAKE_ENGINE } from './flake-engine.js';
 import {
+  historyPathMap,
+  mappedCause,
+} from './path-map.js';
+import {
   conflictCause,
   reopenConflictEvidence,
 } from './reopen-cause.js';
@@ -148,11 +152,13 @@ function neverAgainCause(event, person) {
  * @param {{ person: string }} who
  * @returns {{ causes: { key: string, reads: string, items: { id: number, commits: string[] }[], occurrences: number, neverAgain: boolean }[], uncaused: number }}
  */
-export function rigorReport(events, { person }) {
+export function rigorReport(events, { person, root }) {
+  const map = root ? historyPathMap(root) : new Map();
   const byKey = new Map();
   let uncaused = 0;
   /** The running record for one cause key. */
   const entry = (key) => {
+    key = mappedCause(map, key);
     if (!byKey.has(key)) byKey.set(key, { key, reads: causeReading(key), items: new Map(), occurrences: 0, healthOccurrences: 0, flakeOccurrences: 0, neverAgain: false });
     return byKey.get(key);
   };
@@ -177,7 +183,7 @@ export function rigorReport(events, { person }) {
       continue;
     }
     const commit = JSON.parse(event.event_detail).commit ?? null;
-    for (const key of keys.filter((candidate) => !isMergeConflict(candidate))) {
+    for (const key of new Set(keys.filter((candidate) => !isMergeConflict(candidate)).map(candidate => mappedCause(map, candidate)))) {
       const found = entry(key);
       found.occurrences += 1;
       if (event.event_kind === 'flake-observation') found.flakeOccurrences += 1;
