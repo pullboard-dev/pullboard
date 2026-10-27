@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { repoInfo } from './git.js';
+import { runnerPhaseLine } from './runner-overhead.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -153,7 +154,8 @@ export function receiptStatsLines(stats) {
 /** One line of a receipt's phases and slot, for a timing digest. */
 export function receiptLine(receipt) {
   if (!receipt) return '';
-  return `phases: wait ${seconds(receipt.waitMs)}, admission ${seconds(receipt.admissionMs)}, setup ${seconds(receipt.setupMs)}, run ${seconds(receipt.runMs)}, evidence ${seconds(receipt.evidenceMs)}; slot: ${receipt.slot.kind} (${receipt.slot.reason})`;
+  const executor = runnerPhaseLine(receipt.executionPhases);
+  return `phases: wait ${seconds(receipt.waitMs)}, admission ${seconds(receipt.admissionMs)}, setup ${seconds(receipt.setupMs)}, run ${seconds(receipt.runMs)}, evidence ${seconds(receipt.evidenceMs)}; slot: ${receipt.slot.kind} (${receipt.slot.reason})${executor ? '; ' + executor : ''}`;
 }
 
 /** The last day's gate waits for `pullboard stats`: the numbers for --json and the lines to print. */

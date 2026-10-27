@@ -1,3 +1,4 @@
+import { cadenceDeferral } from './landing-cadence.js';
 import { mergeOnlyLandingProblem } from './merge-only-verdict.js';
 import { localDependencyIds } from './item-dependencies.js';
 import { requireOutsideOwner } from './outside-source.js';
@@ -1252,17 +1253,6 @@ function emptyLanding(selected, say) {
   return { batch: null, landed: [], conflicts: [], blocked: selected.blocked, culprits: [], flakes: [] };
 }
 
-/** Defer a new ordinary attempt without taking capacity or sleeping between landing batches. */
-function cadenceDeferral(board, config, branch, say) {
-  const interval = config.landing?.cadenceMs;
-  if (!interval) return null;
-  const latest = store.landingBatches(board).filter(batch => batch.branch === branch).map(batch => Date.parse(batch.startedAt ?? '')).filter(Number.isFinite).sort((a, b) => b - a)[0];
-  if (latest === undefined || latest + interval <= Date.now()) return null;
-  const deferredUntil = new Date(latest + interval).toISOString();
-  say(`landing deferred until ${deferredUntil}: the trunk's landing cadence has not elapsed`);
-  return { batch: null, landed: [], conflicts: [], blocked: [], culprits: [], flakes: [], deferredUntil };
-}
-
 /** Require a separate admitted slot for every speculative gate, without holding a parent gate open. */
 function requireParallelGateAdmission(root, config) {
   if (config.landing?.parallel === true && inheritedGateSlot({ root, namedFiles: true })) {
@@ -1280,8 +1270,10 @@ export async function land(options) {
   if (trunk.commit) requireParallelGateAdmission(options.root, policyAt(options.root, trunk.commit).config);
   if (trunk.commit && !options.adopt) {
     requireConfirmedLanding(options.board);
-    const deferred = cadenceDeferral(options.board, policyAt(options.root, trunk.commit).config, branch, options.say);
-    if (deferred) return deferred;
+    if (!options.due || idleLanding(options.board, trunk.commit)) {
+      const deferred = cadenceDeferral(options.board, policyAt(options.root, trunk.commit).config, branch, options.say, options.due);
+      if (deferred) return deferred;
+    }
   }
   if (trunk.commit && !options.adopt && idleLanding(options.board, trunk.commit)) {
     requireConfirmedLanding(options.board);
@@ -1323,7 +1315,7 @@ export async function land(options) {
     /** Relay catch-up can change proof or trunk facts while a renewal awaits its receipt. */
     const checkLease = async () => { await lease.assertHeld(); invalidateGitFacts(); };
     const batchOptions = { root: options.root, config: options.config, owner: options.owner, maximum: Number.isFinite(options.maximum) ? options.maximum : null,
-      adopt: options.adopt, fence: lease.fence };
+      adopt: options.adopt, due: options.due, fence: lease.fence };
     if (batchOptions.maximum === null) delete batchOptions.maximum;
     return await runLandingWorker(batchOptions, { write, checkLease, checkLeaseNow: lease.assertCurrent,
       bindWorker: lease.bindWorker, watchDeadline: lease.watchDeadline, onWait: options.onWait, say: options.say, signal: controller.signal });
@@ -1338,7 +1330,7 @@ export async function land(options) {
 }
 
 /** Select only after admission, retaining the existing batch, proof and adoption rules. */
-export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, onWait, checkLease, checkLeaseNow, fence }) {
+export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, due = false, onWait, checkLease, checkLeaseNow, fence }) {
   let trunk = mainCheckout(root);
   if (fence && trunk?.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the trunk branch changed while landing waited; start a new land command for its current branch');
   const unfinished = store.landingBatches(board).findLast((batch) => batch.state !== 'landed' && batch.state !== 'blocked');
@@ -1359,8 +1351,8 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   const environment = dryRun ? null : requireLandingHost(store.boardId(board), config);
   const testDefects = heldTestDefects(root, board, trunk);
   if (!dryRun && testDefects.length) throw new Refused('LAND_TEST_DEFECT', `this trunk is held by ${testDefects.map(defect => `#${defect.item} (${defect.test})`).join(', ')}; correct the committed test or ask an approver for an expiring waiver`);
-  if (!dryRun && !adopt && !unfinished) {
-    const deferred = cadenceDeferral(board, config, trunk.branch, say);
+  if ((!dryRun || due) && !adopt && !unfinished) {
+    const deferred = cadenceDeferral(board, config, trunk.branch, say, due);
     if (deferred) return deferred;
   }
   const selected = candidates(board, root, trunk.commit, maximum);
