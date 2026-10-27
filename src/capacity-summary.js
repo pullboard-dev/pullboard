@@ -61,9 +61,8 @@ export function landedBatchCount(history, since, until) {
   for (const group of [...batches.values()].sort((a, b) => a.at - b.at)) {
     const fresh = [...group.commits].filter(commit => !covered.has(commit));
     if (group.commits.size && !fresh.length) continue;
-    // An old commit mentioned again by a later receipt is not a new first landing.
-    const at = Math.min(group.at, ...fresh.map(commit => firstMerges.get(commit) ?? group.at));
-    if (at >= since && at <= until) count++;
+    // Explicit batches use their first successful receipt; only unmatched commits use first-merge time.
+    if (group.at >= since && group.at <= until) count++;
     for (const commit of group.commits) covered.add(commit);
   }
   for (const [commit, at] of firstMerges) if (!covered.has(commit) && at >= since && at <= until) count++;
