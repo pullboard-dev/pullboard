@@ -218,7 +218,7 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
     assert.deepEqual(Object.fromEntries(boxes.filter((entry) => entry.keeps).map((entry) => [entry.state, entry.keeps])), {
       open: '↻ release · escalate · refreeze (none yet)',
       claimed: '↻ claim 1',
-      submitted: '↻ reserve (none yet)',
+      submitted: '↻ patch · reserve (none yet)',
       verified: '↻ accept (none yet)',
     });
     assert.deepEqual(boxes.filter((entry) => entry.keeps).map((entry) => entry.state), keeping, 'each state a move keeps');
@@ -249,6 +249,7 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
       'open>verified': null,
       'open>submitted': 'intake (none yet)',
       'submitted>verified': null,
+      'verified>submitted': 'patch (none yet)',
       'submitted>open': 'reject 1',
       'open>withdrawn': verifiedIsFinal ? 'withdraw 4' : 'withdraw 1',
       'claimed>withdrawn': verifiedIsFinal ? null : 'withdraw 2',
