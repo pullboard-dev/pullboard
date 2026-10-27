@@ -1,9 +1,9 @@
 /** @pullboard-test-input source-tree */
 /** A test file whose inputs did not change reuses its green result; a changed import, a red result or a bad entry runs it [C7]. */
 import assert from 'node:assert/strict';
-import { copyFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
@@ -83,7 +83,7 @@ function makeFixture(t) {
     return { status: result.status, output: `${result.stdout}\n${result.stderr}`, ran, context: result.context };
   };
   const store = join(root, '.git', 'pullboard', 'test-actions');
-  return { root, change, run, store };
+  return { root, change, run, store, env };
 }
 
 test('an unchanged closure reuses its green result and a changed import reruns it [C7]', (t) => {
@@ -221,4 +221,30 @@ test('other [C7]', () => appendFileSync(process.env.PULLBOARD_ACTION_CAPTURE, 'o
   const changed = fixture.run(selected);
   assert.equal(changed.status, 0, changed.output);
   assert.deepEqual(changed.ran, ['b'], 'a reached-module edit invalidates the matching filtered proof');
+});
+
+test('an unchanged selected proof crosses stages without reading the repository graph again [C7]', t => {
+  const fixture = makeFixture(t);
+  fixture.env.PULLBOARD_TEST_STAGE = 'submit';
+  const first = fixture.run(['test/b.test.js']);
+  assert.equal(first.status, 0, first.output);
+  assert.deepEqual(first.ran, ['b']);
+  const git = fixture.env.PATH.split(delimiter).map(folder => join(folder, 'git')).find(existsSync);
+  assert.ok(git, 'the fixture uses the real installed Git');
+  const bin = join(fixture.root, 'machine', 'bin');
+  mkdirSync(bin);
+  // Reject graph construction at its actual Git boundary, rather than timing it or mocking a key.
+  writeFileSync(join(bin, 'git'), `#!/bin/sh
+for arg do
+  case "$arg" in ls-tree|cat-file|show) echo 'unexpected repository graph read' >&2; exit 97;; esac
+done
+exec '${realpathSync(git).replaceAll("'", "'\\''")}' "$@"
+`);
+  chmodSync(join(bin, 'git'), 0o700);
+  fixture.env.PATH = `${bin}${delimiter}${fixture.env.PATH}`;
+  fixture.env.PULLBOARD_TEST_STAGE = 'verify';
+  const second = fixture.run(['test/b.test.js']);
+  assert.equal(second.status, 0, second.output);
+  assert.deepEqual(second.ran, [], 'the unchanged proof is found without a graph scan or another worker body');
+  assert.match(second.output, /^# reused [0-9a-f]{64} from submit /mu, 'the original stage remains its provenance');
 });

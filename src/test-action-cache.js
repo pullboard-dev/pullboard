@@ -33,6 +33,7 @@ import {
   sep,
 } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { memoizedActionKeys } from './test-action-key-memo.js';
 
 export const TEST_ACTIONS_ENV = 'PULLBOARD_TEST_ACTIONS';
 export const TEST_STAGE_ENV = 'PULLBOARD_TEST_STAGE';
@@ -43,8 +44,6 @@ const RUNNER_INPUTS = ['bin/run-tests.js', 'src/test-action-reporter.js', 'packa
 const DECLARED_ENVIRONMENT = ['NODE_OPTIONS', 'PULLBOARD_HOSTED_SHAPES', 'PULLBOARD_TEST_TIMEOUT_MS', 'PULLBOARD_TEST_FILE_TIMEOUT_MS', 'TZ', 'LANG', 'LC_ALL'];
 // Options that choose how a run reports or splits files, never what a file proves.
 const NEUTRAL_OPTION = /^--(?:test[-_]concurrency|test[-_]reporter(?:[-_]destination)?|test[-_]shard)(?:=|$)/u;
-// A run that selects tests inside a file proves only those tests, so it neither reuses nor records.
-const FILTER_OPTION = /^--test[-_](?:name|skip)[-_]pattern(?:=|$)|^--test[-_]only$/u;
 // Release notes are prose: src reads them for headlines that tests prove against their own fixture copies. A test that
 // lists and reads them itself has no key at all (listsOwnCheckout).
 const PROSE = new Set(['CHANGELOG.md']);
@@ -55,6 +54,16 @@ const HISTORY = new Set(['log', 'rev-list', 'shortlog', 'blame', 'reflog', 'what
 const TOP_TREES = new Set(['', '.', 'src', 'bin', 'test', 'docs']);
 const URL_LITERAL = /new\s+URL\(\s*(['"`])([^'"`\\$\r\n]+)\1\s*,\s*import\.meta\.url\s*\)/gu;
 const STRING = /(['"])(?:\\[\s\S]|(?!\1)[^\\\r\n])*\1|`(?:\\[\s\S]|[^`\\])*`/uy;
+
+/** Remove only scheduling/reporting options, including their separate values, from proof identity. */
+function materialOptions(options) {
+  const selected = [];
+  for (let at = 0; at < options.length; at++) {
+    if (!NEUTRAL_OPTION.test(options[at])) selected.push(options[at]);
+    else if (!options[at].includes('=') && options[at + 1] && !options[at + 1].startsWith('--')) at++;
+  }
+  return selected;
+}
 
 /** Run git in the checkout with a private environment, returning trimmed stdout or throwing its error. */
 function git(root, args, env) {
@@ -202,32 +211,40 @@ function treeIndex(blobs) {
  * environment and the run's options; the blobs are git object ids, so the key is a pure function of committed bytes.
  *
  * @param {string} root
- * @param {{ commit?: string, options?: string[], env?: NodeJS.ProcessEnv }} [context]
+ * @param {{ commit?: string, options?: string[], env?: NodeJS.ProcessEnv, files?: string[] }} [context]
  * @returns {Promise<Map<string, { key: string | null, reason: string }>>}
  */
-export async function testActionKeys(root, { commit = 'HEAD', options = [], env = process.env } = {}) {
+export async function testActionKeys(root, { commit = 'HEAD', options = [], env = process.env, files } = {}) {
+  const gitEnv = Object.fromEntries(Object.entries(env).filter(([name]) => !name.startsWith('GIT_')));
+  const shared = {
+    version: VERSION,
+    node: process.version, platform: process.platform, arch: process.arch,
+    environment: DECLARED_ENVIRONMENT.map(name => [name, env[name] ?? null]),
+    options: materialOptions(options),
+  };
+  // Hash the executing analyzer as well as the committed tree: fixture and installed tooling
+  // can live outside that tree, and a new analyzer must not read an older algorithm's memo.
+  const analyzer = ['test-action-cache.js', 'test-action-key-memo.js', 'affected-tests.js', 'module-imports.js']
+    .map(file => [file, readFileSync(new URL(file, import.meta.url), 'utf8')]);
+  const identity = digest({ ...shared, tree: git(root, ['rev-parse', `${commit}^{tree}`], gitEnv).trim(), analyzer });
+  return memoizedActionKeys(storeOf(root, gitEnv), identity, files, async () => {
   const { testClosures } = await import('./affected-tests.js');
   const { closures, modules, blobs } = testClosures(root, commit);
   const index = treeIndex(blobs);
-  const shared = {
-    version: VERSION,
-    runner: RUNNER_INPUTS.map(path => [path, blobs.get(path) ?? null]),
-    node: process.version, platform: process.platform, arch: process.arch,
-    environment: DECLARED_ENVIRONMENT.map(name => [name, env[name] ?? null]),
-    options: options.filter(option => !NEUTRAL_OPTION.test(option)),
-  };
+  const runner = RUNNER_INPUTS.map(path => [path, blobs.get(path) ?? null]);
   const keys = new Map();
   for (const [test, closure] of closures) {
     if (!closure.files) { keys.set(test, { key: null, reason: closure.reason }); continue; }
     const reads = declaredReads(test, closure.files, modules, index, closure.helpers);
     if (reads.history) { keys.set(test, { key: null, reason: 'it reads the git history of its own checkout' }); continue; }
     if (reads.undeclaredListing) { keys.set(test, { key: null, reason: 'it lists the tracked files of its own checkout without declaring them' }); continue; }
-    keys.set(test, { key: digest({ ...shared, test,
+    keys.set(test, { key: digest({ ...shared, runner, test,
       closure: closure.files.map(path => [path, blobs.get(path) ?? null]),
       inputs: reads.inputs.map(path => [path, blobs.get(path)]),
       tracked: reads.listing ? digest(index.sorted) : null }), reason: '' });
   }
   return keys;
+  });
 }
 
 /** The store folder for this repository, shared by every worktree through the common git dir. */
@@ -297,7 +314,7 @@ function pruneRuns(store) {
 /**
  * Decide which selected test files must run. A file whose key has a reusable green result is left out and its receipt
  * says `reused <key> from <stage> <commit>`; when that leaves nothing, the run is done. A checkout that differs from
- * its commit, a filtered run, a selector that is not a tracked test file, or a shard of a planned run keeps every
+ * its commit, a selector that is not a tracked test file, or a shard of a planned run keeps every
  * file, and so does any failure to compute keys: reuse is an optimization, never a reason to skip.
  *
  * @param {string} root
@@ -307,7 +324,8 @@ function pruneRuns(store) {
  */
 export async function planTestActions(root, args, { fullSuite, landing = false, listFiles, env = process.env, write = text => process.stdout.write(text) }) {
   const keep = { args, files: null, done: false };
-  if (env[TEST_ACTIONS_ENV] || env.PULLBOARD_TEST_REUSE === '0' || args.some(arg => FILTER_OPTION.test(arg) || /^--test[-_]reporter(?:[-_]destination)?(?:=|$)/u.test(arg))) return keep;
+  // Selection options remain in the action key: a partial proof cannot stand in for a whole file.
+  if (env[TEST_ACTIONS_ENV] || env.PULLBOARD_TEST_REUSE === '0' || args.some(arg => /^--test[-_]reporter(?:[-_]destination)?(?:=|$)/u.test(arg))) return keep;
   let store, commit, keys, selectors;
   try {
     root = realpathSync(root);
@@ -317,7 +335,7 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
     selectors = listFiles();
     const paths = selectors.map(selector => repoPath(root, selector));
     const fileSet = new Set(selectors);
-    keys = await testActionKeys(root, { commit, options: args.filter(arg => !fileSet.has(arg)), env });
+    keys = await testActionKeys(root, { commit, options: args.filter(arg => !fileSet.has(arg)), env, files: paths });
     if (!paths.length || paths.some(path => !path || !keys.has(path))) return keep;
     store = storeOf(root, gitEnv);
     selectors = selectors.map((selector, at) => ({ selector, path: paths[at], key: keys.get(paths[at]).key }));
