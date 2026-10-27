@@ -256,7 +256,7 @@ async function bindCheckoutSession(io, positionals, values) {
   }
   const writes = ['handoff', 'bar', 'init', 'join', 'worktree', 'hooks', 'hook', 'skills', 'add', 'companion', 'edit', 'fact', 'escalate', 'run', 'sweep',
     'next', 'claim', 'hold', 'release', 'submit', 'done', 'verify', 'check', 'merged', 'land', 'withdraw', 'refreeze', 'reopen', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget'];
-  if (!writes.includes(command) && !(command === 'lane' && first === 'add') && !(command === 'settings' && first) && !(command === 'spec' && first === 'apply') && !(command === 'relay' && ['on', 'off'].includes(first))) return;
+  if (!writes.includes(command) && !(command === 'request' && first && first !== 'list') && !(command === 'lane' && first === 'add') && !(command === 'settings' && first) && !(command === 'spec' && first === 'apply') && !(command === 'relay' && ['on', 'off'].includes(first))) return;
   if (command === 'answer' && values.as === 'person') return;
   return (await import('./cli.js')).bindWriteSession(io, positionals, values);
 }
@@ -286,6 +286,7 @@ async function runMain(argv, streams) {
   let needsRepo = true;
   let parsed;
   let checkoutSession;
+  let auditAfterCommand = false;
   try {
     parsed = parseCommandArgs(argv);
     const command = parsed.positionals[0];
@@ -341,6 +342,8 @@ async function runMain(argv, streams) {
     await (await syncWork())?.syncBefore(io, main);
     traceServeStartup('cli-command-preamble-ready');
     const code = await runCommand(argv, io);
+    auditAfterCommand = code === 0 && parsed?.positionals[0] === 'land'
+      && !parsed.values['dry-run'] && parsed.values.waive === undefined;
     if (code === 0) {
       await checkoutSession?.finish?.();
     }
@@ -354,6 +357,10 @@ async function runMain(argv, streams) {
     CHECKOUT_LEASES.delete(io);
     CHECKOUT_BOARD_ONLY.delete(io);
     checkoutSession?.lease?.release();
+    if (auditAfterCommand) {
+      try { await (await import('./main-audit-nudge.js')).nudgeMainAudit(io.cwd); }
+      catch { io.err('pullboard: the full-suite audit could not start; run pullboard land again to retry'); }
+    }
   }
 }
 

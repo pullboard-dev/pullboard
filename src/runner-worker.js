@@ -72,6 +72,7 @@ let markTransportGone;
 const transportGone = new Promise(resolveGone => { markTransportGone = resolveGone; });
 let heartbeatTimer = null;
 let workerId = 'starting';
+let workSpecAccepted = false;
 let rejectPendingFrame = null;
 let activeDescendantTracker = null;
 // Budget: report a named failure within 30 seconds after command exit or transport cancellation.
@@ -209,6 +210,7 @@ async function readSpec() {
     || typeof value.pipefail !== 'boolean' || !Number.isSafeInteger(value.slots) || value.slots < 1
     || !Number.isSafeInteger(value.browser) || value.browser < 0
     || typeof value.browserRequired !== 'boolean'
+    || value.browserRequired && value.browser < 1
     || value.guiRequired !== undefined && typeof value.guiRequired !== 'boolean'
     || (value.timing !== undefined && typeof value.timing !== 'boolean')
     || (value.browserByLaunch !== undefined && typeof value.browserByLaunch !== 'boolean')
@@ -247,7 +249,7 @@ async function readSpec() {
     tagNames.add(tag.name);
     if (tag.chain.length ? tag.chain[0] !== tag.object : tag.object !== tag.peeledCommit) throw new Error('invalid tag manifest');
   }
-  const runtimeNames = ['runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'git-adapter.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js', 'runner-overhead.js', 'test-result-store.js'];
+  const runtimeNames = ['audit-coverage-reporter.js', 'runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'git-adapter.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js', 'runner-overhead.js', 'test-result-store.js'];
   if (Object.keys(value.runtime.files).length !== runtimeNames.length
     || runtimeNames.some(name => typeof value.runtime.files[name] !== 'string')) throw new Error('invalid work specification');
   if (createHash('sha256').update(JSON.stringify(value.runtime.files)).digest('hex') !== value.runtime.sha256) throw new Error('invalid trusted runtime');
@@ -258,7 +260,7 @@ async function readSpec() {
     || createHash('sha256').update(JSON.stringify(toolingFiles)).digest('hex') !== value.tooling.sha256) {
     throw new Error('invalid trusted tooling identity');
   }
-  for (const field of ['landing', 'itemCheck', 'diagnostic']) {
+  for (const field of ['landing', 'itemCheck', 'diagnostic', 'auditCoverage']) {
     if (value[field] !== undefined && typeof value[field] !== 'boolean') throw new Error('invalid work specification');
   }
   for (const field of ['item', 'kind']) {
@@ -923,8 +925,8 @@ function safeSetupMessage(error, step) {
 async function main() {
   installSignalCustody();
   const spec = await readSpec();
+  workSpecAccepted = true;
   workerId = spec.id;
-  if (spec.browserRequired && spec.browser < 1) throw new Error('browser capacity is not configured');
   const sink = outputSink();
   const phases = startRunnerPhases();
   let api;
@@ -1003,6 +1005,8 @@ async function main() {
     // A request without an exchange comes from a caller that opted out of reuse: run every file, read no store.
     const commandEnv = { ...env, ...(spec.testResults ? { [TEST_RESULT_STORE_ENV]: resultStore,
       [TEST_RESULT_ORIGIN_ENV]: spec.testResults.origin, PULLBOARD_TEST_STAGE: spec.testResults.stage } : { PULLBOARD_TEST_REUSE: '0' }),
+      // An audit-coverage run always executes every file, whatever the exchange holds.
+      ...(spec.auditCoverage ? { PULLBOARD_AUDIT_COVERAGE_REPORTER: fileURLToPath(new URL('./audit-coverage-reporter.js', import.meta.url)), PULLBOARD_TEST_REUSE: '0' } : {}),
       PULLBOARD_TEST_CACHE_TOOLING: spec.tooling.sha256,
       PULLBOARD_LANDING_RUN: spec.landing === true ? '1' : '0', [api.BROWSER_REFUSAL_FILE_ENV]: browserRefusal, ...(typeof spec.browserByLaunch === 'boolean' ? { PULLBOARD_TEST_BROWSER_BY_LAUNCH: spec.browserByLaunch ? '1' : '0' } : {}), PULLBOARD_LANDING_WAIVERS: JSON.stringify(spec.landing === true ? spec.waivers ?? [] : []) };
     process.stderr.write(`PULLBOARD_RUNNER_READY ${spec.id}\n`);
@@ -1054,4 +1058,17 @@ async function main() {
   stopReading();
 }
 
-main().catch(() => { process.exitCode = 1; });
+/** Terminate a pre-receipt refusal without waiting for the controller's still-open input stream. */
+function failedWorker() {
+  if (workSpecAccepted) { process.exitCode = 1; return; }
+  clearInterval(heartbeatTimer);
+  clearTimeout(cleanupTimer);
+  clearTimeout(phaseCleanupTimer);
+  rejectPendingFrame = null;
+  // Never echo rejected JSON, paths or credentials; this marker is a failure, not an execution receipt.
+  process.stderr.write('PULLBOARD_RUNNER_SPEC_REFUSED invalid work specification\n');
+  process.exitCode = 1;
+  stopReading();
+}
+
+main().catch(failedWorker);

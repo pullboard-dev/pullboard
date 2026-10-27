@@ -3,7 +3,7 @@
  * board setting is pullboard.json's verify.composeAtAdmission, off by default, so nothing changes until a
  * board turns it on. With it on, the trunk merge, the captured review and the stacked-work check run once
  * the resource queue admits the check, so a landing during the wait never voids a check that has not
- * started; a landing during the check still refuses VERDICT_TRUNK_MOVED in verifyHere.
+ * started; a landing during the check gets one clean-composition retry in verifyHere.
  */
 import {
   contains,
