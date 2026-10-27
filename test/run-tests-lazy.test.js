@@ -2,12 +2,13 @@
 /** Ordinary runner loading stays light; full gates and truthful repository selection retain their inputs [C7,V4]. */
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { selectAffectedTests, testClosures } from '../src/affected-tests.js';
+import { importsIn } from '../src/module-imports.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -15,7 +16,7 @@ const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const RUNNER = join(ROOT, 'bin/run-tests.js');
 const HEAVY = ['src/gate.js', 'src/board.js', 'src/machine.js'];
 
-/** Register a real ESM load observer in the independent fixture controller, with no application-loader replacement. */
+/** Observe the independent controller's ESM loads, not its child workers; their actual execution has a separate marker. */
 function moduleObserver(box) {
   const trace = join(box.dir, 'loaded.jsonl');
   const hook = join(box.dir, 'observe-loader.mjs');
@@ -55,6 +56,33 @@ function observed(box, args) {
   return { child, urls };
 }
 
+/** Read declarations throughout the leading comment header, never from executable code or quoted examples. */
+function sourceTreeReader(source) {
+  const header = source.match(/^(?:\s+|\/\/[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/)*/u)[0];
+  return header.split(/\r?\n/u).some(line => line.trim() === '/** @pullboard-test-input source-tree */');
+}
+
+/** A cache-unknown module can still have an independently proven literal import chain to the changed board. */
+function knownUncacheableImporters(closures, modules) {
+  const suffix = ['src/gate-slot.js', 'src/release-queue.js', 'src/board.js'];
+  const chains = [
+    ['test/run-tests-kill.test.js', 'bin/run-tests.js', ...suffix],
+    ['test/run-tests-timeout.test.js', 'bin/run-tests.js', ...suffix],
+    ['test/runners.test.js', 'src/gate.js', ...suffix],
+  ];
+  const sources = [...new Set(chains.flat())];
+  const imports = new Map(importsIn(sources.map(file => modules.get(file))).map((edges, index) => [sources[index], edges]));
+  for (const chain of chains) {
+    assert.equal(closures.get(chain[0]).files, null, 'known edges do not turn an unknown cache closure into a reusable one');
+    for (let index = 0; index < chain.length - 1; index++) {
+      const relative = posix.relative(posix.dirname(chain[index]), chain[index + 1]);
+      const specifier = relative.startsWith('.') ? relative : `./${relative}`;
+      assert.ok(imports.get(chain[index]).includes(specifier), `${chain[index]} really imports ${chain[index + 1]}`);
+    }
+  }
+  return new Set(chains.map(chain => chain[0]));
+}
+
 test('a plain test run loads no gate board or machine modules through its runner [C7,V4]', { timeout: 90_000 }, // budget: one real private admission and test-file child; hang ceiling only.
 () => {
   const box = fixture();
@@ -84,8 +112,9 @@ test('a board change selects its real importers in the actual committed reposito
   assert.equal(selection.full, false, selection.reason);
   assert.ok(selection.files.includes('test/board.test.js'), 'the board contract is an actual importer');
   const { closures, modules } = testClosures(ROOT, 'HEAD');
+  const known = knownUncacheableImporters(closures, modules);
   const expected = [...closures].filter(([file, closure]) => closure.files?.includes('src/board.js')
-    || modules.get(file).startsWith('/** @pullboard-test-input source-tree */')).map(([file]) => file).sort();
+    || sourceTreeReader(modules.get(file)) || known.has(file)).map(([file]) => file).sort();
   assert.deepEqual(selection.files, expected, 'only actual transitive importers and declared source-tree readers are selected');
   assert.ok(selection.files.length < closures.size, 'unrelated tests do not become board dependencies through the runner');
 });
