@@ -97,7 +97,7 @@ test('unknown or matching vendor families refuse fresh review and a required fam
   f.submit(id);
   store.register(f.board, { id: 'core-6', lane: 'core', path: '/fixture/unknown', model: 'A model label is not a vendor declaration' });
   store.register(f.board, { id: 'core-7', lane: 'core', path: '/fixture/other', family: 'other' });
-  for (const actor of ['core-6', 'core-4', 'core-7']) assert.throws(() => f.reserve(id, actor), e => e.code === 'O2_FAMILY_MATCH');
+  for (const actor of ['core-6', 'core-4', 'core-7']) assert.throws(() => f.reserve(id, actor), e => e.code === 'REQUIRED_REVIEW_FAMILY');
   assert.equal(itemReviewPolicy(f.board, id).tier, 'strict');
   assert.equal(f.reserve(id, 'core-5').item_review_by, 'core-5');
 });
