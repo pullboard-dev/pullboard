@@ -27,12 +27,14 @@ import { foreignNodeOptions, isolateTestMachine } from '../src/test-isolation.js
 import { TEST_FILE_POOL_ENV, longestFirst, takeTestFileToken, testFilePoolValue } from '../src/test-file-pool.js';
 import { optionTakesValue } from '../src/test-file-dispatch.js';
 import { knownNodeOption } from '../src/test-file-dispatch.js';
+import { COLLECTION_ID_ENV } from '../src/landing-collection-report.js';
 const runner = fileURLToPath(import.meta.url);
 const LANDING_RUN_ENV = 'PULLBOARD_LANDING_RUN';
 const LANDING_WORKER_STARTS_ENV = 'PULLBOARD_LANDING_WORKER_STARTS';
 const LANDING_ATTEMPT_ENV = 'PULLBOARD_LANDING_ATTEMPT';
 const LANDING_WAIVERS_ENV = 'PULLBOARD_LANDING_WAIVERS';
 // Mirrors src/landing-shards.js; this preload stays free of that module until a landing needs it.
+const LANDING_COLLECT_ALL_ENV = 'PULLBOARD_LANDING_COLLECT_ALL';
 const LANDING_SHARD_ENV = 'PULLBOARD_LANDING_SHARD';
 const LANDING_FILE_TIMES_ENV = 'PULLBOARD_LANDING_FILE_TIMES';
 export const DEFAULT_TEST_TIMEOUT_MS = 660_000;
@@ -266,6 +268,8 @@ function testEnvironment(sandbox, gateMarkers = {}) {
   // The outer gate decides whether this invocation is fail-fast. Its test workers and
   // any nested runner commands always retain ordinary runner semantics.
   env[LANDING_RUN_ENV] = '0';
+  delete env[LANDING_COLLECT_ALL_ENV];
+  delete env[COLLECTION_ID_ENV];
   Object.assign(env, gateMarkers);
   env[LANDING_RUN_ENV] = '0';
   return env;
@@ -700,28 +704,13 @@ async function drainLandingWorkerDescendants(ownedDescendants, refreshOwnedDesce
   if (firstError) throw new Error(`owned descendants drained after cleanup error: ${firstError.message}`, { cause: firstError });
 }
 
-/**
- * Read the live person waivers Pullboard projects into a landing run, as `{kind, test}` pairs.
- * The projection only decides whether the run keeps going past a failure; whether the run is
- * waived is decided afterwards by Pullboard against the board, so a forged list only makes a run
- * longer, never greener. Anything unreadable projects nothing, and the run stops as before [B3].
- */
-function landingWaiverProjection(text) {
-  try {
-    const parsed = JSON.parse(text ?? '[]');
-    return Array.isArray(parsed) ? parsed.filter(entry => ['file', 'name'].includes(entry?.kind) && typeof entry.test === 'string' && entry.test) : [];
-  } catch { return []; }
-}
-
-/** True when a projected waiver covers this failing test by its file or by its exact name. */
-function landingFailureWaived(waivers, file, name) {
-  const path = typeof file === 'string' ? relative(process.cwd(), file.startsWith('file:') ? fileURLToPath(file) : file) : null;
-  return waivers.some(waiver => waiver.kind === 'file' ? waiver.test === path : waiver.test === name);
-}
-
 /** Run a landing check with execution-ordered failure detection and native runner reporters. */
-async function runLandingTests(args, env, concurrency) {
+async function runLandingTests(args, env, concurrency, fullScope = false) {
+  const collectAll = process.env[LANDING_COLLECT_ALL_ENV] === '1';
+  const collectionId = process.env[COLLECTION_ID_ENV];
+  const collectionShard = process.env[LANDING_SHARD_ENV] ?? null;
   const { landingFailureReport } = await import('../src/landing-failure-report.js');
+  const { landingWaiverProjection, landingFailureWaived, publishLandingCollection } = await import('../src/landing-test-policy.js');
   const retainedFailure = landingFailureReport();
   const waivers = landingWaiverProjection(process.env[LANDING_WAIVERS_ENV]);
   const waivedFiles = new Map();
@@ -733,6 +722,8 @@ async function runLandingTests(args, env, concurrency) {
   const { pathToFileURL } = await import('node:url');
   const { options, env: testEnv } = await landingTestOptions(args, env, concurrency);
   delete testEnv[LANDING_WAIVERS_ENV];
+  delete testEnv[LANDING_COLLECT_ALL_ENV];
+  delete testEnv[COLLECTION_ID_ENV];
   if (options.isolation !== 'process') {
     throw new Error('landing gate early-stop requires --test-isolation=process so started files and owned children can be tracked safely');
   }
@@ -801,6 +792,7 @@ async function runLandingTests(args, env, concurrency) {
   const completedFiles = new Set();
   const failureDiagnostics = new Map();
   let firstFailure = null;
+  let collectionCancelled = false;
   let successful = true;
   let reportersEnded = false;
   let abortCleaned = false;
@@ -1000,7 +992,7 @@ async function runLandingTests(args, env, concurrency) {
             retainedFailure.remember(data);
             // Node emits completion before finalizing its result. Aborting inside that callback
             // replaces the real failure with cancellation; let the current publication finish.
-            queueMicrotask(abortLandingRun);
+            if (!collectAll) queueMicrotask(abortLandingRun);
           }
         });
         tests.on('test:summary', data => {
@@ -1010,7 +1002,7 @@ async function runLandingTests(args, env, concurrency) {
             completedFiles.add(data.file);
             if (data.success === false && !firstFailure && waivedFiles.get(data.file) !== true) {
               firstFailure = { file: data.file, name: 'test file failed before a test completed' };
-              queueMicrotask(abortLandingRun);
+              if (!collectAll) queueMicrotask(abortLandingRun);
             }
           }
         });
@@ -1020,6 +1012,7 @@ async function runLandingTests(args, env, concurrency) {
       event = retainedFailure.event(event);
       // Node 22's execution-complete event may describe only the failed file wrapper;
       // its ordered failure event retains the actual assertion once reporters drain.
+      if (event.type === 'test:fail' && event.data.details?.error?.failureType === 'testAborted') collectionCancelled = true;
       if (event.type === 'test:fail') {
         const data = event.data;
         const error = data.details?.error;
@@ -1068,13 +1061,14 @@ async function runLandingTests(args, env, concurrency) {
     Object.assign(process.env, originalEnv);
     process.off('SIGTERM', stopShard);
   }
+  if (collectAll) publishLandingCollection({collectionId,collectionShard,fullScope,selectedFiles,completedFiles,stoppedByLanding,collectionCancelled,reporterError,cleanupUnverifiedReported});
   if (reporterError) throw reporterError;
   if (stoppedByLanding && !firstFailure) {
     process.stderr.write(`\nLanding shard ${process.env[LANDING_SHARD_ENV]} stopped by the landing after another shard failed; its owned processes were drained\n`);
     process.exitCode = 1;
     return { status: 1, signal: null };
   }
-  if (firstFailure) {
+  if (firstFailure && !collectAll) {
     const diagnostic = failureDiagnostics.get(firstFailure.file);
     if (diagnostic) firstFailure = { file: firstFailure.file, name: diagnostic.name, error: diagnostic.details.error };
     const notRun = (selectedFiles ?? []).filter(file => !startedFiles.has(file));
@@ -1092,7 +1086,7 @@ async function runLandingTests(args, env, concurrency) {
     process.exitCode = 1;
     return { status: 1, signal: null };
   }
-  return { status: successful ? 0 : 1, signal: null };
+  return { status: successful && !firstFailure ? 0 : 1, signal: null };
 }
 
 /** Distinguish file selection from option values so filtered discovery still takes a full-suite slot. */
@@ -1270,7 +1264,7 @@ async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency) 
   }
   selectedArgs = await longestFilesFirst(selectedArgs);
   const result = process.env[LANDING_RUN_ENV] === '1'
-    ? await runLandingTests(selectedArgs, env, concurrency)
+    ? await runLandingTests(selectedArgs, env, concurrency, fullSuite && patterns.length === 0)
     : await runTests(selectedArgs, env, concurrency);
   if (result.error) throw result.error;
   return selectedTestResult(result, env.PULLBOARD_TEST_SELECTION, patterns, explicitTestFiles(selectedArgs));
