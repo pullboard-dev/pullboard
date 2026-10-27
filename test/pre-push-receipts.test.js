@@ -77,14 +77,13 @@ console.log(JSON.stringify({receiptId:result.receiptId,green:result.isGreen,outp
 }
 
 test('push evidence refuses missing landings and unfiled newest audit failures without rerunning the full suite [C7]', () => {
-  const command = 'node --test --test-reporter=tap web/audit.test.cjs';
+  const command = 'test "$PULLBOARD_FIXTURE_AUDIT_RED" != 2 && node --test --test-reporter=tap web/audit.test.cjs';
   const box = e2e.project(command, undefined, { withWorktree: false });
   delete box.env.NODE_TEST_CONTEXT;
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'web/audit.test.cjs'), [
     "const {test}=require('node:test');",
     "const assert=require('node:assert/strict');",
-    "if(process.env.PULLBOARD_FIXTURE_AUDIT_RED==='2')process.exit(2);",
     "test('audit failure [C7]',()=>assert.notEqual(process.env.PULLBOARD_FIXTURE_AUDIT_RED,'1'));",
   ].join('\n'));
   box.git(box.repo, 'add', '-A');
