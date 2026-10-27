@@ -121,6 +121,7 @@ import {
 } from './settings.js';
 import {
   selectAffectedTests,
+  selectTestTreeGuards,
 } from './affected-tests.js';
 import {
   selectRegistryGuards,
@@ -626,9 +627,10 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   // A selection over submitDeferAbove files moves to the landing gate, which runs every recorded file before the item lands.
   const deferSelection = deferred && !selection.full && Number.isSafeInteger(config.submitDeferAbove) && selection.files.length > config.submitDeferAbove;
   const invariants = deferred ? [...new Set(config.submitInvariants ?? [])].sort() : [];
-  const registryGuards = selectRegistryGuards(root, config.registryGuards, { base, trunk, changed });
-  if (invariants.length && !config.affectedTests?.trim()) {
-    throw new Refused('BAD_CONFIG', 'submitInvariants requires the project affectedTests runner');
+  const registryGuards = [...new Set([...selectRegistryGuards(root, config.registryGuards, { base, trunk, changed }),
+    ...selectTestTreeGuards(root, { base, trunk, changed })])].sort();
+  if ((invariants.length || registryGuards.length) && !config.affectedTests?.trim()) {
+    throw new Refused('BAD_CONFIG', 'submitInvariants and repository guards require the project affectedTests runner');
   }
   for (const path of [...invariants, ...registryGuards]) {
     let file = false;
