@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** @pullboard-test-input ** */
 import { runFixtureGit } from './fixture-child.js';
 /** Private real-file fixtures prove falling cell debt without moving any repository source [C7,CD64]. */
@@ -126,6 +127,8 @@ test('tests and fixture strings never seed app reach; unknown loaders and missin
 
 test('report is read-only, initialization is explicit and check/update cannot raise or offset a finding [C7,CD64]', t => {
   const box = fixture(t), run = mode => runFixtureChild(process.execPath, [BIN, mode, box.root], { encoding: 'utf8' });
+  box.put('path-map.json', JSON.stringify({ 'src/previous.js': 'packages/sample/index.js' }));
+  box.git('add', '-A'); box.git('commit', '-qm', 'test: accepted first package migration');
   const first = run('--report'); assert.equal(first.status, 0, first.stderr);
   assert.throws(() => readFileSync(join(box.root, 'bin/cell-lint-baselines/index.json')), { code: 'ENOENT' });
   assert.equal(run('--init').status, 0);
@@ -249,9 +252,11 @@ test('bounded hash-bound baseline shards count their own files and refuse missin
 });
 
 
-test('the actual repository gate refuses any cell debt above its committed per-entity baseline [C7,CD64]', () => {
+test('the actual repository gate enforces strict cell debt and reports temporary named transition rises [C7,CD64]', () => {
   const root = dirname(dirname(BIN)), report = cellLintReport(root), baseline = readCellLintBaseline(root);
-  assert.deepEqual(cellLintGrowth(report, baseline), [], 'normal npm test enforces the literal repository baseline without updating it');
+  const growth = cellLintGrowth(report, baseline);
+  for (const row of growth.filter(row => row.advisory)) console.log(`advisory item #${row.item} until #${row.until}: ${row.metric}:${row.key}: ${row.actual} exceeds ${row.allowed}`);
+  assert.deepEqual(cellLintGrowth(report, baseline, { enforcedOnly: true }), [], 'normal npm test keeps all non-transition debt strict without updating the baseline');
 });
 
 test('transitional roots follow real package CLI/browser declarations and never arbitrary fixture HTML [C7,CD62]', t => {
@@ -318,4 +323,126 @@ test('baseline initialization preserves unowned colliding shard bytes and leaves
   assert.throws(() => writeCellLintBaseline(box.root, plan.baseline, { initialize: true }), { code: 'CELL_BASELINE' });
   assert.deepEqual(readFileSync(join(box.root, shard)), original, 'a rejected initial write neither overwrites nor rollback-deletes the colliding file');
   assert.throws(() => readFileSync(join(box.root, 'bin/cell-lint-baselines/index.json')), { code: 'ENOENT' });
+});
+
+
+test('the pre-cell transition reports size, files and edges while keeping baseline updates falling-only [C7,CD64]', t => {
+  const box = fixture(t), run = mode => runFixtureChild(process.execPath, [BIN, mode, box.root], { encoding: 'utf8' });
+  const initial = run('--init');
+  assert.equal(initial.status, 0, initial.stderr);
+  const baseline = readCellLintBaseline(box.root), descriptor = readFileSync(join(box.root, 'bin/cell-lint-baselines/index.json'));
+  box.git('add', '-A'); box.git('commit', '-qm', 'test: establish the real pre-migration source tree');
+  box.put('src/transition-reader.js', 'export const extra = 2;\n' + '\n'.repeat(505));
+  box.put('test/transition-control.test.js', 'void 0;\n');
+  box.put('apps/demo/index.js', "import { value } from '#sample'; import { extra } from '../../src/transition-reader.js'; console.log(value, extra);\n");
+  const report = box.report();
+  assert.equal(report.transition.active, true);
+  const growth = cellLintGrowth(report, baseline);
+  assert.ok(growth.some(row => row.metric === 'legacySource' && row.key === 'src/transition-reader.js' && row.advisory));
+  assert.ok(growth.some(row => row.metric === 'strays' && row.key === 'test/transition-control.test.js' && row.advisory));
+  assert.ok(growth.some(row => row.metric === 'boundaries' && row.key.endsWith('->src/transition-reader.js') && row.advisory));
+  assert.ok(growth.every(row => row.advisory && row.item === 1527 && row.until === 1395));
+  assert.deepEqual(cellLintGrowth(report, baseline, { enforcedOnly: true }), []);
+  const checked = run('--check');
+  assert.equal(checked.status, 0, checked.stderr);
+  assert.match(checked.stderr, /advisory item #1527 until #1395: legacySource:src\/transition-reader\.js/u);
+  assert.match(checked.stderr, /boundaries:apps\/demo\/index\.js->src\/transition-reader\.js/u);
+  assert.match(checked.stderr, /strays:test\/transition-control\.test\.js/u);
+  assert.match(checked.stderr, /fileSize:src\/transition-reader\.js/u);
+  const reported = run('--report');
+  assert.equal(reported.status, 0, reported.stderr);
+  assert.ok(JSON.parse(reported.stdout).growth.some(row => row.advisory && row.key === 'src/transition-reader.js'));
+  assert.notEqual(run('--update').status, 0, 'the actual CLI refuses an advisory baseline increase');
+  assert.deepEqual(readFileSync(join(box.root, 'bin/cell-lint-baselines/index.json')), descriptor);
+  assert.throws(() => lowerCellLintBaseline(report, baseline), { code: 'CELL_LINT_ROSE' }, 'advisory debt never raises the stored ratchet');
+  box.put('path-map.json', JSON.stringify({ 'src/previous.js': 'packages/sample/index.js' }));
+  assert.equal(box.report().transition.active, true, 'an uncommitted path map is not accepted source evidence');
+  box.git('add', '-A'); box.git('commit', '-qm', 'test: accepted first package migration');
+  const after = box.report();
+  assert.equal(after.transition.active, false, 'the exact committed package migration closes the transition');
+  assert.deepEqual(after.transition.witness, ['src/previous.js', 'packages/sample/index.js']);
+  assert.ok(cellLintGrowth(after, baseline, { enforcedOnly: true }).some(row => row.key === 'src/transition-reader.js' && !row.advisory));
+  const strict = run('--check');
+  assert.notEqual(strict.status, 0, 'the same real helper/test/import change is refused after the accepted source witness');
+  assert.match(strict.stderr, /legacySource:src\/transition-reader\.js/u);
+  assert.doesNotMatch(strict.stderr, /advisory item/u);
+});
+
+test('the pre-cell transition keeps real cycles strict and reports every other family [C7,CD64]', t => {
+  const box = fixture(t), baseline = cellLintBaseline(box.report());
+  box.put('packages/sample/index.js', "import '#other'; export const value = 1;\n");
+  box.put('packages/other/index.js', "import '#sample';\n");
+  box.put('src/bridge.js', "export { value } from '../packages/sample/index.js';\n");
+  box.put('packages/sample/src/core/orphan.js', 'export const unused = 1;\n' + '\n'.repeat(1501));
+  box.put('packages/sample/src/core/note.md', '# Fixture documentation debt\n');
+  box.put('packages/sample/src/core/opaque.js', 'import(process.env.UNKNOWN_TARGET);\n');
+  const report = box.report();
+  assert.equal(report.transition.active, true);
+  const strict = cellLintGrowth(report, baseline, { enforcedOnly: true });
+  assert.ok(strict.length && strict.every(row => row.metric === 'cycles' && !row.advisory));
+  const reported = cellLintGrowth(report, baseline);
+  for (const metric of ['shims', 'fileSize', 'unreachable', 'unreachableExports', 'documents', 'unknown']) {
+    assert.ok(reported.some(row => row.metric === metric && row.advisory), `${metric} is measured and reported`);
+  }
+  assert.throws(() => lowerCellLintBaseline(report, baseline), { code: 'CELL_LINT_ROSE' });
+});
+
+
+test('the actual discovered command loader reaches command run and its literal helper without excusing unused exports [C7,CD62]', t => {
+  const box = fixture(t);
+  box.put('src/commands/index.js', readFileSync(new URL('../src/commands/index.js', import.meta.url), 'utf8'));
+  box.put('src/discovery.js', readFileSync(new URL('../src/discovery.js', import.meta.url), 'utf8'));
+  box.put('apps/demo/index.js', "import { COMMANDS } from '../../src/commands/index.js'; COMMANDS.next();\n");
+  box.put('src/commands/next.js', "import { routing } from '../routing.js'; export function run() { return routing(); } export const unused = 1;\n");
+  box.put('src/routing.js', 'export function routing() { return 1; }\n');
+  box.put('src/not-a-command.js', 'export const unused = 1;\n');
+  const report = box.report();
+  assert.ok(!report.metrics.unreachable.findings.some(row => ['src/commands/next.js', 'src/routing.js'].includes(row.key)));
+  assert.ok(!report.metrics.unreachableExports.findings.some(row => ['src/commands/next.js#run', 'src/routing.js#routing'].includes(row.key)));
+  assert.ok(report.metrics.unreachableExports.findings.some(row => row.key === 'src/commands/next.js#unused'));
+  assert.ok(report.metrics.unreachable.findings.some(row => row.key === 'src/not-a-command.js'));
+});
+
+test('literal native worker URLs and native data reads count as reach while unused and shadowed URLs do not [C7,CD62]', t => {
+  const box = fixture(t);
+  box.put('apps/demo/index.js', `import { Worker } from 'node:worker_threads';
+import { readFileSync } from 'node:fs';
+new Worker(new URL('../../src/worker.js', import.meta.url));
+readFileSync(new URL('../../src/native-harness-manifest.json', import.meta.url), 'utf8');
+const baseline = new URL('../../src/flake-baseline.json', import.meta.url);
+readFileSync(baseline, 'utf8');
+const unused = new URL('../../src/unused.js', import.meta.url);
+`);
+  box.put('src/worker.js', 'void 0;\n');
+  box.put('src/native-harness-manifest.json', '{"files":[]}\n');
+  box.put('src/flake-baseline.json', '{}\n');
+  box.put('src/unused.js', 'void 0;\n');
+  const report = box.report();
+  for (const file of ['src/worker.js', 'src/native-harness-manifest.json', 'src/flake-baseline.json']) {
+    assert.ok(!report.metrics.unreachable.findings.some(row => row.key === file), `${file} has an actual native consumer`);
+  }
+  assert.ok(report.metrics.unreachable.findings.some(row => row.key === 'src/unused.js'));
+  box.put('apps/demo/index.js', `import { Worker } from 'node:worker_threads';
+function example(Worker) { return new Worker(new URL('../../src/worker.js', import.meta.url)); }
+example(class {});
+`);
+  assert.ok(box.report().metrics.unreachable.findings.some(row => row.key === 'src/worker.js'), 'a shadowed worker binding is not proven to launch the file');
+});
+
+test('literal Node process worker arguments reach their file but computed and test-only input declarations stay unproven [C7,CD62]', t => {
+  const box = fixture(t);
+  box.put('apps/demo/index.js', `import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+spawnSync(process.execPath, [fileURLToPath(new URL('../../src/process-worker.js', import.meta.url))]);
+`);
+  box.put('src/process-worker.js', 'void 0;\n');
+  box.put('src/only-test.json', '{}\n');
+  box.put('test/reader.test.js', "import { readFileSync } from 'node:fs'; readFileSync(new URL('../src/only-test.json', import.meta.url));\n");
+  const report = box.report();
+  assert.ok(!report.metrics.unreachable.findings.some(row => row.key === 'src/process-worker.js'));
+  assert.ok(report.metrics.unreachable.findings.some(row => row.key === 'src/only-test.json'), 'a test never seeds production data reach');
+  box.put('apps/demo/index.js', "import(process.env.UNKNOWN_WORKER);\n");
+  const opaque = box.report();
+  assert.ok(opaque.metrics.unreachable.findings.some(row => row.key === 'src/process-worker.js'));
+  assert.ok(opaque.unknown.some(row => row.file === 'apps/demo/index.js'), 'computed input remains disclosed, not a fabricated edge');
 });
