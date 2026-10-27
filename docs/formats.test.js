@@ -362,6 +362,12 @@ function recordEventContract() {
   applyRowDecisions(board, { agentId: coordinator, events: decisions.map((record) => record.event), refreezes: [] });
   draftSpecRow(board, { agentId: builder, row: { id: 'A2', text: 'A lane drafted row.', gate: 'review', tier: 'must', section: 'A · Fixture' } });
   const freeze = (digest) => () => ({ text: `criterion-${digest}`, digest });
+  // Real historical ordered envelopes retain the 142 field shape, not modern policy defaults.
+  const legacyAdd = { ...prepareEngineMove(board, 'addItem', [{ by: coordinator, lane: 'docs', title: 'Historical family event', reviewFamily: 'Fixture Review' }]), engine: 142 };
+  const legacyAdded = applyEngineMove(board, legacyAdd, { sequence: 1, at: '2026-10-17T19:58:00.000Z' });
+  assert.equal(legacyAdded.error, undefined);
+  const legacyEdit = { ...prepareEngineMove(board, 'editItem', [legacyAdded.result, { agentId: coordinator, reviewFamily: 'Fixture Review' }]), engine: 142 };
+  assert.equal(applyEngineMove(board, legacyEdit, { sequence: 2, at: '2026-10-17T19:59:00.000Z' }).error, undefined);
   const first = addItem(board, { by: coordinator, lane: 'docs', title: 'Accepted example', criterion: 'Initial', specIds: ['A1'], route: 'strong', reviewFamily: 'Fixture Review' });
   const fact = appendFact(board, first, { agentId: builder, kind: 'note', text: 'Captured evidence', ref: 'docs/formats.md:1-3@' + 'a'.repeat(40) });
   appendFact(board, first, { agentId: coordinator, kind: 'measurement', text: 'Corrected evidence', supersedes: fact.id });
@@ -404,7 +410,7 @@ function recordEventContract() {
   // Exercise the new event's historical-engine semantics here; team-engine.test.js
   // separately prepares and compares this path with the actual released engine 12.
   const olderFinish = { ...prepareEngineMove(board, 'finishLandingBatch', [{ agentId: coordinator, id: batch.id, tip: batch.tip }]), engine: 12 };
-  assert.equal(applyEngineMove(board, olderFinish, { sequence: 1, at: '2026-10-17T20:00:00.000Z' }).error, undefined);
+  assert.equal(applyEngineMove(board, olderFinish, { sequence: 3, at: '2026-10-17T20:00:00.000Z' }).error, undefined);
 
   const rejected = addItem(board, { by: coordinator, lane: 'docs', title: 'Rejected example' });
   claim(board, rejected, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('rejected') });
