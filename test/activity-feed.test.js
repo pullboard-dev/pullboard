@@ -1,6 +1,7 @@
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/machine.js */
 /** Lifecycle activity retains its evidence without turning routine status into messages [B3,R2,N26,H16]. */
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { after, test } from 'node:test';
@@ -16,6 +17,7 @@ import shoutMove from '../src/moves/shout.js';
 import { ACTIVITY_DELIVERY_ENGINE } from '../src/activity-delivery-engine.js';
 import { relaySenderProblem } from '../src/relay-sender.js';
 import { readActivityDelivery } from '../src/activity-delivery-read.js';
+import { prepareSpecRefreezes } from '../src/spec-refreeze.js';
 import { activityMainFiles, activityWorkingFiles, readActivityCursor, saveActivityCursor } from '../src/activity-inbox.js';
 
 const e2e = createE2eHelpers();
@@ -177,7 +179,15 @@ test('an agent feed shows only activity that touches its items files rows and la
     kind: 'spec', id, file: 'SPEC.md', decision: 'approve', source: `- ${id} [draft] Private row ${id}.`,
     replacement: `- ${id} [approved] Private row ${id}.`, text: `Private row ${id}.`,
   }] }));
-  store.applyRowDecisions(board, { agentId: 'coordinator', events: rowRecords.map(record => record.event) });
+  // Seal complete corrected bars through the current apply protocol; this fixture proves feed projection only.
+  /** Freeze the private fixture's corrected row bytes without claiming a gate execution. */
+  const correctedFreeze = item => {
+    const text = JSON.stringify({ title: item.item_title, criterion: item.item_criterion,
+      check: item.item_check ?? '', rows: item.item_spec_ids.split(',').map(id => ({ id, text: `Private row ${id}.`, gate: '' })) });
+    return { text, digest: createHash('sha256').update(text).digest('hex') };
+  };
+  const refreezes = prepareSpecRefreezes(rowRecords, store.listItems(board, { all: true }), correctedFreeze);
+  store.applyRowDecisions(board, { agentId: 'coordinator', events: rowRecords.map(record => record.event), refreezes });
   store.draftSpecRow(board, { agentId: 'web-1', row: { id: 'G1', text: 'Private cited-row draft',
     gate: 'private fixture gate', tier: 'should', section: 'Goals' } });
   const answer = store.answerDecision(board, question, { agentId: 'api-1', text: 'Use the narrow path.', lanes });

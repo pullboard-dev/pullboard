@@ -1,3 +1,4 @@
+import { nextTake } from '../next-take.js';
 import { heartbeatCommand } from '../cli-presence.js';
 /** Agent session hooks observe activity without adding any shared board move [B3]. */
 import { context } from '../cli-read-context.js';
@@ -11,6 +12,11 @@ export async function run(io) {
     heartbeatCommand(io, { ctx, board });
     return agentAt(board, ctx.info.root);
   });
-  io.result?.({ seat: seat?.agent_id ?? null, presence: seat?.presence ?? 'gone', heartbeatAt: seat?.heartbeatAt ?? null });
+  let work;
+  if (seat && !ctx.info.isMain) {
+    const found = await nextTake(ctx);
+    if (found.item) work = { item: found.item.item_id, review: found.review, held: found.held };
+  }
+  io.result?.({ ...(work ? { work } : {}), seat: seat?.agent_id ?? null, presence: seat?.presence ?? 'gone', heartbeatAt: seat?.heartbeatAt ?? null });
   return 0;
 }

@@ -1,3 +1,4 @@
+import { anyRequiredReviewFamilyEngine } from '../required-review-family.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 /** Routing metadata owned by reserveNextReview, discovered without a shared registry edit [C7,V4,H16]. */
 import { LANDING_LEASE_ENGINE } from '../landing-lease-engine.js';
@@ -6,6 +7,7 @@ import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function minimumEngine(args, board, at) {
+  if (anyRequiredReviewFamilyEngine(board) > 1) return anyRequiredReviewFamilyEngine(board);
   if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:')) return RIGOR_AUTO_ENGINE;
   if (args[0]?.landingFence !== undefined) return LANDING_LEASE_ENGINE;
   if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('sentinel:')) return BOARD_SENTINEL_ENGINE;
@@ -19,6 +21,7 @@ function actor(move) { return move.args[0]?.agentId ?? null; }
 export default Object.freeze({ operation: "reserveNextReview", order: 17, engine: 1,
   itemIdFirstArgument: false, minimumEngine, actor,
   nextSteps: Object.freeze({
+  "REQUIRED_REVIEW_FAMILY": "ask a reviewer whose declared family matches the item review-family requirement",
   "COORDINATOR_VERIFIES": "leave the review to the coordinator; shout it when the item is ready: pullboard shout coordinator \"#<id> is ready to verify\"",
   "LINE_SETTING_RANGE": "read the allowed range with pullboard settings line, then record an in-range value or off with its reason and window numbers",
   "MAIN_IS_COORDINATOR": "use an independent agent checkout for agent work, or run person-only actions from the main checkout as the coordinator",
