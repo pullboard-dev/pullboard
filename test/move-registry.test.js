@@ -205,7 +205,7 @@ process.stdout.write(JSON.stringify(result));`;
   assert.equal(result.alphaActor, 'seed-agent');
   assert.equal(result.alphaStep, 'repair the first seeded move');
   assert.equal(result.betaStep, 'repair the second seeded move');
-  assert.deepEqual(result.itemIds.filter(name => !name.startsWith('seed')).sort(), [...SNAPSHOT.itemIdFirstArgument, 'rehomeItem'].sort());
+  assert.deepEqual(result.itemIds.filter(name => !name.startsWith('seed') && !ITEM_PATCH_OPERATIONS.includes(name)).sort(), [...SNAPSHOT.itemIdFirstArgument, 'rehomeItem'].sort());
   assert.ok(result.itemIds.includes('seedAlpha'));
   assert.ok(!result.itemIds.includes('seedBeta'));
   assert.deepEqual(result.floors, SNAPSHOT.floorCases.map(entry => entry.expected), 'all historical first-match floor vectors retain their results');

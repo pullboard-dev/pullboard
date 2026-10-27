@@ -95,6 +95,7 @@ export const STATES = [
 
 /** @type {Guard[]} */
 export const GUARDS = [
+  { id: 'patchInputsCurrent', refuse: 'ITEM_PATCH_CHANGED', alsoRefuses: [{ code: 'ITEM_PATCH_SOURCE', next: 'replace stale patches against the current submitted source' }], rule: 'acceptance binds the current ordered companion digest and submitted source', next: 'compose the current native patches and rerun independent review', source: 'board' },
   { id: 'sourceAcceptance', refuse: 'REHOME_VERDICT', rule: 'the authenticated destination mover attests to an exact source board ACCEPT reference keyed by the ordered source MOVEID and result digest', next: 'preserve the imported source acceptance attribution, frozen digest, commit and verifier reference', source: 'board' },
   { id: 'mergeOnlyRecorded', refuse: 'MERGE_ONLY_PROOF', rule: 'the sealed submit records the origin’s Git-derived carry, unchanged bar and original verifier; landing re-proves its heads, trees and resolution hash before merging', next: 'submit normally for outside review if the origin cannot prove the merge', source: 'board' },
   { id: 'outsideSubmission', refuse: 'OUTSIDE_SOURCE', rule: 'an outside author and exact fetched commit/tree are recorded with a trusted frozen criterion, without pretending a native builder gated it', next: 'fetch and intake the exact GitHub pull request again', source: 'board' },
@@ -173,6 +174,9 @@ const BOARD_SHAPE_REFUSALS = [{ code: 'SCHEMA_DRIFT', rule: 'the installed board
 
 /** @type {Move[]} */
 export const MOVES = [
+  { verb: 'patch', from: ['submitted', 'verified'], to: 'submitted', by: ['coordinator'], refuse: 'ITEM_PATCH_STATE',
+    guards: ['joined', 'itemExists', IN_STATE, 'coordinatorOnly', 'notMerged'],
+    sets: ['item_verdict', 'item_verified_by', 'item_review_by', 'item_review_until'], command: 'pullboard patch attach|remove <id>' },
   { verb: 'rehomeImport', from: ['open'], to: 'verified', by: ['agent'], refuse: 'REHOME_VERDICT',
     guards: ['joined', 'itemExists', IN_STATE, 'sourceAcceptance', 'atSubmittedCommit', 'notBuilder', 'criterionUnchanged', 'proofNoted'],
     sets: ['item_verified_by', 'item_commit'],
@@ -216,7 +220,7 @@ export const MOVES = [
   },
   {
     verb: 'accept', from: ['submitted', 'verified'], to: 'verified', by: ['agent', 'coordinator'], refuse: 'NOT_SUBMITTED',
-    guards: ['coordinatorSaysAs', 'joined', 'itemExists', IN_STATE, 'atSubmittedCommit', 'notMerged', 'verdictReviewRecorded', 'reviewTreeCurrent', 'notBuilder', 'routeAllows', 'policyAllows', 'familyAllows', 'reviewFree', 'criterionUnchanged', 'reasonIsMet', 'trunkMergeClean', 'noUnverifiedStack', 'queuedItemLease', 'itemCheckGreen', 'proofRecorded', 'proofNoted'],
+    guards: ['coordinatorSaysAs', 'joined', 'itemExists', IN_STATE, 'atSubmittedCommit', 'notMerged', 'verdictReviewRecorded', 'reviewTreeCurrent', 'patchInputsCurrent', 'notBuilder', 'routeAllows', 'policyAllows', 'familyAllows', 'reviewFree', 'criterionUnchanged', 'reasonIsMet', 'trunkMergeClean', 'noUnverifiedStack', 'queuedItemLease', 'itemCheckGreen', 'proofRecorded', 'proofNoted'],
     alsoRefuses: [...BOARD_SHAPE_REFUSALS, { code: 'BAD_DEPENDENCIES', rule: 'persisted prerequisites contain only positive local item ids or exact repo#id references', next: 'restore the item dependencies from their ordered history, then retry' }, ...AGENT_GRANT_REFUSALS, { code: 'VERDICT_ENVIRONMENT', rule: 'optional recorded verdict environment contains exact platform, architecture and Node version', next: 'run the frozen check with current Pullboard, then have an independent reviewer record a fresh verdict with its actual executor environment' }, { code: 'LAND_HEADER', rule: 'a displayed merge command carries a landing message that passes its own check', next: 'shout the coordinator the item id; landing writes the message, so the item itself needs no change' }, { code: 'ENGINE_VERSION', rule: 'a verdict that implies items replays only under engine 20 or later', next: 'upgrade Pullboard on every linked device before using --implies' }],
     sets: ['item_verified_by'], command: 'pullboard verify <id> accept --note "..."',
   },

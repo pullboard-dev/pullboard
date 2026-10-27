@@ -52,13 +52,8 @@ function patchBytes(patch) {
   }
   return patch;
 }
-/** A changed input invalidates acceptance without changing the criterion or submitted source. */
-function invalidate(board, id) {
-  board.db.prepare("UPDATE item SET item_status='submitted',item_verdict=NULL,item_verified_by=NULL,item_review_by=NULL,item_review_until=NULL,item_updated_at=? WHERE item_id=?")
-    .run(board.clock.now().toISOString(), id);
-}
 /** Attach one immutable, source-bound patch; an exact retry never reactivates a removed key. */
-export function attachItemPatch(board, id, options) {
+export function applyItemPatchAttachment(board, id, options, ports) {
   return atomic(board, () => {
     const item = target(board, id, options, ['agentId', 'key', 'commit', 'patch', 'author']);
     if (outsideSource(board, id)) throw new Refused('ITEM_PATCH_OUTSIDE', 'outside PR changes remain with their source author; attach patches only to native items');
@@ -70,19 +65,19 @@ export function attachItemPatch(board, id, options) {
       return { item: id, key: options.key, digest: itemPatchDigest(board, id), changed: false };
     }
     const record = { key: options.key, commit: options.commit, source: { commit: options.commit }, patch, digest, author, active: true };
-    patches.push(record); save(board, id, patches); invalidate(board, id);
+    patches.push(record); save(board, id, patches); ports.invalidate(id);
     logEvent(board, options.agentId, 'item_patch_attach', id, { key: record.key, commit: record.commit, digest, author });
     return { item: id, key: options.key, digest: itemPatchDigest(board, id), changed: true };
   });
 }
 /** Remove only the active application, never its immutable key or authorship history. */
-export function removeItemPatch(board, id, options) {
+export function applyItemPatchRemoval(board, id, options, ports) {
   return atomic(board, () => {
     target(board, id, options, ['agentId', 'key']);
     const patches = records(board, id), record = patches.find(entry => entry.key === options.key);
     if (!record) throw new Refused('NO_ITEM_PATCH', 'list the item patches and name an existing key');
     if (!record.active) return { item: id, key: options.key, digest: itemPatchDigest(board, id), changed: false };
-    record.active = false; save(board, id, patches); invalidate(board, id);
+    record.active = false; save(board, id, patches); ports.invalidate(id);
     logEvent(board, options.agentId, 'item_patch_remove', id, { key: record.key, commit: record.commit, digest: record.digest, author: record.author });
     return { item: id, key: options.key, digest: itemPatchDigest(board, id), changed: true };
   });

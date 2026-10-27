@@ -23,7 +23,9 @@ export { laneLeads };
 
 import { companionPlan } from './companion.js';
 import { itemPatchReviewProblem } from './item-patches.js';
-export { attachItemPatch, removeItemPatch, itemPatches, itemPatchDigest } from './item-patches.js';
+import { applyItemPatchAttachment } from './item-patches.js';
+import { applyItemPatchRemoval } from './item-patches.js';
+export { itemPatches, itemPatchDigest } from './item-patches.js';
 import { applyCompanionRequest } from './companion.js';
 export { readBoardMembers, setBoardMembers } from './board-members.js';
 import { heartbeatSeat } from './seat-presence.js';
@@ -903,6 +905,29 @@ function moveItem(board, id, verb, { checks, set = () => ({}), before = () => {}
   return item;
 }
 
+/** Return changed companion inputs to submitted through the same declared lifecycle as every status update. */
+function invalidateItemPatch(board, id, agentId) {
+  moveItem(board, id, 'patch', {
+    checks: {
+      joined: null,
+      [IN_STATE]: found => new Refused('ITEM_PATCH_STATE', `item #${id} is ${found.item_status}; attach only to submitted, unmerged work`),
+      coordinatorOnly: () => onlyCoordinator(agentId, 'changes companion inputs'),
+      notMerged: found => found.item_merged_commit ? new Refused('ALREADY_MERGED', 'file a follow-up for landed work') : null,
+    },
+    set: () => ({ item_verdict: null, item_verified_by: null, item_review_by: null, item_review_until: null }),
+  });
+}
+
+/** Attach native bytes atomically, with lifecycle mutation confined to moveItem. */
+export function attachItemPatch(board, id, options) {
+  return applyItemPatchAttachment(board, id, options, { invalidate: changed => invalidateItemPatch(board, changed, options.agentId) });
+}
+
+/** Stop applying native bytes without discarding their historical author exclusions. */
+export function removeItemPatch(board, id, options) {
+  return applyItemPatchRemoval(board, id, options, { invalidate: changed => invalidateItemPatch(board, changed, options.agentId) });
+}
+
 /**
  * The refusal when the caller is not the coordinator, or null when it is.
  *
@@ -1344,10 +1369,6 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
   const transition = newReview ? declaration : { ...declaration, from: ['submitted'],
     guards: declaration.guards.filter(guard => !['notMerged', 'verdictReviewRecorded', 'reviewTreeCurrent'].includes(guard)) };
   return atomic(board, () => {
-    if (isAccept) {
-      const patchProblem = itemPatchReviewProblem(board, itemById(board, id), companionDigest);
-      if (patchProblem) throw patchProblem;
-    }
     const item = moveItem(board, id, verb, {
       transition,
       checks: {
@@ -1359,6 +1380,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
           : new Refused('ALREADY_MERGED', `item #${id} already landed; only unlanded acceptances can be re-reviewed`),
         verdictReviewRecorded: found => verdictReviewProblem(review, found.item_commit, { checked: engine >= VERDICT_REVIEW_ENGINE }),
         reviewTreeCurrent: null,
+        patchInputsCurrent: found => isAccept ? itemPatchReviewProblem(board, found, companionDigest) : null,
         ...reviewerChecks(board, { agentId, policy, familyPolicy }),
         criterionUnchanged: (found) =>
           digest === found.item_frozen_digest

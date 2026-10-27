@@ -7,7 +7,7 @@ import { exportBoard, importBoard } from '../src/exchange.js';
 import { parentSessionDigest } from '../src/parent-session.js';
 import { ITEM_PATCH_ENGINE } from '../src/item-patch-engine.js';
 import {
-  attachItemPatch, removeItemPatch, itemPatches, itemPatchAuthors,
+  itemPatches, itemPatchAuthors,
   itemPatchDigest, itemPatchReviewProblem, itemPatchSetDigest,
 } from '../src/item-patches.js';
 import { submitFixture } from './board-submit-fixture.js';
@@ -37,7 +37,7 @@ test('patches bind exact bytes, source and native identity; immutable retries re
   assert.equal(itemPatchDigest(board, undefined), null);
   assert.equal(itemPatchDigest(board, '#1'), null);
   const options = input(builder);
-  const first = attachItemPatch(board, id, options);
+  const first = store.attachItemPatch(board, id, options);
   assert.equal(first.changed, true);
   const [record] = itemPatches(board, id);
   assert.deepEqual(record.author, { agentId: builder, parentSession: parentSessionDigest('patch-parent'), session: parentSessionDigest('patch-builder') });
@@ -46,11 +46,11 @@ test('patches bind exact bytes, source and native identity; immutable retries re
   assert.equal(itemPatchReviewProblem(board, store.getItem(board, id), first.digest), null);
   assert.equal(itemPatchReviewProblem(board, store.getItem(board, id), undefined).code, 'ITEM_PATCH_CHANGED');
   const before = exportBoard(board);
-  assert.equal(attachItemPatch(board, id, options).changed, false);
+  assert.equal(store.attachItemPatch(board, id, options).changed, false);
   assert.deepEqual(exportBoard(board), before, 'exact attach retry appends nothing');
-  assert.throws(() => attachItemPatch(board, id, { ...options, patch: PATCH.replace('+new', '+changed') }), { code: 'ITEM_PATCH_CONFLICT' });
+  assert.throws(() => store.attachItemPatch(board, id, { ...options, patch: PATCH.replace('+new', '+changed') }), { code: 'ITEM_PATCH_CONFLICT' });
   assert.deepEqual(exportBoard(board), before, 'conflicting immutable retry is atomic');
-  const removed = removeItemPatch(board, id, { agentId: 'coordinator', key: 'fix' });
+  const removed = store.removeItemPatch(board, id, { agentId: 'coordinator', key: 'fix' });
   assert.equal(removed.changed, true);
   assert.deepEqual(itemPatches(board, id), []);
   assert.notEqual(itemPatchDigest(board, id), null, 'removed history still participates in review contract');
@@ -62,8 +62,8 @@ test('patches bind exact bytes, source and native identity; immutable retries re
   assert.deepEqual(itemPatchAuthors(board, id), []);
   delete board.executionEngineVersion;
   const after = exportBoard(board);
-  assert.equal(removeItemPatch(board, id, { agentId: 'coordinator', key: 'fix' }).changed, false);
-  assert.equal(attachItemPatch(board, id, options).changed, false, 'old key never silently reactivates');
+  assert.equal(store.removeItemPatch(board, id, { agentId: 'coordinator', key: 'fix' }).changed, false);
+  assert.equal(store.attachItemPatch(board, id, options).changed, false, 'old key never silently reactivates');
   assert.deepEqual(exportBoard(board), after);
 });
 
@@ -81,17 +81,17 @@ test('patch mutation refuses forged authors, actors, malformed bytes and stale s
     { ...input(builder), key: '../escape' },
   ]) {
     const before = exportBoard(board);
-    assert.throws(() => attachItemPatch(board, id, options));
+    assert.throws(() => store.attachItemPatch(board, id, options));
     assert.deepEqual(exportBoard(board), before);
   }
-  assert.throws(() => removeItemPatch(board, id, { agentId: builder, key: 'fix' }), { code: 'COORDINATOR_ONLY' });
+  assert.throws(() => store.removeItemPatch(board, id, { agentId: builder, key: 'fix' }), { code: 'COORDINATOR_ONLY' });
 });
 
 test('adding or removing verified inputs clears acceptance and reservations but preserves frozen criterion [V4,H16]', t => {
   const { board, id, builder, reviewer } = fixture(t);
   store.verify(board, id, { agentId: reviewer, decision: 'ACCEPT', head: COMMIT, digest: 'patch-frozen', policy: 'any', note: 'synthetic board-state acceptance; no runtime proof claimed' });
   assert.equal(store.getItem(board, id).item_status, 'verified');
-  attachItemPatch(board, id, input(builder));
+  store.attachItemPatch(board, id, input(builder));
   const changed = store.getItem(board, id);
   assert.equal(changed.item_status, 'submitted');
   assert.equal(changed.item_verdict, null);
@@ -101,7 +101,7 @@ test('adding or removing verified inputs clears acceptance and reservations but 
   assert.equal(changed.item_frozen_digest, 'patch-frozen');
   assert.equal(changed.item_commit, COMMIT);
   store.verify(board, id, { agentId: reviewer, decision: 'ACCEPT', head: COMMIT, digest: 'patch-frozen', policy: 'any', note: 'synthetic state control', companionDigest: itemPatchDigest(board, id) });
-  removeItemPatch(board, id, { agentId: 'coordinator', key: 'fix' });
+  store.removeItemPatch(board, id, { agentId: 'coordinator', key: 'fix' });
   assert.equal(store.getItem(board, id).item_status, 'submitted');
   assert.equal(store.getItem(board, id).item_verdict, null);
 });
@@ -129,9 +129,9 @@ test('native patch moves replay exactly and reject downgrade or foreign actors b
 /** Retain attachment order and binary bytes; consumers still validate application against source. */
 test('active patch ordering and binary bytes are stable review inputs [V4,H16]', t => {
   const { board, id, builder } = fixture(t);
-  attachItemPatch(board, id, input(builder, 'z-first'));
+  store.attachItemPatch(board, id, input(builder, 'z-first'));
   const binary = 'diff --git a/asset.bin b/asset.bin\nindex 1234567..7654321 100644\nGIT binary patch\nliteral 1\nIc${Nk000310RR91\n';
-  attachItemPatch(board, id, { ...input(builder, 'a-second'), patch: binary });
+  store.attachItemPatch(board, id, { ...input(builder, 'a-second'), patch: binary });
   const patches = itemPatches(board, id);
   assert.deepEqual(patches.map(record => record.key), ['z-first', 'a-second']);
   assert.equal(patches[1].patch, binary);
@@ -143,7 +143,7 @@ test('companion authors and related seats cannot review removed history, while u
   const { board, id, reviewer } = fixture(t);
   const author = store.register(board, { lane: 'api', path: '/patch-domain/companion-author', parent: 'companion-parent', session: 'companion-session' });
   const related = store.register(board, { lane: 'api', path: '/patch-domain/companion-related', parent: 'companion-parent', session: 'companion-session' });
-  const attached = attachItemPatch(board, id, input(author));
+  const attached = store.attachItemPatch(board, id, input(author));
   /** Assert both public review entrypoints refuse without changing real board state or history. */
   function refusesReview(agentId, code) {
     const before = exportBoard(board);
@@ -155,7 +155,7 @@ test('companion authors and related seats cannot review removed history, while u
   }
   refusesReview(author, 'SELF_VERIFY');
   refusesReview(related, 'SELF_SESSION_VERIFY');
-  removeItemPatch(board, id, { agentId: 'coordinator', key: 'fix' });
+  store.removeItemPatch(board, id, { agentId: 'coordinator', key: 'fix' });
   assert.deepEqual(itemPatches(board, id), []);
   assert.ok(itemPatchAuthors(board, id).some(identity => identity.agentId === author));
   refusesReview(author, 'SELF_VERIFY');
