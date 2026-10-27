@@ -14,7 +14,7 @@ export function nativeStateClockWindow(state, history, items, observedAt) {
     // readBlocks includes an entry at exactly its twenty-four-hour boundary.
     consider(Date.parse(block.at) + 24 * HOUR + 1);
   }
-  if (state.milestones?.length) {
+  if (state.milestones?.length || state.dashboardPace) {
     const current = new Map(items.map(item => [item.item_id, item]));
     for (const at of qualifyingLandingTimes(history, current)) {
       // A future-dated observation enters at its timestamp; strict pace windows expire on the boundary.

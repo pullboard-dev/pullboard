@@ -1,5 +1,6 @@
 /** General CLI recovery text; operation-owned codes live in src/moves/ [P4,C7]. */
 export const DEFAULT_NEXT_STEPS = Object.freeze({
+  SUBMISSION_CHANGED: 'run pullboard show <id> to inspect its current submission attempt and verdict; do not resubmit an acknowledged attempt',
   ITEM_PATCH: 'inspect the native patches with pullboard patch list <item>; ask the coordinator to replace unsafe or conflicting input',
   "NO_PUSH_SMOKE": "record an explicit short pushReceiptCheck.smoke command in accepted pullboard.json, then retry the additive receipt check",
   "PUSH_SOURCE_CHANGED": "commit or restore the intended push source and accepted policy, then check the push again",
