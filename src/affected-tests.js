@@ -449,6 +449,29 @@ function closuresInGraph(graph) {
 }
 
 /**
+ * Select declared repository-wide test scanners independently of ordinary affected-test deferral.
+ * Both committed trees bind the obligation: removing a declaration cannot drop an accepted guard.
+ * Missing bases retain every scanner; unreadable Git inputs refuse instead of silently omitting one.
+ */
+export function selectTestTreeGuards(root, { base, trunk, commit = 'HEAD', changed } = {}) {
+  if (trunk) {
+    const mergeBase = selectionGit(root, ['merge-base', trunk, commit]).trim();
+    if (mergeBase !== selectionGit(root, ['rev-parse', '--verify', `${commit}^{commit}`]).trim()) base = mergeBase;
+    changed = undefined;
+  }
+  if (base) changed ??= selectionGit(root, ['diff', '--no-renames', '--name-only', '-z', base, commit]).split('\0').filter(Boolean);
+  if (base && !changed.some(path => path.startsWith('test/') || /^(?:packages|apps)\/[^/]+\/tests\//u.test(path)
+    || TEST.test(path) || /^test\.[cm]?js$/u.test(path))) return [];
+  const guards = new Set();
+  for (const revision of [...new Set([base, commit].filter(Boolean))]) {
+    for (const [path, source] of modulesAt(root, revision).modules) {
+      if (TEST.test(path) && headerLines(source).includes(TEST_TREE_INPUT)) guards.add(path);
+    }
+  }
+  return [...guards].sort();
+}
+
+/**
  * Select changed tests and every transitive importer in the old and new trees. Old edges cover
  * deletions and renames; declared tree readers also cover changed test or source inputs. Other filesystem
  * reads and process launches are not import edges, except literal documentation inputs and modules that
