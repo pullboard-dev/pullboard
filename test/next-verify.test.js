@@ -151,8 +151,8 @@ test('[V1,B3] next never offers a review to a seat sharing a parent with an auth
   const box = await project(t);
   store.register(box.board, { lane: 'web', path: box.builder, parent: 'fixture-parent-P' });
   store.register(box.board, { lane: 'review', path: box.reviewer, parent: 'fixture-parent-P' });
-  const second = store.register(box.board, { lane: 'web', path: join(box.root, 'second-builder'), parent: 'fixture-parent-P' });
-  const outsider = store.register(box.board, { lane: 'review', path: join(box.root, 'outside-reviewer'), parent: 'fixture-parent-Q' });
+  const second = store.register(box.board, { lane: 'web', path: join(box.root, 'second-builder'), family: 'Fixture Builder Vendor', parent: 'fixture-parent-P' });
+  const outsider = store.register(box.board, { lane: 'review', path: join(box.root, 'outside-reviewer'), family: 'Fixture Reviewer Vendor', parent: 'fixture-parent-Q' });
   const id = claimed(box);
   store.release(box.board, id, box.builderId);
   store.claim(box.board, id, { agentId: second, lane: 'web', leaseMs: HOUR,

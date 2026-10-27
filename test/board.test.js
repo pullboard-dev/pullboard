@@ -345,10 +345,10 @@ test('a verifier releases its reserved review; another verifier can take it, and
   const durable = store.openBoard(join(directory, 'board.sqlite'), clock);
   try {
     store.register(durable, { lane: 'coordinator', path: '/repo' });
-    const builder = store.register(durable, { lane: 'web', path: '/repo-web-1' });
-    const reviewer = store.register(durable, { lane: 'web', path: '/repo-web-2' });
-    const second = store.register(durable, { lane: 'web', path: '/repo-web-3' });
-    const third = store.register(durable, { lane: 'web', path: '/repo-web-4' });
+    const builder = store.register(durable, { lane: 'web', path: '/repo-web-1', family: 'Fixture Builder' });
+    const reviewer = store.register(durable, { lane: 'web', path: '/repo-web-2', family: 'Fixture Reviewer' });
+    const second = store.register(durable, { lane: 'web', path: '/repo-web-3', family: 'Fixture Reviewer Two' });
+    const third = store.register(durable, { lane: 'web', path: '/repo-web-4', family: 'Fixture Reviewer Three' });
     const id = store.addItem(durable, { by: 'coordinator', lane: 'web', title: 'Page' });
     store.claim(durable, id, { agentId: builder, lane: 'web', leaseMs: HOUR, freeze });
     submitFixture(durable, id, { agentId: builder, commit: SHA_A, tree: 'tree-a' });
@@ -434,8 +434,8 @@ test('a rejected commit resubmits after its bar is corrected [V4,B3]', async (t)
 
   durable = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'), clock);
   store.register(durable, { lane: 'coordinator', path: repo });
-  const builder = store.register(durable, { lane: 'web', path: join(directory, 'web-1') });
-  const reviewer = store.register(durable, { lane: 'web', path: join(directory, 'web-2') });
+  const builder = store.register(durable, { lane: 'web', path: join(directory, 'web-1'), family: 'Fixture Builder' });
+  const reviewer = store.register(durable, { lane: 'web', path: join(directory, 'web-2'), family: 'Fixture Reviewer' });
   /** Freeze the current criterion deterministically for this real-board replay test. */
   const criterionFreeze = (item) => ({ text: item.item_criterion, digest: `digest:${item.item_criterion}` });
   assert.ok(ENGINE_VERSION >= 9, 'engine 9 introduces corrected-bar resubmission');
