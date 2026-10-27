@@ -42,11 +42,17 @@ function translatedAllowance(metric, key, map) {
   return mappedPath(map, key);
 }
 
-/** Refuse both total growth and new per-entity debt, even when another removal offsets the total. */
-export function cellLintGrowth(report, baseline) {
+/** Mark only the explicitly recorded pre-cell transition families; malformed or absent evidence stays strict. */
+function transitionalGrowth(report, metric) {
+  return report.transition?.item === 1527 && report.transition.until === 1395 && report.transition.active === true
+    && ['boundaries', 'legacySource', 'strays'].includes(metric);
+}
+
+/** Retain every rise; callers may enforce the approved transition while baseline updates always inspect all debt. */
+export function cellLintGrowth(report, baseline, { enforcedOnly = false } = {}) {
   validateCellLintBaseline(baseline);
   const actual = cellLintBaseline(report);
-  return CELL_METRICS.flatMap(metric => {
+  const growth = CELL_METRICS.flatMap(metric => {
     const before = baseline.metrics[metric], after = actual.metrics[metric];
     const map = new Map(Object.entries(report.pathMap ?? {})), allowances = new Map();
     for (const [key, count] of Object.entries(before.allowances)) {
@@ -56,8 +62,11 @@ export function cellLintGrowth(report, baseline) {
     const rows = Object.entries(after.allowances).filter(([key, count]) => count > (allowances.get(key) ?? 0))
       .map(([key, count]) => ({ metric, key, actual: count, allowed: allowances.get(key) ?? 0 }));
     if (after.count > before.count) rows.push({ metric, key: '(total)', actual: after.count, allowed: before.count });
-    return rows;
+    return rows.map(row => transitionalGrowth(report, metric)
+      ? { ...row, advisory: true, item: 1527, until: 1395 }
+      : row);
   });
+  return enforcedOnly ? growth.filter(row => !row.advisory) : growth;
 }
 
 /** Compute a lower snapshot without changing the caller's baseline or accepting any increase. */
