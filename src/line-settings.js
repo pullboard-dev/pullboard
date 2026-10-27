@@ -12,6 +12,7 @@ import { LINE_ORDER_ENGINE } from './line-order-engine.js';
 import { LINE_SETTINGS_ENGINE } from './line-settings-engine.js';
 import { LAND_COLLISION_ENGINE } from './landing-collision-engine.js';
 import { Refused } from './refused.js';
+import { REVIEW_INDEPENDENCE_ENGINE } from './review-independence-engine.js';
 
 const PREFIX = 'line_setting:';
 
@@ -43,7 +44,7 @@ function windowNumbers(value) {
 /** Change one board input atomically with its reason and measured window, so ordered replay makes the same event. */
 export function setLineSetting(board, { agentId, key, value, reason, window } = {}) {
   if (agentId !== 'coordinator') throw new Refused('COORDINATOR_ONLY', 'ask the coordinator to record a line setting with its reason and window numbers');
-  const required = key === 'bar.sharpenToPerson' ? REJECT_CLAUSE_ENGINE : key === 'focusMilestone' ? FOCUS_MILESTONE_ENGINE : key === 'collisionFreeBatch' ? LAND_COLLISION_ENGINE : key === 'order' ? LINE_ORDER_ENGINE : LINE_SETTINGS_ENGINE;
+  const required = key === 'bar.sharpenToPerson' ? REJECT_CLAUSE_ENGINE : key === 'requireReviewFamilies' ? REVIEW_INDEPENDENCE_ENGINE : key === 'focusMilestone' ? FOCUS_MILESTONE_ENGINE : key === 'collisionFreeBatch' ? LAND_COLLISION_ENGINE : key === 'order' ? LINE_ORDER_ENGINE : LINE_SETTINGS_ENGINE;
   if ((board.executionEngineVersion ?? required) < required) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before recording or replaying board line settings');
   validateLineSetting(key, value);
   if (typeof reason !== 'string' || !reason.trim()) throw new Refused('LINE_SETTING_REASON', 'give the reason for this change with --reason "what the measured window shows"');

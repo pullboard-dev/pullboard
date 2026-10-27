@@ -8,6 +8,7 @@ import { LINE_ORDER_ENGINE } from '../line-order-engine.js';
 import { LINE_SETTINGS_ENGINE } from '../line-settings-engine.js';
 import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
 import { BAR_CHECK_ENGINE } from '../bar-check-engine.js';
+import { REVIEW_INDEPENDENCE_ENGINE } from '../review-independence-engine.js';
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function historicalMinimumEngine(args, board, at) {
@@ -26,6 +27,7 @@ function minimumEngine(args, board, at) {
     args[0]?.key === 'focusMilestone' ? FOCUS_MILESTONE_ENGINE : 1,
     args[0]?.key === 'bar.check' ? BAR_CHECK_ENGINE : 1,
     args[0]?.key === 'bar.sharpenToPerson' ? REJECT_CLAUSE_ENGINE : 1,
+    args[0]?.key === 'requireReviewFamilies' ? REVIEW_INDEPENDENCE_ENGINE : 1,
   );
 }
 

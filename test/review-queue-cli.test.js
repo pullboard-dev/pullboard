@@ -59,10 +59,10 @@ async function project(t, ratio = 3) {
   }
   box.board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(box.board));
-  box.builderId = store.register(box.board, { lane: 'web', path: box.builder });
-  box.peerId = store.register(box.board, { lane: 'web', path: box.peer });
-  box.reviewerId = store.register(box.board, { lane: 'review', path: box.reviewer });
-  box.reviewer2Id = store.register(box.board, { lane: 'review', path: box.reviewer2 });
+  box.builderId = store.register(box.board, { lane: 'web', path: box.builder, family: 'Fixture-Builder' });
+  box.peerId = store.register(box.board, { lane: 'web', path: box.peer, family: 'Fixture-Peer' });
+  box.reviewerId = store.register(box.board, { lane: 'review', path: box.reviewer, family: 'Fixture-Reviewer' });
+  box.reviewer2Id = store.register(box.board, { lane: 'review', path: box.reviewer2, family: 'Fixture-Reviewer-Two' });
   return box;
 }
 

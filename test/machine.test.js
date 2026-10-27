@@ -665,9 +665,9 @@ function boardOnDisk(clock) {
   const dir = fs.mkdtempSync(join(tmpdir(), 'pullboard-machine-'));
   const file = join(dir, 'board.sqlite');
   const board = store.openBoard(file, clock);
-  store.register(board, { lane: 'coordinator', path: '/repo' });
-  store.register(board, { lane: 'web', path: '/repo-web-1' });
-  store.register(board, { lane: 'web', path: '/repo-web-2' });
+  store.register(board, { lane: 'coordinator', path: '/repo', family: 'human' });
+  store.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
+  store.register(board, { lane: 'web', path: '/repo-web-2', family: 'review-vendor' });
   const handles = [board.db];
   return {
     file,
@@ -693,9 +693,9 @@ function boardOnDisk(clock) {
 /** A logic-only board uses the shared memory contract; raw connections stay in boardOnDisk. */
 function memoryBoardLab(t, clock) {
   const board = fixtureBoard(t, { clock });
-  store.register(board, { lane: 'coordinator', path: '/repo' });
-  store.register(board, { lane: 'web', path: '/repo-web-1' });
-  store.register(board, { lane: 'web', path: '/repo-web-2' });
+  store.register(board, { lane: 'coordinator', path: '/repo', family: 'human' });
+  store.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
+  store.register(board, { lane: 'web', path: '/repo-web-2', family: 'review-vendor' });
   return { board };
 }
 
@@ -921,11 +921,11 @@ test('docs/lifecycle.md is the page the declaration generates, so a stale copy f
   for (const code of codes) assert.match(page, new RegExp(`^\\| ${code} \\|`, 'm'), `${code} is in the refusal table`);
 });
 
-test('the lifecycle page limits family matching to require and explains unknown families [O2, O3]', () => {
+test('the lifecycle page versions fresh and historical family matching and explains unknown families [O2, O3]', () => {
   const page = machineRules.lifecycleMarkdown();
-  assert.match(page, /^\| O2_FAMILY_MATCH \| the builder and verifier have different declared families; an undeclared family counts as a match, only when verify\.family is require \| ask the coordinator for a verifier from another declared family \|$/m);
+  assert.match(page, /^\| O2_FAMILY_MATCH \| the existing vendor policy permits this reviewer, and explicit board or item family requirements are met, when verify\.family is require, an item requires a family, or requireReviewFamilies is on for unknown families \| ask the coordinator for a verifier from another declared family \|$/m);
   for (const verb of ['reserve', 'accept', 'reject']) {
-    assert.match(page, new RegExp(`^\\| ${verb} \\| .*familyAllows \\(O2_FAMILY_MATCH\\)`, 'm'));
+    assert.match(page, new RegExp(`^\\| ${verb} \\| .*familyAllows \\(O2_FAMILY_MATCH or LINE_SETTING_RANGE\\)`, 'm'));
   }
 });
 
@@ -1088,10 +1088,11 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
   submits.push(submitAs(piece, 'web-1', SHA_A), submitAs(piece, 'web-1', SHA_B));
   assert.deepEqual(submits, [...declaredBoardOrder('submit'), 'ok']);
 
-  const other = store.register(board, { lane: 'web', path: '/repo-web-other' });
+  const other = store.register(board, { lane: 'web', path: '/repo-web-other', family: 'review-vendor' });
   for (const verb of ['accept', 'reject']) {
     const decision = verb === 'accept' ? 'ACCEPT' : 'REJECT';
     store.register(board, { lane: 'web', path: '/repo-web-2', family: 'REQUIRED REVIEW' });
+    store.register(board, { lane: 'web', path: '/repo-web-1', family: 'required review' });
     store.register(board, { lane: 'web', path: '/repo-web-other', family: null });
     const built = submittedItem(board, { reviewFamily: 'Required Review' });
     const landed = submittedItem(board);
@@ -1136,6 +1137,7 @@ test('reserve refuses in the declared order, one failure peeled at a time [V15, 
   const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
   const other = store.register(board, { lane: 'web', path: '/repo-web-other' });
   store.register(board, { lane: 'web', path: '/repo-web-2', family: 'REQUIRED REVIEW' });
+  store.register(board, { lane: 'web', path: '/repo-web-1', family: 'required review' });
   const built = submittedItem(board, { reviewFamily: 'Required Review' });
   const open = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
   const reserveAs = (id, agentId, policy = 'coordinator', familyPolicy = 'off') => outcome(() => store.reserveReview(board, id, { agentId, leaseMs: 3_600_000, policy, familyPolicy }));
@@ -1154,7 +1156,7 @@ test('a reserved review refuses every other verdict while its lease lives, and o
   let at = Date.parse('2026-10-06T12:00:00.000Z');
   const lab = memoryBoardLab(t, { now: () => new Date(at) });
   const { board } = lab;
-  const third = store.register(board, { lane: 'web', path: '/repo-web-3' });
+  const third = store.register(board, { lane: 'web', path: '/repo-web-3', family: 'review-vendor' });
   const id = submittedItem(board);
   const minutes = (count) => {
     at += count * 60_000;
@@ -1305,8 +1307,8 @@ test('next --verify looks and reserves in one transaction, so no other verifier 
   const others = [];
   try {
     const id = submittedItem(lab.board);
-    const third = store.register(lab.board, { lane: 'web', path: '/repo-web-3' });
-    const fourth = store.register(lab.board, { lane: 'web', path: '/repo-web-4' });
+    const third = store.register(lab.board, { lane: 'web', path: '/repo-web-3', family: 'review-vendor' });
+    const fourth = store.register(lab.board, { lane: 'web', path: '/repo-web-4', family: 'review-vendor' });
     // A reservation that has already lapsed, so the look has a lease to read the clock for.
     store.reserveReview(lab.board, id, { agentId: fourth, leaseMs: 1, policy: 'any' });
     const rival = store.openBoard(lab.file);
@@ -1455,8 +1457,8 @@ test('a helper added to the board that changes a status outside moveItem is refu
     }
     const copy = await import(pathToFileURL(join(dir, 'board.js')).href);
     const board = copy.openBoard(':memory:');
-    copy.register(board, { lane: 'coordinator', path: '/repo' });
-    copy.register(board, { lane: 'web', path: '/repo-web-1' });
+    copy.register(board, { lane: 'coordinator', path: '/repo', family: 'human' });
+    copy.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
     const id = copy.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
     copy.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
     assert.throws(() => copy.reopenByHand(board, id), /STATUS_OUTSIDE_MOVE/);
