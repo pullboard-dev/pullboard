@@ -37,7 +37,7 @@ async function cli(box, cwd, args) {
 }
 
 /** Isolate real worktrees and shared SQLite; only the explicitly injected clock advances time. */
-async function fixture(t, { route = 'strong', family = 'off' } = {}) {
+async function fixture(t, { route = 'strong', family = 'off', policy = 'any' } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-next-take-')));
   const root = join(directory, 'repo');
   mkdirSync(root);
@@ -59,7 +59,7 @@ async function fixture(t, { route = 'strong', family = 'off' } = {}) {
   /** Run only real, isolated Git with the private hook executable. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
   git(root, 'init', '-q', '-b', 'main');
-  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', verify: { policy: 'any', family },
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', verify: { policy, family },
     lanes: { web: { owns: ['web/'] }, review: { owns: [] }, docs: { owns: ['docs/'] } } }));
   writeFileSync(join(root, 'SPEC.md'), '# Dispatch fixture\n## G\n- G1 [approved, must] Work keeps its evidence. | gate: true\n');
   writeFileSync(join(root, 'DOCTRINE.md'), '# Fixture rules\n');
@@ -414,3 +414,29 @@ test('a spec correction refreezes every unlanded citing item atomically [V2,H16]
 
 test('spec correction refreezes replay atomically across imported prefixes [V2,H16]',
   t => assertSpecRefreezeReplay(t, { fixture, cli }));
+
+
+test('automatic review reservation retains coordinator-only policy when a higher lane item is ineligible [N2,V1,B3]', async t => {
+  const box = await fixture(t, { policy: 'coordinator' });
+  const blocked = box.add('Higher-ranked lane review');
+  box.submit(blocked);
+  const allowed = box.add('Eligible coordinator-lane review', { lane: 'coordinator' });
+  box.claim(allowed, { id: 'coordinator', lane: 'coordinator' });
+  const head = box.git(box.root, 'rev-parse', 'HEAD');
+  submitFixture(box.board, allowed, { agentId: 'coordinator', commit: head,
+    tree: box.git(box.root, 'rev-parse', `${head}^{tree}`) });
+  const reviewer = box.seats.outside;
+  const offered = store.nextFor(box.board, { agentId: reviewer.id, lane: reviewer.lane,
+    verify: true, policy: 'coordinator' });
+  assert.equal(offered.item.item_id, allowed, 'selection skips the higher-ranked lane review under the actual policy');
+  const taken = await cli(box, reviewer.path, ['next', '--take']);
+  assert.equal(taken.code, 0, taken.out + taken.err);
+  assert.equal(taken.document.review, true);
+  assert.equal(taken.document.item.item_id, allowed, 'the native reserve chooses the same eligible item');
+  assert.equal(store.getItem(box.board, allowed).item_review_by, reviewer.id);
+  assert.equal(store.getItem(box.board, blocked).item_review_by, null, 'the ineligible item is never reserved');
+  assert.equal(store.getItem(box.board, blocked).item_status, 'submitted');
+  assert.deepEqual(store.verdictsFor(box.board, allowed), [], 'assignment fabricates no verdict');
+  assert.equal(store.listItems(box.board).some(item => item.item_status === 'claimed'
+    && item.item_owner === reviewer.id), false, 'an eligible review is not replaced with a build');
+});
