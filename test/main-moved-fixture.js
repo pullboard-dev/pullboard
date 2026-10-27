@@ -20,7 +20,7 @@ import { exportBoard } from '../src/exchange.js';
 const SOURCE = new URL('../', import.meta.url);
 
 /** Copy actual installed code, create a real tracked project and seed one explicitly synthetic prior acceptance. */
-export async function mainMovedFixture(t, { conflict = false, generated = false, red = false, submitted = false, dirty = false } = {}) {
+export async function mainMovedFixture(t, { conflict = false, generated = false, red = false, submitted = false, dirty = false, outside = false } = {}) {
   const scratch = mkdtempSync(join(tmpdir(),'pullboard-main-moved-'));
   const installed = join(scratch,'installed'), repo = join(scratch,'repo'), machine = join(scratch,'machine');
   for (const folder of [installed,repo,machine]) mkdirSync(folder);
@@ -64,6 +64,11 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
   const frozen = JSON.stringify({check,policy:{version:1,commit:base,verify:{policy:'any',family:'off'}}});
   const digest = createHash('sha256').update(frozen).digest('hex');
   const id = board(db => {
+    if (outside) return store.intakeOutside(db, { agentId:'coordinator',
+      source:{kind:'pull-request',repository:'fixture/project',number:1,author:'outside-author',state:'open',maintainerReplied:false,
+        commit:accepted,tree,base,files:['web/feature.js'],sensitive:false},
+      item:{lane:'web',title:'Outside submitted feature',criterion:'Actual feature and main behavior remain correct',check},
+      frozen:{text:frozen,digest} });
     const value=store.addItem(db,{by:'coordinator',lane:'web',title:'Immutable submitted feature',criterion:'Actual feature and main behavior remain correct'});
     store.claim(db,value,{agentId:actors[1],lane:'web',leaseMs:3600000,freeze:()=>({text:frozen,digest})});
     store.submit(db,value,{agentId:actors[1],commit:accepted,tree,submissionProof:{version:1,files:[],full:false,deferred:true,reason:'historical native fixture setup, not an execution claim'}});

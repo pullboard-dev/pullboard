@@ -22,6 +22,7 @@ import { mainPolicy } from './trusted-policy-read.js';
 import { frozenCheck } from './trusted-policy.js';
 import { git } from './git.js';
 import { Refused } from './refused.js';
+import { outsideSource } from './outside-source.js';
 
 const PREPARED = new Map();
 const BASES = new WeakSet();
@@ -46,6 +47,7 @@ function requireNativeRoot(board, root) {
 /** Capture patch, review and episode authority before any asynchronous gate or main merge. */
 export function captureSourceAdvanceBasis(root, board, item) {
   requireNativeRoot(board, root);
+  if (outsideSource(board, item.item_id)) throw new Refused('OUTSIDE_SANDBOX_REQUIRED', 'outside sources retain their isolated sandbox path; automatic native main merging is unavailable');
   const verdict = sourceAdvanceVerdict(board, item);
   const inputHead = sourceAdvanceChain(board, item).at(-1)?.head ?? verdict?.review?.head
     ?? prepareItemPatchReview(root, board, item, { mergeMain: false }).commit;
