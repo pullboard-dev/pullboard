@@ -295,6 +295,9 @@ test('read commands never refresh presence while committed writes and hooks do [
     const observed = runFixtureChild('sh', ['-c', command], { cwd: box.web, env: box.env, encoding: 'utf8' });
     assert.equal(observed.status, 0, observed.failure || observed.stderr || observed.stdout);
     assert.equal(local.prepare('SELECT n FROM writes').get().n, 1, `${event} records actual local activity`);
+    if (board.db.prepare('SELECT COUNT(*) AS n FROM event').get().n !== events) {
+      t.diagnostic(JSON.stringify({ hook: event, sharedEvents: board.db.prepare('SELECT event_id,event_kind,event_by,event_detail FROM event ORDER BY event_id').all() }));
+    }
     assert.equal(board.db.prepare('SELECT COUNT(*) AS n FROM event').get().n, events, `${event} never writes shared history`);
   }
 });
