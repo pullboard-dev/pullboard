@@ -328,3 +328,41 @@ test('automatic decision readers ignore only unsupported historical grammar [D1,
   assert.throws(() => automaticDecisionSource(broken), /unexpected metadata reader failure/);
   assert.throws(() => rigorDecisionKey(broken), /unexpected metadata reader failure/);
 });
+
+/** Conditional unholds must not replace the failure event delivered to automatic Rigor. */
+test('conditional reject and reopen holds retain their exact Rigor threshold triggers [B4,H16,D3]', async t => {
+  for (const kind of ['reject', 'reopen']) {
+    await t.test(kind, () => {
+      const box = fixture();
+      try {
+        const ids = [];
+        for (let index = 0; index < 2; index += 1) {
+          const id = box.submit(`Conditional ${kind} ${index}`);
+          ids.push(id);
+          store.holdItem(box.board, id, { agentId: 'coordinator', reason: 'Await this native failure', until: kind });
+          if (kind === 'reject') {
+            box.failure(id);
+            box.reject(id);
+          } else {
+            store.reopen(box.board, id, { agentId: 'coordinator', conflict: { files: ['src/shared.js'], trunk: 'd'.repeat(40) } });
+          }
+          const events = store.events(box.board, { itemId: id });
+          const trigger = events.findLast(event => event.event_kind === kind);
+          const lifts = events.filter(event => event.event_kind === 'unhold_item');
+          assert.equal(lifts.length, 1);
+          assert.equal(JSON.parse(lifts[0].event_detail).triggerEventId, trigger.event_id);
+          assert.ok(lifts[0].event_id > trigger.event_id);
+          assert.equal(store.itemHold(box.board, id), null);
+          assert.equal(box.board.lastEvent.event_id, store.events(box.board).at(-1).event_id,
+            'latest native event remains the actual final append');
+          if (index === 0) assert.equal(store.rowDrafts(box.board).length, 0);
+        }
+        const needs = personNeedsState(box.root, { board: box.board }).rigorDrafts;
+        const cause = kind === 'reject' ? 'test:test/example.test.js::the same behavior fails' : 'conflict:src/shared.js';
+        const proposal = needs.find(need => need.cause === cause);
+        assert.ok(proposal?.unproved, 'the second actual failure creates the existing Rigor proposal');
+        assert.deepEqual(proposal.evidence.items.map(item => item.id), ids);
+      } finally { box.close(); }
+    });
+  }
+});
