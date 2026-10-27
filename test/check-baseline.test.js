@@ -565,13 +565,24 @@ test('[V2,V4,B26,P6] a check green on main holds the item until the person accep
   assert.deepEqual(JSON.parse(accepted.stdout).digest, digest, 'the acceptance binds to the exact check text');
   const claimed = box.run(box.web, ['next', '--build', '--json']);
   assert.equal(claimed.status, 0, `the person's acceptance lifts the hold for next --build: ${claimed.stdout}${claimed.stderr}`);
-  assert.equal(showItem(box, id).item.item_owner, 'web-1', 'next --build claimed the accepted item');
+  const acceptedClaim = showItem(box, id).item;
+  assert.equal(acceptedClaim.item_owner, 'web-1', 'next --build claimed the accepted item');
+
+  /** A native correction is already frozen and retains the claim while the check's hold is evaluated. */
+  function assertFrozenCorrection(result, check) {
+    const item = JSON.parse(result.stdout).item;
+    assert.equal(item.item_status, 'claimed', 'atomic correction retains the live claim');
+    assert.equal(item.item_owner, acceptedClaim.item_owner, 'atomic correction retains the holder');
+    assert.equal(item.item_lease_until, acceptedClaim.item_lease_until, 'atomic correction retains the lease');
+    const frozen = JSON.parse(item.item_frozen);
+    assert.equal(frozen.sourceCheck ?? frozen.check, check, 'the correction already freezes the exact new check');
+  }
 
   const changed = fileCheck('green', 'changed-check-marker.txt');
   const edited = box.run(box.repo, ['edit', id, '--check', changed, '--reason', 'the fixture changes the check', '--wait', '--json'], undefined, { env });
   assert.equal(edited.status, 0, `${edited.stdout}${edited.stderr}`);
   assert.equal(JSON.parse(edited.stdout).item.item_check_baseline.result, 'green', 'the changed check gets a new baseline');
-  assert.equal(box.run(box.repo, ['refreeze', id]).status, 0);
+  assertFrozenCorrection(edited, changed);
   commitIn(box, box.web, 'done', 'test: change the held fixture');
   const resubmitted = refusal(box.run(box.web, ['submit', id, '--json']), 'submit after a changed check');
   assert.equal(resubmitted.code, 'CRITERION_PROVES_NOTHING', 'a changed check needs a new acceptance: submit is refused');
@@ -581,7 +592,7 @@ test('[V2,V4,B26,P6] a check green on main holds the item until the person accep
   const corrected = box.run(box.repo, ['edit', id, '--check', red, '--reason', 'the old check already passed on main', '--wait', '--json'], undefined, { env });
   assert.equal(corrected.status, 0, `${corrected.stdout}${corrected.stderr}`);
   assert.equal(JSON.parse(corrected.stdout).item.item_check_baseline.result, 'red');
-  assert.equal(box.run(box.repo, ['refreeze', id]).status, 0);
+  assertFrozenCorrection(corrected, red);
   const submitted = box.run(box.web, ['submit', id, '--json']);
   assert.equal(submitted.status, 0, `a red new baseline lifts the hold: ${submitted.stdout}${submitted.stderr}`);
 
