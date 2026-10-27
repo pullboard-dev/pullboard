@@ -56,10 +56,11 @@ function fixture() {
   const reviewer = store.register(board, { lane: 'app', path: join(root, 'reviewer'), model: 'Fixture reviewer' });
   let serial = 0;
   /** Add and submit a distinct synthetic commit through the normal board moves. */
-  const submit = (title) => {
+  const submit = (title, beforeSubmit) => {
     const id = store.addItem(board, { by: 'coordinator', lane: 'app', title });
     store.claim(board, id, { agentId: builder, lane: 'app', leaseMs: 7_200_000,
       freeze: item => ({ text: JSON.stringify({ criterion: item.item_title, policy }), digest: `fixture:${item.item_title}` }) });
+    beforeSubmit?.(id);
     const commit = (++serial).toString(16).padStart(40, '0');
     submitFixture(board, id, { agentId: builder, commit, tree: 'e'.repeat(40) });
     return id;
@@ -337,9 +338,10 @@ test('conditional reject and reopen holds retain their exact Rigor threshold tri
       try {
         const ids = [];
         for (let index = 0; index < 2; index += 1) {
-          const id = box.submit(`Conditional ${kind} ${index}`);
+          const id = box.submit(`Conditional ${kind} ${index}`, held => {
+            store.holdItem(box.board, held, { agentId: 'coordinator', reason: 'Await this native failure', until: kind });
+          });
           ids.push(id);
-          store.holdItem(box.board, id, { agentId: 'coordinator', reason: 'Await this native failure', until: kind });
           if (kind === 'reject') {
             box.failure(id);
             box.reject(id);
