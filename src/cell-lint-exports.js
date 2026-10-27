@@ -126,6 +126,9 @@ export function exportReachability(files, edges, reached) {
     }
   }
   const pending = [];
+  for (const [file, inputs] of edges) if (reached.has(file)) {
+    for (const input of inputs) for (const name of input.entryExports ?? []) pending.push({ target: input.target, name, members: null, uncertain: false });
+  }
   /** Preserve an explicit import's namespace member context through re-export front doors. */
   function enqueue(target, name, members = null, uncertain = false) { pending.push({ target, name, members, uncertain }); }
   const readsByModule = bindingReadsForModules((function* () {
