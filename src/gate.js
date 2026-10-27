@@ -259,6 +259,7 @@ export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory,
     gateLease.environment = run.environment ?? null;
     gateLease.gui = run.executionCapabilities?.gui ?? null;
     gateLease.executionAdmission = run.executionAdmission ?? null;
+    gateLease.executionPhases = run.executionPhases ?? null;
   }
   const sandboxBlocked = run.isGreen ? null : run.sandboxBlocked ?? (run.executionRunner
     // The controller cannot realpath remote files; retain the network denial signal without treating remote paths as local paths.
@@ -347,6 +348,7 @@ export async function runProfiledShellAsync(root, command, { waitMs = 0, gateSlo
     gateLease.environment = run.environment ?? null;
     gateLease.gui = run.executionCapabilities?.gui ?? null;
     gateLease.executionAdmission = run.executionAdmission ?? null;
+    gateLease.executionPhases = run.executionPhases ?? null;
     gateLease.tracker?.mark('ranAt');
     const wallMs = Math.max(0, Date.now() - started);
     const profilePath = join(dirname(gitPath(root, LOG)), `pullboard-gate-${randomUUID()}.profile.json`);
@@ -405,6 +407,7 @@ function settleReceipt(lease) {
   lease.receipt = { ...receiptOf(lease.tracker, { kind: lease.receiptKind, slot: lease.slot }), environment: lease.environment ?? null,
     runner: descriptor, admittedAt, finishedAt, timing: lease.timing === true, inherited: lease.inherited === true,
     occupiedSlots: lease.timing ? descriptor.slots.current : 1, load,
+    ...(lease.executionPhases ? { executionPhases: lease.executionPhases } : {}),
     ...(local ? lease.timingEvidence?.() ?? { exclusive: false, unfencedClients: [] }
       : { exclusive: executor?.exclusive === true, unfencedClients: executor?.unfencedClients ?? [] }) };
   return lease.receipt;
@@ -436,6 +439,7 @@ function runTiming(run, command, root) {
     return suffix && suffix !== '..' && !suffix.startsWith(`..${sep}`) && !isAbsolute(suffix) ? suffix : original;
   };
   return { ...profile, executionRunner: run.executionRunner, executionSource: run.executionSource,
+    ...(run.executionPhases ? { executionPhases: run.executionPhases } : {}),
     files: (profile.files ?? []).map(file => ({ ...file, path: localPath(file.path) })),
     tests: (profile.tests ?? []).map(test => ({ ...test, file: localPath(test.file) })) };
 }

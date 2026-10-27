@@ -76,6 +76,7 @@ export function runnerPrivateCheck(root, item, command, policy, lease, guard, wa
   lease.environment = result.environment ?? null;
   lease.gui = result.executionCapabilities?.gui ?? null;
   lease.executionAdmission = result.executionAdmission ?? null;
+  lease.executionPhases = result.executionPhases ?? null;
   let installCapture = '';
   let checkCapture = '';
   let installLogPath = '';
@@ -100,12 +101,12 @@ export function runnerPrivateCheck(root, item, command, policy, lease, guard, wa
     { root, item, commandRoot: result.executionRoot, installLogPath, checkLogPath, waitMs,
       timingProfile: { ...profile, wallMs: Date.now() - started, environment: result.environment, testRuntimes: result.testRuntimes,
         executionRunner: result.executionRunner, executionSource: result.executionSource, executionMain: result.executionMain,
-        executionLoad: result.executionLoad, executionAdmission: result.executionAdmission,
+        executionLoad: result.executionLoad, executionAdmission: result.executionAdmission, executionPhases: result.executionPhases ?? null,
         privateCheckPolicySha256: mode.sha256, rawOutputPath: result.rawOutputPath, rawOutputSha256: result.rawOutputSha256 },
       environment: result.environment, testRuntimes: result.testRuntimes, executionSourceUnchanged: result.privateCheck.receipt.sourceUnchanged,
       executed: Boolean(checkPhase), exitCode: checkPhase?.code ?? null, proofCounts: counts });
   return { ...formatted, testRuntimes: result.testRuntimes ?? null, sandboxBlocked: result.sandboxBlocked ?? formatted.sandboxBlocked, executionRunner: result.executionRunner, executionSource: result.executionSource,
-    executionLoad: result.executionLoad, executionMain: result.executionMain, executionAdmission: result.executionAdmission,
+    executionLoad: result.executionLoad, executionMain: result.executionMain, executionAdmission: result.executionAdmission, executionPhases: result.executionPhases ?? null,
     rawOutputPath: result.rawOutputPath, rawOutputSha256: result.rawOutputSha256,
     guardProblem: result.privateCheck.receipt.guard?.problem ?? '',
     executionNote: `\nprivate check executed on runner ${result.executionRunner} at ${checkedSource.commit}; trusted policy ${policy.commit}; raw output ${result.rawOutputPath} sha256 ${result.rawOutputSha256}` };
