@@ -311,7 +311,8 @@ export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory,
   gateLease?.tracker?.mark('runAt');
   const remoteCommand = landing && collectAll ? `(export ${LANDING_COLLECT_ALL_ENV}=1 ${COLLECTION_ID_ENV}=${collectionId}\n${command}\n)` : command;
   const run = gateLease?.runner ? { ...runOnRunner(root, remoteCommand, { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline,
-    browser: gateLease.browser, pipefail, stages, waivers: landing ? waivers : [], metadata: { ...(gateLease.runMetadata ?? {}), landing, auditCoverage, ...(timeoutMs ? { timeoutMs } : {}) } }) }
+    browser: gateLease.browser, pipefail, stages, waivers: landing ? waivers : [], metadata: { ...(gateLease.runMetadata ?? {}), landing, auditCoverage,
+      testStage: inherited.PULLBOARD_TEST_STAGE, ...(timeoutMs ? { timeoutMs } : {}) } }) }
     : runShell(root, command, { pipefail, env: inherited, stages, timeoutMs, captureRuntimes: Boolean(gateLease) });
   gateLease?.tracker?.mark('ranAt');
   if (gateLease) {
@@ -416,7 +417,8 @@ export async function runProfiledShellAsync(root, command, { waitMs = 0, gateSlo
   gateLease?.tracker?.mark('runAt');
   if (gateLease?.runner) {
     const run = await runOnRunnerAsync(root, command, { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline,
-      browser: gateLease.browser, metadata: { ...(gateLease.runMetadata ?? {}), landing } });
+      browser: gateLease.browser, metadata: { ...(gateLease.runMetadata ?? {}), landing,
+        testStage: gateLease.receiptKind ?? (landing ? 'land' : 'gate') } });
     gateLease.environment = run.environment ?? null;
     gateLease.gui = run.executionCapabilities?.gui ?? null;
     gateLease.executionAdmission = run.executionAdmission ?? null;
