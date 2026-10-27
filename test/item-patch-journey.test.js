@@ -44,6 +44,10 @@ test('a native companion patch is independently checked and lands the exact acce
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
+  const remote = join(box.dir, 'origin.git');
+  box.git(box.dir, 'init', '-q', '--bare', remote);
+  box.git(box.repo, 'remote', 'add', 'origin', remote);
+  box.git(box.repo, 'push', '-q', '-u', 'origin', 'main');
   // @pullboard-board-file journey: production CLI verification and landing share this durable board
   const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
