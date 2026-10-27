@@ -26,7 +26,7 @@ export function workerInboxQuery(board, agent, columns = '*') {
       SELECT ${columns} FROM shout WHERE shout_id>? AND shout_from NOT IN (SELECT id FROM inbox_seats)
       AND EXISTS (SELECT 1 FROM inbox_seats seat WHERE shout_id>seat.cursor AND
         (shout_to IN ('all',seat.id,seat.lane) OR (shout_to='${COORDINATION_SHOUT}' AND seat.id IN ('coordinator','person'))
-        OR EXISTS (SELECT 1 FROM item WHERE shout_to='item:' || item_id AND
+        OR EXISTS (SELECT 1 FROM item WHERE item_id=CAST(substr(shout_to,6) AS INTEGER) AND shout_to='item:' || item_id AND
           (seat.id='coordinator' OR COALESCE(item_owner,item_built_by)=seat.id OR COALESCE(item_review_by,item_verified_by)=seat.id
           OR EXISTS (SELECT 1 FROM event WHERE event.item_id=item.item_id
             AND event_kind IN ('handoff-open','handoff-take') AND event_by=seat.id)))))` };
