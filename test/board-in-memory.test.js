@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { fixtureBoard } from './board-fixture.js';
-import { boardFileOpens, boardFileProblems, boardFileReport } from '../bin/checks/board-files.js';
+import { boardFileGrowth, boardFileOpens, boardFileProblems, boardFileReport } from '../bin/checks/board-files.js';
 
 const AT = '2026-10-27T00:00:00.000Z';
 const clock = { now: () => new Date(AT) };
@@ -106,10 +106,13 @@ test('the board-file debt ratchet names outstanding tests and prevents new logic
   assert.deepEqual(boardFileProblems(root, baseline), []);
   const debt = boardFileReport(root);
   assert.ok(debt.every(row => /\.(?:test|spec)\.[cm]?js$/u.test(row.path) && row.line > 0));
-  if (debt.length) {
-    const tightened = { ...baseline, [debt[0].path]: 0 };
-    assert.ok(boardFileProblems(root, tightened).some(row => row.path === debt[0].path));
-  }
+  const path = 'test/new-logic.test.js';
+  const one = boardFileOpens('openBoard(file);', path);
+  assert.deepEqual(boardFileGrowth(one, {}), one, 'a new logic file opening a board file is refused');
+  const allowed = { [path]: 1 };
+  assert.deepEqual(boardFileGrowth(one, allowed), []);
+  const grown = boardFileOpens('openBoard(file);\nstore.openBoard(other);', path);
+  assert.deepEqual(boardFileGrowth(grown, allowed), [grown[1]], 'a second file open exceeds the existing debt');
   for (const path of ['test/engine.test.js', 'test/item-notes-engine.test.js']) {
     assert.equal(debt.some(row => row.path === path), false, `${path} has no remaining board-file opens`);
   }

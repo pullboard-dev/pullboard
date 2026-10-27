@@ -40,13 +40,18 @@ export function boardFileReport(root) {
 }
 
 /** Refuse a new file or growing debt in an existing file while conversions remove old debt. */
-export function boardFileProblems(root, baseline) {
+export function boardFileGrowth(problems, baseline) {
   const counts = new Map();
-  return boardFileReport(root).filter(problem => {
+  return problems.filter(problem => {
     const count = (counts.get(problem.path) ?? 0) + 1;
     counts.set(problem.path, count);
     return count > (baseline[problem.path] ?? 0);
   });
+}
+
+/** Apply the debt ceiling to the real source scan without opening any board. */
+export function boardFileProblems(root, baseline) {
+  return boardFileGrowth(boardFileReport(root), baseline);
 }
 
 if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
