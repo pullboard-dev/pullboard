@@ -1077,6 +1077,7 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
     assert.deepEqual(submits, [...declaredBoardOrder('submit'), 'ok']);
 
     const other = store.register(board, { lane: 'web', path: '/repo-web-other', family: 'review-vendor' });
+    const sameVendor = store.register(board, { lane: 'web', path: '/repo-web-same-vendor', family: 'builder-vendor' });
     for (const verb of ['accept', 'reject']) {
       const decision = verb === 'accept' ? 'ACCEPT' : 'REJECT';
       const built = submittedItem(board);
@@ -1097,7 +1098,7 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
         judge(built, 'web-1', { reason: bad }),
         judge(built, light, { reason: bad }),
         judge(built, 'web-2', { reason: bad }),
-        judge(built, other, { reason: bad, policy: 'any', familyPolicy: 'require' }),
+        judge(built, sameVendor, { reason: bad, policy: 'any', familyPolicy: 'require' }),
         judge(built, other, { reason: bad, policy: 'any' }),
         judge(built, 'web-2', { reason: bad, policy: 'any' }),
         judge(built, 'web-2', { reason: bad, policy: 'any', digest: 'digest:Page' }),
@@ -1119,6 +1120,7 @@ test('reserve refuses in the declared order, one failure peeled at a time [V15, 
     const { board } = lab;
     const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
     const other = store.register(board, { lane: 'web', path: '/repo-web-other', family: 'review-vendor' });
+    const sameVendor = store.register(board, { lane: 'web', path: '/repo-web-same-vendor', family: 'builder-vendor' });
     const built = submittedItem(board);
     const open = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
     const reserveAs = (id, agentId, policy = 'coordinator', familyPolicy = 'off') => outcome(() => store.reserveReview(board, id, { agentId, leaseMs: 3_600_000, policy, familyPolicy }));
@@ -1127,7 +1129,7 @@ test('reserve refuses in the declared order, one failure peeled at a time [V15, 
     store.release(board, cooling, 'web-2', 'another reviewer should take it');
     const fired = [reserveAs(999, 'web-2'), reserveAs(open, 'web-2'), reserveAs(cooling, 'web-2'), reserveAs(built, 'web-1'), reserveAs(built, light), reserveAs(built, 'web-2')];
     store.reserveReview(board, built, { agentId: other, leaseMs: 3_600_000, policy: 'any' });
-    fired.push(reserveAs(built, other, 'any', 'require'), reserveAs(built, 'web-2', 'any'), reserveAs(built, other, 'any'));
+    fired.push(reserveAs(built, sameVendor, 'any', 'require'), reserveAs(built, 'web-2', 'any'), reserveAs(built, other, 'any'));
     assert.deepEqual(fired, [...declaredBoardOrder('reserve'), 'ok']);
     assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'REVIEW_COOLDOWN', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'O2_FAMILY_MATCH', 'REVIEW_HELD', 'ok']);
   } finally {
