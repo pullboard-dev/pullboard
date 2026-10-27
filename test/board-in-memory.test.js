@@ -41,7 +41,7 @@ function moves(board) {
     freeze: () => ({ text: 'replacement', digest: 'b'.repeat(64) }) }), /HELD/u);
   assert.equal(store.events(board).length, before, 'a refused move has no partial effect');
   assert.throws(() => board.db.prepare("UPDATE item SET item_status='open' WHERE item_id=?").run(id), /STATUS_OUTSIDE_MOVE/u);
-  store.release(board, id, { agentId: builder });
+  store.release(board, id, builder);
   const item = store.getItem(board, id);
   assert.equal(item.item_status, 'open');
   assert.equal(item.item_owner, null);
@@ -105,7 +105,7 @@ test('the board-file debt ratchet names outstanding tests and prevents new logic
   const baseline = JSON.parse(readFileSync(join(import.meta.dirname, 'board-files-baseline.json'), 'utf8'));
   assert.deepEqual(boardFileProblems(root, baseline), []);
   const debt = boardFileReport(root);
-  assert.ok(debt.every(row => row.path.startsWith('test/') && row.line > 0));
+  assert.ok(debt.every(row => /\.(?:test|spec)\.[cm]?js$/u.test(row.path) && row.line > 0));
   if (debt.length) {
     const tightened = { ...baseline, [debt[0].path]: 0 };
     assert.ok(boardFileProblems(root, tightened).some(row => row.path === debt[0].path));
