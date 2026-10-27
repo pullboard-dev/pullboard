@@ -31,6 +31,7 @@ import { SSH_SHELL_MARKERS } from '../src/person.js';
 import { fetchFresh } from './http-fixture.js';
 import { fixtureJSON as intakeFixtureJSON, intakeFixture } from './intake-fixture.js';
 import { relayClientFixture } from './relay-client-fixture.js';
+import { exerciseAdditiveRoots } from './api-catalog-extra-roots.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -902,6 +903,9 @@ catalogCase('[A1,H11] sync shares a board through a real Git remote without an a
   assert.equal(result.pending, null);
   assert.match(await source.git(remote, 'rev-parse', result.ref), /^[0-9a-f]{40,64}$/u);
 });
+
+catalogCase('[A1,C7] additive roots expose a real report and refuse missing native audit evidence', () =>
+  exerciseAdditiveRoots({ project, uncataloguedRootJSON, withCatalogChild, coveredRoots }));
 
 test('[A1] every catalog command and subcommand has a real CLI exercise', { concurrency: true }, async (t) => {
   // Every private scenario finishes before the final catalog and root coverage assertions.
