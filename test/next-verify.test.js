@@ -59,8 +59,8 @@ async function project(t) {
   git(root, 'worktree', 'add', '-q', box.reviewer, '-b', 'review/one');
   box.board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(box.board));
-  box.builderId = store.register(box.board, { lane: 'web', path: box.builder });
-  box.reviewerId = store.register(box.board, { lane: 'review', path: box.reviewer });
+  box.builderId = store.register(box.board, { lane: 'web', path: box.builder, family: 'Fixture Builder Vendor' });
+  box.reviewerId = store.register(box.board, { lane: 'review', path: box.reviewer, family: 'Fixture Reviewer Vendor' });
   return box;
 }
 
@@ -131,7 +131,8 @@ test('a lone newcomer starts a reviewer with one command [V1,B26]', t => {
   assert.match(mainRefusal.next, /git worktree add --detach.*&&.*pullboard join review.*&&.*pullboard next --verify 1/u);
   const self = JSON.parse(box.run(box.web, 'next', '--verify', '1', '--json').out).error;
   assert.equal(self.code, 'SELF_VERIFY', 'the startup guidance does not give the builder a verdict');
-  const command = startup.slice(startup.indexOf('cd ')).replaceAll('"<model name>"', "'Independent Reviewer Model'");
+  assert.match(startup, /--family "<vendor family>"/u);
+  const command = startup.slice(startup.indexOf('cd ')).replaceAll('"<model name>"', "'Independent Reviewer Model'").replaceAll('"<vendor family>"', "'Independent Fixture Reviewer Vendor'");
   const independent = runFixtureChild('/bin/sh', ['-c', command], { cwd: box.repo,
     env: { ...box.env, CODEX_THREAD_ID: 'independent-review-fixture' }, encoding: 'utf8' });
   assert.equal(independent.status, 0, independent.context);

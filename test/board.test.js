@@ -22,6 +22,8 @@ import { JSON_SHAPES } from '../src/json.js';
 import { AUTO_ESCALATE_ENGINE, ENGINE_VERSION, STRONG_REJECTION_NOTICE_ENGINE } from '../src/machine.js';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { unpackRelease } from './release-archive.js';
+import { REVIEW_INDEPENDENCE_ENGINE } from '../src/review-independence-engine.js';
+import { verifyLegacyUnknownFamily } from './review-family-fixture.js';
 
 const HOUR = 3_600_000;
 const SHA_A = 'a'.repeat(40);
@@ -88,7 +90,7 @@ beforeEach(() => {
   let at = Date.parse('2026-10-04T12:00:00Z');
   clock = { now: () => new Date(at), advance: (ms) => { at += ms; } };
   board = store.openBoard(':memory:', clock);
-  registerPreGrant(board, [['coordinator', '/repo'], ['web', '/repo-web-1'], ['web', '/repo-web-2'], ['api', '/repo-api-1']]);
+  registerPreGrant(board, [['coordinator', '/repo', { family: 'Fixture Coordinator' }], ['web', '/repo-web-1', { family: 'Fixture Builder One' }], ['web', '/repo-web-2', { family: 'Fixture Builder Two' }], ['api', '/repo-api-1', { family: 'Fixture Reviewer' }]]);
 });
 
 test('[B14] notes in parentheses are not paths, and a foreign path still refuses', async (t) => {
@@ -1240,7 +1242,7 @@ test('a builder reworks its own rejected item beside its one claim; nothing else
   assert.throws(() => claimAs(aside, 'web-2', 'web'), /ONE_CLAIM/, "another agent's rejected item is no rework of web-2's");
 });
 
-test('[O3] declared families travel from join through submit and verdict, and absent family is allowed', async (t) => {
+test('[O3] declared families travel through native snapshots; unknown registration remains allowed and fresh review refuses', async (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-families-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const previousHome = process.env.PULLBOARD_HOME;
@@ -1389,7 +1391,7 @@ test('[O3] declared families travel from join through submit and verdict, and ab
   const unverified = store.addItem(persistent, { by: 'coordinator', lane: 'review', title: 'No-family verdict' });
   store.claim(persistent, unverified, { agentId: 'review-1', lane: 'review', leaseMs: 2 * HOUR, freeze: familyFreeze });
   submitFixture(persistent, unverified, { agentId: 'review-1', commit: SHA_B, tree: 'tree-b' });
-  store.verify(persistent, unverified, {
+  verifyLegacyUnknownFamily(persistent, unverified, {
     agentId: 'web-2', decision: 'ACCEPT', note: 'checked without a family declaration',
     head: SHA_B, digest: 'digest:family', policy: 'any',
   });
@@ -1434,7 +1436,9 @@ test('[O3] declared families travel from join through submit and verdict, and ab
   assert.match(JSON.parse(quotedModel.stdout).prompt, /pass --model 'Model " \$x'/);
 });
 
-test('[O2,O3] family policy controls review order and refuses unknown or matching families', () => {
+test('[O2,O3,H16] historical family policy controls review order and refuses unknown or matching families', () => {
+  // Preserve the original off/prefer/require control under its predecessor execution origin.
+  board.executionEngineVersion = REVIEW_INDEPENDENCE_ENGINE - 1;
   store.register(board, { lane: 'web', path: '/repo-web-1', family: 'Family Alpha' });
   store.register(board, { lane: 'web', path: '/repo-web-2', family: 'Family Beta' });
   store.register(board, { lane: 'api', path: '/repo-api-1', family: 'Family Beta' });
