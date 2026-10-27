@@ -1,4 +1,4 @@
-/** Fail closed on public snapshot prose; coordinator rulings 064965a1, 919d562b, f15ecdcb and 5b1543f9 [N26]. */
+/** Fail closed on public snapshot prose; coordinator rulings 064965a1, 919d562b, f15ecdcb, 5b1543f9 and 8540102d [N26]. */
 import { Refused } from '../refused.js';
 
 /** The complete public export block list; internal messages are omitted before prose is checked. */
@@ -48,12 +48,18 @@ const EVENT_IDENTITIES = Object.freeze({
 /** Diagnostics may name only these fixed schema words; dynamic keys and array indexes are redacted. */
 const DIAGNOSTIC_FIELDS = new Set(('listing boards state events board root id rowAgesAt items agents shouts asked requests decisions decisionQueue needs personRequests '
   + 'personBars personRows personProposals event_detail detail thread history title criterion brief text note reason check commit tree digest policyCommit '
-  + 'criterionDigest submissionProof submissionSize base head review trunk checkBaseline main verdict verdicts verdictState spec practice products releaseNotes '
+  + 'criterionDigest receipt frozenDigest submissionProof submissionSize base head review trunk checkBaseline main verdict verdicts verdictState spec practice products releaseNotes '
   + 'source record row rowDecisions specRevisions rigorDrafts sentinelDrafts proofStats ruleCounts config parent signature publicKey agent_id agent_lane model').split(' '));
 
 /** Name a projection location without echoing arbitrary object keys, identifiers or filesystem names. */
 function diagnosticPath(path) {
   return path.map(key => DIAGNOSTIC_FIELDS.has(key) ? key : key === '*' ? '*' : '[field]').join('.');
+}
+
+/** Recognize only the native proof-run receipt envelope in the three public event projections. */
+function proofReceiptPath(path, eventKind) {
+  return eventKind === 'proof-run' && path.at(-1) === 'receipt'
+    && ['detail', 'event_detail'].includes(path.at(-2)) && EVENT_PATH.test(path.slice(0, -2).join('/'));
 }
 
 /** Exempt exact native paths and formats; free text and arbitrary *_id detail keys never qualify. */
@@ -71,6 +77,10 @@ function structuredIdentity(path, value, eventKind) {
     if (['add', 'edit', 'check-baseline'].includes(eventKind) && path.slice(-2).join('/') === 'checkBaseline/main') width = 40;
     if (['accept', 'reject'].includes(eventKind) && /^review\/(?:commit|head|trunk)$/u.test(path.slice(-2).join('/'))) width = 40;
     if (eventKind === 'submit' && /^submissionSize\/(?:base|head)$/u.test(path.slice(-2).join('/'))) width = 40;
+  }
+  if (proofReceiptPath(path.slice(0, -1), eventKind)) {
+    if (['commit', 'tree'].includes(path.at(-1))) return /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value);
+    if (path.at(-1) === 'frozenDigest') width = 64;
   }
   return width > 0 && new RegExp(`^[a-f0-9]{${width}}$`, 'u').test(value);
 }
@@ -96,7 +106,7 @@ export function publicSnapshot(document, { privateBoard = false } = {}) {
       const kind = EVENT_PATH.test(location) ? value.event_kind ?? value.kind : eventKind;
       const entries = location === 'state/state/agents/*'
         ? [['agent_id', value.agent_id], ['agent_lane', value.agent_lane], ['model', value.model ?? value.agent_model]]
-        : Object.entries(value);
+        : Object.entries(value).filter(([key]) => !proofReceiptPath(path, kind) || !['parentSession', 'runner'].includes(key));
       return Object.fromEntries(entries.map(([key, entry]) => [key,
         key === 'event_detail' ? JSON.stringify(visit(detailOf(value), [...path, key], kind)) : visit(entry, [...path, key], kind),
       ]).filter(([, entry]) => entry !== undefined));

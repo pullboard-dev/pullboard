@@ -52,10 +52,18 @@ test('the declared public filter blocks every ruled kind without echoing its val
     events: { events: [{ event_kind: 'submit', event_detail: JSON.stringify({ commit: 'a'.repeat(40), tree: 'b'.repeat(40), criterionDigest: 'c'.repeat(64),
       submissionSize: { base: 'b'.repeat(40), head: 'a'.repeat(40), lines: 1, method: 'added-plus-deleted-no-renames' } }) }] } };
   assert.deepEqual(publicSnapshot(native), native, 'only native paths with exact identifier widths are exempt');
+  const receipt = { commit: 'a'.repeat(40), tree: 'b'.repeat(64), frozenDigest: 'c'.repeat(64) };
+  const proofs = { state: { state: { items: [{ thread: [{ kind: 'proof-run', detail: { receipt } }] }],
+    events: [{ event_kind: 'proof-run', event_detail: JSON.stringify({ receipt }) }] } },
+    events: { events: [{ event_kind: 'proof-run', event_detail: JSON.stringify({ receipt }) }] } };
+  assert.deepEqual(publicSnapshot(proofs), proofs, 'native receipt hashes qualify in all three history projections');
   for (const forged of [{ customer_id: 'a'.repeat(64) }, { note_id: 'a'.repeat(64) }, { commit: 'a'.repeat(40) },
     { events: { events: [{ event_kind: 'fact', event_detail: JSON.stringify({ note_id: 'a'.repeat(64), commit: 'b'.repeat(40) }) }] } },
     { state: { state: { rowAgesAt: { 'SPEC.md': 'a'.repeat(64) } } } },
-    { personRequests: [{ text: 'a'.repeat(64) }] }, { kind: 'decision', text: 'a'.repeat(64) }]) {
+    { personRequests: [{ text: 'a'.repeat(64) }] }, { kind: 'decision', text: 'a'.repeat(64) },
+    { receipt }, { events: { events: [{ event_kind: 'fact', event_detail: JSON.stringify({ receipt }) }] } },
+    { events: { events: [{ event_kind: 'proof-run', event_detail: JSON.stringify({ receipt: { commit: 'a'.repeat(32) } }) }] } },
+    { events: { events: [{ event_kind: 'proof-run', event_detail: JSON.stringify({ receipt: { note_id: 'a'.repeat(64) } }) }] } }]) {
     assert.throws(() => publicSnapshot(forged), /secret-shaped string/u, 'arbitrary keys and wrong native shapes stay checked');
   }
   assert.throws(() => publicSnapshot({ commit: 'sk-fixtureonly12345678' }), /secret-shaped string/u, 'an identity key does not exempt an arbitrary credential');
@@ -75,6 +83,17 @@ test('internal messages disappear from rows, historical JSON and derived decisio
     items: [{ thread: [{ kind: 'shout', by: 'sentinel', detail: { to: 'all', text: 'Internal notice' } }] }] } } };
   assert.deepEqual(publicSnapshot(input), { state: { state: { shouts: [external], needs: [], events: [], items: [{ thread: [] }] } } });
   assert.equal(input.state.state.shouts.length, 2, 'the pure filter does not mutate the source');
+  const receipt = { commit: 'a'.repeat(40), parentSession: 'b'.repeat(64), runner: 'tester@host' };
+  const proof = { kind: 'proof-run', detail: { receipt } };
+  const proofEvent = { event_kind: 'proof-run', event_detail: JSON.stringify({ receipt }) };
+  const projected = publicSnapshot({ state: { state: { items: [{ thread: [proof] }], events: [proofEvent] } }, events: { events: [proofEvent] } });
+  assert.deepEqual(projected.state.state.items[0].thread[0].detail.receipt, { commit: receipt.commit });
+  for (const event of [projected.state.state.events[0], projected.events.events[0]]) {
+    assert.deepEqual(JSON.parse(event.event_detail).receipt, { commit: receipt.commit });
+  }
+  assert.equal(receipt.runner, 'tester@host', 'receipt projection leaves native source data intact');
+  assert.throws(() => publicSnapshot({ events: { events: [{ event_kind: 'fact', event_detail: JSON.stringify({ receipt }) }] } }),
+    /secret-shaped string/u, 'arbitrary receipt objects do not acquire omissions or identity exemptions');
   assert.throws(() => publicSnapshot({ events: [{ event_kind: 'fact', event_detail: '{"text":"\\u0070ricing"}' }] }), /pricing term/u,
     'encoded historical free text cannot bypass the scan');
   assert.deepEqual(publicSnapshot({ state: { state: { agents: [{ agent_id: 'web-1', agent_lane: 'web', agent_model: 'Fixture',
