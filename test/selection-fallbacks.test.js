@@ -79,6 +79,36 @@ test('declared computed and CommonJS loaders retain transitive dependencies in s
   assert.ok(closure.files.includes('src/value.js'));
 });
 
+test('dependency-only changes retain roots with an undeclared CommonJS reader without selecting known unrelated roots [V4,C7]', t => {
+  const box = graph(t);
+  box.git('rm', 'test/value.test.js');
+  box.put('src/reader.cjs', "module.exports = require('./value.js');\n");
+  box.put('test/reader.test.js', "import '../src/reader.cjs';\n");
+  const base = box.commit();
+  const closure = testClosures(box.root, base).closures.get('test/reader.test.js');
+  assert.equal(closure.files, null);
+  assert.match(closure.reason, /CommonJS.*src\/reader\.cjs/u);
+  box.put('src/value.js', 'export const value = 2;\n');
+  const commit = box.commit();
+  assert.deepEqual(box.git('diff', '--name-only', base, commit).trim(), 'src/value.js');
+  selected(box, base, commit, ['test/reader.test.js']);
+});
+
+test('dependency-only changes retain roots with an undeclared computed product loader without selecting known unrelated roots [V4,C7]', t => {
+  const box = graph(t);
+  box.git('rm', 'test/value.test.js');
+  box.put('src/reader.js', "const target = './value.js'; export const value = await import(target);\n");
+  box.put('test/reader.test.js', "import '../src/reader.js';\n");
+  const base = box.commit();
+  const closure = testClosures(box.root, base).closures.get('test/reader.test.js');
+  assert.equal(closure.files, null);
+  assert.match(closure.reason, /non-literal dynamic import.*src\/reader\.js/u);
+  box.put('src/value.js', 'export const value = 2;\n');
+  const commit = box.commit();
+  assert.deepEqual(box.git('diff', '--name-only', base, commit).trim(), 'src/value.js');
+  selected(box, base, commit, ['test/reader.test.js']);
+});
+
 test('unresolved data and executable loaders remain named full fallbacks without evaluating code [V4,C7]', t => {
   const box = graph(t);
   const base = box.commit();
