@@ -21,10 +21,13 @@ import {
   json,
   mergeSubjects,
   childOutcome,
+  startExclusiveBoardWriter,
 } from './land-board-fixture.js';
 import { landingTimeoutFixture } from './landing-timeout-fixture.js';
 import { assertParallelLanding, assertParallelCliLease, assertParallelNestedGate } from './land-parallel-fixture.js';
 import { landEnginesInOrder } from './land-engine-fixture.js';
+import { assertWholeQueueBatch } from './land-batch-fixture.js';
+import { assertAffectedLandingUnstamped, assertDeferredBatchIsolation } from './land-deferred-batch-fixture.js';
 import {
   assertCollisionFreeLanding,
   assertSiblingConflictLanding,
@@ -46,30 +49,6 @@ test('a landing records a falling doctrine count and holds a rising count [B3,R3
 test('a repo with no remote lands into the local trunk and status reads as normal [I1,B3,R3,H5]', () => {
   assertNoRemoteLanding(sandbox, commitFile);
 });
-/** Start a separate process holding an exclusive write transaction on the fixture board. */
-function startExclusiveBoardWriter(box, boardFile, name) {
-  const ready = join(box.dir, `${name}-ready`);
-  const release = join(box.dir, `${name}-release`);
-  const released = join(box.dir, `${name}-released`);
-  const source = [
-    "const fs = require('node:fs'); const { DatabaseSync } = require('node:sqlite');",
-    'const [file, ready, release, released] = process.argv.slice(1);',
-    'const db = new DatabaseSync(file);',
-    "try { const journal = db.prepare('PRAGMA journal_mode = DELETE').get().journal_mode;",
-    "const locking = db.prepare('PRAGMA locking_mode = EXCLUSIVE').get().locking_mode;",
-    "if (journal !== 'delete' || locking !== 'exclusive') throw new Error('fixture did not acquire rollback-journal exclusive mode');",
-    "db.exec('BEGIN EXCLUSIVE'); db.exec('CREATE TABLE IF NOT EXISTS fixture_write (value INTEGER)'); db.exec('INSERT INTO fixture_write (value) VALUES (1)');",
-    'fs.writeFileSync(ready, JSON.stringify({ journal, locking })); const deadline = Date.now() + 20_000;',
-    'while (!fs.existsSync(release) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);',
-    "if (!fs.existsSync(release)) throw new Error('writer release was not received');",
-    "db.exec('COMMIT'); db.close(); fs.writeFileSync(released, 'released');",
-    "} catch (error) { try { db.close(); } catch {} process.stderr.write(error.stack + '\\n'); process.exitCode = 1; }",
-  ].join('\n');
-  const child = startFixtureChild(process.execPath, ['-e', source, boardFile, ready, release, released], {
-    cwd: box.repo, env: box.env, detached: true, stdio: ['ignore', 'ignore', 'pipe'],
-  });
-  return { child, closed: childOutcome(child), ready, release, released };
-}
 /** Run the real pre-commit hook with a preload observing its agentAt SQLite read. */
 function startHookRead(box, probe, marker) {
   const env = { ...box.env, HOOK_READ_ATTEMPT: marker };
@@ -1495,3 +1474,14 @@ test('a landing batch leaves out an item that touches a file already in the batc
 
 test('a deferred landing item keeps its place ahead of newer acceptances after merge-only reaccept [B3,R3,R1,H16]',
 () => assertDeferredLandingPriority({ landProject, itemWorktree, submitItem, acceptItem, json, onBoard }));
+test('land batches all waiting accepted items and bisects a red batch [B3,R3,E26,E29]', { timeout: 300_000 }, // budget: sixteen real private submits and accepts plus one bisected landing; hang ceiling only, no speed threshold.
+() => assertWholeQueueBatch({ landProject, itemWorktree, submitItem, acceptItem, json, onBoard }));
+
+test('separate publication batches all sixteen waiting items and bisects a red quick gate locally [B3,R3,E26,E29]', { timeout: 300_000 }, // budget: sixteen real private submit/accept cycles plus logarithmic red isolation; hang ceiling only.
+() => assertWholeQueueBatch({ landProject, itemWorktree, submitItem, acceptItem, json, onBoard }, { separate: true }));
+
+test('a deferred red shared importer returns only its culprit and lands innocent owners locally [B3,R3,C7,V4]', { timeout: 120_000 }, // budget: four real submit/accept cycles and shared-importer isolation; hang ceiling only.
+() => assertDeferredBatchIsolation({ landProject, itemWorktree, submitItem, acceptItem }));
+
+test('a green affected-only local landing never stamps the full gate [B3,R3,C7,V4]', { timeout: 90_000 }, // budget: one real submit/accept and finite affected landing; hang ceiling only.
+() => assertAffectedLandingUnstamped({ landProject, itemWorktree, submitItem, acceptItem }));
