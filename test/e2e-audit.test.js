@@ -44,13 +44,14 @@ test('every file has recorded value placement; journeys are audit-only despite h
   assert.equal(report.files.length, 4);
   const unknown = placementReport({ closures: new Map([['test/new.test.js', { files: ['test/new.test.js'] }]]), modules: new Map() });
   assert.equal(unknown.files[0].realCatches, null, 'missing observation is unknown, not a measured zero');
+  assert.equal(unknown.files[0].tier, 'landing', 'a known-reach contract starts at reach-selected landing while history is unknown');
   assert.deepEqual(testsAtStage(report.files.map(row => row.file), report, 'submit'), ['test/unit.test.js']);
   assert.deepEqual(testsAtStage(report.files.map(row => row.file), report, 'landing'), ['test/contract.test.js']);
   assert.deepEqual(testsAtStage(report.files.map(row => row.file), report, 'audit'), ['test/journey.test.js', 'test/unknown.test.js']);
   assert.equal(report.files.find(row => row.file === 'test/unknown.test.js').reason, 'undeclared computed import');
   assert.ok(report.proposals.every(row => row.action.includes('person')));
   assert.ok(!report.proposals.some(row => /journey|unknown/u.test(row.file)), 'an audit tier alone is not evidence a file has low value');
-  assert.equal(journeyReason({ files: ['src/one/a.js', 'src/two/b.js', 'relay/service.js'] }, new Map()), 'reaches three or more product areas');
+  assert.equal(journeyReason({ files: ['src/one/a.js', 'src/two/b.js', 'relay/service.js'] }, new Map()), '', 'known imports are contracts across product areas');
   assert.deepEqual(testsAtStage(['test/new.test.js'], report, 'landing'), [], 'an unknown file never silently enters the paid landing set');
 });
 
@@ -103,7 +104,7 @@ test('placement uses observed execution rates and labels runtime estimates witho
   const measured = placeTest('test/unit.test.js', observation);
   assert.equal(measured.submitValue, 499, 'several repaired test names in one execution do not inflate catch probability');
   const unknown = placeTest('test/unit.test.js', { ...observation, catchRate: null });
-  assert.equal(unknown.tier, 'audit');
+  assert.equal(unknown.tier, 'landing', 'an unknown catch rate retains initial landing coverage without inventing a rate');
   assert.equal(unknown.submitValue, null);
   const estimated = placeTest('test/unit.test.js', { ...observation, meanRuntimeMs: null,
     lastObservedRuntime: { durationMs: 2000, source: 'landing-file-times', ageMs: null } });

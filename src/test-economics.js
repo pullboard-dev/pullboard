@@ -24,14 +24,10 @@ export function journeyReason(closure, modules) {
     const child = /\b(?:spawn(?:Sync)?|execFile(?:Sync)?|fork|runFixtureChild|runFixtureExecFile|startFixtureChild)\s*\(/u.test(source);
     if (cliPath && child) return `CLI-spawning boundary in ${path}`;
   }
-  const areas = new Set(closure.packages ?? closure.files.filter(path => /^(?:src|relay)\//u.test(path)).map(path => {
-    const parts = path.split('/');
-    return parts[0] === 'relay' ? 'relay' : parts.length > 2 ? parts.slice(0, 2).join('/') : 'src';
-  }));
-  return areas.size >= 3 ? 'reaches three or more product areas' : '';
+  return ''; // Known reach stays a contract regardless of how many product areas it imports.
 }
 
-/** Place a file with the strict expected-value inequality; unknown measurements stay in the audit. */
+/** Use measured value when available; a known-reach contract starts at landing while observations remain unknown. */
 export function placeTest(file, observation, { reason = '', costs: input = {} } = {}) {
   const costs = testValueCosts(input);
   const { runs = null, realCatches = null, flakes = null, meanRuntimeMs = null, edits = null,
@@ -46,8 +42,8 @@ export function placeTest(file, observation, { reason = '', costs: input = {} } 
   const known = runs > 0 && catchRate !== null && flakeRate !== null && runtimeMs !== null;
   const submitValue = known ? catchRate * costs.escape - runtimeMs / 1000 * costs.waitPerSecond - flakeRate * costs.falseRed : null;
   const landingValue = known ? catchRate * costs.landingEscape - runtimeMs / 1000 * costs.landingWaitPerSecond - flakeRate * costs.falseRed : null;
-  const tier = reason || !known ? 'audit' : submitValue > 0 ? 'submit' : landingValue > 0 ? 'landing' : 'audit';
-  return { file, tier, reason: reason || (!known ? 'unknown observations' : 'expected value'), runs, realCatches, flakes,
+  const tier = reason ? 'audit' : !known ? 'landing' : submitValue > 0 ? 'submit' : landingValue > 0 ? 'landing' : 'audit';
+  return { file, tier, reason: reason || (!known ? 'unknown observations; initial landing coverage' : 'expected value'), runs, realCatches, flakes,
     runtimeMs, runtimeSource: meanRuntimeMs !== null ? 'complete historical mean' : lastObservedRuntime,
     estimated: meanRuntimeMs === null && runtimeMs !== null, edits, catchRate, flakeRate, submitValue, landingValue };
 }
