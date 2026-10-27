@@ -1,3 +1,5 @@
+import { normalizeRulingEffects } from './ruling-owner.js';
+import { RULING_OWNER_ENGINE } from './ruling-owner-engine.js';
 /** Structured choices on the existing append-only decision/answer stream [B21,B27]. */
 import { DECISION_QUEUE_ENGINE } from './decision-queue-engine.js';
 import { Refused } from './refused.js';
@@ -8,8 +10,14 @@ import {
 
 /** Validate new decision metadata before any message is persisted, without changing legacy shouts. */
 export function itemDecisionDetail(board, message, engine) {
-  const { options, decision, item, from } = message;
-  if (options === undefined) return {};
+  const { options, decision, item, from, effects } = message;
+  const detail = {};
+  if (effects !== undefined) {
+    if (engine < RULING_OWNER_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before declaring ruling effects');
+    if (!decision) throw new Refused('RULING_EFFECTS', 'declare effects on a decision request with --decision --effects');
+    detail.decisionEffects = normalizeRulingEffects(effects);
+  }
+  if (options === undefined) return detail;
   if (engine < DECISION_QUEUE_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before asking an item decision with options');
   if (!decision || !Number.isSafeInteger(item) || item <= 0 || !Array.isArray(options) || options.length < 2
     || options.some(option => typeof option !== 'string' || !option.trim())
@@ -17,10 +25,10 @@ export function itemDecisionDetail(board, message, engine) {
     throw new Refused('BAD_DECISION_OPTIONS', 'ask an item decision with at least two distinct nonempty options: pullboard shout coordinator "<question>" --item <id> --decision --options \'["first","second"]\'');
   }
   if (!itemShoutReader(board.db, item, from)) throw new Refused('NOT_YOUR_ITEM_DECISION', 'ask a decision on an item you build or review, or ask the coordinator for a cross-item decision');
-  return { decisionOptions: options.map(option => option.trim()) };
+  return { ...detail, decisionOptions: options.map(option => option.trim()) };
 }
 
-/** Index only the validated top-level option record, never opaque legacy detail; passing up retains that index. */
+/** Retain normalized options/effects through escalation, never caller ownership or opaque legacy fields. */
 export function recordItemDecision(board, id, { decision, answers, record }) {
   if (!decision) return;
   if (!record && answers !== null) {
@@ -38,6 +46,8 @@ export function projectItemDecisions(board, asks) {
   const records = new Map(rows.map(row => [row.meta_key, JSON.parse(row.meta_value)]));
   return asks.map(ask => {
     const record = records.get(`item_decision:${ask.shout_id}`);
-    return record ? { ...ask, item: record.item ?? shoutItemId(ask.shout_to), options: record.options } : ask;
+    return record ? { ...ask, item: record.item ?? shoutItemId(ask.shout_to),
+      ...(record.options === undefined ? {} : { options: record.options }),
+      ...(record.effects === undefined ? {} : { effects: record.effects }) } : ask;
   });
 }

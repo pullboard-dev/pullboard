@@ -96,6 +96,21 @@ test('a moved or duplicated engine leaf is refused while fixture strings and imp
     "import { SAMPLE_ENGINE } from '../../../src/sample-engine.js'; export { SAMPLE_ENGINE } from '../../../src/sample-engine.js';\nconst value = SAMPLE_ENGINE, other = { SAMPLE_ENGINE };\nconst { value: alias = SAMPLE_ENGINE, SAMPLE_ENGINE: local } = source;\n" }]), []);
 });
 
+test('named engine reexports come only from the canonical engine folder [C7]', t => {
+  const root = fixture(t);
+  const consumer = join(root, 'packages', 'sample', 'src', 'forward.js');
+  writeFileSync(join(root, 'packages', 'sample', 'src', 'numbers.js'), 'export const value = 17;\n');
+  writeFileSync(consumer, "export { value as SAMPLE_ENGINE } from './numbers.js';\n");
+  assert.equal(engineFolderProblems(root)[0].file, 'packages/sample/src/forward.js');
+  assert.match(engineFolderProblems(root)[0].text, /SAMPLE_ENGINE must stay in src\//u);
+  writeFileSync(consumer, "export { SAMPLE_ENGINE } from '../../../src/sample-engine.js';\n");
+  assert.deepEqual(engineFolderProblems(root), []);
+  for (const target of ['sample', '#sample', './nested/numbers.js']) {
+    assert.equal(engineFolderViolations([{ file: 'packages/sample/src/forward.js', source:
+      `export { value as SAMPLE_ENGINE } from '${target}';` }]).length, 1);
+  }
+});
+
 test('an unassigned engine keeps its placeholder outside a moved package until landing [C7]', t => {
   const root = fixture(t);
   const path = join(root, 'src', 'pending-engine.js');

@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { posix } from 'node:path';
 import { lex } from './js-lex.js';
 
 /** Read variable binding patterns, skipping initializer expressions so references remain allowed. */
@@ -64,10 +65,16 @@ export function engineFolderViolations(sources) {
   for (const { file, source } of sources) {
     if (!/^(?:src|packages|apps)\//u.test(file)) continue;
     if (/^src\/[^/]+\.[cm]?js$/u.test(file)) continue;
-    const code = lex(source).code;
+    const { code, strings } = lex(source);
+    const literals = new Map(strings.map(literal => [literal.start, literal.text]));
     const declarations = engineBindings(code);
     const declared = new Set(declarations.map(match => match[0]));
-    for (const list of code.matchAll(/\bexport\s*\{([^}]*)\}(?!\s*from\b)/gu)) {
+    for (const list of code.matchAll(/\bexport\s*\{([^}]*)\}/gu)) {
+      const end = list.index + list[0].length;
+      const from = /^\s*from\b\s*/u.exec(code.slice(end));
+      const target = from ? literals.get(end + from[0].length) : null;
+      if (target && /^\.{1,2}\//u.test(target) && !target.includes('\\')
+        && /^src\/[^/]+\.[cm]?js$/u.test(posix.normalize(posix.join(posix.dirname(file), target)))) continue;
       for (const entry of list[1].split(',')) {
         const exported = /(?:^|\bas\s+)([A-Z][A-Z0-9_]*_ENGINE)\s*$/u.exec(entry.trim());
         if (!exported || declared.has(exported[1])) continue;
