@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** Release placement and receipt boundaries; synthetic models do not claim a real eight-node timed release [C7,I15]. */
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
