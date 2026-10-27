@@ -71,7 +71,7 @@ export function runnerPrivateCheck(root, item, command, policy, lease, guard, wa
   const started = Date.now();
   lease.tracker?.mark('runAt');
   const result = runOnRunner(root, command, { runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, browser: lease.browser,
-    metadata: lease.runMetadata, checkedSource, privateCheck: mode, rawOutputPath: join(directory, 'raw.log') });
+    metadata: { ...lease.runMetadata, testStage: lease.receiptKind ?? 'verify' }, checkedSource, privateCheck: mode, rawOutputPath: join(directory, 'raw.log') });
   lease.tracker?.mark('ranAt');
   lease.environment = result.environment ?? null;
   lease.gui = result.executionCapabilities?.gui ?? null;

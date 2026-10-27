@@ -365,9 +365,10 @@ test('runtime discovery and the selector agree on which files are engines and co
 test('a src change selects only its importers despite run-tests.js [V4,C7]', (t) => {
   const box = graph(t);
   const sourceRoot = fileURLToPath(new URL('../', import.meta.url));
-  const modules = runFixtureGit(['ls-files', '-z', '--', 'src', 'bin'], { cwd: sourceRoot })
-    .split('\0').filter(path => /\.[cm]?js$/u.test(path));
-  for (const path of modules) box.put(path, readFileSync(new URL('../' + path, import.meta.url), 'utf8'));
+  // Real source modules declare committed data inputs too; copy their complete tracked source/input tree.
+  const sourceInputs = runFixtureGit(['ls-files', '-z', '--', 'src', 'bin'], { cwd: sourceRoot })
+    .split('\0').filter(Boolean);
+  for (const path of sourceInputs) box.put(path, readFileSync(new URL('../' + path, import.meta.url), 'utf8'));
   box.put('test/api.test.js', "import assert from 'node:assert/strict'; assert.ok(true);\n");
   box.put('test/person.test.js', "import '../src/person.js';\n");
   box.put('test/runner-reader.test.js', "import '../bin/run-tests.js';\n");

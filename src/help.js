@@ -136,6 +136,10 @@ Work
                                         reads the board and changes nothing; exits 1 when something is stuck
                                         pullboard.json health.stuck (default 1h), health.holds (1d), health.release (1d)
   pullboard skills --update            refresh unchanged Claude Code skills from shipped versions
+  pullboard patch attach <item> <file> --key <key> --author <seat> [--source <submittedSHA>]
+                                        coordinator: bind a companion patch to the exact submitted source
+  pullboard patch list <item>            read its ordered native patches and patch-set digest
+  pullboard patch remove <item> <key>    coordinator: stop applying a patch; retain its author history
   pullboard companion <parent> <lane> "<title>" --key <key> [--criterion "<criterion>"] [--specs <ids>]
                                         create one child in another lane; repeat the same parent, lane and key to find it
                                         --brief "<brief>"; --route strong|mid|light; only the coordinator sets --check "<command>"
@@ -186,6 +190,8 @@ Work
   Inbox combines direct coordination with item/dependency, file and cited-row activity; other lane activity is summarized.
   pullboard shout [<to>] <text> --decision       ask for a decision; defaults to your coordinator or the person
   pullboard shout coordinator <question> --item <id> --decision --options <json>
+  pullboard shout coordinator <question> --decision --effects <json>
+    Concrete effects compute whose call it is from current rows; declarations grant no execution authority.
                                         ask an item decision with choices, as --options '["first","second"]'
   pullboard shout <to> <text> --evidence attempt|receipt --outcome <word> --item <id> --commit <rev>
   pullboard answer <shout-id|repo#id> <text> [--as person]
@@ -363,6 +369,7 @@ const HELP_EXAMPLES = {
   tour: 'pullboard tour', init: 'pullboard init --blueprint web-app', worktree: 'pullboard worktree web --model "my-model"',
   join: 'pullboard join web --model "my-model"', resume: 'pullboard resume',
   intake: 'pullboard intake https://github.com/owner/repo/pull/7 --criterion "behavior" --check "npm test"',
+  patch: 'pullboard patch list 12',
   companion: 'pullboard companion 12 api "Provide the API" --key api-part',
   add: ADD_EXAMPLE, move: 'pullboard move ~web#3 --to web', list: 'pullboard list web', show: 'pullboard show 12',
   claim: 'pullboard claim 12', submit: 'pullboard submit 12', 'next --verify': 'pullboard next --verify',

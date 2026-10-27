@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { importStyleViolations } from '../src/static-import-style.js';
+import { engineFolderProblems } from '../src/engine-folder.js';
 import { declaredProseCommands } from '../src/static-prose-commands.js';
 import { doctrineReport } from '../src/doctrine-checks.js';
 import { loadConfig } from '../src/config.js';
@@ -20,6 +21,10 @@ const sources = readdirSync(join(root, 'src'), { recursive: true })
   });
 for (const row of importStyleViolations(sources)) {
   console.error(`${row.file}:${row.line}: one import binding per line (${row.count} bindings)`);
+  failed = true;
+}
+for (const row of engineFolderProblems(root)) {
+  console.error(`${row.file}:${row.line}: ${row.text}`);
   failed = true;
 }
 const declared = [...declaredProseCommands(HELP)].sort();

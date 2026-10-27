@@ -6,10 +6,11 @@ import {
 } from './merge-only-verdict.js';
 import { retainedVerifierIdentityProblem } from './item-authors.js';
 import { getItem } from './board-query.js';
+import { itemPatchDigest } from './item-patch-state.js';
 
 /** Derive the origin’s carry before sealing; caller-supplied carry facts are discarded. */
 export function prepareMergeOnlySubmit(board, id, options) {
-  if (options?.gateGreen !== true) return null;
+  if (options?.gateGreen !== true || itemPatchDigest(board, id) !== null) return null;
   // An absent item remains a replay-time refusal, not a new pre-transport policy.
   const held = board.db.prepare('SELECT * FROM item WHERE item_id = ?').get(id);
   const basis = held ? mergeOnlyBasis(board, held) : null;

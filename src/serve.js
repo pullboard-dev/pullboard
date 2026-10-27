@@ -1,3 +1,4 @@
+/** @pullboard-test-input src/view.css */
 import { foreignDependencyStates } from './cross-repo-dependencies.js';
 import { dependencyValues } from './item-dependencies.js';
 /**

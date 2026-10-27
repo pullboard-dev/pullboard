@@ -1,3 +1,4 @@
+/** @pullboard-test-input .github/workflows/stale.yml .github/workflows/reopen-clarify.yml */
 /** Clarification issues close only after inactivity and reopen only for their author [I1]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
