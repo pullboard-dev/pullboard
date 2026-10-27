@@ -8,7 +8,12 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { runFixtureChild, runFixtureChildAsync, startFixtureChild } from './fixture-child.js';
+import {
+  runFixtureChild,
+  runFixtureChildAsync,
+  safeFixtureDiagnostic,
+  startFixtureChild,
+} from './fixture-child.js';
 import { TEST_FILE_CORES_ENV, TEST_FILE_POOL_ENV, occupiedPlaces } from '../src/test-file-pool.js';
 import { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV } from '../src/resources.js';
 
@@ -324,7 +329,7 @@ test('explicit wait contracts', { timeout: 10_000 }, async (t) => {
 });
 `);
   const result = await awaitNestedRun(runFixtureChildAsync(process.execPath, [runner, 'parent.test.js'], { cwd: root, env }));
-  assert.equal(result.status, 0, result.failure ?? result.stdout);
+  assert.equal(result.status, 0, `${result.failure ?? ''}\n${safeFixtureDiagnostic(result.stdout, env)}`);
   assert.equal(await occupiedPlaces(env.PULLBOARD_MACHINE_HOME), 0);
 });
 

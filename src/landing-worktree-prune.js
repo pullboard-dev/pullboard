@@ -88,7 +88,8 @@ function workingDirectories() {
   const executable = process.platform === 'darwin' ? '/usr/sbin/lsof'
     : process.platform === 'linux' ? '/usr/bin/lsof' : null;
   if (!executable || !existsSync(executable)) return null;
-  const result = spawnSync(executable, ['-nP', '-a', '-d', 'cwd', '-Fpn0'], {
+  // Linux lsof omits descriptor fields unless requested; the strict parser requires fcwd.
+  const result = spawnSync(executable, ['-nP', '-a', '-d', 'cwd', '-Ffpn0'], {
     encoding: 'utf8', timeout: 10_000, maxBuffer: 4 * 1024 * 1024,
   });
   if (result.status !== 0 || result.error || result.signal || result.stderr.trim()) return null;
