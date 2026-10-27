@@ -61,9 +61,9 @@ export async function mainAuditFixture(t, { initialGreen = false } = {}) {
   const directory=join(repo,'.git/pullboard/main-audits'),key=mainAuditKey({board:identity.id,batchId,tip,tree});
   const children=[];
   /** Invoke the real copied worker; no fake gate, mocked transport, or injected receipt is used. */
-  function startWorker() {
+  function startWorker({ scheduled = false } = {}) {
     const token=randomUUID();
-    const child=spawn(process.execPath,[join(installed,'bin/main-audit.js'),repo,token],{cwd:repo,env,detached:true,stdio:['ignore','pipe','pipe'],timeout:60_000});
+    const child=spawn(process.execPath,[join(installed,'bin/main-audit.js'),repo,token,...(scheduled?['--scheduled']:[])],{cwd:repo,env,detached:true,stdio:['ignore','pipe','pipe'],timeout:60_000});
     children.push(child);child.stdout.resume();let err='';child.stderr.on('data',b=>{err+=b;});const closed=once(child,'close');
     return {child,token,closed,async finish(){const[code,signal]=await closed;assert.equal(signal,null,err);assert.equal(code,0,err);}};
   }

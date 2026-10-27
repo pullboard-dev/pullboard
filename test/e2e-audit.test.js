@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { repoInfo } from '../src/git.js';
 import { loadConfig } from '../src/config.js';
@@ -232,4 +232,18 @@ test('production audit runs a CLI journey, reuses an unchanged unit and files a 
   const promoted = box.board(db => refreshTestPlacement(db, { root: box.repo, head: failedBatch.tip, config: loadConfig(box.repo) }));
   assert.ok(['submit', 'landing'].includes(promoted.files.find(row => row.file === 'test/a.test.js').tier),
     'a valuable caught contract can move back out of audit after the next inventory refresh');
+});
+
+
+test('a scheduled wake with no measured or finite cadence neither executes an audit nor writes board events [C7]', async t => {
+  const box = await mainAuditFixture(t, { initialGreen: true });
+  runFixtureGit(['merge', '--ff-only', box.tip], { cwd: box.repo, env: box.env });
+  const before = box.board(db => box.store.events(db));
+  await box.startWorker({ scheduled: true }).finish();
+  assert.equal(existsSync(join(box.directory, box.key + '.json')), false);
+  assert.deepEqual(box.board(db => box.store.events(db)), before, 'an unmeasured wake does not race an idle landing with a new fact');
+  writeFileSync(join(box.directory, 'schedule.json'), JSON.stringify({ version: 1, dueAt: null }));
+  await box.startWorker({ scheduled: true }).finish();
+  assert.equal(existsSync(join(box.directory, box.key + '.json')), false);
+  assert.deepEqual(box.board(db => box.store.events(db)), before, 'zero observed escapes cannot invent a finite scheduled audit');
 });

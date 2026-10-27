@@ -276,9 +276,9 @@ export async function runMainAudits(root, token, { scheduled = false, forceFull 
   if (!activation) return; // No implicit historical barrier or retroactive full-suite queue.
   if (activation.version !== 1 || !Number.isSafeInteger(activation.afterEventId) || activation.afterEventId < 0) throw new Error('invalid main audit activation');
   const schedule = readMainAudit(join(directory, 'schedule.json'));
-  if (scheduled && schedule && (schedule.dueAt === null || Date.parse(schedule.dueAt) > Date.now())) {
-    if (schedule.dueAt) await scheduleMainAudit(root, directory, schedule.dueAt);
-    return;
+  if (scheduled && (!schedule || schedule.dueAt === null || Date.parse(schedule.dueAt) > Date.now())) {
+    if (schedule?.dueAt) await scheduleMainAudit(root, directory, schedule.dueAt);
+    return; // Unknown cadence needs an explicit manual/release audit, never an invented immediate schedule.
   }
   const ownerFile = join(directory, 'owner.json'), lock = join(directory, 'owner.guard.sqlite');
   const wakeFile = join(directory, 'wake.json');
