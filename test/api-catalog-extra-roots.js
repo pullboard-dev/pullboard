@@ -23,8 +23,9 @@ export async function exerciseAdditiveRoots({ project, uncataloguedRootJSON, wit
   assert.equal(result.status, 1, result.stdout + result.stderr);
   const refused = JSON.parse(result.stdout);
   assert.deepEqual(refused, { version: 1, green: false, commits: [],
-    problems: ['the latest native audit lacks complete, source-bound full collection evidence'], activated: false });
-  assert.equal(result.stderr, refused.problems[0] + '\n', 'the actual additive refusal is explicit without a fake audit or smoke');
+    problems: ['the latest native audit lacks complete, source-bound full collection evidence'], activated: false,
+    diagnostics: ['the latest native audit lacks complete, source-bound full collection evidence'] });
+  assert.equal(result.stderr, '', 'JSON mode retains the exact refusal in diagnostics without mixing stderr into the public document');
   assert.equal(await box.git(box.repo, 'rev-parse', 'HEAD'), before.head);
   assert.equal(await box.git(box.repo, 'status', '--porcelain=v1'), before.status);
   assert.deepEqual(existsSync(hook) ? readFileSync(hook) : null, hookBefore, 'the additive command never activates or replaces the existing hook');
