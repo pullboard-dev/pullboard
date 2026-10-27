@@ -1,4 +1,4 @@
-/** Unclassified direct board-file opens at the first memory conversion; a ceiling, not permission to grow [C7]. */
+/** Unclassified direct board-file opens after memory slices; a ceiling, not permission to grow [C7]. */
 export const BOARD_FILE_BASELINE = {
   "docs/formats.test.js": 5,
   "docs/handoff.test.js": 1,
@@ -57,7 +57,6 @@ export const BOARD_FILE_BASELINE = {
   "test/history.test.js": 1,
   "test/item-hold.test.js": 2,
   "test/item-offer.test.js": 2,
-  "test/land.test.js": 1,
   "test/landing-lease.test.js": 1,
   "test/landing-local-lease.test.js": 1,
   "test/landing-noop.test.js": 1,
@@ -114,7 +113,7 @@ export const BOARD_FILE_BASELINE = {
   "test/rigor-auto.test.js": 1,
   "test/rigor-checks.test.js": 4,
   "test/rigor-counters.test.js": 2,
-  "test/rigor.test.js": 4,
+  "test/rigor.test.js": 2,
   "test/roadmap.test.js": 3,
   "test/route-capacity.test.js": 1,
   "test/row-decisions-replay.test.js": 2,
@@ -129,7 +128,7 @@ export const BOARD_FILE_BASELINE = {
   "test/show-check.test.js": 1,
   "test/show.test.js": 2,
   "test/spec-approval.test.js": 2,
-  "test/spec.test.js": 4,
+  "test/spec.test.js": 2,
   "test/stacked-submit.test.js": 2,
   "test/stats-cli.test.js": 1,
   "test/stats-cold.test.js": 2,
@@ -138,7 +137,7 @@ export const BOARD_FILE_BASELINE = {
   "test/submit-invariants.test.js": 9,
   "test/team-engine.test.js": 2,
   "test/team-grants.test.js": 4,
-  "test/team.test.js": 4,
+  "test/team.test.js": 3,
   "test/verdict-assurance.test.js": 2,
   "test/verdict-check.test.js": 2,
   "test/verdict-withdraw-engine.test.js": 3,

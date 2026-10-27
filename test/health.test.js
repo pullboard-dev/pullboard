@@ -207,21 +207,22 @@ test('health names each stuck cause with its next step and owner [A6]', async (t
   expect(`HOLD_STALE:item:${staleHold}`, { cause: 'HOLD_STALE', since: ago(30 * HOUR), role: 'coordinator', who: 'coordinator', next: `pullboard hold ${staleHold} --off`, why: 'waiting for the design' });
   expect('HOLD_STALE:lane:docs', { cause: 'HOLD_STALE', since: ago(30 * HOUR), role: 'coordinator', who: 'coordinator', next: 'pullboard hold docs --off', why: 'docs wait for the release notes' });
   expect(`CONFLICT_HOLD_CLEARS:item:${conflictHold}`, { cause: 'CONFLICT_HOLD_CLEARS', since: ago(HOUR / 6), role: 'coordinator', who: 'coordinator', next: `pullboard hold ${conflictHold} --off`, why: 'now merges cleanly onto main' });
-  expect(`REWORK_UNCLAIMED:item:${rejected}`, { cause: 'REWORK_UNCLAIMED', since: ago(2 * HOUR), role: 'builder', who: builders[5], next: `pullboard claim ${rejected}`, why: ['rejected by', 'TEST_FAILURE'] });
+  expect(`REWORK_UNCLAIMED:item:${rejected}`, { cause: 'REWORK_UNCLAIMED', since: ago(2 * HOUR), role: 'coordinator', who: 'coordinator', next: 'pullboard sentinel run --health-only', why: ['rejected by', 'TEST_FAILURE'] });
   expect(`REWORK_UNCLAIMED:item:${reopened}`, { cause: 'REWORK_UNCLAIMED', since: ago(2 * HOUR), role: 'builder', who: builders[7], next: `pullboard claim ${reopened}`, why: 'reopened by coordinator' });
   expect(`AFTER_WITHDRAWN:item:${orphan}`, { cause: 'AFTER_WITHDRAWN', since: ago(2 * HOUR), role: 'coordinator', who: 'coordinator', next: `pullboard edit ${orphan} --after none`, why: [`#${withdrawn}`, 'superseded by the new layout'] });
   expect(`DECISION_UNANSWERED:shout:${ask}`, { cause: 'DECISION_UNANSWERED', since: ago(2 * HOUR), role: 'coordinator', who: 'coordinator', next: `pullboard answer ${ask}`, why: 'Which file owns the wording?' });
   expect('RELEASE_OVERDUE:release:v0.1.0', { cause: 'RELEASE_OVERDUE', since: ago(72 * HOUR), role: 'coordinator', who: 'coordinator', next: 'publish the release after v0.1.0', why: `#${shipped}` });
-  const waiting = report.waiting.find((entry) => entry.key === `REWORK_LATER:item:${later}`);
-  assert.ok(waiting, 'rework planned for a later release is listed as waiting');
-  assert.ok(!byKey.has(`REWORK_UNCLAIMED:item:${later}`), 'rework in a later release is not stuck');
-  assert.equal(waiting.owner.who, builders[6]);
-  assert.ok(waiting.why.includes('0.1.2'), 'the waiting line names its release');
+  expect(`REWORK_UNCLAIMED:item:${later}`, { cause: 'REWORK_UNCLAIMED', since: ago(2 * HOUR),
+    role: 'coordinator', who: 'coordinator', next: 'pullboard sentinel run --health-only', why: 'rejected by' });
+  assert.ok(!report.waiting.some(entry => entry.item === later), 'an unattended reject interrupts even when its release is later');
   for (const id of [parentItem, conflictHold, shipped]) assert.ok(![...byKey.values()].some((entry) => entry.item === id && !entry.key.startsWith('CONFLICT_HOLD')), `#${id} is moving, not stuck`);
 
   const patient = boardHealth(box.file, { root: box.root, config: { health: { stuck: '3h', holds: '2d' } }, now: new Date(NOW) });
   assert.deepEqual(patient.thresholds, { stuck: '3h', holds: '2d', release: '1d' }, 'pullboard.json health thresholds replace the defaults');
-  assert.ok(!patient.stuck.some((entry) => ['NO_REVIEWER', 'HOLD_STALE', 'REWORK_UNCLAIMED'].includes(entry.cause)), 'longer thresholds clear the younger waits');
+  assert.ok(!patient.stuck.some((entry) => ['NO_REVIEWER', 'HOLD_STALE'].includes(entry.cause)
+    || entry.cause === 'REWORK_UNCLAIMED' && entry.item === reopened), 'longer thresholds clear ordinary younger waits');
+  for (const id of [rejected, later]) assert.ok(patient.stuck.some(entry => entry.item === id && entry.cause === 'REWORK_UNCLAIMED'),
+    'the approved ten-minute rejection deadline is independent of the configurable ordinary health threshold');
   assert.throws(() => boardHealth(box.file, { root: box.root, config: { health: { stuck: 'soon' } }, now: new Date(NOW) }), /BAD_CONFIG|health\.stuck/u);
 
   const text = await cli(box.root, ['health']);
@@ -231,7 +232,8 @@ test('health names each stuck cause with its next step and owner [A6]', async (t
   const lapsedLine = lines.find((line) => line.startsWith(`  #${lapsed} `));
   assert.equal(lapsedLine, `  #${lapsed} claim lapsed, since 2026-10-17 10:00 (2h): ${builders[0]}'s lease ran out and nobody is building it. Next, ${builders[0]} (builder): renew it with pullboard claim ${lapsed}.`);
   assert.ok(lines.some((line) => line.startsWith(`  #${conflict} `) && line.includes('a.txt') && line.includes(`${builders[3]} (builder)`)), 'the text names the conflicting files and the builder');
-  assert.ok(lines.includes('waiting for a later release:'));
+  assert.ok(lines.some(line => line.startsWith(`  #${later} `) && line.includes('the coordinator')
+    && line.includes('pullboard sentinel run --health-only')), 'a later-release reject still prints its coordinator handback action');
   assert.deepEqual(boardDigest(box.file), beforeBoard, 'text mode changes nothing either');
   assert.deepEqual(checkout(box), beforeCheckout);
 });

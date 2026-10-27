@@ -92,6 +92,7 @@ import { recordedRecovery } from '../recorded-recovery.js';
 import { failureSignatures } from '../main-failure-matches.js';
 import { matchingMainFailures } from '../main-failure-matches.js';
 import { submitReferenceReminders } from '../reference-lines.js';
+import { waitForSubmissionVerdict } from '../submit-wait.js';
 
 /**
  * Submit: a clean tree, nothing untracked, the gate green at HEAD, then the board (V4).
@@ -279,6 +280,20 @@ export async function submitHere(ctx, id, infra) {
 
 /** Run `pullboard submit` and return its exit code. */
 export async function run(io, { first, values }) {
-  return submitHere(context(io), idArg(first), values.infra);
+  const submissionResult = {};
+  const ctx = { ...context(io), submissionResult };
+  const id = idArg(first);
+  const previous = io.onOrderedMove;
+  io.onOrderedMove = receipt => {
+    previous?.(receipt);
+    if (receipt.operation !== 'submit') return;
+    const event = receipt.events.find(event => event.event_kind === 'submit' && event.item_id === id);
+    if (event) submissionResult.event = { ...event };
+  };
+  let code;
+  try { code = await submitHere(ctx, id, values.infra); }
+  finally { io.onOrderedMove = previous; }
+  if (code !== 0 || !values.wait) return code;
+  return waitForSubmissionVerdict(ctx, id, submissionResult.value, submissionResult.event);
 }
 import { SUBMISSION_SIZE_METHOD } from '../submission-size.js';
