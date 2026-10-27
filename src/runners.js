@@ -410,14 +410,20 @@ function sshEnvironment() {
   return { ...env, LC_ALL: 'C', LANG: 'C', TZ: 'UTC' };
 }
 
-/** Snapshot, scan and pin the actual tooling bytes independently of the project being tested. */
-function trustedTooling() {
+/** Refuse changed controller bytes before dispatch, without running cached dependency callbacks. */
+function loadedToolingFiles() {
   const files = Object.fromEntries([...RUNTIME_NAMES, 'runner-worker.js']
     .map(name => [name, readFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), 'utf8')]));
   if (!LOADED_TOOLING || readFileSync(fileURLToPath(import.meta.url), 'utf8') !== LOADED_TOOLING['runners.js']
     || Object.entries(files).some(([name, source]) => source !== LOADED_TOOLING[name])) {
     throw new Refused('RUNNER_TOOLING_CHANGED', 'runner tooling changed since this controller loaded; restart the command from the current committed CLI before retrying');
   }
+  return files;
+}
+
+/** Snapshot, scan and pin the actual tooling bytes independently of the project being tested. */
+function trustedTooling() {
+  const files = loadedToolingFiles();
   for (const [name, source] of Object.entries(files)) {
     if (Buffer.byteLength(source) > MAX_BLOB_BYTES
       || secretsIn(source.split(/\r?\n/u).map((text, index) => ({ path: `tooling/${name}`, line: index + 1, text }))).length) {
@@ -671,39 +677,91 @@ function remoteLoad(load) {
     ? { average, cpus: load.cpus, freeMB: load.freeMB } : null;
 }
 
-/** Keep synchronous gate callers on the same negotiated transport as asynchronous comparisons. */
-export function runOnRunner(root, command, options) {
-  const script = `import { runOnRunnerAsync } from ${JSON.stringify(import.meta.url)};
-let input=''; for await (const chunk of process.stdin) input+=chunk;
-const request=JSON.parse(input);
-const canceled=new AbortController();
-const abort=()=>canceled.abort();
-process.on('SIGTERM',abort); process.on('SIGHUP',abort); process.stdout.on('error',abort);
-// Budget: check actual parent identity every second while the negotiated SSH transport is active.
-const parentWatch=setInterval(()=>{if(process.ppid!==request.parentPid)abort();},1000);
-if(process.ppid!==request.parentPid)abort();
-try { process.stdout.write(JSON.stringify({result:await runOnRunnerAsync(request.root,request.command,{...request.options,signal:canceled.signal})})); }
-catch(error) { process.stdout.write(JSON.stringify({error:{name:error.name,code:error.code,message:error.message,host:error.host,runnerAttempt:error.runnerAttempt,diagnostic:error.diagnostic}})); process.exitCode=1; }
-finally {clearInterval(parentWatch);}`;
-  const child = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
-    cwd: root, input: JSON.stringify({ root, command, options, parentPid: process.pid }), encoding: 'utf8', maxBuffer: MAX_OUTPUT_BYTES * 6 + 1024 ** 2,
-    stdio: ['pipe', 'pipe', 'pipe'],
-  });
+/** Reconstruct the native transport outcome across a fresh controller process. */
+function bridgeResult(request, result, phase) {
   let reply;
-  try { reply = JSON.parse(child.stdout); } catch { throw runnerFailure({runner:options.runner,args:[],phase:'sync-bridge'},child,'bridge-json'); }
+  try { reply = JSON.parse(result.stdout); }
+  catch { throw runnerFailure({ runner: request.options.runner, args: [], phase }, result, 'bridge-json'); }
   if (reply.error?.name === 'Refused') {
     const prefix = `[${reply.error.code}] `;
     const refused = new Refused(reply.error.code, reply.error.message.startsWith(prefix) ? reply.error.message.slice(prefix.length) : reply.error.message);
     if (reply.error.runnerAttempt) refused.runnerAttempt = reply.error.runnerAttempt;
     throw refused;
   }
-  if (reply.error?.name === 'RunnerDropped') throw new RunnerDropped(options.runner.host, reply.error.diagnostic);
-  if (reply.error || child.error || child.status !== 0) throw runnerFailure({runner:options.runner,args:[],phase:'sync-bridge'},child,'bridge-exit');
+  if (reply.error?.name === 'RunnerDropped') throw new RunnerDropped(request.options.runner.host, reply.error.diagnostic);
+  if (reply.error || result.error || result.status !== 0) throw runnerFailure({ runner: request.options.runner, args: [], phase }, result, 'bridge-exit');
   return reply.result;
 }
 
-/** Negotiate missing history objects while the remote cache lease stays held in one SSH session. */
+/** Keep synchronous callers on the same fresh controller entry without a second bridge. */
+export function runOnRunner(root, command, options) {
+  const request = { root, command, options, parentPid: process.pid };
+  const child = spawnSync(process.execPath, [fileURLToPath(import.meta.url), '--pullboard-runner-controller'], {
+    cwd: root, input: JSON.stringify(request), encoding: 'utf8', maxBuffer: MAX_OUTPUT_BYTES * 6 + 1024 ** 2,
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  return bridgeResult(request, child, 'sync-bridge');
+}
+
+/** Isolate asynchronous execution from dependencies cached before an installation upgrade. */
 export async function runOnRunnerAsync(root, command, options) {
+  if (options.signal?.aborted) throw new RunnerDropped(options.runner.host);
+  // Preserve the stale-controller refusal; full provenance and transfer scans run once in the fresh process.
+  loadedToolingFiles();
+  const { signal, ...plainOptions } = options;
+  const request = { root, command, options: plainOptions, parentPid: process.pid };
+  const input = JSON.stringify(request);
+  const child = spawn(process.execPath, [fileURLToPath(import.meta.url), '--pullboard-runner-controller'], {
+    cwd: root, stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  const output = [], diagnostics = [];
+  let bytes = 0, error;
+  // Budget: retain the synchronous bridge's worst-case JSON escaping limit, never an unbounded child response.
+  const limit = MAX_OUTPUT_BYTES * 6 + 1024 ** 2;
+  const abort = () => child.kill('SIGTERM');
+  signal?.addEventListener('abort', abort, { once: true });
+  if (signal?.aborted) abort();
+  child.stdout.on('data', chunk => {
+    bytes += chunk.length;
+    if (bytes > limit) { error ??= new Error('runner bridge output exceeded its JSON limit'); abort(); }
+    else output.push(chunk);
+  });
+  child.stderr.on('data', chunk => {
+    diagnostics.push(chunk);
+    if (diagnostics.reduce((sum, value) => sum + value.length, 0) > 8192) {
+      const tail = Buffer.concat(diagnostics).subarray(-8192); diagnostics.splice(0, diagnostics.length, tail);
+    }
+  });
+  child.on('error', caught => { error ??= caught; });
+  child.stdin.on('error', caught => { error ??= caught; });
+  child.stdin.end(input);
+  try {
+    const { status, signal: stopped } = await new Promise(resolve => child.once('close', (status, signal) => resolve({ status, signal })));
+    return bridgeResult(request, { status, signal: stopped, error, stdout: Buffer.concat(output).toString('utf8'), stderr: Buffer.concat(diagnostics).toString('utf8') }, 'async-bridge');
+  } finally { signal?.removeEventListener('abort', abort); }
+}
+
+/** Serve only a directly launched controller, whose dependency cache starts in this process. */
+async function serveRunnerController() {
+  let input = '';
+  for await (const chunk of process.stdin) input += chunk;
+  const request = JSON.parse(input);
+  const canceled = new AbortController();
+  const abort = () => canceled.abort();
+  for (const signal of ['SIGTERM', 'SIGHUP', 'SIGINT']) process.on(signal, abort);
+  process.stdout.on('error', abort);
+  // Budget: notice loss of the exact originating controller once per second while SSH is active.
+  const parentWatch = setInterval(() => { if (process.ppid !== request.parentPid) abort(); }, 1000);
+  if (process.ppid !== request.parentPid) abort();
+  try { process.stdout.write(JSON.stringify({ result: await runInController(request.root, request.command, { ...request.options, signal: canceled.signal }) })); }
+  catch (error) {
+    process.stdout.write(JSON.stringify({ error: { name: error.name, code: error.code, message: error.message, host: error.host, runnerAttempt: error.runnerAttempt, diagnostic: error.diagnostic } }));
+    process.exitCode = 1;
+  } finally { clearInterval(parentWatch); }
+}
+
+/** Negotiate missing history objects while the remote cache lease stays held in one SSH session. */
+async function runInController(root, command, options) {
   if (options.signal?.aborted) throw new RunnerDropped(options.runner.host);
   const request = requestFor(root, command, options);
   let removeAbort = () => {};
@@ -801,3 +859,12 @@ export async function runOnRunnerAsync(root, command, options) {
       ...(request.rawOutputPath ? { rawOutputPath: request.rawOutputPath, rawBytes, rawSha256: rawHash.digest('hex') } : {}) });
   } finally { clearTimeout(runnerWaitTimer); clearTimeout(runnerWaitKill); if (rawFd !== null) closeSync(rawFd); removeAbort(); request.cleanup(); }
 }
+
+/** A direct file entry is private bridge transport, never an option that callers can use to bypass isolation. */
+function isRunnerControllerEntry() {
+  if (process.argv[2] !== '--pullboard-runner-controller' || !process.argv[1]) return false;
+  try { return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url); }
+  catch { return false; }
+}
+
+if (isRunnerControllerEntry()) serveRunnerController().catch(error => { process.stderr.write(`${error.message}\n`); process.exitCode = 1; });
