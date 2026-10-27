@@ -19,6 +19,9 @@ import {
 import {
   dirname,
   join,
+  relative,
+  resolve,
+  sep,
 } from 'node:path';
 import {
   createHash,
@@ -37,6 +40,14 @@ import {
   GATE_SLOT_TOKEN_ENV,
   gateSlotEnvironment,
 } from './resources.js';
+
+/** Exact opt-in for retaining every test failure while preserving safety cancellation. */
+export const LANDING_COLLECT_ALL_ENV = 'PULLBOARD_LANDING_COLLECT_ALL';
+import {
+  COLLECTION_ID_ENV,
+  formatCollectionReport,
+  parseCollectionReports,
+} from './landing-collection-report.js';
 
 /** Environment variable naming the shard a nested run-tests process runs, as `<i>/<n>`. */
 export const LANDING_SHARD_ENV = 'PULLBOARD_LANDING_SHARD';
@@ -231,9 +242,9 @@ async function stopShard(child, closed) {
 }
 
 /** Run one shard's files in a local child run-tests that inherits the shard's own gate lease. */
-async function runLocalShard({ root, runner, files, label, lease, stop }) {
+async function runLocalShard({ root, runner, files, label, lease, stop, collectAll, collectionId }) {
   const env = { ...withoutGateMarkers(process.env), ...gateSlotEnvironment(lease),
-    PULLBOARD_LANDING_RUN: '1', [LANDING_SHARD_ENV]: label };
+    PULLBOARD_LANDING_RUN: '1', [LANDING_SHARD_ENV]: label, [LANDING_COLLECT_ALL_ENV]: collectAll ? '1' : '0', [COLLECTION_ID_ENV]: collectionId ?? '' };
   // Its own process group, so a stop reaches the shard's test files and their children together.
   const child = spawn(process.execPath, [runner, ...files], { cwd: root, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   const chunks = [];
@@ -325,6 +336,9 @@ class NotNeeded extends Error {}
  * @returns {Promise<{ isGreen: boolean, balance: string, shards: object[], files: object[] }>}
  */
 export async function runLandingShards({ root, runner, files, count, inherited = null, needsBrowser = async () => true, needsGui = shardFiles => testsNeedGui(root, shardFiles), write = text => process.stdout.write(text), remoteRun }) {
+  const collectAll = process.env[LANDING_COLLECT_ALL_ENV] === '1';
+  const collectionId = process.env[COLLECTION_ID_ENV];
+  const collectionKey=file=>relative(root,resolve(root,file)).split(sep).join('/');
   const { withLandingGateSlot } = await import('./gate.js');
   const runners = await import('./runners.js');
   const { RunnerDropped } = runners;
@@ -371,15 +385,16 @@ export async function runLandingShards({ root, runner, files, count, inherited =
         return { attempt: number, host: 'local', outcome: 'refused', reason: 'landing refused: LANDING_SOURCE_CHANGED', output: '', wallMs: Date.now() - started };
       };
       if (drifted()) return sourceChanged('before');
-      const run = await runLocalShard({ root, runner, files: entry.shard.files, label: entry.label, lease, stop });
+      const run = await runLocalShard({ root, runner, files: entry.shard.files, label: entry.label, lease, stop, collectAll, collectionId });
       if (run.unverified.length) {
         // Fail closed: name what may still run, as a runner's unverified cleanup does.
         write(`landing shard ${entry.label}: [LANDING_SHARD_CLEANUP_UNVERIFIED] the stopped shard's processes could not be shown gone: ${run.unverified.join(', ')}; inspect and stop them before another run\n`);
       }
+      if (run.unverified.length) return { attempt: number, host: 'local', outcome: 'refused', reason: 'landing refused: LANDING_SHARD_CLEANUP_UNVERIFIED', output: run.output, wallMs: Date.now() - started };
       if (!stop.aborted && drifted()) return sourceChanged('while');
       return { attempt: number, host: 'local', outcome: run.isGreen ? 'green' : 'red', output: run.output, wallMs: Date.now() - started };
     }
-    const command = `${LANDING_SHARD_ENV}=${word(entry.label)} ${['node', './bin/run-tests.js', ...entry.shard.files].map(word).join(' ')}`;
+    const command = `${COLLECTION_ID_ENV}=${word(collectionId ?? '')} ${LANDING_COLLECT_ALL_ENV}=${collectAll ? '1' : '0'} ${LANDING_SHARD_ENV}=${word(entry.label)} ${['node', './bin/run-tests.js', ...entry.shard.files].map(word).join(' ')}`;
     try {
       const run = await runOnRunnerAsync(root, command, { runner: lease.runner, source: lease.source, browser: lease.browser,
         metadata: { ...(lease.runMetadata ?? {}), landing: true, gui: entry.gui }, signal: stop });
@@ -404,7 +419,13 @@ export async function runLandingShards({ root, runner, files, count, inherited =
 
   /** Record an attempt's outcome, stopping the landing at the first test failure. */
   const settle = (entry, record) => {
-    const stopped = record.outcome !== 'green' && (stop.aborted || firstFailure !== null);
+    if(collectAll) {
+      const report=parseCollectionReports(record.output,{id:collectionId,scope:'shard',shard:entry.label,
+        plannedFiles:entry.shard.files.map(collectionKey),requireComplete:false});
+      record.collectionComplete=report?.complete===true;
+      record.cleanupVerified=report?.cleanupVerified;
+    }
+    const stopped = record.outcome !== 'green' && (stop.aborted || (!collectAll && firstFailure !== null));
     const status = record.outcome === 'infrastructure' && !stopped ? 'infrastructure' : stopped ? 'stopped' : record.outcome;
     entry.attempts.push({ ...record, status });
     write(`# landing shard ${entry.label} attempt ${record.attempt} on ${record.host}: ${status}${record.reason ? ` (${record.reason})` : ''} in ${record.wallMs} ms\n`);
@@ -418,8 +439,8 @@ export async function runLandingShards({ root, runner, files, count, inherited =
       entry.done = true;
       entry.status = status;
       if (status === 'red' || status === 'refused') {
-        firstFailure = entry.label;
-        stopper.abort();
+        firstFailure ??= entry.label;
+        if (status === 'refused' || !collectAll) stopper.abort();
       }
     }
     signalChange();
@@ -504,8 +525,16 @@ export async function runLandingShards({ root, runner, files, count, inherited =
   for (const file of merged.sort((a, b) => a.path.localeCompare(b.path))) {
     write(`# landing file ${file.shard} ${file.host} ${file.durationMs ?? '-'} ${file.path}\n`);
   }
+  if(collectAll&&collectionId) {
+    const planned=files.map(collectionKey);
+    const completed=shards.filter(entry=>['red','green'].includes(entry.status)&&entry.attempts.at(-1)?.collectionComplete===true)
+      .flatMap(entry=>entry.shard.files.map(collectionKey));
+    const complete=!stop.aborted&&shards.every(entry=>['red','green'].includes(entry.status)&&entry.attempts.at(-1)?.collectionComplete===true);
+    write(formatCollectionReport({id:collectionId,scope:'suite',full:true,plannedFiles:planned,completedFiles:completed,complete,
+      cleanupVerified:shards.every(entry=>entry.attempts.at(-1)?.cleanupVerified===true)}));
+  }
   const isGreen = shards.every(entry => entry.status === 'green');
-  write(`# landing result: ${isGreen ? 'green' : `red, first failure in shard ${firstFailure ?? shards.find(entry => entry.status !== 'green')?.label}`}\n`);
+  write(`# landing result: ${isGreen ? 'green' : collectAll && !stop.aborted ? `red, ${shards.filter(entry => entry.status === 'red').length} failing shard(s); all test shards collected` : `red, first failure in shard ${firstFailure ?? shards.find(entry => entry.status !== 'green')?.label}`}\n`);
   if (Object.keys(measured).length) writeFileTimes(root, measured);
   return { isGreen, balance,
     shards: shards.map(entry => ({ shard: entry.label, status: entry.status,

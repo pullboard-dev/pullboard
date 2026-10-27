@@ -6,6 +6,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, w
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { runCliInProcess } from './cli-in-process-fixture.js';
 import { after, test } from 'node:test';
 import { HELP, resultCommands } from '../src/cli.js';
 import * as helpDeclaration from '../src/help.js';
@@ -21,11 +22,11 @@ after(() => {
   for (const folder of sandboxes) rmSync(folder, { recursive: true, force: true });
 });
 
-/** Run the real CLI in a temporary directory so help needs no initialized board. */
-function run(...args) {
+/** Run production CLI dispatch in-process; the separate wiring contract retains real binary coverage. */
+async function run(...args) {
   const folder = mkdtempSync(join(tmpdir(), 'pullboard-help-'));
   sandboxes.push(folder);
-  return runFixtureChild(process.execPath, [BIN, ...args], { cwd: folder, encoding: 'utf8' });
+  return runCliInProcess(args, { cwd: folder });
 }
 
 /** Read the flag rows between their heading and the example from one command's help. */
@@ -36,10 +37,10 @@ function flagsFrom(text) {
   return lines.slice(start + 1, end).map((line) => line.trim()).filter((line) => line !== 'none');
 }
 
-test('bare help is a short first-run overview generated from its command groups [N37,I1]', () => {
-  const bare = run();
-  const helpFlag = run('--help');
-  const helpCommand = run('help');
+test('bare help is a short first-run overview generated from its command groups [N37,I1]', async () => {
+  const bare = (await run());
+  const helpFlag = (await run('--help'));
+  const helpCommand = (await run('help'));
   assert.equal(bare.status, 0, bare.failure ?? bare.stderr);
   assert.equal(bare.stdout, `${HELP.firstRun}\n`);
   assert.equal(helpFlag.stdout, bare.stdout);
@@ -58,28 +59,28 @@ test('bare help is a short first-run overview generated from its command groups 
   const explicit = helpCommand.stdout.trimEnd().split('\n');
   assert.match(explicit[0], /^Pullboard is a local-first work board/);
   assert.notEqual(explicit[0], 'New here? pullboard tour, then pullboard init.');
-  const jsonHelp = JSON.parse(run('--json', '--help').stdout).help;
+  const jsonHelp = JSON.parse((await run('--json', '--help')).stdout).help;
   assert.equal(jsonHelp, HELP.firstRun);
   assert.ok(jsonHelp.includes('pullboard init') && jsonHelp.includes('pullboard next'));
-  assert.equal(JSON.parse(run('--json').stdout).help, HELP.firstRun);
-  assert.equal(JSON.parse(run('help', '--json').stdout).help, HELP.overview);
+  assert.equal(JSON.parse((await run('--json')).stdout).help, HELP.firstRun);
+  assert.equal(JSON.parse((await run('help', '--json')).stdout).help, HELP.overview);
 });
 
-test('command help forms and flags match the declaration, with a full list only on --all [N37]', () => {
+test('command help forms and flags match the declaration, with a full list only on --all [N37]', async () => {
   for (const [name, declaration] of Object.entries(HELP.commands)) {
-    const result = run('help', ...name.split(' '));
+    const result = (await run('help', ...name.split(' ')));
     assert.equal(result.status, 0, `${name}: ${result.stderr}`);
     assert.match(result.stdout, new RegExp(`^Usage: ${declaration.usages[0].replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}$`, 'm'));
     assert.deepEqual(flagsFrom(result.stdout), declaration.flags, `${name} flags`);
     assert.ok(result.stdout.includes(`Example:\n${declaration.example.replace(/^/gmu, '  ')}\n`), `${name} example is shown line by line`);
   }
-  assert.equal(run('claim', '--help').stdout, run('help', 'claim').stdout);
+  assert.equal((await run('claim', '--help')).stdout, (await run('help', 'claim')).stdout);
   for (const name of resultCommands()) assert.ok(HELP.commands[name], `result command ${name} has a help declaration`);
   assert.deepEqual(HELP.commands.whoami.usages, ['pullboard whoami']);
   assert.deepEqual(HELP.commands.lanes.usages, ['pullboard lanes']);
   assert.deepEqual(HELP.commands.status.usages, ['pullboard status [--all]']);
   for (const name of ['whoami', 'lanes', 'status']) {
-    const usages = run('help', name).stdout.match(/^Usage:.*$/gmu);
+    const usages = (await run('help', name)).stdout.match(/^Usage:.*$/gmu);
     assert.deepEqual(usages, [`Usage: pullboard ${name}${name === 'status' ? ' [--all]' : ''}`]);
   }
   const mustHaveFlags = [
@@ -89,57 +90,57 @@ test('command help forms and flags match the declaration, with a full list only 
     ['spec unmet', ['--must']],
   ];
   for (const [name, expected] of mustHaveFlags) {
-    const text = run('help', ...name.split(' ')).stdout;
+    const text = (await run('help', ...name.split(' '))).stdout;
     for (const flag of expected) assert.ok(flagsFrom(text).some((line) => line.startsWith(flag)), `${name} documents ${flag}`);
   }
   for (const name of ['spec signoff', 'spec unmet']) {
-    const flags = flagsFrom(run('help', ...name.split(' ')).stdout);
+    const flags = flagsFrom((await run('help', ...name.split(' '))).stdout);
     assert.ok(flags.includes('--json — prints one versioned document'), `${name} keeps generic JSON help`);
     assert.ok(flags.includes('--help'), `${name} keeps generic help`);
   }
-  const showSpecFlags = flagsFrom(run('help', 'spec', 'show').stdout);
+  const showSpecFlags = flagsFrom((await run('help', 'spec', 'show')).stdout);
   assert.ok(showSpecFlags.includes('--json — prints one versioned document'));
   assert.ok(showSpecFlags.includes('--help'));
   assert.ok(showSpecFlags.every((flag) => !['--must', '--by', '--note', '--note-file'].some((name) => flag.startsWith(name))), 'spec show excludes neighboring action flags');
-  assert.ok(flagsFrom(run('help', 'spec signoff').stdout).some((flag) => flag.includes('keeps quotes, $ and backticks intact')));
-  assert.ok(flagsFrom(run('help', 'spec unmet').stdout).every((flag) => !flag.startsWith('--no-items')));
-  const all = run('help', '--all');
+  assert.ok(flagsFrom((await run('help', 'spec signoff')).stdout).some((flag) => flag.includes('keeps quotes, $ and backticks intact')));
+  assert.ok(flagsFrom((await run('help', 'spec unmet')).stdout).every((flag) => !flag.startsWith('--no-items')));
+  const all = (await run('help', '--all'));
   assert.equal(all.status, 0, all.stderr);
   assert.equal(all.stdout, `${HELP.all}\n`);
   assert.match(all.stdout, /pullboard next --verify/);
 });
 
-test('an unknown command names its closest match and where to see every command [N37]', () => {
-  const result = run('cliam');
+test('an unknown command names its closest match and where to see every command [N37]', async () => {
+  const result = (await run('cliam'));
   assert.equal(result.status, 2);
   assert.match(result.stderr, /no command "cliam"; closest match is "claim"/);
   assert.match(result.stderr, /pullboard help --all/);
   assert.doesNotMatch(result.stderr, /presence heartbeat unavailable/, 'an uninitialized directory has no seat to heartbeat');
-  const help = run('help', 'cliam');
+  const help = (await run('help', 'cliam'));
   assert.equal(help.status, 2);
   assert.match(help.stderr, /closest match is "claim"/);
 });
 
-test('next help exposes explicit build intent alongside review reservations [Q1,V15,N37]', () => {
-  const detail = run('help', 'next');
+test('next help exposes explicit build intent alongside review reservations [Q1,V15,N37]', async () => {
+  const detail = (await run('help', 'next'));
   assert.equal(detail.status, 0, detail.stderr);
   assert.match(detail.stdout, /^       pullboard next --build$/mu);
   assert.ok(flagsFrom(detail.stdout).some((flag) => flag.startsWith('--build')));
   assert.ok(flagsFrom(detail.stdout).some((flag) => flag.startsWith('--verify')));
-  assert.equal(run('next', '--help').stdout, detail.stdout);
-  const all = run('help', '--all');
+  assert.equal((await run('next', '--help')).stdout, detail.stdout);
+  const all = (await run('help', '--all'));
   assert.match(all.stdout, /pullboard next \[--wait <minutes>\]\s+offer an eligible review when reviews pile up, otherwise claim work/u);
   assert.match(all.stdout, /pullboard next --build\s+claim a build explicitly, recording a skipped review offer/u);
 });
 
 test('help names come from the command declarations [C7,N37]', async (t) => {
-  const overview = run('help');
-  const all = run('help', '--all');
+  const overview = (await run('help'));
+  const all = (await run('help', '--all'));
   assert.equal(overview.status, 0, overview.failure);
   assert.equal(all.status, 0, all.failure);
   assert.equal(overview.stdout, HELP.overview + '\n');
   assert.equal(all.stdout, HELP.all + '\n');
-  const undocumented = run('help', 'milestone', 'bogus');
+  const undocumented = (await run('help', 'milestone', 'bogus'));
   assert.equal(undocumented.status, 2, 'a name the CLI does not dispatch stays refused');
   assert.equal(undocumented.stdout, '');
   assert.equal(undocumented.stderr, 'pullboard: no command "milestone bogus"; closest match is "milestone items". Run pullboard help --all for the full list.\n');
@@ -195,17 +196,17 @@ test('help names come from the command declarations [C7,N37]', async (t) => {
   assert.equal(privateCli.HELP.all, HELP.all);
 });
 
-test('init help names --blueprint [I1,N37]', () => {
-  const result = run('init', '--help');
+test('init help names --blueprint [I1,N37]', async () => {
+  const result = (await run('init', '--help'));
   assert.equal(result.status, 0, result.failure ?? result.stderr);
   assert.ok(flagsFrom(result.stdout).some((line) => /^--blueprint <name or file> — \S/u.test(line)),
     'init help explains the blueprint name or file flag');
   assert.match(result.stdout, /^Example:\n  pullboard init --blueprint web-app$/mu);
-  assert.equal(run('help', 'init').stdout, result.stdout, 'both init help entry points share the declaration');
-  assert.match(run('help', '--all').stdout, /pullboard init \[--model <name>\] \[--blueprint <name or file>\]/u);
+  assert.equal((await run('help', 'init')).stdout, result.stdout, 'both init help entry points share the declaration');
+  assert.match((await run('help', '--all')).stdout, /pullboard init \[--model <name>\] \[--blueprint <name or file>\]/u);
 });
 
-test('help add example runs on a fresh board [I1,L3]', (t) => {
+test('help add example runs on a fresh board [I1,L3]', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-help-add-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'repo');
@@ -236,22 +237,22 @@ test('help add example runs on a fresh board [I1,L3]', (t) => {
   }
 });
 
-test('help covers every dispatched subcommand [N2]', () => {
+test('help covers every dispatched subcommand [N2]', async () => {
   // Every printed subcommand phrase is one the CLI dispatches; each must have help, and an unknown name still refuses.
   const subcommands = [...new Set([...helpDeclaration.commandPhrases(HELP).filter((phrase) => phrase.includes(' ')), ...helpDeclaration.SETTING_FORMS.map((form) => `settings ${form}`)])];
   assert.ok(subcommands.includes('milestone items') && subcommands.includes('relay devices') && subcommands.includes('spec approve'),
     'the walk covers the subcommands that were refused before');
   for (const phrase of subcommands) {
-    const result = run('help', ...phrase.split(' '));
+    const result = (await run('help', ...phrase.split(' ')));
     assert.equal(result.status, 0, `help ${phrase} exits 0: ${result.stderr}`);
     assert.match(result.stdout, /^Usage: pullboard /u, `help ${phrase} prints a Usage line`);
   }
-  const unknown = run('help', 'milestone', 'bogus');
+  const unknown = (await run('help', 'milestone', 'bogus'));
   assert.equal(unknown.status, 2, 'an unknown subcommand still exits 2');
   assert.equal(unknown.stdout, '');
 });
 
-test('the settings forms the CLI dispatches have help and reach their own refusal [N2]', () => {
+test('the settings forms the CLI dispatches have help and reach their own refusal [N2]', async () => {
   // The expected forms are written out here, not read from the parser: each one must have help, and
   // each must reach its own value check in settingsCommand, which proves the dispatcher knows it (#824).
   assert.deepEqual([...helpDeclaration.SETTING_FORMS], ['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.runnerWaitMs', 'landing.pool']);
@@ -260,7 +261,7 @@ test('the settings forms the CLI dispatches have help and reach their own refusa
   runFixtureGit(['init', '-q'], { cwd: folder });
   const refusals = { gateSlots: '[USAGE]', browserSlots: '[BAD_BROWSER_SLOTS]', 'gate.shortSlots': '[BAD_SHORT_SLOTS]', 'gate.runnersFirst': '[BAD_MACHINE_SETTINGS]', 'gate.runnerWaitMs': '[BAD_MACHINE_SETTINGS]', 'landing.pool': '[USAGE]' };
   for (const [form, code] of Object.entries(refusals)) {
-    const help = run('help', 'settings', form);
+    const help = (await run('help', 'settings', form));
     assert.equal(help.status, 0, `help settings ${form} exits 0: ${help.stderr}`);
     assert.match(help.stdout, new RegExp(`^Usage: pullboard settings ${form.replace('.', '\\.')} `, 'u'), `help settings ${form} names its usage`);
     const refused = runFixtureChild(process.execPath, [BIN, 'settings', form, 'abc'], { cwd: folder, encoding: 'utf8' });
@@ -295,7 +296,7 @@ test('every command comes from its own module [C7,V4]', async () => {
   }
 });
 
-test('each command body lives in its own module, not in src/cli.js [C7,V4]', () => {
+test('each command body lives in its own module, not in src/cli.js [C7,V4]', async () => {
   const source = resolve(import.meta.dirname, '../src');
   const cli = readFileSync(join(source, 'cli.js'), 'utf8');
   const bodies = {
