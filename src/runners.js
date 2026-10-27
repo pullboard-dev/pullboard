@@ -4,6 +4,7 @@ import {
   RunnerDropped,
 } from './gate-policy-load.js';
 export { validateRunner, runnerSource, RunnerDropped };
+import { validRunnerTrunk } from './runner-policy.js';
 /** Exact committed source and bounded, credential-free SSH execution for machine runners [C7]. */
 export { placeRunner, runnerStage } from './runner-stage.js';
 import { importTestResults } from './test-result-store.js';
@@ -87,7 +88,7 @@ const MAX_BLOB_BYTES = 8 * 1024 ** 2;
 const MAX_HISTORY_TAGS = 1_024;
 const MAX_TAG_CHAIN = 8;
 const TOOL_ROOT = fileURLToPath(new URL('../', import.meta.url));
-const RUNTIME_NAMES = ['audit-coverage-reporter.js', 'runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'git-adapter.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js', 'runner-overhead.js', 'runner-recovery.js', 'runner-transport.js', 'test-result-store.js'];
+const RUNTIME_NAMES = ['audit-coverage-reporter.js', 'runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'git-adapter.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js', 'runner-overhead.js', 'runner-policy.js', 'runner-recovery.js', 'runner-transport.js', 'test-result-store.js'];
 const LOADED_TOOLING = loadedTooling();
 
 /** Pin the module generation this controller loaded; later disk upgrades require a fresh controller process. */
@@ -204,11 +205,18 @@ function protectedHistoryPath(path, protect) {
   return blockedPaths([path], protect).length || /(?:^|\/)board\.sqlite(?:-(?:wal|shm))?$/u.test(path);
 }
 
+/** Read admitted protection rules from its immutable commit, retaining non-board defaults. */
+function protectionAt(root, commit) {
+  const record = sourceGit(root, ['ls-tree', '-z', commit, '--', 'pullboard.json']);
+  const object = record.match(/^\d+ blob ([a-f0-9]{40,64})\t/u)?.[1];
+  return object ? configFromSource(sourceGit(root, ['cat-file', 'blob', object])).protect : defaults().protect;
+}
+
 /** Apply current protection rules to all selected historical names before any anonymous cache seed. */
-function protectHistory(root, source, protect) {
+function protectHistory(root, source, policies) {
   const paths = [...new Set(sourceGit(root, ['log', '--format=', '--name-only', '-z', '--no-renames', '--root', '-m', '--full-history', source.commit])
     .split('\0').filter(Boolean))];
-  if (paths.some(path => protectedHistoryPath(path, protect))) {
+  if (paths.some(path => policies.some(protect => protectedHistoryPath(path, protect)))) {
     throw new Refused('RUNNER_SECRET', 'selected history includes a blocked private path; keep this run local or remove that private history');
   }
 }
@@ -501,6 +509,10 @@ async function requestFor(root, command, { runner, source, browser = false, byLa
   }
   const trustedMode = privateCheck ? privateCheckEnvelope(privateCheck) : null;
   let selected = current;
+  if (!trustedMode && metadata.trunk !== undefined) {
+    if (!validRunnerTrunk(metadata.trunk, current.commit)) throw new Refused('NO_POLICY', 'the admitted runner policy is invalid; rerun through the controller with its pinned coordinator policy');
+    selected = { ...current, extraCommits: [metadata.trunk.commit] };
+  }
   if (trustedMode) {
     if (!checkedSource || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(checkedSource.commit ?? '')
       || sourceGit(root, ['rev-parse', `${checkedSource.commit}^{tree}`]).trim() !== checkedSource.tree
@@ -514,8 +526,9 @@ async function requestFor(root, command, { runner, source, browser = false, byLa
   if (secretsIn([command, trustedMode?.install ?? ''].flatMap(value => value.split('\n')).map((text, index) => ({ path: 'run command', line: index + 1, text }))).length) {
     throw new Refused('RUNNER_SECRET', 'the run command contains a possible secret; use a command that does not transfer credentials');
   }
-  const protect = sourceObjects(root, selected);
-  for (const commit of [selected.commit, ...(selected.extraCommits ?? [])]) protectHistory(root, { commit }, protect);
+  const protection = [sourceObjects(root, selected)];
+  if (!trustedMode && metadata.trunk) protection.push(protectionAt(root, metadata.trunk.commit));
+  for (const commit of [selected.commit, ...(selected.extraCommits ?? [])]) protectHistory(root, { commit }, protection);
   const origin = anonymousOrigin(root);
   const originBase = origin ? originAncestor(root, selected) : undefined;
   const tags = candidateTags(root, selected);
@@ -533,6 +546,7 @@ async function requestFor(root, command, { runner, source, browser = false, byLa
     const spec = { version: 1, id: randomUUID(), repoId, ...(originBase ? { origin, originBase } : {}), runtime, tooling, tags, commit: selected.commit, tree: selected.tree, command, pipefail, slots: runner.slots,
       ...(reuse ? { testResults: { inputKeys: exchange?.inputKeys ?? [], packet: exchange?.packet ?? null, stage, origin: runner.host } } : {}),
       ...(trustedMode ? { trustedMode } : {}),
+      ...(!trustedMode && metadata.trunk ? { trunk: { ...metadata.trunk } } : {}),
       browser: runner.browser, browserRequired: browser, guiRequired: metadata.gui === true, landing: metadata.landing === true, auditCoverage: metadata.auditCoverage === true,
       ...(metadata.landing === true && metadata.timeoutMs ? { timeoutMs: metadata.timeoutMs } : {}),
       // The classification this controller used, so the runner never reclassifies by its own settings (#1043).
