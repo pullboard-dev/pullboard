@@ -138,10 +138,21 @@ test('a wait keeps its original receipt across a same-SHA refrozen resubmission 
   const resent = box.run(box.web, 'submit', '1', '--json');
   assert.equal(resent.code, 0, resent.out + resent.err);
   assert.equal(JSON.parse(resent.out).commit, submission.commit, 'the regression really resubmits the same SHA');
-  onBoard(box, board => store.verify(board, 1, { agentId: 'coordinator', decision: 'REJECT',
+  /** End the later attempt through its real verifier, including cleanup if the old wait stalls. */
+  const rejectLaterAttempt = () => onBoard(box, board => store.verify(board, 1, { agentId: 'coordinator', decision: 'REJECT',
     reason: 'BEHAVIOR_MISMATCH', note: 'This verdict belongs only to the later attempt.', policy: 'any',
     digest: store.getItem(board, 1).item_frozen_digest, head: submission.commit }));
   const io = { cwd: box.repo, say: () => {}, err: () => {} };
+  let superseded;
+  const originalWait = waitForSubmissionVerdict(context(io), submission.id, submission, receipt)
+    .catch(error => { superseded = error; });
+  t.after(async () => {
+    if (!superseded) rejectLaterAttempt();
+    await originalWait;
+  });
+  await helpers.waitFor(() => superseded, 'the original wait to refuse a later pending same-SHA submission');
+  assert.equal(superseded.code, 'SUBMISSION_CHANGED', 'a later pending attempt cannot keep the old wait attached');
+  rejectLaterAttempt();
   await assert.rejects(waitForSubmissionVerdict(context(io), submission.id, submission, receipt),
     error => error.code === 'SUBMISSION_CHANGED');
 });

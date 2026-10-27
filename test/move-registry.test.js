@@ -35,6 +35,7 @@ const SNAPSHOT = JSON.parse(readFileSync(new URL('./move-registry-baseline.json'
 const CONSUMERS = ['src/engine.js', 'src/relay-sender.js', 'src/next-step-words.js'];
 const ITEM_PATCH_OPERATIONS = ['attachItemPatch', 'removeItemPatch'];
 const ITEM_PATCH_STEPS = { ...attachItemPatch.nextSteps, ...removeItemPatch.nextSteps, ITEM_PATCH: DEFAULT_NEXT_STEPS.ITEM_PATCH };
+const SUBMISSION_WAIT_STEPS = { SUBMISSION_CHANGED: 'run pullboard show <id> to inspect its current submission attempt and verdict; do not resubmit an acknowledged attempt' };
 const REHOME_OPERATIONS = ['reserveRehomeItemId', 'rehomeItem', 'applyRehomeItem'];
 const REHOME_STEPS = Object.freeze({
   BAD_ITEM_ID: 'use owner/repo#id, ~owner/repo#id, or one safe positive item number on the current board',
@@ -79,7 +80,7 @@ export default { operation: ${JSON.stringify(name)}, order: ${engine + 1000}, en
 
 test('today\'s move order, actors, refusal recovery text and recorded SQLite prefix are unchanged [C7,V4,H3,H16]', t => {
   assert.deepEqual(ENGINE_OPERATIONS.filter(operation => !REHOME_OPERATIONS.includes(operation) && !TYPED_REQUEST_OPERATIONS.includes(operation) && !ITEM_PATCH_OPERATIONS.includes(operation)), SNAPSHOT.operations);
-  assert.deepEqual(NEXT_STEPS, { ...SNAPSHOT.nextSteps, ...REHOME_STEPS, ...TYPED_REQUEST_STEPS, ...ITEM_PATCH_STEPS });
+  assert.deepEqual(NEXT_STEPS, { ...SNAPSHOT.nextSteps, ...REHOME_STEPS, ...TYPED_REQUEST_STEPS, ...ITEM_PATCH_STEPS, ...SUBMISSION_WAIT_STEPS });
   assert.equal(minimumMoveEngine('recordProofRun', [{ landingFence: {}, receipt: { environment: {} } }, { cause: 'conflict:new' }]), PROOF_RUN_ENGINE);
   assert.equal(MOVE_REGISTRY.recordProofRun.engine, PROOF_RUN_ENGINE);
   assert.equal(MOVE_REGISTRY.recordProofRun.itemIdFirstArgument, false);
