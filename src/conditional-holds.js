@@ -47,7 +47,7 @@ export function liftConditionalHold(board, event, logEvent, setItem) {
   if (!item || item.item_hold_by !== 'coordinator' || item.item_hold_at !== condition.heldAt || !item.item_hold_reason) return;
   // Delete first: the resulting native unhold cannot recursively satisfy this condition again.
   forgetHoldMaintenance(board, event.item_id);
-  setItem(board, event.item_id, { item_hold_reason: null, item_hold_by: null, item_hold_at: null });
+  setItem(board, event.item_id, { item_hold_reason: null, item_hold_by: null, item_hold_at: null }, event.event_at);
   logEvent(board, 'coordinator', 'unhold_item', event.item_id, { reason: item.item_hold_reason,
     until: condition.kind, holdEventId: condition.holdEventId, triggerEventId: event.event_id });
 }

@@ -351,6 +351,24 @@ test('a hold with --until lifts when its condition is met [B4,H16]', async t => 
   assert.equal(f.board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`stale_hold_until:${held}`), undefined);
 });
 
+test('a conditional lift retains the captured trigger timestamp rather than the later board clock [B4,H16]', t => {
+  const f = fixture(t);
+  const id = f.add('A captured native event time');
+  store.holdItem(f.board, id, { agentId: 'coordinator', reason: 'Wait for its captured observation', until: 'shout' });
+  f.advance(MINUTE);
+  const triggerAt = f.clock.now();
+  f.advance(MINUTE);
+  // Exercise the exported native append seam used by split store modules, not a fabricated proof receipt.
+  store.logEvent(f.board, f.reviewer, 'shout', id, { observation: 'Private captured event instant' }, triggerAt);
+  assert.equal(store.itemHold(f.board, id), null);
+  const trigger = store.events(f.board, { itemId: id }).findLast(event => event.event_kind === 'shout');
+  const lift = store.events(f.board, { itemId: id }).findLast(event => event.event_kind === 'unhold_item');
+  assert.equal(trigger.event_at, triggerAt.toISOString());
+  assert.equal(JSON.parse(lift.event_detail).triggerEventId, trigger.event_id);
+  assert.equal(store.getItem(f.board, id).item_updated_at, trigger.event_at);
+  assert.notEqual(trigger.event_at, f.clock.now().toISOString());
+});
+
 test('conditional holds recognize verified and landed aliases through ordinary lifecycle writes [B4,H16]', async t => {
   for (const until of ['verified', 'accept', 'landed', 'merged']) {
     await t.test(until, () => {
