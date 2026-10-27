@@ -27,6 +27,7 @@ import { landingTimeoutFixture } from './landing-timeout-fixture.js';
 import { assertParallelLanding, assertParallelCliLease, assertParallelNestedGate } from './land-parallel-fixture.js';
 import { landEnginesInOrder } from './land-engine-fixture.js';
 import { assertWholeQueueBatch } from './land-batch-fixture.js';
+import { assertLocalWaiverExpiry } from './land-waiver-expiry-fixture.js';
 import { assertAffectedLandingUnstamped, assertDeferredBatchIsolation } from './land-deferred-batch-fixture.js';
 import {
   assertCollisionFreeLanding,
@@ -1485,3 +1486,9 @@ test('a deferred red shared importer returns only its culprit and lands innocent
 
 test('a green affected-only local landing never stamps the full gate [B3,R3,C7,V4]', { timeout: 90_000 }, // budget: one real submit/accept and finite affected landing; hang ceiling only.
 () => assertAffectedLandingUnstamped({ landProject, itemWorktree, submitItem, acceptItem }));
+
+for (const seam of ['live', 'trunk-save', 'finish-lease']) {
+  test(`local-trunk waived red retains live authorization at ${seam} [B3,R3]`, { timeout: 90_000 }, () => {
+    assertLocalWaiverExpiry({ landProject, itemWorktree, submitItem, acceptItem }, seam);
+  });
+}

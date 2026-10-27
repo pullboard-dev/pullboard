@@ -1228,7 +1228,9 @@ async function landOnTrunk(state) {
     if (item.item_status !== 'verified' || item.item_commit !== entry.commit) throw new Refused('LAND_ITEM_MOVED', `item #${entry.id} changed after the batch merged; rebuild its landing`);
   }
   if (mainCheckout(state.root)?.commit !== state.batch.base) throw new Refused('LAND_TRUNK_MOVED', 'main moved during the landing; rebuild the batch from its new tip');
-  await save(state, { state: 'trunk', proof: waivedProof(state, gate) ?? { tree: gate.tree, failures: [], logPath: gate.logPath } });
+  const proof = gate.isGreen ? { tree: gate.tree, failures: [], logPath: gate.logPath } : waivedProof(state, gate);
+  if (!proof) throw new Refused('LAND_WAIVER', 'the local-trunk red lost its live person waiver; ask the person for a new expiring waiver, then adopt the batch');
+  await save(state, { state: 'trunk', proof });
   await finishTrunk(state);
 }
 
@@ -1242,7 +1244,8 @@ function requireLandingCarries(state, batch) {
 
 /** Record a tier-1 batch's merged receipts and move the local trunk to it; an adopted 'trunk' batch resumes here (#801). */
 async function finishTrunk(state) {
-  requireLandingCarries(state, state.batch);
+  await state.checkLease();
+  publicationInputs(state, state.batch);
   state.batch = await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
   await state.checkLease();
   const main = mainCheckout(state.root);
