@@ -2,6 +2,8 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/commands/resume.js->src/spec-approval-bootstrap.js": 1,
+    "src/commands/resume.js->src/spec.js": 1,
     "src/commands/resume.js->src/stats-flow.js": 1,
     "src/commands/resume.js->src/stats.js": 1,
     "src/commands/resume.js->src/trunk-conflict.js": 1,
@@ -399,8 +401,6 @@
     "src/flow-replay.js->src/refused.js": 1,
     "src/flow-report-counter.js->src/stats-flow-report.js": 1,
     "src/flow-report-counter.js->src/stats-flow.js": 1,
-    "src/focus-milestone.js->src/board-read-auxiliary.js": 1,
-    "src/focus-milestone.js->src/focus-milestone-engine.js": 1,
-    "src/focus-milestone.js->src/line-settings.js": 1
+    "src/focus-milestone.js->src/board-read-auxiliary.js": 1
   }
 }

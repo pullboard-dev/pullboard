@@ -2,6 +2,8 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/cli.js->src/relay-sender.js": 1,
+    "src/cli.js->src/relay-setup.js": 1,
     "src/cli.js->src/relay.js": 1,
     "src/cli.js->src/resume.js": 1,
     "src/cli.js->src/row-decision-state.js": 1,
@@ -399,8 +401,6 @@
     "src/commands/resume.js->src/resume-sources.js": 1,
     "src/commands/resume.js->src/resume.js": 1,
     "src/commands/resume.js->src/sentinel-command.js": 1,
-    "src/commands/resume.js->src/setup-rows.js": 1,
-    "src/commands/resume.js->src/spec-approval-bootstrap.js": 1,
-    "src/commands/resume.js->src/spec.js": 1
+    "src/commands/resume.js->src/setup-rows.js": 1
   }
 }

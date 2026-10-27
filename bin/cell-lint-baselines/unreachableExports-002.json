@@ -261,7 +261,6 @@
     "src/config.js#configProblems": 1,
     "src/coordinator-hold.js#computerLabel": 1,
     "src/coordinator-hold.js#COORDINATOR_HOLD_ENGINE": 1,
-    "src/cpu-load-admission.js#cpuRunnerRequired": 1,
     "src/cpu-load-admission.js#testsNeedCpuRunner": 1,
     "src/cross-repo-dependency-engine.js#CROSS_REPO_DEPENDENCY_ENGINE": 1,
     "src/decision-handoff.js#decisionHandoffs": 1,
@@ -352,7 +351,6 @@
     "src/git.js#setResumeSourceFacts": 1,
     "src/guard-revert.js#guardOf": 1,
     "src/guard-revert.js#guardRevertNote": 1,
-    "src/gui-session.js#guiSession": 1,
     "src/handoff.js#openHandoff": 1,
     "src/handoff.js#takeHandoff": 1,
     "src/health-receipts.js#HEALTH_CAP_ENGINE": 1,
@@ -401,6 +399,8 @@
     "src/implies.js#IMPLIES_ENGINE": 1,
     "src/implies.js#impliesSeed": 1,
     "src/implies.js#IMPLYING_OPERATIONS": 1,
-    "src/implies.js#supersededAnswer": 1
+    "src/implies.js#supersededAnswer": 1,
+    "src/implies.js#takeDecisionNotices": 1,
+    "src/implies.js#tellsSupersession": 1
   }
 }

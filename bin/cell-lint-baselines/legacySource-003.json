@@ -2,6 +2,10 @@
   "version": 1,
   "metric": "legacySource",
   "allowances": {
+    "src/test-economics-index.js": 1,
+    "src/test-economics.js": 1,
+    "src/test-file-dispatch.js": 1,
+    "src/test-file-pool.js": 1,
     "src/test-isolation.js": 1,
     "src/test-placement-report.js": 1,
     "src/test-placement.js": 1,

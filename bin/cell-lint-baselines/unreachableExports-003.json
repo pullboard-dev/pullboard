@@ -2,8 +2,6 @@
   "version": 1,
   "metric": "unreachableExports",
   "allowances": {
-    "src/implies.js#takeDecisionNotices": 1,
-    "src/implies.js#tellsSupersession": 1,
     "src/implies.js#verdictDecisionRef": 1,
     "src/implies.js#whyLine": 1,
     "src/implies.js#writeImplied": 1,
@@ -124,8 +122,12 @@
     "src/landing-shards.js#landingFloor": 1,
     "src/landing-shards.js#landingSource": 1,
     "src/landing-shards.js#planLandingShards": 1,
+    "src/landing-shards.js#planReleaseShards": 1,
     "src/landing-shards.js#printShardFileTimes": 1,
     "src/landing-shards.js#readFileTimes": 1,
+    "src/landing-shards.js#RELEASE_PARTICIPATION_PREFIX": 1,
+    "src/landing-shards.js#releaseExecutors": 1,
+    "src/landing-shards.js#releasePlacement": 1,
     "src/landing-shards.js#runLandingShards": 1,
     "src/landing-shards.js#runnerFailureClass": 1,
     "src/landing-shards.js#shardFileTimes": 1,
@@ -210,9 +212,6 @@
     "src/milestones.js#shipMilestone": 1,
     "src/milestones.js#shippingOrder": 1,
     "src/milestones.js#WITHDRAW_MILESTONE_ENGINE": 1,
-    "src/module-imports.js#cpuCallableExportsIn": 1,
-    "src/module-imports.js#cpuLoadOptionsIn": 1,
-    "src/module-imports.js#cpuRegistrationExportsIn": 1,
     "src/move-engine-constants.js#CHECK_ACCEPT_ENGINE": 1,
     "src/move-implies.js#carriesImplies": 1,
     "src/move-implies.js#IMPLYING_OPERATIONS": 1,
@@ -401,6 +400,7 @@
     "src/project-decisions.js#projectPersonDecisions": 1,
     "src/project-decisions.js#projectSiblings": 1,
     "src/project-decisions.js#repoLabels": 1,
-    "src/project-decisions.js#resolveRepo": 1
+    "src/project-decisions.js#resolveRepo": 1,
+    "src/projects.js#preparePrivateBoardPath": 1
   }
 }

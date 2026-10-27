@@ -2,6 +2,8 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/board-link-format.js->src/refused.js": 1,
+    "src/board-link-relay.js->src/board-event-log.js": 1,
     "src/board-link-relay.js->src/board-link-envelope.js": 1,
     "src/board-link-relay.js->src/board-link-format.js": 1,
     "src/board-link-relay.js->src/board-link-state.js": 1,
@@ -399,8 +401,6 @@
     "src/cli.js->src/recorded-move.js": 1,
     "src/cli.js->src/refused.js": 1,
     "src/cli.js->src/relay-board-config.js": 1,
-    "src/cli.js->src/relay-environment.js": 1,
-    "src/cli.js->src/relay-sender.js": 1,
-    "src/cli.js->src/relay-setup.js": 1
+    "src/cli.js->src/relay-environment.js": 1
   }
 }

@@ -253,7 +253,11 @@
     "src/relay-upload-pause.js": 1,
     "src/relay.js": 1,
     "src/release-claim.js": 1,
+    "src/release-gate-receipt.js": 1,
+    "src/release-gate.js": 1,
+    "src/release-hosted.js": 1,
     "src/release-queue.js": 1,
+    "src/release-transport.js": 1,
     "src/reopen-authority.js": 1,
     "src/reopen-cause-engine.js": 1,
     "src/reopen-cause.js": 1,
@@ -397,10 +401,6 @@
     "src/test-action-reporter.js": 1,
     "src/test-action-transfer.js": 1,
     "src/test-concurrency.js": 1,
-    "src/test-economics-engine.js": 1,
-    "src/test-economics-index.js": 1,
-    "src/test-economics.js": 1,
-    "src/test-file-dispatch.js": 1,
-    "src/test-file-pool.js": 1
+    "src/test-economics-engine.js": 1
   }
 }

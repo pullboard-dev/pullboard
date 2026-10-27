@@ -50,9 +50,11 @@
     "bin/checks/test-names.js": 1,
     "bin/main-audit.js": 1,
     "bin/pullboard.js": 1,
+    "bin/release-gate.js": 1,
     "bin/run-tests.js": 1,
     "bin/static-style-checks.js": 1,
     "bin/update-formats.js": 1,
+    "bin/verify-release-receipt.js": 1,
     "CLA.md": 1,
     "CLAUDE.md": 1,
     "CODE_OF_CONDUCT.md": 1,
@@ -277,6 +279,7 @@
     "test/engine.test.js": 1,
     "test/evidence.test.js": 1,
     "test/exchange.test.js": 1,
+    "test/executor-affinity-cases.js": 1,
     "test/file-growth-notice.test.js": 1,
     "test/fixture-child-ignored.test.js": 1,
     "test/fixture-child.js": 1,
@@ -398,9 +401,6 @@
     "test/lane-bypass.test.js": 1,
     "test/lane-lead.test.js": 1,
     "test/lanes.test.js": 1,
-    "test/line-capacity.test.js": 1,
-    "test/line-settings.test.js": 1,
-    "test/local-fetch.test.js": 1,
-    "test/lsof-lookups.test.js": 1
+    "test/line-capacity.test.js": 1
   }
 }

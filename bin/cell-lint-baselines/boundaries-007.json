@@ -2,6 +2,12 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/native-board-state.js->src/item-list.js": 1,
+    "src/native-board-state.js->src/native-state-clock.js": 1,
+    "src/native-board-state.js->src/person-signing-presentation.js": 1,
+    "src/native-board-state.js->src/projects.js": 1,
+    "src/native-board-state.js->src/relay-requests.js": 1,
+    "src/native-board-state.js->src/roadmap.js": 1,
     "src/native-board-state.js->src/row-decisions.js": 1,
     "src/native-board-state.js->src/rule-proof-counts.js": 1,
     "src/native-board-state.js->src/serve.js": 1,
@@ -395,12 +401,6 @@
     "src/relay-join.js->src/trusted-policy.js": 1,
     "src/relay-key.js->src/local-state.js": 1,
     "src/relay-key.js->src/refused.js": 1,
-    "src/relay-key.js->src/seal.js": 1,
-    "src/relay-link-read.js->src/refused.js": 1,
-    "src/relay-link-read.js->src/relay-origin.js": 1,
-    "src/relay-local-first.js->src/local-state.js": 1,
-    "src/relay-lock.js->src/command-phase.js": 1,
-    "src/relay-lock.js->src/refused.js": 1,
-    "src/relay-machine.js->src/local-state.js": 1
+    "src/relay-key.js->src/seal.js": 1
   }
 }

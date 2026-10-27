@@ -24,6 +24,7 @@
     "bin/main-audit.js->src/main-audit-worker.js": 1,
     "bin/pullboard.js->src/cli-main.js": 1,
     "bin/pullboard.js->src/json.js": 1,
+    "bin/release-gate.js->src/release-gate.js": 1,
     "bin/run-tests.js->src/browser-admission.js": 3,
     "bin/run-tests.js->src/chrome-clone-check.js": 1,
     "bin/run-tests.js->src/cpu-load-admission.js": 1,
@@ -53,6 +54,7 @@
     "bin/static-style-checks.js->src/static-import-style.js": 1,
     "bin/static-style-checks.js->src/static-prose-commands.js": 1,
     "bin/update-formats.js->src/format-registry.js": 1,
+    "bin/verify-release-receipt.js->src/release-hosted.js": 1,
     "docs/api.test.js->src/json.js": 1,
     "docs/architecture.test.js->relay/auth.js": 1,
     "docs/architecture.test.js->relay/device-store.js": 1,
@@ -399,8 +401,6 @@
     "src/board-link-envelope.js->src/board-reference.js": 1,
     "src/board-link-envelope.js->src/refused.js": 1,
     "src/board-link-envelope.js->src/seal.js": 1,
-    "src/board-link-format.js->src/board-reference.js": 1,
-    "src/board-link-format.js->src/refused.js": 1,
-    "src/board-link-relay.js->src/board-event-log.js": 1
+    "src/board-link-format.js->src/board-reference.js": 1
   }
 }
