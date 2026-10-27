@@ -93,9 +93,9 @@ function checkedFields(value) {
   const proof = value?.version === 2 ? proofFields(value.proof) : null;
   const version = value?.version;
   const hasCollection = Object.hasOwn(value ?? {}, 'collection');
-  if (hasCollection && (version !== 1 || value.kind !== 'land')) throw bad();
+  if (hasCollection && (version !== 1 || !['land', 'release'].includes(value.kind))) throw bad();
   const collection = hasCollection ? collectionFields(value.collection) : null;
-  const kinds = version === 2 ? ['check', 'submit', 'verdict'] : ['gate', 'land', 'submit'];
+  const kinds = version === 2 ? ['check', 'submit', 'verdict'] : ['gate', 'land', 'submit', 'release'];
   if (!value || ![1, 2].includes(version) || version === 2 && !proof || !ID.test(value.id ?? '') || !kinds.includes(value.kind)
     || !(version === 2 && value.tree === null) && !SHA.test(value.tree ?? '')
     || !(version === 2 && value.head === null) && !SHA.test(value.head ?? '')

@@ -270,6 +270,7 @@ function testEnvironment(sandbox, gateMarkers = {}) {
   env[LANDING_RUN_ENV] = '0';
   delete env[LANDING_COLLECT_ALL_ENV];
   delete env[COLLECTION_ID_ENV];
+  delete env.PULLBOARD_RELEASE_EXECUTORS;
   Object.assign(env, gateMarkers);
   env[LANDING_RUN_ENV] = '0';
   return env;
@@ -724,6 +725,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   delete testEnv[LANDING_WAIVERS_ENV];
   delete testEnv[LANDING_COLLECT_ALL_ENV];
   delete testEnv[COLLECTION_ID_ENV];
+  delete testEnv.PULLBOARD_RELEASE_EXECUTORS;
   if (options.isolation !== 'process') {
     throw new Error('landing gate early-stop requires --test-isolation=process so started files and owned children can be tracked safely');
   }
@@ -1356,7 +1358,7 @@ async function main(args) {
     const filteredByName = testSelectionPatterns(actions.args, optionTakesValue).length > 0;
     if (fullSuite && process.env[LANDING_RUN_ENV] === '1' && !shardLabel && !filteredByName) {
       const { landingShardCount } = await import('../src/gate.js');
-      const count = landingShardCount(process.cwd());
+      const count = process.env.PULLBOARD_RELEASE_EXECUTORS ? 8 : landingShardCount(process.cwd());
       if (count > 1) {
         const files = actions.files ?? (isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : []);
         if (!files.length) throw new Error('a sharded landing gate needs tracked Node test files; commit them or set landingShards to 1');
