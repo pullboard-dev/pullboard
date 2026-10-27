@@ -12,6 +12,7 @@ import { NATIVE_FLAKE_ENGINE } from '../src/flake-engine.js';
 import { coChangedPaths, historicalPaths, mappedCheck, readPathMap } from '../src/path-map.js';
 import { prepareCauseProof, runCheckAt } from '../src/rigor-proof.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { runFixtureChild } from './fixture-child.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -217,7 +218,14 @@ test('a split test-name pattern stays data while its positional file follows the
     `node --test --test-name-pattern=${OLD} '${NEW}'`, 'equals-form selector stays unchanged');
   const item = { item_id: 1, item_commit: box.git(box.repo, 'rev-parse', 'HEAD'), item_claim_head: box.base,
     item_frozen: JSON.stringify({ check: command, policy: { commit: box.base } }) };
-  const result = checkAtCommit(box.repo, item);
+  const env = { ...process.env };
+  // Node's inherited test harness context would silently skip this independent nested test command.
+  delete env.NODE_TEST_CONTEXT;
+  const script = `import {checkAtCommit} from ${JSON.stringify(new URL('../src/trusted-policy.js', import.meta.url).href)};
+console.log(JSON.stringify(checkAtCommit(${JSON.stringify(box.repo)},${JSON.stringify(item)})));`;
+  const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: box.repo, env, encoding: 'utf8' });
+  assert.equal(child.status, 0, child.stderr);
+  const result = JSON.parse(child.stdout);
   assert.equal(result.state, 'pass', result.report);
   assert.match(result.outputTail, /SELECTED_OLD_TITLE/u);
 });
