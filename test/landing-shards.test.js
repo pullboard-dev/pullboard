@@ -31,10 +31,6 @@ test('GUI-marked landing files use only a runner with a GUI session [C7,V4]', (t
     assert.equal(added.status, 0, added.context);
   }
   // These are seeded capability reports, not a claim about this test machine's desktop session.
-  const settingsPath = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
-  const settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
-  settings.runners = settings.runners.map(runner => ({ ...runner, gui: runner.host === 'fixture-gui' }));
-  writeFileSync(settingsPath, JSON.stringify(settings));
   const selected = join(box.repo, 'test/a.test.js');
   writeFileSync(selected, '/** @pullboard-test-gui */\n' + readFileSync(selected, 'utf8'));
   git(box.repo, box.env, 'add', '.');
