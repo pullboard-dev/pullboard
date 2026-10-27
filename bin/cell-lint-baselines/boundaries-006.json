@@ -2,6 +2,13 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/main-audit-worker.js->src/git.js": 1,
+    "src/main-audit-worker.js->src/lanes.js": 1,
+    "src/main-audit-worker.js->src/main-audit-economics.js": 1,
+    "src/main-audit-worker.js->src/main-audit-scheduler.js": 1,
+    "src/main-audit-worker.js->src/main-audit-state.js": 1,
+    "src/main-audit-worker.js->src/relay-outbox-guard.js": 1,
+    "src/main-audit-worker.js->src/trusted-policy-read.js": 1,
     "src/main-failure-matches.js->src/land.js": 1,
     "src/main-red.js->src/board.js": 1,
     "src/main-red.js->src/browser-admission.js": 1,
@@ -394,13 +401,6 @@
     "src/native-flake-cli.js->src/native-flakes.js": 1,
     "src/native-flake-cli.js->src/path-map.js": 1,
     "src/native-flake-cli.js->src/proof-cli.js": 1,
-    "src/native-flake-cli.js->src/trusted-policy.js": 1,
-    "src/native-flakes.js->src/gate.js": 1,
-    "src/native-flakes.js->src/git.js": 1,
-    "src/native-flakes.js->src/tap-tests.js": 1,
-    "src/native-flakes.js->src/trusted-policy.js": 1,
-    "src/native-state-clock.js->src/roadmap.js": 1,
-    "src/needs-state.js->src/blueprint-fit.js": 1,
-    "src/needs-state.js->src/board.js": 1
+    "src/native-flake-cli.js->src/trusted-policy.js": 1
   }
 }

@@ -2,6 +2,13 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/native-flakes.js->src/gate.js": 1,
+    "src/native-flakes.js->src/git.js": 1,
+    "src/native-flakes.js->src/tap-tests.js": 1,
+    "src/native-flakes.js->src/trusted-policy.js": 1,
+    "src/native-state-clock.js->src/roadmap.js": 1,
+    "src/needs-state.js->src/blueprint-fit.js": 1,
+    "src/needs-state.js->src/board.js": 1,
     "src/needs-state.js->src/config.js": 1,
     "src/needs-state.js->src/doctrine.js": 1,
     "src/needs-state.js->src/git.js": 1,
@@ -394,13 +401,6 @@
     "src/relay-ordering.js->src/git.js": 1,
     "src/relay-ordering.js->src/recorded-refusal.js": 1,
     "src/relay-ordering.js->src/refused.js": 1,
-    "src/relay-ordering.js->src/relay-conflict-record.js": 1,
-    "src/relay-ordering.js->src/relay-key.js": 1,
-    "src/relay-ordering.js->src/relay-outbox-guard.js": 1,
-    "src/relay-ordering.js->src/relay-outbox.js": 1,
-    "src/relay-ordering.js->src/relay-seats.js": 1,
-    "src/relay-ordering.js->src/relay-sender.js": 1,
-    "src/relay-origin.js->src/refused.js": 1,
-    "src/relay-outbox-summary.js->src/relay-link-read.js": 1
+    "src/relay-ordering.js->src/relay-conflict-record.js": 1
   }
 }

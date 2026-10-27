@@ -2,6 +2,13 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "test/person-passkey-browser.test.js->test/relay-browser-fixture.js": 1,
+    "test/person-passkey-browser.test.js->test/relay-client-fixture.js": 1,
+    "test/person-passkey-fixture.js->src/person-request.js": 1,
+    "test/person-passkey-fixture.js->src/person-signing.js": 1,
+    "test/person-passkey-fixture.js->src/relay-requests.js": 1,
+    "test/person-request-receipts.test.js->src/board.js": 1,
+    "test/person-request-receipts.test.js->src/config.js": 1,
     "test/person-request-receipts.test.js->src/engine.js": 1,
     "test/person-request-receipts.test.js->src/json.js": 1,
     "test/person-request-receipts.test.js->src/machine.js": 1,
@@ -394,13 +401,6 @@
     "test/relay-local-first-verdict.test.js->src/relay-outbox-undo.js": 1,
     "test/relay-local-first-verdict.test.js->src/relay-outbox.js": 1,
     "test/relay-local-first-verdict.test.js->test/e2e-helpers.js": 1,
-    "test/relay-local-first.test.js->relay/auth.js": 1,
-    "test/relay-local-first.test.js->src/board-capture.js": 1,
-    "test/relay-local-first.test.js->src/board.js": 1,
-    "test/relay-local-first.test.js->src/relay-local-first.js": 1,
-    "test/relay-local-first.test.js->src/relay-outbox-guard.js": 1,
-    "test/relay-local-first.test.js->src/relay-outbox-undo.js": 1,
-    "test/relay-local-first.test.js->test/fixture-child.js": 1,
-    "test/relay-local-first.test.js->test/relay-client-fixture.js": 1
+    "test/relay-local-first.test.js->relay/auth.js": 1
   }
 }

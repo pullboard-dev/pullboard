@@ -2,6 +2,13 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "test/relay-local-first.test.js->src/board-capture.js": 1,
+    "test/relay-local-first.test.js->src/board.js": 1,
+    "test/relay-local-first.test.js->src/relay-local-first.js": 1,
+    "test/relay-local-first.test.js->src/relay-outbox-guard.js": 1,
+    "test/relay-local-first.test.js->src/relay-outbox-undo.js": 1,
+    "test/relay-local-first.test.js->test/fixture-child.js": 1,
+    "test/relay-local-first.test.js->test/relay-client-fixture.js": 1,
     "test/relay-local-origin.test.js->relay/browser-page.js": 1,
     "test/relay-local-origin.test.js->src/refused.js": 1,
     "test/relay-local-origin.test.js->test/cockpit/fixture.js": 1,
@@ -394,13 +401,6 @@
     "test/review-grant-replay.test.js->src/exchange.js": 1,
     "test/review-grant-replay.test.js->src/review-grant-engine.js": 1,
     "test/review-grant-replay.test.js->test/board-submit-fixture.js": 1,
-    "test/review-queue-cli.test.js->src/api.js": 1,
-    "test/review-queue-cli.test.js->src/board.js": 1,
-    "test/review-queue-cli.test.js->src/cli.js": 1,
-    "test/review-queue-cli.test.js->src/config.js": 1,
-    "test/review-queue-cli.test.js->test/board-submit-fixture.js": 1,
-    "test/review-queue-cli.test.js->test/fixture-child.js": 1,
-    "test/review-queue-cli.test.js->test/http-fixture.js": 1,
-    "test/review-queue-replay.test.js->src/agent-grant-engine.js": 1
+    "test/review-queue-cli.test.js->src/api.js": 1
   }
 }

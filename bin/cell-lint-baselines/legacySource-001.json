@@ -357,6 +357,7 @@
     "src/landing-candidates.js": 1,
     "src/landing-collection-report.js": 1,
     "src/landing-collision-engine.js": 1,
+    "src/landing-deferred-run.js": 1,
     "src/landing-doctrine.js": 1,
     "src/landing-environment-engine.js": 1,
     "src/landing-environment-guards.js": 1,
@@ -400,7 +401,6 @@
     "src/main-audit-economics.js": 1,
     "src/main-audit-engine.js": 1,
     "src/main-audit-nudge.js": 1,
-    "src/main-audit-scheduler.js": 1,
-    "src/main-audit-state.js": 1
+    "src/main-audit-scheduler.js": 1
   }
 }

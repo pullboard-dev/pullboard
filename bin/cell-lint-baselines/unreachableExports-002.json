@@ -332,7 +332,6 @@
     "src/gate.js#gateReport": 1,
     "src/gate.js#gateStages": 1,
     "src/gate.js#landingShardCount": 1,
-    "src/gate.js#refuseSandboxBlocked": 1,
     "src/gate.js#runShell": 1,
     "src/gate.js#runSubmitGate": 1,
     "src/gate.js#sandboxBlockedOperation": 1,
@@ -401,6 +400,7 @@
     "src/implies.js#impliedItems": 1,
     "src/implies.js#IMPLIES_ENGINE": 1,
     "src/implies.js#impliesSeed": 1,
-    "src/implies.js#IMPLYING_OPERATIONS": 1
+    "src/implies.js#IMPLYING_OPERATIONS": 1,
+    "src/implies.js#supersededAnswer": 1
   }
 }

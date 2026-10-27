@@ -2,6 +2,13 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/relay-ordering.js->src/relay-key.js": 1,
+    "src/relay-ordering.js->src/relay-outbox-guard.js": 1,
+    "src/relay-ordering.js->src/relay-outbox.js": 1,
+    "src/relay-ordering.js->src/relay-seats.js": 1,
+    "src/relay-ordering.js->src/relay-sender.js": 1,
+    "src/relay-origin.js->src/refused.js": 1,
+    "src/relay-outbox-summary.js->src/relay-link-read.js": 1,
     "src/relay-outbox-undo.js->src/board-event-log.js": 1,
     "src/relay-outbox-undo.js->src/board-store-guards.js": 1,
     "src/relay-outbox.js->src/board-capture.js": 1,
@@ -394,13 +401,6 @@
     "src/runner-worker.js->src/gui-session.js": 1,
     "src/runner-worker.js->src/refused.js": 1,
     "src/runner-worker.js->src/resources.js": 1,
-    "src/runner-worker.js->src/runner-custody.js": 1,
-    "src/runner-worker.js->src/runner-load.js": 1,
-    "src/runner-worker.js->src/runner-overhead.js": 1,
-    "src/runner-worker.js->src/runner-policy.js": 1,
-    "src/runner-worker.js->src/runner-private-mode.js": 1,
-    "src/runner-worker.js->src/sandbox-denial.js": 1,
-    "src/runner-worker.js->src/test-result-store.js": 1,
-    "src/runners.js->src/config.js": 1
+    "src/runner-worker.js->src/runner-custody.js": 1
   }
 }

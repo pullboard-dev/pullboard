@@ -2,6 +2,13 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "test/cockpit/shared-wait.test.js->test/cockpit/stable.js": 1,
+    "test/cockpit/shout-overlap.test.js->test/cockpit/fixture.js": 1,
+    "test/cockpit/shout-overlap.test.js->test/cockpit/shout-response-barrier.mjs": 1,
+    "test/cockpit/shouts.test.js->src/board.js": 1,
+    "test/cockpit/shouts.test.js->src/relay-sender.js": 1,
+    "test/cockpit/shouts.test.js->test/cockpit/fixture.js": 1,
+    "test/cockpit/shouts.test.js->test/cockpit/stable.js": 1,
     "test/cockpit/snapshot.test.js->src/board-read-open.js": 1,
     "test/cockpit/snapshot.test.js->src/board.js": 1,
     "test/cockpit/snapshot.test.js->src/local-fetch.js": 1,
@@ -394,13 +401,6 @@
     "test/init.test.js->test/e2e-helpers.js": 1,
     "test/init.test.js->test/view-port-fixture.js": 1,
     "test/intake-fixture.js->test/e2e-helpers.js": 1,
-    "test/intake.test.js->test/intake-fixture.js": 1,
-    "test/item-hold.test.js->src/board.js": 1,
-    "test/item-hold.test.js->src/engine.js": 1,
-    "test/item-hold.test.js->src/exchange.js": 1,
-    "test/item-hold.test.js->test/e2e-helpers.js": 1,
-    "test/item-notes-engine.test.js->src/board.js": 1,
-    "test/item-notes-engine.test.js->src/engine.js": 1,
-    "test/item-notes-engine.test.js->src/exchange.js": 1
+    "test/intake.test.js->test/intake-fixture.js": 1
   }
 }

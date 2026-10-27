@@ -2,7 +2,6 @@
   "version": 1,
   "metric": "unreachableExports",
   "allowances": {
-    "src/implies.js#supersededAnswer": 1,
     "src/implies.js#takeDecisionNotices": 1,
     "src/implies.js#tellsSupersession": 1,
     "src/implies.js#verdictDecisionRef": 1,
@@ -106,6 +105,7 @@
     "src/landing-cadence.js#landingCadenceStatus": 1,
     "src/landing-candidates.js#landingBatchOwnsRoot": 1,
     "src/landing-collection-report.js#COLLECTION_REPORT_PREFIX": 1,
+    "src/landing-deferred-run.js#runDeferredAffectedTests": 1,
     "src/landing-failure-report.js#landingFailureReport": 1,
     "src/landing-lease-engine.js#LANDING_LEASE_ENGINE": 1,
     "src/landing-lease.js#LANDING_LEASE_MS": 1,

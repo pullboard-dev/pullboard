@@ -2,6 +2,13 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "test/review-queue-cli.test.js->src/board.js": 1,
+    "test/review-queue-cli.test.js->src/cli.js": 1,
+    "test/review-queue-cli.test.js->src/config.js": 1,
+    "test/review-queue-cli.test.js->test/board-submit-fixture.js": 1,
+    "test/review-queue-cli.test.js->test/fixture-child.js": 1,
+    "test/review-queue-cli.test.js->test/http-fixture.js": 1,
+    "test/review-queue-replay.test.js->src/agent-grant-engine.js": 1,
     "test/review-queue-replay.test.js->src/board.js": 1,
     "test/review-queue-replay.test.js->src/engine.js": 1,
     "test/review-queue-replay.test.js->src/exchange.js": 1,
@@ -394,13 +401,6 @@
     "test/stats-actors.test.js->src/stats.js": 1,
     "test/stats-cli.test.js->src/api.js": 1,
     "test/stats-cli.test.js->src/board.js": 1,
-    "test/stats-cli.test.js->src/cli.js": 1,
-    "test/stats-cli.test.js->src/stats.js": 1,
-    "test/stats-cli.test.js->test/board-submit-fixture.js": 1,
-    "test/stats-cli.test.js->test/fixture-child.js": 1,
-    "test/stats-cli.test.js->test/http-fixture.js": 1,
-    "test/stats-cold.test.js->src/board.js": 1,
-    "test/stats-cold.test.js->src/proof-counters.js": 1,
-    "test/stats-cold.test.js->src/stats.js": 1
+    "test/stats-cli.test.js->src/cli.js": 1
   }
 }

@@ -249,6 +249,7 @@
     "src/land.js->src/land-local-guard.js": 1,
     "src/land.js->src/landing-cadence.js": 1,
     "src/land.js->src/landing-candidates.js": 1,
+    "src/land.js->src/landing-deferred-run.js": 1,
     "src/land.js->src/landing-doctrine.js": 1,
     "src/land.js->src/landing-host.js": 1,
     "src/land.js->src/landing-lease.js": 1,
@@ -275,6 +276,12 @@
     "src/landing-candidates.js->src/land.js": 1,
     "src/landing-candidates.js->src/landing-lease.js": 1,
     "src/landing-candidates.js->src/refused.js": 1,
+    "src/landing-deferred-run.js->src/browser-admission.js": 1,
+    "src/landing-deferred-run.js->src/gate.js": 1,
+    "src/landing-deferred-run.js->src/git.js": 1,
+    "src/landing-deferred-run.js->src/gui-admission.js": 1,
+    "src/landing-deferred-run.js->src/refused.js": 1,
+    "src/landing-deferred-run.js->src/settings.js": 1,
     "src/landing-doctrine.js->src/browser-admission.js": 1,
     "src/landing-doctrine.js->src/config.js": 1,
     "src/landing-doctrine.js->src/doctrine-checks.js": 1,
@@ -394,13 +401,6 @@
     "src/main-audit-worker.js->src/board.js": 1,
     "src/main-audit-worker.js->src/cli.js": 1,
     "src/main-audit-worker.js->src/gate-run-receipt.js": 1,
-    "src/main-audit-worker.js->src/gate.js": 1,
-    "src/main-audit-worker.js->src/git.js": 1,
-    "src/main-audit-worker.js->src/lanes.js": 1,
-    "src/main-audit-worker.js->src/main-audit-economics.js": 1,
-    "src/main-audit-worker.js->src/main-audit-scheduler.js": 1,
-    "src/main-audit-worker.js->src/main-audit-state.js": 1,
-    "src/main-audit-worker.js->src/relay-outbox-guard.js": 1,
-    "src/main-audit-worker.js->src/trusted-policy-read.js": 1
+    "src/main-audit-worker.js->src/gate.js": 1
   }
 }

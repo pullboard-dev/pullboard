@@ -2,6 +2,13 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "test/add-lanes.test.js->src/person.js": 1,
+    "test/add-lanes.test.js->test/fixture-child.js": 1,
+    "test/affected-source-loads.test.js->src/affected-tests.js": 1,
+    "test/affected-source-loads.test.js->test/fixture-child.js": 1,
+    "test/affected-tests.test.js->src/affected-tests.js": 1,
+    "test/affected-tests.test.js->test/fixture-child.js": 1,
+    "test/agent-guidance.test.js->src/hooks.js": 1,
     "test/agent-guidance.test.js->test/e2e-helpers.js": 1,
     "test/agent-model-engine.test.js->src/agent-grant-engine.js": 1,
     "test/agent-model-engine.test.js->src/board.js": 1,
@@ -394,13 +401,6 @@
     "test/cockpit/settings-context.test.js->test/cockpit/fixture.js": 1,
     "test/cockpit/settings.test.js->test/cockpit/fixture.js": 1,
     "test/cockpit/shared-wait.test.js->src/affected-tests.js": 1,
-    "test/cockpit/shared-wait.test.js->test/cockpit/fixture.js": 1,
-    "test/cockpit/shared-wait.test.js->test/cockpit/stable.js": 1,
-    "test/cockpit/shout-overlap.test.js->test/cockpit/fixture.js": 1,
-    "test/cockpit/shout-overlap.test.js->test/cockpit/shout-response-barrier.mjs": 1,
-    "test/cockpit/shouts.test.js->src/board.js": 1,
-    "test/cockpit/shouts.test.js->src/relay-sender.js": 1,
-    "test/cockpit/shouts.test.js->test/cockpit/fixture.js": 1,
-    "test/cockpit/shouts.test.js->test/cockpit/stable.js": 1
+    "test/cockpit/shared-wait.test.js->test/cockpit/fixture.js": 1
   }
 }

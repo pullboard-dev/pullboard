@@ -2,6 +2,13 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "test/item-hold.test.js->src/board.js": 1,
+    "test/item-hold.test.js->src/engine.js": 1,
+    "test/item-hold.test.js->src/exchange.js": 1,
+    "test/item-hold.test.js->test/e2e-helpers.js": 1,
+    "test/item-notes-engine.test.js->src/board.js": 1,
+    "test/item-notes-engine.test.js->src/engine.js": 1,
+    "test/item-notes-engine.test.js->src/exchange.js": 1,
     "test/item-notes-engine.test.js->src/item-notes-engine.js": 1,
     "test/item-notes-engine.test.js->src/move-registry.js": 1,
     "test/item-notes-engine.test.js->test/board-fixture.js": 1,
@@ -394,13 +401,6 @@
     "test/person-optional-apply-fixture.js->test/fixture-child.js": 1,
     "test/person-optional-apply-fixture.js->test/person-relay-stamp.js": 1,
     "test/person-optional-apply-fixture.js->test/relay-client-fixture.js": 1,
-    "test/person-passkey-browser.test.js->test/e2e-helpers.js": 1,
-    "test/person-passkey-browser.test.js->test/relay-browser-fixture.js": 1,
-    "test/person-passkey-browser.test.js->test/relay-client-fixture.js": 1,
-    "test/person-passkey-fixture.js->src/person-request.js": 1,
-    "test/person-passkey-fixture.js->src/person-signing.js": 1,
-    "test/person-passkey-fixture.js->src/relay-requests.js": 1,
-    "test/person-request-receipts.test.js->src/board.js": 1,
-    "test/person-request-receipts.test.js->src/config.js": 1
+    "test/person-passkey-browser.test.js->test/e2e-helpers.js": 1
   }
 }

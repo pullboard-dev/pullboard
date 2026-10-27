@@ -2,6 +2,13 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/runner-worker.js->src/runner-load.js": 1,
+    "src/runner-worker.js->src/runner-overhead.js": 1,
+    "src/runner-worker.js->src/runner-policy.js": 1,
+    "src/runner-worker.js->src/runner-private-mode.js": 1,
+    "src/runner-worker.js->src/sandbox-denial.js": 1,
+    "src/runner-worker.js->src/test-result-store.js": 1,
+    "src/runners.js->src/config.js": 1,
     "src/runners.js->src/execution-environment.js": 1,
     "src/runners.js->src/gate-policy-load.js": 1,
     "src/runners.js->src/gate-stages.js": 1,
@@ -394,13 +401,6 @@
     "test/activity-feed.test.js->test/board-fixture.js": 1,
     "test/activity-feed.test.js->test/board-submit-fixture.js": 1,
     "test/activity-feed.test.js->test/e2e-helpers.js": 1,
-    "test/activity-feed.test.js->test/fixture-child.js": 1,
-    "test/add-lanes.test.js->src/person.js": 1,
-    "test/add-lanes.test.js->test/fixture-child.js": 1,
-    "test/affected-source-loads.test.js->src/affected-tests.js": 1,
-    "test/affected-source-loads.test.js->test/fixture-child.js": 1,
-    "test/affected-tests.test.js->src/affected-tests.js": 1,
-    "test/affected-tests.test.js->test/fixture-child.js": 1,
-    "test/agent-guidance.test.js->src/hooks.js": 1
+    "test/activity-feed.test.js->test/fixture-child.js": 1
   }
 }
