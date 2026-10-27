@@ -98,11 +98,16 @@ async function incomplete(write, file, job, reason) {
 /** Retain the actual raw phase logs and profiles before removing their private Git directory. */
 function retainArtifacts(directory, job, gate, composition) {
   const folder = join(directory, job.key); mkdirSync(folder, { recursive: true, mode: 0o700 });
-  const paths = [...new Set([gate.log,gate.profilePath,gate.check?.log,gate.check?.profilePath,gate.proofLog,gate.proofProfilePath].filter(value => typeof value === 'string' && value))];
-  const artifacts = paths.map((source,index) => {
+  const sources = new Map();
+  for (const [role,source] of [['combined',gate.log],['combined-profile',gate.profilePath],['criterion',gate.check?.log],
+    ['criterion-profile',gate.check?.profilePath],['affected',gate.proofLog],['affected-profile',gate.proofProfilePath]]) {
+    if (typeof source !== 'string' || !source) continue;
+    sources.set(source,[...(sources.get(source) ?? []),role]);
+  }
+  const artifacts = [...sources].map(([source,roles],index) => {
     const file = join(folder,`${index}${source.endsWith('.json')?'.json':'.log'}`);
     copyFileSync(source,file);
-    return { source, file, sha256:createHash('sha256').update(readFileSync(file)).digest('hex') };
+    return { roles, source, file, sha256:createHash('sha256').update(readFileSync(file)).digest('hex') };
   });
   saveMainAudit(join(folder,'manifest.json'), { version:1, head:composition.head, tree:composition.tree, trunk:job.basis.trunk, artifacts });
   return artifacts;

@@ -32,10 +32,20 @@ test('a clean main move keeps the accepted verdict on its genuinely checked merg
   assert.equal(now.events.filter(row=>row.event_kind==='reopen').length,0);
   assert.equal(now.proofs.length,2,'criterion and affected/full scope actually executed separately despite submit deferral policy');
   assert.ok(now.proofs.every(row=>row.commit===now.landing&&row.exitCode===0&&row.sourceClean));
-  assert.equal(readFileSync(box.marker,'utf8').trim().split('\n').length,2,'real bodies ran; no receipt, stamp or test-cache result stands in');
-  const before=box.board(board=>box.store.events(board).length);box.trigger();await box.settled();
+  const artifacts=terminal.rows.flatMap(row=>row.artifacts ?? []);
+  for(const role of ['criterion','affected']) {
+    const phase=artifacts.filter(row=>row.roles.includes(role));assert.equal(phase.length,1);
+    const output=readFileSync(phase[0].file,'utf8');
+    assert.equal(createHash('sha256').update(output).digest('hex'),phase[0].sha256);
+    assert.equal(output.split('SOURCE_ADVANCE_BODY').length-1,1,`${role} retains exactly one actual executed body`);
+    assert.match(output,/ok 1 - actual exact composed behavior/u);
+  }
+  assert.ok(now.proofs.every(row=>row.counts.passed===1&&row.counts.failed===0&&row.counts.skipped===0));
+  t.diagnostic(JSON.stringify({sourceAdvanceHead:now.landing,phaseExecutors:now.proofs.map(row=>({id:row.id,environment:row.environment,testRuntimes:row.testRuntimes,runner:row.runner})),artifacts}));
+  const before=box.board(board=>box.store.events(board).length);box.trigger();const repeated=await box.settled();
   assert.equal(box.board(board=>box.store.events(board).filter(row=>row.event_kind==='source_advanced').length),1);
-  assert.equal(readFileSync(box.marker,'utf8').trim().split('\n').length,2,'a settled exact source is never rechecked on an unchanged health wake');
+  assert.deepEqual(repeated.rows.flatMap(row=>row.artifacts ?? []),artifacts,'an unchanged wake preserves the exact prior real phase artifacts');
+  assert.equal(state(box).proofs.length,2,'an unchanged wake creates no replacement execution receipt');
   assert.ok(box.board(board=>box.store.events(board).length)>=before);
 });
 
