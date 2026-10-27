@@ -51,7 +51,8 @@ Set up
                                         items, shouts, doctrine, agents and activity; --port 0 chooses a free port
                                         --project limits this view to the registered project for this repository
                                         add items, shout and hold lanes from it
-  pullboard view --export <dir>         a read-only snapshot with event replay, for any static host
+  pullboard view --export <dir> [--public]  a read-only snapshot with event replay, for any static host
+                                        --public requires a checked public filter
   pullboard serve [--port N]           local API v1: boards, state, moves, requests and live events,
                                         behind the session secret in its printed address
   pullboard mcp                        MCP tools over stdio for this worktree's agent, started by its MCP client:
@@ -83,6 +84,7 @@ Work
   pullboard map [<module or function>] [--for <item>] [--budget <tokens>]  source map for main, a card, or an item's one-hop slice
                                         slices default to 4k tokens and cap at 8k; effects the scan cannot see say "not detected"
   pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--parent <id>] [--private]
+                                        --sensitive or --review-family <family> selects Strict review; edit can set them while open
                 [--brief "..." | --brief-file <file>] [--route light|mid] [--review-family <family>]
                                         --after: ids or repo#id; claiming waits for verified items on their own boards
                                         --review-family: require that declared family; case-insensitive, never guessed from model
@@ -422,7 +424,7 @@ const HELP_ALIASES = {
   relay: { source: 'relay', every: true },
   lifecycle: { usage: 'pullboard lifecycle', source: null },
   escalate: { usage: 'pullboard escalate <id> --note "..." [--note-file <file>]', source: 'escalate <id> --note "what was tried and how it failed"', extraFlags: ['--note-file <file>'] },
-  'view export': { usage: 'pullboard view --export <dir>', source: 'view' },
+  'view export': { usage: 'pullboard view --export <dir> [--public]', source: 'view' },
   blueprint: { usage: 'pullboard blueprint add <name or file>, then a seat runs pullboard blueprint fit <name or file> <row id or #item> keep|adapt|drop|answer, then the person runs pullboard spec fit approve <batch>', source: 'blueprint add' },
   'blueprint add': { usage: 'pullboard blueprint add <name or file> [--blueprint <name or file>]...', source: 'blueprint add' },
   'blueprint fit': { usage: 'pullboard blueprint fit <name or file> <row id or #item> keep|adapt|drop|answer [--text "..."] [--reason "why"]', source: null, onlyFlags: ['--text', '--reason'] },

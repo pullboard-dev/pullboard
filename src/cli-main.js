@@ -33,6 +33,8 @@ export function traceServeStartup(phase) {
 
 const OPTIONS = {
   criterion: { type: 'string' },
+  sensitive: { type: 'boolean' },
+  'review-family': { type: 'string' },
   sandbox: { type: 'boolean' },
   lane: { type: 'string' },
   specs: { type: 'string' },
@@ -50,6 +52,7 @@ const OPTIONS = {
   root: { type: 'string' },
   project: { type: 'boolean' },
   export: { type: 'string' },
+  public: { type: 'boolean' },
   'no-open': { type: 'boolean' },
   lan: { type: 'boolean' },
   'no-permissions': { type: 'boolean' },
