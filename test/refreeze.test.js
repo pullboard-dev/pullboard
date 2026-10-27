@@ -9,6 +9,7 @@ import * as store from '../src/board.js';
 import { UNCHANGED_REFREEZE_ENGINE } from '../src/unchanged-refreeze-engine.js';
 import { runFixtureGit } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureBoard } from './board-fixture.js';
 
 /** Compute actual content identities instead of test-only constant digests. */
 function frozen(text = 'Original promise') {
@@ -26,9 +27,9 @@ function fixture(t, { legacy = false } = {}) {
   runFixtureGit(['commit', '--allow-empty', '-q', '-m', 'fixture'], { cwd: root, env, encoding: 'utf8' });
   const head = runFixtureGit(['rev-parse', 'HEAD'], { cwd: root, env, encoding: 'utf8' }).trim();
   let now = new Date('2026-10-27T12:00:00Z');
-  const board = store.openBoard(join(root, '.git/refreeze.sqlite'), { now: () => new Date(now) });
+  const board = fixtureBoard(t, { clock: { now: () => new Date(now) } });
   if (legacy) board.executionEngineVersion = UNCHANGED_REFREEZE_ENGINE - 1;
-  t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
+  t.after(() => rmSync(root, { recursive: true, force: true }));
   store.ensureCoordinator(board, root);
   const builder = store.register(board, { lane: 'core', path: join(root, 'builder'), model: 'Refreeze fixture builder' });
   const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Repeat a refreeze', criterion: 'Original promise' });
@@ -82,6 +83,7 @@ test('[V2] the actual CLI reports an identical refreeze as retained and preserve
   const id = JSON.parse(added.out).item.item_id;
   const claimed = box.run(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err || claimed.out);
+  // @pullboard-board-file journey: the actual CLI and this reader share the same durable board
   const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try {
     const before = store.getItem(board, id);

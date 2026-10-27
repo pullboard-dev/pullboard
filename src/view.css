@@ -330,9 +330,10 @@ a.ghost { color: var(--ink); }
   .group-need > b { grid-column: 1; }
   .group-need > code { grid-column: 2; }
   .group-need > span, .group-need > button { grid-column: 1 / -1; }
-  .tabs { flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: auto; gap: 0; }
-  /* Six labels share the bar; narrower horizontal padding keeps the full row in a narrow viewport. */
-  .tab { display: grid; justify-items: center; align-content: center; padding: 7px 1px; font-size: clamp(11px, 3.6vw, 13.5px); }
+  .top { container-type: inline-size; }
+  .tabs { flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: auto; gap: 0; min-width: 0; }
+  /* Seven full labels retain their inset; size them against the bar after padding and any scrollbar. */
+  .tab { display: grid; justify-items: center; align-content: center; padding: 7px 2px; font-size: clamp(10px, 3.3cqi, 13.5px); }
 }
 .primary { display: grid; gap: 12px; min-width: 0; }
 .items-view-switch { flex: none; flex-wrap: nowrap; max-width: none; }

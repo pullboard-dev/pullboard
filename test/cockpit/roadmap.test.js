@@ -152,9 +152,14 @@ test('Roadmap references stay inline and rows expand before opening Items [N26,N
 test('the roadmap reads every item as the Items tab does, opens each one, another repo\'s too, and keeps its own address [N26,N38]', { timeout: 150_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for roadmap browser checks.');
+  const phaseStarted = Date.now();
+  /** Preserve which real fixture phase ran before a timeout, without changing its budget. */
+  const phase = name => t.diagnostic('roadmap phase ' + name + ' ' + (Date.now() - phaseStarted) + 'ms');
+  phase('start');
   const box = machine();
   const alpha = project(box, 'roadmap-demo');
   const beacon = project(box, 'beacon');
+  phase('projects-ready');
   const long = 'A deliberately long title that runs past the width of a phone and keeps going, far enough to be cut on a wide desktop card as well';
   const titles = ['Merged greeting page', 'Verified farewell page', 'Session timeout banner', 'Upload progress bar', 'Live search results', long, 'Withdrawn experiment'];
   for (const title of titles) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
@@ -190,7 +195,9 @@ test('the roadmap reads every item as the Items tab does, opens each one, anothe
     { id: '#5', label: 'building', tone: 'busy' },
     { id: '#6', label: 'unclaimed', tone: 'free' },
   ];
+  phase('states-ready');
   const view = await startView(box);
+  phase('view-ready');
   const roadmapPath = '/roadmap-demo/roadmap';
   const roadmap = `${roadmapPath}${view.link.search}`;
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-roadmap-chrome-'));
@@ -208,6 +215,7 @@ test('the roadmap reads every item as the Items tab does, opens each one, anothe
     });
     await chrome.send('Log.enable');
     await settled(chrome, `!!data?.project && ${showing('roadmap', roadmapPath)} && document.querySelectorAll('#roadmap .milestone').length === 3`);
+    phase('browser-ready');
     // This story reads every release; open the later cards through their actual controls.
     await openRoadmapParts(chrome);
 
@@ -216,6 +224,7 @@ test('the roadmap reads every item as the Items tab does, opens each one, anothe
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor(`innerWidth === ${width} && ${showing('roadmap', roadmapPath)}`);
       seen = await readRoadmap(chrome);
+      phase('rows-read-' + width);
       assert.deepEqual([seen.address, seen.shown, seen.tab], [roadmapPath, ['roadmap'], 'roadmap'], `${width}: the direct address shows the Roadmap tab, and only it`);
       assert.ok(seen.document <= seen.client && seen.body <= seen.client, `${width}: no sideways scroll: ${JSON.stringify(seen)}`);
       assert.deepEqual(seen.cards.map((card) => card.name), ['Launch', 'Next', 'Later'], `${width}: a card for each milestone, in order`);
@@ -232,6 +241,7 @@ test('the roadmap reads every item as the Items tab does, opens each one, anothe
       assert.ok(rows.every((row) => row.button), `${width}: every item opens, another repo's included`);
 
       const bar = await tabBar(chrome);
+      phase('tabs-read-' + width);
       for (const layout of bar.layouts) {
         const place = `${width} with ${layout.on} picked`;
         assert.equal(layout.tabs.length, 7, `${place}: seven tabs including Home`);
