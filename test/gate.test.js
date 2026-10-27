@@ -932,7 +932,7 @@ test('a pre-test native policy refusal is not reported as deferred files red [C7
   mkdirSync(missing);
   project.box.git(missing, 'init', '-q', '-b', 'main');
   const source = new URL('../src/trusted-policy.js', import.meta.url).href;
-  const launcher = `import { mainPolicy } from ${JSON.stringify(source)};\ntry { mainPolicy(${JSON.stringify(missing)}); throw new Error('missing policy unexpectedly accepted'); } catch (error) { if (!error.code) throw error; console.log(JSON.stringify({version:1,error:{code:error.code,message:error.message,next:'restore the committed coordinator policy'}})); process.exitCode=1; }\n`;
+  const launcher = `import { mainPolicy } from ${JSON.stringify(source)};\nimport { spawnSync } from 'node:child_process';\nconst files=process.argv.slice(2);\nif (!files.some(file=>file.includes('selected-'))) { const child=spawnSync(process.execPath,['--test','--test-reporter=tap',...files],{stdio:'inherit'}); process.exitCode=child.status??1; } else { try { mainPolicy(${JSON.stringify(missing)}); throw new Error('missing policy unexpectedly accepted'); } catch (error) { if (!error.code) throw error; console.log(JSON.stringify({version:1,error:{code:error.code,message:error.message,next:'restore the committed coordinator policy'}})); process.exitCode=1; } }\n`;
   writeFileSync(join(project.box.repo, 'web/policy-launcher.mjs'), launcher);
   const policy = join(project.box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(policy, 'utf8'));
