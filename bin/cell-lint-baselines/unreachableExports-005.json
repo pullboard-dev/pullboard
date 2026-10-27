@@ -2,6 +2,11 @@
   "version": 1,
   "metric": "unreachableExports",
   "allowances": {
+    "src/landing-lease.js#landingLeaseState": 1,
+    "src/landing-lease.js#renewLocalLanding": 1,
+    "src/landing-lease.js#requireConfirmedLanding": 1,
+    "src/landing-local-lease-engine.js#LANDING_LOCAL_LEASE_ENGINE": 1,
+    "src/landing-local-lease.js#forgetLocalLanding": 1,
     "src/landing-local-lease.js#LANDING_LOCAL_PREFIX": 1,
     "src/landing-local-lease.js#localLandingEntry": 1,
     "src/landing-local-lease.js#rememberLocalLanding": 1,
@@ -396,11 +401,6 @@
     "src/person-request.js#validatePersonRequest": 1,
     "src/person-row-proof.js#signedRowDecisionsMatch": 1,
     "src/person-row-proof.js#verifiedPasskeyRowDecision": 1,
-    "src/person-signing-cli.js#attestBeforeCommand": 1,
-    "src/person-signing-cli.js#personMovesSigned": 1,
-    "src/person-signing-cli.js#pinRelayAuthority": 1,
-    "src/person-signing-cli.js#refuseNamedSigners": 1,
-    "src/person-signing-cli.js#refuseUnsignedMove": 1,
-    "src/person-signing-cli.js#requireShownRows": 1
+    "src/person-signing-cli.js#attestBeforeCommand": 1
   }
 }

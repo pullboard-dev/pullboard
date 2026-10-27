@@ -2,6 +2,10 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/board-link-relay.js->src/board-link-envelope.js": 1,
+    "src/board-link-relay.js->src/board-link-format.js": 1,
+    "src/board-link-relay.js->src/board-link-state.js": 1,
+    "src/board-link-relay.js->src/board-link.js": 1,
     "src/board-link-relay.js->src/board-query.js": 1,
     "src/board-link-relay.js->src/board-reference.js": 1,
     "src/board-link-relay.js->src/refused.js": 1,
@@ -397,10 +401,6 @@
     "src/cli.js->src/relay.js": 1,
     "src/cli.js->src/resume.js": 1,
     "src/cli.js->src/row-decision-state.js": 1,
-    "src/cli.js->src/row-decisions.js": 1,
-    "src/cli.js->src/row-drafts.js": 1,
-    "src/cli.js->src/seat-checkout.js": 1,
-    "src/cli.js->src/sentinel-command.js": 1,
-    "src/cli.js->src/serve-sentinel.js": 1
+    "src/cli.js->src/row-decisions.js": 1
   }
 }

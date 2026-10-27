@@ -2,6 +2,10 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/cli.js->src/row-drafts.js": 1,
+    "src/cli.js->src/seat-checkout.js": 1,
+    "src/cli.js->src/sentinel-command.js": 1,
+    "src/cli.js->src/serve-sentinel.js": 1,
     "src/cli.js->src/serve.js": 1,
     "src/cli.js->src/settings.js": 1,
     "src/cli.js->src/setup-rows.js": 1,
@@ -123,7 +127,6 @@
     "src/commands/doctrine.js->src/gate-wait.js": 1,
     "src/commands/doctrine.js->src/gate.js": 1,
     "src/commands/doctrine.js->src/refused.js": 1,
-    "src/commands/done.js->src/cli.js": 1,
     "src/commands/done.js->src/commands/submit.js": 1,
     "src/commands/edit.js->src/bar-readiness.js": 1,
     "src/commands/edit.js->src/board.js": 1,
@@ -398,9 +401,6 @@
     "src/commands/resume.js->src/stats-flow.js": 1,
     "src/commands/resume.js->src/stats.js": 1,
     "src/commands/resume.js->src/trunk-conflict.js": 1,
-    "src/commands/resume.js->src/verdict-freshness.js": 1,
-    "src/commands/rigor.js->src/board.js": 1,
-    "src/commands/rigor.js->src/cli.js": 1,
-    "src/commands/rigor.js->src/config.js": 1
+    "src/commands/resume.js->src/verdict-freshness.js": 1
   }
 }

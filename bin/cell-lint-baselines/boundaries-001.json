@@ -27,7 +27,7 @@
     "bin/run-tests.js->src/browser-admission.js": 3,
     "bin/run-tests.js->src/chrome-clone-check.js": 1,
     "bin/run-tests.js->src/cpu-load-admission.js": 1,
-    "bin/run-tests.js->src/gate.js": 3,
+    "bin/run-tests.js->src/gate-slot.js": 1,
     "bin/run-tests.js->src/gui-admission.js": 1,
     "bin/run-tests.js->src/landing-collection-report.js": 1,
     "bin/run-tests.js->src/landing-failure-report.js": 1,
@@ -39,6 +39,7 @@
     "bin/run-tests.js->src/runners.js": 1,
     "bin/run-tests.js->src/settings.js": 2,
     "bin/run-tests.js->src/test-action-cache.js": 2,
+    "bin/run-tests.js->src/test-concurrency.js": 2,
     "bin/run-tests.js->src/test-file-dispatch.js": 4,
     "bin/run-tests.js->src/test-file-pool.js": 1,
     "bin/run-tests.js->src/test-isolation.js": 1,
@@ -73,6 +74,7 @@
     "docs/formats.test.js->test/board-submit-fixture.js": 1,
     "docs/formats.test.js->test/flake-observation-fixture.js": 1,
     "docs/formats.test.js->test/person-passkey-fixture.js": 1,
+    "docs/formats.test.js->test/rejected-work-format-fixture.js": 1,
     "docs/handoff.test.js->src/board.js": 1,
     "docs/handoff.test.js->test/e2e-helpers.js": 1,
     "docs/handoff.test.js->test/fixture-child.js": 1,
@@ -381,6 +383,8 @@
     "src/board-health.js->src/health-receipts.js": 1,
     "src/board-health.js->src/machine.js": 1,
     "src/board-health.js->src/refused.js": 1,
+    "src/board-health.js->src/rejected-work-return-engine.js": 1,
+    "src/board-health.js->src/rejected-work-return.js": 1,
     "src/board-hot.js->src/fact-identity.js": 1,
     "src/board-hot.js->src/relay-activation.js": 1,
     "src/board-inventory.js->src/board-reference.js": 1,
@@ -397,10 +401,6 @@
     "src/board-link-envelope.js->src/seal.js": 1,
     "src/board-link-format.js->src/board-reference.js": 1,
     "src/board-link-format.js->src/refused.js": 1,
-    "src/board-link-relay.js->src/board-event-log.js": 1,
-    "src/board-link-relay.js->src/board-link-envelope.js": 1,
-    "src/board-link-relay.js->src/board-link-format.js": 1,
-    "src/board-link-relay.js->src/board-link-state.js": 1,
-    "src/board-link-relay.js->src/board-link.js": 1
+    "src/board-link-relay.js->src/board-event-log.js": 1
   }
 }

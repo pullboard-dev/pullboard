@@ -382,9 +382,11 @@
     "src/gate-config.js": 1,
     "src/gate-control.js": 1,
     "src/gate-output.js": 1,
+    "src/gate-policy-load.js": 1,
     "src/gate-receipt.js": 1,
     "src/gate-run-engine.js": 1,
     "src/gate-run-receipt.js": 1,
+    "src/gate-slot.js": 1,
     "src/gate-stages.js": 1,
     "src/gate-wait.js": 1,
     "src/gate.js": 1,
@@ -399,8 +401,6 @@
     "src/gone-claims.js": 1,
     "src/guard-revert.js": 1,
     "src/gui-admission.js": 1,
-    "src/gui-session.js": 1,
-    "src/handoff-engine.js": 1,
-    "src/handoff-state.js": 1
+    "src/gui-session.js": 1
   }
 }

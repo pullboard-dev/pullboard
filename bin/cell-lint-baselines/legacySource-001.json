@@ -281,9 +281,11 @@
     "src/gate-config.js": 1,
     "src/gate-control.js": 1,
     "src/gate-output.js": 1,
+    "src/gate-policy-load.js": 1,
     "src/gate-receipt.js": 1,
     "src/gate-run-engine.js": 1,
     "src/gate-run-receipt.js": 1,
+    "src/gate-slot.js": 1,
     "src/gate-stages.js": 1,
     "src/gate-wait.js": 1,
     "src/gate.js": 1,
@@ -399,8 +401,6 @@
     "src/main-audit-nudge.js": 1,
     "src/main-audit-scheduler.js": 1,
     "src/main-audit-state.js": 1,
-    "src/main-audit-worker.js": 1,
-    "src/main-failure-matches.js": 1,
-    "src/main-red.js": 1
+    "src/main-audit-worker.js": 1
   }
 }

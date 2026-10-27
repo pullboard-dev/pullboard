@@ -2,6 +2,13 @@
   "version": 1,
   "metric": "unreachableExports",
   "allowances": {
+    "src/relay-status-fields.js#recoverySummary": 1,
+    "src/relay-status-fields.js#unlinkedRelayStatus": 1,
+    "src/relay-storage.js#relayStorage": 1,
+    "src/relay-storage.js#relayStorageLine": 1,
+    "src/relay-upload-pause.js#clearUploadPauseNotices": 1,
+    "src/relay-upload-pause.js#firstUploadPauseNotice": 1,
+    "src/relay-upload-pause.js#permanentUploadRefusal": 1,
     "src/relay-upload-pause.js#safePauseMessage": 1,
     "src/relay-upload-pause.js#uploadPauseType": 1,
     "src/relay-upload-pause.js#uploadRetryReady": 1,
@@ -158,7 +165,9 @@
     "src/rigor.js#rigorLines": 1,
     "src/rigor.js#rigorReport": 1,
     "src/rigor.js#testCause": 1,
+    "src/roadmap.js#landingPace": 1,
     "src/roadmap.js#localMilestoneAliases": 1,
+    "src/roadmap.js#milestoneForecast": 1,
     "src/roadmap.js#milestoneRoadmap": 1,
     "src/roadmap.js#qualifyingLandingTimes": 1,
     "src/roadmap.js#resolveMilestoneProjectReference": 1,
@@ -392,15 +401,6 @@
     "src/signature.js#verifySignedRecords": 1,
     "src/signature.js#verifySignerHistory": 1,
     "src/skills.js#installSkills": 1,
-    "src/skills.js#promptFor": 1,
-    "src/skills.js#ROLES": 1,
-    "src/skills.js#SHIPPED_SKILL_DIGESTS": 1,
-    "src/skills.js#skillProblems": 1,
-    "src/skills.js#updateSkills": 1,
-    "src/skills.js#withoutFrontMatter": 1,
-    "src/source-inventory.js#styleSources": 1,
-    "src/spec-approval-baseline.js#recordSpecApprovalBaseline": 1,
-    "src/spec-approval-baseline.js#specApprovalBaseline": 1,
-    "src/spec-approval-baseline.js#specApprovalBaselineExists": 1
+    "src/skills.js#promptFor": 1
   }
 }

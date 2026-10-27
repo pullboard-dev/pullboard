@@ -79,6 +79,7 @@
     "test/registry-merge.test.js": 1,
     "test/registry.test.js": 1,
     "test/rehome-machine-fixture.js": 1,
+    "test/rejected-work-format-fixture.js": 1,
     "test/relay-activation.test.js": 1,
     "test/relay-agent.test.js": 1,
     "test/relay-approval-delivery.test.js": 1,
@@ -233,6 +234,7 @@
     "test/ruling-owner.test.js": 1,
     "test/run-tests-fixture.js": 1,
     "test/run-tests-kill.test.js": 1,
+    "test/run-tests-lazy.test.js": 1,
     "test/run-tests-options.test.js": 1,
     "test/run-tests-reporter.test.js": 1,
     "test/run-tests-timeout.test.js": 1,
@@ -312,6 +314,7 @@
     "test/submit-preflight.test.js": 1,
     "test/submit-registry-guards.test.js": 1,
     "test/submit-size.test.js": 1,
+    "test/submit-wait.test.js": 1,
     "test/sweep.test.js": 1,
     "test/sync.test.js": 1,
     "test/team-engine.test.js": 1,
@@ -347,6 +350,7 @@
     "test/watch.test.js": 1,
     "test/webkit-fixture.js": 1,
     "test/why.test.js": 1,
+    "test/worker-inbox-scale-fixture.js": 1,
     "test/workflows.test.js": 1,
     "test/worktree-start.test.js": 1
   }

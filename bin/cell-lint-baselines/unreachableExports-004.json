@@ -15,6 +15,9 @@
     "src/gate-control.js#recordGateRun": 1,
     "src/gate-output.js#digestOf": 1,
     "src/gate-output.js#writeTimingProfile": 1,
+    "src/gate-policy-load.js#RunnerDropped": 1,
+    "src/gate-policy-load.js#runnerSource": 1,
+    "src/gate-policy-load.js#validateRunner": 1,
     "src/gate-receipt.js#gateWaitStats": 1,
     "src/gate-receipt.js#phasesOf": 1,
     "src/gate-receipt.js#receiptLine": 1,
@@ -35,6 +38,8 @@
     "src/gate-run-receipt.js#receiptBody": 1,
     "src/gate-run-receipt.js#receiptFields": 1,
     "src/gate-run-receipt.js#receiptStore": 1,
+    "src/gate-slot.js#settleReceipt": 1,
+    "src/gate-slot.js#withGateSlot": 1,
     "src/gate-stages.js#gateStages": 1,
     "src/gate-stages.js#readPipes": 1,
     "src/gate-stages.js#readStages": 1,
@@ -396,11 +401,6 @@
     "src/landing-lease.js#assertLandingLease": 1,
     "src/landing-lease.js#guardLandingWrite": 1,
     "src/landing-lease.js#LANDING_LEASE_MS": 1,
-    "src/landing-lease.js#landingLeaseMove": 1,
-    "src/landing-lease.js#landingLeaseState": 1,
-    "src/landing-lease.js#renewLocalLanding": 1,
-    "src/landing-lease.js#requireConfirmedLanding": 1,
-    "src/landing-local-lease-engine.js#LANDING_LOCAL_LEASE_ENGINE": 1,
-    "src/landing-local-lease.js#forgetLocalLanding": 1
+    "src/landing-lease.js#landingLeaseMove": 1
   }
 }

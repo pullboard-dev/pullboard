@@ -2,6 +2,11 @@
   "version": 1,
   "metric": "unreachableExports",
   "allowances": {
+    "src/person-signing-cli.js#personMovesSigned": 1,
+    "src/person-signing-cli.js#pinRelayAuthority": 1,
+    "src/person-signing-cli.js#refuseNamedSigners": 1,
+    "src/person-signing-cli.js#refuseUnsignedMove": 1,
+    "src/person-signing-cli.js#requireShownRows": 1,
     "src/person-signing-cli.js#requireSignedPerson": 1,
     "src/person-signing-cli.js#signingLine": 1,
     "src/person-signing-cli.js#signingSetting": 1,
@@ -161,6 +166,8 @@
     "src/refused.js#Refused": 1,
     "src/registry-guards.js#registryGuardsProblem": 1,
     "src/registry-guards.js#selectRegistryGuards": 1,
+    "src/rejected-work-return-engine.js#REJECTED_WORK_RETURN_ENGINE": 1,
+    "src/rejected-work-return.js#rejectedWorkReturns": 1,
     "src/relay-activation.js#ensureGrantActivationIndex": 1,
     "src/relay-activation.js#GRANT_ACTIVATION_INDEX": 1,
     "src/relay-activation.js#missingGrantActivationIndex": 1,
@@ -394,13 +401,6 @@
     "src/relay-snapshot-size.js#snapshotSize": 1,
     "src/relay-ssh-proof.js#signSshVouch": 1,
     "src/relay-ssh-proof.js#verifySshVouch": 1,
-    "src/relay-status-fields.js#recoveryRefusalMatches": 1,
-    "src/relay-status-fields.js#recoverySummary": 1,
-    "src/relay-status-fields.js#unlinkedRelayStatus": 1,
-    "src/relay-storage.js#relayStorage": 1,
-    "src/relay-storage.js#relayStorageLine": 1,
-    "src/relay-upload-pause.js#clearUploadPauseNotices": 1,
-    "src/relay-upload-pause.js#firstUploadPauseNotice": 1,
-    "src/relay-upload-pause.js#permanentUploadRefusal": 1
+    "src/relay-status-fields.js#recoveryRefusalMatches": 1
   }
 }

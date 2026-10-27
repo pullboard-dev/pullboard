@@ -2,6 +2,8 @@
   "version": 1,
   "metric": "legacySource",
   "allowances": {
+    "src/main-failure-matches.js": 1,
+    "src/main-red.js": 1,
     "src/manual-landing-failure-quoted.js": 1,
     "src/mcp.js": 1,
     "src/mechanical-merge-engine.js": 1,
@@ -182,6 +184,8 @@
     "src/reference-release.js": 1,
     "src/refused.js": 1,
     "src/registry-guards.js": 1,
+    "src/rejected-work-return-engine.js": 1,
+    "src/rejected-work-return.js": 1,
     "src/relay-activation.js": 1,
     "src/relay-approval.js": 1,
     "src/relay-approvers.js": 1,
@@ -376,6 +380,7 @@
     "src/submit-invariants.js": 1,
     "src/submit-preflight.js": 1,
     "src/submit-size.js": 1,
+    "src/submit-wait.js": 1,
     "src/submitted-conflict-engine.js": 1,
     "src/sweep.js": 1,
     "src/sync.js": 1,
@@ -385,6 +390,7 @@
     "src/test-action-key-memo.js": 1,
     "src/test-action-reporter.js": 1,
     "src/test-action-transfer.js": 1,
+    "src/test-concurrency.js": 1,
     "src/test-economics-engine.js": 1,
     "src/test-economics-index.js": 1,
     "src/test-economics.js": 1,
@@ -395,12 +401,6 @@
     "src/test-placement.js": 1,
     "src/test-result-store.js": 1,
     "src/test-run.js": 1,
-    "src/test-selection.js": 1,
-    "src/test-value-source.js": 1,
-    "src/test-value-timing.js": 1,
-    "src/test-value.js": 1,
-    "src/timed-shell-worker.js": 1,
-    "src/timing.js": 1,
-    "src/tour.js": 1
+    "src/test-selection.js": 1
   }
 }
