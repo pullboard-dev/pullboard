@@ -27,6 +27,11 @@ import {
   withMachineHomeWrite,
 } from './machine-home.js';
 import { Refused } from './refused.js';
+import {
+  initializeRunnerRecovery,
+  recordRunnerFailure,
+  recoverUnavailableRunners,
+} from './runner-recovery.js';
 import { gateQueueSettings } from './queue-settings.js';
 import {
   localWaitBranch,
@@ -134,6 +139,7 @@ function openQueue(file) {
       CREATE TABLE IF NOT EXISTS runner_gui (host TEXT PRIMARY KEY, gui INTEGER, observed_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS runner_draining (host TEXT PRIMARY KEY, runner TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS waiter_name_ticket ON waiter(name, ticket);`);
+    initializeRunnerRecovery(db);
     for (const table of ['holder', 'waiter']) {
       const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(({ name }) => name);
       if (table === 'waiter' && !columns.includes('runner_only')) db.exec('ALTER TABLE waiter ADD COLUMN runner_only INTEGER NOT NULL DEFAULT 0');
@@ -566,15 +572,16 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
   return null;
 }
 
-/** A transport drop expires after the retry window; cleanup failures and unreadable timestamps stay blocked. */
+/** Evidenced transport losses need a successful probe; only legacy rows retain their old expiry behavior. */
 function runnerUnavailable(entry, now) {
-  return Boolean(entry && (entry.detail !== 'TRANSPORT_LOST' || !(now - Date.parse(entry.since) >= RUNNER_RETRY_MS)));
+  return Boolean(entry && (entry.detail !== 'TRANSPORT_LOST' || entry.failure
+    || !(now - Date.parse(entry.since) >= RUNNER_RETRY_MS)));
 }
 
 /** Use the same current transport and draining exclusions for admission and local-memory status. */
 function unavailableRunnerHosts(db, now) {
   return new Set([
-    ...db.prepare('SELECT host, since, detail FROM runner_unavailable').all()
+    ...db.prepare('SELECT * FROM runner_unavailable').all()
       .filter(row => runnerUnavailable(row, now)).map(row => row.host),
     ...db.prepare('SELECT host FROM runner_draining').all().map(row => row.host),
   ]);
@@ -601,11 +608,15 @@ export function runnerResourceStatus(runners) {
         const holders = db.prepare('SELECT agent, repo, since, browser, item, kind, runner, timing FROM holder WHERE name = ? ORDER BY since, token')
           .all(runnerResourceName(runner.host));
         if (runner.draining && !holders.length) return [];
-        const recorded = db.prepare('SELECT since, detail FROM runner_unavailable WHERE host = ?').get(runner.host);
+        const recorded = db.prepare('SELECT * FROM runner_unavailable WHERE host = ?').get(runner.host);
         const unavailable = runnerUnavailable(recorded, Date.now()) ? recorded : null;
+        const transport = db.prepare('SELECT at,diagnostic FROM runner_transport_error WHERE host=?').get(runner.host);
+        let transportFailure;
+        try { if (transport) transportFailure = { at: transport.at, ...JSON.parse(transport.diagnostic) }; } catch { /* Malformed legacy diagnostics remain unreported, never guessed. */ }
         const observed = db.prepare('SELECT gui, observed_at FROM runner_gui WHERE host = ?').get(runner.host);
         return [{ ...runner, gui: runner.gui ?? null, ...(observed ? { gui: observed.gui === null ? null : observed.gui === 1, guiObservedAt: observed.observed_at } : {}), inUse: holders.length, browserInUse: holders.filter(holder => holder.browser === 1).length,
-          unavailable: Boolean(unavailable), ...(unavailable ? { unavailableSince: unavailable.since, unavailableReason: unavailable.detail } : {}), holders }];
+          unavailable: Boolean(unavailable), ...(unavailable ? { unavailableSince: unavailable.since, unavailableReason: unavailable.detail } : {}),
+          ...(transportFailure ? { transportFailure } : {}), holders }];
       });
     });
   } finally { db.close(); }
@@ -1044,7 +1055,7 @@ export async function takeResource(options) {
           }
         };
         /** Quarantine a failed remote host and retry this exact ticket on another executor, or only locally. */
-        const requeueRunner = async (reason = 'transport-lost', { local = false } = {}) => {
+        const requeueRunner = async (reason = 'transport-lost', { local = false, quarantine = true, diagnostic: transportDiagnostic } = {}) => {
           if (!acquired.runner) throw new Refused('LOCAL_RUNNER_REQUEUE', 'only a remote lease can be returned to the runner queue');
           if (released || transferred || lost) throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
           transferred = true;
@@ -1053,8 +1064,7 @@ export async function takeResource(options) {
           let requeueOpportunity = acquired.queueTicket;
           try {
             update(db, () => {
-              db.prepare('INSERT INTO runner_unavailable(host, since, detail) VALUES (?, ?, ?) ON CONFLICT(host) DO UPDATE SET since = excluded.since, detail = excluded.detail')
-                .run(acquired.runner.host, new Date().toISOString(), reason === 'cleanup-unverified' ? 'CLEANUP_UNVERIFIED' : 'TRANSPORT_LOST');
+              recordRunnerFailure(db, acquired.runner.host, reason, transportDiagnostic, { quarantine });
               const holderName = runnerResourceName(acquired.runner.host);
               const holder = db.prepare('SELECT token FROM holder WHERE token = ? AND name = ? AND runner = ?').get(token, holderName, acquired.runner.host);
               if (!holder) throw new Refused('RESOURCE_LEASE_LOST', `remote lease for "${name}" is no longer held`);
@@ -1092,6 +1102,7 @@ export async function takeResource(options) {
       }
       if (acquired.state.runnerDeadline) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '\n');
       await keepItemLease(acquired.state, 'waiter');
+      if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()))) continue;
       await pause(POLL_MS);
     }
   } catch (error) {
