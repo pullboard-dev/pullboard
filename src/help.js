@@ -169,7 +169,7 @@ Work
   pullboard bar <id>                    show missing prerequisites and the current revision
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
   pullboard release <id> [--note "why"]  hand it back; a review release needs a one-line reason
-  pullboard submit <id>                 needs a clean tree, item check and affected tests green at HEAD (alias: done)
+  pullboard submit <id> [--wait]        needs a clean tree, item check and affected tests green at HEAD (alias: done)
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show
   pullboard verify <id> accept --note "what you broke or which edge you tried, and what happened"
   pullboard verify <id> reject --reason TEST_FAILURE --note "what failed" [--cause <key>]
@@ -411,7 +411,7 @@ const HELP_ALIASES = {
   agents: { usage: 'pullboard agents', source: 'whoami' },
   lane: { usage: 'pullboard lane add <name> --owns <path>[,<path>]', source: 'lane add' },
   status: { usage: 'pullboard status [--all]', source: 'whoami' },
-  done: { usage: 'pullboard done <id>', source: 'submit <id>' },
+  done: { usage: 'pullboard done <id> [--wait]', source: 'submit <id>' },
   inbox: { usage: 'pullboard inbox', source: null, extraFlags: ['--acted-on <interrupt-ids>'] },
   'check accept': { usage: 'pullboard check accept <id>', source: 'check accept' },
   relay: { source: 'relay', every: true },

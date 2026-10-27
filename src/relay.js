@@ -1184,6 +1184,7 @@ export async function relayOperation(root, operation, args, io, command, applyLo
       }
       if (receipt.outcome.error) throw refusalFromReceipt(receipt.outcome.error);
       if (existsSync(file) && ['register', 'ensureCoordinator'].includes(operation)) await actorTransport(root, file, state, receipt.outcome.result, io);
+      io.onOrderedMove?.({ operation, events: receipt.outcome.events ?? [] });
       for (const event of receipt.outcome.events ?? []) io.onEvent?.(event);
       return receipt.outcome.result;
     } catch (error) {
