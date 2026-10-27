@@ -40,9 +40,15 @@ export function proveRulingOwnerCli(t) {
   const directPerson = box.run(box.web, 'shout', 'person', 'May the row change?', '--decision', '--effects', JSON.stringify(reviseEffects), '--json');
   assert.notEqual(directPerson.code, 0);
   assert.equal(JSON.parse(directPerson.out).error.code, 'B26_PERSON_DECISION', 'person advice preserves the coordinator escalation boundary');
-  const passed = document(box, box.repo, 'pass', String(revise.id), 'The governing row needs the person.');
+  document(box, box.web, 'claim', String(id));
+  const choices = ['Keep the row', 'Revise the row'];
+  const combined = ask(box, 'Which change should this item make?', reviseEffects, '--item', String(id), '--options', JSON.stringify(choices));
+  assert.equal(combined.ruling.owner, 'person');
+  const passed = document(box, box.repo, 'pass', String(combined.id), 'The governing row needs the person.');
   const personQueue = document(box, box.repo, 'decisions', '--as', 'person').decisions;
   assert.deepEqual(personQueue.find(row => row.shout_id === passed.id).effects, reviseEffects);
+  assert.deepEqual(personQueue.find(row => row.shout_id === passed.id).options, choices);
+  assert.equal(personQueue.find(row => row.shout_id === passed.id).item, id);
   assert.equal(personQueue.find(row => row.shout_id === passed.id).ruling.owner, 'person');
   // This is the private fixture's source, not the user's repository or an agent-supplied status field.
   writeFileSync(join(box.repo, 'SPEC.md'), '# Demo spec\n\n## G\n- G1 [draft, must] The page renders. | gate: web test\n- G2 [approved, must] The API answers. | gate: api test\n');
