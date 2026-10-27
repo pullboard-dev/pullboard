@@ -1,6 +1,6 @@
 /** Real private Git/SQLite fixtures; injected clocks are observations, never operational proof receipts. */
 import assert from 'node:assert/strict';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
@@ -32,8 +32,14 @@ function fixture(t) {
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, health: { sentinel: false } }));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-qm', 'chore: isolate private maintenance fixture');
-  let at = Date.parse('2026-10-27T12:00:00Z');
+  let at = Date.now();
   const clock = { now: () => new Date(at) };
+  /** Create a real private worktree with its HEAD reflog timestamp bound to the injected fixture clock. */
+  const worktree = (path, branch) => {
+    box.git(box.repo, 'worktree', 'add', '-q', path, '-b', branch);
+    const reflog = resolve(path, box.git(path, 'rev-parse', '--git-path', 'logs/HEAD').trim());
+    utimesSync(reflog, clock.now(), clock.now());
+  };
   const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(board));
   const builder = store.register(board, { lane: 'web', path: join(box.dir, 'builder') });
@@ -68,7 +74,7 @@ function fixture(t) {
 process.exitCode=await main(${JSON.stringify(args)}, {cwd:${JSON.stringify(box.repo)},clock:{now:()=>new Date(${JSON.stringify(clock.now().toISOString())})},stdout:process.stdout,stderr:process.stderr});`;
     return runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   };
-  return { box, board, builder, reviewer, clock, freeze, add, review, advance, snapshot, cli };
+  return { box, board, builder, reviewer, clock, freeze, add, review, advance, snapshot, cli, worktree };
 }
 
 test('timed holds warn one hour before expiry and retain exact half-limit bindings [B4,C7]', t => {
@@ -165,7 +171,7 @@ test('future or unavailable presence cannot authorize stale review expiry [B3,B4
 test('an idle review reservation returns to the queue [B4,V1,H16]', async t => {
   const f = fixture(t);
   const id = f.review();
-  f.box.git(f.box.repo, 'worktree', 'add', '-q', join(f.box.dir, 'reviewer'), '-b', 'private-idle-reviewer');
+  f.worktree(join(f.box.dir, 'reviewer'), 'private-idle-reviewer');
   f.advance(30 * MINUTE);
   const lastActivity = f.clock.now().getTime() - 30 * MINUTE;
   const before = store.events(f.board).length;
@@ -411,7 +417,7 @@ test('conditional hold replay retains the trigger and refuses a writer below its
 test('a silent claim on a blocker can be released by the coordinator after 15 minutes [B4,H16]', async t => {
   const f = fixture(t);
   const path = join(f.box.dir, 'builder');
-  f.box.git(f.box.repo, 'worktree', 'add', '-q', path, '-b', 'private-stale-builder');
+  f.worktree(path, 'private-stale-builder');
   const id = f.add('A release-blocking private claim');
   store.addMilestone(f.board, { agentId: 'coordinator', name: 'Private release', items: [id] });
   store.claim(f.board, id, { agentId: f.builder, lane: 'web', leaseMs: 120 * MINUTE, freeze: f.freeze });
@@ -443,7 +449,7 @@ test('actual private worktree activity prevents an otherwise stale blocker relea
   const { captureStaleState } = await import('../src/stale-state-capture.js');
   const f = fixture(t);
   const path = join(f.box.dir, 'builder');
-  f.box.git(f.box.repo, 'worktree', 'add', '-q', path, '-b', 'private-active-builder');
+  f.worktree(path, 'private-active-builder');
   const id = f.add('Active release blocker');
   store.addMilestone(f.board, { agentId: 'coordinator', name: 'Private active release', items: [id] });
   store.claim(f.board, id, { agentId: f.builder, lane: 'web', leaseMs: 120 * MINUTE, freeze: f.freeze });
