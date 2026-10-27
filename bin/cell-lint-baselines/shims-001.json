@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "metric": "shims",
+  "allowances": {
+    "src/train-mechanical-merge.js": 1
+  }
+}
