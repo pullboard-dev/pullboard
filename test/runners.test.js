@@ -663,7 +663,7 @@ test('a queued run executes on a registered runner and its result comes back [C7
   writeFileSync(join(repo, 'tracked.txt'), 'committed runner source\n');
   git(repo, env, 'add', 'pullboard.json', 'tracked.txt');
   git(repo, env, 'commit', '-q', '-m', 'test: prepare dropped-runner fixture');
-  installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachineHome, requests, dropFirst: true });
+  installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachineHome, requests, dropFirst: true, healthDown: true });
   const host = `${HOST}-drop`;
   const added = cli(repo, env, 'runner', 'add', host, '--slots', '1', '--browser', '1', '--json');
   assert.equal(added.status, 0, added.context);
@@ -680,7 +680,7 @@ test('a queued run executes on a registered runner and its result comes back [C7
       agent: 'fixture-local-holder', item: 'local-holder', kind: 'controlled-hold' });
     const olderCode = `require('node:fs').appendFileSync(${JSON.stringify(order)}, 'older-local\\n'); require('node:fs').writeFileSync(${JSON.stringify(olderStarted)}, 'started\\n');`;
     const firstCode = `const fs=require('node:fs'); const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-(async()=>{ fs.writeFileSync(${JSON.stringify(firstStarted)}, 'started\\n'); fs.appendFileSync(${JSON.stringify(order)}, 'retry-first\\n');
+(async()=>{ fs.appendFileSync(${JSON.stringify(order)}, 'retry-first\\n'); fs.writeFileSync(${JSON.stringify(firstStarted)}, 'started\\n');
 while(!fs.existsSync(${JSON.stringify(releaseFirst)})) await sleep(5); })().catch(error=>{console.error(error);process.exitCode=2});`;
     second = observe(startQueueController(repo, env, `node -e ${shellQuote(olderCode)}`,
       { item: 'older-local', queueMarker: olderQueued, firstItem: null, remote: false }));
@@ -702,8 +702,9 @@ while(!fs.existsSync(${JSON.stringify(releaseFirst)})) await sleep(5); })().catc
     assert.equal(secondResult.status, 0, `${secondResult.stdout}${secondResult.stderr}`);
     assert.equal(readFileSync(order, 'utf8'), 'retry-first\nolder-local\n');
     assert.ok(existsSync(olderStarted), 'the older local-only waiter runs after the returned remote ticket');
-    assert.equal(readFileSync(requests, 'utf8').trim().split('\n').length, 1,
-      'the quarantined host is not contacted again for the front-of-queue local retry');
+    const observedCalls = readFileSync(requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+    assert.ok(observedCalls.length >= 2, 'the failed dispatch has a confirming health observation');
+    assert.ok(observedCalls.slice(1).every(call => call.healthProbeFailed), 'only health observations contact the quarantined host; no duplicate test execution');
     const retried = gateResult(firstResult.stdout);
     assert.equal(retried.isGreen, true, `${firstResult.stdout}${firstResult.stderr}`);
     assert.notEqual(retried.runner, host, 'the retried command completes after the failed runner is quarantined');
@@ -800,7 +801,7 @@ writeFileSync(ready, 'setup started\\n');
   git(repo, env, 'add', '.gitignore', 'pullboard.json', 'package.json', 'package-lock.json', 'packages/setup-fixture-dep');
   git(repo, env, 'commit', '-q', '-m', 'test: prepare disconnect during runner setup');
 
-  installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachineHome, requests, dropAfterMarker: setupReady });
+  installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachineHome, requests, healthDown: true, dropAfterMarker: setupReady });
   const host = `${HOST}-setup`;
   const added = cli(repo, env, 'runner', 'add', host, '--slots', '1', '--browser', '1', '--json');
   assert.equal(added.status, 0, added.context);
@@ -839,7 +840,9 @@ writeFileSync(ready, 'setup started\\n');
     assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
     assert.match(result.stdout, /SETUP_RETRY_LOCAL/u, 'the transport drop requeues the run onto the local slot');
     assert.equal(gateResult(result.stdout).isGreen, true);
-    assert.equal(readFileSync(requests, 'utf8').trim().split('\n').length, 1);
+    const observedCalls = readFileSync(requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+    assert.ok(observedCalls.length >= 2);
+    assert.ok(observedCalls.slice(1).every(call => call.healthProbeFailed), 'health observations never stand in for setup custody');
     const request = JSON.parse(readFileSync(requests, 'utf8').trim().split('\n')[0]);
     assert.equal(request.droppedAfterSetup, true, 'the stand-in drops the connection after npm setup actually starts');
     assert.equal(request.workerStarted, true);

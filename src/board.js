@@ -27,6 +27,10 @@ import {
 export { laneLeads };
 
 import { companionPlan } from './companion.js';
+import { itemPatchReviewProblem } from './item-patches.js';
+import { applyItemPatchAttachment } from './item-patches.js';
+import { applyItemPatchRemoval } from './item-patches.js';
+export { itemPatches, itemPatchDigest } from './item-patches.js';
 import { applyCompanionRequest } from './companion.js';
 export { readBoardMembers, setBoardMembers } from './board-members.js';
 import { heartbeatSeat } from './seat-presence.js';
@@ -916,6 +920,30 @@ function moveItem(board, id, verb, { checks, set = () => ({}), before = () => {}
   return item;
 }
 
+/** Return changed companion inputs to submitted through the same declared lifecycle as every status update. */
+function invalidateItemPatch(board, id, agentId) {
+  moveItem(board, id, 'patch', {
+    checks: {
+      joined: null,
+      [IN_STATE]: found => new Refused('ITEM_PATCH_STATE', `item #${id} is ${found.item_status}; attach only to submitted, unmerged work`),
+      coordinatorOnly: () => onlyCoordinator(agentId, 'changes companion inputs'),
+      notMerged: found => found.item_merged_commit ? new Refused('ALREADY_MERGED', 'file a follow-up for landed work') : null,
+    },
+    set: found => ({ item_built_by: found.item_built_by, item_frozen_digest: found.item_frozen_digest,
+      item_verdict: null, item_verified_by: null, item_review_by: null, item_review_until: null }),
+  });
+}
+
+/** Attach native bytes atomically, with lifecycle mutation confined to moveItem. */
+export function attachItemPatch(board, id, options) {
+  return applyItemPatchAttachment(board, id, options, { invalidate: changed => invalidateItemPatch(board, changed, options.agentId) });
+}
+
+/** Stop applying native bytes without discarding their historical author exclusions. */
+export function removeItemPatch(board, id, options) {
+  return applyItemPatchRemoval(board, id, options, { invalidate: changed => invalidateItemPatch(board, changed, options.agentId) });
+}
+
 /**
  * The refusal when the caller is not the coordinator, or null when it is.
  *
@@ -1349,7 +1377,7 @@ function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'of
  * @param {{ agentId: string, decision: string, reason?: string, note?: string, cause?: string, head: string, digest: string, policy: string, familyPolicy?: string, check?: 'none' | 'green', review?: {commit: string, head?: string, trunk: string, paths: string[]}, implies?: number[], impliesId?: string }} verdict - implies: items this verdict changes (B29)
  * @returns {{ decision: string, reason: string, check?: 'none' | 'green' }}
  */
-export function verify(board, id, { agentId, decision, reason, note = '', cause, head, digest, policy, familyPolicy = 'off', check, review, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox }) {
+export function verify(board, id, { agentId, decision, reason, note = '', cause, head, digest, policy, familyPolicy = 'off', check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox }) {
   const verb = { ACCEPT: 'accept', REJECT: 'reject' }[decision];
   if (!verb) throw new Refused('BAD_DECISION', 'the decision is accept or reject');
   const isAccept = verb === 'accept';
@@ -1376,7 +1404,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
         ...reviewerChecks(board, { agentId, policy, familyPolicy }),
         criterionUnchanged: (found) =>
           digest === found.item_frozen_digest
-            ? null
+            ? isAccept ? itemPatchReviewProblem(board, found, companionDigest) : null
             : new Refused('CRITERIA_CHANGED', `the criterion for #${id} changed after it was claimed; the coordinator runs: pullboard refreeze ${id}`),
         reasonIsMet: () => (reason && reason !== ACCEPT_REASON ? new Refused('BAD_REASON', `accept means ${ACCEPT_REASON}; a failed criterion is a reject`) : null),
         trunkMergeClean: null,
@@ -1399,7 +1427,8 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
     const reservation = !isAccept && engine >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalDetail(board, item, reopenFirstRefusalMinutes, returnedAt) : {};
     const derivedCause = !isAccept && engine >= RIGOR_AUTO_ENGINE
       ? deriveRigorCause(board, item, { cause, reason: code, agentId }) : !isAccept && cause != null ? { cause } : {};
-    const detail = { ...reservation, reason: code, commit: item.item_commit, ...derivedCause };
+    const detail = { ...reservation, reason: code, commit: item.item_commit, ...derivedCause,
+      ...(companionDigest ? { companionDigest } : {}) };
     if (isAccept && engine >= SPEC_APPROVAL_ENGINE) detail.note = note.trim();
     if (isAccept && check !== undefined) detail.check = check;
     if (environment !== undefined) detail.environment = environment;

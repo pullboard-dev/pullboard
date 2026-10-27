@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { fixtureBoard } from './board-fixture.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { TYPED_REQUESTS_ENGINE } from '../src/typed-requests-engine.js';
@@ -17,14 +18,14 @@ import { requestedCommandMove } from '../src/recorded-move.js';
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-/** Private real SQLite boards use only native operations; no rows or proof receipts are fabricated. */
+/** Logic-only replicas use the shared SQLite memory contract; no rows or proof receipts are fabricated. */
 function fixture(t) {
   const directory=mkdtempSync(join(tmpdir(),'pullboard typed requests '));
-  const board=store.openBoard(join(directory,'board.sqlite'));
+  const board=fixtureBoard(t);
   store.register(board,{lane:'coordinator',path:join(directory,'main'),createdBy:'coordinator'});
   const agent=store.register(board,{lane:'web',path:join(directory,'web'),createdBy:'coordinator'});
   const item=store.addItem(board,{by:'coordinator',lane:'web',title:'Concrete requested work',criterion:'The route can build the named change',check:'node --test test/routed.test.js',brief:'Files:\n- web/a.js\nChange: update the named function\nTest: test/routed.test.js checks its behavior'});
-  t.after(()=>{store.closeBoard(board);rmSync(directory,{recursive:true,force:true});});
+  t.after(()=>{rmSync(directory,{recursive:true,force:true});});
   return {board,agent,item,directory};
 }
 
@@ -35,6 +36,7 @@ function history(board){return store.events(board);}
 function cli(box,cwd,...args){const r=box.run(cwd,...args,'--json');assert.equal(r.code,0,r.err+r.out);const d=JSON.parse(r.out);assert.equal(d.version,1);return d;}
 
 /** Read genuine native operation events produced by the original coordinator commands. */
+// @pullboard-board-file journey: read the durable native events written by the preceding separate coordinator CLI commands.
 function eventFor(box,item,kind){const board=store.openBoard(join(box.repo,'.git/pullboard/board.sqlite'));try{return history(board).findLast(row=>row.item_id===item&&row.event_kind===kind).event_id;}finally{store.closeBoard(board);}}
 
 test('actual CLI files, lists, delivers and batch-answers typed coordinator requests [B3,N26]',()=>{
@@ -113,8 +115,8 @@ test('reopen and reroute completion bind actual coordinator lifecycle and exact 
 });
 
 test('authenticated replicas preserve typed requests, exact retries and an enforced new engine floor [B3,N26,H16]',t=>{
-  const {board,agent,item,directory}=fixture(t),replica=store.openBoard(join(directory,'replica.sqlite'));
-  t.after(()=>store.closeBoard(replica));importBoard(replica,exportBoard(board));
+  const {board,agent,item}=fixture(t),replica=fixtureBoard(t);
+  importBoard(replica,exportBoard(board));
   const move=prepareEngineMove(board,'fileTypedRequest',[{agentId:agent,verb:'hold',itemId:item,cause:'routing-assignment'}]);
   const options={sequence:1,at:'2026-10-27T08:00:00Z',kind:'move',sender:{kind:'agent',agent,userId:'typed-fixture'}};
   assert.throws(()=>applyRelayMove(replica,{...move,engine:TYPED_REQUESTS_ENGINE-1},options));

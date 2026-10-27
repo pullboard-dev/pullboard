@@ -19,10 +19,11 @@ export function runnerSource(root) {
 
 /** A missing authenticated completion receipt is a transport loss, never a passing test result. */
 export class RunnerDropped extends Error {
-  constructor(host) {
+  constructor(host, diagnostic = { reason: 'completion unavailable' }) {
     super(`runner ${host} disconnected before a complete result; the run returns to the queue`);
     this.name = 'RunnerDropped';
     this.host = host;
+    this.diagnostic = diagnostic;
   }
 }
 
