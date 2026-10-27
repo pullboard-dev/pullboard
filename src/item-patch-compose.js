@@ -117,7 +117,7 @@ export function composeItemPatches(root, item, patches, { trunk, baseCommit = it
     const identity = { ...isolated, GIT_AUTHOR_NAME: 'Pullboard patch composer', GIT_AUTHOR_EMAIL: 'patch@pullboard.invalid',
       GIT_COMMITTER_NAME: 'Pullboard patch composer', GIT_COMMITTER_EMAIL: 'patch@pullboard.invalid',
       GIT_AUTHOR_DATE: '2000-01-01T00:00:00+00:00', GIT_COMMITTER_DATE: '2000-01-01T00:00:00+00:00' };
-    const commit = git(root, identity, ['commit-tree', tree, '-p', baseCommit], `Compose item patches\n\nSource: ${base}\nBase: ${baseCommit}\nPatch-set: ${digest}\n`).trim();
+    const commit = git(root, identity, ['commit-tree', tree, '-p', baseCommit], `Compose item patches\n\nSource: ${base}\nBase: ${baseCommit}\nPatch-set: ${digest}\n\nSigned-off-by: ${identity.GIT_AUTHOR_NAME} <${identity.GIT_AUTHOR_EMAIL}>\n`).trim();
     return Object.freeze({ commit, paths: Object.freeze(paths.sort()), applied: Object.freeze(applied), digest });
   } finally { rmSync(directory, { recursive: true, force: true }); }
 }

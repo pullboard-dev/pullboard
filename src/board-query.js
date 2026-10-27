@@ -16,8 +16,8 @@ import {
   itemShoutReader,
   shoutItemId,
   UNREAD_SHOUT_SQL,
-  unreadShoutBindings,
 } from './shout-audience.js';
+import { workerInboxQuery } from './worker-inbox.js';
 /** Canonical board queries shared by reads and the synchronous write store [C7]. */
 import { verdictWithdrawals } from './verdict-withdrawal.js';
 import { reopenCauseCorrection } from './reopen-cause.js';
@@ -239,9 +239,8 @@ export function openDecisions(board, recipient = null) {
 export function unreadCount(board, agentId) {
   const agent = board.db.prepare('SELECT * FROM agent WHERE agent_id = ?').get(agentId);
   if (!agent) return 0;
-  const { total } = board.db
-    .prepare(`SELECT COUNT(*) AS total ${UNREAD_SQL}`)
-    .get(...unreadShoutBindings(agent.agent_last_shout_id, agentId, agent.agent_lane));
+  const query = workerInboxQuery(board, agent, 'COUNT(*) AS total');
+  const { total } = board.db.prepare(query.sql).get(...query.bindings);
   return total;
 }
 
@@ -532,8 +531,9 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
     AND event_kind IN ('main-moved','row_decision','row_apply','row_draft','shout','shout_news','pass','answer','typed-request','typed-request-answer') ORDER BY event_id`).all(after, cursor)) rows.set(event.event_id, event);
   if (sessionStart) for (const event of board.db.prepare(`SELECT * FROM event WHERE event_id>? AND event_id<=? AND event_kind='shout_news'
     ORDER BY event_id`).all(newsAfter, cursor)) rows.set(event.event_id, event);
-  const messages = board.db.prepare(`SELECT * ${UNREAD_SQL} AND shout_id<=? ORDER BY shout_id`)
-    .all(...unreadShoutBindings(agent.agent_last_shout_id, agentId, agent.agent_lane), shoutCursor);
+  const query = workerInboxQuery(board, agent);
+  const messages = board.db.prepare(`${query.sql} AND shout_id<=? ORDER BY shout_id`)
+    .all(...query.bindings, shoutCursor);
   // News delivery uses its own cursor so ordinary inbox reads cannot consume a future session's digest.
   const possibleNewsIds = [...rows.values()].filter(event => event.event_kind === 'shout_news')
     .map(event => activityEventDetail(event)?.shout).filter(id => Number.isSafeInteger(id) && id > 0);

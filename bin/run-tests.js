@@ -1282,7 +1282,7 @@ async function main(args) {
   let concurrency;
   try {
     testTimeoutMs();
-    const { testConcurrency } = await import('../src/gate.js');
+    const { testConcurrency } = await import('../src/test-concurrency.js');
     const { browserByLaunchEnabled } = await import('../src/settings.js');
     concurrency = { ...testConcurrency(process.cwd()), byLaunch: browserByLaunchEnabled() };
   } catch (error) {
@@ -1357,9 +1357,9 @@ async function main(args) {
     // Shard payloads carry files only; filtered discovery keeps the existing admitted run and its name filter.
     const filteredByName = testSelectionPatterns(actions.args, optionTakesValue).length > 0;
     if ((fullSuite || process.env.PULLBOARD_AUDIT_COVERAGE_REPORTER) && process.env[LANDING_RUN_ENV] === '1' && !shardLabel && !filteredByName) {
-      const { landingShardCount } = await import('../src/gate.js');
-      const count = process.env.PULLBOARD_RELEASE_EXECUTORS ? 8 : landingShardCount(process.cwd());
-      if (count > 1) {
+      const { landingShardCount } = await import('../src/test-concurrency.js');
+      const count = landingShardCount(process.cwd());
+      if (count > 1 || process.env.PULLBOARD_RELEASE_EXECUTORS) {
         const files = actions.files ?? (fullSuite
           ? (isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : [])
           : explicitTestFiles(args));
@@ -1385,7 +1385,7 @@ async function main(args) {
     async function acquire() {
       // Direct runs use the public queue, requesting gate and browser capacity atomically when needed.
       const [{ withGateSlot }, { loadMachineSettings }] = await Promise.all([
-        import('../src/gate.js'), import('../src/settings.js'),
+        import('../src/gate-slot.js'), import('../src/settings.js'),
       ]);
       const capacity = loadMachineSettings().gateSlots;
       let announced = false;

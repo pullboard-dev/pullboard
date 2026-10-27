@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 import './main-audit-cases.js';
 import './main-audit-receipt.test.js';
 /** The landing gate splits its test files into shards across local slots and runners [C7,V4]. */

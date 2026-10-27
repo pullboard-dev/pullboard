@@ -1,6 +1,10 @@
-import { validateRunner } from './runner-registration.js';
+import {
+  validateRunner,
+  runnerSource,
+  RunnerDropped,
+} from './gate-policy-load.js';
+export { validateRunner, runnerSource, RunnerDropped };
 import { validRunnerTrunk } from './runner-policy.js';
-export { validateRunner };
 /** Exact committed source and bounded, credential-free SSH execution for machine runners [C7]. */
 export { placeRunner, runnerStage } from './runner-stage.js';
 import { importTestResults } from './test-result-store.js';
@@ -95,24 +99,6 @@ function loadedTooling() {
   } catch { return null; }
 }
 
-
-/** Dirty or non-repository commands cannot claim to execute an exact committed source remotely. */
-export function runnerSource(root) {
-  try {
-    if (!isClean(root) || untracked(root).length) return null;
-    return { commit: headCommit(root), tree: headTree(root) };
-  } catch { return null; }
-}
-
-/** A missing authenticated completion receipt is a transport loss, never a passing test result. */
-export class RunnerDropped extends Error {
-  constructor(host, diagnostic = { reason: 'completion unavailable' }) {
-    super(`runner ${host} disconnected before a complete result; the run returns to the queue`);
-    this.name = 'RunnerDropped';
-    this.host = host;
-    this.diagnostic = diagnostic;
-  }
-}
 
 /** Bound diagnostic text, exclude protocol payloads, and suppress any possible credential instead of echoing it. */
 function transportText(value) {
