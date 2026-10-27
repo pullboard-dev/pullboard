@@ -137,7 +137,7 @@ export function qualifyingLandingTimes(history, items) {
 }
 
 /** Count distinct currently landed local items at their first recording of the current merge. */
-function landingPace(board, items, now) {
+export function landingPace(board, items, now) {
   const times = qualifyingLandingTimes(eventsOfKinds(board, ['merged']), items).filter(at => at <= now);
   return { last6h: times.filter(at => at > now - 6 * 3_600_000).length,
     last2h: times.filter(at => at > now - 2 * 3_600_000).length,
@@ -160,7 +160,7 @@ function personDecisionItems(board) {
 
 
 /** Choose the measured window for remaining work; sparse recent history may use a full day [N26]. */
-function milestoneForecast(left, pace, shipped) {
+export function milestoneForecast(left, pace, shipped) {
   if (shipped) return { estimate: null, window: null, reason: null };
   if (pace.last6h >= 3) {
     const six = left / (pace.last6h / 6);
