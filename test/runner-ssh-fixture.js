@@ -17,7 +17,7 @@ export function shellQuote(value) {
  * `stderrLog` also copies the worker's stderr, so a test can read its result receipt, and `nodeOptions` reaches the
  * worker's own Node process, so a test can force an ordering inside it.
  */
-export function installSshStandIn({ bin, worker, home, machineHome, requests, starts, nodeCommand = 'node', dropFirst = false, healthDown = false, dropAfterMarker, hold = '', stderrLog, nodeOptions = '' }) {
+export function installSshStandIn({ bin, worker, home, machineHome, requests, starts, nodeCommand = 'node', dropFirst = false, healthDown = false, dropAfterMarker, hold = '', stderrLog, nodeOptions = '', invalidSpec = false }) {
   const ssh = join(bin, 'ssh');
   const source = `#!/usr/bin/env node
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -94,7 +94,8 @@ ${dropFirst ? `if (host.endsWith('-drop') && call === 1) {
     stdio: ['pipe', 'pipe', 'pipe'] });
   child.stdout.pipe(process.stdout);
   child.stderr.pipe(process.stderr);
-${stderrLog ? `  child.stderr.on('data', part => appendFileSync(${JSON.stringify(stderrLog)}, part));\n` : ''}  process.stdin.pipe(child.stdin);
+${stderrLog ? `  child.stderr.on('data', part => appendFileSync(${JSON.stringify(stderrLog)}, part));\n` : ''}${invalidSpec ? `  child.stdin.write('2\\n{}'); // Keep this owned pipe open: a refused worker must close it itself.
+  process.stdin.resume();` : '  process.stdin.pipe(child.stdin);'}
   let droppedAfterSetup = false;
   if (dropAfterMarker) {
     const waiting = waitForMarker(dropAfterMarker);
@@ -107,6 +108,7 @@ ${stderrLog ? `  child.stderr.on('data', part => appendFileSync(${JSON.stringify
   }
   child.once('error', error => { record({ spawnError: error.code ?? error.name, stdinBytes }); process.exitCode = 255; });
   child.once('close', (code, signal) => {
+${invalidSpec ? '    process.stdin.destroy(); child.stdin.destroy();' : ''}
     appendFileSync(phases, 'returned\\n');
     if (hold === 'return') setInterval(() => {}, 60_000);
     cancelDropWait();
