@@ -51,7 +51,8 @@ async function compose(root, inputHead, trunk, work) {
   const outer = mkdtempSync(join(tmpdir(), 'pullboard-source-advance-'));
   const directory = join(outer, 'source');
   let added = false;
-  let controllerEntered = false;
+  let controllerStarted = false;
+  let controllerTerminal = false;
   try {
     git(root, ['worktree', 'add', '--detach', directory, inputHead]); added = true;
     let conflicts = [];
@@ -81,11 +82,19 @@ async function compose(root, inputHead, trunk, work) {
     const changed = [...new Set([...paths, ...git(directory, ['diff', '--no-renames', '--name-only', '-z', inputHead, head]).split('\0').filter(Boolean)])].sort();
     const composition = Object.freeze({ directory, inputHead, trunk, head, tree, mergeTree, paths: Object.freeze(paths), changed: Object.freeze(changed), generated: Object.freeze(conflicts) });
     PREPARED.add(composition);
-    controllerEntered = true;
-    return await work(composition);
+    return await work(composition, Object.freeze({
+      /** Mark unknown custody immediately before the actual gate can start an admitted child. */
+      started() { controllerStarted = true; },
+      /** Only the trusted caller may confirm its actual admitted controller returned without unknown custody. */
+      terminal() { controllerTerminal = true; },
+    }));
   } finally {
     // A source conflict has no child/controller custody; clear only this private tracked merge before normal removal.
-    if (added && !controllerEntered) git(directory, ['reset', '--hard', inputHead]);
+    if (added && (!controllerStarted || controllerTerminal)) {
+      git(directory, ['reset', '--hard', inputHead]);
+      git(directory, ['clean', '-fdx']);
+    }
+    if (added && controllerStarted && !controllerTerminal) throw new Error(`source-advance controller custody is unknown; retain owned source ${directory}`);
     if (added) git(root, ['worktree', 'remove', directory]);
     rmSync(outer, { recursive: true, force: true });
   }

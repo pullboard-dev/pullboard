@@ -53,10 +53,13 @@ export async function seedSourceAdvance({ board, box, store, exercise, agent, cl
   submitFixture(board, id, { agentId: agent, commit: candidate, tree: candidateTree });
   const item = store.getItem(board, id);
   const basis = captureSourceAdvanceBasis(root, board, item);
-  await withSourceComposition(root, candidate, trunk, async composition => {
+  await withSourceComposition(root, candidate, trunk, async (composition, custody) => {
+    custody.started();
     const gate = await runSubmitGate(composition.directory, mainPolicy(root).config, { base: candidate,
       changed: composition.changed, check, agent: 'coordinator', item: String(id), sourceAdvance: true,
       proofContext: { item: id, frozenDigest: digest, seat: 'coordinator', kind: 'submit' } });
+    assert.equal(gate.cleanupUnverified, undefined, 'the admitted child returned without unknown custody');
+    custody.terminal();
     assert.equal(gate.isGreen, true, gate.output);
     const request = prepareSourceAdvance(root, board, item, composition, gate, basis);
     const advanced = await exercise('advanceItemSource', () => store.advanceItemSource(board, id, request));

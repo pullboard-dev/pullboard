@@ -20,7 +20,7 @@ import { exportBoard } from '../src/exchange.js';
 const SOURCE = new URL('../', import.meta.url);
 
 /** Copy actual installed code, create a real tracked project and seed one explicitly synthetic prior acceptance. */
-export async function mainMovedFixture(t, { conflict = false, generated = false, red = false, submitted = false } = {}) {
+export async function mainMovedFixture(t, { conflict = false, generated = false, red = false, submitted = false, dirty = false } = {}) {
   const scratch = mkdtempSync(join(tmpdir(),'pullboard-main-moved-'));
   const installed = join(scratch,'installed'), repo = join(scratch,'repo'), machine = join(scratch,'machine');
   for (const folder of [installed,repo,machine]) mkdirSync(folder);
@@ -46,7 +46,7 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
     spec:'SPEC.md',verify:'any',lanes:{web:{owns:['web/'],specs:[]},review:{owns:['test/'],specs:[]}},shared:['docs/','src/','bin/','package.json','pullboard.json']}));
   writeFileSync(join(repo,'web/feature.js'),"export const feature = 'base';\n");
   writeFileSync(join(repo,'web/other.js'),"export const other = 'base';\n");
-  writeFileSync(join(repo,'test/check.test.js'),`import {test} from 'node:test';import assert from 'node:assert/strict';import {appendFileSync} from 'node:fs';import {feature} from '../web/feature.js';import {other} from '../web/other.js';test('actual exact composed behavior',()=>{appendFileSync(${JSON.stringify(marker)},'ran\\n');assert.equal(feature,'accepted');assert.equal(other,'base');});\n`);
+  writeFileSync(join(repo,'test/check.test.js'),`import {test} from 'node:test';import assert from 'node:assert/strict';import {appendFileSync,writeFileSync} from 'node:fs';import {feature} from '../web/feature.js';import {other} from '../web/other.js';test('actual exact composed behavior',()=>{appendFileSync(${JSON.stringify(marker)},'ran\\n');assert.equal(feature,'accepted');assert.equal(other,'base');${dirty?"writeFileSync('web/other.js',\"export const other = 'dirty';\\n\");writeFileSync('untracked-after-check.txt','actual child output');":''}});\n`);
   writeFileSync(join(repo,'docs/lifecycle.md'),'base declaration artifact\n');
   git(repo,'init','-q','-b','main');git(repo,'add','-A');git(repo,'commit','-q','-m','chore: actual main-movement base');
   const base = git(repo,'rev-parse','HEAD'), candidate = join(scratch,'candidate');

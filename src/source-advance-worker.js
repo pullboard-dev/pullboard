@@ -96,7 +96,7 @@ async function incomplete(write, file, job, reason) {
 }
 
 /** Retain the actual raw phase logs and profiles before removing their private Git directory. */
-function retainArtifacts(directory, job, gate) {
+function retainArtifacts(directory, job, gate, composition) {
   const folder = join(directory, job.key); mkdirSync(folder, { recursive: true, mode: 0o700 });
   const paths = [...new Set([gate.log,gate.profilePath,gate.check?.log,gate.check?.profilePath,gate.proofLog,gate.proofProfilePath].filter(value => typeof value === 'string' && value))];
   const artifacts = paths.map((source,index) => {
@@ -104,7 +104,7 @@ function retainArtifacts(directory, job, gate) {
     copyFileSync(source,file);
     return { source, file, sha256:createHash('sha256').update(readFileSync(file)).digest('hex') };
   });
-  saveMainAudit(join(folder,'manifest.json'), { version:1, head:job.basis.inputHead, trunk:job.basis.trunk, artifacts });
+  saveMainAudit(join(folder,'manifest.json'), { version:1, head:composition.head, tree:composition.tree, trunk:job.basis.trunk, artifacts });
   return artifacts;
 }
 
@@ -117,16 +117,18 @@ async function advance(root, directory, job, write) {
   if (job.error) { await incomplete(write, file, job, job.error); return; }
   let entered = false;
   try {
-    await withSourceComposition(root, job.basis.inputHead, job.basis.trunk, async composition => {
+    await withSourceComposition(root, job.basis.inputHead, job.basis.trunk, async (composition, custody) => {
       entered = true;
       saveMainAudit(file, { ...readMainAudit(file), state: 'running', directory: composition.directory, head: composition.head, tree: composition.tree });
       const policy = mainPolicy(root);
       if (policy.commit !== job.basis.trunk) throw new Error('main changed before source-advance admission');
       const config = policy.config;
+      custody.started();
       const gate = await runSubmitGate(composition.directory, config, { base: composition.inputHead, changed: composition.changed,
         check: frozenCheck(job.item), agent: 'coordinator', item: String(job.item.item_id), sourceAdvance: true,
         proofContext: { item: job.item.item_id, frozenDigest: job.basis.bar, seat: 'coordinator', kind: 'submit' } });
-      const artifacts = retainArtifacts(directory, job, gate);
+      if (!gate.cleanupUnverified && !(gate.profile?.landingShards?.unverified?.length > 0)) custody.terminal();
+      const artifacts = retainArtifacts(directory, job, gate, composition);
       const result = await write(async (board, order) => {
         const request = gate.isGreen ? prepareSourceAdvance(root, board, job.item, composition, gate, job.basis)
           : prepareSourceAdvanceReturn(root, board, job.item, job.basis, { composition, gate });

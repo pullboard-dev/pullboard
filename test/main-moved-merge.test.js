@@ -1,6 +1,8 @@
 /** @pullboard-test-input source-tree */
 /** Actual automatic main movement retains assurance only after real nondeferred checks [C7,V4,H16]. */
 import assert from 'node:assert/strict';
+import { readdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
@@ -125,4 +127,18 @@ test('source-advance replay binds native episode, exact receipts and old-engine 
     assert.throws(()=>engine.prepareEngineMove(board,'advanceItemSource',[box.id,{agentId:'coordinator',proof}]),error=>error.code==='SOURCE_ADVANCE_STALE');
     assert.equal(box.store.getItem(board,box.id).item_effective_head,undefined,'even genuine copied receipt bytes cannot replace origin custody');
   });
+});
+
+/** Dirty candidate output is observed before cleanup and cannot masquerade as source-clean evidence. */
+test('an admitted dirty child retains raw evidence without endorsement and removes its owned checkout [C7,V4,H16]',{timeout:180000},async t=>{
+  const box=await mainMovedFixture(t,{dirty:true});box.trigger();const terminal=await box.settled();const now=state(box);
+  assert.equal(terminal.item.item_status,'verified',JSON.stringify(terminal.rows));
+  assert.equal(now.item.item_effective_head,undefined);assert.deepEqual(now.verdicts,box.original.verdicts);
+  assert.equal(now.events.filter(row=>row.event_kind==='source_advanced').length,0);
+  const job=terminal.rows.find(row=>row.state==='incomplete');assert.ok(job,JSON.stringify(terminal.rows));
+  const manifests=readdirSync(box.directory,{withFileTypes:true}).filter(entry=>entry.isDirectory()).map(entry=>JSON.parse(readFileSync(join(box.directory,entry.name,'manifest.json'),'utf8')));
+  assert.equal(manifests.length,1);assert.ok(manifests[0].artifacts.length>0,'raw evidence survives independently of the removed checkout');
+  for(const artifact of manifests[0].artifacts)assert.equal(createHash('sha256').update(readFileSync(artifact.file)).digest('hex'),artifact.sha256);
+  assert.ok(manifests[0].artifacts.some(artifact=>artifact.file.endsWith('.log')&&readFileSync(artifact.file,'utf8').includes('actual exact composed behavior')));
+  assert.ok(!box.git(box.repo,'worktree','list','--porcelain').includes('pullboard-source-advance-'),'known returned child output does not strand a registered private checkout');
 });

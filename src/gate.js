@@ -680,7 +680,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
           executionSource: profiles.find(value => value.executionSource)?.executionSource } : {}),
       });
       refuseSandboxBlocked(proof);
-      return { ...proof, log, seconds: criterion.seconds + proof.seconds, ...selection, files: proofFiles, registryGuards, ...(deferred ? { submitInvariants: invariants } : {}),
+      return { ...proof, ...(criterion.cleanupUnverified || proof.cleanupUnverified ? { cleanupUnverified: true } : {}), log, seconds: criterion.seconds + proof.seconds, ...selection, files: proofFiles, registryGuards, ...(deferred ? { submitInvariants: invariants } : {}),
         ...(deferSelection ? { deferredFiles: selection.files, deferAbove: config.submitDeferAbove } : {}), deferred, deferFullFallback, check: receipt,
         profile, profilePath, proofProfilePath: proof.profilePath, proofLog: proof.log,
         proofReceiptIds: [...(check ? [criterion.proofReceiptId ?? null] : []),
