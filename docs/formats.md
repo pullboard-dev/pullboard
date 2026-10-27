@@ -123,7 +123,7 @@ The version table is generated from the source-owned declarations in `src/format
 | `row grammar` | `1` | `SPEC_GRAMMAR_VERSION` in `src/spec.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar) | Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs. |
 | `board schema` | `3` | `SCHEMA_VERSION` in `src/board.js`, persisted as `PRAGMA user_version` | On a write open of a board whose version is behind: create missing tables and indexes (version 3 adds the hot-path indexes), add missing columns in place with declared defaults, restore missing or changed triggers, and remove stale machine triggers without replacing rows. Read opens never migrate; a board at the current version whose shape differs is reported once on stderr and left as it is. |
 | `event log` | `1` | `EVENT_LOG_VERSION` in `src/board.js`, persisted in `board_meta` as `event_log_version` | Older event-log versions upgrade in place; newer versions are refused with `EVENT_LOG_VERSION`. Preserve event rows when the board schema changes. |
-| `move engine` | `146` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
+| `move engine` | `147` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
 A signed board uses event-log format 2; older tools refuse it.
@@ -463,6 +463,7 @@ The computed-grant engine adds `grantEngine` to new join, claim and renewal even
 | `reject` | reviewer | `reason`, `commit`, engine-20 `implies`, engine-30 `cause`, engine-33 `review`, automatic-Rigor `causeDerivation`, clause-bound rejection `clause`, `clauseText`, `barKey` |
 | `bar-sharpen` | coordinator | `clause`, `clauseText`, `barKey`, `to`, `digest` |
 | `strong-rejection-notice` | coordinator | `engine`, `route`, `builder`, `rejections` |
+| `reject_returned` | coordinator | `rejection`, `builder`, `commit`, `note`, `reason`, `engine`, inactive `presence`, `heartbeatAt`, `observedAt` |
 | `reopen` | coordinator, or reviewer | `commit`, `note`, `judgment`, engine-10 `supersedes`, `landingFailure`, engine-30 `cause`, engine-52 `conflict`, `withdrawnVerdict`, automatic-Rigor `causes`, `causeDerivation` |
 | `merged` | coordinator | `commit` |
 | `landing_batch` | coordinator | `batch` |
@@ -809,3 +810,9 @@ An attachment change returns an accepted item to submitted without changing its 
 A routed complete native audit failure earns a value-rule catch before its repair is green. The catch retains the exact recorded gate receipt, audit batch, committed test blob, failing name and repair item; it never invents a green repair. In-process CLI calls and source-path references alone are contracts, while actual CLI child launches and undeclared reach remain journeys. Placement refresh can therefore promote a valuable catching contract back to submit or landing.
 
 A known-reach contract starts at reach-selected landing while its value observations are unknown; the report retains null rates and runtime rather than inventing measurements. Measured value then determines submit, landing or audit placement. Product-area count alone never makes a journey. Only actual CLI child boundaries and undeclared reach force the audit tier.
+
+### Unattended rejected work
+
+The `REJECTED_WORK_RETURN_ENGINE` leaf fences `recordHealthFindings` with `returnRejected: true`. Only the coordinator may set this option. A scan binds its event revision and the exact latest open, unheld reject episode; a changed episode refuses `HEALTH_SCAN_STALE`. Ten-minute eligibility is computed from the recorded reject instant. Earlier returns carry the coordinator's sender-checked inactive-seat observation; no receiver consults local presence to replay it. Older engines refuse the option rather than ignoring its effects.
+
+A `reject_returned` event records `rejection` (the exact reject event ID), `builder`, `commit`, the original reviewer `note`, `reason` (`timeout` or `inactive`) and `engine`. An `inactive` receipt also retains `presence`, `heartbeatAt` (nullable) and `observedAt`. This receipt releases only the named reject episode's original-builder reservation, without changing lifecycle state or bypassing any other claim guard. Replayed and repeated receipts preserve that single return; later reject episodes retain their own reservation.

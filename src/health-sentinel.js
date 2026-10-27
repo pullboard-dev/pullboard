@@ -1,4 +1,5 @@
 import { dispatchHealth } from './dispatch-health.js';
+import { rejectedWorkReturns } from './rejected-work-return.js';
 /** Snapshot health without keeping a board write lock across Git's merge checks [A6]. */
 import { existsSync } from 'node:fs';
 import { openBoardReadOnly } from './board.js';
@@ -12,7 +13,7 @@ import {
 } from './health-receipts.js';
 
 /** A missing board or an explicitly disabled sentinel has no observation to publish. */
-export function scanHealthSentinel(file, { root, config, now, cpu = agentCpuFindings }) {
+export function scanHealthSentinel(file, { root, config, now, cpu = agentCpuFindings, returnRejected = false }) {
   if (!healthSentinelEnabled(config) || !existsSync(file)) return null;
   const db = openBoardReadOnly(file);
   try {
@@ -27,9 +28,10 @@ export function scanHealthSentinel(file, { root, config, now, cpu = agentCpuFind
     const after = normalizedHealthFindings(report.stuck).map(healthFindingIdentity).sort();
     const priorDispatch = last ? JSON.parse(last.event_detail).dispatch ?? [] : [];
     const dispatchChanged = JSON.stringify(priorDispatch) !== JSON.stringify(dispatch);
+    const pendingReturns = returnRejected ? rejectedWorkReturns({ db, clock: { now: () => now } }, report.stuck) : [];
     db.exec('COMMIT');
-    if (!dispatchChanged && JSON.stringify(before) === JSON.stringify(after) && !(last && (JSON.parse(last.event_detail).pendingCpu?.length || JSON.parse(last.event_detail).pendingDispatch?.length))) return null;
-    return { observedRevision, findings: report.stuck, ...(dispatchChanged || priorDispatch.length ? { dispatch } : {}) };
+    if (!pendingReturns.length && !dispatchChanged && JSON.stringify(before) === JSON.stringify(after) && !(last && (JSON.parse(last.event_detail).pendingCpu?.length || JSON.parse(last.event_detail).pendingDispatch?.length))) return null;
+    return { observedRevision, findings: report.stuck, ...(returnRejected ? { returnRejected: true } : {}), ...(dispatchChanged || priorDispatch.length ? { dispatch } : {}) };
   } finally { db.close(); }
 }
 

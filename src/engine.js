@@ -4,6 +4,7 @@ import { preflightComputedConflict } from './computed-conflict-receipt.js';
 import { agentGrantMinimum } from './agent-grant.js';
 import { requireAgentGrant } from './agent-grant.js';
 import { boundProofReceipt } from './proof-receipts.js';
+import { rejectedWorkReturns } from './rejected-work-return.js';
 import {
   handoffMoveProblem,
   requireHandoffActive,
@@ -130,6 +131,11 @@ export function prepareEngineMove(board, operation, args, { id = randomUUID(), a
   if (operation === 'reopen' && values[1]?.computedConflict !== undefined) {
     if (values[1].conflict !== undefined) throw new Refused('COORDINATOR_ONLY', 'automatic conflict evidence accepts no caller conflict assertion');
     requirePreparedComputedConflict(board, values[0], values[1].agentId, values[1].computedConflict);
+  }
+  // Freeze local liveness only at the authenticated sender; receivers replay this observation.
+  if (operation === 'recordHealthFindings' && values[0]?.returnRejected === true) {
+    if (values[0].agentId !== 'coordinator') throw new Refused('COORDINATOR_ONLY', 'ask the coordinator to return unattended rejects');
+    rejectedWorkReturns(board, values[0].findings);
   }
   if (operation === 'verify' && values[1]?.sandbox !== undefined) requireOutsideReceipt(board, values[1].sandbox);
   if (operation === 'release') {

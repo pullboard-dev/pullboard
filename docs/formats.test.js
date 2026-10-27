@@ -20,6 +20,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { submitFixture } from '../test/board-submit-fixture.js';
+import { exerciseRejectedWorkFormat } from '../test/rejected-work-format-fixture.js';
 import { syntheticFlakeObservation } from '../test/flake-observation-fixture.js';
 import { recordFlakeObservation } from '../src/board.js';
 import { proposeSentinel } from '../src/sentinels.js';
@@ -489,6 +490,7 @@ function recordEventContract() {
   const revision = () => events(board).at(-1)?.event_id ?? 0;
   recordHealthFindings(board, { agentId: coordinator, observedRevision: revision(), findings: [healthFinding] });
   recordHealthFindings(board, { agentId: coordinator, observedRevision: revision(), findings: [] });
+  const unattendedBuilder = exerciseRejectedWorkFormat(board, { coordinator, reviewer });
   // These synthetic receipts exercise both append-only event formats, not real diagnostic execution.
   for (const id of ['format-first', 'format-second']) recordFlakeObservation(board, {
     agentId: coordinator, lane: 'docs', observation: syntheticFlakeObservation(id, true),
@@ -502,7 +504,7 @@ function recordEventContract() {
   recordRelayExclusionIntent(board, 'view'); // Synthetic person format fixture, not a real settings opt-out.
   const rows = events(board).map((row) => ({ ...row, detail: JSON.parse(row.event_detail) }));
   closeBoard(board);
-  return { rows, actors: { [coordinator]: 'coordinator', [builder]: 'builder', [returnedBuilder]: 'builder', [reviewer]: 'reviewer', [PERSON]: 'person', board: 'board', rigor: 'rigor' } };
+  return { rows, actors: { [coordinator]: 'coordinator', [builder]: 'builder', [returnedBuilder]: 'builder', [unattendedBuilder]: 'builder', [reviewer]: 'reviewer', [PERSON]: 'person', board: 'board', rigor: 'rigor' } };
 }
 
 /** Reopen a file after removing old-format objects and report the repaired guard event. */
