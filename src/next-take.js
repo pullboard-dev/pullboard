@@ -8,6 +8,7 @@ import {
 import { headCommit } from './git.js';
 import { trunkMerge } from './trusted-policy.js';
 import { Refused } from './refused.js';
+import { computedReturnArgs } from './computed-conflict-return.js';
 import {
   MainSpecMerged,
   checkMainVerifier,
@@ -40,7 +41,8 @@ export async function nextTake(ctx, values = {}) {
     if (picked.held && !picked.review || !picked.item) return picked;
     if (picked.review) {
       const reviewed = await nextReview(ctx, board, me, values, {
-        ordered: (operation, args) => ordered(ctx, board, operation, args), idArg, trunkMerge,
+        ordered: (operation, args) => ordered(ctx, board, operation,
+          operation === 'reopen' ? computedReturnArgs(board, args) : args), idArg, trunkMerge,
       });
       // Conflict preflight may have returned the selected review; re-read eligibility before building.
       return reviewed.item ? { ...reviewed, review: true } : { ...reviewed, retry: true };
