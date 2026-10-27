@@ -1,6 +1,6 @@
 /** File moves preserve frozen checks and read-only engineering history [C7]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
@@ -21,7 +21,7 @@ function movedFixture() {
   mkdirSync(join(box.repo, 'web/cell'), { recursive: true });
   writeFileSync(join(box.repo, OLD), 'console.log("moved-check-executed");\n');
   box.git(box.repo, 'add', '-A');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: original check\n\nPullboard-Item: #1');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: original check');
   const base = box.git(box.repo, 'rev-parse', 'HEAD');
   renameSync(join(box.repo, OLD), join(box.repo, NEW));
   writeFileSync(join(box.repo, 'path-map.json'), JSON.stringify({ [OLD]: MID, [MID]: NEW }));
@@ -52,12 +52,39 @@ test('a check baseline resolves paths at its selected main and retains the recor
 });
 
 test('why on an old name includes work landed at the new name [C7]', () => {
-  const box = movedFixture();
-  writeFileSync(join(box.repo, NEW), 'console.log("changed-after-move");\n');
+  const box = e2e.project('true');
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  config.landing = { publish: 'separate' };
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
   box.git(box.repo, 'add', '-A');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: change moved check\n\nPullboard-Item: #3');
-  assert.deepEqual(itemsTouching(box.repo, { file: OLD, line: null }), [1, 3]);
-  assert.deepEqual(itemsTouching(box.repo, { file: NEW, line: null }), [1, 3]);
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: configure private history landing');
+  /** Run one public board move and retain its real result. */
+  const json = (cwd, ...args) => {
+    const result = box.run(cwd, ...args, '--json');
+    assert.equal(result.code, 0, result.err || result.out);
+    return JSON.parse(result.out);
+  };
+  /** Build, independently check and land an actual fixture item before querying its trailer. */
+  const land = (id, file, content) => {
+    json(box.repo, 'add', 'web', `Path history ${id}`, '--specs', 'G1', '--criterion', 'the named file exists', '--check', `test -f ${file}`);
+    box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+    json(box.web, 'claim', String(id));
+    assert.equal(e2e.commitFile(box, box.web, file, content, 'feat(web): preserve moved history [G1]').status, 0);
+    const submitted = json(box.web, 'submit', String(id));
+    box.git(box.repo, 'switch', '-q', '--detach', submitted.commit);
+    try { json(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'The named fixture file exists at the submitted source.'); }
+    finally { box.git(box.repo, 'switch', '-q', 'main'); }
+    assert.deepEqual(json(box.repo, 'land').landed, [id]);
+  };
+  land(1, OLD, 'console.log("before-move");\n');
+  mkdirSync(join(box.repo, 'web/cell'), { recursive: true });
+  renameSync(join(box.repo, OLD), join(box.repo, NEW));
+  writeFileSync(join(box.repo, 'path-map.json'), JSON.stringify({ [OLD]: MID, [MID]: NEW }));
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: move history into cell');
+  land(2, NEW, 'console.log("after-move");\n');
+  assert.deepEqual(itemsTouching(box.repo, { file: OLD, line: null }), [1, 2]);
+  assert.deepEqual(itemsTouching(box.repo, { file: NEW, line: null }), [1, 2]);
 });
 
 test('flake and Rigor read projections join moved names while original SQLite events stay unchanged [C7]', () => {
@@ -65,6 +92,7 @@ test('flake and Rigor read projections join moved names while original SQLite ev
   const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try {
     const actor = store.register(board, { lane: 'web', path: join(box.dir, 'observation-seat') });
+    /** Synthetic receipt metadata tests identity projection without claiming a native flake. */
     const receipt = green => ({ green, sha256: (green ? 'a' : 'b').repeat(64), bytes: 1,
       artifact: `flake-evidence/fixture/${green ? 'paired' : 'original'}.log`, profileSha256: null });
     for (const [index, file] of [OLD, NEW].entries()) {
