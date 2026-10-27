@@ -1,0 +1,97 @@
+/** A fresh release gate owns its execution; imported files can never create native release evidence [C7,I15]. */
+import {
+  createHash,
+  randomUUID,
+} from 'node:crypto';
+import {
+  mkdirSync,
+  writeFileSync,
+} from 'node:fs';
+import {
+  join,
+} from 'node:path';
+import {
+  runGate,
+} from './gate.js';
+import {
+  committedTree,
+} from './gate.js';
+import {
+  gitPath,
+  headCommit,
+  repoInfo,
+} from './git.js';
+import {
+  mainPolicy,
+} from './trusted-policy-read.js';
+import {
+  readGateReceipt,
+  receiptBinds,
+  receiptStore,
+} from './gate-run-receipt.js';
+import {
+  releaseExecutors,
+} from './landing-shards.js';
+import {
+  releaseReceiptBody,
+  releaseReceiptFields,
+  releaseReceiptProblem,
+  readReleaseReceipt,
+} from './release-gate-receipt.js';
+import {
+  Refused,
+} from './refused.js';
+
+/** Bind a release to the accepted coordinator head and accepted command, with no dirty-tree substitute. */
+export function releaseSource(root) {
+  const policy = mainPolicy(root);
+  const head = headCommit(root), tree = committedTree(root);
+  if (!tree || head !== policy.commit) throw new Refused('GATE_RUN_EVIDENCE', 'run the release gate on the clean accepted coordinator head');
+  return { head, tree, command: createHash('sha256').update(policy.config.gate).digest('hex'), policy };
+}
+
+/** Verify only this repository's privately recorded execution and its native gate bytes, never an imported file. */
+export function verifyNativeReleaseReceipt(root, id) {
+  if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/u.test(id)) return null;
+  try {
+    const source = releaseSource(root);
+    const file = join(repoInfo(root).commonDir, 'pullboard', 'release-receipts', `${id}.json`);
+    // Current registration is independently observed; a caller cannot shrink the required machine set.
+    const expected = { head: source.head, tree: source.tree, command: source.command,
+      required: releaseExecutors().map(entry => entry.id) };
+    const envelope = readReleaseReceipt(file, expected);
+    return envelope?.participation.id === id && receiptBinds(receiptStore(root), envelope.gateReceipt) ? envelope : null;
+  } catch { return null; }
+}
+
+/** Execute the actual accepted full gate with mandatory native placement before privately writing an envelope. */
+export async function runReleaseGate(root, { agent = 'release', onWait } = {}) {
+  const source = releaseSource(root);
+  const executors = releaseExecutors();
+  const request = { version: 1, id: randomUUID(), executors };
+  const startedAt = new Date().toISOString();
+  const run = await runGate(root, source.policy.config, { trustStamp: false, landing: true, collectAll: true,
+    releaseRequest: request, agent, onWait });
+  const after = releaseSource(root);
+  if (after.head !== source.head || after.tree !== source.tree || after.command !== source.command) {
+    throw new Refused('GATE_RUN_EVIDENCE', 'the accepted release source changed during execution; keep its logs and run again on the accepted head');
+  }
+  const gateReceipt = readGateReceipt(receiptStore(root), run.receiptId);
+  const observed = run.releaseParticipation;
+  const expected = { head: source.head, tree: source.tree, command: source.command, required: executors.map(entry => entry.id) };
+  const envelope = { version: 1, gateReceipt, participation: observed };
+  const problem = releaseReceiptProblem(envelope, expected);
+  if (!run.isGreen || problem) {
+    throw new Refused('GATE_RUN_EVIDENCE', `release gate did not produce complete green evidence: ${problem ?? 'the actual gate failed'}; inspect its native gate log`);
+  }
+  // Only this execution path writes native release custody. The structural reader has no writer.
+  const directory = join(repoInfo(root).commonDir, 'pullboard', 'release-receipts');
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const file = join(directory, `${request.id}.json`);
+  const body = releaseReceiptBody(envelope, expected);
+  writeFileSync(file, body, { flag: 'wx', mode: 0o600 });
+  // This private execution path has now checked the actual full receipt, source and all executor custody.
+  writeFileSync(gitPath(root, 'pullboard-gate-green'), `${source.tree}\n`);
+  return { receipt: releaseReceiptFields(envelope, expected), file,
+    seconds: Math.ceil((Date.now() - Date.parse(startedAt)) / 1000), gateLog: run.log, profilePath: run.profilePath };
+}
