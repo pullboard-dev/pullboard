@@ -26,6 +26,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import {
+  isAbsolute,
   join,
   posix,
   relative,
@@ -33,18 +34,26 @@ import {
   sep,
 } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { memoizedActionKeys } from './test-action-key-memo.js';
+import { hostname } from 'node:os';
+import {
+  TEST_RESULT_ORIGIN_ENV,
+  TEST_RESULT_STORE_ENV,
+  TEST_RESULT_VERSION,
+  storeTestResult,
+  validTestResult,
+  validTestTap,
+} from './test-result-store.js';
 
 export const TEST_ACTIONS_ENV = 'PULLBOARD_TEST_ACTIONS';
 export const TEST_STAGE_ENV = 'PULLBOARD_TEST_STAGE';
-const VERSION = 1;
+const VERSION = TEST_RESULT_VERSION;
 const MODULE = /\.[cm]?js$/u;
 const RUNNER_INPUTS = ['bin/run-tests.js', 'src/test-action-reporter.js', 'package.json'];
 // The environment a test's verdict may depend on; anything else in the environment is per-run noise.
 const DECLARED_ENVIRONMENT = ['NODE_OPTIONS', 'PULLBOARD_HOSTED_SHAPES', 'PULLBOARD_TEST_TIMEOUT_MS', 'PULLBOARD_TEST_FILE_TIMEOUT_MS', 'TZ', 'LANG', 'LC_ALL'];
 // Options that choose how a run reports or splits files, never what a file proves.
 const NEUTRAL_OPTION = /^--(?:test[-_]concurrency|test[-_]reporter(?:[-_]destination)?|test[-_]shard)(?:=|$)/u;
-// A run that selects tests inside a file proves only those tests, so it neither reuses nor records.
-const FILTER_OPTION = /^--test[-_](?:name|skip)[-_]pattern(?:=|$)|^--test[-_]only$/u;
 // Release notes are prose: src reads them for headlines that tests prove against their own fixture copies. A test that
 // lists and reads them itself has no key at all (listsOwnCheckout).
 const PROSE = new Set(['CHANGELOG.md']);
@@ -55,6 +64,24 @@ const HISTORY = new Set(['log', 'rev-list', 'shortlog', 'blame', 'reflog', 'what
 const TOP_TREES = new Set(['', '.', 'src', 'bin', 'test', 'docs']);
 const URL_LITERAL = /new\s+URL\(\s*(['"`])([^'"`\\$\r\n]+)\1\s*,\s*import\.meta\.url\s*\)/gu;
 const STRING = /(['"])(?:\\[\s\S]|(?!\1)[^\\\r\n])*\1|`(?:\\[\s\S]|[^`\\])*`/uy;
+
+/** Remove only scheduling/reporting options, including their separate values, from proof identity. */
+function materialOptions(options) {
+  const selected = [];
+  for (let at = 0; at < options.length; at++) {
+    if (!NEUTRAL_OPTION.test(options[at])) selected.push(options[at]);
+    else if (!options[at].includes('=') && options[at + 1] && !options[at + 1].startsWith('--')) at++;
+  }
+  return selected;
+}
+
+/** Bind actual execution inputs; the runner's exact private custody preload is per-job noise. */
+function executionContext(env) {
+  return { node: process.version, platform: process.platform, arch: process.arch,
+    environment: [...DECLARED_ENVIRONMENT, 'PULLBOARD_TEST_CACHE_TOOLING'].map(name => [name,
+      name === 'NODE_OPTIONS' && env.PULLBOARD_RUNNER_PRELOAD && env[name] === env.PULLBOARD_RUNNER_PRELOAD
+        ? null : env[name] ?? null]) };
+}
 
 /** Run git in the checkout with a private environment, returning trimmed stdout or throwing its error. */
 function git(root, args, env) {
@@ -202,36 +229,50 @@ function treeIndex(blobs) {
  * environment and the run's options; the blobs are git object ids, so the key is a pure function of committed bytes.
  *
  * @param {string} root
- * @param {{ commit?: string, options?: string[], env?: NodeJS.ProcessEnv }} [context]
+ * @param {{ commit?: string, options?: string[], env?: NodeJS.ProcessEnv, files?: string[] }} [context]
  * @returns {Promise<Map<string, { key: string | null, reason: string }>>}
  */
-export async function testActionKeys(root, { commit = 'HEAD', options = [], env = process.env } = {}) {
-  const { testClosures } = await import('./affected-tests.js');
-  const { closures, modules, blobs } = testClosures(root, commit);
-  const index = treeIndex(blobs);
+export async function testActionKeys(root, { commit = 'HEAD', options = [], env = process.env, files } = {}) {
+  const gitEnv = Object.fromEntries(Object.entries(env).filter(([name]) => !name.startsWith('GIT_')));
   const shared = {
     version: VERSION,
-    runner: RUNNER_INPUTS.map(path => [path, blobs.get(path) ?? null]),
-    node: process.version, platform: process.platform, arch: process.arch,
-    environment: DECLARED_ENVIRONMENT.map(name => [name, env[name] ?? null]),
-    options: options.filter(option => !NEUTRAL_OPTION.test(option)),
+    options: materialOptions(options),
   };
+  const context = executionContext(env);
+  // Hash the executing analyzer as well as the committed tree: fixture and installed tooling
+  // can live outside that tree, and a new analyzer must not read an older algorithm's memo.
+  const analyzer = ['test-action-cache.js', 'test-action-key-memo.js', 'test-result-store.js', 'affected-tests.js', 'module-imports.js']
+    .map(file => [file, readFileSync(new URL(file, import.meta.url), 'utf8')]);
+  shared.policy = digest(analyzer);
+  const identity = digest({ ...shared, context, tree: git(root, ['rev-parse', `${commit}^{tree}`], gitEnv).trim(), analyzer });
+  return memoizedActionKeys(testResultStore(root, gitEnv), identity, files, async () => {
+  const { testClosures } = await import('./affected-tests.js');
+  const { closures, modules, blobs, reach } = testClosures(root, commit);
+  const index = treeIndex(blobs);
+  // A test runs inside the harness, so everything the harness reaches (its isolation, dispatch, admission
+  // and reporting modules) is an input of every result, as well as the runner files themselves.
+  // Test files and docs the graph links through declared tree reads are never harness code, so they stay out.
+  const harness = reach(RUNNER_INPUTS).filter(path => !path.startsWith('test/') && !path.startsWith('docs/'));
+  const runner = [...new Set([...RUNNER_INPUTS, ...harness])].sort().map(path => [path, blobs.get(path) ?? null]);
   const keys = new Map();
   for (const [test, closure] of closures) {
     if (!closure.files) { keys.set(test, { key: null, reason: closure.reason }); continue; }
     const reads = declaredReads(test, closure.files, modules, index, closure.helpers);
     if (reads.history) { keys.set(test, { key: null, reason: 'it reads the git history of its own checkout' }); continue; }
     if (reads.undeclaredListing) { keys.set(test, { key: null, reason: 'it lists the tracked files of its own checkout without declaring them' }); continue; }
-    keys.set(test, { key: digest({ ...shared, test,
+    const inputKey = digest({ ...shared, runner, test,
       closure: closure.files.map(path => [path, blobs.get(path) ?? null]),
       inputs: reads.inputs.map(path => [path, blobs.get(path)]),
-      tracked: reads.listing ? digest(index.sorted) : null }), reason: '' });
+      tracked: reads.listing ? digest(index.sorted) : null });
+    keys.set(test, { inputKey, context, key: digest({ inputKey, context }), reason: '' });
   }
   return keys;
+  });
 }
 
 /** The store folder for this repository, shared by every worktree through the common git dir. */
-function storeOf(root, env) {
+export function testResultStore(root, env = process.env) {
+  if (env[TEST_RESULT_STORE_ENV] && isAbsolute(env[TEST_RESULT_STORE_ENV])) return env[TEST_RESULT_STORE_ENV];
   const common = git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir'], env).trim();
   return join(common, 'pullboard', 'test-actions');
 }
@@ -248,16 +289,12 @@ export function reusableResult(store, key) {
   try { statSync(join(store, 'red', key)); return null; } catch { /* No red mark: the key never failed. */ }
   try {
     const entry = JSON.parse(readFileSync(join(store, 'green', `${key}.json`), 'utf8'));
-    return entry?.version === VERSION && entry.key === key && entry.status === 'pass' && typeof entry.commit === 'string' && validTap(entry.tap) ? entry : null;
+    return validTestResult(entry) && entry.key === key && entry.status === 'pass' ? entry : null;
   } catch { return null; }
 }
 
 /** Incomplete reports rerun: an exit status alone cannot reproduce the file's recorded proof. */
-function validTap(report) {
-  return report && Array.isArray(report.lines) && report.lines.every(line => typeof line === 'string' && /^\s*(?:not )?ok \d+(?: |$)/u.test(line))
-    && report.counts && ['passed', 'failed', 'skipped', 'tests'].every(name => Number.isSafeInteger(report.counts[name]) && report.counts[name] >= 0)
-    && report.counts.failed === 0 && report.observedTests === report.counts.tests;
-}
+function validTap(report) { return validTestTap(report); }
 
 /**
  * The one rule for whether per-file results, fresh or reused, prove the whole suite: every file of the suite has a
@@ -297,7 +334,7 @@ function pruneRuns(store) {
 /**
  * Decide which selected test files must run. A file whose key has a reusable green result is left out and its receipt
  * says `reused <key> from <stage> <commit>`; when that leaves nothing, the run is done. A checkout that differs from
- * its commit, a filtered run, a selector that is not a tracked test file, or a shard of a planned run keeps every
+ * its commit, a selector that is not a tracked test file, or a shard of a planned run keeps every
  * file, and so does any failure to compute keys: reuse is an optimization, never a reason to skip.
  *
  * @param {string} root
@@ -307,7 +344,8 @@ function pruneRuns(store) {
  */
 export async function planTestActions(root, args, { fullSuite, landing = false, listFiles, env = process.env, write = text => process.stdout.write(text) }) {
   const keep = { args, files: null, done: false };
-  if (env[TEST_ACTIONS_ENV] || env.PULLBOARD_TEST_REUSE === '0' || args.some(arg => FILTER_OPTION.test(arg) || /^--test[-_]reporter(?:[-_]destination)?(?:=|$)/u.test(arg))) return keep;
+  // Selection options remain in the action key: a partial proof cannot stand in for a whole file.
+  if (env[TEST_ACTIONS_ENV] || env.PULLBOARD_TEST_REUSE === '0' || args.some(arg => /^--test[-_]reporter(?:[-_]destination)?(?:=|$)/u.test(arg))) return keep;
   let store, commit, keys, selectors;
   try {
     root = realpathSync(root);
@@ -317,19 +355,20 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
     selectors = listFiles();
     const paths = selectors.map(selector => repoPath(root, selector));
     const fileSet = new Set(selectors);
-    keys = await testActionKeys(root, { commit, options: args.filter(arg => !fileSet.has(arg)), env });
+    keys = await testActionKeys(root, { commit, options: args.filter(arg => !fileSet.has(arg)), env, files: paths });
     if (!paths.length || paths.some(path => !path || !keys.has(path))) return keep;
-    store = storeOf(root, gitEnv);
-    selectors = selectors.map((selector, at) => ({ selector, path: paths[at], key: keys.get(paths[at]).key }));
+    store = testResultStore(root, gitEnv);
+    selectors = selectors.map((selector, at) => ({ selector, path: paths[at], ...keys.get(paths[at]) }));
   } catch { return keep; }
   const stage = env[TEST_STAGE_ENV] || (landing ? 'land' : fullSuite ? 'gate' : 'focused');
   const results = new Map();
   const run = [];
   for (const file of selectors) {
     const entry = reusableResult(store, file.key);
-    if (!entry) { run.push(file); continue; }
+    if (!entry || entry.file !== file.path || entry.inputKey !== file.inputKey) { run.push(file); continue; }
     results.set(file.path, { status: 'pass', source: 'reused', key: entry.key, currentKey: file.key });
     write(`# reused ${entry.key} from ${entry.stage} ${entry.commit} (${file.path})\n`);
+    write(`# result-origin ${JSON.stringify(entry.origin)}\n`);
     write(`${entry.tap.lines.join('\n')}\n# pass ${entry.tap.counts.passed}\n# fail ${entry.tap.counts.failed}\n# skipped ${entry.tap.counts.skipped}\n`);
   }
   if (!run.length && suiteProven(selectors.map(file => file.path), results).proven) {
@@ -341,7 +380,10 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
   mkdirSync(join(store, 'green'), { recursive: true, mode: 0o700 });
   mkdirSync(join(store, 'red'), { recursive: true, mode: 0o700 });
   pruneRuns(store);
-  writeAtomic(join(runDir, 'keys.json'), { root, store, files: Object.fromEntries(run.filter(file => file.key).map(file => [file.path, file.key])) });
+  writeAtomic(join(runDir, 'keys.json'), { root, store, stage, commit,
+    machine: env[TEST_RESULT_ORIGIN_ENV] || `local-${digest(hostname()).slice(0, 16)}`,
+    inputs: Object.fromEntries(run.filter(file => file.key).map(file => [file.path, { inputKey: file.inputKey, context: file.context }])),
+    files: Object.fromEntries(run.filter(file => file.key).map(file => [file.path, file.key])) });
   env[TEST_ACTIONS_ENV] = runDir;
   process.once('exit', code => settleTestActions(runDir, { store, stage, commit, landing, code }));
   const reused = new Set(selectors.filter(file => !run.includes(file)).map(file => file.selector));
@@ -358,7 +400,11 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
  */
 export function settleTestActions(runDir, { store, stage, commit, landing, code }) {
   try {
-    if (!landing || code === 0) {
+    const plan = JSON.parse(readFileSync(join(runDir, 'keys.json'), 'utf8'));
+    const gitEnv = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_')));
+    const unchanged = git(plan.root, ['rev-parse', 'HEAD'], gitEnv).trim() === commit
+      && !git(plan.root, ['status', '--porcelain', '-z', '--untracked-files=all'], gitEnv);
+    if (unchanged && (!landing || code === 0)) {
       for (const name of readdirSync(join(runDir, 'green'))) {
         let staged;
         try { staged = JSON.parse(readFileSync(join(runDir, 'green', name), 'utf8')); } catch { continue; }
@@ -367,8 +413,10 @@ export function settleTestActions(runDir, { store, stage, commit, landing, code 
         try { tap = JSON.parse(readFileSync(join(runDir, `${digest(staged.file)}.tap.json`), 'utf8')); } catch { continue; }
         if (!validTap(tap)) continue;
         try { statSync(join(store, 'red', staged.key)); continue; } catch { /* Never red: the green may be stored. */ }
-        writeAtomic(join(store, 'green', `${staged.key}.json`), { version: VERSION, key: staged.key, file: staged.file,
-          status: 'pass', stage, commit, node: process.version, at: new Date().toISOString(), tap });
+        const at = new Date().toISOString();
+        storeTestResult(store, { version: VERSION, key: staged.key, file: staged.file, ...plan.inputs[staged.file],
+          status: 'pass', stage, commit, node: process.version, at, tap,
+          origin: { machine: plan.machine, stage, commit, at } });
       }
     }
   } catch (error) {
@@ -390,6 +438,10 @@ export function recordTestAction(file) {
   process.env.PULLBOARD_TEST_REUSE = '0';
   const runDir = process.env[TEST_ACTIONS_ENV];
   delete process.env[TEST_ACTIONS_ENV];
+  // A test's own fixture runners must not read or write the enclosing fleet job's cache.
+  delete process.env[TEST_RESULT_STORE_ENV];
+  delete process.env[TEST_RESULT_ORIGIN_ENV];
+  delete process.env.PULLBOARD_TEST_CACHE_TOOLING;
   if (!runDir || process.env.NODE_TEST_CONTEXT !== 'child-v8') return;
   let plan, path;
   try {
@@ -401,7 +453,12 @@ export function recordTestAction(file) {
   process.once('exit', (code) => {
     try {
       if (code === 0) writeAtomic(join(runDir, 'green', `${digest(path)}.json`), { key, file: path });
-      else writeAtomic(join(plan.store, 'red', key), { key, file: path, code });
+      else {
+        const at = new Date().toISOString();
+        storeTestResult(plan.store, { version: VERSION, key, file: path, ...plan.inputs[path], status: 'fail', code,
+          stage: plan.stage, commit: plan.commit, at,
+          origin: { machine: plan.machine, stage: plan.stage, commit: plan.commit, at } });
+      }
     } catch (error) { process.stderr.write(`run-tests: the result of ${path} was not recorded: ${error.message}\n`); }
   });
 }
