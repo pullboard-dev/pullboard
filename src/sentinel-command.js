@@ -1,3 +1,4 @@
+import { releaseGoneClaims } from './gone-claims.js';
 /** CLI proposal and exact person decisions for board-owned watches [A6,D3]. */
 import { PERSON } from './board.js';
 import {
@@ -38,6 +39,7 @@ export function resumeSentinels({ ctx, withBoard }) {
 async function runSentinels({ ctx, withBoard, whoAmI, ordered, healthOnly = false }) {
   return withBoard(ctx, async board => {
     const me = whoAmI(ctx, board);
+    await releaseGoneClaims(ctx, board, me, ordered);
     const enabled = healthSentinelEnabled(ctx.config);
     if (enabled) {
       // Preserve bootstrap-before-observation ordering so the compatibility move cannot stale the scan.

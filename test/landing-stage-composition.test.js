@@ -1,5 +1,6 @@
 /** Generated affected phases retain real shell boundaries without guessing opaque commands [C7,V4]. */
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -40,15 +41,25 @@ test('generated phases retain original directory changes and separate affected f
   assert.deepEqual(accountedFailures(run, root), [{ file: 'test/red.test.js', name: 'affected' }]);
 });
 
-test('generated phases retain independent pipeline failures rather than borrowing TAP [C7,V4]', t => {
+test('generated phases retain independent pipeline failures rather than borrowing TAP [C7,V4]', async t => {
   const root = fixture(t);
-  const bad = composed(root, `false | '${process.execPath}' affected.cjs`);
-  assert.equal(bad.isGreen, false);
-  assert.equal(bad.stages[0].pipeline[0].status, 1);
-  assert.equal(accountedFailures(bad, root), null);
-  const good = composed(root, `'${process.execPath}' floor.cjs | cat`);
-  assert.deepEqual(good.stages[0].pipeline.map(component => component.status), [0, 0]);
-  assert.deepEqual(accountedFailures(good, root), [{ file: 'test/red.test.js', name: 'affected' }]);
+  const probe = spawnSync('set -o pipefail', { cwd: root, shell: true, encoding: 'utf8' });
+  if (probe.status !== 0) {
+    assert.throws(() => composed(root, `false | '${process.execPath}' affected.cjs`),
+      { code: 'PIPEFAIL_UNAVAILABLE' }, 'the actual native shell must refuse an unprotected pipeline');
+    assert.equal(existsSync(join(root, 'affected.cwd')), false, 'the refused pipeline never executes');
+  }
+  await t.test('native shell records every pipeline component', {
+    skip: probe.status === 0 ? false : 'native /bin/sh cannot enable pipefail; its PIPEFAIL_UNAVAILABLE refusal is asserted above',
+  }, () => {
+    const bad = composed(root, `false | '${process.execPath}' affected.cjs`);
+    assert.equal(bad.isGreen, false);
+    assert.equal(bad.stages[0].pipeline[0].status, 1);
+    assert.equal(accountedFailures(bad, root), null);
+    const good = composed(root, `'${process.execPath}' floor.cjs | cat`);
+    assert.deepEqual(good.stages[0].pipeline.map(component => component.status), [0, 0]);
+    assert.deepEqual(accountedFailures(good, root), [{ file: 'test/red.test.js', name: 'affected' }]);
+  });
 });
 
 test('an exit in the configured phase cannot skip the affected phase or earn a waiver [C7,V4]', t => {

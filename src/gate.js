@@ -15,6 +15,7 @@ import {
  * tree's id in the git dir, so the same tree is never checked twice. An agent sees a digest of the
  * run, not the run (V10): a passing suite's output costs tokens and says nothing.
  */
+import { retainTestValueTimings } from './test-value-timing.js';
 import {
   checkNeedsGui,
   projectNeedsGui,
@@ -251,6 +252,15 @@ function proofSourceAt(root, commit = null) {
   return { head: clean ? head : null, tree: clean && tree?.status === 0 ? tree.stdout : null, clean };
 }
 
+/** Retain explicit executed TAP outcomes; skipped, aggregate and aborted cases prove no named result. */
+function testValueProfile(root, run) {
+  try {
+    return { ...run.profile, tests: tapTests(run.output ?? '', run.executionRoot ?? root).filter(row =>
+      !row.skip && row.type !== 'suite'
+      && !['subtestsFailed', 'cancelledByParent', 'testAborted'].includes(row.failureType)) };
+  } catch { return null; }
+}
+
 /** The private gate writer records process results, never provenance supplied by a CLI argument. */
 function leaveProofReceipt(root, command, run, before, context, lease) {
   try {
@@ -281,6 +291,7 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
     if (!receipt) return null;
     mkdirSync(store, { recursive: true, mode: 0o700 });
     writeFileSync(join(store, `${receipt.id}.json`), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
+    retainTestValueTimings(store, receipt.id, testValueProfile(root, run));
     if (lease) {
       lease.proofReceiptIds ??= [];
       lease.proofReceiptIds.push(receipt.id);
@@ -473,6 +484,7 @@ function leaveRunReceipt(root, config, run, { before, kind, auditBatchId }) {
     if (!receipt) return null;
     mkdirSync(store, { recursive: true, mode: 0o700 });
     writeFileSync(join(store, `${receipt.id}.json`), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
+    if (!run.proofReceiptId) retainTestValueTimings(store, receipt.id, testValueProfile(root, run));
     return receipt.id;
   } catch { return null; }
 }

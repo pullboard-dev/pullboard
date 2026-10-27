@@ -1,5 +1,8 @@
 /** General CLI recovery text; operation-owned codes live in src/moves/ [P4,C7]. */
 export const DEFAULT_NEXT_STEPS = Object.freeze({
+  "NO_PUSH_SMOKE": "record an explicit short pushReceiptCheck.smoke command in accepted pullboard.json, then retry the additive receipt check",
+  "PUSH_SOURCE_CHANGED": "commit or restore the intended push source and accepted policy, then check the push again",
+  "PUSH_RECEIPT_RANGE": "restore complete local and remote commit history, then retry the push receipt check",
   PASSKEY_ASSERTION: 'confirm the move again on your passkey from the relay view',
   PASSKEY_PRESENCE: 'confirm the move again with Face ID, Touch ID or a key touch',
   PASSKEY_REGISTRATION: 'add the passkey again from the relay view on this phone or browser',
@@ -400,6 +403,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "RUNNER_OUTPUT_LIMIT": "reduce the command output, or keep the run local",
   "RUNNER_REQUEST_LIMIT": "keep the run local, or reduce the runner request before retrying",
   "RUNNER_SCAN_LIMIT": "keep the run local, or reduce the oversized source blob, history or tag set named by the scan",
+  "RUNNER_WORK_SPEC": "upgrade or repair the controller and runner together, then retry the named invalid work specification",
   "RUNNER_SETUP_REFUSED": "run pullboard resources and pullboard settings on the named runner, correct its resource pool, then retry the run",
   "RUNNER_SECRET": "remove the flagged secret or private path from the selected source, history, metadata or command before remote execution",
   "RUNNER_SOURCE": "restore readable committed Git source and history, then retry; keep unsupported source objects local",
