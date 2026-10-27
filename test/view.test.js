@@ -18,6 +18,7 @@ import { fetchFresh } from './http-fixture.js';
 import { parseSpec } from '../src/spec.js';
 import { standardDoctrine } from '../src/doctrine.js';
 import { esc, renderSpecView } from '../src/view.js';
+import { viewHere } from '../src/commands/view.js';
 
 const SPEC = `# Bakery spec
 
@@ -157,6 +158,17 @@ async function nextViewStreamEvent(reader, predicate) {
 }
 
 after(() => { for (const dir of PRIVATE_DIRS) rmSync(dir, { recursive: true, force: true }); });
+
+test('public export refuses an exporter without declared filter support [N26]', async () => {
+  let called = false;
+  /** Model the pre-public exporter, which ignores any extra option. */
+  async function legacyExporter() { called = true; return { path: '/unused' }; }
+  await assert.rejects(viewHere({ cwd: '/tmp', exportView: legacyExporter }, { export: './site', public: true }), (error) => {
+    assert.equal(error.code, 'PUBLIC_EXPORT_UNAVAILABLE');
+    return true;
+  });
+  assert.equal(called, false);
+});
 
 /**
  * The page for the sample spec, with O1 signed on its current text and O2 signed on older text.
