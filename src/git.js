@@ -2,9 +2,11 @@
  * The few Git facts pullboard needs: repository/worktree identity, selected refs and tree cleanliness.
  */
 import {
-  execFileSync,
-  spawnSync,
-} from 'node:child_process';
+  currentGitAdapter,
+  gitExecFileSync,
+  gitSpawnSync,
+  realGitAdapter,
+} from './git-adapter.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
 import {
@@ -50,7 +52,7 @@ export function withGitReadFacts(work) {
  * @returns {Promise<unknown>}
  */
 export async function withGitFacts(work, { resumeSources = false } = {}) {
-  const cache = { active: true, facts: new Map(), resumeSources };
+  const cache = { active: true, facts: new Map(), adapterFacts: new WeakMap(), resumeSources };
   const run = () => gitFacts.run(cache, async () => {
     try { return await work(); }
     finally {
@@ -70,8 +72,18 @@ export function setResumeSourceFacts(enabled) {
 
 /** Drop facts after this command changes Git state such as refs, configuration, or worktrees. */
 export function invalidateGitFacts() {
-  gitFacts.getStore()?.facts.clear();
-  persistentReadFacts.clear();
+  scopedFacts()?.clear();
+  if (currentGitAdapter() === realGitAdapter) persistentReadFacts.clear();
+}
+
+/** Keep injected repositories out of real-Git facts, including nested implementations in one command. */
+function scopedFacts() {
+  const cache = gitFacts.getStore();
+  if (!cache?.active) return null;
+  const adapter = currentGitAdapter();
+  if (adapter === realGitAdapter) return cache.facts;
+  if (!cache.adapterFacts.has(adapter)) cache.adapterFacts.set(adapter, new Map());
+  return cache.adapterFacts.get(adapter);
 }
 
 /** Recognize only the known null device whose timestamps change as unrelated readers touch it. */
@@ -295,6 +307,7 @@ export function gitReadSignature(root, files, { attribution = false } = {}) {
 
 /** Return a validated cached read fact, refreshing it when its filesystem signature changes. */
 function readFact(key, signature, read) {
+  if (currentGitAdapter() !== realGitAdapter) return read();
   if (gitReadFacts.getStore() !== true) return read();
   const context = readCacheContext();
   if (context === null) return read();
@@ -326,11 +339,11 @@ function readFact(key, signature, read) {
  * @returns {any}
  */
 function fact(key, read) {
-  const cache = gitFacts.getStore();
-  if (!cache?.active) return read();
-  if (cache.facts.has(key)) return cache.facts.get(key);
+  const facts = scopedFacts();
+  if (!facts) return read();
+  if (facts.has(key)) return facts.get(key);
   const value = read();
-  cache.facts.set(key, value);
+  facts.set(key, value);
   return value;
 }
 
@@ -345,7 +358,7 @@ export function gitConfig(root, key, { local = false, clean = false, flags = tru
   const args = [...(noReplace ? ['--no-replace-objects'] : []), ...(flags ? GIT_FLAGS : []), 'config', ...(local ? ['--local'] : []), '--get', key];
   const cacheKey = JSON.stringify(['config', resolve(root), args, clean]);
   return fact(cacheKey, () => {
-    const result = spawnSync('git', args, { cwd: root, env: clean ? cleanGitEnvironment() : process.env, encoding: 'utf8' });
+    const result = gitSpawnSync(args, { cwd: root, env: clean ? cleanGitEnvironment() : process.env, encoding: 'utf8' });
     return { status: result.status ?? 1, stdout: (result.stdout ?? '').trim() };
   });
 }
@@ -386,7 +399,7 @@ export function mainCheckout(root) {
 
 /** Read only source identities already captured by this command's combined Git lookup. */
 export function mainSourceBlobs(root) {
-  return gitFacts.getStore()?.facts.get(`mainSourceBlobs:${resolve(root)}`) ?? null;
+  return scopedFacts()?.get(`mainSourceBlobs:${resolve(root)}`) ?? null;
 }
 
 /** Resolve the primary checkout without assuming its branch is named main.
@@ -397,7 +410,7 @@ export function mainSourceBlobs(root) {
 function readMainCheckout(root) {
   const env = cleanGitEnvironment();
   /** Run one Git lookup with the sanitized environment. */
-  const gitCall = (args) => spawnSync('git', [...GIT_FLAGS, ...args], {
+  const gitCall = (args) => gitSpawnSync([...GIT_FLAGS, ...args], {
     cwd: root, env, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024,
   });
   const common = gitCall(['rev-parse', '--path-format=absolute', '--git-common-dir']);
@@ -425,7 +438,7 @@ export function gitChildEnv(root) {
   const env = { ...process.env };
   const discoveryEnv = { ...env };
   for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR']) delete discoveryEnv[name];
-  const result = spawnSync('git', ['rev-parse', '--local-env-vars'], {
+  const result = gitSpawnSync(['rev-parse', '--local-env-vars'], {
     cwd: root,
     env: discoveryEnv,
     encoding: 'utf8',
@@ -447,7 +460,7 @@ export function gitChildEnv(root) {
  */
 export function git(cwd, args, { maxBuffer, env = process.env } = {}) {
   try {
-    return execFileSync('git', [...GIT_FLAGS, ...args], {
+    return gitExecFileSync([...GIT_FLAGS, ...args], {
       cwd,
       env,
       encoding: 'utf8',
@@ -467,7 +480,7 @@ export function git(cwd, args, { maxBuffer, env = process.env } = {}) {
  * @returns {{ status: number, stdout: string, stderr: string }}
  */
 export function tryGit(cwd, args, { env = process.env } = {}) {
-  const result = spawnSync('git', [...GIT_FLAGS, ...args], { cwd, env, encoding: 'utf8' });
+  const result = gitSpawnSync([...GIT_FLAGS, ...args], { cwd, env, encoding: 'utf8' });
   if (changesGitFacts(args)) invalidateGitFacts();
   return { status: result.status ?? 1, stdout: (result.stdout ?? '').trim(), stderr: (result.stderr ?? '').trim() };
 }
@@ -482,9 +495,9 @@ export function tryGit(cwd, args, { env = process.env } = {}) {
  */
 export function patchId(root, base, commit) {
   const env = cleanGitEnvironment();
-  const diff = spawnSync('git', [...GIT_FLAGS, 'diff', base, commit], { cwd: root, env, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+  const diff = gitSpawnSync([...GIT_FLAGS, 'diff', base, commit], { cwd: root, env, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
   if (diff.status !== 0 || !diff.stdout) return null;
-  const result = spawnSync('git', [...GIT_FLAGS, 'patch-id', '--stable'], { cwd: root, env, encoding: 'utf8', input: diff.stdout });
+  const result = gitSpawnSync([...GIT_FLAGS, 'patch-id', '--stable'], { cwd: root, env, encoding: 'utf8', input: diff.stdout });
   return result.status === 0 ? result.stdout.trim().split(/\s+/u)[0] || null : null;
 }
 
@@ -575,7 +588,7 @@ function readRepoInfo(cwd, env) {
       ? (fields.length === 8 || fields.length === 9) && oid(config) && oid(doctrine)
       : fields.length === 6 || fields.length === 7) && (branch === undefined || branch.startsWith('refs/'));
     if (!suffixValid) return readRepoInfo(cwd, process.env);
-    const { facts } = gitFacts.getStore();
+    const facts = scopedFacts();
     facts.set(`gitPath:${JSON.stringify([resolve(root), 'hooks'])}`, resolve(root, hooks));
     facts.set(`headCommit:${resolve(root)}`, head);
     if (!missingOptional) facts.set(`mainCheckout:${resolve(root)}`, branch?.startsWith('refs/') ? { branch, commit } : null);
@@ -737,7 +750,7 @@ export function isClean(root) {
  */
 export function differFromHead(root, paths) {
   const listed = (args) =>
-    execFileSync('git', ['--no-optional-locks', ...GIT_FLAGS, ...args], { cwd: root, encoding: 'utf8', input: '' }).split('\0').filter(Boolean);
+    gitExecFileSync(['--no-optional-locks', ...GIT_FLAGS, ...args], { cwd: root, encoding: 'utf8', input: '' }).split('\0').filter(Boolean);
   const base = headCommit(root) ?? listed(['hash-object', '-t', 'tree', '--stdin'])[0].trim();
   const fields = listed(['diff', '--no-renames', '--name-status', '-z', base, '--', ...paths]);
   const found = [];

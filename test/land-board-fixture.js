@@ -1,8 +1,9 @@
-/** Shared read-only board and gate-call observations for real landing fixtures [B3,R3]. */
+/** Shared board observations and owned-process helpers for real landing fixtures [B3,R3]. */
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
+import { startFixtureChild } from './fixture-child.js';
 
 /** Read a private board through public functions, never by mutating its database. */
 export function onBoard(box, action, clock) {
@@ -39,4 +40,29 @@ export function childOutcome(child) {
     child.once('error', (error) => { spawnError = error; });
     child.once('close', (code, signal) => resolveOutcome({ code, signal, error: spawnError }));
   });
+}
+
+/** Start a separate process holding an exclusive write transaction on the fixture board. */
+export function startExclusiveBoardWriter(box, boardFile, name) {
+  const ready = join(box.dir, `${name}-ready`);
+  const release = join(box.dir, `${name}-release`);
+  const released = join(box.dir, `${name}-released`);
+  const source = [
+    "const fs = require('node:fs'); const { DatabaseSync } = require('node:sqlite');",
+    'const [file, ready, release, released] = process.argv.slice(1);',
+    'const db = new DatabaseSync(file);',
+    "try { const journal = db.prepare('PRAGMA journal_mode = DELETE').get().journal_mode;",
+    "const locking = db.prepare('PRAGMA locking_mode = EXCLUSIVE').get().locking_mode;",
+    "if (journal !== 'delete' || locking !== 'exclusive') throw new Error('fixture did not acquire rollback-journal exclusive mode');",
+    "db.exec('BEGIN EXCLUSIVE'); db.exec('CREATE TABLE IF NOT EXISTS fixture_write (value INTEGER)'); db.exec('INSERT INTO fixture_write (value) VALUES (1)');",
+    'fs.writeFileSync(ready, JSON.stringify({ journal, locking })); const deadline = Date.now() + 20_000;',
+    'while (!fs.existsSync(release) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);',
+    "if (!fs.existsSync(release)) throw new Error('writer release was not received');",
+    "db.exec('COMMIT'); db.close(); fs.writeFileSync(released, 'released');",
+    "} catch (error) { try { db.close(); } catch {} process.stderr.write(error.stack + '\\n'); process.exitCode = 1; }",
+  ].join('\n');
+  const child = startFixtureChild(process.execPath, ['-e', source, boardFile, ready, release, released], {
+    cwd: box.repo, env: box.env, detached: true, stdio: ['ignore', 'ignore', 'pipe'],
+  });
+  return { child, closed: childOutcome(child), ready, release, released };
 }

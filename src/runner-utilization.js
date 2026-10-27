@@ -1,7 +1,7 @@
 /** Advisory peak occupancy from retained physical receipts, never guessed idle capacity [C7]. */
 import { retainedReceipts } from './gate-receipt.js';
 import { runnerStage } from './runner-stage.js';
-import { readRunnerStage } from './runner-stage-read.js';
+import { readRunnerCapacities } from './runner-capacity-read.js';
 
 const FIVE_MINUTES = 300_000;
 const HOUR = 3_600_000;
@@ -61,8 +61,8 @@ export function runnerUtilization(runners, receipts, { from, to }) {
 export function readRunnerUtilization(root, now = Date.now()) {
   const window = { from: new Date(now - HOUR).toISOString(), to: new Date(now).toISOString() };
   try {
-    const stage = readRunnerStage(root, window);
-    return { available: true, ...runnerUtilization(stage.runners, retainedReceipts(root, window), window) };
+    const receipts = retainedReceipts(root, window);
+    return { available: true, ...runnerUtilization(readRunnerCapacities(receipts), receipts, window) };
   } catch {
     return { available: false, warnings: [], coverage: 'runner utilization unavailable; inspect pullboard resources' };
   }

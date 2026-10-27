@@ -83,8 +83,9 @@ Work
   pullboard map [<module or function>] [--for <item>] [--budget <tokens>]  source map for main, a card, or an item's one-hop slice
                                         slices default to 4k tokens and cap at 8k; effects the scan cannot see say "not detected"
   pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--parent <id>] [--private]
-                [--brief "..." | --brief-file <file>] [--route light|mid]
+                [--brief "..." | --brief-file <file>] [--route light|mid] [--review-family <family>]
                                         --after: ids or repo#id; claiming waits for verified items on their own boards
+                                        --review-family: require that declared family; case-insensitive, never guessed from model
                                         --brief: what a cold agent needs; --route light: any model can build it
                                         --private: keep this item in your device-local board for this repo
   pullboard move <handle#id|owner/handle#id|~handle#id|id> --to <handle|owner/handle|~handle> [--private]
@@ -94,6 +95,7 @@ Work
                 [--check "<command>"] [--wait]   the command that proves it; --wait waits for its main baseline
                                         with --criterion and a brief, --check is needed below strong
   pullboard edit <id> [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."]
+                [--review-family <family>]   require the declared reviewer family
                 [--wait]                wait for a new check's baseline; otherwise it runs in the background
                 [--reason "what the old bar got wrong"]   needed to change the criterion or check of an item
                                         that was ever claimed; show and stats list each correction
@@ -148,6 +150,7 @@ Work
   pullboard why <id>                    the decisions that imply an item, newest first, and what superseded them
   pullboard why <file>[:<line>]         the decisions, rows and items behind a file or line, each with its origin
   pullboard next [--wait <minutes>]     offer an eligible review when reviews pile up, otherwise claim work
+  pullboard next --take                 reserve an independent review first, otherwise claim eligible work in this seat
   pullboard next --build                claim a build explicitly, recording a skipped review offer
   pullboard next --verify               reserve the next submitted item you can check;
   pullboard next --verify <id>          reserve that submitted item instead
@@ -193,6 +196,14 @@ Work
                                         --supersedes tells the items an earlier answer implied; only the person
                                         supersedes the person's answer
   pullboard pass <shout-id> <note>                lead escalates to coordinator; coordinator passes to person
+  pullboard request reopen|hold|withdraw|reroute <id> --cause <key> [--route light|mid|strong] [--note "why"]
+                                        queue a typed coordinator move; reroute needs --route
+                                        Causes: routing-assignment, bar-ambiguity, proof-red-tests, design-choice,
+                                                conflicting-rulings, person-authority, tool-defect
+  pullboard request list [--all]        list pending requests; --all includes answered requests
+  pullboard request answer <ids> done|declined [--note "why"] [--acted-on <event-ids>]
+                                        coordinator answers a comma-separated batch atomically; declined needs a note
+                                        done needs matching native move event IDs in request order; it never executes a move
   pullboard decisions [--as person]               shouts waiting for you; main checkout defaults to coordinator
                                         as the person, a project's repos list together as repo#id
   pullboard watch [--to <agent|lane|all>] [--kinds <kinds>] [--item <id>] [--since <sequence>] [--json]
@@ -265,6 +276,9 @@ Receipts
                                         merge wait: land the accepted items: #A, #B
                                         when that queue is empty, the action says none waiting or waits for open work
   pullboard ledger                      markdown: what was built, by whom, verified by whom
+  pullboard test-value                   fourteen-day per-file runs, code-fixed catches, flakes, runtime, edits and value; --json
+                                        report-only costs in pullboard.json testEconomics: costOfEscape 3600, costOfWaiting 1, costOfFalseRed 300
+                                        runtime gaps remain unknown; no test admission policy changes
   pullboard log [id]                    every move, in order
   pullboard flakes                      recorded failures, their first and last sightings, counts and repair status
   pullboard flakes rerun on|off          coordinator: opt into one diagnostic pair per failed test; off by default
@@ -320,6 +334,7 @@ Role guides
   pullboard prompt decompose|plan|signoff|review|verify|run|triage   how to do each role; Claude Code gets them as skills
 
 Gate and hooks
+  pullboard push-receipts               additive check of Git pre-push stdin, native receipts and accepted-policy smoke; does not replace the active hook
   pullboard gate [--landing]            run the configured gate; prioritize a trunk landing in the machine queue
   pullboard gate set "<command>"         record the project gate in the main checkout; commit it before running the gate
   pullboard hook pre-commit|pre-merge-commit|commit-msg|pre-push   git runs these
@@ -355,6 +370,7 @@ const HELP_EXAMPLES = {
   why: 'pullboard why 12',
   flakes: 'pullboard flakes', 'flakes rerun': 'pullboard flakes rerun on', 'flakes quarantine': 'pullboard flakes quarantine on',
   verify: 'pullboard verify 12 accept --note "removed the fix; the test failed"',
+  request: 'pullboard request hold 12 --cause routing-assignment --note "Wait for the prerequisite"',
   watch: 'pullboard watch --to web', answer: 'pullboard answer 12 "done"', pass: 'pullboard pass 12 "please decide"',
   status: 'pullboard status', view: 'pullboard view', digest: 'pullboard digest --out briefing.md', mcp: 'pullboard mcp', flow: 'pullboard flow replay --json', stats: 'pullboard stats --since 2026-10-08', log: 'pullboard log 12', ledger: 'pullboard ledger',
   relay: 'pullboard relay on --all', 'relay recover': 'pullboard relay recover --skip 12', sync: 'pullboard sync',
@@ -423,7 +439,7 @@ const HELP_ALIASES = {
 };
 
 const HELP_FLAG_EXPLANATIONS = {
-  '--take': 'take the existing hand-off from a newly joined agent worktree',
+  '--take': 'next: take one eligible item in this seat; handoff: take the named existing hand-off',
   '--after': 'ids or repo#id; claiming waits for verified items on their own boards',
   '--blueprint': 'start from a bundled blueprint or a JSON file; repeat it for one product, one architecture and any practice blueprints',
   '--brief': 'what a cold agent needs',

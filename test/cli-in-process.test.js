@@ -111,7 +111,7 @@ test('in-process writes use the private board and fresh reads match the binary [
   const argv = ['add', 'web', 'Created without a CLI child', '--specs', 'G1', '--criterion', 'The handler writes the native item.', '--json'];
   const created = await runCliInProcess(argv, { cwd: box.repo, env: box.env });
   assert.equal(created.status, 0, created.stderr || created.stdout);
-  // @pullboard-board-file journey: reopen the real project written by the production in-process CLI before comparing binary reads.
+  // @pullboard-board-file journey: inspect the durable board written by production in-process dispatch before comparing binary reads
   const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const item = store.getItem(board, 1);

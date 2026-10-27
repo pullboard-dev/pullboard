@@ -1,3 +1,4 @@
+import { projectReviewFamily } from './required-review-family.js';
 import { withSeatPresence } from './seat-presence.js';
 import { projectItemDecisions } from './item-decision-queue.js';
 import { itemById } from './board-item-read.js';
@@ -60,6 +61,7 @@ export function isHeld(board, item) {
  * @returns {any}
  */
 export function current(board, item) {
+  item = projectReviewFamily(board, item);
   if (item.item_status !== 'claimed' || isHeld(board, item)) return { ...item };
   return { ...item, item_status: 'open', item_owner: null, item_lease_until: null };
 }
@@ -210,9 +212,21 @@ export function openDecisions(board, recipient = null) {
   }
   const recipients = [...new Set(Array.isArray(recipient) ? recipient : [recipient])];
   if (!recipients.length) return [];
-  return openDecisions(board).filter((ask) => recipients.includes(ask.shout_to)
+  const targets = [...new Set([...recipients.filter(value => typeof value === 'string'),
+    ...(recipients.includes(COORDINATOR) ? [COORDINATION_SHOUT] : [])])];
+  // Separate indexed seeks avoid projecting unrelated decisions. Item targets still pass the
+  // exact canonical decoder and live role checks below; the SQL range grants no authority.
+  const direct = targets.length ? board.db.prepare(`SELECT * FROM shout ask WHERE ask.shout_decision = 1
+    AND ask.shout_to IN (${targets.map(() => '?').join(',')})
+    AND NOT EXISTS (SELECT 1 FROM shout reply WHERE reply.shout_answers = ask.shout_id)`).all(...targets) : [];
+  const itemTargets = board.db.prepare(`SELECT * FROM shout ask WHERE ask.shout_decision = 1
+    AND ask.shout_to >= 'item:' AND ask.shout_to < 'item;'
+    AND NOT EXISTS (SELECT 1 FROM shout reply WHERE reply.shout_answers = ask.shout_id)`).all();
+  const candidates = [...new Map([...direct, ...itemTargets].map(ask => [ask.shout_id, ask])).values()]
+    .sort((a, b) => a.shout_id - b.shout_id);
+  return projectItemDecisions(board, candidates.filter((ask) => recipients.includes(ask.shout_to)
     || (ask.shout_to === COORDINATION_SHOUT && recipients.includes(COORDINATOR))
-    || (shoutItemId(ask.shout_to) !== null && recipients.some((agent) => itemShoutReader(board.db, shoutItemId(ask.shout_to), agent))));
+    || (shoutItemId(ask.shout_to) !== null && recipients.some((agent) => itemShoutReader(board.db, shoutItemId(ask.shout_to), agent)))));
 }
 
 /**
@@ -515,7 +529,7 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
     for (const event of board.db.prepare(`SELECT * FROM event WHERE event_id>? AND event_id<=? AND item_id IN (${ids.map(() => '?').join(',')}) ORDER BY event_id`).all(after, cursor, ...ids)) rows.set(event.event_id, event);
   }
   for (const event of board.db.prepare(`SELECT * FROM event WHERE event_id>? AND event_id<=?
-    AND event_kind IN ('main-moved','row_decision','row_apply','row_draft','shout','shout_news','pass','answer') ORDER BY event_id`).all(after, cursor)) rows.set(event.event_id, event);
+    AND event_kind IN ('main-moved','row_decision','row_apply','row_draft','shout','shout_news','pass','answer','typed-request','typed-request-answer') ORDER BY event_id`).all(after, cursor)) rows.set(event.event_id, event);
   if (sessionStart) for (const event of board.db.prepare(`SELECT * FROM event WHERE event_id>? AND event_id<=? AND event_kind='shout_news'
     ORDER BY event_id`).all(newsAfter, cursor)) rows.set(event.event_id, event);
   const messages = board.db.prepare(`SELECT * ${UNREAD_SQL} AND shout_id<=? ORDER BY shout_id`)

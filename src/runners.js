@@ -1,3 +1,5 @@
+import { validateRunner } from './runner-registration.js';
+export { validateRunner };
 /** Exact committed source and bounded, credential-free SSH execution for machine runners [C7]. */
 export { placeRunner, runnerStage } from './runner-stage.js';
 import {
@@ -80,25 +82,7 @@ const MAX_BLOB_BYTES = 8 * 1024 ** 2;
 const MAX_HISTORY_TAGS = 1_024;
 const MAX_TAG_CHAIN = 8;
 const TOOL_ROOT = fileURLToPath(new URL('../', import.meta.url));
-const RUNTIME_NAMES = ['runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js', 'runner-overhead.js'];
-
-/** Validate an SSH destination as one argument, never a command or an SSH option. */
-export function validateRunner(value) {
-  if (!value || typeof value.host !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.@:\[\]-]{0,254}$/u.test(value.host)
-    || !Number.isSafeInteger(value.slots) || value.slots < 1
-    || !Number.isSafeInteger(value.browser) || value.browser < 0 || value.browser > value.slots) {
-    throw new Refused('BAD_RUNNER', 'use an SSH host or alias, positive --slots, and --browser from zero through slots');
-  }
-  if (value.gui !== undefined && value.gui !== null && typeof value.gui !== 'boolean') throw new Refused('BAD_RUNNER', 'runner gui must be true, false, or unknown');
-  for (const key of ['node', 'root']) {
-    if (value[key] !== undefined && (typeof value[key] !== 'string' || /[\u0000-\u001f\u007f]/u.test(value[key])
-      || !(value[key].startsWith('/') && value[key].length > 1 || key === 'node' && value[key] === 'node'))) {
-      throw new Refused('BAD_RUNNER', `runner ${key} must be an absolute remote path${key === 'node' ? ' or node' : ''}`);
-    }
-  }
-  return { host: value.host, slots: value.slots, browser: value.browser, ...(value.gui !== undefined ? { gui: value.gui } : {}),
-    ...(value.node ? { node: value.node } : {}), ...(value.root ? { root: value.root } : {}) };
-}
+const RUNTIME_NAMES = ['audit-coverage-reporter.js', 'runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'git-adapter.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js', 'runner-overhead.js'];
 
 /** Dirty or non-repository commands cannot claim to execute an exact committed source remotely. */
 export function runnerSource(root) {
@@ -517,7 +501,7 @@ function requestFor(root, command, { runner, source, browser = false, byLaunch, 
     if (secretsIn([{ path: 'runner continuation', line: 1, text: JSON.stringify(projection) }]).length) throw new Refused('RUNNER_SECRET', 'the continuation projection contains a possible secret; keep this run local');
     const spec = { version: 1, id: randomUUID(), repoId, ...(originBase ? { origin, originBase } : {}), runtime, tooling, tags, commit: selected.commit, tree: selected.tree, command, pipefail, slots: runner.slots,
       ...(trustedMode ? { trustedMode } : {}),
-      browser: runner.browser, browserRequired: browser, guiRequired: metadata.gui === true, landing: metadata.landing === true,
+      browser: runner.browser, browserRequired: browser, guiRequired: metadata.gui === true, landing: metadata.landing === true, auditCoverage: metadata.auditCoverage === true,
       ...(metadata.landing === true && metadata.timeoutMs ? { timeoutMs: metadata.timeoutMs } : {}),
       // The classification this controller used, so the runner never reclassifies by its own settings (#1043).
       browserByLaunch: byLaunch ?? carriedBrowserByLaunch() ?? readMachineSettingsFile()?.gate?.browserByLaunch === true,
@@ -545,6 +529,15 @@ function resultFrom(request, result) {
   const lines = String(result.stderr ?? '').split(/\r?\n/u);
   const prefix = `PULLBOARD_RUNNER_RESULT ${request.spec.id} `;
   const receipts = lines.filter(line => line.startsWith(prefix));
+  // A spec rejected before admission has no trustworthy job receipt. Preserve its named failure,
+  // never manufacture source/proof metadata or treat the refusal as a transport retry.
+  if (!result.error && Number.isInteger(result.status) && result.status > 0 && result.status <= 255 && output.length === 0 && receipts.length === 0
+      && lines.filter(line => line === 'PULLBOARD_RUNNER_SPEC_REFUSED invalid work specification').length === 1) {
+    const refused = new Refused('RUNNER_WORK_SPEC', `runner ${request.runner.host} refused an invalid work specification before execution`);
+    refused.runnerAttempt = { host: request.runner.host, exitCode: result.status, output: output.toString('utf8'), reason: 'invalid work specification' };
+    throw refused;
+  }
+
   let receipt;
   try {
     if (receipts.length !== 1) throw new Error('missing receipt');
