@@ -10,6 +10,8 @@ import { runSubmitGate } from '../src/gate.js';
 import { mainPolicy } from '../src/trusted-policy-read.js';
 import { withSourceComposition } from '../src/source-advance-compose.js';
 import { captureSourceAdvanceBasis } from '../src/source-advance-origin.js';
+import { boardReceiptStore } from '../src/gate-run-receipt.js';
+import { readGateReceipt } from '../src/gate-run-receipt.js';
 import { prepareSourceAdvance } from '../src/source-advance-origin.js';
 
 /** Build real fixture commits and execute the declared exact-tree test before covering the native move. */
@@ -53,7 +55,9 @@ export async function seedSourceAdvance({ board, box, store, exercise, agent, cl
   submitFixture(board, id, { agentId: agent, commit: candidate, tree: candidateTree });
   const item = store.getItem(board, id);
   const basis = captureSourceAdvanceBasis(root, board, item);
-  await withSourceComposition(root, candidate, trunk, async (composition, custody) => {
+  const inheritedContext = process.env.NODE_TEST_CONTEXT;
+  delete process.env.NODE_TEST_CONTEXT;
+  try { await withSourceComposition(root, candidate, trunk, async (composition, custody) => {
     custody.started();
     const gate = await runSubmitGate(composition.directory, mainPolicy(root).config, { base: candidate,
       changed: composition.changed, check, agent: 'coordinator', item: String(id), sourceAdvance: true,
@@ -61,10 +65,19 @@ export async function seedSourceAdvance({ board, box, store, exercise, agent, cl
     assert.equal(gate.cleanupUnverified, undefined, 'the admitted child returned without unknown custody');
     custody.terminal();
     assert.equal(gate.isGreen, true, gate.output);
+    assert.equal(gate.proofReceiptIds.length, 2, 'both declared phases actually ran');
+    for (const receiptId of gate.proofReceiptIds) {
+      const receipt = readGateReceipt(boardReceiptStore(board), receiptId);
+      assert.deepEqual(receipt?.proof.counts, { passed: 1, failed: 0, skipped: 0 }, 'empty recursive --test is never genuine parity evidence');
+    }
+    assert.match(gate.check.profile.tests[0]?.name ?? '', /both independently committed source branches survive composition/u);
     const request = prepareSourceAdvance(root, board, item, composition, gate, basis);
     const advanced = await exercise('advanceItemSource', () => store.advanceItemSource(board, id, request));
     assert.ok(advanced, 'only the actual source-advance mutation counts as parity coverage');
     assert.equal(store.getItem(board, id).item_effective_head, composition.head);
     assert.equal(store.getItem(board, id).item_commit, candidate);
-  });
+  }); } finally {
+    if (inheritedContext === undefined) delete process.env.NODE_TEST_CONTEXT;
+    else process.env.NODE_TEST_CONTEXT = inheritedContext;
+  }
 }

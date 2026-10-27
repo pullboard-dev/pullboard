@@ -171,7 +171,9 @@ const AGENT_GRANT_REFUSALS = [
 ];
 
 /** A restore may only lift guards whose installed complete shape has its valid stamp. */
-const BOARD_SHAPE_REFUSALS = [{ code: 'ITEM_PATCH_FORMAT', rule: 'native patch metadata is readable', next: 'restore the native patch metadata from its ordered history' }, { code: 'SCHEMA_DRIFT', rule: 'the installed board guards and complete schema match their stored stamp', next: 'run pullboard inbox from the main checkout; if drift remains, preserve the board and ask the coordinator to inspect its schema' }];
+const PATCH_METADATA_REFUSAL = { code: 'ITEM_PATCH_FORMAT', rule: 'native patch metadata is readable', next: 'restore the native patch metadata from its ordered history' };
+const SOURCE_STATE_REFUSAL = { code: 'SOURCE_ADVANCE_STATE', rule: 'the ordered effective-head history is readable and bounded', next: 'restore the ordered source-advance history before using its effective head' };
+const BOARD_SHAPE_REFUSALS = [PATCH_METADATA_REFUSAL, SOURCE_STATE_REFUSAL, { code: 'SCHEMA_DRIFT', rule: 'the installed board guards and complete schema match their stored stamp', next: 'run pullboard inbox from the main checkout; if drift remains, preserve the board and ask the coordinator to inspect its schema' }];
 
 const VERDICT_PATCH_REFUSALS = [{ code: 'ITEM_PATCH', rule: 'native companion input composes safely against its source', next: 'replace the unsafe or conflicting patch with a source-bound correction' },
   { code: 'ITEM_PATCH_AUTHOR', rule: 'every patch has its registered source author', next: 'restore the native author before reviewing the patch' }];
@@ -189,7 +191,7 @@ export const MOVES = [
     guards: ['joined', 'itemExists', IN_STATE, 'outsideSubmission'], sets: ['item_built_by', 'item_commit', 'item_frozen_digest'], command: 'pullboard intake <PR> --criterion \"...\" --check \"...\"' },
   {
     verb: 'claim', from: ['open', 'claimed'], to: 'claimed', by: ['agent', 'coordinator'], refuse: 'NOT_CLAIMABLE',
-    alsoRefuses: [{ code: 'BAD_DEPENDENCIES', rule: 'persisted prerequisites contain only positive local item ids or exact repo#id references', next: 'restore the item dependencies from their ordered history, then retry' },
+    alsoRefuses: [SOURCE_STATE_REFUSAL, PATCH_METADATA_REFUSAL, { code: 'BAD_DEPENDENCIES', rule: 'persisted prerequisites contain only positive local item ids or exact repo#id references', next: 'restore the item dependencies from their ordered history, then retry' },
       { code: 'ITEM_LEASE_LOST', rule: 'a submit admission renews the same still-live build claim', next: 'claim the item before starting a new submit' },
       { code: 'ENGINE_VERSION', rule: 'adopting a coordinator correction replays only under an engine defining atomic correction adoption', next: 'upgrade Pullboard on every linked device before adopting a coordinator correction' }],
     guards: ['joined', 'itemExists', IN_STATE, 'checkProvesSomething', 'barReady', 'itemNotHeld', 'inLane', 'routeAllows', 'dependenciesVerified', 'notHeldByAnother', 'builderFirstRefusal', 'correctionRefrozen', 'laneOpen', 'lineCapacity', 'oneLiveClaim', 'rowsInForce'],
@@ -219,7 +221,7 @@ export const MOVES = [
   },
   {
     verb: 'reserve', from: ['submitted'], to: 'submitted', by: ['agent', 'coordinator'], refuse: 'NOT_SUBMITTED',
-    alsoRefuses: [{ code: 'BAD_DEPENDENCIES', rule: 'persisted prerequisites contain only positive local item ids or exact repo#id references', next: 'restore the item dependencies from their ordered history, then retry' }],
+    alsoRefuses: [SOURCE_STATE_REFUSAL, { code: 'BAD_DEPENDENCIES', rule: 'persisted prerequisites contain only positive local item ids or exact repo#id references', next: 'restore the item dependencies from their ordered history, then retry' }],
     guards: ['coordinatorSaysAs', 'joined', 'roadmapReadable', 'itemExists', IN_STATE, 'reviewCooldownElapsed', 'notBuilder', 'routeAllows', 'policyAllows', 'requiredReviewFamily', 'familyAllows', 'reviewFree'],
     sets: ['item_review_by', 'item_review_until'], command: 'pullboard next --verify',
   },
@@ -238,7 +240,7 @@ export const MOVES = [
   {
     verb: 'reopen', from: ['submitted', 'verified'], to: 'open', by: ['agent', 'coordinator'], refuse: 'NOT_SUBMITTED',
     guards: ['joined', 'itemExists', IN_STATE, 'reopenAuthority', 'noteGiven', 'causeWellFormed', 'notMerged', 'landingFailureRecorded', 'trunkConflicts', 'conflictAccepted'],
-    alsoRefuses: [{ code: 'SOURCE_ADVANCE_STALE', rule: 'an autonomous return binds the exact submitted source, current effective head, bar, patch set, verdict and episode', next: 'read the current item, bar, patches and main, then let the worker check the new exact composition' }, { code: 'SOURCE_ADVANCE_PROOF', rule: 'an autonomous return retains actual Git conflict paths or a native exact-source named red receipt; unknown infrastructure remains incomplete', next: 'run the exact frozen check and every affected test through the ordinary gate on the clean composition' }, { code: 'SOURCE_ADVANCE_STATE', next: 'restore the ordered source-advance history before using its effective head' }, { code: 'BAD_VERDICT_WITHDRAW', rule: 'the explicit withdrawal flag is boolean and is not combined with a conflict', next: 'use --withdraw-verdict with --note only, or report a conflict separately' }, { code: 'ENGINE_VERSION', rule: 'the withdrawal move is replayed by an engine defining its meaning', next: 'update Pullboard before withdrawing a verdict' }, { code: 'BAD_CONFIG', rule: 'the configured first-refusal duration fits a valid UTC deadline', next: 'set claim.reopenFirstRefusalMinutes to a non-negative whole number within the supported date range, or 0 to disable' }],
+    alsoRefuses: [{ code: 'SOURCE_ADVANCE_STALE', rule: 'an autonomous return binds the exact submitted source, current effective head, bar, patch set, verdict and episode', next: 'read the current item, bar, patches and main, then let the worker check the new exact composition' }, { code: 'SOURCE_ADVANCE_PROOF', rule: 'an autonomous return retains actual Git conflict paths or a native exact-source named red receipt; unknown infrastructure remains incomplete', next: 'run the exact frozen check and every affected test through the ordinary gate on the clean composition' }, SOURCE_STATE_REFUSAL, PATCH_METADATA_REFUSAL, { code: 'BAD_VERDICT_WITHDRAW', rule: 'the explicit withdrawal flag is boolean and is not combined with a conflict', next: 'use --withdraw-verdict with --note only, or report a conflict separately' }, { code: 'ENGINE_VERSION', rule: 'the withdrawal move is replayed by an engine defining its meaning', next: 'update Pullboard before withdrawing a verdict' }, { code: 'BAD_CONFIG', rule: 'the configured first-refusal duration fits a valid UTC deadline', next: 'set claim.reopenFirstRefusalMinutes to a non-negative whole number within the supported date range, or 0 to disable' }],
     sets: ['item_verdict', 'item_verified_by', 'item_owner', 'item_lease_until', 'item_review_by', 'item_review_until'],
     command: 'pullboard reopen <id> [--withdraw-verdict] --note "why" | --conflict <file> [--conflict <file>]',
   },
