@@ -70,9 +70,9 @@ test('a board opens on Dashboard with API-backed work, shared pace and existing 
       assert.equal(await chrome.stable(`Array.from(document.querySelectorAll('#tabs [data-tab]')).every(button => {
         const rect = button.getBoundingClientRect(); return rect.width > 0 && rect.left >= 0 && rect.right <= document.documentElement.clientWidth + 1;
       })`), true, 'every retained tab is accessible inside the viewport');
-      const metrics = await chrome.send('Page.getLayoutMetrics');
+      const contentHeight = await chrome.stable('Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)');
       const capture = await chrome.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true,
-        clip: { x: 0, y: 0, width, height: Math.ceil(metrics.cssContentSize.height), scale: 1 } });
+        clip: { x: 0, y: 0, width, height: Math.ceil(contentHeight), scale: 1 } });
       // Bounded chunks survive the ordinary native log's 64-KiB line ceiling; the proof reader reassembles each image.
       const chunkSize = 32_000, chunks = Math.ceil(capture.data.length / chunkSize);
       for (let index = 0; index < chunks; index++) console.log('# dashboard-image ' + JSON.stringify({ scheme, width, index, chunks, data: capture.data.slice(index * chunkSize, (index + 1) * chunkSize) }));
