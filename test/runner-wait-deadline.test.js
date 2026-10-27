@@ -5,8 +5,8 @@ import { mkdirSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { cleanupFixtureChildren, runFixtureChild } from './fixture-child.js';
-import { cleanupToolingSnapshots, cli, fixtureResultContext, gateResult, runThroughGate } from './runner-tooling-fixture.js';
+import { cleanupFixtureChildren, runFixtureChild, runFixtureChildAsync } from './fixture-child.js';
+import { cleanupToolingSnapshots, cli, committedToolingSnapshot, fixtureResultContext, gateResult, runThroughGate } from './runner-tooling-fixture.js';
 import { HOST, installSshStandIn, shellQuote } from './runner-ssh-fixture.js';
 import { listResources, takeResource } from '../src/resources.js';
 
@@ -236,4 +236,108 @@ test('a busy runner is named at the deadline and fallback waits for a real local
       if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index];
     }
   }
+});
+
+
+/** Run one isolated real pool case without changing the invoking machine's resource settings. */
+async function withPrivateDeadlineMachine(box, action) {
+  const keys = ['PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME'];
+  const previous = keys.map(key => process.env[key]);
+  for (const key of keys) process.env[key] = box.env[key];
+  try { return await action(JSON.parse(readFileSync(box.settingsFile, 'utf8'))); }
+  finally { keys.forEach((key, index) => {
+    if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index];
+  }); }
+}
+
+test('a first runner freed after the queue deadline executes with its captured startup budget and records the exception [C7,Q1,Q2]', async () => {
+  const runnerWaitMs = 5_000; // budget: private worker source negotiation and READY, with an actual expired queue wait.
+  const box = fixture({ runnerWaitMs, dropFirst: false });
+  const settings = JSON.parse(readFileSync(box.settingsFile, 'utf8'));
+  writeFileSync(box.settingsFile, JSON.stringify({ ...settings, gateSlots: 0, browserSlots: 0 }));
+  await withPrivateDeadlineMachine(box, async current => {
+    let held = await takeResource({ name: 'gate', root: box.repo, capacity: 0,
+      remote: true, runnerOnly: true, runnerProvider: () => current.runners });
+    let pending;
+    const release = join(box.dir, 'release-runner'), released = join(box.dir, 'runner-released');
+    try {
+      const tooling = committedToolingSnapshot(join(import.meta.dirname, '..'), box.env);
+      const gate = pathToFileURL(join(tooling, 'src/gate.js')).href;
+      const command = 'node -e "console.log(\'LATE_FIRST_DISPATCH_EXECUTED\')"';
+      const script = `import {writeFileSync,existsSync} from 'node:fs';
+import {withGateSlot,runProfiledShell} from ${JSON.stringify(gate)};
+let waited=false;
+const run=await withGateSlot(${JSON.stringify(box.repo)},lease=>runProfiledShell(${JSON.stringify(box.repo)},${JSON.stringify(command)},{gateLease:lease}),{
+  browser:false,runnerOnly:true,item:'late-first',agent:'late-first-fixture',
+  onWait:async state=>{if(state.admitted||waited)return;waited=true;
+    await new Promise(done=>setTimeout(done,${runnerWaitMs + 50}));
+    writeFileSync(${JSON.stringify(release)},'queue deadline elapsed');
+    while(!existsSync(${JSON.stringify(released)}))await new Promise(done=>setTimeout(done,10));},
+  onReceipt:receipt=>console.log('LATE_FIRST_RECEIPT '+JSON.stringify(receipt))});
+console.log(run.output);process.exitCode=run.isGreen?0:1;`;
+      pending = runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', script], { cwd: box.repo, env: box.env, timeout: 20_000 }); // budget: private queue wait plus one captured startup budget and cleanup.
+      await observe(() => existsSync(release), 'the queued first dispatch crossing its real deadline');
+      held.release(); held = null;
+      writeFileSync(released, 'the original real remote reservation released');
+      const result = await pending; pending = null;
+      assert.equal(result.status, 0, fixtureResultContext(result));
+      assert.match(result.stdout, /LATE_FIRST_DISPATCH_EXECUTED/u);
+      const line = result.stdout.split('\n').find(row => row.startsWith('LATE_FIRST_RECEIPT '));
+      assert.ok(line, 'the normal gate emitted its controller receipt');
+      const receipt = JSON.parse(line.slice('LATE_FIRST_RECEIPT '.length));
+      assert.equal(receipt.lateRunnerDispatch.budgetMs, runnerWaitMs, 'reuse the captured machine setting, not a new timeout');
+      assert.equal(receipt.lateRunnerDispatch.host, HOST + '-drop');
+      assert.ok(receipt.lateRunnerDispatch.admittedAt >= receipt.lateRunnerDispatch.queueDeadlineAt);
+      assert.equal(receipt.lateRunnerDispatch.startupDeadlineAt - receipt.lateRunnerDispatch.admittedAt, runnerWaitMs);
+      assert.equal(readFileSync(box.requests, 'utf8').trim().split('\n').length, 1, 'exactly one actual SSH dispatch');
+      const pool = listResources({ scope: 'machine' }).find(row => row.name === 'gate');
+      assert.equal(pool.holders.length + pool.line.length, 0, 'all original leases drain');
+    } finally {
+      held?.release();
+      writeFileSync(released, 'cleanup releases the owned fixture barrier');
+      if (pending) await pending;
+    }
+  });
+});
+
+test('an overdue runner-only request refuses busy capacity with its next step instead of oversubscribing [C7,Q1,Q2]', async () => {
+  const box = fixture();
+  await withPrivateDeadlineMachine(box, async settings => {
+    const options = { name: 'gate', root: box.repo, capacity: 0, remote: true, runnerOnly: true,
+      runnerProvider: () => settings.runners };
+    const held = await takeResource(options);
+    try {
+      await assert.rejects(takeResource({ ...options, runnerWaitMs: 60 }), error => error.code === 'RUNNER_WAIT_DEADLINE'
+        && /busy/u.test(error.message) && /then retry/u.test(error.message));
+      const pool = listResources({ scope: 'machine' }).find(row => row.name === 'gate');
+      assert.equal(pool.line.length, 0, 'a refused overdue ticket is removed');
+      assert.equal(existsSync(box.starts), false, 'a busy real reservation never starts SSH');
+    } finally { held.release(); }
+  });
+});
+
+test('a failed late dispatch cannot buy another startup budget on a different free runner [C7,Q1,Q2]', async () => {
+  const box = fixture();
+  await withPrivateDeadlineMachine(box, async settings => {
+    const runners = [...settings.runners, { ...settings.runners[0], host: HOST + '-second' }];
+    const options = { name: 'gate', root: box.repo, capacity: 0, remote: true, runnerOnly: true,
+      runnerProvider: () => runners, runnerWaitMs: 60 };
+    let first = await takeResource(options), second = await takeResource(options), late;
+    try {
+      let waited = false;
+      late = await takeResource({ ...options, onWait: async state => {
+        if (state.admitted || waited) return;
+        waited = true;
+        await new Promise(done => setTimeout(done, 80)); // budget: cross only this private queue's 60ms deadline.
+        first.release(); first = null;
+      } });
+      assert.equal(late.runner.host, runners[0].host);
+      assert.equal(late.lateRunnerDispatch.budgetMs, 60);
+      second.release(); second = null;
+      const requeued = late.requeueRunner('transport-lost'); late = null;
+      await assert.rejects(requeued, { code: 'RUNNER_WAIT_DEADLINE' }, 'the same original request has spent its one late start');
+      const pool = listResources({ scope: 'machine' }).find(row => row.name === 'gate');
+      assert.equal(pool.holders.length + pool.line.length, 0, 'refusal cleans the transferred original ticket');
+    } finally { first?.release(); second?.release(); late?.release(); }
+  });
 });
