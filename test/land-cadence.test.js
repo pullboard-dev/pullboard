@@ -87,15 +87,17 @@ function assertThresholds(box) {
 /** Existing duration-only manual landing keeps its start-to-start cooldown at both exact clock boundaries. */
 function assertLegacyCooldown(box) {
   onBoard(box, board => {
-    const start = Date.parse(store.landingBatches(board).at(-1).startedAt);
+    const batch = store.landingBatches(board).at(-1);
+    const start = Date.parse(batch.startedAt);
     const policy = configFromSource(JSON.stringify({ landing: { cadence: '10m' } }));
     board.clock = { now: () => new Date(start + EVERY - 1) };
-    assert.ok(cadenceDeferral(board, policy, 'main', () => {}).deferredUntil);
+    assert.ok(cadenceDeferral(board, policy, batch.branch, () => {}).deferredUntil);
+    assert.equal(cadenceDeferral(board, policy, `${batch.branch}-other`, () => {}), null, 'another trunk has no recorded cooldown');
     board.clock = { now: () => new Date(start + EVERY) };
-    assert.equal(cadenceDeferral(board, policy, 'main', () => {}), null);
+    assert.equal(cadenceDeferral(board, policy, batch.branch, () => {}), null);
     board.clock = { now: () => new Date(start) };
     const object = configFromSource(JSON.stringify({ landing: { cadence: { every: '10m', accepted: 2 } } }));
-    assert.equal(cadenceDeferral(board, object, 'main', () => {}), null, 'object policy creates no legacy cooldown that cancels its count trigger');
+    assert.equal(cadenceDeferral(board, object, batch.branch, () => {}), null, 'object policy creates no legacy cooldown that cancels its count trigger');
   });
 }
 
