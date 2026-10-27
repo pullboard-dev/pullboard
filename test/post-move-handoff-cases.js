@@ -4,6 +4,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { submitFixture } from './board-submit-fixture.js';
 
 /** Install real CLI controls while reusing the frozen suite's isolated Git and SQLite setup. */
 export function installPostMoveHandoffCases({ fixture, cli }) {
@@ -41,10 +42,19 @@ test('the actual submitted value is repaired', () => assert.equal(readFileSync(n
     const box = await fixture(t);
     // Synthetic submitted states establish a review queue; no setup gate execution is claimed.
     const first = box.add('Review currently in hand');
-    box.submit(first);
-    const pending = ['Oldest waiting review', 'Second waiting review', 'Third waiting review'].map(title => {
-      const id = box.add(title); box.submit(id); return id;
-    });
+    /** Freeze a real claim base, then seed only the explicitly synthetic submitted receipt. */
+    const publish = async id => {
+      const claimed = await cli(box, box.seats.builder.path, ['claim', String(id)]);
+      assert.equal(claimed.code, 0, claimed.out + claimed.err);
+      const head = box.git(box.seats.builder.path, 'rev-parse', 'HEAD');
+      submitFixture(box.board, id, { agentId: box.seats.builder.id, commit: head,
+        tree: box.git(box.root, 'rev-parse', `${head}^{tree}`) });
+    };
+    await publish(first);
+    const pending = [];
+    for (const title of ['Oldest waiting review', 'Second waiting review', 'Third waiting review']) {
+      const id = box.add(title); await publish(id); pending.push(id);
+    }
     const seat = box.seats.outside;
     const reserved = await cli(box, seat.path, ['next', '--take']);
     assert.equal(reserved.code, 0, reserved.out + reserved.err);
@@ -73,6 +83,19 @@ test('the actual submitted value is repaired', () => assert.equal(readFileSync(n
     assert.equal(result.document.next, undefined, 'opt-out makes no hidden reservation');
   });
 
+  test('release hands the seat different work instead of reclaiming its released item [N2,V1]', async t => {
+    const box = await fixture(t);
+    const seat = box.seats.actor;
+    const first = box.add('Let another builder take the released task');
+    const next = box.add('Take different ready work');
+    box.claim(first, seat);
+    const result = await cli(box, seat.path, ['release', String(first), '--note', 'Leave the original task available']);
+    assert.equal(result.code, 0, result.out + result.err);
+    assert.equal(store.getItem(box.board, first).item_status, 'open', 'handoff does not undo the release');
+    assert.equal(store.getItem(box.board, next).item_owner, seat.id);
+    assert.equal(result.document.next.item.item_id, next);
+  });
+
   test('release with no eligible work stays successful and names the native reasons [N2,V1]', async t => {
     const box = await fixture(t);
     const seat = box.seats.actor;
@@ -83,6 +106,7 @@ test('the actual submitted value is repaired', () => assert.equal(readFileSync(n
     assert.equal(result.code, 0, result.out + result.err);
     assert.equal(store.getItem(box.board, first).item_status, 'open');
     assert.equal(result.document.id, first);
+    assert.ok(result.document.next, 'the successful command reports its native handoff outcome');
     assert.equal(result.document.next.item, null);
     assert.ok(result.document.next.reasons.length, 'empty assignment is explained rather than fabricated');
   });
