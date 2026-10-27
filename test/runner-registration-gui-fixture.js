@@ -1,3 +1,4 @@
+/** @pullboard-module-loads src/gate.js src/config.js */
 /** Real private SSH/worker fixtures for registration-time desktop observations [C7,V4]. */
 import assert from 'node:assert/strict';
 import {

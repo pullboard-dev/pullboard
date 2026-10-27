@@ -10,7 +10,9 @@ test('runner add observes a desktop before the first GUI-marked gate runs [C7,V4
   assert.equal(box.trace('').length, 0, 'no job ran to teach the controller its GUI capability');
   assert.equal(box.trace('.gui-probes').length, 1, 'the registration probe really crossed the private SSH transport');
   assert.equal(box.trace('.gui-probes')[0].registrationGuiProbe, true);
-  assert.equal(box.list()[0].gui, true);
+  const observed = box.list()[0];
+  assert.equal(observed.gui, true);
+  assert.ok(Number.isFinite(Date.parse(observed.guiObservedAt)), 'registration persisted the fresh resource observation before any job');
   const run = await box.runGui();
   assert.equal(run.status, 0, run.context);
   assert.equal(box.result(run.stdout).isGreen, true);
