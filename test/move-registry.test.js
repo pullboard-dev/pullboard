@@ -30,6 +30,7 @@ import { PRIVATE_REHOME_ENGINE } from '../src/private-rehome-engine.js';
 const SNAPSHOT = JSON.parse(readFileSync(new URL('./move-registry-baseline.json', import.meta.url), 'utf8'));
 const CONSUMERS = ['src/engine.js', 'src/relay-sender.js', 'src/next-step-words.js'];
 const REHOME_OPERATIONS = ['reserveRehomeItemId', 'rehomeItem', 'applyRehomeItem'];
+const REVIEW_STEPS = Object.freeze({ BAD_REVIEW_POLICY: 'restore the native review policy before reviewing this item', STRICT_REVIEW_TOUCHED: 'ask a session that has not written to this strict item' });
 const REHOME_STEPS = Object.freeze({
   BAD_ITEM_ID: 'use owner/repo#id, ~owner/repo#id, or one safe positive item number on the current board',
   PRIVATE_BOARD_NOT_FOUND: "run pullboard add <lane> <title> --private from that repo's checkout before using its private handle",
@@ -73,7 +74,7 @@ export default { operation: ${JSON.stringify(name)}, order: ${engine + 1000}, en
 
 test('today\'s move order, actors, refusal recovery text and recorded SQLite prefix are unchanged [C7,V4,H3,H16]', t => {
   assert.deepEqual(ENGINE_OPERATIONS.filter(operation => !REHOME_OPERATIONS.includes(operation) && !TYPED_REQUEST_OPERATIONS.includes(operation)), SNAPSHOT.operations);
-  assert.deepEqual(NEXT_STEPS, { ...SNAPSHOT.nextSteps, ...REHOME_STEPS, ...TYPED_REQUEST_STEPS });
+  assert.deepEqual(NEXT_STEPS, { ...SNAPSHOT.nextSteps, ...REHOME_STEPS, ...TYPED_REQUEST_STEPS, ...REVIEW_STEPS });
   assert.equal(minimumMoveEngine('recordProofRun', [{ landingFence: {}, receipt: { environment: {} } }, { cause: 'conflict:new' }]), PROOF_RUN_ENGINE);
   assert.equal(MOVE_REGISTRY.recordProofRun.engine, PROOF_RUN_ENGINE);
   assert.equal(MOVE_REGISTRY.recordProofRun.itemIdFirstArgument, false);

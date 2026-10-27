@@ -20,6 +20,7 @@ export default Object.freeze({ operation: "reserveReview", order: 16, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
   "REQUIRED_REVIEW_FAMILY": "ask a reviewer whose declared family matches the item review-family requirement",
+  "STRICT_REVIEW_TOUCHED": "ask a session that has not written to this strict item",
   "COORDINATOR_VERIFIES": "leave the review to the coordinator; shout it when the item is ready: pullboard shout coordinator \"#<id> is ready to verify\"",
   "LINE_SETTING_RANGE": "read the allowed range with pullboard settings line, then record an in-range value or off with its reason and window numbers",
   "MAIN_IS_COORDINATOR": "use an independent agent checkout for agent work, or run person-only actions from the main checkout as the coordinator",

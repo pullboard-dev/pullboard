@@ -78,9 +78,9 @@ test('[V1,B3] an unknown-parent primary session and its child cannot review each
   runFixtureGit(['init', '-q'], { cwd: root });
   const board = store.openBoard(join(root, '.git', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
-  const primary = store.register(board, { lane: 'web', path: root, session: 'primary-R' });
-  const child = store.register(board, { lane: 'web', path: join(root, 'child'), parent: 'primary-R', session: 'child-C' });
-  const outside = store.register(board, { lane: 'review', path: join(root, 'outside'), parent: 'outside-Q' });
+  const primary = store.register(board, { lane: 'web', path: root, family: 'fixture-builder', session: 'primary-R' });
+  const child = store.register(board, { lane: 'web', path: join(root, 'child'), family: 'fixture-builder', parent: 'primary-R', session: 'child-C' });
+  const outside = store.register(board, { lane: 'review', path: join(root, 'outside'), family: 'fixture-reviewer', parent: 'outside-Q' });
   assert.equal(store.agentById(board, primary).agent_parent_session, null, 'the primary parent is visibly unknown');
   for (const [author, reviewer] of [[primary, child], [child, primary]]) {
     const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Root and child independence', criterion: 'Independent review', check: 'true' });

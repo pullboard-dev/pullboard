@@ -91,6 +91,7 @@ export const LINE_SETTING_DEFINITIONS = Object.freeze({
   order: Object.freeze({ type: 'boolean' }),
   focusMilestone: Object.freeze({ type: 'milestone' }),
   reviewsFirst: Object.freeze({ type: 'boolean' }),
+  requireReviewFamilies: Object.freeze({ type: 'boolean' }),
   wipPerReviewer: Object.freeze({ type: 'number', min: 1.5, max: 3, integer: false }),
   barReady: Object.freeze({ type: 'boolean' }),
   'bar.check': Object.freeze({ type: 'boolean' }),
