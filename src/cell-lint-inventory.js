@@ -1,0 +1,62 @@
+import { gitChildEnv } from './git.js';
+import { gitSpawnSync } from './git-adapter.js';
+/** Compute the accepted cells layout and literal graph without evaluating repository modules [CD19,CD23,CD61,CD62]. */
+import { lstatSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { importsIn } from './module-imports.js';
+import { commonJsIn } from './module-imports.js';
+import { repositoryImport } from './import-map.js';
+
+/** Name the actual cell folder, without inventing a metadata registry. */
+export function cellOf(file) { return /^(?:apps|packages)\/[^/]+\//u.exec(file)?.[0].slice(0, -1) ?? null; }
+
+/** Exclude test and contract modules from production reachability roots and edges. */
+export function testFile(file) { return /(?:^|\/)(?:test|tests|contract)\//u.test(file) || /\.test\.[cm]?js$/u.test(file); }
+
+/** Inventory all ordinary repository files; symlinks remain visible unknowns rather than traversed boundaries. */
+export function cellInventory(root) {
+  const files = new Map(), unknown = [];
+  const listed = gitSpawnSync(['ls-files', '--cached', '--others', '--exclude-per-directory=.gitignore', '-z'], { cwd: root, env: gitChildEnv(root), encoding: 'utf8' });
+  if (listed.status !== 0) throw new Error('cell lint inventory needs a real Git repository; initialize the private fixture or restore Git metadata');
+  for (const file of [...new Set(listed.stdout.split('\0').filter(Boolean))].sort()) {
+    let entry;
+    try { entry = lstatSync(join(root, file)); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; unknown.push({ file, reason: 'tracked path is missing' }); continue; }
+    if (entry.isFile()) files.set(file, readFileSync(join(root, file)));
+    else unknown.push({ file, reason: 'non-regular repository entry is not followed' });
+  }
+  const config = files.has('package.json') ? JSON.parse(files.get('package.json').toString('utf8')) : {};
+  const modules = [...files.keys()].filter(file => /\.[cm]?js$/u.test(file)).sort();
+  const edges = new Map(modules.map(file => [file, []]));
+  const sources = modules.map(file => files.get(file).toString('utf8'));
+  const parsed = importsIn(sources), common = commonJsIn(sources);
+  for (const [index, file] of modules.entries()) {
+    const imports = parsed[index];
+    if (common[index]) unknown.push({ file, reason: 'CommonJS loader closure is unresolved' });
+    for (const specifier of imports) {
+      if (specifier.startsWith('node:')) continue;
+      const target = repositoryImport(file, specifier, config.imports);
+      if (!target || !files.has(target)) {
+        unknown.push({ file, specifier, reason: target ? `missing import target ${target}` : 'unresolved import or computed loader' });
+        continue;
+      }
+      edges.get(file).push({ target, specifier });
+    }
+  }
+  return { files, edges, unknown };
+}
+
+/** Return each directed inter-cell edge in a strongly connected component, retaining its identity. */
+export function cycleEdges(graph) {
+  const result = [];
+  /** Determine whether an existing target reaches its source; visited bounds cycles. */
+  function reaches(from, target, seen = new Set()) {
+    if (from === target) return true;
+    if (seen.has(from)) return false;
+    seen.add(from);
+    return [...(graph.get(from) ?? [])].some(next => reaches(next, target, seen));
+  }
+  for (const [from, targets] of graph) for (const target of targets) if (reaches(target, from)) result.push(`${from}->${target}`);
+  return result.sort();
+}
