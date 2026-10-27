@@ -273,11 +273,11 @@ test('[C7] a single-file native receipt supplies observed wall time, never aggre
 test('[C7] one unbound named outcome cannot cover two same-file worker executions', t => {
   const f = fixture(t), file = 'test/alpha.test.js', id = randomUUID();
   f.event('proof-run', 1, '2026-10-14T00:00:00Z', { receipt: { id, at: '2026-10-14T00:00:00Z',
-    commit: f.red, sourceClean: true, exitCode: 0,
+    commit: f.red, sourceClean: true, exitCode: 1,
     testRuntimes: [{ pid: 100, file, environment: ENVIRONMENT }, { pid: 101, file, environment: ENVIRONMENT }] } });
   assert.equal(retainTestValueTimings(boardReceiptStore(f.board), id, {
     files: [{ path: file, durationMs: 1000 }, { path: file, durationMs: 2000 }],
-    tests: [{ file, name: 'target', passed: true }],
+    tests: [{ file, name: 'target', passed: false }],
   }), true);
   f.run('test/beta.test.js', '2026-10-15T00:00:00Z', { duration: 1000 });
   let report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) });
@@ -298,4 +298,6 @@ test('[C7] one unbound named outcome cannot cover two same-file worker execution
       at: '2026-10-14T00:00:01Z', classification: 'flake', original: { sha256: 'c'.repeat(64) } } });
   report = testValueReport(f.board, { root: f.root, costs: defaults().testEconomics, now: Date.parse(NOW) });
   assert.equal(report.files.find(row => row.file === file).flakeRate, null);
+  assert.equal(report.files.find(row => row.file === file).unmatchedFlakes, 1,
+    'a unique receipt still has two possible failing worker attempts');
 });
