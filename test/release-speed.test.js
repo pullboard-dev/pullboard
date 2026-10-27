@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { installReleaseReceiptCases } from './release-receipt-cases.js';
 import { installReleaseTransportCases } from './release-transport-cases.js';
+import { installReleaseProducerCases } from './release-producer-cases.js';
 import './executor-affinity-cases.js';
 import { planReleaseShards, releasePlacement, releaseParticipation, RELEASE_PARTICIPATION_PREFIX } from '../src/landing-shards.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -12,6 +13,7 @@ import { runFixtureChildAsync } from './fixture-child.js';
 
 installReleaseReceiptCases();
 installReleaseTransportCases();
+installReleaseProducerCases();
 
 /** An explicit model of registered capacity, not observations or receipts from the person's machines. */
 function targets() {

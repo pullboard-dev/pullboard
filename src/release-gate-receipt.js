@@ -84,7 +84,7 @@ function checked(envelope, expected) {
   if (!keys(envelope, ['version', 'gateReceipt', 'participation']) || envelope.version !== 1) return 'invalid release envelope';
   const gate = receiptFields(envelope.gateReceipt);
   if (!gate || receiptBody(gate) === null || !equal(envelope.gateReceipt, gate) || gate.version !== 1 || gate.kind !== 'release'
-    || gate.green !== true || gate.head !== expected.head || gate.tree !== expected.tree || gate.command !== expected.command) return 'gate receipt does not match release binding';
+    || gate.green !== true || gate.head !== expected.head || gate.main !== expected.head || gate.tree !== expected.tree || gate.command !== expected.command) return 'gate receipt does not match release binding';
   const collection = gate.collection;
   if (!collection || collection.full !== true || collection.complete !== true || collection.plannedFiles < 1
     || collection.completedFiles !== collection.plannedFiles || collection.completedDigest !== collection.planDigest) return 'gate collection is not full and complete';

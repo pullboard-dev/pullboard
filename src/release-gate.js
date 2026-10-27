@@ -26,6 +26,7 @@ import {
 } from './trusted-policy-read.js';
 import {
   readGateReceipt,
+  receiptBinds,
   receiptStore,
 } from './gate-run-receipt.js';
 import {
@@ -35,6 +36,7 @@ import {
   releaseReceiptBody,
   releaseReceiptFields,
   releaseReceiptProblem,
+  readReleaseReceipt,
 } from './release-gate-receipt.js';
 import {
   Refused,
@@ -46,6 +48,20 @@ export function releaseSource(root) {
   const head = headCommit(root), tree = committedTree(root);
   if (!tree || head !== policy.commit) throw new Refused('GATE_RUN_EVIDENCE', 'run the release gate on the clean accepted coordinator head');
   return { head, tree, command: createHash('sha256').update(policy.config.gate).digest('hex'), policy };
+}
+
+/** Verify only this repository's privately recorded execution and its native gate bytes, never an imported file. */
+export function verifyNativeReleaseReceipt(root, id) {
+  if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/u.test(id)) return null;
+  try {
+    const source = releaseSource(root);
+    const file = join(repoInfo(root).commonDir, 'pullboard', 'release-receipts', `${id}.json`);
+    // Current registration is independently observed; a caller cannot shrink the required machine set.
+    const expected = { head: source.head, tree: source.tree, command: source.command,
+      required: releaseExecutors().map(entry => entry.id) };
+    const envelope = readReleaseReceipt(file, expected);
+    return envelope?.participation.id === id && receiptBinds(receiptStore(root), envelope.gateReceipt) ? envelope : null;
+  } catch { return null; }
 }
 
 /** Execute the actual accepted full gate with mandatory native placement before privately writing an envelope. */
