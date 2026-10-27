@@ -15,6 +15,7 @@ import { QUOTED_LANDING_FAILURE_ENGINE } from '../src/quoted-landing-failure-eng
 import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { safeFixtureDiagnostic } from './fixture-child.js';
+import { correctedNoVerdictReopen } from '../src/reopen-history.js';
 import { unpackRelease } from './release-archive.js';
 
 const e2e = createE2eHelpers();
@@ -754,9 +755,16 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
   assert.equal(secondReopen.code, 0, secondReopen.err);
   const edited = box.run(box.repo, 'edit', '1', '--criterion', 'The page renders a heading.', '--reason', 'the fixture corrects its bar');
   assert.equal(edited.code, 0, edited.err);
+  const correctedHistory = openFixtureBoard(t, box);
+  assert.equal(correctedNoVerdictReopen(correctedHistory, 1, submitted.commit), false,
+    'an atomic correction alone cannot replace the matching post-correction claim');
 
   const claimed = box.run(box.web, 'claim', '1');
   assert.equal(claimed.code, 0, claimed.err);
+  assert.equal(correctedNoVerdictReopen(correctedHistory, 1, submitted.commit), true,
+    'the real new claim binds the canonical corrected frozen bar');
+  assert.equal(correctedNoVerdictReopen(correctedHistory, 1, '0'.repeat(40)), false,
+    'the correction never authorizes a different previous submission');
   const claimedBoard = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   let claimedBoardOpen = true;
   t.after(() => { if (claimedBoardOpen) store.closeBoard(claimedBoard); });
