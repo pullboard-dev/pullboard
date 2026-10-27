@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync
 import { dirname, join, relative } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { fixtureBoard } from './board-fixture.js';
 import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { landingFailures, landingSubject } from '../src/land.js';
@@ -1301,12 +1302,11 @@ test('landing records replay identically with native sender and engine boundarie
   submitItem(box, entry);
   acceptItem(box, entry);
   const document = onBoard(box, (board) => exportBoard(board));
-  const boards = ['one', 'two'].map((name, index) => {
-    const board = store.openBoard(join(box.dir, `${name}.sqlite`), { now: () => new Date(index ? '2030-01-01' : '2020-01-01') });
+  const boards = [0, 1].map(index => {
+    const board = fixtureBoard(t, { clock: { now: () => new Date(index ? '2030-01-01' : '2020-01-01') } });
     importBoard(board, document);
     return board;
   });
-  t.after(() => boards.forEach((board) => store.closeBoard(board)));
   const batch = { version: 1, id: 'replayed-batch', state: 'pushed', base: box.git(box.repo, 'rev-parse', 'HEAD'), tip: entry.commit,
     root: join(box.repo, '.git', 'pullboard', 'landings', 'replayed-batch', 'worktree'), branch: 'refs/heads/main', owner: 'coordinator-fixture',
     logPath: join(box.dir, 'replayed-gate.log'), items: [{ id: entry.item, commit: entry.commit, merge: entry.commit }] };
