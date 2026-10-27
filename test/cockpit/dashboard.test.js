@@ -1,3 +1,4 @@
+import './dashboard-render.test.js';
 import './dashboard-runtime.test.js';
 import './dashboard-clock.test.js';
 import './dashboard-model.test.js';

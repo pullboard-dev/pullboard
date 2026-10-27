@@ -770,11 +770,6 @@ $('shouts-pane').addEventListener('click', (event) => {
   if (event.target.closest('[data-credentials]')) { void loadCredentials(); return; }
   const revoke = event.target.closest('[data-revoke-token]');
   if (revoke) { void revokeCredential(revoke.dataset.revokeToken); return; }
-  const dashboardList = event.target.closest('[data-dashboard-list]');
-  if (dashboardList) {
-    view.dashboardList = dashboardList.dataset.dashboardList; view.state = view.dashboardList === 'review' ? 'verify' : 'ready';
-    view.lane = null; view.before = null; $('q').value = ''; openTab('items'); render(); return;
-  }
   const more = event.target.closest('[data-more]'), pick = event.target.closest('[data-agent]');
   if (more) {
     const card = more.closest('.shout'), id = Number(card.dataset.shoutId);
@@ -800,6 +795,11 @@ $('shout-text').addEventListener('keydown', (event) => { if (event.key === 'Ente
 document.addEventListener('click', (event) => {
   // The open-board screens name their state in data-state and handle their own presses (#764).
   if (event.target.closest('#local-note')) return;
+  const dashboardList = event.target.closest('[data-dashboard-list]');
+  if (dashboardList) {
+    view.dashboardList = dashboardList.dataset.dashboardList; view.state = view.dashboardList === 'review' ? 'verify' : 'ready';
+    view.lane = null; view.before = null; $('q').value = ''; openTab('items'); render(); return;
+  }
   if (view.filterOpen && !event.target.closest('.filter-control')) { view.filterOpen = false; render(); }
   const t = event.target.closest('[data-filter-toggle],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-stats-toggle],#proj-switch,#console');
   if (!event.target.closest('.side')) fold(false);
