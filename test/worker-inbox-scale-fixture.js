@@ -5,6 +5,7 @@ import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
 
 let cleanup;
+const setupStarted = performance.now();
 const board = fixtureBoard({ after: callback => { cleanup = callback; } });
 try {
   store.register(board, { lane: 'coordinator', path: '/scale/root' });
@@ -39,11 +40,13 @@ try {
   const malformed = board.db.prepare('INSERT INTO shout(shout_from,shout_to,shout_text,shout_at) VALUES (?,?,?,?)');
   for (const target of ['item:01', 'item:1suffix']) malformed.run('coordinator', target, 'Noncanonical', at);
   const timings = {};
+  process.stderr.write(JSON.stringify({ phase: 'seeded', setupMs: performance.now() - setupStarted }) + '\n');
   /** Time only the actual read, excluding fixture setup and assertion work. */
   function timed(name, read) {
     const start = performance.now();
     const value = read();
     timings[name] = performance.now() - start;
+    process.stderr.write(JSON.stringify({ phase: name, ms: timings[name] }) + '\n');
     return value;
   }
   assert.deepEqual(timed('previewMs', () => store.inbox(board, seats[0], { markRead: false }))
