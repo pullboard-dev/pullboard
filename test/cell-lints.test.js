@@ -1,3 +1,4 @@
+/** @pullboard-test-input test-tree */
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-input ** */
 import { runFixtureGit } from './fixture-child.js';
@@ -441,6 +442,21 @@ spawnSync(process.execPath, [fileURLToPath(new URL('../../src/process-worker.js'
   const report = box.report();
   assert.ok(!report.metrics.unreachable.findings.some(row => row.key === 'src/process-worker.js'));
   assert.ok(report.metrics.unreachable.findings.some(row => row.key === 'src/only-test.json'), 'a test never seeds production data reach');
+  box.put('apps/demo/index.js', `import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+function example(process) { return spawnSync(process.execPath, [fileURLToPath(new URL('../../src/process-worker.js', import.meta.url))]); }
+example({ execPath: '/bin/echo' });
+`);
+  const shadowed = box.report();
+  assert.ok(shadowed.metrics.unreachable.findings.some(row => row.key === 'src/process-worker.js'), 'a shadowed execPath is not a native Node worker');
+  assert.ok(shadowed.unknown.some(row => row.file === 'apps/demo/index.js' && row.reason.includes('process')), 'the unproven process identity is disclosed');
+  box.put('src/fake-process.js', "export default { execPath: '/bin/echo' };\n");
+  box.put('apps/demo/index.js', `import process from '../../src/fake-process.js';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+spawnSync(process.execPath, [fileURLToPath(new URL('../../src/process-worker.js', import.meta.url))]);
+`);
+  assert.ok(box.report().metrics.unreachable.findings.some(row => row.key === 'src/process-worker.js'), 'an imported lookalike does not declare the real process');
   box.put('apps/demo/index.js', "import(process.env.UNKNOWN_WORKER);\n");
   const opaque = box.report();
   assert.ok(opaque.metrics.unreachable.findings.some(row => row.key === 'src/process-worker.js'));

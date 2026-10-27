@@ -406,3 +406,25 @@ test('repo-wide test guards survive declaration removal and use committed leadin
   box.put('test/text.test.js', header + 'export const dirty = true;\n');
   assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js'], 'dirty declarations have no authority');
 });
+
+
+test('explicit source-tree guards cover source-only changes without changing test-tree selection or losing old declarations [C7]', t => {
+  const box = graph(t), sourceHeader = '/** @pullboard-test-input source-tree */\n';
+  box.put('src/api.js', 'export const value = 1;\n');
+  box.put('test/source-scanner.test.js', sourceHeader + 'export const scan = true;\n');
+  box.put('test/test-scanner.test.js', '/** @pullboard-test-input test-tree */\nexport const scan = true;\n');
+  box.put('test/text.test.js', 'const text = ' + JSON.stringify(sourceHeader) + ';\n');
+  const base = box.commit();
+  box.put('src/api.js', 'export const value = 2;\n');
+  const sourceCommit = box.commit();
+  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit: sourceCommit }), ['test/source-scanner.test.js']);
+  box.put('test/new.test.js', 'export const added = true;\n');
+  const testCommit = box.commit();
+  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base: sourceCommit, commit: testCommit }), ['test/test-scanner.test.js']);
+  box.put('test/source-scanner.test.js', 'export const scan = false;\n');
+  box.put('src/api.js', 'export const value = 3;\n');
+  const removed = box.commit();
+  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base: testCommit, commit: removed, changed: ['src/api.js'] }), ['test/source-scanner.test.js'], 'the old committed source obligation survives removal');
+  box.put('test/text.test.js', sourceHeader + 'export const dirty = true;\n');
+  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base: testCommit, commit: removed, changed: ['src/api.js'] }), ['test/source-scanner.test.js'], 'dirty and string-only headers never create native obligations');
+});
