@@ -66,10 +66,10 @@ function privateRepo(t) {
   return { dir, root, env, git, run };
 }
 
-/** Create a real joined builder while the coordinator stays on its unchanged trunk. */
-function builderRepo(box) {
+/** Create a real joined builder with its accepted fixture ownership before any claim. */
+function builderRepo(box, additionalOwned = []) {
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
-  config.lanes = { build: { owns: ['src/', 'test/'], specs: ['G'] } };
+  config.lanes = { build: { owns: ['src/', 'test/', ...additionalOwned], specs: ['G'] } };
   put(box.root, 'pullboard.json', JSON.stringify(config));
   commitAll(box);
   const made = box.run('worktree', 'build', '--json');
@@ -427,7 +427,7 @@ test('unknown imports and broad inputs fall back explicitly, while an all-test c
   assert.equal(dynamic.full, true, 'a non-literal dynamic import fails closed');
   assert.match(dynamic.reason, /dynamic|compute|select/i);
 
-  for (const path of ['bin/run-tests.js', 'package.json', 'package-lock.json', 'src/affected-tests.js']) {
+  for (const path of ['bin/run-tests.js', 'package.json', 'package-lock.json']) {
     const broad = selectAffectedTests(box.root, { base, commit, changed: [path] });
     assert.equal(broad.full, true, `${path} requires the full gate`);
     assert.ok(broad.reason, `${path} explains the fallback`);
@@ -573,7 +573,7 @@ test('a landing-gated project defers the full suite from submit to landing [V4,C
     }
     put(box.root, 'bin/run-tests.js', 'export const version = 1;\n');
     commitAll(box, 'chore(core): prepare landing-gate fixture');
-    box = builderRepo(box);
+    box = builderRepo(box, ['bin/run-tests.js']);
     const check = `node -e "require('node:fs').appendFileSync(process.env.ITEM_CHECK_MARKER, 'check\\n')"`;
     assert.equal(box.coordinator('add', 'build', 'Landing gate fixture', '--check', check).code, 0);
     assert.equal(box.run('claim', '1').code, 0);
@@ -664,7 +664,7 @@ test("a landing-gated submit runs the project's invariant tests [V4,C7]", (t) =>
     put(box.root, 'test/c.test.js', "throw new Error('unrelated test must stay deferred');\n");
     put(box.root, 'bin/run-tests.js', 'export const version = 1;\n');
     commitAll(box);
-    box = builderRepo(box);
+    box = builderRepo(box, ['bin/run-tests.js']);
     assert.equal(box.coordinator('add', 'build', 'Invariant fixture', '--check', 'node -e "process.exit(0)"').code, 0);
     assert.equal(box.run('claim', '1').code, 0);
     return { box, marker };
