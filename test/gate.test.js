@@ -783,8 +783,9 @@ test('a hand-recorded run never quarantines a test [C7,D1]', async (t) => {
 function largeSelectionProject(deferAbove, { inline = false } = {}) {
   const box = e2e.project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, submitGate: 'landing', affectedTests: 'node --test',
-    submitInvariants: ['web/guard.test.js'], ...(inline ? { gate: 'node --test web/gate-check.test.js' } : { landing: { publish: 'separate' } }), ...(deferAbove ? { submitDeferAbove: deferAbove } : {}) }, null, 2));
+  // Landing diagnostics require TAP completion evidence on both Node 22 and Node 24.
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, submitGate: 'landing', affectedTests: 'node --test --test-reporter=tap',
+    submitInvariants: ['web/guard.test.js'], ...(inline ? { gate: 'node --test --test-reporter=tap web/gate-check.test.js' } : { landing: { publish: 'separate' } }), ...(deferAbove ? { submitDeferAbove: deferAbove } : {}) }, null, 2));
   if (inline) {
     // An inline landing pushes its gated tip, so it needs a remote; its gate only checks for a red marker file.
     box.git(box.dir, 'init', '-q', '--bare', join(box.dir, 'origin.git'));

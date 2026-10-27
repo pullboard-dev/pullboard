@@ -37,7 +37,7 @@ export function shoutMatchesAudience(db, to, audience) {
 
 /** Positional bindings work on the supported minimum Node SQLite API as well as newer releases. */
 export const UNREAD_SHOUT_SQL = `FROM shout WHERE shout_id > ? AND shout_from != ? AND
-  (shout_to IN ('all', ?, ?) OR (shout_to = '${COORDINATION_SHOUT}' AND ? IN ('coordinator', 'person')) OR EXISTS (SELECT 1 FROM item WHERE shout_to = 'item:' || item_id AND
+  (shout_to IN ('all', ?, ?) OR (shout_to = '${COORDINATION_SHOUT}' AND ? IN ('coordinator', 'person')) OR EXISTS (SELECT 1 FROM item WHERE item_id=CAST(substr(shout_to,6) AS INTEGER) AND shout_to = 'item:' || item_id AND
     (? = 'coordinator' OR COALESCE(item_owner, item_built_by) = ? OR COALESCE(item_review_by, item_verified_by) = ? OR EXISTS
       (SELECT 1 FROM event WHERE event.item_id=item.item_id AND event_kind IN ('handoff-open','handoff-take') AND event_by=?))))`;
 

@@ -1,3 +1,4 @@
+/** @pullboard-module-loads src/board.js src/main-audit-state.js src/gate-run-receipt.js */
 /** Shared real main-audit fixture; synthetic acceptance is setup, never runtime proof [C7]. */
 /** @pullboard-test-input source-tree */
 import assert from 'node:assert/strict';
