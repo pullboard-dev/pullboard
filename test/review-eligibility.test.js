@@ -241,3 +241,31 @@ test('modern Strict policy fences old-engine reserve, selection and verdict repl
     }
   }
 });
+
+
+test('ordered activation protects legacy family items and preserves genuine engine 142 receipts [V4,B26,H16]', t => {
+  const f = fixture(t, { historical: true });
+  const id = f.add({ reviewFamily: 'claude' });
+  f.submit(id);
+  delete f.board.executionEngineVersion;
+  const args = [id, { agentId: 'core-5', lane: 'core', leaseMs: LEASE, policy: 'any', familyPolicy: 'off' }];
+  const old = { ...prepareEngineMove(f.board, 'reserveReview', args, { id: 'genuine-142-review' }), engine: 142 };
+  const first = applyEngineMove(f.board, old, { sequence: 1, at: '2026-10-27T00:01:00.000Z' });
+  assert.equal(first.error, undefined, 'real historical 142 reservation is accepted before activation');
+  const receipt = f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value;
+  store.release(f.board, id, 'core-5');
+  const modern = prepareEngineMove(f.board, 'appendFact', [id,
+    { agentId: 'core-2', kind: 'note', text: 'A modern recorded native write activates review semantics.' }], { id: 'activate-review-prefix' });
+  assert.equal(applyEngineMove(f.board, modern, { sequence: 2, at: '2026-10-27T00:02:00.000Z' }).error, undefined);
+  const newArgs = [id, { ...args[1], agentId: 'core-3' }];
+  const next = prepareEngineMove(f.board, 'reserveReview', newArgs, { id: 'new-review-old-item' });
+  const before = exportBoard(f.board);
+  assert.throws(() => applyEngineMove(f.board, { ...next, engine: 142 },
+    { sequence: 3, at: '2026-10-27T00:03:00.000Z' }), { code: 'RELAY_MOVE' });
+  assert.deepEqual(exportBoard(f.board), before);
+  assert.equal(applyEngineMove(f.board, next, { sequence: 3, at: '2026-10-27T00:03:00.000Z' }).error.code, 'STRICT_REVIEW_TOUCHED');
+  const replayBefore = exportBoard(f.board);
+  assert.deepEqual(applyEngineMove(f.board, old, { sequence: 1, at: '2026-10-27T00:01:00.000Z' }), first);
+  assert.equal(f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value, receipt);
+  assert.deepEqual(exportBoard(f.board), replayBefore, 'already recorded old receipt replays byte-identically after activation');
+});

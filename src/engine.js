@@ -1,3 +1,4 @@
+import { recordReviewPolicyActivation } from './review-policy.js';
 import { computedReturnArgs } from './computed-conflict-return.js';
 import { requirePreparedComputedConflict } from './computed-conflict-receipt.js';
 import { preflightComputedConflict } from './computed-conflict-receipt.js';
@@ -369,6 +370,7 @@ export function applyEngineMove(board, move, { sequence, at, standing = null, en
         if (engineVersion === undefined) delete board.executionEngineVersion;
         else board.executionEngineVersion = engineVersion;
       }
+      recordReviewPolicyActivation(board, move.engine);
       recordRequestMove(board, move, outcome, sequence, at);
       metadata(board, 'relay_receipt_' + move.id, JSON.stringify({ sequence, move: encoded, outcome }));
     }

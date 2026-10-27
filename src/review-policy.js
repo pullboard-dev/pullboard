@@ -24,12 +24,20 @@ export function itemReviewPolicy(board, id) {
 /** Modern recorded policy is an authority witness; old reviews cannot reinterpret its rules. */
 export function itemReviewPolicyEngine(board, id) {
   if (!board) return 1;
-  return board.db.prepare("SELECT 1 FROM board_meta WHERE meta_key=? OR meta_key='line_setting:requireReviewFamilies' LIMIT 1")
+  return board.db.prepare("SELECT 1 FROM board_meta WHERE meta_key=? OR meta_key IN ('line_setting:requireReviewFamilies','review_independence:active') LIMIT 1")
     .get(`review_independence:${id}`) ? REVIEW_INDEPENDENCE_ENGINE : 1;
 }
 
 /** A queue selector must understand every modern policy before excluding or choosing its target. */
 export function anyItemReviewPolicyEngine(board) {
-  return board?.db.prepare("SELECT 1 FROM board_meta WHERE meta_key LIKE 'review_independence:%' OR meta_key='line_setting:requireReviewFamilies' LIMIT 1").get()
+  return board?.db.prepare("SELECT 1 FROM board_meta WHERE meta_key LIKE 'review_independence:%' OR meta_key IN ('line_setting:requireReviewFamilies','review_independence:active') LIMIT 1").get()
     ? REVIEW_INDEPENDENCE_ENGINE : 1;
+}
+
+
+/** The first modern native prefix position activates new review rules without rewriting older receipts. */
+export function recordReviewPolicyActivation(board, engine) {
+  if (engine < REVIEW_INDEPENDENCE_ENGINE) return;
+  board.db.prepare("INSERT INTO board_meta(meta_key,meta_value) VALUES('review_independence:active',?) ON CONFLICT(meta_key) DO NOTHING")
+    .run(String(REVIEW_INDEPENDENCE_ENGINE));
 }
