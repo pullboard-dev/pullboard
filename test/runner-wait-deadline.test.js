@@ -1,7 +1,7 @@
 /** Runner deadlines retain ordinary local admission and never create disabled capacity [C7,Q1,Q2]. */
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
-import { mkdirSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
+import { closeSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -250,6 +250,35 @@ async function withPrivateDeadlineMachine(box, action) {
   }); }
 }
 
+/** Read only the bounded tail of an existing private diagnostic, never a whole result packet. */
+function diagnosticTail(file) {
+  if (!existsSync(file)) return '';
+  const fd = openSync(file, 'r');
+  try {
+    const size = fstatSync(fd).size;
+    const bytes = Buffer.alloc(Math.min(size, 16_384));
+    const length = readSync(fd, bytes, 0, bytes.length, Math.max(0, size - bytes.length));
+    return bytes.subarray(0, length).toString('utf8');
+  } finally { closeSync(fd); }
+}
+
+/** On failure retain actual setup/transport evidence without printing native result/base64 bodies. */
+function lateDispatchDiagnostics(box) {
+  const stderr = diagnosticTail(box.stderrLog).split('\n');
+  console.error('late private worker diagnostics:', stderr.filter(line => !line.startsWith('PULLBOARD_RUNNER_RESULT ')
+    && !line.startsWith('PULLBOARD_RUNNER_NEED ')).slice(-8).map(line => line.slice(0, 500)).join('\n'));
+  const outcomes = diagnosticTail(box.requests).split('\n').filter(Boolean).slice(-4).map(line => {
+    try {
+      const { call, workerStarted, code, signal, dropped, spawnError } = JSON.parse(line);
+      return { call, workerStarted, code, signal, dropped, spawnError };
+    } catch { return { incomplete: true }; }
+  });
+  console.error('late private worker outcomes:', outcomes);
+  console.error('late private worker phases:', diagnosticTail(box.requests + '.phases').slice(-500));
+  const pool = listResources({ scope: 'machine' }).find(row => row.name === 'gate');
+  console.error('late private gate state:', { holders: pool?.holders.length, waiters: pool?.line.length });
+}
+
 test('a first runner freed after the queue deadline executes with its captured startup budget and records the exception [C7,Q1,Q2]', async () => {
   const runnerWaitMs = 5_000; // budget: private worker source negotiation and READY, with an actual expired queue wait.
   const box = fixture({ runnerWaitMs, dropFirst: false });
@@ -280,6 +309,7 @@ console.log(run.output);process.exitCode=run.isGreen?0:1;`;
       held.release(); held = null;
       writeFileSync(released, 'the original real remote reservation released');
       const result = await pending; pending = null;
+      if (result.status !== 0) lateDispatchDiagnostics(box);
       assert.equal(result.status, 0, fixtureResultContext(result));
       assert.match(result.stdout, /LATE_FIRST_DISPATCH_EXECUTED/u);
       const line = result.stdout.split('\n').find(row => row.startsWith('LATE_FIRST_RECEIPT '));
