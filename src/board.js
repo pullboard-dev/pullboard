@@ -348,6 +348,8 @@ import {
   landingWaiverKind,
 } from './landing-exceptions.js';
 import { parseSpec } from './spec.js';
+import { KNOWN_MAIN_REWORKS_ENGINE } from './known-main-reworks-engine.js';
+import { requireKnownMainReworks } from './known-main-reworks.js';
 import {
   invariantEvidence,
   preserveInvariantEvidence,
@@ -1201,6 +1203,9 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
         } : {}),
         submissionProofValid: () => {
           if ((board.executionEngineVersion ?? ENGINE_VERSION) >= SUBMISSION_PROOF_ENGINE) recordedProof = submissionProof(proof, board.executionEngineVersion ?? ENGINE_VERSION);
+          if ((board.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_REWORKS_ENGINE && recordedProof?.knownMainFailures) {
+            requireKnownMainReworks(recordedProof.knownMainFailures, listItems(board, { all: true }), id);
+          }
           if ((board.executionEngineVersion ?? ENGINE_VERSION) >= FLOW_SIZE_ENGINE) recordedSize = submissionSize(size, commit);
           return null;
         },
