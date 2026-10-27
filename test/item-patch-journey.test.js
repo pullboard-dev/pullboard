@@ -48,20 +48,34 @@ test('a native companion patch is independently checked and lands the exact acce
   box.git(box.dir, 'init', '-q', '--bare', remote);
   box.git(box.repo, 'remote', 'add', 'origin', remote);
   box.git(box.repo, 'push', '-q', '-u', 'origin', 'main');
+  box.git(box.repo, 'config', 'user.name', 'Patch journey fixture');
+  box.git(box.repo, 'config', 'user.email', 'patch-journey@example.invalid');
   // @pullboard-board-file journey: production CLI verification and landing share this durable board
   const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const observations = join(box.dir, 'frozen-observations.jsonl');
+  const joinMarker = join(box.dir, 'main-arrived-once');
   const script = join(box.dir, 'companion-check.cjs');
   writeFileSync(script, [
     "const fs = require('node:fs');",
     "const cp = require('node:child_process');",
     "const file = 'api/companion.txt';",
     "const bytes = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;",
-    `fs.appendFileSync(${JSON.stringify(observations)}, JSON.stringify({head:cp.execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),bytes})+'\\n');`,
-    "console.log('TAP version 13\\n1..1\\n# Subtest: companion exact bytes');",
+    "const mainFile = 'docs/arrived.txt';",
+    "const mainBytes = fs.existsSync(mainFile) ? fs.readFileSync(mainFile, 'utf8') : null;",
+    "const head = cp.execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();",
+    `fs.appendFileSync(${JSON.stringify(observations)}, JSON.stringify({head,bytes,mainArrived:mainBytes !== null,mainBytes})+'\\n');`,
+    "console.log('TAP version 13\\n1..1\\n# Subtest: companion exact bytes and new main input');",
     "const pass = bytes === 'required companion\\n';",
-    "console.log((pass ? 'ok' : 'not ok') + ' 1 - companion exact bytes');",
+    "console.log((pass ? 'ok' : 'not ok') + ' 1 - companion exact bytes and new main input');",
+    `if (pass && !fs.existsSync(${JSON.stringify(joinMarker)})) {`,
+    `  fs.mkdirSync(${JSON.stringify(box.repo)} + '/docs', { recursive: true });`,
+    `  fs.writeFileSync(${JSON.stringify(box.repo)} + '/docs/arrived.txt', 'main arrived\\n');`,
+    `  cp.execFileSync('git', ['-C', ${JSON.stringify(box.repo)}, 'add', 'docs/arrived.txt']);`,
+    `  cp.execFileSync('git', ['-C', ${JSON.stringify(box.repo)}, 'commit', '-q', '-m', 'test: move main during patched review [G1]']);`,
+    `  cp.execFileSync('git', ['-C', ${JSON.stringify(box.repo)}, 'push', '-q', 'origin', 'main']);`,
+    `  fs.writeFileSync(${JSON.stringify(joinMarker)}, 'moved\\n');`,
+    "}",
     "process.exitCode = pass ? 0 : 1;",
   ].join('\n'));
   const added = document(box.run(box.repo, 'add', 'web', 'A feature requiring a native companion',
@@ -107,6 +121,15 @@ test('a native companion patch is independently checked and lands the exact acce
   const runs = readFileSync(observations, 'utf8').trim().split('\n').map(line => JSON.parse(line));
   assert.ok(runs.some(run => run.head === submitted && run.bytes === null), 'unpatched frozen execution actually failed');
   assert.ok(runs.some(run => run.head === reviewed && run.bytes === 'required companion\n'), 'accepted source actually ran with exact bytes');
+  const patchedRuns = runs.filter(run => run.bytes === 'required companion\n');
+  assert.equal(patchedRuns.length, 2, 'a real main advance during the first patched check causes exactly one retry');
+  assert.notEqual(patchedRuns[0].head, patchedRuns[1].head, 'the retry checks a distinct composed source');
+  assert.equal(patchedRuns[0].mainArrived, false);
+  assert.equal(patchedRuns[1].mainArrived, true);
+  assert.equal(patchedRuns[1].mainBytes, 'main arrived\n');
+  assert.equal(reviewed, patchedRuns[1].head, 'the accepted verdict binds to the second patched check');
+  assert.equal(box.git(box.repo, 'rev-list', '--count', `${submitted}..main`), '1', 'the fixture advances main exactly once');
+  assert.equal(box.git(box.repo, 'show', `${reviewed}:docs/arrived.txt`), 'main arrived', 'the accepted composition includes the exact new main bytes');
   document(box.run(box.repo, 'patch', 'remove', String(id), 'companion-v1', '--json'));
   assert.equal(store.getItem(board, id).item_status, 'submitted', 'a changed active set invalidates acceptance');
   assert.equal(store.getItem(board, id).item_verified_by, null);

@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** Verification carries the gate's explicit desktop requirement into real admission [C7,V4]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
@@ -18,7 +18,11 @@ function document(result) {
 test('verify admits a GUI check through the GUI slot like the gate [C7,V4]', async (t) => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  for (const gui of [true, false]) {
+  for (const { liveGui, companion, expectedGui } of [
+    { liveGui: true, companion: false, expectedGui: true },
+    { liveGui: false, companion: false, expectedGui: false },
+    { liveGui: false, companion: true, expectedGui: true },
+  ]) {
     const box = helpers.project('true');
     // Only this private machine drops inherited admission; no host setting or pool is modified.
     for (const key of [GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV]) delete box.env[key];
@@ -29,7 +33,7 @@ test('verify admits a GUI check through the GUI slot like the gate [C7,V4]', asy
     writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
     // A literal fixture runner executes the selected file, without importing the real project's test pool.
     writeFileSync(join(box.repo, 'bin/run-tests.js'), "await import(new URL('../' + process.argv[2], import.meta.url));\n");
-    writeFileSync(join(box.repo, 'test/desktop.test.js'), `${gui ? '/** @pullboard-test-gui */\n' : ''}import { test } from 'node:test';\ntest('desktop fixture executes', () => {});\n`);
+    writeFileSync(join(box.repo, 'test/desktop.test.js'), `${liveGui ? '/** @pullboard-test-gui */\n' : ''}import { test } from 'node:test';\ntest('desktop fixture executes', () => {});\n`);
     box.git(box.repo, 'add', '-A');
     box.git(box.repo, 'commit', '-q', '-m', 'test: explicit desktop admission fixture [G1]');
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
@@ -41,7 +45,30 @@ test('verify admits a GUI check through the GUI slot like the gate [C7,V4]', asy
     const reviewer = join(box.dir, 'reviewer');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
     document(box.run(reviewer, 'join', 'api', '--json'));
-    assert.equal(await checkNeedsGui(reviewer, check), gui, 'the gate classifier reads the tracked leading annotation');
+    assert.equal(await checkNeedsGui(reviewer, check), liveGui, 'the live classifier reads only the original tracked annotation');
+    if (companion) {
+      const coordinator = document(box.run(box.repo, 'whoami', '--json'));
+      assert.equal(coordinator.id, 'coordinator', 'the native source author owns coordinator-only test paths');
+      const patch = [
+        'diff --git a/test/desktop.test.js b/test/desktop.test.js',
+        '--- a/test/desktop.test.js',
+        '+++ b/test/desktop.test.js',
+        '@@ -1,2 +1,3 @@',
+        '+/** @pullboard-test-gui */',
+        " import { test } from 'node:test';",
+        " test('desktop fixture executes', () => {});",
+        '',
+      ].join('\n');
+      const patchFile = join(box.dir, 'desktop-marker.patch');
+      writeFileSync(patchFile, patch);
+      document(box.run(box.repo, 'patch', 'attach', '1', patchFile, '--key', 'desktop-marker',
+        '--author', coordinator.id, '--source', head, '--json'));
+      assert.equal(await checkNeedsGui(reviewer, check), false, 'attachment never mutates the unmarked live reviewer source');
+    }
+    const liveHead = box.git(reviewer, 'rev-parse', 'HEAD');
+    const liveStatus = box.git(reviewer, 'status', '--porcelain=v1');
+    const indexPath = box.git(reviewer, 'rev-parse', '--git-path', 'index');
+    const liveIndex = readFileSync(indexPath.startsWith('/') ? indexPath : join(reviewer, indexPath));
     const ready = join(box.dir, 'holder-ready');
     const release = join(box.dir, 'holder-release');
     const holderSource = join(box.dir, 'holder.mjs');
@@ -63,7 +90,17 @@ test('verify admits a GUI check through the GUI slot like the gate [C7,V4]', asy
       if (verification) assert.equal((await verification.closed).code, 0, verification.stdoutText + verification.stderrText);
     }
     assert.equal(queued.browser, 1, 'both verification requests preserve the default browser-slot requirement');
-    assert.equal(queued.gui, Number(gui), 'verify preserves the same explicit GUI requirement as the gate');
-    assert.equal(document(box.run(box.repo, 'show', '1', '--json')).item_status, 'verified');
+    assert.equal(queued.gui, Number(expectedGui), 'actual admission uses the exact checked source GUI requirement');
+    const accepted = document(box.run(box.repo, 'show', '1', '--json'));
+    assert.equal(accepted.item_status, 'verified', 'the actual native frozen check completed successfully');
+    assert.equal(box.git(reviewer, 'rev-parse', 'HEAD'), liveHead);
+    assert.equal(box.git(reviewer, 'status', '--porcelain=v1'), liveStatus);
+    assert.deepEqual(readFileSync(indexPath.startsWith('/') ? indexPath : join(reviewer, indexPath)), liveIndex);
+    if (companion) {
+      const reviewed = accepted.verdicts.at(-1).review.head;
+      assert.notEqual(reviewed, head, 'the checked composition is immutable and distinct from submitted source');
+      assert.match(box.git(box.repo, 'show', `${reviewed}:test/desktop.test.js`), /^\/\*\* @pullboard-test-gui \*\//u);
+      assert.doesNotMatch(readFileSync(join(reviewer, 'test/desktop.test.js'), 'utf8'), /@pullboard-test-gui/u);
+    }
   }
 });
