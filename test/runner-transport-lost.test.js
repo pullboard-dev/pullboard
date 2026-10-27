@@ -225,3 +225,32 @@ test('a controller and worker mixed across an upgrade are refused before SSH whi
   assert.equal(result.sentBeforeFresh, false, 'no host is contacted or quarantined for a stale controller');
   assert.equal(result.freshGreen, true, 'both upgraded allowlists are coherent when loaded by a fresh controller');
 });
+
+test('an asynchronous runner dispatch never uses a preloaded resource generation [C7]', t => {
+  const box = fixture(t, { dropFirst: false }), installed = join(box.dir, 'installed-preloaded-tooling');
+  mkdirSync(installed);
+  cpSync(join(import.meta.dirname, '../src'), join(installed, 'src'), { recursive: true });
+  cpSync(join(import.meta.dirname, '../package.json'), join(installed, 'package.json'));
+  const observations = join(box.dir, 'resource-generation.jsonl');
+  const resources = join(installed, 'src/resources.js');
+  const signature = 'export function recordRunnerGui(host, gui) {';
+  const observer = `\n  observeGeneration(${JSON.stringify(observations)}, JSON.stringify({ pid: process.pid, generation: 'resource-generation-before' }) + '\\n');`;
+  const original = readFileSync(resources, 'utf8');
+  assert.ok(original.includes(signature), 'the observer instruments the actual GUI receipt callback');
+  writeFileSync(resources, "import { appendFileSync as observeGeneration } from 'node:fs';\n" + original.replace(signature, signature + observer));
+  const url = pathToFileURL(join(installed, 'src/runners.js')).href;
+  const result = child(box, `
+    import {readFileSync,writeFileSync} from 'node:fs';
+    await import(${JSON.stringify(pathToFileURL(resources).href)});
+    const resourceFile=${JSON.stringify(resources)};
+    writeFileSync(resourceFile,readFileSync(resourceFile,'utf8').replace('resource-generation-before','resource-generation-after'));
+    const {runOnRunnerAsync}=await import(${JSON.stringify(url)});
+    const run=await runOnRunnerAsync(process.cwd(),'true',{runner:${JSON.stringify({ ...box.runner, host: HOST })}});
+    console.log(JSON.stringify({green:run.isGreen,parentPid:process.pid,observations:readFileSync(${JSON.stringify(observations)},'utf8').trim().split('\\n').map(JSON.parse)}));`);
+  assert.equal(result.green, true, 'the actual private worker returns a valid green receipt');
+  assert.ok(result.observations.length > 0, 'the receipt path actually invokes the instrumented resource callback');
+  assert.ok(result.observations.every(row => row.generation === 'resource-generation-after'),
+    `only the upgraded callback executes: ${JSON.stringify(result.observations)}`);
+  assert.ok(result.observations.every(row => row.pid !== result.parentPid),
+    'execution happens in a fresh controller, outside the parent\'s preloaded module cache');
+});
