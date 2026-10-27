@@ -48,7 +48,7 @@ function source(name = 'shared failure [G1]', expected = 2) {
 }
 
 /** Build and claim one private board whose accepted main already has a named red test. */
-function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSuffix = '' } = {}) {
+function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSuffix = '', mainRed = true } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-submit-main-red-')));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const root = join(directory, 'repo');
@@ -97,7 +97,17 @@ function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSu
   put(box.builder, 'change.txt', 'Unrelated change.\n');
   put(box.builder, 'test/inherited.test.js', candidate);
   box.head = commit(box, box.builder);
+  if (mainRed) box.rework = fileMainRed(box);
   return box;
+}
+
+/** File a still-open repair with the exact failing test in its declared check. */
+function fileMainRed(box) {
+  const result = cli(box, box.root, 'add', 'core', 'Main red: inherited assertion needs repair', '--specs', 'G1',
+    '--criterion', 'The inherited assertion passes on main.', '--check', 'node test/runner.js test/inherited.test.js',
+    '--brief', 'Files: test/inherited.test.js\nTest: inherited assertion');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  return JSON.parse(result.stdout).item.item_id;
 }
 
 /** Read the canonical submitted receipt rather than trusting a successful shell exit alone. */
@@ -153,6 +163,24 @@ test('known main receipts preserve exact identities and refuse unsupported histo
   assert.equal(matchingMainFailures([{ ...failure, file: 'test/other.test.js' }], compared, main), null);
   assert.equal(matchingMainFailures([{ ...failure, signature: 'd'.repeat(64) }], compared, main), null);
   assert.equal(matchingMainFailures([failure], { main, files: [{ file: failure.file, result: 'red', failures: [failure, failure] }] }, main), null);
+});
+
+test('an exact main red needs an open repair and its reviewer sees the repair link [V4,B3]', t => {
+  const box = fixture(t, { mainRed: false });
+  const refused = cli(box, box.builder, 'submit', String(box.item));
+  assert.equal(refused.status, 1, refused.stdout + refused.stderr);
+  assert.equal(JSON.parse(refused.stdout).error.code, 'GATE_RED');
+  assert.equal(submittedProof(box), null, 'an unowned exact main failure cannot authorize submission');
+  box.rework = fileMainRed(box);
+  const accepted = cli(box, box.builder, 'submit', String(box.item));
+  assert.equal(accepted.status, 0, accepted.stdout + accepted.stderr);
+  const report = JSON.parse(accepted.stdout);
+  assert.deepEqual(report.gate.knownMainReworks, [{ file: 'test/inherited.test.js', name: 'shared failure [G1]', item: box.rework }]);
+  const shown = cli(box, box.root, 'show', String(box.item));
+  assert.equal(shown.status, 0, shown.stdout + shown.stderr);
+  const facts = JSON.parse(shown.stdout).thread.filter(entry => entry.type === 'fact');
+  assert.ok(facts.some(entry => entry.text.includes('test/inherited.test.js') && entry.text.includes('shared failure [G1]')
+    && entry.text.includes(`#${box.rework}`)), 'the durable review thread links the exact known main red to its open repair');
 });
 
 test('submit refuses changed failure details, an unaccounted stage, and a red frozen check [V4,B3]', t => {
