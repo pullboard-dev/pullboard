@@ -19,7 +19,7 @@ test('the actual submitted value is repaired', () => assert.equal(readFileSync(n
     };
     const box = await fixture(t, { files });
     const seat = box.seats.actor;
-    const check = `"${process.execPath}" --test --test-reporter=tap web/handoff.test.js`;
+    const check = `env -u NODE_TEST_CONTEXT "${process.execPath}" --test --test-reporter=tap web/handoff.test.js`;
     const first = box.add('Repair the actual value', { check });
     const next = box.add('Continue in the same seat', { check });
     const claimed = await cli(box, seat.path, ['claim', String(first)]);
