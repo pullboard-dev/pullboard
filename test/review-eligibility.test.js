@@ -208,3 +208,28 @@ test('engine 142 family records retain their shape and become Strict under moder
   assert.equal(itemReviewPolicy(f.board, clear).tier, 'standard');
   assert.equal(store.getItem(f.board, clear).item_review_family, undefined, 'modern clearing synchronizes legacy projection metadata');
 });
+
+
+test('modern Strict policy fences old-engine reserve, selection and verdict replay [V4,B26,H16]', t => {
+  for (const policy of [{ sensitive: true }, { reviewFamily: 'claude' }]) {
+    for (const operation of ['reserveReview', 'reserveNextReview', 'verify']) {
+      const f = fixture(t), id = f.add(policy);
+      store.appendFact(f.board, id, { agentId: 'core-2', kind: 'note', text: 'A real native write forbids this session under Strict.' });
+      const item = f.submit(id);
+      const options = { agentId: 'core-3', lane: 'core', leaseMs: LEASE, policy: 'any', familyPolicy: 'off' };
+      const args = operation === 'reserveNextReview' ? [options] : [id, operation === 'verify'
+        ? { agentId: 'core-3', decision: 'ACCEPT', note: 'Synthetic replay authority control.', head: item.item_commit,
+          digest: item.item_frozen_digest, policy: 'any', check: 'none' } : options];
+      const move = prepareEngineMove(f.board, operation, args, { id: `strict-floor-${operation}-${id}` });
+      const before = exportBoard(f.board);
+      assert.throws(() => applyEngineMove(f.board, { ...move, engine: 142 },
+        { sequence: 1, at: '2026-10-27T00:01:00.000Z' }), { code: 'RELAY_MOVE' }, operation);
+      assert.deepEqual(exportBoard(f.board), before, 'old engine cannot mutate item, verdict, reservation, receipt or cursor');
+      const current = applyEngineMove(f.board, move, { sequence: 1, at: '2026-10-27T00:01:00.000Z' });
+      assert.equal(operation === 'reserveNextReview' ? current.value?.item ?? null : current.error?.code,
+        operation === 'reserveNextReview' ? null : 'STRICT_REVIEW_TOUCHED', 'modern replay enforces the session-write rule');
+      assert.equal(store.getItem(f.board, id).item_status, 'submitted');
+      assert.equal(store.getItem(f.board, id).item_review_by, null);
+    }
+  }
+});
