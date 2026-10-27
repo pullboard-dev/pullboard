@@ -1376,7 +1376,8 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
     if (environment !== undefined) detail.environment = environment;
     if (sandbox !== undefined) detail.sandbox = sandbox;
     if (newReview) detail.review = { commit: review.commit, ...(Object.hasOwn(review, 'head') ? { head: review.head } : {}), trunk: review.trunk, paths: [...review.paths] };
-    const trigger = logEvent(board, agentId, verb, id, implies?.length ? { ...detail, implies } : detail, returnedAt);
+    logEvent(board, agentId, verb, id, implies?.length ? { ...detail, implies } : detail, returnedAt);
+    const trigger = board.lastEvent;
     tellFirstRefusal(board, item, reservation, persistShout);
     if (!isAccept) recordRejectedItemRoute(board, id, engine, item, { escalate, shout, logEvent });
     tellVerdictImplications(board, (by, itemId, fact) => logEvent(board, by, 'fact', itemId, fact), id, { seed: impliesId, implies });
@@ -1461,8 +1462,9 @@ export function reopen(board, id, { agentId, note = '', conflict, cause, reopenF
     const derivedCause = currentEngine >= RIGOR_AUTO_ENGINE
       ? deriveRigorCause(board, item, { cause, conflict, landingFailure, agentId }) : cause != null ? { cause } : {};
     const returnedWithCause = currentEngine >= RIGOR_AUTO_ENGINE ? { ...returned, ...derivedCause } : { ...derivedCause, ...returned };
-    const trigger = logEvent(board, agentId, 'reopen', id, { commit: submittedCommit, note: note.trim() || conflictNote(conflict), judgment: null, ...reservation,
+    logEvent(board, agentId, 'reopen', id, { commit: submittedCommit, note: note.trim() || conflictNote(conflict), judgment: null, ...reservation,
       ...returnedWithCause }, returnedAt);
+    const trigger = board.lastEvent;
     tellFirstRefusal(board, item, reservation, persistShout);
     if (!reservation.reopenFirstRefusal && forMerge && supersedes === undefined && item.item_built_by) persistShout(board, { from: agentId, to: item.item_built_by, text: returnedHeadNotice(id, submittedCommit, conflict) });
     postRigorNotices(board, trigger);
