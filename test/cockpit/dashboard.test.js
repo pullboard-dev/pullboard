@@ -57,11 +57,25 @@ test('a board opens on Dashboard with API-backed work, shared pace and existing 
     const pace = state.milestones[0].summary.pace;
     assert.equal(await chrome.stable('document.querySelector("#dashboard [data-dashboard-stat=pace6]").dataset.value'),
       String(pace.last6h / 6), 'Dashboard reads the Roadmap six-hour pace');
-    for (const [scheme, width] of [['light', 1280], ['dark', 375]]) {
+    await chrome.waitFor(`!!document.querySelector('#dashboard svg[aria-label="Items landed per hour, last 24 hours"]')`);
+    for (const [scheme, width] of [['light', 1280], ['dark', 1280], ['light', 375], ['dark', 375]]) {
       await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       const fits = await chrome.stable('document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1');
-      assert.equal(fits, true, `${scheme} at ${width}px has no sideways page scroll`);
+      const overflow = await chrome.stable(`JSON.stringify([...document.body.querySelectorAll('*')].map(element => {
+        const rect = element.getBoundingClientRect(), style = getComputedStyle(element);
+        return { tag: element.tagName, id: element.id, class: element.getAttribute('class'), left: rect.left, right: rect.right, width: rect.width, display: style.display };
+      }).filter(rect => rect.width > 0 && (rect.right > document.documentElement.clientWidth + 1 || rect.left < -1)).slice(0, 16))`);
+      assert.equal(fits, true, `${scheme} at ${width}px has no sideways page scroll; overflow: ${overflow}`);
+      assert.equal(await chrome.stable(`Array.from(document.querySelectorAll('#tabs [data-tab]')).every(button => {
+        const rect = button.getBoundingClientRect(); return rect.width > 0 && rect.left >= 0 && rect.right <= document.documentElement.clientWidth + 1;
+      })`), true, 'every retained tab is accessible inside the viewport');
+      const metrics = await chrome.send('Page.getLayoutMetrics');
+      const capture = await chrome.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true,
+        clip: { x: 0, y: 0, width, height: Math.ceil(metrics.cssContentSize.height), scale: 1 } });
+      // Bounded chunks survive the ordinary native log's 64-KiB line ceiling; the proof reader reassembles each image.
+      const chunkSize = 32_000, chunks = Math.ceil(capture.data.length / chunkSize);
+      for (let index = 0; index < chunks; index++) console.log('# dashboard-image ' + JSON.stringify({ scheme, width, index, chunks, data: capture.data.slice(index * chunkSize, (index + 1) * chunkSize) }));
     }
     assert.equal(await chrome.stable('document.querySelector("#dashboard [aria-label=Agents]").textContent.includes("web-1")'), true, 'the live summary holder appears in Agents');
     await press(chrome, 'document.querySelector("#dashboard [data-dashboard-list=review]")');

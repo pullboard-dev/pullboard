@@ -331,8 +331,8 @@ a.ghost { color: var(--ink); }
   .group-need > code { grid-column: 2; }
   .group-need > span, .group-need > button { grid-column: 1 / -1; }
   .top { container-type: inline-size; }
-  .tabs { flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: auto; gap: 0; min-width: 0; }
-  /* Seven full labels retain their inset; size them against the bar after padding and any scrollbar. */
+  .tabs { flex: 1 1 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-flow: row; gap: 0; min-width: 0; }
+  /* Dashboard and the retained destinations use two rows, so every full label fits a phone without scrolling the page. */
   .tab { display: grid; justify-items: center; align-content: center; padding: 7px 2px; font-size: clamp(10px, 3.3cqi, 13.5px); }
 }
 .primary { display: grid; gap: 12px; min-width: 0; }
