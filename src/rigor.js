@@ -8,6 +8,10 @@ import { Refused } from './refused.js';
 import { HEALTH_SENTINEL_ENGINE } from './health-receipts.js';
 import { BOARD_SENTINEL_ENGINE } from './sentinel-engine.js';
 import { NATIVE_FLAKE_ENGINE } from './flake-engine.js';
+import {
+  conflictCause,
+  reopenConflictEvidence,
+} from './reopen-cause.js';
 
 /** The kinds of cause key and their shapes, in the order help and refusals name them. */
 export const CAUSE_FORMS = Object.freeze(['test:<file>::<title>', 'refusal:<CODE>', 'row:<id>', 'doctrine:<id>', 'sentinel:<name>', 'conflict:<file>']);
@@ -93,7 +97,8 @@ export function causeReading(key) {
 /**
  * The cause keys a reject, reopen or allocated sentinel failure receipt carries. A move recorded with --cause names its key;
  * a reopen after a red landing names its failing tests in structured fields, so those give keys
- * even for events recorded before cause keys existed. A note is never parsed.
+ * even for events recorded before cause keys existed. Only exact historical conflict-note syntax
+ * is reclassified; original event bytes and workflow authority remain unchanged.
  *
  * @param {{ event_kind: string, event_detail: string, event_by?: string }} event
  * @returns {string[]}
@@ -105,6 +110,8 @@ export function eventCauses(event) {
     ? [testCause(detail.observation)] : [];
   if (event.event_kind === 'health-failure' && (event.event_by !== 'sentinel' || detail.engine !== HEALTH_SENTINEL_ENGINE)) return [];
   if (event.event_kind === 'sentinel-failure' && (event.event_by !== 'sentinel' || detail.engine !== BOARD_SENTINEL_ENGINE)) return [];
+  const conflict = event.event_kind === 'reopen' ? reopenConflictEvidence(detail) : null;
+  if (conflict) return conflictCause(conflict.files).causes;
   const keys = [];
   if (typeof detail.cause === 'string' && !causeProblem(detail.cause)) keys.push(detail.cause);
   if (Array.isArray(detail.causes)) for (const cause of detail.causes) {
