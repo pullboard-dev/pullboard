@@ -1,3 +1,4 @@
+import { installPostMoveHandoffCases } from './post-move-handoff-cases.js';
 /** Real Git, ordered board work and deterministic dispatch boundaries [N2,V1,B3,A6,V2]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -38,7 +39,7 @@ async function cli(box, cwd, args) {
 }
 
 /** Isolate real worktrees and shared SQLite; only the explicitly injected clock advances time. */
-async function fixture(t, { route = 'strong', family = 'off', policy = 'any' } = {}) {
+async function fixture(t, { route = 'strong', family = 'off', policy = 'any', files = {} } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-next-take-')));
   const root = join(directory, 'repo');
   mkdirSync(root);
@@ -64,6 +65,10 @@ async function fixture(t, { route = 'strong', family = 'off', policy = 'any' } =
     lanes: { web: { owns: ['web/'] }, review: { owns: [] }, docs: { owns: ['docs/'] } } }));
   writeFileSync(join(root, 'SPEC.md'), '# Dispatch fixture\n## G\n- G1 [approved, must] Work keeps its evidence. | gate: true\n');
   writeFileSync(join(root, 'DOCTRINE.md'), '# Fixture rules\n');
+  for (const [file, content] of Object.entries(files)) {
+    mkdirSync(join(root, file, '..'), { recursive: true });
+    writeFileSync(join(root, file), content);
+  }
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'chore: initialize dispatch fixture [G1]');
   const settings = machineSettingsFile();
   mkdirSync(join(directory, 'machine'), { recursive: true });
@@ -441,3 +446,5 @@ test('automatic review reservation retains coordinator-only policy when a higher
   assert.equal(store.listItems(box.board).some(item => item.item_status === 'claimed'
     && item.item_owner === reviewer.id), false, 'an eligible review is not replaced with a build');
 });
+
+installPostMoveHandoffCases({ fixture, cli });
