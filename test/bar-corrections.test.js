@@ -130,6 +130,7 @@ test('[B10,B31] a corrected bar records why the old one was wrong', () => {
   const unclaimedEdit = box.json(box.repo, 'show', '2').thread.filter((entry) => entry.type === 'move' && entry.kind === 'edit').at(-1);
   assert.equal(unclaimedEdit.detail.barCorrection, undefined, 'an edit before any claim is not a bar correction');
 
+  box.git(box.web, 'switch', '--detach', box.git(box.repo, 'rev-parse', 'HEAD'));
   box.json(box.web, 'claim', '3');
   rejectOnce(box, 3, 'the build is broken');
   const stats = box.json(box.repo, 'stats').stats.bars;
