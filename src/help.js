@@ -265,6 +265,9 @@ Receipts
                                         merge wait: land the accepted items: #A, #B
                                         when that queue is empty, the action says none waiting or waits for open work
   pullboard ledger                      markdown: what was built, by whom, verified by whom
+  pullboard test-value                   fourteen-day per-file runs, code-fixed catches, flakes, runtime, edits and value; --json
+                                        report-only costs in pullboard.json testEconomics: costOfEscape 3600, costOfWaiting 1, costOfFalseRed 300
+                                        runtime gaps remain unknown; no test admission policy changes
   pullboard log [id]                    every move, in order
   pullboard flakes                      recorded failures, their first and last sightings, counts and repair status
   pullboard flakes rerun on|off          coordinator: opt into one diagnostic pair per failed test; off by default
