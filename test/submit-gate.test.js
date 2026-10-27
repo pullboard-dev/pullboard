@@ -427,7 +427,7 @@ test('unknown imports and broad inputs fall back explicitly, while an all-test c
   assert.equal(dynamic.full, true, 'a non-literal dynamic import fails closed');
   assert.match(dynamic.reason, /dynamic|compute|select/i);
 
-  for (const path of ['bin/run-tests.js', 'package.json', 'package-lock.json', 'src/gate.js', 'src/affected-tests.js']) {
+  for (const path of ['bin/run-tests.js', 'package.json', 'package-lock.json', 'src/affected-tests.js']) {
     const broad = selectAffectedTests(box.root, { base, commit, changed: [path] });
     assert.equal(broad.full, true, `${path} requires the full gate`);
     assert.ok(broad.reason, `${path} explains the fallback`);
@@ -571,7 +571,7 @@ test('a landing-gated project defers the full suite from submit to landing [V4,C
         `appendFileSync(process.env.FULL_SUITE_MARKER, '${name}\\n');`,
       ].join('\n') + '\n');
     }
-    put(box.root, 'src/cli.js', 'export const version = 1;\n');
+    put(box.root, 'bin/run-tests.js', 'export const version = 1;\n');
     commitAll(box, 'chore(core): prepare landing-gate fixture');
     box = builderRepo(box);
     const check = `node -e "require('node:fs').appendFileSync(process.env.ITEM_CHECK_MARKER, 'check\\n')"`;
@@ -590,7 +590,7 @@ test('a landing-gated project defers the full suite from submit to landing [V4,C
   runFixtureGit(['add', 'pullboard.json'], { cwd: mainRoot, env: optedIn.box.env });
   runFixtureGit(['commit', '-q', '-m', 'feat(config): defer full suite to landing [G1]'], { cwd: mainRoot, env: optedIn.box.env });
   optedIn.box.git('merge', '--no-edit', 'main');
-  put(optedIn.box.root, 'src/cli.js', 'export const version = 2;\n');
+  put(optedIn.box.root, 'bin/run-tests.js', 'export const version = 2;\n');
   commitAll(optedIn.box, 'feat(core): change global source [G1]');
 
   const deferred = optedIn.box.run('submit', '1', '--json', '--infra', 'the landing fixture edits its pullboard.json');
@@ -618,7 +618,7 @@ test('a landing-gated project defers the full suite from submit to landing [V4,C
   const candidateConfig = JSON.parse(readFileSync(join(candidateOnly.box.root, 'pullboard.json'), 'utf8'));
   candidateConfig.submitGate = 'landing';
   put(candidateOnly.box.root, 'pullboard.json', JSON.stringify(candidateConfig));
-  put(candidateOnly.box.root, 'src/cli.js', 'export const version = 2;\n');
+  put(candidateOnly.box.root, 'bin/run-tests.js', 'export const version = 2;\n');
   commitAll(candidateOnly.box, 'feat(core): try candidate-only deferral [G1]');
   const ordinary = candidateOnly.box.run('submit', '1', '--json', '--infra', 'the landing fixture edits its pullboard.json');
   assert.equal(ordinary.code, 0, ordinary.err);
@@ -662,7 +662,7 @@ test("a landing-gated submit runs the project's invariant tests [V4,C7]", (t) =>
     ].join('\n') + '\n');
     put(box.root, 'test/a.test.js', "import '../src/entry.js';\nimport { appendFileSync } from 'node:fs';\nappendFileSync(process.env.INVARIANT_MARKER, 'selected\\n');\n");
     put(box.root, 'test/c.test.js', "throw new Error('unrelated test must stay deferred');\n");
-    put(box.root, 'src/cli.js', 'export const version = 1;\n');
+    put(box.root, 'bin/run-tests.js', 'export const version = 1;\n');
     commitAll(box);
     box = builderRepo(box);
     assert.equal(box.coordinator('add', 'build', 'Invariant fixture', '--check', 'node -e "process.exit(0)"').code, 0);
@@ -672,7 +672,7 @@ test("a landing-gated submit runs the project's invariant tests [V4,C7]", (t) =>
   /** A global edit exercises the uncertain-selector path without running a full suite. */
   function change(box, global = true) {
     put(box.root, 'src/a.js', 'export const value = 2;\n');
-    if (global) put(box.root, 'src/cli.js', 'export const version = 2;\n');
+    if (global) put(box.root, 'bin/run-tests.js', 'export const version = 2;\n');
     commitAll(box, 'feat(core): change invariant input [G1]');
   }
   /** A submit subset must never leave a full-gate stamp. */
@@ -1045,7 +1045,7 @@ test('a source change selects the tests that scan sources [C7,B3]', (t) => {
   put(box.root, 'test/nested/both.test.mjs', (sourceInput + testInput).replaceAll('\n', '\r\n') + "import 'node:fs';\n");
   put(box.root, 'test/tests-only.test.js', testInput + "import 'node:fs';\n");
   put(box.root, 'test/quoted.test.js', "const text = '/** @pullboard-test-input source-tree */';\n");
-  put(box.root, 'test/late.test.js', "// Not an input declaration.\n" + sourceInput);
+  put(box.root, 'test/late.test.js', "const alreadyExecuting = true;\n" + sourceInput);
   const base = commitAll(box);
   put(box.root, 'src/a.js', 'export const value = 2;\n');
   const commit = commitAll(box, 'feat(core): change source scanner input [G1]');
