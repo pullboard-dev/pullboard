@@ -8,6 +8,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   after,
   test,
@@ -182,7 +183,7 @@ test('native push adapter checks real ordered receipts and exact open audit repa
 
 test('additive native CLI refuses malformed actual pre-push stdin before smoke [C7]', () => {
   const box = e2e.project('true', undefined, { withWorktree: false });
-  const ran = runFixtureChild(process.execPath, [new URL('../bin/pullboard.js', import.meta.url).pathname, 'push-receipts', '--json'], {
+  const ran = runFixtureChild(process.execPath, [fileURLToPath(new URL('../bin/pullboard.js', import.meta.url)), 'push-receipts', '--json'], {
     cwd: box.repo, env: box.env, input: 'malformed pre-push record\n', encoding: 'utf8',
   });
   assert.equal(ran.status, 1, `${ran.stdout}${ran.stderr}`);
