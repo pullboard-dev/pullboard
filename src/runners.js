@@ -136,7 +136,7 @@ function transportText(value) {
 
 /** Preserve which transport/protocol check failed without retaining source capsules, credentials or command output. */
 function runnerFailure(request, result, reason) {
-  return new RunnerDropped(request.runner.host, { reason, request: request.spec?.id ?? null,
+  return new RunnerDropped(request.runner.host, { reason: request.admissionDeadlineExceeded ? 'admission-deadline' : reason, request: request.spec?.id ?? null,
     source: request.spec?.commit ?? null, tree: request.spec?.tree ?? null,
     tooling: request.spec?.tooling?.sha256 ?? null, phase: request.phase ?? 'connect',
     command: ['ssh', ...(request.args ?? []).slice(0, -1), '[pinned Pullboard worker]'],
@@ -729,6 +729,7 @@ export async function runOnRunnerAsync(root, command, options) {
     // Bound connection, worker admission and checkout, until READY immediately before execution.
     // An executing test keeps its existing test timeout and may outlive the runner wait.
     if (Number.isSafeInteger(options.runnerWaitDeadline)) runnerWaitTimer = setTimeout(() => {
+      request.admissionDeadlineExceeded = true;
       abort();
       // Budget: a non-responsive SSH child cannot retain a local reservation forever.
       runnerWaitKill = setTimeout(() => child.kill('SIGKILL'), 1_000);

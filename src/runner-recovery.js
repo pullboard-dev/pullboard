@@ -21,7 +21,8 @@ export function recordRunnerFailure(db, host, reason, diagnostic, { quarantine =
   db.prepare(`INSERT INTO runner_unavailable(host,since,detail,failure,probe_after,probe_token,probe_until)
     VALUES(?,?,?,?,?,'',0) ON CONFLICT(host) DO UPDATE SET since=excluded.since,detail=excluded.detail,
     failure=excluded.failure,probe_after=excluded.probe_after,probe_token='',probe_until=0`)
-    .run(host, new Date().toISOString(), reason === 'cleanup-unverified' ? 'CLEANUP_UNVERIFIED' : 'TRANSPORT_LOST',
+    .run(host, new Date().toISOString(), reason === 'cleanup-unverified' ? 'CLEANUP_UNVERIFIED'
+      : reason === 'worker-unresponsive' ? 'WORKER_UNRESPONSIVE' : 'TRANSPORT_LOST',
       diagnostic ? JSON.stringify({ original: diagnostic }) : '', Date.now() + 1_000);
 }
 

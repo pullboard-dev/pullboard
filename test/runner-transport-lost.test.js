@@ -27,8 +27,8 @@ function fixture(t) {
   const bin = join(box.dir, 'transport-bin'), worker = join(box.dir, 'worker');
   const home = join(box.dir, 'worker-home'), machineHome = join(home, '.pullboard');
   for (const folder of [bin, worker, home, machineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(folder, { recursive: true });
-  const requests = join(box.dir, 'requests.jsonl');
-  installSshStandIn({ bin, worker, home, machineHome, requests, dropFirst: true, nodeCommand: process.execPath });
+  const requests = join(box.dir, 'requests.jsonl'), starts = join(box.dir, 'starts.jsonl');
+  installSshStandIn({ bin, worker, home, machineHome, requests, starts, dropFirst: true, nodeCommand: process.execPath });
   const ssh = join(bin, 'ssh');
   writeFileSync(ssh, readFileSync(ssh, 'utf8').replace('record({ dropped: true, stdinBytes,',
     "process.stderr.write('controlled transport disconnection\\n'); record({ dropped: true, stdinBytes,"));
@@ -37,7 +37,7 @@ function fixture(t) {
   writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({
     gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true }, runners: [runner],
   }));
-  return { ...box, requests, runner };
+  return { ...box, requests, starts, runner };
 }
 
 /** Execute the current implementation inside the fixture's own environment and retain an actionable assertion. */
@@ -94,6 +94,48 @@ test('one transient SSH failure is confirmed before a healthy runner is readmitt
   const requests = readFileSync(box.requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
   assert.equal(requests.length, 3, 'failed dispatch, one confirming Node observation, one actual recovered execution');
   assert.equal(requests[0].dropped, true);
+});
+
+test('an SSH-healthy host whose worker misses READY stays held after the admission deadline [C7]', t => {
+  const box = fixture(t);
+  const ssh = join(box.dir, 'transport-bin', 'ssh');
+  const before = readFileSync(ssh, 'utf8');
+  const dispatch = "if (hold === 'dispatch') await holdHere();";
+  assert.ok(before.includes(dispatch), 'the private stand-in exposes the real dispatch phase');
+  // The actual configured Node probe still answers; only a framed worker dispatch never reaches READY.
+  writeFileSync(ssh, before.replace(dispatch, 'if (remoteCommand.startsWith(configuredNode)) await holdHere();'));
+  const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const configured = JSON.parse(readFileSync(settings, 'utf8'));
+  writeFileSync(settings, JSON.stringify({ ...configured, gate: { ...configured.gate, runnerWaitMs: 1_000 } }));
+  const gate = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
+  const transport = pathToFileURL(join(import.meta.dirname, '../src/runner-transport.js')).href;
+  const recovery = pathToFileURL(join(import.meta.dirname, '../src/runner-recovery.js')).href;
+  const result = child(box, `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};
+    import {probeRunnerTransport} from ${JSON.stringify(transport)};
+    import {recoverUnavailableRunners} from ${JSON.stringify(recovery)};
+    import {DatabaseSync} from 'node:sqlite';import {readFileSync} from 'node:fs';
+    let code;try{await withGateSlot(process.cwd(),lease=>runProfiledShellAsync(process.cwd(),'true',{gateLease:lease}),
+      {remote:true,onWait(){}});}catch(error){code=error.code;}
+    const attempts=readFileSync(${JSON.stringify(box.starts)},'utf8').trim().split('\\n').length;
+    const health=await probeRunnerTransport(${JSON.stringify(box.runner)});
+    const db=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+'/resources.sqlite');
+    const held=db.prepare('SELECT * FROM runner_unavailable').get();
+    let automaticProbes=0;
+    const recovered=await recoverUnavailableRunners(db,[${JSON.stringify(box.runner)}],{
+      probe:async()=>{automaticProbes++;return {healthy:true};}});
+    const remaining=db.prepare('SELECT COUNT(*) n FROM runner_unavailable').get().n;
+    const leases=db.prepare('SELECT (SELECT COUNT(*) FROM holder)+(SELECT COUNT(*) FROM waiter) n').get().n;
+    console.log(JSON.stringify({code,attempts,health:health.healthy,detail:held?.detail,
+      reason:held?JSON.parse(held.failure).original.reason:null,recovered,automaticProbes,remaining,leases}));db.close();`);
+  assert.equal(result.code, 'RUNNER_WAIT_DEADLINE', 'disabled local capacity is never invented as a fallback');
+  assert.equal(result.attempts, 1, 'the timed-out job gets neither another dispatch nor a substitute health retry');
+  assert.equal(result.health, true, 'a real standalone configured Node process answers on this same host');
+  assert.equal(result.detail, 'WORKER_UNRESPONSIVE');
+  assert.equal(result.reason, 'admission-deadline');
+  assert.equal(result.recovered, false, 'SSH health does not prove worker readiness recovered');
+  assert.equal(result.automaticProbes, 0);
+  assert.equal(result.remaining, 1);
+  assert.equal(result.leases, 0, 'the failed run leaves no private holder or waiter');
 });
 
 test('a recovered runner is cleared on its first successful probe instead of a five minute expiry [C7]', async t => {

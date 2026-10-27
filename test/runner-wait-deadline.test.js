@@ -16,7 +16,7 @@ after(cleanupFixtureChildren);
 after(cleanupToolingSnapshots);
 
 /** Build the real loopback SSH transport in an isolated machine, with a short private deadline. */
-function fixture({ hold = '', runnerWaitMs = 60, dropFirst = !hold } = {}) {
+function fixture({ hold = '', runnerWaitMs = 60, dropFirst = !hold, healthDown = false } = {}) {
   const box = e2e.project('true');
   const paths = Object.fromEntries(['bin', 'worker', 'remoteHome', 'remoteMachine'].map(name => [name, join(box.dir, name)]));
   for (const path of Object.values(paths)) mkdirSync(path, { recursive: true });
@@ -24,7 +24,7 @@ function fixture({ hold = '', runnerWaitMs = 60, dropFirst = !hold } = {}) {
   const starts = join(box.dir, 'starts.jsonl');
   const stderrLog = join(box.dir, 'worker-stderr.log');
   installSshStandIn({ bin: paths.bin, worker: paths.worker, home: paths.remoteHome,
-    machineHome: paths.remoteMachine, requests, starts, hold, dropFirst, stderrLog });
+    machineHome: paths.remoteMachine, requests, starts, hold, dropFirst, healthDown, stderrLog });
   box.env.PATH = paths.bin + ':' + box.env.PATH;
   const added = cli(box.repo, box.env, 'runner', 'add', HOST + '-drop', '--slots', '1', '--browser', '1');
   assert.equal(added.status, 0, fixtureResultContext(added));
@@ -45,7 +45,7 @@ async function observe(predicate, description) {
 }
 
 test('a gate run waiting for an unreachable runner falls back to a local slot after the deadline and names the runner [C7,Q1,Q2]', async () => {
-  const box = fixture({ runnerWaitMs: 1_000 });
+  const box = fixture({ runnerWaitMs: 1_000, healthDown: true });
   const previous = [process.env.PULLBOARD_HOME, process.env.PULLBOARD_MACHINE_HOME];
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
   process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
@@ -83,7 +83,9 @@ test('a gate run waiting for an unreachable runner falls back to a local slot af
     assert.match(result.stdout, /DEADLINE_LOCAL_EXECUTION/u);
     assert.equal(gateResult(result.stdout).runner, undefined, 'the command actually executes locally');
     assert.match(result.stderr, new RegExp(HOST + '-drop.*unreachable', 'iu'), 'fallback emits the named runner reason');
-    assert.equal(readFileSync(box.requests, 'utf8').trim().split('\n').length, 1, 'a quarantined runner is not retried after the deadline');
+    const calls = readFileSync(box.requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+    assert.equal(calls.filter(call => !call.healthProbeFailed).length, 1, 'a quarantined runner gets no second job after the deadline');
+    assert.ok(calls.filter(call => call.healthProbeFailed).length <= 1, 'at most one confirming health observation precedes the deadline hold');
     assert.equal(queue().holders.length + queue().line.length, 0, 'all private leases drain');
   } finally {
     held?.release();
