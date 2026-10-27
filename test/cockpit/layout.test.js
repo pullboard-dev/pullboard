@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { SPEC, machine, project, build, sendBack, fetchLive, fetchPage, startView, styleOf, element, settle, storage, openPage, accept, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
+import { SPEC, machine, project, build, sendBack, fetchLive, fetchPage, startView, styleOf, element, settle, storage, openPage, accept, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, tabBar } from './fixture.js';
 
 
 test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, async (t) => {
@@ -710,4 +710,40 @@ test('no view source file is over the 1500-line cap [C7,D1]', async () => {
   const viewLane = /^(?:src\/cockpit\.js|src\/serve\.js|src\/view\.css|src\/view\/)/u;
   const over = fileSizeProblems(root).filter((problem) => viewLane.test(problem.path)).map((problem) => `${problem.path}:${problem.line}`);
   assert.deepEqual(over, [], 'every view file is under the 1500-line cap, so the file-size check prints no block for it');
+});
+
+
+test('phone tab labels keep their two pixel inset under real wide fonts [N26]', { timeout: 120_000 }, async t => {
+  const executable = chromeExecutable();
+  if (!executable) return t.skip('Install Chrome for the tab label geometry proof.');
+  const box = machine();
+  project(box, 'tab-inset');
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-tab-inset-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor('!!data?.project && document.querySelectorAll("#tabs .tab").length === 7');
+    for (const [width, font] of [[375, 'system-ui, sans-serif'], [375, 'Verdana, "DejaVu Sans", sans-serif'],
+      [320, 'Verdana, "DejaVu Sans", sans-serif'], [305, 'Verdana, "DejaVu Sans", sans-serif'], [1280, 'system-ui, sans-serif']]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.stable(`document.documentElement.style.setProperty('--sans', ${JSON.stringify(font)})`);
+      await chrome.waitFor(`innerWidth === ${width}`);
+      const bar = await tabBar(chrome);
+      for (const layout of bar.layouts) {
+        const where = `${width}/${font}/${layout.on}`;
+        assert.equal(layout.tabs.length, 7, where + ': all seven complete labels remain');
+        for (const tab of layout.tabs) assert.ok(tab.labelLeft >= tab.left + 2 && tab.labelRight <= tab.right - 2,
+          `${where}: ${tab.tab} retains the original two-pixel inset: ${JSON.stringify(tab)}`);
+        layout.tabs.forEach((tab, index) => { if (index) assert.ok(tab.left >= layout.tabs[index - 1].right - 0.5, where + ': tabs never overlap'); });
+        assert.ok(layout.tabs[0].left >= layout.bar[0] - 0.5 && layout.tabs.at(-1).right <= layout.bar[1] + 0.5
+          && layout.bar[1] <= bar.client, where + ': the whole tab bar fits the actual content width');
+      }
+    }
+    assert.deepEqual(chrome.exceptions, [], 'the real page raises no uncaught exception');
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    rmSync(profile, { recursive: true, force: true });
+    await view.stop();
+  }
 });
