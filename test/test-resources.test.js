@@ -184,7 +184,10 @@ test('module launchers and dynamic builtins keep browser admission conservative 
   copyFileSync(resolve(import.meta.dirname, '../src/module-imports.js'), join(root, 'src/module-imports.js'));
   copyFileSync(resolve(import.meta.dirname, '../src/js-lex.js'), join(root, 'src/js-lex.js'));
   writeFileSync(join(root, 'test/parser.test.js'), "import '../src/module-imports.js';\n");
-  assert.equal(await testsNeedBrowser(root, ['test/parser.test.js']), false,
+  const parserFallbacks = [];
+  const parserBrowser = await testsNeedBrowser(root, ['test/parser.test.js'], { onFallback: decision => parserFallbacks.push(decision) });
+  t.diagnostic('reviewed parser fallback: ' + JSON.stringify(parserFallbacks));
+  assert.equal(parserBrowser, false,
     'the reviewed V8 compile-only import parser may use node:vm without evaluating the test graph');
 });
 
