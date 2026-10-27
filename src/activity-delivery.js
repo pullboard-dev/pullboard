@@ -19,7 +19,7 @@ export function classifyActivityDelivery({ agentId, items, activity, shouts, at 
       if (question?.shout_from === agentId && question.shout_decision) reason = 'answered';
     }
     if (reason) interrupts.push({ ...entry, id: `event:${entry.eventId}`, reason });
-    else if (entry.shout || entry.unknown) direct.push(entry); // Governing instructions and active coordination remain direct.
+    else if (entry.shout || entry.typedRequest || entry.unknown) direct.push(entry); // Governing instructions and active coordination remain direct.
     else count(entry.kind);
   }
   const now = Date.parse(at);

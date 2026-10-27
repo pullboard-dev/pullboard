@@ -1,4 +1,8 @@
 import { cadenceDeferral } from './landing-cadence.js';
+import {
+  requireLocalGuardClassification,
+  runLocalLandingGuard,
+} from './land-local-guard.js';
 import { mergeOnlyLandingProblem } from './merge-only-verdict.js';
 import { localDependencyIds } from './item-dependencies.js';
 import { requireOutsideOwner } from './outside-source.js';
@@ -8,8 +12,10 @@ import {
 } from './land-collisions.js';
 /** Coordinator landing batches retain exact Git and gate receipts across interruptions [B3,R3]. */
 import { assignEngineNumbers } from './engine-numbers.js';
-import { resolveMechanicalIndex } from './mechanical-merge.js';
-import { mechanicalConflictFiles } from './mechanical-merge.js';
+import {
+  resolveMechanicalIndex,
+  mechanicalConflictFiles,
+} from './mechanical-merge.js';
 import { writeFormatTable } from './format-registry.js';
 import {
   createHash,
@@ -32,8 +38,10 @@ import {
   relative,
 } from 'node:path';
 import * as store from './board.js';
-import { badgeCounts } from './badge.js';
-import { writeBadges } from './badge.js';
+import {
+  badgeCounts,
+  writeBadges,
+} from './badge.js';
 import {
   git,
   headCommit,
@@ -61,7 +69,7 @@ import { testsNeedBrowser } from './browser-admission.js';
 import { testsNeedGui } from './gui-admission.js';
 import { selectAffectedTests } from './affected-tests.js';
 import { selectRegistryGuards } from './registry-guards.js';
-import { placementLandingGate } from './test-placement.js';
+import { placementLandingGate, paidTests } from './test-placement.js';
 import { laneOf } from './lanes.js';
 import { takeLandingResource } from './landing-resource.js';
 import {
@@ -429,22 +437,34 @@ function batchAffectedTests(state) {
   return { ...selection, mandatory, files: [...new Set([...mandatory, ...(!selection.full ? selection.files : [])])].sort() };
 }
 
-/** Bind every cached landing proof to the full gate and its merged-tree affected floor. */
-function batchGatePlan(state) {
+/** Bind each cached result to its exact full-gate or local-trunk guard plan. */
+function batchGatePlan(state, { localTrunk = false } = {}) {
   const selection = batchAffectedTests(state);
   const changed = git(state.batch.root, ['diff', '--no-renames', '--name-only', '-z', state.batch.base, 'HEAD']).split('\0').filter(Boolean);
-  const valued = placementLandingGate(state.batch.root, state.config, selection, selection.mandatory, changed);
-  if (valued) return { config: valued, affectedGate: createHash('sha256').update(valued.gate).digest('hex') };
+  const deferred = localTrunk ? deferredSelections(state).flatMap(row => row.files) : [];
+  const mandatory = [...new Set([...selection.mandatory, ...deferred])].sort();
+  const valued = placementLandingGate(state.batch.root, state.config, selection, mandatory, changed);
+  if (valued) {
+    const files = [...new Set([...paidTests(state.batch.root, selection.full ? [] : selection.files, 'landing', changed), ...mandatory])].sort();
+    return { config: valued, files, subset: true, affectedGate: createHash('sha256').update(valued.gate).digest('hex') };
+  }
+  if (localTrunk) {
+    const files = [...new Set([...selection.files, ...deferred])].sort();
+    const affected = files.length ? `${state.config.affectedTests} ${files.map(quote).join(' ')}` : '';
+    const command = selection.full ? affected ? `(\n${state.config.gate}\n) && ${affected}` : state.config.gate : affected || 'true';
+    const config = { ...state.config, gate: command };
+    return { config, files, subset: !selection.full, affectedGate: createHash('sha256').update(command).digest('hex') };
+  }
   const appended = selection.files.length ? `${state.config.affectedTests} ${selection.files.map(quote).join(' ')}` : '';
   const config = appended ? { ...state.config, gate: `(\n${state.config.gate}\n) && ${appended}` } : state.config;
   return { config, affectedGate: createHash('sha256').update(config.gate).digest('hex') };
 }
 
-/** Run one full landing gate and retain its complete output under this batch's immutable phase path. */
-async function gateGroup(state, label) {
+/** Run one source-pinned gate or selective floor, retaining its complete immutable phase log. */
+async function gateGroup(state, label, options) {
   const tree = headTree(state.batch.root);
   const commit = headCommit(state.batch.root);
-  const { config, affectedGate } = batchGatePlan(state);
+  const { config, affectedGate, files, subset } = batchGatePlan(state, options);
   const recorded = state.gates.get(tree);
   if (recorded?.timedOut) throw new Refused('LAND_GATE_TIMEOUT', 'this exact tree has a recorded landing timeout; inspect its log before starting a new batch');
   const cached = recorded?.affectedGate === affectedGate ? recorded : null;
@@ -454,14 +474,17 @@ async function gateGroup(state, label) {
   const logPath = join(directory, `${label}-${state.batch.revision}.log`);
   await save(state, { state: 'gating', tip: headCommit(state.batch.root), logPath });
   const pin = flakeSource(state.batch.root, { commit, main: state.batch.base });
-  const gate = await runGate(state.batch.root, config, { trustStamp: false, landing: true, agent: 'coordinator', onWait: state.onWait, stages: true, waivers: liveWaiverProjection(state.board),
-    onFailure: Object.assign((run, { root, command, lease }) => observeNativeFailure({ root, config, pin, run, command, lease, kind: 'land',
-      record: observation => {
-        const owner = observation.file ? laneOf(state.config, observation.file) : 'coordinator';
-        const lane = owner === 'coordinator' ? store.getItem(state.board, state.batch.items[0].id).item_lane : owner;
-        return state.write('recordFlakeObservation', [{ agentId: 'coordinator', observation, lane }]);
-      } }), { main: pin.main, recordRun: receiptId => recordLandingRun(state, receiptId) }),
-  });
+  const onFailure = Object.assign((run, { root, command, lease }) => observeNativeFailure({ root, config, pin, run, command, lease, kind: 'land',
+    record: observation => {
+      const owner = observation.file ? laneOf(state.config, observation.file) : 'coordinator';
+      const lane = owner === 'coordinator' ? store.getItem(state.board, state.batch.items[0].id).item_lane : owner;
+      return state.write('recordFlakeObservation', [{ agentId: 'coordinator', observation, lane }]);
+    } }), { main: pin.main, recordRun: receiptId => recordLandingRun(state, receiptId) });
+  const gate = subset
+    ? await runLocalLandingGuard(state.batch.root, config, { files, directory, label, onWait: state.onWait,
+      waivers: liveWaiverProjection(state.board), onFailure })
+    : await runGate(state.batch.root, config, { trustStamp: false, landing: true, agent: 'coordinator', onWait: state.onWait,
+      stages: true, waivers: liveWaiverProjection(state.board), onFailure });
   copyFileSync(gate.log, logPath);
   if (gate.profilePath) copyFileSync(gate.profilePath, `${logPath}.profile.json`);
   if (headCommit(state.batch.root) !== commit || headTree(state.batch.root) !== tree || !isClean(state.batch.root)) {
@@ -906,7 +929,7 @@ function waivedProof(state, gate) {
 }
 
 /** Bisect a reproducible red without retrying any previously tested group. */
-async function bisect(state, items, failures, label = 'split') {
+async function bisect(state, items, failures, label = 'split', evaluate = gateGroup) {
   if (items.length === 1) {
     const item = items[0];
     const text = `Landing batch ${state.batch.id} reproduces failures: ${failures.map((failure) => `${failure.file}: ${failure.name}`).join('; ')}`;
@@ -925,7 +948,7 @@ async function bisect(state, items, failures, label = 'split') {
   for (const [index, part] of [items.slice(0, middle), items.slice(middle)].entries()) {
     const build = await mergeGroup(state, part);
     await save(state, { ...build, state: 'bisecting' });
-    const gate = await gateGroup(state, `${label}-${index}`);
+    const gate = await evaluate(state, `${label}-${index}`);
     if (gate.isGreen || waivedProof(state, gate)) green.push(...build.items);
     else {
       const flakyFiles = await diagnose(state, gate.failures, gate);
@@ -934,7 +957,7 @@ async function bisect(state, items, failures, label = 'split') {
         state.flaky = true;
         return [];
       }
-      green.push(...await bisect(state, build.items, gate.failures, `${label}-${index}`));
+      green.push(...await bisect(state, build.items, gate.failures, `${label}-${index}`, evaluate));
     }
   }
   return green;
@@ -1123,30 +1146,14 @@ export function landsOnTrunk(config) {
  * Prove a tier-1 batch's actual merged diff with submit's affected map (#1277). Fixed invariants and registry
  * guards remain a floor; an uncertain import graph requires the configured full gate before adoption.
  */
-async function quickGuards(state) {
-  const root = state.batch.root;
-  await runStaticChecks(root, state.config, { agent: 'coordinator', onWait: state.onWait });
-  const commit = headCommit(root);
-  const tree = headTree(root);
-  const selection = batchAffectedTests(state);
-  if (selection.full) {
-    state.say(`batch affected tests require the full gate: ${selection.reason}`);
-    const gate = await gateGroup(state, 'affected');
-    if (!gate.isGreen) throw new Refused('GATE_RED', 'the full affected gate is red on the merged tree; inspect its recorded failures before landing');
-    return;
+async function quickGuards(state, label = 'local-trunk') {
+  await runStaticChecks(state.batch.root, state.config, { agent: 'coordinator', onWait: state.onWait });
+  const gate = await gateGroup(state, label, { localTrunk: true });
+  if (!gate.isGreen && (!completeGate(gate) || !gate.accounted)) {
+    throw new Refused('LAND_DIAGNOSTIC', 'the local-trunk guards have no complete accounted failure; inspect the recorded gate before adopting');
   }
-  const files = selection.files;
-  if (files.length) {
-    const command = `${state.config.affectedTests} ${files.map(quote).join(' ')}`;
-    const browser = !browserFreeChecksEnabled() || await testsNeedBrowser(root, files);
-    const run = await withLandingGateSlot(root, lease => runProfiledShell(root, command, { waitMs: lease.waitMs, gateLease: lease, stages: true }),
-      { agent: 'coordinator', kind: 'gate', landing: true, browser, gui: testsNeedGui(root, files), onWait: state.onWait });
-    if (headCommit(root) !== commit || headTree(root) !== tree || !isClean(root)) {
-      throw new Refused('LAND_SOURCE_CHANGED', 'the landing source changed while its affected tests ran; restore the recorded batch before adopting');
-    }
-    state.say(`batch affected tests: ${files.length} file(s) ${run.isGreen ? 'green' : 'red'} on the merged tree`);
-    if (!run.isGreen) throw new Refused('GATE_RED', `the batch affected tests are red on the merged tree: ${files.join(', ')}`);
-  }
+  if (!gate.isGreen && !waivedProof(state, gate)) requireLocalGuardClassification(state, gate);
+  return gate;
 }
 
 /** The affected test files each batch item's submission moved to the landing gate, read from its exact submit. */
@@ -1206,9 +1213,29 @@ async function inlineDeferredGuards(state) {
  */
 async function landOnTrunk(state) {
   await save(state, { state: 'gating', tip: headCommit(state.batch.root) });
-  try { await quickGuards(state); await deferredGuards(state); } catch (error) {
+  let gate;
+  try {
+    gate = await quickGuards(state);
+    if (!gate.isGreen && !waivedProof(state, gate)) {
+      const flakyFiles = await diagnose(state, gate.failures, gate);
+      if (flakyFiles.length) { await fileFlakes(state, gate, flakyFiles); state.flaky = true; return; }
+      const green = await bisect(state, state.batch.items, gate.failures, 'local-split', quickGuards);
+      if (state.flaky || !green.length) {
+        if (!state.flaky) await save(state, { state: 'blocked', culprits: state.culprits });
+        return;
+      }
+      const rebuilt = await mergeGroup(state, green);
+      await save(state, { ...rebuilt, culprits: state.culprits });
+      gate = await quickGuards(state, 'local-green-items');
+      if (!gate.isGreen && !waivedProof(state, gate)) {
+        if (!state.culprits.length) { await fileTestDefects(state, gate); state.flaky = true; return; }
+        await save(state, { state: 'blocked', failures: gate.failures, culprits: state.culprits });
+        throw new Refused('LAND_INTERACTION', 'the individually green items fail together; nothing retries or lands; inspect the batch’s failing tests');
+      }
+    }
+  } catch (error) {
     if (!(error instanceof Refused)) throw error;
-    await save(state, { state: 'blocked' });
+    if (!['flaky', 'test-defect'].includes(state.batch.state)) await save(state, { state: 'blocked' });
     state.say(`nothing landed: ${error.message}`);
     return;
   }
@@ -1218,7 +1245,9 @@ async function landOnTrunk(state) {
     if (item.item_status !== 'verified' || item.item_commit !== entry.commit) throw new Refused('LAND_ITEM_MOVED', `item #${entry.id} changed after the batch merged; rebuild its landing`);
   }
   if (mainCheckout(state.root)?.commit !== state.batch.base) throw new Refused('LAND_TRUNK_MOVED', 'main moved during the landing; rebuild the batch from its new tip');
-  await save(state, { state: 'trunk', proof: { tree: headTree(state.batch.root), failures: [], logPath: null } });
+  const proof = gate.isGreen ? { tree: gate.tree, failures: [], logPath: gate.logPath } : waivedProof(state, gate);
+  if (!proof) throw new Refused('LAND_WAIVER', 'the local-trunk red lost its live person waiver; ask the person for a new expiring waiver, then adopt the batch');
+  await save(state, { state: 'trunk', proof });
   await finishTrunk(state);
 }
 
@@ -1232,7 +1261,8 @@ function requireLandingCarries(state, batch) {
 
 /** Record a tier-1 batch's merged receipts and move the local trunk to it; an adopted 'trunk' batch resumes here (#801). */
 async function finishTrunk(state) {
-  requireLandingCarries(state, state.batch);
+  await state.checkLease();
+  publicationInputs(state, state.batch);
   state.batch = await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
   await state.checkLease();
   const main = mainCheckout(state.root);

@@ -54,6 +54,7 @@ export function defaults() {
     registryGuards: [],
     staticChecks: '',
     lease: '2h',
+    claims: { releaseGone: false },
     reviewLease: '30m',
     worktrees: 'beside',
     verify: { policy: 'any', family: 'off', reviewRatio: 3 },
@@ -123,6 +124,8 @@ function merge(base, raw) {
       : raw.agents && typeof raw.agents === 'object' && !Array.isArray(raw.agents)
         ? { ...base.agents, ...raw.agents }
         : raw.agents,
+    claims: raw.claims && typeof raw.claims === 'object' && !Array.isArray(raw.claims)
+      ? { ...base.claims, ...raw.claims } : raw.claims === undefined ? base.claims : raw.claims,
     claim: raw.claim === undefined ? base.claim
       : raw.claim && typeof raw.claim === 'object' && !Array.isArray(raw.claim)
         ? { ...base.claim, ...raw.claim }
@@ -182,6 +185,11 @@ export function configProblems(config) {
     || Object.keys(costs).some(key => !['costOfEscape', 'costOfWaiting', 'costOfFalseRed'].includes(key))
     || !['costOfEscape', 'costOfWaiting', 'costOfFalseRed'].every(key => Number.isFinite(costs[key]) && costs[key] >= 0)) {
     problems.push('"testEconomics" has nonnegative finite costOfEscape, costOfWaiting and costOfFalseRed numbers (seconds of equivalent waiting); it controls reported value and published submit/landing placement');
+  }
+  if (config.pushReceiptCheck !== undefined && (!config.pushReceiptCheck || typeof config.pushReceiptCheck !== 'object'
+    || Array.isArray(config.pushReceiptCheck) || Object.keys(config.pushReceiptCheck).some(key => key !== 'smoke')
+    || typeof config.pushReceiptCheck.smoke !== 'string' || !config.pushReceiptCheck.smoke.trim())) {
+    problems.push('"pushReceiptCheck" has only an explicit nonempty "smoke" command; this config does not activate the replacement hook');
   }
   if (config.publish !== undefined && (!config.publish || typeof config.publish !== 'object' || Array.isArray(config.publish)
     || Object.keys(config.publish).some(key => key !== 'pullRequest') || ![undefined, false, 'release', 'item'].includes(config.publish.pullRequest))) {
@@ -274,6 +282,10 @@ export function configProblems(config) {
   if (config.checks !== undefined && (typeof config.checks !== 'object' || config.checks === null || Array.isArray(config.checks)
     || Object.keys(config.checks).some((key) => key !== 'provesNothing') || !['hold', 'warn'].includes(config.checks.provesNothing))) {
     problems.push('"checks" is { "provesNothing": "hold" or "warn" }: "hold" refuses claim and submit while an item\'s check already passes on main');
+  }
+  if (!config.claims || typeof config.claims !== 'object' || Array.isArray(config.claims)
+    || Object.keys(config.claims).some(key => key !== 'releaseGone') || typeof config.claims.releaseGone !== 'boolean') {
+    problems.push('claims.releaseGone is a boolean; false preserves ordinary claim leases');
   }
   if (!config.claim || typeof config.claim !== 'object' || Array.isArray(config.claim)
     || !Number.isSafeInteger(config.claim.reopenFirstRefusalMinutes) || config.claim.reopenFirstRefusalMinutes < 0
