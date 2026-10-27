@@ -1,3 +1,4 @@
+/** @pullboard-module-loads src/gate.js src/runners.js */
 /** Exercise runner-first placement, zero local pools, and public submit/landing gate paths [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync } from 'node:fs';

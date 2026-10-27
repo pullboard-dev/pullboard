@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** Keep the production runner's report stable across Node versions and caller options [C7]. */
 import assert from 'node:assert/strict';
 import { runFixtureChild as spawnSync } from './fixture-child.js';
@@ -8,6 +9,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { fleetTestResultReuse } from './test-result-fleet-fixture.js';
+
+test('the runner fleet reuses exact receipts across machines and gate stages [C7]', {
+  timeout: 120_000, // budget: seven real worker-capsule round trips, committed checkouts and verified cleanup.
+}, fleetTestResultReuse);
 
 const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
 
