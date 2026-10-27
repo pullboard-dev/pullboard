@@ -90,7 +90,7 @@ export function writeCellLintBaseline(root, baseline, { initialize = false, veri
     if (initialize && existsSync(descriptor)) throw new Refused('CELL_BASELINE', 'baseline already exists; use explicit falling update');
     before = initialize ? new Map() : storedCellLintFiles(root);
     if (previous && JSON.stringify(readCellLintBaseline(root)) !== JSON.stringify(previous)) throw new Refused('CELL_BASELINE', 'baseline changed since planning; read and plan the current generation');
-    for (const file of written) if (!before.has(file) && existsSync(join(root, file))) throw new Refused('CELL_BASELINE', `refuse overwriting unowned metadata ${file}`);
+    for (const file of files.keys()) if (!before.has(file) && existsSync(join(root, file))) throw new Refused('CELL_BASELINE', `refuse overwriting unowned metadata ${file}`);
     for (const [file, bytes] of files) if (file !== DESCRIPTOR) { written.add(file); writeFileSync(join(root, file), bytes); }
     writeFileSync(pending, files.get(DESCRIPTOR), { flag: 'wx' });
     pendingCreated = true;
