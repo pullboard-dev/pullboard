@@ -85,7 +85,7 @@ test('a gate run waiting for an unreachable runner falls back to a local slot af
     assert.match(result.stderr, new RegExp(HOST + '-drop.*unreachable', 'iu'), 'fallback emits the named runner reason');
     const calls = readFileSync(box.requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
     assert.equal(calls.filter(call => !call.healthProbeFailed).length, 1, 'a quarantined runner gets no second job after the deadline');
-    assert.ok(calls.filter(call => call.healthProbeFailed).length <= 1, 'at most one confirming health observation precedes the deadline hold');
+    assert.ok(calls.every(call => call.dropped || call.healthProbeFailed), 'other SSH calls are only the down-host health observations, never another job');
     assert.equal(queue().holders.length + queue().line.length, 0, 'all private leases drain');
   } finally {
     held?.release();
@@ -129,6 +129,7 @@ test('a registered runner that never answers is canceled at the deadline and the
     const waiting = queue().line.find(row => row.item === 'stalled-case');
     assert.match(waiting.runnerDeadline.branch, /local gate slots busy/u);
     assert.match(waiting.runnerDeadline.runners[0].reason, /unreachable/u);
+    assert.match(waiting.runnerDeadline.runners[0].reason, /worker did not become ready/u, 'the deadline names worker readiness rather than cleanup');
     assert.equal(readFileSync(box.starts, 'utf8').trim().split('\n').length, 1, 'the non-answering host is not retried');
     held.release(); held = null;
     const result = await pending; pending = null;

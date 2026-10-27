@@ -21,14 +21,14 @@ import { recoverUnavailableRunners } from '../src/runner-recovery.js';
 const RECOVERY_BOUND_MS = 5_000;
 
 /** Build a real private project and a private SSH executable; no configured machine host is contacted. */
-function fixture(t) {
+function fixture(t, { dropFirst = true } = {}) {
   const e2e = createE2eHelpers(); t.after(e2e.cleanup);
   const box = e2e.project('true');
   const bin = join(box.dir, 'transport-bin'), worker = join(box.dir, 'worker');
   const home = join(box.dir, 'worker-home'), machineHome = join(home, '.pullboard');
   for (const folder of [bin, worker, home, machineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(folder, { recursive: true });
   const requests = join(box.dir, 'requests.jsonl'), starts = join(box.dir, 'starts.jsonl');
-  installSshStandIn({ bin, worker, home, machineHome, requests, starts, dropFirst: true, nodeCommand: process.execPath });
+  installSshStandIn({ bin, worker, home, machineHome, requests, starts, dropFirst, nodeCommand: process.execPath });
   const ssh = join(bin, 'ssh');
   writeFileSync(ssh, readFileSync(ssh, 'utf8').replace('record({ dropped: true, stdinBytes,',
     "process.stderr.write('controlled transport disconnection\\n'); record({ dropped: true, stdinBytes,"));
@@ -97,7 +97,7 @@ test('one transient SSH failure is confirmed before a healthy runner is readmitt
 });
 
 test('an SSH-healthy host whose worker misses READY stays held after the admission deadline [C7]', t => {
-  const box = fixture(t);
+  const box = fixture(t, { dropFirst: false });
   const ssh = join(box.dir, 'transport-bin', 'ssh');
   const before = readFileSync(ssh, 'utf8');
   const dispatch = "if (hold === 'dispatch') await holdHere();";
