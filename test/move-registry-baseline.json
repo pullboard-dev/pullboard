@@ -7145,7 +7145,8 @@
     "RELAY_CANARY_DEADLINE": "read the failed step with pullboard relay canary status; the next minute's probe retries on its own",
     "RELAY_CANARY_SEAT": "run the canary from the seat that enabled it, or run pullboard relay canary on in a dedicated joined seat",
     "RELAY_CANARY_STOPPED": "start the watch again with pullboard relay canary watch; pending notices are sent on its next run",
-    "SCHEMA_DRIFT": "run pullboard inbox from the main checkout; if drift remains, preserve the board and ask the coordinator to inspect its schema"
+    "SCHEMA_DRIFT": "run pullboard inbox from the main checkout; if drift remains, preserve the board and ask the coordinator to inspect its schema",
+    "RUNNER_RESULT_INVALID": "inspect the retained transport diagnostic and repair the named protocol or capsule failure before retrying"
   },
   "replay": {
     "initial": {
