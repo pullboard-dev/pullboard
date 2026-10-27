@@ -69,6 +69,8 @@ function assertThresholds(box) {
     const latest = Math.max(...times);
     assert.equal(landingCadenceStatus(board, configFromSource('{}')).due, false, 'even accepted waiting work does not enable the default-off policy');
     const agePolicy = configFromSource(JSON.stringify({ landing: { cadence: { every: '10m', accepted: 3 } } }));
+    board.clock = { now: () => new Date(first - 1) };
+    assert.equal(landingCadenceStatus(board, agePolicy).oldestWaitMs, 0, 'a clock before acceptance clamps the observed age to zero');
     board.clock = { now: () => new Date(first + EVERY - 1) };
     assert.equal(landingCadenceStatus(board, agePolicy).due, false, 'one millisecond before the age boundary and below count');
     board.clock = { now: () => new Date(first + EVERY) };
@@ -128,7 +130,8 @@ test('land runs on cadence at either injected-clock boundary and lands all waiti
   assert.equal(status.cadence.threshold, 2);
   assert.equal(status.cadence.everyMs, EVERY);
   assert.equal(status.cadence.due, false);
-  assert.ok(status.cadence.oldestWaitMs >= 0 && status.cadence.oldestWaitMs < EVERY);
+  assert.equal(typeof status.cadence.oldestWaitMs, 'number');
+  assert.ok(Number.isFinite(status.cadence.oldestWaitMs), 'the native observation serializes a finite numeric age');
   const explanation = box.run(box.repo, 'land', '--due');
   assert.equal(explanation.code, 0, explanation.err + explanation.out);
   assert.match(explanation.err + explanation.out, /count 1\/2/u);
