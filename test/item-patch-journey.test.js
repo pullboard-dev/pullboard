@@ -9,7 +9,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 
 /** Require actual successful native CLI execution before inspecting its document. */
 function document(result) {
-  assert.equal(result.code, 0, result.err || result.out);
+  assert.equal(result.code, 0, `${result.err}\n${result.out}`);
   return JSON.parse(result.out);
 }
 

@@ -914,7 +914,8 @@ function invalidateItemPatch(board, id, agentId) {
       coordinatorOnly: () => onlyCoordinator(agentId, 'changes companion inputs'),
       notMerged: found => found.item_merged_commit ? new Refused('ALREADY_MERGED', 'file a follow-up for landed work') : null,
     },
-    set: () => ({ item_verdict: null, item_verified_by: null, item_review_by: null, item_review_until: null }),
+    set: found => ({ item_built_by: found.item_built_by, item_frozen_digest: found.item_frozen_digest,
+      item_verdict: null, item_verified_by: null, item_review_by: null, item_review_until: null }),
   });
 }
 
@@ -1380,11 +1381,10 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
           : new Refused('ALREADY_MERGED', `item #${id} already landed; only unlanded acceptances can be re-reviewed`),
         verdictReviewRecorded: found => verdictReviewProblem(review, found.item_commit, { checked: engine >= VERDICT_REVIEW_ENGINE }),
         reviewTreeCurrent: null,
-        patchInputsCurrent: found => isAccept ? itemPatchReviewProblem(board, found, companionDigest) : null,
         ...reviewerChecks(board, { agentId, policy, familyPolicy }),
         criterionUnchanged: (found) =>
           digest === found.item_frozen_digest
-            ? null
+            ? isAccept ? itemPatchReviewProblem(board, found, companionDigest) : null
             : new Refused('CRITERIA_CHANGED', `the criterion for #${id} changed after it was claimed; the coordinator runs: pullboard refreeze ${id}`),
         reasonIsMet: () => (reason && reason !== ACCEPT_REASON ? new Refused('BAD_REASON', `accept means ${ACCEPT_REASON}; a failed criterion is a reject`) : null),
         trunkMergeClean: null,
