@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -590,36 +590,45 @@ test('interrupt receipts replay once and only their recipient can acknowledge de
   assert.deepEqual(exportBoard(left), beforeRetry, 'a new local retry cannot redeliver or re-acknowledge the same source event');
 });
 
-test('pullboard inbox answers in under a second on a 40,000-shout backlog and matches the inbox API [B26,C7]', () => {
+test('pullboard inbox answers in under a second on a 40,000-shout backlog and matches the inbox API [B26,C7]', t => {
   const box = e2e.project();
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
-  let seat;
-  try {
-    const coordinator = store.register(board, { lane: 'coordinator', path: box.repo });
-    seat = store.register(board, { lane: 'web', path: box.web });
-    const items = Array.from({ length: 300 }, (_, index) => store.addItem(board, { by: 'coordinator', lane: 'web', title: `Backlog item ${index}`, criterion: 'The item is read.' }));
-    const other = store.register(board, { lane: 'web', path: join(box.dir, 'web-other') });
-    // Most of the backlog is someone else's: other seats and items this seat does not read. It stays on the board
-    // for every read to scan, while this seat's directed shouts are the few it is owed (1 in 500).
-    const seedBacklog = (from, to) => {
-      for (let index = from; index < to; index += 1) {
-        const item = index % 2 === 0 ? items[index % items.length] : undefined;
-        const direct = index % 500 === 1;
-        store.shout(board, { from: coordinator, to: direct ? seat : item === undefined ? other : `item:${item}`, item, text: `backlog shout ${index}`, lanes: ['web'] });
-      }
-    };
-    seedBacklog(0, 40_000);
-    const first = timedInbox(box, board, seat);
-    assert.ok(first.shoutIds.length >= 60 && first.shoutIds.length <= 100, `only the directed backlog is delivered: ${first.shoutIds.length}`);
-    assert.ok(first.ms < 1000, `pullboard inbox took ${first.ms.toFixed(0)}ms on a 40,000-shout backlog`);
-    // Seat history: its cursors are now set, and each later poll reads only what arrived since.
-    seedBacklog(40_000, 42_000);
-    const later = timedInbox(box, board, seat);
-    assert.ok(later.shoutIds.length >= 3 && later.shoutIds.length <= 6, `only the new directed shouts are delivered: ${later.shoutIds.length}`);
-    assert.ok(later.ms < 1000, `a later pullboard inbox took ${later.ms.toFixed(0)}ms`);
-  } finally {
-    store.closeBoard(board);
-  }
+  // An in-memory-style fixture board with a declared persistence purpose; the CLI reads a copy of its file.
+  const board = fixtureBoard(t, { storage: 'file', purpose: 'persistence' });
+  const boardFile = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main').file;
+  const target = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  /** Copy the fixture's committed pages over the project's board, where the CLI reads it. */
+  const publish = () => {
+    board.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+    copyFileSync(boardFile, target);
+    rmSync(`${target}-wal`, { force: true });
+    rmSync(`${target}-shm`, { force: true });
+  };
+  const coordinator = store.register(board, { lane: 'coordinator', path: box.repo });
+  const seat = store.register(board, { lane: 'web', path: box.web });
+  const items = Array.from({ length: 300 }, (_, index) => store.addItem(board, { by: 'coordinator', lane: 'web', title: `Backlog item ${index}`, criterion: 'The item is read.' }));
+  const other = store.register(board, { lane: 'web', path: join(box.dir, 'web-other') });
+  // Most of the backlog is someone else's: other seats and items this seat does not read. It stays on the board
+  // for every read to scan, while this seat's directed shouts are the few it is owed (1 in 500).
+  const seedBacklog = (from, to) => {
+    for (let index = from; index < to; index += 1) {
+      const item = index % 2 === 0 ? items[index % items.length] : undefined;
+      const direct = index % 500 === 1;
+      store.shout(board, { from: coordinator, to: direct ? seat : item === undefined ? other : `item:${item}`, item, text: `backlog shout ${index}`, lanes: ['web'] });
+    }
+  };
+  seedBacklog(0, 40_000);
+  publish();
+  const first = timedInbox(box, board, seat);
+  assert.ok(first.shoutIds.length >= 60 && first.shoutIds.length <= 100, `only the directed backlog is delivered: ${first.shoutIds.length}`);
+  assert.ok(first.ms < 1000, `pullboard inbox took ${first.ms.toFixed(0)}ms on a 40,000-shout backlog`);
+  // The CLI's read marks the seat's delivered shouts; the fixture takes the same cursor before the next backlog.
+  board.db.prepare('UPDATE agent SET agent_last_shout_id = ? WHERE agent_id = ?').run(Math.max(...first.shoutIds), seat);
+  // Seat history: its cursors are now set, and each later poll reads only what arrived since.
+  seedBacklog(40_000, 42_000);
+  publish();
+  const later = timedInbox(box, board, seat);
+  assert.ok(later.shoutIds.length >= 3 && later.shoutIds.length <= 6, `only the new directed shouts are delivered: ${later.shoutIds.length}`);
+  assert.ok(later.ms < 1000, `a later pullboard inbox took ${later.ms.toFixed(0)}ms`);
 });
 
 /** Run the real CLI from the seat's checkout, and read the same shouts through the store API before it runs. */
