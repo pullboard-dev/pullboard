@@ -887,6 +887,9 @@ export async function takeResource(options) {
   const requestedAt = resume?.requestedAt ?? Date.now();
   // Capture once: requeueing or editing the machine setting cannot restart this run's clock.
   let runnerDeadlineAt = resume?.runnerDeadlineAt ?? 0;
+  let runnerDispatched = resume?.runnerDispatched === true;
+  let lateAdmissionClosed = resume?.lateAdmissionClosed === true;
+  let lateRunnerDispatch = resume?.lateRunnerDispatch ?? null;
   let priorWaitMs = resume?.priorWaitMs ?? 0;
   let waitStartedAt = resume?.waitStartedAt ?? Date.now();
   const pid = process.pid;
@@ -984,9 +987,12 @@ export async function takeResource(options) {
           return { acquired: false, state: { ...snapshot(db, name, order), position: waiterPosition(db, name, initialTicket, { order, shortCapacity: options.shortCapacityProvider?.() ?? 0 }), rejoined: true } };
         }
         // The marker follows this poll's setting, so a change mid-wait reaches every process's ranking.
+        // A first free runner gets one admission opportunity at the expired queue boundary.
+        // A previous dispatch or a prior fallback decision never restarts the runner wait.
+        const remoteEligible = remote && (!runnerDeadlinePassed || !runnerDispatched && !lateAdmissionClosed);
         db.prepare('UPDATE waiter SET heartbeat = ?, classed = ?, runner_only = ?, remote = ?, runner_deadline = ? WHERE token = ?')
-          .run(Date.now(), classedMarker(order), Number(runnerOnly), Number(remote && !runnerDeadlinePassed), runnerDeadlineAt, token);
-        waiter.remote = Number(remote && !runnerDeadlinePassed);
+          .run(Date.now(), classedMarker(order), Number(runnerOnly), Number(remoteEligible), runnerDeadlineAt, token);
+        waiter.remote = Number(remoteEligible);
         const unavailable = unavailableRunnerHosts(db, now);
         const memoryHeld = Boolean(memory?.held && (name !== 'gate' || waiter.remote !== 1
           || !runners.some(runner => runnerCompatible(db, runner, waiter, unavailable))));
@@ -1000,10 +1006,6 @@ export async function takeResource(options) {
               runnerOnly, browser, timing, memoryHeld: memory?.held === true, holders: state.holders }) };
           db.prepare('UPDATE waiter SET runner_wait_branch = ?, runner_wait_reasons = ? WHERE token = ?')
             .run(runnerDeadline.branch, JSON.stringify(runnerDeadline.runners), token);
-          // Without local capacity the run cannot fall back, so it refuses by name rather than wait forever.
-          if (runnerDeadlinePassed && (runnerOnly || restriction?.kind === 'ssh' || runnerDeadline.branch === 'no local capacity')) {
-            throw new Refused('RUNNER_WAIT_DEADLINE', `${runnerDeadlineLine(runnerDeadline)}; restore safe local capacity or check the named runners, then retry`);
-          }
           // A read-only status may cross the clock boundary between polls. Seed its facts
           // immediately, while progress and fallback still wait for the actual deadline.
           if (!runnerDeadlinePassed) runnerDeadline = undefined;
@@ -1015,19 +1017,35 @@ export async function takeResource(options) {
         const executor = name === 'gate'
           ? gateAdmission(db, waiter.ticket, limit, options.shortCapacityProvider?.() ?? 0, runners, runnersFirst, order, now, memory?.held === true)
           : (waiterPosition(db, name, waiter.ticket, { eligibleOnly: true, order, now }) === 1 && spot.holders.length < limit ? { host: '' } : null);
+        // Decide from the normal ordered, capability-aware admission result before refusing.
+        // If nothing can start now, close the late opportunity and retain ordinary local fallback.
+        if (runnerDeadlinePassed && !executor?.host) {
+          db.prepare('UPDATE waiter SET remote = 0 WHERE token = ?').run(token);
+          if (!executor && (runnerOnly || restriction?.kind === 'ssh' || runnerDeadline.branch === 'no local capacity')) {
+            throw new Refused('RUNNER_WAIT_DEADLINE', `${runnerDeadlineLine(runnerDeadline)}; restore safe local capacity or check the named runners, then retry`);
+          }
+        }
         if (executor) {
+          const lateDispatch = runnerDeadlinePassed && executor.host ? { host: executor.host,
+            queueDeadlineAt: runnerDeadlineAt, admittedAt: now, budgetMs: options.runnerWaitMs,
+            startupDeadlineAt: now + options.runnerWaitMs } : null;
           const queueTicket = consumeOpportunity(db, name, waiter.ticket, order, now);
           db.prepare('DELETE FROM waiter WHERE token = ?').run(token);
           const acquiredAt = new Date().toISOString();
           const holderName = executor.host ? runnerResourceName(executor.host) : name;
           db.prepare('INSERT INTO holder(token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, runner, short_slot, timing, timing_aware) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(token, holderName, pid, started, agent, repo, acquiredAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, executor.host, Number(executor.shortSlot === true), Number(timing), 1);
           db.prepare('UPDATE holder SET runner_execution = ? WHERE token = ?').run(Number(options.runnerExecution === true), token);
-          return { acquired: true, state: { ...spot, position: 0, ...(runnerDeadline ? { runnerDeadline } : {}) }, ticket: waiter.ticket, queueTicket, runner: executor.host ? executor : undefined, shortSlot: executor.shortSlot === true, capacity: limit, admittedAt: acquiredAt };
+          return { acquired: true, state: { ...spot, position: 0, ...(runnerDeadline ? { runnerDeadline } : {}) }, ticket: waiter.ticket, queueTicket, runner: executor.host ? executor : undefined, lateRunnerDispatch: lateDispatch, shortSlot: executor.shortSlot === true, capacity: limit, admittedAt: acquiredAt };
         }
         return { acquired: false, state: { ...spot, position: reportPosition, ...(memoryHeld ? { memory } : {}), ...(runnerDeadline ? { runnerDeadline } : {}) } };
       }));
+      lateAdmissionClosed ||= Boolean(acquired.state.runnerDeadline);
       if (acquired.acquired) {
-        if (acquired.state.runnerDeadline) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '; running locally\n');
+        runnerDispatched ||= Boolean(acquired.runner);
+        lateRunnerDispatch = acquired.lateRunnerDispatch ?? lateRunnerDispatch;
+        if (acquired.state.runnerDeadline && !acquired.runner) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '; running locally\n');
+        if (acquired.lateRunnerDispatch) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline)
+          + `; first late dispatch to ${acquired.runner.host}, startup budget ${acquired.lateRunnerDispatch.budgetMs}ms\n`);
         // Only item-lease callbacks opt into admission. Await them so no renewal remains in
         // flight during the run, and restart the ordinary item expiry from this boundary.
         if (leaseUntil) {
@@ -1116,10 +1134,12 @@ export async function takeResource(options) {
           }
           db.close();
           return takeResource({ ...options, ...(local && !runnerOnly ? { remote: false } : {}), _resume: { token, ticket: requeueTicket ?? acquired.ticket, queueTicket: requeueOpportunity,
-            queuedAt, requestedAt, runnerDeadlineAt, priorWaitMs: acquiredWaitMs, waitStartedAt: Date.now() } });
+            queuedAt, requestedAt, runnerDeadlineAt, runnerDispatched, lateAdmissionClosed, lateRunnerDispatch,
+            priorWaitMs: acquiredWaitMs, waitStartedAt: Date.now() } });
         };
         return { name, scope, token, pool, browser, timing, runnerExecution: options.runnerExecution === true, admittedAt: acquired.admittedAt, capacity: acquired.capacity, slotClass: acquired.shortSlot ? 'short' : 'gate', ...(acquired.runner ? { runner: acquired.runner } : {}),
-          waitMs: acquiredWaitMs, ...(runnerDeadlineAt ? { runnerWaitDeadline: runnerDeadlineAt } : {}), release, renew, timingEvidence,
+          waitMs: acquiredWaitMs, ...(runnerDeadlineAt ? { runnerWaitDeadline: acquired.lateRunnerDispatch?.startupDeadlineAt ?? runnerDeadlineAt } : {}),
+          ...(lateRunnerDispatch ? { lateRunnerDispatch } : {}), release, renew, timingEvidence,
           ...(acquired.runner ? { requeueRunner } : {}) };
       }
       if (acquired.state.runnerDeadline) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '\n');
