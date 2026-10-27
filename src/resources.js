@@ -1055,7 +1055,7 @@ export async function takeResource(options) {
           }
         };
         /** Quarantine a failed remote host and retry this exact ticket on another executor, or only locally. */
-        const requeueRunner = async (reason = 'transport-lost', { local = false, quarantine = true, diagnostic } = {}) => {
+        const requeueRunner = async (reason = 'transport-lost', { local = false, quarantine = true, diagnostic: transportDiagnostic } = {}) => {
           if (!acquired.runner) throw new Refused('LOCAL_RUNNER_REQUEUE', 'only a remote lease can be returned to the runner queue');
           if (released || transferred || lost) throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
           transferred = true;
@@ -1064,7 +1064,7 @@ export async function takeResource(options) {
           let requeueOpportunity = acquired.queueTicket;
           try {
             update(db, () => {
-              recordRunnerFailure(db, acquired.runner.host, reason, diagnostic, { quarantine });
+              recordRunnerFailure(db, acquired.runner.host, reason, transportDiagnostic, { quarantine });
               const holderName = runnerResourceName(acquired.runner.host);
               const holder = db.prepare('SELECT token FROM holder WHERE token = ? AND name = ? AND runner = ?').get(token, holderName, acquired.runner.host);
               if (!holder) throw new Refused('RESOURCE_LEASE_LOST', `remote lease for "${name}" is no longer held`);
