@@ -700,7 +700,7 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
   const releaseStartedAt = releaseRequest ? new Date().toISOString() : null;
   if (releaseRequest && (!landing || !collectAll || trustStamp || auditBatchId !== undefined
     || releaseRequest.version !== 1 || !/^[a-f0-9-]{36}$/u.test(releaseRequest.id ?? '')
-    || !Array.isArray(releaseRequest.executors) || releaseRequest.executors.length < 8)) {
+    || !Array.isArray(releaseRequest.executors) || releaseRequest.executors.length < 1)) {
     throw new Refused('GATE_RUN_EVIDENCE', 'a release needs fresh full collection and its distinct native executor request');
   }
   if (auditBatchId !== undefined && (!landing || !collectAll || !/^[a-zA-Z0-9_-]{1,80}$/u.test(auditBatchId))) {

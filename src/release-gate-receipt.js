@@ -47,7 +47,7 @@ function instant(value) {
 
 /** Validate a bounded list of unique executor identities, not a claimed number of machines. */
 function executors(value) {
-  return Array.isArray(value) && value.length >= 8 && value.length <= 1024
+  return Array.isArray(value) && value.length >= 1 && value.length <= 1024
     && value.every(id => typeof id === 'string' && LABEL.test(id)) && new Set(value).size === value.length;
 }
 

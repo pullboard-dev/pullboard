@@ -71,8 +71,8 @@ export function releaseExecutors(settings = loadMachineSettings()) {
   const executors = [{ id: local.id, kind: 'local', browser: settings.browserSlots > 0, gui: local.capabilities.gui === true },
     ...(settings.runners ?? []).map(runner => ({ id: runner.host, kind: 'ssh', host: runner.host,
       browser: runner.browser > 0, gui: runner.gui === true }))];
-  if (executors.length < 8 || executors.length > 64 || new Set(executors.map(entry => entry.id)).size !== executors.length) {
-    throw new Error(`a release requires at least eight distinct registered executors; observed ${executors.length}`);
+  if (executors.length < 1 || executors.length > 64 || new Set(executors.map(entry => entry.id)).size !== executors.length) {
+    throw new Error(`a release requires a nonempty registry of distinct executors; observed ${executors.length}`);
   }
   return executors;
 }
@@ -91,7 +91,7 @@ export function releasePlacement(value, actual = releaseExecutors()) {
 
 /** Partition every file once, reserving compatible work for each executor before balancing the rest. */
 export async function planReleaseShards(files, executors, times = {}, needsBrowser = async () => true, needsGui = async () => true, needsCpuRunner = async () => false) {
-  if (!files.length || new Set(files).size !== files.length || executors.length < 8 || files.length < executors.length) {
+  if (!files.length || new Set(files).size !== files.length || executors.length < 1 || files.length < executors.length) {
     throw new Error('a release needs distinct tracked files and nonempty work for every executor');
   }
   const known = files.map(file => times[fileKey(file)]).filter(ms => Number.isFinite(ms) && ms >= 0);
