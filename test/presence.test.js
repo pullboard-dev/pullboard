@@ -225,7 +225,8 @@ test('read commands never refresh presence while committed writes and hooks do [
   const { runCliInProcess } = await import('./cli-in-process-fixture.js');
   /** Reuse production parsing/dispatch with the same private identity and captured streams. */
   box.run = (cwd, ...args) => runCliInProcess(args, { cwd, env: box.env });
-  const added = await box.run(box.repo, 'add', 'web', 'Read-only presence control', '--criterion', 'Keep the same item', '--check', 'true', '--json');
+  // Complete the genuine baseline before measuring hooks, rather than racing its background event.
+  const added = await box.run(box.repo, 'add', 'web', 'Read-only presence control', '--criterion', 'Keep the same item', '--check', 'true', '--wait', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const id = JSON.parse(added.out).item.item_id;
   const withdrawn = await box.run(box.repo, 'withdraw', String(id), 'Private read-only presence control', '--json');
