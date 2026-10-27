@@ -95,6 +95,7 @@ const OPTIONS = {
   diagnostics: { type: 'boolean' },
   landing: { type: 'boolean' },
   adopt: { type: 'boolean' },
+  due: { type: 'boolean' },
   affected: { type: 'boolean' },
   waive: { type: 'string' },
   until: { type: 'string' },
@@ -294,6 +295,7 @@ async function runMain(argv, streams) {
   let needsRepo = true;
   let parsed;
   let checkoutSession;
+  let auditAfterCommand = false;
   try {
     parsed = parseCommandArgs(argv);
     const command = parsed.positionals[0];
@@ -349,6 +351,8 @@ async function runMain(argv, streams) {
     await (await syncWork())?.syncBefore(io, main);
     traceServeStartup('cli-command-preamble-ready');
     const code = await runCommand(argv, io);
+    auditAfterCommand = code === 0 && parsed?.positionals[0] === 'land'
+      && !parsed.values['dry-run'] && parsed.values.waive === undefined;
     if (code === 0) {
       await checkoutSession?.finish?.();
     }
@@ -362,6 +366,10 @@ async function runMain(argv, streams) {
     CHECKOUT_LEASES.delete(io);
     CHECKOUT_BOARD_ONLY.delete(io);
     checkoutSession?.lease?.release();
+    if (auditAfterCommand) {
+      try { await (await import('./main-audit-nudge.js')).nudgeMainAudit(io.cwd); }
+      catch { io.err('pullboard: the full-suite audit could not start; run pullboard land again to retry'); }
+    }
   }
 }
 

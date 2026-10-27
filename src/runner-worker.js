@@ -25,6 +25,10 @@ import {
   executionEnvironment,
 } from './execution-environment.js';
 import { sampleRunnerLoad } from './runner-load.js';
+import {
+  startRunnerPhases,
+  validateCacheTips,
+} from './runner-overhead.js';
 import { freemem } from 'node:os';
 import { loadavg } from 'node:os';
 import { userInfo } from 'node:os';
@@ -236,7 +240,7 @@ async function readSpec() {
     tagNames.add(tag.name);
     if (tag.chain.length ? tag.chain[0] !== tag.object : tag.object !== tag.peeledCommit) throw new Error('invalid tag manifest');
   }
-  const runtimeNames = ['runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js'];
+  const runtimeNames = ['runner-custody.js', 'resources.js', 'runner-wait.js', 'git.js', 'git-adapter.js', 'machine-home.js', 'refused.js', 'process-census.js', 'queue-settings.js', 'queue-order.js', 'sandbox-denial.js', 'gate-stages.js', 'child-journal-preload.js', 'execution-environment.js', 'runner-load.js', 'gui-session.js', 'runner-private-mode.js', 'runner-overhead.js'];
   if (Object.keys(value.runtime.files).length !== runtimeNames.length
     || runtimeNames.some(name => typeof value.runtime.files[name] !== 'string')) throw new Error('invalid work specification');
   if (createHash('sha256').update(JSON.stringify(value.runtime.files)).digest('hex') !== value.runtime.sha256) throw new Error('invalid trusted runtime');
@@ -528,13 +532,12 @@ async function checkoutHistory(api, runnerRoot, root, packFile, spec, env) {
       if (split[1].slice(split[1].lastIndexOf('/') + 1) !== split[2]) {
         throw new Error('source history cache contains an invalid candidate ref');
       }
-      if (await git(cache, ['cat-file', '-t', split[2]], env) !== 'commit') {
-        throw new Error('source history cache contains a non-commit tip');
-      }
       tips.push(split[2]);
     }
     const uniqueTips = [...new Set(tips)];
     if (uniqueTips.length > 1_024) throw new Error('source history cache needs maintenance');
+    if (uniqueTips.length) validateCacheTips(uniqueTips,
+      await git(cache, ['cat-file', '--batch-check'], env, `${uniqueTips.join('\n')}\n`));
     const requestedTagObjects = [...new Set(spec.tags.flatMap(tag => tag.chain))];
     const knownTagObjects = [];
     if (requestedTagObjects.length) {
@@ -862,6 +865,7 @@ async function receipt(spec, fields, sink) {
   await flushStdout();
   const body = { id: spec.id, commit: spec.commit, tree: spec.tree, code: fields.code, signal: fields.signal,
     environment: executionEnvironment(), testRuntimes: fields.testRuntimes ?? null, gui: fields.gui ?? null, timing: spec.timing === true, executionAdmission: fields.executionAdmission ?? null,
+    executionPhases: fields.executionPhases,
     runtimeSha256: spec.runtime.sha256, toolingSha256: spec.tooling.sha256, root: fields.root ?? '', outputSha256: sink.hash.digest('hex'), wallMs: Math.max(0, Date.now() - sink.wallStart),
     // The execution host's load and the pinned main this run used, so a paired rerun here can be judged (#925).
     main: typeof spec.main === 'string' ? spec.main : null, load: { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) },
@@ -909,6 +913,7 @@ async function main() {
   workerId = spec.id;
   if (spec.browserRequired && spec.browser < 1) throw new Error('browser capacity is not configured');
   const sink = outputSink();
+  const phases = startRunnerPhases();
   let api;
   let lease = null;
   let tracker = null;
@@ -946,6 +951,7 @@ async function main() {
     writeFileSync(join(privateHome, 'npm-globalconfig'), '', { mode: 0o600 });
     const packFile = join(runDirectory, 'source.pack');
     setupStep = 'runner gate admission';
+    phases.mark('capacityWaitMs');
     lease = await acquireResourceApi(api, {
       name: 'gate', capacity: gateCapacity, scope: 'machine', root: runnerRoot, runnerExecution: true,
       repo: runnerRoot, agent: `pullboard-ssh-${spec.id}`,
@@ -955,6 +961,7 @@ async function main() {
       item: spec.item ?? '', kind: spec.kind ?? 'remote-command',
       onWait: () => assertTransportLive(),
     }, machineHomePath);
+    phases.mark('prepareMs');
     gui = guiSession();
     if (spec.guiRequired && gui !== true) throw new Refused('RUNNER_GUI_SESSION_REQUIRED', 'log in to a GUI session on this runner or keep GUI-marked files local');
     const startLoad = sampleRunnerLoad();
@@ -969,7 +976,9 @@ async function main() {
     runtimeCapture = captureTestRuntimes(scopedEnvironment(privateHome, temporary, canonicalMachineHome, lease, api, tracker.nodeOptions));
     const env = runtimeCapture.env;
     setupStep = 'source history checkout';
+    phases.mark('sourceMs');
     await checkoutHistory(api, runnerRoot, root, packFile, spec, env);
+    phases.mark('dependenciesMs');
     if (!spec.trustedMode) {
       setupStep = 'committed dependencies';
       await installDependencies(root, runnerRoot, env, tracker);
@@ -978,6 +987,7 @@ async function main() {
     const browserRefusal = join(runDirectory, 'browser-refusal.json');
     const commandEnv = { ...env, PULLBOARD_LANDING_RUN: spec.landing === true ? '1' : '0', [api.BROWSER_REFUSAL_FILE_ENV]: browserRefusal, ...(typeof spec.browserByLaunch === 'boolean' ? { PULLBOARD_TEST_BROWSER_BY_LAUNCH: spec.browserByLaunch ? '1' : '0' } : {}), PULLBOARD_LANDING_WAIVERS: JSON.stringify(spec.landing === true ? spec.waivers ?? [] : []) };
     process.stderr.write(`PULLBOARD_RUNNER_READY ${spec.id}\n`);
+    phases.mark('commandMs');
     final = { ...(spec.trustedMode ? await runPrivateCheck(spec, root, commandEnv, sink, tracker) : await runCommand(spec, root, commandEnv, sink, tracker)), root };
     if (final.code !== 0 && existsSync(browserRefusal)) final.browserRefused = true;
   } catch (error) {
@@ -989,6 +999,7 @@ async function main() {
         phases: { install: null, check: null }, guard: spec.trustedMode.guard ? { applied: false, problem: message } : null,
         sourceUnchanged: false, problem: { stage: 'check', message } } } : {}) };
   } finally {
+    phases.mark('cleanupMs');
     beginCleanup();
     cleanupStage = 'final descendants';
     if (tracker) await tracker.stopDescendants();
@@ -1015,6 +1026,7 @@ async function main() {
   }
   if (transportLost || cleanupTimedOut) { clearTimeout(cleanupTimer); clearTimeout(phaseCleanupTimer); process.exitCode = 1; stopReading(); return; }
   cleanupStage = 'result receipt';
+  final.executionPhases = phases.finish();
   await receipt(spec, { ...final, gui }, sink);
   clearTimeout(cleanupTimer);
   clearTimeout(phaseCleanupTimer);
