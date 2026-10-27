@@ -396,7 +396,9 @@ test('a held review still returns a newly conflicting submission before offering
   box.git(box.root, 'add', 'web/dispatch.js');
   box.git(box.root, 'commit', '-q', '-m', 'feat(web): move trunk independently [G1]');
   const second = await cli(box, box.seats.outside.path, ['next', '--take']);
-  assert.equal(second.code, 0, second.out + second.err);
+  assert.equal(second.code, 1, second.out + second.err);
+  assert.equal(JSON.parse(second.out).error.code, 'NOTHING_FREE',
+    'after the conflict return this review-only seat has no eligible work');
   const returned = store.getItem(box.board, id);
   assert.equal(returned.item_status, 'open', 'Git conflict preflight also applies to an already reserved review');
   assert.equal(returned.item_review_by, null);
