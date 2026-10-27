@@ -30,7 +30,7 @@ import { PRIVATE_REHOME_ENGINE } from '../src/private-rehome-engine.js';
 const SNAPSHOT = JSON.parse(readFileSync(new URL('./move-registry-baseline.json', import.meta.url), 'utf8'));
 const CONSUMERS = ['src/engine.js', 'src/relay-sender.js', 'src/next-step-words.js'];
 const REHOME_OPERATIONS = ['reserveRehomeItemId', 'rehomeItem', 'applyRehomeItem'];
-const REVIEW_STEPS = Object.freeze({ BAD_REVIEW_POLICY: 'restore the native review policy before reviewing this item' });
+const REVIEW_STEPS = Object.freeze({ BAD_REVIEW_POLICY: 'restore the native review policy before reviewing this item', STRICT_REVIEW_TOUCHED: 'ask a session that has not written to this strict item' });
 const REHOME_STEPS = Object.freeze({
   BAD_ITEM_ID: 'use owner/repo#id, ~owner/repo#id, or one safe positive item number on the current board',
   PRIVATE_BOARD_NOT_FOUND: "run pullboard add <lane> <title> --private from that repo's checkout before using its private handle",

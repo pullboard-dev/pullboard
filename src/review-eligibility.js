@@ -12,7 +12,7 @@ export function eligibilityProblem(board, item, agent, { policy = 'any', familyP
   if (identity) return identity;
   if (!canTake(agent.agent_route ?? 'strong', item.item_route)) return new Refused('ROUTE', 'this seat route does not cover the item');
   if (policy === 'coordinator' && item.item_lane !== 'coordinator' && agent.agent_id !== 'coordinator') return new Refused('COORDINATOR_VERIFIES', 'this board has the coordinator verify lane work');
-  const family = twoTierReviews(board) ? reviewFamilyProblem(board, item, agent.agent_id)
+  const family = twoTierReviews(board) ? reviewFamilyProblem(board, item, agent.agent_id, familyPolicy)
     : familyPolicy === 'require' && (!agent.agent_family || !item.item_builder_family || agent.agent_family === item.item_builder_family)
       ? new Refused('O2_FAMILY_MATCH', 'legacy policy requires different declared families') : null;
   if (family) return family;

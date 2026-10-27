@@ -910,9 +910,9 @@ test('docs/lifecycle.md is the page the declaration generates, so a stale copy f
 
 test('the lifecycle page versions fresh and historical family matching and explains unknown families [O2, O3]', () => {
   const page = machineRules.lifecycleMarkdown();
-  assert.match(page, /^\| O2_FAMILY_MATCH \| the builder and verifier have different declared families; an undeclared family counts as a match, for fresh two-tier reviews; under older engines only when verify\.family is require \| ask the coordinator for a verifier from another declared family \|$/m);
+  assert.match(page, /^\| O2_FAMILY_MATCH \| the existing vendor policy permits this reviewer, and explicit board or item family requirements are met, when verify\.family is require, an item requires a family, or requireReviewFamilies is on for unknown families \| ask the coordinator for a verifier from another declared family \|$/m);
   for (const verb of ['reserve', 'accept', 'reject']) {
-    assert.match(page, new RegExp(`^\\| ${verb} \\| .*familyAllows \\(O2_FAMILY_MATCH\\)`, 'm'));
+    assert.match(page, new RegExp(`^\\| ${verb} \\| .*familyAllows \\(O2_FAMILY_MATCH or LINE_SETTING_RANGE\\)`, 'm'));
   }
 });
 
@@ -1350,7 +1350,7 @@ test('the review lease is reviewLease in pullboard.json, 30 minutes unless the r
 test('the lifecycle page and the help show the reservation: reserve, and reviewFree on every verdict [V15, M1]', () => {
   const page = machineRules.lifecycleMarkdown();
   assert.match(page, /^\| reserve \| submitted \| submitted \| agent, coordinator \| .*reviewFree \(REVIEW_HELD\), result \(BAD_DEPENDENCIES\) \|$/m);
-  for (const verb of ['accept', 'reject']) assert.match(page, new RegExp(`^\\| ${verb} \\| submitted, verified \\| .*policyAllows \\(COORDINATOR_VERIFIES\\), familyAllows \\(O2_FAMILY_MATCH\\), reviewFree \\(REVIEW_HELD\\), criterionUnchanged`, 'm'));
+  for (const verb of ['accept', 'reject']) assert.match(page, new RegExp(`^\\| ${verb} \\| submitted, verified \\| .*policyAllows \\(COORDINATOR_VERIFIES\\), familyAllows \\(O2_FAMILY_MATCH or LINE_SETTING_RANGE\\), reviewFree \\(REVIEW_HELD\\), criterionUnchanged`, 'm'));
   assert.match(page, /^\| REVIEW_HELD \| no other agent holds its review under a live lease \| pullboard next --verify/m);
   assert.match(HELP.all, /^ {2}agent +rehomeImport, intake, claim, release, submit, reserve, accept, reject, reopen, escalate, submit-merge \(when only an unchanged accepted bar and a proved trunk-only merge; no new reviewer verdict is created\), refreeze \(when a live claim has a pending coordinator correction\)$/m);
   assert.match(HELP.all, /pullboard next --verify +reserve the next submitted item you can check/);

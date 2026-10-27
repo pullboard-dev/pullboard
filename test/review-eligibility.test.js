@@ -12,12 +12,15 @@ import { exportBoard } from '../src/exchange.js';
 import { importBoard } from '../src/exchange.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runCliInProcess } from './cli-in-process-fixture.js';
+import { prepareEngineMove } from '../src/engine.js';
+import { applyEngineMove } from '../src/engine.js';
+import { minimumMoveEngine } from '../src/move-registry.js';
 
 const LEASE = 3_600_000;
 const freeze = () => ({ text: '{}', digest: 'synthetic-review-bar' });
 
 /** Declare every vendor and persisted parent explicitly; no model label supplies an inferred family. */
-function fixture(t, { historical = false } = {}) {
+function fixture(t, { historical = false, requireFamilies = true } = {}) {
   const board = fixtureBoard(t);
   if (historical) board.executionEngineVersion = REVIEW_INDEPENDENCE_ENGINE - 1;
   const join = (id, family, parent) => store.register(board, { id, lane: id === 'coordinator' ? 'coordinator' : 'core', path: `/fixture/${id}`,
@@ -28,6 +31,8 @@ function fixture(t, { historical = false } = {}) {
   join('core-3', 'claude', 'b');
   join('core-4', 'codex', 'c');
   join('core-5', 'claude', 'd');
+  if (!historical) store.setLineSetting(board, { agentId: 'coordinator', key: 'requireReviewFamilies', value: requireFamilies,
+    reason: 'Private review eligibility fixture explicitly selects its vendor policy.', window: { syntheticSeats: 6 } });
   /** Add an item without claiming that any fixture process created its synthetic commit. */
   const add = options => store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Independence fixture', ...options });
   /** Record one submit-backed synthetic commit through the production board guards. */
@@ -36,7 +41,7 @@ function fixture(t, { historical = false } = {}) {
     submitFixture(board, id, { agentId: builder, commit: String(id).padStart(40, 'a'), tree: 'b'.repeat(40) });
     return store.getItem(board, id);
   };
-  const reserve = (id, agentId) => store.reserveReview(board, id, { agentId, leaseMs: LEASE, policy: 'any' });
+  const reserve = (id, agentId) => store.reserveReview(board, id, { agentId, leaseMs: LEASE, policy: 'any', familyPolicy: historical ? 'off' : 'require' });
   return { board, add, submit, reserve };
 }
 
@@ -46,7 +51,7 @@ test("a helper's posted fact does not make a seat ineligible [V4,B26]", t => {
   store.appendFact(f.board, id, { agentId: 'core-2', kind: 'note', text: 'Diagnostic only; no submitted commit.' });
   store.release(f.board, id, 'core-2');
   const item = f.submit(id);
-  assert.deepEqual(reviewEligibility(f.board, item).eligible, ['coordinator', 'core-2', 'core-3', 'core-5']);
+  assert.deepEqual(reviewEligibility(f.board, item, { familyPolicy: 'require' }).eligible, ['coordinator', 'core-2', 'core-3', 'core-5']);
   assert.equal(f.reserve(id, 'core-3').item_review_by, 'core-3', 'a released claim without a commit is not Standard authorship');
 });
 
@@ -57,17 +62,17 @@ test('a strict item refuses any seat that touched it [V4,B26]', t => {
   const before = store.events(f.board);
   assert.throws(() => f.reserve(id, 'core-3'), e => e.code === 'STRICT_REVIEW_TOUCHED' && /fact/u.test(e.message));
   assert.deepEqual(store.events(f.board), before, 'a refused reservation appends nothing');
-  assert.equal(reviewEligibility(f.board, item).tier, 'strict');
-  assert.deepEqual(reviewEligibility(f.board, item).eligible, ['core-5']);
+  assert.equal(reviewEligibility(f.board, item, { familyPolicy: 'require' }).tier, 'strict');
+  assert.deepEqual(reviewEligibility(f.board, item, { familyPolicy: 'require' }).eligible, ['core-5']);
 });
 
 test('next offers a review only to an eligible seat [V4,B26]', t => {
   const f = fixture(t), same = f.add(), eligible = f.add();
   f.submit(same, 'core-2');
   f.submit(eligible, 'core-1');
-  const offered = store.reserveNextReview(f.board, { agentId: 'core-5', lane: 'core', leaseMs: LEASE, policy: 'any' });
+  const offered = store.reserveNextReview(f.board, { agentId: 'core-5', lane: 'core', leaseMs: LEASE, policy: 'any', familyPolicy: 'require' });
   assert.equal(offered.item.item_id, eligible, 'the older same-vendor item is never offered');
-  const queue = workQueue(f.board, 'core-5');
+  const queue = workQueue(f.board, 'core-5', { familyPolicy: 'require' });
   const ids = [...queue.releases.flatMap(r => r.items), ...queue.unreleased].map(item => item.id);
   assert.equal(ids.includes(same), false, 'the work queue uses the same vendor rule');
   assert.equal(ids.includes(eligible), true);
@@ -115,8 +120,8 @@ test('native snapshots retain Strict policy and policy edits cannot weaken a liv
   const replica = fixtureBoard(t);
   importBoard(replica, exportBoard(f.board));
   assert.deepEqual(itemReviewPolicy(replica, id), itemReviewPolicy(f.board, id));
-  assert.deepEqual(reviewEligibility(replica, store.getItem(replica, id)).eligible,
-    reviewEligibility(f.board, store.getItem(f.board, id)).eligible);
+  assert.deepEqual(reviewEligibility(replica, store.getItem(replica, id), { familyPolicy: 'require' }).eligible,
+    reviewEligibility(f.board, store.getItem(f.board, id), { familyPolicy: 'require' }).eligible);
 });
 
 
@@ -139,4 +144,41 @@ test('CLI add and edit flags persist Strict policy and show projects its tier [V
   assert.equal(text.status, 0, text.stderr || text.stdout);
   assert.match(text.stdout, /review tier: strict; required family claude/u);
   assert.match(text.stdout, /eligible reviewers: not submitted/u);
+});
+
+
+test('unknown-family refusal is opt-in and known vendors retain off prefer require [V4,B26,H16]', t => {
+  const f = fixture(t, { requireFamilies: false });
+  store.register(f.board, { id: 'core-6', lane: 'core', path: '/fixture/optional-unknown' });
+  const unknownReviewer = f.add(), sameVendor = f.add(), required = f.add(), unknownBuilder = f.add();
+  f.submit(unknownReviewer); f.submit(sameVendor); f.submit(required); f.submit(unknownBuilder, 'core-6');
+  const reserve = (id, agentId, familyPolicy = 'off') => store.reserveReview(f.board, id,
+    { agentId, leaseMs: LEASE, policy: 'any', familyPolicy });
+  assert.equal(store.lineSettings(f.board).requireReviewFamilies, false);
+  assert.equal(reserve(unknownReviewer, 'core-6').item_review_by, 'core-6', 'off retains an optional unknown reviewer');
+  assert.equal(reserve(sameVendor, 'core-4', 'prefer').item_review_by, 'core-4', 'prefer retains known same-vendor eligibility');
+  assert.equal(reserve(unknownBuilder, 'core-5').item_review_by, 'core-5', 'off retains an optional unknown builder');
+  assert.throws(() => reserve(required, 'core-4', 'require'), { code: 'O2_FAMILY_MATCH' });
+  assert.throws(() => reserve(required, 'core-6', 'require'), { code: 'O2_FAMILY_MATCH' });
+  store.setLineSetting(f.board, { agentId: 'coordinator', key: 'requireReviewFamilies', value: true,
+    reason: 'Private setting-on contract requires an explicit vendor pair.', window: { syntheticSeats: 7 } });
+  assert.throws(() => reserve(required, 'core-6', 'off'), { code: 'O2_FAMILY_MATCH' });
+  assert.throws(() => reserve(unknownBuilder, 'core-5', 'off'), { code: 'O2_FAMILY_MATCH' }, 'on refuses an unknown builder as well as reviewer');
+  assert.equal(reserve(required, 'core-4', 'off').item_review_by, 'core-4', 'the new setting does not reinterpret known vendor policy');
+});
+
+test('the review vendor setting defaults off and requires its native engine on replay [V4,B26,H16]', t => {
+  const board = fixtureBoard(t);
+  store.register(board, { lane: 'coordinator', path: '/fixture/setting-coordinator' });
+  assert.equal(store.lineSettings(board).requireReviewFamilies, false, 'absence is off without writing metadata');
+  const options = { agentId: 'coordinator', key: 'requireReviewFamilies', value: true,
+    reason: 'Synthetic ordered policy contract.', window: { syntheticSeats: 1 } };
+  assert.equal(minimumMoveEngine('setLineSetting', [options]), REVIEW_INDEPENDENCE_ENGINE);
+  const move = prepareEngineMove(board, 'setLineSetting', [options], { id: 'synthetic-review-vendor-policy' });
+  const old = applyEngineMove(board, { ...move, engine: REVIEW_INDEPENDENCE_ENGINE - 1 }, { sequence: 1, at: '2026-10-27T00:00:00.000Z' });
+  assert.equal(old.error?.code, 'ENGINE_VERSION');
+  assert.equal(store.lineSettings(board).requireReviewFamilies, false);
+  const current = applyEngineMove(board, { ...move, id: 'synthetic-review-vendor-policy-current' }, { sequence: 2, at: '2026-10-27T00:01:00.000Z' });
+  assert.equal(current.error, undefined);
+  assert.equal(store.lineSettings(board).requireReviewFamilies, true);
 });

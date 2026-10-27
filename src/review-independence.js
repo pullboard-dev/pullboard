@@ -5,6 +5,7 @@ import { effectiveAgentParent } from './seats.js';
 import { Refused } from './refused.js';
 import { familyName } from './review-policy.js';
 import { itemReviewPolicy } from './review-policy.js';
+import { lineSettings } from './line-settings.js';
 export { itemReviewPolicy } from './review-policy.js';
 
 /** Old sealed moves keep their recorded authorship and family semantics. */
@@ -60,14 +61,22 @@ export function strictReviewProblem(board, item, reviewer) {
   return touched ? new Refused('STRICT_REVIEW_TOUCHED', `Strict review refuses this session: it wrote ${touched.event_kind} event ${touched.event_id} on #${item.item_id}; ask a session that has not written to this item`) : null;
 }
 
-/** Fresh Standard and Strict reviews both require two declared, different vendor families. */
-export function reviewFamilyProblem(board, item, reviewer) {
+/** Preserve existing known-vendor policy; only the explicit board input adds unknown-family refusal. */
+export function reviewFamilyProblem(board, item, reviewer, familyPolicy = 'off') {
   if (!twoTierReviews(board)) return null;
   const policy = itemReviewPolicy(board, item.item_id);
-  const family = familyName(board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get(reviewer)?.agent_family);
+  const declared = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get(reviewer)?.agent_family;
+  const family = familyName(declared);
   const builder = familyName(item.item_builder_family);
-  if (!family || !builder) return new Refused('O2_FAMILY_MATCH', `${policy.tier} review requires declared vendor families for builder and reviewer; declare --family when starting each seat, then resubmit if the submitted builder family was unknown`);
-  if (family === builder) return new Refused('O2_FAMILY_MATCH', `${policy.tier} review requires a vendor family different from the builder's ${item.item_builder_family}; ask another declared vendor family`);
-  if (policy.reviewFamily && family !== familyName(policy.reviewFamily)) return new Refused('O2_FAMILY_MATCH', `Strict review requires declared vendor family ${policy.reviewFamily}; ask a reviewer from that family`);
+  if (lineSettings(board).requireReviewFamilies === true && (!family || !builder)) {
+    return new Refused('O2_FAMILY_MATCH', 'this board requires declared vendor families for fresh reviews; declare --family when starting each seat, then resubmit if the submitted builder family was unknown');
+  }
+  // off/prefer/require keeps its original declared-label comparison, including old optional unknowns.
+  if (familyPolicy === 'require' && (!declared || !item.item_builder_family || declared === item.item_builder_family)) {
+    return new Refused('O2_FAMILY_MATCH', `#${item.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`);
+  }
+  if (policy.reviewFamily && family !== familyName(policy.reviewFamily)) {
+    return new Refused('O2_FAMILY_MATCH', `Strict review requires declared vendor family ${policy.reviewFamily}; ask a reviewer from that family`);
+  }
   return null;
 }

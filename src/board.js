@@ -1255,7 +1255,7 @@ function reviewerChecks(board, { agentId, policy, familyPolicy = 'off' }) {
     },
     policyAllows: (found) =>
       policy === COORDINATOR && found.item_lane !== COORDINATOR && agentId !== COORDINATOR ? new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work') : null,
-    familyAllows: (found) => twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
+    familyAllows: (found) => twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
       ? new Refused('O2_FAMILY_MATCH', `#${found.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`)
       : null,
     reviewFree: (found) => {
@@ -1891,8 +1891,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const family = board.db.prepare('SELECT agent_family FROM agent WHERE agent_id = ?').get(agentId)?.agent_family ?? null;
     const hasDifferentFamily = (entry) => Boolean(family && entry.item_builder_family && family !== entry.item_builder_family);
     const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
-    const standingRefusal = unrelated.map((entry) => itemAuthorProblem(board, entry, agentId) ?? reviewFamilyProblem(board, entry, agentId)).find(Boolean);
-    let reviewable = unrelated.filter((entry) => !itemAuthorProblem(board, entry, agentId) && !reviewFamilyProblem(board, entry, agentId));
+    const standingRefusal = unrelated.map((entry) => itemAuthorProblem(board, entry, agentId) ?? reviewFamilyProblem(board, entry, agentId, familyPolicy)).find(Boolean);
+    let reviewable = unrelated.filter((entry) => !itemAuthorProblem(board, entry, agentId) && !reviewFamilyProblem(board, entry, agentId, familyPolicy));
     if (policy === COORDINATOR && agentId !== COORDINATOR) reviewable = reviewable.filter((entry) => entry.item_lane === COORDINATOR);
     if (familyPolicy === 'require') reviewable = reviewable.filter(hasDifferentFamily);
     if (familyPolicy === 'prefer') reviewable.sort((first, second) => Number(hasDifferentFamily(second)) - Number(hasDifferentFamily(first)));
