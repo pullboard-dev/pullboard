@@ -376,7 +376,13 @@ export function testClosures(root, commit = 'HEAD') {
     }
     closures.set(test, reason ? { files: null, reason } : { files: [...reached].sort(), helpers: [...helpers].sort(), reason: '' });
   }
-  return { closures, modules: graph.modules, blobs: graph.blobs };
+  /** Every file reachable from these entries. Unresolved loaders are skipped: a harness's are caller-supplied reporters and guards. */
+  const reach = entries => {
+    const reached = new Set(entries.filter(path => graph.blobs.has(path)));
+    for (const path of reached) for (const dependency of forward.get(path) ?? []) reached.add(dependency);
+    return [...reached].sort();
+  };
+  return { closures, modules: graph.modules, blobs: graph.blobs, reach };
 }
 
 /**
