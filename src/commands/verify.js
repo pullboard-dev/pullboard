@@ -1,3 +1,5 @@
+import { itemReviewPolicy } from '../review-independence.js';
+import { twoTierReviews } from '../review-independence.js';
 import { outsideVerdict } from '../outside-verify.js';
 /** The pullboard verify command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
@@ -121,7 +123,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       return await ordered(ctx, board, 'verify', recovered.args);
     }
     const item = store.getItem(board, id);
-    itemSessions.refuseSelfSession(ctx.info, item, undefined, itemAuthors(board, item));
+    itemSessions.refuseSelfSession(ctx.info, item, undefined, itemAuthors(board, item), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard' });
     const reReview = item.item_status === 'verified' && !item.item_merged_commit;
     const stale = reReview ? verdictProjector(root, board).state(item) : null;
     if (item.item_status !== 'submitted' && !stale) {

@@ -76,6 +76,8 @@ export async function run(io, args) {
     after,
     brief: briefInLane(ctx, first, briefArg(io, values) ?? ''),
     route: values.route ?? 'strong',
+    ...(values.sensitive === undefined ? {} : { sensitive: values.sensitive }),
+    ...(values['review-family'] === undefined ? {} : { reviewFamily: values['review-family'] }),
     check: values.check,
   };
   const sealed = executingBarEffect(ctx, board, 'add');
