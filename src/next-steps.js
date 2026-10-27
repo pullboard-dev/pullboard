@@ -82,8 +82,8 @@ export function reviewerStartup(root, config, id) {
   let number = 1;
   while (existsSync(location(number))) number++;
   const path = location(number);
-  const command = `cd ${quote(root)} && mkdir -p ${quote(dirname(path))} && git worktree add --detach ${quote(path)} HEAD && cd ${quote(path)} && pullboard join ${lane} --model "<model name>" && pullboard next --verify${id ? ' ' + id : ''}`;
-  return `Use a different agent session; the reviewer must not be the builder. Run: ${command}`;
+  const command = `cd ${quote(root)} && mkdir -p ${quote(dirname(path))} && git worktree add --detach ${quote(path)} HEAD && cd ${quote(path)} && pullboard join ${lane} --model "<model name>" --family "<vendor family>" && pullboard next --verify${id ? ' ' + id : ''}`;
+  return `Use a different agent session; the reviewer must not be the builder and must declare a different vendor family. Run: ${command}`;
 }
 
 /** Refusals no move recovers from by itself: a typo is not Pullboard blocking anyone. */

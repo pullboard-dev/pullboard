@@ -1,3 +1,4 @@
+import { requireFixtureReviewFamilies } from './review-family-fixture.js';
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/machine.js */
 /** Lifecycle activity retains its evidence without turning routine status into messages [B3,R2,N26,H16]. */
 import assert from 'node:assert/strict';
@@ -104,7 +105,7 @@ function freeze() {
 }
 
 test('status moves are feed events and the board sends no status shout [B3,R2,N26,H16]', t => {
-  const box = e2e.project();
+  const box = e2e.project(undefined, e2e.sandbox({ declareFamilies: true }));
   const base = box.git(box.repo, 'rev-parse', 'HEAD');
   const committed = e2e.commitFile(box, box.web, 'web/activity.txt', 'private activity fixture\n', 'feat(web): activity fixture [G1]');
   assert.equal(committed.status, 0, committed.stderr);
@@ -112,7 +113,8 @@ test('status moves are feed events and the board sends no status shout [B3,R2,N2
   const tree = box.git(box.web, 'rev-parse', 'HEAD^{tree}');
   const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
-  const reviewer = store.register(board, { lane: 'api', path: join(box.dir, 'activity-reviewer') });
+  requireFixtureReviewFamilies(board);
+  const reviewer = store.register(board, { lane: 'api', path: join(box.dir, 'activity-reviewer'), family: 'Fixture Activity Reviewer Vendor' });
   const item = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Activity fixture' });
   const other = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Unrelated item' });
   const beforeShouts = board.db.prepare('SELECT * FROM shout ORDER BY shout_id').all();
@@ -168,7 +170,8 @@ test('an agent feed shows only activity that touches its items files rows and la
   const board = store.openBoard(':memory:', { now: () => new Date(leaseTime) });
   t.after(() => store.closeBoard(board));
   for (const [lane, path] of [['coordinator', '/feed-fixture'], ['web', '/feed-fixture/web-1'],
-    ['web', '/feed-fixture/web-2'], ['api', '/feed-fixture/api-1']]) store.register(board, { lane, path });
+    ['web', '/feed-fixture/web-2'], ['api', '/feed-fixture/api-1']]) store.register(board, { lane, path, family: `Fixture Feed Vendor ${path}` });
+  requireFixtureReviewFamilies(board);
   const lanes = ['coordinator', 'web', 'api'];
   /** Create ordinary private items; public lifecycle moves later establish their projection state. */
   const add = (title, lane = 'api', options = {}) => store.addItem(board, { by: 'coordinator', lane, title, ...options });
@@ -458,7 +461,7 @@ test('old ordinary shout replay does not become newly typed news [H16,N26]', (t)
 
 
 test('interrupts arrive at once and the digest arrives as a short summary at a break [R2,N26,H16]', t => {
-  const box = e2e.project('true');
+  const box = e2e.project('true', e2e.sandbox({ declareFamilies: true }));
   const foreignRoot = join(box.dir, 'interrupt-other');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', foreignRoot, 'main');
   assert.equal(box.run(foreignRoot, 'join', 'api', '--json').code, 0);
@@ -470,7 +473,8 @@ test('interrupts arrive at once and the digest arrives as a short summary at a b
   const rejectedCommit = box.git(box.repo, 'commit-tree', tree, '-p', base, '-m', 'private rejected sibling');
   const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
-  const reviewer = store.register(board, { lane: 'api', path: join(box.dir, 'interrupt-reviewer') });
+  requireFixtureReviewFamilies(board);
+  const reviewer = store.register(board, { lane: 'api', path: join(box.dir, 'interrupt-reviewer'), family: 'Fixture Interrupt Reviewer Vendor' });
   const rejected = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Private rejected work' });
   store.claim(board, rejected, { agentId: 'web-1', lane: 'web', leaseMs: 3_600_000, head: base, freeze });
   submitFixture(board, rejected, { agentId: 'web-1', commit: rejectedCommit, tree });
