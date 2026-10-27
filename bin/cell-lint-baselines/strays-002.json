@@ -209,6 +209,8 @@
     "test/resources.test.js": 1,
     "test/resume-flow.test.js": 1,
     "test/retention-prune.test.js": 1,
+    "test/review-eligibility.test.js": 1,
+    "test/review-family-fixture.js": 1,
     "test/review-grant-replay.test.js": 1,
     "test/review-queue-cli.test.js": 1,
     "test/review-queue-replay.test.js": 1,

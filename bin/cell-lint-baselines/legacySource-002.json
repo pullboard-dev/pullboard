@@ -264,7 +264,11 @@
     "src/resume-needs.js": 1,
     "src/resume-sources.js": 1,
     "src/resume.js": 1,
+    "src/review-eligibility.js": 1,
     "src/review-grant-engine.js": 1,
+    "src/review-independence-engine.js": 1,
+    "src/review-independence.js": 1,
+    "src/review-policy.js": 1,
     "src/review-skip-engine.js": 1,
     "src/rigor-auto-apply.js": 1,
     "src/rigor-auto-engine.js": 1,
@@ -397,10 +401,6 @@
     "src/test-economics-index.js": 1,
     "src/test-economics.js": 1,
     "src/test-file-dispatch.js": 1,
-    "src/test-file-pool.js": 1,
-    "src/test-isolation.js": 1,
-    "src/test-placement-report.js": 1,
-    "src/test-placement.js": 1,
-    "src/test-result-store.js": 1
+    "src/test-file-pool.js": 1
   }
 }

@@ -2,6 +2,9 @@
   "version": 1,
   "metric": "unreachableExports",
   "allowances": {
+    "src/trunk-conflict.js#carriesConflict": 1,
+    "src/trunk-conflict.js#CONFLICT_ENGINE": 1,
+    "src/trunk-conflict.js#conflictFiles": 1,
     "src/trunk-conflict.js#mainMergeFor": 1,
     "src/trunk-conflict.js#mainMergeLines": 1,
     "src/trunk-conflict.js#mainMergesFor": 1,

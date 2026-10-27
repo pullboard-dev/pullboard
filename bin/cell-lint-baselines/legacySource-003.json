@@ -2,6 +2,10 @@
   "version": 1,
   "metric": "legacySource",
   "allowances": {
+    "src/test-isolation.js": 1,
+    "src/test-placement-report.js": 1,
+    "src/test-placement.js": 1,
+    "src/test-result-store.js": 1,
     "src/test-run.js": 1,
     "src/test-selection.js": 1,
     "src/test-value-source.js": 1,

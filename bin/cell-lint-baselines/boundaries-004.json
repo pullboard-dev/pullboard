@@ -2,6 +2,7 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/commands/resume.js->src/stats-flow.js": 1,
     "src/commands/resume.js->src/stats.js": 1,
     "src/commands/resume.js->src/trunk-conflict.js": 1,
     "src/commands/resume.js->src/verdict-freshness.js": 1,
@@ -61,6 +62,7 @@
     "src/commands/show.js->src/infra-note.js": 1,
     "src/commands/show.js->src/local-state.js": 1,
     "src/commands/show.js->src/relay.js": 1,
+    "src/commands/show.js->src/review-eligibility.js": 1,
     "src/commands/show.js->src/spec-approval.js": 1,
     "src/commands/show.js->src/trunk-conflict.js": 1,
     "src/commands/show.js->src/verdict-freshness.js": 1,
@@ -191,6 +193,7 @@
     "src/commands/verify.js->src/recorded-recovery.js": 1,
     "src/commands/verify.js->src/refused.js": 1,
     "src/commands/verify.js->src/relay.js": 1,
+    "src/commands/verify.js->src/review-independence.js": 1,
     "src/commands/verify.js->src/settings.js": 1,
     "src/commands/verify.js->src/spec-approval.js": 1,
     "src/commands/verify.js->src/spec.js": 1,
@@ -360,6 +363,7 @@
     "src/engine.js->src/rejected-work-return.js": 1,
     "src/engine.js->src/relay-requests.js": 1,
     "src/engine.js->src/relay-sender.js": 1,
+    "src/engine.js->src/review-policy.js": 1,
     "src/engine.js->src/submission-size.js": 1,
     "src/engine.js->src/submit-invariants.js": 1,
     "src/exchange.js->src/agent-grant-engine.js": 1,
@@ -397,10 +401,6 @@
     "src/flow-report-counter.js->src/stats-flow.js": 1,
     "src/focus-milestone.js->src/board-read-auxiliary.js": 1,
     "src/focus-milestone.js->src/focus-milestone-engine.js": 1,
-    "src/focus-milestone.js->src/line-settings.js": 1,
-    "src/focus-milestone.js->src/machine.js": 1,
-    "src/gate-config.js->src/config.js": 1,
-    "src/gate-config.js->src/git.js": 1,
-    "src/gate-config.js->src/refused.js": 1
+    "src/focus-milestone.js->src/line-settings.js": 1
   }
 }

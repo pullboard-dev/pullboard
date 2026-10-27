@@ -153,6 +153,9 @@
     "src/resume.js#coordinatorInboxLines": 1,
     "src/resume.js#INBOX_NEWEST": 1,
     "src/resume.js#inboxFirst": 1,
+    "src/review-eligibility.js#reviewEligibility": 1,
+    "src/review-policy.js#anyItemReviewPolicyEngine": 1,
+    "src/review-policy.js#itemReviewPolicyEngine": 1,
     "src/review-skip-engine.js#REVIEW_SKIP_ENGINE": 1,
     "src/rigor-auto-apply.js#planAutomaticRigorApply": 1,
     "src/rigor-auto-source.js#sameAutomaticRow": 1,
@@ -398,9 +401,6 @@
     "src/test-value.js#testValueReport": 1,
     "src/tour.js#tour": 1,
     "src/train-mechanical-merge.js#mergeMechanicalSources": 1,
-    "src/train-mechanical-merge.js#resolveMechanicalMerge": 1,
-    "src/trunk-conflict.js#carriesConflict": 1,
-    "src/trunk-conflict.js#CONFLICT_ENGINE": 1,
-    "src/trunk-conflict.js#conflictFiles": 1
+    "src/train-mechanical-merge.js#resolveMechanicalMerge": 1
   }
 }

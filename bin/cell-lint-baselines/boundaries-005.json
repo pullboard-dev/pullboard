@@ -2,6 +2,10 @@
   "version": 1,
   "metric": "boundaries",
   "allowances": {
+    "src/focus-milestone.js->src/machine.js": 1,
+    "src/gate-config.js->src/config.js": 1,
+    "src/gate-config.js->src/git.js": 1,
+    "src/gate-config.js->src/refused.js": 1,
     "src/gate-control.js->src/git.js": 1,
     "src/gate-output.js->src/execution-environment.js": 1,
     "src/gate-output.js->src/hooks.js": 1,
@@ -163,6 +167,7 @@
     "src/item-authors.js->src/machine.js": 1,
     "src/item-authors.js->src/parent-session-engine.js": 1,
     "src/item-authors.js->src/refused.js": 1,
+    "src/item-authors.js->src/review-independence.js": 1,
     "src/item-authors.js->src/seats.js": 1,
     "src/item-check-baseline.js->src/board-query.js": 1,
     "src/item-check-baseline.js->src/board.js": 1,
@@ -215,6 +220,7 @@
     "src/item-rehome.js->src/reference-engine.js": 1,
     "src/item-rehome.js->src/reference-lines.js": 1,
     "src/item-rehome.js->src/refused.js": 1,
+    "src/item-rehome.js->src/review-independence.js": 1,
     "src/item-routing.js->src/brief.js": 1,
     "src/item-routing.js->src/check-mask.js": 1,
     "src/item-routing.js->src/reference-engine.js": 1,
@@ -378,6 +384,7 @@
     "src/line-settings.js->src/line-settings-engine.js": 1,
     "src/line-settings.js->src/queue-settings.js": 1,
     "src/line-settings.js->src/refused.js": 1,
+    "src/line-settings.js->src/review-independence-engine.js": 1,
     "src/local-state.js->src/git.js": 1,
     "src/local-state.js->src/refused.js": 1,
     "src/loop-command.js->src/config.js": 1,
@@ -394,13 +401,6 @@
     "src/main-audit-economics.js->src/test-placement-report.js": 1,
     "src/main-audit-nudge.js->src/git.js": 1,
     "src/main-audit-scheduler.js->src/git.js": 1,
-    "src/main-audit-scheduler.js->src/main-audit-state.js": 1,
-    "src/main-audit-scheduler.js->src/relay-outbox-guard.js": 1,
-    "src/main-audit-state.js->src/git.js": 1,
-    "src/main-audit-state.js->src/relay-outbox-guard.js": 1,
-    "src/main-audit-worker.js->src/board.js": 1,
-    "src/main-audit-worker.js->src/cli.js": 1,
-    "src/main-audit-worker.js->src/gate-run-receipt.js": 1,
-    "src/main-audit-worker.js->src/gate.js": 1
+    "src/main-audit-scheduler.js->src/main-audit-state.js": 1
   }
 }

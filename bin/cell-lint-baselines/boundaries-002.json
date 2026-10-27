@@ -169,6 +169,7 @@
     "src/board.js->src/reopen-authority.js": 1,
     "src/board.js->src/reopen-history.js": 1,
     "src/board.js->src/required-review-family.js": 1,
+    "src/board.js->src/review-independence.js": 1,
     "src/board.js->src/rigor-auto-engine.js": 1,
     "src/board.js->src/rigor-auto.js": 1,
     "src/board.js->src/rigor-notices.js": 1,
@@ -400,7 +401,6 @@
     "src/cli.js->src/relay-board-config.js": 1,
     "src/cli.js->src/relay-environment.js": 1,
     "src/cli.js->src/relay-sender.js": 1,
-    "src/cli.js->src/relay-setup.js": 1,
-    "src/cli.js->src/relay.js": 1
+    "src/cli.js->src/relay-setup.js": 1
   }
 }
