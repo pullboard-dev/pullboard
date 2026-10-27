@@ -30,9 +30,9 @@ import { proveRequiredReviewFamily } from './required-review-family-fixture.js';
 import { assertSpecCorrectionRefreezesCitations, assertSpecRefreezeReplay } from './spec-refreeze-fixture.js';
 
 /** Run the actual command parser and operation pipeline against this fixture's clock. */
-async function cli(box, cwd, args) {
+async function cli(box, cwd, args, hooks = {}) {
   let out = '', err = '';
-  const code = await main([...args, '--json'], { cwd, clock: box.clock,
+  const code = await main([...args, '--json'], { ...hooks, cwd, clock: box.clock,
     stdout: { isTTY: false, write: part => { out += part; } },
     stderr: { write: part => { err += part; } } });
   return { code, out, err, document: out.trim() ? JSON.parse(out) : null };

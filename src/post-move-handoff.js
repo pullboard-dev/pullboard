@@ -41,7 +41,15 @@ async function takeFollowing(ctx, completedId) {
 /** Extend, never replace, the acknowledged command result; opt-out performs no next lookup or move. */
 export async function completeMoveHandoff(ctx, completedId, values, primary) {
   if (values['no-next']) return primary;
-  const next = await takeFollowing(ctx, completedId);
+  let next;
+  try { next = await takeFollowing(ctx, completedId); }
+  catch (error) {
+    // The primary native move is already acknowledged; never turn a later read failure into its loss.
+    const code = typeof error?.code === 'string' && /^[A-Z][A-Z0-9_]*$/u.test(error.code)
+      ? error.code : 'NEXT_UNAVAILABLE';
+    const message = 'the next native assignment could not be confirmed; run pullboard next';
+    next = { ...idle([message], { code, message }), unavailable: true };
+  }
   const result = { ...primary, next };
   ctx.io.result?.(result);
   if (next.item) {

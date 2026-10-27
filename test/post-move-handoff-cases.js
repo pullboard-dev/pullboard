@@ -1,6 +1,10 @@
 /** Real command completion must take native next work, not merely print a suggestion [N2,V1,V4]. */
 import assert from 'node:assert/strict';
-import { writeFileSync } from 'node:fs';
+import {
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
@@ -94,6 +98,36 @@ test('the actual submitted value is repaired', () => assert.equal(readFileSync(n
     assert.equal(store.getItem(box.board, first).item_status, 'open', 'handoff does not undo the release');
     assert.equal(store.getItem(box.board, next).item_owner, seat.id);
     assert.equal(result.document.next.item.item_id, next);
+  });
+
+  test('an acknowledged release survives a real next-read filesystem failure [N2,V1,A1]', async t => {
+    const box = await fixture(t);
+    const seat = box.seats.actor;
+    const first = box.add('Keep the acknowledged release visible');
+    box.claim(first, seat);
+    const directory = join(box.root, '.git/pullboard');
+    const saved = directory + '-handoff-saved';
+    let injected = false, result;
+    try {
+      result = await cli(box, seat.path, ['release', String(first), '--note', 'Record before the failing next read'], {
+        /** Corrupt only this private path after the native receipt, not the release or its SQLite transaction. */
+        onOrderedMove(receipt) {
+          if (receipt.operation !== 'release' || injected) return;
+          injected = true;
+          renameSync(directory, saved);
+          writeFileSync(directory, 'a file is not a SQLite parent directory');
+        },
+      });
+    } finally {
+      if (injected) { rmSync(directory, { force: true }); renameSync(saved, directory); }
+    }
+    assert.equal(injected, true, 'the fault follows the real acknowledged release receipt');
+    assert.equal(store.getItem(box.board, first).item_status, 'open', 'the actual release remains committed');
+    assert.equal(result.code, 0, result.out + result.err);
+    assert.equal(result.document.id, first, 'the one JSON document retains the primary acknowledgment');
+    assert.equal(result.document.next.unavailable, true, 'assignment failure is unknown, not an invented empty queue');
+    assert.equal(typeof result.document.next.error.code, 'string');
+    assert.doesNotMatch(result.out, /a file is not a SQLite parent directory/u, 'opaque failure details are not echoed');
   });
 
   test('release with no eligible work stays successful and names the native reasons [N2,V1]', async t => {
