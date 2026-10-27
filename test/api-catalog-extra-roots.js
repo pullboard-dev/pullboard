@@ -1,6 +1,7 @@
 /** Additive root commands retain real CLI coverage without weakening the versioned catalog oracle [A1,C7]. */
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runFixtureChildAsync } from './fixture-child.js';
@@ -30,4 +31,31 @@ export async function exerciseAdditiveRoots({ project, uncataloguedRootJSON, wit
   assert.equal(await box.git(box.repo, 'status', '--porcelain=v1'), before.status);
   assert.deepEqual(existsSync(hook) ? readFileSync(hook) : null, hookBefore, 'the additive command never activates or replaces the existing hook');
   coveredRoots.add('push-receipts');
+}
+
+/** Exercise immutable patches through actual submitted source and ordinary coordinator CLI authority. */
+export async function exercisePatchCommands({ box, json, submitted }) {
+  const author = (await json(box, box.repo, 'whoami')).id;
+  const patch = ['diff --git a/app/catalog-patch.js b/app/catalog-patch.js',
+    'new file mode 100644', 'index 0000000..e69de29', '--- /dev/null',
+    '+++ b/app/catalog-patch.js', '@@ -0,0 +1 @@', '+export const catalogPatch = true;', ''].join('\n');
+  const file = join(box.dir, 'catalog.patch');
+  writeFileSync(file, patch);
+  const attached = await json(box, box.repo, 'patch', ['attach', '1', file,
+    '--key', 'catalog-patch', '--author', author, '--source', submitted.commit], 'attach');
+  assert.equal(attached.item, 1);
+  assert.equal(attached.changed, true);
+  const listed = await json(box, box.repo, 'patch', ['list', '1'], 'list');
+  assert.equal(listed.digest, attached.digest);
+  assert.equal(listed.patches.length, 1);
+  assert.equal(listed.patches[0].commit, submitted.commit);
+  assert.equal(listed.patches[0].author.agentId, author);
+  assert.equal(listed.patches[0].patch, patch);
+  assert.equal(listed.patches[0].digest, createHash('sha256').update(patch).digest('hex'));
+  const removed = await json(box, box.repo, 'patch', ['remove', '1', 'catalog-patch'], 'remove');
+  assert.equal(removed.changed, true);
+  assert.notEqual(removed.digest, null, 'removed patches retain immutable native history');
+  const empty = await json(box, box.repo, 'patch', ['list', '1'], 'list');
+  assert.deepEqual(empty.patches, []);
+  assert.equal(empty.digest, removed.digest);
 }

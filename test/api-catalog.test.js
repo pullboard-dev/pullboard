@@ -31,7 +31,7 @@ import { SSH_SHELL_MARKERS } from '../src/person.js';
 import { fetchFresh } from './http-fixture.js';
 import { fixtureJSON as intakeFixtureJSON, intakeFixture } from './intake-fixture.js';
 import { relayClientFixture } from './relay-client-fixture.js';
-import { exerciseAdditiveRoots } from './api-catalog-extra-roots.js';
+import { exerciseAdditiveRoots, exercisePatchCommands } from './api-catalog-extra-roots.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -363,7 +363,8 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   await json(box, repo, 'check', ['1']);
   await json(box, repo, 'release', ['1']);
   await json(box, repo, 'claim', ['1']);
-  await json(box, repo, 'submit', ['1']);
+  const submitted = await json(box, repo, 'submit', ['1']);
+  await exercisePatchCommands({ box, json, submitted });
   await json(box, reviewPath, 'next', ['--verify']);
   await json(box, reviewPath, 'verify', ['1', 'accept', '--note', 'checked the fixture result']);
   await json(box, repo, 'merged', ['1', 'HEAD']);
