@@ -247,9 +247,13 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
   const identity = digest({ ...shared, context, tree: git(root, ['rev-parse', `${commit}^{tree}`], gitEnv).trim(), analyzer });
   return memoizedActionKeys(testResultStore(root, gitEnv), identity, files, async () => {
   const { testClosures } = await import('./affected-tests.js');
-  const { closures, modules, blobs } = testClosures(root, commit);
+  const { closures, modules, blobs, reach } = testClosures(root, commit);
   const index = treeIndex(blobs);
-  const runner = RUNNER_INPUTS.map(path => [path, blobs.get(path) ?? null]);
+  // A test runs inside the harness, so everything the harness reaches (its isolation, dispatch, admission
+  // and reporting modules) is an input of every result, as well as the runner files themselves.
+  // Test files and docs the graph links through declared tree reads are never harness code, so they stay out.
+  const harness = reach(RUNNER_INPUTS).filter(path => !path.startsWith('test/') && !path.startsWith('docs/'));
+  const runner = [...new Set([...RUNNER_INPUTS, ...harness])].sort().map(path => [path, blobs.get(path) ?? null]);
   const keys = new Map();
   for (const [test, closure] of closures) {
     if (!closure.files) { keys.set(test, { key: null, reason: closure.reason }); continue; }

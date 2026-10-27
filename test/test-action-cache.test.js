@@ -248,3 +248,23 @@ exec '${realpathSync(git).replaceAll("'", "'\\''")}' "$@"
   assert.deepEqual(second.ran, [], 'the unchanged proof is found without a graph scan or another worker body');
   assert.match(second.output, /^# reused [0-9a-f]{64} from submit /mu, 'the original stage remains its provenance');
 });
+
+test('a harness dependency edit changes every key, and a test edit stays local to its file [C7]', async (t) => {
+  const fixture = makeFixture(t);
+  // Commit the harness, so its own imports are inputs the keys can name.
+  runFixtureGit(['add', '-f', 'bin', 'src'], { cwd: fixture.root, env: fixture.env });
+  runFixtureGit(['commit', '-q', '-m', 'commit the harness'], { cwd: fixture.root, env: fixture.env });
+  const before = await testActionKeys(fixture.root);
+  const isolation = readFileSync(join(fixture.root, 'src', 'test-isolation.js'), 'utf8');
+  fixture.change('src/test-isolation.js', `${isolation}\n// A harness-only edit that no test imports.\n`);
+  const harnessEdit = await testActionKeys(fixture.root);
+  for (const name of ['a', 'b', 'c']) {
+    assert.notEqual(harnessEdit.get(`test/${name}.test.js`).inputKey, before.get(`test/${name}.test.js`).inputKey,
+      `${name}: a module the harness loads is an input of its result`);
+  }
+  fixture.change('test/c.test.js', fixtureTest('c', 'b'));
+  const testEdit = await testActionKeys(fixture.root);
+  assert.notEqual(testEdit.get('test/c.test.js').inputKey, harnessEdit.get('test/c.test.js').inputKey);
+  assert.equal(testEdit.get('test/b.test.js').inputKey, harnessEdit.get('test/b.test.js').inputKey,
+    'another test file is not harness code, so editing it leaves this key alone');
+});
