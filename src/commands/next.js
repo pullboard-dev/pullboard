@@ -102,7 +102,7 @@ export async function nextHere(io, values) {
         if (item.item_check) io.say(`check: ${item.item_check}   (run it before you submit)`);
         for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${row.text}`);
         sayBrief(io, item.item_brief);
-        io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id}`);
+        io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id} --wait`);
       }
       return 0;
     }
