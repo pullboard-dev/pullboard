@@ -43,6 +43,7 @@ const OPTIONS = {
   revises: { type: 'string' },
   status: { type: 'string' },
   off: { type: 'boolean' },
+  stale: { type: 'boolean' },
   port: { type: 'string' },
   slots: { type: 'string' },
   browser: { type: 'string' },
@@ -59,6 +60,7 @@ const OPTIONS = {
   infra: { type: 'string' },
   'note-file': { type: 'string' },
   by: { type: 'string' },
+  author: { type: 'string' },
   key: { type: 'string' },
   out: { type: 'string' },
   watch: { type: 'boolean' },
@@ -268,7 +270,7 @@ async function bindCheckoutSession(io, positionals, values) {
   }
   const writes = ['handoff', 'bar', 'init', 'join', 'worktree', 'hooks', 'hook', 'skills', 'add', 'companion', 'edit', 'fact', 'escalate', 'run', 'sweep',
     'next', 'claim', 'hold', 'release', 'submit', 'done', 'verify', 'check', 'merged', 'land', 'withdraw', 'refreeze', 'reopen', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget'];
-  if (!writes.includes(command) && !(command === 'request' && first && first !== 'list') && !(command === 'lane' && first === 'add') && !(command === 'settings' && first) && !(command === 'spec' && first === 'apply') && !(command === 'relay' && ['on', 'off'].includes(first))) return;
+  if (!writes.includes(command) && !(command === 'patch' && ['attach', 'remove'].includes(first)) && !(command === 'request' && first && first !== 'list') && !(command === 'lane' && first === 'add') && !(command === 'settings' && first) && !(command === 'spec' && first === 'apply') && !(command === 'relay' && ['on', 'off'].includes(first))) return;
   if (command === 'answer' && values.as === 'person') return;
   return (await import('./cli.js')).bindWriteSession(io, positionals, values);
 }

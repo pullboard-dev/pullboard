@@ -15,10 +15,12 @@ import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { fixtureBoard } from './board-fixture.js';
 import { HELP } from '../src/cli.js';
 import { loadConfig } from '../src/config.js';
 import { Refused } from '../src/refused.js';
 import { assertRehomeTriggerDeclaration } from './rehome-machine-fixture.js';
+import { runnerControllerCallees, assertRunnerControllerReachability } from './runner-controller-machine-fixture.js';
 import {
   assertConfiguredReviewLease,
   assertLifecycleReservation,
@@ -231,7 +233,7 @@ function codeWalk(read, { caught = false } = {}) {
         }
       }
       const spaces = new Map([...source.matchAll(/import \* as (\w+) from '(\.\.?)\/([\w-]+\.js)'/g)].map(([, space, dots, name]) => [space, under(dots, name)]).filter(([, from]) => from));
-      files.set(file, { bodies: functionsIn(source), named, spaces });
+      files.set(file, { bodies: functionsIn(source), named, spaces, source });
     }
     return files.get(file);
   };
@@ -239,7 +241,7 @@ function codeWalk(read, { caught = false } = {}) {
     if (seen.has(key) || skip.has(key) || TRANSPORT_BOUNDARIES.has(key)) return new Set();
     seen.add(key);
     const [file, name] = key.split('#');
-    const { bodies, named, spaces } = load(file);
+    const { bodies, named, spaces, source } = load(file);
     // A facade may import and re-export the helper; follow its real definition after extraction.
     if (!bodies.has(name) && named.has(name)) return refusalsOf(named.get(name), skip, seen);
     const body = bodies.get(name) ?? '';
@@ -248,6 +250,7 @@ function codeWalk(read, { caught = false } = {}) {
       ...[...body.matchAll(/(?<!\w)(?<!(?<!\.\.)\.)(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? CALLBACKS[file]?.[callee])),
       ...[...body.matchAll(/\b(\w+)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : undefined)),
     ];
+    callees.push(...runnerControllerCallees(file, body, source));
     for (const callee of callees.filter(Boolean)) {
       if (caught && (CAUGHT[key] ?? []).includes(callee)) continue;
       for (const code of refusalsOf(callee, skip, seen)) codes.add(code);
@@ -483,7 +486,7 @@ test('the declared lifecycle is sound: reachable, no traps, no second door, ever
   assert.deepEqual(machineRules.machineProblems(), []);
   assert.deepEqual(machineRules.MACHINE.states.map((state) => state.id), ['open', 'claimed', 'submitted', 'verified', 'withdrawn']);
   assert.deepEqual(machineRules.MACHINE.states.filter((state) => state.final).map((state) => state.id), ['withdrawn']);
-  assert.deepEqual(machineRules.MACHINE.moves.map((move) => move.verb), ['rehomeImport', 'intake', 'claim', 'release', 'lapse', 'submit', 'submit-merge', 'reserve', 'accept', 'reject', 'reopen', 'escalate', 'refreeze', 'refreeze', 'withdraw']);
+  assert.deepEqual(machineRules.MACHINE.moves.map((move) => move.verb), ['patch', 'rehomeImport', 'intake', 'claim', 'release', 'lapse', 'submit', 'submit-merge', 'reserve', 'accept', 'reject', 'reopen', 'escalate', 'refreeze', 'refreeze', 'withdraw']);
   assert.deepEqual(machineRules.MACHINE.moves.find((move) => move.verb === 'rehomeImport').sets, ['item_verified_by', 'item_commit']);
 });
 
@@ -687,6 +690,15 @@ function boardOnDisk(clock) {
   };
 }
 
+/** A logic-only board uses the shared memory contract; raw connections stay in boardOnDisk. */
+function memoryBoardLab(t, clock) {
+  const board = fixtureBoard(t, { clock });
+  store.register(board, { lane: 'coordinator', path: '/repo', family: 'human' });
+  store.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
+  store.register(board, { lane: 'web', path: '/repo-web-2', family: 'review-vendor' });
+  return { board };
+}
+
 /**
  * An item web-1 claimed and submitted.
  *
@@ -774,26 +786,22 @@ test('the board file refuses, written by hand: an unknown state, an undeclared m
   }
 });
 
-test('every move the board makes passes the triggers: claim, submit, accept, reject, rework, release, escalate, refreeze, withdraw [M3]', () => {
-  const lab = boardOnDisk();
-  try {
-    const { board } = lab;
-    const accepted = submittedItem(board);
-    verdictOn(board, accepted, 'web-2', 'ACCEPT');
-    store.merged(board, accepted, { agentId: 'coordinator', commit: SHA_A });
-    const rejected = submittedItem(board);
-    verdictOn(board, rejected, 'web-2', 'REJECT');
-    store.claim(board, rejected, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
-    store.release(board, rejected, 'web-1');
-    store.escalate(board, rejected, { agentId: 'coordinator', note: 'two tries stayed red' });
-    store.refreeze(board, rejected, { agentId: 'coordinator', freeze });
-    const dropped = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Old idea' });
-    store.claim(board, dropped, { agentId: 'web-2', lane: 'web', leaseMs: 7_200_000, freeze });
-    store.withdraw(board, dropped, { agentId: 'coordinator', reason: 'superseded' });
-    assert.deepEqual([accepted, rejected, dropped].map((id) => store.getItem(board, id).item_status), ['verified', 'open', 'withdrawn']);
-  } finally {
-    lab.done();
-  }
+test('every move the board makes passes the triggers: claim, submit, accept, reject, rework, release, escalate, refreeze, withdraw [M3]', t => {
+  const lab = memoryBoardLab(t);
+  const { board } = lab;
+  const accepted = submittedItem(board);
+  verdictOn(board, accepted, 'web-2', 'ACCEPT');
+  store.merged(board, accepted, { agentId: 'coordinator', commit: SHA_A });
+  const rejected = submittedItem(board);
+  verdictOn(board, rejected, 'web-2', 'REJECT');
+  store.claim(board, rejected, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
+  store.release(board, rejected, 'web-1');
+  store.escalate(board, rejected, { agentId: 'coordinator', note: 'two tries stayed red' });
+  store.refreeze(board, rejected, { agentId: 'coordinator', freeze });
+  const dropped = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Old idea' });
+  store.claim(board, dropped, { agentId: 'web-2', lane: 'web', leaseMs: 7_200_000, freeze });
+  store.withdraw(board, dropped, { agentId: 'coordinator', reason: 'superseded' });
+  assert.deepEqual([accepted, rejected, dropped].map((id) => store.getItem(board, id).item_status), ['verified', 'open', 'withdrawn']);
 });
 
 test('an older board gets the triggers quietly on its next open; one dropped by hand comes back, and the log says so [M3]', () => {
@@ -1052,177 +1060,165 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
   }
 });
 
-test('submit, accept and reject refuse in the declared order, one failure peeled at a time [M1, M2]', () => {
-  const lab = boardOnDisk();
-  try {
-    const { board } = lab;
-    const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
-    const submitAs = (id, agentId, commit) => outcome(() => submitFixture(board, id, { agentId, commit, tree: 'tree' }));
-    const piece = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
-    const submits = [submitAs(999, 'web-1', SHA_A), submitAs(piece, 'web-1', SHA_A)];
-    store.claim(board, piece, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
-    submits.push(submitAs(piece, 'web-2', SHA_A));
-    store.editItem(board, piece, { agentId: 'coordinator', criterion: 'A correction before submission.', reason: 'the fixture corrects its bar' });
-    submits.push(submitAs(piece, 'web-1', SHA_A));
-    assert.equal(submits.at(-1), 'PENDING_REFREEZE', 'a pending correction stops the board submission before later guards');
-    store.refreeze(board, piece, { agentId: 'web-1', freeze });
-    store.setBarReady(board, { agentId: 'coordinator', enabled: true });
-    store.editItem(board, piece, { agentId: 'coordinator', brief: 'Unsigned corrected bar' });
-    submits.push(submitAs(piece, 'web-1', SHA_A));
-    store.setBarReady(board, { agentId: 'coordinator', enabled: false });
-    submits.push(outcome(() => submitFixture(board, piece, { agentId: 'web-1', commit: SHA_A, tree: 'tree',
-      submissionProof: { version: 99, files: [], full: false, deferred: true, reason: '' } })));
-    submitFixture(board, piece, { agentId: 'web-1', commit: SHA_A, tree: 'tree' });
-    verdictOn(board, piece, 'web-2', 'REJECT');
-    store.claim(board, piece, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
-    const child = store.addItem(board, { by: 'web-1', lane: 'web', title: 'Part', parentId: piece });
-    submits.push(submitAs(piece, 'web-1', SHA_A));
-    store.withdraw(board, child, { agentId: 'coordinator', reason: 'folded into the parent' });
-    submits.push(submitAs(piece, 'web-1', SHA_A), submitAs(piece, 'web-1', SHA_B));
-    assert.deepEqual(submits, [...declaredBoardOrder('submit'), 'ok']);
+test('submit, accept and reject refuse in the declared order, one failure peeled at a time [M1, M2]', t => {
+  const lab = memoryBoardLab(t);
+  const { board } = lab;
+  const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
+  const submitAs = (id, agentId, commit) => outcome(() => submitFixture(board, id, { agentId, commit, tree: 'tree' }));
+  const piece = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+  const submits = [submitAs(999, 'web-1', SHA_A), submitAs(piece, 'web-1', SHA_A)];
+  store.claim(board, piece, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
+  submits.push(submitAs(piece, 'web-2', SHA_A));
+  store.editItem(board, piece, { agentId: 'coordinator', criterion: 'A correction before submission.', reason: 'the fixture corrects its bar' });
+  submits.push(submitAs(piece, 'web-1', SHA_A));
+  assert.equal(submits.at(-1), 'PENDING_REFREEZE', 'a pending correction stops the board submission before later guards');
+  store.refreeze(board, piece, { agentId: 'web-1', freeze });
+  store.setBarReady(board, { agentId: 'coordinator', enabled: true });
+  store.editItem(board, piece, { agentId: 'coordinator', brief: 'Unsigned corrected bar' });
+  submits.push(submitAs(piece, 'web-1', SHA_A));
+  store.setBarReady(board, { agentId: 'coordinator', enabled: false });
+  submits.push(outcome(() => submitFixture(board, piece, { agentId: 'web-1', commit: SHA_A, tree: 'tree',
+    submissionProof: { version: 99, files: [], full: false, deferred: true, reason: '' } })));
+  submitFixture(board, piece, { agentId: 'web-1', commit: SHA_A, tree: 'tree' });
+  verdictOn(board, piece, 'web-2', 'REJECT');
+  store.claim(board, piece, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
+  const child = store.addItem(board, { by: 'web-1', lane: 'web', title: 'Part', parentId: piece });
+  submits.push(submitAs(piece, 'web-1', SHA_A));
+  store.withdraw(board, child, { agentId: 'coordinator', reason: 'folded into the parent' });
+  submits.push(submitAs(piece, 'web-1', SHA_A), submitAs(piece, 'web-1', SHA_B));
+  assert.deepEqual(submits, [...declaredBoardOrder('submit'), 'ok']);
 
-    const other = store.register(board, { lane: 'web', path: '/repo-web-other', family: 'review-vendor' });
-    for (const verb of ['accept', 'reject']) {
-      const decision = verb === 'accept' ? 'ACCEPT' : 'REJECT';
-      store.register(board, { lane: 'web', path: '/repo-web-2', family: 'REQUIRED REVIEW' });
-      store.register(board, { lane: 'web', path: '/repo-web-other', family: null });
-      store.register(board, { lane: 'web', path: '/repo-web-1', family: 'required review' });
-      const built = submittedItem(board, { reviewFamily: 'Required Review' });
-      const landed = submittedItem(board);
-      verdictOn(board, landed, 'web-2', 'ACCEPT');
-      store.merged(board, landed, { agentId: 'coordinator', commit: SHA_A });
-      const open = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
-      store.reserveReview(board, built, { agentId: 'web-2', leaseMs: 3_600_000, policy: 'any' });
-      const judge = (id, agentId, fields) =>
-        outcome(() => store.verify(board, id, { agentId, decision, head: SHA_A, digest: 'wrong', policy: 'coordinator', note: '', review: { commit: SHA_A, head: SHA_A, trunk: SHA_B, paths: ['web/page.js'] }, ...fields }));
-      const bad = verb === 'accept' ? 'TEST_FAILURE' : 'NOPE';
-      const good = verb === 'accept' ? undefined : 'TEST_FAILURE';
-      const fired = [
-        judge(999, 'web-2', { reason: bad }),
-        judge(open, 'web-2', { reason: bad }),
-        judge(landed, 'web-2', { reason: bad }),
-        judge(built, 'web-2', { reason: bad, review: null }),
-        judge(built, 'web-1', { reason: bad }),
-        judge(built, light, { reason: bad }),
-        judge(built, 'web-2', { reason: bad }),
-        judge(built, other, { reason: bad, policy: 'any' }),
-        /** Declare the matching family only after its refusal has been observed. */
-        (() => {
-          store.register(board, { lane: 'web', path: '/repo-web-other', family: 'required review' });
-          return judge(built, other, { reason: bad, policy: 'any', familyPolicy: 'require' });
-        })(),
-        judge(built, other, { reason: bad, policy: 'any' }),
-        judge(built, 'web-2', { reason: bad, policy: 'any' }),
-        judge(built, 'web-2', { reason: bad, policy: 'any', digest: 'digest:Page' }),
-        judge(built, 'web-2', { reason: good, policy: 'any', digest: 'digest:Page' }),
-        // Only a reject reads a cause key, so only its order has the malformed-cause step (#713).
-        ...(verb === 'reject' ? [judge(built, 'web-2', { reason: good, policy: 'any', digest: 'digest:Page', note: 'reverted the fix; its test went red', cause: 'free text' })] : []),
-        judge(built, 'web-2', { reason: good, policy: 'any', digest: 'digest:Page', note: 'reverted the fix; its test went red' }),
-      ];
-      assert.deepEqual(fired, [...declaredBoardOrder(verb), 'ok'], verb);
-    }
-  } finally {
-    lab.done();
-  }
-});
-
-test('reserve refuses in the declared order, one failure peeled at a time [V15, M1, M2]', () => {
-  const lab = boardOnDisk();
-  try {
-    const { board } = lab;
-    const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
-    const other = store.register(board, { lane: 'web', path: '/repo-web-other' });
+  const other = store.register(board, { lane: 'web', path: '/repo-web-other', family: 'review-vendor' });
+  for (const verb of ['accept', 'reject']) {
+    const decision = verb === 'accept' ? 'ACCEPT' : 'REJECT';
     store.register(board, { lane: 'web', path: '/repo-web-2', family: 'REQUIRED REVIEW' });
     store.register(board, { lane: 'web', path: '/repo-web-1', family: 'required review' });
+    store.register(board, { lane: 'web', path: '/repo-web-other', family: null });
     const built = submittedItem(board, { reviewFamily: 'Required Review' });
+    const landed = submittedItem(board);
+    verdictOn(board, landed, 'web-2', 'ACCEPT');
+    store.merged(board, landed, { agentId: 'coordinator', commit: SHA_A });
     const open = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
-    const reserveAs = (id, agentId, policy = 'coordinator', familyPolicy = 'off') => outcome(() => store.reserveReview(board, id, { agentId, leaseMs: 3_600_000, policy, familyPolicy }));
-    const cooling = submittedItem(board);
-    store.reserveReview(board, cooling, { agentId: 'web-2', leaseMs: 3_600_000, policy: 'any' });
-    store.release(board, cooling, 'web-2', 'another reviewer should take it');
-    const fired = [reserveAs(999, 'web-2'), reserveAs(open, 'web-2'), reserveAs(cooling, 'web-2'), reserveAs(built, 'web-1'), reserveAs(built, light), reserveAs(built, 'web-2'), reserveAs(built, other, 'any')];
-    store.register(board, { lane: 'web', path: '/repo-web-other', family: 'required review' });
-    store.reserveReview(board, built, { agentId: other, leaseMs: 3_600_000, policy: 'any' });
-    fired.push(reserveAs(built, other, 'any', 'require'), reserveAs(built, 'web-2', 'any'), reserveAs(built, other, 'any'));
-    assert.deepEqual(fired, [...declaredBoardOrder('reserve'), 'ok']);
-    assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'REVIEW_COOLDOWN', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'REQUIRED_REVIEW_FAMILY', 'O2_FAMILY_MATCH', 'REVIEW_HELD', 'ok']);
-  } finally {
-    lab.done();
+    store.reserveReview(board, built, { agentId: 'web-2', leaseMs: 3_600_000, policy: 'any' });
+    const judge = (id, agentId, fields) =>
+      outcome(() => store.verify(board, id, { agentId, decision, head: SHA_A, digest: 'wrong', policy: 'coordinator', note: '', review: { commit: SHA_A, head: SHA_A, trunk: SHA_B, paths: ['web/page.js'] }, ...fields }));
+    const bad = verb === 'accept' ? 'TEST_FAILURE' : 'NOPE';
+    const good = verb === 'accept' ? undefined : 'TEST_FAILURE';
+    const fired = [
+      judge(999, 'web-2', { reason: bad }),
+      judge(open, 'web-2', { reason: bad }),
+      judge(landed, 'web-2', { reason: bad }),
+      judge(built, 'web-2', { reason: bad, review: null }),
+      judge(built, 'web-1', { reason: bad }),
+      judge(built, light, { reason: bad }),
+      judge(built, 'web-2', { reason: bad }),
+      judge(built, other, { reason: bad, policy: 'any' }),
+      /** Declare the matching family only after its refusal has been observed. */
+      (() => {
+        store.register(board, { lane: 'web', path: '/repo-web-other', family: 'required review' });
+        return judge(built, other, { reason: bad, policy: 'any', familyPolicy: 'require' });
+      })(),
+      judge(built, other, { reason: bad, policy: 'any' }),
+      judge(built, 'web-2', { reason: bad, policy: 'any' }),
+      judge(built, 'web-2', { reason: bad, policy: 'any', digest: 'digest:Page' }),
+      judge(built, 'web-2', { reason: good, policy: 'any', digest: 'digest:Page' }),
+      // Only a reject reads a cause key, so only its order has the malformed-cause step (#713).
+      ...(verb === 'reject' ? [judge(built, 'web-2', { reason: good, policy: 'any', digest: 'digest:Page', note: 'reverted the fix; its test went red', cause: 'free text' })] : []),
+      judge(built, 'web-2', { reason: good, policy: 'any', digest: 'digest:Page', note: 'reverted the fix; its test went red' }),
+    ];
+    assert.deepEqual(fired, [...declaredBoardOrder(verb), 'ok'], verb);
   }
 });
 
-test('a reserved review refuses every other verdict while its lease lives, and only then; a new submission starts free [V15]', () => {
+test('reserve refuses in the declared order, one failure peeled at a time [V15, M1, M2]', t => {
+  const lab = memoryBoardLab(t);
+  const { board } = lab;
+  const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
+  const other = store.register(board, { lane: 'web', path: '/repo-web-other' });
+  store.register(board, { lane: 'web', path: '/repo-web-2', family: 'REQUIRED REVIEW' });
+  store.register(board, { lane: 'web', path: '/repo-web-1', family: 'required review' });
+  const built = submittedItem(board, { reviewFamily: 'Required Review' });
+  const open = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+  const reserveAs = (id, agentId, policy = 'coordinator', familyPolicy = 'off') => outcome(() => store.reserveReview(board, id, { agentId, leaseMs: 3_600_000, policy, familyPolicy }));
+  const cooling = submittedItem(board);
+  store.reserveReview(board, cooling, { agentId: 'web-2', leaseMs: 3_600_000, policy: 'any' });
+  store.release(board, cooling, 'web-2', 'another reviewer should take it');
+  const fired = [reserveAs(999, 'web-2'), reserveAs(open, 'web-2'), reserveAs(cooling, 'web-2'), reserveAs(built, 'web-1'), reserveAs(built, light), reserveAs(built, 'web-2'), reserveAs(built, other, 'any')];
+  store.register(board, { lane: 'web', path: '/repo-web-other', family: 'required review' });
+  store.reserveReview(board, built, { agentId: other, leaseMs: 3_600_000, policy: 'any' });
+  fired.push(reserveAs(built, other, 'any', 'require'), reserveAs(built, 'web-2', 'any'), reserveAs(built, other, 'any'));
+  assert.deepEqual(fired, [...declaredBoardOrder('reserve'), 'ok']);
+  assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'REVIEW_COOLDOWN', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'REQUIRED_REVIEW_FAMILY', 'O2_FAMILY_MATCH', 'REVIEW_HELD', 'ok']);
+});
+
+test('a reserved review refuses every other verdict while its lease lives, and only then; a new submission starts free [V15]', t => {
   let at = Date.parse('2026-10-06T12:00:00.000Z');
-  const lab = boardOnDisk({ now: () => new Date(at) });
-  try {
-    const { board } = lab;
-    const third = store.register(board, { lane: 'web', path: '/repo-web-3', family: 'review-vendor' });
-    const id = submittedItem(board);
-    const minutes = (count) => {
-      at += count * 60_000;
-    };
-    const reserve = (agentId) => store.reserveReview(board, id, { agentId, leaseMs: 30 * 60_000, policy: 'any' });
-    const judge = (agentId, decision) =>
-      outcome(() =>
-        store.verify(board, id, {
-          agentId,
-          decision,
-          reason: decision === 'REJECT' ? 'TEST_FAILURE' : undefined,
-          note: 'reverted the fix; its test went red',
-          head: store.getItem(board, id).item_commit,
-          digest: 'digest:Page',
-          policy: 'any',
-        }),
-      );
-    const holder = () => store.reviewHolder(board, store.getItem(board, id));
-    const offered = (agentId) => store.nextFor(board, { agentId, lane: 'web', verify: true });
+  const lab = memoryBoardLab(t, { now: () => new Date(at) });
+  const { board } = lab;
+  const third = store.register(board, { lane: 'web', path: '/repo-web-3', family: 'review-vendor' });
+  const id = submittedItem(board);
+  const minutes = (count) => {
+    at += count * 60_000;
+  };
+  const reserve = (agentId) => store.reserveReview(board, id, { agentId, leaseMs: 30 * 60_000, policy: 'any' });
+  const judge = (agentId, decision) =>
+    outcome(() =>
+      store.verify(board, id, {
+        agentId,
+        decision,
+        reason: decision === 'REJECT' ? 'TEST_FAILURE' : undefined,
+        note: 'reverted the fix; its test went red',
+        head: store.getItem(board, id).item_commit,
+        digest: 'digest:Page',
+        policy: 'any',
+      }),
+    );
+  const holder = () => store.reviewHolder(board, store.getItem(board, id));
+  const offered = (agentId) => store.nextFor(board, { agentId, lane: 'web', verify: true });
 
-    assert.equal(reserve('web-2').item_review_until, '2026-10-06T12:30:00.000Z');
-    assert.equal(holder(), 'web-2');
-    assert.equal(offered(third).item ?? null, null, 'another agent is passed over');
-    assert.match(offered(third).reasons.join('; '), /web-2 holds the review of #1 until 2026-10-06T12:30:00\.000Z/);
-    assert.equal(outcome(() => reserve(third)), 'REVIEW_HELD');
-    assert.equal(judge(third, 'ACCEPT'), 'REVIEW_HELD');
-    assert.equal(judge(third, 'REJECT'), 'REVIEW_HELD');
-    assert.equal(offered('web-2').item.item_id, id, 'the holder is offered its own review');
+  assert.equal(reserve('web-2').item_review_until, '2026-10-06T12:30:00.000Z');
+  assert.equal(holder(), 'web-2');
+  assert.equal(offered(third).item ?? null, null, 'another agent is passed over');
+  assert.match(offered(third).reasons.join('; '), /web-2 holds the review of #1 until 2026-10-06T12:30:00\.000Z/);
+  assert.equal(outcome(() => reserve(third)), 'REVIEW_HELD');
+  assert.equal(judge(third, 'ACCEPT'), 'REVIEW_HELD');
+  assert.equal(judge(third, 'REJECT'), 'REVIEW_HELD');
+  assert.equal(offered('web-2').item.item_id, id, 'the holder is offered its own review');
 
-    minutes(20);
-    assert.equal(reserve('web-2').item_review_until, '2026-10-06T12:50:00.000Z', 'reserving again renews the lease');
-    minutes(25);
-    assert.equal(judge(third, 'ACCEPT'), 'REVIEW_HELD', 'at 12:45 the renewed lease still holds');
+  minutes(20);
+  assert.equal(reserve('web-2').item_review_until, '2026-10-06T12:50:00.000Z', 'reserving again renews the lease');
+  minutes(25);
+  assert.equal(judge(third, 'ACCEPT'), 'REVIEW_HELD', 'at 12:45 the renewed lease still holds');
 
-    minutes(6);
-    assert.equal(holder(), null, 'at 12:51 the lease has run out');
-    assert.equal(offered(third).item.item_id, id);
-    assert.equal(reserve(third).item_review_until, '2026-10-06T13:21:00.000Z');
-    assert.equal(judge('web-2', 'ACCEPT'), 'REVIEW_HELD', 'a lapsed lease gives nothing over the agent that reserved since');
-    assert.equal(judge(third, 'REJECT'), 'ok');
-    assert.equal(store.getItem(board, id).item_review_by, third, 'the reservation stays on the record');
-    assert.equal(holder(), null, 'but holds nothing once the item leaves submitted, though its lease lives until 13:21');
+  minutes(6);
+  assert.equal(holder(), null, 'at 12:51 the lease has run out');
+  assert.equal(offered(third).item.item_id, id);
+  assert.equal(reserve(third).item_review_until, '2026-10-06T13:21:00.000Z');
+  assert.equal(judge('web-2', 'ACCEPT'), 'REVIEW_HELD', 'a lapsed lease gives nothing over the agent that reserved since');
+  assert.equal(judge(third, 'REJECT'), 'ok');
+  assert.equal(store.getItem(board, id).item_review_by, third, 'the reservation stays on the record');
+  assert.equal(holder(), null, 'but holds nothing once the item leaves submitted, though its lease lives until 13:21');
 
-    store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
-    submitFixture(board, id, { agentId: 'web-1', commit: SHA_B, tree: 'tree' });
-    assert.equal(store.getItem(board, id).item_review_by, null, 'a new submission starts with no reservation');
-    assert.equal(offered('web-2').item.item_id, id, 'though the last lease would live until 13:21');
+  store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
+  submitFixture(board, id, { agentId: 'web-1', commit: SHA_B, tree: 'tree' });
+  assert.equal(store.getItem(board, id).item_review_by, null, 'a new submission starts with no reservation');
+  assert.equal(offered('web-2').item.item_id, id, 'though the last lease would live until 13:21');
 
-    reserve('web-2');
-    minutes(60);
-    assert.equal(holder(), null);
-    assert.equal(judge('web-2', 'ACCEPT'), 'ok', "the holder's own verdict is never refused for its lease having lapsed");
-    assert.equal(store.getItem(board, id).item_status, 'verified');
-    const reserved = store
-      .events(board, { itemId: id })
-      .filter((event) => event.event_kind === 'reserve')
-      .map((event) => [event.event_by, JSON.parse(event.event_detail).until]);
-    assert.deepEqual(reserved, [
-      ['web-2', '2026-10-06T12:30:00.000Z'],
-      ['web-2', '2026-10-06T12:50:00.000Z'],
-      [third, '2026-10-06T13:21:00.000Z'],
-      ['web-2', '2026-10-06T13:21:00.000Z'],
-    ]);
-  } finally {
-    lab.done();
-  }
+  reserve('web-2');
+  minutes(60);
+  assert.equal(holder(), null);
+  assert.equal(judge('web-2', 'ACCEPT'), 'ok', "the holder's own verdict is never refused for its lease having lapsed");
+  assert.equal(store.getItem(board, id).item_status, 'verified');
+  const reserved = store
+    .events(board, { itemId: id })
+    .filter((event) => event.event_kind === 'reserve')
+    .map((event) => [event.event_by, JSON.parse(event.event_detail).until]);
+  assert.deepEqual(reserved, [
+    ['web-2', '2026-10-06T12:30:00.000Z'],
+    ['web-2', '2026-10-06T12:50:00.000Z'],
+    [third, '2026-10-06T13:21:00.000Z'],
+    ['web-2', '2026-10-06T13:21:00.000Z'],
+  ]);
 });
 
 test('next --verify reserves the review for the reviewLease and says until when; show names the holder; another verifier is passed over and refused [V15]', () => {
@@ -1354,33 +1350,29 @@ test('the lifecycle page and the help show the reservation: reserve, and reviewF
   assertLifecycleReservation(machineRules, HELP);
 });
 
-test('the two conditional guards behave as declared: a renewal passes a held lane, and only a freeze checks the rows [M1, M2]', () => {
-  const lab = boardOnDisk();
-  try {
-    const { board } = lab;
-    const claimAs = (id, agentId, freezer) => outcome(() => store.claim(board, id, { agentId, lane: 'web', leaseMs: 7_200_000, freeze: freezer }));
-    assert.match(machineRules.MACHINE.guards.find((guard) => guard.id === 'laneOpen').when, /renewing its own live claim/);
-    assert.match(machineRules.MACHINE.guards.find((guard) => guard.id === 'rowsInForce').when, /where the criterion freezes/);
+test('the two conditional guards behave as declared: a renewal passes a held lane, and only a freeze checks the rows [M1, M2]', t => {
+  const lab = memoryBoardLab(t);
+  const { board } = lab;
+  const claimAs = (id, agentId, freezer) => outcome(() => store.claim(board, id, { agentId, lane: 'web', leaseMs: 7_200_000, freeze: freezer }));
+  assert.match(machineRules.MACHINE.guards.find((guard) => guard.id === 'laneOpen').when, /renewing its own live claim/);
+  assert.match(machineRules.MACHINE.guards.find((guard) => guard.id === 'rowsInForce').when, /where the criterion freezes/);
 
-    const mine = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
-    const theirs = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
-    assert.equal(claimAs(mine, 'web-1', freeze), 'ok');
-    store.holdLane(board, 'web', { agentId: 'coordinator', reason: 'pause' });
-    assert.equal(claimAs(mine, 'web-1', freeze), 'ok', 'its holder renews a live claim in a held lane');
-    assert.equal(claimAs(theirs, 'web-2', freeze), 'LANE_HELD', 'a fresh claim in the held lane is refused');
-    store.releaseLane(board, 'web', { agentId: 'coordinator' });
+  const mine = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+  const theirs = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+  assert.equal(claimAs(mine, 'web-1', freeze), 'ok');
+  store.holdLane(board, 'web', { agentId: 'coordinator', reason: 'pause' });
+  assert.equal(claimAs(mine, 'web-1', freeze), 'ok', 'its holder renews a live claim in a held lane');
+  assert.equal(claimAs(theirs, 'web-2', freeze), 'LANE_HELD', 'a fresh claim in the held lane is refused');
+  store.releaseLane(board, 'web', { agentId: 'coordinator' });
 
-    assert.equal(claimAs(mine, 'web-1', retiredFreeze), 'ok', 'a renewal keeps the frozen bar and checks no rows');
-    store.release(board, mine, 'web-1');
-    assert.equal(claimAs(mine, 'web-1', retiredFreeze), 'ok', 'a reclaim keeps the frozen bar too');
-    assert.equal(claimAs(theirs, 'web-2', retiredFreeze), 'UNKNOWN_SPEC', 'a first claim freezes, so it checks the rows');
-    store.release(board, mine, 'web-1');
-    store.editItem(board, mine, { agentId: 'coordinator', criterion: 'A changed bar.', reason: 'the fixture corrects its bar' });
-    assert.equal(claimAs(mine, 'web-1', retiredFreeze), 'UNKNOWN_SPEC', 'after an edit drops the bar, the next claim freezes and checks');
-    assert.equal(outcome(() => store.refreeze(board, mine, { agentId: 'coordinator', freeze: retiredFreeze })), 'UNKNOWN_SPEC', 'refreeze freezes, so it checks');
-  } finally {
-    lab.done();
-  }
+  assert.equal(claimAs(mine, 'web-1', retiredFreeze), 'ok', 'a renewal keeps the frozen bar and checks no rows');
+  store.release(board, mine, 'web-1');
+  assert.equal(claimAs(mine, 'web-1', retiredFreeze), 'ok', 'a reclaim keeps the frozen bar too');
+  assert.equal(claimAs(theirs, 'web-2', retiredFreeze), 'UNKNOWN_SPEC', 'a first claim freezes, so it checks the rows');
+  store.release(board, mine, 'web-1');
+  store.editItem(board, mine, { agentId: 'coordinator', criterion: 'A changed bar.', reason: 'the fixture corrects its bar' });
+  assert.equal(claimAs(mine, 'web-1', retiredFreeze), 'UNKNOWN_SPEC', 'after an edit drops the bar, the next claim freezes and checks');
+  assert.equal(outcome(() => store.refreeze(board, mine, { agentId: 'coordinator', freeze: retiredFreeze })), 'UNKNOWN_SPEC', 'refreeze freezes, so it checks');
 });
 
 /**
@@ -1398,7 +1390,7 @@ function statusWriters(read) {
   const writers = [];
   for (const file of fs.readdirSync(new URL('../src/', import.meta.url)).filter((name) => name.endsWith('.js'))) {
     const source = read(file);
-    const allowedNames = file === 'board.js' ? ['moveItem', 'setItem'] : file === 'board-query.js' ? ['current'] : [];
+    const allowedNames = file === 'board.js' ? ['moveItem'] : file === 'item-fields.js' ? ['setItem'] : file === 'board-query.js' ? ['current'] : [];
     const allowed = allowedNames.map((name) => functionsIn(source).get(name));
     const spans = allowed.filter(Boolean).map((body) => [source.indexOf(body), source.indexOf(body) + body.length]);
     if (file === 'json.js') {
@@ -1418,6 +1410,9 @@ function statusWriters(read) {
 
 test('only moveItem writes an item\'s status, and a write anywhere else fails the check [M1]', () => {
   assert.deepEqual(statusWriters(fromDisk), []);
+  const besideSetter = editedSource('item-fields.js', /^export function setItem/m,
+    "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function setItem");
+  assert.deepEqual(statusWriters(besideSetter), ['item-fields.js#reopenByHand'], 'the generic setter exemption never covers a writer beside it');
   const besideReader = editedSource('board-query.js', /^export function current/m,
     "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function current");
   assert.deepEqual(statusWriters(besideReader), ['board-query.js#reopenByHand'], 'the projection exemption never covers a writer beside it');
@@ -1432,27 +1427,23 @@ test('only moveItem writes an item\'s status, and a write anywhere else fails th
   assert.deepEqual(statusWriters(besideCatalog), ['json.js#reopenByKey'], 'the output catalog exemption never covers a writer beside it');
 });
 
-test('the board refuses a status written outside moveItem at run time, however it is spelled [M1]', () => {
-  const lab = boardOnDisk();
-  try {
-    const { board } = lab;
-    const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
-    store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
-    const column = ['item', 'status'].join('_');
-    for (const sql of ["update item set item_status = 'open' where item_id = ?", `UPDATE item SET ${column} = 'claimed' WHERE item_id = ?`]) {
-      assert.throws(() => board.db.prepare(sql).run(id), /STATUS_OUTSIDE_MOVE/, sql);
-    }
-    assert.throws(
-      () => board.db.prepare("REPLACE INTO item (item_id, item_lane, item_title, item_created_by, item_created_at, item_updated_at) VALUES (?, 'web', 'Page', 'x', 'now', 'now')").run(id),
-      /KEPT/,
-      'a replace deletes the old row first, and the board keeps items',
-    );
-    assert.equal(store.getItem(board, id).item_status, 'claimed');
-    store.release(board, id, 'web-1');
-    assert.equal(store.getItem(board, id).item_status, 'open', 'a move through moveItem still writes');
-  } finally {
-    lab.done();
+test('the board refuses a status written outside moveItem at run time, however it is spelled [M1]', t => {
+  const lab = memoryBoardLab(t);
+  const { board } = lab;
+  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+  store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
+  const column = ['item', 'status'].join('_');
+  for (const sql of ["update item set item_status = 'open' where item_id = ?", `UPDATE item SET ${column} = 'claimed' WHERE item_id = ?`]) {
+    assert.throws(() => board.db.prepare(sql).run(id), /STATUS_OUTSIDE_MOVE/, sql);
   }
+  assert.throws(
+    () => board.db.prepare("REPLACE INTO item (item_id, item_lane, item_title, item_created_by, item_created_at, item_updated_at) VALUES (?, 'web', 'Page', 'x', 'now', 'now')").run(id),
+    /KEPT/,
+    'a replace deletes the old row first, and the board keeps items',
+  );
+  assert.equal(store.getItem(board, id).item_status, 'claimed');
+  store.release(board, id, 'web-1');
+  assert.equal(store.getItem(board, id).item_status, 'open', 'a move through moveItem still writes');
 });
 
 test('a helper added to the board that changes a status outside moveItem is refused when it runs [M1]', async () => {
@@ -1477,7 +1468,6 @@ test('a helper added to the board that changes a status outside moveItem is refu
   }
 });
 
-
 test('transport boundaries keep a new item refusal in ordered dispatch visible [M1,M4,H16]', () => {
   const inDispatch = editedSource('cli.js', /^(?:export )?async function ordered\(ctx, board, operation, args\) \{$/m,
     "$&\n  if (args[0] === 999) throw new Refused('MOON_PHASE', 'wait for the full moon');");
@@ -1487,6 +1477,9 @@ test('transport boundaries keep a new item refusal in ordered dispatch visible [
   ], 'transport authentication is separate but a dispatcher item guard still belongs to the lifecycle');
 });
 
+test('same-file runner controller bridges retain child refusals in the lifecycle audit [M1,M4,C7]', () => {
+  assertRunnerControllerReachability({ codeProblems, codeWalk, editedSource, machine: machineRules.MACHINE });
+});
 
 test('Rigor historical data boundaries do not hide a new projection refusal [M1,M4]', () => {
   const broken = editedSource('rigor-counter-state.js', /export function rigorCounterKeys\(event, person\) \{/, "export function rigorCounterKeys(event, person) { if (event.event_kind === 'probe') throw new Refused('RIGOR_PROBE', 'new item eligibility rule');");

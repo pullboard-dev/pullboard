@@ -30,6 +30,17 @@ import {
   sayReviewOffer,
 } from '../next-say.js';
 
+/** Preview governing messages without acknowledging them or changing explicit watch audiences [B7,N2]. */
+function inboxReasons(ctx) {
+  return withBoardRead(ctx, board => {
+    const me = whoAmI(ctx, board);
+    const count = store.unreadCount(board, me.id);
+    if (!count) return [];
+    return [`${count} unread ${count === 1 ? 'message' : 'messages'}; read pullboard inbox`,
+      ...store.peekShouts(board, me.id, 2).map(shout => `${shout.shout_from} -> ${shout.shout_to}: ${shout.shout_text}`)];
+  });
+}
+
 /**
  * `pullboard next` (N2): the whole start of an agent's loop in one command. With --wait, it keeps
  * looking until something is free, so an agent blocked on other work needs no polling of its own.
@@ -63,6 +74,7 @@ export async function nextHere(io, values) {
       continue;
     }
     if (found.item) {
+      found.reasons = [...(found.reasons ?? []), ...inboxReasons(ctx)];
       if (found.offer) {
         for (const reason of found.reasons ?? []) io.say(reason);
         sayReviewOffer(ctx, found); return 0;
@@ -96,6 +108,7 @@ export async function nextHere(io, values) {
     }
     if (!found.retry && (found.laneWork || Date.now() >= deadline)) {
       if (values.verify) refuseWhileBuilding(ctx);
+      found.reasons = [...(found.reasons ?? []), ...inboxReasons(ctx)];
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
       const seat = withBoardRead(ctx, (board) => whoAmI(ctx, board));
       return refuseNextIdle(io, found.reasons, found.reasons.map((reason) => displayedWait(reason, agents, ctx.config)), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });

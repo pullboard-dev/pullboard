@@ -1,5 +1,6 @@
 import { itemReviewPolicy } from '../review-independence.js';
 import { twoTierReviews } from '../review-independence.js';
+import { prepareItemPatchReview } from '../item-patch-review.js';
 import { outsideVerdict } from '../outside-verify.js';
 /** The pullboard verify command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
@@ -144,6 +145,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     let check;
     let review;
     let unaffectedMove = '';
+    const companionDigest = store.itemPatchDigest(board, id);
     try {
       digest = freezer(ctx, { board })(item).digest;
     } catch (error) {
@@ -151,17 +153,18 @@ export async function verifyHere(ctx, id, { second, values }) {
     }
     if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
-      let checkedCommit = reReview ? head : commit;
+      // Patch inputs must be composed before browser/GUI classification reads their exact source.
+      let checkedCommit = companionDigest ? prepareItemPatchReview(root, board, item).commit : reReview ? head : commit;
       let checkedLabel = reReview ? 'reviewed composition' : 'submitted commit';
       const composeNow = () => composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack });
-      const admitted = composesAtAdmission(ctx.config) && Boolean(frozenCheck(item));
+      const admitted = companionDigest === null && composesAtAdmission(ctx.config) && Boolean(frozenCheck(item));
       let trunk = null;
       if (!admitted) ({ trunk, review } = composeNow());
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const checkedItem = { ...item, item_commit: checkedCommit };
         if (frozenCheck(item)) {
           const browser = !browserFreeChecksEnabled() || await checkNeedsBrowser(root, frozenCheck(item), { commit: checkedCommit, onFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson) });
-          const gui = await checkNeedsGui(root, frozenCheck(item));
+          const gui = await checkNeedsGui(root, frozenCheck(item), { commit: checkedCommit });
           // Exact command classifiers still govern local and remote private-check admission [C7,V4].
           const shortEligible = Boolean(await explicitCheckFiles(root, frozenCheck(item), { commit: checkedCommit }));
           check = await withGateSlot(root, async (lease) => { if (admitted && attempt === 0) ({ trunk, review } = composeNow()); const ran = await nativeFlakes.verify(ctx, checkedItem, frozenCheck(item), { board, main: trunk.commit, commit: checkedCommit }, { ordered, withBoard, resourceAgent })(lease); return ran.state === 'pass' ? { ...ran, guardNote: guardRevertNote(root, checkedItem, lease) } : ran; }, { browser, gui, remote: gateRunnersFirstEnabled(), agent: me.id, item: String(id), kind: 'review', itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, me.id, 'review') });
@@ -217,6 +220,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       policy: ctx.config.verify.policy,
       familyPolicy: ctx.config.verify.family,
       review,
+      ...(companionDigest ? { companionDigest } : {}),
       environment: check?.environment ?? null,
       ...(decision === 'ACCEPT' ? { check: check.checked ? 'green' : 'none' } : {}),
       ...(implies ? { implies } : {}),

@@ -1,3 +1,4 @@
+import { staleClaimRelease } from './stale-claim-release.js';
 /** Ordinary claim/review releases, including recorded coordinator gone-seat observations. */
 import { Refused } from './refused.js';
 import {
@@ -29,10 +30,11 @@ function goneRelease(board, item, actor, observation) {
 
 /** Apply the existing ordinary release transition with narrowly frozen maintenance authority. */
 export function releaseClaim(board, id, agentId, note, observation, dependencies) {
-  const { atomic, itemById, reviewHolder, reviewReleaseNoteProblem, setItem, moveItem, logEvent } = dependencies;
+  const { atomic, itemById, reviewHolder, reviewReleaseNoteProblem, setItem, moveItem, logEvent, insertShout } = dependencies;
   return atomic(board, () => {
     const item = itemById(board, id);
-    const gone = goneRelease(board, item, agentId, observation);
+    const stale = staleClaimRelease(board, item, agentId, note, observation);
+    const gone = stale ? null : goneRelease(board, item, agentId, observation);
     if (item.item_status === 'submitted') {
       if (reviewHolder(board, item) !== agentId) {
         throw new Refused('NOT_YOURS', `item #${id} review is not reserved by you; ask its current reviewer to release it, or take a free review with pullboard next --verify`);
@@ -52,12 +54,14 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
       checks: {
         joined: null,
         [IN_STATE]: () => new Refused('NOT_YOURS', `item #${id} is not claimed by you`),
-        releaseOwnsWork: (found) => (gone || found.item_owner === agentId || found.item_status === 'open' && window?.builder === agentId ? null : new Refused('NOT_YOURS', `item #${id} is not claimed by you`)),
+        releaseOwnsWork: (found) => (stale || gone || found.item_owner === agentId || found.item_status === 'open' && window?.builder === agentId ? null : new Refused('NOT_YOURS', `item #${id} is not claimed by you`)),
         reviewReleaseExplained: null, // Claimed releases do not free a submitted review.
       },
       set: () => ({ item_owner: null, item_lease_until: null }),
     });
-    logEvent(board, agentId, 'release', id, gone ? { goneSeat: gone, reason: `Released gone seat ${gone.seat}; last seen ${gone.lastSeen}.` } : undefined);
+    logEvent(board, agentId, 'release', id, stale ? { staleClaim: stale, reason: stale.reason } : gone ? { goneSeat: gone, reason: `Released gone seat ${gone.seat}; last seen ${gone.lastSeen}.` } : undefined);
+    if (stale) insertShout(board, { from: 'sentinel', to: stale.holder,
+      text: `Coordinator released your stale claim on #${id}: ${stale.reason.slice(0, 180)}. Last activity ${stale.lastActivity}.`, lanes: [], detail: { item: id } });
     return false;
   });
 }

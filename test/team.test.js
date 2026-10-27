@@ -36,6 +36,7 @@ import {
   test,
 } from 'node:test';
 import * as store from '../src/board.js';
+import { fixtureBoard } from './board-fixture.js';
 import {
   exportBoard,
   importBoard,
@@ -1141,12 +1142,11 @@ test('an agent session on a computer that does not hold the coordinator takes it
   assert.equal((await box.cli('add', box.lane, 'Planned again on the first computer')).document?.error?.code, 'COORDINATOR_HELD', 'the earlier holder is refused');
 });
 
-/** Simulate a long holder and a polling waiter with the real board clock and lease operation. */
+/** Simulate a long holder and polling waiter on an in-memory board with its injected clock. */
 test('a landing lease renewal or waiter poll writes no board event [Q1,Q2,Q3]', t => {
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-lease-events-'));
+  const directory = '/fixture/lease-events';
   let milliseconds = Date.parse('2026-01-01T00:00:00Z');
-  const board = store.openBoard(join(directory, 'board.sqlite'), { now: () => new Date(milliseconds) });
-  t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
+  const board = fixtureBoard(t, { clock: { now: () => new Date(milliseconds) } });
   store.register(board, { lane: 'coordinator', path: directory });
   const owner = { agentId: 'coordinator', token: randomUUID(), branch: 'refs/heads/main', pid: process.pid };
   const waiter = { ...owner, token: randomUUID() };

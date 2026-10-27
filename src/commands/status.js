@@ -1,3 +1,6 @@
+import { releaseBlockingItems } from '../stale-state-blockers.js';
+import { staleStateSnapshot } from '../stale-state-query.js';
+import { staleStateLine } from '../stale-state-policy.js';
 import { existsSync } from 'node:fs';
 import { relayMachineDirectory } from '../local-state.js';
 import { withBoardRead } from '../cli-board-read.js';
@@ -51,10 +54,16 @@ export async function run(io, { values }) {
     const agents = store.listAgents(board);
     const presenceCounts = { live: 0, idle: 0, gone: 0 };
     for (const seat of agents) presenceCounts[seat.presence] += 1;
+    const blockers = releaseBlockingItems(board);
+    const observedStaleState = staleStateSnapshot(board, ctx.config, { now: ctx.clock.now(), seats: agents, blocker: item => blockers.has(item.item_id) ? true : null });
+    const staleState = { ...observedStaleState,
+      holds: observedStaleState.holds.filter(entry => entry.pastHalf),
+      claims: observedStaleState.claims.filter(entry => entry.pastHalf),
+      reviews: observedStaleState.reviews.filter(entry => entry.pastHalf) };
     const approvalState = personNeedsSummary(ctx.info.root, { board, config: ctx.config, agents, doctrine: ctx.doctrine });
     const person = board.db.prepare("SELECT 1 FROM event WHERE event_kind='person_signing' LIMIT 1").get()
       ? { signed: (await import('../person-signing.js')).personSigning(board).signed } : { signed: false };
-    return { me, mine, person, agents, presenceCounts, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root) : unlinkedRelayStatus(),
+    return { me, mine, person, agents, presenceCounts, staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root) : unlinkedRelayStatus(),
       submitInvariantProposals: submitInvariantProposals(store.submitInvariantEvents(board, ctx.config), ctx.config) };
   });
   if (!summary.relay.linked && existsSync(relayMachineDirectory())) {
@@ -77,6 +86,11 @@ export async function run(io, { values }) {
   if (summary.specApprovalBaseline?.invalid) io.say('approval baseline unreadable: existing rows need approval evidence; restore a known-good board export to recover the original baseline');
   io.say(reviewQueueLine(ctx, summary.reviewQueue, span));
   io.say(signingLine(summary.person));
+  for (const entry of [...summary.staleState.holds, ...summary.staleState.claims, ...summary.staleState.reviews]) {
+    const incomplete = entry.evidence?.complete !== true;
+    const classification = entry.classificationUnknown ? '; blocker classification unknown; shown at shortest possible half-limit' : '';
+    io.say(`past half limit: ${staleStateLine(incomplete ? { ...entry, expired: false } : entry)}${incomplete ? '; inactivity unproven (evidence unknown)' : ''}${classification}`);
+  }
   for (const warning of summary.runnerUtilization.warnings) io.say(warning);
   io.say(`seats: ${summary.presenceCounts.live} live, ${summary.presenceCounts.idle} idle, ${summary.presenceCounts.gone} gone`);
   for (const seat of summary.agents.filter(seat => values.all || seat.presence !== 'gone')) io.say(`${seat.agent_id}: ${seat.presence}${seat.heartbeatAt ? ` (heartbeat ${seat.heartbeatAt})` : ' (no local heartbeat)'}`);

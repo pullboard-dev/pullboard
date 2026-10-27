@@ -50,14 +50,17 @@ export function flakesCommand(ctx, { first, second, rest }, withBoard, services 
   }
   if (first || second || rest.length) throw new Refused('USAGE', 'pullboard flakes lists observations; pullboard flakes rerun|quarantine on|off sets the coordinator’s opt-in policy; pullboard flakes import <folder> records downloaded CI results');
   return withBoard(ctx, board => {
-    const rows = flakeLedger(board);
+    const rows = flakeLedger(board, { root: ctx.info.root });
     const flakes = rows.filter(row => row.count > 0);
     const unclassified = rows.filter(row => row.count === 0 && row.classification === 'unclassified');
     const regressions = rows.filter(row => row.count === 0 && row.classification === 'possible-regression');
     const stable = rows.filter(row => row.count === 0 && row.classification === 'stable-red');
     const quarantined = flakeQuarantines(board).filter(entry => entry.status === 'quarantined');
     ctx.io.result?.({ flakes, unclassified, regressions, stable, quarantined });
-    for (const row of rows) ctx.io.say(`${row.status}: ${row.file ?? '(unclassified gate)'}${row.name ? ' :: ' + row.name : ''}; count ${row.count}; first ${row.firstSeen}; last ${row.lastSeen}${row.item ? '; repair #' + row.item : ''}`);
+    for (const row of rows) {
+      const repairs = row.repairs ?? (row.item ? [row.item] : []);
+      ctx.io.say(`${row.status}: ${row.file ?? '(unclassified gate)'}${row.name ? ' :: ' + row.name : ''}; count ${row.count}; first ${row.firstSeen}; last ${row.lastSeen}${repairs.length ? '; repair ' + repairs.map(id => '#' + id).join(', ') : ''}`);
+    }
     for (const entry of quarantined) ctx.io.say(`quarantined: ${entry.file} :: ${entry.name}; still runs and reports, does not block a landing until repair #${entry.item} is verified`);
     if (!rows.length && !quarantined.length) ctx.io.say('no recorded test failures; paired diagnostics are off unless this board opts in with pullboard flakes rerun on');
     return 0;

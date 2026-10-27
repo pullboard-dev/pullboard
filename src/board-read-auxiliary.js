@@ -5,9 +5,8 @@ import {
   events,
   itemThread,
   listItems,
-  UNREAD_SQL,
 } from './board-query.js';
-import { unreadShoutBindings } from './shout-audience.js';
+import { workerInboxQuery } from './worker-inbox.js';
 
 /**
  * One shout by its id.
@@ -61,9 +60,10 @@ export function openRequests(board) {
 export function peekShouts(board, agentId, limit = 2) {
   const agent = board.db.prepare('SELECT * FROM agent WHERE agent_id = ?').get(agentId);
   if (!agent) return [];
+  const query = workerInboxQuery(board, agent);
   return board.db
-    .prepare(`SELECT * ${UNREAD_SQL} ORDER BY shout_id DESC LIMIT ?`)
-    .all(...unreadShoutBindings(agent.agent_last_shout_id, agentId, agent.agent_lane), limit)
+    .prepare(`${query.sql} ORDER BY shout_id DESC LIMIT ?`)
+    .all(...query.bindings, limit)
     .reverse();
 }
 

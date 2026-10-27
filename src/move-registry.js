@@ -6,6 +6,7 @@
  * would make recovery text load board writers and could cycle through this discovered registry.
  * Historical order and first-matching engine conditions belong to each leaf, not this loader.
  */
+import { conditionalHoldFloor } from './stale-state-floor.js';
 import { readdirSync } from 'node:fs';
 import {
   MOVE_CANDIDATE,
@@ -68,7 +69,7 @@ export function minimumMoveEngine(operation, args, board, at) {
   if (!Object.hasOwn(MOVE_REGISTRY, operation)) throw new Error(`unknown move ${operation}; declare its own module before using it`);
   const value = MOVE_REGISTRY[operation].minimumEngine(args, board, at);
   if (!Number.isSafeInteger(value) || value < 1) throw new Error(`${operation} returned an invalid engine floor`);
-  return value;
+  return Math.max(value, conditionalHoldFloor(board));
 }
 
 /** Unknown operations and missing argument arrays retain the original null actor. */

@@ -75,6 +75,7 @@ export async function routeJourneyOrigins(chrome, site, view, slow = null, pause
   const failures = [];
   const orphaned = [];
   const retired = [];
+  const failedLoads = new Map();
   const commits = [];
   const tasks = [];
   let navigatedAt = -Infinity;
@@ -84,6 +85,10 @@ export async function routeJourneyOrigins(chrome, site, view, slow = null, pause
   const session = { planted: null };
   const listener = ({ data }) => {
     const message = JSON.parse(String(data));
+    if (message.method === 'Network.loadingFailed') {
+      failedLoads.set(message.params.requestId, { canceled: message.params.canceled === true, errorText: message.params.errorText });
+      return;
+    }
     // A main-frame commit after the harness navigated replaces the document whose paused reads Chrome then retires.
     if (message.method === 'Page.frameNavigated' && !message.params.frame?.parentId && awaitingCommit) {
       awaitingCommit = false;
@@ -139,7 +144,8 @@ export async function routeJourneyOrigins(chrome, site, view, slow = null, pause
       const since = Number.isFinite(navigatedAt) ? Math.round(pausedAt - navigatedAt) + ' ms after the last navigation' : 'before any navigation';
       const failure = `${error.message} (${message.params.request.method} ${kind}, ${message.params.resourceType}, paused ${since})`;
       // A retired interception is judged at stop, once every document commit is known: the commit can arrive after the error.
-      if (/Invalid InterceptionId/u.test(error.message)) retired.push({ url: message.params.request.url, pausedAt, kind, failure });
+      if (/Invalid InterceptionId/u.test(error.message)) retired.push({ url: message.params.request.url, pausedAt, kind, failure,
+        networkId: message.params.networkId ?? null, method: message.params.request.method });
       else failures.push(failure);
       try { await chrome.send('Fetch.failRequest', { requestId: message.params.requestId, errorReason: 'Failed' }); } catch { /* Chrome may already have closed. */ }
     }));
@@ -158,7 +164,9 @@ export async function routeJourneyOrigins(chrome, site, view, slow = null, pause
       if (journeyNavigationOrphan(entry.url, entry.pausedAt, commits)) orphaned.push(entry.kind);
       else failures.push(entry.failure);
     }
-    assert.deepEqual(failures, [], `owned hosted and loopback HTTP routes finish without cancelling event streams (orphaned by navigation: ${JSON.stringify(orphaned)})`);
+    const reported = retired.map(({ kind, method, networkId }) => ({ kind, method, networkId,
+      loadingFailed: failedLoads.get(networkId) ?? null }));
+    assert.deepEqual(failures, [], `owned hosted and loopback HTTP routes finish without cancelling event streams (orphaned by navigation: ${JSON.stringify(orphaned)}; reported network failures: ${JSON.stringify(reported)})`);
   };
   /** Navigate the page, marking the moment so requests already paused for the old document are known as orphaned. */
   /** Record the session cookie the journey planted, as name=value, for forwarding after a jar reset (#902). */

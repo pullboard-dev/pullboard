@@ -137,6 +137,10 @@ Work
                                         reads the board and changes nothing; exits 1 when something is stuck
                                         pullboard.json health.stuck (default 1h), health.holds (1d), health.release (1d)
   pullboard skills --update            refresh unchanged Claude Code skills from shipped versions
+  pullboard patch attach <item> <file> --key <key> --author <seat> [--source <submittedSHA>]
+                                        coordinator: bind a companion patch to the exact submitted source
+  pullboard patch list <item>            read its ordered native patches and patch-set digest
+  pullboard patch remove <item> <key>    coordinator: stop applying a patch; retain its author history
   pullboard companion <parent> <lane> "<title>" --key <key> [--criterion "<criterion>"] [--specs <ids>]
                                         create one child in another lane; repeat the same parent, lane and key to find it
                                         --brief "<brief>"; --route strong|mid|light; only the coordinator sets --check "<command>"
@@ -169,7 +173,7 @@ Work
                                         coverage rows retain whole-file observations; slow files require named checks and explicit landing coverage
   pullboard bar <id>                    show missing prerequisites and the current revision
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
-  pullboard release <id> [--note "why"]  hand it back; a review release needs a one-line reason
+  pullboard release <id> [--stale --note "why"]  hand it back; coordinator --stale requires measured inactivity and a note
   pullboard submit <id>                 needs a clean tree, item check and affected tests green at HEAD (alias: done)
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show
   pullboard verify <id> accept --note "what you broke or which edge you tried, and what happened"
@@ -236,7 +240,7 @@ Coordinator
   pullboard reopen <id> --conflict <file> [--conflict <file>]
                                         return accepted work that conflicts with the trunk for a main merge
   pullboard hold <lane> --reason "..."   pause a lane: next there claims nothing and names the reason
-  pullboard hold <id> "reason"          hold one item so next skips it
+  pullboard hold <id> "reason" [--until verified|landed]  hold until the next named event on this item
   pullboard hold <lane|id> --off        lift a lane or item hold
 
 Receipts
@@ -366,6 +370,7 @@ const HELP_EXAMPLES = {
   tour: 'pullboard tour', init: 'pullboard init --blueprint web-app', worktree: 'pullboard worktree web --model "my-model"',
   join: 'pullboard join web --model "my-model"', resume: 'pullboard resume',
   intake: 'pullboard intake https://github.com/owner/repo/pull/7 --criterion "behavior" --check "npm test"',
+  patch: 'pullboard patch list 12',
   companion: 'pullboard companion 12 api "Provide the API" --key api-part',
   add: ADD_EXAMPLE, move: 'pullboard move ~web#3 --to web', list: 'pullboard list web', show: 'pullboard show 12',
   claim: 'pullboard claim 12', submit: 'pullboard submit 12', 'next --verify': 'pullboard next --verify',
