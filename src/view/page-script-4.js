@@ -750,7 +750,7 @@ function switchTo(root, target = null, record = true) {
   const requestedItem = typeof item === 'number' ? item : item ? Number(item[1]) : null;
   view.item = requestedItem;
   view.adding = false;
-  if (record) { view.tab = view.item !== null ? 'items' : 'dashboard'; keep('pb.tab', view.tab); }
+  if (record && view.item !== null) { view.tab = 'items'; keep('pb.tab', view.tab); }
   keep('pb.project', root);
   if (record) { view.addressDetail = requestedItem === null ? null : String(requestedItem); view.shout = null; address(); }
   fold(false);

@@ -152,6 +152,7 @@ test('real Chrome retains reduced motion and jumps both detail panes without ani
       Element.prototype.scrollIntoView = function(options) { window.__detailScrolls.push({id:this.id,behavior:options?.behavior}); return original.call(this, options); };
     })()`);
     assert.deepEqual(await chrome.stable(`(() => {const style=getComputedStyle(document.querySelector('#motion-proof'));return [style.transitionDuration,style.animationName,style.scrollBehavior];})()`), ['0s', 'none', 'auto'], 'reduced motion disables transitions, animations and CSS smooth scrolling');
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await press(chrome, "document.querySelector('#chain .row')");
     await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Jump to this detail')");
     await press(chrome, "document.querySelector('[data-tab=spec]')");
