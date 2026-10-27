@@ -1,6 +1,8 @@
 /** Real Git ranges and native gate receipts for receipt-based pre-push decisions [C7]. */
 import assert from 'node:assert/strict';
+import { configFromSource } from '../src/config.js';
 import {
+  cpSync,
   mkdirSync,
   readFileSync,
   writeFileSync,
@@ -111,4 +113,78 @@ test('push evidence refuses missing landings and unfiled newest audit failures w
   assert.match(pushReceiptProblems(box.repo, { ...input, audits: [{ receiptId: unparsedAudit.id }] }).join('\n'), /red without identified failures/u);
   assert.match(pushReceiptProblems(box.repo, { ...input, landingCommand: 'another gate' }).join('\n'), /lacks its exact green landing receipt/u);
   assert.equal(readFileSync(join(receiptStore(box.repo), `${landing.id}.json`), 'utf8'), receiptBytes, 'read-only evaluation cannot create a replacement green stamp');
+});
+
+/** Invoke the real additive smoke helper using the fixture's accepted policy and ordinary inherited admission. */
+function nativeSmoke(box) {
+  const module = new URL('../src/push-receipt-smoke.js', import.meta.url).href;
+  const source = `import {runPushReceiptSmoke} from ${JSON.stringify(module)};
+try { const run=await runPushReceiptSmoke(process.cwd(),{agent:'coordinator'});
+console.log(JSON.stringify({green:run.isGreen,policy:run.policyCommit,output:run.output})); }
+catch(error) { console.log(JSON.stringify({code:error.code,message:error.message})); process.exitCode=1; }`;
+  return runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
+    cwd: box.repo, env: box.env, encoding: 'utf8',
+  });
+}
+
+test('additive push smoke uses accepted policy, refuses missing configuration, and never invokes the full gate [C7]', () => {
+  const box = e2e.project('node -e "require(\'node:fs\').writeFileSync(\'full-gate-ran\',\'ran\')"', undefined, { withWorktree: false });
+  const absent = nativeSmoke(box);
+  assert.equal(absent.status, 1, `${absent.stdout}${absent.stderr}`);
+  assert.equal(JSON.parse(absent.stdout.trim().split('\n').at(-1)).code, 'NO_PUSH_SMOKE');
+  const file = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(file, 'utf8'));
+  config.pushReceiptCheck = { smoke: 'node -e "require(\'node:fs\').writeFileSync(\'smoke-ran\',\'ran\')"' };
+  writeFileSync(file, JSON.stringify(config));
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: configure additive smoke');
+  const accepted = box.git(box.repo, 'rev-parse', 'HEAD').trim();
+  // Uncommitted candidate policy cannot replace the accepted smoke with the full gate command.
+  writeFileSync(file, JSON.stringify({ ...config, pushReceiptCheck: { smoke: config.gate } }));
+  const ran = nativeSmoke(box);
+  assert.equal(ran.status, 0, `${ran.stdout}${ran.stderr}`);
+  assert.deepEqual(JSON.parse(ran.stdout.trim().split('\n').at(-1)).policy, accepted);
+  assert.equal(readFileSync(join(box.repo, 'smoke-ran'), 'utf8'), 'ran');
+  assert.equal(box.git(box.repo, 'status', '--porcelain').includes('full-gate-ran'), false);
+});
+
+
+test('additive smoke config is retained and validated without activating the replacement hook [C7]', () => {
+  const command = 'node test/smoke.js';
+  assert.deepEqual(configFromSource(JSON.stringify({ pushReceiptCheck: { smoke: command } })).pushReceiptCheck, { smoke: command });
+  assert.equal(configFromSource('{}').pushReceiptCheck, undefined);
+  for (const value of [null, [], {}, { smoke: '' }, { smoke: false }, { smoke: command, enabled: true }]) {
+    assert.throws(() => configFromSource(JSON.stringify({ pushReceiptCheck: value })), { code: 'BAD_CONFIG' });
+  }
+});
+
+
+test('native push adapter checks real ordered receipts and exact open audit repairs [C7]', { timeout: 120_000 }, () => {
+  const box = e2e.project('node bin/run-tests.js', undefined, { withWorktree: false });
+  for (const name of ['src', 'bin', 'package.json']) {
+    cpSync(new URL('../' + name, import.meta.url), join(box.repo, name), { recursive: true });
+  }
+  mkdirSync(join(box.repo, 'web'), { recursive: true });
+  writeFileSync(join(box.repo, 'web/audit.test.js'), [
+    "import {test} from 'node:test'; import assert from 'node:assert/strict';",
+    "test('native push audit [C7]',()=>assert.notEqual(process.env.PULLBOARD_FIXTURE_AUDIT_RED,'1'));",
+  ].join('\n'));
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: install real native push component fixture');
+  const module = new URL('./push-native-evidence-fixture.js', import.meta.url).href;
+  const source = `import {assertNativePushEvidence} from ${JSON.stringify(module)}; await assertNativePushEvidence(process.cwd()); console.log('native push component controls reached');`;
+  const ran = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
+    cwd: box.repo, env: box.env, encoding: 'utf8',
+  });
+  assert.equal(ran.status, 0, ran.failure ?? `${ran.stdout}${ran.stderr}`);
+  assert.match(ran.stdout, /native push component controls reached/u);
+});
+
+test('additive native CLI refuses malformed actual pre-push stdin before smoke [C7]', () => {
+  const box = e2e.project('true', undefined, { withWorktree: false });
+  const ran = runFixtureChild(process.execPath, [new URL('../bin/pullboard.js', import.meta.url).pathname, 'push-receipts', '--json'], {
+    cwd: box.repo, env: box.env, input: 'malformed pre-push record\n', encoding: 'utf8',
+  });
+  assert.equal(ran.status, 1, `${ran.stdout}${ran.stderr}`);
+  assert.match(`${ran.stdout}${ran.stderr}`, /PUSH_RECEIPT_RANGE/u);
 });

@@ -6481,6 +6481,9 @@
     }
   ],
   "nextSteps": {
+    "NO_PUSH_SMOKE": "record an explicit short pushReceiptCheck.smoke command in accepted pullboard.json, then retry the additive receipt check",
+    "PUSH_SOURCE_CHANGED": "commit or restore the intended push source and accepted policy, then check the push again",
+    "PUSH_RECEIPT_RANGE": "restore complete local and remote commit history, then retry the push receipt check",
     "BAD_DECISION_OPTIONS": "ask an item decision with --decision --item <id> --options '[\"first\",\"second\"]'",
     "NOT_YOUR_ITEM_DECISION": "ask on an item you build or review, or ask the coordinator for a cross-item decision",
     "BAD_VERDICT_WITHDRAW": "use --withdraw-verdict with a note, or report a conflict separately",
