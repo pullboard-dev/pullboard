@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
@@ -584,3 +585,49 @@ test('interrupt receipts replay once and only their recipient can acknowledge de
   store.actOnActivity(left, { agentId: 'web-1', ids: [interrupt.id] });
   assert.deepEqual(exportBoard(left), beforeRetry, 'a new local retry cannot redeliver or re-acknowledge the same source event');
 });
+
+test('pullboard inbox answers in under a second on a 40,000-shout backlog and matches the inbox API [B26,C7]', () => {
+  const box = e2e.project();
+  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  let seat;
+  try {
+    const coordinator = store.register(board, { lane: 'coordinator', path: box.repo });
+    seat = store.register(board, { lane: 'web', path: box.web });
+    const items = Array.from({ length: 300 }, (_, index) => store.addItem(board, { by: 'coordinator', lane: 'web', title: `Backlog item ${index}`, criterion: 'The item is read.' }));
+    const other = store.register(board, { lane: 'web', path: join(box.dir, 'web-other') });
+    // Most of the backlog is someone else's: other seats and items this seat does not read. It stays on the board
+    // for every read to scan, while this seat's directed shouts are the few it is owed (1 in 500).
+    const seedBacklog = (from, to) => {
+      for (let index = from; index < to; index += 1) {
+        const item = index % 2 === 0 ? items[index % items.length] : undefined;
+        const direct = index % 500 === 1;
+        store.shout(board, { from: coordinator, to: direct ? seat : item === undefined ? other : `item:${item}`, item, text: `backlog shout ${index}`, lanes: ['web'] });
+      }
+    };
+    seedBacklog(0, 40_000);
+    const first = timedInbox(box, board, seat);
+    assert.ok(first.shoutIds.length >= 60 && first.shoutIds.length <= 100, `only the directed backlog is delivered: ${first.shoutIds.length}`);
+    assert.ok(first.ms < 1000, `pullboard inbox took ${first.ms.toFixed(0)}ms on a 40,000-shout backlog`);
+    // Seat history: its cursors are now set, and each later poll reads only what arrived since.
+    seedBacklog(40_000, 42_000);
+    const later = timedInbox(box, board, seat);
+    assert.ok(later.shoutIds.length >= 3 && later.shoutIds.length <= 6, `only the new directed shouts are delivered: ${later.shoutIds.length}`);
+    assert.ok(later.ms < 1000, `a later pullboard inbox took ${later.ms.toFixed(0)}ms`);
+  } finally {
+    store.closeBoard(board);
+  }
+});
+
+/** Run the real CLI from the seat's checkout, and read the same shouts through the store API before it runs. */
+function timedInbox(box, board, seat) {
+  const expected = store.inbox(board, seat, { markRead: false }).map(shout => shout.shout_id);
+  const started = process.hrtime.bigint();
+  // A first poll of a long backlog prints every shout, so the buffer is sized for the whole answer.
+  const result = spawnSync(process.execPath, [join(import.meta.dirname, '..', 'bin', 'pullboard.js'), 'inbox', '--json'],
+    { cwd: box.web, env: box.env, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  const ms = Number(process.hrtime.bigint() - started) / 1e6;
+  assert.equal(result.status, 0, result.error?.message ?? result.stderr);
+  const shoutIds = JSON.parse(result.stdout).shouts.map(shout => shout.shout_id);
+  assert.deepEqual(shoutIds, expected, 'the CLI delivers the same shouts as the inbox API');
+  return { shoutIds, ms };
+}
