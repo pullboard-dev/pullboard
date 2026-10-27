@@ -10,7 +10,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { indexedStageSelection, readPlacementIndex, readPlacementReport, writePlacementIndex } from '../src/test-economics-index.js';
 import { mainAuditFixture } from './main-audit-project.js';
 import { runFixtureGit } from './fixture-child.js';
-import { paidTests, placementLandingGate, VALUE_GATE, valueGateCommand } from '../src/test-placement.js';
+import { paidTests, placementLandingGate, placementSubmitSelection, VALUE_GATE, valueGateCommand } from '../src/test-placement.js';
 import { packageBranchCoverage } from '../src/audit-coverage.js';
 import {
   auditFailureItem,
@@ -144,7 +144,11 @@ test('production landing projection leaves CLI journeys for audit and preserves 
   t.after(helpers.cleanup);
   const box = helpers.project('true', undefined, { withWorktree: false });
   const report = inventory();
+  const uncertain = { full: true, reason: 'undeclared reach', files: [] };
+  assert.equal(placementSubmitSelection(box.repo, uncertain), uncertain, 'missing inventory preserves the original full-gate fallback');
   writePlacementIndex(box.repo, report);
+  assert.deepEqual(placementSubmitSelection(box.repo, uncertain), { ...uncertain, full: false, files: [], reason: 'unknown reach deferred to audit: undeclared reach' });
+  assert.deepEqual(placementSubmitSelection(box.repo, { full: false, files: report.files.map(row => row.file) }).files, ['test/unit.test.js']);
   const selected = placementLandingGate(box.repo, { gate: 'node bin/static.js && node bin/run-tests.js' },
     { full: false, files: report.files.map(row => row.file) }, ['test/mandatory.test.js']);
   assert.match(selected.gate, /^node bin\/static.js &&/u);

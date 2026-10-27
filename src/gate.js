@@ -15,7 +15,7 @@ import {
   retainTestValueTimings,
 } from './test-value-timing.js';
 import {
-  paidTests,
+  placementSubmitSelection,
   VALUE_GATE,
   valueGateCommand,
 } from './test-placement.js';
@@ -801,12 +801,8 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   if (!config.gate.trim()) throw missingGate(root);
   await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback });
   const selection = config.affectedTests
-    ? selectAffectedTests(root, { base, trunk, changed })
+    ? placementSubmitSelection(root, selectAffectedTests(root, { base, trunk, changed }), changed ?? [])
     : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] };
-  if (!selection.full) {
-    const paid = paidTests(root, selection.files, 'submit', changed ?? []);
-    if (paid !== null) selection.files = paid;
-  }
   const deferred = config.submitGate === 'landing';
   const deferFullFallback = deferred && selection.full;
   // A selection over submitDeferAbove files moves to the landing gate, which runs every recorded file before the item lands.

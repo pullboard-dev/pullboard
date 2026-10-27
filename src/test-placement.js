@@ -29,6 +29,13 @@ export function paidTests(root, files, stage, changed = []) {
   return indexedStageSelection(root, files, stage, changed);
 }
 
+/** Published unknown reach belongs to audit; absent inventory retains the original full-gate safety fallback. */
+export function placementSubmitSelection(root, selection, changed = []) {
+  const paid = paidTests(root, selection.full ? [] : selection.files, 'submit', changed);
+  return paid === null ? selection : { ...selection, full: false, files: paid,
+    reason: selection.full ? `unknown reach deferred to audit: ${selection.reason}` : selection.reason };
+}
+
 /**
  * Replace recognized whole Node test stages, preserving all other configured commands and operators.
  * Opaque shell, filtered test commands and recursive npm scripts retain the original full gate.
