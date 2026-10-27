@@ -1270,7 +1270,6 @@ test('blueprint save reads back a question with three or more choices [S1]', () 
     'each question round-trips to its exact row text');
 });
 
-
 /** Hash the fields the person's blueprint-fit reading binds, without importing the feature under test. */
 function fitDigest(proposal) {
   const { id, blueprint, kind, key, target, source, current, decision, text, reason, by } = proposal;

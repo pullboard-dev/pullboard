@@ -50,14 +50,14 @@ function affectedItems(items, rows) {
     .sort((left, right) => left.item_id - right.item_id);
 }
 
-/** Refuse a cited-row decline before spec apply writes the row or its sign-off receipt. */
+/** Protect an approved cited promise; unapproved blueprint drafts may still be declined by the person. */
 export function assertNoCitedSpecDecline(records, items) {
   const active = items.filter(item => item.item_status !== 'withdrawn' && !item.item_merged_commit);
   for (const record of records) {
     if (record.kind !== 'spec' || record.decision !== 'decline') continue;
     const before = parseSpec(`## Decision\n${record.source}\n`).rows[0];
     const after = parseSpec(`## Decision\n${record.replacement}\n`).rows[0];
-    if (!before || !after || before.id !== record.id || after.id !== record.id) continue;
+    if (!before || !after || before.id !== record.id || after.id !== record.id || before.status !== 'approved') continue;
     if (active.some(item => (item.item_spec_ids ?? '').split(',').includes(record.id))) {
       throw new Refused('ROW_DECISION', `${record.id} is cited by unmerged work; approve a replacement or withdraw the citing items before declining it`);
     }
