@@ -78,6 +78,8 @@ test('a moved or duplicated engine leaf is refused while fixture strings and imp
   writeFileSync(join(root, 'packages', 'sample', 'src', 'numbers.js'), 'const SAMPLE_ENGINE = 17; export { SAMPLE_ENGINE };\n');
   assert.equal(engineFolderProblems(root)[0].file, 'packages/sample/src/numbers.js', 'renaming the leaf and separating its export cannot hide the moved marker');
   assert.match(engineFolderProblems(root)[0].text, /SAMPLE_ENGINE must stay in src\//u);
+  writeFileSync(join(root, 'packages', 'sample', 'src', 'numbers.js'), 'const value = 17; export { value as SAMPLE_ENGINE };\n');
+  assert.match(engineFolderProblems(root)[0].text, /SAMPLE_ENGINE must stay in src\//u, 'an exported marker alias cannot hide a relocated engine');
   assert.deepEqual(engineFolderViolations([{ file: 'packages/sample/tests/fixture.js',
     source: "// export const COMMENT_ENGINE = 1;\nconst fixture = 'export const STRING_ENGINE = 2;';\nexport { SAMPLE_ENGINE } from '../../../src/sample-engine.js';\n" }]), []);
   assert.equal(engineFolderViolations([{ file: 'apps/cli/number.js', source: 'export const HIDDEN_ENGINE = 17;' }]).length, 1);
@@ -91,7 +93,7 @@ test('a moved or duplicated engine leaf is refused while fixture strings and imp
       'SAMPLE_ENGINE must stay in src/ with the engine leaves; move the feature without its engine declaration');
   }
   assert.deepEqual(engineFolderViolations([{ file: 'packages/sample/src/consumer.js', source:
-    "import { SAMPLE_ENGINE } from '../../../src/sample-engine.js'; export { SAMPLE_ENGINE };\nconst value = SAMPLE_ENGINE, other = { SAMPLE_ENGINE };\nconst { value: alias = SAMPLE_ENGINE, SAMPLE_ENGINE: local } = source;\n" }]), []);
+    "import { SAMPLE_ENGINE } from '../../../src/sample-engine.js'; export { SAMPLE_ENGINE } from '../../../src/sample-engine.js';\nconst value = SAMPLE_ENGINE, other = { SAMPLE_ENGINE };\nconst { value: alias = SAMPLE_ENGINE, SAMPLE_ENGINE: local } = source;\n" }]), []);
 });
 
 test('an unassigned engine keeps its placeholder outside a moved package until landing [C7]', t => {

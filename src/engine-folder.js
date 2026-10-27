@@ -66,6 +66,15 @@ export function engineFolderViolations(sources) {
     if (/^src\/[^/]+\.[cm]?js$/u.test(file)) continue;
     const code = lex(source).code;
     const declarations = engineBindings(code);
+    const declared = new Set(declarations.map(match => match[0]));
+    for (const list of code.matchAll(/\bexport\s*\{([^}]*)\}(?!\s*from\b)/gu)) {
+      for (const entry of list[1].split(',')) {
+        const exported = /(?:^|\bas\s+)([A-Z][A-Z0-9_]*_ENGINE)\s*$/u.exec(entry.trim());
+        if (!exported || declared.has(exported[1])) continue;
+        declarations.push({ 0: exported[1], index: list.index });
+        declared.add(exported[1]);
+      }
+    }
     if (declarations.length) {
       for (const match of declarations) problems.push({ file, line: code.slice(0, match.index).split('\n').length,
         text: `${match[0]} must stay in src/ with the engine leaves; move the feature without its engine declaration` });
