@@ -1,3 +1,4 @@
+/** @pullboard-test-input skills/pullboard-decompose/SKILL.md skills/pullboard-plan/SKILL.md skills/pullboard-run/SKILL.md skills/pullboard-signoff/SKILL.md skills/pullboard-spec-review/SKILL.md skills/pullboard-triage/SKILL.md skills/pullboard-verify/SKILL.md test/fixtures/skills-0.8.1/pullboard-decompose/SKILL.md test/fixtures/skills-0.8.1/pullboard-plan/SKILL.md test/fixtures/skills-0.8.1/pullboard-spec-review/SKILL.md test/fixtures/skills-0.8.1/pullboard-verify/SKILL.md */
 /** Shipped Claude skills can be diagnosed and refreshed without overwriting local edits [I2]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
