@@ -133,6 +133,12 @@ assert.equal(verifyNativeReleaseReceipt(root,'not-a-native-id'),null);
 const expected={head:receipt.participation.head,tree:receipt.participation.tree,command:receipt.participation.command,required:receipt.participation.required};
 const original=readFileSync(run.file,'utf8');
 assert.equal(original,releaseReceiptBody(receipt,expected));
+const substituted=structuredClone(receipt);substituted.participation.shards[0].command='0'.repeat(64);
+const substitutedBytes=releaseReceiptBody(substituted,expected);
+assert.ok(substitutedBytes,'the custody negative preserves valid structural fields');
+writeFileSync(run.file,substitutedBytes);
+try { assert.equal(verifyNativeReleaseReceipt(root,id)===null,true,'a valid shard-command substitution cannot inherit native custody'); }
+finally { writeFileSync(run.file,original); }
 const forged=structuredClone(receipt);forged.participation.shards[0].files=['test/not-planned.test.js'];
 writeFileSync(run.file,JSON.stringify(forged)+'\\n');
 assert.equal(verifyNativeReleaseReceipt(root,id),null,'tampering a private envelope cannot create native custody');
