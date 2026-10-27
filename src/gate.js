@@ -104,6 +104,9 @@ import {
   Refused,
 } from './refused.js';
 import {
+  probeRunnerTransport,
+} from './runner-transport.js';
+import {
   missingGate,
 } from './gate-config.js';
 import {
@@ -616,6 +619,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     onWait,
   });
   tracker.mark('admittedAt');
+  let healthyTransportRetry = false;
   try {
     while (true) {
       lease.source = source;
@@ -626,10 +630,28 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         // A cleanup the runner could not verify is the runner's failure, not the run's: rerun it locally (#1063).
         const cleanup = error instanceof Refused && error.code === 'RUNNER_CLEANUP_TIMEOUT';
         if (!(error instanceof RunnerDropped || cleanup) || !lease.runner || !lease.requeueRunner) throw error;
-        const runnerUnavailable = { host: lease.runner.host, reason: cleanup ? error.message : 'transport lost before a complete result', until: 'the host is checked and re-registered' };
+        // A separate Node process cannot prove that a worker which missed READY can accept a job.
+        const admissionDeadline = !cleanup && (error.diagnostic?.reason === 'admission-deadline'
+          || error.diagnostic?.phase !== 'ready' && Number.isSafeInteger(lease.runnerWaitDeadline) && Date.now() >= lease.runnerWaitDeadline);
+        const health = cleanup || admissionDeadline ? null : await probeRunnerTransport(lease.runner);
+        const diagnostic = { ...(error.diagnostic ?? { reason: error.name }), confirmingProbe: health };
+        // A persistent receipt/capsule failure must surface; rotating through healthy hosts cannot repair it.
+        if (health?.healthy && healthyTransportRetry) {
+          const refused = new Refused('RUNNER_RESULT_INVALID', `runner ${lease.runner.host} answers SSH and Node but a second attempt lacks a valid completion (${diagnostic.reason}); inspect the retained transport diagnostic before retrying`);
+          refused.runnerDiagnostic = diagnostic;
+          throw refused;
+        }
+        if (health?.healthy) healthyTransportRetry = true;
+        const runnerUnavailable = { host: lease.runner.host,
+          reason: cleanup ? error.message : admissionDeadline ? 'worker did not become ready before its admission deadline'
+            : health.healthy ? 'transient failure; confirming SSH and Node observation succeeded' : 'failed call and confirming transport observation failed',
+          diagnostic, until: cleanup ? 'cleanup is verified and the host is re-registered'
+            : admissionDeadline ? 'worker readiness is checked and the host is re-registered'
+              : health.healthy ? 'the original ticket is readmitted' : 'the next successful automatic health observation' };
         if (onWait) await onWait({ holders: [], line: [], position: 0, runnerUnavailable });
         else process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; ${cleanup && !runnerOnly ? 'rerunning it locally' : 'requeueing the run'}\n`);
-        lease = await lease.requeueRunner(cleanup ? 'cleanup-unverified' : 'transport-lost', { local: cleanup && !runnerOnly });
+        lease = await lease.requeueRunner(cleanup ? 'cleanup-unverified' : admissionDeadline ? 'worker-unresponsive' : 'transport-lost', {
+          local: cleanup && !runnerOnly, quarantine: !health?.healthy, diagnostic });
       }
     }
   } finally {
