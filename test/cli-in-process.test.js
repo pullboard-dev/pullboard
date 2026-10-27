@@ -6,6 +6,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
+import { createE2eHelpers } from './e2e-helpers.js';
+import * as store from '../src/board.js';
 import { captureCommandInProcess, runCliInProcess } from './cli-in-process-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 
@@ -99,4 +101,36 @@ test('in-process dispatch retains the production person-channel refusal [H2,B26,
   });
   assert.equal(result.status, 1);
   assert.equal(JSON.parse(result.stdout).error.code, 'B26_PERSON_CHANNEL');
+});
+
+
+test('in-process writes use the private board and fresh reads match the binary [C7,A1,B1,B3]', async t => {
+  const fixtures = createE2eHelpers();
+  t.after(fixtures.cleanup);
+  const box = fixtures.project('true', undefined, { withWorktree: false });
+  const argv = ['add', 'web', 'Created without a CLI child', '--specs', 'G1', '--criterion', 'The handler writes the native item.', '--json'];
+  const created = await runCliInProcess(argv, { cwd: box.repo, env: box.env });
+  assert.equal(created.status, 0, created.stderr || created.stdout);
+  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    const item = store.getItem(board, 1);
+    assert.equal(item.item_title, 'Created without a CLI child');
+    assert.equal(item.item_created_by, 'coordinator');
+    assert.equal(store.events(board, { itemId: 1 }).filter(event => event.event_kind === 'add').length, 1);
+  } finally { store.closeBoard(board); }
+  // Stable read output has no relative ages or fresh UUIDs: compare every byte, not selected fields.
+  const read = ['lanes', '--json'];
+  const direct = await runCliInProcess(read, { cwd: box.repo, env: box.env });
+  const binary = box.run(box.repo, ...read);
+  assert.equal(direct.status, binary.code);
+  assert.equal(direct.stdout, binary.out);
+  assert.equal(direct.stderr, binary.err);
+  const identity = await runCliInProcess(['whoami', '--json'], { cwd: box.repo, env: box.env });
+  assert.equal(identity.status, 0, identity.stderr);
+  assert.equal(JSON.parse(identity.stdout).lane, 'coordinator');
+  assert.equal(JSON.parse(identity.stdout).path, box.repo);
+  const other = fixtures.project('true', undefined, { withWorktree: false });
+  const empty = await runCliInProcess(['list', '--all', '--json'], { cwd: other.repo, env: other.env });
+  assert.equal(empty.status, 0, empty.stderr);
+  assert.equal(JSON.parse(empty.stdout).items.length, 0, 'a fresh command scope does not reuse the previous board');
 });
