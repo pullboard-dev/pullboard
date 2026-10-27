@@ -4,7 +4,10 @@ import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { openBoardReadOnly } from './board-read-open.js';
-import { boardId, listItems } from './board-query.js';
+import {
+  boardId,
+  listItems,
+} from './board-query.js';
 import { milestones } from './board-read-auxiliary.js';
 import {
   cleanGitEnvironment,
