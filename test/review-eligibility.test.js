@@ -256,7 +256,7 @@ test('ordered activation protects legacy family items and preserves genuine engi
   const first = applyEngineMove(f.board, old, { sequence: 1, at: '2026-10-27T00:01:00.000Z' });
   assert.equal(first.error, undefined, 'real historical 142 reservation is accepted before activation');
   const receipt = f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value;
-  store.release(f.board, id, 'core-5');
+  store.release(f.board, id, 'core-5', 'Release the historical reservation before the rollout control.');
   const modern = activation === 'success'
     ? prepareEngineMove(f.board, 'appendFact', [id, { agentId: 'core-2', kind: 'note', text: 'Modern recorded native mutation activates review semantics.' }], { id: 'activate-review-prefix' })
     : prepareEngineMove(f.board, 'reserveReview', [id, { ...args[1], agentId: 'core-3' }], { id: 'activate-refusal-prefix' });
