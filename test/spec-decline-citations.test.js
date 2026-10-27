@@ -4,6 +4,9 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { freezer } from '../src/cli.js';
+import { loadConfig } from '../src/config.js';
+import { loadDoctrine } from '../src/doctrine.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -76,4 +79,28 @@ test('spec apply permits declining cited draft rows but protects cited approved 
   const retried = box.run(box.repo, 'spec', 'apply', '--json');
   assert.equal(retried.code, 0, `${retried.out}\n${retried.err}`);
   assert.equal(row(box).status, 'wont', 'the approved citation can be declined after its work is withdrawn');
+});
+
+test('mixed person decisions name draft omissions and retain ordinary refreezes [S1,V2,H16]', () => {
+  const box = e2e.project('true', undefined, { withWorktree: false });
+  const specPath = join(box.repo, 'SPEC.md');
+  writeFileSync(specPath, readFileSync(specPath, 'utf8').replace('- G2 [approved, must]', '- G2 [draft, must]'));
+  const mixed = ok(box, 'add', 'web', 'Mixed citations', '--specs', 'G1,G2', '--criterion', 'The selected promises hold.', '--check', 'true').item.item_id;
+  const ordinary = ok(box, 'add', 'web', 'Approved citation', '--specs', 'G1', '--criterion', 'The approved promise holds.', '--check', 'true').item.item_id;
+  ok(box, 'spec', 'approve', 'G1', '--text', 'The corrected page renders.');
+  ok(box, 'spec', 'decline', 'G2', '--reason', 'The draft is not needed.');
+  const applied = box.run(box.repo, 'spec', 'apply');
+  assert.equal(applied.code, 0, applied.out + applied.err);
+  const notices = applied.out.split('\n').filter(line => line.startsWith('Refreeze skipped'));
+  assert.equal(notices.length, 1);
+  assert.match(notices[0], new RegExp(`open items #${mixed} citing explicitly declined drafts\\.$`, 'u'));
+  const unchanged = item(box, mixed);
+  assert.equal(unchanged.item_status, 'open');
+  assert.equal(unchanged.item_frozen, null);
+  assert.equal(unchanged.item_spec_ids, 'G1,G2');
+  assert.match(item(box, ordinary).item_frozen, /The corrected page renders\./u);
+  const config = loadConfig(box.repo);
+  const ctx = { info: { root: box.repo, isMain: true }, config, doctrine: loadDoctrine(box.repo, config) };
+  assert.throws(() => freezer(ctx)(unchanged), error => error.code === 'UNKNOWN_SPEC',
+    'an omitted item still cannot freeze a claim against the declined citation');
 });

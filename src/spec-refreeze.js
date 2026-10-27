@@ -50,6 +50,23 @@ function affectedItems(items, rows) {
     .sort((left, right) => left.item_id - right.item_id);
 }
 
+/** Derive draft omissions from native decisions and lifetime freeze history, never sender assertions. */
+export function specRefreezeSkips(board, records, items) {
+  const declined = new Set();
+  for (const record of rowDecisions(board)) {
+    if (record.kind !== 'spec' || record.decision !== 'decline') continue;
+    const before = parseSpec(`## Decision\n${record.source}\n`).rows[0];
+    const after = parseSpec(`## Decision\n${record.replacement}\n`).rows[0];
+    if (before?.id === record.id && after?.id === record.id
+      && ['draft', 'pending'].includes(before.status) && after.status === 'wont') declined.add(record.id);
+  }
+  const frozenBefore = board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_kind IN ('claim','refreeze','submit') LIMIT 1");
+  return affectedItems(items, changedRows(records)).filter(item => item.item_status === 'open'
+    && !item.item_frozen && !item.item_frozen_digest && !item.item_commit && !item.item_verdict
+    && (item.item_spec_ids ?? '').split(',').some(id => declined.has(id))
+    && !frozenBefore.get(item.item_id)).map(item => item.item_id);
+}
+
 /** Protect an approved cited promise; unapproved blueprint drafts may still be declined by the person. */
 export function assertNoCitedSpecDecline(records, items) {
   const active = items.filter(item => item.item_status !== 'withdrawn' && !item.item_merged_commit);
@@ -65,11 +82,11 @@ export function assertNoCitedSpecDecline(records, items) {
 }
 
 /** Build complete frozen payloads from the already-written, locally preflighted spec file. */
-export function prepareSpecRefreezes(records, items, freeze) {
+export function prepareSpecRefreezes(records, items, freeze, { skippedDrafts = [] } = {}) {
   const rows = changedRows(records);
   if (!rows.size) return undefined;
   if (typeof freeze !== 'function' || !Array.isArray(items)) throw new TypeError('spec refreezes need current items and a local freezer');
-  return affectedItems(items, rows).map(item => {
+  return affectedItems(items, rows).filter(item => !skippedDrafts.includes(item.item_id)).map(item => {
     const frozen = freeze(item);
     if (!frozen || typeof frozen.text !== 'string' || typeof frozen.digest !== 'string'
       || createHash('sha256').update(frozen.text).digest('hex') !== frozen.digest) {
@@ -80,14 +97,21 @@ export function prepareSpecRefreezes(records, items, freeze) {
 }
 
 /** Validate a correction payload using only SQLite and sealed decision bytes; receivers never read Git or files. */
-export function validateSpecRefreezes(board, events, refreezes) {
+export function validateSpecRefreezes(board, events, refreezes, { skippedDrafts } = {}) {
   if (!Array.isArray(refreezes)) throw new Refused('ROW_DECISION', 'the spec correction payload is invalid; run pullboard spec apply again');
   const eventSet = new Set(events);
   const records = rowDecisions(board).filter(record => eventSet.has(record.event) && !record.applied);
   const rows = changedRows(records);
   if (!rows.size) throw new Refused('STALE_ROW_DECISION', 'the spec correction no longer changes an approved row; run pullboard spec apply again');
   const allItems = board.db.prepare('SELECT * FROM item ORDER BY item_id').all();
-  const expected = affectedItems(allItems, rows);
+  if (skippedDrafts !== undefined) {
+    const expectedSkips = specRefreezeSkips(board, records, allItems);
+    if (!Array.isArray(skippedDrafts) || !skippedDrafts.length
+      || JSON.stringify(skippedDrafts) !== JSON.stringify(expectedSkips)) {
+      throw new Refused('STALE_ROW_DECISION', 'the explicitly declined draft citations changed; run pullboard spec apply again');
+    }
+  }
+  const expected = affectedItems(allItems, rows).filter(item => !skippedDrafts?.includes(item.item_id));
   if (expected.length !== refreezes.length || expected.some((item, index) => item.item_id !== refreezes[index]?.itemId)) {
     throw new Refused('STALE_ROW_DECISION', 'the set of cited items changed while applying this spec correction; run pullboard spec apply again');
   }
