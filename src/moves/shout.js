@@ -1,3 +1,4 @@
+import { RULING_OWNER_ENGINE } from '../ruling-owner-engine.js';
 import { laneMessageFloor } from '../lane-lead.js';
 import { DECISION_QUEUE_ENGINE } from '../decision-queue-engine.js';
 import { ACTIVITY_NEWS_ENGINE } from '../activity-news-engine.js';
@@ -19,7 +20,8 @@ function historicalMinimumEngine(args, board, at) {
 /** News combines every applicable floor; old arguments retain their historical replay condition order. */
 function minimumEngine(args, board, at) {
   const laneFloor = laneMessageFloor(board, args[0]);
-  const optionsFloor = args[0]?.options !== undefined ? DECISION_QUEUE_ENGINE : 1;
+  const optionsFloor = Math.max(args[0]?.options !== undefined ? DECISION_QUEUE_ENGINE : 1,
+    args[0]?.effects !== undefined ? RULING_OWNER_ENGINE : 1);
   if (args[0]?.news !== true) return Math.max(laneFloor, optionsFloor, historicalMinimumEngine(args, board, at));
   return Math.max(laneFloor, optionsFloor, ACTIVITY_NEWS_ENGINE,
     typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:') ? RIGOR_AUTO_ENGINE : 1,
@@ -34,6 +36,9 @@ function actor(move) { return move.args[0]?.from ?? null; }
 export default Object.freeze({ operation: "shout", order: 23, engine: 1,
   itemIdFirstArgument: false, minimumEngine, actor,
   nextSteps: Object.freeze({
+  RULING_EFFECTS: 'declare one to 64 concrete effects on a decision request with --decision --effects',
+  RULING_EFFECT: 'use a supported effect operation with its exact row, item or decision target; omit caller owner and status fields',
+  RULING_ROW: 'read the current spec or doctrine and declare approval or revision when the row is not approved',
   BAD_MESSAGE_KIND: 'use --kind question, blocker or decision',
   STATUS_IS_ACTIVITY: 'keep working on the item; status is board activity, not a shout',
   LANE_MESSAGE_ITEM: 'omit --kind for an item-specific message',

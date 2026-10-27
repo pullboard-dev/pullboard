@@ -84,6 +84,8 @@ import {
   reportSubmission,
   resourceAgent,
   whoAmI,
+  claimOrdered,
+  claimFreezer,
   withBoard,
 } from '../cli.js';
 import { recordedRecovery } from '../recorded-recovery.js';
@@ -122,7 +124,7 @@ export async function submitHere(ctx, id, infra) {
         { green: true, report: 'recovered the original submission; its gate ran before the original send' });
     }
   }
-  const held = withBoard(ctx, (board) => {
+  const held = await withBoard(ctx, async (board) => {
     const me = whoAmI(ctx, board);
     const item = store.getItem(board, id);
     seatCheckout.refuseHeldElsewhere(ctx.info, store.listAgents(board), item, 'submit');
@@ -130,7 +132,11 @@ export async function submitHere(ctx, id, infra) {
     const readiness = barReadyProblem(board, item);
     if (readiness) throw readiness;
     const correction = store.pendingRefreezeProblem(board, id);
-    if (correction) throw correction;
+    if (correction) {
+      await claimOrdered(ctx, board, [id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs,
+        freeze: claimFreezer(ctx, board), head: headCommit(root) }]);
+      return store.getItem(board, id);
+    }
     return item;
   });
   const barWarning = await withBoard(ctx, async board => {
