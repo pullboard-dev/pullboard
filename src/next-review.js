@@ -1,4 +1,6 @@
 import { effectiveItemHead } from './source-advance-state.js';
+import { itemReviewPolicy } from './review-independence.js';
+import { twoTierReviews } from './review-independence.js';
 /**
  * pullboard next --verify (V15, #807): before a review is offered, every submitted head that no longer merges onto
  * the trunk goes back to its builder with Git's conflicting files, so no reviewer reserves work that cannot land.
@@ -50,7 +52,7 @@ export async function returnUnmergeable(root, board, me, { ordered, trunkMerge }
  */
 export function ownSessionReviews(info, board, digest) {
   return store.listItems(board).filter((item) => item.item_status === 'submitted').flatMap((item) => {
-    try { refuseSelfSession(info, item, digest, itemAuthors(board, item)); return []; }
+    try { refuseSelfSession(info, item, digest, itemAuthors(board, item), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard' }); return []; }
     catch (error) { if (error instanceof Refused && error.code === 'SELF_SESSION_VERIFY') return [item.item_id]; throw error; }
   });
 }
@@ -74,7 +76,7 @@ export async function nextReview(ctx, board, me, values, { ordered, idArg, trunk
   if (values.verifyId !== undefined) {
     const id = idArg(values.verifyId, 'an item id after --verify');
     const item = store.getItem(board, id);
-    refuseSelfSession(ctx.info, item, undefined, itemAuthors(board, item));
+    refuseSelfSession(ctx.info, item, undefined, itemAuthors(board, item), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard' });
     return { item: await ordered('reserveReview', [id, reservation]), reasons: [] };
   }
   return await ordered('reserveNextReview', [{ agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy,

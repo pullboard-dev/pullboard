@@ -268,8 +268,7 @@ function testEnvironment(sandbox, gateMarkers = {}) {
   // The outer gate decides whether this invocation is fail-fast. Its test workers and
   // any nested runner commands always retain ordinary runner semantics.
   env[LANDING_RUN_ENV] = '0';
-  delete env[LANDING_COLLECT_ALL_ENV];
-  delete env[COLLECTION_ID_ENV];
+  for (const name of [LANDING_COLLECT_ALL_ENV, COLLECTION_ID_ENV, 'PULLBOARD_RELEASE_EXECUTORS']) delete env[name];
   Object.assign(env, gateMarkers);
   env[LANDING_RUN_ENV] = '0';
   return env;
@@ -722,8 +721,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   const { pathToFileURL } = await import('node:url');
   const { options, env: testEnv } = await landingTestOptions(args, env, concurrency);
   delete testEnv[LANDING_WAIVERS_ENV];
-  delete testEnv[LANDING_COLLECT_ALL_ENV];
-  delete testEnv[COLLECTION_ID_ENV];
+  for (const name of [LANDING_COLLECT_ALL_ENV, COLLECTION_ID_ENV, 'PULLBOARD_RELEASE_EXECUTORS']) delete testEnv[name];
   if (options.isolation !== 'process') {
     throw new Error('landing gate early-stop requires --test-isolation=process so started files and owned children can be tracked safely');
   }
@@ -1361,7 +1359,7 @@ async function main(args) {
     if ((fullSuite || process.env.PULLBOARD_AUDIT_COVERAGE_REPORTER) && process.env[LANDING_RUN_ENV] === '1' && !shardLabel && !filteredByName) {
       const { landingShardCount } = await import('../src/test-concurrency.js');
       const count = landingShardCount(process.cwd());
-      if (count > 1) {
+      if (count > 1 || process.env.PULLBOARD_RELEASE_EXECUTORS) {
         const files = actions.files ?? (fullSuite
           ? (isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : [])
           : explicitTestFiles(args));

@@ -1,3 +1,4 @@
+import { eligibilityProblem } from './review-eligibility.js';
 import { foreignBlockers } from './cross-repo-dependencies.js';
 import {
   localDependencyIds,
@@ -11,7 +12,6 @@ import {
  * next cannot disagree. Each item also shows its unblock count, effort and why it sits where it does (#1017).
  * It is for agents and coordinators; the person reads the Roadmap instead.
  */
-import { itemAuthorProblem } from './item-authors.js';
 import { Refused } from './refused.js';
 import { itemFileCollisions } from './item-files.js';
 import {
@@ -67,11 +67,12 @@ function waitsOf(board, item, inFlight) {
  * @param {any} board
  * @returns {{ releases: { name: string, landed: number, total: number, items: any[] }[], unreleased: any[], first: Record<string, number | null> }} each item with its unblocks, effort and why
  */
-export function workQueue(board, reviewer = null) {
+export function workQueue(board, reviewer = null, options = {}) {
+  const agent = reviewer ? board.db.prepare('SELECT agent_id,agent_route,agent_family FROM agent WHERE agent_id=?').get(reviewer) : null;
   const now = board.clock.now().getTime();
   const release = milestonePriorities(board);
   const planned = roadmap(board, (reference) => ({ id: reference, title: reference, status: 'unavailable' }));
-  const items = listItems(board).filter(item => !reviewer || item.item_status !== 'submitted' || !itemAuthorProblem(board, item, reviewer)).sort(buildOrder(board, { priority: release }));
+  const items = listItems(board).filter(item => !reviewer || item.item_status !== 'submitted' || agent && !eligibilityProblem(board, item, agent, options)).sort(buildOrder(board, { priority: release }));
   const inFlight = listItems(board, { all: true });
   const reasons = queueReasons(board, { priority: release, rank: milestoneRanks(board, release) });
   const entry = (item) => ({ id: item.item_id, title: item.item_title, route: item.item_route, lane: item.item_lane,
@@ -119,9 +120,9 @@ export function sayQueue(io, queue) {
  * @param {(work: (board: any) => any) => any} read - opens the board for one read
  * @returns {number}
  */
-export function queueCommand(io, words, read, reviewer = () => null) {
+export function queueCommand(io, words, read, reviewer = () => null, options = {}) {
   if (words.some((word) => word !== undefined)) throw new Refused('USAGE', 'pullboard queue takes no arguments');
-  const queue = read((board) => workQueue(board, reviewer(board)));
+  const queue = read((board) => workQueue(board, reviewer(board), options));
   io.result?.(queue);
   sayQueue(io, queue);
   return 0;
