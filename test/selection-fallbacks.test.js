@@ -81,7 +81,7 @@ test('declared computed and CommonJS loaders retain transitive dependencies in s
 
 test('dependency-only changes retain roots with an undeclared CommonJS reader without selecting known unrelated roots [V4,C7]', t => {
   const box = graph(t);
-  box.git('rm', 'test/value.test.js');
+  rmSync(join(box.root, 'test/value.test.js'));
   box.put('src/reader.cjs', "module.exports = require('./value.js');\n");
   box.put('test/reader.test.js', "import '../src/reader.cjs';\n");
   const base = box.commit();
@@ -96,7 +96,7 @@ test('dependency-only changes retain roots with an undeclared CommonJS reader wi
 
 test('dependency-only changes retain roots with an undeclared computed product loader without selecting known unrelated roots [V4,C7]', t => {
   const box = graph(t);
-  box.git('rm', 'test/value.test.js');
+  rmSync(join(box.root, 'test/value.test.js'));
   box.put('src/reader.js', "const target = './value.js'; export const value = await import(target);\n");
   box.put('test/reader.test.js', "import '../src/reader.js';\n");
   const base = box.commit();
