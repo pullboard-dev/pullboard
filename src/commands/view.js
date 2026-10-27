@@ -61,9 +61,18 @@ import {
  * @returns {Promise<number>}
  */
 export async function viewHere(io, values) {
+  if (values.public && values.export === undefined) {
+    throw new Refused('USAGE', '--public requires --export for a static public snapshot');
+  }
   if (values.export !== undefined) {
     if (values.project || values.lan) throw new Refused('USAGE', 'choose either a live view with --project or --lan, or --export for a static snapshot');
-    const exported = await exportView(io.cwd, resolve(io.cwd, values.export));
+    const exporter = io.exportView ?? exportView;
+    if (values.public && exporter.supportsPublicExport !== true) {
+      throw new Refused('PUBLIC_EXPORT_UNAVAILABLE', 'public exports are unavailable in this build; upgrade Pullboard before using --public');
+    }
+    const exported = values.public
+      ? await exporter(io.cwd, resolve(io.cwd, values.export), { public: true })
+      : await exporter(io.cwd, resolve(io.cwd, values.export));
     io.result?.(exported);
     io.say(`wrote snapshot ${exported.path}`);
     return 0;

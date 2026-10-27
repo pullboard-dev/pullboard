@@ -39,7 +39,7 @@ async function cli(box, cwd, args, hooks = {}) {
 }
 
 /** Isolate real worktrees and shared SQLite; only the explicitly injected clock advances time. */
-async function fixture(t, { route = 'strong', family = 'off', policy = 'any', files = {} } = {}) {
+async function fixture(t, { route = 'strong', family = 'off', policy = 'any', files = {}, mainRed = false } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-next-take-')));
   const root = join(directory, 'repo');
   mkdirSync(root);
@@ -61,9 +61,13 @@ async function fixture(t, { route = 'strong', family = 'off', policy = 'any', fi
   /** Run only real, isolated Git with the private hook executable. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
   git(root, 'init', '-q', '-b', 'main');
-  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', verify: { policy, family },
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', ...(mainRed ? { affectedTests: 'node --test' } : {}), verify: { policy, family },
     lanes: { web: { owns: ['web/'] }, review: { owns: [] }, docs: { owns: ['docs/'] } } }));
-  writeFileSync(join(root, 'SPEC.md'), '# Dispatch fixture\n## G\n- G1 [approved, must] Work keeps its evidence. | gate: true\n');
+  writeFileSync(join(root, 'SPEC.md'), `# Dispatch fixture\n## G\n- G1 [approved, must] Work keeps its evidence. | gate: ${mainRed ? 'test/main-red.test.js' : 'true'}\n${mainRed ? '- G2 [approved, must] Other work keeps its evidence. | gate: true\n' : ''}`);
+  if (mainRed) {
+    mkdirSync(join(root, 'test'));
+    writeFileSync(join(root, 'test/main-red.test.js'), `import { test } from 'node:test';\nimport assert from 'node:assert/strict';\ntest('current main is actually red [G1]', () => assert.equal(1, 2));\n`);
+  }
   writeFileSync(join(root, 'DOCTRINE.md'), '# Fixture rules\n');
   for (const [file, content] of Object.entries(files)) {
     mkdirSync(join(root, file, '..'), { recursive: true });
@@ -448,3 +452,19 @@ test('automatic review reservation retains coordinator-only policy when a higher
 });
 
 installPostMoveHandoffCases({ fixture, cli });
+
+// Main-red build routing is separate from review-priority selection.
+test('a main red offers a free idle seat before interrupting a build [C7,N2]', async t => {
+  const { assertFreeMainRedRouting } = await import('./main-red-build-routing-fixture.js');
+  assertFreeMainRedRouting(t);
+});
+
+test('a main red asks the newest build only when no seat is free and preserves native claim guards [C7,N2]', async t => {
+  const { assertNewestMainRedRouting } = await import('./main-red-build-routing-fixture.js');
+  assertNewestMainRedRouting(t);
+});
+
+test('default next offers actual main red to another free seat and only that seat claims it [C7,N2,H16]', async t => {
+  const { assertMainRedCLI } = await import('./main-red-build-routing-fixture.js');
+  await assertMainRedCLI(t, { fixture, cli });
+});
