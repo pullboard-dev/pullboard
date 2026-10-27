@@ -35,7 +35,7 @@ test('the actual submitted value is repaired', () => assert.equal(readFileSync(n
     const result = await cli(box, seat.path, ['submit', String(first)]);
     assert.equal(result.code, 0, result.out + result.err);
     assert.equal(store.getItem(box.board, first).item_status, 'submitted', 'the original operation is retained');
-    assert.equal(store.getItem(box.board, next).item_owner, seat.id, 'the same command takes its next build');
+    assert.equal(store.getItem(box.board, next).item_owner, seat.id, `the same command takes its next build: ${result.out} ${result.err}`);
     assert.equal(store.getItem(box.board, next).item_status, 'claimed');
     assert.equal(result.document.id, first, 'the primary submission document remains authoritative');
     assert.equal(result.document.next.item.item_id, next);
