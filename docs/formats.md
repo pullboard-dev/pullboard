@@ -769,3 +769,9 @@ The client-local file `<git common dir>/pullboard/relay-health.sqlite` is separa
 | `canary_schedule` | One row with `id = 1` and numeric `next_due` | The next eligible minute, claimed atomically so multiple local views of the same repository do not start duplicate probes. |
 
 The containing directory is created with mode 0700 and the SQLite file is created with mode 0600. A status read does not create it or contact the relay. Pending notices are removed only after the ordinary native notification path completes; a failed or interrupted notification leaves the notice available for retry. These records are machine-local display and scheduling state. They add no board table, event, engine field, relay journal record or sealed presentation field.
+
+### Gone-seat claim maintenance
+
+`claims.releaseGone` in `pullboard.json` defaults to `false`. When enabled, the coordinator's existing `sentinel run` maintenance (also scheduled by the running View every ten minutes) releases a still-live build claim whose known heartbeat is at least thirty minutes old. Missing heartbeat observations do not authorize release. A disabled health scan does not disable this separately opted-in maintenance. No new daemon or heartbeat threshold is introduced.
+
+The ordinary `release` move carries `[itemId, "coordinator", "", {seat, lastSeen}]`. Its single release event records `goneSeat` and a reason naming the seat and canonical last-seen time. The gone-claim feature engine is assigned at landing; older readers must refuse this new authority before applying it. Replay validates the frozen evidence against the claim holder and recorded move time, without consulting a replica's private presence cache or configuration. Reviews, item/lane holds, and subsequent claim/verification guards are unchanged. With the setting off, ordinary lease and release behavior is unchanged.
