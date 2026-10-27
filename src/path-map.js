@@ -4,6 +4,7 @@ import {
   tryGit,
 } from './git.js';
 import { literalShellWords } from './literal-shell-words.js';
+import { pathMapFileWords } from './path-map-operands.js';
 import { Refused } from './refused.js';
 
 /** Explain an unreadable rename map without accepting a partial or guessed identity. */
@@ -79,12 +80,13 @@ export function pathAtCommit(root, map, path, commit) {
 export function mappedCheck(root, command, options = {}) {
   const map = readPathMap(root, options);
   if (!map.size) return command;
-  return command.replace(/(?:'[^']*'|"(?:[^"\\]|\\.)*"|\\[\s\S]|[^\s;&|<>()'"])+/gu, raw => {
-    const words = literalShellWords(raw);
-    if (words?.length !== 1) return raw;
-    const path = mappedPath(map, words[0]);
-    return path === words[0] ? raw : `'${path.replaceAll("'", "'\\''")}'`;
-  });
+  let result = command;
+  for (const token of pathMapFileWords(command).reverse()) {
+    const word = literalShellWords(token.raw)[0];
+    const path = mappedPath(map, word);
+    if (path !== word) result = result.slice(0, token.start) + `'${path.replaceAll("'", "'\\''")}'` + result.slice(token.end);
+  }
+  return result;
 }
 
 /** A read projection joins renamed test causes without rewriting the recorded cause or its evidence. */

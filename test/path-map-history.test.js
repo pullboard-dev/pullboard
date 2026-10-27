@@ -235,3 +235,16 @@ test('a file-looking grep pattern stays data while its positional input follows 
   assert.equal(result.state, 'pass', result.report);
   assert.match(result.outputTail, /web\/old-check\.mjs/u);
 });
+
+
+test('literal operand roles preserve data flags quoting boundaries and unknown commands [C7]', () => {
+  const box = movedFixture();
+  assert.equal(mappedCheck(box.repo, `node --test --test-skip-pattern '${OLD}' --test-reporter ${OLD} ${OLD}`),
+    `node --test --test-skip-pattern '${OLD}' --test-reporter ${OLD} '${NEW}'`);
+  assert.equal(mappedCheck(box.repo, `grep -F -e '${OLD}' ${OLD} && node '${OLD}'`),
+    `grep -F -e '${OLD}' '${NEW}' && node '${NEW}'`);
+  assert.equal(mappedCheck(box.repo, `grep -f ${OLD} ${OLD}`), `grep -f '${NEW}' '${NEW}'`);
+  for (const command of [`custom --selector ${OLD} ${OLD}`, `node --unknown-option ${OLD} ${OLD}`,
+    `grep --unknown-option ${OLD} ${OLD}`, `node --test ${OLD} > ${OLD}`,
+    `node --test ${OLD} # ${OLD}`]) assert.equal(mappedCheck(box.repo, command), command);
+});
