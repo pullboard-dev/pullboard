@@ -19,6 +19,7 @@ import { HELP } from '../src/cli.js';
 import { loadConfig } from '../src/config.js';
 import { Refused } from '../src/refused.js';
 import { assertRehomeTriggerDeclaration } from './rehome-machine-fixture.js';
+import { runnerControllerCallees, assertRunnerControllerReachability } from './runner-controller-machine-fixture.js';
 import {
   assertConfiguredReviewLease,
   assertLifecycleReservation,
@@ -248,12 +249,7 @@ function codeWalk(read, { caught = false } = {}) {
       ...[...body.matchAll(/(?<!\w)(?<!(?<!\.\.)\.)(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? CALLBACKS[file]?.[callee])),
       ...[...body.matchAll(/\b(\w+)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : undefined)),
     ];
-    // The runner serializes this exact same-file entry across a process boundary; its refusals return through bridgeResult.
-    if (file === 'runners.js'
-      && /\b(?:spawn|spawnSync)\(process\.execPath,\s*\[fileURLToPath\(import\.meta\.url\),\s*'--pullboard-runner-controller'\]/u.test(body)
-      && source.includes('if (isRunnerControllerEntry()) serveRunnerController()')) {
-      callees.push('runners.js#serveRunnerController');
-    }
+    callees.push(...runnerControllerCallees(file, body, source));
     for (const callee of callees.filter(Boolean)) {
       if (caught && (CAUGHT[key] ?? []).includes(callee)) continue;
       for (const code of refusalsOf(callee, skip, seen)) codes.add(code);
@@ -1492,20 +1488,7 @@ test('transport boundaries keep a new item refusal in ordered dispatch visible [
 });
 
 test('same-file runner controller bridges retain child refusals in the lifecycle audit [M1,M4,C7]', () => {
-  const childGuard = editedSource('runners.js', /^async function runInController\(root, command, options\) \{$/m,
-    "$&\n  if (command === 'probe') throw new Refused('RUNNER_CHILD_PROBE', 'new child-only item refusal');");
-  assert.deepEqual(codeProblems(machineRules.MACHINE, childGuard).sort(), [
-    'RUNNER_CHILD_PROBE is raised by accept and reject but not declared there',
-    'RUNNER_CHILD_PROBE is raised by submit but not declared there',
-  ]);
-  const walk = codeWalk(childGuard);
-  for (const entry of ['runOnRunner', 'runOnRunnerAsync']) {
-    assert.ok(walk.refusalsOf(`runners.js#${entry}`).has('RUNNER_CHILD_PROBE'), `${entry} returns the real child refusal`);
-  }
-  const otherExecutable = editedSource('runners.js', /const child = spawn\(process\.execPath, \[fileURLToPath\(import\.meta\.url\), '--pullboard-runner-controller'\]/,
-    "const child = spawn('unrelated-worker', [fileURLToPath(import.meta.url), '--pullboard-runner-controller']");
-  assert.equal(codeWalk(otherExecutable).refusalsOf('runners.js#runOnRunnerAsync').has('RUNNER_WORK_SPEC'), false,
-    'a different executable does not inherit the private controller edge');
+  assertRunnerControllerReachability({ codeProblems, codeWalk, editedSource, machine: machineRules.MACHINE });
 });
 
 
