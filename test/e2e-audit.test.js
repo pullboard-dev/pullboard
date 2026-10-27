@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { repoInfo } from '../src/git.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { indexedStageSelection, readPlacementIndex, writePlacementIndex } from '../src/test-economics-index.js';
+import { packageBranchCoverage } from '../src/audit-coverage.js';
 import {
   auditFailureItem,
   auditInterval,
@@ -112,4 +113,24 @@ test('gate placement reads only reached rows and invalidates changed test-side i
   assert.equal(readPlacementIndex(box.repo, ['test/unit.test.js']).files.length, 1);
   assert.throws(() => writePlacementIndex(box.repo, { ...report, files: [report.files[0], report.files[0]] }), /duplicate/u);
   assert.equal(JSON.parse(readFileSync(join(store, 'current.json'))).generation, generation, 'invalid refresh leaves the prior published generation');
+});
+
+test('audit package coverage unions branch hits across shards and leaves unloaded product files unknown [C7]', () => {
+  const options = { expectedFiles: ['packages/a/code.js', 'packages/b/code.js'],
+    packages: [{ name: 'root', prefix: '' }, { name: 'a', prefix: 'packages/a' }, { name: 'b', prefix: 'packages/b' }] };
+  /** Model Node's coverage event data only; these samples are not native execution receipts. */
+  const sample = counts => ({ runtime: 'v22.13.1', summary: { workingDirectory: '/audit', files: [
+    { path: '/audit/packages/a/code.js', totalBranchCount: 2, branches: counts.map(count => ({ line: 1, count })) },
+    { path: '/foreign/code.js', totalBranchCount: 1, branches: [{ line: 1, count: 1 }] },
+  ] } });
+  const first = packageBranchCoverage([sample([1, 0])], options);
+  assert.equal(first.find(row => row.package === 'a').percent, 50);
+  assert.equal(first.find(row => row.package === 'b').percent, null);
+  const combined = packageBranchCoverage([sample([1, 0]), sample([0, 1])], options);
+  assert.equal(combined.find(row => row.package === 'a').branches, 2, 'shared branches are not added twice');
+  assert.equal(combined.find(row => row.package === 'a').percent, 100);
+  const changedRuntime = { ...sample([0, 1]), runtime: 'v24.21.0' };
+  const incompatible = packageBranchCoverage([sample([1, 0]), changedRuntime], options);
+  assert.deepEqual(incompatible.find(row => row.package === 'a').invalid, ['packages/a/code.js']);
+  assert.equal(incompatible.find(row => row.package === 'a').percent, null);
 });
