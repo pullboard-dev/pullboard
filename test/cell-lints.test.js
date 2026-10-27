@@ -330,6 +330,7 @@ test('the pre-cell transition reports each permitted file and edge while keeping
   const initial = run('--init');
   assert.equal(initial.status, 0, initial.stderr);
   const baseline = readCellLintBaseline(box.root), descriptor = readFileSync(join(box.root, 'bin/cell-lint-baselines/index.json'));
+  box.git('add', '-A'); box.git('commit', '-qm', 'test: establish the real pre-migration source tree');
   box.put('src/transition-reader.js', 'export const extra = 2;\n');
   box.put('test/transition-control.test.js', 'void 0;\n');
   box.put('apps/demo/index.js', "import { value } from '#sample'; import { extra } from '../../src/transition-reader.js'; console.log(value, extra);\n");
