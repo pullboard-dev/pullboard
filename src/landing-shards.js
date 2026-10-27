@@ -335,7 +335,7 @@ class NotNeeded extends Error {}
  *   holds; `write` receives the merged log.
  * @returns {Promise<{ isGreen: boolean, balance: string, shards: object[], files: object[] }>}
  */
-export async function runLandingShards({ root, runner, files, count, inherited = null, needsBrowser = async () => true, needsGui = shardFiles => testsNeedGui(root, shardFiles), write = text => process.stdout.write(text), remoteRun }) {
+export async function runLandingShards({ root, runner, files, count, inherited = null, fullScope = true, needsBrowser = async () => true, needsGui = shardFiles => testsNeedGui(root, shardFiles), write = text => process.stdout.write(text), remoteRun }) {
   const collectAll = process.env[LANDING_COLLECT_ALL_ENV] === '1';
   const collectionId = process.env[COLLECTION_ID_ENV];
   const collectionKey=file=>relative(root,resolve(root,file)).split(sep).join('/');
@@ -397,7 +397,7 @@ export async function runLandingShards({ root, runner, files, count, inherited =
     const command = `${COLLECTION_ID_ENV}=${word(collectionId ?? '')} ${LANDING_COLLECT_ALL_ENV}=${collectAll ? '1' : '0'} ${LANDING_SHARD_ENV}=${word(entry.label)} ${['node', './bin/run-tests.js', ...entry.shard.files].map(word).join(' ')}`;
     try {
       const run = await runOnRunnerAsync(root, command, { runner: lease.runner, source: lease.source, browser: lease.browser,
-        metadata: { ...(lease.runMetadata ?? {}), landing: true, gui: entry.gui }, signal: stop });
+        metadata: { ...(lease.runMetadata ?? {}), landing: true, gui: entry.gui, auditCoverage: Boolean(process.env.PULLBOARD_AUDIT_COVERAGE_REPORTER) }, signal: stop });
       return { attempt: number, host: lease.runner.host, outcome: run.isGreen ? 'green' : 'red', output: run.output, wallMs: Date.now() - started };
     } catch (error) {
       // A stop ends the runner's transport on purpose; that shard was stopped, not dropped.
@@ -530,7 +530,7 @@ export async function runLandingShards({ root, runner, files, count, inherited =
     const completed=shards.filter(entry=>['red','green'].includes(entry.status)&&entry.attempts.at(-1)?.collectionComplete===true)
       .flatMap(entry=>entry.shard.files.map(collectionKey));
     const complete=!stop.aborted&&shards.every(entry=>['red','green'].includes(entry.status)&&entry.attempts.at(-1)?.collectionComplete===true);
-    write(formatCollectionReport({id:collectionId,scope:'suite',full:true,plannedFiles:planned,completedFiles:completed,complete,
+    write(formatCollectionReport({id:collectionId,scope:'suite',full:fullScope,plannedFiles:planned,completedFiles:completed,complete,
       cleanupVerified:shards.every(entry=>entry.attempts.at(-1)?.cleanupVerified===true)}));
   }
   const isGreen = shards.every(entry => entry.status === 'green');

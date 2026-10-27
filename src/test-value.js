@@ -7,6 +7,7 @@ import { proofEventDetail } from './proof-event-detail.js';
 import {
   boardReceiptStore,
   readGateReceipt,
+  receiptFields,
 } from './gate-run-receipt.js';
 import { readTestValueTimings } from './test-value-timing.js';
 import { flakeLedger } from './flakes.js';
@@ -44,10 +45,17 @@ function executions(board, history) {
       runs.set(receipt.id, { id: receipt.id, kind: receipt.kind, at: receipt.at, commit: receipt.head, tree: receipt.tree,
         item: proof?.item ?? null, clean: proof ? proof.sourceClean : true,
         green: receipt.green, exit: proof?.exitCode ?? (receipt.green ? 0 : 1),
-        durationMs: proof?.durationMs ?? null, workers: proof?.testRuntimes ?? [], failures: receipt.failures });
+        durationMs: proof?.durationMs ?? null, workers: proof?.testRuntimes ?? [], failures: receipt.failures, collection: receipt.collection });
     }
   }
   for (const event of history) {
+    const audit = event.event_kind === 'gate-run' ? receiptFields(detail(event).run) : null;
+    if (audit?.kind === 'land' && audit.collection?.complete === true && event.event_by === 'coordinator') {
+      const existing = runs.get(audit.id);
+      runs.set(audit.id, { ...existing, id: audit.id, kind: audit.kind, at: audit.at, commit: audit.head, tree: audit.tree,
+        item: null, clean: true, green: audit.green, exit: audit.green ? 0 : 1, durationMs: null,
+        workers: [], failures: audit.failures, collection: audit.collection, auditEventId: event.event_id });
+    }
     const receipt = detail(event).receipt;
     if (event.event_kind !== 'proof-run' || !receipt || !/^[a-f0-9-]{36}$/u.test(receipt.id ?? '')) continue;
     // Replicated receipts survive cleanup of a builder's worktree and private logs.
@@ -69,6 +77,10 @@ function executions(board, history) {
       if (!portable(worker?.file) || !Number.isSafeInteger(worker.pid) || pids.has(key)) continue;
       pids.add(key);
       run.files.set(worker.file, (run.files.get(worker.file) ?? 0) + 1);
+    }
+    // A complete audit names its exact completed file plan even after private timing sidecars are gone.
+    if (run.auditEventId && run.collection?.complete) for (const file of run.collection.files) {
+      if (!run.files.has(file)) run.files.set(file, 1);
     }
     run.observedFileExecutions = [...run.files.values()].reduce((sum, count) => sum + count, 0);
     // Old full-gate receipts have no worker inventory; retained per-file measurements still prove those runs.
@@ -118,9 +130,32 @@ function failureTests(event) {
   });
 }
 
-/** Identify linked code repairs, retaining the failure receipt and later accepted green as provenance. */
-function catches(root, history, runs, flaky, from, until) {
+/** A routed native audit failure earns a catch immediately, bound to its exact batch, test blob and named red. */
+function auditCatches(root, history, runs, flaky, from, until) {
   const found = new Map();
+  for (const event of history) {
+    const at = Date.parse(event.event_at), defect = detail(event).defect;
+    if (event.event_kind !== 'landing-test-defect' || event.event_by !== 'coordinator' || !defect?.audit
+      || at < from || at > until || !Number.isFinite(at) || !portable(defect.test) || !Array.isArray(defect.names)) continue;
+    const candidates = runs.filter(run => run.auditEventId < event.event_id && run.collection?.batchId === defect.batchId
+      && run.clean && !run.green && run.files.has(defect.test) && Date.parse(run.at) >= from && Date.parse(run.at) <= at)
+      .sort((a, b) => b.auditEventId - a.auditEventId);
+    const red = candidates.find(run => tryGit(root, ['rev-parse', `${run.commit}:${defect.test}`]).stdout.trim() === defect.blob);
+    if (!red) continue;
+    for (const name of defect.names) {
+      if (!red.failures.some(test => test.file === defect.test && test.name === name)
+        || flaky.some(row => row.file === defect.test && row.name === name && row.head === red.commit)) continue;
+      const key = JSON.stringify([defect.test, name, red.tree]);
+      if (!found.has(key)) found.set(key, { file: defect.test, name, item: defect.item, causeEvent: event.event_id,
+        red: red.id, green: null, redCommit: red.commit, greenCommit: null, source: 'audit', batchId: defect.batchId });
+    }
+  }
+  return found;
+}
+
+/** Identify linked code repairs and routed audit catches, preserving each evidence source without inventing a repair. */
+function catches(root, history, runs, flaky, from, until) {
+  const found = auditCatches(root, history, runs, flaky, from, until);
   const unresolved = new Map();
   const repairCache = new Map();
   for (const event of history) {
@@ -194,7 +229,7 @@ export function testValueReport(board, { root, costs, now = Date.now() }) {
       row.runs += count;
       row.receiptIds.push(run.id);
       // Historical named outcomes carry no worker/attempt identity. One sample cannot cover repeated executions.
-      if (count === 1 && run.tests.some(test => test.file === file)) row.namedOutcomeRuns += 1;
+      if (count === 1 && (run.tests.some(test => test.file === file) || run.auditEventId && run.collection?.complete)) row.namedOutcomeRuns += 1;
       const timings = run.timings.filter(value => value.file === file);
       // A partial set of file measurements never becomes a complete mean for this receipt.
       if (timings.length === count) {
@@ -254,5 +289,5 @@ export function testValueReport(board, { root, costs, now = Date.now() }) {
     || (right.valuePerRun ?? 0) - (left.valuePerRun ?? 0) || left.file.localeCompare(right.file));
   return { since, asOf, days: 14, costs, files,
     coverage: { receipts: windowRuns.length, unknownFileReceipts, gitHistoryAvailable: source.available, ...sourceCoverage },
-    method: 'Descriptive observed catch/flake rates per recorded file execution. Real catches require a typed failure, exact named red and green outcomes, later acceptance, unchanged tests/fixtures and a product-code delta. A flake is associated only with a unique matching same-head named red; ambiguous sightings keep its rate unknown. Runtime mean is measured file wall time rather than gate queue time, and is unknown when incomplete. Last-observed single-file native receipt wall time or landing-file-times and its value estimate are separate, with unknown age when the store has no timestamp; one sample is never expanded into historical totals. Worker names are bound to tracked test blobs at each receipt commit; historical inventories lack child cwd, so same-path nested-fixture collisions cannot be resolved. Costs use seconds of equivalent waiting. Missing history is not proof of no defects; identical worker identities cannot prove additional executions. Repeated same-file workers lack attempt-bound named outcomes, so catch and flake rates remain unknown even when every duration is present. Report only: no test selection or gate policy changes.' };
+    method: 'Descriptive observed catch/flake rates per recorded file execution. Code-fixed catches require a typed failure, exact named red and green outcomes, later acceptance, unchanged tests/fixtures and a product-code delta. A routed complete native audit failure also earns a catch immediately, bound to its batch, named red and committed test blob; it never claims a green repair. A flake is associated only with a unique matching same-head named red; ambiguous sightings keep its rate unknown. Runtime mean is measured file wall time rather than gate queue time, and is unknown when incomplete. Last-observed single-file native receipt wall time or landing-file-times and its value estimate are separate, with unknown age when the store has no timestamp; one sample is never expanded into historical totals. Worker names are bound to tracked test blobs at each receipt commit; historical inventories lack child cwd, so same-path nested-fixture collisions cannot be resolved. Costs use seconds of equivalent waiting. Missing history is not proof of no defects; identical worker identities cannot prove additional executions. Repeated same-file workers lack attempt-bound named outcomes, so catch and flake rates remain unknown even when every duration is present. Report only: no test selection or gate policy changes.' };
 }
