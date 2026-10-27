@@ -186,6 +186,11 @@ export function configProblems(config) {
     || !['costOfEscape', 'costOfWaiting', 'costOfFalseRed'].every(key => Number.isFinite(costs[key]) && costs[key] >= 0)) {
     problems.push('"testEconomics" has nonnegative finite costOfEscape, costOfWaiting and costOfFalseRed numbers (seconds of equivalent waiting); it changes the report only');
   }
+  if (config.pushReceiptCheck !== undefined && (!config.pushReceiptCheck || typeof config.pushReceiptCheck !== 'object'
+    || Array.isArray(config.pushReceiptCheck) || Object.keys(config.pushReceiptCheck).some(key => key !== 'smoke')
+    || typeof config.pushReceiptCheck.smoke !== 'string' || !config.pushReceiptCheck.smoke.trim())) {
+    problems.push('"pushReceiptCheck" has only an explicit nonempty "smoke" command; this config does not activate the replacement hook');
+  }
   if (config.publish !== undefined && (!config.publish || typeof config.publish !== 'object' || Array.isArray(config.publish)
     || Object.keys(config.publish).some(key => key !== 'pullRequest') || ![undefined, false, 'release', 'item'].includes(config.publish.pullRequest))) {
     problems.push('"publish.pullRequest" is false (default), "release" for one PR per release, or "item" for one PR per item');
