@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { composeItemPatches, itemPatchSetDigest } from '../src/item-patch-compose.js';
+import { contributionSignoffProblem } from '../src/commit-signoff.js';
 
 /** Run fixture-only Git, without repository hooks or inherited Git routing. */
 function command(root, ...args) {
@@ -22,6 +23,7 @@ function fixture(t) {
   command(root, 'init', '-q');
   command(root, 'config', 'user.name', 'Fixture');
   command(root, 'config', 'user.email', 'fixture@example.invalid');
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ maintainers: ['fixture@example.invalid'] }));
   writeFileSync(join(root, 'value.txt'), 'before\n');
   command(root, 'add', '.');
   command(root, 'commit', '-qm', 'Candidate');
@@ -52,6 +54,11 @@ test('item patches compose immutable retry-identical commits without touching th
   assert.equal(result.digest, itemPatchSetDigest(commit, [record]));
   assert.deepEqual(composeItemPatches(root, { item_commit: commit }, [record]), result);
   assert.equal(composeItemPatches(root, { item_commit: commit }, []).commit, commit);
+  const author = command(root, 'show', '-s', '--format=%an <%ae>', result.commit).trim();
+  const message = command(root, 'show', '-s', '--format=%B', result.commit);
+  assert.ok(message.split('\n').includes(`Signed-off-by: ${author}`), 'the composed commit certifies its own actual author');
+  assert.deepEqual(contributionSignoffProblem(root, { base: commit, head: result.commit }),
+    { checked: 1, problem: null }, 'the real contribution checker accepts the exact composed range');
 });
 
 test('item patch tampering, stale binding, conflicts and unsafe paths fail closed [H16,V1]', t => {
