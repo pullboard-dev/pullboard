@@ -37,8 +37,8 @@ export function createStudyExercise({ board, verifyAfterMutation, covered = new 
 /** seedIdentity uses real operations; synthetic records retain their original explicit labels. */
 export async function seedIdentity(context) {
   const { board, box, store, milestones, exercise, submitFixture, syntheticFlakeObservation, other, claim } = context;
-  const agent = await exercise('register', () => store.register(board, { lane: box.lane, path: join(box.root, 'study-worker'), parentDigest: 'a'.repeat(64) }));
-  const reviewer = store.register(board, { lane: 'tests', path: join(box.root, 'study-reviewer'), parentDigest: 'b'.repeat(64) });
+  const agent = await exercise('register', () => store.register(board, { lane: box.lane, path: join(box.root, 'study-worker'), family: 'Fixture Parity Builder Vendor', parentDigest: 'a'.repeat(64) }));
+  const reviewer = store.register(board, { lane: 'tests', path: join(box.root, 'study-reviewer'), family: 'Fixture Parity Reviewer Vendor', parentDigest: 'b'.repeat(64) });
   const item = await exercise('addItem', () => store.addItem(board, { by: 'coordinator', lane: box.lane,
     title: 'Lifecycle study', criterion: 'A seeded lifecycle.', brief: 'Seeded brief.' }));
   Object.assign(context, { agent, reviewer, item });

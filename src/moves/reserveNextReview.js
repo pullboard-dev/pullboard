@@ -1,3 +1,4 @@
+import { anyItemReviewPolicyEngine } from '../review-policy.js';
 import { anyRequiredReviewFamilyEngine } from '../required-review-family.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 /** Routing metadata owned by reserveNextReview, discovered without a shared registry edit [C7,V4,H16]. */
@@ -7,6 +8,7 @@ import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function minimumEngine(args, board, at) {
+  if (anyItemReviewPolicyEngine(board) > 1) return Math.max(anyItemReviewPolicyEngine(board), anyRequiredReviewFamilyEngine(board));
   if (anyRequiredReviewFamilyEngine(board) > 1) return anyRequiredReviewFamilyEngine(board);
   if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:')) return RIGOR_AUTO_ENGINE;
   if (args[0]?.landingFence !== undefined) return LANDING_LEASE_ENGINE;
