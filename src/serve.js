@@ -73,6 +73,8 @@ import { projectRowDecisions } from './row-decisions.js';
 import { projectSpecRevisions } from './spec-revisions.js';
 import { loadSpec } from './spec.js';
 import { viewLanAddress } from './view/lan-address.js';
+import { publicSnapshot } from './view/public-export.js';
+import { openBoardForRead } from './board-read-open.js';
 
 /** The page's styles (N26), read once: the page links them, so it needs no inline style. */
 const VIEW_CSS = readFileSync(new URL('./view.css', import.meta.url), 'utf8');
@@ -116,10 +118,10 @@ export function portableSnapshot(value, root, field = '') {
  *
  * @param {string} root
  * @param {string} directory
- * @param {{ fetchApi?: typeof fetchLocal }} [options]
+ * @param {{ fetchApi?: typeof fetchLocal, public?: boolean }} [options]
  * @returns {Promise<{path: string}>}
  */
-export async function exportView(root, directory, { fetchApi = fetchLocal } = {}) {
+export async function exportView(root, directory, { fetchApi = fetchLocal, public: publicMode = false } = {}) {
   const output = resolve(directory);
   if (existsSync(output) && (!statSync(output).isDirectory() || readdirSync(output).length)) {
     throw new Refused('EXPORT_EXISTS', `snapshot folder ${output} is not empty; use an empty folder`);
@@ -169,6 +171,14 @@ export async function exportView(root, directory, { fetchApi = fetchLocal } = {}
   listing = portableSnapshot(listing, info.root);
   state = portableSnapshot(state, info.root);
   events = portableSnapshot(events, info.root);
+  if (publicMode) {
+    const board = openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));
+    if (!board) throw new Refused('NO_BOARD', 'no readable board to export; run pullboard init in this repo');
+    try {
+      const privateBoard = Boolean(board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key = ?').get('private_repo_board_id'));
+      ({ listing, state, events } = publicSnapshot({ listing, state, events }, { privateBoard }));
+    } finally { store.closeBoard(board); }
+  }
   const boardPath = join(output, 'api', 'v1', 'boards', listing.boards[0].id);
   mkdirSync(boardPath, { recursive: true });
   writeFileSync(join(output, 'index.html'), cockpitPage('', { snapshot: true }));
@@ -178,6 +188,8 @@ export async function exportView(root, directory, { fetchApi = fetchLocal } = {}
   writeFileSync(join(boardPath, 'events.json'), JSON.stringify(events) + '\n');
   return { path: output };
 }
+/** The CLI may offer --public only when this implementation checks every retained export value. */
+exportView.supportsPublicExport = true;
 
 /** Where the view keeps the port it last served from, beside the machine's list of projects. */
 const lastPortFile = () => join(dirname(registryFile()), 'view.json');
