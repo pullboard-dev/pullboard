@@ -1,3 +1,4 @@
+import { runDeferredAffectedTests } from './landing-deferred-run.js';
 import { cadenceDeferral } from './landing-cadence.js';
 import {
   requireLocalGuardClassification,
@@ -1173,17 +1174,18 @@ async function deferredGuards(state) {
   const files = [...new Set(deferred.flatMap((row) => row.files))].sort();
   const tree = headTree(root);
   const commit = headCommit(root);
-  const browser = !browserFreeChecksEnabled() || await testsNeedBrowser(root, files);
-  const run = await withLandingGateSlot(root, lease => runProfiledShell(root, `${state.config.affectedTests} ${files.map(quote).join(' ')}`, { waitMs: lease.waitMs, gateLease: lease, stages: true }),
-    { agent: 'coordinator', kind: 'gate', landing: true, browser, onWait: state.onWait });
+  const run = await runDeferredAffectedTests(root, state.config, files,
+    { directory: join(dirname(root), 'logs'), onWait: state.onWait });
   // The same pin as the full landing gate: a result only counts for the exact merged tree it ran on.
   if (headCommit(root) !== commit || headTree(root) !== tree || !isClean(root)) {
     throw new Refused('LAND_SOURCE_CHANGED', 'the landing source changed while the deferred affected tests ran; restore the recorded batch before adopting');
   }
-  state.say(`deferred affected tests: ${files.length} file(s) ${run.isGreen ? 'green' : 'red'} on the merged tree`);
-  if (run.isGreen) return;
+  await save(state, { logPath: run.logPath });
+  if (run.isGreen) { state.say(`deferred affected tests: ${files.length} file(s) green on the merged tree`); return; }
   const failures = landingFailures(run.output, root);
   const failed = new Set(failures.map((failure) => failure.file).filter(Boolean));
+  if (!failed.size) throw new Refused('LAND_DIAGNOSTIC', `the deferred command failed without identifying a failing test file; inspect ${run.logPath}`);
+  state.say(`deferred affected tests: ${failed.size} file(s) red on the merged tree: ${[...failed].join(', ')}; log ${run.logPath}`);
   for (const { entry, files: own } of deferred) {
     if (!own.some((file) => failed.has(file)) || state.culprits.some((culprit) => culprit.id === entry.id)) continue;
     state.culprits.push({ id: entry.id, commit: entry.commit, ...(entry.reviewedCommit ? { reviewedCommit: entry.reviewedCommit } : {}),
