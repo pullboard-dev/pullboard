@@ -1,3 +1,4 @@
+/** @pullboard-test-input skills/pullboard-decompose/SKILL.md skills/pullboard-plan/SKILL.md skills/pullboard-run/SKILL.md skills/pullboard-signoff/SKILL.md skills/pullboard-spec-review/SKILL.md skills/pullboard-triage/SKILL.md skills/pullboard-verify/SKILL.md package.json */
 /**
  * Role guides (N6): how an agent decomposes an ask with the person, walks them through sign-off,
  * reviews the spec against the client, and verifies another agent's work. One source per role,

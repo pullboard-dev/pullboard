@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+/** @pullboard-test-input .github/workflows/gate.yml .github/workflows/dco.yml */
 /** Check that main CI shards work without hiding failures or cancelling unrelated runs [C7]. */
 import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

@@ -1,3 +1,4 @@
+/** @pullboard-test-input src/formats/*.json */
 /** Discover format documentation from source-owned declarations, never a parallel hand-maintained table [A5,C7]. */
 import {
   readFileSync,
