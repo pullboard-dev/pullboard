@@ -143,11 +143,14 @@ assert.equal(isStampedGreen(root),false);
 `);
     assert.equal(result.status, 0, result.context);
     assert.deepEqual(readdirSync(box.marks).sort(), NAMES.map(name => `${name}.json`));
+    const versions = new Set();
     for (const file of readdirSync(box.marks)) {
       const observation = JSON.parse(readFileSync(join(box.marks, file), 'utf8'));
       assert.ok(Number.isSafeInteger(observation.pid) && observation.pid > 0);
       assert.match(observation.node, /^v\d+\./u);
+      versions.add(observation.node);
     }
+    console.log(`private simulated release: eight test bodies observed Node ${[...versions].sort().join(', ')}; no physical eight-host claim`);
     const calls = readFileSync(box.requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
     assert.deepEqual([...new Set(calls.map(call => call.host))].sort(), Object.keys(box.workers).sort());
   });

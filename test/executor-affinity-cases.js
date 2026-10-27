@@ -79,7 +79,7 @@ test('a constrained landing refuses SSH affinity before invoking its action [E27
   config.landing = { environment: { platform: process.platform, arch: process.arch, node: process.versions.node } };
   writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
   box.git(box.repo, 'add', 'pullboard.json');
-  box.git(box.repo, 'commit', '-q', '-m', 'test: constrain private landing [E27]');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: constrain private landing');
   const joined = box.run(box.repo, 'settings', 'landing.pool', 'on', '--json');
   assert.equal(joined.code, 0, joined.err);
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', `
