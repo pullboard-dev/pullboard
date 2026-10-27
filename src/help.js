@@ -51,7 +51,8 @@ Set up
                                         items, shouts, doctrine, agents and activity; --port 0 chooses a free port
                                         --project limits this view to the registered project for this repository
                                         add items, shout and hold lanes from it
-  pullboard view --export <dir>         a read-only snapshot with event replay, for any static host
+  pullboard view --export <dir> [--public]  a read-only snapshot with event replay, for any static host
+                                        --public requires a checked public filter
   pullboard serve [--port N]           local API v1: boards, state, moves, requests and live events,
                                         behind the session secret in its printed address
   pullboard mcp                        MCP tools over stdio for this worktree's agent, started by its MCP client:
@@ -424,7 +425,7 @@ const HELP_ALIASES = {
   relay: { source: 'relay', every: true },
   lifecycle: { usage: 'pullboard lifecycle', source: null },
   escalate: { usage: 'pullboard escalate <id> --note "..." [--note-file <file>]', source: 'escalate <id> --note "what was tried and how it failed"', extraFlags: ['--note-file <file>'] },
-  'view export': { usage: 'pullboard view --export <dir>', source: 'view' },
+  'view export': { usage: 'pullboard view --export <dir> [--public]', source: 'view' },
   blueprint: { usage: 'pullboard blueprint add <name or file>, then a seat runs pullboard blueprint fit <name or file> <row id or #item> keep|adapt|drop|answer, then the person runs pullboard spec fit approve <batch>', source: 'blueprint add' },
   'blueprint add': { usage: 'pullboard blueprint add <name or file> [--blueprint <name or file>]...', source: 'blueprint add' },
   'blueprint fit': { usage: 'pullboard blueprint fit <name or file> <row id or #item> keep|adapt|drop|answer [--text "..."] [--reason "why"]', source: null, onlyFlags: ['--text', '--reason'] },

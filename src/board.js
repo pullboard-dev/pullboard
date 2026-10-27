@@ -1935,10 +1935,10 @@ export function buildOrder(board, { warm = [], agentId, readiness = barReadyForO
  * and `shared` names them (N20). A held lane offers nothing new (N22). A verifier is never offered `skipIds` (#973; engine 69, so older replays carry none).
  *
  * @param {any} board
- * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], omitIds?: number[] }} who
+ * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], omitIds?: number[], afterRelease?: number }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
-export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [] }) {
+export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease }) {
   const focusCompare = focusOrder(board, () => 0);
   const route = routeOf(board, agentId);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
@@ -1988,7 +1988,9 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
       ...(standingRefusal ? [standingRefusal.message] : []), ...requiredRefusals.map(error => error.message), ...held, ...cooling] };
   }
   const held = items.find((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null);
-  if (held) return { item: held, reasons: [] };
+  // Read-only build planning may disregard exactly this caller's claim; the ordered claim transition still enforces ONE_CLAIM.
+  const plannedRelease = held && held.item_id === afterRelease ? held.item_id : null;
+  if (held && plannedRelease === null) return { item: held, reasons: [] };
   const selectedLanes = new Set(lanes ?? [lane]);
   const reasons = allItems.filter((entry) => entry.item_status === 'open' && selectedLanes.has(entry.item_lane) && entry.item_hold_reason)
     .map((entry) => `#${entry.item_id} is held by coordinator: ${entry.item_hold_reason}`);
@@ -1999,7 +2001,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     if (hold) { selectedLanes.delete(name); reasons.push(`${hold.hold_by} holds the ${name} lane: ${hold.hold_reason}`); }
   }
   const compare = buildOrder(board, { warm, agentId, tierFirst: true });
-  const inFlight = listItems(board, { all: true });
+  const inFlight = listItems(board, { all: true }).filter(entry => entry.item_id !== plannedRelease);
   const recent = new Set(warm);
   const mainRed = new Set(priority);
   const laneItems = items.filter((entry) => entry.item_status === 'open' && selectedLanes.has(entry.item_lane));
