@@ -1,5 +1,12 @@
-import { dirname, join } from 'node:path';
-import { headCommit, headTree, isClean } from './git.js';
+import {
+  dirname,
+  join,
+} from 'node:path';
+import {
+  headCommit,
+  headTree,
+  isClean,
+} from './git.js';
 /** Keep deferred landing execution, native refusals and durable diagnostics under one admitted lease [C7]. */
 import {
   runProfiledShell,
