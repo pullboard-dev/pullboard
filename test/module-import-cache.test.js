@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 import { test } from 'node:test';
-import { commonJsIn, importsIn, withImportParseCache } from '../src/module-imports.js';
+import { commonJsIn, importsIn } from '../src/module-imports.js';
+import { withImportParseCache } from '../src/module-import-cache.js';
 
 /** Count real parser subprocesses without substituting any successful compiler outcome. */
 function compilerCalls(t) {
@@ -75,5 +76,22 @@ test('a subprocess error is not a cached compiler observation [C7]', t => {
     assert.throws(() => importsIn([SOURCE]), /private compiler transport failed/u);
     assert.deepEqual(importsIn([SOURCE]), [['./leaf.js']]);
     assert.equal(calls, 2);
+  });
+});
+
+
+test('the real browser-slot preload retains census reuse while opaque options still invalidate it [C7,O5]', t => {
+  const calls = compilerCalls(t);
+  const before = process.env.NODE_OPTIONS;
+  t.after(() => { if (before === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = before; });
+  process.env.NODE_OPTIONS = `--import=${new URL('../src/browser-slot-guard.js', import.meta.url).href}`;
+  withImportParseCache(() => {
+    assert.deepEqual(importsIn([SOURCE]), [['./leaf.js']]);
+    assert.deepEqual(importsIn([SOURCE]), [['./leaf.js']]);
+    assert.equal(calls(), 1, 'the actual owned browser-slot preload keeps real compilation reuse');
+    process.env.NODE_OPTIONS = '--no-warnings';
+    importsIn([SOURCE]);
+    importsIn([SOURCE]);
+    assert.equal(calls(), 3, 'changed opaque options force fresh real compiler executions inside the same census');
   });
 });

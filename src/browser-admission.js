@@ -16,8 +16,8 @@ import {
 import {
   commonJsIn,
   importsIn,
-  withImportParseCache,
 } from './module-imports.js';
+import { withImportParseCache } from './module-import-cache.js';
 import {
   cleanGitEnvironment,
   git,

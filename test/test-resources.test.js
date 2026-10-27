@@ -189,12 +189,12 @@ test('module launchers and dynamic builtins keep browser admission conservative 
   assert.equal(parserBrowser, false,
     'the reviewed V8 compile-only import parser may use node:vm without evaluating the test graph');
   assert.deepEqual(parserFallbacks, [], 'the positive control inspects the real complete parser closure');
-  rmSync(join(root, 'src/js-lex.js'));
+  rmSync(join(root, 'src/module-import-cache-state.js'));
   const missingFallbacks = [];
   assert.equal(await testsNeedBrowser(root, ['test/parser.test.js'], { onFallback: decision => missingFallbacks.push(decision) }), true,
     'a missing real parser helper remains conservative, rather than receiving the compile-only exception');
   assert.ok(missingFallbacks.some(decision => decision.file === 'src/module-imports.js'
-    && decision.reason === 'import ./js-lex.js is missing or ambiguous'));
+    && decision.reason === 'import ./module-import-cache-state.js is missing or ambiguous'));
 });
 
 test('only actual CommonJS loader words trigger browser admission in JavaScript source [C7]', async t => {
