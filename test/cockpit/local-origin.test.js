@@ -1310,11 +1310,16 @@ test('a browser paired here before says it was signed out above this computer\'s
   const relay = createRelayBrowserHandler({ authenticate: async () => { throw new Refused('AUTH_REQUIRED', 'Sign in.'); } });
   let view, chrome, listener;
   const failures = [];
+  const failedLoads = new Map(), failedRequests = [];
   try {
     view = await startView(box);
     chrome = await openSnapshotChrome(executable, 'about:blank', profile);
     listener = ({ data }) => {
       const message = JSON.parse(String(data));
+      if (message.method === 'Network.loadingFailed') {
+        failedLoads.set(message.params.requestId, { canceled: message.params.canceled === true, errorText: message.params.errorText });
+        return;
+      }
       if (message.method !== 'Fetch.requestPaused') return;
       const { requestId, request: asked } = message.params;
       const address = new URL(asked.url);
@@ -1328,7 +1333,11 @@ test('a browser paired here before says it was signed out above this computer\'s
         if (!handled) return chrome.send('Fetch.failRequest', { requestId, errorReason: 'Failed' });
         const policy = head['content-security-policy'].replace("connect-src 'self'", "connect-src 'self' " + view.base);
         return chrome.send('Fetch.fulfillRequest', { requestId, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: head['content-type'] }, { name: 'Cache-Control', value: 'no-store' }, { name: 'Content-Security-Policy', value: policy }], body: Buffer.from(body).toString('base64') });
-      })().catch((error) => failures.push(error.message));
+      })().catch((error) => {
+        failures.push(error.message);
+        failedRequests.push({ networkId: message.params.networkId ?? null, method: asked.method,
+          kind: address.pathname.startsWith('/api/') ? 'api' : 'page' });
+      });
     };
     chrome.socket.addEventListener('message', listener);
     await chrome.send('Fetch.enable', { patterns: [{ urlPattern: HOSTED + '/*', requestStage: 'Request' }, { urlPattern: LOCAL + '/*', requestStage: 'Request' }] });
@@ -1353,7 +1362,8 @@ test('a browser paired here before says it was signed out above this computer\'s
     await chrome.waitFor("location.search === '?fresh' && document.querySelector('#chain')?.textContent.includes('A board on this computer')", 45_000); // budget: hang ceiling for a hosted load with its local round trip.
     const fresh = JSON.parse(await chrome.stable(note));
     assert.notEqual(fresh.state, 'signed-out-paired', 'a browser that never paired here sees only this computer\'s boards');
-    assert.deepEqual(failures, []);
+    assert.deepEqual(failures, [], 'reported network failures: ' + JSON.stringify(failedRequests.map(entry =>
+      ({ ...entry, loadingFailed: failedLoads.get(entry.networkId) ?? null }))));
   } finally {
     try { if (chrome) { if (listener) chrome.socket.removeEventListener('message', listener); await closeSnapshotChrome(chrome); } }
     finally {
