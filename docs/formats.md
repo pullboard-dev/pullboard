@@ -461,6 +461,7 @@ The computed-grant engine adds `grantEngine` to new join, claim and renewal even
 | `reserve` | reviewer | `until` |
 | `accept` | reviewer | `reason`, `commit`, engine-20 `implies`, engine-33 `review`, engine-68 `note` |
 | `reject` | reviewer | `reason`, `commit`, engine-20 `implies`, engine-30 `cause`, engine-33 `review`, automatic-Rigor `causeDerivation` |
+| `reject_returned` | coordinator | `rejection`, `builder`, `commit`, `note`, `reason`, `engine`, inactive `presence`, `heartbeatAt`, `observedAt` |
 | `reopen` | coordinator, or reviewer | `commit`, `note`, `judgment`, engine-10 `supersedes`, `landingFailure`, engine-30 `cause`, engine-52 `conflict`, `withdrawnVerdict`, automatic-Rigor `causes`, `causeDerivation` |
 | `merged` | coordinator | `commit` |
 | `landing_batch` | coordinator | `batch` |
@@ -803,3 +804,9 @@ The coordinator answers a batch through `answerTypedRequests`; the whole batch v
 A routed complete native audit failure earns a value-rule catch before its repair is green. The catch retains the exact recorded gate receipt, audit batch, committed test blob, failing name and repair item; it never invents a green repair. In-process CLI calls and source-path references alone are contracts, while actual CLI child launches and undeclared reach remain journeys. Placement refresh can therefore promote a valuable catching contract back to submit or landing.
 
 A known-reach contract starts at reach-selected landing while its value observations are unknown; the report retains null rates and runtime rather than inventing measurements. Measured value then determines submit, landing or audit placement. Product-area count alone never makes a journey. Only actual CLI child boundaries and undeclared reach force the audit tier.
+
+### Unattended rejected work
+
+The `REJECTED_WORK_RETURN_ENGINE` leaf fences `recordHealthFindings` with `returnRejected: true`. Only the coordinator may set this option. A scan binds its event revision and the exact latest open, unheld reject episode; a changed episode refuses `HEALTH_SCAN_STALE`. Ten-minute eligibility is computed from the recorded reject instant. Earlier returns carry the coordinator's sender-checked inactive-seat observation; no receiver consults local presence to replay it. Older engines refuse the option rather than ignoring its effects.
+
+A `reject_returned` event records `rejection` (the exact reject event ID), `builder`, `commit`, the original reviewer `note`, `reason` (`timeout` or `inactive`) and `engine`. An `inactive` receipt also retains `presence`, `heartbeatAt` (nullable) and `observedAt`. This receipt releases only the named reject episode's original-builder reservation, without changing lifecycle state or bypassing any other claim guard. Replayed and repeated receipts preserve that single return; later reject episodes retain their own reservation.
