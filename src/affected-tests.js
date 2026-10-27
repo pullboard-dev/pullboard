@@ -4,6 +4,7 @@ import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
 import { cleanGitEnvironment } from './git.js';
+import { repositoryImport } from './import-map.js';
 import {
   COMMAND_CANDIDATE,
   ENGINE_CANDIDATE,
@@ -167,8 +168,8 @@ function modulesAt(root, commit) {
   });
   const entries = tracked.filter(entry => MODULE.test(entry.path));
   // V8 compiles a require() expression as ESM too, but cannot supply its CommonJS edges.
+  const policy = JSON.parse(selectionGit(root, ['show', `${commit}:package.json`]));
   if (entries.some(entry => entry.path.endsWith('.js'))) {
-    const policy = JSON.parse(selectionGit(root, ['show', `${commit}:package.json`]));
     if (policy.type !== 'module' || tracked.some(entry => entry.path.endsWith('/package.json'))) {
       throw new Error('CommonJS or nested package scopes cannot supply a complete ES-module import graph');
     }
@@ -178,7 +179,7 @@ function modulesAt(root, commit) {
   }
   const blobs = new Map(tracked.map(entry => [entry.path, entry.hash]));
   const unsafeInputs = new Set(tracked.filter(entry => entry.mode === '120000' || entry.type !== 'blob').map(entry => entry.path));
-  if (!entries.length) return { modules: new Map(), blobs, unsafeInputs };
+  if (!entries.length) return { modules: new Map(), blobs, unsafeInputs, importMap: policy.imports ?? {} };
   const hashes = [...new Set(entries.map(entry => entry.hash))];
   const result = spawnSync('git', ['--no-replace-objects', 'cat-file', '--batch'], {
     cwd: root, env: cleanGitEnvironment(), input: hashes.join('\n') + '\n', maxBuffer: 128 * 1024 * 1024,
@@ -195,7 +196,7 @@ function modulesAt(root, commit) {
     sources.set(hash, result.stdout.subarray(at, at + size).toString('utf8'));
     at += size + 1;
   }
-  return { modules: new Map(entries.map(entry => [entry.path, sources.get(entry.hash)])), blobs, unsafeInputs };
+  return { modules: new Map(entries.map(entry => [entry.path, sources.get(entry.hash)])), blobs, unsafeInputs, importMap: policy.imports ?? {} };
 }
 
 /**
@@ -294,7 +295,7 @@ function knownBuiltinUtilities(sources, imports) {
 
 /** Compile this tree's import edges, plus the literal child-CLI dependency used by fixture modules. */
 function graphAt(root, commit, changedDocs = []) {
-  const { modules, blobs, unsafeInputs } = modulesAt(root, commit);
+  const { modules, blobs, unsafeInputs, importMap } = modulesAt(root, commit);
   const paths = [...modules.keys()];
   const sources = [...modules.values()];
   const imports = importsIn(sources);
@@ -360,12 +361,18 @@ function graphAt(root, commit, changedDocs = []) {
       }
       // The command registry loads its sibling modules by discovery; synthetic edges below stand for those imports (#804).
       if (target === '(computed)' && path === COMMAND_REGISTRY) continue;
-      if (!target.startsWith('.')) {
+      if (!target.startsWith('.') && !target.startsWith('#')) {
         unknown.set(path, target === '(computed)' ? 'non-literal dynamic import' : 'unresolved package import');
         continue;
       }
-      const dependency = posix.normalize(posix.join(posix.dirname(path), target.split(/[?#]/u)[0]));
-      if (dependency.startsWith('../')) { unknown.set(path, 'import outside the repository'); continue; }
+      const dependency = repositoryImport(path, target, importMap);
+      if (!dependency || (target.startsWith('#') && !modules.has(dependency))) {
+        unknown.set(path, 'unresolved repository import'); continue;
+      }
+      if (target.startsWith('#')) {
+        if (!reverse.has('package.json')) reverse.set('package.json', new Set());
+        reverse.get('package.json').add(path);
+      }
       if (!reverse.has(dependency)) reverse.set(dependency, new Set());
       reverse.get(dependency).add(path);
     }
@@ -426,7 +433,7 @@ function closuresInGraph(graph) {
     // The test and the test/ helpers it reaches without passing through product code: its own test-side reads.
     const helpers = new Set([test]);
     for (const path of helpers) {
-      for (const dependency of forward.get(path) ?? []) if (dependency.startsWith('test/')) helpers.add(dependency);
+      for (const dependency of forward.get(path) ?? []) if (dependency.startsWith('test/') || /^(?:packages|apps)\/[^/]+\/tests\//u.test(dependency)) helpers.add(dependency);
     }
     closures.set(test, reason ? { files: null, reason } : { files: [...reached].sort(), helpers: [...helpers].sort(), reason: '' });
   }
@@ -497,8 +504,8 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
         }
       }
     }
-    const changedTestInput = changed.some(path => path.startsWith('test/') || TEST.test(path) || /^test\.[cm]?js$/u.test(path));
-    const changedSourceInput = changed.some(path => path.startsWith('src/') || path.startsWith('bin/'));
+    const changedTestInput = changed.some(path => path.startsWith('test/') || /^(?:packages|apps)\/[^/]+\/tests\//u.test(path) || TEST.test(path) || /^test\.[cm]?js$/u.test(path));
+    const changedSourceInput = changed.some(path => /^(?:src|bin|packages|apps)\//u.test(path));
     // An opaque loader may read any changed dependency: retain its roots without inventing missing edges.
     const unknownRoots = new Map();
     for (const graph of [before, after]) {
